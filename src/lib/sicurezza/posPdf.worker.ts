@@ -9,6 +9,7 @@
 import pdfMake from "pdfmake/build/pdfmake.min.js";
 import vfs from "pdfmake/build/vfs_fonts.js";
 import { disegnaPdfPos, type ParametriDisegnoPos } from "../../../supabase/functions/_shared/posPdfBrowser";
+import { registraFontPos } from "../../../supabase/functions/_shared/posFont";
 
 export type MessaggioPdfWorker =
   | { tipo: "pronto" }
@@ -16,6 +17,8 @@ export type MessaggioPdfWorker =
   | { tipo: "errore"; messaggio: string };
 
 pdfMake.addVirtualFileSystem(vfs);
+// Le caselle del modello (☐ ☒) hanno un mini-font proprio, come sul server (posPdf.ts).
+registraFontPos(pdfMake);
 
 // Tipo minimo del worker: niente lib «webworker» che si mescolerebbe al DOM dell'app.
 const ctx = self as unknown as {

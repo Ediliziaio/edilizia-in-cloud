@@ -9,7 +9,7 @@ import { anteprimaPdfConBrowser, emettiPdfConBrowser, ErroreAnnullato, ErroreDis
 
 const html = "<html>modello àèìòù — POS</html>";
 const sha256 = (v: string | Uint8Array) => createHash("sha256").update(v).digest("hex");
-const prenotazione = { ok: true, emissione_id: "emissione-1", token: "token-1", emesso_il: "2026-10-30T10:00:00+00:00", html, layout: "pos-pdf-9-riferimento-psc", codice: "ORD-1", revisione: 2 };
+const prenotazione = { ok: true, emissione_id: "emissione-1", token: "token-1", emesso_il: "2026-10-30T10:00:00+00:00", html, layout: "pos-pdf-10-design", codice: "ORD-1", revisione: 2 };
 const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 1, 2, 3]);
 /** I byte di un Blob, letti con le API di jsdom (quelle di Node non lo conoscono). */
 const leggiByte = (b: Blob) => new Promise<Uint8Array>((ok, ko) => { const l = new FileReader(); l.onload = () => ok(new Uint8Array(l.result as ArrayBuffer)); l.onerror = () => ko(l.error); l.readAsArrayBuffer(b); });
@@ -33,9 +33,9 @@ describe("Approvazione con il PDF disegnato dal browser", () => {
     const { dip, chiamate, fasi, opzioni } = prova();
     const r = await emettiPdfConBrowser(dip, richiesta, opzioni());
     expect(chiamate).toEqual([{ azione: "prepara_emissione", company_id: "azienda-a", pos_id: "pos-1", attesa_updated_at: "2026-10-30T09:00:00Z" }]);
-    expect(dip.disegna).toHaveBeenCalledWith({ html, codice: "ORD-1", revisione: 2, emessoIl: "2026-10-30T10:00:00+00:00", anteprima: false, layoutServer: "pos-pdf-9-riferimento-psc" }, undefined);
+    expect(dip.disegna).toHaveBeenCalledWith({ html, codice: "ORD-1", revisione: 2, emessoIl: "2026-10-30T10:00:00+00:00", anteprima: false, layoutServer: "pos-pdf-10-design" }, undefined);
     expect(dip.carica).toHaveBeenCalledWith({ azione: "completa_emissione", company_id: "azienda-a", emissione_id: "emissione-1", token: "token-1",
-      pdf_sha256: sha256(pdf), html_sha256: sha256(html), layout: "pos-pdf-9-riferimento-psc" }, pdf);
+      pdf_sha256: sha256(pdf), html_sha256: sha256(html), layout: "pos-pdf-10-design" }, pdf);
     expect(r).toEqual({ emissioneId: "emissione-1", approvatoDaNome: "Mario Rossi" });
     expect(fasi).toEqual(["prepara", "disegna", "conserva"]);
   });
@@ -130,13 +130,13 @@ describe("Annullare mentre il PDF si prepara", () => {
 });
 
 describe("Anteprima con il PDF disegnato dal browser", () => {
-  const anteprima = { ok: true, html, layout: "pos-pdf-9-riferimento-psc", codice: "ORD-1", revisione: 0, emessoIl: "2026-10-30T10:05:00Z" };
+  const anteprima = { ok: true, html, layout: "pos-pdf-10-design", codice: "ORD-1", revisione: 0, emessoIl: "2026-10-30T10:05:00Z" };
 
   it("chiede l'HTML della bozza al server, lo disegna con la filigrana (la data è quella del server) e restituisce un PDF da aprire", async () => {
     const { dip, chiamate, fasi, opzioni } = prova({ chiama: () => anteprima });
     const blob = await anteprimaPdfConBrowser(dip, { companyId: "azienda-a", posId: "pos-1" }, opzioni());
     expect(chiamate).toEqual([{ azione: "anteprima_html", company_id: "azienda-a", pos_id: "pos-1" }]);
-    expect(dip.disegna).toHaveBeenCalledWith({ html, codice: "ORD-1", revisione: 0, emessoIl: "2026-10-30T10:05:00Z", anteprima: true, layoutServer: "pos-pdf-9-riferimento-psc" }, undefined);
+    expect(dip.disegna).toHaveBeenCalledWith({ html, codice: "ORD-1", revisione: 0, emessoIl: "2026-10-30T10:05:00Z", anteprima: true, layoutServer: "pos-pdf-10-design" }, undefined);
     expect(blob.type).toBe("application/pdf");
     expect(await leggiByte(blob)).toEqual(pdf);
     expect(fasi).toEqual(["prepara", "disegna"]);

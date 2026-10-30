@@ -2,6 +2,7 @@ import vfs from "pdfmake-fonts";
 import { create } from "fontkit";
 import { Buffer } from "node:buffer";
 import { sha256Hex } from "./improntaDocumento.ts";
+import { FONT_CASELLE_BASE64 } from "./posFontCaselle.ts";
 
 /**
  * Il controllo dei glifi e l'impronta dei font, separati dal disegno: la preparazione di un PDF che disegna il browser
@@ -25,4 +26,8 @@ export function verificaGlifiPos(testo: string): void {
 }
 
 /** I font con cui si disegna: stessi byte per il server e per il browser (pdfmake è fissato alla stessa versione). */
-export const fontsRiferimentoPos = () => Promise.all(fonts.map(async nome => ({ nome, sha256: await sha256Hex(Buffer.from(vfs[nome], "base64")) })));
+export const fontsRiferimentoPos = async () => [
+  ...await Promise.all(fonts.map(async nome => ({ nome, sha256: await sha256Hex(Buffer.from(vfs[nome], "base64")) }))),
+  // Il mini-font delle caselle (posFont.ts): lo registrano allo stesso modo il server e il Worker del browser.
+  { nome: "PosCaselle.ttf", sha256: await sha256Hex(Buffer.from(FONT_CASELLE_BASE64, "base64")) },
+];

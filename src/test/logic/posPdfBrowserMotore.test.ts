@@ -17,7 +17,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("Il motore del browser (pdfmake 0.3.9 del client)", () => {
   it("disegna un PDF intero (intestazione e coda), con il layout del server", async () => {
-    const pdf = await disegnaPdfPosNelBrowser({ ...base, layoutServer: "pos-pdf-9-riferimento-psc" });
+    const pdf = await disegnaPdfPosNelBrowser({ ...base, layoutServer: "pos-pdf-10-design" });
     expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe("%PDF-");
     expect(new TextDecoder("latin1").decode(pdf.slice(-1024))).toContain("%%EOF");
   }, 60_000);

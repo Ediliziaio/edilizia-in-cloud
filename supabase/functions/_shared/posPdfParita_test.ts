@@ -5,6 +5,7 @@ import vfsServer from "pdfmake-fonts";
 import pdfMakeClient from "npm:pdfmake@0.3.9/build/pdfmake.min.js";
 import vfsClient from "npm:pdfmake@0.3.9/build/vfs_fonts.js";
 import { esempioPdfPos } from "../../../src/test/fixtures/posEsempioPdf.ts";
+import { registraFontPos } from "./posFont.ts";
 import { costruisciHtmlPos } from "./posHtml.ts";
 import { disegnaPdfPos } from "./posPdfBrowser.ts";
 import { generaPdfPos } from "./posPdf.ts";
@@ -19,12 +20,15 @@ import { sha256Hex } from "./improntaDocumento.ts";
 pdfMakeServer.addVirtualFileSystem(vfsServer);
 // deno-lint-ignore no-explicit-any
 (pdfMakeClient as any).addVirtualFileSystem(vfsClient);
+// Come il Worker del browser: il mini-font delle caselle (posFont.ts).
+// deno-lint-ignore no-explicit-any
+registraFontPos(pdfMakeClient as any);
 
 Deno.test("Parità: il bundle minificato del client disegna gli stessi byte del server, senza legame", async () => {
   const dati = esempioPdfPos();
   const emessoIl = "2026-10-26T12:00:00Z";
   const dalServer = (await generaPdfPos(dati, emessoIl)).bytes;
-  const base = { html: costruisciHtmlPos(dati), codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione, emessoIl, anteprima: false };
+  const base = { html: costruisciHtmlPos({ ...dati, emessoIl }), codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione, emessoIl, anteprima: false };
   // deno-lint-ignore no-explicit-any
   const dalClient = await disegnaPdfPos(pdfMakeClient as any, base);
   assert.equal(await sha256Hex(dalClient), await sha256Hex(dalServer));

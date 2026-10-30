@@ -19,6 +19,7 @@ Disallow: /tecnico/
 Disallow: /campo/
 Disallow: /login
 Disallow: /accetta-preventivo/
+Disallow: /verifica-pos/
 Disallow: /preventivo/
 Disallow: /offerta/
 Disallow: /firma/

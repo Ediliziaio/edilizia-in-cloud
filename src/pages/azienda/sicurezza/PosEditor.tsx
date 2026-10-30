@@ -43,7 +43,13 @@ import {
   completezzaPercento, vociMancanti,
   type Lavorazione, type PosContenuto, type SezionePos, type VoceMancante,
 } from "../../../../supabase/functions/_shared/posModello";
-import { Campo } from "@/components/sicurezza/pos/campi";
+import { AperturaSezioniContext, Campo } from "@/components/sicurezza/pos/campi";
+import { CosaManca } from "@/components/sicurezza/pos/CosaManca";
+import { InvioPos, useIncaricoCse, type DestinatarioPos } from "@/components/sicurezza/pos/InvioPos";
+import { CopiaFirmataSezione } from "@/components/sicurezza/pos/CopiaFirmataPos";
+import { useEmissioniPos } from "@/hooks/useEmissioniPos";
+import { BarraSezioniPos, NavSezioniPos, type VoceMenuSezione } from "@/components/sicurezza/pos/MenuSezioniPos";
+import { useSezioniApertePos, useStickyNelDocumento } from "@/components/sicurezza/pos/useSezioniPos";
 import {
   SezioneAllegati, SezioneEmergenze, SezioneFigure, SezioneFormazione, SezioneImpresa, SezioneLavorazioni,
   SezioneLavoratori, SezioneOpera, SezionePsc, SezioneRumore, type Modifica,
@@ -62,6 +68,9 @@ const SEZIONI: Array<{ id: SezionePos | "iter"; titolo: string }> = [
   { id: "allegati", titolo: "Allegati" },
   { id: "iter", titolo: "Firme e consegna" },
 ];
+
+/** Le sezioni dell'editor che si aprono e si chiudono (la «Firme e consegna» è sempre aperta). */
+const IDS_SEZIONI_APRIBILI = SEZIONI.filter((x) => x.id !== "iter").map((x) => x.id);
 
 const vaiA = (id: string) => document.getElementById(`pos-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -196,6 +205,15 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
     return m;
   }, [mancanti]);
   const percento = completezzaPercento(bozza);
+  // Alla prima apertura restano aperte le sezioni con qualcosa da fare; un POS già approvato (sola lettura) si legge tutto aperto.
+  const sezioniApertura = useSezioniApertePos(IDS_SEZIONI_APRIBILI, (id) => ro || (perSezione.get(id) ?? 0) > 0);
+  const radiceEditor = useRef<HTMLDivElement>(null);
+  useStickyNelDocumento(radiceEditor);
+  const vaiASezione = useCallback((id: string) => {
+    sezioniApertura.apri(id);
+    requestAnimationFrame(() => requestAnimationFrame(() => vaiA(id)));
+  }, [sezioniApertura]);
+  const sezioniMenu: VoceMenuSezione[] = SEZIONI.map((x) => ({ id: x.id, titolo: x.titolo, mancanti: x.id === "iter" ? undefined : (perSezione.get(x.id) ?? 0) }));
 
   const salvaOra = useCallback(async () => {
     if(salvando.current) return false;
@@ -298,13 +316,37 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
   const titoloCommessa = [pos.commessa?.order_code, pos.commessa?.description].filter(Boolean).join(" — ") || "Commessa";
   const subappalto = bozza.impresa.ruolo === "esecutrice_subappalto";
   const conCse = bozza.procedure_psc.psc_presente;
+  // L'invio del POS parte dal PDF approvato della revisione corrente; il CSE della commessa precompila il destinatario.
+  const emissioni = useEmissioniPos(companyId || pos.company_id, pos.id, approvato && puoScrivere);
+  const emissioneCorrente = emissioni.data?.find((e) => e.stato === "completa" && e.revisione === pos.revisione) ?? null;
+  const cse = useIncaricoCse(companyId || pos.company_id, pos.order_id, approvato && puoScrivere && conCse);
+  const indirizzoCantiere = [bozza.opera.cantiere.via, [bozza.opera.cantiere.localita, bozza.opera.cantiere.provincia ? `(${bozza.opera.cantiere.provincia})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  /** A invio riuscito: la data entra nelle date della consegna e si salva subito (è un fatto già avvenuto, non una bozza). */
+  const registraInvio = async (tipo: DestinatarioPos, quando: string) => {
+    const nuovo: IterPos = { ...iter, [tipo === "cse" ? "cse_inviato_il" : "affidataria_inviato_il"]: quando };
+    try {
+      const aggiornato = await salva.mutateAsync({ iter: nuovo, attesa_updated_at: versioneLetta.current });
+      versioneLetta.current = aggiornato.updated_at;
+      setIter(nuovo);
+      toast.success("Invio registrato: da oggi corrono i 15 giorni per la verifica");
+    } catch {
+      // Il salvataggio ha già mostrato il suo errore: la data resta nella bozza della consegna, da salvare.
+      setIter(nuovo); setIterSporco(true);
+    }
+  };
+  const invio = (tipo: DestinatarioPos) => (
+    <InvioPos tipo={tipo} companyId={companyId || pos.company_id} orderId={pos.order_id} emissioneId={emissioneCorrente?.id ?? null}
+      codice={pos.commessa?.order_code || "POS"} revisione={pos.revisione} impresa={bozza.impresa.ragione_sociale} cantiere={indirizzoCantiere}
+      nomeIniziale={tipo === "cse" ? (cse.data?.nome ?? "") : bozza.impresa.subappalto_a} emailIniziale={tipo === "cse" ? (cse.data?.email ?? "") : ""}
+      disabilitato={sporco || iterSporco || salva.isPending} onInviato={(t, q) => void registraInvio(t, q)} />
+  );
   // Art. 101 c. 3: con una verifica negativa i lavori non possono iniziare, anche se il POS è approvato nell'app.
   const verificaNegativa = verificaIterNegativa(bozza, iter);
   const statoTesto = approvato ? (verificaNegativa ? "Approvato, verifica negativa" : "Approvato") : "Bozza";
   const baseProps = { d: bozza, modifica, ro };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 pb-28">
+    <div ref={radiceEditor} className="mx-auto max-w-6xl space-y-4 pb-28">
       {/* Intestazione. Mobile: senza riquadro e senza il secondo «indietro»
           (c'è la freccia della barra in alto); stampa e riallineo coi dati
           dell'app restano al computer, «Approva» resta. */}
@@ -372,7 +414,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
           </div>
         </div>
 
-        <div className="mt-4 space-y-1.5 max-sm:mt-2">
+        <div className="mt-4 space-y-1.5 max-lg:hidden">
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium">Contenuti minimi dell'Allegato XV</span>
             {mancanti.length ? (
@@ -394,6 +436,10 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
         {!puoScrivere && <p className="mt-3 text-xs text-muted-foreground">Sei in sola lettura.</p>}
       </div>
 
+      <BarraSezioniPos sezioni={sezioniMenu} onVai={vaiASezione} percento={percento} mancantiTotali={mancanti.length}
+        onMostraMancanti={() => setMancantiServer(mancanti)}
+        onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
+
       {erroreApprovazione&&<div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm"><p className="font-medium">POS non approvato</p><p>{erroreApprovazione}</p></div>}
 
       {avvisi.length > 0 && (
@@ -407,26 +453,11 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
       <EmissioniPos key={`${companyId}:${pos.id}`} companyId={companyId||pos.company_id} posId={pos.id} approvato={approvato}/>
 
       <div className="grid gap-4 lg:grid-cols-[200px_1fr]">
-        {/* Navigazione fra le sezioni */}
-        <nav aria-label="Sezioni del POS" className="hidden lg:block">
-          <ol className="sticky top-20 space-y-0.5 rounded-xl border bg-card p-2 text-sm">
-            {SEZIONI.map((s, i) => {
-              const n = perSezione.get(s.id) ?? 0;
-              return (
-                <li key={s.id}>
-                  <button type="button" onClick={() => vaiA(s.id)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted">
-                    <span className="w-4 text-xs text-muted-foreground">{i + 1}</span>
-                    <span className="min-w-0 flex-1 truncate">{s.titolo}</span>
-                    {s.id !== "iter" && (n > 0
-                      ? <span className="rounded-full bg-amber-100 px-1.5 text-[11px] font-semibold text-amber-900">{n}</span>
-                      : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-label="completa" />)}
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
+        {/* Navigazione fra le sezioni: sul computer di lato (ferma mentre si scorre), altrove la barra in cima */}
+        <NavSezioniPos sezioni={sezioniMenu} onVai={vaiASezione}
+          onComprimiComplete={() => sezioniApertura.comprimiComplete((id) => perSezione.get(id) ?? 0)} onEspandiTutto={sezioniApertura.espandiTutto} />
 
+        <AperturaSezioniContext.Provider value={sezioniApertura}>
         <div className="min-w-0 space-y-4">
           <SezioneOpera {...baseProps} mancanti={perSezione.get("opera") ?? 0} />
           <SezioneImpresa {...baseProps} mancanti={perSezione.get("impresa") ?? 0} />
@@ -462,9 +493,16 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                 <Campo id="iter-rls" label="RLS / RLST consultato il" type="date" value={iter.consultazione_rls_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                   onChange={(v) => modificaIter((x) => ({ ...x, consultazione_rls_il: v || null }))} />
               </div>
+              {approvato && (
+                <CopiaFirmataSezione companyId={companyId || pos.company_id} posId={pos.id} revisione={pos.revisione} emissioneId={emissioneCorrente?.id ?? null} puoCaricare={puoScrivere}
+                  onCaricata={(data) => { if (data && !iter.firma_datore_il) modificaIter((x) => ({ ...x, firma_datore_il: data })); }} />
+              )}
               {subappalto && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
-                  <h3 className="text-sm font-semibold sm:col-span-3">Impresa affidataria: {bozza.impresa.subappalto_a || "da indicare"}</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
+                    <h3 className="text-sm font-semibold">Impresa affidataria: {bozza.impresa.subappalto_a || "da indicare"}</h3>
+                    {approvato && puoScrivere && invio("affidataria")}
+                  </div>
                   <Campo id="iter-aff-inv" label="Consegnato il" type="date" value={iter.affidataria_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     hint={iter.affidataria_inviato_il ? `Verifica entro il ${dataIt(piu15(iter.affidataria_inviato_il))}` : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, affidataria_inviato_il: v || null }))} />
@@ -476,7 +514,10 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               )}
               {conCse && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
-                  <h3 className="text-sm font-semibold sm:col-span-3">Coordinatore per l'esecuzione (CSE)</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
+                    <h3 className="text-sm font-semibold">Coordinatore per l'esecuzione (CSE)</h3>
+                    {approvato && puoScrivere && invio("cse")}
+                  </div>
                   <Campo id="iter-cse-inv" label="Trasmesso il" type="date" value={iter.cse_inviato_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                     hint={iter.cse_inviato_il ? `Verifica entro il ${dataIt(piu15(iter.cse_inviato_il))}` : undefined}
                     onChange={(v) => modificaIter((x) => ({ ...x, cse_inviato_il: v || null }))} />
@@ -499,6 +540,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
             </div>
           </section>
         </div>
+        </AperturaSezioniContext.Provider>
       </div>
 
       {companyId && <StoricoContenutiPos companyId={companyId} posId={pos.id} codiceCommessa={pos.commessa?.order_code} />}
@@ -530,17 +572,16 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
               Un POS senza uno degli elementi dell'Allegato XV è sanzionabile (art. 159 del D.Lgs 81/2008). Completa queste voci, poi approva.
             </DialogDescription>
           </DialogHeader>
-          <ul className="space-y-1.5">
-            {(mancantiServer ?? []).map((v, i) => (
-              <li key={`${v.sezione}-${i}`}>
-                <button type="button" className="w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => { setMancantiServer(null); setTimeout(() => vaiA(v.sezione), 50); }}>
-                  {v.testo}
-                  <span className="ml-1 text-xs text-muted-foreground">({v.riferimento})</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <CosaManca voci={mancantiServer ?? []} lavorazioni={bozza.lavorazioni} ro={ro}
+            onVai={(sezione) => { setMancantiServer(null); vaiASezione(sezione); }}
+            onConfermaProdotti={(ids) => {
+              const applica = (x: PosContenuto) => { for (const l of x.lavorazioni) if (ids.includes(l.id)) l.prodotti_riesaminati = true; };
+              modifica(applica);
+              const dopo = structuredClone(bozza); applica(dopo);
+              const restano = vociMancanti(dopo);
+              setMancantiServer(restano.length ? restano : null);
+              toast.success(ids.length === 1 ? "Elenco dei prodotti confermato" : `Elenco dei prodotti confermato per ${ids.length} lavorazioni`);
+            }} />
         </DialogContent>
       </Dialog>
 
@@ -575,7 +616,7 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                 Sostituisci le attuali
               </Button>
             )}
-            <Button onClick={() => { modifica((x) => { x.lavorazioni.push(...(proposte ?? [])); }); setProposte(null); setTimeout(() => vaiA("lavorazioni"), 50); }}>
+            <Button onClick={() => { modifica((x) => { x.lavorazioni.push(...(proposte ?? [])); }); setProposte(null); vaiASezione("lavorazioni"); }}>
               Aggiungi al POS
             </Button>
           </DialogFooter>

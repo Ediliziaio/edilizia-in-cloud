@@ -28,6 +28,10 @@ vi.mock("@/hooks/usePscCommessa",()=>({usePscCommessa:()=>({data:[] as never[],i
 vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavorazionePos:(): null =>null}));
 vi.mock("@/lib/sicurezza/apriPdfPos",()=>({apriAnteprimaPos:vi.fn()}));
 vi.mock("@/hooks/useAnteprimaPos",()=>({useAnteprimaPos:()=>({apri:stato.apriAnteprima,inCorso:stato.anteprimaInCorso,fase:stato.anteprimaInCorso?stato.fase:null,annulla:stato.annulla})}));
+// L'invio per e-mail ha i suoi test (posInvio.test.tsx): qui basta che il pulsante non pretenda un utente collegato.
+vi.mock("@/components/sicurezza/pos/InvioPos",()=>({InvioPos:(p:{tipo:string;emissioneId:string|null})=><button type="button" data-testid={`invio-${p.tipo}`} disabled={!p.emissioneId}>Invia</button>,useIncaricoCse:()=>({data:null as null})}));
+// Anche la copia firmata ha i suoi test (posCopiaFirmata.test.tsx).
+vi.mock("@/components/sicurezza/pos/CopiaFirmataPos",()=>({CopiaFirmataSezione:():null=>null}));
 vi.mock("@/hooks/useEmissioniPos",()=>({
  useEmissioniPos:()=>({data:[] as never[],isLoading:false,isError:false}),
  useContenutiPerEmissione:()=>({data:[] as never[],isLoading:false,isError:false}),
@@ -269,6 +273,30 @@ describe("approvato ma con una verifica negativa", () => {
     stato.pos = { ...riga(c, "approvato"), iter: { affidataria_esito: "negativo", cse_esito: "negativo" } };
     mostra();
     expect(screen.getByText("Approvato")).toBeTruthy();
+  });
+});
+
+describe("invio del POS a chi lo deve verificare", () => {
+  it("i pulsanti d'invio stanno accanto alla consegna al CSE e all'impresa affidataria, solo in un POS approvato", () => {
+    const c = esempioPdfPos().contenuto; // subappalto con PSC: ci sono entrambi i destinatari
+    stato.pos = riga(c, "approvato");
+    mostra();
+    expect(screen.getByTestId("invio-cse")).toBeTruthy();
+    expect(screen.getByTestId("invio-affidataria")).toBeTruthy();
+    cleanup();
+    stato.pos = riga(c, "bozza");
+    mostra();
+    expect(screen.queryByTestId("invio-cse")).toBeNull();
+    expect(screen.queryByTestId("invio-affidataria")).toBeNull();
+  });
+
+  it("senza CSE né subappalto non c'è nessuno a cui inviarlo", () => {
+    const c = esempioPdfPos().contenuto;
+    c.impresa.ruolo = "affidataria"; c.impresa.subappalto_a = ""; c.procedure_psc.psc_presente = false;
+    stato.pos = riga(c, "approvato");
+    mostra();
+    expect(screen.queryByTestId("invio-cse")).toBeNull();
+    expect(screen.queryByTestId("invio-affidataria")).toBeNull();
   });
 });
 

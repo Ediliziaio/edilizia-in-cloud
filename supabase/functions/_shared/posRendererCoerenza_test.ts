@@ -20,6 +20,8 @@ Deno.test("Coerenza: i font elencati in preparazione sono quelli che il PDF del 
   const attesi = [
     { nome: "Roboto-Regular.ttf", sha256: "ab9c18a75da1636435afd2398ffce325496644a8f258f918c92c4baf34a68625" },
     { nome: "Roboto-Medium.ttf", sha256: "4cb9d8a346d7d9190ef145daad9a85d58e2592043b199cdb8ed52ff535c64047" },
+    // Il mini-font delle caselle (posFont.ts), registrato da server e Worker con registraFontPos.
+    { nome: "PosCaselle.ttf", sha256: "869e16926b85a422fc3582187760805b10e13a83f0c85b3b43019827ab96a647" },
   ];
   assert.deepEqual(await fontsRiferimentoPos(), attesi);
   assert.deepEqual((await generaPdfPos(esempioPdfPos(), "2026-10-26T12:00:00Z")).fonts, attesi);

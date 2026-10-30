@@ -3,20 +3,23 @@ import assert from "node:assert/strict";
 import pdfMake from "pdfmake";
 import vfs from "pdfmake-fonts";
 import { esempioPdfPos } from "../../../src/test/fixtures/posEsempioPdf.ts";
+import { registraFontPos } from "./posFont.ts";
 import { disegnaPdfPos } from "./posPdfBrowser.ts";
 import { preparaEmissioneBrowser } from "./posEmissioneBrowser.ts";
 import { companyId, memoria, posId } from "./posProvaMemoria.ts";
 
 pdfMake.addVirtualFileSystem(vfs);
+// Come il Worker del browser: il mini-font delle caselle (posFont.ts).
+registraFontPos(pdfMake);
 const CONFIG = new URL("../genera-pos/deno.json", import.meta.url).pathname;
 const PROVA = new URL("./posEmissioneBrowserCarico_prova.ts", import.meta.url).pathname;
 
-/** Un POS enorme: 55 lavorazioni con 60 misure ciascuna e 90 operai in formazione. */
+/** Un POS enorme: 140 lavorazioni con 60 misure ciascuna e 90 operai in formazione (col layout del design, più compatto, 55 lavorazioni fanno 73 pagine). */
 function posGrande() {
   const d = esempioPdfPos();
   d.contenuto.allegati = d.contenuto.allegati.map((a, i) => ({ ...a, file_path: `${companyId}/pos/${posId}/${i}.pdf` }));
   const base = d.contenuto.lavorazioni[0];
-  d.contenuto.lavorazioni = Array.from({ length: 55 }, (_, i) => ({ ...structuredClone(base), id: `x${i}`, titolo: `${base.titolo} ${i + 1}`,
+  d.contenuto.lavorazioni = Array.from({ length: 140 }, (_, i) => ({ ...structuredClone(base), id: `x${i}`, titolo: `${base.titolo} ${i + 1}`,
     misure: Array.from({ length: 60 }, (_, k) => `Misura ${i + 1}.${k + 1}: testo di collaudo per verificare la prosecuzione delle righe lunghe fra pagine senza omissioni o sovrapposizioni.`).join("\n") }));
   d.contenuto.formazione = Array.from({ length: 90 }, (_, i) => ({ nominativo: `Operaio ${i + 1}`, qualifica: "Posatore", base: true, rischi_specifici: true, rischi_cantiere: true,
     dpi_terza_categoria: false, verificata: true, altro: "", attestati: "Corso sicurezza generale 8h, ente X, scad. 12/05/2029" }));

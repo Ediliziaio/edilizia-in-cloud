@@ -3,6 +3,7 @@ import { layoutPdfPos } from "./posPdfLayout.ts";
 import { fontsRiferimentoPos, verificaGlifiPos } from "./posGlifi.ts";
 import { LAYOUT_POS_VERSIONE, LIMITE_PDF_BROWSER, VERSIONE_RENDERER_POS_BROWSER } from "./posRenderer.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
+import { urlVerificaEmissionePos } from "./posPacchetto.ts";
 import { strToU8 } from "fflate";
 import {
   conErroreRegistrato, datiEmissionePos, ErroreEmissionePos, pacchettoEmissionePos, prenotaEmissionePos, pubblicaPacchettoEmissione,
@@ -34,7 +35,8 @@ export type PreparazioneBrowser =
 
 /** L'HTML del modello, dopo aver controllato che il PDF si possa disegnare (struttura e glifi): stessi controlli del PDF del server. */
 export function modelloHtmlPos(dati: DatiStampaPos, emessoIl: string, anteprima: boolean): string {
-  const html = costruisciHtmlPos(anteprima ? { ...dati, stato: "bozza" } : dati);
+  // Come generaPdfPos (posPdf.ts): la data di emissione compare in copertina e nel piè di pagina.
+  const html = costruisciHtmlPos(anteprima ? { ...dati, stato: "bozza", emessoIl } : { ...dati, emessoIl });
   verificaGlifiPos(layoutPdfPos(html, dati.codiceCommessa || "Commessa", dati.revisione, emessoIl, anteprima).testo);
   return html;
 }
@@ -55,7 +57,8 @@ export async function preparaEmissioneBrowser(db: Db, userId: string, sorgente: 
     const dati = datiEmissionePos(e, sorgente);
     // Meglio saperlo ora che dopo l'attesa del disegno: una fonte che non torna ferma subito.
     await raccogliFontiEmissione(db, userId, e, sorgente, dati);
-    const html = modelloHtmlPos(dati, e.emesso_il, false);
+    // Il QR di verifica porta all'emissione prenotata: è nell'HTML, quindi anche nel PDF che disegna il browser.
+    const html = modelloHtmlPos({ ...dati, urlVerifica: urlVerificaEmissionePos(e.id) }, e.emesso_il, false);
     return { giaCompleta: false as const, emissioneId: e.id, token: e.token, emessoIl: e.emesso_il, html, layout: LAYOUT_POS_VERSIONE, codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione };
   });
 }
@@ -85,7 +88,7 @@ export async function completaEmissioneBrowser(db: Db, userId: string, c: Comple
     if (c.dichiarato.layout !== LAYOUT_POS_VERSIONE) throw new ErroreEmissionePos("Il PDF è stato disegnato con un modello di stampa diverso da quello del server: aggiorna l'app e riprova", 409);
     const sorgente = await c.sorgente(e);
     const dati = datiEmissionePos(e, sorgente);
-    const html = costruisciHtmlPos(dati);
+    const html = costruisciHtmlPos({ ...dati, emessoIl: e.emesso_il, urlVerifica: urlVerificaEmissionePos(e.id) });
     if (c.dichiarato.htmlSha256.toLowerCase() !== await sha256Hex(strToU8(html))) throw new ErroreEmissionePos("Il POS è cambiato durante la preparazione del PDF: ricaricalo e riprova", 409);
     const fonti = await raccogliFontiEmissione(db, userId, e, sorgente, dati);
     const pacchetto = await pacchettoEmissionePos(db, e, sorgente, dati, fonti, { bytes: c.pdf, html, fonts: await fontsRiferimentoPos(), generatore: VERSIONE_RENDERER_POS_BROWSER });

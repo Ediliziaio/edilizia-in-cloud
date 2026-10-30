@@ -9,8 +9,9 @@ import { tecnicaPosVuota } from "../../../../supabase/functions/_shared/posTecni
  * DI 9/9/2014 (Allegato I). Ogni sezione modifica la bozza con `modifica`,
  * che lavora su una copia: niente mutazioni dello stato di React.
  */
-import { useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, ExternalLink, Loader2, Paperclip, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Copy, ExternalLink, Loader2, Paperclip, Plus, Sparkles, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Area, Campo, Riga, Sezione } from "./campi";
 import {
   ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, RIFERIMENTI_SEZIONE, RSPP_LABEL, RUOLO_IMPRESA_LABEL, SVOLGIMENTO_LABEL,
-  lavorazioneVuota, soggettoVuoto,
+  applicaValutazione, lavorazioneVuota, soggettoVuoto, valutazioneDaElenchi, vociMancanti,
   type GestioneEmergenze, type Lavorazione, type PosContenuto, type RsppSvoltoDa, type RuoloImpresa, type Svolgimento,
   type TipoAllegato,
 } from "../../../../supabase/functions/_shared/posModello";
@@ -30,6 +31,8 @@ import type { ContestoPos } from "../../../../supabase/functions/_shared/posMode
 import { caricaAllegatoPos, linkAllegatoPos } from "@/hooks/usePos";
 
 import { ProdottiLavorazionePos } from "./ProdottiLavorazionePos";
+import { FunzioniAvanzatePos } from "./FunzioniAvanzatePos";
+import { RischiLavorazionePos } from "./RischiLavorazionePos";
 import { invalidaProdottiLavorazione } from "../../../../supabase/functions/_shared/posProdotti";
 export type Modifica = (fn: (d: PosContenuto) => void) => void;
 
@@ -484,6 +487,16 @@ interface LavorazioniProps extends BaseProps {
 }
 
 export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProponiAi, proponendo, companyId, orderId }: LavorazioniProps) {
+  // Quante voci mancano a ogni scheda: una scheda completa si chiude, quella da fare resta aperta (le altre si aprono a un tocco).
+  const mancantiPerScheda = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const v of vociMancanti(d)) if (v.lavorazione_id) m.set(v.lavorazione_id, (m.get(v.lavorazione_id) ?? 0) + 1);
+    return m;
+  }, [d]);
+  const [apertaScheda, setApertaScheda] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(d.lavorazioni.map((l) => [l.id, ro || (mancantiPerScheda.get(l.id) ?? 0) > 0 || (l.origine !== "utente" && !l.verificata)])));
+  const schedaAperta = (id: string) => apertaScheda[id] ?? true;
+  const alternaScheda = (id: string) => setApertaScheda((a) => ({ ...a, [id]: !(a[id] ?? true) }));
   const campo = (l: Lavorazione, n: number, k: keyof Lavorazione, label: string, righe = 2, placeholder?: string) => (
     <Area id={`lv-${n}-${k}`} label={label} rows={righe} value={String(l[k] ?? "")} readOnly={ro} placeholder={placeholder}
       onChange={(v) => modifica((x) => { (x.lavorazioni[n] as unknown as Record<string, unknown>)[k] = v; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />
@@ -497,16 +510,12 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
           <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Proponi con l'AI" title="Proponi le lavorazioni con l'AI" onClick={onProponiAi} disabled={proponendo}>
             {proponendo ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1" aria-hidden="true" /> : <Sparkles className="h-4 w-4 sm:mr-1" aria-hidden="true" />}<span className="max-sm:hidden">Proponi con l'AI</span>
           </Button>
-          <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Aggiungi una scheda vuota" title="Aggiungi una scheda vuota" onClick={() => modifica((x) => { x.lavorazioni.push(lavorazioneVuota(nuovoId())); })}>
+          <Button size="sm" variant="outline" className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Aggiungi una scheda vuota" title="Aggiungi una scheda vuota" onClick={() => modifica((x) => { const nuova = lavorazioneVuota(nuovoId()); applicaValutazione(nuova, valutazioneDaElenchi(nuova)); x.lavorazioni.push(nuova); })}>
             <Plus className="h-4 w-4 sm:mr-1" aria-hidden="true" /><span className="max-sm:hidden">Scheda vuota</span>
           </Button>
         </div>
       ) : undefined}>
-      {d.versione_tecnica!==1&&!ro&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm"><p className="max-w-2xl">Questo POS usa le schede sintetiche precedenti. Attiva il dettaglio per organizzazione, rischi e attrezzature: i testi esistenti restano conservati e il riesame delle nuove sezioni sarà richiesto prima dell’approvazione.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_tecnica=1;for(const l of x.lavorazioni){l.tecnica ||= tecnicaPosVuota();l.tecnica.riesaminata=false;}})}>Attiva schede tecniche</Button></div>}
-      {d.versione_tecnica===1&&d.versione_fonti_tecniche!==1&&!ro&&<Button variant="outline" onClick={()=>modifica(x=>{x.versione_fonti_tecniche=1;for(const l of x.lavorazioni)if(l.tecnica)l.tecnica.riesaminata=false;})}>Attiva collegamenti alle fonti tecniche</Button>}
-      {d.versione_tecnica===1&&d.versione_mezzi!==1&&!ro&&<div className="space-y-2 rounded-md border bg-slate-50 p-3 text-sm"><p>Collega le attrezzature effettive alle assegnazioni della commessa, con periodo e quantità d’uso da confermare. I testi esistenti restano conservati.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_mezzi=1;for(const l of x.lavorazioni)if(l.tecnica)l.tecnica.riesaminata=false;})}>Attiva identità e impiego attrezzature</Button></div>}
-      {d.versione_mezzi===1&&d.versione_documenti_mezzi!==1&&!ro&&<div className="space-y-2 rounded-md border bg-slate-50 p-3 text-sm"><p>Collega gli originali tecnici della macchina e riesamina manutenzioni e segnalazioni per l’impiego dichiarato. Le schede già scritte restano conservate.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_documenti_mezzi=1;for(const l of x.lavorazioni)if(l.tecnica)l.tecnica.riesaminata=false;})}>Attiva documenti e controlli delle attrezzature</Button></div>}
-      {d.versione_requisiti_addetti!==1&&!ro&&<div className="rounded-lg border bg-slate-50 p-3 text-sm"><p>Collega i riscontri nominativi della tua impresa alle lavorazioni e conserva gli originali pertinenti nell’emissione. L’attivazione richiederà questo riesame prima dell’approvazione.</p><Button variant="outline" onClick={()=>modifica(x=>{x.versione_requisiti_addetti=1;x.versione_controlli=2;})}>Attiva requisiti nominativi per lavorazione</Button></div>}
+      <FunzioniAvanzatePos d={d} ro={ro} modifica={modifica} />
       {contesto && (contesto.mezzi.length > 0 || contesto.subappaltatori.length > 0) && (
         <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
           {contesto.mezzi.length > 0 && <p><span className="font-medium">Mezzi sulla commessa:</span> {contesto.mezzi.map((m) => m.targa ? `${m.nome} (${m.targa})` : m.nome).join(", ")}</p>}
@@ -516,23 +525,29 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
       {d.lavorazioni.length === 0 && <p className="text-sm text-muted-foreground">Nessuna lavorazione. Proponile con l'AI partendo dalla descrizione dell'attività, o scrivile a mano.</p>}
       {d.lavorazioni.map((l, n) => (
         <div key={l.id} className={`rounded-xl border ${l.origine !== "utente" && !l.verificata ? "border-amber-300 bg-amber-50/30" : "bg-slate-50/50"}`}>
-          <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-200 text-xs font-bold">{n + 1}</span>
+          <div className={cn("flex flex-wrap items-center gap-2 px-3 py-2", schedaAperta(l.id) && "border-b")}>
+            <button type="button" onClick={() => alternaScheda(l.id)} aria-expanded={schedaAperta(l.id)} aria-label={`${schedaAperta(l.id) ? "Chiudi" : "Apri"} la lavorazione ${n + 1}`}
+              className="flex h-8 shrink-0 items-center gap-0.5 rounded-md bg-slate-200 px-1.5 text-xs font-bold">
+              {n + 1}<ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !schedaAperta(l.id) && "-rotate-90")} aria-hidden="true" />
+            </button>
             <input
               aria-label={`Titolo della lavorazione ${n + 1}`}
-              className="min-w-0 flex-1 rounded-md border bg-white px-2 py-1 text-sm font-medium disabled:bg-transparent"
+              className="min-w-0 flex-1 rounded-md border bg-white px-2 py-1 text-sm font-medium disabled:bg-transparent max-sm:basis-[calc(100%-3.25rem)]"
               value={l.titolo}
               disabled={ro}
               placeholder="Titolo della lavorazione"
               onChange={(e) => modifica((x) => { x.lavorazioni[n].titolo = e.target.value; invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })}
             />
+            {(mancantiPerScheda.get(l.id) ?? 0) > 0
+              ? <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200" aria-label={`${mancantiPerScheda.get(l.id)} voci da completare in questa scheda`}>{mancantiPerScheda.get(l.id)}<span className="max-sm:hidden"> da completare</span></span>
+              : <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Scheda completa" />}
             {l.origine !== "utente" && (
               <Badge variant="outline" className={l.verificata ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-100 text-amber-900"}>
                 {l.origine === "modello" ? (l.verificata ? "Riuso confermato" : "Da adattare al cantiere") : (l.verificata ? "AI, confermata" : "Proposta dall'AI")}
               </Badge>
             )}
             {!ro && (
-              <div className="flex items-center">
+              <div className="ml-auto flex items-center">
                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={n === 0} aria-label="Sposta su"
                   onClick={() => modifica((x) => { const [it] = x.lavorazioni.splice(n, 1); x.lavorazioni.splice(n - 1, 0, it); })}><ArrowUp className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={n === d.lavorazioni.length - 1} aria-label="Sposta giù"
@@ -544,7 +559,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
               </div>
             )}
           </div>
-          <div className="grid gap-3 p-3 sm:grid-cols-2">
+          <div className={cn("grid gap-3 p-3 sm:grid-cols-2", !schedaAperta(l.id) && "hidden")}>
             {d.versione_tecnica===1&&<TecnicaLavorazionePos d={d} n={n} ro={ro} modifica={modifica} companyId={companyId} orderId={orderId}/>}
             <SegnaleticaLavorazionePos l={l} ro={ro} onChange={segnaletica=>modifica(x=>{x.lavorazioni[n].segnaletica=segnaletica;x.lavorazioni[n].verificata=false;if(x.lavorazioni[n].tecnica)x.lavorazioni[n].tecnica!.riesaminata=false;})}/>
             {campo(l, n, "descrizione", "Descrizione della lavorazione")}
@@ -554,9 +569,7 @@ export function SezioneLavorazioni({ d, modifica, ro, mancanti, contesto, onProp
             {campo(l, n, "opere_provvisionali", "Opere provvisionali", 2, "Ponteggi, trabattelli, parapetti… o «Nessuna»")}
             {campo(l, n, "macchine", "Macchine e attrezzature", 2, "Anche «Nessuna»")}
             {campo(l, n, "impianti", "Impianti", 2, "Elettrico di cantiere, idrico… o «Nessuno»")}
-            {campo(l, n, "rischi", "Rischi", 4, "Uno per riga")}
-            {campo(l, n, "misure", "Misure preventive e protettive", 4, "Una per riga")}
-            {campo(l, n, "dpi", "DPI", 3, "Uno per riga, con la norma se la conosci")}
+            <RischiLavorazionePos l={l} n={n} ro={ro} cambia={(fn) => modifica((x) => { const lav = x.lavorazioni[n]; fn(lav); invalidaProdottiLavorazione(lav); if (lav.origine !== "utente") lav.verificata = false; })} />
             {campo(l, n, "turni", "Turni di lavoro", 3)}
             <Campo id={`lv-${n}-durata`} label="Durata presunta (giorni)" type="number" value={l.durata_giorni == null ? "" : String(l.durata_giorni)} readOnly={ro}
               onChange={(v) => modifica((x) => { x.lavorazioni[n].durata_giorni = v === "" ? null : Math.max(0, Math.round(Number(v) || 0)); invalidaProdottiLavorazione(x.lavorazioni[n]); if(x.lavorazioni[n].origine!=="utente") x.lavorazioni[n].verificata=false; })} />

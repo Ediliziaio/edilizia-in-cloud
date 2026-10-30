@@ -20,7 +20,7 @@ const byteAllegato=strToU8("BYTE ORIGINALI SINTETICI — NESSUNA FIRMA REALE\u00
 Deno.test("PDF: modello completo, 11 sezioni e font Unicode incorporati",async()=>{
  const pdf=await generaPdfPos(dati(),identita.emessoIl);
  assert.equal(new TextDecoder().decode(pdf.bytes.slice(0,5)),"%PDF-");
- assert.equal(pdf.sezioni.length,11);assert.equal(pdf.fonts.length,2);
+ assert.equal(pdf.sezioni.length,11);assert.equal(pdf.fonts.length,3);assert.ok(pdf.fonts.some(f=>f.nome==="PosCaselle.ttf"),"il mini-font delle caselle è nel manifest");
  assert.match(pdf.html,/Ștefan Țurcan/);assert.match(pdf.html,/consegna ai singoli lavoratori richiede/);
 });
 Deno.test("PDF: una bozza non viene presentata come contenuto approvato",async()=>{
@@ -371,7 +371,7 @@ Deno.test("PDF: sopra i 90 KB di HTML i sottotitoli non entrano nella regola di 
  const {costruisciHtmlPos}=await import("./posHtml.ts");
  const livelli=(html:string)=>{
   const l=layoutPdfPos(html,"X",0,identita.emessoIl,true);
-  const soloTesto=(l.definizione.content as Array<Record<string,unknown>>).filter(b=>typeof b.text==="string"&&b.headlineLevel!==undefined);
+  const soloTesto=(l.definizione.content as Array<Record<string,unknown>>).filter(b=>(typeof b.text==="string"||Array.isArray(b.text))&&b.headlineLevel!==undefined);
   return {h3:soloTesto.filter(b=>b.fontSize===11).map(b=>b.headlineLevel),sezioni:l.sezioni.length};
  };
  const piccolo=dati();piccolo.stato="bozza";

@@ -4,6 +4,7 @@ import pdfMakeClient from "npm:pdfmake@0.3.9/build/pdfmake.min.js";
 import vfsClient from "npm:pdfmake@0.3.9/build/vfs_fonts.js";
 import { strToU8 } from "fflate";
 import { esempioPdfPos } from "../../../src/test/fixtures/posEsempioPdf.ts";
+import { registraFontPos } from "./posFont.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
 import { posVuoto } from "./posModello.ts";
 import { disegnaPdfPos } from "./posPdfBrowser.ts";
@@ -13,6 +14,9 @@ import { companyId, id, memoria, posId, token } from "./posProvaMemoria.ts";
 
 // deno-lint-ignore no-explicit-any
 (pdfMakeClient as any).addVirtualFileSystem(vfsClient);
+// Come il Worker del browser: il mini-font delle caselle (posFont.ts).
+// deno-lint-ignore no-explicit-any
+registraFontPos(pdfMakeClient as any);
 const ordineId = "66666666-6666-4666-8666-666666666666";
 const versionePos = "2026-10-26T11:00:00+00:00"; // è la versione che memoria() ha prenotato (sorgente_updated_at)
 
@@ -49,7 +53,7 @@ Deno.test("Anteprima: l'HTML della bozza, con la data dal server (non dal browse
   const r = await chiama("anteprima_html", { pos_id: posId });
   assert.equal(r.status, 200);
   const c = r.corpo as { ok: boolean; html: string; layout: string; codice: string; revisione: number; emessoIl: string };
-  assert.equal(c.ok, true); assert.match(c.html, /BOZZA/); assert.equal(c.layout, "pos-pdf-9-riferimento-psc"); assert.equal(c.codice, "ORD-1"); assert.equal(c.revisione, 0);
+  assert.equal(c.ok, true); assert.match(c.html, /BOZZA/); assert.equal(c.layout, "pos-pdf-10-design"); assert.equal(c.codice, "ORD-1"); assert.equal(c.revisione, 0);
   assert.ok(Date.parse(c.emessoIl) >= prima - 1000 && Date.parse(c.emessoIl) <= Date.now() + 1000, "l'istante è quello del server, adesso");
 });
 
@@ -64,7 +68,7 @@ Deno.test("Prepara: prenota la versione letta e restituisce al browser il modell
   assert.equal(r.status, 200);
   const c = r.corpo as Record<string, unknown>;
   assert.deepEqual({ ok: c.ok, emissione_id: c.emissione_id, token: c.token, emesso_il: c.emesso_il, layout: c.layout, codice: c.codice, revisione: c.revisione },
-    { ok: true, emissione_id: id, token, emesso_il: "2026-10-26T12:00:00+00:00", layout: "pos-pdf-9-riferimento-psc", codice: "ORD-1", revisione: 0 });
+    { ok: true, emissione_id: id, token, emesso_il: "2026-10-26T12:00:00+00:00", layout: "pos-pdf-10-design", codice: "ORD-1", revisione: 0 });
   assert.match(String(c.html), /Mario Rossi/);   // chi approva, dal profilo letto dal server
   assert.deepEqual(m.chiamate, ["pos_prenota_emissione"]);
 });
@@ -112,7 +116,7 @@ Deno.test("Completa: un altro utente, anche con il permesso, non può completare
 
 Deno.test("Completa: senza PDF è una richiesta sbagliata (400); con l'emissione di un'altra azienda non esiste (404) e non si tocca nulla", async () => {
   const { m, chiama } = ambiente();
-  const dichiarato = { emissione_id: id, token, pdf_sha256: "a".repeat(64), html_sha256: "b".repeat(64), layout: "pos-pdf-9-riferimento-psc" };
+  const dichiarato = { emissione_id: id, token, pdf_sha256: "a".repeat(64), html_sha256: "b".repeat(64), layout: "pos-pdf-10-design" };
   assert.equal((await chiama("completa_emissione", dichiarato)).status, 400);
   await assert.rejects(() => chiama("completa_emissione", dichiarato, new Uint8Array([1]), "99999999-9999-4999-8999-999999999999"), (e: unknown) => (e as { status?: number }).status === 404);
   assert.equal(m.store.size, 0); assert.equal(m.scritture.length, 0);

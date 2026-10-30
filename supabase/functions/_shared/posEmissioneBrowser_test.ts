@@ -12,11 +12,15 @@ import { sha256Hex } from "./improntaDocumento.ts";
 import { conservaEmissionePos, ErroreEmissionePos } from "./posEmissione.ts";
 import { anteprimaHtmlPos, annullaEmissioneBrowser, completaEmissioneBrowser, LIMITE_PDF_BROWSER, preparaEmissioneBrowser } from "./posEmissioneBrowser.ts";
 import type { FontiProdottiPos } from "./posPacchetto.ts";
+import { registraFontPos } from "./posFont.ts";
 import { companyId, emessoIl, id, memoria, posId, token } from "./posProvaMemoria.ts";
 
 pdfMakeServer.addVirtualFileSystem(vfsServer);
 // deno-lint-ignore no-explicit-any
 (pdfMakeClient as any).addVirtualFileSystem(vfsClient);
+// Come il Worker del browser: anche il client registra il mini-font delle caselle.
+// deno-lint-ignore no-explicit-any
+registraFontPos(pdfMakeClient as any);
 function dati() {
   const d = esempioPdfPos();
   d.contenuto.allegati = d.contenuto.allegati.map((a, i) => ({ ...a, file_path: `${companyId}/pos/${posId}/${i}.pdf` }));
@@ -48,7 +52,7 @@ Deno.test("Prepara: prenota con l'autore e la versione letta, e restituisce il m
   const p = await prepara(m);
   assert.deepEqual(m.chiamate, ["pos_prenota_emissione"]);
   assert.equal(p.emissioneId, id); assert.equal(p.token, token); assert.equal(p.emessoIl, emessoIl);
-  assert.equal(p.layout, "pos-pdf-9-riferimento-psc"); assert.equal(p.codice, "TEST-POS-2026"); assert.equal(p.revisione, 0);
+  assert.equal(p.layout, "pos-pdf-10-design"); assert.equal(p.codice, "TEST-POS-2026"); assert.equal(p.revisione, 0);
   assert.match(p.html, /APPROVATORE DI PROVA/);   // chi approva, non l'approvatore del dato di partenza
   assert.doesNotMatch(p.html, /BOZZA/);            // contenuto approvato, non una bozza
 });
@@ -79,7 +83,7 @@ Deno.test("Completa: conserva il PDF del browser byte per byte e completa solo d
   const base = `${companyId}/${id}/${token}`;
   assert.deepEqual(m.store.get(`${base}/POS.pdf`), pdf);
   const manifest = m.manifest() as { generatore: string; file: Array<{ ruolo: string; sha256: string }> };
-  assert.equal(manifest.generatore, "pos-pdf-9-riferimento-psc-browser/pdfmake-0.3.9");
+  assert.equal(manifest.generatore, "pos-pdf-10-design-browser/pdfmake-0.3.9");
   assert.equal(manifest.file.find(f => f.ruolo === "pdf")!.sha256, await sha256Hex(pdf));
   assert.deepEqual(unzipSync(m.store.get(`${base}/fascicolo.zip`)!)["POS.pdf"], pdf);
   assert.equal(strFromU8(unzipSync(m.store.get(`${base}/fascicolo.zip`)!)["modello.html"]), p.html);
@@ -90,7 +94,7 @@ Deno.test("Manifest: dice chi ha disegnato il PDF, con quale layout e con quali 
   const m = memoria(); const p = await prepara(m); const pdf = await disegna(p);
   await completa(m, pdf, p);
   assert.deepEqual((m.manifest() as { render: unknown }).render, {
-    disegnatoDa: "browser", generatore: "pos-pdf-9-riferimento-psc-browser/pdfmake-0.3.9", layout: "pos-pdf-9-riferimento-psc",
+    disegnatoDa: "browser", generatore: "pos-pdf-10-design-browser/pdfmake-0.3.9", layout: "pos-pdf-10-design",
     codice: "TEST-POS-2026", revisione: 0, emessoIl, htmlSha256: await sha256Hex(strToU8(p.html)), pdfSha256: await sha256Hex(pdf) });
 });
 
@@ -98,8 +102,8 @@ Deno.test("Manifest: anche quando il PDF lo disegna il server, il blocco render 
   const m = memoria();
   await conservaEmissionePos(m.db, "utente-prova", sorgente());
   const render = (m.manifest() as { render: Record<string, unknown> }).render;
-  assert.equal(render.disegnatoDa, "server"); assert.equal(render.layout, "pos-pdf-9-riferimento-psc"); assert.equal(render.codice, "TEST-POS-2026");
-  assert.equal(render.generatore, "pos-pdf-9-riferimento-psc/pdfmake-0.3.9");
+  assert.equal(render.disegnatoDa, "server"); assert.equal(render.layout, "pos-pdf-10-design"); assert.equal(render.codice, "TEST-POS-2026");
+  assert.equal(render.generatore, "pos-pdf-10-design/pdfmake-0.3.9");
   assert.equal(render.pdfSha256, await sha256Hex(m.store.get(`${companyId}/${id}/${token}/POS.pdf`)!));
 });
 
@@ -180,7 +184,7 @@ Deno.test("Annulla: con il token giusto libera subito la prenotazione; con uno s
 Deno.test("Anteprima: l'HTML è quello della bozza con avvertenze, già controllato nei glifi, e non prenota nulla", () => {
   const r = anteprimaHtmlPos({ ...dati(), stato: "approvato" }, "2026-10-30T09:00:00Z");
   assert.match(r.html, /BOZZA/);                    // anche se il contenuto è già approvato, l'anteprima non si spaccia per l'originale
-  assert.equal(r.layout, "pos-pdf-9-riferimento-psc"); assert.equal(r.codice, "TEST-POS-2026"); assert.equal(r.revisione, 0); assert.equal(r.emessoIl, "2026-10-30T09:00:00Z");
+  assert.equal(r.layout, "pos-pdf-10-design"); assert.equal(r.codice, "TEST-POS-2026"); assert.equal(r.revisione, 0); assert.equal(r.emessoIl, "2026-10-30T09:00:00Z");
 });
 
 Deno.test("Anteprima: un carattere senza glifo si ferma con il messaggio di sempre, prima che il browser lavori", () => {

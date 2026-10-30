@@ -1,4 +1,5 @@
 import { disegnaPdfPos, type MotorePdf, type ParametriDisegnoPos } from "../../../supabase/functions/_shared/posPdfBrowser";
+import { registraFontPos } from "../../../supabase/functions/_shared/posFont";
 
 /**
  * pdfmake 0.3.9 e i suoi font (Roboto), caricati solo quando c'è un PDF del POS da disegnare: circa 0,8 MB compressi
@@ -16,6 +17,8 @@ function caricaMotore(): Promise<MotorePdf> {
     // Un modulo UMD arriva come «default» nel browser e nei test: si accettano entrambe le forme.
     const pdfMake = (m as { default?: typeof m.default }).default ?? (m as unknown as typeof m.default);
     pdfMake.addVirtualFileSystem((f as { default?: typeof f.default }).default ?? (f as unknown as typeof f.default));
+    // Le caselle del modello (☐ ☒) hanno un mini-font proprio, come sul server (posPdf.ts).
+    registraFontPos(pdfMake);
     return pdfMake as MotorePdf;
   })();
   // Un caricamento andato male (rete) si può ritentare alla richiesta dopo.

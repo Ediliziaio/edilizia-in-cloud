@@ -104,7 +104,31 @@ export interface RigaRumore {
   note: string;
 }
 
+export type LivelloRischio = "basso" | "medio" | "alto";
+
+/** Un rischio della lavorazione con le sue misure e i suoi DPI: l'ispettore legge così, rischio per rischio. */
+export interface RischioLavorazione {
+  rischio: string;
+  /** Misure preventive e protettive proprie di questo rischio (una per riga). */
+  misure: string;
+  dpi: string;
+  /** Rischio residuo dopo le misure, a giudizio di chi compila; vuoto se non valutato. */
+  residuo: LivelloRischio | "";
+}
+
+export interface ValutazioneLavorazione {
+  righe: RischioLavorazione[];
+  /** Misure e DPI validi per tutta la lavorazione, non legati a un rischio solo. */
+  misure_comuni: string;
+  dpi_comuni: string;
+}
+
 export interface Lavorazione {
+  /**
+   * Rischi, misure e DPI legati fra loro. I campi `rischi`, `misure` e `dpi` restano la verità per controlli, elenchi e
+   * app non aggiornate: la tabella vale solo finché dice le stesse cose (vedi `valutazioneAttiva`).
+   */
+  valutazione?: ValutazioneLavorazione;
   segnaletica?: SceltaSegnalePos[];
   requisiti_addetti?: RequisitiAddettiPos;
   tecnica?: TecnicaLavorazionePos;
@@ -285,11 +309,25 @@ function figura(v: unknown): FiguraPos {
   return { nominativo: str(o.nominativo), mansioni_sicurezza: str(o.mansioni_sicurezza) };
 }
 
+function normalizzaValutazione(v: unknown): ValutazioneLavorazione | undefined {
+  if (!isObj(v)) return undefined;
+  return {
+    righe: arr(v.righe).map((r) => {
+      const o = isObj(r) ? r : {};
+      return { rischio: str(o.rischio), misure: str(o.misure), dpi: str(o.dpi), residuo: uno(o.residuo, ["", "basso", "medio", "alto"] as const, "") };
+    }),
+    misure_comuni: str(v.misure_comuni),
+    dpi_comuni: str(v.dpi_comuni),
+  };
+}
+
 export function normalizzaLavorazione(v: unknown, id: string): Lavorazione {
   const o = isObj(v) ? v : {};
+  const valutazione = o.valutazione !== undefined ? normalizzaValutazione(o.valutazione) : undefined;
   const origine = uno(o.origine, ["ai", "utente", "modello"] as const, "utente");
   return {
     id: str(o.id) || id,
+    ...(valutazione ? { valutazione } : {}),
     ...(o.segnaletica !== undefined ? {segnaletica:normalizzaSegnaliPos(o.segnaletica)} : {}),
     ...(o.requisiti_addetti !== undefined ? {requisiti_addetti:normalizzaRequisitiAddettiPos(o.requisiti_addetti)} : {}),
     titolo: str(o.titolo),
@@ -437,6 +475,53 @@ export function normalizzaPos(v: unknown): PosContenuto {
   };
 }
 
+// ── Rischi, misure e DPI legati fra loro ─────────────────────────────────────
+
+/** Le righe di un campo scritto a mano: una per riga, senza puntini né righe vuote. */
+export const righeDiTesto = (s: string): string[] => s.split("\n").map((x) => x.replace(/^[-•*\s]+/, "").trim()).filter(Boolean);
+const senzaDoppioni = (parti: string[]): string[] => [...new Map(parti.map((x) => [x.toLowerCase(), x])).values()];
+const insiemeRighe = (s: string): Set<string> => new Set(righeDiTesto(s).map((x) => x.toLowerCase()));
+const stessoInsieme = (a: string, b: string): boolean => {
+  const x = insiemeRighe(a), y = insiemeRighe(b);
+  return x.size === y.size && [...x].every((r) => y.has(r));
+};
+
+/** I tre campi classici (rischi, misure, DPI) che discendono dalla tabella per rischio. */
+export function derivaDaValutazione(v: ValutazioneLavorazione): { rischi: string; misure: string; dpi: string } {
+  return {
+    rischi: senzaDoppioni(v.righe.flatMap((r) => righeDiTesto(r.rischio))).join("\n"),
+    misure: senzaDoppioni([...v.righe.flatMap((r) => righeDiTesto(r.misure)), ...righeDiTesto(v.misure_comuni)]).join("\n"),
+    dpi: senzaDoppioni([...v.righe.flatMap((r) => righeDiTesto(r.dpi)), ...righeDiTesto(v.dpi_comuni)]).join("\n"),
+  };
+}
+
+/**
+ * La tabella per rischio vale solo se i campi classici dicono le stesse cose: l'editor li scrive sempre insieme, ma
+ * un'app non aggiornata (o una modifica fatta a mano nei dati) può cambiare solo quelli. Se divergono vincono i campi
+ * classici, che sono quelli controllati e approvati: nessun contenuto si perde e nessuna misura sparisce dal PDF.
+ */
+export function valutazioneAttiva(l: Pick<Lavorazione, "valutazione" | "rischi" | "misure" | "dpi">): ValutazioneLavorazione | null {
+  const v = l.valutazione;
+  if (!v || !v.righe.length) return null;
+  const d = derivaDaValutazione(v);
+  return stessoInsieme(d.rischi, l.rischi) && stessoInsieme(d.misure, l.misure) && stessoInsieme(d.dpi, l.dpi) ? v : null;
+}
+
+/** Scrive la tabella nella lavorazione e riallinea i tre campi classici. */
+export function applicaValutazione(l: Lavorazione, v: ValutazioneLavorazione): void {
+  l.valutazione = v;
+  const d = derivaDaValutazione(v);
+  l.rischi = d.rischi; l.misure = d.misure; l.dpi = d.dpi;
+}
+
+/** Da tre elenchi separati a una tabella: un rischio per riga; misure e DPI già scritti restano «comuni» finché non li si assegna. */
+export function valutazioneDaElenchi(l: Pick<Lavorazione, "rischi" | "misure" | "dpi">): ValutazioneLavorazione {
+  const righe = righeDiTesto(l.rischi).map((rischio): RischioLavorazione => ({ rischio, misure: "", dpi: "", residuo: "" }));
+  return { righe: righe.length ? righe : [{ rischio: "", misure: "", dpi: "", residuo: "" }], misure_comuni: l.misure.trim(), dpi_comuni: l.dpi.trim() };
+}
+
+export const LIVELLO_RISCHIO_LABEL: Record<LivelloRischio, string> = { basso: "Basso", medio: "Medio", alto: "Alto" };
+
 // ── Controllo di completezza (Allegato XV, punto 3.2.1) ──────────────────────
 
 /** La sezione dell'editor a cui porta la voce mancante. */
@@ -449,6 +534,10 @@ export interface VoceMancante {
   riferimento: string;
   sezione: SezionePos;
   testo: string;
+  /** La lavorazione a cui si riferisce: l'editor conta le voci scheda per scheda. */
+  lavorazione_id?: string;
+  /** Voci dello stesso tipo ripetute per ogni lavorazione: l'editor le raggruppa invece di elencarle una a una. */
+  gruppo?: "prodotti-riesame" | "prodotti-identifica";
 }
 
 const vuoto = (s: string | null | undefined) => !s || !s.trim();
@@ -461,7 +550,7 @@ const NESSUNO = new RegExp(
   `^\\s*(?:(?:nessun[oa]?|nulla|assent[ei]|non(?:\\s+(?:sono|è|ci\\s+sono))?\\s+(?:previst[eaoi]|present[ei]|utilizzat[eaoi]|necessari[eaoi]|applicabil[ei]))(?:\\s+${PAROLE_NESSUNO}){0,4}|n\\s*\\/\\s*a|n\\.\\s*a\\.?|-+|—)\\s*[.;]?\\s*$`,
   "i",
 );
-const nessuno = (s: string) => NESSUNO.test(s);
+export const nessuno = (s: string) => NESSUNO.test(s);
 /** Data ISO (aaaa-mm-gg) che esiste davvero nel calendario. */
 const dataIsoValida = (s: string): boolean => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
@@ -562,6 +651,9 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
   }
   pos.lavorazioni.forEach((l, i) => {
     const nome = l.titolo.trim() || `n. ${i + 1}`;
+    // Le voci di una scheda portano l'id della lavorazione: l'editor sa quante ne mancano a ognuna.
+    const addL = (riferimento: string, _sezione: SezionePos, testo: string, gruppo?: VoceMancante["gruppo"]) =>
+      m.push({ riferimento, sezione: "lavorazioni", testo, lavorazione_id: l.id, ...(gruppo ? { gruppo } : {}) });
     const manca: string[] = [];
     if (vuoto(l.descrizione)) manca.push("descrizione");
     if (vuoto(l.rischi)) manca.push("rischi");
@@ -575,22 +667,31 @@ export function vociMancanti(pos: PosContenuto): VoceMancante[] {
     } else if (vuoto(l.macchine) && vuoto(l.opere_provvisionali) && vuoto(l.impianti)) manca.push("macchine, opere provvisionali e impianti (anche «nessuna»)");
     if (vuoto(l.sostanze)) manca.push("sostanze pericolose (anche «nessuna»)");
     if (l.svolgimento !== "diretto" && vuoto(l.svolgimento_con)) manca.push("impresa con cui si svolge");
-    if (manca.length) add("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);
+    if (manca.length) addL("3.2.1 d) e) g) i)", "lavorazioni", `Lavorazione «${nome}»: ${manca.join(", ")}`);
+    // Con la tabella per rischio ogni rischio ha le sue misure (proprie o comuni a tutta la lavorazione): è il senso della lettera g).
+    const valutazione = valutazioneAttiva(l);
+    if (valutazione) {
+      const conMisureComuni = righeDiTesto(valutazione.misure_comuni).length > 0;
+      valutazione.righe.forEach((r, k) => {
+        if (vuoto(r.rischio) && (!vuoto(r.misure) || !vuoto(r.dpi))) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: la riga ${k + 1} ha misure o DPI ma non dice il rischio`);
+        else if (!vuoto(r.rischio) && vuoto(r.misure) && !conMisureComuni) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: rischio «${r.rischio.trim()}» senza misure (scrivile, o mettile fra quelle comuni)`);
+      });
+    }
     if (pos.versione_prodotti === 1) {
-      if (!l.prodotti_riesaminati) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`);
-      if (!nessuno(l.sostanze) && !vuoto(l.sostanze) && !l.prodotti?.length) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: identifica i singoli prodotti e le rispettive SDS`);
+      if (!l.prodotti_riesaminati) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: riesamina l’elenco dei prodotti effettivamente impiegati`, "prodotti-riesame");
+      if (!nessuno(l.sostanze) && !vuoto(l.sostanze) && !l.prodotti?.length) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: identifica i singoli prodotti e le rispettive SDS`, "prodotti-identifica");
       for (const p of l.prodotti || []) {
         const errori = erroriProdottoPos(p, l.fase_id);
-        if (errori.length) add("3.2.1 e)", "lavorazioni", `Prodotto «${p.nome || "senza nome"}» in «${nome}»: ${errori.join(", ")}`);
-        if (p.sds_necessaria === "si" && nessuno(l.sostanze)) add("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: sostanze dichiarate assenti ma prodotto con SDS richiesta`);
+        if (errori.length) addL("3.2.1 e)", "lavorazioni", `Prodotto «${p.nome || "senza nome"}» in «${nome}»: ${errori.join(", ")}`);
+        if (p.sds_necessaria === "si" && nessuno(l.sostanze)) addL("3.2.1 e)", "lavorazioni", `Lavorazione «${nome}»: sostanze dichiarate assenti ma prodotto con SDS richiesta`);
       }
     }
-    if(pos.versione_requisiti_addetti===1){const e=erroriRequisitiAddettiPos(l.requisiti_addetti,l,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 l)","lavorazioni",`Requisiti addetti in «${nome}»: ${e.join("; ")}`);}
-    if(pos.versione_documenti_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const fonte=a.anagrafica?.modalita==="inventario"?a.anagrafica.fonte?.mezzo_id||null:null;const e=erroriDocumentazioneMezzo(a.documentazione,fonte,a.anagrafica?.utilizzo_dal||"",a.anagrafica?.utilizzo_al||"");if(e.length)add("3.2.1 d)","lavorazioni",`Documentazione attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
-    if(pos.versione_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const e=erroriSceltaMezzo(a.anagrafica,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 d)","lavorazioni",`Attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
-    if(pos.versione_fonti_tecniche===1&&l.tecnica) { for(const tipo of ["rischio","attrezzatura"] as const) { const righe=tipo==="rischio"?l.tecnica.rischi:l.tecnica.attrezzature;for(const r of righe){const e=erroriFontiTecniche(r.fonti,tipo,undefined,l.fase_id,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)add("3.2.1 d) g)","lavorazioni",`Fonti ${tipo} in «${nome}»: ${e.join("; ")}`);} } }
-    if (pos.versione_tecnica===1) { const tecnici=erroriTecnicaPos(l.tecnica); if(tecnici.length) add("3.2.1 c) d) g) i)","lavorazioni",`Lavorazione «${nome}»: ${tecnici.join("; ")}`); }
-    if (l.origine !== "utente" && !l.verificata) add("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`);
+    if(pos.versione_requisiti_addetti===1){const e=erroriRequisitiAddettiPos(l.requisiti_addetti,l,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 l)","lavorazioni",`Requisiti addetti in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_documenti_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const fonte=a.anagrafica?.modalita==="inventario"?a.anagrafica.fonte?.mezzo_id||null:null;const e=erroriDocumentazioneMezzo(a.documentazione,fonte,a.anagrafica?.utilizzo_dal||"",a.anagrafica?.utilizzo_al||"");if(e.length)addL("3.2.1 d)","lavorazioni",`Documentazione attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_mezzi===1&&l.tecnica)for(const a of l.tecnica.attrezzature){const e=erroriSceltaMezzo(a.anagrafica,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 d)","lavorazioni",`Attrezzatura «${a.nome||"senza nome"}» in «${nome}»: ${e.join("; ")}`);}
+    if(pos.versione_fonti_tecniche===1&&l.tecnica) { for(const tipo of ["rischio","attrezzatura"] as const) { const righe=tipo==="rischio"?l.tecnica.rischi:l.tecnica.attrezzature;for(const r of righe){const e=erroriFontiTecniche(r.fonti,tipo,undefined,l.fase_id,pos.opera.data_inizio,pos.opera.data_fine);if(e.length)addL("3.2.1 d) g)","lavorazioni",`Fonti ${tipo} in «${nome}»: ${e.join("; ")}`);} } }
+    if (pos.versione_tecnica===1) { const tecnici=erroriTecnicaPos(l.tecnica); if(tecnici.length) addL("3.2.1 c) d) g) i)","lavorazioni",`Lavorazione «${nome}»: ${tecnici.join("; ")}`); }
+    if (l.origine !== "utente" && !l.verificata) addL("3.2.1 g)", "lavorazioni", `Lavorazione «${nome}»: ${l.origine === "ai" ? "proposta dall'AI" : "ripresa da POS o modello"}, da rileggere e confermare`);
   });
 
   // Sostanze: servono le schede di sicurezza allegate

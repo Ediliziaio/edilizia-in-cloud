@@ -5,6 +5,7 @@ import type { SceltaMezzoPos } from "./posMezzi.ts";
 import type { FontiTecnicheScheda } from "./posFontiTecniche.ts";
 import { zipSync, strToU8 } from "fflate";
 import { LAYOUT_POS_VERSIONE } from "./posRenderer.ts";
+import { urlVerificaPos } from "./posVerifica.ts";
 import type { ProdottoPos } from "./posProdotti.ts";
 import type { DatiStampaPos } from "./posHtml.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
@@ -39,6 +40,8 @@ export interface ManifestEmissionePos {
   preparataIl: string; origine: IdentitaEmissionePos["origine"]; snapshotId?: string;
   generatore: string; contenutoSha256: string; fonts: Array<{ nome: string; sha256: string }>;
   render?: RenderEmissionePos;
+  /** Dove porta il codice QR stampato sul PDF: la pagina pubblica che dice se la copia è la revisione in vigore. */
+  urlVerifica?: string;
   file: FileEmissionePos[];
   avvertenza: string;
   psc?: RiferimentoPsc;
@@ -76,6 +79,11 @@ export function validaPathAllegatoPos(path: string, companyId: string, posId: st
   if (!percorsoStorageSicuro(path) || !path.startsWith(prefisso) || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(path.slice(prefisso.length))) {
     throw new Error("Un allegato non appartiene al fascicolo di questo POS: correggi l’associazione prima di emettere");
   }
+}
+
+/** L'indirizzo di verifica di un'emissione, con la base di prova POS_VERIFICA_BASE_URL se c'è: uno solo per server e browser. */
+export function urlVerificaEmissionePos(idEmissione: string): string {
+  return urlVerificaPos(idEmissione, (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get("POS_VERIFICA_BASE_URL"));
 }
 
 /** No requests to arbitrary URLs; the caller downloads only the validated private storage path. */
@@ -179,9 +187,12 @@ export async function preparaPacchettoPos(
     totale+=bytes.length;if(bytes.length>LIMITE_ALLEGATO||totale>LIMITE_ALLEGATI)throw new Error("Il fascicolo supera i limiti di emissione: 20 MB per allegato, 30 MB complessivi");
     await aggiungi(`allegati/FORMAZIONE-${String(i+1).padStart(3,'0')}-${nomeSicuro(a.nome)}`,bytes,"allegato","application/octet-stream",{tipo:"qualifica_addetto",nomeOriginale:a.nome,evidenza_id:a.evidenza_id,persona_id:a.persona_id,impronta_metadati:a.impronta,fonte:{bucket:a.bucket,path:a.path}});
   }
+  // Il QR in copertina porta alla verifica pubblica di QUESTA emissione (l'id è quello prenotato prima di generare il PDF).
+  // Se il PDF l'ha disegnato il browser, l'HTML da cui è partito porta già lo stesso indirizzo (urlVerificaEmissionePos).
+  const urlVerifica = urlVerificaEmissionePos(identita.id);
   // pdfmake si carica solo se il PDF lo disegna il server: un avvio a freddo che non lo usa non ne paga l'importazione.
   const server = pdfPronto ? null : await import("./posPdf.ts");
-  const pdf = pdfPronto ?? await server!.generaPdfPos(dati, identita.emessoIl);
+  const pdf = pdfPronto ?? await server!.generaPdfPos({ ...dati, urlVerifica }, identita.emessoIl);
   const generatore = pdfPronto?.generatore ?? server!.VERSIONE_RENDERER_POS;
   await aggiungi("POS.pdf", pdf.bytes, "pdf", "application/pdf");
   await aggiungi("modello.html", strToU8(pdf.html), "modello_html", "text/html");
@@ -194,7 +205,7 @@ export async function preparaPacchettoPos(
     ...(prodottiSds?{prodotti_sds:{versione:1 as const,prodotti:prodottiSds.prodotti}}:{}),
     ...(requisitiAddetti?{requisiti_addetti:{versione:1 as const,collegamenti:requisitiAddetti.collegamenti}}:{}),
     ...(documentiMezzi?{documenti_mezzi:{versione:1 as const,collegamenti:documentiMezzi.collegamenti}}:{}),...(fontiMezzi?{mezzi_pos:fontiMezzi}:{}),...(fontiTecniche?{fonti_tecniche:{versione:1 as const,collegamenti:fontiTecniche.collegamenti}}:{}),
-    generatore, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, file,
+    generatore, contenutoSha256: await sha256Hex(strToU8(jsonCanonico(dati))), fonts: pdf.fonts, urlVerifica, file,
     render: { disegnatoDa: pdfPronto ? "browser" : "server", generatore, layout: LAYOUT_POS_VERSIONE, codice: dati.codiceCommessa || "Commessa", revisione: dati.revisione, emessoIl: identita.emessoIl,
       htmlSha256: file.find(f => f.ruolo === "modello_html")!.sha256, pdfSha256: file.find(f => f.ruolo === "pdf")!.sha256 },
     avvertenza: identita.origine === "approvazione_corrente"

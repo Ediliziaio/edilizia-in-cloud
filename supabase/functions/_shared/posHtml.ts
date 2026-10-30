@@ -15,8 +15,8 @@ import { CAMPI_CONTESTO_TECNICO, CAMPI_RISCHIO_TECNICO, CAMPI_ATTREZZATURA_TECNI
  * poter girare come POS valido.
  */
 import {
-  ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, type PosContenuto, type Recapito, type Soggetto,
-  SVOLGIMENTO_LABEL, vociMancanti,
+  ALLEGATO_LABEL, GESTIONE_EMERGENZE_LABEL, LIVELLO_RISCHIO_LABEL, type Lavorazione, nessuno, type PosContenuto, type ProdottoPos, type Recapito,
+  righeDiTesto, type Soggetto, SVOLGIMENTO_LABEL, valutazioneAttiva, type ValutazioneLavorazione, vociMancanti,
 } from "./posModello.ts";
 
 export interface RevisionePos {
@@ -34,6 +34,10 @@ export interface DatiStampaPos {
   approvatoIl?: string | null;
   codiceCommessa?: string | null;
   avvisoCopia?: string;
+  /** Quando il PDF viene emesso (ISO): compare in copertina e nel piè di pagina di un POS approvato. */
+  emessoIl?: string;
+  /** Indirizzo della pagina pubblica di verifica di questa emissione: diventa il codice QR in copertina. */
+  urlVerifica?: string;
 }
 
 const esc = (s: string | number | null | undefined) =>
@@ -49,7 +53,84 @@ const testo = (s: string | null | undefined) => (s && s.trim() ? esc(s.trim()).r
 const casella = (spuntata: boolean, etichetta: string) =>
   `<span class="casella">${spuntata ? "&#9746;" : "&#9744;"} ${esc(etichetta)}</span>`;
 
+/** Una casella da sola, per le tabelle a colonne (formazione). */
+const scatola = (spuntata: boolean) => `<span class="casella">${spuntata ? "&#9746;" : "&#9744;"}</span>`;
+
 const dataIt = dataRomaDaIso;
+
+// ── Elenchi di cantiere: Allegato XV, punto 3.2.1, lettere d) ed e) ───────────────────────────────────────────────────
+// La legge chiede «l'elenco» di opere provvisionali, macchine, impianti e sostanze utilizzati nel cantiere. Le schede delle
+// lavorazioni li dicono uno per uno: qui si mettono insieme, senza doppioni, con le lavorazioni in cui servono.
+
+/** Le voci di un campo scritto a mano (una per riga, oppure separate da «;» o «,»): senza puntini, «nessuna» e voci vuote. */
+export function vociElenco(libero: string): string[] {
+  return libero.split(/\n|;|,/).map((x) => x.replace(/^[-•*\s]+/, "").trim()).filter((x) => x.length > 1 && !nessuno(x)).map(maiuscola);
+}
+const maiuscola = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** «Collante: scheda di sicurezza allegata» → «Collante»: la scheda ha la sua colonna. */
+const senzaNotaSds = (s: string) => s.replace(/\s*[:\-–(]?\s*(?:si\s+allega\s+)?(?:la\s+)?(?:sched[ae]\s+di\s+sicurezza|sds)(?:\s+allegat[ae])?\)?\s*$/i, "").trim();
+const chiaveVoce = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+interface VoceCantiere { voce: string; lavorazioni: number[]; dettaglio: string }
+function raggruppaVoci(lavorazioni: Lavorazione[], voci: (l: Lavorazione) => Array<{ voce: string; dettaglio?: string }>): VoceCantiere[] {
+  const mappa = new Map<string, VoceCantiere>();
+  lavorazioni.forEach((l, i) => {
+    for (const v of voci(l)) {
+      const k = chiaveVoce(v.voce);
+      if (!k) continue;
+      const e = mappa.get(k);
+      if (!e) mappa.set(k, { voce: v.voce, lavorazioni: [i + 1], dettaglio: v.dettaglio || "" });
+      else { if (!e.lavorazioni.includes(i + 1)) e.lavorazioni.push(i + 1); if (!e.dettaglio && v.dettaglio) e.dettaglio = v.dettaglio; }
+    }
+  });
+  return [...mappa.values()];
+}
+const numeriLavorazioni = (n: number[]) => `n. ${n.join(", ")}`;
+function sdsDelProdotto(pr: ProdottoPos): string {
+  if (pr.sds_necessaria === "si") return `SDS rev. ${pr.sds_revisione || "da indicare"} del ${pr.sds_data || "da indicare"}`;
+  if (pr.sds_necessaria === "no") return "SDS non necessaria";
+  return "SDS da valutare";
+}
+
+/** Rischi, misure e DPI di una lavorazione legati fra loro, rischio per rischio (lettera g). */
+function rischiMisureHtml(l: Lavorazione, n: number, v: ValutazioneLavorazione): string {
+  const righe = v.righe.map((r) => `<tr><td>${testo(r.rischio)}</td><td>${testo(r.misure)}</td><td>${testo(r.dpi)}</td><td class="centro">${esc(r.residuo ? LIVELLO_RISCHIO_LABEL[r.residuo] : "")}</td></tr>`).join("");
+  const comuni = righeDiTesto(v.misure_comuni).length || righeDiTesto(v.dpi_comuni).length
+    ? `<tr><td>Comuni a tutta la lavorazione</td><td>${testo(v.misure_comuni)}</td><td>${testo(v.dpi_comuni)}</td><td></td></tr>`
+    : "";
+  const conResiduo = v.righe.some((r) => r.residuo);
+  return `<h4>Rischi, misure e DPI — ${esc(l.titolo || `Lavorazione n. ${n}`)}</h4>`
+    + `<table class="rischi"><tr><th style="width:24%">Rischio</th><th>Misure preventive e protettive</th><th style="width:25%">DPI</th><th class="centro" style="width:11%">Rischio residuo</th></tr>${righe}${comuni}</table>`
+    + (conResiduo ? `<p class="nota">Il rischio residuo è la valutazione di chi redige il POS dopo l'applicazione delle misure indicate.</p>` : "");
+}
+
+/** Gli elenchi di cantiere (lettere d ed e) a partire dalle lavorazioni; vuoti se non c'è nessuna lavorazione. */
+export function elenchiCantiereHtml(p: PosContenuto): string {
+  const senzaLavorazioni = `<p class="vuoto-blocco">Da indicare nelle schede delle lavorazioni.</p>`;
+  const opere = raggruppaVoci(p.lavorazioni, (l) => vociElenco(l.opere_provvisionali).map((voce) => ({ voce })));
+  const macchine = raggruppaVoci(p.lavorazioni, (l) => [
+    ...vociElenco(l.macchine).map((voce) => ({ voce })),
+    ...(p.versione_tecnica === 1 ? (l.tecnica?.attrezzature ?? []).filter((a) => a.nome.trim()).map((a) => ({
+      voce: a.nome.trim(), dettaglio: a.anagrafica?.modalita === "inventario" && a.anagrafica.fonte ? etichettaFonteMezzo(a.anagrafica.fonte) : "" })) : []),
+  ]);
+  const impianti = raggruppaVoci(p.lavorazioni, (l) => vociElenco(l.impianti).map((voce) => ({ voce })));
+  const righeCantiere = ([["Opera provvisionale", opere], ["Macchina o attrezzatura", macchine], ["Impianto", impianti]] as const)
+    .flatMap(([tipo, voci]) => voci.map((v) => `<tr><td>${esc(tipo)}</td><td>${esc(v.voce)}${v.dettaglio ? `<br>${esc(v.dettaglio)}` : ""}</td><td>${esc(numeriLavorazioni(v.lavorazioni))}</td></tr>`)).join("");
+  const cantiere = `<h3>Elenco dei ponteggi, delle opere provvisionali, delle macchine e degli impianti utilizzati in cantiere <span class="rif">(3.2.1 lettera d)</span></h3>`
+    + (!p.lavorazioni.length ? senzaLavorazioni : righeCantiere
+      ? `<table><tr><th style="width:24%">Tipo</th><th>Voce</th><th style="width:16%">Lavorazioni</th></tr>${righeCantiere}</table>`
+      : `<p>Nessuna opera provvisionale, macchina o impianto dichiarato nelle lavorazioni.</p>`);
+  const schedeAllegate = p.allegati.some((a) => a.tipo === "scheda_sicurezza");
+  const sostanze = raggruppaVoci(p.lavorazioni, (l) => [
+    ...vociElenco(l.sostanze).map(senzaNotaSds).filter(Boolean).map((voce) => ({ voce })),
+    ...(l.prodotti || []).filter((pr) => pr.nome.trim()).map((pr) => ({ voce: `${pr.nome.trim()}${pr.produttore ? ` (${pr.produttore})` : ""}`, dettaglio: sdsDelProdotto(pr) })),
+  ]);
+  const righeSostanze = sostanze.map((v) => `<tr><td>${esc(v.voce)}</td><td>${esc(numeriLavorazioni(v.lavorazioni))}</td><td>${esc(v.dettaglio || (schedeAllegate ? "Vedi l'elenco degli allegati" : "Da allegare"))}</td></tr>`).join("");
+  const elencoSostanze = `<h3>Elenco delle sostanze e dei preparati pericolosi utilizzati in cantiere <span class="rif">(3.2.1 lettera e)</span></h3>`
+    + (!p.lavorazioni.length ? senzaLavorazioni : righeSostanze
+      ? `<table><tr><th>Sostanza o preparato</th><th style="width:16%">Lavorazioni</th><th style="width:30%">Scheda di sicurezza</th></tr>${righeSostanze}</table>`
+      : `<p>Nessuna sostanza o preparato pericoloso dichiarato nelle lavorazioni.</p>`);
+  return cantiere + elencoSostanze;
+}
 
 function tabellaSoggetto(titolo: string, s: Soggetto | null): string {
   const v = s ?? { nominativo: "", indirizzo: "", codice_fiscale: "", telefono: "", email: "" };
@@ -134,8 +215,16 @@ export function costruisciHtmlPos(d: DatiStampaPos): string {
   const mancanti = vociMancanti(p);
   const subappalto = p.impresa.ruolo === "esecutrice_subappalto";
   const titoloCommessa = d.codiceCommessa ? ` — ${d.codiceCommessa}` : "";
-  const indirizzoCantiere = [p.opera.cantiere.via, p.opera.cantiere.localita, p.opera.cantiere.provincia ? `(${p.opera.cantiere.provincia})` : ""]
-    .filter(Boolean).join(", ");
+  // «Via Mazzini 14, Como (CO)»: la provincia sta attaccata alla località, non è una voce a parte dell'elenco.
+  const localitaProvincia = [p.opera.cantiere.localita, p.opera.cantiere.provincia ? `(${p.opera.cantiere.provincia})` : ""].filter(Boolean).join(" ");
+  const indirizzoCantiere = [p.opera.cantiere.via, localitaProvincia].filter(Boolean).join(", ");
+  const periodoLavori = p.opera.data_inizio || p.opera.data_fine ? `${dataIt(p.opera.data_inizio) || "…"} — ${dataIt(p.opera.data_fine) || "…"}` : "";
+  const statoDocumento = !bozza
+    ? `<p class="stato-doc">Revisione ${esc(d.revisione)} · approvata nell'app${d.approvatoIl ? ` il ${esc(dataIt(d.approvatoIl))}` : ""}${d.approvatoDa ? ` da ${esc(d.approvatoDa)}` : ""}${d.emessoIl ? ` · PDF emesso il ${esc(dataIt(d.emessoIl))}` : ""}</p>`
+    : "";
+  const verificaCopia = d.urlVerifica
+    ? `<div class="verifica" data-url="${esc(d.urlVerifica)}">Per controllare che questa copia sia la revisione in vigore, inquadra il codice o apri l'indirizzo<br>${esc(d.urlVerifica)}</div>`
+    : "";
 
   const revisioni = (d.revisioni.length ? d.revisioni : [{ rev: d.revisione, data: "", descrizione: "Prima emissione" }])
     .map((r) => `<tr><td>${esc(r.rev)}</td><td>${esc(dataIt(r.data))}</td><td>${esc(r.descrizione)}</td><td></td></tr>`)
@@ -172,11 +261,13 @@ export function costruisciHtmlPos(d: DatiStampaPos): string {
         <td>${testo(a.attivita)}<br>Data ingresso cantiere: ${esc(dataIt(a.data_ingresso))}<br>Data uscita cantiere: ${esc(dataIt(a.data_uscita))}${a.note ? `<br>Note: ${testo(a.note)}` : ""}</td></tr>`).join("")
     : `<tr><td colspan="2">Nessun lavoratore autonomo opera in cantiere per conto dell'impresa.</td></tr>`;
 
+  // Una riga per lavoratore e una colonna per tipo di formazione: a colpo d'occhio chi ha cosa (prima erano 6-8 righe a testa).
   const formazione = p.formazione.length
     ? p.formazione.map((f, i) => `
         <tr><td class="num">${i + 1}</td><td>${testo(f.nominativo)}</td><td>${testo(f.qualifica)}</td>
-        <td>${casella(f.base, "base")}<br>${casella(f.rischi_specifici, "rischi specifici e di mansione")}<br>${casella(f.rischi_cantiere, "rischi di cantiere contenuti in PSC e POS")}<br>${casella(f.dpi_terza_categoria, "DPI 3ª cat. (compreso addestramento)")}<br>${casella(!!f.altro.trim(), `Altro${f.altro.trim() ? `: ${f.altro.trim()}` : ""}`)}${f.attestati ? `<div class="nota">Attestati: ${esc(f.attestati)}</div>` : ""}</td></tr>`).join("")
-    : `<tr><td class="num">1</td><td>${testo("")}</td><td>${testo("")}</td><td>${testo("")}</td></tr>`;
+        <td class="centro">${scatola(f.base)}</td><td class="centro">${scatola(f.rischi_specifici)}</td><td class="centro">${scatola(f.rischi_cantiere)}</td><td class="centro">${scatola(f.dpi_terza_categoria)}</td>
+        <td>${[f.altro.trim() ? `Altro: ${esc(f.altro.trim())}` : "", f.attestati.trim() ? `Attestati: ${esc(f.attestati.trim())}` : ""].filter(Boolean).join("<br>")}</td></tr>`).join("")
+    : `<tr><td class="num">1</td><td>${testo("")}</td><td>${testo("")}</td><td class="centro">${scatola(false)}</td><td class="centro">${scatola(false)}</td><td class="centro">${scatola(false)}</td><td class="centro">${scatola(false)}</td><td>${testo("")}</td></tr>`;
 
   const rumore = p.rumore.righe.length
     ? p.rumore.righe.map((r) => `<tr><td>${testo(r.mansione)}</td><td>${testo(r.lavorazione)}</td><td>${testo(r.livello_sorgenti)}</td><td>${testo(r.esposizione)}</td><td>${testo(r.note)}</td></tr>`).join("")
@@ -198,12 +289,12 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
         <tr><td class="et" colspan="2">Macchine</td><td>${testo(l.macchine)}</td></tr>
         <tr><td class="et" colspan="2">Impianti</td><td>${testo(l.impianti)}</td></tr>
         <tr><td class="et" colspan="2">Turni di lavoro</td><td>${testo(l.turni)}</td></tr>
-        <tr><td class="et" colspan="2">Rischi</td><td>${testo(l.rischi)}</td></tr>
+        ${valutazioneAttiva(l) ? "" : `<tr><td class="et" colspan="2">Rischi</td><td>${testo(l.rischi)}</td></tr>
         <tr><td class="et" colspan="2">Misure preventive e protettive</td><td>${testo(l.misure)}</td></tr>
-        <tr><td class="et" colspan="2">DPI</td><td>${testo(l.dpi)}</td></tr>
+        <tr><td class="et" colspan="2">DPI</td><td>${testo(l.dpi)}</td></tr>`}
         <tr><td class="et" colspan="2">Durata presunta in giorni</td><td>${l.durata_giorni != null ? esc(l.durata_giorni) : testo("")}</td></tr>
         <tr><td class="et" colspan="2">Modalità di svolgimento</td><td>${casella(l.svolgimento === "diretto", SVOLGIMENTO_LABEL.diretto)}<br>${casella(l.svolgimento === "subappalto", `${SVOLGIMENTO_LABEL.subappalto}${l.svolgimento === "subappalto" ? `: ${l.svolgimento_con}` : ""}`)}<br>${casella(l.svolgimento === "collaborazione", `${SVOLGIMENTO_LABEL.collaborazione}${l.svolgimento === "collaborazione" ? `: ${l.svolgimento_con}` : ""}`)}</td></tr>
-      </table>${normalizzaSegnaliPos(l.segnaletica).length?`<h4>Segnaletica della lavorazione</h4><p class="nota">Pittogrammi schematici per la documentazione. Ubicazione dichiarata dal compilatore; posa e presenza effettiva da verificare sul cantiere.</p>${normalizzaSegnaliPos(l.segnaletica).map(s=>`<div class="segnale-pos" data-segnale="${s.id}" style="display:flex;gap:12px;align-items:center;margin:8px 0">${segnalePosSvg(s.id)}<p>${esc(SEGNALI_POS.find(x=>x.id===s.id)!.nome)}<br>Ubicazione: ${esc(s.ubicazione||"Da definire")}<br>${esc(s.note)}</p></div>`).join("")}`:""}${p.versione_requisiti_addetti===1?requisitiAddettiHtml(l):""}${p.versione_tecnica===1?dettaglioTecnicoHtml(l.tecnica||tecnicaPosVuota(),l.titolo||`Lavorazione ${i+1}`,p.versione_fonti_tecniche===1,p.versione_mezzi===1,p.versione_documenti_mezzi===1):""}`).join("")
+      </table>${valutazioneAttiva(l) ? rischiMisureHtml(l, i + 1, valutazioneAttiva(l)!) : ""}${normalizzaSegnaliPos(l.segnaletica).length?`<h4>Segnaletica della lavorazione</h4><p class="nota">Pittogrammi schematici per la documentazione. Ubicazione dichiarata dal compilatore; posa e presenza effettiva da verificare sul cantiere.</p>${normalizzaSegnaliPos(l.segnaletica).map(s=>`<div class="segnale-pos" data-segnale="${s.id}" style="display:flex;gap:12px;align-items:center;margin:8px 0">${segnalePosSvg(s.id)}<p>${esc(SEGNALI_POS.find(x=>x.id===s.id)!.nome)}<br>Ubicazione: ${esc(s.ubicazione||"Da definire")}<br>${esc(s.note)}</p></div>`).join("")}`:""}${p.versione_requisiti_addetti===1?requisitiAddettiHtml(l):""}${p.versione_tecnica===1?dettaglioTecnicoHtml(l.tecnica||tecnicaPosVuota(),l.titolo||`Lavorazione ${i+1}`,p.versione_fonti_tecniche===1,p.versione_mezzi===1,p.versione_documenti_mezzi===1):""}`).join("")
     : `<p class="vuoto-blocco">Nessuna lavorazione descritta.</p>`;
 
   // The phase list states planned DPI; it does not prove delivery to a worker.
@@ -251,21 +342,28 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
   .intro { font-style: italic; border: 1px solid #555; padding: 6px 8px; margin: 8px 0; }
   .bozza { border: 2px solid #b91c1c; color: #7f1d1d; background: #fef2f2; padding: 8px 10px; margin: 0 0 10px; }
   .bozza ul { margin: 4px 0 0 18px; padding: 0; }
+  td.centro, th.centro { text-align: center; }
+  .stato-doc { border: 1px solid #5a9e74; background: #ecf7f0; color: #14532d; font-weight: bold; padding: 6px 10px; margin: 4mm 0; }
+  .avviso-copia { background: #fff7e6; border-color: #e8c27a; }
+  .verifica { font-size: 8.5pt; color: #444; border: 1px dashed #888; padding: 6px 8px; margin: 8px 0; }
   .firme td { height: 16mm; }
   .copertina td { font-size: 10pt; }
   @media screen { body { background: #f3f3f3; } .pagina { background: #fff; padding: 12mm; margin: 10px auto; box-shadow: 0 1px 4px rgba(0,0,0,.15); } }
 </style>
 </head>
 <body>
-<div class="pagina">
+<div class="pagina" data-impresa="${esc(p.impresa.ragione_sociale)}" data-cantiere="${esc(indirizzoCantiere)}">
   ${avvisoBozza}
-  ${d.avvisoCopia ? `<p class="intro">${esc(d.avvisoCopia)}</p>` : ""}
+  ${d.avvisoCopia ? `<p class="intro avviso-copia">${esc(d.avvisoCopia)}</p>` : ""}
   <h1>PIANO OPERATIVO DI SICUREZZA</h1>
   <p class="sottotitolo">Modello semplificato — D.I. 9 settembre 2014, Allegato I<br>D.Lgs 81/2008, art. 89 c. 1 lett. h) e Allegato XV punto 3.2</p>
+  ${statoDocumento}
   <table class="griglia copertina">
     <tr><td class="et">Impresa</td><td>${testo(p.impresa.ragione_sociale)}</td></tr>
+    <tr><td class="et">Committente</td><td>${testo(p.opera.committente.nominativo)}</td></tr>
     <tr><td class="et">Cantiere</td><td>${testo(indirizzoCantiere)}</td></tr>
     <tr><td class="et">Lavori</td><td>${testo(p.opera.descrizione_attivita)}</td></tr>
+    ${periodoLavori ? `<tr><td class="et">Inizio e fine lavori</td><td>${esc(periodoLavori)}</td></tr>` : ""}
     ${d.codiceCommessa ? `<tr><td class="et">Commessa</td><td>${esc(d.codiceCommessa)}</td></tr>` : ""}
   </table>
   <table>
@@ -273,6 +371,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
     ${revisioni}
   </table>
   <p class="intro">La redazione del POS deve essere improntata su criteri di semplicità, brevità e comprensibilità, in modo da garantire la completezza e l'idoneità quale strumento di pianificazione degli interventi di prevenzione in cantiere, l'indicazione di misure di prevenzione e protezione e dei DPI, le procedure per l'attuazione delle misure da realizzare e i ruoli che vi devono provvedere.</p>
+  ${verificaCopia}
 
   <h2>${iconaPosSvg(ICONE_POS[0].id)}Identificazione e descrizione dell'opera <span class="rif">(3.2.1)</span></h2>
   ${tabellaSoggetto("Committente", p.opera.committente)}
@@ -302,7 +401,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
     ${righeRecapito("Uffici di cantiere", p.impresa.uffici_cantiere, "Non previsti")}
   </table>
 
-  <h2>${iconaPosSvg(ICONE_POS[2].id)}Dirigenti e preposti <span class="rif">(3.2.1 lettera a) punto 6 e lettera b)</span></h2>
+  <h2>${iconaPosSvg(ICONE_POS[2].id)}Dirigenti e preposti <span class="rif">(3.2.1 lettera a) punto 6 e lettera b))</span></h2>
   <table>
     <tr><th style="width:28%">Nominativo — Dirigente</th><th style="width:32%">Ruolo</th><th>Mansioni specifiche svolte in cantiere ai fini della sicurezza</th></tr>
     ${dirigenti}
@@ -342,10 +441,11 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
 
   <h2>${iconaPosSvg(ICONE_POS[5].id)}Documentazione in merito all'informazione ed alla formazione fornite ai lavoratori impegnati in cantiere <span class="rif">(3.2.1 lettera l)</span></h2>
   <p class="nota">Per ciascun lavoratore: informazione, formazione e addestramento ricevuti. Gli attestati sono a disposizione presso la sede dell'impresa.</p>
-  <table>
-    <tr><th class="num">N</th><th style="width:26%">Lavoratori impegnati in cantiere</th><th style="width:18%">Qualifica</th><th>Informazione, formazione e addestramento forniti</th></tr>
+  <table class="matrice">
+    <tr><th class="num">N</th><th style="width:19%">Lavoratori impegnati in cantiere</th><th style="width:14%">Qualifica</th><th class="centro" style="width:8%">Base</th><th class="centro" style="width:10.5%">Rischi specifici</th><th class="centro" style="width:10.5%">Rischi di cantiere</th><th class="centro" style="width:9%">DPI 3ª cat.</th><th>Altro, attestati e scadenze</th></tr>
     ${formazione}
   </table>
+  <p class="nota">Base: formazione di base. Rischi specifici: rischi specifici e di mansione. Rischi di cantiere: quelli contenuti in PSC e POS. DPI 3ª cat.: DPI di terza categoria, compreso l'addestramento.</p>
 
   <h2>${iconaPosSvg(ICONE_POS[6].id)}Esito del rapporto di valutazione del rumore <span class="rif">(3.2.1 lettera f)</span></h2>
   <p>Il rapporto di valutazione di esposizione dei lavoratori al rumore, relativamente alle lavorazioni svolte in cantiere, è il seguente:</p>
@@ -358,6 +458,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
 
   <h2>${iconaPosSvg(ICONE_POS[7].id)}Lavorazioni svolte in cantiere <span class="rif">(3.2.1 lettera a) punto 2 e lettere c, d, e, g, i, h)</span></h2>
   ${lavorazioni}
+  ${elenchiCantiereHtml(p)}
   <h3>Elenco dei dispositivi di protezione individuale previsti dalle lavorazioni <span class="rif">(3.2.1 lettera i)</span></h3>
   <p class="nota">L’elenco indica i DPI previsti. La consegna ai singoli lavoratori richiede le relative evidenze; non è attestata dalla sola scheda di lavorazione.</p>
   ${dpi.length ? `<ul>${dpi.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<p class="vuoto-blocco">Da indicare nelle schede delle lavorazioni.</p>`}
@@ -371,7 +472,7 @@ Riferimento impiego: ${pr.impiego_id} · versione ${pr.versione}${pr.evidenza_id
   <p>${casella(schede.length > 0 || schedeProdotti.length > 0, "Schede di sicurezza delle sostanze e preparati pericolosi")}</p>
   ${schede.length ? `<ul>${schede.map((a) => `<li>${esc(a.nome)}</li>`).join("")}</ul>` : ""}
   ${schedeProdotti.length ? `<ul>${schedeProdotti.map(pr=>`<li>${esc(pr.sds_file_name||"")} · ${esc(pr.nome)} · revisione ${esc(pr.sds_revisione||"non indicata")} · ${esc(pr.evidenza_id||"")}</li>`).join("")}</ul>` : ""}
-  ${altriAllegati.length ? `<ul>${altriAllegati.map((a) => `<li>${casella(true, `${ALLEGATO_LABEL[a.tipo]}: ${a.nome}`)}</li>`).join("")}</ul>` : ""}
+  ${altriAllegati.length ? `<ul>${altriAllegati.map((a) => `<li>${esc(ALLEGATO_LABEL[a.tipo])}: ${esc(a.nome)}</li>`).join("")}</ul>` : ""}
 
   <h2>${iconaPosSvg(ICONE_POS[10].id)}Firme</h2>
   <p>Il presente documento è composto da n. ______ pagine.</p>

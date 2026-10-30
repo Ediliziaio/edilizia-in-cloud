@@ -20,8 +20,8 @@ import { ErroreAnnullato } from "@/lib/sicurezza/posPdfBrowser";
 
 const html = "<html>modello</html>";
 const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 9, 8, 7]);
-const prenotazione = { ok: true, emissione_id: "emissione-1", token: "token-1", emesso_il: "2026-10-30T10:00:00+00:00", html, layout: "pos-pdf-9-riferimento-psc", codice: "ORD-1", revisione: 0 };
-const anteprima = { ok: true, html, layout: "pos-pdf-9-riferimento-psc", codice: "ORD-1", revisione: 0, emessoIl: "2026-10-30T10:05:00Z" };
+const prenotazione = { ok: true, emissione_id: "emissione-1", token: "token-1", emesso_il: "2026-10-30T10:00:00+00:00", html, layout: "pos-pdf-10-design", codice: "ORD-1", revisione: 0 };
+const anteprima = { ok: true, html, layout: "pos-pdf-10-design", codice: "ORD-1", revisione: 0, emessoIl: "2026-10-30T10:05:00Z" };
 
 /** I byte di un file del multipart, letti come li leggerebbe il server: con le API di jsdom, che non sono quelle di Node. */
 const leggiByte = (file: Blob) => new Promise<Uint8Array>((ok, ko) => { const l = new FileReader(); l.onload = () => ok(new Uint8Array(l.result as ArrayBuffer)); l.onerror = () => ko(l.error); l.readAsArrayBuffer(file); });
@@ -73,7 +73,7 @@ describe("Approvazione del POS", () => {
     // Il browser dichiara l'impronta del PDF, quella del modello da cui l'ha disegnato e la sua versione di layout: il server le confronta.
     expect(richieste[1].corpo.pdf_sha256).toBe(createHash("sha256").update(pdf).digest("hex"));
     expect(richieste[1].corpo.html_sha256).toBe(createHash("sha256").update(html).digest("hex"));
-    expect(richieste[1].corpo.layout).toBe("pos-pdf-9-riferimento-psc");
+    expect(richieste[1].corpo.layout).toBe("pos-pdf-10-design");
     expect(richieste[1].pdf).toEqual(pdf);
     expect(richieste[1].intestazioni.Authorization).toBe("Bearer token-di-prova");
     // Il Content-Type del multipart lo mette il browser, con il suo confine: scriverlo a mano lo rompe.
