@@ -14,13 +14,16 @@
  *     larghezza?, altezza?  (pixel dell'immagine o punti del PDF: senza, la pianta si deforma),
  *     testo?, nota?, survey_id?, dxf_testo? (bastano le prime centinaia di kB) }
  *
- * Output: { success, planimetria, avvisi, scala, tentativi } oppure
+ * Output: { success, planimetria (modello della fase 1), generazione (scala,
+ *           avvisi, sfondo DXF), origine_versione, tentativi } oppure
  *         { success:false, codice, messaggio } con una frase per l'utente.
  *
  * La pianta NON si salva qui: la salva il browser con planimetria_crea /
  * planimetria_salva_versione (security invoker, coi permessi dell'utente).
- * Quello che esce da qui è già passato dal controllo geometrico (genera.ts):
- * una pianta rotta non arriva al browser.
+ * Quello che esce da qui è già passato dal controllo geometrico della fase 1
+ * (controlloAI.ts → shared/planimetrie/controllo.ts): una pianta con errori non
+ * arriva al browser. Fanno eccezione il DXF (pianta vuota, da ricalcare) e il
+ * sopralluogo, che passano comunque dal controllo nei test.
  *
  * Crediti: come i render (deductRenderCreditSafe), rimborsati se la pianta non
  * viene. Le chiamate al modello non si addebitano una seconda volta
@@ -42,6 +45,7 @@ import { planimetriaDaSopralluogo, stanzeDaAreeSopralluogo } from "./daSopralluo
 import { planimetriaConSfondoDxf } from "./sfondoDxf.ts";
 import { dimensioniPdf } from "./dimensioniPdf.ts";
 import { VERSIONE_PROMPT } from "./prompt.ts";
+import { origineVersione, type PiantaGenerata } from "./generazione.ts";
 
 const NOME = "planimetria-genera";
 const BUCKET = "planimetrie";
@@ -57,6 +61,17 @@ function base64(bytes: Uint8Array): string {
   let s = "";
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
+}
+
+function risposta(g: PiantaGenerata, tentativi: unknown[], mime: string | null, cors: Record<string, string>) {
+  return jsonResponse({
+    success: true,
+    planimetria: g.planimetria,
+    generazione: g.generazione,
+    // da passare a planimetria_crea / planimetria_salva_versione
+    origine_versione: origineVersione(g.generazione.ingresso, mime),
+    tentativi,
+  }, 200, cors);
 }
 
 function rifiuto(codice: string, messaggio: string, status: number, cors: Record<string, string>) {
@@ -93,8 +108,8 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       const { data: aree, error } = await supabase.from("survey_areas").select("name, area_data, position").eq("survey_id", surveyId).order("position");
       if (error) throw error;
       try {
-        const p = planimetriaDaSopralluogo(stanzeDaAreeSopralluogo(aree ?? []), `sopralluogo:${surveyId}`);
-        return jsonResponse({ success: true, planimetria: p, avvisi: p.avvisi, scala: p.scala, tentativi: [] }, 200, cors);
+        const g = planimetriaDaSopralluogo(stanzeDaAreeSopralluogo(aree ?? []), `sopralluogo:${surveyId}`);
+        return risposta(g, [], null, cors);
       } catch (e) {
         return rifiuto("sopralluogo_vuoto", (e as Error).message, 422, cors);
       }
@@ -103,8 +118,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       const path = String(body.file_path ?? "");
       if (!path.startsWith(`${companyId}/`) || path.includes("..")) return rifiuto("richiesta", "File non valido.", 400, cors);
       try {
-        const p = planimetriaConSfondoDxf(String(body.dxf_testo ?? ""), path);
-        return jsonResponse({ success: true, planimetria: p, avvisi: p.avvisi, scala: p.scala, tentativi: [] }, 200, cors);
+        return risposta(planimetriaConSfondoDxf(String(body.dxf_testo ?? ""), path), [], null, cors);
       } catch (e) {
         return rifiuto("dxf", (e as Error).message, 422, cors);
       }
@@ -195,8 +209,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       addebito = null;
       return jsonResponse({ success: false, codice: esito.codice, messaggio: esito.messaggio, tentativi }, 422, cors);
     }
-    const p = esito.planimetria;
-    return jsonResponse({ success: true, planimetria: p, avvisi: p.avvisi, scala: p.scala, tentativi }, 200, cors);
+    return risposta(esito.pianta, tentativi, richiesta.file?.mime ?? null, cors);
   } catch (err) {
     if (err instanceof Response) return err;
     if (addebito && supabase) {

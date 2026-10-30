@@ -3,7 +3,8 @@
 // mettere il disegno sotto la pianta nella scala giusta — unità e ingombro —
 // dall'intestazione del DXF in formato testo.
 
-import type { Planimetria, SfondoDxf } from "./modelloProvvisorio.ts";
+import { nuovaPlanimetria } from "../../../shared/planimetrie/modello.ts";
+import type { PiantaGenerata, SfondoDxf } from "./generazione.ts";
 
 const UNITA: Record<string, SfondoDxf["unita"]> = { "4": "mm", "5": "cm", "6": "m" };
 const CM: Record<SfondoDxf["unita"], number> = { mm: 0.1, cm: 1, m: 100, sconosciuta: 1 };
@@ -43,16 +44,19 @@ export function leggiIntestazioneDxf(testo: string): { unita: SfondoDxf["unita"]
 }
 
 /** Pianta vuota con il DXF sotto: l'utente ricalca nell'editor. */
-export function planimetriaConSfondoDxf(testo: string, path: string): Planimetria {
+export function planimetriaConSfondoDxf(testo: string, path: string): PiantaGenerata {
   const { unita, estensione } = leggiIntestazioneDxf(testo);
   const avvisi = ["Il disegno del tecnico è sotto la pianta: ricalca le stanze sopra."];
   if (!estensione) avvisi.push("Il DXF non dice quanto è grande: controlla che la scala sia giusta misurando una parete.");
   return {
-    versione_schema: "provvisoria-1",
-    unita: "cm",
-    livelli: [{ id: "p0", nome: "Piano", muri: [], aperture: [], locali: [] }],
-    scala: null,
-    riferimenti: { ingresso: "dxf", sorgente_path: path, sfondo_dxf: { path, unita, cm_per_unita: CM[unita], estensione } },
-    avvisi,
+    planimetria: nuovaPlanimetria(),
+    generazione: {
+      ingresso: "dxf",
+      scala: null,
+      avvisi,
+      sorgente_path: path,
+      sfondo_dxf: { path, unita, cm_per_unita: CM[unita], estensione },
+      superfici_scritte: {},
+    },
   };
 }

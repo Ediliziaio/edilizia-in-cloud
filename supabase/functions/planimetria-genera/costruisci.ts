@@ -1,6 +1,6 @@
-// Dalla descrizione del modello di visione (rispostaAI.ts) alla planimetria:
-// scala, muri ricavati dai contorni dei locali, aperture appoggiate ai muri,
-// origine di ogni misura.
+// Dalla descrizione del modello di visione (rispostaAI.ts) alla planimetria del
+// modello della fase 1 (shared/planimetrie/modello.ts): scala, muri ricavati
+// dai contorni dei locali, aperture appoggiate ai muri, origine di ogni misura.
 //
 // Regola del founder: niente misure inventate presentate come vere. Qui si
 // decide l'origine:
@@ -9,11 +9,16 @@
 //   · stimata — scala presa dalle porte (80 cm), schizzo senza misure,
 //     descrizione a parole, spessori e altezze di default;
 //   · rilevata — solo quando una persona conferma (applicaMisuraUtente).
+//
+// Si lavora con y verso il basso, come nell'immagine; il documento finale ha
+// y verso l'alto (convenzione del modello) e si capovolge alla fine.
 
-import type {
-  Apertura, Destinazione, IngressoGenerazione, Locale, Misura, Muro, Origine, Planimetria, Punto, ScalaPianta,
-} from "./modelloProvvisorio.ts";
-import type { Coppia, RispostaAI } from "./rispostaAI.ts";
+import {
+  VERSIONE_SCHEMA,
+  type Apertura, type CampoMisura, type Destinazione, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto,
+} from "../../../shared/planimetrie/modello.ts";
+import type { Coppia, LocaleAI, RispostaAI } from "./rispostaAI.ts";
+import type { IngressoGenerazione, InfoGenerazione, PiantaGenerata, ScalaPianta } from "./generazione.ts";
 import { area, distanza, mediana, proiezione, puntoDentro } from "./geometria.ts";
 
 export interface OpzioniCostruzione {
@@ -22,6 +27,7 @@ export interface OpzioniCostruzione {
   larghezzaImmagine?: number | null;
   altezzaImmagine?: number | null;
   sorgentePath?: string | null;
+  titolo?: string;
 }
 
 /** Due facce entro questa distanza sono lo stesso muro (cm). */
@@ -30,13 +36,14 @@ const SPESSORE_ESTERNO = 30;
 const SPESSORE_INTERNO = 10;
 const ALTEZZA_LOCALE = 270;
 const LARGHEZZA_PORTA = 80;
-const ALTEZZE_APERTURA: Record<Apertura["tipo"], { h: number; davanzale: number | null }> = {
-  porta: { h: 210, davanzale: null },
+const ALTEZZE_APERTURA: Record<Apertura["tipo"], { h: number; davanzale: number }> = {
+  porta: { h: 210, davanzale: 0 },
   finestra: { h: 140, davanzale: 90 },
   portafinestra: { h: 230, davanzale: 0 },
+  varco: { h: 210, davanzale: 0 },
 };
 
-const m = (valore: number, origine: Origine): Misura => ({ valore: Math.round(valore * 10) / 10, origine });
+const arr = (v: number) => Math.round(v * 10) / 10;
 
 // ── Scala ────────────────────────────────────────────────────────────────────
 
@@ -74,23 +81,29 @@ export function stimaScala(r: RispostaAI, conv: (c: Coppia) => Punto): Stima | n
     .filter((a) => a.tipo === "porta")
     .map((a) => distanza(conv(a.da), conv(a.a)))
     .filter((d) => d > 0);
-  if (porte.length) return { cm_per_unita: LARGHEZZA_PORTA / mediana(porte), metodo: "porte", concordi: 0 };
+  if (porte.length) {
+    // le porte molto più strette delle altre sono letture sbagliate
+    const med = mediana(porte);
+    return { cm_per_unita: LARGHEZZA_PORTA / mediana(porte.filter((d) => d > med * 0.6)), metodo: "porte", concordi: 0 };
+  }
   return null;
 }
 
 // ── Muri dai contorni dei locali ─────────────────────────────────────────────
 
 interface Faccia {
-  /** 0 = orizzontale (coordinata y costante), 1 = verticale (x costante). */
+  /** 0 = orizzontale (y costante), 1 = verticale (x costante). */
   asse: 0 | 1;
   quota: number;
   da: number;
   a: number;
   /** +1 se il locale sta dalla parte delle coordinate crescenti. */
   lato: 1 | -1;
+  locale: number;
+  vertice: number;
 }
 
-function facceDiLocale(contorno: Punto[]): { facce: Faccia[]; oblique: Array<[Punto, Punto]> } {
+function facceDiLocale(contorno: Punto[], locale: number): { facce: Faccia[]; oblique: Array<[Punto, Punto]> } {
   const facce: Faccia[] = [];
   const oblique: Array<[Punto, Punto]> = [];
   for (let i = 0; i < contorno.length; i++) {
@@ -101,11 +114,11 @@ function facceDiLocale(contorno: Punto[]): { facce: Faccia[]; oblique: Array<[Pu
     if (dx < 1 && dy < 1) continue;
     const mezzo = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     if (dy <= dx * 0.09) {
-      const prova = { x: mezzo.x, y: mezzo.y + 2 };
-      facce.push({ asse: 0, quota: mezzo.y, da: Math.min(a.x, b.x), a: Math.max(a.x, b.x), lato: puntoDentro(prova, contorno) ? 1 : -1 });
+      const lato = puntoDentro({ x: mezzo.x, y: mezzo.y + 2 }, contorno) ? 1 : -1;
+      facce.push({ asse: 0, quota: mezzo.y, da: Math.min(a.x, b.x), a: Math.max(a.x, b.x), lato, locale, vertice: i });
     } else if (dx <= dy * 0.09) {
-      const prova = { x: mezzo.x + 2, y: mezzo.y };
-      facce.push({ asse: 1, quota: mezzo.x, da: Math.min(a.y, b.y), a: Math.max(a.y, b.y), lato: puntoDentro(prova, contorno) ? 1 : -1 });
+      const lato = puntoDentro({ x: mezzo.x + 2, y: mezzo.y }, contorno) ? 1 : -1;
+      facce.push({ asse: 1, quota: mezzo.x, da: Math.min(a.y, b.y), a: Math.max(a.y, b.y), lato, locale, vertice: i });
     } else {
       oblique.push([a, b]);
     }
@@ -143,6 +156,7 @@ interface MuroGrezzo {
   p2: Punto;
   spessore: number;
   esterno: boolean;
+  facce: Faccia[];
 }
 
 function muroDaGruppo(gruppo: Faccia[]): MuroGrezzo {
@@ -167,11 +181,12 @@ function muroDaGruppo(gruppo: Faccia[]): MuroGrezzo {
     const lato = piu.length ? 1 : -1;
     quota = media(gruppo) - (lato * spessore) / 2;
   }
+  spessore = Math.round(spessore);
   const da = Math.min(...gruppo.map((f) => f.da));
   const a = Math.max(...gruppo.map((f) => f.a));
   const p1 = asse === 0 ? { x: da, y: quota } : { x: quota, y: da };
   const p2 = asse === 0 ? { x: a, y: quota } : { x: quota, y: a };
-  return { asse, p1, p2, spessore, esterno };
+  return { asse, p1, p2, spessore, esterno, facce: gruppo };
 }
 
 /** Allunga le estremità fino all'asse del muro perpendicolare vicino: angoli chiusi. */
@@ -197,6 +212,50 @@ function chiudiAngoli(muri: MuroGrezzo[]): void {
   }
 }
 
+/** Porta i lati dei locali sul filo del loro muro: la pianta torna coerente. */
+function allineaLocali(contorni: Punto[][], muri: MuroGrezzo[]): void {
+  for (const w of muri) {
+    if (w.asse === null) continue;
+    const quota = w.asse === 0 ? w.p1.y : w.p1.x;
+    const k = w.asse === 0 ? "y" : "x";
+    for (const f of w.facce) {
+      const filo = quota + (f.lato * w.spessore) / 2;
+      const c = contorni[f.locale];
+      c[f.vertice][k] = filo;
+      c[(f.vertice + 1) % c.length][k] = filo;
+    }
+  }
+}
+
+/**
+ * Schizzo, descrizione e sopralluogo danno stanze che si TOCCANO (le misure
+ * sono nette, i muri ignorati). Per non rimpicciolirle, dove due stanze si
+ * toccano si apre lo spazio di un tramezzo e si sposta di 10 cm tutto quello
+ * che sta oltre: le superfici restano quelle scritte.
+ */
+function separaStanzeAccostate(contorni: Punto[][]): void {
+  const facce = contorni.flatMap((c, i) => facceDiLocale(c, i).facce);
+  for (const asse of [0, 1] as const) {
+    const k = asse === 0 ? "y" : "x";
+    const linee: number[] = [];
+    for (const g of raggruppa(facce.filter((f) => f.asse === asse))) {
+      const piu = g.filter((f) => f.lato === 1);
+      const meno = g.filter((f) => f.lato === -1);
+      if (!piu.length || !meno.length) continue;
+      const q = g.reduce((s, f) => s + f.quota, 0) / g.length;
+      if (Math.max(...g.map((f) => f.quota)) - Math.min(...g.map((f) => f.quota)) < 4 && !linee.some((l) => Math.abs(l - q) < 1)) linee.push(q);
+    }
+    if (!linee.length) continue;
+    for (const c of contorni) {
+      const minimo = Math.min(...c.map((p) => p[k]));
+      for (const p of c) {
+        const passate = linee.filter((q) => q < p[k] - 1 || (Math.abs(q - p[k]) <= 1 && minimo >= q - 1)).length;
+        p[k] += passate * SPESSORE_INTERNO;
+      }
+    }
+  }
+}
+
 // ── Costruzione ──────────────────────────────────────────────────────────────
 
 export class ErroreCostruzione extends Error {
@@ -207,7 +266,13 @@ export class ErroreCostruzione extends Error {
   }
 }
 
-export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): Planimetria {
+/** Origine dell'oggetto + le sole misure che se ne discostano. */
+function origini(origine: Origine, misure: OrigineMisure): { origine: Origine; origineMisure?: OrigineMisure } {
+  const diverse = Object.fromEntries(Object.entries(misure).filter(([, o]) => o !== origine)) as OrigineMisure;
+  return Object.keys(diverse).length ? { origine, origineMisure: diverse } : { origine };
+}
+
+export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): PiantaGenerata {
   if (!r.leggibile) throw new ErroreCostruzione("non_leggibile", r.motivo_non_leggibile ?? "Il documento non si legge.");
   const locali3 = r.locali.filter((l) => l.contorno.length >= 3);
   if (!locali3.length) throw new ErroreCostruzione("nessun_locale", "Nel documento non ho trovato stanze.");
@@ -215,7 +280,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   const avvisi: string[] = [];
   let conv: (c: Coppia) => Punto;
   let scala: ScalaPianta;
-  let origineForma: (l: (typeof locali3)[number]) => Origine;
+  let origineForma: (l: LocaleAI) => Origine;
 
   if (r.sistema === "immagine") {
     const W = opz.larghezzaImmagine && opz.larghezzaImmagine > 0 ? opz.larghezzaImmagine : 1000;
@@ -256,58 +321,45 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     }
   }
 
-  // Locali
+  // Locali (ancora con y verso il basso)
   const altezzaGenerale = r.altezza_m && r.altezza_m > 1.5 && r.altezza_m < 8 ? r.altezza_m * 100 : null;
-  const locali: Locale[] = locali3.map((l, i) => {
-    const contorno = l.contorno.map(conv).map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }));
+  const contorni = locali3.map((l) => l.contorno.map(conv));
+  if (r.sistema === "metri") separaStanzeAccostate(contorni);
+  const altezze = locali3.map((l) => {
     const hScritta = l.altezza_scritta_m && l.altezza_scritta_m > 1.5 && l.altezza_scritta_m < 8 ? l.altezza_scritta_m * 100 : null;
-    const altezza = hScritta ? m(hScritta, "da_documento") : altezzaGenerale ? m(altezzaGenerale, "da_documento") : m(ALTEZZA_LOCALE, "stimata");
-    return {
-      id: `l${i + 1}`,
-      nome: l.nome,
-      destinazione: l.destinazione as Destinazione,
-      contorno,
-      origine_forma: origineForma(l),
-      altezza,
-      superficie_scritta_mq: l.superficie_scritta_mq,
-    };
+    if (hScritta) return { valore: hScritta, origine: "da_documento" as Origine };
+    if (altezzaGenerale) return { valore: altezzaGenerale, origine: "da_documento" as Origine };
+    return { valore: ALTEZZA_LOCALE, origine: "stimata" as Origine };
   });
-  if (locali.some((l) => l.altezza.origine === "stimata")) {
+  if (altezze.some((h) => h.origine === "stimata") && opz.ingresso !== "sopralluogo") {
     avvisi.push("Altezza dei locali non scritta: ho messo 2,70 m.");
   }
 
   // Muri
   const facce: Faccia[] = [];
   const oblique: Array<[Punto, Punto]> = [];
-  for (const l of locali) {
-    const f = facceDiLocale(l.contorno);
+  contorni.forEach((c, i) => {
+    const f = facceDiLocale(c, i);
     facce.push(...f.facce);
     oblique.push(...f.oblique);
-  }
+  });
   const grezzi: MuroGrezzo[] = raggruppa(facce).map(muroDaGruppo);
+  allineaLocali(contorni, grezzi);
   for (const [a, b] of oblique) {
     const doppione = grezzi.some((w) => w.asse === null && proiezione(a, w.p1, w.p2).distanza < TOLLERANZA_MURO && proiezione(b, w.p1, w.p2).distanza < TOLLERANZA_MURO);
-    if (!doppione) grezzi.push({ asse: null, p1: { ...a }, p2: { ...b }, spessore: SPESSORE_INTERNO, esterno: false });
+    if (!doppione) grezzi.push({ asse: null, p1: { ...a }, p2: { ...b }, spessore: SPESSORE_INTERNO, esterno: false, facce: [] });
   }
   chiudiAngoli(grezzi);
+  const muriBuoni = grezzi.filter((w) => distanza(w.p1, w.p2) >= 10);
 
-  const origineMisure: Origine = locali.every((l) => l.origine_forma === "da_documento") ? "da_documento" : "stimata";
-  const altezzaMuri = Math.max(...locali.map((l) => l.altezza.valore));
-  const muri: Muro[] = grezzi
-    .filter((w) => distanza(w.p1, w.p2) >= 10)
-    .map((w, i) => ({
-      id: `m${i + 1}`,
-      p1: arrotonda(w.p1),
-      p2: arrotonda(w.p2),
-      spessore: m(w.spessore, "stimata"),
-      altezza: m(altezzaMuri, locali.every((l) => l.altezza.origine === "da_documento") ? "da_documento" : "stimata"),
-      lunghezza: m(distanza(w.p1, w.p2), origineMisure),
-      tipo: "non_noto",
-      stato: "esistente",
-    }));
+  const formaLocali = locali3.map(origineForma);
+  const origineMuri: Origine = formaLocali.every((o) => o === "da_documento") ? "da_documento" : "stimata";
+  const altezzaMuri = Math.max(...altezze.map((h) => h.valore));
+  const origineAltezzaMuri: Origine = altezze.every((h) => h.origine === "da_documento") ? "da_documento" : "stimata";
 
-  // Aperture
-  const aperture: Apertura[] = [];
+  // Aperture: segmento del vano → muro più vicino e parallelo
+  interface ApInt { muro: number; tipo: Apertura["tipo"]; inizio: number; larghezza: number }
+  const vani: ApInt[] = [];
   let scartate = 0;
   for (const ap of r.aperture) {
     const a = conv(ap.da);
@@ -319,72 +371,140 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     }
     const mezzo = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     const dir = { x: (b.x - a.x) / larghezza, y: (b.y - a.y) / larghezza };
-    let migliore: { muro: Muro; t: number; d: number } | null = null;
-    for (const w of muri) {
+    let migliore: { muro: number; t: number; d: number } | null = null;
+    muriBuoni.forEach((w, i) => {
       const lw = distanza(w.p1, w.p2);
       const wd = { x: (w.p2.x - w.p1.x) / lw, y: (w.p2.y - w.p1.y) / lw };
-      if (Math.abs(dir.x * wd.x + dir.y * wd.y) < 0.95) continue;
+      if (Math.abs(dir.x * wd.x + dir.y * wd.y) < 0.95) return;
       const pr = proiezione(mezzo, w.p1, w.p2);
-      if (pr.t < -0.02 || pr.t > 1.02 || pr.distanza > w.spessore.valore / 2 + TOLLERANZA_MURO) continue;
-      if (!migliore || pr.distanza < migliore.d) migliore = { muro: w, t: pr.t, d: pr.distanza };
-    }
+      if (pr.t < -0.02 || pr.t > 1.02 || pr.distanza > w.spessore / 2 + TOLLERANZA_MURO) return;
+      if (!migliore || pr.distanza < migliore.d) migliore = { muro: i, t: pr.t, d: pr.distanza };
+    });
     if (!migliore) {
       scartate++;
       continue;
     }
-    const lw = migliore.muro.lunghezza.valore;
-    const larg = Math.min(larghezza, lw - 10);
-    const posizione = Math.min(Math.max(migliore.t * lw, larg / 2), lw - larg / 2);
-    const occupato = aperture.some((x) => x.muro_id === migliore!.muro.id && Math.abs(x.posizione - posizione) < (x.larghezza.valore + larg) / 2 - 5);
+    const { muro, t } = migliore as { muro: number; t: number };
+    const lw = distanza(muriBuoni[muro].p1, muriBuoni[muro].p2);
+    const larg = arr(Math.min(larghezza, lw - 10));
+    const inizio = arr(Math.min(Math.max(t * lw - larg / 2, 0), lw - larg));
+    const occupato = vani.some((x) => x.muro === muro && inizio < x.inizio + x.larghezza && x.inizio < inizio + larg);
     if (occupato || larg < 30) {
       scartate++;
       continue;
     }
-    const std = ALTEZZE_APERTURA[ap.tipo];
-    aperture.push({
-      id: `a${aperture.length + 1}`,
-      muro_id: migliore.muro.id,
-      tipo: ap.tipo,
-      posizione: Math.round(posizione * 10) / 10,
-      larghezza: m(larg, scala.metodo === "porte" ? "stimata" : origineMisure),
-      altezza: m(std.h, "stimata"),
-      davanzale: std.davanzale === null ? null : m(std.davanzale, "stimata"),
-      stato: "esistente",
-    });
+    vani.push({ muro, tipo: ap.tipo, inizio, larghezza: larg });
   }
   if (scartate) avvisi.push(`${scartate === 1 ? "Una porta o finestra non era" : `${scartate} porte o finestre non erano`} chiaramente su un muro: controlla che non manchi nulla.`);
 
-  return {
-    versione_schema: "provvisoria-1",
-    unita: "cm",
-    livelli: [{ id: "p0", nome: "Piano", muri, aperture, locali }],
-    scala,
-    riferimenti: { ingresso: opz.ingresso, sorgente_path: opz.sorgentePath ?? null, sfondo_dxf: null },
-    avvisi,
-  };
-}
+  // Capovolge y: il modello ha y verso l'alto.
+  const tutti = [...contorni.flat(), ...muriBuoni.flatMap((w) => [w.p1, w.p2])];
+  const maxY = Math.max(...tutti.map((p) => p.y));
+  const su = (p: Punto): Punto => ({ x: arr(p.x), y: arr(maxY - p.y) });
 
-function arrotonda(p: Punto): Punto {
-  return { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+  const muri: Muro[] = muriBuoni.map((w, i) => ({
+    id: `m${i + 1}`,
+    p1: su(w.p1),
+    p2: su(w.p2),
+    spessore: w.spessore,
+    altezza: altezzaMuri,
+    tipo: w.esterno ? "esterno" : w.spessore > 15 ? "portante" : "tramezzo",
+    stato: "esistente",
+    ...origini(origineMuri, { spessore: "stimata", altezza: origineAltezzaMuri }),
+  }));
+  const locali: Locale[] = locali3.map((l, i) => ({
+    id: `l${i + 1}`,
+    nome: l.nome,
+    destinazione: l.destinazione as Destinazione,
+    contorno: contorni[i].map(su),
+    altezza: altezze[i].valore,
+    ...origini(formaLocali[i], { altezza: altezze[i].origine }),
+  }));
+  const origineVani: Origine = scala.metodo === "porte" ? "stimata" : origineMuri;
+  const aperture: Apertura[] = vani.map((v, i) => {
+    const std = ALTEZZE_APERTURA[v.tipo];
+    return {
+      id: `a${i + 1}`,
+      muroId: muri[v.muro].id,
+      tipo: v.tipo,
+      offset: v.inizio,
+      larghezza: v.larghezza,
+      altezza: std.h,
+      davanzale: std.davanzale,
+      manovra: v.tipo === "varco" ? "nessuna" : "battente",
+      verso: null,
+      stato: "esistente",
+      ...origini(origineVani, { altezza: "stimata", davanzale: "stimata" }),
+    };
+  });
+
+  const superfici: Record<string, number> = {};
+  locali3.forEach((l, i) => {
+    if (l.superficie_scritta_mq) superfici[`l${i + 1}`] = l.superficie_scritta_mq;
+  });
+  const planimetria: Planimetria = {
+    schema: VERSIONE_SCHEMA,
+    unita: "cm",
+    ...(opz.titolo ? { titolo: opz.titolo } : {}),
+    scala: 100,
+    livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi: [], quote: [], testi: [] }, proposte: [] }],
+  };
+  const generazione: InfoGenerazione = {
+    ingresso: opz.ingresso,
+    scala,
+    avvisi,
+    sorgente_path: opz.sorgentePath ?? null,
+    sfondo_dxf: null,
+    superfici_scritte: superfici,
+  };
+  return { planimetria, generazione };
 }
 
 // ── Conferma della scala da parte dell'utente ────────────────────────────────
 
-/** Ridimensiona tutto il disegno di un fattore (attorno all'origine). */
-function ridimensiona(p: Planimetria, f: number): Planimetria {
-  const s = (pt: Punto): Punto => arrotonda({ x: pt.x * f, y: pt.y * f });
-  const daDocumento = (x: Misura): Misura => (x.origine === "rilevata" ? x : m(x.valore * f, "da_documento"));
+/**
+ * Dopo la conferma della scala, le misure in pianta (`inPianta`) diventano «da
+ * documento», salvo quelle già rilevate; le altre (`proprie`: spessore, altezza,
+ * davanzale) restano com'erano.
+ */
+function dopoScala<T extends { origine: Origine; origineMisure?: OrigineMisure }>(o: T, inPianta: CampoMisura[], proprie: CampoMisura[]): T {
+  const origine: Origine = o.origine === "rilevata" ? "rilevata" : "da_documento";
+  const misure: OrigineMisure = {};
+  for (const c of proprie) misure[c] = o.origineMisure?.[c] ?? o.origine;
+  for (const c of inPianta) if (o.origineMisure?.[c] === "rilevata") misure[c] = "rilevata";
+  const { origineMisure: _vecchie, ...resto } = o;
+  return { ...resto, ...origini(origine, misure) } as T;
+}
+
+function ridimensiona(g: PiantaGenerata, f: number): PiantaGenerata {
+  const s = (pt: Punto): Punto => ({ x: arr(pt.x * f), y: arr(pt.y * f) });
+  const p = g.planimetria;
   return {
-    ...p,
-    livelli: p.livelli.map((l) => ({
-      ...l,
-      locali: l.locali.map((loc) => ({ ...loc, contorno: loc.contorno.map(s), origine_forma: loc.origine_forma === "rilevata" ? "rilevata" : "da_documento" })),
-      muri: l.muri.map((w) => ({ ...w, p1: s(w.p1), p2: s(w.p2), lunghezza: daDocumento(w.lunghezza) })),
-      aperture: l.aperture.map((a) => ({ ...a, posizione: Math.round(a.posizione * f * 10) / 10, larghezza: daDocumento(a.larghezza) })),
-    })),
-    scala: p.scala ? { ...p.scala, metodo: "misura_utente", cm_per_unita: Math.round(p.scala.cm_per_unita * f * 10000) / 10000, da_confermare: false } : null,
-    avvisi: p.avvisi.filter((a) => !/misura vera|scala|indicative|una sola misura/i.test(a)),
+    planimetria: {
+      ...p,
+      livelli: p.livelli.map((l) => ({
+        ...l,
+        fatto: {
+          ...l.fatto,
+          locali: l.fatto.locali.map((loc) => dopoScala({ ...loc, contorno: loc.contorno.map(s) }, ["contorno"], ["altezza"])),
+          muri: l.fatto.muri.map((w) => dopoScala({ ...w, p1: s(w.p1), p2: s(w.p2) }, ["lunghezza"], ["spessore", "altezza"])),
+          aperture: l.fatto.aperture.map((a) => dopoScala({ ...a, offset: arr(a.offset * f), larghezza: arr(a.larghezza * f) }, ["offset", "larghezza"], ["altezza", "davanzale"])),
+          quote: l.fatto.quote.map((q) => ({ ...q, p1: s(q.p1), p2: s(q.p2) })),
+          testi: l.fatto.testi.map((t) => ({ ...t, posizione: s(t.posizione) })),
+          elementi: l.fatto.elementi.map((e) => ({ ...e, posizione: s(e.posizione) })),
+        },
+      })),
+    },
+    generazione: {
+      ...g.generazione,
+      scala: g.generazione.scala ? { ...g.generazione.scala, metodo: "misura_utente", cm_per_unita: Math.round(g.generazione.scala.cm_per_unita * f * 10000) / 10000, da_confermare: false } : null,
+      avvisi: g.generazione.avvisi.filter((a) => !/misura vera|scala|indicative|una sola misura/i.test(a)),
+    },
   };
+}
+
+function soloInScala(g: PiantaGenerata) {
+  if (g.generazione.ingresso !== "documento") throw new Error("La scala si conferma solo sui disegni in scala.");
 }
 
 /**
@@ -392,25 +512,28 @@ function ridimensiona(p: Planimetria, f: number): Planimetria {
  * i disegni in scala (catastale, geometra); su schizzo e descrizione la
  * misura si corregge parete per parete nell'editor.
  */
-export function applicaMisuraUtente(p: Planimetria, muroId: string, valoreCm: number): Planimetria {
-  if (p.riferimenti.ingresso !== "documento") throw new Error("La scala si conferma solo sui disegni in scala.");
-  const muro = p.livelli.flatMap((l) => l.muri).find((w) => w.id === muroId);
+export function applicaMisuraUtente(g: PiantaGenerata, muroId: string, valoreCm: number): PiantaGenerata {
+  soloInScala(g);
+  const muro = g.planimetria.livelli.flatMap((l) => l.fatto.muri).find((w) => w.id === muroId);
   if (!muro || !(valoreCm > 0)) throw new Error("Parete o misura non valida.");
-  const f = valoreCm / distanza(muro.p1, muro.p2);
-  const nuova = ridimensiona(p, f);
-  for (const l of nuova.livelli) {
-    for (const w of l.muri) if (w.id === muroId) w.lunghezza = m(valoreCm, "rilevata");
+  const nuova = ridimensiona(g, valoreCm / distanza(muro.p1, muro.p2));
+  for (const l of nuova.planimetria.livelli) {
+    l.fatto.muri = l.fatto.muri.map((w) => {
+      if (w.id !== muroId) return w;
+      const misure: OrigineMisure = { spessore: w.origineMisure?.spessore ?? w.origine, altezza: w.origineMisure?.altezza ?? w.origine };
+      return { ...w, ...origini("rilevata", misure) };
+    });
   }
   return nuova;
 }
 
-/** Variante per locale: «il soggiorno è largo 4,20 m» (lato orizzontale o verticale del riquadro). */
-export function applicaMisuraLocale(p: Planimetria, localeId: string, asse: "x" | "y", valoreCm: number): Planimetria {
-  if (p.riferimenti.ingresso !== "documento") throw new Error("La scala si conferma solo sui disegni in scala.");
-  const loc = p.livelli.flatMap((l) => l.locali).find((l) => l.id === localeId);
+/** Variante per locale: «il soggiorno è largo 4,20 m» (lato orizzontale x o verticale y). */
+export function applicaMisuraLocale(g: PiantaGenerata, localeId: string, asse: "x" | "y", valoreCm: number): PiantaGenerata {
+  soloInScala(g);
+  const loc = g.planimetria.livelli.flatMap((l) => l.fatto.locali).find((l) => l.id === localeId);
   if (!loc || !(valoreCm > 0)) throw new Error("Locale o misura non valida.");
   const vals = loc.contorno.map((pt) => pt[asse]);
   const attuale = Math.max(...vals) - Math.min(...vals);
   if (!(attuale > 0)) throw new Error("Locale senza dimensione su quel lato.");
-  return ridimensiona(p, valoreCm / attuale);
+  return ridimensiona(g, valoreCm / attuale);
 }

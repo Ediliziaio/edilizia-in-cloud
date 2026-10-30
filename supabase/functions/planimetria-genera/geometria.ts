@@ -1,7 +1,7 @@
 // Geometria piana minima per la generazione: aree, distanze, intersezioni.
 // Solo funzioni pure, condivise fra la edge function, i test e il banco di prova.
 
-import type { Punto } from "./modelloProvvisorio.ts";
+import type { Punto } from "../../../shared/planimetrie/modello.ts";
 
 export function areaFirmata(poligono: Punto[]): number {
   let a = 0;

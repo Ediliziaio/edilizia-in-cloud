@@ -6,8 +6,8 @@
 // se non regge, il secondo tentativo riceve gli errori nel prompt; se non regge
 // ancora, all'utente arriva una frase semplice, non la pianta rotta.
 
-import type { Planimetria } from "./modelloProvvisorio.ts";
-import { controllaPlanimetria, type ErroreGeometrico } from "./controlloProvvisorio.ts";
+import type { PiantaGenerata } from "./generazione.ts";
+import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPlanimetria, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
@@ -48,7 +48,7 @@ export interface Tentativo {
 }
 
 export type EsitoGenerazione =
-  | { ok: true; planimetria: Planimetria; tentativi: Tentativo[] }
+  | { ok: true; pianta: PiantaGenerata; tentativi: Tentativo[] }
   | { ok: false; codice: "non_leggibile" | "pianta_non_valida" | "ingresso_mancante"; messaggio: string; tentativi: Tentativo[] };
 
 export const MESSAGGI_UTENTE = {
@@ -74,8 +74,8 @@ export function messaggiIniziali(req: RichiestaGenerazione): Messaggio[] {
 }
 
 interface Lettura {
-  planimetria: Planimetria | null;
-  errori: ErroreGeometrico[];
+  pianta: PiantaGenerata | null;
+  errori: ProblemaGenerazione[];
   nonLeggibile: string | null;
 }
 
@@ -84,21 +84,21 @@ function leggi(testo: string, req: RichiestaGenerazione): Lettura {
   try {
     grezza = estraiJson(testo);
   } catch {
-    return { planimetria: null, errori: [{ codice: "json", dettaglio: "La risposta non era un JSON valido." }], nonLeggibile: null };
+    return { pianta: null, errori: [{ codice: "json", dettaglio: "La risposta non era un JSON valido." }], nonLeggibile: null };
   }
   const risposta = leggiRispostaAI(grezza, req.ingresso === "documento" ? "immagine" : "metri");
   try {
-    const p = costruisciPlanimetria(risposta, {
+    const g = costruisciPlanimetria(risposta, {
       ingresso: req.ingresso,
       larghezzaImmagine: req.file?.larghezza ?? null,
       altezzaImmagine: req.file?.altezza ?? null,
       sorgentePath: req.sorgentePath ?? null,
     });
-    return { planimetria: p, errori: controllaPlanimetria(p), nonLeggibile: null };
+    return { pianta: g, errori: controllaGenerata(g.planimetria), nonLeggibile: null };
   } catch (e) {
-    if (e instanceof ErroreCostruzione && e.codice === "non_leggibile") return { planimetria: null, errori: [], nonLeggibile: e.message };
+    if (e instanceof ErroreCostruzione && e.codice === "non_leggibile") return { pianta: null, errori: [], nonLeggibile: e.message };
     const msg = e instanceof Error ? e.message : String(e);
-    return { planimetria: null, errori: [{ codice: "costruzione", dettaglio: msg }], nonLeggibile: null };
+    return { pianta: null, errori: [{ codice: "costruzione", dettaglio: msg }], nonLeggibile: null };
   }
 }
 
@@ -123,8 +123,8 @@ export async function generaPlanimetria(
     if (lettura.nonLeggibile) {
       return { ok: false, codice: "non_leggibile", messaggio: MESSAGGI_UTENTE.non_leggibile, tentativi };
     }
-    if (lettura.planimetria && !lettura.errori.length) {
-      return { ok: true, planimetria: lettura.planimetria, tentativi };
+    if (lettura.pianta && !lettura.errori.length) {
+      return { ok: true, pianta: lettura.pianta, tentativi };
     }
     // Il secondo tentativo solo se c'è ancora tempo: il gateway chiude a 150 s.
     if (opzioni.tempoMassimoMs && ora() - inizio > opzioni.tempoMassimoMs / 2) break;

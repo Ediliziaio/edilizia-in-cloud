@@ -4,7 +4,7 @@
 // porta o finestra mancante o in più, conferma della scala.
 // Obiettivo del piano: 8 piante su 10 corrette con al massimo 5 correzioni.
 
-import type { Planimetria } from "../../supabase/functions/planimetria-genera/modelloProvvisorio.ts";
+import type { Planimetria } from "../../shared/planimetrie/modello.ts";
 import { area } from "../../supabase/functions/planimetria-genera/geometria.ts";
 
 export interface LocaleVero {
@@ -50,13 +50,14 @@ export function punteggio(v: CampioneVerita, p: Planimetria | null, scalaConferm
     scala_confermata_da_utente: false, correzioni: Infinity, corretta: false, dettaglio: [],
   };
   if (!p) return vuoto;
-  const gen = p.livelli.flatMap((l) => l.locali).map((l) => ({ nome: l.nome, destinazione: l.destinazione as string, mq: area(l.contorno) / 10_000 }));
+  const gen = p.livelli.flatMap((l) => l.fatto.locali).map((l) => ({ nome: l.nome, destinazione: l.destinazione as string, mq: area(l.contorno) / 10_000 }));
   const tol = tolleranzaArea(v.ingresso);
 
   // Abbinamento goloso: prima stessa destinazione e superficie vicina.
   const coppie: Array<{ i: number; j: number; costo: number }> = [];
   v.locali.forEach((lv, i) => gen.forEach((lg, j) => {
-    const stessa = lv.destinazione === lg.destinazione;
+    const famiglia = (d: string) => (d === "corridoio" || d === "ingresso" ? "disimpegno" : d);
+    const stessa = famiglia(lv.destinazione) === famiglia(lg.destinazione);
     const rapporto = lv.area_mq ? Math.abs(Math.log(lg.mq / lv.area_mq)) : 0.3;
     if (!stessa && rapporto > 0.4) return;
     coppie.push({ i, j, costo: (stessa ? 0 : 1) + rapporto });
@@ -81,7 +82,7 @@ export function punteggio(v: CampioneVerita, p: Planimetria | null, scalaConferm
   const fuori = scarti.filter((s) => s > tol).length;
 
   const conta = (tipi: string[], elenco: Array<{ tipo: string }>) => elenco.filter((a) => tipi.includes(a.tipo)).length;
-  const apGen = p.livelli.flatMap((l) => l.aperture);
+  const apGen = p.livelli.flatMap((l) => l.fatto.aperture);
   const porte = v.aperture ? { vere: conta(["porta"], v.aperture), trovate: conta(["porta"], apGen) } : null;
   const finestre = v.aperture ? { vere: conta(["finestra", "portafinestra"], v.aperture), trovate: conta(["finestra", "portafinestra"], apGen) } : null;
 

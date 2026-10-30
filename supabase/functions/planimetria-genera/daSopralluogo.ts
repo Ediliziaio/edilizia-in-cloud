@@ -4,7 +4,7 @@
 // «stimate». Il modulo Sopralluoghi non cambia: si leggono survey_areas
 // (name, area_data.superficie in mq, area_data.altezza in m).
 
-import type { Planimetria } from "./modelloProvvisorio.ts";
+import type { PiantaGenerata } from "./generazione.ts";
 import { costruisciPlanimetria } from "./costruisci.ts";
 import { destinazioneDa, numero, type RispostaAI } from "./rispostaAI.ts";
 
@@ -23,7 +23,7 @@ export function stanzeDaAreeSopralluogo(aree: Array<{ name: string; area_data: R
   }));
 }
 
-export function planimetriaDaSopralluogo(stanze: StanzaSopralluogo[], sorgente: string | null = null): Planimetria {
+export function planimetriaDaSopralluogo(stanze: StanzaSopralluogo[], sorgente: string | null = null): PiantaGenerata {
   const valide = stanze.filter((s) => s.superficie_mq && s.superficie_mq > 0.5 && s.superficie_mq < 500);
   if (!valide.length) throw new Error("Nel sopralluogo non ci sono stanze con la superficie.");
   const totale = valide.reduce((s, x) => s + x.superficie_mq!, 0);
@@ -51,10 +51,14 @@ export function planimetriaDaSopralluogo(stanze: StanzaSopralluogo[], sorgente: 
     aperture: [],
     quote: [],
   };
+  // Fra due stanze c'è un tramezzo (10 cm): le righe sono tutte larghe uguale
+  // fuori tutto e ogni stanza ha esattamente la sua superficie.
+  const tramezzo = 0.1;
   let y = 0;
   for (const g of gruppi) {
     const area = g.reduce((s, x) => s + x.superficie_mq!, 0);
-    const profondita = area / larghezza;
+    const netta = larghezza - tramezzo * (g.length - 1);
+    const profondita = area / netta;
     let x = 0;
     for (const s of g) {
       const w = s.superficie_mq! / profondita;
@@ -66,21 +70,24 @@ export function planimetriaDaSopralluogo(stanze: StanzaSopralluogo[], sorgente: 
         altezza_scritta_m: s.altezza_m,
         misure_lette: false,
       });
-      x += w;
+      x += w + tramezzo;
     }
-    y += profondita;
+    y += profondita + tramezzo;
   }
-  const p = costruisciPlanimetria(risposta, { ingresso: "sopralluogo", sorgentePath: sorgente });
+  const g = costruisciPlanimetria(risposta, { ingresso: "sopralluogo", sorgentePath: sorgente });
   // Le altezze del sopralluogo le ha misurate una persona.
-  for (const loc of p.livelli[0].locali) {
+  const locali = g.planimetria.livelli[0].fatto.locali;
+  for (const loc of locali) {
     const s = valide.find((v) => v.nome === loc.nome);
-    if (s?.altezza_m) loc.altezza = { valore: s.altezza_m * 100, origine: "rilevata" };
+    if (!s?.altezza_m) continue;
+    loc.altezza = s.altezza_m * 100;
+    loc.origineMisure = { ...(loc.origineMisure ?? {}), altezza: "rilevata" };
   }
   const senza = stanze.length - valide.length;
-  p.avvisi = [
+  g.generazione.avvisi = [
     "Le superfici sono quelle del sopralluogo; forma e posizione delle stanze sono indicative: spostale come sono davvero.",
     ...(senza ? [`${senza === 1 ? "Una stanza non aveva" : `${senza} stanze non avevano`} la superficie e non è nella pianta.`] : []),
-    ...(p.livelli[0].locali.some((l) => l.altezza.origine === "stimata") ? ["Altezza non indicata per alcune stanze: ho messo 2,70 m."] : []),
+    ...(locali.some((l) => (l.origineMisure?.altezza ?? l.origine) !== "rilevata") ? ["Altezza non indicata per alcune stanze: ho messo 2,70 m."] : []),
   ];
-  return p;
+  return g;
 }

@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { costruisciPlanimetria, applicaMisuraLocale, applicaMisuraUtente } from "../../../supabase/functions/planimetria-genera/costruisci";
-import { controllaPlanimetria } from "../../../supabase/functions/planimetria-genera/controlloProvvisorio";
+import { controllaGenerata } from "../../../supabase/functions/planimetria-genera/controlloAI";
+import { controllaPlanimetria, haErrori } from "../../../shared/planimetrie/controllo";
+import { validaPlanimetria, origineMisura } from "../../../shared/planimetrie/modello";
+import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
 import { generaPlanimetria, type ChiamaModello } from "../../../supabase/functions/planimetria-genera/genera";
 import { leggiRispostaAI, estraiJson, numero, destinazioneDa, type RispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
 import { planimetriaDaSopralluogo, stanzeDaAreeSopralluogo } from "../../../supabase/functions/planimetria-genera/daSopralluogo";
@@ -52,58 +55,76 @@ describe("planimetria-genera: lettura della risposta del modello", () => {
 });
 
 describe("planimetria-genera: costruzione e controllo", () => {
-  it("ricava la scala dalle quote, i muri dai locali e passa il controllo", () => {
-    const p = costruisciPlanimetria(BILOCALE, { ingresso: "documento", larghezzaImmagine: 1000, altezzaImmagine: 800 });
-    const l = p.livelli[0];
-    expect(p.scala).toMatchObject({ metodo: "quota_letta", da_confermare: false });
-    expect(p.scala!.cm_per_unita).toBeCloseTo(1, 2);
-    // cucina 400 × 300 cm (y: 125→500 su 800 px = 300 px)
-    expect(area(l.locali[0].contorno) / 10_000).toBeCloseTo(12, 1);
-    expect(l.locali[0].origine_forma).toBe("da_documento");
-    expect(l.locali[0].altezza).toEqual({ valore: 270, origine: "da_documento" });
-    // il muro fra cucina e camera è uno solo, spesso 10
-    const divisori = l.muri.filter((m) => Math.abs(m.p1.x - 505) < 1 && Math.abs(m.p2.x - 505) < 1);
-    expect(divisori).toHaveLength(1);
-    expect(divisori[0].spessore.valore).toBeCloseTo(10, 0);
-    expect(l.aperture.map((a) => a.tipo).sort()).toEqual(["finestra", "porta"]);
-    expect(l.aperture.every((a) => a.altezza.origine === "stimata")).toBe(true);
-    expect(p.avvisi.some((a) => /porta o finestra non era/.test(a))).toBe(true);
+  const opz = { ingresso: "documento" as const, larghezzaImmagine: 1000, altezzaImmagine: 800 };
+
+  it("ricava la scala dalle quote, i muri dai locali e passa il controllo della fase 1", () => {
+    const { planimetria: p, generazione } = costruisciPlanimetria(BILOCALE, opz);
+    expect(validaPlanimetria(p).ok).toBe(true);
     expect(controllaPlanimetria(p)).toEqual([]);
+    const f = p.livelli[0].fatto;
+    expect(generazione.scala).toMatchObject({ metodo: "quota_letta", da_confermare: false });
+    expect(generazione.scala!.cm_per_unita).toBeCloseTo(1, 2);
+    // cucina 400 × 300 cm netti (y: 125→500 su 800 px = 300 px)
+    expect(area(f.locali[0].contorno) / 10_000).toBeCloseTo(12, 1);
+    expect(f.locali[0].origine).toBe("da_documento");
+    expect(f.locali[0].altezza).toBe(270);
+    expect(origineMisura(f.locali[0], "altezza")).toBe("da_documento");
+    // y verso l'alto: la cucina (in alto nell'immagine) ha y più grandi del bagno
+    expect(Math.min(...f.locali[0].contorno.map((q) => q.y))).toBeGreaterThan(Math.max(...f.locali[2].contorno.map((q) => q.y)));
+    // il muro fra cucina e camera è uno solo, spesso 10, tramezzo
+    const divisori = f.muri.filter((m) => Math.abs(m.p1.x - 505) < 1 && Math.abs(m.p2.x - 505) < 1);
+    expect(divisori).toHaveLength(1);
+    expect(divisori[0]).toMatchObject({ spessore: 10, tipo: "tramezzo" });
+    expect(origineMisura(divisori[0], "spessore")).toBe("stimata");
+    expect(f.muri.filter((m) => m.tipo === "esterno").length).toBeGreaterThanOrEqual(4);
+    expect(f.aperture.map((a) => a.tipo).sort()).toEqual(["finestra", "porta"]);
+    expect(f.aperture.every((a) => origineMisura(a, "altezza") === "stimata")).toBe(true);
+    expect(generazione.avvisi.some((a) => /porta o finestra non era/.test(a))).toBe(true);
+    // le quantità della fase 1 si calcolano e dicono che il pavimento viene dal documento
+    const q = calcolaQuantita(p);
+    expect(q["fatto:locale:l1.pavimento_mq"]).toMatchObject({ valore: 12, origine: "da_documento" });
   });
 
   it("senza misure scritte usa le porte, segna tutto stimato e chiede una misura", () => {
-    const p = costruisciPlanimetria({ ...BILOCALE, quote: [], aperture: BILOCALE.aperture.slice(1) }, { ingresso: "documento", larghezzaImmagine: 1000, altezzaImmagine: 800 });
-    expect(p.scala).toMatchObject({ metodo: "porte", da_confermare: true });
-    expect(p.livelli[0].locali.every((l) => l.origine_forma === "stimata")).toBe(true);
-    expect(p.avvisi.join(" ")).toMatch(/misura vera di una parete/);
+    const g = costruisciPlanimetria({ ...BILOCALE, quote: [], aperture: BILOCALE.aperture.slice(1) }, opz);
+    expect(g.generazione.scala).toMatchObject({ metodo: "porte", da_confermare: true });
+    expect(g.planimetria.livelli[0].fatto.locali.every((l) => l.origine === "stimata")).toBe(true);
+    expect(g.generazione.avvisi.join(" ")).toMatch(/misura vera di una parete/);
     // la porta è alta 100 su 1000 di un'immagine alta 800 px = 80 px → 1 px = 1 cm
-    expect(p.scala!.cm_per_unita).toBeCloseTo(1, 2);
+    expect(g.generazione.scala!.cm_per_unita).toBeCloseTo(1, 2);
 
-    const conferma = applicaMisuraLocale(p, "l1", "x", 400);
-    expect(area(conferma.livelli[0].locali[0].contorno) / 10_000).toBeCloseTo(12, 1);
-    expect(conferma.scala).toMatchObject({ metodo: "misura_utente", da_confermare: false });
-    expect(conferma.livelli[0].locali[0].origine_forma).toBe("da_documento");
-    expect(conferma.avvisi.join(" ")).not.toMatch(/misura vera/);
+    const conferma = applicaMisuraLocale(g, "l1", "x", 500);
+    const loc = conferma.planimetria.livelli[0].fatto.locali[0];
+    expect(area(loc.contorno) / 10_000).toBeCloseTo(12 * 1.25 * 1.25, 1);
+    expect(conferma.generazione.scala).toMatchObject({ metodo: "misura_utente", da_confermare: false });
+    expect(loc.origine).toBe("da_documento");
+    expect(origineMisura(loc, "altezza")).toBe("da_documento");
+    expect(conferma.generazione.avvisi.join(" ")).not.toMatch(/misura vera/);
+    expect(haErrori(controllaPlanimetria(conferma.planimetria))).toBe(false);
 
-    const muro = conferma.livelli[0].muri[0];
-    const dopo = applicaMisuraUtente(conferma, muro.id, 500);
-    expect(dopo.livelli[0].muri[0].lunghezza).toEqual({ valore: 500, origine: "rilevata" });
+    const muro = conferma.planimetria.livelli[0].fatto.muri[0];
+    const dopo = applicaMisuraUtente(conferma, muro.id, 600);
+    const m1 = dopo.planimetria.livelli[0].fatto.muri[0];
+    expect(Math.hypot(m1.p2.x - m1.p1.x, m1.p2.y - m1.p1.y)).toBeCloseTo(600, 0);
+    expect(m1.origine).toBe("rilevata");
+    expect(origineMisura(m1, "spessore")).toBe("stimata");
   });
 
   it("non conferma la scala su uno schizzo", () => {
-    const p = costruisciPlanimetria({ ...BILOCALE, sistema: "metri", locali: [{ ...BILOCALE.locali[0], contorno: [[0, 0], [4, 0], [4, 3], [0, 3]] }], aperture: [], quote: [] }, { ingresso: "schizzo" });
-    expect(() => applicaMisuraLocale(p, "l1", "x", 400)).toThrow();
-    expect(p.livelli[0].locali[0].origine_forma).toBe("stimata");
+    const g = costruisciPlanimetria({ ...BILOCALE, sistema: "metri", locali: [{ ...BILOCALE.locali[0], contorno: [[0, 0], [4, 0], [4, 3], [0, 3]] }], aperture: [], quote: [] }, { ingresso: "schizzo" });
+    expect(() => applicaMisuraLocale(g, "l1", "x", 400)).toThrow();
+    expect(g.planimetria.livelli[0].fatto.locali[0].origine).toBe("stimata");
   });
 
-  it("il controllo trova locali sovrapposti, intrecciati e aperture fuori dal muro", () => {
-    const p = costruisciPlanimetria(BILOCALE, { ingresso: "documento", larghezzaImmagine: 1000, altezzaImmagine: 800 });
-    const l = p.livelli[0];
-    l.locali.push({ ...l.locali[0], id: "lx", nome: "Doppione" });
-    l.locali.push({ ...l.locali[0], id: "ly", nome: "Farfalla", contorno: [{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 100, y: 0 }, { x: 0, y: 100 }] });
-    l.aperture[0].posizione = 10_000;
-    const codici = controllaPlanimetria(p).map((e) => e.codice);
-    expect(codici).toEqual(expect.arrayContaining(["locali_sovrapposti", "locale_intrecciato", "apertura_fuori_muro"]));
+  it("il controllo della generazione trova locali sovrapposti, intrecciati e aperture fuori dal muro", () => {
+    const { planimetria: p } = costruisciPlanimetria(BILOCALE, opz);
+    const f = p.livelli[0].fatto;
+    f.locali.push({ ...f.locali[0], id: "lx", nome: "Doppione" });
+    f.locali.push({ ...f.locali[0], id: "ly", nome: "Farfalla", contorno: [{ x: 0, y: 0 }, { x: 300, y: 100 }, { x: 300, y: 0 }, { x: 0, y: 200 }] });
+    f.aperture[0].offset = 10_000;
+    const problemi = controllaGenerata(p);
+    expect(problemi.map((e) => e.codice)).toEqual(expect.arrayContaining(["locali_sovrapposti", "locale_contorno_incrociato", "apertura_fuori_parete"]));
+    expect(problemi.find((e) => e.codice === "apertura_fuori_parete")!.dettaglio).toMatch(/larga/);
   });
 });
 
@@ -121,6 +142,7 @@ describe("planimetria-genera: due tentativi, poi un messaggio semplice", () => {
     };
     const esito = await generaPlanimetria(richiesta, chiama);
     expect(esito.ok).toBe(true);
+    expect(esito.ok && esito.pianta.planimetria.schema).toBe(1);
     expect(esito.tentativi).toHaveLength(2);
     expect(visti).toEqual([2, 4]);
   });
@@ -160,21 +182,23 @@ describe("planimetria-genera: sopralluogo e DXF", () => {
       { name: "Camera", area_data: { superficie: 14 } },
       { name: "Terrazzo", area_data: {} },
     ]);
-    const p = planimetriaDaSopralluogo(stanze);
-    const locali = p.livelli[0].locali;
+    const { planimetria: p, generazione } = planimetriaDaSopralluogo(stanze);
+    const locali = p.livelli[0].fatto.locali;
     expect(locali.map((l) => Math.round(area(l.contorno) / 100) / 100)).toEqual([24, 10.5, 5, 14]);
-    expect(locali.every((l) => l.origine_forma === "stimata")).toBe(true);
-    expect(locali[0].altezza).toEqual({ valore: 280, origine: "rilevata" });
-    expect(locali[1].altezza.origine).toBe("stimata");
-    expect(p.avvisi.join(" ")).toMatch(/Una stanza non aveva la superficie/);
-    expect(controllaPlanimetria(p)).toEqual([]);
+    expect(locali.every((l) => l.origine === "stimata")).toBe(true);
+    expect(locali[0].altezza).toBe(280);
+    expect(origineMisura(locali[0], "altezza")).toBe("rilevata");
+    expect(origineMisura(locali[1], "altezza")).toBe("stimata");
+    expect(generazione.avvisi.join(" ")).toMatch(/Una stanza non aveva la superficie/);
+    expect(controllaGenerata(p)).toEqual([]);
   });
 
   it("legge unità e ingombro del DXF senza toccare i disegni", () => {
     const dxf = ["0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4", "9", "$EXTMIN", "10", "0", "20", "0", "30", "0", "9", "$EXTMAX", "10", "12000", "20", "8000", "30", "0", "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES", "0", "ENDSEC", "0", "EOF"].join("\n");
     expect(leggiIntestazioneDxf(dxf)).toEqual({ unita: "mm", estensione: { min: { x: 0, y: 0 }, max: { x: 12000, y: 8000 } } });
-    const p = planimetriaConSfondoDxf(dxf, "c/p/rilievo.dxf");
-    expect(p.riferimenti.sfondo_dxf).toMatchObject({ unita: "mm", cm_per_unita: 0.1 });
+    const g = planimetriaConSfondoDxf(dxf, "c/p/rilievo.dxf");
+    expect(g.generazione.sfondo_dxf).toMatchObject({ unita: "mm", cm_per_unita: 0.1 });
+    expect(validaPlanimetria(g.planimetria).ok).toBe(true);
     expect(() => leggiIntestazioneDxf("AutoCAD Binary DXF\0")).toThrow(/binario/);
     expect(() => leggiIntestazioneDxf("ciao")).toThrow(/non sembra un DXF/);
   });

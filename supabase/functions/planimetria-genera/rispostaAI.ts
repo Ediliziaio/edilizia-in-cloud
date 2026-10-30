@@ -6,7 +6,7 @@
 // (costruisci.ts): un modello di visione legge bene i numeri scritti e la forma
 // delle stanze, molto meno bene spessori e allineamenti al centimetro.
 
-import { DESTINAZIONI, type Destinazione, type TipoApertura } from "./modelloProvvisorio.ts";
+import { DESTINAZIONI, type Destinazione, type TipoApertura } from "../../../shared/planimetrie/modello.ts";
 
 export type Coppia = [number, number];
 
@@ -74,7 +74,8 @@ const SINONIMI: Array<[RegExp, Destinazione]> = [
   [/cucin|cottura|kitchen/, "cucina"],
   [/camer|letto|bedroom|matrimonial|cameretta/, "camera"],
   [/bagn|wc|w\.c|servizi|doccia|toilet/, "bagno"],
-  [/disimp|corridoio|passaggio|dis\b|hall/, "disimpegno"],
+  [/corridoio/, "corridoio"],
+  [/disimp|passaggio|dis\b|hall/, "disimpegno"],
   [/ingress|entrata/, "ingresso"],
   [/ripost|riposti|rip\b|sgabuzz|armadi|guardaroba|dispensa/, "ripostiglio"],
   [/studio|ufficio/, "studio"],
@@ -97,7 +98,8 @@ function tipoApertura(v: unknown): TipoApertura | null {
   const t = String(v ?? "").toLowerCase();
   if (/porta.?finestra|portafinestra|french/.test(t)) return "portafinestra";
   if (/finestr|window|lucernari/.test(t)) return "finestra";
-  if (/porta|door|varco|passaggio/.test(t)) return "porta";
+  if (/varco|passaggio|apertura senza/.test(t)) return "varco";
+  if (/porta|door/.test(t)) return "porta";
   return null;
 }
 

@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { generaPlanimetria, type ChiamaModello, type Messaggio, type RichiestaGenerazione } from "../../supabase/functions/planimetria-genera/genera.ts";
 import { applicaMisuraLocale } from "../../supabase/functions/planimetria-genera/costruisci.ts";
 import { VERSIONE_PROMPT } from "../../supabase/functions/planimetria-genera/prompt.ts";
-import type { Planimetria } from "../../supabase/functions/planimetria-genera/modelloProvvisorio.ts";
+import type { PiantaGenerata } from "../../supabase/functions/planimetria-genera/generazione.ts";
 import { MASSIMO_CORREZIONI, punteggio, type Punteggio } from "./punteggio.ts";
 
 const QUI = dirname(fileURLToPath(import.meta.url));
@@ -106,9 +106,9 @@ function richiesta(v: Verita): RichiestaGenerazione {
   };
 }
 
-function conScalaUtente(v: Verita, p: Planimetria): { p: Planimetria; usata: boolean } {
-  if (!v.misura_utente || !p.scala?.da_confermare) return { p, usata: false };
-  const locali = p.livelli[0].locali;
+function conScalaUtente(v: Verita, p: PiantaGenerata): { p: PiantaGenerata; usata: boolean } {
+  if (!v.misura_utente || !p.generazione.scala?.da_confermare) return { p, usata: false };
+  const locali = p.planimetria.livelli[0].fatto.locali;
   const vero = v.locali.find((l: Verita) => l.nome === v.misura_utente.locale);
   const loc = locali.find((l) => l.nome.toLowerCase() === String(v.misura_utente.locale).toLowerCase())
     ?? locali.find((l) => l.destinazione === vero?.destinazione);
@@ -145,11 +145,11 @@ async function main() {
       risultati.push({ ...punteggio(v, null), modello: usato, costo_usd: costo, tentativi: 0, durata_ms: Date.now() - t0, avvisi: [], esito: `errore: ${(e as Error).message}` });
       continue;
     }
-    let p = esito.ok ? esito.planimetria : null;
+    let p = esito.ok ? esito.pianta : null;
     let usata = false;
     if (p) ({ p, usata } = conScalaUtente(v, p));
-    const pt = punteggio(v, p, usata);
-    risultati.push({ ...pt, modello: usato, costo_usd: costo, tentativi: esito.tentativi.length, durata_ms: Date.now() - t0, avvisi: p?.avvisi ?? [], esito: esito.ok ? "ok" : esito.codice });
+    const pt = punteggio(v, p?.planimetria ?? null, usata);
+    risultati.push({ ...pt, modello: usato, costo_usd: costo, tentativi: esito.tentativi.length, durata_ms: Date.now() - t0, avvisi: p?.generazione.avvisi ?? [], esito: esito.ok ? "ok" : esito.codice, problemi: esito.tentativi.map((t) => t.errori) } as never);
     if (p && process.argv.includes("--salva-piante")) {
       mkdirSync(join(QUI, "risultati", "piante"), { recursive: true });
       writeFileSync(join(QUI, "risultati", "piante", `${id}.${modello.replace(/\W+/g, "_")}.json`), JSON.stringify(p, null, 1));
