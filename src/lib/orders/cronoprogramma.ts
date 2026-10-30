@@ -407,11 +407,36 @@ export interface SottofaseCrono {
  */
 export function sottofasiCronoprogramma(
   fase: Pick<FaseCrono, "previstoInizio" | "previstoFine">,
-  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; fatta_il?: string | null; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null; in_parallelo?: boolean; iniziata_il?: string | null; giorni_lavorati?: number }>,
+  sottofasi: ReadonlyArray<{ id: string; name: string; fatta: boolean; fatta_il?: string | null; data_inizio?: string | null; data_fine?: string | null; giorni?: number | null; in_parallelo?: boolean; iniziata_il?: string | null; giorni_lavorati?: number; peso?: number }>,
   oggi: string,
   lavorativo: GiornoLavorativo = tuttiIGiorni,
 ): SottofaseCrono[] {
   const out: SottofaseCrono[] = [];
+  // Nessuna sottofase ha date né giorni (31/10/2026): si dividono il periodo della fase
+  // in fila, in proporzione al peso, così il grafico della fase si rispecchia sotto.
+  const nessunPiano = sottofasi.every((s) => !planningDay(s.data_inizio) && !planningDay(s.data_fine) && !(s.giorni && s.giorni >= 1));
+  if (nessunPiano && sottofasi.length > 0 && fase.previstoInizio && fase.previstoFine && fase.previstoFine >= fase.previstoInizio) {
+    const totaleGiorni = giorniTra(fase.previstoInizio, fase.previstoFine) + 1;
+    const pesi = sottofasi.map((s) => (s.peso && s.peso > 0 ? s.peso : 1));
+    const totalePeso = pesi.reduce((t, p) => t + p, 0);
+    let fatti = 0;
+    let accumulato = 0;
+    sottofasi.forEach((s, i) => {
+      accumulato += pesi[i];
+      const fino = i === sottofasi.length - 1 ? totaleGiorni : Math.max(fatti + 1, Math.round((accumulato / totalePeso) * totaleGiorni));
+      const da = aggiungiGiorni(fase.previstoInizio!, Math.min(fatti, totaleGiorni - 1));
+      const a = aggiungiGiorni(fase.previstoInizio!, Math.min(fino, totaleGiorni) - 1);
+      fatti = Math.min(fino, totaleGiorni);
+      const reale = realeSottofase({ fatta: s.fatta, fatta_il: s.fatta_il ?? null, data_inizio: da, data_fine: a, giorni: null });
+      out.push({
+        id: s.id, nome: s.name, fatta: s.fatta, previstoInizio: da, previstoFine: a, giorni: s.giorni ?? null,
+        ritardo: 0, fuoriDallaFase: false, stimata: true,
+        realeInizio: planningDay(s.iniziata_il) || null, giorniLavorati: s.giorni_lavorati ?? 0,
+        realeFine: reale?.finita ?? null, scarto: reale?.scarto ?? 0,
+      });
+    });
+    return out;
+  }
   // Le sottofasi con i soli giorni si mettono in fila dopo la precedente (dall'inizio
   // della fase per la prima), o con la precedente se «in parallelo», contando i
   // giorni di lavoro: così il grafico le mostra anche prima di salvare le date.

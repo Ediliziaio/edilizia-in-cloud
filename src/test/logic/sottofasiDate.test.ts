@@ -161,3 +161,16 @@ describe("calendario del cantiere, parallelo, reale, fasi da spostare", () => {
     expect(fasiDaSpostare("2025-09-19", dopo).giorni).toBe(0);
   });
 });
+
+describe("sottofasi senza date né giorni", () => {
+  it("si dividono il periodo della fase in proporzione al peso, stimate", () => {
+    const righe = sottofasiCronoprogramma(
+      { previstoInizio: "2025-09-24", previstoFine: "2025-10-01" },
+      [{ id: "a", name: "Esecuzione", fatta: false, peso: 3 }, { id: "b", name: "Verifica", fatta: false, peso: 1 }],
+      "2025-09-01",
+    );
+    expect(righe.map(r => [r.id, r.previstoInizio, r.previstoFine, r.stimata])).toEqual([
+      ["a", "2025-09-24", "2025-09-29", true], ["b", "2025-09-30", "2025-10-01", true],
+    ]);
+  });
+});

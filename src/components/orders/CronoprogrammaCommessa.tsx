@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, CalendarRange, ChevronDown, ChevronRight, FileSignature, Loader2 } from "lucide-react";
+import { AlertTriangle, CalendarRange, Check, ChevronDown, ChevronRight, FileSignature, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -175,45 +175,79 @@ function righeSottofasi(tutte: ReadonlyArray<Sottofase>, conDate: ReadonlyArray<
   });
 }
 
+/** Una barra tenuta dentro il grafico: quello che esce si taglia al bordo. */
+function dentro(b: { left: number; width: number } | null): { left: number; width: number } | null {
+  if (!b) return null;
+  const da = Math.max(0, b.left), a = Math.min(100, b.left + b.width);
+  return a > da ? { left: da, width: a - da } : null;
+}
+
+/**
+ * Una sottofase sotto la sua fase, con lo stesso disegno della fase (31/10/2026):
+ * sopra il previsto (tratteggiato se stimato), sotto il reale dai rapportini, verde
+ * se chiusa e arancione se in corso. Una data fuori dal periodo del grafico non lo
+ * allarga: diventa una freccia sul bordo.
+ */
 function RigaSottofase({ s, asse, segni, oggi }: { s: RigaSotto; asse: Asse; segni: ReturnType<typeof tacche>; oggi: string }) {
-  const b = s.previstoInizio && s.previstoFine ? barra(s.previstoInizio, s.previstoFine, asse) : null;
-  const r = s.realeFine ? barra(s.realeFine, s.realeFine, asse) : null;
-  // Il lavoro vero dai rapportini: dal primo giorno alla fine (o a oggi, se è ancora aperta).
-  const lavoro = s.realeInizio ? barra(s.realeInizio, s.realeFine ?? (oggi > s.realeInizio ? oggi : s.realeInizio), asse) : null;
+  const b = dentro(s.previstoInizio && s.previstoFine ? barra(s.previstoInizio, s.previstoFine, asse) : null);
+  const fineLavoro = s.realeFine ?? (s.realeInizio && oggi > s.realeInizio ? oggi : s.realeInizio);
+  // Come la fase: il reale fino alla fine prevista, poi la parte oltre in arancione.
+  const taglio = s.previstoFine && s.realeInizio && fineLavoro && fineLavoro > s.previstoFine
+    ? (s.realeInizio > s.previstoFine ? s.realeInizio : aggiungiGiorni(s.previstoFine, 1)) : null;
+  const lavoro = s.realeInizio && fineLavoro && (!taglio || taglio > s.realeInizio)
+    ? dentro(barra(s.realeInizio, taglio ? aggiungiGiorni(taglio, -1) : fineLavoro, asse)) : null;
+  const oltre = taglio && fineLavoro ? dentro(barra(taglio, fineLavoro, asse)) : null;
+  const punto = s.realeFine ? barra(s.realeFine, s.realeFine, asse) : null;
+  const puntoX = punto ? punto.left + punto.width / 2 : null;
+  const fuori = puntoX != null && (puntoX < 0 || puntoX > 100) ? (puntoX < 0 ? "prima" : "dopo") : null;
   const reale = s.realeFine ? ` · finita il ${lunga(s.realeFine)}${s.scarto > 0 ? `, ${giorni(s.scarto)} dopo` : s.scarto < 0 ? `, ${giorni(-s.scarto)} prima` : ", in tempo"}` : "";
   const quando = s.previstoInizio && s.previstoFine
     ? `${lunga(s.previstoInizio)}${s.previstoFine !== s.previstoInizio ? ` → ${lunga(s.previstoFine)}` : ""}${s.giorni ? ` · ${giorni(s.giorni)} necessari` : ""}`
     : "senza date";
+  const titolo = `${s.nome}: ${quando}${s.realeInizio ? ` · lavorata dal ${lunga(s.realeInizio)}, ${giorni(s.giorniLavorati)} di lavoro` : ""}${s.fatta ? reale || " · fatta" : ""}${s.stimata ? " · stimata: date non salvate" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`;
   return (
-    <div data-testid={`sottofase-${s.id}`} className="flex border-b bg-slate-50/40 last:border-b-0">
-      <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center gap-1.5 border-r bg-white py-1 pl-7 pr-2 text-[11px]">
-        <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", s.fatta ? "bg-emerald-500" : s.ritardo > 0 ? "bg-rose-500" : "bg-sky-400")} />
-        <span className={cn("min-w-0 flex-1 break-words", s.fatta ? "text-muted-foreground line-through" : "text-slate-700")}>{s.nome}</span>
-        {s.ritardo > 0 && <span className="shrink-0 font-semibold tabular-nums text-rose-700">+{s.ritardo} gg</span>}
+    <div data-testid={`sottofase-${s.id}`} className="flex border-b bg-slate-50/50 last:border-b-0">
+      <div className="sticky left-0 z-10 flex w-56 shrink-0 items-center bg-white py-1 pl-3 pr-2 text-[11px] border-r">
+        <span aria-hidden="true" className="mr-2 h-full self-stretch border-l-2 border-slate-200" />
+        <span className={cn("min-w-0 flex-1 break-words", s.fatta ? "text-muted-foreground" : "text-slate-700")}>{s.nome}</span>
+        {s.fatta && <Check aria-label="fatta" className="ml-1 h-3.5 w-3.5 shrink-0 text-emerald-600" />}
+        {s.ritardo > 0 && <span className="ml-1 shrink-0 font-semibold tabular-nums text-rose-700">+{s.ritardo} gg</span>}
       </div>
-      <div className="relative h-7 flex-1">
+      <div className="relative h-9 flex-1" title={titolo}>
         <Griglia asse={asse} segni={segni} oggi={oggi} />
-        {!b && !lavoro && !r && <span className="absolute left-2 top-1.5 text-[10px] italic text-muted-foreground">senza date{s.fatta ? " · fatta" : ""}</span>}
-        {b && b.width > 0 && (
+        {!b && !lavoro && !oltre && !punto && <span className="absolute left-2 top-2.5 text-[10px] italic text-muted-foreground">senza date{s.fatta ? " · fatta" : ""}</span>}
+        {b && (
           <span
             data-testid={`sottofase-barra-${s.id}`}
-            className={cn("absolute top-2 h-3 rounded-sm", s.fatta ? "bg-emerald-400" : s.ritardo > 0 ? "bg-rose-300" : "bg-sky-300",
-              s.stimata && "border border-dashed border-sky-500 bg-sky-100", s.fuoriDallaFase && "ring-1 ring-amber-500")}
+            className={cn("absolute top-1.5 h-3 overflow-hidden rounded-sm border",
+              s.stimata ? "border-dashed border-slate-400 bg-white" : "border-slate-300 bg-slate-100",
+              s.ritardo > 0 && "border-rose-300 bg-rose-50", s.fuoriDallaFase && "ring-1 ring-amber-500")}
             style={{ left: `${b.left}%`, width: `${b.width}%` }}
-            title={`${s.nome}: ${quando}${s.realeInizio ? ` · lavorata dal ${lunga(s.realeInizio)}, ${giorni(s.giorniLavorati)} di lavoro` : ""}${s.fatta ? reale || " · fatta" : ""}${s.stimata ? " · stimata dai giorni, date non salvate" : ""}${s.fuoriDallaFase ? " · fuori dalle date della fase" : ""}`}
-          />
+            title={titolo}
+          >
+            {s.fatta && <span className="block h-full w-full bg-slate-300" />}
+          </span>
         )}
-        {lavoro && lavoro.width > 0 && (
-          <span data-testid={`sottofase-lavoro-${s.id}`} aria-hidden="true" className="absolute top-[22px] h-1 rounded-full bg-slate-700"
+        {lavoro && (
+          <span data-testid={`sottofase-lavoro-${s.id}`} aria-hidden="true"
+            className={cn("absolute top-[22px] h-2 rounded-full", s.fatta ? "bg-emerald-500" : "bg-amber-500")}
             style={{ left: `${lavoro.left}%`, width: `${lavoro.width}%` }} />
         )}
-        {r && (
-          <span
-            data-testid={`sottofase-reale-${s.id}`}
-            aria-hidden="true"
-            className={cn("absolute top-[9px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 border border-white", s.scarto > 0 ? "bg-rose-600" : "bg-emerald-600")}
-            style={{ left: `${r.left + r.width / 2}%` }}
-          />
+        {oltre && (
+          <span data-testid={`sottofase-oltre-${s.id}`} aria-hidden="true"
+            className={cn("absolute top-[22px] h-2 rounded-full", s.fatta ? "bg-amber-500" : "bg-rose-500")}
+            style={{ left: `${oltre.left}%`, width: `${oltre.width}%` }} />
+        )}
+        {punto && !s.realeInizio && !fuori && (
+          <span data-testid={`sottofase-reale-${s.id}`} aria-hidden="true"
+            className={cn("absolute top-[20px] h-2.5 w-2.5 -translate-x-1/2 rotate-45", s.scarto > 0 ? "bg-rose-500" : "bg-emerald-500")}
+            style={{ left: `${puntoX}%` }} />
+        )}
+        {fuori && s.realeFine && (
+          <span data-testid={`sottofase-reale-${s.id}`}
+            className={cn("absolute top-[17px] whitespace-nowrap rounded bg-white/90 px-1 text-[10px] tabular-nums text-emerald-700", fuori === "dopo" ? "right-1" : "left-1")}>
+            {fuori === "prima" ? "‹ " : ""}fatta {breve(s.realeFine)}{fuori === "dopo" ? " ›" : ""}
+          </span>
         )}
       </div>
     </div>
@@ -310,11 +344,9 @@ export function CronoprogrammaCommessa({
   const nelGrafico = fasi.filter((f) => previsto(f) || f.realeInizio || f.realeFine);
   const senzaDate = fasi.filter((f) => !previsto(f) && !f.realeInizio && !f.realeFine);
   const dateSottofasi = useMemo(
-    () => (conSottofasi ? [
-      ...[...sotto.values()].flat().flatMap((s) => [s.previstoInizio, s.previstoFine, ...(s.realeFine ? [s.realeFine] : [])]),
-      ...[...sottofasiDi.values()].flat().flatMap((s) => [s.iniziata_il, realeSottofase(s)?.finita]).filter((d): d is string => !!d),
-    ] : []),
-    [sotto, sottofasiDi, conSottofasi],
+    // Solo il previsto delle sottofasi: una spunta lontana (dati vecchi) non allunga il grafico.
+    () => (conSottofasi ? [...sotto.values()].flat().flatMap((s) => [s.previstoInizio, s.previstoFine]) : []),
+    [sotto, conSottofasi],
   );
   // La tabella: fasi e sottofasi con date, giorni, persone, quantità e costi della voce del computo.
   const righeTabella = useMemo(() => righeTabellaCronoprogramma(fasi, sottofasiDi, sotto, {
@@ -603,10 +635,8 @@ export function CronoprogrammaCommessa({
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-full bg-rose-500" />Ritardo aperto</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-full bg-amber-500" />Scostamento storico, fase chiusa</span>
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rotate-45 bg-emerald-500" />Chiusura senza inizio rilevato</span>
-        {sotto.size > 0 && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300" />Sottofase prevista (verde se fatta)</span>}
-        {[...sottofasiDi.values()].flat().some(s => s.iniziata_il) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-1 w-6 rounded-full bg-slate-700" />Sottofase: lavoro dai rapportini</span>}
-        {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm border border-dashed border-sky-500 bg-sky-100" />Sottofase stimata dai giorni</span>}
-        {[...sotto.values()].some(r => r.some(s => s.realeFine)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-2.5 rotate-45 bg-emerald-600" />Sottofase finita (rosso se dopo la fine prevista)</span>}
+        {conSottofasi && [...sottofasiDi.values()].some(l => l.length > 0) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="ml-1 h-3.5 border-l-2 border-slate-200" />Sottofasi: stessi colori della fase, previsto sopra e reale sotto</span>}
+        {[...sotto.values()].some(r => r.some(s => s.stimata)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2.5 w-6 rounded-sm border border-dashed border-slate-400 bg-white" />Previsto stimato: date non salvate</span>}
         {[...sotto.values()].some(r => r.some(s => s.fuoriDallaFase)) && <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-6 rounded-sm bg-sky-300 ring-1 ring-amber-500" />Sottofase oltre le date della fase</span>}
         <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-3 w-0.5 bg-orange-500" />Oggi</span>
         <span className="text-[11px]">Date reali dai rapportini e dalla chiusura delle fasi. Clic su una fase per il dettaglio.</span>
