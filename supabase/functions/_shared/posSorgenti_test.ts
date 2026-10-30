@@ -1,3 +1,4 @@
+// deno-lint-ignore-file require-await -- i finti restituiscono promesse come gli oggetti veri, senza aspettare niente
 import assert from "node:assert/strict";
 import { ErroreEmissionePos, type RigaEmissionePos } from "./posEmissione.ts";
 import { sorgenteDaPrenotazione } from "./posSorgenti.ts";

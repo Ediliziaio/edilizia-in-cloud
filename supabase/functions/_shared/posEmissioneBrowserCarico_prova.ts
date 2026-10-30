@@ -1,3 +1,4 @@
+// deno-lint-ignore-file require-await -- i finti restituiscono promesse come gli oggetti veri, senza aspettare niente
 // Non è un test: lo lancia posEmissioneBrowserCarico_test.ts in un processo nuovo, che equivale a un worker a freddo.
 // Fa ciò che fa il server per un'emissione col PDF disegnato dal browser (prepara + completa) importando i moduli
 // come fa il gestore, dentro la richiesta, e stampa su una riga di JSON quanta CPU ha speso in tutto (importazioni comprese).

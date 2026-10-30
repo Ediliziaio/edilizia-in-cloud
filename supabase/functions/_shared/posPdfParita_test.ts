@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-import-prefix -- il bundle minificato del client non è nella mappa degli import della funzione: si importa a nome e versione, apposta
 import assert from "node:assert/strict";
 import pdfMakeServer from "pdfmake";
 import vfsServer from "pdfmake-fonts";

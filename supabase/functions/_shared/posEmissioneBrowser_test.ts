@@ -1,9 +1,9 @@
+// deno-lint-ignore-file require-await -- i finti restituiscono promesse come gli oggetti veri, senza aspettare niente
 import assert from "node:assert/strict";
 import pdfMake from "pdfmake";
 import vfs from "pdfmake-fonts";
 import { unzipSync, strFromU8, strToU8 } from "fflate";
 import { esempioPdfPos } from "../../../src/test/fixtures/posEsempioPdf.ts";
-import { costruisciHtmlPos } from "./posHtml.ts";
 import { generaPdfPos } from "./posPdf.ts";
 import { disegnaPdfPos } from "./posPdfBrowser.ts";
 import { sha256Hex } from "./improntaDocumento.ts";

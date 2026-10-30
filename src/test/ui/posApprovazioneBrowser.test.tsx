@@ -88,6 +88,16 @@ describe("Approvazione del POS", () => {
     expect(azioni()).toEqual(["prepara_emissione"]);
   });
 
+  it("le voci mancanti dell'Allegato XV arrivano all'editor con il loro elenco, perché le mostri accanto ai campi", async () => {
+    const mancanti = [{ riferimento: "3.2.1 a) 1", sezione: "opera", testo: "Indirizzo del cantiere" }];
+    server({ prepara_emissione: () => json({ ok: false, error: "Il POS non ha ancora tutti i contenuti minimi dell'Allegato XV", mancanti }, 422) });
+    const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });
+    await act(async () => {
+      await expect(h.result.current.mutateAsync({ posId: "pos-1", attesaUpdatedAt: "x" })).rejects.toMatchObject({ mancanti, status: 422 });
+    });
+    expect(azioni()).toEqual(["prepara_emissione"]);
+  });
+
   it("se il server in linea non conosce ancora le azioni nuove, approva come prima (PDF disegnato dal server)", async () => {
     server({ prepara_emissione: () => json({ ok: false, error: "Azione non riconosciuta" }, 400), approva: () => json({ ok: true, approvato_da_nome: "Mario Rossi" }) });
     const h = renderHook(() => useApprovaPos(), { wrapper: contesto() });

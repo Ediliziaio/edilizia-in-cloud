@@ -4,6 +4,9 @@ import { disegnaPdfPos, type MotorePdf, type ParametriDisegnoPos } from "../../.
  * pdfmake 0.3.9 e i suoi font (Roboto), caricati solo quando c'è un PDF del POS da disegnare: circa 0,8 MB compressi
  * che non pesano su nessun'altra pagina. È lo stesso pdfmake, alla stessa versione, della funzione genera-pos, con lo
  * stesso codice di layout: il PDF del browser ha l'aspetto di quello che prima disegnava il server.
+ *
+ * Questo è il ripiego nel thread principale, per dove il Worker non c'è (ambienti di prova, browser molto vecchi): il
+ * Worker vero (posPdf.worker.ts) importa le stesse librerie in modo statico, perché un Worker di produzione è un file unico.
  */
 let motore: Promise<MotorePdf> | null = null;
 

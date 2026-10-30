@@ -1,3 +1,4 @@
+// deno-lint-ignore-file require-await -- i finti restituiscono promesse come gli oggetti veri, senza aspettare niente
 import assert from "node:assert/strict";
 import { strToU8 } from "fflate";
 import type { FontiProdottiPos } from "./posPacchetto.ts";
@@ -41,8 +42,10 @@ export function memoria(opzioni: { corrompi?: boolean; stato?: string; riservata
       if (nome === "pos_prenota_emissione") return { data: { ...riga }, error: null };
       if (nome === "pos_prodotti_fonti_emissione") return opzioni.prodotti ? { data: opzioni.prodotti, error: null } : { data: null, error: { code: "40001", message: "Fonte prodotto cambiata" } };
       assert.equal(nome, "pos_completa_emissione");
-      assert.ok(store.size >= 7);
+      // Come la funzione SQL: ogni file dichiarato nel manifest, più PDF, manifest e pacchetto, deve già stare nello storage.
       manifestCompletato = args._manifest as Record<string, unknown>;
+      for (const f of (manifestCompletato as { file: Array<{ path: string }> }).file) assert.ok(store.has(f.path), `file dichiarato ma non caricato: ${f.path}`);
+      for (const nomeFile of ["POS.pdf", "manifest.json", "fascicolo.zip"]) assert.ok(store.has(`${companyId}/${id}/${token}/${nomeFile}`), `manca ${nomeFile}`);
       Object.assign(riga, { stato: "completa" });
       return { data: { ...riga }, error: null };
     },

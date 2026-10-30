@@ -26,7 +26,7 @@ export async function sorgenteApprovazione(db: Db, p: { companyId: string; pos: 
   const rilevateIl = new Date().toISOString();
   return { posId: pos.id, companyId, attesoUpdatedAt: pos.updated_at, nomeAutore: p.nomeAutore,
     dati: { contenuto: normalizzaPos(pos.contenuto), stato: "approvato", revisione: pos.revisione ?? 0, revisioni: Array.isArray(pos.revisioni) ? pos.revisioni : [], codiceCommessa: String(fonti.order.order_code || "") },
-    fonti: async () => ({ tipo: "dati_app_rilevati_durante_preparazione", rilevati_il: rilevateIl, commessa: fonti.order, contenuto_rilevato: fonti.contenuto, contesto: fonti.contesto, riferimenti: fonti.fonti,
+    fonti: () => Promise.resolve({ tipo: "dati_app_rilevati_durante_preparazione", rilevati_il: rilevateIl, commessa: fonti.order, contenuto_rilevato: fonti.contenuto, contesto: fonti.contesto, riferimenti: fonti.fonti,
       nota: "Dati delle fonti rilevati durante la preparazione, distinti dai contenuti adattati e approvati dall’utente." }) };
 }
 
@@ -40,7 +40,7 @@ export async function sorgenteArchivio(db: Db, p: { companyId: string; pos: PosR
   if (erroreOrdine) throw new ErroreEmissionePos("Codice commessa non disponibile", 503);
   return { posId: pos.id, companyId, attesoUpdatedAt: pos.updated_at, snapshotId: a.id,
     dati: datiDaSnapshotPos(a.snapshot, a.revisione, ordine?.order_code || ""), nomeAutore: "Copia da contenuto archiviato",
-    fonti: async () => ({ tipo: "contenuto_archiviato", snapshot_id: a.id, fonte: a.fonte, acquisito_il: a.acquisito_il,
+    fonti: () => Promise.resolve({ tipo: "contenuto_archiviato", snapshot_id: a.id, fonte: a.fonte, acquisito_il: a.acquisito_il,
       nota: "Le fonti e i byte originari non sono ricostruiti. Il codice commessa è rilevato alla preparazione della copia." }) };
 }
 
