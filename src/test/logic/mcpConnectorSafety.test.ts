@@ -132,7 +132,7 @@ describe("MCP handler offline integration", () => {
     const s = server();
     expect((await s.post({ jsonrpc: "2.0", id: 1, method: "initialize" }, false)).status).toBe(200);
     const listing = await s.post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, false);
-    expect(listing.body.result.tools).toHaveLength(55);
+    expect(listing.body.result.tools).toHaveLength(58); // +3 commesse generali (tappa 7)
     for (const tool of listing.body.result.tools) expect(tool.securitySchemes).toEqual([{ type: "oauth2", scopes: [] }]);
     const unauth = await s.post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kpi_azienda" } }, false);
     expect(unauth.status).toBe(401);

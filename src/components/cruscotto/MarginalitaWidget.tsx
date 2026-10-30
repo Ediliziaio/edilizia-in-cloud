@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { leggiIdGenerali } from "@/hooks/useCommesseGenerali";
 import { formatCurrency } from "@/lib/formatters";
 import {
   computeScostamenti,
@@ -42,7 +43,9 @@ export function MarginalitaWidget() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["marginalita-widget", companyId],
     queryFn: async () => {
-      const archivedIds = await loadArchivedOrderIds(companyId!);
+      // Fuori anche le commesse generali: sono contenitori a importo zero, i loro
+      // costi comuni le farebbero sembrare un cantiere in perdita.
+      const [archivedIds, generali] = await Promise.all([loadArchivedOrderIds(companyId!), leggiIdGenerali(companyId!)]);
       const { data, error } = await excludeArchivedOrders(supabase
         .from("v_ordine_marginalita")
         .select(
@@ -50,7 +53,7 @@ export function MarginalitaWidget() {
         )
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(WIDGET_FETCH_LIMIT), archivedIds);
+        .limit(WIDGET_FETCH_LIMIT), [...archivedIds, ...generali]);
       if (error) throw error;
       return (data || []) as OrdineMarginalitaRow[];
     },

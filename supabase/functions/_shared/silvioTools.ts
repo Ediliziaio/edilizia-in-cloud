@@ -8595,6 +8595,99 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     resultContract: "Un bonifico parlante per ogni agevolazione, con la SUA causale: se il cliente ne fa uno solo, una detrazione salta. La ritenuta 11% e gia scorporata al 22% convenzionale, non ricalcolarla con l'IVA di fattura.",
   },
 
+  // ══ Commesse generali (tappa 7, 05/11/2026) ══════════════════════════════════
+  // Una commessa generale raccoglie altre commesse: un appalto e i suoi ordini di
+  // lavoro, uno sviluppo immobiliare o una compravendita e le loro unità. Le RPC
+  // leggono con l'identità di chi chiede (p_user_id): stessi permessi dell'app su
+  // commesse, importi, costi e margini.
+
+  commesse_generali: {
+    schema: {
+      type: "function",
+      function: {
+        name: "commesse_generali",
+        description: "Elenco delle COMMESSE GENERALI (appalti a contratto con i loro ordini di lavoro; sviluppi immobiliari e compravendite con le loro unità) con i numeri chiave: valore aggiornato, eseguito, da eseguire, fatturato, da incassare; per le operazioni immobiliari unità vendute/libere, venduto e incassato; margine a finire e capitale impegnato dal piano economico. Piu il totale del portafoglio appalti in corso. Usa per 'quanto ho in portafoglio di appalti', 'come vanno le operazioni immobiliari', 'quali commesse generali ho'.",
+        parameters: {
+          type: "object",
+          properties: {
+            cerca: { type: "string", description: "Facoltativo: codice, nome o cliente della generale (es. 'scuole', 'Via Roma')" },
+            anche_chiuse: { type: "boolean", description: "Includi anche le generali completate o annullate (default no)" },
+          },
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_commesse_generali", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cerca: String(args?.cerca ?? "").trim() || null,
+      p_anche_chiuse: args?.anche_chiuse === true,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+    resultContract: "Il valore di una generale NON si somma a quello delle commesse dentro: e lo stesso lavoro visto dall'alto. 'Margine a finire' = stima finale del piano economico; se il piano manca, dirlo invece di inventarlo.",
+  },
+
+  commessa_generale: {
+    schema: {
+      type: "function",
+      function: {
+        name: "commessa_generale",
+        description: "Una COMMESSA GENERALE nel dettaglio: numeri (valore aggiornato, eseguito, da eseguire, fatturato, incassato, da incassare, avanzamento), la scala delle commesse dentro, il piano economico in breve (margine previsto e a finire, capitale impegnato e massimo), unità e vendite (sviluppo/compravendita), cosa richiede attenzione e le scadenze (garanzie, fine lavori, rogiti). Usa per 'quanto mi resta da incassare sull'appalto scuole', 'come va la residenza Via Roma', 'quante unita ho venduto in X'.",
+        parameters: {
+          type: "object",
+          properties: {
+            cerca: { type: "string", description: "Codice esatto (es. O-0026), oppure parte del nome o del cliente (es. 'scuole', 'Via Roma')" },
+          },
+          required: ["cerca"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_commessa_generale", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cerca: String(args?.cerca ?? "").trim() || null,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+    resultContract: "Se tornano piu 'candidate', chiedere quale generale intende. 'Da incassare sul fatturato' e il fatturato non ancora pagato; per le unita conta 'da incassare sulle vendite' (prezzo meno caparre, acconti e permute). Dire per primi gli avvisi.",
+  },
+
+  scadenze_generali: {
+    schema: {
+      type: "function",
+      function: {
+        name: "scadenze_generali",
+        description: "Scadenze delle COMMESSE GENERALI in corso: garanzie non svincolate (cauzione definitiva, garanzia dell'anticipazione, polizza CAR, rata di saldo), fine lavori dei contratti con le proroghe, rogiti previsti delle unita a compromesso. Comprende quelle gia passate. Usa per 'quali garanzie scadono', 'cosa scade sugli appalti', 'quando sono i prossimi rogiti'.",
+        parameters: {
+          type: "object",
+          properties: {
+            giorni: { type: "number", description: "Finestra in giorni da oggi (default 60, max 730)" },
+          },
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const giorni = Number(args?.giorni);
+      return callRpc(ctx.supabase, "silvio_tool_scadenze_generali", {
+        p_company_id: ctx.companyId,
+        p_user_id: ctx.userId,
+        p_giorni: Number.isFinite(giorni) ? Math.min(730, Math.max(1, Math.round(giorni))) : 60,
+      });
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+    resultContract: "Le voci con scaduta=true vanno dette per prime: una garanzia scaduta va rinnovata o svincolata, un fine lavori passato fa maturare la penale.",
+  },
+
   lista_candidati: {
     schema: {
       type: "function",

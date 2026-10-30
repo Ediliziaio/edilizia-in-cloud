@@ -13,7 +13,10 @@ export function useCruscottoWorkOrders(companyId: string | null | undefined) {
       const [orders, statuses] = await Promise.all([
         readAllOrderRows<WorkOrder>((from, to) => supabase.from("orders")
           .select("id, current_status_id, status, fulfillment_status, work_start_date, work_end_date, expected_date, order_code, description")
-          .eq("company_id", companyId).is("deleted_at", null).order("id").range(from, to)),
+          .eq("company_id", companyId).is("deleted_at", null)
+          // una commessa generale è un contenitore: i lavori sono le commesse dentro
+          .or("workflow_kind.neq.generale")
+          .order("id").range(from, to)),
         supabase.from("order_statuses").select("id, position, is_support_phase")
           .eq("company_id", companyId).order("position"),
       ]);
