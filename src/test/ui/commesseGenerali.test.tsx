@@ -40,6 +40,10 @@ vi.mock("@/components/orders/generali/moduli/PianoScheda", () => ({
 vi.mock("@/components/orders/generali/moduli/InvestitoriScheda", () => ({
   modulo: { pronto: false, titolo: "Investitori", telefono: false, Scheda: (): null => null },
 }));
+// Il modulo delle unità vero ha i suoi test (generaleUnita.test.tsx): qui resta spento, così lo sviluppo non ha moduli pronti.
+vi.mock("@/components/orders/generali/moduli/UnitaScheda", () => ({
+  modulo: { pronto: false, titolo: "Unità e vendite", telefono: true, Scheda: (): null => null },
+}));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   useRiepilogoGenerale: () => ({ data: m.riepilogo, isLoading: false, isError: false, refetch: vi.fn() }),
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),
