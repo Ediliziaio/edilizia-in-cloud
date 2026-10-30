@@ -34,6 +34,9 @@ vi.mock("@/components/fatturazione/PreviewFattura", () => ({
 }));
 vi.mock("@/components/fatturazione/CollegamentiEmessaImportata", () => ({ CollegamentiEmessaImportata: (): null => null }));
 vi.mock("@/components/fatturazione/EmessaImportataDettaglio", () => ({ EmessaImportataDettaglio: (): null => null }));
+vi.mock("@/components/fatturazione/IncassiFattura", () => ({
+  IncassiFatturaImportata: ({ stato }: { stato: string }) => <p>Storico incassi ({stato})</p>,
+}));
 
 import DettaglioFatturaImportata from "@/pages/azienda/fatturazione/DettaglioFatturaImportata";
 
@@ -52,6 +55,8 @@ describe("Dettaglio di una fattura importata", () => {
     expect(screen.getByText("Anteprima con 1 righe: Posa serramenti")).toBeInTheDocument();
     expect(screen.getByText("Informazioni")).toBeInTheDocument();
     expect(screen.getByText("Pagamenti")).toBeInTheDocument();
+    // Lo storico con «Annulla», come nelle native: pagata in parte.
+    expect(screen.getByText("Storico incassi (parziale)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Torna ai documenti/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Segna pagata/ })).toBeInTheDocument();
     for (const vietata of [/Modifica/, /Duplica/, /Emetti/, /Invia/, /Converti/]) {
