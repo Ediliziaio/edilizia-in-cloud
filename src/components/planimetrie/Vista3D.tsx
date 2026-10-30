@@ -39,6 +39,12 @@ export interface Vista3DProps {
   className?: string;
   /** Se c'è, dentro una stanza compare «Usa questa vista per il render». */
   onFotogramma?: (f: Fotogramma) => void;
+  /** Come si apre (predefinito: «gira intorno»). Con «dentro» si entra subito in `localeIniziale`. */
+  modoIniziale?: ModoVista;
+  /** Stato di fatto o progetto all'apertura (predefinito: progetto). */
+  vistaIniziale?: VistaLavori;
+  /** La stanza scelta all'apertura (predefinito: la prima). */
+  localeIniziale?: string;
 }
 
 export interface Vista3DHandle {
@@ -69,13 +75,17 @@ function scarica(dati: BlobPart, nome: string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma }, ref) {
+const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma, modoIniziale = "giro", vistaIniziale = "progetto", localeIniziale }, ref) {
   const contenitore = useRef<HTMLDivElement>(null);
   const motore = useRef<Motore | null>(null);
-  const [vista, setVista] = useState<VistaLavori>("progetto");
-  const [modo, setModo] = useState<ModoVista>("giro");
-  const [localeId, setLocaleId] = useState<string>(piante.progetto.locali[0]?.id ?? "");
-  const [soffitto, setSoffitto] = useState(false);
+  const [vista, setVista] = useState<VistaLavori>(vistaIniziale);
+  const [modo, setModo] = useState<ModoVista>(modoIniziale);
+  const [localeId, setLocaleId] = useState<string>(
+    localeIniziale && (vistaIniziale === "fatto" ? piante.fatto : piante.progetto).locali.some((l) => l.id === localeIniziale)
+      ? localeIniziale
+      : ((vistaIniziale === "fatto" ? piante.fatto : piante.progetto).locali[0]?.id ?? ""),
+  );
+  const [soffitto, setSoffitto] = useState(modoIniziale === "dentro");
   const [arredi, setArredi] = useState(true);
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
