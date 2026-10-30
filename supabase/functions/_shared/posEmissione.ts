@@ -37,7 +37,7 @@ export async function conservaEmissionePos(db: Db, userId: string, sorgente: Sor
   let fileDaRipulire: string[] = [];
   try {
     const dati = { ...sorgente.dati, stato: "approvato", approvatoDa: sorgente.snapshotId ? sorgente.dati.approvatoDa : sorgente.nomeAutore,
-      approvatoIl: sorgente.snapshotId ? sorgente.dati.approvatoIl : null,
+      approvatoIl: sorgente.snapshotId ? sorgente.dati.approvatoIl : e.emesso_il,
       ...(sorgente.snapshotId ? {avvisoCopia:`COPIA PREPARATA IL ${new Date(e.emesso_il).toLocaleDateString("it-IT",{timeZone:"Europe/Rome"})} DAL CONTENUTO ARCHIVIATO. Non ricostruisce i byte dell’originale storico e non attesta firme precedenti.`} : {}) };
     let pscVerificato;
     if(dati.contenuto.procedure_psc.psc_presente && dati.contenuto.procedure_psc.documento) {

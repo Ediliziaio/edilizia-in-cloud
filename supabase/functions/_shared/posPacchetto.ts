@@ -8,6 +8,8 @@ import { generaPdfPos, VERSIONE_RENDERER_POS } from "./posPdf.ts";
 import type { ProdottoPos } from "./posProdotti.ts";
 import type { DatiStampaPos } from "./posHtml.ts";
 import { sha256Hex } from "./improntaDocumento.ts";
+import { percorsoStorageSicuro } from "./posPercorsi.ts";
+export { percorsoStorageSicuro };
 
 export const BUCKET_EMISSIONI_POS = "pos-emissioni";
 const LIMITE_ALLEGATO = 20 * 1024 * 1024;
@@ -57,9 +59,10 @@ function nomeSicuro(nome: string): string {
   const n = nome.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^\.+/, "").slice(-120);
   return n || "documento";
 }
+/** Gli allegati del POS li carica l'editor: <azienda>/pos/<pos>/<uuid>-<nome senza caratteri speciali>. */
 export function validaPathAllegatoPos(path: string, companyId: string, posId: string) {
   const prefisso = `${companyId}/pos/${posId}/`;
-  if (!path.startsWith(prefisso) || path.length <= prefisso.length || path.includes("\\") || path.split("/").some(s => !s || s === "." || s === "..")) {
+  if (!percorsoStorageSicuro(path) || !path.startsWith(prefisso) || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(path.slice(prefisso.length))) {
     throw new Error("Un allegato non appartiene al fascicolo di questo POS: correggi l’associazione prima di emettere");
   }
 }
@@ -121,7 +124,7 @@ export async function preparaPacchettoPos(
   const idsSds=new Set<string>();
   for(const [i,a] of (prodottiSds?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.evidenza_id}/`;
-    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsSds.has(a.evidenza_id)) throw new Error("Riferimento SDS del fascicolo non valido");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsSds.has(a.evidenza_id)) throw new Error("Riferimento SDS del fascicolo non valido");
     idsSds.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`SDS «${a.nome}» non disponibile: emissione non completata`);}
@@ -133,7 +136,7 @@ export async function preparaPacchettoPos(
   const idsTecnici=new Set<string>();
   for(const [i,a] of (fontiTecniche?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.evidenza_id}/`;
-    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsTecnici.has(a.evidenza_id))throw new Error("Riferimento tecnico del fascicolo non valido");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||a.bucket!=="fascicoli-cantiere"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsTecnici.has(a.evidenza_id))throw new Error("Riferimento tecnico del fascicolo non valido");
     idsTecnici.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`Documento tecnico «${a.nome}» non disponibile: emissione non completata`);}
@@ -145,7 +148,7 @@ export async function preparaPacchettoPos(
   const idsDocumentiMezzi=new Set<string>();
   for(const [i,a] of (documentiMezzi?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.mezzo_id}/`;
-    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.mezzo_id)||a.bucket!=="mezzi-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").length!==3||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsDocumentiMezzi.has(a.evidenza_id))throw new Error("Riferimento originale dell’attrezzatura non valido");
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.mezzo_id)||a.bucket!=="mezzi-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||a.path.split("/").length!==3||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsDocumentiMezzi.has(a.evidenza_id))throw new Error("Riferimento originale dell’attrezzatura non valido");
     idsDocumentiMezzi.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`Originale attrezzatura «${a.nome}» non disponibile: emissione non completata`);}
@@ -156,7 +159,7 @@ export async function preparaPacchettoPos(
   const idsFormativi=new Set<string>();
   for(const [i,a] of (requisitiAddetti?.allegati||[]).entries()) {
     const prefix=`${identita.companyId}/${a.persona_id}/`;
-    if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.persona_id)||a.bucket!=="hr-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||a.path.includes("\\")||a.path.split("/").length!==3||a.path.split("/").some(s=>!s||s==='.'||s==='..')||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsFormativi.has(a.evidenza_id))throw new Error("Riferimento formativo non pertinente all’addetto della propria impresa");
+    if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.evidenza_id)||!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(a.persona_id)||a.bucket!=="hr-documenti"||!a.path.startsWith(prefix)||a.path.length<=prefix.length||!percorsoStorageSicuro(a.path)||a.path.split("/").length!==3||!/^[0-9a-f]{64}$/i.test(a.impronta)||idsFormativi.has(a.evidenza_id))throw new Error("Riferimento formativo non pertinente all’addetto della propria impresa");
     idsFormativi.add(a.evidenza_id);
     let bytes:Uint8Array;
     try{bytes=new Uint8Array(await scarica(a.bucket,a.path));}catch{throw new Error(`Originale formativo «${a.nome}» non disponibile: emissione non completata`);}

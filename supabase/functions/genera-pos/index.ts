@@ -5,6 +5,8 @@ import { supportaFontiTecnichePos } from "../_shared/posFontiTecniche.ts";
 import { supportaTecnicaPos } from "../_shared/posTecnica.ts";
 import { supportaProdottiPos } from "../_shared/posProdotti.ts";
 import { verificaVersionePos } from "../_shared/posVersione.ts";
+import { percorsoStorageSicuro } from "../_shared/posPercorsi.ts";
+import { oggiRoma } from "../_shared/posData.ts";
 /**
  * genera-pos — Piano Operativo di Sicurezza sul modello ufficiale
  * (DI 9 settembre 2014, Allegato I; Allegato XV punto 3.2.1 del D.Lgs 81/2008).
@@ -189,7 +191,7 @@ Deno.serve(async (req: Request) => {
       const {data:fonte,error}=await db.rpc("pos_originale_addetto_per_autore",{_company:companyId,_ordine:String(body.order_id||""),_riesame:String(body.riesame_id||""),_persona:persona,_documento:String(body.documento_id||""),_impronta:String(body.impronta||""),_autore:userId});
       if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
       const path=fonte?.path;
-      if(fonte?.bucket!=="hr-documenti"||typeof path!=="string"||!path.startsWith(`${companyId}/${persona}/`)||path.includes("\\")||path.split("/").length!==3||path.split("/").some(x=>!x||x==="."||x===".."))return errorResponse("Originale formativo non disponibile",403,cors);
+      if(fonte?.bucket!=="hr-documenti"||typeof path!=="string"||!path.startsWith(`${companyId}/${persona}/`)||!percorsoStorageSicuro(path)||path.split("/").length!==3)return errorResponse("Originale formativo non disponibile",403,cors);
       const {data:link,error:err}=await db.storage.from("hr-documenti").createSignedUrl(path,300);
       if(err||!link?.signedUrl)return errorResponse("Originale formativo non disponibile",503,cors);
       return jsonResponse({ok:true,url:link.signedUrl},200,cors);
@@ -198,7 +200,7 @@ Deno.serve(async (req: Request) => {
       const ordine=String(body.order_id||""),mezzo=String(body.mezzo_id||""),documento=String(body.documento_id||""),impronta=String(body.impronta||"");
       const {data:path,error}=await db.rpc("pos_documento_mezzo_per_autore",{_company:companyId,_ordine:ordine,_mezzo:mezzo,_documento:documento,_impronta:impronta,_autore:userId});
       if(error)return errorResponse(error.message,error.code==="40001"?409:error.code==="42501"?403:400,cors);
-      if(typeof path!=="string"||!path.startsWith(`${companyId}/${mezzo}/`)||path.includes("\\")||path.split("/").length!==3||path.split("/").some(x=>!x||x==="."||x===".."))return errorResponse("Originale attrezzatura non disponibile",403,cors);
+      if(typeof path!=="string"||!path.startsWith(`${companyId}/${mezzo}/`)||!percorsoStorageSicuro(path)||path.split("/").length!==3)return errorResponse("Originale attrezzatura non disponibile",403,cors);
       const {data:link,error:err}=await db.storage.from("mezzi-documenti").createSignedUrl(path,300);
       if(err||!link?.signedUrl)return errorResponse("Originale attrezzatura non disponibile",503,cors);
       return jsonResponse({ok:true,url:link.signedUrl},200,cors);
@@ -277,7 +279,7 @@ Deno.serve(async (req: Request) => {
       if (["affidataria", "affidataria_esecutrice", "esecutrice_subappalto"].includes(body.ruolo_impresa)) {
         contenuto.impresa.ruolo = body.ruolo_impresa;
       }
-      const oggi = new Date().toISOString().slice(0, 10);
+      const oggi = oggiRoma();
       const { data: doc, error } = await db
         .from("pos_documents")
         .insert({

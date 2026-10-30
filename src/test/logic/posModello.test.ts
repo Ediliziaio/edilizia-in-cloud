@@ -137,6 +137,74 @@ describe("contenuti minimi dell'Allegato XV", () => {
   });
 });
 
+describe("controlli rinforzati dopo la rilettura del 30/10/2026", () => {
+  const testoVoce = (p: PosContenuto, rif = "3.2.1 d) e) g) i)") => vociMancanti(p).find((v) => v.riferimento === rif)?.testo ?? "";
+
+  it("macchine, opere provvisionali e impianti vanno dichiarati tutti e tre, ognuno anche con «Nessuna»", () => {
+    const p = posCompleto();
+    // Il caso che prima passava: un montaggio di ponteggio senza dire niente sulle opere provvisionali.
+    p.lavorazioni = [lavorazione({ titolo: "Montaggio ponteggio", macchine: "Autocarro con gru", opere_provvisionali: "", impianti: "" })];
+    const voce = testoVoce(p);
+    expect(voce).toMatch(/opere provvisionali/);
+    expect(voce).toMatch(/impianti/);
+    expect(voce).not.toMatch(/macchine/);
+    p.lavorazioni = [lavorazione({ titolo: "Pittura interna", macchine: "Rulli", opere_provvisionali: "Nessuna", impianti: "Nessuno" })];
+    expect(vociMancanti(p)).toEqual([]);
+  });
+
+  it("un vecchio POS (controlli v1) conserva la regola di prima: basta una delle tre", () => {
+    const p = posCompleto();
+    p.versione_controlli = 1;
+    p.lavorazioni = [lavorazione({ macchine: "Autocarro con gru", opere_provvisionali: "", impianti: "" })];
+    expect(vociMancanti(p)).toEqual([]);
+    p.lavorazioni = [lavorazione({ macchine: "", opere_provvisionali: "", impianti: "" })];
+    expect(testoVoce(p)).toMatch(/macchine, opere provvisionali e impianti/);
+  });
+
+  it.each([
+    "Non presenti", "non previste", "Assenti", "N/A", "n.a.", "—", "Nessuna sostanza pericolosa", "Nessun prodotto chimico",
+    "Non sono previste sostanze pericolose", "Non utilizzate.", "Nessuna.", "nulla",
+  ])("«%s» vale come «nessuna sostanza»: niente schede di sicurezza da chiedere", (risposta) => {
+    const p = posCompleto();
+    p.lavorazioni = [lavorazione({ sostanze: risposta })];
+    expect(vociMancanti(p)).toEqual([]);
+  });
+
+  it.each([
+    "Nessuna, salvo il collante cementizio", "Nessuna scheda di sicurezza disponibile", "Collante; nessuna altra", "Primer non previsto per le pareti ma sigillante sì",
+  ])("«%s» NON vale come assenza: le sostanze vanno identificate", (risposta) => {
+    const p = posCompleto();
+    p.lavorazioni = [lavorazione({ sostanze: risposta })];
+    expect(vociMancanti(p).map((v) => v.riferimento)).toContain("3.2.1 e)");
+  });
+
+  it("date dei lavori invertite o inesistenti bloccano; senza date o ordinate no", () => {
+    const p = posCompleto();
+    expect(vociMancanti(p)).toEqual([]);
+    p.opera.data_inizio = "2026-12-31";
+    p.opera.data_fine = "2026-01-15";
+    expect(testoVoce(p, "3.2.1 c)")).toMatch(/fine lavori prima dell.inizio/i);
+    p.opera.data_inizio = "2026-02-30";
+    p.opera.data_fine = "2026-03-10";
+    expect(testoVoce(p, "3.2.1 c)")).toMatch(/data.*non valida/i);
+    p.opera.data_inizio = "2026-11-02";
+    p.opera.data_fine = "2026-11-02";
+    expect(vociMancanti(p)).toEqual([]);
+    p.opera.data_fine = "";
+    expect(vociMancanti(p)).toEqual([]);
+  });
+
+  it("le modalità organizzative scritte dall'AI bloccano finché non si confermano", () => {
+    const p = posCompleto();
+    p.opera.modalita_organizzative_da_verificare = true;
+    expect(testoVoce(p, "3.2.1 c)")).toMatch(/proposte dall'AI/);
+    expect(normalizzaPos(p).opera.modalita_organizzative_da_verificare).toBe(true);
+    p.opera.modalita_organizzative_da_verificare = false;
+    expect(vociMancanti(p)).toEqual([]);
+    expect("modalita_organizzative_da_verificare" in normalizzaPos(p).opera).toBe(false);
+  });
+});
+
 describe("lettura sicura", () => {
   it("null, vecchio generatore o dati sporchi diventano un POS con tutte le chiavi", () => {
     expect(normalizzaPos(null)).toEqual(posVuoto());

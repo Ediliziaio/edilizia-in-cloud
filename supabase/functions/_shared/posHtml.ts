@@ -1,4 +1,5 @@
 import {SEGNALI_POS,segnalePosSvg,normalizzaSegnaliPos} from "./posSegnaletica.ts";
+import { dataRomaDaIso } from "./posData.ts";
 import { ICONE_POS, iconaPosSvg } from "./posIcone.ts";
 import type { DocumentazioneMezzoPos } from "./posDocumentiMezzi.ts";
 import { etichettaFonteMezzo, type SceltaMezzoPos } from "./posMezzi.ts";
@@ -48,11 +49,7 @@ const testo = (s: string | null | undefined) => (s && s.trim() ? esc(s.trim()).r
 const casella = (spuntata: boolean, etichetta: string) =>
   `<span class="casella">${spuntata ? "&#9746;" : "&#9744;"} ${esc(etichetta)}</span>`;
 
-function dataIt(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso);
-}
+const dataIt = dataRomaDaIso;
 
 function tabellaSoggetto(titolo: string, s: Soggetto | null): string {
   const v = s ?? { nominativo: "", indirizzo: "", codice_fiscale: "", telefono: "", email: "" };

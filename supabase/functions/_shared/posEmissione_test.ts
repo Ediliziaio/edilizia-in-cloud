@@ -49,6 +49,24 @@ Deno.test("ZIP: non legge allegati di un altro POS o di un’altra azienda",asyn
  await assert.rejects(()=>preparaPacchettoPos(identita,d,async()=>{chiamate++;return byteAllegato;},{}),/non appartiene/);
  assert.equal(chiamate,0);
 });
+Deno.test("ZIP: %2e%2e, query o frammento in un percorso non escono dalla cartella del POS e non si scarica nulla",async()=>{
+ // supabase-js attacca il percorso all'URL senza codificarlo: con %2e%2e la richiesta usciva dallo storage verso /rest/v1/ con la chiave di servizio.
+ const base=`${companyId}/pos/${posId}/`;
+ for(const brutto of [`${base}%2e%2e/%2e%2e/rest/v1/profiles?select=*`,`${base}x?y=1`,`${base}a#b`,`${base}..%2f..%2fx.pdf`,`${base}%2E%2E`,`${base}a/b.pdf`,`${base}con spazio.pdf`,`${base}a\u202efdp.exe`,`${base}.nascosto`,`${base}`]){
+  const d=dati();d.contenuto.allegati[0].file_path=brutto;let chiamate=0;
+  await assert.rejects(()=>preparaPacchettoPos(identita,d,async()=>{chiamate++;return byteAllegato;},{}),/non appartiene/,brutto);
+  assert.equal(chiamate,0,brutto);
+ }
+});
+Deno.test("ZIP: anche i percorsi risolti da altre fonti rifiutano %, ? e # prima di scaricare",async()=>{
+ const evidenza="55555555-5555-4555-8555-555555555555";
+ for(const brutto of [`${companyId}/${evidenza}/%2e%2e/%2e%2e/rest/v1/profiles?select=*`,`${companyId}/${evidenza}/x?y=1`,`${companyId}/${evidenza}/a#b`]){
+  let chiamate=0;
+  await assert.rejects(()=>preparaPacchettoPos(identita,{...dati(),contenuto:{...dati().contenuto,allegati:[],versione_prodotti:1}},async()=>{chiamate++;return byteAllegato;},{riferimento:"TEST"},
+   {versione:1,prodotti:[],allegati:[{evidenza_id:evidenza,bucket:"fascicoli-cantiere",path:brutto,nome:"sds.pdf",impronta:"a".repeat(64)}]}),/non valido/,brutto);
+  assert.equal(chiamate,0,brutto);
+ }
+});
 Deno.test("JSON canonico: ordinamento stabile e valori non serializzabili respinti",()=>{
  assert.equal(jsonCanonico({b:2,a:{z:1,c:0}}),jsonCanonico({a:{c:0,z:1},b:2}));
  assert.throws(()=>jsonCanonico({a:undefined}),/non serializzabile/);

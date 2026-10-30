@@ -43,6 +43,14 @@ describe("Riferimento PSC esplicito", () => {
     };
     expect(normalizzaPos(p).procedure_psc).toEqual(p.procedure_psc);
   });
+  it("titolo, nome file e revisione con spazi di testa o di coda restano la stessa fonte (il POS li salva senza spazi)", () => {
+    const { sha256: _impronta, ...riferimento } = r;
+    const fonte = { ...riferimento, titolo: "  PSC <script> ", file_name: "psc.pdf ", revisione: " 02 ", created_at: "2026-10-27T10:00:00Z" };
+    expect(stessaFontePsc(riferimento, fonte)).toBe(true);
+    expect(stessaFontePsc(riferimento, { ...fonte, titolo: "Altro titolo" })).toBe(false);
+    expect(stessaFontePsc(riferimento, { ...fonte, revisione: "03" })).toBe(false);
+    expect(stessaFontePsc({ ...riferimento, revisione: "A" }, { ...fonte, revisione: "  " })).toBe(true);
+  });
   it("rifiuta fonti non tipizzate e impronte non valide", () => {
     expect(normalizzaRiferimentoPsc({ ...r, archivio: "altro" }))
       .toBeUndefined();
