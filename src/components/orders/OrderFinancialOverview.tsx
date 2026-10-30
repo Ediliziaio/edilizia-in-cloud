@@ -66,8 +66,11 @@ export function OrderFinancialOverview(props: Props) {
   const error = isError || props.itemsError;
   const realeReady = !loading && !error && quality.canShowMargin;
   const previstoReady = !previsto.isLoading && !previsto.isError;
+  // Il ricavo della vista (contratto + varianti approvate), lo stesso del margine reale:
+  // previsto, stima e percentuali stanno sulla stessa base. Finché la vista non c'è, il contratto.
+  const ricavo = actual.revenue > 0 ? actual.revenue : totalAmount;
   const numeri = numeriCommessa({
-    ricavo: totalAmount,
+    ricavo,
     costoPrevistoLavorazioni: previsto.costo,
     lavorazioniSenzaPrevisto: previsto.lavorazioniSenzaPrevisto,
     provvigioni: actual.commissions,
@@ -130,7 +133,7 @@ export function OrderFinancialOverview(props: Props) {
         <div role="row" className="contents">
           <Etichetta titolo="Previsto" sotto="dal contratto" />
           {canViewAmounts && (
-            <Cella label="Contratto" value={formatCurrency(grossAmount)} hint={`Imponibile ${formatCurrency(totalAmount)} · IVA ${vatRate}%`} onClick={props.onOpenPayments} />
+            <Cella label="Contratto" value={formatCurrency(grossAmount)} hint={`Imponibile ${formatCurrency(totalAmount)} · IVA ${vatRate}%${Math.abs(actual.approvedVariations) > 0.005 ? ` · varianti ${actual.approvedVariations > 0 ? "+" : "−"}${formatCurrency(Math.abs(actual.approvedVariations))}` : ""}`} onClick={props.onOpenPayments} />
           )}
           {canViewMargins && <>
             <Cella label="Costo previsto" value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.costo) : "—"} hint={previstoHint} onClick={props.onOpenEconomics} />
@@ -171,6 +174,7 @@ export function OrderFinancialOverview(props: Props) {
               label="Costi sostenuti"
               value={realeReady ? formatCurrency(numeri.reale.costi) : "—"}
               hint={costiHint}
+              dettaglio={realeReady ? dettaglioCosti(actual) : undefined}
               progresso={fine ? Math.min(100, fine.spesoPct) : undefined}
               progressoNome="Previsto già speso"
               progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}
@@ -198,6 +202,17 @@ export function OrderFinancialOverview(props: Props) {
   );
 }
 
+/** Di cosa sono fatti i costi sostenuti: gli stessi addendi della vista, senza IVA. */
+function dettaglioCosti(a: { purchases: number; warehouseMaterials: number; labor: number; commissions: number; directCosts: number; errors: number; mileageReimbursements: number }) {
+  const merce = a.purchases + a.warehouseMaterials;
+  const altro = a.commissions + a.directCosts + a.errors + a.mileageReimbursements;
+  return [
+    merce > 0.005 && `Merce ${formatCurrency(merce)}`,
+    a.labor > 0.005 && `Manodopera e ditte ${formatCurrency(a.labor)}`,
+    altro > 0.005 && `Altro ${formatCurrency(altro)}`,
+  ].filter(Boolean).join(" · ");
+}
+
 function Etichetta({ titolo, sotto }: { titolo: string; sotto: string }) {
   return (
     <div role="rowheader" className="col-span-full flex items-center gap-2 px-1 sm:col-span-1 sm:flex-col sm:items-start sm:justify-center sm:gap-0">
@@ -207,8 +222,8 @@ function Etichetta({ titolo, sotto }: { titolo: string; sotto: string }) {
   );
 }
 
-function Cella({ label, value, aside, hint, tone = "text-white", evidenza, evidenzaTitolo, evidenzaTono = "text-orange-200", progresso, progressoNome, progressoColore = "bg-emerald-400", onClick, apri }: {
-  label: string; value: string; aside?: string; hint: string; tone?: string;
+function Cella({ label, value, aside, hint, dettaglio, tone = "text-white", evidenza, evidenzaTitolo, evidenzaTono = "text-orange-200", progresso, progressoNome, progressoColore = "bg-emerald-400", onClick, apri }: {
+  label: string; value: string; aside?: string; hint: string; dettaglio?: string; tone?: string;
   evidenza?: string; evidenzaTitolo?: string; evidenzaTono?: string;
   progresso?: number; progressoNome?: string; progressoColore?: string;
   onClick: () => void; apri?: boolean;
@@ -231,6 +246,7 @@ function Cella({ label, value, aside, hint, tone = "text-white", evidenza, evide
         </span>
       )}
       {hint && <span className="mt-1 block text-[11px] leading-snug text-blue-100 max-sm:hidden">{hint}</span>}
+      {dettaglio && <span className="mt-0.5 block text-[11px] leading-snug text-blue-200/80 tabular-nums max-sm:hidden">{dettaglio}</span>}
     </button>
   );
 }

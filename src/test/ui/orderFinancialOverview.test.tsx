@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
 const state = vi.hoisted(() => ({
-  pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, hook: vi.fn(),
+  pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, revenue: 1000, variazioni: 0, hook: vi.fn(),
   previsto: { costo: 300, lavorazioni: 3, lavorazioniSenzaPrevisto: 0, isLoading: false, isError: false },
   daPagare: 150, cassa: vi.fn(),
 }));
@@ -13,7 +13,9 @@ vi.mock("@/hooks/useOrderEconomicsBase", () => ({ useOrderEconomicsBase: (...arg
   return {
     isPending: state.pending,
     isError: state.error,
-    actual: { costs: state.costs, margin: state.margin, marginPct: state.pct, commissions: state.commissions },
+    actual: { costs: state.costs, margin: state.margin, marginPct: state.pct, commissions: state.commissions,
+      revenue: state.revenue, approvedVariations: state.variazioni,
+      purchases: 250, warehouseMaterials: 0, labor: 150, directCosts: 0, errors: 0, mileageReimbursements: 0 },
     quality: {
       canShowMargin,
       status: canShowMargin ? "ready" : "missing",
@@ -29,7 +31,7 @@ vi.mock("@/hooks/useEsposizioneCommessa", () => ({ useEsposizioneCommessa: (a: u
 } }));
 afterEach(cleanup);
 beforeEach(() => {
-  Object.assign(state, { pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, daPagare: 150,
+  Object.assign(state, { pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, daPagare: 150, revenue: 1000, variazioni: 0,
     previsto: { costo: 300, lavorazioni: 3, lavorazioniSenzaPrevisto: 0, isLoading: false, isError: false } });
   state.hook.mockClear(); state.cassa.mockClear();
 });
@@ -90,6 +92,19 @@ describe("La commessa in numeri: previsto e reale", () => {
     expect(screen.getByRole("progressbar", { name: "Previsto già speso" })).toHaveAttribute("aria-valuenow", "40");
     expect(cella("Margine reale")).toHaveTextContent("880,00");
     expect(cella("Margine reale")).toHaveTextContent("A fine lavori ≈ 700,00 € · 70%");
+  });
+
+  it("di cosa sono fatti i costi sostenuti", () => {
+    mount();
+    expect(cella("Costi sostenuti")).toHaveTextContent("Merce 250,00 € · Manodopera e ditte 150,00 €");
+  });
+
+  it("le varianti approvate entrano nel ricavo di previsto e stima, come nel margine reale", () => {
+    state.revenue = 1200; state.variazioni = 200; state.margin = 800;
+    mount();
+    expect(cella("Contratto")).toHaveTextContent("varianti +200,00");
+    expect(cella("Margine previsto")).toHaveTextContent("900,00");
+    expect(cella("Margine reale")).toHaveTextContent("A fine lavori ≈ 800,00 €");
   });
 
   it("niente da pagare: lo dice", () => {
