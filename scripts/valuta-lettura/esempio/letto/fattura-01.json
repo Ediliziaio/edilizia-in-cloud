@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "extracted": {
+    "numero_fattura": "FT-2026/118",
+    "data_fattura": "12/10/2026",
+    "data_scadenza": "2026-11-11",
+    "cedente": { "ragione_sociale": "EDIL FORNITURE ROSSI SRL", "piva": "IT01234567879" },
+    "imponibile_totale": "1.000,00",
+    "iva_totale": 220,
+    "totale_documento": 1220,
+    "righe": [
+      { "descrizione": "Cemento 32.5 sacco 25 kg", "quantita": 10, "prezzo_unit": 60, "totale_riga": 600 },
+      { "descrizione": "Sabbia lavata", "quantita": 8, "prezzo_unit": 50, "totale_riga": 400 }
+    ]
+  }
+}

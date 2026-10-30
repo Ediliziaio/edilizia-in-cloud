@@ -1,0 +1,9 @@
+{
+  "tipo": "ddt",
+  "campi": {
+    "mittente": { "ragione_sociale": "Ferramenta Bianchi S.n.c." },
+    "destinatario": { "ragione_sociale": "Impresa Verdi S.r.l." },
+    "intestazione": { "numero_ddt": "88", "data_ddt": "2026-10-22" },
+    "righe_merce": [{ "descrizione": "Viti inox 6x80", "quantita": 500, "um": "pz" }]
+  }
+}
