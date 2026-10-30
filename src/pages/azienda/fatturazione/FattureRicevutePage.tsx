@@ -136,6 +136,8 @@ interface FatturaRicevuta {
   /** true = l'aggancio all'ordine l'ha deciso una persona, non l'automatismo. */
   aggancio_oda_manuale: boolean;
   stato: "non_letta" | "letta" | "contabilizzata" | "rifiutata";
+  /** Importata come storico già registrato nel gestionale di prima (data di taglio). */
+  storico_esterno?: boolean | null;
   note: string | null;
   created_at: string;
   /** Ordine d'acquisto collegato: dal trigger automatico o a mano da qui. */
@@ -159,8 +161,13 @@ const STATO_CONFIG: Record<
   rifiutata: { label: "Rifiutata", variant: "destructive" },
 };
 
-function StatoBadge({ stato }: { stato: string }) {
+/** La contabilizzata dello storico (data di taglio) non è passata da qui: si dice. */
+const etichettaStato = (f: { stato: string; storico_esterno?: boolean | null }) =>
+  f.storico_esterno && f.stato === "contabilizzata" ? "Già registrata (storico)" : STATO_CONFIG[f.stato]?.label ?? f.stato;
+
+function StatoBadge({ stato, storico }: { stato: string; storico?: boolean | null }) {
   const config = STATO_CONFIG[stato] || { label: stato, variant: "outline" as const };
+  if (storico && stato === "contabilizzata") return <Badge variant="outline">Già registrata (storico)</Badge>;
   return <Badge variant={config.variant}>{config.label}</Badge>;
 }
 
@@ -318,7 +325,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });
@@ -1242,7 +1249,7 @@ export default function FattureRicevutePage() {
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
                 <div className={`mt-0.5 text-[11px] leading-tight ${f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
-                  {STATO_CONFIG[f.stato]?.label ?? f.stato}
+                  {etichettaStato(f)}
                 </div>
               </div>
             </button>
@@ -1308,7 +1315,7 @@ export default function FattureRicevutePage() {
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
-                    <StatoBadge stato={f.stato} />
+                    <StatoBadge stato={f.stato} storico={f.storico_esterno} />
                   </TableCell>
                   <TableCell>
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
@@ -1525,7 +1532,7 @@ export default function FattureRicevutePage() {
                 ))}
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                {STATO_CONFIG[dettaglioMobile.stato]?.label ?? dettaglioMobile.stato}
+                {etichettaStato(dettaglioMobile)}
                 {dettaglioMobile.categoria_ai ? ` · ${etichettaCategoria(dettaglioMobile.categoria_ai)}` : ""}
                 {dettaglioMobile.purchase_order_id ? ` · ordine ${odaNumbers[dettaglioMobile.purchase_order_id] ?? "collegato"}` : ""}
                 {(quoteOrdini[dettaglioMobile.id]?.length ?? 0) > 0
