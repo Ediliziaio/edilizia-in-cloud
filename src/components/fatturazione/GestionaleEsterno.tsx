@@ -162,40 +162,46 @@ export function GestionaleEsternoAzioni({ companyId }: { companyId: string }) {
 
   if (isLoading) return null;
 
+  // Stesso posto e stesso aspetto di «Nuovo documento» nell'hub nativo.
+  const primario = "gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:gap-1 max-sm:px-3 max-sm:text-xs";
+
   if (!integration) {
     return (
-      <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden" title="Fatture in Cloud, Fattura24, Aruba, Zucchetti o Invoicetronic: le fatture arrivano da sole">
-        <Link to="/azienda/impostazioni/fatturazione"><Link2 className="h-4 w-4" />Collega gestionale</Link>
+      <Button asChild className={primario} title="Fatture in Cloud, Fattura24, Aruba, Zucchetti o Invoicetronic: le fatture arrivano da sole">
+        <Link to="/azienda/impostazioni/fatturazione"><Link2 className="h-4 w-4" /><span className="max-sm:hidden">Collega gestionale</span><span className="sm:hidden">Collega</span></Link>
       </Button>
     );
   }
 
   const fresco = syncFreshness(integration.last_sync_at);
+  const ultima = integration.last_sync_at ? oraSincronizzazione(integration.last_sync_at) : null;
   return (
     <>
-      {fresco && (
-        <span
-          className={cn("inline-flex items-center gap-1 text-xs max-sm:hidden", fresco.stale ? "font-medium text-amber-600" : "text-muted-foreground")}
-          title={`Ultima sincronizzazione con ${PROVIDER_LABELS[integration.provider] ?? integration.provider}: ${format(new Date(integration.last_sync_at!), "dd/MM/yyyy HH:mm", { locale: it })}`}
-        >
-          {fresco.stale && <AlertTriangle className="h-3 w-3 shrink-0" />}
-          Sync {fresco.label}
-        </span>
-      )}
-      {/* Mobile: solo l'icona, arancio se l'ultimo giro ha più di un giorno. */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => void sincronizza()}
-        disabled={syncing}
-        aria-label="Sincronizza"
-        className={cn("gap-1.5 max-sm:h-8 max-sm:w-8 max-sm:px-0", fresco?.stale && "max-sm:border-amber-400 max-sm:text-amber-600")}
+      <span
+        className={cn("inline-flex items-center gap-1 text-xs max-sm:hidden", fresco?.stale ? "font-medium text-amber-600" : "text-muted-foreground")}
+        title={`Ultima sincronizzazione con ${PROVIDER_LABELS[integration.provider] ?? integration.provider}${fresco ? ` (${fresco.label})` : ""}`}
       >
+        {fresco?.stale && <AlertTriangle className="h-3 w-3 shrink-0" />}
+        {ultima ? `Sincronizzato ${ultima}` : "Mai sincronizzato"}
+      </span>
+      <Button onClick={() => void sincronizza()} disabled={syncing} className={primario} title={ultima ? `Ultima sincronizzazione ${ultima}` : undefined}>
         {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-        <span className="max-sm:hidden">Sincronizza</span>
+        Sincronizza
       </Button>
     </>
   );
+}
+
+/** «alle 14:32» se è di oggi, «ieri alle 9:05», altrimenti «il 28/10 alle 18:00». */
+export function oraSincronizzazione(iso: string, adesso = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const ora = format(d, "H:mm", { locale: it });
+  const giorno = (x: Date) => format(x, "yyyy-MM-dd");
+  const ieri = new Date(adesso.getTime() - 86_400_000);
+  if (giorno(d) === giorno(adesso)) return `alle ${ora}`;
+  if (giorno(d) === giorno(ieri)) return `ieri alle ${ora}`;
+  return `il ${format(d, "dd/MM", { locale: it })} alle ${ora}`;
 }
 
 /** Primo import (o aggiornamento lungo): senza, l'elenco sembra vuoto o incompleto. */
@@ -232,6 +238,14 @@ const METODI = [
   { value: "riba", label: "RiBa" },
   { value: "other", label: "Altro" },
 ];
+
+/**
+ * Gli acconti su Fatture in Cloud. `billing-payment-push` con `{ azione: "incassa", importo }`
+ * ridistribuisce il pagato sulle rate (ramo fattura-pagamenti-banca, 7faa1beb6). Finché quella
+ * versione non è pubblicata, quella online salda TUTTE le rate: un acconto resta solo qui.
+ * Si accende quando la funzione nuova è in produzione.
+ */
+export const ACCONTI_SU_FATTURE_IN_CLOUD = false;
 
 /** Quanto resta da incassare di una fattura importata (note di credito collegate già tolte). */
 export function residuoImportata(doc: Pick<DocumentoFiscale, "totale_da_pagare" | "importo_pagato">): number {
@@ -280,22 +294,29 @@ export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fa
         payment_method: metodo,
       });
       if (error) throw error;
-      let writeback: "ok" | "problema" | "error" | "skipped" = "skipped";
+      let writeback: "ok" | "problema" | "error" | "skipped" | "solo_qui" = "skipped";
       let messaggio = "";
-      if (fattura.external_provider === "fattureincloud") {
+      const saldo = valore >= residuo - 0.005;
+      if (fattura.external_provider === "fattureincloud" && !saldo && !ACCONTI_SU_FATTURE_IN_CLOUD) {
+        writeback = "solo_qui";
+      } else if (fattura.external_provider === "fattureincloud") {
         try {
-          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body: { invoice_id: fattura.id } });
+          const body = saldo
+            ? { invoice_id: fattura.id, paid_date: data }
+            : { invoice_id: fattura.id, paid_date: data, azione: "incassa", importo: valore };
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body });
           if (pErr) writeback = "error";
           else if (pr?.ok) writeback = "ok";
           else if (pr?.messaggio) { writeback = "problema"; messaggio = String(pr.messaggio); }
         } catch { writeback = "error"; }
       }
-      return { writeback, messaggio, saldo: valore >= residuo - 0.005 };
+      return { writeback, messaggio, saldo };
     },
     onSuccess: (res) => {
       const cosa = res.saldo ? "Fattura segnata come pagata" : "Acconto registrato";
       if (res.writeback === "ok") toast.success(`${cosa} — aggiornata anche su Fatture in Cloud`);
       else if (res.writeback === "problema") toast.warning(`${cosa} in Edilizia in Cloud, non su Fatture in Cloud`, { description: res.messaggio });
+      else if (res.writeback === "solo_qui") toast.success(cosa, { description: "Su Fatture in Cloud l'acconto va registrato a mano per ora." });
       else if (res.writeback === "error") toast.warning(`${cosa} in Edilizia in Cloud`, { description: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi." });
       else toast.success(cosa);
       invalidaFattureImportate(queryClient, companyId);
