@@ -1434,6 +1434,9 @@ function OrderDetailInner() {
   return (
     // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
     <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
+      {/* Dentro una commessa generale: torna alla generale e passa alle commesse sorelle. */}
+      <PercorsoGenerale orderId={id!} />
+
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
         ordineId={id!}
@@ -1456,8 +1459,6 @@ function OrderDetailInner() {
         canDelete={permissions.isAdmin || permissions.canDeleteOrders}
         azioniTelefono={isMobile ? azioniRapide : undefined}
       />
-
-      <PercorsoGenerale orderId={id!} />
 
       {/* ── Azioni rapide: contatta cliente · invia PDF · appuntamento ──
           Da telefono stanno, solo icone, nella fila di «Registra incasso». */}

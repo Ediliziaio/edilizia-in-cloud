@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { leggiRiepilogo, modelliValidi, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { isModelloGenerale, leggiRiepilogo, modelliValidi, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 
 // Tabelle e RPC non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -248,9 +248,21 @@ export function useMappaGenerali(): MappaGenerali {
   return data ?? MAPPA_VUOTA;
 }
 
-export interface GeneraleDi { id: string; codice: string | null; nome: string | null }
+export interface SorellaGenerale { id: string; codice: string | null; nome: string }
+export interface GeneraleDi {
+  id: string;
+  codice: string | null;
+  nome: string | null;
+  modello: ModelloGenerale | null;
+  /** Le commesse della stessa generale, in ordine di codice (compresa questa). */
+  sorelle: SorellaGenerale[];
+}
 
-/** «Parte di …» in cima a una commessa: la generale che la contiene, o null. Silenzioso se la lettura fallisce. */
+/**
+ * In cima a una commessa che sta dentro una generale: la generale e le commesse sorelle,
+ * per tornare indietro e passare da una all'altra. Letture semplici, senza «embed» tra orders e
+ * orders (dipende dalla cache dello schema di PostgREST). Silenzioso se la lettura fallisce.
+ */
 export function useGeneraleDellaCommessa(orderId: string | undefined) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -263,15 +275,28 @@ export function useGeneraleDellaCommessa(orderId: string | undefined) {
     meta: { silent: true },
     queryFn: async (): Promise<GeneraleDi | null> => {
       try {
-        const { data, error } = await db
-          .from("orders")
-          .select("commessa_generale_id, generale:orders!orders_commessa_generale_id_fkey(id, order_code, description)")
-          .eq("id", orderId!)
-          .eq("company_id", companyId!)
-          .maybeSingle();
-        if (error || !data?.generale) return null;
-        const g = data.generale as { id: string; order_code: string | null; description: string | null };
-        return { id: g.id, codice: g.order_code, nome: g.description };
+        const { data: figlia, error } = await db
+          .from("orders").select("commessa_generale_id")
+          .eq("id", orderId!).eq("company_id", companyId!).maybeSingle();
+        const generaleId = figlia?.commessa_generale_id as string | null | undefined;
+        if (error || !generaleId) return null;
+        const [g, scheda, sorelle] = await Promise.all([
+          db.from("orders").select("id, order_code, description").eq("id", generaleId).eq("company_id", companyId!).maybeSingle(),
+          db.from("commesse_generali").select("modello").eq("order_id", generaleId).maybeSingle(),
+          db.from("orders").select("id, order_code, description")
+            .eq("company_id", companyId!).eq("commessa_generale_id", generaleId).is("deleted_at", null)
+            .order("order_code", { ascending: true, nullsFirst: false }).limit(500),
+        ]);
+        if (g.error || !g.data) return null;
+        const modello = scheda.data?.modello;
+        return {
+          id: g.data.id,
+          codice: g.data.order_code ?? null,
+          nome: g.data.description ?? null,
+          modello: isModelloGenerale(modello) ? modello : null,
+          sorelle: ((sorelle.data ?? []) as { id: string; order_code: string | null; description: string | null }[])
+            .map((x) => ({ id: x.id, codice: x.order_code, nome: x.description || "Commessa senza nome" })),
+        };
       } catch {
         return null;
       }

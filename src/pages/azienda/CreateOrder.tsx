@@ -17,7 +17,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles, Layers } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
 import { useOrderDraft, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
@@ -46,6 +46,7 @@ import {
   QuoteCard,
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import {SalPlanInfo} from "@/components/orders/SalPlanInfo";
@@ -1433,7 +1434,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   return (
     <div className="space-y-6">
-      {generaleDaUrl && generaleDaUrlNome && <Alert><Layers className="h-4 w-4" /><AlertDescription>Questa commessa entrerà in <span className="font-medium">{generaleDaUrlNome}</span>.</AlertDescription></Alert>}
+      {generaleDaUrl && generaleDaUrlNome && <GeneraleNellaNuovaCommessa generaleId={generaleDaUrl} importo={totalAmount ? parseDecimalIT(totalAmount) : null} />}
       {invoiceId && <Alert><AlertDescription>Lavoro da fattura importata {invoiceSource.data?.invoice_number}. Conferma indirizzo cantiere e importo del contratto: il documento può essere un acconto. Nessun incasso o avanzamento viene presunto.</AlertDescription></Alert>}
       {/* Header */}
       <QuotePageHeader
