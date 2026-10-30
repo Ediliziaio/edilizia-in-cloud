@@ -53,6 +53,8 @@ describe("cronoprogramma utilizzabile senza alterare dati", () => {
     expect(screen.queryByRole("region", {name: /Grafico delle fasi/})).not.toBeInTheDocument();
     expect(screen.getByRole("table", {name: "Tabella del cronoprogramma"})).toBeInTheDocument();
     expect(screen.getByRole("button", {name: /^PDF (previsionale|avanzamento)$/})).toBeInTheDocument();
+    // Due versioni: con chi lavora o senza; di base senza.
+    expect(screen.getByRole("checkbox", {name: "con chi lavora"})).not.toBeChecked();
     expect(m.refetchPhases).not.toHaveBeenCalled(); expect(m.refetchReports).not.toHaveBeenCalled();
   });
   it("non espone costi o venduto senza il relativo permesso", () => {

@@ -78,6 +78,17 @@ describe("PDF del cronoprogramma", () => {
     expect(testo).not.toContain("In corso");
   });
 
+  it("con chi lavora: responsabile, capocantiere, ditte e la colonna per fase", async () => {
+    const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
+    const riga: RigaTabella = { id: "f1", numero: "1", livello: 0, nome: "Impianti", inizio: "2025-10-02", fine: "2025-10-08", giorni: 7, giorniLavorati: null, risorse: null, quantita: null, unita: null,
+      costoPrevisto: null, costoConsuntivo: null, venduto: null, avanzamento: 40, stimata: false, ritardo: 0, stato: "in_corso" };
+    const persone = { responsabile: "Mario Rossi", capocantiere: "Luca Bianchi", ditte: ["Elettro Srl"], perFase: new Map([["f1", ["Elettro Srl", "Giovanni"]]]) };
+    const conPersone = new TextDecoder("latin1").decode(await (await pdfCronoprogramma({ titolo: "X", righe: [riga], da: "2025-09-28", a: "2025-10-20", oggi: "2025-10-05", persone, descrizione: "Rifacimento bagno", azienda: { nome: "Impresa Demo", contatti: "011 1", logo: null } })).arrayBuffer());
+    for (const t of ["CHI LAVORA", "Mario Rossi", "Luca Bianchi", "Elettro Srl, Giovanni", "Rifacimento bagno", "Impresa Demo"]) expect(conPersone).toContain(t);
+    const senza = new TextDecoder("latin1").decode(await (await pdfCronoprogramma({ titolo: "X", righe: [riga], da: "2025-09-28", a: "2025-10-20", oggi: "2025-10-05" })).arrayBuffer());
+    expect(senza).not.toContain("CHI LAVORA");
+  });
+
   it("con tante righe va a pagina nuova", async () => {
     const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
     const righe = Array.from({ length: 60 }, (_, i): RigaTabella => ({ id: String(i), numero: String(i + 1), livello: 0, nome: `Fase ${i + 1}`, inizio: "2025-10-02", fine: "2025-10-08",

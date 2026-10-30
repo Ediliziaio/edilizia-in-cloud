@@ -50,6 +50,8 @@ export interface CommessaCronoprogramma {
   expected_date: string | null;
   /** Per l'intestazione del PDF. */
   order_code?: string | null;
+  description?: string | null;
+  work_description?: string | null;
   client_name?: string | null;
   indirizzo_lavori?: string | null;
 }
@@ -322,6 +324,8 @@ export function CronoprogrammaCommessa({
   const [scala, setScala] = useState<"adatta" | "mesi" | "settimane">("adatta");
   const [vista, setVista] = useState<"grafico" | "elenco" | "tabella">("grafico");
   const [stampa, setStampa] = useState<"pronta" | "in_corso">("pronta");
+  // Due versioni del PDF: con chi lavora (responsabile, capocantiere, squadre, ditte) o senza.
+  const [conPersone, setConPersone] = useState(false);
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
@@ -376,7 +380,14 @@ export function CronoprogrammaCommessa({
     setStampa("in_corso");
     try {
       const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
+      const { aziendaPerStampa, personePerStampa } = await import("@/lib/orders/datiStampaCronoprogramma");
+      const [azienda, persone] = await Promise.all([
+        aziendaPerStampa(orderId).catch((): null => null),
+        conPersone ? personePerStampa(orderId, allAssignments).catch((): null => null) : Promise.resolve(null),
+      ]);
       const blob = await pdfCronoprogramma({
+        azienda, persone,
+        descrizione: order.work_description || order.description || null,
         // «Periodo previsto» stampa il previsionale da dare al cliente; «Previsto e reale» lo stato dei lavori.
         modo: periodo === "previsto" ? "previsionale" : "avanzamento",
         titolo: `${periodo === "previsto" ? "Cronoprogramma previsionale" : "Avanzamento lavori"}${order.order_code ? ` · ${order.order_code}` : ""}`,
@@ -511,6 +522,9 @@ export function CronoprogrammaCommessa({
             const el = grafico.current;
             if (el) el.scrollLeft = Math.max(0, (giorniTra(asse.da, oggi) / asse.giorni) * (el.scrollWidth - COLONNA_PX) - (el.clientWidth - COLONNA_PX) / 2);
           }}>Vai a oggi</Button>}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Responsabile, capocantiere, chi lavora in ogni fase e le ditte esterne">
+            <input type="checkbox" checked={conPersone} onChange={(e) => setConPersone(e.target.checked)} className="h-4 w-4 accent-orange-600" />con chi lavora
+          </label>
           <Button size="sm" variant="outline" disabled={stampa === "in_corso"} onClick={scaricaPdf}
             title={periodo === "previsto" ? "Il piano da dare al cliente: un colore per fase, senza stati né ritardi" : "Lo stato dei lavori: fatte, in corso, da fare e ritardi"}>
             {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}{periodo === "previsto" ? "PDF previsionale" : "PDF avanzamento"}
