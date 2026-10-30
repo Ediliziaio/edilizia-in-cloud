@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { BILOCALE_ESEMPIO, costruisciScena, daPlanimetria, esportaGlb, esportaObj } from "./index";
+import { BILOCALE_DA_RISTRUTTURARE, costruisciScena, pianteDaPlanimetria, esportaGlb, esportaObj } from "./index";
 
-const scena = costruisciScena(daPlanimetria(BILOCALE_ESEMPIO), { vista: "confronto" });
+const scena = costruisciScena(pianteDaPlanimetria(BILOCALE_DA_RISTRUTTURARE).progetto, { vista: "confronto" });
 
 function leggiGlb(glb: Uint8Array) {
   const dv = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);

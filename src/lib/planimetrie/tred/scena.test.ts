@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BILOCALE_ESEMPIO, costruisciScena, daPlanimetria, limitiDi, type Mesh3D, type PiantaPer3D } from "./index";
+import { BILOCALE_DA_RISTRUTTURARE, costruisciScena, pianteDaPlanimetria, limitiDi, type Mesh3D, type PiantaPer3D } from "./index";
 import { triangola, v2 } from "./geometria2d";
 
 const vuota = (): PiantaPer3D => ({ muri: [], aperture: [], locali: [], elementi: [] });
@@ -154,7 +154,7 @@ describe("incroci", () => {
 });
 
 describe("stato di fatto, progetto e colori", () => {
-  const pianta = daPlanimetria(BILOCALE_ESEMPIO);
+  const pianta = pianteDaPlanimetria(BILOCALE_DA_RISTRUTTURARE).progetto;
 
   it("il fatto non ha i muri nuovi, il progetto non ha quelli da demolire", () => {
     const fatto = costruisciScena(pianta, { vista: "fatto" });
@@ -181,7 +181,7 @@ describe("stato di fatto, progetto e colori", () => {
 });
 
 describe("bilocale d'esempio", () => {
-  const pianta = daPlanimetria(BILOCALE_ESEMPIO);
+  const pianta = pianteDaPlanimetria(BILOCALE_DA_RISTRUTTURARE).progetto;
   const s = costruisciScena(pianta, { vista: "confronto" });
 
   it("nessun avviso e le misure esterne sono quelle della pianta (9,30 × 6,80 × 2,70 m)", () => {
@@ -189,8 +189,9 @@ describe("bilocale d'esempio", () => {
     const muri = limitiDi(s.mesh, (g) => g === "muro");
     expect(muri.min[0]).toBeCloseTo(-0.15, 9);
     expect(muri.max[0]).toBeCloseTo(9.15, 9);
-    expect(muri.min[2]).toBeCloseTo(-0.15, 9);
-    expect(muri.max[2]).toBeCloseTo(6.65, 9);
+    // y del modello verso l'alto → z = -y: il lato in alto della pianta sta a z = -6,65
+    expect(muri.min[2]).toBeCloseTo(-6.65, 9);
+    expect(muri.max[2]).toBeCloseTo(0.15, 9);
     expect(muri.max[1]).toBeCloseTo(2.7, 9);
   });
 

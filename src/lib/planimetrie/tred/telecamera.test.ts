@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ALTEZZA_OCCHI,
-  BILOCALE_ESEMPIO,
+  BILOCALE_DA_RISTRUTTURARE,
   apertureDelLocale,
   costruisciScena,
-  daPlanimetria,
+  pianteDaPlanimetria,
   metadatiFotogramma,
   proietta,
   vistaDallAlto,
@@ -12,7 +12,7 @@ import {
 } from "./index";
 import { puntoNelPoligono, v2 } from "./geometria2d";
 
-const pianta = daPlanimetria(BILOCALE_ESEMPIO);
+const pianta = pianteDaPlanimetria(BILOCALE_DA_RISTRUTTURARE).progetto;
 
 describe("telecamere", () => {
   it("la proiezione mette al centro il punto guardato e a destra l'est", () => {
@@ -25,9 +25,9 @@ describe("telecamere", () => {
   it("dall'alto il nord della pianta sta in cima all'immagine", () => {
     const s = costruisciScena(pianta);
     const t = vistaDallAlto(s.limiti, 16 / 9);
-    expect(proietta(t, 16 / 9, [4.5, 0, 0]).y).toBeGreaterThan(proietta(t, 16 / 9, [4.5, 0, 6.5]).y);
+    expect(proietta(t, 16 / 9, [4.5, 0, -6.5]).y).toBeGreaterThan(proietta(t, 16 / 9, [4.5, 0, 0]).y);
     // tutta la pianta nell'inquadratura
-    for (const p of [[-0.15, 0, -0.15], [9.15, 2.7, 6.65]] as [number, number, number][]) {
+    for (const p of [[-0.15, 0, -6.65], [9.15, 2.7, 0.15]] as [number, number, number][]) {
       const q = proietta(t, 16 / 9, p);
       expect(Math.abs(q.x)).toBeLessThanOrEqual(1);
       expect(Math.abs(q.y)).toBeLessThanOrEqual(1);
@@ -53,7 +53,7 @@ describe("metadati del fotogramma", () => {
   });
 
   it("misure del bagno e finestra inquadrata guardando verso sud", () => {
-    const t = { posizione: [6.15, 1.6, 4.2] as [number, number, number], guarda: [6.15, 1.5, 6.5] as [number, number, number], fov: 70 };
+    const t = { posizione: [6.15, 1.6, -2.3] as [number, number, number], guarda: [6.15, 1.5, 0] as [number, number, number], fov: 70 };
     const m = metadatiFotogramma(pianta, "l3", t, { larghezza: 1024, altezza: 768 })!;
     expect(m.locale).toMatchObject({ nome: "Bagno", superficie_mq: 5.06, perimetro_m: 9, altezza_m: 2.7, larghezza_m: 2.3, profondita_m: 2.2 });
     expect(m.aperture_del_locale).toBe(2);
@@ -67,7 +67,7 @@ describe("metadati del fotogramma", () => {
   });
 
   it("le aperture alle spalle non risultano visibili", () => {
-    const t = { posizione: [6.15, 1.6, 6.0] as [number, number, number], guarda: [6.15, 1.6, 4.0] as [number, number, number], fov: 50 };
+    const t = { posizione: [6.15, 1.6, -0.5] as [number, number, number], guarda: [6.15, 1.6, -2.5] as [number, number, number], fov: 50 };
     const m = metadatiFotogramma(pianta, "l3", t, { larghezza: 800, altezza: 600 })!;
     expect(m.aperture_visibili.map((a) => a.id)).not.toContain("f4");
   });
