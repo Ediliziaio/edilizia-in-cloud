@@ -15,15 +15,20 @@
  *      Impostazioni → Commesse generali (appalto, sviluppo, compravendita).
  *      Apre la finestra di creazione della generale (`onScegliGenerale`).
  *
+ *   4. Valuta un'operazione — con sviluppo o compravendita accesi e il permesso
+ *      di vedere i margini: il simulatore prima dell'acquisto
+ *      → /azienda/ordini/simulatore
+ *
  * Se non c'è niente da scegliere, questo componente NON viene mai montato
  * (l'OrdersList porta direttamente al flusso esistente).
  */
 import { Link } from "react-router-dom";
-import { ArrowRight, Building2, HardHat, Layers, ShoppingCart, type LucideIcon } from "lucide-react";
+import { ArrowRight, Building2, Calculator, HardHat, Layers, ShoppingCart, type LucideIcon } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface OrderTypeChoiceDialogProps {
   open: boolean;
@@ -55,6 +60,9 @@ function Scheda({ icona: Icona, titolo, testo, tono = "primary" }: { icona: Luci
 }
 
 export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false, modelliGenerali = [], onScegliGenerale }: OrderTypeChoiceDialogProps) {
+  const permissions = usePermissions();
+  const simulatore = (permissions.isAdmin || permissions.canViewMargins)
+    && modelliGenerali.some((m) => m === "sviluppo" || m === "compravendita");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -94,6 +102,13 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
               <Scheda icona={ICONE_GENERALE[m]} titolo={`Commessa generale · ${DEFINIZIONI_MODELLI[m].nome}`} testo={DEFINIZIONI_MODELLI[m].perChi} />
             </button>
           ))}
+
+          {/* Prima di comprare: il simulatore, senza creare ancora la commessa */}
+          {simulatore && (
+            <Link to="/azienda/ordini/simulatore" onClick={() => onOpenChange(false)} className={SCHEDA}>
+              <Scheda icona={Calculator} titolo="Valuta un'operazione" testo="Prima di comprare: acquisto, costi, prezzi, tempi e mutuo. Vedi subito se conviene, poi la trasformi in commessa." />
+            </Link>
+          )}
         </div>
       </DialogContent>
     </Dialog>

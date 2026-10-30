@@ -246,6 +246,7 @@ const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/Setting
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
 const CreateOrder = lazy(() => import("@/pages/azienda/CreateOrder"));
 const CreateLavoroAppaltatore = lazy(() => import("@/pages/azienda/CreateLavoroAppaltatore"));
+const SimulatoreOperazione = lazy(() => import("@/pages/azienda/SimulatoreOperazione"));
 const CommittenteDetail = lazy(() => import("@/pages/azienda/CommittenteDetail"));
 const NumeriAppalto = lazy(() => import("@/pages/azienda/NumeriAppalto"));
 const OrderDetail = lazy(() => import("@/pages/azienda/OrderDetail"));
@@ -631,6 +632,7 @@ export default function CompanyRoutesContainer() {
         <Route path="cantieri-oggi" element={<Navigate to="/azienda/ordini?tab=oggi" replace />} />
         <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommercialistaWriteGuard>)} />
         <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute></CommercialistaWriteGuard>)} />
+        <Route path="ordini/simulatore" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel simulatore"><SimulatoreOperazione /></ErrorBoundary>, (p) => p.isAdmin || p.canViewMargins)} />
         <Route path="ordini/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />
         <Route path="ordini/:id/diario" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>)} />
         <Route path="ordini/:id/modifica" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)} />
