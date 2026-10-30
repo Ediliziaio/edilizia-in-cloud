@@ -149,13 +149,23 @@ describe("pareti", () => {
     expect(arrotonda2(quantitaLocale(dopo, dopo.locali.find((l) => l.nome === "Camera")!).mq)).toBe(17.5);
   });
 
-  it("allungare il soggiorno sposta la parete in comune e accorcia la camera", () => {
+  it("allargare la camera sposta la sua parete esterna anche se il lato va verso il soggiorno", () => {
+    const p = bilocale();
+    const camera = p.locali.find((l) => l.nome === "Camera")!;
+    // il lato 2 va da destra a sinistra (720 → 410): la fine è sulla parete in comune
+    const dopo = impostaLatoStanza(p, camera.id, 2, 350);
+    const q = (nome: string) => arrotonda2(quantitaLocale(dopo, dopo.locali.find((l) => l.nome === nome)!).mq);
+    expect(q("Soggiorno")).toBe(20);
+    expect(q("Camera")).toBe(17.5);
+  });
+
+  it("allargare il soggiorno non tocca la camera: si sposta la parete esterna", () => {
     const p = bilocale();
     const sogg = p.locali.find((l) => l.nome === "Soggiorno")!;
     const dopo = impostaLatoStanza(p, sogg.id, 0, 450);
     const q = (nome: string) => arrotonda2(quantitaLocale(dopo, dopo.locali.find((l) => l.nome === nome)!).mq);
     expect(q("Soggiorno")).toBe(22.5);
-    expect(q("Camera")).toBe(12.5);
+    expect(q("Camera")).toBe(15);
   });
 
   it("spostare una parete porta con sé le pareti collegate e gli angoli delle stanze", () => {

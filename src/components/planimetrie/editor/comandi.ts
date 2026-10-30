@@ -339,7 +339,26 @@ export function impostaLatoStanza(pianta: Pianta, localeId: string, lato: number
   const c = locale.contorno;
   const a = c[lato];
   const b = c[(lato + 1) % c.length];
-  let nuova = Math.abs(delta) < 0.05 ? pianta : allungaVerso(pianta, a, b, delta);
+  // Si sposta la parete in fondo al lato che non confina con altre stanze: allargando la
+  // camera si spinge fuori la sua parete, non quella in comune col soggiorno.
+  // A parità, quella in fondo al lato (b).
+  const confinanti = (angolo: Punto, verso: Punto) => {
+    const u = direzione({ p1: verso, p2: angolo });
+    const traverso = pianta.muri.find((m) => {
+      if (!uguali(m.p1, angolo) && !uguali(m.p2, angolo) && !sulSegmento(angolo, m.p1, m.p2)) return false;
+      const v = direzione(m);
+      return Math.abs(u.x * v.x + u.y * v.y) < 0.2;
+    });
+    if (!traverso) return 0;
+    return pianta.locali.filter(
+      (l) => l.id !== localeId && l.contorno.some((p, i) => {
+        const q = l.contorno[(i + 1) % l.contorno.length];
+        return sulSegmento(p, traverso.p1, traverso.p2) && sulSegmento(q, traverso.p1, traverso.p2);
+      }),
+    ).length;
+  };
+  const versoA = confinanti(a, b) < confinanti(b, a);
+  let nuova = Math.abs(delta) < 0.05 ? pianta : versoA ? allungaVerso(pianta, b, a, delta) : allungaVerso(pianta, a, b, delta);
   const muro = muroDelLato(pianta, locale, lato);
   if (muro) nuova = confermaMuro(nuova, muro.id);
   return nuova;

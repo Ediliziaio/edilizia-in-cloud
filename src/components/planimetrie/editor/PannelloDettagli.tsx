@@ -49,6 +49,7 @@ export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezi
     if (l) {
       return (
         <DettaglioStanza
+          key={l.id}
           pianta={pianta}
           vista={vista}
           locale={l}

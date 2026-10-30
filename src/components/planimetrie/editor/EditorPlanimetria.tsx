@@ -95,7 +95,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
-  const [focusNome, setFocusNome] = useState(false);
+  // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
+  const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
   const [dimensioni, setDimensioni] = useState({ w: 800, h: 560 });
   const [sovrapposizioni, setSovrapposizioni] = useState<Sovrapposizioni>({});
@@ -507,7 +508,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       applica(r.pianta);
       setStrumento("seleziona");
       setSelezione({ tipo: "locale", id: r.id });
-      setFocusNome(true);
+      setStanzaNuova(r.id);
       return;
     }
     if (g.tipo === "sposta-muro" || g.tipo === "maniglia") {
@@ -667,11 +668,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   }, [pianta, dati, selezione, vista]);
 
   useEffect(() => {
-    if (focusNome) {
-      const t = setTimeout(() => setFocusNome(false), 300);
-      return () => clearTimeout(t);
-    }
-  }, [focusNome]);
+    if (stanzaNuova && !(selezione?.tipo === "locale" && selezione.id === stanzaNuova)) setStanzaNuova(null);
+  }, [selezione, stanzaNuova]);
 
   // ─── azioni del pannello ──────────────────────────────────────────────────
   const azioni: AzioniPannello = useMemo(() => {
@@ -685,8 +683,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         const l = stato.current.dati.locali.find((x) => x.id === id);
         if (!l) return;
         const etichetta = DESTINAZIONI.find((x) => x.valore === d)?.etichetta;
-        // se il nome era quello automatico, prende quello della destinazione
-        const nome = /^Stanza( \d+)?$/.test(l.nome) && etichetta && d !== "altro" ? nomeUnico(stato.current.dati.locali, etichetta) : undefined;
+        // se il nome era quello automatico («Stanza 2», o il tipo di prima), prende il tipo nuovo
+        const tipoDiPrima = DESTINAZIONI.find((x) => x.valore === l.destinazione)?.etichetta ?? "";
+        const automatico = /^Stanza( \d+)?$/.test(l.nome) || new RegExp(`^${tipoDiPrima}( \\d+)?$`).test(l.nome);
+        const altri = stato.current.dati.locali.filter((x) => x.id !== id);
+        const nome = automatico && etichetta && d !== "altro" ? nomeUnico(altri, etichetta) : undefined;
         applica(C.rinominaStanza(p(), id, l, nome ? { destinazione: d, nome } : { destinazione: d }, stato.current.vista));
       },
       latoStanza: (id, lato, cm) => applica(C.impostaLatoStanza(p(), id, lato, cm)),
@@ -829,6 +830,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             pianta={pianta}
             dati={dati}
             latiModificabili={latiModificabili}
+            misureSoloSelezione={sola}
             vista={vista}
             selezione={selezione}
             camera={camera}
@@ -895,7 +897,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         {/* pannello */}
         {!telefono && (
           <aside className="w-72 shrink-0 overflow-y-auto border-l p-3 xl:w-80">
-            <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={focusNome} essenziale={sola} />
+            <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
           </aside>
         )}
       </div>

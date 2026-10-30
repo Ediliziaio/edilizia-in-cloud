@@ -53,6 +53,8 @@ interface Props extends Gestori {
   larghezza: number;
   altezza: number;
   sovrapposizioni: Sovrapposizioni;
+  /** Sul telefono: le misure dei lati solo sulla stanza toccata. */
+  misureSoloSelezione?: boolean;
   /** Misura in modifica: non scriverla sotto la casella. */
   inModifica?: string | null;
   className?: string;
@@ -76,7 +78,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
 const SELEZIONE = "#2563eb";
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, vista, selezione, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -92,7 +94,8 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
       muri
         .filter((m) => stanzeDiLavoro.some((l) => l.contorno.some((a, i) => {
           const b = l.contorno[(i + 1) % l.contorno.length];
-          return sulSegmento(m.p1, a, b) && sulSegmento(m.p2, a, b);
+          // basta che la parete corra lungo un lato, anche se è più lunga della stanza
+          return sulSegmento(a, m.p1, m.p2) || sulSegmento(b, m.p1, m.p2) || (sulSegmento(m.p1, a, b) && sulSegmento(m.p2, a, b));
         })))
         .map((m) => m.id),
     );
@@ -227,10 +230,14 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             const interno = l.contorno;
             const centro = baricentro(interno);
             const misurabile = latiModificabili.has(l.id);
+            const xs = interno.map((p) => p.x);
+            const larghezzaPx = (Math.max(...xs) - Math.min(...xs)) * camera.s;
+            const nomeCiSta = larghezzaPx > Math.min(l.nome.length, 22) * 7.5 + 8;
+            const latiVisibili = !misureSoloSelezione || sel("locale", l.id);
             const coloreTesto = q.stimata ? STIMATA : "#0f172a";
             return (
               <g key={`m-${l.id}`}>
-                <text
+                {nomeCiSta && <text
                   x={centro.x}
                   y={centro.y - px(4)}
                   textAnchor="middle"
@@ -242,7 +249,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   style={{ cursor: "pointer" }}
                 >
                   {l.nome}
-                </text>
+                </text>}
                 <text
                   x={centro.x}
                   y={centro.y + px(13)}
@@ -256,7 +263,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   {q.stimata ? "≈ " : ""}
                   {scriviMq(q.mq)}
                 </text>
-                {interno.map((a, i) => {
+                {latiVisibili && interno.map((a, i) => {
                   const b = interno[(i + 1) % interno.length];
                   const lunghezza = q.lati[i];
                   if (lunghezza * camera.s < 46) return null;
