@@ -13,7 +13,7 @@ export interface ClienteDelContatto {
   cliente_email: string | null;
   cliente_telefono: string | null;
   /** Privato o azienda, coi dati fiscali del contatto (30/10/2026). */
-  cliente_tipo: "privato" | "azienda";
+  cliente_tipo: "privato" | "azienda" | "pa";
   cliente_ragione_sociale: string | null;
   cliente_codice_fiscale: string | null;
   cliente_partita_iva: string | null;

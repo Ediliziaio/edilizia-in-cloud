@@ -128,7 +128,8 @@ export interface FvProgetto {
   cointestatario_cognome?: string | null;
   cointestatario_codice_fiscale?: string | null;
   /** Privato o azienda, coi dati fiscali (30/10/2026). */
-  cliente_tipo?: "privato" | "azienda" | null;
+  cliente_tipo?: "privato" | "azienda" | "pa" | null;
+  cliente_codice_univoco?: string | null;
   cliente_ragione_sociale?: string | null;
   cliente_codice_fiscale?: string | null;
   cliente_partita_iva?: string | null;

@@ -18,7 +18,7 @@
  * Font: tenta Inter via Google Fonts CDN (HTTPS, no auth). Se la registrazione
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
-import { rigaDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
+import { intestatoAdEnte, rigaDatiFiscali, tipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
 import * as React from "react";
 import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
@@ -2257,8 +2257,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   } : baseStyles;
 
   // Un'azienda si intesta con la ragione sociale (30/10/2026); i dati fiscali escono accanto al committente.
-  const clienteNome = (p.cliente_tipo === "azienda" && p.cliente_ragione_sociale?.trim()) || [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
-  const datiFiscaliCliente = rigaDatiFiscali({ tipo: p.cliente_tipo === "azienda" ? "azienda" : "privato", codiceFiscale: p.cliente_codice_fiscale, partitaIva: p.cliente_partita_iva });
+  const clienteNome = (intestatoAdEnte(tipoCliente(p.cliente_tipo)) && p.cliente_ragione_sociale?.trim()) || [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
+  const datiFiscaliCliente = rigaDatiFiscali({ tipo: tipoCliente(p.cliente_tipo), codiceFiscale: p.cliente_codice_fiscale, partitaIva: p.cliente_partita_iva, codiceSdi: p.cliente_codice_univoco });
   // Preventivo cointestato: il secondo intestatario, accanto al cliente e con la sua firma.
   const cointestatario = nomeCointestatario(p);
   const sintesi = p.intervento_sintesi?.trim()

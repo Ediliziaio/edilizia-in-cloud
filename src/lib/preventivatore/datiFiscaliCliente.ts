@@ -9,7 +9,20 @@
  * prima di avere il codice fiscale del cliente.
  */
 
-export type TipoCliente = "privato" | "azienda";
+export type TipoCliente = "privato" | "azienda" | "pa";
+
+/** I tre tipi di cliente, nell'ordine della scelta in cima al passo Cliente. */
+export const TIPI_CLIENTE: ReadonlyArray<{ valore: TipoCliente; etichetta: string }> = [
+  { valore: "privato", etichetta: "Privato" },
+  { valore: "azienda", etichetta: "Azienda" },
+  { valore: "pa", etichetta: "Pubblica Amministrazione" },
+];
+
+/** Un valore salvato qualsiasi come tipo di cliente: quello che non si riconosce è un privato. */
+export const tipoCliente = (v: string | null | undefined): TipoCliente => (v === "azienda" || v === "pa" ? v : "privato");
+
+/** Azienda e Pubblica Amministrazione si intestano col nome dell'ente o la ragione sociale, non con nome e cognome. */
+export const intestatoAdEnte = (t: TipoCliente) => t !== "privato";
 
 export interface DatiFiscaliCliente {
   tipo: TipoCliente;
@@ -55,8 +68,10 @@ export const codiceSdiValido = (sdi: string) => /^[A-Z0-9]{6,7}$/.test(pulito(sd
 export function avvisiDatiFiscali(d: DatiFiscaliCliente): Partial<Record<"codiceFiscale" | "partitaIva" | "codiceSdi", string>> {
   const out: Partial<Record<"codiceFiscale" | "partitaIva" | "codiceSdi", string>> = {};
   if (pulito(d.codiceFiscale) && !codiceFiscaleValido(d.codiceFiscale!)) out.codiceFiscale = "Codice fiscale non valido: controlla i 16 caratteri.";
-  if (d.tipo === "azienda" && pulito(d.partitaIva) && !partitaIvaValida(d.partitaIva!)) out.partitaIva = "Partita IVA non valida: servono 11 cifre corrette.";
-  if (d.tipo === "azienda" && pulito(d.codiceSdi) && !codiceSdiValido(d.codiceSdi!)) out.codiceSdi = "Il codice destinatario ha 7 caratteri (6 per la Pubblica Amministrazione).";
+  if (d.tipo !== "privato" && pulito(d.partitaIva) && !partitaIvaValida(d.partitaIva!)) out.partitaIva = "Partita IVA non valida: servono 11 cifre corrette.";
+  if (d.tipo === "pa" && pulito(d.codiceFiscale) && !/^\d{11}$/.test(pulito(d.codiceFiscale))) out.codiceFiscale = "Il codice fiscale di un ente pubblico ha 11 cifre.";
+  if (d.tipo === "azienda" && pulito(d.codiceSdi) && !codiceSdiValido(d.codiceSdi!)) out.codiceSdi = "Il codice destinatario ha 7 caratteri.";
+  if (d.tipo === "pa" && pulito(d.codiceSdi) && !/^[A-Z0-9]{6}$/.test(pulito(d.codiceSdi))) out.codiceSdi = "Il codice univoco ufficio della Pubblica Amministrazione ha 6 caratteri.";
   return out;
 }
 
@@ -64,5 +79,6 @@ export function avvisiDatiFiscali(d: DatiFiscaliCliente): Partial<Record<"codice
 export function rigaDatiFiscali(d: DatiFiscaliCliente): string {
   const cf = pulito(d.codiceFiscale), piva = pulito(d.partitaIva).replace(/^IT/, ""), sdi = pulito(d.codiceSdi), pec = (d.pec ?? "").trim();
   if (d.tipo === "privato") return cf ? `C.F. ${cf}` : "";
+  if (d.tipo === "pa") return [cf && `C.F. ${cf}`, piva && piva !== cf && `P.IVA ${piva}`, pec && `PEC ${pec}`, sdi && `Codice univoco ufficio ${sdi}`].filter(Boolean).join(" · ");
   return [piva && `P.IVA ${piva}`, cf && cf !== piva && `C.F. ${cf}`, pec && `PEC ${pec}`, sdi && `Codice destinatario ${sdi}`].filter(Boolean).join(" · ");
 }

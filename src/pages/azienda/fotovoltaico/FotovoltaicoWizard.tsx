@@ -13,7 +13,7 @@
  * Step 8 — Generazione PDF + emissione
  */
 
-import { DatiFiscaliCliente } from "@/components/preventivatore/DatiFiscaliCliente";
+import { DatiFiscaliCliente, SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { lazy, Suspense, useState, useMemo, useEffect, useRef, useCallback, type ComponentProps } from "react";
 import { ModelloDelPreventivo } from "@/components/preventivatore/ModelloDelPreventivo";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
@@ -523,7 +523,7 @@ function FotovoltaicoWizard() {
       cliente_telefono?: string | null; cliente_email?: string | null;
       cointestatario_nome?: string | null; cointestatario_cognome?: string | null; cointestatario_codice_fiscale?: string | null;
       cointestatario_email?: string | null; cointestatario_telefono?: string | null;
-      cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null;
+      cliente_tipo?: string | null; cliente_ragione_sociale?: string | null; cliente_codice_fiscale?: string | null; cliente_partita_iva?: string | null; cliente_codice_univoco?: string | null;
       cliente?: { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null } | null;
     };
     setData((d) => ({
@@ -538,7 +538,8 @@ function FotovoltaicoWizard() {
       cointestatario_nome: cli.cointestatario_nome ?? "",
       cointestatario_cognome: cli.cointestatario_cognome ?? "",
       cointestatario_codice_fiscale: cli.cointestatario_codice_fiscale ?? "",
-      cliente_tipo: cli.cliente_tipo === "azienda" ? "azienda" : "privato",
+      cliente_tipo: cli.cliente_tipo === "azienda" || cli.cliente_tipo === "pa" ? cli.cliente_tipo : "privato",
+      cliente_codice_univoco: cli.cliente_codice_univoco ?? "",
       cliente_ragione_sociale: cli.cliente_ragione_sociale ?? "",
       cliente_codice_fiscale: cli.cliente_codice_fiscale ?? "",
       cliente_partita_iva: cli.cliente_partita_iva ?? "",
@@ -898,6 +899,7 @@ function FotovoltaicoWizard() {
               cliente_ragione_sociale: data.cliente_ragione_sociale || null,
               cliente_codice_fiscale: data.cliente_codice_fiscale || null,
               cliente_partita_iva: data.cliente_partita_iva || null,
+              cliente_codice_univoco: data.cliente_codice_univoco || null,
           cointestatario_email: data.cointestatario_email || null,
           cointestatario_telefono: data.cointestatario_telefono || null,
               // Link CRM: aggancia il contatto e l'opportunità di provenienza
@@ -961,6 +963,7 @@ function FotovoltaicoWizard() {
             cliente_ragione_sociale: data.cliente_ragione_sociale || null,
             cliente_codice_fiscale: data.cliente_codice_fiscale || null,
             cliente_partita_iva: data.cliente_partita_iva || null,
+            cliente_codice_univoco: data.cliente_codice_univoco || null,
           cointestatario_email: data.cointestatario_email || null,
           cointestatario_telefono: data.cointestatario_telefono || null,
             titolo: `${data.cliente_nome} ${data.cliente_cognome}`.trim() || undefined,
@@ -1754,6 +1757,7 @@ function FotovoltaicoWizard() {
           cliente_ragione_sociale: data.cliente_ragione_sociale || null,
           cliente_codice_fiscale: data.cliente_codice_fiscale || null,
           cliente_partita_iva: data.cliente_partita_iva || null,
+          cliente_codice_univoco: data.cliente_codice_univoco || null,
           cointestatario_email: data.cointestatario_email || null,
           cointestatario_telefono: data.cointestatario_telefono || null,
           titolo: `${data.cliente_nome} ${data.cliente_cognome}`.trim() || undefined,
@@ -2305,6 +2309,8 @@ function Step1Cliente({
         onClear={() => update("cliente_id", null)}
       />
 
+      {/* Prima privato, azienda o Pubblica Amministrazione, poi nome e cognome (30/10/2026). */}
+      <SceltaTipoCliente valore={data.cliente_tipo} onChange={(t) => update("cliente_tipo", t)} />
       <div className="grid lg:grid-cols-2 gap-4">
         <FvCard title="Anagrafica">
           {/* Telefono: nome e cognome affiancati. */}
@@ -2344,8 +2350,8 @@ function Step1Cliente({
 
         <DatiFiscaliCliente
           form={{ cliente_tipo: data.cliente_tipo, cliente_ragione_sociale: data.cliente_ragione_sociale,
-            cliente_codice_fiscale: data.cliente_codice_fiscale, cliente_partita_iva: data.cliente_partita_iva }}
-          onChange={(campo, valore) => campo === "cliente_tipo" ? update("cliente_tipo", valore === "azienda" ? "azienda" : "privato") : update(campo, valore ?? "")}
+            cliente_codice_fiscale: data.cliente_codice_fiscale, cliente_partita_iva: data.cliente_partita_iva, cliente_codice_univoco: data.cliente_codice_univoco }}
+          onChange={(campo, valore) => campo === "cliente_tipo" ? update("cliente_tipo", valore === "azienda" || valore === "pa" ? valore : "privato") : update(campo, valore ?? "")}
         />
 
         <Cointestatario

@@ -535,10 +535,12 @@ Deno.serve(async (req: Request) => {
       cliente_email: prog.cliente_email,
       cliente_citta: prog.cliente_citta,
       // Privato o azienda (30/10/2026): un'azienda è intestata con la ragione sociale, coi suoi dati fiscali.
-      cliente_intestatario: prog.cliente_tipo === "azienda" && (prog.cliente_ragione_sociale ?? "").trim() ? prog.cliente_ragione_sociale.trim() : null,
+      cliente_intestatario: (prog.cliente_tipo === "azienda" || prog.cliente_tipo === "pa") && (prog.cliente_ragione_sociale ?? "").trim() ? prog.cliente_ragione_sociale.trim() : null,
       cliente_dati_fiscali: (() => {
         const cf = (prog.cliente_codice_fiscale ?? "").replace(/\s+/g, "").toUpperCase();
         const piva = (prog.cliente_partita_iva ?? "").replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
+        const univoco = (prog.cliente_codice_univoco ?? "").replace(/\s+/g, "").toUpperCase();
+        if (prog.cliente_tipo === "pa") return [cf && `C.F. ${cf}`, piva && piva !== cf && `P.IVA ${piva}`, univoco && `Codice univoco ufficio ${univoco}`].filter(Boolean).join(" · ") || null;
         if (prog.cliente_tipo !== "azienda") return cf ? `C.F. ${cf}` : null;
         return [piva && `P.IVA ${piva}`, cf && cf !== piva && `C.F. ${cf}`].filter(Boolean).join(" · ") || null;
       })(),
