@@ -21,6 +21,10 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
   useClassificaVoci: () => ({ mutate: classifica, mutateAsync: classifica, isPending: false }),
   useSbloccaComputo: () => ({ mutate: sblocca, isPending: false }),
 }));
+// Le piante del computo (fase 4 delle Planimetrie) hanno il loro test: qui nessuna pianta.
+vi.mock("@/hooks/useComputoPianta", () => ({
+  usePianteDelComputo: () => ({ piante: new Map(), origineMisura: () => null, cambiate: [], caricamento: false, errore: null }),
+}));
 
 import OrderComputoTab from "@/components/computo/commessa/OrderComputoTab";
 
