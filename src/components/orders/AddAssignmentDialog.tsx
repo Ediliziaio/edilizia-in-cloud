@@ -12,7 +12,7 @@ import { plannedLaborCost } from "@/lib/orders/laborEconomics";
 import type { ExecutorOption, ExecutorType, PhaseAssignment, AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 import { oggiRoma, useSquadre, useSquadreCommessa, useSquadraSuCommessa, messaggioErroreOperai } from "@/hooks/useOperai";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { conIva, costoDaVoci, ivaDitta, quantitaDellaTariffa, testoIvaDitta, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, costoDaVoci, ivaDitta, quantitaDellaTariffa, type OrigineCostoDitta } from "@/lib/orders/costoDitta";
 import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { validWorkDates as validCrewDates } from "@/lib/orders/workPlanning";
 import { Button } from "@/components/ui/button";
@@ -104,7 +104,6 @@ export function AddAssignmentDialog({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
-  const [costsOpen, setCostsOpen] = useState(false);
   const [dal, setDal] = useState(oggiRoma);
   const [al, setAl] = useState("");
   const [capo, setCapo] = useState(false);
@@ -200,6 +199,12 @@ export function AddAssignmentDialog({
 
   // Applica costo (e nota, se vuota) da tariffa × quantità. Il campo resta
   // modificabile: il listino è un prefill, non un vincolo.
+  const selectedCompany = tipo === 'esterno' ? ditteQuery.data?.find(option => option.id === executorId) : undefined;
+  // IVA della ditta scelta: 0 in reverse charge (subappalto edile), come nasce una ditta nuova.
+  const ivaSel = ivaDitta(selectedCompany?.vat_rate);
+  // In reverse charge l'importo è quello e basta: l'IVA si nomina solo se la ditta la mette in fattura (31/10/2026).
+  const piuIva = ivaSel === 0 ? "" : ` + IVA ${ivaSel}%`;
+  const etichettaIva = ivaSel === 0 ? "" : ` · IVA ${ivaSel}% inclusa`;
   const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string, costoUnit?: number | null) => {
     if (!t || listinoBusy || tariffeError || variantiError) return;
     const qty = parseAssignmentAmount(qtyRaw, 6);
@@ -242,15 +247,10 @@ export function AddAssignmentDialog({
     }
     if (tariffaId || ((parseAssignmentAmount(prev) ?? 0) > 0 && !dalPreventivo)) return;
     applyPreventivo();
-    setCostsOpen(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tipo, executorId, selectedPhase, vociQuery.isLoading, listinoBusy, daPreventivo.netto]);
 
   const options = tipo === "squadra" ? (squadreQuery.data ?? []).map(s => ({id: s.id, label: `${s.nome} · ${s.componenti.length} componenti`})) : tipo === "interno" ? employees : ditteQuery.data ?? [];
-  const selectedCompany = tipo === 'esterno' ? ditteQuery.data?.find(option => option.id === executorId) : undefined;
-  // IVA della ditta scelta: 0 in reverse charge (subappalto edile), come nasce una ditta nuova.
-  const ivaSel = ivaDitta(selectedCompany?.vat_rate);
-  const piuIva = ivaSel === 0 ? "senza IVA (reverse charge)" : `+ IVA ${ivaSel}%`;
   const companiesUnavailable = tipo === 'esterno' && (ditteQuery.isLoading || ditteQuery.isFetching || ditteQuery.isError);
   const invalidQuantity = !!tariffaSel && (!tariffaQty.trim() || parseAssignmentAmount(tariffaQty, 6) == null);
 
@@ -263,7 +263,6 @@ export function AddAssignmentDialog({
     setNotes("");
     setSubmitting(false);
     submittingRef.current = false;
-    setCostsOpen(false);
     setTariffaId("");
     setTariffaQty("1");
     setAppliedUnitCost(null);
@@ -395,7 +394,7 @@ export function AddAssignmentDialog({
                 {type: "esterno", label: "Ditta", icon: Users, allowed: puoPersona},
               ] as const).filter(choice => choice.allowed).map(choice => <Button
                 key={choice.type} type="button" variant={tipo === choice.type ? "default" : "outline"} aria-pressed={tipo === choice.type}
-                onClick={() => { if (tipo === choice.type) return; setTipo(choice.type); setExecutorId(""); setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setPlannedHours(""); setNotes(""); setCapo(false); setCostsOpen(false); }}
+                onClick={() => { if (tipo === choice.type) return; setTipo(choice.type); setExecutorId(""); setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setPlannedHours(""); setNotes(""); setCapo(false); }}
                 className="h-auto min-h-11 whitespace-normal px-2 py-2 text-xs sm:text-sm"
               ><choice.icon className="mr-1 h-4 w-4 shrink-0" />{choice.label}</Button>)}
             </div>
@@ -449,7 +448,7 @@ export function AddAssignmentDialog({
             </Select>
             {tipo === 'esterno' && (ditteQuery.isError ? <div role="alert" className="text-sm text-rose-700">Non riesco a caricare ditte e subappaltatori. Non è un elenco vuoto. <Button type="button" size="sm" variant="outline" onClick={() => void ditteQuery.refetch()}>Riprova ditte</Button></div>
               : ditteQuery.isLoading || ditteQuery.isFetching ? <p role="status" className="text-xs text-muted-foreground">Caricamento ditte e subappaltatori…</p>
-              : options.length === 0 ? <p className="text-xs text-muted-foreground">Non risultano ditte o subappaltatori attivi per questa azienda.</p> : <p className="text-xs text-muted-foreground">Ditte e subappaltatori della tua azienda. I collegamenti già presenti non vengono duplicati.</p>)}
+              : options.length === 0 ? <p className="text-xs text-muted-foreground">Non risultano ditte o subappaltatori attivi per questa azienda.</p> : null)}
             {selectedCompany?.unavailableReason && <p role="alert" className="text-sm text-amber-800">{selectedCompany.unavailableReason}</p>}
           </div>
           <label className="block space-y-1.5 text-sm font-medium">Dove lavora
@@ -458,9 +457,9 @@ export function AddAssignmentDialog({
               {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
-          <p className="text-xs text-muted-foreground" aria-live="polite">{selectedPhase
+          {tipo !== "esterno" && <p className="text-xs text-muted-foreground" aria-live="polite">{selectedPhase
             ? "Incarico aggiuntivo su questa lavorazione: non rimuove la squadra generale né gli altri assegnati."
-            : "Incarico generale della commessa. Le assegnazioni già presenti nelle singole lavorazioni restano invariate."}</p>
+            : "Incarico generale della commessa. Le assegnazioni già presenti nelle singole lavorazioni restano invariate."}</p>}
           {tipo === "squadra" && <>
             {squadreQuery.isLoading || squadreAssegnate.isLoading ? <p role="status" className="text-xs text-muted-foreground">Caricamento squadre…</p> : squadreQuery.isError || squadreAssegnate.isError ? <div role="alert" className="text-sm text-rose-700">Squadre non disponibili. <Button variant="outline" size="sm" onClick={() => {void squadreQuery.refetch(); void squadreAssegnate.refetch();}}>Riprova squadre</Button></div> : options.length === 0 && <a className="text-sm underline" href="/azienda/manodopera?tab=operai&vista=squadre">Crea una squadra in Manodopera</a>}
             {squadra && <div className="rounded-lg border bg-slate-50 p-3 text-sm"><p className="font-medium">Caposquadra: {squadra.responsabile ? `${squadra.responsabile.nome} ${squadra.responsabile.cognome}` : "da impostare nella squadra"}</p><p className="mt-1 text-xs text-muted-foreground">{squadra.componenti.map(p => `${p.nome} ${p.cognome}`).join(", ") || "Squadra senza componenti"}</p></div>}
@@ -474,6 +473,8 @@ export function AddAssignmentDialog({
             if (tipo === "squadra") return null;
             const scelto = tipo === "interno" ? employees.find(e => e.id === executorId) : undefined;
             const quando = selectedPhase ? "nei giorni della fase" : "per tutta la durata dei lavori";
+            // La ditta: una riga, non un riquadro verde (31/10/2026).
+            if (tipo === "esterno") return <p className="text-xs text-muted-foreground">{`Se la ditta ha l'app, vede la commessa ${quando}.`}</p>;
             if (scelto && !scelto.campoUserId) {
               return <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{scelto.label} non ha l'app: lavorerà qui ma non vedrà la commessa sul telefono. Puoi dargli l'app dalla sua scheda in Manodopera.</p>;
             }
@@ -496,10 +497,14 @@ export function AddAssignmentDialog({
               <p className="text-xs text-muted-foreground">{currentRate == null ? "Imposta prima il costo orario. Puoi comunque assegnare senza budget." : `Budget previsto: ${plannedCost == null ? "—" : eur.format(plannedCost)}. Non aggiunge ore al consuntivo.`}</p>
             </div>
           </details>}
-          {tipo === "esterno" && <p className="text-xs text-muted-foreground">La ditta non usa il costo orario dei dipendenti. Qui registri l'assegnazione; contratto, SAL e pagamenti si gestiscono nel subappalto.</p>}
-          {tipo === "esterno" && canViewCosts && <details open={costsOpen} onToggle={e => setCostsOpen(e.currentTarget.open)} className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-medium">Budget ditta e listino (facoltativo)</summary>
-            <div className="mt-3 space-y-3">
+          {/* Il costo della ditta (31/10/2026): in vista appena scelta la ditta, prima dalle voci della fase,
+              poi da una voce di listino, poi a mano. Non più in fondo, chiuso, con l'IVA in ogni etichetta. */}
+          {tipo === "esterno" && canViewCosts && executorId && <section aria-label="Costo della ditta" className="space-y-3 rounded-lg border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Costo della ditta</h3>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">{ivaSel === 0 ? "Reverse charge" : `Fattura con IVA ${ivaSel}%`}</span>
+            </div>
+            <div className="space-y-3">
           {(tariffeError || variantiError) && <p role="alert" className="text-xs text-amber-800">Listino non disponibile. Puoi inserire manualmente il costo; non applico tariffe incomplete.</p>}
           {listinoBusy && <p role="status" className="text-xs text-muted-foreground">Caricamento listino e varianti… Puoi intanto compilare gli importi manuali.</p>}
           {listinoIncompleto && <p role="alert" className="text-xs text-amber-800">La tariffa selezionata non è verificata o non è più disponibile. Attendi il caricamento, riprova il listino oppure conferma l’uso di importi manuali.</p>}
@@ -510,7 +515,7 @@ export function AddAssignmentDialog({
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900">
               <span className="min-w-0 flex-1">
                 Dal preventivo: {daPreventivo.voci === 1 ? "1 voce" : `${daPreventivo.voci} voci`} di questa lavorazione,{" "}
-                <strong>{eur.format(daPreventivo.netto)}</strong>{ivaSel === 0 ? <> {piuIva}</> : <> {piuIva} = {eur.format(conIva(daPreventivo.netto, ivaSel))}</>}
+                <strong>{eur.format(daPreventivo.netto)}</strong>{ivaSel > 0 && <>{piuIva} = {eur.format(conIva(daPreventivo.netto, ivaSel))}</>}
                 {daPreventivo.conVariante > 0 && <> · {daPreventivo.conVariante} al prezzo di questa ditta</>}
               </span>
               {origine?.tipo !== "preventivo" && <Button type="button" size="sm" variant="outline" onClick={applyPreventivo}>Usa questo costo</Button>}
@@ -522,7 +527,7 @@ export function AddAssignmentDialog({
           {canViewCosts && !listinoBusy && !tariffeError && !variantiError && tariffeAttive.length > 0 && (
             <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2.5">
               <Label className="text-xs text-muted-foreground">
-                Parti dal listino manodopera — costo compilato da solo
+                {daPreventivo.netto > 0 ? "Oppure da una voce del listino" : "Da una voce del listino"}
               </Label>
               <div className="flex gap-2">
                 <Select
@@ -601,7 +606,7 @@ export function AddAssignmentDialog({
                   ) : null}
                   Costo {eur.format(Number(costoUnitarioEffettivo) || 0)}
                   {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} × {tariffaQty || "1"} ={" "}
-                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))} {piuIva} → previsto{" "}
+                  {eur.format((Number(costoUnitarioEffettivo) || 0) * (parseAssignmentAmount(tariffaQty, 6) ?? 0))}{piuIva} → previsto{" "}
                   <strong className="text-foreground">{eur.format(num(prev))}</strong>
                   {canViewMargins && Number(tariffaSel.prezzo_vendita) > 0 && (
                     <>
@@ -632,7 +637,7 @@ export function AddAssignmentDialog({
           {/* Costs */}
           {canViewCosts && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="assign-prev">Costo previsto ditta · {testoIvaDitta(ivaSel)} €</Label>
+              <Label htmlFor="assign-prev">Costo previsto{etichettaIva} €</Label>
               <Input
                 id="assign-prev"
                 type="text"
@@ -645,7 +650,7 @@ export function AddAssignmentDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assign-cons">Costo ditta già registrato · {testoIvaDitta(ivaSel)} €</Label>
+              <Label htmlFor="assign-cons">Già speso{etichettaIva} €</Label>
               <Input
                 id="assign-cons"
                 type="text"
@@ -659,10 +664,10 @@ export function AddAssignmentDialog({
             </div>
           </div>}
           {(parseAssignmentAmount(prev) == null || parseAssignmentAmount(cons) == null) && <p role="alert" className="text-xs text-rose-700">Controlla gli importi: usa per esempio 1.234,56. Importi negativi o testi incompleti non vengono salvati.</p>}
-          <p className="text-xs text-muted-foreground">Non inserire qui un importo già imputato da fatture o altri costi. Un pagamento o un contratto non è automaticamente un nuovo costo.</p>
+          <p className="text-xs text-muted-foreground">«Già speso» solo se non è già in una fattura registrata. Contratto, SAL e pagamenti: in «Ditte e contratti».</p>
 
             </div>
-          </details>}
+          </section>}
 
           {/* Notes */}
           {tipo !== "squadra" && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Note (facoltativo)</summary><div className="mt-3 space-y-1.5">
