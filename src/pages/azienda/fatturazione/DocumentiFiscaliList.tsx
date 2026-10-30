@@ -59,8 +59,7 @@ import RegistroIncassi from "./RegistroIncassi";
 import CassettoSDI from "./CassettoSDI";
 import FiscalWorkspace from "@/components/fatturazione/FiscalWorkspace";
 import { useBillingMode } from "@/contexts/BillingModeContext";
-import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
-import { GestionaleEsternoAzioni, ImportInCorsoBanner, SegnaPagataImportataDialog, importataPagabile, PROVIDER_LABELS } from "@/components/fatturazione/GestionaleEsterno";
+import { GestionaleEsternoAzioni, ImportInCorsoBanner, SegnaPagataImportataDialog, importataPagabile } from "@/components/fatturazione/GestionaleEsterno";
 import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fatturazione/HubEsterno";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -232,14 +231,10 @@ function DocumentiFiscaliListInner() {
   // Chi fattura con un altro programma: vede anche le importate, non crea documenti.
   const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const puoCreare = !esterna && !isCommercialistaMode;
-  const [importataAperta, setImportataAperta] = useState<string | null>(null);
   const [incassoImportata, setIncassoImportata] = useState<DocumentoFiscale | null>(null);
   const apriDocumento = (doc: DocumentoFiscale) => {
-    // Le importate da un gestionale hanno il loro dettaglio (righe e XML originale);
-    // le vecchie fatture scritte a mano in `invoices`, senza gestionale, il loro.
-    if (doc.origine === "importata" && doc.external_provider) setImportataAperta(doc.id);
-    else if (doc.origine === "importata") navigate(`/azienda/fatturazione/${doc.id}`);
-    else navigate(`/azienda/documenti/${doc.id}/dettaglio`);
+    // Le importate hanno il loro dettaglio, con la stessa impaginazione e senza azioni che creano.
+    navigate(doc.origine === "importata" ? `/azienda/documenti/importata/${doc.id}` : `/azienda/documenti/${doc.id}/dettaglio`);
   };
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -587,11 +582,7 @@ function DocumentiFiscaliListInner() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Fatturazione</h1>
-              <p className="mt-0.5 text-sm text-slate-500">
-                {esterna
-                  ? <>Le fatture del tuo gestionale, con incassi e scadenze<span className="max-sm:hidden">: si creano lì, qui si consultano e si abbinano alle commesse</span>.</>
-                  : "Gestisci documenti fiscali, SDI, incassi e scadenze operative."}
-              </p>
+              <p className="mt-0.5 text-sm text-slate-500">Gestisci documenti fiscali, SDI, incassi e scadenze operative.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -613,9 +604,6 @@ function DocumentiFiscaliListInner() {
                 <span className="hidden sm:inline">Emesse importate</span>
               </Link>
             </Button>
-            {esterna && !isCommercialistaMode && effectiveCompany?.id && (
-              <GestionaleEsternoAzioni companyId={effectiveCompany.id} />
-            )}
             {!isCommercialistaMode && (
               <>
                 {/* Da telefono la fatturazione non si imposta (solo computer o tablet).
@@ -655,6 +643,8 @@ function DocumentiFiscaliListInner() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
+                {/* Chi fattura con un altro programma: al posto di «Nuovo documento», Sincronizza. */}
+                {esterna && effectiveCompany?.id && <GestionaleEsternoAzioni companyId={effectiveCompany.id} />}
               </>
             )}
           </div>
@@ -1013,9 +1003,6 @@ function DocumentiFiscaliListInner() {
                       {/* Cliente */}
                       <TableCell className="text-sm font-medium">
                         {doc.cliente_snapshot?.ragione_sociale || "—"}
-                        {doc.origine === "importata" && doc.external_provider && (
-                          <span className="block text-[11px] font-normal text-muted-foreground">da {PROVIDER_LABELS[doc.external_provider] ?? doc.external_provider}</span>
-                        )}
                       </TableCell>
 
                       {/* Storna Fattura (solo NC) */}
@@ -1026,8 +1013,7 @@ function DocumentiFiscaliListInner() {
                               className="text-xs text-primary hover:underline"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (doc.origine === "importata") setImportataAperta(doc.documento_correlato_id!);
-                                else navigate(`/azienda/documenti/${doc.documento_correlato_id}/dettaglio`);
+                                navigate(doc.origine === "importata" ? `/azienda/documenti/importata/${doc.documento_correlato_id}` : `/azienda/documenti/${doc.documento_correlato_id}/dettaglio`);
                               }}
                             >
                               Vedi fattura originale
@@ -1362,9 +1348,6 @@ function DocumentiFiscaliListInner() {
       />
     </div>
 
-      {effectiveCompany?.id && importataAperta && (
-        <EmessaImportataDettaglio key={importataAperta} id={importataAperta} companyId={effectiveCompany.id} onClose={() => setImportataAperta(null)} />
-      )}
       {effectiveCompany?.id && (
         <SegnaPagataImportataDialog fattura={incassoImportata} companyId={effectiveCompany.id} onClose={() => setIncassoImportata(null)} />
       )}

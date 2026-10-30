@@ -97,7 +97,13 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
       expect(screen.getAllByRole("button", { name: new RegExp(scheda) }).length).toBeGreaterThan(0);
     }
     expect(screen.getAllByText("Rossi Costruzioni").length).toBeGreaterThan(0);
-    expect(screen.getByText("da Fatture in Cloud")).toBeInTheDocument();
+    // Stessa intestazione del nativo, parola per parola.
+    expect(screen.getByRole("heading", { name: "Fatturazione" })).toBeInTheDocument();
+    expect(screen.getByText("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")).toBeInTheDocument();
+    // Stesse colonne della tabella nativa.
+    for (const col of ["Stato", "Cliente", "Data / Numero", "Prox. Scadenza", "Importo"]) {
+      expect(screen.getByRole("columnheader", { name: col })).toBeInTheDocument();
+    }
     // L'elenco legge anche le importate.
     expect(s.filtri.at(-1)?.conImportate).toBe(true);
   });
@@ -118,8 +124,14 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
   it("una fattura importata si apre nel suo dettaglio, non nell'editor", () => {
     monta();
     fireEvent.click(screen.getAllByText("Rossi Costruzioni")[0]);
-    expect(screen.getByText("Dettaglio importata inv-1")).toBeInTheDocument();
-    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti");
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti/importata/inv-1");
+  });
+
+  it("«Sincronizza» sta dove il nativo ha «Nuovo documento»: ultimo pulsante della testata", () => {
+    monta();
+    const testata = screen.getByRole("heading", { name: "Fatturazione" }).closest(".testata-pagina") as HTMLElement;
+    const pulsanti = Array.from(testata.querySelectorAll("button, a")).map((e) => e.textContent?.trim());
+    expect(pulsanti.at(-1)).toBe("Sincronizza");
   });
 
   it("le schede senza dato nativo leggono le importate o lo dicono", () => {

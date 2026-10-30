@@ -380,6 +380,7 @@ import { BillingActivationGuard } from "@/components/billing/BillingActivationGu
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
+const DettaglioFatturaImportata = lazy(() => import("@/pages/azienda/fatturazione/DettaglioFatturaImportata"));
 const FattureRicevutePage = lazy(() => import("@/pages/azienda/fatturazione/FattureRicevutePage"));
 const FattureEmesseImportate = lazy(() => import("@/pages/azienda/fatturazione/FattureEmesseImportate"));
 const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
@@ -796,6 +797,8 @@ export default function CompanyRoutesContainer() {
         <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
         <Route path="documenti/note-credito" element={<Navigate to="/azienda/documenti?tipo=nota_credito" replace />} />
         <Route path="documenti/report" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><ReportFatturazione /></FeatureRoute>)} />
+        {/* Una fattura emessa con un altro programma: stessa impaginazione del dettaglio, in sola lettura. */}
+        <Route path="documenti/importata/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><DettaglioFatturaImportata /></FeatureRoute>)} />
         <Route path="documenti/:id/dettaglio" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><DocumentoDetail /></FeatureRoute>)} />
         <Route path="documenti/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaDocumentEditorGuard><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaDocumentEditorGuard>)} />
 
