@@ -117,6 +117,13 @@ interface NewDDTDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Pre-seleziona un ODA (usato dal dettaglio PO per "Registra DDT") */
   prefillPurchaseOrderId?: string | null;
+  /**
+   * Parte già sulla commessa (la bolla caricata dalla commessa): origine
+   * «commessa», merce in cantiere. Resta modificabile al primo passo.
+   */
+  prefillOrderId?: string | null;
+  /** Dopo il salvataggio resta dov'è (la commessa) invece di aprire la bolla. */
+  restaQui?: boolean;
   /** Callback dopo la creazione (es. refetch) */
   onCreated?: (ddtId: string) => void;
 }
@@ -127,6 +134,8 @@ export function NewDDTDialog({
   open,
   onOpenChange,
   prefillPurchaseOrderId,
+  prefillOrderId,
+  restaQui,
   onCreated,
 }: NewDDTDialogProps) {
   const navigate = useNavigate();
@@ -137,9 +146,10 @@ export function NewDDTDialog({
   const currentStep = STEPS[stepIdx];
 
   // ── Step 1: documento ─────────────────────────────
-  const [origine, setOrigine] = useState<OrigineBolla>("oda");
+  const origineIniziale: OrigineBolla = prefillOrderId && !prefillPurchaseOrderId ? "commessa" : "oda";
+  const [origine, setOrigine] = useState<OrigineBolla>(origineIniziale);
   const [poId, setPoId] = useState(prefillPurchaseOrderId ?? "");
-  const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(prefillOrderId ?? null);
   const [supplierId, setSupplierId] = useState<string | undefined>(undefined);
   const [numero, setNumero] = useState("");
   const [data, setData] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -165,7 +175,7 @@ export function NewDDTDialog({
   const [oraPartenza, setOraPartenza] = useState("");
 
   // ── Step 3: verifica ─────────────────────────────
-  const [destinazione, setDestinazione] = useState<"magazzino" | "cantiere">("magazzino");
+  const [destinazione, setDestinazione] = useState<"magazzino" | "cantiere">(prefillOrderId ? "cantiere" : "magazzino");
   const [qty, setQty] = useState("");
   const [stato, setStato] = useState<DDTStato>("ricevuto");
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
@@ -249,9 +259,9 @@ export function NewDDTDialog({
     if (!open) {
       const timerId = window.setTimeout(() => {
         setStepIdx(0);
-        setOrigine("oda");
+        setOrigine(origineIniziale);
         setPoId(prefillPurchaseOrderId ?? "");
-        setOrderId(null);
+        setOrderId(prefillOrderId ?? null);
         setSupplierId(undefined);
         setRighe([]);
         setAiLettura(null);
@@ -272,7 +282,7 @@ export function NewDDTDialog({
         setOraArrivo("");
         setOraPartenza("");
         setQty("");
-        setDestinazione("magazzino");
+        setDestinazione(prefillOrderId ? "cantiere" : "magazzino");
         setStato("ricevuto");
         setWarehouseId(null);
         setRicevutoDaNome("");
@@ -282,7 +292,7 @@ export function NewDDTDialog({
       }, 200);
       return () => window.clearTimeout(timerId);
     }
-  }, [open, prefillPurchaseOrderId]);
+  }, [open, prefillPurchaseOrderId, prefillOrderId, origineIniziale]);
 
   const availablePOs = useMemo(
     () => orders.filter((o) => o.status !== "annullato"),
@@ -400,7 +410,13 @@ export function NewDDTDialog({
 
       onCreated?.(created.id);
       onOpenChange(false);
-      navigate(`/azienda/ddt/${created.id}`);
+      if (restaQui) {
+        toast.success(`Bolla ${numero.trim()} caricata`, {
+          action: { label: "Apri", onClick: () => navigate(`/azienda/ddt/${created.id}`) },
+        });
+      } else {
+        navigate(`/azienda/ddt/${created.id}`);
+      }
     } catch {
       // Toast gestito dalle mutation
     } finally {

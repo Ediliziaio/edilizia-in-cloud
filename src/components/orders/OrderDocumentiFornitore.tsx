@@ -17,7 +17,10 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { AlertTriangle, FileText, Receipt, Truck } from "lucide-react";
+import { AlertTriangle, FileText, Plus, Receipt, Truck } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import { useAuth } from "@/contexts/AuthContext";
@@ -83,26 +86,34 @@ export function useBolleCommessa(orderId: string) {
     queryFn: async (): Promise<RigaBolla[]> => {
       const oda = await odaDellaCommessa(companyId!, orderId);
       const perOda = new Map(oda.map((o) => [o.id, o]));
-      const [ddtLotti, campo, emessi] = await Promise.all([
+      const [ddtLotti, ddtDiretti, campo, emessi] = await Promise.all([
         Promise.all(aLotti(oda.map((o) => o.id)).map((ids) => allPaymentRows((da, a) => db.from("ddt_ricezione")
           .select("id, purchase_order_id, numero_ddt, data_ricezione, stato, has_damages, non_conformita")
           .eq("company_id", companyId).in("purchase_order_id", ids).order("id").range(da, a)))),
+        // Dal 29/10/2026 una bolla può stare sulla commessa senza ordine d'acquisto (caricata dall'ufficio).
+        allPaymentRows((da, a) => db.from("ddt_ricezione")
+          .select("id, purchase_order_id, numero_ddt, data_ricezione, stato, has_damages, non_conformita, suppliers(name)")
+          .eq("company_id", companyId).eq("order_id", orderId).order("id").range(da, a)),
         // Solo le bolle: scontrini e fatture fotografati in cantiere non sono documenti di trasporto.
         allPaymentRows((da, a) => db.from("campo_acquisti").select("id, fornitore, numero_documento, data_documento, created_at, stato, purchase_order_id")
           .eq("company_id", companyId).eq("order_id", orderId).eq("tipo_documento", "bolla").neq("stato", "annullato").order("id").range(da, a)),
         allPaymentRows((da, a) => db.from("documenti_fiscali").select("id, numero, data_emissione, stato, cliente_snapshot")
           .eq("company_id", companyId).eq("ordine_id", orderId).eq("tipo", "ddt").is("deleted_at", null).order("id").range(da, a)),
       ]);
-      const ddt = ddtLotti.flat() as Array<{ id: string; purchase_order_id: string; numero_ddt: string | null }>;
+      const viste = new Set<string>();
+      const ddt = ([...ddtLotti.flat(), ...ddtDiretti] as Array<{ id: string; purchase_order_id: string | null; numero_ddt: string | null; suppliers?: { name: string } | null }>)
+        .filter((d) => (viste.has(d.id) ? false : (viste.add(d.id), true)));
       // La foto di una bolla poi registrata come ricezione sull'ordine d'acquisto è lo stesso documento: si mostra una volta.
       const giaRegistrate = new Set(ddt.map((d) => `${d.purchase_order_id}|${(d.numero_ddt ?? "").trim().toLowerCase()}`));
       type BollaCantiere = { id: string; fornitore: string | null; numero_documento: string | null; data_documento: string | null; created_at: string; stato: string; purchase_order_id: string | null };
       const campoUniche = (campo as BollaCantiere[])
         .filter((c) => !(c.purchase_order_id && giaRegistrate.has(`${c.purchase_order_id}|${(c.numero_documento ?? "").trim().toLowerCase()}`)));
       const righe: RigaBolla[] = [
-        ...ddt.map((d: { id: string; purchase_order_id: string; numero_ddt: string | null; data_ricezione: string | null; stato: string | null; has_damages: boolean | null; non_conformita: unknown }) => ({
+        ...ddt.map((d: { id: string; purchase_order_id: string | null; numero_ddt: string | null; data_ricezione: string | null; stato: string | null; has_damages: boolean | null; non_conformita: unknown; suppliers?: { name: string } | null }) => ({
           id: d.id, origine: "fornitore" as const, numero: d.numero_ddt, data: d.data_ricezione,
-          controparte: [perOda.get(d.purchase_order_id)?.fornitore, perOda.get(d.purchase_order_id)?.oda_number].filter(Boolean).join(" · ") || null,
+          controparte: (d.purchase_order_id
+            ? [perOda.get(d.purchase_order_id)?.fornitore, perOda.get(d.purchase_order_id)?.oda_number].filter(Boolean).join(" · ")
+            : d.suppliers?.name) || null,
           stato: STATI_DDT[d.stato ?? ""] ?? (d.stato ?? "—"),
           attenzione: d.stato === "non_conforme" || !!d.has_damages || d.stato === "ricevuto",
           link: `/azienda/ddt/${d.id}`,
@@ -133,14 +144,28 @@ export const ORIGINE: Record<RigaBolla["origine"], { testo: string; classe: stri
 export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orderId: string; puoAprireDocumenti?: boolean }) {
   const { data = [], isLoading, isError, refetch } = useBolleCommessa(orderId);
   const daGuardare = data.filter((r) => r.attenzione).length;
+  const qc = useQueryClient();
+  const permessi = usePermissions();
+  // Stessa regola della pagina Bolle: magazzino, acquisti, commesse o amministratore, mai in sola lettura.
+  const puoCaricare = !permessi.solaLettura
+    && (permessi.canEditWarehouse || permessi.canManagePurchasing || permessi.canEditOrders || permessi.isAdmin);
+  const [carica, setCarica] = useState(false);
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-          <Truck className="h-5 w-5 text-primary" aria-hidden="true" />Bolle e DDT
-          {data.length > 0 && <Badge variant="outline">{data.length}</Badge>}
-          {daGuardare > 0 && <Badge className="bg-amber-100 text-amber-800">{daGuardare} da controllare</Badge>}
-        </CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <Truck className="h-5 w-5 text-primary" aria-hidden="true" />Bolle e DDT
+            {data.length > 0 && <Badge variant="outline">{data.length}</Badge>}
+            {daGuardare > 0 && <Badge className="bg-amber-100 text-amber-800">{daGuardare} da controllare</Badge>}
+          </CardTitle>
+          {puoCaricare && (
+            <Button size="sm" onClick={() => setCarica(true)}>
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />Carica bolla
+            </Button>
+          )}
+        </div>
         <p className="text-sm text-muted-foreground">Le bolle dei fornitori arrivate sugli ordini d’acquisto, quelle fotografate in cantiere e i DDT fatti al cliente.</p>
       </CardHeader>
       <CardContent>
@@ -149,7 +174,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
         ) : isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessuna bolla su questa commessa. Arrivano quando si registra un DDT su un ordine d’acquisto o l’operaio fotografa la bolla dal cantiere.</p>
+          <p className="text-sm text-muted-foreground">Nessuna bolla su questa commessa. Caricala da «Carica bolla» (foto o PDF, l’AI legge le righe), oppure arriva quando si registra un DDT su un ordine d’acquisto o l’operaio la fotografa dal cantiere.</p>
         ) : (
           <ul className="divide-y" aria-label="Bolle e DDT della commessa">
             {data.map((r) => {
@@ -177,6 +202,16 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
         )}
       </CardContent>
     </Card>
+      {carica && (
+        <NewDDTDialog
+          open={carica}
+          onOpenChange={setCarica}
+          prefillOrderId={orderId}
+          restaQui
+          onCreated={() => { void qc.invalidateQueries({ queryKey: ["commessa-bolle-ddt"] }); }}
+        />
+      )}
+    </>
   );
 }
 
