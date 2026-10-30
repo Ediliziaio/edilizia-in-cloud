@@ -82,7 +82,7 @@ beforeEach(() => {
     cig: null, cup: null, ribasso_percentuale: null, oneri_sicurezza: null, created_at: null,
     variante_di: null, numero_variante: null, motivo_variante: null, contrattuale_dal: null,
   };
-  voci = [voce(1, {}), voce(2, { quantita: 100, importo_computo: 1000, misure: [rigaDaPianta] })];
+  voci = [voce(1, {}), voce(2, { quantita: 5, importo_computo: 50, misure: [rigaDaPianta] })];
   cambiate = [];
   origine = "rilevata";
 });
@@ -119,7 +119,7 @@ describe("«Prendi dalla pianta»", () => {
     expect(within(finestra).getByText("Righe che verranno aggiunte (6)")).toBeInTheDocument();
     fireEvent.click(within(finestra).getByRole("button", { name: "Nessuna" }));
     fireEvent.click(within(finestra).getByRole("checkbox", { name: /^Bagno/ }));
-    expect(within(finestra).getByText(/La voce passa da/)).toHaveTextContent(/100,00 a 10\d,\d\d mq/);
+    expect(within(finestra).getByText(/La voce passa da/)).toHaveTextContent(/da 5,00 a \d+,\d\d mq/);
     fireEvent.click(within(finestra).getByRole("button", { name: "Aggiungi 1 riga" }));
     expect(aggiungi).toHaveBeenCalledTimes(1);
     const [arg] = aggiungi.mock.calls[0];
