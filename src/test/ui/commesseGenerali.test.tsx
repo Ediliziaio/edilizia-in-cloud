@@ -44,6 +44,10 @@ vi.mock("@/components/orders/generali/moduli/InvestitoriScheda", () => ({
 vi.mock("@/components/orders/generali/moduli/UnitaScheda", () => ({
   modulo: { pronto: false, titolo: "Unità e vendite", telefono: true, Scheda: (): null => null },
 }));
+// I moduli veri, man mano che diventano pronti, non devono cambiare queste prove: qui conta il meccanismo.
+vi.mock("@/components/orders/generali/moduli/DocumentiScheda", () => ({
+  modulo: { pronto: false, titolo: "Documenti", telefono: true, Scheda: (): null => null },
+}));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   useRiepilogoGenerale: () => ({ data: m.riepilogo, isLoading: false, isError: false, refetch: vi.fn() }),
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),

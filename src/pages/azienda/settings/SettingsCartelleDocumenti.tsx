@@ -25,6 +25,7 @@ import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazion
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { AvvisoAreaClienti } from "@/components/impostazioni/AvvisoAreaClienti";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
+import { ImpostazioniDocumentiGenerali } from "@/components/orders/generali/documenti/ImpostazioniDocumentiGenerali";
 
 const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -286,6 +287,9 @@ function CartelleDocumentiConfig() {
           </ul>
         </SezioneImpostazione>
       )}
+
+      {/* Commesse generali: la checklist dei documenti richiesti, sugli stessi archivi delle commesse. */}
+      <ImpostazioniDocumentiGenerali />
 
       </div>
       <aside className="min-w-0 space-y-4" aria-label="Anteprima delle cartelle nelle commesse">
