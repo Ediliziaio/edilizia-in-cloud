@@ -4,7 +4,7 @@ import { righeRiepilogoIva } from "../../../../supabase/functions/_shared/riepil
 import { agevolazioniPreventivo } from "../../../../supabase/functions/_shared/prezziPreventivo";
 import { testiPerPdf } from "../../../../supabase/functions/_shared/testoPerPdf";
 import { normalizzaTestoTemplatePdf } from "../../../../supabase/functions/_shared/testoTemplatePdf";
-import { titoliMarkdown } from "../../../../supabase/functions/_shared/blocchiModelloPreventivo";
+import { COLORE_ACCENTO_DI_FABBRICA, coloreDelBlocco, titoliMarkdown } from "../../../../supabase/functions/_shared/blocchiModelloPreventivo";
 import { nomeLeggibile } from "../../../../supabase/functions/_shared/impaginaPreventivo";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -13,7 +13,7 @@ const str = (v: unknown) => typeof v === "string" ? v : "";
 const num = (v: unknown) => Number.isFinite(Number(v)) ? Number(v) : 0;
 
 /** Dati già autorizzati e letti da generate-quote-pdf; nessuna lettura DB nel renderer. */
-export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: Riga[]; company: Riga | null; template: Riga }): DocEdileDati {
+export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: Riga[]; company: Riga | null; template: Riga & { composed_terms?: Riga | null } }): DocEdileDati {
   const { quote: q, items, company: c, template: t } = input;
   const progetto: ProgettoComune = {
     code: str(q.quote_number), tipo_intervento: str(q.title), cliente_nome: str(q.client_name), cliente_cognome: null,
@@ -69,7 +69,8 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   if (condizioni.length) dati.sezioniTecniche.push({ id: "accordi", titolo: "Accordi e riferimenti", righe: condizioni });
   // Le schede prodotto e le sezioni collegate al modello (blocchi della libreria): erano
   // pagine del vecchio motore pdf-lib e col motore unico (27/10/2026) non uscivano più.
-  // Ognuna diventa un capitolo del dettaglio; i colori del singolo blocco non si portano.
+  // Ognuna diventa un capitolo del dettaglio, coi colori scelti nel suo blocco (il
+  // vecchio motore li usava; dal 27/10/2026 al 30/10 erano spariti).
   const blocchi = (v: unknown): Riga[] => Array.isArray(v) ? v.filter((b): b is Riga => !!b && typeof b === "object") : [];
   for (const [i, p] of blocchi(t.composed_products).entries()) {
     const prezzo = p.product_indicative_price != null && p.product_indicative_price !== ""
@@ -80,6 +81,8 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
     dati.sezioniTecniche.push({
       id: `scheda-${str(p.id) || i}`,
       titolo: str(p.name) || "Scheda prodotto",
+      colore: coloreDelBlocco(p.primary_color),
+      accento: coloreDelBlocco(p.accent_color, COLORE_ACCENTO_DI_FABBRICA),
       testo: normalizzaTestoTemplatePdf(p.product_short_description || p.product_long_description) || null,
       righe: [...(str(p.product_category) ? [{ etichetta: "Categoria", valore: str(p.product_category) }] : []), ...caratteristiche,
         ...(prezzo ? [{ etichetta: "Prezzo indicativo", valore: prezzo }] : [])],
@@ -88,8 +91,10 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
   for (const [i, sezione] of blocchi(t.composed_sections).entries()) {
     const testo = normalizzaTestoTemplatePdf(titoliMarkdown(sezione.body_html)).replace(/^#+\s*/gm, "");
     if (!testo.trim()) continue;
-    dati.sezioniTecniche.push({ id: `sezione-${str(sezione.id) || i}`, titolo: str(sezione.name) || "Sezione", testo });
+    dati.sezioniTecniche.push({ id: `sezione-${str(sezione.id) || i}`, titolo: str(sezione.name) || "Sezione", testo, colore: coloreDelBlocco(sezione.primary_color) });
   }
+  // Le condizioni col colore del loro blocco, se l'ha scelto.
+  dati.modello.coloreCondizioni = coloreDelBlocco(t.composed_terms?.primary_color);
   if (t.show_logo === false) { dati.azienda.logoUrl = null; dati.azienda.logoChiaroUrl = null; dati.modello.copertina.logoUrl = null; dati.modello.copertina.posizioneLogo = "hidden"; }
   // Timbro e chi firma per l'impresa (25/09/2026): il timbro arriva già letto dalla cartella
   // dell'azienda (generate-quote-pdf), qui solo il data URL.
