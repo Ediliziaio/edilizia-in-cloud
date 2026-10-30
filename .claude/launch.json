@@ -4,23 +4,50 @@
     {
       "name": "edilizia-dev",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev", "--", "--port", "56835", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "56835",
+        "--strictPort"
+      ],
       "port": 56835,
       "autoPort": false
     },
     {
       "name": "edilizia-dev-alt",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev", "--", "--port", "56845"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "56845"
+      ],
       "port": 56845,
       "autoPort": true
     },
     {
       "name": "edilizia-prod-preview",
       "runtimeExecutable": "bunx",
-      "runtimeArgs": ["vite", "preview"],
+      "runtimeArgs": [
+        "vite",
+        "preview"
+      ],
       "port": 4173,
       "autoPort": true
+    },
+    {
+      "name": "planimetria-editor",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--config",
+        "vite.planimetria-local.config.ts"
+      ],
+      "port": 8084,
+      "autoPort": false
     }
   ]
 }

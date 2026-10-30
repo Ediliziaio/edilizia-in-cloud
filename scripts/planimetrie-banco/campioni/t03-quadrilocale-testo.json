@@ -1,0 +1,46 @@
+{
+ "id": "t03-quadrilocale-testo",
+ "ingresso": "descrizione",
+ "stile": "testo",
+ "testo": "Quadrilocale di 95 mq: soggiorno 28 mq, cucina 12 mq, tre camere da 14, 11 e 9 mq, due bagni da 5 e 3,5 mq, disimpegno, balcone di 6 mq.",
+ "locali": [
+  {
+   "destinazione": "soggiorno",
+   "area_mq": 28
+  },
+  {
+   "destinazione": "cucina",
+   "area_mq": 12
+  },
+  {
+   "destinazione": "camera",
+   "area_mq": 14
+  },
+  {
+   "destinazione": "camera",
+   "area_mq": 11
+  },
+  {
+   "destinazione": "camera",
+   "area_mq": 9
+  },
+  {
+   "destinazione": "bagno",
+   "area_mq": 5
+  },
+  {
+   "destinazione": "bagno",
+   "area_mq": 3.5
+  },
+  {
+   "destinazione": "disimpegno",
+   "area_mq": null
+  },
+  {
+   "destinazione": "balcone",
+   "area_mq": 6
+  }
+ ],
+ "aperture": null,
+ "misura_utente": null
+}

@@ -1,0 +1,26 @@
+{
+ "id": "t01-bilocale-testo",
+ "ingresso": "descrizione",
+ "stile": "testo",
+ "testo": "Bilocale di circa 50 mq: soggiorno con angolo cottura di 5 x 4,5 m, camera matrimoniale 3,5 x 4 m, bagno 2 x 2,5 m con finestra, piccolo disimpegno.",
+ "locali": [
+  {
+   "destinazione": "soggiorno",
+   "area_mq": 22.5
+  },
+  {
+   "destinazione": "camera",
+   "area_mq": 14
+  },
+  {
+   "destinazione": "bagno",
+   "area_mq": 5
+  },
+  {
+   "destinazione": "disimpegno",
+   "area_mq": null
+  }
+ ],
+ "aperture": null,
+ "misura_utente": null
+}
