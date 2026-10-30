@@ -1565,7 +1565,7 @@ export function UnifiedPreventiviList() {
                       onClick={() => navigate(r.href)}
                       // Senza cliente il titolo è il numero (una riga «—» non si riconosce).
                       titolo={senzaCliente ? r.numero : r.cliente}
-                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
+                      sottotitolo={[senzaCliente ? null : r.numero, r.titolo, r.numero === tipoCfg.label ? null : tipoCfg.label, formatDateSafe(r.data)].filter(Boolean).join(" · ")}
                       valore={r.totale != null && r.totale > 0 ? formatCurrency(r.totale) : "—"}
                       stato={<span className={coloreStato}>{statoCfg.label}</span>}
                     /></div>

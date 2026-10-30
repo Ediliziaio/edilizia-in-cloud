@@ -241,11 +241,18 @@ export default function Preventivi() {
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Crea preventivo da foto, audio o documento">
+                  <Button variant="outline" size="icon" className="tap-compact h-8 w-8" aria-label="Preventivo AI, o da foto, audio o documento">
                     <Sparkles className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60">
+                  {/* «Preventivo AI» qui dentro: come pulsante a sé usciva dallo schermo a destra. */}
+                  {localAiEnabled && (
+                    <DropdownMenuItem onClick={() => setShowAiQuote(true)} className="font-semibold">
+                      <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
+                      Preventivo AI
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => setShowFotoModal(true)}>
                     <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
                     Da foto, schizzi o audio
@@ -261,7 +268,6 @@ export default function Preventivi() {
                   <Plus className="mr-1 h-4 w-4" />Nuovo
                 </Button>
               )}
-              {localAiEnabled && <Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={() => setShowAiQuote(true)}>Preventivo AI</Button>}
             </div>
           </div>
           {/* Sotto i 1280 px (col menu laterale aperto) le azioni secondarie restano icone (col nome al passaggio del
