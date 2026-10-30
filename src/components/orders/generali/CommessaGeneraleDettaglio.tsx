@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CollegaCommesseDialog } from "@/components/orders/generali/CollegaCommesseDialog";
 import { ModificaGeneraleDialog } from "@/components/orders/generali/ModificaGeneraleDialog";
+import { BottoneRendiconto } from "@/components/orders/generali/rendiconto/RendicontoGenerale";
 import { schedeDelModello } from "@/components/orders/generali/schede";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -147,6 +148,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
               {r.figlie.length === 1 ? `1 ${def.figlia.una}` : `${r.figlie.length} ${def.figlia.tante.toLowerCase()}`}
             </p>
           </div>
+          <BottoneRendiconto riepilogo={r} />
           {puoModificare && (
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setModifica(true)}>
