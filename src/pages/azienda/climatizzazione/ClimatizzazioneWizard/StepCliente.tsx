@@ -29,6 +29,7 @@ import type { ClmProgetto } from "@/types/climatizzazione";
 import type { ClmFormPatch } from "./types";
 import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
+import { DatiFiscaliCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
 
 interface ContactLite {
@@ -41,6 +42,9 @@ interface ContactLite {
   city: string | null;
   province: string | null;
   postal_code: string | null;
+  company_name: string | null;
+  fiscal_code: string | null;
+  vat_number: string | null;
 }
 
 interface OpportunityLite {
@@ -72,7 +76,7 @@ export default function StepCliente({ form, onChange }: Props) {
     queryFn: async (): Promise<ContactLite[]> => {
       let query = supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, address, city, province, postal_code")
+        .select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .limit(20);
@@ -106,6 +110,12 @@ export default function StepCliente({ form, onChange }: Props) {
     onChange("cliente_cognome", c.last_name);
     onChange("cliente_email", c.email);
     onChange("cliente_telefono", c.phone);
+    // Privato o azienda e i dati fiscali, dal contatto (30/10/2026).
+    const azienda = !!(c.company_name?.trim() || c.vat_number?.trim());
+    onChange("cliente_tipo", azienda ? "azienda" : "privato");
+    onChange("cliente_ragione_sociale", c.company_name?.trim() || null);
+    onChange("cliente_codice_fiscale", c.fiscal_code?.trim() || null);
+    onChange("cliente_partita_iva", c.vat_number?.trim() || null);
     indirizzo.dalContatto(c.id, { indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
     setContactPickerOpen(false);
   };
@@ -198,7 +208,7 @@ export default function StepCliente({ form, onChange }: Props) {
         {/* Anagrafica */}
         <div className="grid grid-cols-12 gap-3 max-sm:order-3 max-sm:col-span-2 max-sm:gap-2">
           <div className="col-span-6">
-            <Label className="text-xs">Nome</Label>
+            <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> Nome</Label>
             <Input
               value={form.cliente_nome ?? ""}
               onChange={(e) => onChange("cliente_nome", e.target.value || null)}
@@ -207,7 +217,7 @@ export default function StepCliente({ form, onChange }: Props) {
             />
           </div>
           <div className="col-span-6">
-            <Label className="text-xs">Cognome</Label>
+            <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> Cognome</Label>
             <Input
               value={form.cliente_cognome ?? ""}
               onChange={(e) => onChange("cliente_cognome", e.target.value || null)}
@@ -217,7 +227,7 @@ export default function StepCliente({ form, onChange }: Props) {
           </div>
           {/* Telefono: email e telefono a tutta riga, a metà l'email non si leggeva. */}
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs flex items-center gap-1">
+            <Label className="flex h-4 items-center gap-1 text-xs">
               <Mail className="h-3 w-3" /> Email
             </Label>
             <Input
@@ -229,7 +239,7 @@ export default function StepCliente({ form, onChange }: Props) {
             />
           </div>
           <div className="col-span-12 sm:col-span-6">
-            <Label className="text-xs flex items-center gap-1">
+            <Label className="flex h-4 items-center gap-1 text-xs">
               <Phone className="h-3 w-3" /> Telefono
             </Label>
             <Input
@@ -240,6 +250,8 @@ export default function StepCliente({ form, onChange }: Props) {
             />
           </div>
         </div>
+
+        <DatiFiscaliCliente form={form} onChange={(campo, valore) => onChange(campo, valore)} />
 
         <Cointestatario form={form} onChange={(campo, valore) => onChange(campo, valore)} />
 

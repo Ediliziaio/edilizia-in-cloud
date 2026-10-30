@@ -244,6 +244,8 @@ export interface DocEdileDati {
   codice: string | null;
   /** «Mario Rossi» */
   cliente: string;
+  /** «C.F. …» o «P.IVA … · C.F. …»: nella pagina di accettazione, accanto al committente. */
+  datiFiscaliCliente?: string | null;
   /** Solo il nome, per il saluto: «Mario». */
   clienteNome: string | null;
   /** Preventivo cointestato: «Anna Bianchi», che firma accanto al cliente. */

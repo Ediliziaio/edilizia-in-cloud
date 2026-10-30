@@ -35,7 +35,7 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ slug, 
     const cliente = leggi(slug, cart, "StepCliente.tsx");
     expect(cliente).toContain("<IndirizzoDeiLavori");
     expect(cliente).toContain("useIndirizzoLavoriEdile(form,");
-    expect(cliente).toContain('.select("id, first_name, last_name, email, phone, address, city, province, postal_code")');
+    expect(cliente).toContain('.select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")');
     expect(cliente).toContain("indirizzo.dalContatto(c.id,");
   });
 

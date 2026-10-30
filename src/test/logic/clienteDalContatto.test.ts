@@ -29,6 +29,7 @@ import { leggiClienteDelContatto, riempiClienteVuoto, type ClienteDelContatto } 
 
 const contatto: ClienteDelContatto = {
   cliente_nome: "Giulia", cliente_cognome: "Neri", cliente_email: "giulia.neri@example.it", cliente_telefono: "347 000 1111",
+  cliente_tipo: "privato", cliente_ragione_sociale: null, cliente_codice_fiscale: null, cliente_partita_iva: null,
 };
 
 describe("riempiClienteVuoto", () => {
@@ -60,7 +61,7 @@ describe("riempiClienteVuoto", () => {
     const scritto = { cliente_nome: "Anna", cliente_cognome: "Bianchi", cliente_email: "a@b.it", cliente_telefono: "1" };
     expect(riempiClienteVuoto(scritto, contatto)).toBe(scritto);
     const vuoto = { cliente_nome: "" };
-    expect(riempiClienteVuoto(vuoto, { cliente_nome: null, cliente_cognome: null, cliente_email: null, cliente_telefono: null })).toBe(vuoto);
+    expect(riempiClienteVuoto(vuoto, { cliente_nome: null, cliente_cognome: null, cliente_email: null, cliente_telefono: null, cliente_tipo: "privato", cliente_ragione_sociale: null, cliente_codice_fiscale: null, cliente_partita_iva: null })).toBe(vuoto);
   });
 
   it("non cambia l'oggetto di partenza e lascia stare gli altri campi del preventivo", () => {
@@ -72,19 +73,36 @@ describe("riempiClienteVuoto", () => {
   });
 });
 
+describe("riempiClienteVuoto: privato o azienda", () => {
+  const azienda: ClienteDelContatto = { ...contatto, cliente_tipo: "azienda", cliente_ragione_sociale: "Neri Srl", cliente_partita_iva: "01114601006" };
+  it("un preventivo nuovo diventa «azienda» se lo è il contatto", () => {
+    expect(riempiClienteVuoto({ cliente_tipo: "privato" as string | null }, azienda)).toMatchObject({ cliente_tipo: "azienda", cliente_ragione_sociale: "Neri Srl" });
+  });
+  it("non cambia il tipo se nel preventivo c'è già una ragione sociale scritta a mano", () => {
+    expect(riempiClienteVuoto({ cliente_tipo: "privato" as string | null, cliente_ragione_sociale: "Altra Srl" }, azienda).cliente_tipo).toBe("privato");
+  });
+});
+
 describe("leggiClienteDelContatto", () => {
   beforeEach(() => { finto.riga = null; finto.errore = null; finto.interrogato.length = 0; });
 
   it("legge nome, cognome, email e telefono di QUEL contatto, senza spazi attorno", async () => {
     finto.riga = { first_name: " Giulia ", last_name: "Neri", email: " giulia.neri@example.it", phone: "347 000 1111 " };
     await expect(leggiClienteDelContatto("cnt-1")).resolves.toEqual(contatto);
-    expect(finto.interrogato).toEqual([{ tabella: "marketing_contacts", colonne: "first_name, last_name, email, phone", filtro: ["id", "cnt-1"] }]);
+    expect(finto.interrogato).toEqual([{ tabella: "marketing_contacts", colonne: "first_name, last_name, email, phone, company_name, fiscal_code, vat_number", filtro: ["id", "cnt-1"] }]);
   });
 
   it("i dati vuoti del contatto diventano nulli (non stringhe vuote che sembrano scritte)", async () => {
     finto.riga = { first_name: "Giulia", last_name: "", email: "   ", phone: null };
     await expect(leggiClienteDelContatto("cnt-1")).resolves.toEqual({
-      cliente_nome: "Giulia", cliente_cognome: null, cliente_email: null, cliente_telefono: null,
+      cliente_nome: "Giulia", cliente_cognome: null, cliente_email: null, cliente_telefono: null, cliente_tipo: "privato", cliente_ragione_sociale: null, cliente_codice_fiscale: null, cliente_partita_iva: null,
+    });
+  });
+
+  it("un contatto con ragione sociale o partita IVA è un'azienda, coi suoi dati fiscali (30/10/2026)", async () => {
+    finto.riga = { first_name: "Luca", last_name: "Verdi", email: null, phone: null, company_name: " Verdi Costruzioni Srl ", fiscal_code: "01114601006", vat_number: "01114601006" };
+    await expect(leggiClienteDelContatto("cnt-1")).resolves.toMatchObject({
+      cliente_tipo: "azienda", cliente_ragione_sociale: "Verdi Costruzioni Srl", cliente_codice_fiscale: "01114601006", cliente_partita_iva: "01114601006",
     });
   });
 
