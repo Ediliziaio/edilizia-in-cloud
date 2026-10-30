@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import type { CategoriaPiano, TipoVoce, VoceNuova } from "@/lib/orders/generali/pianoCategorie";
 import { useCriterioRipartizione } from "@/hooks/useCommesseGenerali";
+import { useVariantiGenerale } from "@/hooks/useGeneraleVarianti";
+import { moduliDelModello } from "@/lib/orders/generali/moduli";
+import { variantiPerPiano } from "@/lib/orders/generali/varianti";
 import { calcolaPianoEconomico, type DatiUnita, type PianoCalcolato, type Scenario, type VocePiano } from "@/lib/orders/generali/pianoConti";
 import {
   dataDaMese, leggiFotografie, leggiReale, leggiUnita, leggiVersioni, leggiVoci,
@@ -177,6 +180,9 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
   const figlieIds = useMemo(() => (riepilogo?.figlie ?? []).map((f) => f.id), [riepilogo]);
   const unita = useUnitaGenerale(generaleId, figlieIds, attivo);
   const criterio = useCriterioRipartizione(generaleId);
+  // Le varianti degli acquirenti contano dove ci sono unità (sviluppo, compravendita).
+  const conUnita = !!riepilogo && moduliDelModello(riepilogo.generale.modello).includes("unita");
+  const varianti = useVariantiGenerale(generaleId, attivo && conUnita);
 
   const piano: PianoCalcolato | null = useMemo(() => {
     if (!riepilogo || !inVista || !Array.isArray(voci.data) || !reale.data || !Array.isArray(reale.data.righe)) return null;
@@ -192,8 +198,9 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
       unita: unita.data ?? null,
       criterio: criterio.data?.criterio ?? "auto",
       scenario: opzioni.scenario ?? null,
+      varianti: conUnita ? variantiPerPiano(varianti.data) : null,
     });
-  }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, unita.data, criterio.data, opzioni.scenario]);
+  }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, unita.data, criterio.data, opzioni.scenario, conUnita, varianti.data]);
 
   return {
     versioni: elenco,

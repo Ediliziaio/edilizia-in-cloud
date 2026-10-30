@@ -3,7 +3,7 @@
 // di ogni unità, il margine, cosa chiede il D.Lgs. 122/2005, come si divide un'unità.
 // Niente React né database: i dati arrivano da `generale_unita_elenco` (unita.ts).
 import {
-  confrontaSigle, isIncasso, prezzoCorrente, unitaVive, type ElencoUnita, type StatoVendita, type UnitaGenerale,
+  confrontaSigle, isIncasso, prezzoConVarianti, prezzoCorrente, unitaVive, type ElencoUnita, type StatoVendita, type UnitaGenerale,
 } from "@/lib/orders/generali/unita";
 
 const arrotonda = (n: number) => Math.round(n * 100) / 100;
@@ -39,7 +39,7 @@ export interface PagamentiUnita {
   permute: number | null;
   /** Incassato più permute. */
   pagato: number | null;
-  /** Prezzo corrente meno pagato (mai sotto zero); null su un'unità libera o senza prezzo. */
+  /** Prezzo corrente con le varianti accettate meno pagato (mai sotto zero); null su un'unità libera o senza prezzo. */
   residuo: number | null;
 }
 
@@ -48,7 +48,7 @@ export function pagamentiUnita(u: UnitaGenerale): PagamentiUnita {
   const incassato = arrotonda(u.movimenti.filter((m) => isIncasso(m.tipo)).reduce((t, m) => t + (m.importo ?? 0), 0));
   const permute = arrotonda(u.movimenti.filter((m) => m.tipo === "permuta").reduce((t, m) => t + (m.importo ?? 0), 0));
   const pagato = arrotonda(incassato + permute);
-  const prezzo = prezzoCorrente(u);
+  const prezzo = prezzoConVarianti(u);
   return {
     incassato,
     permute,
@@ -62,7 +62,7 @@ export function pagamentiUnita(u: UnitaGenerale): PagamentiUnita {
 export interface RiepilogoVendite {
   unita: number;
   conteggi: Record<StatoVendita, number>;
-  /** Prezzi di compromessi e rogiti: quello che è venduto davvero. */
+  /** Prezzi di compromessi e rogiti, con le varianti accettate: quello che è venduto davvero. */
   venduto: number | null;
   /** Prezzi delle prenotate (trattato, altrimenti listino). */
   prenotato: number | null;
@@ -88,7 +88,7 @@ export function riepilogoVendite(e: Pick<ElencoUnita, "unita" | "permessi">): Ri
   return {
     unita: vive.length,
     conteggi,
-    venduto: somma(vendute, prezzoCorrente),
+    venduto: somma(vendute, prezzoConVarianti),
     prenotato: somma(vive.filter((u) => u.stato === "prenotata"), (u) => u.trattato ?? u.listino),
     inVendita: somma(vive.filter((u) => u.stato === "libera"), (u) => u.listino),
     incassato: somma(vive, (u) => pagamenti.get(u.orderId)!.incassato),
@@ -139,7 +139,10 @@ const pesoDi = (criterio: CriterioRiparto, u: UnitaGenerale) =>
   criterio === "millesimi" ? u.millesimi ?? 0 : criterio === "mq" ? u.mq ?? 0 : criterio === "prezzo" ? prezzoCorrente(u) ?? 0 : 1;
 
 export interface ContoUnita {
+  /** Prezzo corrente più le varianti accettate. */
   prezzo: number | null;
+  /** Di cui varianti accettate dall'acquirente. */
+  varianti: number;
   /** Costi registrati sulla commessa dell'unità. */
   costoDiretto: number | null;
   /** Costi passati da un'unità divisa alle sue parti (per m²). */
@@ -167,7 +170,7 @@ export interface ContiUnita {
 }
 
 /**
- * Margine dell'unità = prezzo − costi della sua commessa − costi ereditati da un'unità divisa
+ * Margine dell'unità = prezzo (con le varianti accettate) − costi della sua commessa − costi ereditati da un'unità divisa
  * − provvigione dell'agenzia − quota dei costi comuni. I costi comuni sono quelli registrati
  * sulla generale più le permute (il terreno), ripartiti sulle unità vive.
  */
@@ -217,12 +220,13 @@ export function contiUnita(e: ElencoUnita, scelto: "auto" | "millesimi" | "mq" |
 
   const perUnita = new Map<string, ContoUnita>();
   vive.forEach((u, i) => {
-    const prezzo = e.permessi.importi ? prezzoCorrente(u) : null;
+    const prezzo = e.permessi.importi ? prezzoConVarianti(u) : null;
     const costoEreditato = vedeCosti ? ereditato.get(u.orderId) ?? 0 : null;
     const provvigione = u.provvigione ?? 0;
     const quotaComuni = quote ? quote[i] : null;
     perUnita.set(u.orderId, {
       prezzo,
+      varianti: e.permessi.importi ? u.variantiAccettate ?? 0 : 0,
       costoDiretto: vedeCosti ? u.costoDiretto : null,
       costoEreditato,
       provvigione,

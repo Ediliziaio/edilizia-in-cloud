@@ -8,6 +8,7 @@ import { AlertTriangle, Info, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SubappaltiContratto } from "@/components/orders/generali/subappalti/SubappaltiContratto";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import {
@@ -24,7 +25,7 @@ import { FattureContratto, SalContratto } from "./SalContratto";
 import { NumeroCheSiApre, ProssimoPasso, type RigaOrigine } from "./campi";
 import { dataIt, euro, percentoIt } from "./formato";
 
-const SEZIONI = ["contratto", "sal", "elenco", "misure"] as const;
+const SEZIONI = ["contratto", "sal", "elenco", "misure", "subappalti"] as const;
 type Sezione = typeof SEZIONI[number];
 
 export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
@@ -92,6 +93,7 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
           <TabsTrigger value="sal">SAL{dati.sal.length > 0 ? ` · ${dati.sal.length}` : ""}</TabsTrigger>
           <TabsTrigger value="elenco">Elenco prezzi{dati.elencoVoci > 0 ? ` · ${dati.elencoVoci}` : ""}</TabsTrigger>
           <TabsTrigger value="misure">Misure</TabsTrigger>
+          <TabsTrigger value="subappalti">Subappalti</TabsTrigger>
         </TabsList>
 
         <TabsContent value="contratto" className="mt-4 space-y-4">
@@ -105,6 +107,9 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
         </TabsContent>
         <TabsContent value="elenco" className="mt-4">
           {sezione === "elenco" && <ElencoPrezzi generaleId={generaleId} ribassoPct={dati.contratto?.ribassoPct ?? 0} puoModificare={modifiche} />}
+        </TabsContent>
+        <TabsContent value="subappalti" className="mt-4">
+          {sezione === "subappalti" && <SubappaltiContratto generaleId={generaleId} dati={dati} puoModificare={modifiche} />}
         </TabsContent>
         <TabsContent value="misure" className="mt-4">
           {sezione === "misure" && (

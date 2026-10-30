@@ -5,6 +5,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { chiaviGenerali } from "@/hooks/useCommesseGenerali";
+import { caricaVarianti } from "@/hooks/useGeneraleVarianti";
+import { conVarianti } from "@/lib/orders/generali/varianti";
 import { leggiElencoUnita, type DatiCambioStato, type ElencoUnita, type StatoVendita, type TipoMovimento } from "@/lib/orders/generali/unita";
 import type { ParteCalcolata } from "@/lib/orders/generali/unitaConti";
 import type { UnitaDaCreare } from "@/lib/orders/generali/unitaSerie";
@@ -17,18 +19,21 @@ export const chiaviUnita = {
   elenco: (generaleId: string | undefined) => ["generale-unita", generaleId] as const,
 };
 
-/** Le unità di una generale, con pagamenti e costi, in una lettura. */
+/** Le unità di una generale, con pagamenti, costi e varianti degli acquirenti (che entrano nel prezzo). */
 export function useUnitaGenerale(generaleId: string | undefined) {
   return useQuery({
     queryKey: chiaviUnita.elenco(generaleId),
     enabled: !!generaleId,
     staleTime: 30_000,
     queryFn: async (): Promise<ElencoUnita> => {
-      const { data, error } = await db.rpc("generale_unita_elenco", { p_generale_id: generaleId });
+      const [{ data, error }, varianti] = await Promise.all([
+        db.rpc("generale_unita_elenco", { p_generale_id: generaleId }),
+        caricaVarianti(generaleId!),
+      ]);
       if (error) throw error;
       const e = leggiElencoUnita(data);
       if (!e) throw new Error("Unità non trovate.");
-      return e;
+      return conVarianti(e, varianti);
     },
   });
 }

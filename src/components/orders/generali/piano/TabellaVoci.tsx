@@ -18,7 +18,7 @@ import {
   CATEGORIE_PIANO, CHIAVI_REALI, categorieDelTipo, isCategoriaPiano,
   type CategoriaPiano, type TipoVoce,
 } from "@/lib/orders/generali/pianoCategorie";
-import type { PianoCalcolato, RigaConfronto, RigaReale, TotaliColonne, VocePiano } from "@/lib/orders/generali/pianoConti";
+import { CATEGORIA_VARIANTI, type PianoCalcolato, type RigaConfronto, type RigaReale, type TotaliColonne, type VocePiano } from "@/lib/orders/generali/pianoConti";
 import type { CategoriaAzienda } from "@/lib/orders/generali/pianoLettura";
 import { cn } from "@/lib/utils";
 
@@ -206,6 +206,21 @@ function RigaVoce({ r, conFiglie, onAggancia, onNuovaDaFuori, ...p }: PropsTabel
       <td className={cn("px-2 py-1 text-right tabular-nums", tonoScostamento(r.scostamento, r.tipo))}>{euroSegno(r.scostamento)}</td>
     </>
   );
+
+  if (!v && r.categoria === CATEGORIA_VARIANTI) {
+    // Varianti accettate dagli acquirenti: non erano nel piano, entrano a finire (scheda Unità).
+    return (
+      <tr className="bg-sky-50/40 dark:bg-sky-500/5">
+        <td className="px-3 py-1.5 text-muted-foreground" colSpan={conFiglie ? 5 : 4}>{r.etichetta}</td>
+        {p.conApprovato && <td className="px-2 py-1 text-right text-muted-foreground">—</td>}
+        <td className="px-2 py-1 text-right text-muted-foreground">—</td>
+        {reale}
+        <td className="px-2 py-1 text-right tabular-nums">{euro(r.aFinire)}</td>
+        {fineRiga}
+        <td className="px-1 py-1" />
+      </tr>
+    );
+  }
 
   if (!v) {
     // Reale che nessuna voce raccoglie: si vede, è contato, e si può dargli una voce.

@@ -12,7 +12,8 @@ export function MargineUnita({ unita: u, conti }: { unita: UnitaGenerale; conti:
     ? `una parte su ${conti.pesoTotale}`
     : `${formattaNumero(c.peso)} su ${formattaNumero(conti.pesoTotale)} ${conti.criterio === "millesimi" ? "‰" : conti.criterio === "mq" ? "m²" : "€"}`;
   const righe: { etichetta: string; nota?: string; valore: number | null; segno: "+" | "−" }[] = [
-    { etichetta: u.stato === "libera" ? "Prezzo di listino" : u.stato === "rogitata" ? "Prezzo di rogito" : "Prezzo trattato", valore: c.prezzo, segno: "+" },
+    { etichetta: u.stato === "libera" ? "Prezzo di listino" : u.stato === "rogitata" ? "Prezzo di rogito" : "Prezzo trattato", valore: c.prezzo === null ? null : Math.round((c.prezzo - c.varianti) * 100) / 100, segno: "+" },
+    ...(c.varianti ? [{ etichetta: "Varianti accettate dall'acquirente", valore: c.varianti, segno: "+" as const }] : []),
     { etichetta: "Costi della commessa", nota: u.codice ?? undefined, valore: c.costoDiretto, segno: "−" },
     ...(c.costoEreditato ? [{ etichetta: "Costi dell'unità divisa", nota: "per m²", valore: c.costoEreditato, segno: "−" as const }] : []),
     ...(c.provvigione ? [{ etichetta: "Provvigione agenzia", nota: u.agenzia ?? undefined, valore: c.provvigione, segno: "−" as const }] : []),

@@ -12,7 +12,7 @@ import { BottoneFattura } from "@/components/orders/generali/fatture/BottoneFatt
 import { dataBreve, euro, leggiCampo, oggi } from "@/components/orders/generali/unita/aspetto";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
 import { useAggiungiMovimento, useEliminaMovimento } from "@/hooks/useGeneraleUnita";
-import { NOMI_MOVIMENTO, prezzoCorrente, tipiMovimentoAmmessi, type TipoMovimento, type UnitaGenerale } from "@/lib/orders/generali/unita";
+import { NOMI_MOVIMENTO, prezzoConVarianti, tipiMovimentoAmmessi, type TipoMovimento, type UnitaGenerale } from "@/lib/orders/generali/unita";
 import { pagamentiUnita } from "@/lib/orders/generali/unitaConti";
 
 interface Props {
@@ -36,8 +36,8 @@ export function PagamentiUnita({ generaleId, unita: u, gestisci }: Props) {
     <div className="space-y-3">
       <dl className="grid grid-cols-3 gap-2 text-sm">
         <div className="rounded-md border px-2.5 py-1.5">
-          <dt className="text-xs text-muted-foreground">Prezzo</dt>
-          <dd className="font-medium tabular-nums">{u.stato === "libera" ? "—" : euro(prezzoCorrente(u))}</dd>
+          <dt className="text-xs text-muted-foreground">{u.variantiAccettate ? "Prezzo con varianti" : "Prezzo"}</dt>
+          <dd className="font-medium tabular-nums">{u.stato === "libera" ? "—" : euro(prezzoConVarianti(u))}</dd>
         </div>
         <div className="rounded-md border px-2.5 py-1.5">
           <dt className="text-xs text-muted-foreground">Pagato</dt>
