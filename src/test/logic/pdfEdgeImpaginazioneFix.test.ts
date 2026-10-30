@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * Le StandardFonts di pdf-lib codificano SOLO WinAnsi: un carattere fuori set
  * (spunte, simboli matematici, emoji) fa lanciare drawText e fallire l'intero
  * export. Questi test leggono i sorgenti delle edge function e verificano che:
- * 1. cg-export-ce-pdf non contenga caratteri non-WinAnsi hardcoded e abbia la
+ * 1. (tolto il 31/10/2026 con la funzione, che nessuno chiamava) cg-export-ce-pdf non contenga caratteri non-WinAnsi hardcoded e abbia la
  *    difesa winAnsiSafe;
  * 2. cg-export-pacchetto-banca idem (il carattere di spunta crashava quando i
  *    conti QUADRAVANO);
