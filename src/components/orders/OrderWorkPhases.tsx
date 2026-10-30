@@ -38,9 +38,11 @@ import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
+import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
-import { faseHaSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
+import { faseHaSottofasi, fineDaGiorni, vociDelleSottofasi, type Sottofase, type VoceSottofase } from "@/lib/orders/sottofasi";
+import { useCalendarioCantiere, type CalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { avanzamentoFase, fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -140,6 +142,7 @@ function statusMeta(status: PhaseStatus) {
 interface OrderWorkPhasesProps {
   orderId: string;
   orderCode?: string | null;
+  /** Non più usato: i rapportini stanno nella vista Rapportini (31/10/2026). */
   onOpenReports?: () => void;
   view?: "lavorazioni";
   /** Valore del contratto (imponibile, varianti approvate comprese): quanto resta da ripartire sulle lavorazioni. */
@@ -148,7 +151,7 @@ interface OrderWorkPhasesProps {
   organizationContent?: ReactNode;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, importoContratto, organizationContent }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, organizationContent }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
@@ -212,7 +215,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -224,6 +227,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   const posaPerFase = useMemo(() => posaPerFaseDi(costiMateriali?.rapportini, materials), [costiMateriali, materials]);
   // Le voci del preventivo da cui sono nate le fasi: il previsto dove nessuno l'ha scritto.
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
+  // Le voci del computo per sottofase (quantità, costo, venduto) e quelle ancora senza sottofase.
+  const vociSottofasi = useMemo(() => vociDelleSottofasi(vociPreviste ?? []), [vociPreviste]);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -252,6 +257,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   // Cronoprogramma. Se i rapportini non si leggono, restano le chiusure.
   const { rapportini } = useCronoprogramma(orderId, null);
   const oggi = giornoLocale(new Date().toISOString());
+  const calendario = useCalendarioCantiere();
   const tempiFasi = useMemo(
     () => new Map(fasiCronoprogramma(
       phases.map((p) => ({ id: p.id, name: p.name, status: p.status, percentuale: p.percentuale, start_date: p.start_date, end_date: p.end_date, completata_il: p.completata_il ?? null })),
@@ -469,7 +475,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             </span>}
             <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
               {/* Mobile: due azioni compatte, le assegnazioni in un unico menu. */}
-              {!telefono && onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
+              {/* Rapportini e «Scrivi rapportini» stanno solo nella vista Rapportini (31/10/2026). */}
+              {!telefono && <DitteContrattiCommessa orderId={orderId} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}
@@ -641,7 +648,24 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                   onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
                   onPianifica: (id, piano) => pianificaSottofase.mutate({ id, ...piano }),
                   onPesa: (pesi) => pesaSottofasi.mutate(pesi),
+                  onPianificaTutte: (passi) => pianificaSottofasi.mutate(passi),
+                  onRiordina: (ids) => riordinaSottofasi.mutate(ids),
+                  onParallelo: (id, inParallelo) => paralleloSottofase.mutate({ id, in_parallelo: inParallelo }),
                   onElimina: (id) => eliminaSottofase.mutate(id),
+                  calendario,
+                  voci: vociSottofasi.perSottofase,
+                  vediVenduto: canViewOrderAmounts,
+                  vociSenzaSottofase: vociSottofasi.senzaSottofase.get(phase.id) ?? 0,
+                  onSottofasiDalleVoci: () => sottofasiDalleVoci.mutate(phase.id),
+                  onRisorse: (id, n) => risorseSottofase.mutate({ id, risorse: n }),
+                  fasiDopo: phases.filter((p) => p.position > phase.position).map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date })),
+                  // Le fasi dopo scorrono tutte dello stesso tanto: le squadre che le seguono con loro.
+                  onSpostaFasiDopo: (giorni, ids) => {
+                    for (const p of phases) {
+                      if (!ids.includes(p.id) || !p.start_date) continue;
+                      updatePhase.mutate({ id: p.id, start_date: fineDaGiorni(p.start_date, giorni + 1), end_date: p.end_date ? fineDaGiorni(p.end_date, giorni + 1) : null });
+                    }
+                  },
                 }}
               />
             ))}
@@ -774,7 +798,18 @@ interface PhaseCardProps {
     onRinomina: (id: string, nome: string) => void;
     onPianifica: (id: string, piano: PianoSottofase) => void;
     onPesa: (pesi: Array<{ id: string; peso: number }>) => void;
+    onPianificaTutte: (passi: Array<{ id: string } & PianoSottofase>) => void;
+    onRiordina: (ids: string[]) => void;
+    onParallelo: (id: string, inParallelo: boolean) => void;
     onElimina: (id: string) => void;
+    calendario: CalendarioCantiere;
+    voci: Map<string, VoceSottofase>;
+    vediVenduto: boolean;
+    vociSenzaSottofase: number;
+    onSottofasiDalleVoci: () => void;
+    onRisorse: (id: string, risorse: number | null) => void;
+    fasiDopo: Array<{ id: string; name: string; start_date: string | null; end_date: string | null }>;
+    onSpostaFasiDopo: (giorni: number, ids: string[]) => void;
   };
 }
 

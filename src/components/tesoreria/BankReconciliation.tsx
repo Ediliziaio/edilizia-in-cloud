@@ -366,12 +366,16 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         throw payRes.error;
       }
 
-      // Step 4: write-back verso il gestionale esterno (best-effort) se saldata.
+      // Step 4: write-back verso il gestionale esterno (best-effort). Saldata: tutte le
+      // rate pagate; in parte (30/10/2026): solo l'importo del bonifico.
       let wb: "ok" | "problema" | "error" | null = null;
       let messaggioFic = "";
-      if (inv.external_provider === "fattureincloud" && fullyPaid) {
+      if (inv.external_provider === "fattureincloud") {
         try {
-          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body: { invoice_id: inv.id } });
+          const corpo = fullyPaid
+            ? { invoice_id: inv.id, paid_date: tx.booking_date || undefined }
+            : { invoice_id: inv.id, paid_date: tx.booking_date || undefined, azione: "incassa", importo: matchedAmount };
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body: corpo });
           if (pErr) wb = "error";
           else if (pr?.ok) wb = "ok";
           else { wb = "problema"; messaggioFic = String(pr?.messaggio ?? ""); }
@@ -518,7 +522,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       }
 
       // Get current invoice to recompute paid_amount
-      const { data: inv, error: invFetchErr } = await supabase.from("invoices").select("paid_amount, total, status").eq("id", invId).single();
+      const { data: inv, error: invFetchErr } = await supabase.from("invoices").select("paid_amount, total, status, external_provider").eq("id", invId).single();
       if (invFetchErr) {
         console.error('[BankReconciliation] Errore recupero fattura per scollegamento:', invFetchErr.message);
         toast.error('Impossibile recuperare i dati della fattura. Riprova.');
@@ -567,6 +571,26 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
             .eq("id", txId).eq("company_id", companyId);
           await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
           throw invRes.error;
+        }
+      }
+
+      // Fattura importata: il pagamento tolto qui va tolto anche su Fatture in
+      // Cloud (30/10/2026), altrimenti al prossimo allineamento torna pagata.
+      if ((inv as { external_provider?: string | null } | null)?.external_provider === "fattureincloud") {
+        let messaggioFic = "";
+        try {
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", {
+            body: { invoice_id: invId, azione: "annulla", importo: Number(rec.matched_amount || 0) },
+          });
+          if (pErr) messaggioFic = "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi.";
+          else if (!pr?.ok && !pr?.skipped) messaggioFic = String(pr?.messaggio ?? "Aggiornamento su Fatture in Cloud non riuscito.");
+        } catch { messaggioFic = "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi."; }
+        if (messaggioFic) {
+          toast.warning("Riconciliazione rimossa, ma su Fatture in Cloud la fattura risulta ancora pagata", { description: messaggioFic });
+          setUnlinkTarget(null);
+          loadData();
+          setUnlinking(false);
+          return;
         }
       }
 
@@ -1110,7 +1134,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                       <div className="text-xs text-muted-foreground">
                         {fmtEur(Number(rec.matched_amount))} ·{" "}
                         <Badge variant="outline" className="text-[10px] px-1">
-                          {rec.match_type === "auto" ? "Auto" : "Manuale"}
+                          {rec.match_type === "auto" ? "Auto" : rec.match_type === "incasso_esistente" ? "Incasso già registrato" : "Manuale"}
                         </Badge>
                         {rec.notes && ` · ${rec.notes}`}
                       </div>
@@ -1281,7 +1305,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <DialogHeader>
             <DialogTitle>Rimuovi riconciliazione</DialogTitle>
             <DialogDescription>
-              {unlinkTarget && eRiconciliazioneFatturaInterna(unlinkTarget)
+              {unlinkTarget?.match_type === "incasso_esistente"
+                ? "Il bonifico torna da abbinare. L'incasso registrato a mano sulla fattura resta: per toglierlo, annullalo dalla fattura."
+                : unlinkTarget && eRiconciliazioneFatturaInterna(unlinkTarget)
                 ? "L'incasso registrato da questo bonifico verrà stornato: la fattura, la sua scadenza e la rata della commessa torneranno da incassare."
                 : "Vuoi scollegare questa transazione dalla fattura?"}
             </DialogDescription>

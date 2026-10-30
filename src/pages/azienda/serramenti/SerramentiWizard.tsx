@@ -18,7 +18,7 @@
  * Fluidità: il cambio step salva al volo (autosave) e naviga senza modale di
  * conferma "Modifiche non salvate" — coerente col bottone "Salva e continua".
  */
-import { DatiFiscaliCliente } from "@/components/preventivatore/DatiFiscaliCliente";
+import { DatiFiscaliCliente, SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -1311,6 +1311,8 @@ function StepCliente({
         </div>
       )}
 
+      {/* Prima privato, azienda o Pubblica Amministrazione, poi nome e cognome (30/10/2026). */}
+      <SceltaTipoCliente className="mb-3" valore={form.cliente_tipo} onChange={(t) => onChange("cliente_tipo", t)} />
       <div className="grid grid-cols-12 gap-3 max-sm:gap-2">
         <div className="col-span-6">
           <Label className="text-xs">Nome</Label>

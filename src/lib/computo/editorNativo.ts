@@ -36,7 +36,7 @@ export const bozzaComputoSchema = z.object({
   // l'indirizzo dei lavori in quattro campi. `indirizzo` resta il testo che va nel PDF, ricomposto dai quattro.
   clienteId: z.string().max(80).default(""), clienteEmail: z.string().max(200).default(""), clienteTelefono: z.string().max(60).default(""),
   // Privato o azienda (30/10/2026): un privato ha il codice fiscale, un'azienda partita IVA, PEC e codice destinatario.
-  clienteTipo: z.enum(["privato", "azienda"]).default("privato"),
+  clienteTipo: z.enum(["privato", "azienda", "pa"]).default("privato"),
   clienteCodiceFiscale: z.string().max(20).default(""), clientePartitaIva: z.string().max(20).default(""),
   clientePec: z.string().max(200).default(""), clienteSdi: z.string().max(10).default(""),
   cointestatario_nome: z.string().max(120).default(""), cointestatario_cognome: z.string().max(120).default(""),

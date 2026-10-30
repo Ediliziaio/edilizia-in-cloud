@@ -216,6 +216,20 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       conCosti: vediMargini, generaPdf: generaPdfDefinitivo });
     firmaOnline.onApriCommessa(quoteId);
   };
+  /** I costi delle voci senza costo dal listino aziendale, col codice della voce (31/10/2026). */
+  const costiDalListino = async (): Promise<number> => {
+    const { codiciSenzaCosto, applicaCostiListino } = await import("@/lib/computo/costiDalListino");
+    const codici = codiciSenzaCosto(corrente.current.voci);
+    if (!codici.length || !firmaOnline?.companyId) return 0;
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data, error } = await supabase.from("tariffe_aziendali").select("codice, prezzo_costo, costo_interno")
+      .eq("company_id", firmaOnline.companyId).in("codice", codici.slice(0, 500));
+    if (error) throw new Error("Non riesco a leggere il listino: riprova.");
+    const listino = (data ?? []).map(t => ({ codice: String(t.codice ?? ""), costo: Number(t.prezzo_costo) || Number(t.costo_interno) || 0 }));
+    const esito = applicaCostiListino(corrente.current.voci, listino);
+    if (esito.trovate) cambiaParte({ voci: esito.voci });
+    return esito.trovate;
+  };
   /** Il PDF che va al cliente, anche per la firma online: senza «Bozza», con gli allegati. */
   const generaPdfDefinitivo = async () => {
     const { generaDocumentoComputo } = await import("@/lib/computo/esportaComputo");
@@ -437,7 +451,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
         onListino={consentiListini ? capitolo => setPicker({ capitolo }) : undefined}
         />
       </div>}
-      {step === 3 && <ComputoEconomia bozza={bozza} totale={totale} onChange={cambiaParte} vediMargini={vediMargini} onCronoprogramma={() => cambiaFase(4)} />}
+      {step === 3 && <ComputoEconomia bozza={bozza} totale={totale} onChange={cambiaParte} vediMargini={vediMargini} onCronoprogramma={() => cambiaFase(4)}
+        onCostiDalListino={firmaOnline?.companyId ? costiDalListino : undefined} />}
       {step === 4 && <ComputoDocumento bozza={bozza} onChange={cambiaParte} onSostituisci={cambia} spesaCliente={spesaCliente} ivaInclusa={fiscaleDocumento.totale != null} totaleDocumento={totaleDocumento}
         controlli={(!bozza.titolo.trim() || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !!pianoErrore) && <div role="region" aria-label="Controlli prima del PDF" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
           <h3 className="font-medium">Da completare prima del download</h3>

@@ -1,5 +1,7 @@
 import EditorialVideo from "@/components/marketing/EditorialVideo";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
+import EicPuntiFermi from "@/components/marketing/EicPuntiFermi";
+import { confrontoVisuals } from "@/lib/marketing/visuals";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import LandingNavbar from "@/components/landing/LandingNavbar";
@@ -10,18 +12,18 @@ import { SITE_URL, useSEO } from "@/hooks/useSEO";
 import { marketingMessages } from "@/lib/marketing/messages";
 import { comparisonSources, demoChecklist, softwareComparisons, pillarComparisonFocus } from "@/lib/marketing/softwareComparisons";
 
-const description = "Confronta i gestionali per imprese edili: Edilizia in Cloud, Pillar, TeamSystem Construction, PriMus e PlanRadar. Differenze, fonti e prova su una commessa.";
+const description = "Confronta i gestionali per imprese edili: Edilizia in Cloud, Pillar, TeamSystem Construction, PriMus e altri. Fonti ufficiali, aggiornato a ottobre 2026.";
 const faqs = [
-  { q: "Qual è il miglior gestionale per un'impresa edile?", a: "Quello che copre i tuoi processi e viene usato da ufficio e squadra. Se devi collegare preventivo, fasi, ore e costi, valuta un gestionale di commessa come Edilizia in Cloud. Se il bisogno principale è computo e contabilità lavori, approfondisci PriMus; per BIM e un perimetro articolato considera i prodotti TeamSystem Construction. Fai eseguire lo stesso caso reale ai fornitori." },
-  { q: "TeamSystem Construction è soltanto un ERP generico?", a: "No. La famiglia Construction è dedicata alle costruzioni e comprende CPM AI, TSE Costruzioni AI e Cantieri App. CPM AI dichiara cloud, BIM, controllo dei margini e funzioni AI: occorre confrontare il prodotto e i moduli effettivamente proposti." },
-  { q: "PriMus è un'alternativa a un gestionale di commessa?", a: "Dipende dal bisogno. PriMus è dedicato a computo e contabilità lavori ed è presentato da ACCA come desktop e online. Un gestionale di commessa organizza anche l'operatività: fasi, squadre e costi effettivi. Prima di sostituire un prodotto tecnico, verifica quali elaborati devi continuare a produrre." },
+  { q: "Qual è il miglior gestionale per un'impresa edile?", a: "Quello che copre i tuoi processi e viene usato da ufficio e squadra. Se devi collegare preventivo, fasi, ore e costi, valuta un gestionale di commessa come Edilizia in Cloud. Se il bisogno principale sono gli elaborati tecnici di computo e contabilità lavori, approfondisci PriMus; per BIM, PSC e un ERP con contabilità considera i prodotti TeamSystem Construction. Fai eseguire lo stesso caso reale ai fornitori." },
+  { q: "TeamSystem Construction è soltanto un ERP generico?", a: "No. Sul sito ufficiale è una famiglia di prodotti per le costruzioni: CPM AI per la commessa, TSE Costruzioni AI per l'amministrazione, TS Cantieri per le piccole imprese, TS Sicurezza Cantieri, software BIM e altri. Edilizia in Cloud è invece una sola piattaforma per la PMI, dal contatto all'incasso: confronta il prodotto che ti viene proposto davvero." },
+  { q: "PriMus è un'alternativa a un gestionale di commessa?", a: "Fanno lavori diversi e spesso convivono. PriMus è dedicato a computo e contabilità lavori, desktop e online. Edilizia in Cloud importa i computi PriMus (XPWE e PDF), li porta nel preventivo e nella commessa e tiene anche la contabilità dei lavori pubblici sulla commessa. Per revisione prezzi con le TOL e computo da BIM, PriMus resta più completo." },
   { q: "Come confrontare Pillar e PlanRadar con Edilizia in Cloud?", a: "Pillar dichiara preventivi, DDT, acquisti, SDI, SAL, commesse e AI: non va ridotto alla sola gestione documentale. PlanRadar presenta documenti, report, BIM e pianificazione. Usa una commessa per verificare i flussi che ti servono, compreso il controllo economico e gli adempimenti dell'ufficio." },
   { q: "Posso partire da Excel senza trasferire tutto lo storico?", a: "Prima definisci i dati necessari per partire e controlla qualità e formato dei file. Può essere utile iniziare dalle commesse aperte, concordando un punto di partenza per costi e avanzamento; la scelta va verificata sui dati della tua impresa." },
 ];
 const scenarios = [
   { id: "commessa", title: "Devo controllare costi e margine", text: "Collega preventivo, ore e materiali alla commessa. Leggi separatamente costi previsti e reali per capire dove si forma il margine.", to: "/funzionalita/gestione-commesse/", link: "Il flusso di Edilizia in Cloud" },
-  { id: "computo", title: "Devo produrre computi ed elaborati", text: "Computi ed elaborati tecnici descrivono il lavoro. La gestione della commessa aggiunge persone, materiali e costi effettivi durante l’esecuzione.", to: "/confronto/vs-primus/", link: "Confronto con PriMus ACCA" },
-  { id: "erp", title: "Mi servono BIM e integrazioni", text: "Identifica prodotti, moduli e sistemi già presenti. TeamSystem Construction offre soluzioni specifiche per l'edilizia: approfondisci il perimetro corretto.", to: "/confronto/vs-teamsystem/", link: "Confronto con TeamSystem Construction" },
+  { id: "computo", title: "Devo produrre computi ed elaborati", text: "Se il computo lo fa il tecnico in PriMus, Edilizia in Cloud lo importa senza ricopiarlo e lo trasforma in preventivo, commessa, SAL e fatture. Sui lavori pubblici tiene libretto, registro e certificato di pagamento.", to: "/confronto/vs-primus/", link: "Confronto con PriMus ACCA" },
+  { id: "erp", title: "Mi servono BIM e integrazioni", text: "TeamSystem Construction dichiara BIM, PSC, gare e un ERP con contabilità, divisi in più prodotti. Se ti serve una piattaforma unica dalla trattativa all'incasso, confronta i due approcci.", to: "/confronto/vs-teamsystem/", link: "Confronto con TeamSystem Construction" },
   { id: "excel", title: "Uso ancora Excel e messaggi", text: "Raccogli ore, documenti e attività attorno alla commessa, invece di ricostruire ogni giornata tra fogli e conversazioni.", to: "/confronto/vs-excel/", link: "Quando superare i fogli di calcolo" },
 ];
 
@@ -41,7 +43,7 @@ export default function Confronto() {
         <p className="mt-4 text-sm text-white/65">{marketingMessages.companies} · {marketingMessages.activation}</p>
         <nav aria-label="Percorsi di confronto" className="mt-8 flex flex-wrap gap-3"><Link to={pillarComparisonFocus.path} className="rounded-full bg-white text-[#111111] px-5 py-3 text-sm font-semibold">Edilizia in Cloud vs Pillar</Link><a href="#esigenze" className="rounded-full border border-white/30 px-5 py-3 text-sm font-semibold">Parti dalla tua esigenza</a><a href="#concorrenti" className="rounded-full border border-white/30 px-5 py-3 text-sm font-semibold">Scegli il software da confrontare</a></nav>
       </div>
-<MarketingVisual theme="operations" priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
+<MarketingVisual image={confrontoVisuals.hub} priority tone="dark" caption="Illustrazione editoriale · Edilizia in Cloud" />
 </div>
     </header>
     <main className="max-w-6xl mx-auto px-6 py-12 md:py-16 space-y-16">
@@ -53,6 +55,7 @@ export default function Confronto() {
         <div className="mt-6 flex flex-wrap items-center gap-4"><Link to={pillarComparisonFocus.path} className="inline-flex items-center gap-2 rounded-full bg-[#111111] text-white px-5 py-3 font-semibold">Leggi il confronto con Pillar<ArrowRight size={16} /></Link><p className="text-sm text-gray-600">Vendita, preventivi, organizzazione del cantiere e controllo dei costi.</p></div>
       </section>
       <EditorialVideo video="selection" contained />
+      <EicPuntiFermi />
       <section id="esigenze" className="scroll-mt-24">
         <h2 className="text-2xl md:text-3xl font-bold">Prima il problema, poi il software</h2>
         <p className="mt-3 text-gray-600 max-w-3xl leading-relaxed">Computo metrico, documentazione, amministrazione e controllo di commessa sono esigenze diverse. Confrontare solo il numero di funzioni può nascondere i passaggi che contano per il tuo lavoro.</p>
@@ -61,7 +64,7 @@ export default function Confronto() {
       <section id="concorrenti" className="scroll-mt-24">
         <h2 className="text-2xl md:text-3xl font-bold">Edilizia in Cloud e le alternative</h2>
         <p className="mt-3 text-gray-600 leading-relaxed">Trova il software che usi o che stai valutando: ogni scheda mette a fuoco i processi da gestire e il ruolo di Edilizia in Cloud nel lavoro della tua impresa.</p>
-        <div className="mt-7 grid sm:grid-cols-2 gap-5">{softwareComparisons.map((guide) => <article key={guide.path} className="rounded-2xl border border-gray-200 p-6 flex flex-col"><h3 className="mt-3 text-xl font-bold">Edilizia in Cloud vs {guide.name}</h3><p className="mt-3 text-gray-600 leading-relaxed flex-1">{guide.summary}</p><Link to={guide.path} className="inline-flex items-center gap-2 mt-5 font-semibold text-orange-700">Leggi il confronto<ArrowRight size={16} /></Link></article>)}</div>
+        <div className="mt-7 grid sm:grid-cols-2 gap-5">{softwareComparisons.map((guide) => <article key={guide.path} className="rounded-2xl border border-gray-200 p-6 flex flex-col">{guide.updated ? <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Aggiornato a ottobre 2026</p> : null}<h3 className="mt-3 text-xl font-bold">Edilizia in Cloud vs {guide.name}</h3><p className="mt-3 text-gray-600 leading-relaxed flex-1">{guide.summary}</p><Link to={guide.path} className="inline-flex items-center gap-2 mt-5 font-semibold text-orange-700">Leggi il confronto<ArrowRight size={16} /></Link></article>)}</div>
       </section>
       <section className="rounded-2xl bg-orange-50 border border-orange-100 p-6 md:p-8">
         <h2 className="text-2xl font-bold">Vuoi prima una panoramica del mercato?</h2>
@@ -71,7 +74,7 @@ export default function Confronto() {
       <section id="prova-pratica" className="scroll-mt-24"><h2 className="text-2xl md:text-3xl font-bold">Chiedi di vedere una tua commessa</h2><p className="mt-3 text-gray-600">Usa la stessa prova con tutti i fornitori. Annota passaggi manuali, dati mancanti e chi dovrà completare ogni attività.</p><ol className="mt-6 space-y-4 list-decimal pl-5 text-gray-700 leading-relaxed">{demoChecklist.map((step) => <li key={step}>{step}</li>)}</ol><Link to="/demo/" className="inline-flex items-center gap-2 mt-7 rounded-full bg-[#111111] text-white px-5 py-3 font-semibold">Prova il flusso di Edilizia in Cloud<ArrowRight size={16} /></Link></section>
       <section id="commercialista" className="scroll-mt-24 border-t border-gray-200 pt-8"><h2 className="text-2xl font-bold">Gestionale e commercialista: due ruoli collegati</h2><p className="mt-3 text-gray-700 leading-relaxed max-w-3xl">Il gestionale raccoglie i dati operativi; il professionista segue gli adempimenti e le attività concordate. In demo verifica come condividere documenti e dati, senza presumere che il software sostituisca la consulenza.</p></section>
       <section><h2 className="text-2xl font-bold mb-5">Domande sulla scelta del gestionale</h2><div className="divide-y divide-gray-200">{faqs.map((faq) => <details key={faq.q} className="py-4"><summary className="font-semibold cursor-pointer">{faq.q}</summary><p className="mt-3 text-gray-700 leading-relaxed">{faq.a}</p></details>)}</div></section>
-      <section id="fonti" className="scroll-mt-24 border-t border-gray-200 pt-8 text-sm text-gray-600"><h2 className="font-bold text-xl text-[#111111]">Fonti e criteri del confronto</h2><p className="mt-3 leading-relaxed">Siamo Edilizia in Cloud e siamo parte del confronto. Il riepilogo dei prodotti si basa sulle pagine ufficiali consultate il 21 ottobre 2026. Una funzione non descritta non viene trattata come assente. Gli approfondimenti collegati riportano le rispettive date di aggiornamento. Funzioni e integrazioni dipendono dalle versioni e dai servizi scelti.</p><ul className="mt-4 grid md:grid-cols-2 gap-3">{Object.values(comparisonSources).map((source) => <li key={source.url}><a href={source.url} className="underline underline-offset-4" target="_blank" rel="noopener noreferrer">{source.name} ↗</a></li>)}</ul></section>
+      <section id="fonti" className="scroll-mt-24 border-t border-gray-200 pt-8 text-sm text-gray-600"><h2 className="font-bold text-xl text-[#111111]">Fonti e criteri del confronto</h2><p className="mt-3 leading-relaxed">Siamo Edilizia in Cloud e siamo parte del confronto. Il riepilogo dei prodotti si basa sulle pagine ufficiali consultate il 30 ottobre 2026. Una funzione non descritta non viene trattata come assente. Gli approfondimenti collegati riportano le rispettive date di aggiornamento. Funzioni e integrazioni dipendono dalle versioni e dai servizi scelti.</p><ul className="mt-4 grid md:grid-cols-2 gap-3">{Object.values(comparisonSources).map((source) => <li key={source.url}><a href={source.url} className="underline underline-offset-4" target="_blank" rel="noopener noreferrer">{source.name} ↗</a></li>)}</ul></section>
     </main>
     <LandingFooter />
   </div>;

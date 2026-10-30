@@ -41,7 +41,7 @@ export interface AssegnazioneFase {
   source: "employee" | "team";
   cost_preventivo: number;
   cost_consuntivo: number;
-  /** Solo ditte: gli importi si scrivono IVA inclusa; qui si confrontano col venduto senza IVA. 22 se manca. */
+  /** Solo ditte: gli importi si scrivono con l'IVA della fattura; qui si confrontano col venduto senza IVA. 0 se manca (reverse charge). */
   vat_rate?: number | null;
 }
 
@@ -327,8 +327,9 @@ export function economiaFasi(input: {
   for (const a of input.assegnazioni) {
     const s = di(a.phase_id);
     const voce = a.source === "team" ? "ditte" : "manodopera";
-    // Le ditte sono scritte IVA inclusa (come in v_ordine_marginalita): senza IVA contro il venduto.
-    const iva = a.source === "team" ? 1 + (a.vat_rate == null || !Number.isFinite(Number(a.vat_rate)) ? 22 : Number(a.vat_rate)) / 100 : 1;
+    // Le ditte sono scritte con l'IVA della fattura (come in v_ordine_marginalita): senza IVA contro il venduto.
+    // In reverse charge (IVA 0, il subappalto edile) l'importo è già l'imponibile.
+    const iva = a.source === "team" ? 1 + (a.vat_rate == null || !Number.isFinite(Number(a.vat_rate)) ? 0 : Number(a.vat_rate)) / 100 : 1;
     s.previsto[voce] += numero(a.cost_preventivo) / iva;
     s.consuntivo[voce] += numero(a.cost_consuntivo) / iva;
     if (a.source === "team") s.haDitta = true;

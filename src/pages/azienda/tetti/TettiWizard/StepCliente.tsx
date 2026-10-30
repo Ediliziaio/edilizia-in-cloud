@@ -29,7 +29,7 @@ import type { TetProgetto } from "@/types/tetti";
 import type { TetFormPatch } from "./types";
 import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
-import { DatiFiscaliCliente } from "@/components/preventivatore/DatiFiscaliCliente";
+import { DatiFiscaliCliente, SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
 
 interface ContactLite {
@@ -205,7 +205,8 @@ export default function StepCliente({ form, onChange }: Props) {
           </div>
         </div>
 
-        {/* Anagrafica */}
+        {/* Anagrafica: prima privato, azienda o Pubblica Amministrazione, poi nome e cognome (30/10/2026). */}
+        <SceltaTipoCliente className="max-sm:order-3 max-sm:col-span-2" valore={form.cliente_tipo} onChange={(t) => onChange("cliente_tipo", t)} />
         <div className="grid grid-cols-12 gap-3 max-sm:order-3 max-sm:col-span-2 max-sm:gap-2">
           <div className="col-span-6">
             <Label className="flex h-4 items-center gap-1 text-xs"><User className="h-3 w-3" /> Nome</Label>
@@ -251,7 +252,7 @@ export default function StepCliente({ form, onChange }: Props) {
           </div>
         </div>
 
-        <DatiFiscaliCliente form={form} onChange={(campo, valore) => onChange(campo, valore)} />
+        <DatiFiscaliCliente className="max-sm:order-3 max-sm:col-span-2" form={form} onChange={(campo, valore) => onChange(campo, valore)} />
 
         <Cointestatario form={form} onChange={(campo, valore) => onChange(campo, valore)} />
 

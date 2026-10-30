@@ -14,6 +14,21 @@
  * DURC, art. 17 c. 6 lett. a-ter DPR 633/1972 (reverse charge in edilizia).
  */
 
+/**
+ * Una riga dell'elenco dei lavori (Allegato A, 31/10/2026): la voce del computo
+ * o del listino che il subappaltatore accetta, col suo prezzo. Fotografia al
+ * momento del contratto (contratti_subappalto.elenco_lavori).
+ */
+export interface RigaElencoLavori {
+  fase: string;
+  descrizione: string;
+  unita: string | null;
+  quantita: number;
+  prezzo: number;
+  importo: number;
+  codice?: string | null;
+}
+
 export interface DatiContrattoSubappalto {
   numero: string | null;
   dataStipula: string | null;
@@ -34,7 +49,24 @@ export interface DatiContrattoSubappalto {
   garanzie: string | null;
   durataGaranziaMesi: number;
   note: string | null;
+  /** Allegato A: i lavori uno per uno, con quantità e prezzi. Vuoto = solo la descrizione. */
+  elencoLavori?: RigaElencoLavori[];
 }
+
+/** Le righe dell'elenco divise per fase, nell'ordine in cui arrivano, col subtotale. */
+export function elencoPerFase(righe: RigaElencoLavori[]): Array<{ fase: string; righe: RigaElencoLavori[]; totale: number }> {
+  const gruppi: Array<{ fase: string; righe: RigaElencoLavori[]; totale: number }> = [];
+  for (const r of righe) {
+    let g = gruppi.find((x) => x.fase === r.fase);
+    if (!g) gruppi.push((g = { fase: r.fase, righe: [], totale: 0 }));
+    g.righe.push(r);
+    g.totale = Math.round((g.totale + (Number(r.importo) || 0)) * 100) / 100;
+  }
+  return gruppi;
+}
+export const totaleElencoLavori = (righe: RigaElencoLavori[]) =>
+  Math.round(righe.reduce((t, r) => t + (Number(r.importo) || 0), 0) * 100) / 100;
+export const quantitaContratto = (n: number) => (Number(n) || 0).toLocaleString("it-IT", { maximumFractionDigits: 3 });
 
 export interface ArticoloContratto {
   titolo: string;
@@ -42,7 +74,9 @@ export interface ArticoloContratto {
   paragrafi: string[];
 }
 
-export const euroContratto = (n: number) => (Number(n) || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+// useGrouping "always": in italiano 3052,50 € senza punto è il default per le quattro cifre (31/10/2026).
+export const euroContratto = (n: number) =>
+  (Number(n) || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions);
 export const dataContratto = (d: string | null) => (d ? d.split("-").reverse().join("/") : "____/____/________");
 const t = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "");
 
@@ -58,6 +92,9 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
     { titolo: "Oggetto", paragrafi: [
       `Il Committente affida al Subappaltatore, che accetta, l'esecuzione delle seguenti lavorazioni nel cantiere della commessa ${d.commessa.codice} (${d.commessa.descrizione}), sito in ${d.commessa.indirizzoCantiere || "—"}:`,
       t(d.descrizioneLavori) || "—",
+      ...(d.elencoLavori?.length
+        ? [`Le lavorazioni, le quantità previste e i prezzi unitari sono quelli dell'Allegato A – Elenco dei lavori (${d.elencoLavori.length} voci, ${euroContratto(totaleElencoLavori(d.elencoLavori))}), parte integrante del presente contratto. Si contabilizzano le quantità effettivamente eseguite e misurate, ai prezzi unitari dell'Allegato A.`]
+        : []),
       "Il Committente dichiara di essere autorizzato al subappalto dal proprio committente (art. 1656 c.c.).",
     ] },
     { titolo: "Durata", paragrafi: [
@@ -115,6 +152,13 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   .firme { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
   .firme div { border-top: 1px solid #333; padding-top: 6px; font-size: 10pt; text-align: center; }
   .clausole { margin-top: 28px; font-size: 9.5pt; }
+  .allegato { page-break-before: always; }
+  table.elenco { width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 8px; }
+  table.elenco th, table.elenco td { border: 1px solid #999; padding: 3px 5px; vertical-align: top; }
+  table.elenco th { background: #eee; text-align: left; }
+  table.elenco td.n { text-align: right; white-space: nowrap; }
+  table.elenco tr.fase td { background: #f5f5f5; font-weight: bold; }
+  table.elenco tr.tot td { font-weight: bold; }
 </style></head><body>
   <h1>CONTRATTO DI SUBAPPALTO</h1>
   <p class="sotto">${d.numero ? `N. ${esc(d.numero)} · ` : ""}stipulato il ${dataContratto(d.dataStipula)}</p>
@@ -127,5 +171,14 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   <div class="firme"><div>Il Committente</div><div>Il Subappaltatore</div></div>
   <p class="clausole">Ai sensi degli artt. 1341 e 1342 c.c. il Subappaltatore approva specificamente gli articoli: ${ARTICOLI_APPROVAZIONE_SPECIFICA.join(", ")}.</p>
   <div class="firme"><div></div><div>Il Subappaltatore</div></div>
+  ${d.elencoLavori?.length ? `<section class="allegato">
+  <h1>ALLEGATO A – ELENCO DEI LAVORI</h1>
+  <p class="sotto">Commessa ${esc(d.commessa.codice)} · ${esc(d.subappaltatore.ragioneSociale)} · prezzi IVA esclusa</p>
+  <table class="elenco"><thead><tr><th>Descrizione</th><th>U.M.</th><th>Quantità</th><th>Prezzo unitario</th><th>Importo</th></tr></thead><tbody>
+  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${r.codice ? `${esc(r.codice)} · ` : ""}${esc(r.descrizione)}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
+  <tr class="tot"><td colspan="4">Totale lavori</td><td class="n">${euroContratto(totaleElencoLavori(d.elencoLavori))}</td></tr>
+  </tbody></table>
+  <div class="firme"><div>Il Committente</div><div>Il Subappaltatore, per accettazione</div></div>
+  </section>` : ""}
 </body></html>`;
 }

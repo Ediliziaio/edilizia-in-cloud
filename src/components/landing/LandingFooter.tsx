@@ -35,7 +35,7 @@ export default function LandingFooter() {
 
           {/* Funzionalità — operative (8 top) */}
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Funzionalità</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Funzionalità</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/funzionalita/gestione-cantieri/" className="hover:text-eic-orange transition-colors">Gestione cantieri</Link></li>
               <li><Link to="/funzionalita/preventivi-edilizia/" className="hover:text-eic-orange transition-colors">Preventivi edilizia</Link></li>
@@ -55,7 +55,7 @@ export default function LandingFooter() {
 
           {/* Funzionalità — vendita & comunicazione (8 top) */}
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Vendita & AI</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Vendita & AI</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/funzionalita/crm-edilizia/" className="hover:text-eic-orange transition-colors">CRM edilizia</Link></li>
               <li><Link to="/funzionalita/pipeline-vendite/" className="hover:text-eic-orange transition-colors">Pipeline vendite</Link></li>
@@ -70,7 +70,7 @@ export default function LandingFooter() {
 
           {/* Per chi + Confronto + Azienda */}
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Per chi</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Per chi</p>
             <ul className="space-y-2 text-sm text-[#111111]/60 mb-6">
               <li><Link to="/per/serramentisti/" className="hover:text-eic-orange transition-colors">Serramentisti</Link></li>
               <li><Link to="/per/impiantisti/" className="hover:text-eic-orange transition-colors">Impiantisti</Link></li>
@@ -78,7 +78,7 @@ export default function LandingFooter() {
               <li><Link to="/per/imprese-edili/" className="hover:text-eic-orange transition-colors">Imprese edili</Link></li>
               <li><Link to="/per/fotovoltaico/" className="hover:text-eic-orange transition-colors">Fotovoltaico</Link></li>
             </ul>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Confronto</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Confronto</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/confronto/vs-primus/" className="hover:text-eic-orange transition-colors">vs PriMus</Link></li>
               <li><Link to="/confronto/vs-teamsystem/" className="hover:text-eic-orange transition-colors">vs TeamSystem</Link></li>
@@ -92,7 +92,7 @@ export default function LandingFooter() {
         {/* Seconda riga: link utili + dati societari */}
         <div className="grid gap-10 mb-10 md:grid-cols-2 lg:grid-cols-4 pt-8 border-t border-gray-200">
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Risorse</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Risorse</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/blog/" className="hover:text-eic-orange transition-colors">Blog</Link></li>
               {/* I calcolatori vivono nel footer e non solo nel menu: il dropdown
@@ -115,10 +115,11 @@ export default function LandingFooter() {
           </div>
 
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Azienda</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Azienda</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/chi-siamo/" className="hover:text-eic-orange transition-colors">Chi siamo</Link></li>
               <li><Link to="/prezzi/" className="hover:text-eic-orange transition-colors">Piani</Link></li>
+              <li><Link to="/offerta-2-mesi-gratis/" className="hover:text-eic-orange transition-colors">Offerta 31 giorni gratis</Link></li>
               <li><Link to="/demo/" className="hover:text-eic-orange transition-colors">Richiedi demo</Link></li>
               <li><Link to="/diventa-partner/" className="hover:text-eic-orange transition-colors">Diventa partner</Link></li>
               <li><a href="/sitemap.xml" className="hover:text-eic-orange transition-colors">Sitemap</a></li>
@@ -126,7 +127,7 @@ export default function LandingFooter() {
           </div>
 
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Contatti</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Contatti</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><a href="tel:+393501780908" className="hover:text-eic-orange transition-colors">+39 350 178 0908</a></li>
               <li><a href="mailto:info@ediliziaincloud.com" className="hover:text-eic-orange transition-colors break-all">info@ediliziaincloud.com</a></li>
@@ -135,7 +136,7 @@ export default function LandingFooter() {
           </div>
 
           <div>
-            <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Dati societari</h4>
+            <p className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Dati societari</p>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li className="font-medium text-[#111111]/80">Domus Group S.r.l.</li>
               <li>Via Aurelio Saffi 29 — 20123 Milano</li>

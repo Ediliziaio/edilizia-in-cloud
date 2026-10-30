@@ -23,7 +23,8 @@ export interface WizardData {
   cointestatario_cognome: string;
   cointestatario_codice_fiscale: string;
   /** Privato o azienda, coi dati fiscali (30/10/2026). */
-  cliente_tipo: "privato" | "azienda";
+  cliente_tipo: "privato" | "azienda" | "pa";
+  cliente_codice_univoco: string;
   cliente_ragione_sociale: string;
   cliente_codice_fiscale: string;
   cliente_partita_iva: string;

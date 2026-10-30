@@ -28,3 +28,13 @@ export const marketingVisualIntro: Record<MarketingVisualTheme, string> = {
   automation: "Collega le attività ripetitive e lavora sui dati del tuo contesto. Mantieni chiari il risultato proposto, i controlli e il prossimo passo.",
   documents: "Raccogli i documenti nel contesto del lavoro. Identifica le informazioni importanti e ritrovale quando servono all’ufficio o al cantiere.",
 };
+
+/** Immagini delle pagine di confronto (public/images/confronto, ottobre 2026). */
+export const confrontoVisuals = {
+  hub: { base: "/images/confronto/hub", alt: "Due cantieri a confronto: uno collegato all'ufficio, l'altro tra fogli sparsi, con i marchi dei gestionali confrontati" },
+  teamsystem: { base: "/images/confronto/teamsystem", alt: "Edilizia in Cloud e TeamSystem: moduli separati collegati da passerelle accanto a un'unica sede dove un percorso arancione va dal cliente al cantiere e all'incasso" },
+  primus: { base: "/images/confronto/primus", alt: "Edilizia in Cloud e PriMus: il computo metrico sul tavolo del tecnico che scorre fino al cantiere in costruzione" },
+  excel: { base: "/images/confronto/excel", alt: "Edilizia in Cloud ed Excel: una scrivania sommersa di fogli e scontrini accanto a una scrivania ordinata collegata al cantiere" },
+  edilnet: { base: "/images/confronto/edilnet", alt: "Edilizia in Cloud ed Edilnet: dalla richiesta del privato al sopralluogo, al preventivo, alla firma e al cantiere" },
+  buildertrend: { base: "/images/confronto/buildertrend", alt: "Edilizia in Cloud e Buildertrend: un cantiere di ristrutturazione italiano in primo piano, una casa in legno americana sullo sfondo" },
+} as const;

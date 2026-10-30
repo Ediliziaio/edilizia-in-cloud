@@ -125,7 +125,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
     lon: 12.4964,
     heroTitle: "Gestionale Edilizia per Imprese di Roma",
     heroSubtitle:
-      "Software per imprese edili romane: gestione cantieri, margini in tempo reale, SAL e fatturazione elettronica. Oltre 150 aziende scelgono Edilizia in Cloud in Italia.",
+      "Software per imprese edili romane: cantieri, margini in tempo reale, SAL e fatturazione elettronica. Oltre 150 aziende in Italia usano Edilizia in Cloud.",
     heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
     localStats: [
       { value: "30+", label: "Imprese edili laziali attive" },

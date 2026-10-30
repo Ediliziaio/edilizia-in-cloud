@@ -394,7 +394,7 @@ export function PosaInLavorazioniBanner({ orderId, items }: BannerProps) {
           external_team_id: teamId,
           total_cost: costo,
           cost_preventivo: costo,
-          vat_rate: item.vat_rate ?? 22,
+          // Il costo dell'articolo è senza IVA: l'IVA della riga la prende dalla ditta (trigger, 31/10/2026).
           is_paid: false,
           notes: `Da articolo: ${item.name}`,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

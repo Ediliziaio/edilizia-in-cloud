@@ -24,4 +24,8 @@ describe("dati fiscali del cliente del preventivo", () => {
     expect(Object.keys(avvisiDatiFiscali({ tipo: "azienda", partitaIva: "123", codiceSdi: "12" }))).toEqual(["partitaIva", "codiceSdi"]);
     expect(avvisiDatiFiscali({ tipo: "privato", partitaIva: "123" })).toEqual({});
   });
+  it("la Pubblica Amministrazione ha codice fiscale a 11 cifre e codice univoco ufficio a 6 caratteri", () => {
+    expect(rigaDatiFiscali({ tipo: "pa", codiceFiscale: "80012345678", codiceSdi: "uf1234" })).toBe("C.F. 80012345678 · Codice univoco ufficio UF1234");
+    expect(Object.keys(avvisiDatiFiscali({ tipo: "pa", codiceFiscale: "RSSMRA80A01H501U", codiceSdi: "1234567" }))).toEqual(["codiceFiscale", "codiceSdi"]);
+  });
 });

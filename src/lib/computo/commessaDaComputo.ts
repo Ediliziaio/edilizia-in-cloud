@@ -29,7 +29,10 @@ export type DatiCommessaComputo = {
   generaPdf: () => Promise<Blob>;
 };
 
-/** Le righe del preventivo dalle voci del computo: una riga per voce, prezzi già scontati di riga a zero. */
+/**
+ * Le righe del preventivo dalle voci del computo: una riga per voce, prezzi già scontati di riga a zero.
+ * Il costo della voce, se manca, lo prende il database dal listino aziendale col codice (`codice_prezzario`).
+ */
 export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaIva" | "conCosti" | "companyId">, quoteId: string) {
   return d.bozza.voci.map((v, k) => {
     const c = calcolaVoce(v);
@@ -41,6 +44,8 @@ export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaI
       quantity: c.quantita ?? 0, unit_price: c.prezzo ?? 0, unit_of_measure: v.unita || null, vat_rate: d.aliquotaIva,
       discount_percent: 0, sort_order: k, is_optional: false, mostra_nel_pdf: true,
       codice_prezzario: v.tariffa.trim() || null, prezzo_acquisto: costo,
+      // Il capitolo fa la fase della commessa, la voce la sua sottofase (crea_commessa_preventivo_atomic, 31/10/2026).
+      custom_field_values: { computo: { capitolo: v.capitolo.trim() || "Lavorazioni" } },
     };
   });
 }
@@ -78,7 +83,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     // I dati fiscali del cliente passano alla commessa e poi alla fattura (30/10/2026).
     const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase(), piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
     if (cf) patch.client_fiscal_code = cf;
-    if (d.bozza.clienteTipo === "azienda") {
+    if (d.bozza.clienteTipo === "azienda" || d.bozza.clienteTipo === "pa") {
       if (piva) patch.client_vat_number = piva;
       if (d.bozza.committente.trim()) patch.client_company = d.bozza.committente.trim();
     }

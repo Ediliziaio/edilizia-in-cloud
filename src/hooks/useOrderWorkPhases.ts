@@ -67,6 +67,8 @@ export interface ExecutorOption {
   label: string;
   campoUserId?: string | null;
   kind?: "interna" | "esterna";
+  /** Solo ditte: IVA in fattura, 0 = reverse charge. */
+  vat_rate?: number | null;
 }
 
 // Stato di approvvigionamento di un articolo/materiale della commessa:

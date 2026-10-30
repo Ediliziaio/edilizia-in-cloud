@@ -78,6 +78,12 @@ beforeEach(() => { stato.margini = true; stato.catalogo = []; localStorage.clear
 afterEach(() => cleanup());
 
 const testoPagina = () => document.body.textContent ?? "";
+/**
+ * La bozza del preventivo nuovo: dal 25/10/2026 la chiave porta utente, azienda e modello (`::u1:c1:generale`),
+ * perché la vecchia chiave unica faceva riapparire la bozza di un'azienda dentro un'altra. Senza, il wizard
+ * riparte dalla Fase 1.
+ */
+const CHIAVE_BOZZA = `${LS_KEY_NEW}::u1:c1:generale`;
 /** Scenario di prova: prezzo pieno 4.000 €, sconto 5% (200 €), costo d'acquisto 2.400 €. */
 const SCENARIO = {
   costi: {
@@ -150,7 +156,7 @@ describe("Fase 6, controllo economico interno", () => {
 });
 
 describe("Fase 5, prodotti extra: il costo d'acquisto", () => {
-  const seminaBozza = () => localStorage.setItem(LS_KEY_NEW, JSON.stringify({
+  const seminaBozza = () => localStorage.setItem(CHIAVE_BOZZA, JSON.stringify({
     step: 5, completedSteps: [1, 2, 3, 4], savedAt: Date.now(),
     data: {
       ...INITIAL,
@@ -181,10 +187,12 @@ describe("Fase 5, prodotti extra: il costo d'acquisto", () => {
 
 describe("Fase 5, servizi: «+ Dal catalogo»", () => {
   // Servizio di catalogo: costo 120 €, margine 40% → prezzo di vendita 200 €.
-  const SERVIZIO = { id: "s1", codice: "enea", descrizione: "Pratica ENEA", prezzo_netto_default: 120, margine_pct_default: 0.4, note_operative: null as null };
+  // Dal 25/10/2026 il codice del catalogo diventa il tipo della riga e deve essere uno dei tipi FV
+  // (`tipoServizioFv`): un codice libero come «enea» viene rifiutato con un avviso. Qui una pratica GSE.
+  const SERVIZIO = { id: "s1", codice: "pratica_gse", descrizione: "Pratica ENEA", prezzo_netto_default: 120, margine_pct_default: 0.4, note_operative: null as null };
   const POINTER = { button: 0, ctrlKey: false, pointerType: "mouse" } as const;
   const apriIlCatalogo = async () => {
-    localStorage.setItem(LS_KEY_NEW, JSON.stringify({
+    localStorage.setItem(CHIAVE_BOZZA, JSON.stringify({
       step: 5, completedSteps: [1, 2, 3, 4], savedAt: Date.now(),
       data: {
         ...INITIAL,

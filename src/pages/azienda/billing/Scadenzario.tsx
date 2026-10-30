@@ -410,7 +410,7 @@ export default function Scadenzario() {
               onMarkPaid={(s) => setPayDialog(s)}
               onCancel={(id) => cancel.mutate(id)}
               onAdd={() => setNewOpen(true)}
-              onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/fatturazione/${s.invoice_id}`); }}
+              onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/documenti/importata/${s.invoice_id}`); }}
             />
             {/* Mobile: solo precedente/successiva (via righe per pagina e salti). Il
                 contenitore c'è solo quando la paginazione compare, per non

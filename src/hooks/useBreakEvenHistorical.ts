@@ -126,7 +126,7 @@ export function useBreakEvenHistorical() {
 
     const teams = (externalTeams || []).filter(t => t.order_id === order.id);
     const teamsCostNet = teams.reduce((sum, team) => {
-      const { netAmount } = calculateNetFromGross(team.total_cost || 0, team.vat_rate ?? 22);
+      const { netAmount } = calculateNetFromGross(team.total_cost || 0, team.vat_rate ?? 0);
       return sum + netAmount;
     }, 0);
 

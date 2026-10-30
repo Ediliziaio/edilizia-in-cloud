@@ -11,7 +11,7 @@
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -155,28 +155,32 @@ describe.each(MODULI)("computo di $slug: costi e margine per riga", ({ slug }) =
 });
 
 describe("Ristrutturazione: l'ambiente della voce non è un costo e resta per tutti", () => {
+  // Dal 26/10/2026 (789cda2de) l'ambiente si scrive nel pannello «Dettagli» comune agli otto preventivatori
+  // (VoceDettagli); il riquadro dei costi lo ricorda solo nella riga di sintesi.
+  const apriDettagli = () => fireEvent.click(screen.getByText("Dettagli", { selector: "span" }));
+
   it("senza permesso il riquadro «Dettagli voce» c'è, con l'ambiente e senza costi", async () => {
     await monta("ristrutturazione");
     const apri = screen.getByText(/Dettagli voce/);
     expect(apri.textContent).toContain("Cucina");
     expect(apri.textContent).not.toMatch(/Costo|margine/i);
     fireEvent.click(apri);
-    expect(screen.getByText("Ambiente")).toBeInTheDocument();
-    const riquadro = screen.getByText("Ambiente").closest("div") as HTMLElement;
-    expect(within(riquadro).getByDisplayValue("Cucina")).toBeInTheDocument();
+    apriDettagli();
+    expect(screen.getByLabelText("Ambiente")).toHaveValue("Cucina");
     expect(screen.queryByText("Materiali")).toBeNull();
     expect(screen.queryByText("Manodopera")).toBeNull();
   });
 
-  it("con il permesso: ambiente e costi nello stesso riquadro, come prima", async () => {
+  it("con il permesso: l'ambiente come per tutti, e i costi nel loro riquadro, come prima", async () => {
     stato.costi = true;
     await monta("ristrutturazione");
     const apri = screen.getByText(COSTO_UNITARIO);
     expect(apri.textContent).toContain("Cucina");
     fireEvent.click(apri);
-    expect(screen.getByText("Ambiente")).toBeInTheDocument();
     expect(screen.getByText("Materiali")).toBeInTheDocument();
     expect(screen.getByText("Manodopera")).toBeInTheDocument();
+    apriDettagli();
+    expect(screen.getByLabelText("Ambiente")).toHaveValue("Cucina");
   });
 });
 

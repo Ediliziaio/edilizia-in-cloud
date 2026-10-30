@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-type PhaseLink = { phase_id: string; sottofasi_fatte?: string[]; percentuale?: number | string };
+type PhaseLink = { phase_id: string; sottofasi_fatte?: string[]; sottofasi_lavorate?: string[]; percentuale?: number | string };
 const INVALID_LINK = "Una lavorazione del rapportino non appartiene a questa commessa o non è più disponibile. Correggi il collegamento prima di approvare.";
 const invalid = (): never => { throw new Error(INVALID_LINK); };
 function rows(value: unknown): Record<string, unknown>[] {
@@ -31,9 +31,11 @@ export async function validateReportPhaseLinks(companyId: string, orderId: strin
       String(row.percentuale).trim() === "" || !Number.isFinite(Number(row.percentuale)) || Number(row.percentuale) < 0 || Number(row.percentuale) > 100)) return invalid();
     declared.set(phaseId, row as PhaseLink);
     phaseIds.add(phaseId);
-    if (row.sottofasi_fatte != null) {
-      if (!Array.isArray(row.sottofasi_fatte)) return invalid();
-      for (const sub of row.sottofasi_fatte) {
+    // Finite e lavorate (31/10/2026): ognuna una volta sola, e della fase dichiarata.
+    for (const elenco of [row.sottofasi_fatte, row.sottofasi_lavorate]) {
+      if (elenco == null) continue;
+      if (!Array.isArray(elenco)) return invalid();
+      for (const sub of elenco) {
         const subId = id(sub);
         if (subphaseParents.has(subId)) return invalid();
         subphaseParents.set(subId, phaseId);

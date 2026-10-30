@@ -28,7 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
-import { costruisciContrattoSubappaltoHtml, type DatiContrattoSubappalto } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { costruisciContrattoSubappaltoHtml, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { generaPdfContrattoSubappalto } from "./ContrattoSubappaltoPDF";
 import { riepilogoContratto, type RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
 
@@ -59,6 +59,8 @@ export interface ContrattoCompleto {
   firmato_il: string | null;
   firmato_da: string | null;
   pdf_path: string | null;
+  /** Allegato A: i lavori accettati, uno per uno (31/10/2026). */
+  elenco_lavori?: RigaElencoLavori[] | null;
   commessa: { order_code: string | null; description: string | null; work_address: string | null; client_name: string | null; client_company: string | null } | null;
 }
 
@@ -336,6 +338,7 @@ export function ContrattiSubappalto({
         dataInizio: c.data_inizio, dataFinePrevista: c.data_fine_prevista, responsabileImpresa: c.responsabile_impresa,
         referenteSubappaltatore: c.referente_subappaltatore, obblighi: c.obblighi, modalitaPagamento: c.modalita_pagamento,
         penali: c.penali, garanzie: c.garanzie, durataGaranziaMesi: c.durata_garanzia_mesi, note: c.note,
+        elencoLavori: Array.isArray(c.elenco_lavori) ? c.elenco_lavori : [],
     };
   };
 

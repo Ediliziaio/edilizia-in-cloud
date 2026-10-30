@@ -8,7 +8,7 @@
  * tipo di piscina). Qui si leggono tutte le varianti, così il documento non
  * deve sapere da quale modulo arrivano i dati.
  */
-import { rigaDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
+import { intestatoAdEnte, rigaDatiFiscali, tipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { leggiTestoRiccoContratto, separaFirmeContratto } from '../../../../supabase/functions/_shared/testoRiccoContratto';
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
@@ -91,6 +91,7 @@ export interface ProgettoComune {
   cliente_ragione_sociale?: string | null;
   cliente_codice_fiscale?: string | null;
   cliente_partita_iva?: string | null;
+  cliente_codice_univoco?: string | null;
   cantiere_indirizzo: string | null;
   cantiere_citta: string | null;
   cantiere_provincia: string | null;
@@ -467,9 +468,9 @@ export function costruisciDatiEdile(input: {
     modulo,
     codice: p.code,
     // Un'azienda si intesta con la ragione sociale; il saluto resta per nome a chi la rappresenta.
-    cliente: (p.cliente_tipo === "azienda" && stringa(p.cliente_ragione_sociale)) || [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim() || "Gentile Cliente",
-    datiFiscaliCliente: rigaDatiFiscali({ tipo: p.cliente_tipo === "azienda" ? "azienda" : "privato",
-      codiceFiscale: p.cliente_codice_fiscale, partitaIva: p.cliente_partita_iva }) || null,
+    cliente: (intestatoAdEnte(tipoCliente(p.cliente_tipo)) && stringa(p.cliente_ragione_sociale)) || [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim() || "Gentile Cliente",
+    datiFiscaliCliente: rigaDatiFiscali({ tipo: tipoCliente(p.cliente_tipo),
+      codiceFiscale: p.cliente_codice_fiscale, partitaIva: p.cliente_partita_iva, codiceSdi: p.cliente_codice_univoco }) || null,
     cointestatario: nomeCointestatario(p),
     clienteNome: stringa(p.cliente_nome),
     cantiere: [p.cantiere_indirizzo, [p.cantiere_cap, p.cantiere_citta].filter(Boolean).join(" "), p.cantiere_provincia]

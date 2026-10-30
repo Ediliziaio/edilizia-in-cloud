@@ -192,6 +192,8 @@ export interface DocEdileModello {
   finanziamentoPromo: unknown;
   /** Già con i merge tag risolti: righe tipizzate pronte da impaginare. */
   condizioniLegali: import('../../../../supabase/functions/_shared/testoRiccoContratto').RigaContratto[];
+  /** Il colore del blocco delle condizioni collegato al modello: i titoli della pagina. Vuoto: quello del preventivo. */
+  coloreCondizioni?: string | null;
   /** Le clausole che il cliente approva con una seconda firma (art. 1341 c.c.). */
   clausoleDaApprovare: string[];
   /** L'azienda allega il modulo di recesso (interruttore nel modello, spento di serie). */
@@ -237,6 +239,10 @@ export interface DocEdileDati {
     sovrapposizione?: { larghezza: number; altezza: number; poligoni: string[] };
     nota?: string | null;
     grafico?: { etichette: string[]; serie: Array<{ nome: string; valori: number[] }> };
+    /** Il colore scelto nel blocco collegato (scheda, sezione): occhiello e titolo. Vuoto: quello del preventivo. */
+    colore?: string | null;
+    /** Il secondo colore della scheda: i filetti fra le righe. */
+    accento?: string | null;
   }>;
   /** Opt-in only for browser-local drafts; never implies issuance or acceptance. */
   bozzaLocale?: { ivaDaDefinire: boolean; soloConfigurazione?: boolean };

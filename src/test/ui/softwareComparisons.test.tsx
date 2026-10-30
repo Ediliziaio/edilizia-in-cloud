@@ -40,5 +40,18 @@ describe("confronti per scegliere un gestionale", () => {
     expect(host!.textContent).toContain("parte interessata");
     expect(schema("jsonld-comparison-faq").mainEntity.map((entry: { name: string }) => entry.name)).toEqual(guide.faqs.map((faq) => faq.q));
     expect(host!.textContent).not.toContain("€380");
+    expect(host!.textContent).not.toMatch(/€|prezzo|piano gratuito/i);
+    expect(guide.title.length).toBeLessThanOrEqual(60);
+    expect(guide.description.length).toBeGreaterThanOrEqual(70);
+    expect(guide.description.length).toBeLessThanOrEqual(160);
+    expect(guide.rows.length).toBeGreaterThanOrEqual(8);
+    expect(guide.rows.length).toBeLessThanOrEqual(12);
+    expect(guide.faqs.length).toBeGreaterThanOrEqual(4);
+    expect(guide.faqs.length).toBeLessThanOrEqual(6);
+    const sourceUrls = guide.sources.map((source) => source.url);
+    for (const row of guide.rows) if (row.source) expect(sourceUrls).toContain(row.source);
+    for (const strength of guide.otherStrengths ?? []) expect(host!.textContent).toContain(strength);
+    expect(document.getElementById("novita")).not.toBeNull();
+    expect(schema("jsonld-comparison-guide").dateModified).toBe("2026-10-30");
   });
 });

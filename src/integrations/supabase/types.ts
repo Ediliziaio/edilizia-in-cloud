@@ -36506,6 +36506,57 @@ export type Database = {
           },
         ]
       }
+      fattura_allegati: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          documento_fiscale_id: string | null
+          fattura_ricevuta_id: string | null
+          file_name: string
+          id: string
+          includi_nell_invio: boolean
+          invoice_id: string | null
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          tipo: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          documento_fiscale_id?: string | null
+          fattura_ricevuta_id?: string | null
+          file_name: string
+          id?: string
+          includi_nell_invio?: boolean
+          invoice_id?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          tipo?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          documento_fiscale_id?: string | null
+          fattura_ricevuta_id?: string | null
+          file_name?: string
+          id?: string
+          includi_nell_invio?: boolean
+          invoice_id?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       fatture_ricevute: {
         Row: {
           aggancio_oda_manuale: boolean
@@ -69389,6 +69440,8 @@ export type Database = {
           client_name: string | null
           client_phone: string | null
           client_vat_number: string | null
+          client_tipo: string | null
+          client_codice_univoco: string | null
           commission_amount_snapshot: number | null
           company_id: string
           computo_upload_id: string | null
@@ -69487,6 +69540,8 @@ export type Database = {
           client_name?: string | null
           client_phone?: string | null
           client_vat_number?: string | null
+          client_tipo?: string | null
+          client_codice_univoco?: string | null
           commission_amount_snapshot?: number | null
           company_id: string
           computo_upload_id?: string | null
@@ -69585,6 +69640,8 @@ export type Database = {
           client_name?: string | null
           client_phone?: string | null
           client_vat_number?: string | null
+          client_tipo?: string | null
+          client_codice_univoco?: string | null
           commission_amount_snapshot?: number | null
           company_id?: string
           computo_upload_id?: string | null
@@ -87322,6 +87379,8 @@ export type Database = {
       }
       suppliers: {
         Row: {
+          subappaltatore_id: string | null
+          tipo: string | null
           address: string | null
           bank_name: string | null
           barcode_prefix: string | null
@@ -87369,6 +87428,8 @@ export type Database = {
           termini_giorni: number | null
         }
         Insert: {
+          subappaltatore_id?: string | null
+          tipo?: string | null
           address?: string | null
           bank_name?: string | null
           barcode_prefix?: string | null
@@ -87416,6 +87477,8 @@ export type Database = {
           termini_giorni?: number | null
         }
         Update: {
+          subappaltatore_id?: string | null
+          tipo?: string | null
           address?: string | null
           bank_name?: string | null
           barcode_prefix?: string | null

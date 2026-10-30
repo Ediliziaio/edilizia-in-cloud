@@ -938,9 +938,10 @@ describe("Fornitori: parole", () => {
     }
     for (const etichetta of [
       "Nome del fornitore *",
-      "Categoria",
+      "Che fornitore è",
+      "Cosa vende",
       "Modalità di pagamento",
-      "Tipo fornitore",
+      "Italiano o estero",
       "Codice fiscale",
       "Sito web",
     ]) {
@@ -1141,9 +1142,10 @@ describe("Fornitori: accessibilità e errori in italiano", () => {
     montaAnagrafica();
     const finestra = await apriNuovoFornitore();
     for (const etichetta of [
-      "Categoria",
+      "Che fornitore è",
+      "Cosa vende",
       "Modalità di pagamento",
-      "Tipo fornitore",
+      "Italiano o estero",
       "Aliquota IVA",
     ]) {
       const campo = within(finestra).getByLabelText(etichetta);

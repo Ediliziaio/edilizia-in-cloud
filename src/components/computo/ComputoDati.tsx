@@ -25,6 +25,7 @@ import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavori
 import { testoIndirizzo } from "@/lib/preventivatore/indirizzoLavori";
 import { datiFiscaliBozza, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { avvisiDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
+import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 
 interface Contatto {
   id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null;
@@ -118,31 +119,25 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
               </PopoverContent>
             </Popover>}
       </div>
-      <div role="radiogroup" aria-label="Tipo di cliente" className="inline-flex rounded-lg border bg-slate-50 p-0.5">
-        {(["privato", "azienda"] as const).map(t => <button key={t} type="button" role="radio" aria-checked={tipo === t}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${tipo === t ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-          onClick={() => onChange({ clienteTipo: t })}>
-          {t === "privato" ? <><User className="h-3.5 w-3.5" />Privato</> : <><Building2 className="h-3.5 w-3.5" />Azienda</>}
-        </button>)}
-      </div>
+      <SceltaTipoCliente valore={tipo} onChange={t => onChange({ clienteTipo: t })} />
       {/* Tutte le etichette con l'icona e la stessa altezza: prima «Committente» stava più in basso di «Email» e «Telefono». */}
       <div className="grid items-start gap-3 sm:grid-cols-3">
-        {campo("native-committente", tipo === "azienda" ? "Ragione sociale" : "Nome e cognome", tipo === "azienda" ? Building2 : User,
-          <Input id="native-committente" className="h-9" maxLength={160} placeholder={tipo === "azienda" ? "Es. Rossi Costruzioni S.r.l." : "Es. Mario Rossi"} value={bozza.committente} onChange={e => onChange({ committente: e.target.value })} />)}
+        {campo("native-committente", tipo === "azienda" ? "Ragione sociale" : tipo === "pa" ? "Ente" : "Nome e cognome", tipo === "privato" ? User : Building2,
+          <Input id="native-committente" className="h-9" maxLength={160} placeholder={tipo === "azienda" ? "Es. Rossi Costruzioni S.r.l." : tipo === "pa" ? "Es. Comune di Torino" : "Es. Mario Rossi"} value={bozza.committente} onChange={e => onChange({ committente: e.target.value })} />)}
         {campo("native-email", "Email", Mail,
           <Input id="native-email" type="email" className="h-9" maxLength={200} value={bozza.clienteEmail} onChange={e => onChange({ clienteEmail: e.target.value })} />)}
         {campo("native-telefono", "Telefono", Phone,
           <Input id="native-telefono" type="tel" inputMode="tel" className="h-9" maxLength={60} value={bozza.clienteTelefono} onChange={e => onChange({ clienteTelefono: e.target.value })} />)}
       </div>
-      <div className={`grid items-start gap-3 ${tipo === "azienda" ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
-        {tipo === "azienda" && campo("native-piva", "Partita IVA", FileBadge,
+      <div className={`grid items-start gap-3 ${tipo !== "privato" ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+        {tipo !== "privato" && campo("native-piva", tipo === "pa" ? "Partita IVA (se c'è)" : "Partita IVA", FileBadge,
           <Input id="native-piva" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} inputMode="numeric" placeholder="11 cifre" value={bozza.clientePartitaIva} onChange={e => onChange({ clientePartitaIva: e.target.value })} />, avvisi.partitaIva)}
         {campo("native-cf", tipo === "azienda" ? "Codice fiscale (se diverso)" : "Codice fiscale", FileBadge,
-          <Input id="native-cf" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder={tipo === "azienda" ? "Di solito uguale alla partita IVA" : "16 caratteri"} value={bozza.clienteCodiceFiscale} onChange={e => onChange({ clienteCodiceFiscale: e.target.value })} />, avvisi.codiceFiscale)}
-        {tipo === "azienda" && campo("native-pec", "PEC", Mail,
+          <Input id="native-cf" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={20} placeholder={tipo === "azienda" ? "Di solito uguale alla partita IVA" : tipo === "pa" ? "11 cifre dell'ente" : "16 caratteri"} value={bozza.clienteCodiceFiscale} onChange={e => onChange({ clienteCodiceFiscale: e.target.value })} />, avvisi.codiceFiscale)}
+        {tipo !== "privato" && campo("native-pec", "PEC", Mail,
           <Input id="native-pec" type="email" className="h-9" maxLength={200} value={bozza.clientePec} onChange={e => onChange({ clientePec: e.target.value })} />)}
-        {tipo === "azienda" && campo("native-sdi", "Codice destinatario (SDI)", FileBadge,
-          <Input id="native-sdi" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} placeholder="7 caratteri" value={bozza.clienteSdi} onChange={e => onChange({ clienteSdi: e.target.value })} />, avvisi.codiceSdi)}
+        {tipo !== "privato" && campo("native-sdi", tipo === "pa" ? "Codice univoco ufficio" : "Codice destinatario (SDI)", FileBadge,
+          <Input id="native-sdi" className="h-9 font-mono [&:not(:placeholder-shown)]:uppercase" maxLength={10} placeholder={tipo === "pa" ? "6 caratteri (IPA)" : "7 caratteri"} value={bozza.clienteSdi} onChange={e => onChange({ clienteSdi: e.target.value })} />, avvisi.codiceSdi)}
       </div>
       <Cointestatario form={bozza} onChange={(campo, valore) => onChange({ [campo]: valore ?? "" })} />
       <IndirizzoDeiLavori conSpunta={indirizzo.conSpunta} etichettaUguale="Lavori allo stesso indirizzo del contatto"

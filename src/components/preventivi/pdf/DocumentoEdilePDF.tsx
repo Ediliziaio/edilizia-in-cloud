@@ -1143,9 +1143,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const fotoChiusura = modello.fotoChiusura && !fotoUsate.has(modello.fotoChiusura.src) ? modello.fotoChiusura : null;
   if (fotoChiusura) fotoUsate.add(fotoChiusura.src);
 
-  // I segmenti: un blocco con le foto ha una pagina sua, il resto scorre.
+  // I segmenti: un blocco con le foto ha una pagina sua, il resto scorre. Le sezioni
+  // del dettaglio hanno la pagina sua solo con la foto: dal 27/10/2026 l'avevano
+  // tutte, e «Erogazione del contributo» (quattro righe) occupava un foglio intero.
   const conPaginaPropria = (chiave: string) => {
-    if (tecniche.has(chiave)) return true;
+    const tecnica = tecniche.get(chiave);
+    if (tecnica) return Boolean(tecnica.immagine);
     const b = BLOCCHI.find((x) => x.chiave === chiave);
     return Boolean(b && modello.blocchi[b.chiave].foto.length > 0);
   };
@@ -1244,7 +1247,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // (se ci stanno interi) e il piano dei lavori, che si spezza da sé. Il computo
   // cominciava sempre su un foglio nuovo, e sotto le foto del progetto restava
   // mezza pagina bianca.
-  const seguePrecedente = (chiave: string) => scorreIntero(chiave) || chiave === "piano" || chiave === "domande";
+  const seguePrecedente = (chiave: string) => scorreIntero(chiave) || chiave === "piano" || chiave === "domande"
+    || (tecniche.has(chiave) && !tecniche.get(chiave)!.immagine);
 
   // Quanto occupa un capitolo che non si spezza (null: non si sa, o si spezza).
   const stimaGalleria = (foto: DocEdileFoto[]) => {
@@ -1254,7 +1258,40 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     for (let i = 1; i < foto.length; i += 2) h += 150 + Math.max(...foto.slice(i, i + 2).map(didascalia)) + 14;
     return h;
   };
+  // Le tabelle lunghe (più di dieci righe, come i dodici mesi) un po' più strette.
+  const passoRigheTecniche = (tecnica: NonNullable<DocEdileDati["sezioniTecniche"]>[number]) => ((tecnica.righe?.length ?? 0) > 10 ? 6 : 9);
+  // Quanto è alta una sezione del dettaglio senza la foto: intestazione, testo,
+  // grafico (GraficoPreventivo: 18 + altezza + 12 e la legenda), righe e nota.
+  const stimaTecnica = (tecnica: NonNullable<DocEdileDati["sezioniTecniche"]>[number], senzaGrafico = false): number => {
+    const testo = fam(tema.caratteri.testo);
+    let alta = 8 * 1.2 + 8 + righeDiTesto(senzaAsterischi(tecnica.titolo), UTILE - 64, fam(tema.caratteri.titolo), 23) * 23 * 1.2;
+    if (tecnica.testo) alta += 14 + tecnica.testo.split(/\n+/).filter(Boolean).reduce((somma, t) => somma + altezzaTesto(t, UTILE, testo, 10, 1.55) + 7, 0);
+    if (tecnica.grafico && !senzaGrafico) alta += 18 + altezzaGraficoTecnica(tecnica) + 12 + (tecnica.grafico.serie?.length ?? 0) * (8 * 1.2 + 3);
+    for (const riga of tecnica.righe ?? []) {
+      alta += 2 * passoRigheTecniche(tecnica) + 0.5 + Math.max(
+        altezzaTesto(String(riga.etichetta ?? ""), UTILE * 0.48 - 12, testo, 10, 1.55),
+        altezzaTesto(String(riga.valore ?? ""), UTILE * 0.52, fam(tema.caratteri.forte), 10, 1.55),
+      );
+    }
+    if (tecnica.nota) alta += 10 + altezzaTesto(tecnica.nota, UTILE, testo, 9, 1.55);
+    return alta;
+  };
+  // Il grafico di una sezione: 180 punti, meno (non sotto i 110) quando la sezione con
+  // le sue righe altrimenti non sta su un foglio. «Energia mese per mese» (grafico e
+  // dodici mesi) mandava i due ultimi mesi da soli sul foglio dopo.
+  const altezzaGraficoTecnica = (tecnica: NonNullable<DocEdileDati["sezioniTecniche"]>[number]): number => {
+    const legenda = (tecnica.grafico?.serie?.length ?? 0) * (8 * 1.2 + 3);
+    return Math.max(110, Math.min(180, Math.floor(ALTEZZA_UTILE - stimaTecnica(tecnica, true) - 18 - 12 - legenda - MARGINE_PREVISIONE)));
+  };
+  // La foto di una sezione sta sul foglio con le sue righe: alta 280 punti se c'è
+  // posto, più bassa (non sotto i 120) quando le righe sono tante. Alta fissa, con
+  // molte righe, spingeva le ultime due o tre da sole sul foglio dopo.
+  const altezzaFotoTecnica = (tecnica: NonNullable<DocEdileDati["sezioniTecniche"]>[number]): number =>
+    Math.max(120, Math.min(280, Math.floor(ALTEZZA_UTILE - stimaTecnica(tecnica) - 18 - MARGINE_PREVISIONE)));
   const stimaCapitolo = (chiave: string): number | null => {
+    // Una sezione del dettaglio senza foto (quella ha la pagina sua): vedi stimaTecnica.
+    const tecnica = tecniche.get(chiave);
+    if (tecnica) return tecnica.immagine ? null : stimaTecnica(tecnica);
     let h: number | null;
     switch (chiave) {
       case "chiSiamo": {
@@ -1530,17 +1567,14 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // Il contenuto di ogni capitolo, con il suo numero nella sequenza scelta.
   const contenutoTecnico = (sezione: NonNullable<DocEdileDati["sezioniTecniche"]>[number]) => (<>
           <View minPresenceAhead={72}>
-            <Text id={edileSectionDestination(sezione.id)} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, marginBottom: 8 }}>DETTAGLIO DELLA PROPOSTA</Text>
-            <TitoloAccento tema={tema} testo={sezione.titolo} corpo={23} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+            {/* Il colore del blocco collegato (scheda prodotto, sezione), se l'ha scelto. */}
+            <Text id={edileSectionDestination(sezione.id)} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: sezione.colore ?? tema.inchiostroMarca, marginBottom: 8 }}>DETTAGLIO DELLA PROPOSTA</Text>
+            <TitoloAccento tema={tema} testo={sezione.titolo} corpo={23} colore={sezione.colore ?? tema.inchiostro} coloreAccento={sezione.colore ?? tema.inchiostroMarca} />
           </View>
           {sezione.testo ? <View style={{ marginTop: 14 }}>{sezione.testo.split(/\n+/).filter(Boolean).map((testo, i) => <Text key={i} style={[corpoTesto, { marginBottom: 7 }]}>{testo}</Text>)}</View> : null}
-          {sezione.grafico ? <GraficoPreventivo dati={sezione.grafico} colore={tema.inchiostroMarca} larghezza={UTILE} /> : null}
-          {sezione.righe?.map((riga, i) => (
-            <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: tema.filetto }}>
-              <Text style={[corpoTesto, { width: "48%", paddingRight: 12 }]}>{riga.etichetta}</Text>
-              <Text style={[corpoTesto, { width: "52%", fontFamily: tema.caratteri.forte }]}>{riga.valore}</Text>
-            </View>
-          ))}
+          {sezione.grafico ? <GraficoPreventivo dati={sezione.grafico} colore={tema.inchiostroMarca} larghezza={UTILE} altezza={altezzaGraficoTecnica(sezione)} /> : null}
+          {/* La foto sotto il titolo e le righe dopo: se il foglio non basta va avanti il
+              testo, non la foto da sola su un foglio altrimenti vuoto. */}
           {sezione.immagine ? sezione.sovrapposizione ? (
             <View wrap={false} style={{ width: UTILE, height: UTILE * sezione.sovrapposizione.altezza / sezione.sovrapposizione.larghezza, marginTop: 18 }}>
               <Image src={sezione.immagine} style={{ position: "absolute", width: "100%", height: "100%" }} />
@@ -1548,8 +1582,14 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
                 {sezione.sovrapposizione.poligoni.map((points, i) => <Polygon key={i} points={points} fill="#2563EB" fillOpacity={0.7} stroke="#E0F2FE" strokeWidth={0.8} />)}
               </Svg>
             </View>
-          ) : <Image src={sezione.immagine} style={{ width: UTILE, height: 280, objectFit: "contain", marginTop: 18 }} /> : null}
-          {sezione.nota ? <Text style={[corpoTesto, { fontSize: 8, marginTop: 10, color: tema.grigio }]}>{sezione.nota}</Text> : null}
+          ) : <Image src={sezione.immagine} style={{ width: UTILE, height: altezzaFotoTecnica(sezione), objectFit: "contain", marginTop: 18 }} /> : null}
+          {sezione.righe?.map((riga, i) => (
+            <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: passoRigheTecniche(sezione), borderBottomWidth: 0.5, borderBottomColor: sezione.accento ?? tema.filetto }}>
+              <Text style={[corpoTesto, { width: "48%", paddingRight: 12 }]}>{riga.etichetta}</Text>
+              <Text style={[corpoTesto, { width: "52%", fontFamily: tema.caratteri.forte }]}>{riga.valore}</Text>
+            </View>
+          ))}
+          {sezione.nota ? <Text style={[corpoTesto, { fontSize: 9, marginTop: 10, color: tema.grigio }]}>{sezione.nota}</Text> : null}
   </>);
 
   const contenutoCapitolo = (chiave: string, numero: number, riempi = false, altezzaFoto?: number): React.ReactNode => {
@@ -1950,14 +1990,14 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
-          <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: modello.coloreCondizioni ?? tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={modello.coloreCondizioni ?? tema.inchiostroMarca} />
           <View style={{ marginTop: 14 }}>
             {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
                 senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
             {perArticoli(modello.condizioniLegali, { senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
               <View key={g} wrap minPresenceAhead={36}>
-                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?tema.inchiostro:tema.grigio} />)}
+                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?(modello.coloreCondizioni ?? tema.inchiostro):tema.grigio} />)}
               </View>
             ))}
           </View>

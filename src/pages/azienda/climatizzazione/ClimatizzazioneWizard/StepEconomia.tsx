@@ -50,7 +50,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useClmTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
-  // IVA di riserva = default della colonna iva_pct del modulo (22), non 10 (05/10/2026).
+  // IVA di riserva unica, come il default della colonna iva_pct (10% dal 27/10/2026).
   const ivaPct = Number(form.iva_pct ?? IVA_PREDEFINITA_PCT);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.

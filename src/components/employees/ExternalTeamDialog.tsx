@@ -99,7 +99,7 @@ export function ExternalTeamDialog({
       email: "",
       notes: "",
       is_active: true,
-      vat_rate: 22,
+      vat_rate: 0,
       kind: "esterna",
       subappaltatore_id: null,
       leader_user_id: null,
@@ -116,7 +116,7 @@ export function ExternalTeamDialog({
         email: team.email || "",
         notes: team.notes || "",
         is_active: team.is_active,
-        vat_rate: team.vat_rate ?? 22,
+        vat_rate: team.vat_rate ?? 0,
         kind: team.kind ?? "esterna",
         subappaltatore_id: team.subappaltatore_id ?? null,
         leader_user_id: team.leader_user_id ?? null,
@@ -130,7 +130,7 @@ export function ExternalTeamDialog({
         email: "",
         notes: "",
         is_active: true,
-        vat_rate: 22,
+        vat_rate: 0,
         kind: "esterna",
         subappaltatore_id: null,
         leader_user_id: null,
@@ -297,13 +297,13 @@ export function ExternalTeamDialog({
                     <SelectContent>
                       {VAT_RATES.map((rate) => (
                         <SelectItem key={rate.value} value={rate.value.toString()}>
-                          {rate.label}
+                          {rate.value === 0 ? "0% - Reverse charge (subappalto edile)" : rate.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    0% per forfettari o reverse charge
+                    Il subappalto edile è in reverse charge: IVA 0, il costo è l’imponibile. Scegli un’aliquota solo se la ditta mette l’IVA in fattura.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

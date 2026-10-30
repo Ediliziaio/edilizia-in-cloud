@@ -46,6 +46,7 @@ export const INITIAL: WizardData = {
   cliente_ragione_sociale: "",
   cliente_codice_fiscale: "",
   cliente_partita_iva: "",
+  cliente_codice_univoco: "",
   cointestatario_email: "",
   cointestatario_telefono: "",
   archetipo: "privato_prima",

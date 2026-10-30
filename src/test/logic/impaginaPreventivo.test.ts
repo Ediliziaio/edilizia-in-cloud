@@ -185,7 +185,7 @@ describe("il PDF (generate-quote-pdf) usa le regole nuove", () => {
   it("le condizioni prendono i titoli dal testo e il riquadro le parole dell'azienda", () => {
     expect(edile).toContain("clausoleDaApprovare: clausoleDaApprovare(condizioniLegali),");
     expect(doc).toContain("{modello.clausoleDaApprovare.map((c, i) => (");
-    expect(doc).toContain("colore={r.tipo==='h1'||r.tipo==='h2'?tema.inchiostro:tema.grigio}");
+    expect(doc).toContain("colore={r.tipo==='h1'||r.tipo==='h2'?(modello.coloreCondizioni ?? tema.inchiostro):tema.grigio}");
   });
 
   it("le note lunghe stanno intere prima delle firme, non dopo il modulo di recesso", () => {
