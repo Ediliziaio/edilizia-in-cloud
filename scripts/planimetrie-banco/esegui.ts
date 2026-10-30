@@ -45,7 +45,7 @@ function chiaveDaFile(): string | undefined {
 }
 const chiave = process.env.OPENROUTER_API_KEY || chiaveDaFile();
 if (modello !== "oracolo" && !chiave) {
-  console.error("Manca OPENROUTER_API_KEY (in ~/edilizia-in-cloud/.env.planimetrie o nell'ambiente).");
+  console.error("Manca OPENROUTER_API_KEY (in ~/edilizia-in-cloud/.env.planimetrie.local, .env.planimetrie o nell'ambiente).");
   process.exit(1);
 }
 
