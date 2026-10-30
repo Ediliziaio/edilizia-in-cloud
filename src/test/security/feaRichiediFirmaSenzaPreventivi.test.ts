@@ -34,7 +34,8 @@ describe("fea-richiedi-firma: i preventivi passano solo da send-quote-signature"
       ".from(tabella)",
       '.from("signature_requests")',
       '.from("quotes")',
-      "/functions/v1/fea-genera-otp",
+      // Dal commit e4dc2f6fa l'email col link parte da qui (sendEmailUnified), non più da fea-genera-otp.
+      "sendEmailUnified({",
       '.from("fea_audit_log")',
     ]) {
       const i = funzione.indexOf(dopo);

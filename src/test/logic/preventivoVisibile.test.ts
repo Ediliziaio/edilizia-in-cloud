@@ -85,6 +85,9 @@ describe("preventivoModificabile", () => {
   });
 });
 
+const CONTROLLO =
+  /if \(!interna && !\(await preventivoVisibile\(comeChiChiama(?: as unknown as ClienteDiChiChiama)?, quote\.id\)\)\) \{\n\s+return errorResponse\("Preventivo non trovato", 404, corsH\);/;
+
 describe("generate-quote-pdf controlla il preventivo con le regole di chi chiama", () => {
   const pdf = readFileSync(join(process.cwd(), "supabase/functions/generate-quote-pdf/index.ts"), "utf8");
   const posizione = (testo: string) => {
@@ -94,17 +97,20 @@ describe("generate-quote-pdf controlla il preventivo con le regole di chi chiama
   };
 
   it("col token della richiesta e la chiave anon, non col service role", () => {
-    expect(pdf).toContain('import { preventivoVisibile } from "../_shared/preventivoVisibile.ts";');
+    expect(pdf).toMatch(/import \{[^}]*\bpreventivoVisibile\b[^}]*\} from "\.\.\/_shared\/preventivoVisibile\.ts";/);
     expect(pdf).toMatch(
       /const comeChiChiama = createClient\(Deno\.env\.get\("SUPABASE_URL"\)!, Deno\.env\.get\("SUPABASE_ANON_KEY"\)!, \{\s+global: \{ headers: \{ Authorization: req\.headers\.get\("Authorization"\) \?\? "" \} \},/,
     );
     // Dal 27/09/2026 la chiamata interna del bot operativo (chiave di servizio + utente già
     // riconosciuto) non ha il token dell'utente: per lei il controllo è sull'utente, qui sotto.
-    expect(pdf).toContain("if (!interna && !(await preventivoVisibile(comeChiChiama, quote.id))) {");
+    // Il cast al contratto minimo (ClienteDiChiChiama) evita l'espansione dei generici del client in Deno.
+    expect(pdf).toMatch(CONTROLLO);
   });
 
   it("subito dopo l'azienda e prima del PDF dei moduli, dei file e del caricamento", () => {
-    const controllo = posizione("if (!interna && !(await preventivoVisibile(comeChiChiama, quote.id))) {");
+    const trovato = pdf.match(CONTROLLO);
+    expect(trovato, "controllo preventivoVisibile").not.toBeNull();
+    const controllo = trovato!.index!;
     expect(posizione("await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);")).toBeLessThan(controllo);
     expect(controllo).toBeLessThan(posizione('quote.source.startsWith("modulo:")'));
     expect(controllo).toBeLessThan(posizione('supabaseAdmin.storage.from("quote-materials").download(filePath)'));
