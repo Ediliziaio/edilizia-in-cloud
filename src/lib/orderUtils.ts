@@ -1,4 +1,5 @@
 import type { Tables } from "@/integrations/supabase/types";
+import { dimenticaCommesseArchiviate } from "@/lib/orders/archivedOrderScope";
 import { indiceSaldoFinale } from "@/lib/orders/saldoFinale";
 import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem, Posizione } from "@/components/orders/OrderItemsList";
@@ -397,6 +398,7 @@ export async function deleteOrderCascading(orderId: string, companyId: string): 
     p_trashed: true,
   });
   if (error) throw error;
+  dimenticaCommesseArchiviate(companyId);
 }
 
 /**

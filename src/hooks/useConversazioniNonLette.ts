@@ -14,13 +14,17 @@
  * 30 secondi, o cinque volte quanto è durato l'ultimo, fino a 2 minuti; a
  * scheda nascosta non parte (React Query guarda document.visibilityState), e
  * un giro non si sovrappone al precedente.
+ *
+ * 31/10/2026: 175.000 chiamate in 14 giorni (12.500 al giorno, 18 ms l'una):
+ * il giro base passa da 30 a 90 secondi, il massimo da 2 a 5 minuti. È il
+ * numero sul menu, non la chat: la pagina Chat ha i suoi tempi.
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export const NON_LETTE_GIRO_MS = 30_000;
-const NON_LETTE_GIRO_MASSIMO_MS = 120_000;
+export const NON_LETTE_GIRO_MS = 90_000;
+const NON_LETTE_GIRO_MASSIMO_MS = 300_000;
 
 /** Attesa prima del giro successivo, data la durata dell'ultimo. */
 export function attesaNonLette(durataUltimaMs: number): number {

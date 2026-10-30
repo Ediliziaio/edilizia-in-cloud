@@ -179,8 +179,9 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
       return (data ?? []) as unknown as Proposal[];
     },
     enabled: !!companyId && !!userId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    // 31/10/2026: ogni 3 minuti (era 1): le proposte nascono dai giri di Silvio, ogni 30 minuti.
+    staleTime: 90_000,
+    refetchInterval: 180_000,
     refetchIntervalInBackground: false,
   });
 

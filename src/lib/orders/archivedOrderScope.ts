@@ -1,8 +1,33 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// Le commesse archiviate cambiano di rado, ma 14 lettori le rileggevano a ogni giro
+// (contatori del menu compresi: 37.700 letture in 14 giorni fino al 30/10/2026).
+// Si tengono 2 minuti per azienda; nei test no, perché lì gli stessi id azienda
+// tornano con dati finti diversi da un caso all'altro.
+const MEMORIA_MS = 2 * 60_000;
+const memoria = new Map<string, { quando: number; ids: Promise<string[]> }>();
+
+/** Dimentica le commesse archiviate in memoria: dopo un'archiviazione o un ripristino. */
+export function dimenticaCommesseArchiviate(companyId?: string): void {
+  if (companyId) memoria.delete(companyId);
+  else memoria.clear();
+}
+
 /** Keep historical financial rows intact, but exclude their retired job from operations. */
 export async function loadArchivedOrderIds(companyId: string): Promise<string[]> {
   if (!companyId) throw new Error("Azienda non selezionata");
+  if (import.meta.env?.MODE === "test") return leggiArchiviate(companyId);
+  const ora = Date.now();
+  const voce = memoria.get(companyId);
+  if (voce && ora - voce.quando < MEMORIA_MS) return voce.ids;
+  const ids = leggiArchiviate(companyId);
+  memoria.set(companyId, { quando: ora, ids });
+  // Una lettura fallita non resta in memoria.
+  ids.catch(() => { if (memoria.get(companyId)?.ids === ids) memoria.delete(companyId); });
+  return ids;
+}
+
+async function leggiArchiviate(companyId: string): Promise<string[]> {
   const ids: string[] = [];
   const pageSize = 500;
   for (let offset = 0; ; offset += pageSize) {

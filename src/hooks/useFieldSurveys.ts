@@ -9,8 +9,10 @@ export function useFieldSurveyAccess(id: string | null = null) {
     queryKey: ["field-survey-access", profile?.company_id, user?.id, id],
     enabled: isCampo && !!user?.id && !!profile?.company_id,
     queryFn: () => fieldSurveyAccess(id),
-    staleTime: 0,
-    refetchInterval: 15000,
+    // 31/10/2026: era sempre scaduta e ogni 15 secondi (15.500 chiamate in 2 giorni,
+    // 64 ms l'una). Un permesso non cambia ogni 15 secondi: 2 minuti.
+    staleTime: 60_000,
+    refetchInterval: 120_000,
     retry: false,
   });
 }
@@ -32,7 +34,8 @@ export function useFieldSurveys(enabled: boolean) {
   return useQuery({
     queryKey: ["field-surveys", profile?.company_id, user?.id],
     enabled: enabled && isCampo && !!user?.id && !!profile?.company_id,
-    refetchInterval: 15000,
+    // Un sopralluogo assegnato compare entro un minuto (era ogni 15 secondi).
+    refetchInterval: 60_000,
     retry: false,
     queryFn: async () => {
       const { data, error } = await supabase
