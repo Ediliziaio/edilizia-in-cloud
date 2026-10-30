@@ -223,7 +223,8 @@ describe("serramenti: testata e foto del sistema", () => {
     const linea = { id: "l1", nome: "Linea Prova", tipologia: "Serramenti", descrizione: null as string | null, dati: [] as Array<{ etichetta: string; valore: string }>, scheda_tecnica_url: null as string | null, scheda_tecnica_nome: null as string | null, prodotti: "Finestra 2 Ante" };
     const dati = await datiDi({ sintesi: 200 });
     const conFoto = await leggi({ ...dati, lineeDedicate: [{ ...linea, immagine_url: png }] });
-    expect(conFoto.map((p) => p.testo).join(" ")).toContain("Immagine di catalogo: colori e finiture del tuo preventivo sono quelli indicati nella composizione.");
+    // Dal 27/10/2026 la didascalia la scrive PresentazioneProdottoPdf (rimanda all'abaco e alle scelte dell'offerta).
+    expect(piatto(conFoto.map((p) => p.testo).join(" "))).toContain(piatto("Immagine di catalogo. Configurazione e finiture effettive sono quelle dell'abaco"));
     const senzaFoto = await leggi({ ...dati, lineeDedicate: [{ ...linea, immagine_url: null }] });
     // La pagina c'è (l'occhiello è spaziato lettera per lettera), ma senza la foto non c'è nemmeno la didascalia.
     expect(piatto(senzaFoto.map((p) => p.testo).join(" "))).toContain("ilsistemascelto");

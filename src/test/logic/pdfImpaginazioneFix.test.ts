@@ -107,9 +107,10 @@ describe("SerramentoPDF: footer non sovrapposto e glifi WinAnsi", () => {
     expect(Number(m![1])).toBeGreaterThanOrEqual(90);
   });
 
-  it("niente '≈' (non-WinAnsi): usa '~' ASCII", () => {
+  it("niente '≈' (non-WinAnsi): la rata si scrive esatta, coi centesimi", () => {
     expect(src).not.toContain("≈");
-    expect(src).toContain("~ da € ");
+    // Dal 27/10/2026 (2f5ea4316) la rata non è più approssimata («~ da €»): esce col suo importo esatto.
+    expect(src).toContain("da € {fmtEuro(piano.rata_mese, 2)}/mese");
   });
 
   it("icone metriche renderizzate solo se ASCII stampabile", () => {
