@@ -22,6 +22,8 @@ import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
+import { bloccoPartenza3D, bloccoPianta, correzionePianta, righeQaPianta } from "../../../shared/render-planimetria/prompt.ts";
+import { caricaPiantaDelRender } from "./pianta.ts";
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const corsHeaders = {
@@ -172,6 +174,16 @@ Deno.serve(async (req: Request) => {
         already_completed: true,
       });
     }
+    // PLANIMETRIE (fase 5b): se il render parte da una stanza della pianta, misure,
+    // porte e finestre si rileggono dal database PRIMA del credito: un riferimento
+    // rotto ferma la richiesta senza scalare nulla.
+    const pianta = await caricaPiantaDelRender(
+      supabase,
+      companyId as string,
+      ((config || session.config) as Record<string, unknown> | null)?.planimetria,
+      (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
+    );
+
     // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
     // Il guard read-then-act ("status === processing → accepted") lasciava
     // passare due invocation simultanee → doppio addebito. Il claim generico
@@ -332,13 +344,20 @@ Deno.serve(async (req: Request) => {
         }));
       }
 
+      // Dalla vista del 3D: l'immagine di partenza non e' una foto. Va detto PRIMA di
+      // tutto il resto, perche' il modello legge "edit the source photo".
+      if (pianta?.partenza === "vista_3d") {
+        fullPrompt = `${bloccoPartenza3D()}\n\n${fullPrompt}`;
+      }
+
       // RIFERIMENTI CONDIVISI (libreria uguale per tutti): foto del pavimento, del
       // rivestimento pareti e dell'illuminazione a binario, solo per i sistemi attivi. Entrano negli slot lasciati
       // liberi dal catalogo dell'azienda (al massimo 4 immagini in tutto) e PRIMA dello
       // store, perche' prompt_used deve contenere la legenda che il modello legge.
       try {
         const refsCondivise = collectRoomReferenceImages(cfg);
-        const slotLiberi = 4 - catalogReferences.length;
+        // Uno slot resta alla pianta della stanza, se c'e': conta piu' di un campione.
+        const slotLiberi = 4 - catalogReferences.length - (pianta?.immagine ? 1 : 0);
         if (refsCondivise.length > 0 && slotLiberi > 0) {
           const fetched = await fetchSharedReferenceImages(
             refsCondivise.slice(0, slotLiberi),
@@ -358,6 +377,26 @@ Deno.serve(async (req: Request) => {
         }));
       }
 
+      // PLANIMETRIE: misure vere e aperture della stanza, con la sua pianta allegata
+      // come ultima immagine (se c'e' posto: al massimo 4 riferimenti).
+      if (pianta) {
+        let immaginePianta: number | null = null;
+        if (pianta.immagine && catalogReferences.length < 4) {
+          immaginePianta = 2 + catalogReferences.length;
+          catalogReferences = [...catalogReferences, pianta.immagine];
+        } else if (pianta.immagine) {
+          console.warn(JSON.stringify({
+            lvl: "warn", fn: "generate-room-render", session_id,
+            msg: "pianta_immagine_senza_posto", riferimenti: catalogReferences.length,
+          }));
+        }
+        fullPrompt = `${fullPrompt}\n\n${bloccoPianta(pianta.vincoli, {
+          partenza: pianta.partenza,
+          inquadrate: pianta.inquadrate,
+          immaginePianta,
+        })}`;
+      }
+
       // Store prompt
       await supabase
         .from("render_stanza_sessions")
@@ -370,6 +409,7 @@ Deno.serve(async (req: Request) => {
             ...normalizedConfig,
             prompt_validation: validation,
             input_image_meta: prepared.meta,
+            ...(pianta ? { planimetria: pianta.traccia } : {}),
           },
         })
         .eq("id", session_id);
@@ -472,7 +512,9 @@ Deno.serve(async (req: Request) => {
       try {
         const qaPrompt = [
           "You are a LENIENT quality inspector for an interior room restyling render.",
-          "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
+          pianta?.partenza === "vista_3d"
+            ? "Image 1 = SOURCE: a plain grey 3D model of the real room from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
+            : "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations:",
           "- duplicated_furniture: the candidate shows TWO of a fixture that exists once (two beds in one bedroom, two identical sofas, two dining tables).",
@@ -480,6 +522,7 @@ Deno.serve(async (req: Request) => {
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
           ...QA_BLOCCO_RICOMPOSIZIONE_RESTYLING,
+          ...(pianta ? righeQaPianta(pianta.vincoli, { partenza: pianta.partenza, inquadrate: pianta.inquadrate }) : []),
           "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 
@@ -522,7 +565,7 @@ Deno.serve(async (req: Request) => {
 [QC FAILURE — MANDATORY CORRECTIONS]
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
-Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (one bed, one sofa, one table unless the source shows more), never add/remove/move windows or doors, keep the exact source camera and crop. Fix every violation listed above.`;
+Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (one bed, one sofa, one table unless the source shows more), never add/remove/move windows or doors, keep the exact source camera and crop. Fix every violation listed above.${pianta ? ` ${correzionePianta(pianta.vincoli)}` : ""}`;
           const primoTentativo = providerResult;
           // Il retry va anch'esso sul solo provider diretto. Se finisse su OpenRouter
           // tornerebbe un quadrato, e un retry che rompe il formato consegna un render
@@ -654,6 +697,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             provider_model_used: modelUsed,
             provider_attempts: providerResult.attempts,
             generation_attempts: generationAttempts,
+            ...(pianta ? { planimetria: pianta.traccia } : {}),
           },
         })
         .eq("id", session_id);

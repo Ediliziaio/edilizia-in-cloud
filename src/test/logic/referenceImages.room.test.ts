@@ -274,7 +274,8 @@ describe("generate-room-render: foto condivise dopo il catalogo dell'azienda", (
 
   it("raccoglie le foto dal config del wizard e le scarica solo negli slot liberi", () => {
     expect(src).toMatch(/collectRoomReferenceImages\(cfg\)/);
-    expect(src).toMatch(/const slotLiberi = 4 - catalogReferences\.length;/);
+    // Uno slot resta alla pianta della stanza quando il render parte da una planimetria.
+    expect(src).toMatch(/const slotLiberi = 4 - catalogReferences\.length - \(pianta\?\.immagine \? 1 : 0\);/);
     expect(src).toMatch(/fetchSharedReferenceImages\(\s*refsCondivise\.slice\(0, slotLiberi\)/);
   });
 
