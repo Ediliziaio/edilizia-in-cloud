@@ -16,6 +16,8 @@ import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { campiDaTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -764,10 +766,11 @@ function FornitoreDialogAperta({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="address">Via / Indirizzo</Label>
-                    <Input
+                    <CampoIndirizzo
                       id="address"
                       value={formData.address}
-                      onChange={(e) => updateField("address", e.target.value)}
+                      onChange={(v) => updateField("address", v)}
+                      onScegli={(a) => setFormData((prev) => ({ ...prev, ...campiDaTrovato(a, { via: "address", citta: "city", provincia: "province", cap: "postal_code" }) }))}
                       placeholder="Via Roma 1"
                       maxLength={200}
                     />
@@ -829,12 +832,11 @@ function FornitoreDialogAperta({
                     <Label htmlFor="ritiro_indirizzo">
                       Indirizzo di ritiro
                     </Label>
-                    <Input
+                    <CampoIndirizzo
                       id="ritiro_indirizzo"
                       value={formData.ritiro_indirizzo}
-                      onChange={(e) =>
-                        updateField("ritiro_indirizzo", e.target.value)
-                      }
+                      onChange={(v) => updateField("ritiro_indirizzo", v)}
+                      onScegli={(a) => setFormData((prev) => ({ ...prev, ...campiDaTrovato(a, { via: "ritiro_indirizzo", citta: "ritiro_citta" }) }))}
                       placeholder="Via del Magazzino 10"
                       maxLength={200}
                     />

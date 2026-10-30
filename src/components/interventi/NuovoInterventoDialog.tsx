@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -292,10 +293,11 @@ export function NuovoInterventoDialog({
 
           {/* Indirizzo */}
           <div className="space-y-1.5">
-            <Label>Indirizzo intervento</Label>
-            <Input
+            <Label htmlFor="nuovo-intervento-indirizzo">Indirizzo intervento</Label>
+            <CampoIndirizzo
+              id="nuovo-intervento-indirizzo"
               value={indirizzo}
-              onChange={(e) => setIndirizzo(e.target.value)}
+              onChange={setIndirizzo}
               placeholder="Via, città..."
               disabled={mutation.isPending}
             />

@@ -31,6 +31,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { contrattoDiOggi, oggiISO } from "@/lib/appalto/contratti";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { useToast } from "@/hooks/use-toast";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { logger } from "@/utils/logger";
@@ -103,6 +104,8 @@ export default function CreateLavoroAppaltatore() {
   const [orderCode, setOrderCode] = useState("");
   const [description, setDescription] = useState("");
   const [workAddress, setWorkAddress] = useState("");
+  // Le coordinate dell'indirizzo scelto tra i suggerimenti: valgono finché il testo resta quello scelto.
+  const [workCoords, setWorkCoords] = useState<{ testo: string; lat: number; lng: number } | null>(null);
   const [workDescription, setWorkDescription] = useState("");
   const [materialsLocation, setMaterialsLocation] = useState("");
   const [workStartDate, setWorkStartDate] = useState("");
@@ -339,6 +342,9 @@ export default function CreateLavoroAppaltatore() {
         ? []
         : installments.map((i) => (i.type === "balance" ? { ...i, amount: balanceComputed } : i));
       const legacy = aMisura ? {} : installmentsToLegacyColumns(installmentsForSave);
+      const coordinateScelte = workCoords && workCoords.testo === workAddress.trim()
+        ? { work_lat: workCoords.lat, work_lng: workCoords.lng }
+        : null;
 
       const payload = {
         company_id: companyId,
@@ -356,6 +362,7 @@ export default function CreateLavoroAppaltatore() {
         tetto_importo: tetto ? parseDecimalIT(tetto) : null,
         riferimento_committente: rifCommittente.trim() || null,
         work_address: workAddress.trim() || null,
+        ...coordinateScelte,
         work_description: workDescription.trim() || null,
         materials_location: materialsLocation.trim() || null,
         work_start_date: toIsoDate(workStartDate),
@@ -374,8 +381,9 @@ export default function CreateLavoroAppaltatore() {
       const orderId = (data as { id: string }).id;
 
       // Geocoding automatico cantiere (best-effort, in background):
-      // popola work_lat/lng senza bloccare la creazione del lavoro.
-      if (workAddress.trim()) {
+      // popola work_lat/lng senza bloccare la creazione del lavoro. Non serve
+      // se l'indirizzo è stato scelto tra i suggerimenti: le coordinate ci sono già.
+      if (workAddress.trim() && !coordinateScelte) {
         void geocodeBestEffort([workAddress]).then((coords) => {
           if (!coords) return;
           return supabase
@@ -685,10 +693,14 @@ export default function CreateLavoroAppaltatore() {
                 <MapPin className="h-3.5 w-3.5" />
                 Indirizzo del cantiere
               </Label>
-              <Input
+              <CampoIndirizzo
                 id="workAddress"
                 value={workAddress}
-                onChange={(e) => setWorkAddress(e.target.value)}
+                onChange={setWorkAddress}
+                onScegli={(a) => {
+                  setWorkAddress(a.testo);
+                  setWorkCoords(a.lat != null && a.lng != null ? { testo: a.testo, lat: a.lat, lng: a.lng } : null);
+                }}
                 placeholder="Via del cantiere, 5 — 20100 Milano"
                 maxLength={250}
               />

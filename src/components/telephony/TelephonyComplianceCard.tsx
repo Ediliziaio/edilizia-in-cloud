@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { campiDaTrovato, separaCivico } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheck, Upload, Loader2, FileCheck2, Send, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
@@ -199,7 +201,15 @@ export function TelephonyComplianceCard() {
               <Field label="Email di contatto"><Input value={form.email_contatto ?? ""} onChange={(e) => set("email_contatto", e.target.value)} type="email" /></Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-6">
-              <div className="sm:col-span-4"><Field label="Indirizzo *"><Input value={form.indirizzo ?? ""} onChange={(e) => set("indirizzo", e.target.value)} /></Field></div>
+              <div className="sm:col-span-4"><Field label="Indirizzo *"><CampoIndirizzo
+                aria-label="Indirizzo"
+                value={form.indirizzo ?? ""}
+                onChange={(v) => set("indirizzo", v)}
+                onScegli={(a) => {
+                  const { strada, civico } = separaCivico(a.via);
+                  setForm((f) => ({ ...f, ...campiDaTrovato(a, { via: "indirizzo", citta: "citta", cap: "cap", provincia: "provincia" }), indirizzo: strada, civico }));
+                }}
+              /></Field></div>
               <div className="sm:col-span-2"><Field label="Civico"><Input value={form.civico ?? ""} onChange={(e) => set("civico", e.target.value)} /></Field></div>
               <div className="sm:col-span-2"><Field label="Città *"><Input value={form.citta ?? ""} onChange={(e) => set("citta", e.target.value)} /></Field></div>
               <div className="sm:col-span-1"><Field label="CAP *"><Input value={form.cap ?? ""} onChange={(e) => set("cap", e.target.value)} /></Field></div>

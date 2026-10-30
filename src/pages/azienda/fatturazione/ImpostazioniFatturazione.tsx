@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { campiDaTrovato, separaCivico } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -422,7 +424,17 @@ export default function ImpostazioniFatturazione() {
           <Card>
             <CardHeader><CardTitle className="text-base">Sede Legale</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-indirizzo">Indirizzo</Label><Input id="az-indirizzo" value={current.indirizzo_via ?? ""} onChange={(e) => updateField("indirizzo_via", e.target.value)} placeholder="Via Roma" /></div>
+              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-indirizzo">Indirizzo</Label><CampoIndirizzo
+                id="az-indirizzo"
+                value={current.indirizzo_via ?? ""}
+                onChange={(v) => updateField("indirizzo_via", v)}
+                onScegli={(a) => {
+                  const { strada, civico } = separaCivico(a.via);
+                  const campi = campiDaTrovato(a, { via: "indirizzo_via", citta: "indirizzo_comune", cap: "indirizzo_cap", provincia: "indirizzo_provincia" });
+                  setForm((p) => ({ ...p, ...campi, indirizzo_via: strada, indirizzo_numero_civico: civico }));
+                }}
+                placeholder="Via Roma"
+              /></div>
               <div className="space-y-2"><Label htmlFor="az-civico">N. Civico</Label><Input id="az-civico" value={current.indirizzo_numero_civico ?? ""} onChange={(e) => updateField("indirizzo_numero_civico", e.target.value)} placeholder="1" /></div>
               <div className="space-y-2"><Label htmlFor="az-cap">CAP</Label><Input id="az-cap" value={current.indirizzo_cap ?? ""} onChange={(e) => updateField("indirizzo_cap", e.target.value)} placeholder="00100" maxLength={5} /></div>
               <div className="space-y-2"><Label htmlFor="az-comune">Comune</Label><Input id="az-comune" value={current.indirizzo_comune ?? ""} onChange={(e) => updateField("indirizzo_comune", e.target.value)} placeholder="Roma" /></div>

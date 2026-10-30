@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CampoIndirizzo } from '@/components/shared/CampoIndirizzo';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -919,10 +920,11 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               />
             </div>
             <div className="space-y-1.5 max-sm:hidden">
-              <Label>Indirizzo sede</Label>
-              <Input
+              <Label htmlFor="subappaltatore-indirizzo">Indirizzo sede</Label>
+              <CampoIndirizzo
+                id="subappaltatore-indirizzo"
                 value={form.indirizzo}
-                onChange={(e) => setForm(f => ({ ...f, indirizzo: e.target.value }))}
+                onChange={(v) => setForm(f => ({ ...f, indirizzo: v }))}
                 placeholder="Via Roma 1, 35100 Padova (PD)"
               />
             </div>

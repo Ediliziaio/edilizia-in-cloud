@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
+import { CampoIndirizzo } from '@/components/shared/CampoIndirizzo'
+import { riempiCampi } from '@/lib/indirizzi/ricercaIndirizzi'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -857,7 +859,14 @@ export default function SettingsSedi() {
             {/* Indirizzo */}
             <div className="space-y-1.5">
               <Label htmlFor="sede-indirizzo">Indirizzo</Label>
-              <Input id="sede-indirizzo" placeholder="Via Roma 1" {...form.register('indirizzo')} />
+              <CampoIndirizzo
+                id="sede-indirizzo"
+                placeholder="Via Roma 1"
+                value={form.watch('indirizzo') ?? ''}
+                onChange={(v) => form.setValue('indirizzo', v, { shouldDirty: true })}
+                onScegli={(a) => riempiCampi(a, (campo, valore) =>
+                  form.setValue(({ via: 'indirizzo', citta: 'citta', cap: 'cap', provincia: 'provincia' } as const)[campo], valore, { shouldDirty: true, shouldValidate: campo !== 'via' }))}
+              />
             </div>
 
             {/* Città + CAP + Provincia */}

@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import {
   Select,
   SelectContent,
@@ -577,9 +578,10 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
                     maxLength={160}
                   />
                 </div>
-                <Input
+                <CampoIndirizzo
+                  aria-label="Indirizzo del destinatario"
                   value={liberoIndirizzo}
-                  onChange={(e) => setLiberoIndirizzo(e.target.value)}
+                  onChange={setLiberoIndirizzo}
                   placeholder="Indirizzo (via, città)"
                   maxLength={200}
                 />
@@ -735,7 +737,7 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
                         <Input value={vettoreTerzoNome} onChange={(e) => setVettoreTerzoNome(e.target.value)} placeholder="Ragione sociale vettore terzo" maxLength={120} />
                       </div>
                       <Input value={vettoreTerzoPiva} onChange={(e) => setVettoreTerzoPiva(e.target.value)} placeholder="P.IVA" maxLength={20} />
-                      <Input value={vettoreTerzoIndirizzo} onChange={(e) => setVettoreTerzoIndirizzo(e.target.value)} placeholder="Sede legale (via, città)" maxLength={200} />
+                      <CampoIndirizzo aria-label="Sede legale del vettore" value={vettoreTerzoIndirizzo} onChange={setVettoreTerzoIndirizzo} placeholder="Sede legale (via, città)" maxLength={200} />
                     </div>
                   )}
                 </div>

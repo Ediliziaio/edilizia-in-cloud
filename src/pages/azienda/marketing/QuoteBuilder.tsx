@@ -82,6 +82,7 @@ import type { ConfiguredItem } from "@/types/catalogItem";
 import { useFamilies } from "@/hooks/useFamilies";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2549,8 +2550,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                   </div>
                 </div>
                 <div className="col-span-2">
-                  <Label>Indirizzo</Label>
-                  <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" />
+                  <Label htmlFor="quote-client-address">Indirizzo</Label>
+                  <CampoIndirizzo id="quote-client-address" value={clientAddress} onChange={setClientAddress} placeholder="Via Roma 1, 20100 Milano (MI)" />
                 </div>
               </div>
             </div>
@@ -2689,11 +2690,12 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 />
               </div>
               <div className="md:col-span-2">
-                <Label>Indirizzo lavori (se diverso da cliente)</Label>
-                <Input
+                <Label htmlFor="quote-work-address">Indirizzo lavori (se diverso da cliente)</Label>
+                <CampoIndirizzo
+                  id="quote-work-address"
                   value={indirizzoLavori}
                   maxLength={localEditor ? 300 : undefined}
-                  onChange={(e) => setIndirizzoLavori(e.target.value)}
+                  onChange={setIndirizzoLavori}
                   placeholder="Via, Città"
                 />
               </div>

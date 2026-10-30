@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -284,10 +285,10 @@ export function WhatsAppProfiloDialog({ number, open, onOpenChange }: Props) {
                 <Label htmlFor={idCampo("indirizzo")}>Indirizzo</Label>
                 <Contatore valore={modulo.indirizzo} massimo={LIMITI_PROFILO.indirizzo} />
               </div>
-              <Input
+              <CampoIndirizzo
                 id={idCampo("indirizzo")}
                 value={modulo.indirizzo}
-                onChange={(e) => cambia("indirizzo", e.target.value)}
+                onChange={(v) => cambia("indirizzo", v)}
                 placeholder="Via, numero, città"
               />
               <Errore testo={errori.indirizzo} />

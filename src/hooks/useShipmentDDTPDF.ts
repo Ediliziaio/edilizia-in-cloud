@@ -17,6 +17,7 @@ import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { luogoConsegnaDDT } from "@/lib/ddt/luogoConsegna";
 // PERF: import SOLO i type (tree-shakable, niente runtime). Il modulo
 // pesante @react-pdf/renderer + ShipmentDDTPDF component viene caricato
 // dinamicamente al primo click su "Scarica/Salva PDF" — vedi loadPdfModule().
@@ -211,16 +212,7 @@ export function useShipmentDDTPDF() {
         pec: asString(cs.pec),
       };
 
-      const ic = ddtRec.ddt_indirizzo_consegna ?? null;
-      const indirizzo_consegna: DDTIndirizzoConsegna | null = ic
-        ? {
-            address: asString((ic as Record<string, unknown>).address) ?? asString((ic as Record<string, unknown>).indirizzo) ?? asString((ic as Record<string, unknown>).via),
-            city: asString((ic as Record<string, unknown>).city) ?? asString((ic as Record<string, unknown>).citta) ?? asString((ic as Record<string, unknown>).comune),
-            postal_code: asString((ic as Record<string, unknown>).postal_code) ?? asString((ic as Record<string, unknown>).cap),
-            province: asString((ic as Record<string, unknown>).province) ?? asString((ic as Record<string, unknown>).provincia),
-            riferimento: asString((ic as Record<string, unknown>).riferimento) ?? asString((ic as Record<string, unknown>).descrizione),
-          }
-        : null;
+      const indirizzo_consegna: DDTIndirizzoConsegna | null = luogoConsegnaDDT(ddtRec.ddt_indirizzo_consegna);
 
       const dv = (ddtRec.ddt_vettore ?? {}) as Record<string, unknown>;
       const tipo = (asString(dv.tipo) ?? "azienda") as DDTVettore["tipo"];

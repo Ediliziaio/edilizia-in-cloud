@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, MessageCircle, Plus, Save, Trash2 } from "lucide-react";
@@ -296,7 +297,13 @@ export function AgenteWhatsAppLeadPanel({ agentId, companyId, toolsConfig, stato
                 <div key={i} className="rounded-md border bg-muted/30 p-2 space-y-2">
                   <div className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
                     <Input value={x.nome} onChange={(e) => cambiaShowroom(i, { nome: e.target.value })} placeholder="Nome (es. Lissone)" className="h-9" />
-                    <Input value={x.indirizzo ?? ""} onChange={(e) => cambiaShowroom(i, { indirizzo: e.target.value })} placeholder="Indirizzo che l'agente scrive al cliente" className="h-9" />
+                    <CampoIndirizzo
+                      aria-label="Indirizzo dello showroom"
+                      value={x.indirizzo ?? ""}
+                      onChange={(v) => cambiaShowroom(i, { indirizzo: v })}
+                      placeholder="Indirizzo che l'agente scrive al cliente"
+                      className="h-9"
+                    />
                     <Button type="button" variant="ghost" size="icon" aria-label="Togli lo showroom" onClick={() => setShowroom((prev) => prev.filter((_, j) => j !== i))}>
                       <Trash2 className="h-4 w-4" />
                     </Button>

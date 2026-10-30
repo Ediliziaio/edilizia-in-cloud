@@ -23,6 +23,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
@@ -773,10 +775,14 @@ export default function CreateCompany() {
                       <FormItem>
                         <FormLabel>Indirizzo</FormLabel>
                         <FormControl>
-                          <Input
-                            autoComplete="street-address"
+                          <CampoIndirizzo
                             placeholder="Via Roma 1"
-                            {...field}
+                            name={field.name}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            onScegli={(a) => riempiCampi(a, (campo, valore) =>
+                              form.setValue(({ via: "legalAddress", citta: "legalCity", provincia: "legalProvince", cap: "legalPostalCode" } as const)[campo], valore, { shouldDirty: true, shouldValidate: true }))}
                           />
                         </FormControl>
                         <FormMessage />
@@ -874,7 +880,15 @@ export default function CreateCompany() {
                           <FormItem>
                             <FormLabel>Indirizzo</FormLabel>
                             <FormControl>
-                              <Input placeholder="Via Roma 1" {...field} />
+                              <CampoIndirizzo
+                                placeholder="Via Roma 1"
+                                name={field.name}
+                                value={field.value ?? ""}
+                                onChange={field.onChange}
+                                onBlur={field.onBlur}
+                                onScegli={(a) => riempiCampi(a, (campo, valore) =>
+                                  form.setValue(({ via: "operationalAddress", citta: "operationalCity", provincia: "operationalProvince", cap: "operationalPostalCode" } as const)[campo], valore, { shouldDirty: true, shouldValidate: true }))}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

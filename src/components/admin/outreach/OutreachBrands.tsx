@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check, Clock, Link2, Play, Pause } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
@@ -215,7 +216,7 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
               <Textarea value={signature} onChange={(e) => setSignature(e.target.value)} placeholder={"Cordiali saluti,\n{{first_name}}\nEdilizia in Cloud"} rows={3} className="text-sm" />
               <p className="text-[11px] text-muted-foreground">Appesa in fondo a ogni email. Supporta {"{{first_name}}"} e spintax.</p></div>
             <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Indirizzo (footer)</FieldLabel>
-              <Input value={footerAddress} onChange={(e) => setFooterAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-9" />
+              <CampoIndirizzo aria-label="Indirizzo (footer)" value={footerAddress} onChange={setFooterAddress} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-9" />
               <p className="text-[11px] text-muted-foreground">Indirizzo postale nel footer (obbligo anti-spam).</p></div>
             <div className="space-y-1.5 sm:col-span-2"><FieldLabel>Link su dominio del brand</FieldLabel>
               <Input value={trackingBase} onChange={(e) => setTrackingBase(e.target.value)} placeholder="https://link.tuodominio.it/l" className="h-9 font-mono" />

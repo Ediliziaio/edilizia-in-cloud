@@ -13,6 +13,7 @@ import { TicketRichiamiCard } from "@/components/tickets/TicketRichiamiCard";
 import { TicketCostiCard } from "@/components/tickets/TicketCostiCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -779,13 +780,14 @@ export default function TicketDetail() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Label htmlFor="ticket-intervento-indirizzo" className="text-xs text-muted-foreground flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
                   Indirizzo intervento
                 </Label>
-                <Input
+                <CampoIndirizzo
+                  id="ticket-intervento-indirizzo"
                   value={interventoIndirizzo}
-                  onChange={(e) => setInterventoIndirizzo(e.target.value)}
+                  onChange={setInterventoIndirizzo}
                   placeholder="Via, n°, città…"
                   className="h-8 text-xs"
                   disabled={isClosed}
@@ -966,11 +968,12 @@ export default function TicketDetail() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Indirizzo intervento</Label>
-              <Input
+              <Label htmlFor="ticket-escalation-indirizzo">Indirizzo intervento</Label>
+              <CampoIndirizzo
+                id="ticket-escalation-indirizzo"
                 placeholder="Via Roma 1, Milano..."
                 value={escalationIndirizzo}
-                onChange={(e) => setEscalationIndirizzo(e.target.value)}
+                onChange={setEscalationIndirizzo}
               />
             </div>
             <div className="space-y-1.5">

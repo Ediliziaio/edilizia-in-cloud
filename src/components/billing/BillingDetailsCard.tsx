@@ -12,6 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -135,10 +137,12 @@ export function BillingDetailsCard() {
 
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="bd-addr1">Indirizzo*</Label>
-                <Input
+                <CampoIndirizzo
                   id="bd-addr1"
                   value={form.address_line1 ?? ""}
-                  onChange={(e) => update("address_line1", e.target.value)}
+                  onChange={(v) => update("address_line1", v)}
+                  onScegli={(a) => riempiCampi(a, (campo, valore) =>
+                    update(({ via: "address_line1", citta: "city", cap: "postal_code", provincia: "province" } as const)[campo], valore))}
                   placeholder="Via Roma 12"
                 />
               </div>

@@ -3,6 +3,8 @@ import { useForm } from "react-hook-form";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -313,7 +315,19 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                   <div>
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">RESIDENZA & RECAPITI</h4>
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
-                      <div className="col-span-2 max-sm:hidden"><Label>Indirizzo</Label><Input {...register("indirizzo")} /></div>
+                      <div className="col-span-2 max-sm:hidden">
+                        <Label htmlFor="hr-indirizzo">Indirizzo</Label>
+                        <CampoIndirizzo
+                          id="hr-indirizzo"
+                          value={watch("indirizzo") ?? ""}
+                          onChange={(v) => setValue("indirizzo", v, { shouldDirty: true })}
+                          onScegli={(a) => riempiCampi(a, (campo, valore) => {
+                            if (campo === "via") setValue("indirizzo", valore, { shouldDirty: true });
+                            else if (campo === "citta") setValue("citta_residenza", valore, { shouldDirty: true });
+                            else if (campo === "cap") setValue("cap_residenza", valore, { shouldDirty: true });
+                          })}
+                        />
+                      </div>
                       <div className="max-sm:hidden"><Label>Città</Label><Input {...register("citta_residenza")} /></div>
                       <div className="max-sm:hidden"><Label>CAP</Label><Input {...register("cap_residenza")} /></div>
                       <div><Label>Email</Label><Input type="email" {...register("email")} /></div>

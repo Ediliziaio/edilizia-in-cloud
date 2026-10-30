@@ -29,6 +29,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { campiDaTrovato } from "@/lib/indirizzi/ricercaIndirizzi";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -705,10 +707,12 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
               />
             </div>
             <div className="col-span-2">
-              <Label className="text-xs">Indirizzo</Label>
-              <Input
+              <Label htmlFor="capture-cliente-indirizzo" className="text-xs">Indirizzo</Label>
+              <CampoIndirizzo
+                id="capture-cliente-indirizzo"
                 value={customer.indirizzo ?? ""}
-                onChange={(e) => setCustomer((c) => ({ ...c, indirizzo: e.target.value }))}
+                onChange={(v) => setCustomer((c) => ({ ...c, indirizzo: v }))}
+                onScegli={(a) => setCustomer((c) => ({ ...c, ...campiDaTrovato(a, { via: "indirizzo", citta: "citta", cap: "cap", provincia: "provincia" }) }))}
                 className="h-8"
               />
             </div>

@@ -17,6 +17,7 @@ import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -388,8 +389,8 @@ export function NuovoTicketForm({ initial, variant = "page", onCreated }: NuovoT
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Indirizzo intervento</Label>
-          <Input value={indirizzoIntervento} onChange={(e) => setIndirizzoIntervento(e.target.value)} placeholder="Via, città…" />
+          <Label htmlFor="nuovo-ticket-indirizzo" className="text-xs">Indirizzo intervento</Label>
+          <CampoIndirizzo id="nuovo-ticket-indirizzo" value={indirizzoIntervento} onChange={setIndirizzoIntervento} placeholder="Via, città…" />
         </div>
 
         {customerId && impianti.length > 0 && (

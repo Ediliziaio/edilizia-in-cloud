@@ -25,6 +25,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-editor-safe";
@@ -1501,10 +1502,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false, localMod
               />
             </div>
             <div className="col-span-12">
-              <Label className="text-xs">Indirizzo completo</Label>
-              <Input
+              <Label htmlFor="modello-indirizzo-completo" className="text-xs">Indirizzo completo</Label>
+              <CampoIndirizzo
+                id="modello-indirizzo-completo"
                 value={form.indirizzo_completo ?? ""}
-                onChange={(e) => update("indirizzo_completo", e.target.value)}
+                onChange={(v) => update("indirizzo_completo", v)}
                 placeholder={inheritedPlaceholder(companyAnagrafica?.indirizzo_completo, "Es. Via Roma 42 · 20121 Milano (MI)")}
                 className="h-9"
               />

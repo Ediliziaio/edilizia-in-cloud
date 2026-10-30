@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
+import { riempiCampi } from "@/lib/indirizzi/ricercaIndirizzi";
 import {
   Dialog,
   DialogContent,
@@ -716,7 +718,23 @@ function SedeDialog({
           {field("hr-sede-nome", "Nome sede *", nome, setNome, {
             maxLength: 180,
           })}
-          {field("hr-sede-indirizzo", "Indirizzo", indirizzo, setIndirizzo)}
+          <div>
+            <Label htmlFor="hr-sede-indirizzo">Indirizzo</Label>
+            <CampoIndirizzo
+              id="hr-sede-indirizzo"
+              value={indirizzo}
+              onChange={setIndirizzo}
+              onScegli={(a) => {
+                riempiCampi(a, (campo, valore) =>
+                  ({ via: setIndirizzo, citta: setCitta, provincia: setProvincia, cap: setCap })[campo](valore));
+                // Le coordinate della timbratura si propongono solo se mancano: quelle prese sul posto restano.
+                if (a.lat != null && a.lng != null && !lat.trim() && !lng.trim()) {
+                  setLat(a.lat.toFixed(6));
+                  setLng(a.lng.toFixed(6));
+                }
+              }}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {field("hr-sede-citta", "Città", citta, setCitta)}
             {field("hr-sede-provincia", "Provincia", provincia, setProvincia, {
