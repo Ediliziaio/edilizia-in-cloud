@@ -58,6 +58,16 @@ describe("la proposta, dagli indizi più solidi", () => {
     expect(proponiTipo({ nome: "Rossi Srl", categorieFatture: ["altro", "trasporti_logistica"] })).toMatchObject({ tipo: "noli_servizi" });
   });
 
+  it("le parole del mestiere nel nome: proposta probabile, mai sicura", () => {
+    expect(proponiTipo({ nome: "GIELLE SERRAMENTI S.R.L." })).toMatchObject({ tipo: "materiali", sicurezza: "probabile" });
+    expect(proponiTipo({ nome: "EKO-OKNA S.A." })).toMatchObject({ tipo: "materiali" });
+    expect(proponiTipo({ nome: "C.D.L. LAMIERE S.N.C." })).toMatchObject({ tipo: "materiali" });
+    expect(proponiTipo({ nome: "Edil Scavi e Demolizioni Srl" })).toMatchObject({ tipo: "subappalto", sicurezza: "probabile" });
+    expect(proponiTipo({ nome: "Autotrasporti Bianchi" })).toMatchObject({ tipo: "noli_servizi" });
+    // La categoria della scheda vince sulle parole del nome.
+    expect(proponiTipo({ nome: "Rossi Serramenti", categoriaScheda: "subappalti" })).toMatchObject({ tipo: "subappalto" });
+  });
+
   it("senza indizi niente proposta", () => {
     expect(proponiTipo({ nome: "Rossi Srl" })).toBeNull();
   });

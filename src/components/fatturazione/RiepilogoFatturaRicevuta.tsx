@@ -18,6 +18,7 @@ import {
   riepilogoIvaLeggibile,
   righeLeggibili,
 } from "@/lib/fatturazione/riepilogoRicevuta";
+import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 
 /**
  * La fattura ricevuta come si legge su carta: chi la manda, cosa fattura, quanto,
@@ -33,7 +34,7 @@ interface Dettaglio {
   fattura: Riga;
   ordini: Array<{ id: string; oda_number: string; importo: number | null; commessa: { id: string; order_code: string } | null }>;
   costo: { id: string; amount: number | null; commessa: { id: string; order_code: string } | null; ripartito: boolean } | null;
-  fornitore: { id: string; name: string } | null;
+  fornitore: { id: string; name: string; tipo?: string | null } | null;
   /** Senza fornitore: le schede dell'anagrafica con la stessa partita IVA (o codice fiscale). */
   candidatiFornitore: Array<{ id: string; name: string }>;
   /** Schede con la stessa partita IVA ma l'altro identificativo diverso: da correggere, non da duplicare. */
@@ -90,7 +91,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
       ? db.from("company_costs").select("id, amount, allocations, orders(id, order_code)").eq("id", f.company_cost_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.fornitore_id
-      ? db.from("suppliers").select("id, name").eq("id", f.fornitore_id).eq("company_id", companyId).maybeSingle()
+      ? db.from("suppliers").select("id, name, tipo").eq("id", f.fornitore_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.order_id_suggerito
       ? db.from("orders").select("id, order_code, client_name, description").eq("id", f.order_id_suggerito).eq("company_id", companyId).is("deleted_at", null).maybeSingle()
@@ -312,10 +313,19 @@ export function RiepilogoFatturaRicevuta({
             {/* Collegamenti */}
             <section className="space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> A cosa è collegata</h3>
-              <dl className="grid grid-cols-[6.5rem_1fr] sm:grid-cols-[8.5rem_1fr] gap-x-3 gap-y-2 text-sm">
+              <dl className="grid grid-cols-[6.5rem_1fr] items-baseline gap-x-3 gap-y-2 text-sm sm:grid-cols-[8.5rem_1fr]">
                 <dt className="text-muted-foreground">Fornitore</dt>
                 <dd>
-                  {d.fornitore ? d.fornitore.name : (
+                  {d.fornitore ? (
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {d.fornitore.name}
+                      {isTipoFornitore(d.fornitore.tipo) ? (
+                        <Badge variant="secondary" className="text-[11px]">{INFO_TIPO_FORNITORE[d.fornitore.tipo].etichetta}</Badge>
+                      ) : (
+                        <Link to="/azienda/documenti/tipi-fornitori" className="text-xs text-primary underline-offset-2 hover:underline">Dai un tipo</Link>
+                      )}
+                    </span>
+                  ) : (
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-muted-foreground">Non in anagrafica</span>
                       {d.candidatiFornitore.length === 1 ? (
@@ -362,6 +372,11 @@ export function RiepilogoFatturaRicevuta({
                     const uniche = [...new Map(commesse.map((c) => [c.id, c])).values()];
                     // Si sceglie qui solo senza ordine d'acquisto (con l'ordine la commessa viene
                     // da lì) e se il costo non è ripartito su più commesse.
+                    // Spese generali (telefonia, luce, banca…): non vanno su una commessa.
+                    const generale = isTipoFornitore(d.fornitore?.tipo) && INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].commessa === "no";
+                    if (generale && !uniche.length) {
+                      return <span className="text-muted-foreground">Non serve: {INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].etichetta.toLowerCase()}</span>;
+                    }
                     const sceglibile = d.ordini.length === 0 && !d.costo?.ripartito && f.stato !== "rifiutata";
                     return (
                       <>
@@ -466,12 +481,12 @@ export function RiepilogoFatturaRicevuta({
                     </thead>
                     <tbody>
                       {righe.map((r, i) => (
-                        <tr key={i} className="border-t align-top">
+                        <tr key={i} className="border-t align-baseline">
                           <td className="px-2 py-1.5 whitespace-pre-line">{r.descrizione || "—"}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{r.quantita != null ? r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 }) : ""}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{r.prezzoUnitario != null ? formatCurrency(r.prezzoUnitario) : ""}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(r.imponibile)}</td>
-                          <td className="px-2 py-1.5 text-right text-xs text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
+                          <td className="px-2 py-1.5 text-right text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
                             {r.aliquota ? `${String(r.aliquota).replace(".", ",")}%` : r.natura?.toUpperCase().startsWith("N6") ? "RC" : r.natura ? r.natura : "0%"}
                           </td>
                         </tr>

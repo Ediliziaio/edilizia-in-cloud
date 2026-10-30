@@ -88,6 +88,22 @@ const DA_NOME: Array<[RegExp, TipoFornitore]> = [
   [/\b(studio|ing\.|ingegner|arch\.|architett|geom\.|geometr|dott\.|commercialist|avvocat|notai|consulen)/, "professionisti"],
 ];
 
+/**
+ * Le parole del mestiere nel nome: «GIELLE SERRAMENTI», «C.D.L. LAMIERE», «Edil
+ * Scavi». Indizio più debole dei nomi noti: la proposta resta da guardare.
+ */
+const DA_PAROLE_NEL_NOME: Array<[RegExp, TipoFornitore]> = [
+  [/costruzion|demolizion|scavi|movimento terra|montagg|posa in opera|installazion|ristrutturaz|cartongess|imbiancatur|tinteggiat|pittur|impresa edile|carpenteri/, "subappalto"],
+  [/nolegg|nolo |autogru|trasport|logistic|spedizion|corrier|autotrasp|ecologi|rifiuti|smaltiment|ponteggi|laboratorio prove/, "noli_servizi"],
+  [/serrament|infiss|finestr|okna|window|portoni|lamier|acciai|metall|legnam|plast|ceramich|piastrell|marmi|vernic|colorific|termoidraul|idraulic|materiali|forniture|calcestruzz|betonier|laterizi|isolant|vetr|allumin|pvc|fotovoltaic|climatizz|sanitari|ferrament|edilizia|edilcentro/, "materiali"],
+];
+
+export function tipoDaParoleNelNome(nome: string | null | undefined): TipoFornitore | null {
+  const n = String(nome ?? "").toLowerCase();
+  for (const [re, tipo] of DA_PAROLE_NEL_NOME) if (re.test(n)) return tipo;
+  return null;
+}
+
 export function tipoDaNome(nome: string | null | undefined): TipoFornitore | null {
   const n = ` ${String(nome ?? "").toLowerCase()} `;
   for (const [re, tipo] of DA_NOME) if (re.test(n)) return tipo;
@@ -129,6 +145,8 @@ export function proponiTipo(i: IndiziFornitore): PropostaTipo | null {
     const t = tipoDaCategoria(c);
     if (t) return { tipo: t, motivo: `Dalle sue fatture (${String(c).replace(/_/g, " ")})`, sicurezza: "probabile" };
   }
+  const daParole = tipoDaParoleNelNome(i.nome);
+  if (daParole) return { tipo: daParole, motivo: "Dal nome (da controllare)", sicurezza: "probabile" };
   return null;
 }
 
