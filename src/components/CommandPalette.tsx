@@ -57,7 +57,7 @@ interface SemanticResponse {
 const ENTITY_LABEL: Record<string, { label: string; route: (id: string) => string }> = {
   customer:      { label: "Cliente",       route: (id) => `/azienda/clienti/${id}` },
   order:         { label: "Commessa",      route: (id) => `/azienda/ordini/${id}` },
-  invoice:       { label: "Fattura",       route: (id) => `/azienda/fatturazione/${id}` },
+  invoice:       { label: "Fattura",       route: (id) => `/azienda/documenti/importata/${id}` },
   opportunity:   { label: "Opportunità",   route: (id) => `/azienda/marketing/opportunita/${id}` },
   subcontractor: { label: "Subappaltatore", route: (id) => `/azienda/subappaltatori/${id}` },
   supplier:      { label: "Fornitore",     route: (_id) => `/azienda/impostazioni/fornitori` },

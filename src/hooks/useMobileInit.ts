@@ -44,7 +44,7 @@ export function useMobileInit() {
     if (type && id) {
       switch (type) {
         case "order": navigate(`/azienda/cantieri/${id}`); break;
-        case "invoice": navigate(`/azienda/fatturazione/documenti/${id}`); break;
+        case "invoice": navigate(`/azienda/documenti/${id}/dettaglio`); break;
         case "intervention": navigate(`/tecnico/interventi/${id}`); break;
         case "ticket": navigate(`/azienda/ticket/${id}`); break;
       }

@@ -15,6 +15,8 @@ import { CollegamentiEmessaImportata } from "@/components/fatturazione/Collegame
 import { PROVIDER_LABELS, SegnaPagataImportataDialog, importataPagabile, residuoImportata } from "@/components/fatturazione/GestionaleEsterno";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
+import { AzioniInvioImportata } from "@/components/fatturazione/AzioniInvioImportata";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -171,6 +173,13 @@ export default function DettaglioFatturaImportata() {
 
       {/* Le azioni: solo quelle che non creano né modificano il documento. */}
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 max-sm:gap-1.5 max-sm:[&_button]:h-8 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs">
+        <AzioniInvioImportata
+          nomeAzienda={effectiveCompany?.name}
+          fattura={{
+            id: f.id, numero: doc.numero, tipo: doc.tipo, cliente: f.client_company_name, emailCliente: f.client_email,
+            dataEmissione: doc.data_emissione, dataScadenza: doc.data_scadenza ?? null, totale: Number(doc.totale_documento),
+          }}
+        />
         {f.external_xml_url && (
           <>
             <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setXmlAperto(true)}><FileCode className="h-4 w-4" />Vedi XML originale</Button>
@@ -271,6 +280,13 @@ export default function DettaglioFatturaImportata() {
 
         {/* Commessa e cliente collegati (si nasconde da solo se non c'è niente da dire). */}
         <CollegamentiEmessaImportata companyId={companyId} fattura={f} />
+
+        {/* Allegati: contratto, DDT, verbali, foto — come nel dettaglio nativo. */}
+        <Card>
+          <CardContent className="pt-4 max-sm:p-3">
+            <AllegatiFattura companyId={companyId} madre={{ invoiceId: f.id }} />
+          </CardContent>
+        </Card>
 
         <Card className="max-sm:hidden">
           <CardHeader className="pb-3"><CardTitle className="text-sm">Gestionale</CardTitle></CardHeader>

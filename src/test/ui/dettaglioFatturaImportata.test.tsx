@@ -65,7 +65,9 @@ describe("Dettaglio di una fattura importata", () => {
     expect(screen.getByText("Storico incassi (parziale)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Torna ai documenti/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Segna pagata/ })).toBeInTheDocument();
-    for (const vietata of [/Modifica/, /Duplica/, /Emetti/, /Invia/, /Converti/]) {
+    // Stampa e invio per e-mail spediscono il documento com'è, senza modificarlo: ci sono.
+    expect(screen.getByRole("button", { name: /Invia per e-mail/ })).toBeInTheDocument();
+    for (const vietata of [/Modifica/, /Duplica/, /Emetti/, /Invia allo SDI|Invia a SDI/, /Converti/]) {
       expect(screen.queryByRole("button", { name: vietata })).not.toBeInTheDocument();
     }
   });

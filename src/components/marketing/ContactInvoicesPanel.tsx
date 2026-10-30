@@ -91,7 +91,7 @@ export function ContactInvoicesPanel({ contactId, companyId }: Props) {
           return (
             <Link
               key={inv.id}
-              to={`/azienda/fatturazione/${inv.id}`}
+              to={`/azienda/documenti/importata/${inv.id}`}
               className="block rounded-lg border p-2 hover:bg-muted/50 transition-colors"
             >
               <div className="flex items-center justify-between gap-2">

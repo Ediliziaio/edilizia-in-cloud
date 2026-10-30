@@ -43,6 +43,13 @@ function LegacyCommessaEditRedirect() {
   return <Navigate to={`${id ? `/azienda/ordini/${id}/modifica` : "/azienda/ordini"}${location.search}`} replace />;
 }
 
+/** Il vecchio dettaglio di una fattura in `invoices`: ora è lo stesso dettaglio dell'hub. */
+function RimandoFatturaImportata() {
+  const { id } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/azienda/documenti/importata/${id ?? ""}${location.search}${location.hash}`} replace />;
+}
+
 /** Un indirizzo vecchio che porta al nuovo tenendo i parametri (?tab, ?q…) e l'ancora. */
 function RimandoConParametri({ to }: { to: string }) {
   const location = useLocation();
@@ -371,7 +378,6 @@ const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"))
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
 const NuovoTemplate = lazy(() => import("@/pages/azienda/firma-elettronica/nuovo-template"));
-const InvoiceDetail = lazy(() => import("@/pages/azienda/billing/InvoiceDetail"));
 const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 
 // Billing mode guard
@@ -770,9 +776,9 @@ export default function CompanyRoutesContainer() {
             programma usa lo stesso hub, in sola lettura per la creazione. L'indirizzo
             vecchio porta lì con i suoi parametri. */}
         <Route path="fatturazione" element={<RimandoConParametri to="/azienda/documenti" />} />
-        {/* Il dettaglio di una fattura in `invoices` (link dal cruscotto, dallo scadenzario,
-            dalla ricerca): vale per qualsiasi modalità, anche lo storico importato dei nativi. */}
-        <Route path="fatturazione/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="fatturazione"><InvoiceDetail /></FeatureRoute>)} />
+        {/* Il dettaglio di una fattura in `invoices` (vecchi link, notifiche, segnalibri):
+            porta al dettaglio dell'hub, uguale per tutte le modalità. */}
+        <Route path="fatturazione/:id" element={<RimandoFatturaImportata />} />
         {/* Scadenzario: NON legato alla modalita' di fatturazione. Contiene anche
             pagamenti fornitori, costi e scadenze fiscali, che esistono in entrambe
             le modalita'; e sette punti dell'app ci rimandano (cruscotto, previsionale,
