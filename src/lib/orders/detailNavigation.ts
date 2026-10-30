@@ -52,8 +52,8 @@ export function resolveMaterialiView(search: string, section?: string): Material
   return MATERIALI_VIEWS.find(view => view.value === new URLSearchParams(search).get("vista_materiali"))?.value ?? "articoli";
 }
 const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
-  "section-lavorazioni": "lavorazioni", "section-attivita": "lavorazioni",
-  "section-pianificazione": "lavorazioni", "section-cronoprogramma": "cronoprogramma", "section-squadra": "lavorazioni", "section-statistiche": "squadra",
+  "section-lavorazioni": "lavorazioni",
+  "section-cronoprogramma": "cronoprogramma", "section-squadra": "lavorazioni", "section-statistiche": "squadra",
   "section-mezzi": "lavorazioni", "section-rapportini": "diario",
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
   "section-assistenza": "collaudo", "section-sopralluoghi": "sopralluoghi",
@@ -87,9 +87,11 @@ const SECTION_TABS = {
   "section-sicurezza": "cantiere",
   "section-documenti": "panoramica",
   "section-lavorazioni": "cantiere",
-  "section-pianificazione": "cantiere",
+  "section-pianificazione": "panoramica",
+  // Le attività operative non stanno più in Lavorazioni (31/10/2026): i vecchi link arrivano in Panoramica.
+  "section-attivita": "panoramica",
   "section-cronoprogramma": "cantiere",
-  "section-attivita": "cantiere",
+
   "section-rapportini": "cantiere",
   "section-collaudo": "cantiere",
   "section-foto": "cantiere",

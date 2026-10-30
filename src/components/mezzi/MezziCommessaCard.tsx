@@ -7,6 +7,7 @@
  * percorso per registrare il primo mezzo, anche a noleggio.
  */
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { Loader2, Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -146,9 +147,11 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
     }
   };
 
+  // Dentro il piano mezzi (compact, 31/10/2026): senza un secondo titolo «Mezzi e attrezzature»,
+  // il riquadro è già quello della pianificazione.
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
+    <Card className={compact ? "border-0 bg-transparent shadow-none" : undefined}>
+      {!compact && <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Truck className="h-4 w-4 shrink-0 text-slate-600" />
           <span>{readOnly ? "Utilizzo di mezzi e attrezzature" : "Mezzi e attrezzature"}</span>
@@ -160,13 +163,20 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
             <span>Assegna mezzo o attrezzo</span>
           </Button>
         )}
-      </CardHeader>
-      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
+      </CardHeader>}
+      <CardContent className={cn("space-y-3", compact ? "p-0" : "max-sm:p-3 max-sm:pt-0")}>
         <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="min-w-0 flex-1 text-xs text-slate-600">{readOnly ? "Storico di utilizzo sul cantiere. Gestisci le assegnazioni in Lavorazioni. I costi sono stime, non nuove registrazioni contabili." : compact ? "Assegnazioni fisiche al cantiere; valgono per tutta la commessa. I mezzi al seguito delle persone sono indicati nelle rispettive fasi." : "Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio."}</p>
-          <Button asChild variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950">
-            <Link to="/azienda/manodopera?tab=mezzi">Parco mezzi e noleggi</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {compact && puoModificare && (
+              <Button size="sm" variant="outline" className="min-h-11 border-slate-300 font-semibold text-blue-950" onClick={() => setAperto(true)} disabled={loadingParco || parcoError || disponibili.length === 0}>
+                <Plus className="mr-1 h-4 w-4" aria-hidden="true" />Assegna mezzo o attrezzo
+              </Button>
+            )}
+            <Button asChild variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950">
+              <Link to="/azienda/manodopera?tab=mezzi">Parco mezzi e noleggi</Link>
+            </Button>
+          </div>
         </div>
         {compact && storici > 0 && <Button variant="outline" size="sm" aria-expanded={mostraStorico} onClick={() => setMostraStorico(v => !v)}>{mostraStorico ? "Nascondi storico" : `Mostra storico (${storici})`}</Button>}
         {isLoading || loadingParco || loadingMontaggi ? (

@@ -393,9 +393,9 @@ export function PianoMezziCantiere({
             ? " Costi previsti al netto IVA, separati dalle fatture e dalle stime del parco."
             : ""}
         </p>
-      </section>
+      {/* Un riquadro solo (31/10/2026): la presenza effettiva sta dentro la pianificazione. */}
       {!faseId && (
-        <details className="rounded-xl border bg-background p-3">
+        <details className="border-t pt-3">
           <summary className="cursor-pointer text-sm font-medium">
             Presenza effettiva, montaggi e viaggi
           </summary>
@@ -404,6 +404,7 @@ export function PianoMezziCantiere({
           </div>
         </details>
       )}
+      </section>
       <Dialog
         open={aperto}
         onOpenChange={(v) => {

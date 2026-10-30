@@ -80,6 +80,7 @@ export function IncarichiCantiere({
   const salva = useScriviFascicolo("sicurezza_incarichi", companyId);
   const [form, setForm] = useState<Form | null>(null);
   const [tutti, setTutti] = useState(false);
+  const [apertoCompatto, setApertoCompatto] = useState(false);
   const scrive = perms.canViewSicurezzaCantiere && !perms.solaLettura;
   if (!perms.canViewSicurezzaCantiere) return null;
   const righe = (q.data ?? []).filter(
@@ -139,29 +140,8 @@ export function IncarichiCantiere({
       toast.error(err instanceof Error ? err.message : "Incarico non salvato");
     }
   };
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
-        <div>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ShieldCheck className="h-4 w-4" />
-            Figure e responsabilità
-          </CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {orderId
-              ? "Incarichi di questa commessa."
-              : "Figure dell’impresa e incarichi nei suoi cantieri."}{" "}
-            La proposta di un nominativo non sostituisce la nomina.
-          </p>
-        </div>
-        {scrive && (
-          <Button size="sm" variant="outline" onClick={() => setForm(vuoto())}>
-            <Plus className="mr-1 h-4 w-4" />
-            Assegna
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-3">
+  const elenco = (
+    <>
         {q.isLoading ? (
           <p className="text-sm text-muted-foreground">
             Caricamento incarichi…
@@ -250,7 +230,9 @@ export function IncarichiCantiere({
               : `Vedi tutti e storico (${q.data!.length})`}
           </Button>
         )}
-      </CardContent>
+    </>
+  );
+  const dialogo = (
       <Dialog
         open={!!form}
         onOpenChange={(open) => {
@@ -479,6 +461,56 @@ export function IncarichiCantiere({
           )}
         </DialogContent>
       </Dialog>
+  );
+  // Nella pagina Lavorazioni (compact): una riga sola come «Organizzazione», l'elenco si apre a richiesta (31/10/2026).
+  if (compact) {
+    const correnti = (q.data ?? []).filter((i) => !["Cessato", "Futuro"].includes(statoIncarico(i, giorno)));
+    const riassunto = q.isLoading ? "caricamento…" : q.isError ? "dato non disponibile"
+      : correnti.length === 0 ? "nessun incarico registrato"
+      : correnti.slice(0, 3).map((i) => `${RUOLI_INCARICO[i.ruolo]}: ${i.nominativo}`).join(" · ") + (correnti.length > 3 ? ` · +${correnti.length - 3}` : "");
+    return (
+      <section aria-label="Figure e responsabilità" className="rounded-lg border bg-slate-50/60 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-muted-foreground" />Figure e responsabilità</h3>
+            <p className="mt-0.5 break-words text-xs text-muted-foreground">{riassunto}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {scrive && <Button size="sm" variant="outline" onClick={() => setForm(vuoto())}><Plus className="mr-1 h-4 w-4" />Assegna</Button>}
+            {(q.data?.length ?? 0) > 0 && <Button size="sm" variant="ghost" aria-expanded={apertoCompatto} onClick={() => setApertoCompatto(!apertoCompatto)}>{apertoCompatto ? "Chiudi" : "Dettagli"}</Button>}
+          </div>
+        </div>
+        {apertoCompatto && <div className="mt-3 space-y-3">{elenco}</div>}
+        {dialogo}
+      </section>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="h-4 w-4" />
+            Figure e responsabilità
+          </CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {orderId
+              ? "Incarichi di questa commessa."
+              : "Figure dell’impresa e incarichi nei suoi cantieri."}{" "}
+            La proposta di un nominativo non sostituisce la nomina.
+          </p>
+        </div>
+        {scrive && (
+          <Button size="sm" variant="outline" onClick={() => setForm(vuoto())}>
+            <Plus className="mr-1 h-4 w-4" />
+            Assegna
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {elenco}
+      </CardContent>
+      {dialogo}
     </Card>
   );
 }

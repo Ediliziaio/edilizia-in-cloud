@@ -38,6 +38,7 @@ import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
+import { RapportiniUfficio } from "./RapportiniUfficio";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
 import { faseHaSottofasi, fineDaGiorni, vociDelleSottofasi, type Sottofase, type VoceSottofase } from "@/lib/orders/sottofasi";
@@ -474,6 +475,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
               {/* Mobile: due azioni compatte, le assegnazioni in un unico menu. */}
               {!telefono && onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
+              {canEditOrders && <RapportiniUfficio orderId={orderId} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}
