@@ -2,14 +2,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
-const state = vi.hoisted(() => ({ pending: false, error: false, costs: 400, margin: 600, pct: 60, hook: vi.fn() }));
+const state = vi.hoisted(() => ({
+  pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, hook: vi.fn(),
+  previsto: { costo: 300, lavorazioni: 3, lavorazioniSenzaPrevisto: 0, isLoading: false, isError: false },
+  daPagare: 150, cassa: vi.fn(),
+}));
 vi.mock("@/hooks/useOrderEconomicsBase", () => ({ useOrderEconomicsBase: (...args: unknown[]) => {
   state.hook(...args);
   const canShowMargin = state.costs > 0;
   return {
     isPending: state.pending,
     isError: state.error,
-    actual: { costs: state.costs, margin: state.margin, marginPct: state.pct },
+    actual: { costs: state.costs, margin: state.margin, marginPct: state.pct, commissions: state.commissions },
     quality: {
       canShowMargin,
       status: canShowMargin ? "ready" : "missing",
@@ -18,53 +22,112 @@ vi.mock("@/hooks/useOrderEconomicsBase", () => ({ useOrderEconomicsBase: (...arg
     },
   };
 } }));
+vi.mock("@/hooks/useCostoPrevistoCommessa", () => ({ useCostoPrevistoCommessa: () => state.previsto }));
+vi.mock("@/hooks/useEsposizioneCommessa", () => ({ useEsposizioneCommessa: (a: unknown) => {
+  state.cassa(a);
+  return { esposizione: { daPagare: state.daPagare }, isLoading: false, isError: false };
+} }));
 afterEach(cleanup);
-beforeEach(() => { state.pending = false; state.error = false; state.costs = 400; state.margin = 600; state.pct = 60; state.hook.mockClear(); });
+beforeEach(() => {
+  Object.assign(state, { pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, daPagare: 150,
+    previsto: { costo: 300, lavorazioni: 3, lavorazioniSenzaPrevisto: 0, isLoading: false, isError: false } });
+  state.hook.mockClear(); state.cassa.mockClear();
+});
 function mount(extra: Partial<ComponentProps<typeof OrderFinancialOverview>> = {}) {
   const props: ComponentProps<typeof OrderFinancialOverview> = { orderId: "order", totalAmount: 1000, vatRate: 22, items: [], installments: [], collectedGross: 200, cashTotalGross: 1220, canViewAmounts: true, canViewMargins: true, onOpenEconomics: vi.fn(), onOpenPayments: vi.fn(), ...extra };
   render(<OrderFinancialOverview {...props} />);
   return props;
 }
-describe("Fascia economica condivisa", () => {
-  it("mostra contratto IVA inclusa, imponibile, margini e residuo", () => {
+const cella = (nome: string) => screen.getByRole("cell", { name: `Apri dettagli: ${nome}` });
+
+describe("La commessa in numeri: previsto e reale", () => {
+  it("previsto: contratto IVA inclusa, costo e margine previsti dalle lavorazioni", () => {
+    mount();
+    expect(cella("Contratto")).toHaveTextContent("1.220,00");
+    expect(cella("Contratto")).toHaveTextContent("Imponibile 1.000,00");
+    expect(cella("Costo previsto")).toHaveTextContent("300,00");
+    expect(cella("Margine previsto")).toHaveTextContent("700,00");
+    expect(cella("Margine previsto")).toHaveTextContent("70%");
+  });
+
+  it("reale: costi sostenuti col da pagare, margine reale con lo scarto sul previsto, incassato", () => {
     const props = mount();
-    expect(screen.getByRole("button", { name: "Apri dettagli: Totale contratto" })).toHaveTextContent("1.220,00");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Imponibile" })).toHaveTextContent("1.000,00");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto €" })).toHaveTextContent("600,00");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto %" })).toHaveTextContent("60%");
-    expect(screen.getByRole("button", { name: "Apri stato pagamenti" })).toHaveTextContent("1.020,00");
-    fireEvent.click(screen.getByRole("button", { name: "Apri dettagli: Margine diretto €" }));
+    expect(cella("Costi sostenuti")).toHaveTextContent("400,00");
+    expect(cella("Costi sostenuti")).toHaveTextContent("Da pagare 150,00");
+    expect(cella("Margine reale")).toHaveTextContent("600,00");
+    expect(cella("Margine reale")).toHaveTextContent("60%");
+    expect(cella("Margine reale")).toHaveTextContent("Costi oltre il previsto di 100,00");
+    expect(cella("Incassato")).toHaveTextContent("200,00");
+    expect(cella("Incassato")).toHaveTextContent("Da incassare 1.020,00");
+    fireEvent.click(cella("Margine reale"));
     expect(props.onOpenEconomics).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Apri stato pagamenti" }));
+    fireEvent.click(cella("Incassato"));
     expect(props.onOpenPayments).toHaveBeenCalledOnce();
   });
-  it.each(["loading", "error", "missing"] as const)("non mostra margini falsi: %s", condition => {
+
+  it("le provvigioni entrano nel previsto (si conoscono alla firma)", () => {
+    state.commissions = 50;
+    mount();
+    expect(cella("Costo previsto")).toHaveTextContent("350,00");
+  });
+
+  it("previsto parziale: lo dice, e senza lavorazioni con un costo non inventa un margine", () => {
+    state.previsto = { ...state.previsto, lavorazioniSenzaPrevisto: 2 };
+    mount();
+    expect(cella("Costo previsto")).toHaveTextContent("Parziale: 2 di 3 lavorazioni senza costo previsto");
+    cleanup();
+    state.previsto = { ...state.previsto, costo: 0 };
+    mount();
+    expect(cella("Margine previsto")).toHaveTextContent("—");
+    expect(cella("Margine reale")).not.toHaveTextContent("oltre il previsto");
+  });
+
+  it("niente da pagare: lo dice", () => {
+    state.daPagare = 0;
+    mount();
+    expect(cella("Costi sostenuti")).toHaveTextContent("Tutto pagato");
+  });
+
+  it.each(["loading", "error", "missing"] as const)("non mostra margini reali falsi: %s", condition => {
     state.pending = condition === "loading"; state.error = condition === "error"; state.costs = condition === "missing" ? 0 : 400;
     mount();
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto €" })).toHaveTextContent("—");
-    expect(screen.getByRole("button", { name: "Apri dettagli: Margine diretto %" })).not.toHaveTextContent("60%");
+    expect(cella("Margine reale")).toHaveTextContent("—");
+    expect(cella("Margine reale")).not.toHaveTextContent("60%");
   });
-  it("nasconde i margini e disabilita le query senza il permesso", () => {
+
+  it("senza permesso sui margini: niente costi né margini, query spente", () => {
     mount({ canViewMargins: false });
-    expect(screen.queryByRole("button", { name: "Apri dettagli: Margine diretto €" })).toBeNull();
+    expect(screen.queryByRole("cell", { name: "Apri dettagli: Margine reale" })).toBeNull();
+    expect(screen.queryByRole("cell", { name: "Apri dettagli: Costo previsto" })).toBeNull();
     expect(state.hook).toHaveBeenCalledWith("order", 1000, [], false);
+    expect(state.cassa).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
   });
-  it("nasconde gli importi e i pagamenti senza il permesso", () => {
+
+  it("col permesso sui margini ma non sui costi: niente «da pagare»", () => {
+    mount({ canViewCosts: false });
+    expect(cella("Costi sostenuti")).not.toHaveTextContent("Da pagare");
+    expect(state.cassa).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+  });
+
+  it("senza permesso sugli importi: niente contratto né incassi", () => {
     mount({ canViewAmounts: false });
-    expect(screen.queryByRole("button", { name: "Apri stato pagamenti" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Apri dettagli: Totale contratto" })).toBeNull();
+    expect(screen.queryByRole("cell", { name: "Apri dettagli: Incassato" })).toBeNull();
+    expect(screen.queryByRole("cell", { name: "Apri dettagli: Contratto" })).toBeNull();
   });
+
   it("non monta la fascia per un ruolo senza visibilità finanziaria", () => {
     mount({ canViewAmounts: false, canViewMargins: false });
     expect(screen.queryByRole("region", { name: "Riepilogo economico commessa" })).toBeNull();
   });
-  it.each([{ installmentsLoading: true }, { installmentsError: true }])("non dichiara rate da incassare o saldate prima di caricarle", state => {
-    mount(state);
+
+  it.each([{ installmentsLoading: true }, { installmentsError: true }])("non dichiara incassi prima di caricarli", s => {
+    mount(s);
     expect(screen.queryByRole("progressbar")).toBeNull();
-    expect(screen.getByRole("button", { name: "Apri stato pagamenti" })).not.toHaveTextContent("Incassato parzialmente");
+    expect(cella("Incassato")).not.toHaveTextContent("Da incassare");
   });
+
   it("non trasforma IVA zero in 22%", () => {
     mount({ vatRate: 0, cashTotalGross: 1000 });
-    expect(screen.getByRole("button", { name: "Apri dettagli: Totale contratto" })).toHaveTextContent("1.000,00");
+    expect(cella("Contratto")).toHaveTextContent("1.000,00");
   });
 });

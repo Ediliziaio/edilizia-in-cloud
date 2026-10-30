@@ -1496,8 +1496,11 @@ function OrderDetailInner() {
           installmentsError={installmentsError}
           collectedGross={collectedGross}
           cashTotalGross={cashTotalGross}
+          financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
+          varianti={variantiDatate}
           canViewAmounts={permissions.canViewOrderAmounts}
           canViewMargins={permissions.canViewMargins && contractLink.data?.workflow_kind !== "contratto"}
+          canViewCosts={permissions.canViewCosts}
           onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
           onOpenPayments={() => vaiAllaFinanza()}
         />}
