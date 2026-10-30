@@ -125,7 +125,9 @@ describe("Cronoprogramma", () => {
     stato.phases = [fase({ id: "h1", name: "Serramenti", start_date: "2026-08-15", end_date: "2026-08-30" })];
     stato.rapportini = [];
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByRole("button", { name: /^Serramenti: Da iniziare, 0%, inizio in ritardo di 5 giorni$/ })).toHaveTextContent("inizio +5 gg");
+    expect(screen.getByRole("button", { name: /^Serramenti: Da iniziare, 0%, inizio in ritardo di 5 giorni$/ })).toBeInTheDocument();
+    // Il ritardo sta in fondo alla barra, non nel nome (31/10/2026).
+    expect(screen.getByText("inizio +5 gg")).toBeInTheDocument();
     expect(screen.getByText("1 fase con l'inizio in ritardo")).toBeInTheDocument();
     expect(screen.queryByText(/fasi? in ritardo, fino a/)).not.toBeInTheDocument();
   });
@@ -157,9 +159,11 @@ describe("Cronoprogramma", () => {
 
   it("al clic su una fase il dettaglio: previsto, reale, ritardo, ore e i numeri economici", () => {
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
-    expect(screen.getByText("costo +200,00 €")).toBeInTheDocument();
+    // Il costo non sta più nel grafico: lo dice il dettaglio della fase.
+    expect(screen.queryByText("costo +200,00 €")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^Demolizioni/ }));
     const dettaglio = screen.getByRole("dialog");
+    expect(within(dettaglio).getByText("costo +200,00 €")).toBeInTheDocument();
     expect(within(dettaglio).getByText("dal 03/08/2026 al 10/08/2026 (8 giorni)")).toBeInTheDocument();
     expect(within(dettaglio).getByText("dal 04/08/2026 al 14/08/2026")).toBeInTheDocument();
     expect(within(dettaglio).getByText("inizio +1 giorno · fine +4 giorni")).toBeInTheDocument();
@@ -222,7 +226,7 @@ describe("Cronoprogramma", () => {
     expect(screen.queryByTestId("sottofase-barra-s4")).toBeNull();
     expect(screen.getByLabelText(/^Pavimenti: In corso, 33%/)).toBeInTheDocument();
     // si possono nascondere
-    fireEvent.click(screen.getByRole("checkbox", { name: "Sottofasi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi le sottofasi" }));
     expect(screen.queryByTestId("sottofase-s1")).not.toBeInTheDocument();
   });
 });
