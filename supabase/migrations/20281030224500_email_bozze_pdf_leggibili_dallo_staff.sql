@@ -1,32 +1,8 @@
--- Bozze delle email: il PDF da cui nascono lo apre chi vede la bozza (30/10/2026).
---
--- L'estrazione degli allegati salva il PDF nel bucket email-attachments sotto la
--- cartella dell'AZIENDA (<company_id>/…: 158 bozze su 158 su produzione). Le policy
--- di quel bucket danno però la lettura solo a chi ha la cartella con il proprio id
--- utente (email_attachments_owner_read, pensata per gli allegati che uno scrive).
--- Così chi in ufficio deve confermare una bozza vede i campi letti dall'AI, la bozza
--- dice «controlla sull'anteprima», ma l'anteprima non c'è: nella schermata dell'email
--- gli allegati sono solo etichette, e dal browser il file non si apre.
---
--- Nuova policy di SOLA LETTURA: si apre il file che una bozza indica come suo
--- (email_documento_estratto.pdf_storage_path). Chi può vedere la bozza lo decide la
--- RLS della tabella (staff email della stessa azienda, utente non bloccato): la
--- policy non lo ripete, ci passa attraverso, perché la sottoquery gira con i
--- permessi di chi chiede.
---
--- Non cambia:
---   · nessuna policy esistente del bucket (owner_read/write/delete restano);
---   · gli altri file del bucket: se nessuna bozza li indica, restano chiusi come prima
---     (allegati scritti da un utente, allegati delle email in uscita, cartelle di altre aziende);
---   · scrittura e cancellazione;
---   · il server con la chiave di servizio, che non passa dalle policy.
--- Per tornare indietro: drop policy email_attachments_bozza_read on storage.objects;
---
--- Rilanciabile: CREATE INDEX IF NOT EXISTS + DROP POLICY IF EXISTS + CREATE POLICY.
-
+-- Ricostruita il 30/10/2026 dallo SQL registrato in supabase_migrations.schema_migrations
+-- (statements): la migrazione era applicata in produzione ma il file non c'era in nessuna
+-- cartella. Lo staff legge i PDF delle bozze email estratti (email_attachments_bozza_read).
 set local lock_timeout = '3s';
 
--- ── Guardia: la tabella ha le colonne e le policy del bucket sono quelle censite ──
 do $guardia$
 begin
   if not exists (
@@ -49,12 +25,10 @@ begin
 end
 $guardia$;
 
--- ── Il controllo ad ogni file passa da qui: serve l'indice sul percorso ─────────
 create index if not exists idx_email_doc_estratto_pdf_path
   on public.email_documento_estratto (pdf_storage_path)
   where pdf_storage_path is not null;
 
--- ── La policy ───────────────────────────────────────────────────────────────
 drop policy if exists email_attachments_bozza_read on storage.objects;
 create policy email_attachments_bozza_read on storage.objects
   for select to authenticated
@@ -68,7 +42,6 @@ create policy email_attachments_bozza_read on storage.objects
     )
   );
 
--- ── Verifica: la policy scritta dal database è quella voluta, le altre ci sono ──
 do $verifica$
 declare
   v_testo text;

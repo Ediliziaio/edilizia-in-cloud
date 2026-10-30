@@ -1978,7 +1978,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
           <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
             <RigaRiepilogo tema={tema} etichetta="Impresa" valore={[dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")} />
-            <RigaRiepilogo tema={tema} etichetta="Committente" valore={dati.cliente} />
+            <RigaRiepilogo tema={tema} etichetta="Committente" valore={[dati.cliente, dati.datiFiscaliCliente].filter(Boolean).join(" · ")} />
             <RigaRiepilogo tema={tema} etichetta="Oggetto" valore={dati.tipoIntervento || modulo.etichetta} />
             {dati.cantiere ? <RigaRiepilogo tema={tema} etichetta="Luogo dei lavori" valore={dati.cantiere} /> : null}
             <RigaRiepilogo tema={tema} etichetta="Documento" valore={[dati.codice ? `Preventivo ${dati.codice}` : "Preventivo", `del ${oggi()}`].join(" ")} />

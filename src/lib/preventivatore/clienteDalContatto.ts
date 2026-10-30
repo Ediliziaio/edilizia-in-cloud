@@ -12,6 +12,11 @@ export interface ClienteDelContatto {
   cliente_cognome: string | null;
   cliente_email: string | null;
   cliente_telefono: string | null;
+  /** Privato o azienda, coi dati fiscali del contatto (30/10/2026). */
+  cliente_tipo: "privato" | "azienda";
+  cliente_ragione_sociale: string | null;
+  cliente_codice_fiscale: string | null;
+  cliente_partita_iva: string | null;
 }
 
 const pulito = (v: string | null | undefined): string | null => ((v ?? "").trim() === "" ? null : (v as string).trim());
@@ -20,7 +25,7 @@ const pulito = (v: string | null | undefined): string | null => ((v ?? "").trim(
 export async function leggiClienteDelContatto(contattoId: string): Promise<ClienteDelContatto | null> {
   const { data, error } = await supabase
     .from("marketing_contacts")
-    .select("first_name, last_name, email, phone")
+    .select("first_name, last_name, email, phone, company_name, fiscal_code, vat_number")
     .eq("id", contattoId)
     .maybeSingle();
   if (error || !data) return null;
@@ -29,6 +34,10 @@ export async function leggiClienteDelContatto(contattoId: string): Promise<Clien
     cliente_cognome: pulito(data.last_name),
     cliente_email: pulito(data.email),
     cliente_telefono: pulito(data.phone),
+    cliente_tipo: pulito(data.company_name) || pulito(data.vat_number) ? "azienda" : "privato",
+    cliente_ragione_sociale: pulito(data.company_name),
+    cliente_codice_fiscale: pulito(data.fiscal_code),
+    cliente_partita_iva: pulito(data.vat_number),
   };
 }
 
@@ -42,7 +51,12 @@ export function riempiClienteVuoto<F extends Partial<Record<keyof ClienteDelCont
 ): F {
   const riempito: Partial<ClienteDelContatto> = {};
   for (const campo of Object.keys(cliente) as Array<keyof ClienteDelContatto>) {
-    if (pulito(form[campo]) === null && cliente[campo] !== null) riempito[campo] = cliente[campo];
+    if (campo === "cliente_tipo") continue;
+    if (pulito(form[campo]) === null && cliente[campo] !== null) (riempito as Record<string, unknown>)[campo] = cliente[campo];
+  }
+  // «Azienda» se lo è il contatto e nel preventivo non c'è ancora né ragione sociale né partita IVA scritte a mano.
+  if (cliente.cliente_tipo === "azienda" && form.cliente_tipo !== "azienda" && pulito(form.cliente_ragione_sociale) === null && pulito(form.cliente_partita_iva) === null) {
+    riempito.cliente_tipo = "azienda";
   }
   return Object.keys(riempito).length === 0 ? form : { ...form, ...riempito };
 }
