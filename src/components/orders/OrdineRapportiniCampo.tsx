@@ -479,6 +479,24 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                               </div>
                             )}
 
+                            {/* Mezzi e attrezzi usati: li scrive l'ufficio nel suo rapportino (31/10/2026). */}
+                            {(() => {
+                              // Colonna nuova, non ancora nei tipi generati.
+                              const mezziUsati = (r as { mezzi_usati?: unknown }).mezzi_usati;
+                              return Array.isArray(mezziUsati) && mezziUsati.length > 0 && (
+                              <div>
+                                <p className={ETICHETTA_SEZIONE}>Mezzi usati</p>
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  {(mezziUsati as Array<{ nome?: string; ore?: number }>).map((m, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+                                      <span className="font-medium">{m.nome ?? "—"}</span>{m.ore != null ? ` · ${Number(m.ore)}h` : ""}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              );
+                            })()}
+
                             {/* Lavorazioni con i loro materiali e le loro foto, poi quello che non è legato a una fase */}
                             <RapportinoBlocchi report={r} nomiFasi={nomiFasi} onFoto={(url) => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }} />
 

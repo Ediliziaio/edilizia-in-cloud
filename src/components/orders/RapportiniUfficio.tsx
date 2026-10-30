@@ -1,7 +1,7 @@
 // src/components/orders/RapportiniUfficio.tsx
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Hammer, NotebookPen, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Camera, Check, Hammer, Loader2, NotebookPen, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,19 +9,26 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOrderWorkPhases } from "@/hooks/useOrderWorkPhases";
 import { useSottofasi } from "@/hooks/useSottofasi";
+import { useMezzi, useMezziDellaCommessa } from "@/hooks/useMezzi";
 import { nomeAccesso, useAccessiCommessa } from "@/hooks/useAccessiCommessa";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
-import { caricoRapportini, erroriGiorni, giornoVuoto, type GiornoUfficio } from "@/lib/campo/rapportiniUfficio";
+import { compressImage } from "@/lib/campo/compressImage";
+import {
+  METEO, caricoRapportini, erroriGiorni, giornoVuoto, type GiornoUfficio, type PersonaPresenza,
+} from "@/lib/campo/rapportiniUfficio";
 
 /**
- * «Scrivi rapportini» dalla commessa (31/10/2026): l'ufficio scrive il diario di
- * uno o più giorni — cosa si è fatto, su quali fasi, quali sottofasi lavorate o
- * finite — a nome suo o di chi lavora in cantiere con l'app. Entrano da
- * approvare come quelli del cantiere; le ore passano dal registro ore.
+ * «Scrivi rapportini» dalla commessa (31/10/2026): l'ufficio scrive il rapportino
+ * di uno o più giorni completo come quello del cantiere — cosa si è fatto, fasi
+ * con l'avanzamento e le sottofasi, chi ha lavorato e quante ore, mezzi usati,
+ * materiali, foto, meteo, note — a nome suo o di chi lavora in cantiere con
+ * l'app. Entrano da approvare: all'approvazione le ore di ognuno diventano costo
+ * col suo costo orario, come per il capocantiere.
  */
 export function RapportiniUfficio({ orderId, className }: { orderId: string; className?: string }) {
   const [aperta, setAperta] = useState(false);
@@ -31,10 +38,10 @@ export function RapportiniUfficio({ orderId, className }: { orderId: string; cla
         <NotebookPen className="mr-1.5 h-4 w-4" />Scrivi rapportini
       </Button>
       <Dialog open={aperta} onOpenChange={setAperta}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Rapportini dall'ufficio</DialogTitle>
-            <DialogDescription>Uno per giorno, anche più giorni insieme. Entrano da approvare come quelli del cantiere; le ore si registrano in «Ore e persone».</DialogDescription>
+            <DialogDescription>Come quelli del cantiere, anche più giorni insieme. Entrano da approvare: all'approvazione le ore di ognuno diventano costo.</DialogDescription>
           </DialogHeader>
           {aperta && <Finestra orderId={orderId} onFatto={() => setAperta(false)} />}
         </DialogContent>
@@ -43,21 +50,91 @@ export function RapportiniUfficio({ orderId, className }: { orderId: string; cla
   );
 }
 
+const dbx = supabase as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+
 function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }) {
   const qc = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const oggi = giornoLocale(new Date().toISOString());
-  const { phases } = useOrderWorkPhases(orderId);
+  const { phases, unassigned, employees } = useOrderWorkPhases(orderId);
   const { perFase: sottofasiDi } = useSottofasi(orderId);
   const { data: accessi = [] } = useAccessiCommessa(orderId);
-  const persone = accessi.filter((a) => a.role_type === "employee");
+  const { data: tuttiMezzi = [] } = useMezzi();
+  const { data: mezziQui = [] } = useMezziDellaCommessa(orderId);
+  const autori = accessi.filter((a) => a.role_type === "employee");
+
+  // Ditte della commessa, come presenza (le ore delle ditte non sono costo orario).
+  const ditte = useQuery({
+    queryKey: ["rapportini-ufficio-ditte", companyId, orderId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<PersonaPresenza[]> => {
+      const { data, error } = await dbx.from("order_external_teams").select("team:external_teams(name, subappaltatore_id)").eq("order_id", orderId);
+      if (error) throw error;
+      const visti = new Set<string>();
+      return ((data ?? []) as Array<{ team: { name: string; subappaltatore_id: string | null } | null }>)
+        .filter((r) => r.team?.subappaltatore_id && !visti.has(r.team.subappaltatore_id) && visti.add(r.team.subappaltatore_id))
+        .map((r) => ({ chiave: `s:${r.team!.subappaltatore_id}`, nome: r.team!.name, subappaltatore_id: r.team!.subappaltatore_id! }));
+    },
+  });
+  const articoli = useQuery({
+    queryKey: ["rapportini-ufficio-articoli", companyId, orderId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await dbx.from("order_items").select("id, name, unita_misura").eq("order_id", orderId).order("name").limit(500);
+      if (error) throw error;
+      return ((data ?? []) as Array<{ id: string; name: string | null; unita_misura: string | null }>)
+        .filter((a) => a.name?.trim())
+        .map((a) => ({ id: a.id, nome: a.name!.trim(), unita: a.unita_misura }));
+    },
+  });
+
+  // Prima chi è assegnato a questa commessa, poi tutti gli altri dipendenti.
+  const assegnati = useMemo(() => new Set(
+    [...phases.flatMap((p) => p.assignments), ...unassigned].map((a) => a.employee_id).filter((x): x is string => !!x),
+  ), [phases, unassigned]);
+  const persone: PersonaPresenza[] = useMemo(() => [
+    ...employees.filter((e) => assegnati.has(e.id)).map((e) => ({ chiave: `e:${e.id}`, nome: e.label, employee_id: e.id })),
+    ...(ditte.data ?? []),
+    ...employees.filter((e) => !assegnati.has(e.id)).map((e) => ({ chiave: `e:${e.id}`, nome: e.label, employee_id: e.id })),
+  ], [employees, assegnati, ditte.data]);
+  const idQui = new Set(mezziQui.map((m) => m.mezzo_id));
+  const mezzi = [...tuttiMezzi.filter((m) => idQui.has(m.id)), ...tuttiMezzi.filter((m) => !idQui.has(m.id))]
+    .map((m) => ({ id: m.id, nome: `${m.nome}${m.targa ? ` · ${m.targa}` : ""}`, qui: idQui.has(m.id) }));
+
   const [giorni, setGiorni] = useState<GiornoUfficio[]>(() => [giornoVuoto(oggi, "g0")]);
   const [tentato, setTentato] = useState(false);
+  const [caricando, setCaricando] = useState<string | null>(null);
   const errori = erroriGiorni(giorni, oggi);
   const cambia = (chiave: string, patch: Partial<GiornoUfficio>) => setGiorni((gs) => gs.map((g) => (g.chiave === chiave ? { ...g, ...patch } : g)));
 
+  const caricaFoto = async (g: GiornoUfficio, files: FileList | null) => {
+    if (!files?.length || !companyId) return;
+    setCaricando(g.chiave);
+    const nuove: string[] = [];
+    let falliti = 0;
+    for (const file of Array.from(files).slice(0, 10)) {
+      if (file.size > 15 * 1024 * 1024) { falliti++; continue; }
+      try {
+        const blob = (await compressImage(file).catch((): null => null)) ?? file;
+        // La stessa cartella delle foto del cantiere: il database accetta solo queste.
+        const path = `${companyId}/${orderId}/${crypto.randomUUID()}.jpg`;
+        const { error } = await supabase.storage.from("campo-rapportini").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+        if (error) throw error;
+        nuove.push(supabase.storage.from("campo-rapportini").getPublicUrl(path).data.publicUrl);
+      } catch {
+        falliti++;
+      }
+    }
+    setGiorni((gs) => gs.map((x) => (x.chiave === g.chiave ? { ...x, foto: [...(x.foto ?? []), ...nuove] } : x)));
+    setCaricando(null);
+    if (falliti) toast.error(falliti === 1 ? "Una foto non è stata caricata" : `${falliti} foto non caricate`);
+  };
+
   const salva = useMutation({
     mutationFn: async () => {
-      const carico = caricoRapportini(giorni, phases.map((p) => ({ id: p.id, percentuale: p.percentuale })), sottofasiDi);
+      const carico = caricoRapportini(giorni, phases.map((p) => ({ id: p.id, percentuale: p.percentuale })), sottofasiDi,
+        { persone, mezzi, materiali: articoli.data ?? [] });
       const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
         "ufficio_crea_rapportini", { p_order_id: orderId, p_rapportini: carico });
       if (error) throw error;
@@ -74,83 +151,154 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
 
   return (
     <div className="space-y-4">
-      {giorni.map((g, i) => (
-        <section key={g.chiave} aria-label={`Rapportino ${i + 1}`} className="space-y-3 rounded-lg border p-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="grid gap-1 text-xs text-muted-foreground">Giorno
-              <Input type="date" max={oggi} value={g.data} onChange={(e) => cambia(g.chiave, { data: e.target.value })} className="h-9 w-40" aria-label={`Giorno del rapportino ${i + 1}`} />
+      {giorni.map((g, i) => {
+        const presenze = g.presenze ?? {};
+        const oreTotali = Object.values(presenze).reduce((t, v) => t + (Number(v.replace(",", ".")) || 0), 0);
+        return (
+          <section key={g.chiave} aria-label={`Rapportino ${i + 1}`} className="space-y-3 rounded-lg border p-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="grid gap-1 text-xs text-muted-foreground">Giorno
+                <Input type="date" max={oggi} value={g.data} onChange={(e) => cambia(g.chiave, { data: e.target.value })} className="h-9 w-40" aria-label={`Giorno del rapportino ${i + 1}`} />
+              </label>
+              <label className="grid min-w-[11rem] flex-1 gap-1 text-xs text-muted-foreground">A nome di
+                <select value={g.autore} onChange={(e) => cambia(g.chiave, { autore: e.target.value })} aria-label={`A nome di, rapportino ${i + 1}`}
+                  className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
+                  <option value="">Ufficio (chi scrive)</option>
+                  {autori.map((a) => <option key={a.user_id} value={a.user_id}>{nomeAccesso(a)}{a.is_capocantiere ? " · capocantiere" : ""}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs text-muted-foreground">Meteo
+                <select value={g.meteo ?? ""} onChange={(e) => cambia(g.chiave, { meteo: e.target.value })} aria-label={`Meteo, rapportino ${i + 1}`}
+                  className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
+                  <option value="">—</option>
+                  {METEO.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </label>
+              {giorni.length > 1 && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Togli il rapportino ${i + 1}`} onClick={() => setGiorni((gs) => gs.filter((x) => x.chiave !== g.chiave))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <label className="grid gap-1 text-xs text-muted-foreground">Cosa si è fatto
+              <Textarea rows={2} maxLength={4000} value={g.descrizione} onChange={(e) => cambia(g.chiave, { descrizione: e.target.value })}
+                placeholder="Es. smontaggio manto lato nord, posa guaina" aria-label={`Cosa si è fatto, rapportino ${i + 1}`} />
             </label>
-            <label className="grid min-w-[12rem] flex-1 gap-1 text-xs text-muted-foreground">A nome di
-              <select value={g.autore} onChange={(e) => cambia(g.chiave, { autore: e.target.value })} aria-label={`A nome di, rapportino ${i + 1}`}
-                className="h-9 rounded-md border bg-background px-2 text-sm text-foreground">
-                <option value="">Ufficio (chi scrive)</option>
-                {persone.map((a) => <option key={a.user_id} value={a.user_id}>{nomeAccesso(a)}{a.is_capocantiere ? " · capocantiere" : ""}</option>)}
-              </select>
-            </label>
-            {giorni.length > 1 && (
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-600" aria-label={`Togli il rapportino ${i + 1}`} onClick={() => setGiorni((gs) => gs.filter((x) => x.chiave !== g.chiave))}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <label className="grid gap-1 text-xs text-muted-foreground">Cosa si è fatto
-            <Textarea rows={2} maxLength={4000} value={g.descrizione} onChange={(e) => cambia(g.chiave, { descrizione: e.target.value })}
-              placeholder="Es. smontaggio manto lato nord, posa guaina" aria-label={`Cosa si è fatto, rapportino ${i + 1}`} />
-          </label>
-          {phases.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Fasi lavorate</p>
-              <div className="flex flex-wrap gap-1.5">
-                {phases.map((p) => {
-                  const si = g.fasi.includes(p.id);
+
+            {phases.length > 0 && (
+              <Blocco titolo="Fasi lavorate">
+                <div className="flex flex-wrap gap-1.5">
+                  {phases.map((p) => {
+                    const si = g.fasi.includes(p.id);
+                    return (
+                      <button key={p.id} type="button" aria-pressed={si} onClick={() => cambia(g.chiave, { fasi: si ? g.fasi.filter((x) => x !== p.id) : [...g.fasi, p.id] })}
+                        className={cn("rounded-full border px-2.5 py-1 text-xs", si ? "border-blue-600 bg-blue-50 font-medium text-blue-900" : "border-border text-muted-foreground hover:bg-slate-50")}>
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {g.fasi.map((id) => {
+                  const fase = phases.find((p) => p.id === id);
+                  const sotto = (sottofasiDi.get(id) ?? []).filter((s) => !s.fatta);
                   return (
-                    <button key={p.id} type="button" aria-pressed={si} onClick={() => cambia(g.chiave, { fasi: si ? g.fasi.filter((x) => x !== p.id) : [...g.fasi, p.id] })}
-                      className={cn("rounded-full border px-2.5 py-1 text-xs", si ? "border-blue-600 bg-blue-50 font-medium text-blue-900" : "border-border text-muted-foreground hover:bg-slate-50")}>
-                      {p.name}
-                    </button>
+                    <div key={id} className="rounded-md bg-slate-50 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-medium">{fase?.name}</p>
+                        {!sotto.length && (
+                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Avanzamento
+                            <Input type="number" min={0} max={100} className="h-8 w-20" aria-label={`Avanzamento di ${fase?.name}`}
+                              value={g.percentuali?.[id] ?? fase?.percentuale ?? 0}
+                              onChange={(e) => cambia(g.chiave, { percentuali: { ...g.percentuali, [id]: Math.max(0, Math.min(100, Number(e.target.value) || 0)) } })} />%
+                          </label>
+                        )}
+                      </div>
+                      {sotto.length > 0 && (
+                        <ul className="mt-1 space-y-1">
+                          {sotto.map((s) => {
+                            const stato = g.sottofasi[s.id];
+                            const imposta = (v: "lavorata" | "finita") => {
+                              const nuove = { ...g.sottofasi };
+                              if (stato === v) delete nuove[s.id]; else nuove[s.id] = v;
+                              cambia(g.chiave, { sottofasi: nuove });
+                            };
+                            return (
+                              <li key={s.id} className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="min-w-0 flex-1">{s.name}</span>
+                                <button type="button" aria-pressed={stato === "lavorata"} aria-label={`${s.name}: lavorata`} onClick={() => imposta("lavorata")}
+                                  className={cn("flex items-center gap-1 rounded-md border px-2 py-1", stato === "lavorata" ? "border-blue-600 bg-blue-50 text-blue-900" : "border-border text-muted-foreground")}>
+                                  <Hammer className="h-3.5 w-3.5" />Lavorata
+                                </button>
+                                <button type="button" aria-pressed={stato === "finita"} aria-label={`${s.name}: finita`} onClick={() => imposta("finita")}
+                                  className={cn("flex items-center gap-1 rounded-md border px-2 py-1", stato === "finita" ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-border text-muted-foreground")}>
+                                  <Check className="h-3.5 w-3.5" />Finita
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   );
                 })}
-              </div>
-              {g.fasi.map((id) => {
-                const sotto = (sottofasiDi.get(id) ?? []).filter((s) => !s.fatta);
-                if (!sotto.length) return null;
-                const fase = phases.find((p) => p.id === id);
-                return (
-                  <div key={id} className="rounded-md bg-slate-50 p-2">
-                    <p className="mb-1 text-xs font-medium">{fase?.name}</p>
-                    <ul className="space-y-1">
-                      {sotto.map((s) => {
-                        const stato = g.sottofasi[s.id];
-                        const imposta = (v: "lavorata" | "finita") => {
-                          const nuove = { ...g.sottofasi };
-                          if (stato === v) delete nuove[s.id]; else nuove[s.id] = v;
-                          cambia(g.chiave, { sottofasi: nuove });
-                        };
-                        return (
-                          <li key={s.id} className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="min-w-0 flex-1">{s.name}</span>
-                            <button type="button" aria-pressed={stato === "lavorata"} aria-label={`${s.name}: lavorata`} onClick={() => imposta("lavorata")}
-                              className={cn("flex items-center gap-1 rounded-md border px-2 py-1", stato === "lavorata" ? "border-blue-600 bg-blue-50 text-blue-900" : "border-border text-muted-foreground")}>
-                              <Hammer className="h-3.5 w-3.5" />Lavorata
-                            </button>
-                            <button type="button" aria-pressed={stato === "finita"} aria-label={`${s.name}: finita`} onClick={() => imposta("finita")}
-                              className={cn("flex items-center gap-1 rounded-md border px-2 py-1", stato === "finita" ? "border-emerald-600 bg-emerald-50 text-emerald-900" : "border-border text-muted-foreground")}>
-                              <Check className="h-3.5 w-3.5" />Finita
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+              </Blocco>
+            )}
+
+            <Blocco titolo="Chi ha lavorato" destra={oreTotali > 0 ? `${oreTotali.toLocaleString("it-IT")} ore` : undefined}>
+              <RigheConValore
+                etichetta="persona"
+                voci={persone.map((p) => ({ id: p.chiave, nome: p.nome, gruppo: p.subappaltatore_id ? "Ditte" : p.employee_id && assegnati.has(p.employee_id) ? "Su questa commessa" : "Altri dipendenti" }))}
+                valori={presenze}
+                segnaposto="ore"
+                valoreNuovo="8"
+                onCambia={(v) => cambia(g.chiave, { presenze: v })}
+                extra={persone.some((p) => p.employee_id && assegnati.has(p.employee_id) && !(p.chiave in presenze)) && (
+                  <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => cambia(g.chiave, {
+                    presenze: { ...presenze, ...Object.fromEntries(persone.filter((p) => p.employee_id && assegnati.has(p.employee_id) && !(p.chiave in presenze)).map((p) => [p.chiave, "8"])) },
+                  })}>
+                    <Users className="mr-1 h-3.5 w-3.5" />Tutti quelli della commessa
+                  </Button>
+                )}
+              />
+            </Blocco>
+
+            <Blocco titolo="Mezzi e attrezzi usati">
+              <RigheConValore etichetta="mezzo" voci={mezzi.map((m) => ({ id: m.id, nome: m.nome, gruppo: m.qui ? "Su questo cantiere" : "Altri del parco" }))}
+                valori={g.mezzi ?? {}} segnaposto="ore (facolt.)" valoreNuovo="" onCambia={(v) => cambia(g.chiave, { mezzi: v })} />
+            </Blocco>
+
+            {(articoli.data?.length ?? 0) > 0 && (
+              <Blocco titolo="Materiali usati">
+                <RigheConValore etichetta="materiale" voci={(articoli.data ?? []).map((a) => ({ id: a.id, nome: a.nome, coda: a.unita ?? undefined }))}
+                  valori={g.materiali ?? {}} segnaposto="quantità" valoreNuovo="1" onCambia={(v) => cambia(g.chiave, { materiali: v })} />
+              </Blocco>
+            )}
+
+            <Blocco titolo="Foto">
+              <div className="flex flex-wrap items-center gap-2">
+                {(g.foto ?? []).map((u) => (
+                  <div key={u} className="relative h-16 w-16 overflow-hidden rounded-md border">
+                    <img src={u} alt="" className="h-full w-full object-cover" />
+                    <button type="button" aria-label="Togli la foto" onClick={() => cambia(g.chiave, { foto: (g.foto ?? []).filter((x) => x !== u) })}
+                      className="absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-slate-700"><X className="h-3 w-3" /></button>
                   </div>
-                );
-              })}
-            </div>
-          )}
-          <label className="grid gap-1 text-xs text-muted-foreground">Note (facoltative)
-            <Input value={g.note} maxLength={4000} onChange={(e) => cambia(g.chiave, { note: e.target.value })} aria-label={`Note, rapportino ${i + 1}`} />
-          </label>
-        </section>
-      ))}
+                ))}
+                <label className={cn("flex h-16 cursor-pointer items-center gap-1.5 rounded-md border border-dashed px-3 text-xs text-muted-foreground hover:bg-slate-50", caricando === g.chiave && "pointer-events-none opacity-60")}>
+                  {caricando === g.chiave ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {caricando === g.chiave ? "Carico…" : "Aggiungi foto"}
+                  <input type="file" accept="image/*" multiple className="sr-only" aria-label={`Foto, rapportino ${i + 1}`}
+                    onChange={(e) => { void caricaFoto(g, e.target.files); e.target.value = ""; }} />
+                </label>
+              </div>
+            </Blocco>
+
+            <label className="grid gap-1 text-xs text-muted-foreground">Note (facoltative)
+              <Input value={g.note} maxLength={4000} onChange={(e) => cambia(g.chiave, { note: e.target.value })} aria-label={`Note, rapportino ${i + 1}`} />
+            </label>
+          </section>
+        );
+      })}
       <Button variant="outline" size="sm" disabled={giorni.length >= 31}
         onClick={() => setGiorni((gs) => [...gs, giornoVuoto(oggi, `g${Date.now()}`, gs[gs.length - 1])])}>
         <Plus className="mr-1 h-4 w-4" />Aggiungi un altro giorno
@@ -158,10 +306,71 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
       {tentato && errori.length > 0 && <ul role="alert" className="list-disc pl-5 text-xs text-rose-700">{errori.map((e) => <li key={e}>{e}</li>)}</ul>}
       <DialogFooter>
         <Button variant="ghost" onClick={onFatto}>Annulla</Button>
-        <Button disabled={salva.isPending} onClick={() => { setTentato(true); if (!errori.length) salva.mutate(); }}>
+        <Button disabled={salva.isPending || !!caricando} onClick={() => { setTentato(true); if (!errori.length) salva.mutate(); }}>
           {salva.isPending ? "Salvo…" : giorni.length === 1 ? "Salva il rapportino" : `Salva ${giorni.length} rapportini`}
         </Button>
       </DialogFooter>
+    </div>
+  );
+}
+
+function Blocco({ titolo, destra, children }: { titolo: string; destra?: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{titolo}</p>
+        {destra && <p className="text-xs tabular-nums text-muted-foreground">{destra}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Un elenco di righe «nome + valore»: si aggiunge da una tendina, si scrive il valore, si toglie. */
+function RigheConValore({ etichetta, voci, valori, segnaposto, valoreNuovo, onCambia, extra }: {
+  etichetta: string;
+  voci: Array<{ id: string; nome: string; gruppo?: string; coda?: string }>;
+  valori: Record<string, string>;
+  segnaposto: string;
+  valoreNuovo: string;
+  onCambia: (v: Record<string, string>) => void;
+  extra?: ReactNode;
+}) {
+  const libere = voci.filter((v) => !(v.id in valori));
+  const gruppi = [...new Set(libere.map((v) => v.gruppo ?? ""))];
+  return (
+    <div className="space-y-1.5">
+      {Object.keys(valori).length > 0 && (
+        <ul className="divide-y rounded-md border">
+          {Object.entries(valori).map(([id, v]) => {
+            const voce = voci.find((x) => x.id === id);
+            return (
+              <li key={id} className="flex items-center gap-2 px-2 py-1">
+                <span className="min-w-0 flex-1 truncate text-sm">{voce?.nome ?? "—"}</span>
+                <Input value={v} inputMode="decimal" placeholder={segnaposto} aria-label={`${voce?.nome ?? etichetta}: ${segnaposto}`}
+                  onChange={(e) => onCambia({ ...valori, [id]: e.target.value })} className="h-8 w-24 text-right" />
+                {voce?.coda && <span className="w-8 text-xs text-muted-foreground">{voce.coda}</span>}
+                <button type="button" aria-label={`Togli ${voce?.nome ?? etichetta}`} className="text-muted-foreground hover:text-rose-600"
+                  onClick={() => { const n = { ...valori }; delete n[id]; onCambia(n); }}><X className="h-4 w-4" /></button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {libere.length > 0 && (
+          <select value="" aria-label={`Aggiungi ${etichetta}`} onChange={(e) => { if (e.target.value) onCambia({ ...valori, [e.target.value]: valoreNuovo }); }}
+            className="h-8 min-w-[12rem] flex-1 rounded-md border bg-background px-2 text-sm text-muted-foreground">
+            <option value="">+ Aggiungi {etichetta}…</option>
+            {gruppi.map((gr) => gr ? (
+              <optgroup key={gr} label={gr}>
+                {libere.filter((v) => v.gruppo === gr).map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
+              </optgroup>
+            ) : libere.filter((v) => !v.gruppo).map((v) => <option key={v.id} value={v.id}>{v.nome}</option>))}
+          </select>
+        )}
+        {extra}
+      </div>
     </div>
   );
 }

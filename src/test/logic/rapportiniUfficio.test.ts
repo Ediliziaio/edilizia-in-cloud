@@ -28,6 +28,32 @@ describe("rapportini dall'ufficio", () => {
         { phase_id: "f1", percentuale: 50, sottofasi_fatte: ["s1"], sottofasi_lavorate: ["s2"] },
         { phase_id: "f2", percentuale: 40 },
       ],
+      presenze: [], mezzi_usati: [], materiali_usati: [], foto_urls: [], meteo: null,
     }]);
+  });
+
+  it("completo come in cantiere: chi ha lavorato con le ore, mezzi, materiali, foto, meteo, avanzamento", () => {
+    const giorno = {
+      ...giornoVuoto(oggi, "a"), data: "2026-10-30", descrizione: "Getto", fasi: ["f2"], percentuali: { f2: 70 },
+      presenze: { "e:1": "7,5", "s:9": "8" }, mezzi: { m1: "3", m2: "" }, materiali: { i1: "2,5" },
+      foto: ["https://x/campo-rapportini/c/o/a.jpg"], meteo: "pioggia",
+    };
+    const [r] = caricoRapportini([giorno], [{ id: "f2", percentuale: 40 }], new Map(), {
+      persone: [{ chiave: "e:1", nome: "Mario Rossi", employee_id: "1" }, { chiave: "s:9", nome: "Edil Savoca", subappaltatore_id: "9" }],
+      mezzi: [{ id: "m1", nome: "Betoniera" }, { id: "m2", nome: "Furgone" }],
+      materiali: [{ id: "i1", nome: "Cemento", unita: "q" }],
+    });
+    expect(r.fasi_lavorate).toEqual([{ phase_id: "f2", percentuale: 70 }]);
+    expect(r.presenze).toEqual([{ employee_id: "1", nome: "Mario Rossi", ore: 7.5 }, { subappaltatore_id: "9", nome: "Edil Savoca", ore: 8 }]);
+    expect(r.mezzi_usati).toEqual([{ mezzo_id: "m1", nome: "Betoniera", ore: 3 }, { mezzo_id: "m2", nome: "Furgone" }]);
+    expect(r.materiali_usati).toEqual([{ nome: "Cemento", quantita: 2.5, unita: "q", order_item_id: "i1" }]);
+    expect(r).toMatchObject({ foto_urls: ["https://x/campo-rapportini/c/o/a.jpg"], meteo: "pioggia" });
+  });
+
+  it("il giorno dopo ricopia chi c'era e i mezzi, non le foto; ore e quantità vanno controllate", () => {
+    const primo = { ...giornoVuoto(oggi, "a"), data: "2026-10-28", descrizione: "x", presenze: { "e:1": "8" }, mezzi: { m1: "" }, foto: ["u"], meteo: "vento" };
+    expect(giornoVuoto(oggi, "b", primo)).toMatchObject({ presenze: { "e:1": "8" }, mezzi: { m1: "" }, foto: [], meteo: "vento" });
+    expect(erroriGiorni([{ ...primo, presenze: { "e:1": "25" } }], oggi)).toEqual(["Ore da 0 a 24 per ognuno."]);
+    expect(erroriGiorni([{ ...primo, materiali: { i1: "0" } }], oggi)).toEqual(["Quantità dei materiali maggiore di zero."]);
   });
 });
