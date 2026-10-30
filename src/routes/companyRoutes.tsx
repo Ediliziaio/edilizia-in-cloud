@@ -336,12 +336,13 @@ const RenderStanzaHub = lazy(() => import("@/pages/azienda/RenderStanzaHub"));
 const RenderStanzaNew = lazy(() => import("@/pages/azienda/RenderStanzaNew"));
 const RenderStanzaGallery = lazy(() => import("@/pages/azienda/RenderStanzaGallery"));
 const RenderStanzaGalleryDetail = lazy(() => import("@/pages/azienda/RenderStanzaGalleryDetail"));
-// Planimetrie nella sezione Render AI (fase 5b). L'editor (fase 2) e la generazione AI
-// (fase 3) entrano da RenderPlanimetriaIngresso finché non sono collegati.
+// Planimetrie nella sezione Render AI (fase 5b), con l'editor (fase 2) e la generazione
+// con l'AI (fase 3) in «Nuova pianta» e «Modifica la pianta».
 const RenderPlanimetrieHub = lazy(() => import("@/pages/azienda/RenderPlanimetrieHub"));
 const RenderPlanimetriaScheda = lazy(() => import("@/pages/azienda/RenderPlanimetriaScheda"));
 const RenderPlanimetriaStanza = lazy(() => import("@/pages/azienda/RenderPlanimetriaStanza"));
-const RenderPlanimetriaIngresso = lazy(() => import("@/pages/azienda/RenderPlanimetriaIngresso"));
+const RenderPlanimetriaNuova = lazy(() => import("@/pages/azienda/RenderPlanimetriaNuova"));
+const RenderPlanimetriaModifica = lazy(() => import("@/pages/azienda/RenderPlanimetriaModifica"));
 const RenderTechnicalModuleHub = lazy(() => import("@/pages/azienda/RenderTechnicalModuleHub"));
 const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechnicalModuleNew"));
 const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
@@ -902,9 +903,9 @@ export default function CompanyRoutesContainer() {
         <Route path="render/stanza/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>)} />
         <Route path="render/stanza/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGalleryDetail /></FeatureRoute>)} />
         <Route path="render/planimetrie" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetrieHub /></FeatureRoute>)} />
-        <Route path="render/planimetrie/nuova" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaIngresso /></FeatureRoute>)} />
+        <Route path="render/planimetrie/nuova" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaNuova /></FeatureRoute>)} />
         <Route path="render/planimetrie/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaScheda /></FeatureRoute>)} />
-        <Route path="render/planimetrie/:id/modifica" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaIngresso /></FeatureRoute>)} />
+        <Route path="render/planimetrie/:id/modifica" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaModifica /></FeatureRoute>)} />
         <Route path="render/planimetrie/:id/stanza/:localeId" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPlanimetriaStanza /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleHub moduleId="ristrutturazioni" /></FeatureRoute>)} />
         <Route path="render/ristrutturazioni/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="ristrutturazioni" /></FeatureRoute>)} />
