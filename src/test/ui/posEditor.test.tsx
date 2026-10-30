@@ -23,6 +23,8 @@ vi.mock("@/components/sicurezza/pos/ProdottiLavorazionePos",()=>({ProdottiLavora
 vi.mock("@/lib/sicurezza/apriPdfPos",()=>({apriAnteprimaPos:vi.fn()}));
 // L'invio per e-mail ha i suoi test (posInvio.test.tsx): qui basta che il pulsante non pretenda un utente collegato.
 vi.mock("@/components/sicurezza/pos/InvioPos",()=>({InvioPos:(p:{tipo:string;emissioneId:string|null})=><button type="button" data-testid={`invio-${p.tipo}`} disabled={!p.emissioneId}>Invia</button>,useIncaricoCse:()=>({data:null as null})}));
+// Anche la copia firmata ha i suoi test (posCopiaFirmata.test.tsx).
+vi.mock("@/components/sicurezza/pos/CopiaFirmataPos",()=>({CopiaFirmataSezione:():null=>null}));
 vi.mock("@/hooks/useEmissioniPos",()=>({
  useEmissioniPos:()=>({data:[] as never[],isLoading:false,isError:false}),
  useContenutiPerEmissione:()=>({data:[] as never[],isLoading:false,isError:false}),

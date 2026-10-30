@@ -44,6 +44,7 @@ import {
 import { AperturaSezioniContext, Campo } from "@/components/sicurezza/pos/campi";
 import { CosaManca } from "@/components/sicurezza/pos/CosaManca";
 import { InvioPos, useIncaricoCse, type DestinatarioPos } from "@/components/sicurezza/pos/InvioPos";
+import { CopiaFirmataSezione } from "@/components/sicurezza/pos/CopiaFirmataPos";
 import { useEmissioniPos } from "@/hooks/useEmissioniPos";
 import { BarraSezioniPos, NavSezioniPos, type VoceMenuSezione } from "@/components/sicurezza/pos/MenuSezioniPos";
 import { useSezioniApertePos, useStickyNelDocumento } from "@/components/sicurezza/pos/useSezioniPos";
@@ -485,6 +486,10 @@ function EditorPos({ pos, datiApp, puoScrivere }: EditorProps) {
                 <Campo id="iter-rls" label="RLS / RLST consultato il" type="date" value={iter.consultazione_rls_il ?? ""} readOnly={!puoScrivere || approva.isPending}
                   onChange={(v) => modificaIter((x) => ({ ...x, consultazione_rls_il: v || null }))} />
               </div>
+              {approvato && (
+                <CopiaFirmataSezione companyId={companyId || pos.company_id} posId={pos.id} revisione={pos.revisione} emissioneId={emissioneCorrente?.id ?? null} puoCaricare={puoScrivere}
+                  onCaricata={(data) => { if (data && !iter.firma_datore_il) modificaIter((x) => ({ ...x, firma_datore_il: data })); }} />
+              )}
               {subappalto && (
                 <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-3">
