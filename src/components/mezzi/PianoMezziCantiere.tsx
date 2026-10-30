@@ -2,9 +2,10 @@ import { SpesePianoMezzo } from "./SpesePianoMezzo";
 import { ViaggioSelect } from "./ViaggioSelect";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { usePersonePianoMezzi } from "@/hooks/useMezziPianoEconomia";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Truck, Wrench, Pencil, Loader2 } from "lucide-react";
+import { Plus, Truck, Wrench, Pencil, Loader2, ArrowDownToLine, ArrowUpFromLine, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -18,20 +19,33 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useMezzi } from "@/hooks/useMezzi";
+import {
+  useAssegnaMezzoACommessa,
+  useMezzi,
+  useMezziDellaCommessa,
+  useMontaQuantita,
+  useMontaggiDellaCommessa,
+  useRientroQuantita,
+} from "@/hooks/useMezzi";
 import { usePianoMezziCantiere } from "@/hooks/usePianoMezziCantiere";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { supabase } from "@/integrations/supabase/client";
 import {
   costoPianoMezzo,
+  finestraFasi,
+  pianoAttivo,
+  pianoDaAllineare,
   pianoPerFase,
+  righeMezziCantiere,
   statoPianoMezzo,
+  type PresenzaMezzo,
+  type RigaMezzoCantiere,
   type PianoMezzo,
   type CostoPianoMezzo,
   type BaseCostoMezzo,
 } from "@/lib/mezzi/pianoCantiere";
 import { formatCurrency } from "@/lib/formatters";
-import { oggiIso, formatData, POSSESSI } from "@/types/mezzi";
+import { oggiIso, formatData, giornoItaliano, POSSESSI } from "@/types/mezzi";
 import { MezzoFormDialog } from "./MezzoFormDialog";
 import { MezziCommessaCard } from "./MezziCommessaCard";
 
@@ -85,7 +99,8 @@ export function PianoMezziCantiere({
   });
   const [aperto, setAperto] = useState(false);
   const [nuovo, setNuovo] = useState<"mezzo" | "attrezzatura" | null>(null);
-  const [storico, setStorico] = useState(false);
+  // «È già in cantiere»: insieme alla prenotazione segna anche l'arrivo (31/10/2026).
+  const [giaQui, setGiaQui] = useState(false);
   const [filtro, setFiltro] = useState("tutti");
   const [draft, setDraft] = useState<Partial<PianoMezzo>>({});
   const [ambito, setAmbito] = useState("cantiere");
@@ -98,20 +113,65 @@ export function PianoMezziCantiere({
   const oggi = oggiIso();
   const asset = mezzi.find((m) => m.id === draft.mezzo_id);
   const noleggio = asset?.possesso.startsWith("noleggio");
-  const rows = (piani.data ?? [])
-    .filter((p) => pianoPerFase(p, faseId))
-    .filter((p) => storico || (!p.annullato && (!p.al || p.al >= oggi)))
-    .filter((p) => {
-      const m = mezzi.find((m) => m.id === p.mezzo_id);
-      return (
-        filtro === "tutti" ||
-        (filtro === "noleggio"
-          ? m?.possesso.startsWith("noleggio")
-          : filtro === "attrezzatura"
-            ? m?.tipo === "attrezzatura"
-            : m?.tipo !== "attrezzatura")
-      );
+  const presenti = useMezziDellaCommessa(vede ? orderId : undefined);
+  const montati = useMontaggiDellaCommessa(vede ? orderId : undefined);
+  const assegna = useAssegnaMezzoACommessa();
+  const monta = useMontaQuantita();
+  const rientro = useRientroQuantita();
+  const piniFase = useMemo(() => (piani.data ?? []).filter((p) => pianoPerFase(p, faseId)), [piani.data, faseId]);
+  // Un solo elenco: prenotazioni ancora valide e mezzi che sono sul cantiere adesso.
+  const tutte = useMemo(() => {
+    const qui: PresenzaMezzo[] = [
+      ...(presenti.data ?? []).filter((m) => m.adesso).map((m) => ({
+        mezzo_id: m.mezzo_id,
+        dal: giornoItaliano(m.periodi.find((x) => !x.al)?.dal ?? oggi),
+      })),
+      ...(montati.data ?? []).filter((g) => g.adesso).map((g) => ({
+        mezzo_id: g.mezzo_id, dal: g.dal, allocazione_id: g.id, quantita: g.quantita,
+      })),
+    ];
+    const righe = righeMezziCantiere(piniFase, qui, oggi);
+    // Nella finestra di una fase, i mezzi senza prenotazione valgono per tutto il cantiere: si vedono nella commessa.
+    return faseId ? righe.filter((r) => r.piano) : righe;
+  }, [piniFase, presenti.data, montati.data, oggi, faseId]);
+  const rows = tutte.filter((r) => {
+    const m = mezzi.find((m) => m.id === r.mezzo_id);
+    return (
+      filtro === "tutti" ||
+      (filtro === "noleggio"
+        ? m?.possesso.startsWith("noleggio")
+        : filtro === "attrezzatura"
+          ? m?.tipo === "attrezzatura"
+          : m?.tipo !== "attrezzatura")
+    );
+  });
+  const pianiPassati = piniFase.filter((p) => !pianoAttivo(p, oggi));
+  const nStorico =
+    pianiPassati.length +
+    (presenti.data ?? []).filter((m) => !m.adesso).length +
+    (montati.data ?? []).filter((g) => !g.adesso).length;
+  const occupato = assegna.isPending || monta.isPending || rientro.isPending || salva.isPending;
+  const arriva = async (mezzoId: string, piano: PianoMezzo | null, quantita?: number) => {
+    const m = mezzi.find((x) => x.id === mezzoId);
+    if (m?.gestione === "quantita")
+      await monta.mutateAsync({ mezzoId, order_id: orderId, quantita: quantita ?? piano?.quantita ?? 1 });
+    else await assegna.mutateAsync({ mezzoId, orderId });
+    // Arrivato prima del previsto: la prenotazione parte da oggi.
+    if (piano && piano.dal > oggi) await salva.mutateAsync({ ...piano, dal: oggi, al: piano.al && piano.al < oggi ? oggi : piano.al });
+  };
+  const rientra = async (r: RigaMezzoCantiere) => {
+    if (r.presenza?.allocazione_id)
+      await rientro.mutateAsync({ allocazioneId: r.presenza.allocazione_id, quantita: r.presenza.quantita ?? 0 });
+    else await assegna.mutateAsync({ mezzoId: r.mezzo_id, orderId: null });
+    // Rientrato: la prenotazione finisce oggi e passa nello storico.
+    if (r.piano && (!r.piano.al || r.piano.al > oggi))
+      await salva.mutateAsync({ ...r.piano, dal: r.piano.dal > oggi ? oggi : r.piano.dal, al: oggi });
+  };
+  const azione = (fn: () => Promise<void>) => {
+    void fn().catch(() => {
+      /* le mutation mostrano l'errore */
     });
+  };
   const apri = (p?: PianoMezzo) => {
     setDraft(
       p ?? {
@@ -123,6 +183,7 @@ export function PianoMezziCantiere({
         annullato: false,
       },
     );
+    setGiaQui(false);
     setAmbito(
       p
         ? p.fase_ids.length
@@ -184,34 +245,49 @@ export function PianoMezziCantiere({
     .at(-1);
   const salvaDraft = async () => {
     if (!valido) return;
+    const arrivo = !draft.id && giaQui;
+    const dal = arrivo && draft.dal! > oggi ? oggi : draft.dal;
     try {
       await salva.mutateAsync({
         ...draft,
+        dal,
         fase_ids: ambito === "cantiere" ? [] : draft.fase_ids,
         ...(costi ? { costo: tariffa.trim() ? prezzo : null } : {}),
       });
+      if (arrivo) await arriva(draft.mezzo_id!, null, Number(draft.quantita) || 1);
       setAperto(false);
     } catch {
       /* mutation mostra l'errore */
     }
   };
   if (!vede) return null;
+  const nomeFase = (id: string) => fasi.data?.find((f) => f.id === id)?.name ?? "Fase rimossa";
+  const statoRiga = (r: RigaMezzoCantiere) =>
+    r.stato === "sul_cantiere"
+      ? { testo: `Sul cantiere dal ${formatData(r.presenza!.dal)}`, classe: "border-emerald-200 bg-emerald-50 text-emerald-800" }
+      : r.stato === "atteso"
+        ? { testo: `Atteso dal ${formatData(r.piano!.dal)}`, classe: "border-amber-200 bg-amber-50 text-amber-900" }
+        : { testo: `Prenotato dal ${formatData(r.piano!.dal)}`, classe: "" };
   return (
     <div className="space-y-4">
       <section
         className="rounded-xl border bg-background p-3 sm:p-4"
-        aria-label="Pianificazione mezzi e attrezzature"
+        aria-label="Mezzi e attrezzature del cantiere"
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="flex items-center gap-2 font-semibold">
               <Truck className="h-4 w-4" />
               Mezzi e attrezzature
+              {tutte.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground">({tutte.length})</span>
+              )}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              {faseId
-                ? "Risorse per questa fase e per tutto il cantiere."
-                : "Organizza cosa serve, dove e per quanto tempo."}
+              {faseId ? "Per questa fase e per tutto il cantiere." : "Prenotati, attesi e sul cantiere."}{" "}
+              <Link to="/azienda/manodopera?tab=mezzi" className="underline underline-offset-2 hover:text-foreground">
+                Parco mezzi e noleggi
+              </Link>
             </p>
           </div>
           {modifica && (
@@ -221,162 +297,143 @@ export function PianoMezziCantiere({
               disabled={loadingMezzi || erroreMezzi || fasi.isError}
             >
               <Plus className="mr-1 h-4 w-4" />
-              Pianifica risorsa
+              Aggiungi mezzo
             </Button>
           )}
         </div>
-        <div className="my-3 flex flex-wrap items-center gap-2">
-          {["tutti", "mezzo", "attrezzatura", "noleggio"].map((v, i) => (
-            <Button
-              key={v}
-              size="sm"
-              variant={filtro === v ? "secondary" : "ghost"}
-              onClick={() => setFiltro(v)}
-            >
-              {["Tutti", "Mezzi", "Attrezzature", "Noleggi"][i]}
-            </Button>
-          ))}
-          <label className="ml-auto flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={storico}
-              onChange={(e) => setStorico(e.target.checked)}
-            />
-            Mostra terminati e annullati
-          </label>
-        </div>
-        {piani.isLoading ? (
+        {tutte.length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1">
+            {["tutti", "mezzo", "attrezzatura", "noleggio"].map((v, i) => (
+              <Button
+                key={v}
+                size="sm"
+                variant={filtro === v ? "secondary" : "ghost"}
+                className="h-8"
+                onClick={() => setFiltro(v)}
+              >
+                {["Tutti", "Mezzi", "Attrezzature", "Noleggi"][i]}
+              </Button>
+            ))}
+          </div>
+        )}
+        {piani.isLoading || presenti.isLoading || montati.isLoading ? (
           <Loader2 className="mx-auto my-4 h-5 w-5 animate-spin" />
-        ) : piani.isError || erroreMezzi || fasi.isError ? (
+        ) : piani.isError || erroreMezzi || fasi.isError || presenti.isError || montati.isError ? (
           <p role="alert" className="py-4 text-sm text-destructive">
-            Impossibile caricare la pianificazione.{" "}
+            Impossibile caricare i mezzi del cantiere.{" "}
             <button
               className="underline"
               onClick={() => {
                 void piani.refetch();
                 void fasi.refetch();
                 void refetchMezzi();
+                void presenti.refetch();
+                void montati.refetch();
               }}
             >
               Riprova
             </button>
           </p>
         ) : rows.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
-            Nessuna risorsa pianificata con questi filtri.
-            <p className="mt-1 text-xs">
-              Ad esempio: gru per tutto il cantiere, betoniera dal 2 al 6
-              novembre per i getti.
-            </p>
+          <div className="mt-3 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            {tutte.length ? "Nessun mezzo di questo tipo." : faseId ? "Nessun mezzo per questa fase." : "Nessun mezzo su questo cantiere."}
+            {!tutte.length && (
+              <p className="mt-1 text-xs">Ad esempio: la gru per tutto il cantiere, la betoniera per i giorni dei getti.</p>
+            )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
-                <tr>
-                  <th className="p-2">Risorsa</th>
-                  <th className="p-2">Assegnazione</th>
-                  <th className="p-2">Periodo</th>
-                  {costi && <th className="p-2 text-right">Costo previsto</th>}
-                  <th className="p-2">Stato</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => {
-                  const m = mezzi.find((m) => m.id === p.mezzo_id);
-                  const c = prezzi.data?.[p.id];
-                  const t = c ? costoPianoMezzo(p, c) : null;
-                  return (
-                    <tr
-                      key={p.id}
-                      className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
-                      onClick={() => {
-                        if (!costi || (!prezzi.isFetching && !prezzi.isError))
-                          apri(p);
-                      }}
-                    >
-                      <td className="p-2">
+          <ul className="mt-3 divide-y rounded-lg border" aria-label="Mezzi del cantiere">
+            {rows.map((r) => {
+              const p = r.piano;
+              const m = mezzi.find((m) => m.id === r.mezzo_id);
+              const c = p ? prezzi.data?.[p.id] : undefined;
+              const t = p && c ? costoPianoMezzo(p, c) : null;
+              const fuori = p ? pianoDaAllineare(p, fasi.data ?? []) : null;
+              const st = statoRiga(r);
+              const nome = m?.nome ?? "Risorsa archiviata";
+              return (
+                <li key={r.chiave} className="flex flex-wrap items-start gap-3 p-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                    {m?.tipo === "attrezzatura" ? <Wrench className="h-4 w-4 text-slate-600" /> : <Truck className="h-4 w-4 text-slate-600" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {p ? (
                         <button
                           type="button"
-                          className="text-left font-medium text-blue-700 hover:underline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            apri(p);
-                          }}
-                          disabled={
-                            costi && (prezzi.isFetching || prezzi.isError)
-                          }
+                          className="text-left text-sm font-medium text-blue-700 hover:underline"
+                          onClick={() => apri(p)}
+                          disabled={costi && (prezzi.isFetching || prezzi.isError)}
                         >
-                          {m?.tipo === "attrezzatura" ? (
-                            <Wrench className="mr-1 inline h-3.5 w-3.5" />
-                          ) : (
-                            <Truck className="mr-1 inline h-3.5 w-3.5" />
-                          )}
-                          {m?.nome ?? "Risorsa archiviata"}
+                          {nome}
                         </button>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {POSSESSI.find((x) => x.value === m?.possesso)?.label}
-                          {p.responsabile_hr_id && (
-                            <span className="block">
-                              Referente:{" "}
-                              {persone.data?.find(
-                                (x) => x.id === p.responsabile_hr_id,
-                              )?.nome ?? "Assegnato"}
-                            </span>
-                          )}
-                          {m?.gestione === "quantita"
-                            ? ` · ${p.quantita} ${m.unita_misura ?? "pz"}`
-                            : ""}
-                        </p>
-                      </td>
-                      <td className="max-w-64 p-2 text-xs">
-                        {p.fase_ids.length
-                          ? p.fase_ids
-                              .map(
-                                (id) =>
-                                  fasi.data?.find((f) => f.id === id)?.name ??
-                                  "Fase rimossa",
-                              )
-                              .join(", ")
-                          : "Tutto il cantiere"}
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-xs">
-                        {formatData(p.dal)} →{" "}
-                        {p.al ? formatData(p.al) : "Fine da definire"}
-                      </td>
-                      {costi && (
-                        <td className="p-2 text-right text-xs">
-                          {prezzi.isError
-                            ? "Non disponibile"
-                            : prezzi.isFetching
-                              ? "Caricamento…"
-                              : t !== null
-                                ? formatCurrency(t)
-                                : c
-                                  ? "Definisci la fine"
-                                  : "Da valorizzare"}
-                          {c && (
-                            <p className="text-muted-foreground">
-                              {formatCurrency(c.tariffa)} /{" "}
-                              {c.base === "totale" ? "assegnazione" : c.base}
-                            </p>
-                          )}
-                        </td>
+                      ) : (
+                        <Link to={`/azienda/mezzi/${r.mezzo_id}`} className="text-sm font-medium hover:underline">
+                          {nome}
+                        </Link>
                       )}
-                      <td className="p-2">
-                        <Badge
-                          variant="outline"
-                          className="whitespace-nowrap text-[11px]"
-                        >
-                          {statoPianoMezzo(p, oggi)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      <Badge variant="outline" className={`whitespace-nowrap text-[11px] ${st.classe}`}>{st.testo}</Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[
+                        POSSESSI.find((x) => x.value === m?.possesso)?.label,
+                        m?.gestione === "quantita" ? `${r.presenza?.quantita ?? p?.quantita} ${m.unita_misura ?? "pz"}` : null,
+                        p ? (p.fase_ids.length ? p.fase_ids.map(nomeFase).join(", ") : "Tutto il cantiere") : "Senza prenotazione",
+                        p ? `${formatData(p.dal)} → ${p.al ? formatData(p.al) : "fine da definire"}` : null,
+                        p?.responsabile_hr_id
+                          ? `Referente: ${persone.data?.find((x) => x.id === p.responsabile_hr_id)?.nome ?? "assegnato"}`
+                          : null,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                    {fuori && (
+                      <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-amber-900">
+                        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                        Le fasi ora vanno dal {formatData(fuori.dal)} al {formatData(fuori.al)}.
+                        {modifica && (
+                          <button
+                            type="button"
+                            className="font-medium underline"
+                            disabled={occupato}
+                            onClick={() => azione(() => salva.mutateAsync({ ...p!, dal: fuori.dal, al: fuori.al }))}
+                          >
+                            Allinea alle fasi
+                          </button>
+                        )}
+                      </p>
+                    )}
+                    {costi && p && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {prezzi.isError
+                          ? "Costo non disponibile"
+                          : prezzi.isFetching
+                            ? "Caricamento…"
+                            : t !== null
+                              ? `Costo previsto ${formatCurrency(t)}`
+                              : c
+                                ? "Costo: definisci la fine"
+                                : "Costo da valorizzare"}
+                      </p>
+                    )}
+                  </div>
+                  {modifica && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-9 shrink-0"
+                      disabled={occupato || loadingMezzi}
+                      onClick={() => azione(() => (r.stato === "sul_cantiere" ? rientra(r) : arriva(r.mezzo_id, p)))}
+                    >
+                      {r.stato === "sul_cantiere" ? (
+                        <><ArrowUpFromLine className="mr-1 h-4 w-4" />È rientrato</>
+                      ) : (
+                        <><ArrowDownToLine className="mr-1 h-4 w-4" />È arrivato</>
+                      )}
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
         {prezzi.isError && (
           <p role="alert" className="mt-2 text-xs text-destructive">
@@ -386,24 +443,34 @@ export function PianoMezziCantiere({
             </button>
           </p>
         )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          La pianificazione prenota la risorsa. La presenza effettiva si
-          registra all’arrivo e al rientro.
-          {costi
-            ? " Costi previsti al netto IVA, separati dalle fatture e dalle stime del parco."
-            : ""}
-        </p>
-      {/* Un riquadro solo (31/10/2026): la presenza effettiva sta dentro la pianificazione. */}
-      {!faseId && (
-        <details className="border-t pt-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            Presenza effettiva, montaggi e viaggi
-          </summary>
-          <div className="mt-3">
-            <MezziCommessaCard orderId={orderId} compact />
-          </div>
-        </details>
-      )}
+        {/* Uno storico solo (31/10/2026): prenotazioni finite, rientri, viaggi e stime. */}
+        {!faseId && (
+          <details className="mt-3 rounded-lg border px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              Storico{nStorico ? ` (${nStorico})` : ""}, viaggi{costi ? " e costi" : ""}
+            </summary>
+            <div className="mt-3 space-y-3">
+              {pianiPassati.length > 0 && (
+                <ul className="divide-y rounded-lg border text-xs" aria-label="Prenotazioni passate">
+                  {pianiPassati.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <button type="button" className="font-medium text-blue-700 hover:underline" onClick={() => apri(p)}>
+                        {mezzi.find((m) => m.id === p.mezzo_id)?.nome ?? "Risorsa archiviata"}
+                      </button>
+                      <span className="text-muted-foreground">
+                        {formatData(p.dal)} → {p.al ? formatData(p.al) : "—"} · {statoPianoMezzo(p, oggi)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <MezziCommessaCard orderId={orderId} storico />
+            </div>
+          </details>
+        )}
+        {costi && (
+          <p className="mt-2 text-[11px] text-muted-foreground">Costi previsti al netto IVA, separati dalle fatture.</p>
+        )}
       </section>
       <Dialog
         open={aperto}
@@ -414,10 +481,10 @@ export function PianoMezziCantiere({
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {draft.id ? "Dettaglio assegnazione" : "Pianifica una risorsa"}
+              {draft.id ? "Dettaglio del mezzo sul cantiere" : "Aggiungi un mezzo"}
             </DialogTitle>
             <DialogDescription>
-              Scegli mezzo o attrezzatura, fasi e periodo di utilizzo.
+              Scegli il mezzo, dove serve e per quanto. Se è già in cantiere, segnalo qui.
             </DialogDescription>
           </DialogHeader>
           <fieldset
@@ -491,16 +558,14 @@ export function PianoMezziCantiere({
                         <input
                           type="checkbox"
                           checked={draft.fase_ids?.includes(f.id) ?? false}
-                          onChange={(e) =>
-                            setDraft({
-                              ...draft,
-                              fase_ids: e.target.checked
-                                ? [...(draft.fase_ids ?? []), f.id]
-                                : (draft.fase_ids ?? []).filter(
-                                    (id) => id !== f.id,
-                                  ),
-                            })
-                          }
+                          onChange={(e) => {
+                            const ids = e.target.checked
+                              ? [...(draft.fase_ids ?? []), f.id]
+                              : (draft.fase_ids ?? []).filter((id) => id !== f.id);
+                            // Nuovo mezzo: le date seguono le fasi scelte, poi si possono cambiare.
+                            const w = !draft.id ? finestraFasi(ids, fasi.data ?? []) : null;
+                            setDraft({ ...draft, fase_ids: ids, ...(w ? { dal: w.dal, al: w.al } : {}) });
+                          }}
                         />
                         {f.name}
                       </label>
@@ -613,9 +678,15 @@ export function PianoMezziCantiere({
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              Lascia la fine vuota se ancora da definire. Le date restano quelle
-              concordate anche se le fasi vengono ripianificate.
+              Lascia la fine vuota se ancora da definire. Se le fasi si spostano,
+              le date restano queste: l’elenco te lo segnala e le allinei con un clic.
             </p>
+            {!draft.id && (
+              <label className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                <input type="checkbox" checked={giaQui} onChange={(e) => setGiaQui(e.target.checked)} />
+                È già in cantiere (arrivato oggi)
+              </label>
+            )}
             {asset?.gestione === "quantita" && (
               <div className="space-y-2">
                 <Label htmlFor="piano-quantita">
@@ -768,7 +839,7 @@ export function PianoMezziCantiere({
                 ) : (
                   <Pencil className="mr-1 h-4 w-4" />
                 )}
-                Salva pianificazione
+                {draft.id ? "Salva" : "Aggiungi"}
               </Button>
             )}
           </DialogFooter>
