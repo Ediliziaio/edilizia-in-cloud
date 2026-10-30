@@ -68,6 +68,16 @@ describe("PDF del cronoprogramma", () => {
     expect(testo).toContain("pagina 1 di 1");
   });
 
+  it("il previsionale non parla di stati né di ritardi: è il piano da dare al cliente", async () => {
+    const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
+    const riga = (numero: string): RigaTabella => ({ id: numero, numero, livello: numero.includes(".") ? 1 : 0, nome: `Attività ${numero}`, inizio: "2025-10-02", fine: "2025-10-08",
+      giorni: 7, giorniLavorati: null, risorse: null, quantita: null, unita: null, costoPrevisto: null, costoConsuntivo: null, venduto: null, avanzamento: 100, stimata: false, ritardo: 3, stato: "fatta" });
+    const testo = new TextDecoder("latin1").decode(await (await pdfCronoprogramma({ modo: "previsionale", titolo: "Cronoprogramma previsionale", righe: [riga("1"), riga("1.1")], da: "2025-09-28", a: "2025-10-20", oggi: "2025-10-05" })).arrayBuffer());
+    expect(testo).toContain("Date previste");
+    expect(testo).not.toContain("+3 gg");
+    expect(testo).not.toContain("In corso");
+  });
+
   it("con tante righe va a pagina nuova", async () => {
     const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
     const righe = Array.from({ length: 60 }, (_, i): RigaTabella => ({ id: String(i), numero: String(i + 1), livello: 0, nome: `Fase ${i + 1}`, inizio: "2025-10-02", fine: "2025-10-08",

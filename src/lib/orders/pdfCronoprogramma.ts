@@ -1,5 +1,10 @@
 /**
- * Il cronoprogramma della commessa in PDF, da stampare (31/10/2026): A4
+ * Il cronoprogramma della commessa in PDF, da stampare (31/10/2026). Due modi:
+ *   · «previsionale» (quello che si dà al cliente prima dei lavori): solo il
+ *     piano, un colore per fase e lo stesso, più chiaro, per le sue sottofasi;
+ *     niente stati, ritardi né «oggi».
+ *   · «avanzamento»: lo stato dei lavori, come la pagina.
+ * A4
  * orizzontale, a sinistra numero, attività, inizio, fine e giorni, a destra il
  * Gantt con le stesse regole della pagina (verde fatta, blu in corso, bordo
  * grigio da fare, rosso il ritardo con «+N gg»). Le fasi sono una linea
@@ -16,6 +21,12 @@ const COLORI = {
   oggi: [249, 115, 22], testo: [15, 23, 42], grigio: [100, 116, 139], filetto: [226, 232, 240], fondo: [248, 250, 252],
 } as const;
 
+/** Un colore per fase nel previsionale: si ripetono dopo otto fasi. */
+const TINTE_FASI: ReadonlyArray<readonly [number, number, number]> = [
+  [37, 99, 235], [13, 148, 136], [217, 119, 6], [124, 58, 237], [219, 39, 119], [22, 163, 74], [8, 145, 178], [190, 18, 60],
+];
+const chiara = (c: readonly number[], q = 0.55) => c.map((v) => Math.round(v + (255 - v) * q));
+
 const data = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "");
 const breve = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const MESI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
@@ -27,7 +38,9 @@ export async function pdfCronoprogramma(o: {
   a: string;
   oggi: string;
   dettagli?: string;
+  modo?: "previsionale" | "avanzamento";
 }): Promise<Blob> {
+  const previsionale = o.modo === "previsionale";
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
@@ -50,9 +63,10 @@ export async function pdfCronoprogramma(o: {
     y = m + 4;
     font(15, true); testo(o.titolo, m, y + 8);
     font(8.5, false, COLORI.grigio);
-    testo(`${o.dettagli ? `${o.dettagli} · ` : ""}Dal ${data(o.da)} al ${data(o.a)} · stampato il ${data(o.oggi)}`, m, y + 22, W - 2 * m - 330);
-    // Legenda in alto a destra.
+    testo(`${o.dettagli ? `${o.dettagli} · ` : ""}${previsionale ? "Date previste · " : ""}Dal ${data(o.da)} al ${data(o.a)} · stampato il ${data(o.oggi)}`, m, y + 22, W - 2 * m - 330);
+    // Legenda in alto a destra (nel previsionale i colori sono delle fasi: basta il piede).
     let lx = W - m - 320;
+    if (previsionale) { y += 38; } else {
     const voce = (c: readonly number[], etichetta: string, bordo = false) => {
       if (bordo) { colore(COLORI.da_fare, "draw"); doc.setLineWidth(0.8); doc.setFillColor(255, 255, 255); doc.roundedRect(lx, y + 2, 14, 7, 1.5, 1.5, "FD"); }
       else { colore(c); doc.roundedRect(lx, y + 2, 14, 7, 1.5, 1.5, "F"); }
@@ -60,10 +74,11 @@ export async function pdfCronoprogramma(o: {
     };
     voce(COLORI.fatta, "Fatta"); voce(COLORI.in_corso, "In corso"); voce(COLORI.da_fare, "Da fare", true); voce(COLORI.ritardo, "Ritardo");
     y += 38;
+    }
     // Testata delle colonne e della scala.
     colore(COLORI.fondo); doc.rect(m, y, W - 2 * m, 18, "F");
     font(7, true, COLORI.grigio);
-    testo("N.", col.n + 2, y + 12); testo("ATTIVITÀ", col.nome, y + 12); testo("INIZIO", col.inizio, y + 12); testo("FINE", col.fine, y + 12); testo("GG", col.gg, y + 12);
+    testo("N.", col.n + 6, y + 12); testo("ATTIVITÀ", col.nome, y + 12); testo("INIZIO", col.inizio, y + 12); testo("FINE", col.fine, y + 12); testo("GG", col.gg, y + 12);
     const perMese = giorniAsse > 150;
     for (let i = 0; i < giorniAsse; i++) {
       const d = aggiungiGiorni(o.da, i);
@@ -82,26 +97,41 @@ export async function pdfCronoprogramma(o: {
       if (dx >= 2 && (dow === 0 || dow === 6)) { colore(COLORI.fondo); doc.rect(x0 + i * dx, yTop, dx, h, "F"); }
       if ((giorniAsse > 150 ? d.endsWith("-01") : dow === 1)) { colore(COLORI.filetto, "draw"); doc.setLineWidth(0.4); doc.line(x0 + i * dx, yTop, x0 + i * dx, yTop + h); }
     }
-    if (o.oggi >= o.da && o.oggi <= o.a) { colore(COLORI.oggi, "draw"); doc.setLineWidth(0.8); const xo = xDi(o.oggi) + dx / 2; doc.line(xo, yTop, xo, yTop + h); }
+    if (!previsionale && o.oggi >= o.da && o.oggi <= o.a) { colore(COLORI.oggi, "draw"); doc.setLineWidth(0.8); const xo = xDi(o.oggi) + dx / 2; doc.line(xo, yTop, xo, yTop + h); }
   };
 
   testata();
   const fondoPagina = H - m - 14;
+  let faseCorrente = -1;
   o.righe.forEach((r, k) => {
+    if (r.livello === 0) faseCorrente++;
+    const tintaFase = TINTE_FASI[Math.max(0, faseCorrente) % TINTE_FASI.length];
     const fase = r.livello === 0;
     const h = fase ? 20 : 15;
     if (y + h > fondoPagina) testata();
     if (fase) { colore(COLORI.fondo); doc.rect(m, y, x0 - m, h, "F"); }
+    // Nel previsionale una striscia del colore della fase lega i nomi alle barre.
+    if (previsionale) { colore(fase ? tintaFase : chiara(tintaFase, 0.35)); doc.rect(m, y + 2, 2.5, h - 4, "F"); }
     sfondoGantt(y, h);
     colore(COLORI.filetto, "draw"); doc.setLineWidth(0.4); doc.line(m, y + h, W - m, y + h);
     const base = y + (fase ? 13 : 10.5);
-    font(fase ? 8.5 : 7.5, fase, fase ? COLORI.testo : COLORI.grigio); testo(r.numero, col.n + 2, base);
+    font(fase ? 8.5 : 7.5, fase, fase ? COLORI.testo : COLORI.grigio); testo(r.numero, col.n + 6, base);
     font(fase ? 8.5 : 7.5, fase, COLORI.testo); testo(r.nome, fase ? col.nome : col.nome + 8, base, col.inizio - col.nome - (fase ? 6 : 14));
     font(7.5, false, COLORI.grigio); testo(data(r.inizio), col.inizio, base); testo(data(r.fine), col.fine, base); testo(r.giorni != null ? String(r.giorni) : "", col.gg, base);
 
     // La barra: per la fase con le sottofasi una linea sottile con le punte; sennò una barra piena.
     const haFigli = fase && o.righe[k + 1]?.livello === 1;
-    if (r.inizio && r.fine) {
+    if (r.inizio && r.fine && previsionale) {
+      // Previsionale: la fase nel suo colore (linea sottile se ha sottofasi), le sottofasi più chiare.
+      const xa = xDi(r.inizio), xb = xDi(r.fine) + dx;
+      if (haFigli) {
+        colore(tintaFase); doc.rect(xa, y + 7, xb - xa, 2.2, "F");
+        doc.rect(xa, y + 7, 1.6, 6, "F"); doc.rect(xb - 1.6, y + 7, 1.6, 6, "F");
+      } else {
+        colore(fase ? tintaFase : chiara(tintaFase, 0.35));
+        doc.roundedRect(xa, y + (fase ? 5 : 3.5), Math.max(2, xb - xa), fase ? 10 : 8, 1.5, 1.5, "F");
+      }
+    } else if (r.inizio && r.fine) {
       const xa = xDi(r.inizio), xb = xDi(r.fine) + dx;
       const c = r.stato === "fatta" ? COLORI.fatta : r.stato === "in_corso" ? COLORI.in_corso : COLORI.da_fare;
       if (haFigli) {

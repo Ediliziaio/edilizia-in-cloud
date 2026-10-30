@@ -377,13 +377,15 @@ export function CronoprogrammaCommessa({
     try {
       const { pdfCronoprogramma } = await import("@/lib/orders/pdfCronoprogramma");
       const blob = await pdfCronoprogramma({
-        titolo: `Cronoprogramma${order.order_code ? ` · ${order.order_code}` : ""}`,
+        // «Periodo previsto» stampa il previsionale da dare al cliente; «Previsto e reale» lo stato dei lavori.
+        modo: periodo === "previsto" ? "previsionale" : "avanzamento",
+        titolo: `${periodo === "previsto" ? "Cronoprogramma previsionale" : "Avanzamento lavori"}${order.order_code ? ` · ${order.order_code}` : ""}`,
         dettagli: [order.client_name, order.indirizzo_lavori].filter(Boolean).join(" · ") || undefined,
         righe: righeTabella, da: asse.da, a: asse.a, oggi,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url; link.download = `cronoprogramma${order.order_code ? `-${order.order_code}` : ""}.pdf`; link.click();
+      link.href = url; link.download = `${periodo === "previsto" ? "cronoprogramma" : "avanzamento-lavori"}${order.order_code ? `-${order.order_code}` : ""}.pdf`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } finally {
       setStampa("pronta");
@@ -509,8 +511,9 @@ export function CronoprogrammaCommessa({
             const el = grafico.current;
             if (el) el.scrollLeft = Math.max(0, (giorniTra(asse.da, oggi) / asse.giorni) * (el.scrollWidth - COLONNA_PX) - (el.clientWidth - COLONNA_PX) / 2);
           }}>Vai a oggi</Button>}
-          <Button size="sm" variant="outline" disabled={stampa === "in_corso"} onClick={scaricaPdf}>
-            {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}Scarica PDF
+          <Button size="sm" variant="outline" disabled={stampa === "in_corso"} onClick={scaricaPdf}
+            title={periodo === "previsto" ? "Il piano da dare al cliente: un colore per fase, senza stati né ritardi" : "Lo stato dei lavori: fatte, in corso, da fare e ritardi"}>
+            {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}{periodo === "previsto" ? "PDF previsionale" : "PDF avanzamento"}
           </Button>
           {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>Gestisci fasi e date</Button>}
         </div>
