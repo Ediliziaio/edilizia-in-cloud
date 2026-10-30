@@ -461,7 +461,7 @@ const NESSUNO = new RegExp(
   `^\\s*(?:(?:nessun[oa]?|nulla|assent[ei]|non(?:\\s+(?:sono|è|ci\\s+sono))?\\s+(?:previst[eaoi]|present[ei]|utilizzat[eaoi]|necessari[eaoi]|applicabil[ei]))(?:\\s+${PAROLE_NESSUNO}){0,4}|n\\s*\\/\\s*a|n\\.\\s*a\\.?|-+|—)\\s*[.;]?\\s*$`,
   "i",
 );
-const nessuno = (s: string) => NESSUNO.test(s);
+export const nessuno = (s: string) => NESSUNO.test(s);
 /** Data ISO (aaaa-mm-gg) che esiste davvero nel calendario. */
 const dataIsoValida = (s: string): boolean => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());

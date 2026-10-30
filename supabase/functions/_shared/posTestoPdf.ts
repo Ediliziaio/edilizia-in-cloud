@@ -58,3 +58,16 @@ export function spezzaParoleLunghe(testo: string): string {
 }
 
 export const testoPerPdf = (testo: string): string => spezzaParoleLunghe(sostituisciSimboliPdf(testo));
+
+/**
+ * Le caselle ☒ e ☐ (anche quelle incollate da Word) il PDF le disegna con un mini-font: nel testo si lasciano due segni
+ * privati, che il layout trasforma in simboli e che per il controllo dei glifi tornano «[x]» e «[ ]». I segni privati
+ * scritti da un utente si tolgono prima: nessuno può fingere una casella.
+ */
+export const MARCA_CASELLA_SI = "";
+export const MARCA_CASELLA_NO = "";
+const SEGNI_PRIVATI = /[-]/g;
+export const testoPerPdfConCaselle = (testo: string): string =>
+  testoPerPdf(testo.replace(SEGNI_PRIVATI, "").replace(/[☒☑]/g, MARCA_CASELLA_SI).replace(/☐/g, MARCA_CASELLA_NO));
+/** Il testo con le caselle in lettere, come lo vede il controllo dei glifi. */
+export const caselleInLettere = (testo: string): string => testo.replaceAll(MARCA_CASELLA_SI, "[x]").replaceAll(MARCA_CASELLA_NO, "[ ]");
