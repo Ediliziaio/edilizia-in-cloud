@@ -29,12 +29,12 @@ export interface MuroVista {
   p2: Punto;
   spessore: number;
   altezza?: number;
-  tipo?: "portante" | "tramezzo";
+  tipo?: "esterno" | "portante" | "tramezzo";
   stato: StatoCostruttivo;
   origine?: OrigineMisura;
 }
 
-export type TipoApertura = "porta" | "finestra" | "portafinestra";
+export type TipoApertura = "porta" | "finestra" | "portafinestra" | "varco";
 
 export interface AperturaVista {
   id: string;
@@ -45,6 +45,8 @@ export interface AperturaVista {
   larghezza: number;
   altezza?: number;
   davanzale?: number;
+  /** Di serie a battente; «nessuna» è un vano senza anta. */
+  manovra?: "battente" | "scorrevole" | "nessuna";
   /**
    * Da che parte sta la cerniera guardando da p1 verso p2 («inizio» = vicino a
    * p1) e su quale lato del muro si apre l'anta («sinistra» = a sinistra di chi
@@ -77,7 +79,9 @@ export type TipoElemento =
   | "wc" | "bidet" | "lavabo" | "doccia" | "vasca"
   | "cucina" | "frigorifero" | "lavatrice" | "caldaia"
   | "letto_matrimoniale" | "letto_singolo" | "divano" | "tavolo" | "sedia"
-  | "armadio" | "comodino" | "scrivania";
+  | "armadio" | "comodino" | "scrivania"
+  /** Un oggetto che non ha un simbolo suo: riquadro con la diagonale. */
+  | "generico";
 
 export interface ElementoVista {
   id: string;

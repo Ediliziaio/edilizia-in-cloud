@@ -8,7 +8,8 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { PIANTA_ESEMPIO, vistaDaPlanimetria } from "../../src/lib/planimetrie/esporta/adattatore";
+import { vistaDaPlanimetria } from "../../src/lib/planimetrie/esporta/adattatore";
+import { PIANTA_ESEMPIO } from "../../src/lib/planimetrie/esporta/esempio";
 import { esportaDxf } from "../../src/lib/planimetrie/esporta/dxf";
 import { esportaPdf } from "../../src/lib/planimetrie/esporta/pdf";
 import { dimensioniPng } from "../../src/lib/planimetrie/esporta/png";
@@ -35,7 +36,7 @@ const cartiglio: DatiCartiglio = {
   cliente: "Mario Bianchi",
   indirizzoCantiere: "Via Roma 12, 20900 Monza (MB) — interno 4",
   data: new Date("2026-10-30"),
-  versione: `v${PIANTA_ESEMPIO.versione}`,
+  versione: "v3",
   tavola: "1/1",
 };
 

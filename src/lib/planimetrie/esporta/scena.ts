@@ -389,6 +389,21 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
     out.push({ tipo: "poligono", layer: "APERTURE", punti: [asse(s, t / 2), asse(s, -t / 2)], chiuso: false, tratto: { ...tratto, spessoreMm: 0.13 } });
   }
 
+  // Varco o vano senza anta: solo le spalle
+  if (a.tipo === "varco" || a.manovra === "nessuna") return out;
+
+  if (a.tipo === "porta" && a.manovra === "scorrevole") {
+    // L'anta chiusa, sottile, sul lato dove scorre, e la linea del binario
+    const s0 = da, s1 = aa;
+    const off = t / 2 + 2;
+    out.push({
+      tipo: "poligono", layer: "APERTURE", chiuso: true, riempimento: presentazione ? "#FFFFFF" : undefined, tratto,
+      punti: [asse(Math.min(s0, s1), off), asse(Math.max(s0, s1), off), asse(Math.max(s0, s1), off + 4), asse(Math.min(s0, s1), off + 4)],
+    });
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: 0.13 }, punti: [asse(da, off + 9), asse(aa, off + 9)] });
+    return out;
+  }
+
   if (a.tipo === "porta") {
     const inizio = a.cerniera !== "fine";
     const cerniera = asse(inizio ? da : aa, t / 2);
@@ -409,7 +424,7 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
   if (a.tipo === "finestra") {
     out.push({ tipo: "poligono", layer: "APERTURE", punti: [asse(da - 3, -t / 2), asse(aa + 3, -t / 2)], chiuso: false, tratto });
   }
-  if (a.tipo === "portafinestra") {
+  if (a.tipo === "portafinestra" && a.manovra !== "scorrevole") {
     const ante = a.ante ?? 2;
     const faccia = (s: number) => asse(s, t / 2);
     const tr = { ...tratto, tratteggioMm: undefined };
@@ -503,6 +518,13 @@ export function quoteEsterne(vista: VistaPianta, mm: (v: number) => number, form
     const unici = valori.filter((v, i) => i === 0 || v - valori[i - 1] > 0.5);
     if (unici.length < 2) continue;
     const punto = (v: number): Punto => (s.orizzontale ? { x: v, y: s.valore } : { x: s.valore, y: v });
+    // Una catena che misura lo stesso tratto di una quota del modello è doppia: resta quella del modello.
+    const giaNelModello = (a: number, b: number) => vista.quote.some((q) => {
+      const parallela = s.orizzontale ? Math.abs(q.p1.y - q.p2.y) < 1 : Math.abs(q.p1.x - q.p2.x) < 1;
+      const [qa, qb] = [coord(q.p1), coord(q.p2)].sort((x, y) => x - y);
+      const sulLato = Math.abs((s.orizzontale ? q.p1.y : q.p1.x) - s.valore) < 60;
+      return parallela && sulLato && Math.abs(qa - a) < 2 && Math.abs(qb - b) < 2;
+    });
     const primaFila = mm(7);
     if (unici.length > 2) {
       for (let i = 0; i < unici.length - 1; i++) {
@@ -511,7 +533,9 @@ export function quoteEsterne(vista: VistaPianta, mm: (v: number) => number, form
     }
     const totale = unici[unici.length - 1] - unici[0];
     const distanzaTotale = unici.length > 2 ? primaFila + mm(7) : primaFila;
-    out.push(...quota(punto(unici[0]), punto(unici[unici.length - 1]), s.fuori, distanzaTotale, formato(totale), mm));
+    if (!giaNelModello(unici[0], unici[unici.length - 1])) {
+      out.push(...quota(punto(unici[0]), punto(unici[unici.length - 1]), s.fuori, distanzaTotale, formato(totale), mm));
+    }
   }
   return out;
 }

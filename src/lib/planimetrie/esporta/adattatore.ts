@@ -1,80 +1,42 @@
 /**
- * Dal modello della pianta alla vista che le esportazioni disegnano.
+ * Dal modello della pianta (fase 1, `shared/planimetrie/`, contratto in
+ * docs/planimetrie/modello.md) alla vista che le esportazioni disegnano.
  *
- * PROVVISORIO. Il modello vero è della fase 1 (`shared/planimetrie/`, branch
- * `planimetrie-fase1-modello`) e qui non c'è ancora: finché non arriva, questo
- * file tiene una forma del modello presa dal piano (stato di fatto + proposte,
- * ognuno con i suoi muri, aperture, locali) e una pianta d'esempio scritta a
- * mano. Quando la fase 1 è pronta si cambiano solo i tipi qui sotto e
- * `vistaDaPlanimetria`: i disegnatori leggono `VistaPianta` e non se ne accorgono.
+ * È l'unico file delle esportazioni che conosce il modello: se il modello
+ * cambia si tocca qui, i disegnatori leggono `VistaPianta` e non se ne accorgono.
+ *
+ * Cosa fa:
+ * - sceglie livello e stato (fatto, progetto, confronto);
+ * - gira la y (il modello ha y verso l'alto come il DXF, la vista verso il basso
+ *   come lo schermo) e con lei le rotazioni: il modello gira gli arredi in senso
+ *   antiorario con il retro verso il basso a 0° (negli esempi il wc contro il muro
+ *   in alto ha 180°), la vista in senso orario con il retro in alto a 0°. È la
+ *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
+ * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
-import { areaPoligono, perimetroPoligono } from "./geometria";
 import type {
-  AperturaVista, ElementoVista, LocaleVista, MuroVista, OrigineMisura, Pavimento,
-  QuotaVista, StatoCostruttivo, TestoVista, VistaPianta,
+  Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
+} from "../../../../shared/planimetrie/modello.ts";
+import { calcolaQuantita, type MappaQuantita } from "../../../../shared/planimetrie/quantita.ts";
+import type {
+  AperturaVista, ElementoVista, LocaleVista, MuroVista, OrigineMisura, Pavimento, Punto, TipoElemento, VistaPianta,
 } from "./tipi";
-
-type SenzaStato<T> = Omit<T, "stato">;
-
-/** Una disposizione: i muri, le aperture e i locali di uno stato (fatto o proposta). */
-export interface DisposizioneProvvisoria {
-  muri: SenzaStato<MuroVista>[];
-  aperture: SenzaStato<AperturaVista>[];
-  locali: Omit<LocaleVista, "superficieMq" | "perimetroM">[];
-  elementi: Omit<ElementoVista, "stato">[];
-  quote?: QuotaVista[];
-  testi?: TestoVista[];
-}
-
-export interface LivelloProvvisorio {
-  id: string;
-  nome: string;
-  fatto: DisposizioneProvvisoria;
-  proposte: { id: string; nome: string; disposizione: DisposizioneProvvisoria }[];
-}
-
-export interface PlanimetriaProvvisoria {
-  id: string;
-  titolo: string;
-  versione: number;
-  unita: "cm";
-  nord?: number;
-  livelli: LivelloProvvisorio[];
-}
 
 /**
  * Cosa disegnare:
- * - `fatto`: lo stato di fatto, tutto esistente;
- * - `progetto`: la proposta com'è, tutto esistente (la pianta «finita»);
- * - `confronto`: fatto e proposta sovrapposti, giallo ciò che si demolisce,
- *   rosso ciò che si costruisce. Muri e aperture si riconoscono per `id`.
+ * - `fatto`: lo stato di fatto;
+ * - `progetto`: la proposta a lavori finiti (senza ciò che si demolisce, il nuovo
+ *   disegnato come esistente): la pianta da far vedere al cliente;
+ * - `confronto`: la proposta con i colori dei lavori, giallo ciò che si demolisce,
+ *   rosso ciò che si costruisce (la tavola comparativa).
  */
 export type ModoVista = "fatto" | "progetto" | "confronto";
 
 export interface SceltaVista {
   livelloId?: string;
+  /** Di serie la prima proposta del livello; senza proposte si disegna il fatto. */
   propostaId?: string;
   modo: ModoVista;
-}
-
-const conStato = <T extends object>(voci: T[], stato: StatoCostruttivo) =>
-  voci.map((v) => ({ ...v, stato }));
-
-function confronta<T extends { id: string }>(fatto: T[], progetto: T[]): (T & { stato: StatoCostruttivo })[] {
-  const inProgetto = new Set(progetto.map((v) => v.id));
-  const inFatto = new Set(fatto.map((v) => v.id));
-  return [
-    ...fatto.map((v) => ({ ...v, stato: (inProgetto.has(v.id) ? "esistente" : "da_demolire") as StatoCostruttivo })),
-    ...progetto.filter((v) => !inFatto.has(v.id)).map((v) => ({ ...v, stato: "nuovo" as StatoCostruttivo })),
-  ];
-}
-
-function conSuperfici(locali: DisposizioneProvvisoria["locali"]): LocaleVista[] {
-  return locali.map((l) => ({
-    ...l,
-    superficieMq: areaPoligono(l.contorno) / 10_000,
-    perimetroM: perimetroPoligono(l.contorno) / 100,
-  }));
 }
 
 const NOMI_MODO: Record<ModoVista, string> = {
@@ -83,149 +45,118 @@ const NOMI_MODO: Record<ModoVista, string> = {
   confronto: "Stato comparativo",
 };
 
-export function vistaDaPlanimetria(p: PlanimetriaProvvisoria, scelta: SceltaVista = { modo: "progetto" }): VistaPianta {
-  const livello = p.livelli.find((l) => l.id === scelta.livelloId) ?? p.livelli[0];
-  if (!livello) throw new Error("La pianta non ha livelli da disegnare.");
-  const proposta = livello.proposte.find((x) => x.id === scelta.propostaId) ?? livello.proposte[0];
-  const progetto = proposta?.disposizione ?? livello.fatto;
-  const modo = proposta ? scelta.modo : "fatto";
+/** y verso l'alto → y verso il basso. */
+const giu = (p: PuntoModello): Punto => ({ x: p.x, y: -p.y });
 
-  const base = modo === "fatto" ? livello.fatto : progetto;
-  const muri = modo === "confronto" ? confronta(livello.fatto.muri, progetto.muri) : conStato(base.muri, "esistente");
-  const aperture = modo === "confronto"
-    ? confronta(livello.fatto.aperture, progetto.aperture)
-    : conStato(base.aperture, "esistente");
+/** Dal testo libero della finitura al disegno del pavimento; undefined = quello di serie per la destinazione. */
+export function pavimentoDaFinitura(testo?: string): Pavimento | undefined {
+  const t = (testo ?? "").toLowerCase();
+  if (!t) return undefined;
+  if (/parquet|legno|laminat|rovere|noce/.test(t)) return "parquet";
+  if (/cotto|terracotta/.test(t)) return "cotto";
+  if (/marmo|travertino|pietra/.test(t)) return "marmo";
+  if (/resina|cemento|microcemento/.test(t)) return "resina";
+  if (/piastrell|ceramic|mosaic|maiolic/.test(t)) return "piastrelle";
+  if (/gres/.test(t)) return "gres";
+  return undefined;
+}
 
-  const titoloProposta = modo !== "fatto" && proposta && livello.proposte.length > 1 ? ` — ${proposta.nome}` : "";
+/** I nomi che l'editor e l'AI usano per gli arredi, ricondotti ai simboli che sappiamo disegnare. */
+const ALIAS_ELEMENTI: Record<string, TipoElemento> = {
+  cucina_lineare: "cucina", cucina_angolare: "cucina", piano_cottura: "cucina", angolo_cottura: "cucina",
+  frigo: "frigorifero", piatto_doccia: "doccia", box_doccia: "doccia", vasca_bagno: "vasca",
+  lavandino: "lavabo", lavello: "lavabo", water: "wc", vaso: "wc",
+  letto: "letto_matrimoniale", letto_doppio: "letto_matrimoniale", letto_piazza: "letto_singolo",
+  sofa: "divano", tavolo_pranzo: "tavolo", comodini: "comodino", guardaroba: "armadio",
+};
+const NOTI = new Set<string>([
+  "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia",
+  "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania",
+]);
+
+/** Il simbolo da disegnare per un tipo libero; «generico» è un riquadro con la diagonale. */
+export function tipoElemento(tipo: string): TipoElemento {
+  const t = tipo.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (NOTI.has(t)) return t as TipoElemento;
+  return ALIAS_ELEMENTI[t] ?? "generico";
+}
+
+function muroVista(m: Muro, modo: ModoVista): MuroVista {
   return {
-    titolo: p.titolo,
-    livello: `${livello.nome} · ${NOMI_MODO[modo]}${titoloProposta}`,
-    muri,
-    aperture,
-    locali: conSuperfici(base.locali),
-    elementi: base.elementi.map((e) => ({ ...e, stato: "esistente" as StatoCostruttivo })),
-    quote: base.quote ?? [],
-    testi: base.testi ?? [],
-    nord: p.nord,
+    id: m.id, p1: giu(m.p1), p2: giu(m.p2), spessore: m.spessore, altezza: m.altezza, tipo: m.tipo,
+    stato: modo === "progetto" ? "esistente" : m.stato,
+    origine: m.origine,
   };
 }
 
-// ─── Pianta d'esempio ────────────────────────────────────────────────────────
-//
-// Un bilocale con assi dei muri esterni di 9,60 × 7,40 m (9,90 × 7,70 al filo
-// esterno), muri esterni da 30 cm e
-// tramezzi da 10. Nel progetto si apre la cucina sul soggiorno (muro giallo) e
-// si ricava una lavanderia dal bagno (muro e porta rossi).
+function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {
+  return {
+    id: a.id, muroId: a.muroId, tipo: a.tipo, distanza: a.offset, larghezza: a.larghezza, altezza: a.altezza,
+    davanzale: a.davanzale, manovra: a.manovra,
+    cerniera: a.verso?.cardine === "p2" ? "fine" : "inizio",
+    lato: a.verso?.lato ?? "sinistra",
+    ante: a.tipo === "porta" || a.larghezza < 100 ? 1 : 2,
+    stato: modo === "progetto" ? "esistente" : a.stato,
+  };
+}
 
-const R = (x0: number, y0: number, x1: number, y1: number) => [
-  { x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 },
-];
+function localeVista(l: Locale, q: MappaQuantita, ambito: string): LocaleVista {
+  const pav = q[`${ambito}:locale:${l.id}.pavimento_mq`];
+  const per = q[`${ambito}:locale:${l.id}.perimetro_ml`];
+  return {
+    id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza,
+    superficieMq: pav?.valore, perimetroM: per?.valore,
+    pavimento: pavimentoDaFinitura(l.finiture?.pavimento),
+    origine: pav?.origine ?? l.origine,
+  };
+}
 
-const muriEsterni: SenzaStato<MuroVista>[] = [
-  { id: "m-nord", p1: { x: 0, y: 0 }, p2: { x: 960, y: 0 }, spessore: 30, altezza: 270, tipo: "portante" },
-  { id: "m-est", p1: { x: 960, y: 0 }, p2: { x: 960, y: 740 }, spessore: 30, altezza: 270, tipo: "portante" },
-  { id: "m-sud", p1: { x: 0, y: 740 }, p2: { x: 960, y: 740 }, spessore: 30, altezza: 270, tipo: "portante" },
-  { id: "m-ovest", p1: { x: 0, y: 0 }, p2: { x: 0, y: 740 }, spessore: 30, altezza: 270, tipo: "portante" },
-];
+/** Rotazione del modello (antioraria, retro in basso a 0°) → della vista (oraria, retro in alto a 0°). */
+export const rotazioneVista = (gradi: number) => (((180 - gradi) % 360) + 360) % 360;
 
-const muriInterni: SenzaStato<MuroVista>[] = [
-  { id: "t-zona-notte", p1: { x: 560, y: 0 }, p2: { x: 560, y: 740 }, spessore: 10, altezza: 270, tipo: "tramezzo" },
-  { id: "t-camera", p1: { x: 560, y: 400 }, p2: { x: 960, y: 400 }, spessore: 10, altezza: 270, tipo: "tramezzo" },
-  { id: "t-bagno", p1: { x: 680, y: 400 }, p2: { x: 680, y: 740 }, spessore: 10, altezza: 270, tipo: "tramezzo" },
-];
+function elementoVista(e: Elemento, modo: ModoVista): ElementoVista {
+  return {
+    id: e.id, tipo: tipoElemento(e.tipo), posizione: giu(e.posizione), larghezza: e.larghezza, profondita: e.profondita,
+    rotazione: rotazioneVista(e.rotazione ?? 0),
+    stato: modo === "progetto" ? "esistente" : e.stato ?? "esistente",
+  };
+}
 
-const apertureComuni: SenzaStato<AperturaVista>[] = [
-  { id: "f-soggiorno", muroId: "m-nord", tipo: "finestra", distanza: 150, larghezza: 140, altezza: 150, davanzale: 90, ante: 2 },
-  { id: "f-camera", muroId: "m-nord", tipo: "finestra", distanza: 690, larghezza: 120, altezza: 150, davanzale: 90, ante: 2 },
-  { id: "pf-cucina", muroId: "m-ovest", tipo: "portafinestra", distanza: 520, larghezza: 120, altezza: 240, ante: 2 },
-  { id: "f-cucina", muroId: "m-sud", tipo: "finestra", distanza: 180, larghezza: 120, altezza: 140, davanzale: 100, ante: 2 },
-  { id: "p-ingresso", muroId: "m-sud", tipo: "porta", distanza: 575, larghezza: 90, altezza: 210, cerniera: "inizio", lato: "sinistra" },
-  { id: "f-bagno", muroId: "m-est", tipo: "finestra", distanza: 450, larghezza: 70, altezza: 120, davanzale: 110, ante: 1 },
-  { id: "p-disimpegno", muroId: "t-zona-notte", tipo: "porta", distanza: 470, larghezza: 80, altezza: 210, cerniera: "fine", lato: "sinistra" },
-  { id: "p-camera", muroId: "t-camera", tipo: "porta", distanza: 20, larghezza: 80, altezza: 210, cerniera: "inizio", lato: "sinistra" },
-  { id: "p-bagno", muroId: "t-bagno", tipo: "porta", distanza: 30, larghezza: 70, altezza: 210, cerniera: "inizio", lato: "sinistra" },
-];
+/** Lo stato da disegnare, già filtrato per il modo. */
+function statoDaDisegnare(livello: Livello, modo: ModoVista, propostaId?: string) {
+  const proposta = livello.proposte.find((x) => x.id === propostaId) ?? livello.proposte[0];
+  if (modo === "fatto" || !proposta) return { stato: livello.fatto, ambito: "fatto", modo: "fatto" as ModoVista };
+  const ambito = `progetto:${proposta.id}`;
+  if (modo === "confronto") return { stato: proposta as StatoPianta, ambito, nomeProposta: proposta.nome, modo };
+  const resta = <T extends { stato?: string }>(v: T[]) => v.filter((x) => x.stato !== "da_demolire");
+  const stato: StatoPianta = { ...proposta, muri: resta(proposta.muri), aperture: resta(proposta.aperture), elementi: resta(proposta.elementi) };
+  return { stato, ambito, nomeProposta: proposta.nome, modo };
+}
 
-const PAVIMENTI: Record<string, Pavimento> = { soggiorno: "parquet", camera: "parquet", cucina: "gres", bagno: "piastrelle" };
+/**
+ * La vista di un livello. `quantita` si passa se si hanno già (sono in cache
+ * nella versione salvata); altrimenti si calcolano qui.
+ */
+export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo: "progetto" }, quantita?: MappaQuantita): VistaPianta {
+  const livello = p.livelli.find((l) => l.id === scelta.livelloId) ?? p.livelli[0];
+  if (!livello) throw new Error("La pianta non ha livelli da disegnare.");
+  const { stato, ambito, nomeProposta, modo } = statoDaDisegnare(livello, scelta.modo, scelta.propostaId);
+  const q = quantita ?? calcolaQuantita(p);
+  const piuProposte = livello.proposte.length > 1 && nomeProposta ? ` — ${nomeProposta}` : "";
+  return {
+    titolo: p.titolo?.trim() || "Pianta",
+    livello: `${livello.nome} · ${NOMI_MODO[modo]}${piuProposte}`,
+    muri: stato.muri.map((m) => muroVista(m, modo)),
+    aperture: stato.aperture.map((a) => aperturaVista(a, modo)),
+    locali: stato.locali.map((l) => localeVista(l, q, ambito)),
+    elementi: stato.elementi.map((e) => elementoVista(e, modo)),
+    quote: stato.quote.map((x) => ({ p1: giu(x.p1), p2: giu(x.p2), scostamento: x.scostamento })),
+    testi: stato.testi.map((t) => ({ posizione: giu(t.posizione), testo: t.testo, rotazione: -(t.rotazione ?? 0) })),
+    nord: p.nord === undefined ? undefined : -p.nord,
+  };
+}
 
-export const PIANTA_ESEMPIO: PlanimetriaProvvisoria = {
-  id: "esempio-trilocale",
-  titolo: "Appartamento via Roma 12",
-  versione: 3,
-  unita: "cm",
-  livelli: [
-    {
-      id: "pt",
-      nome: "Piano primo",
-      fatto: {
-        muri: [
-          ...muriEsterni,
-          ...muriInterni,
-          { id: "t-cucina", p1: { x: 0, y: 440 }, p2: { x: 560, y: 440 }, spessore: 10, altezza: 270, tipo: "tramezzo" },
-        ],
-        aperture: [
-          ...apertureComuni,
-          { id: "p-cucina", muroId: "t-cucina", tipo: "porta", distanza: 380, larghezza: 80, altezza: 210, cerniera: "inizio", lato: "destra" },
-        ],
-        locali: [
-          { id: "l-soggiorno", nome: "Soggiorno", destinazione: "soggiorno", contorno: R(15, 15, 555, 435), altezza: 270, pavimento: PAVIMENTI.soggiorno, origine: "rilevata" },
-          { id: "l-cucina", nome: "Cucina", destinazione: "cucina", contorno: R(15, 445, 555, 725), altezza: 270, pavimento: PAVIMENTI.cucina, origine: "rilevata" },
-          { id: "l-camera", nome: "Camera", destinazione: "camera", contorno: R(565, 15, 945, 395), altezza: 270, pavimento: PAVIMENTI.camera, origine: "rilevata" },
-          { id: "l-disimpegno", nome: "Disimpegno", destinazione: "disimpegno", contorno: R(565, 405, 675, 725), altezza: 270, pavimento: "gres", origine: "rilevata" },
-          { id: "l-bagno", nome: "Bagno", destinazione: "bagno", contorno: R(685, 405, 945, 725), altezza: 270, pavimento: PAVIMENTI.bagno, origine: "rilevata" },
-        ],
-        elementi: [],
-      },
-      proposte: [
-        {
-          id: "A",
-          nome: "Proposta A",
-          disposizione: {
-            muri: [
-              ...muriEsterni,
-              ...muriInterni,
-              { id: "t-lavanderia", p1: { x: 680, y: 600 }, p2: { x: 960, y: 600 }, spessore: 10, altezza: 270, tipo: "tramezzo", origine: "stimata" },
-            ],
-            aperture: [
-              ...apertureComuni,
-              { id: "p-lavanderia", muroId: "t-bagno", tipo: "porta", distanza: 250, larghezza: 70, altezza: 210, cerniera: "fine", lato: "sinistra" },
-              { id: "f-lavanderia", muroId: "m-est", tipo: "finestra", distanza: 640, larghezza: 60, altezza: 100, davanzale: 120, ante: 1 },
-            ],
-            locali: [
-              { id: "l-soggiorno", nome: "Soggiorno con cucina", destinazione: "soggiorno", contorno: R(15, 15, 555, 725), altezza: 270, pavimento: PAVIMENTI.soggiorno, origine: "rilevata" },
-              { id: "l-camera", nome: "Camera", destinazione: "camera", contorno: R(565, 15, 945, 395), altezza: 270, pavimento: PAVIMENTI.camera, origine: "rilevata" },
-              { id: "l-disimpegno", nome: "Disimpegno", destinazione: "disimpegno", contorno: R(565, 405, 675, 725), altezza: 270, pavimento: "gres", origine: "rilevata" },
-              { id: "l-bagno", nome: "Bagno", destinazione: "bagno", contorno: R(685, 405, 945, 595), altezza: 270, pavimento: PAVIMENTI.bagno, origine: "rilevata" },
-              { id: "l-lavanderia", nome: "Lavanderia", destinazione: "lavanderia", contorno: R(685, 605, 945, 725), altezza: 270, pavimento: "gres", origine: "stimata" },
-            ],
-            elementi: [
-              // Bagno: sanitari sul tramezzo della camera, doccia nell'angolo
-              { id: "e-wc", tipo: "wc", posizione: { x: 800, y: 433 }, larghezza: 38, profondita: 55, rotazione: 0 },
-              { id: "e-bidet", tipo: "bidet", posizione: { x: 860, y: 433 }, larghezza: 38, profondita: 55, rotazione: 0 },
-              { id: "e-lavabo", tipo: "lavabo", posizione: { x: 760, y: 572 }, larghezza: 60, profondita: 45, rotazione: 180 },
-              { id: "e-doccia", tipo: "doccia", posizione: { x: 900, y: 550 }, larghezza: 90, profondita: 90, rotazione: 0 },
-              // Lavanderia
-              { id: "e-lavatrice", tipo: "lavatrice", posizione: { x: 915, y: 695 }, larghezza: 60, profondita: 60, rotazione: 180 },
-              { id: "e-caldaia", tipo: "caldaia", posizione: { x: 830, y: 705 }, larghezza: 45, profondita: 35, rotazione: 180 },
-              // Camera
-              { id: "e-letto", tipo: "letto_matrimoniale", posizione: { x: 755, y: 117 }, larghezza: 170, profondita: 205, rotazione: 0 },
-              { id: "e-comodino-1", tipo: "comodino", posizione: { x: 645, y: 37 }, larghezza: 45, profondita: 40, rotazione: 0 },
-              { id: "e-comodino-2", tipo: "comodino", posizione: { x: 865, y: 37 }, larghezza: 45, profondita: 40, rotazione: 0 },
-              { id: "e-armadio", tipo: "armadio", posizione: { x: 795, y: 362 }, larghezza: 240, profondita: 60, rotazione: 180 },
-              // Soggiorno con cucina
-              { id: "e-cucina", tipo: "cucina", posizione: { x: 175, y: 694 }, larghezza: 300, profondita: 62, rotazione: 180 },
-              { id: "e-frigo", tipo: "frigorifero", posizione: { x: 360, y: 694 }, larghezza: 65, profondita: 62, rotazione: 180 },
-              { id: "e-tavolo", tipo: "tavolo", posizione: { x: 300, y: 545 }, larghezza: 160, profondita: 90, rotazione: 0 },
-              { id: "e-divano", tipo: "divano", posizione: { x: 285, y: 110 }, larghezza: 240, profondita: 95, rotazione: 0 },
-            ],
-          },
-        },
-      ],
-    },
-  ],
-};
-
-/** Le origini delle misure di una vista: serve al PDF per la nota sulle stimate. */
+/** Ci sono misure stimate fra quelle disegnate? Serve al PDF per la nota sotto la tabella. */
 export function haMisureStimate(v: VistaPianta): boolean {
   const stimata = (o?: OrigineMisura) => o === "stimata";
   return v.muri.some((m) => stimata(m.origine)) || v.locali.some((l) => stimata(l.origine)) || v.quote.some((q) => stimata(q.origine));
