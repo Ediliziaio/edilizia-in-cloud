@@ -1198,7 +1198,7 @@ function DocumentiFiscaliListInner() {
                                   </DropdownMenuItem>
                                 )}
                                 {/* Storico, annulla incasso, abbina al bonifico. Da telefono no.
-                                    Solo fatture native: le importate hanno il loro registro. */}
+                                    Solo fatture native: le importate li hanno nel loro dettaglio. */}
                                 {!isMobile && !esterna && haIncassi(doc) && (
                                   <DropdownMenuItem onClick={() => setIncassiId(doc.id)}>
                                     <Landmark className="h-4 w-4 mr-2" /> Incassi e banca

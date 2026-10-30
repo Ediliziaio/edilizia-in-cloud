@@ -14,9 +14,9 @@ import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImport
 import { CollegamentiEmessaImportata } from "@/components/fatturazione/CollegamentiEmessaImportata";
 import { PROVIDER_LABELS, SegnaPagataImportataDialog, importataPagabile, residuoImportata } from "@/components/fatturazione/GestionaleEsterno";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
+import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
 import { Progress } from "@/components/ui/progress";
 import type { DocumentoFiscale, RigaDocumento, RiepilogoIVA, StatoDocumento, TipoDocumento } from "@/types/fatturazione";
 import type { EditorState } from "./editor/useEditorState";
@@ -255,10 +255,10 @@ export default function DettaglioFatturaImportata() {
               </div>
               <Progress value={progresso} className="h-2" />
               <p className="text-xs text-muted-foreground text-center">{Math.round(progresso)}% incassato</p>
-              {/* Storico dei pagamenti registrati in app e «Annulla», come per le native (30/10/2026). */}
+              {/* Lo storico degli incassi registrati qui, con «Annulla»: lo stesso pannello delle native. */}
               <IncassiFatturaImportata
-                invoiceId={doc.id}
-                stato={doc.stato === "pagata" ? "pagata" : doc.stato === "parzialmente_pagata" || doc.importo_pagato > 0 ? "parziale" : "altro"}
+                invoiceId={f.id}
+                stato={doc.stato === "pagata" ? "pagata" : doc.importo_pagato > 0.005 ? "parziale" : "altro"}
               />
               {importataPagabile(doc) && (
                 <Button variant="outline" size="sm" className="w-full" onClick={() => setIncasso(doc)}>
