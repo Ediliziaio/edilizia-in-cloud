@@ -32,6 +32,14 @@ vi.mock("react-router-dom", async (importOriginal) => ({
 vi.mock("@/components/orders/generali/moduli/ContrattoScheda", () => ({
   modulo: { pronto: true, titolo: "Contratto e SAL", telefono: false, Scheda: (): ReactElement => <p>Scheda del contratto</p>, Riquadro: (): ReactElement => <p>Riquadro del contratto</p> },
 }));
+// Il piano economico è pronto (30/10): qui resta «non pronto» per provare che un modulo spento non compare.
+vi.mock("@/components/orders/generali/moduli/PianoScheda", () => ({
+  modulo: { pronto: false, titolo: "Piano economico", telefono: false, Scheda: (): null => null },
+}));
+// Anche gli investitori sono pronti (30/10): qui restano «non pronti», per la stessa prova.
+vi.mock("@/components/orders/generali/moduli/InvestitoriScheda", () => ({
+  modulo: { pronto: false, titolo: "Investitori", telefono: false, Scheda: (): null => null },
+}));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   useRiepilogoGenerale: () => ({ data: m.riepilogo, isLoading: false, isError: false, refetch: vi.fn() }),
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),
