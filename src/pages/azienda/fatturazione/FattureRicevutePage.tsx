@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
@@ -235,6 +236,8 @@ function IntestazioneOrdinabile({ children, campo, ordinamento, onOrdina, classN
 export default function FattureRicevutePage() {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
+  const { data: pagate } = usePagamentiRicevute(companyId);
+  const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -269,6 +272,8 @@ export default function FattureRicevutePage() {
   // riquadro dal basso con i numeri e «Contabilizza».
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [dettaglioMobile, setDettaglioMobile] = useState<FatturaRicevuta | null>(null);
+  // «Da pagare»: le fatture dei fornitori non ancora pagate (né a mano né con tutte le rate).
+  const [pagamentoFilter, setPagamentoFilter] = useState<"all" | "da_pagare">("all");
 
   const { data: partitaIvaAzienda } = useQuery({
     queryKey: ["azienda-partita-iva", companyId],
@@ -426,7 +431,8 @@ export default function FattureRicevutePage() {
   // ─── Filters ────────────────────────────────────────────
 
   const opzioniTipo = useMemo(
-    () => [...new Set(fatture.map((f) => f.tipo_documento).filter(Boolean))].sort(),
+    // Per nome, non per sigla: «expense» e «TD01» sono entrambe «Fattura».
+    () => [...new Set(fatture.map((f) => f.tipo_documento).filter(Boolean).map(etichettaTipoRicevuta))].sort(),
     [fatture],
   );
   const opzioniCategoria = useMemo(
@@ -438,8 +444,9 @@ export default function FattureRicevutePage() {
     () => ({
       daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata").length,
       senzaOrdine: fatture.filter((f) => !haOrdine(f)).length,
+      daPagare: fatture.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataIl(f.id)).length,
     }),
-    [fatture, haOrdine],
+    [fatture, haOrdine, pagataIl],
   );
   const filtriAttivi =
     (statoFilter !== "all" ? 1 : 0) +
@@ -447,6 +454,7 @@ export default function FattureRicevutePage() {
     (categoriaFilter !== "all" ? 1 : 0) +
     (ordineFilter !== "all" ? 1 : 0) +
     (contabFilter !== "all" ? 1 : 0) +
+    (pagamentoFilter !== "all" ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0);
 
   const azzeraFiltri = () => {
@@ -456,6 +464,7 @@ export default function FattureRicevutePage() {
     setCategoriaFilter("all");
     setOrdineFilter("all");
     setContabFilter("all");
+    setPagamentoFilter("all");
   };
 
   const ordinaPer = (campo: "data" | "fornitore" | "totale") =>
@@ -471,7 +480,7 @@ export default function FattureRicevutePage() {
       result = result.filter((f) => f.stato === statoFilter);
     }
     if (tipoFilter !== "all") {
-      result = result.filter((f) => f.tipo_documento === tipoFilter);
+      result = result.filter((f) => etichettaTipoRicevuta(f.tipo_documento) === tipoFilter);
     }
     if (categoriaFilter === "__nessuna__") {
       result = result.filter((f) => !f.categoria_ai);
@@ -485,6 +494,9 @@ export default function FattureRicevutePage() {
     }
     if (contabFilter === "da_contabilizzare") {
       result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata");
+    }
+    if (pagamentoFilter === "da_pagare") {
+      result = result.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataIl(f.id));
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -505,7 +517,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, searchQuery, ordinamento, haOrdine]);
+  }, [fatture, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, searchQuery, ordinamento, haOrdine]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -1082,6 +1094,12 @@ export default function FattureRicevutePage() {
             onClick: () => setStatoFilter((s) => (s === "non_letta" ? "all" : "non_letta")),
             attivo: statoFilter === "non_letta",
           },
+          {
+            label: "Da pagare",
+            valore: String(conteggi.daPagare),
+            onClick: () => setPagamentoFilter((p) => (p === "da_pagare" ? "all" : "da_pagare")),
+            attivo: pagamentoFilter === "da_pagare",
+          },
           { label: annoFilter === "all" ? "Importo totale" : `Importo ${annoFilter}`, valore: formatCurrency(kpi.importoTotale) },
         ]}
       />
@@ -1115,6 +1133,13 @@ export default function FattureRicevutePage() {
             conteggio={conteggi.daContabilizzare}
           >
             Da contabilizzare
+          </ChipFiltro>
+          <ChipFiltro
+            attivo={pagamentoFilter === "da_pagare"}
+            onClick={() => setPagamentoFilter((p) => (p === "da_pagare" ? "all" : "da_pagare"))}
+            conteggio={conteggi.daPagare}
+          >
+            Da pagare
           </ChipFiltro>
           <ChipFiltro
             attivo={ordineFilter === "senza"}
@@ -1260,8 +1285,8 @@ export default function FattureRicevutePage() {
                 <div className="text-[13px] font-semibold leading-tight tabular-nums">
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
-                <div className={`mt-0.5 text-[11px] leading-tight ${f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
-                  {etichettaStato(f)}
+                <div className={`mt-0.5 text-[11px] leading-tight ${pagataIl(f.id) ? "text-emerald-600" : f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
+                  {isNotaCreditoRicevuta(f.tipo_documento) ? etichettaStato(f) : pagataIl(f.id) ? "Pagata" : "Da pagare"}
                 </div>
               </div>
             </button>
@@ -1314,7 +1339,7 @@ export default function FattureRicevutePage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-mono">{f.tipo_documento}</span>
+                    <span className="text-xs">{etichettaTipoRicevuta(f.tipo_documento)}</span>
                   </TableCell>
                   <TableCell className="font-mono text-sm">{f.numero_fattura}</TableCell>
                   <TableCell>{formatDateShort(f.data_fattura)}</TableCell>
@@ -1329,7 +1354,11 @@ export default function FattureRicevutePage() {
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
-                    <StatoBadge stato={f.stato} storico={f.storico_esterno} />
+                    {/* Letta / contabilizzata e, sotto, se l'hai pagata: un clic per segnarla. */}
+                    <div className="flex flex-col items-start gap-1">
+                      <StatoBadge stato={f.stato} storico={f.storico_esterno} />
+                      <PagamentoRicevutaCella id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
@@ -1517,6 +1546,12 @@ export default function FattureRicevutePage() {
                   ? ` · divisa tra ${quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ")}`
                   : ""}
               </p>
+              {!isNotaCreditoRicevuta(dettaglioMobile.tipo_documento) && (
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Pagamento</span>
+                  <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />
+                </div>
+              )}
               <Button
                 variant="outline"
                 className="mt-4 h-10 w-full"

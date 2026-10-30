@@ -127,6 +127,12 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti/importata/inv-1");
   });
 
+  it("«Incassata» è a vista nella riga e apre l'incasso della fattura", () => {
+    monta();
+    fireEvent.click(screen.getByRole("button", { name: /Incassata/ }));
+    expect(screen.getByText("Incasso di FPR 12/26")).toBeInTheDocument();
+  });
+
   it("«Sincronizza» sta dove il nativo ha «Nuovo documento»: ultimo pulsante della testata", () => {
     monta();
     const testata = screen.getByRole("heading", { name: "Fatturazione" }).closest(".testata-pagina") as HTMLElement;
