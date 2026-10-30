@@ -1086,9 +1086,9 @@ export function UnifiedPreventiviList() {
       {/* ─── KPI Hero 4 cards — solo desktop: su mobile i conteggi sono già nei tab
           di stato qui sotto, e quattro card di numeri piccoli occupano mezzo schermo. ─── */}
       <div className="hidden md:grid md:grid-cols-4 gap-2 sm:gap-3">
-        <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" icon={<FileText className="h-4 w-4" />} tone="slate" />
-        <KpiCard label="In corso" value={kpi.inCorsoCount} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
-        <KpiCard label="Vinte" value={kpi.vintaCount} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% delle chiuse` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
+        <KpiCard label="Bozze" value={kpi.bozzeCount} hint="da completare" attivo={statoTab === "bozza"} onClick={() => setStatoTab(statoTab === "bozza" ? "all" : "bozza")} icon={<FileText className="h-4 w-4" />} tone="slate" />
+        <KpiCard label="In corso" value={kpi.inCorsoCount} attivo={statoTab === "in_corso"} onClick={() => setStatoTab(statoTab === "in_corso" ? "all" : "in_corso")} hint={kpi.pipeline > 0 ? `${formatCurrency(kpi.pipeline)} in trattativa` : "nessuna pipeline"} icon={<TrendingUp className="h-4 w-4" />} tone="blue" />
+        <KpiCard label="Vinte" value={kpi.vintaCount} attivo={statoTab === "vinto"} onClick={() => setStatoTab(statoTab === "vinto" ? "all" : "vinto")} hint={kpi.tassoConv !== null ? `${kpi.tassoConv}% delle chiuse` : "—"} icon={<FileCheck2 className="h-4 w-4" />} tone="emerald" />
         <KpiCard label="Ricavo firmato" value={importoKpi(kpi.ricavoVinte)} titolo={formatCurrency(kpi.ricavoVinte)} hint={kpi.vintaCount > 0 ? `ticket medio ${formatCurrency(kpi.ticketMedio)}` : "nessuna firmata"} icon={<Euro className="h-4 w-4" />} tone="orange" />
       </div>
 
@@ -1681,17 +1681,27 @@ function importoKpi(v: number): string {
 }
 
 function KpiCard({
-  label, value, hint, icon, tone = "slate", titolo,
-}: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone; titolo?: string }) {
+  label, value, hint, icon, tone = "slate", titolo, onClick, attivo,
+}: { label: string; value: string | number; hint?: string; icon: React.ReactNode; tone?: KpiTone; titolo?: string; onClick?: () => void; attivo?: boolean }) {
   const c = KPI_TONE[tone];
+  // Con onClick il riquadro filtra l'elenco per quello stato (un secondo clic toglie il filtro).
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className={cn("relative bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4", c.border)} title={titolo}>
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? !!attivo : undefined}
+      className={cn("relative block w-full min-w-0 bg-white border-l-4 rounded-lg shadow-sm p-2.5 sm:p-4 text-left", c.border,
+        onClick && "transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        attivo && "ring-2 ring-slate-300")}
+      title={titolo ?? (onClick ? (attivo ? "Mostra tutti i preventivi" : `Mostra solo: ${label.toLowerCase()}`) : undefined)}
+    >
       <span className={cn("absolute right-2 top-2 h-6 w-6 sm:h-7 sm:w-7 rounded-md flex items-center justify-center", c.iconBg, c.iconColor)}>{icon}</span>
       <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate pr-7 leading-tight">{label}</p>
       {/* Tra 768 e 1280 a 24px gli importi si tagliavano («318.478,…»). */}
       <p className={cn("text-xl sm:text-2xl md:max-xl:text-xl font-bold leading-tight mt-0.5 sm:mt-1 tabular-nums truncate", c.valueColor)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5 truncate leading-tight">{hint}</p>}
-    </div>
+    </Tag>
   );
 }
 

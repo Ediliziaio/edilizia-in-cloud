@@ -84,13 +84,17 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
   const [confirm, setConfirm] = useState(false);
   const count = selectedRows.length;
   if (count === 0) return null;
+  // I computi non hanno cestino: si contano a parte e si dice che restano, invece di saltarli in silenzio.
+  const daSpostare = selectedRows.filter((r) => TIPO_TABLE[r.tipo]);
+  const computiEsclusi = count - daSpostare.length;
+  const n = daSpostare.length;
 
   const runDelete = async () => {
     if (!companyId) { toast.error("Azienda non disponibile"); setConfirm(false); return; }
     if (!canDelete) { toast.error("Solo un amministratore può eliminare i preventivi"); setConfirm(false); return; }
     setWorking(true);
     try {
-      const { deleted, errors } = await spostaNelCestino(selectedRows, companyId);
+      const { deleted, errors } = await spostaNelCestino(daSpostare, companyId);
       if (errors.length) {
         toast.error(`Alcune eliminazioni non riuscite (${errors.length}). ${deleted} rimossi.`);
       } else if (deleted === 0) {
@@ -134,18 +138,29 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone }:
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sposta nel cestino {count} {count === 1 ? "preventivo" : "preventivi"}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {n > 0 ? `Sposta nel cestino ${n} ${n === 1 ? "preventivo" : "preventivi"}` : "I computi non vanno nel cestino"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {count === 1 ? "Il preventivo sparisce" : "I preventivi spariscono"} dalla lista e
-              {count === 1 ? " resta recuperabile" : " restano recuperabili"} dal Cestino per 30 giorni.
-              Dopo, l'eliminazione è definitiva.
+              {n > 0 && <>
+                {n === 1 ? "Il preventivo sparisce" : "I preventivi spariscono"} dalla lista e
+                {n === 1 ? " resta recuperabile" : " restano recuperabili"} dal Cestino per 30 giorni.
+                Dopo, l'eliminazione è definitiva.
+              </>}
+              {computiEsclusi > 0 && <>
+                {n > 0 && " "}
+                {computiEsclusi === 1 ? "Il computo selezionato resta" : `I ${computiEsclusi} computi selezionati restano`} in elenco:
+                si gestiscono dal loro editor.
+              </>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={runDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Sposta nel cestino
-            </AlertDialogAction>
+            <AlertDialogCancel>{n > 0 ? "Annulla" : "Chiudi"}</AlertDialogCancel>
+            {n > 0 && (
+              <AlertDialogAction onClick={runDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Sposta nel cestino
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
