@@ -92,11 +92,13 @@ describe("sottofaseDaRiga", () => {
   it("normalizza una riga del database e ignora l'incorporato della fase", () => {
     expect(sottofaseDaRiga({ id: "s1", phase_id: "p1", name: "Tracce", position: 2, peso: 3, fatta: true, fatta_il: "2026-10-07T08:00:00Z", fase: { order_id: "o1" } })).toEqual({
       id: "s1", phase_id: "p1", name: "Tracce", position: 2, peso: 3, fatta: true, fatta_il: "2026-10-07T08:00:00Z",
+      data_inizio: null, data_fine: null, giorni: null,
     });
   });
   it("riempie i vuoti: peso 1, non fatta", () => {
     expect(sottofaseDaRiga({ id: "s1", phase_id: "p1" })).toEqual({
       id: "s1", phase_id: "p1", name: "", position: 0, peso: 1, fatta: false, fatta_il: null,
+      data_inizio: null, data_fine: null, giorni: null,
     });
   });
 });
@@ -111,6 +113,7 @@ describe("sottofasiDalleFasi", () => {
     expect(sottofasiDalleFasi(fasi).map((x) => x.id)).toEqual(["s1", "s2"]);
     expect(sottofasiDalleFasi(fasi)[0]).toEqual({
       id: "s1", phase_id: "p3", name: "Tracce", position: 0, peso: 2, fatta: true, fatta_il: "2026-10-12T08:00:00Z",
+      data_inizio: null, data_fine: null, giorni: null,
     });
   });
   it("senza fasi o senza sottofasi dà un elenco vuoto", () => {
@@ -118,7 +121,7 @@ describe("sottofasiDalleFasi", () => {
     expect(sottofasiDalleFasi([{ id: "p1" }])).toEqual([]);
   });
   it("la lettura parte dalle fasi con le sottofasi annidate", () => {
-    expect(SOTTOFASI_NELLA_FASE).toBe("sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il)");
+    expect(SOTTOFASI_NELLA_FASE).toBe("sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni)");
   });
 });
 

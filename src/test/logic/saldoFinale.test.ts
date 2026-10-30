@@ -142,7 +142,7 @@ describe("rate da incassare con la regola della scheda commessa (come public.rat
   it("il cruscotto legge le rate dalla regola del database, e il venduto conta le varianti", () => {
     const codice = readFileSync(resolve(process.cwd(), "src/hooks/useCruscottoData.ts"), "utf8");
     expect(codice).toContain('rpc("cruscotto_rate_da_incassare", { p_company_id: companyId })');
-    expect(codice).toContain('.select("id, margine, preventivo_totale, variazioni_approvate")');
+    expect(codice).toContain('.select("id, margine, preventivo_totale, consuntivo, variazioni_approvate")');
     expect(codice).toContain("margini.reduce((s, m) => s + safeNumber(m.variazioni_approvate), 0)");
     expect(codice).not.toContain('.select("amount, expected_date, order:orders!inner(company_id)")');
   });

@@ -74,7 +74,7 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
 
     it("non disegna il PDF a mano: lo compone il documento condiviso", () => {
       expect(source).toContain('import { renderGenerico } from "../_shared/preventivoRenderer.mjs";');
-      expect(source).toMatch(/renderGenerico\(\{\s+quote,\s+righePerIva,/);
+      expect(source).toMatch(/renderGenerico\(\{[\s\S]*?\n\s+quote: \{\n\s+\.\.\.quote,[\s\S]*?\n\s+\},\n\s+righePerIva,/);
       // Niente pdf-lib per scrivere testo o righe: la pagina la fa il documento React.
       expect(source).not.toContain("drawText");
       expect(source).not.toContain("drawRectangle");
