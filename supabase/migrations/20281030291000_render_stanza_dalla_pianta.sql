@@ -5,7 +5,7 @@
 -- (serve la tabella planimetrie). Un file in supabase/migrations/ va in produzione al
 -- primo push su main: prima di unire il ramo,
 --   1. applicarla con apply_migration (nome: render_stanza_dalla_pianta);
---   2. riallineare la versione a 20281030290000 (vedi CLAUDE.md);
+--   2. riallineare la versione a 20281030291000 (vedi CLAUDE.md);
 --   3. controllare v_funzioni_aperte_ad_anon (nessuna riga nuova).
 --
 -- Il riferimento vero sta in render_stanza_sessions.config -> 'planimetria'

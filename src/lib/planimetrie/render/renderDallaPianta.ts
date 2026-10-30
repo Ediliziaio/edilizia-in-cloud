@@ -3,7 +3,7 @@
  *
  * - Il riferimento alla stanza sta in `render_stanza_sessions.config.planimetria`
  *   (lo legge `generate-room-render`, che rilegge la pianta dal database); la
- *   migrazione 20281030290000 lo copia anche in colonne indicizzate. Le letture qui
+ *   migrazione 20281030291000 lo copia anche in colonne indicizzate. Le letture qui
  *   filtrano sul config, così funzionano prima e dopo la migrazione.
  * - La pianta della stanza (SVG di shared/render-planimetria) diventa un PNG da allegare.
  */

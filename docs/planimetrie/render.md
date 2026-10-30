@@ -76,13 +76,13 @@ secondo tentativo riceve anche «porte e finestre come nella pianta».
 - **Edge function deployate dalla CI**: solo `generate-room-render` (modificata: `index.ts`
   e il nuovo `pianta.ts`). Le modifiche sotto `shared/render-planimetria/` arrivano con lei
   perché `index.ts` è toccato. Senza `config.planimetria` il render stanza resta quello di prima.
-- **Migrazione**: `20281030290000_render_stanza_dalla_pianta.sql` va applicata e
+- **Migrazione**: `20281030291000_render_stanza_dalla_pianta.sql` va applicata e
   riallineata (CLAUDE.md) prima del push, oppure tolta dalla cartella: un file lì entra in
   produzione al primo push.
 
 ## Database
 
-`supabase/migrations/20281030290000_render_stanza_dalla_pianta.sql` (**non applicata**):
+`supabase/migrations/20281030291000_render_stanza_dalla_pianta.sql` (**non applicata**):
 tre colonne su `render_stanza_sessions` (`planimetria_id`, `planimetria_versione`,
 `planimetria_locale_id`) riempite da un trigger a partire da `config.planimetria`, con il
 controllo che la pianta sia della stessa azienda. Pagine e funzione **non** ne hanno
