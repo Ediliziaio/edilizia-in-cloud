@@ -38,6 +38,12 @@ interface Props {
   compact?: boolean;
   /** Statistics view: no assignment, movement or removal commands. */
   readOnly?: boolean;
+  /**
+   * Dentro l'elenco unico dei mezzi del cantiere (31/10/2026): solo quello che
+   * è già passato (rientri, viaggi, utilizzo e stime). Chi c'è adesso e i
+   * comandi stanno nell'elenco sopra.
+   */
+  storico?: boolean;
 }
 
 function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): string {
@@ -46,7 +52,8 @@ function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): st
     .join(", ");
 }
 
-export function MezziCommessaCard({ orderId, compact = false, readOnly = false }: Props) {
+export function MezziCommessaCard({ orderId, compact: compactProp = false, readOnly = false, storico = false }: Props) {
+  const compact = compactProp || storico;
   const perms = usePermissions();
   const puoVedere = perms.canViewMezzi || perms.isAdmin;
   const puoModificare = !readOnly && (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
@@ -129,8 +136,8 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
   const nQuantita = numeroLetto(quantita);
   const quantitaValida = !aQuantita || (nQuantita != null && nQuantita > 0 && nQuantita <= libero);
   const storici = righe.filter(r => !r.adesso).length + righeMontaggi.filter(g => !g.adesso).length;
-  const righeVisibili = compact && !mostraStorico ? righe.filter(r => r.adesso) : righe;
-  const montaggiVisibili = compact && !mostraStorico ? righeMontaggi.filter(g => g.adesso) : righeMontaggi;
+  const righeVisibili = storico ? righe.filter(r => !r.adesso) : compact && !mostraStorico ? righe.filter(r => r.adesso) : righe;
+  const montaggiVisibili = storico ? righeMontaggi.filter(g => !g.adesso) : compact && !mostraStorico ? righeMontaggi.filter(g => g.adesso) : righeMontaggi;
 
   if (!puoVedere) return null;
 
@@ -165,7 +172,7 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
         )}
       </CardHeader>}
       <CardContent className={cn("space-y-3", compact ? "p-0" : "max-sm:p-3 max-sm:pt-0")}>
-        <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+        {!storico && <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="min-w-0 flex-1 text-xs text-slate-600">{readOnly ? "Storico di utilizzo sul cantiere. Gestisci le assegnazioni in Lavorazioni. I costi sono stime, non nuove registrazioni contabili." : compact ? "Assegnazioni fisiche al cantiere; valgono per tutta la commessa. I mezzi al seguito delle persone sono indicati nelle rispettive fasi." : "Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio."}</p>
           <div className="flex flex-wrap gap-2">
             {compact && puoModificare && (
@@ -177,8 +184,8 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
               <Link to="/azienda/manodopera?tab=mezzi">Parco mezzi e noleggi</Link>
             </Button>
           </div>
-        </div>
-        {compact && storici > 0 && <Button variant="outline" size="sm" aria-expanded={mostraStorico} onClick={() => setMostraStorico(v => !v)}>{mostraStorico ? "Nascondi storico" : `Mostra storico (${storici})`}</Button>}
+        </div>}
+        {compact && !storico && storici > 0 && <Button variant="outline" size="sm" aria-expanded={mostraStorico} onClick={() => setMostraStorico(v => !v)}>{mostraStorico ? "Nascondi storico" : `Mostra storico (${storici})`}</Button>}
         {isLoading || loadingParco || loadingMontaggi ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : error || parcoError || montaggiError ? (
@@ -186,6 +193,8 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
             Non riesco a caricare i mezzi.{" "}
             <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); void refetchMontaggi(); }}>Riprova</button>
           </p>
+        ) : storico && righeVisibili.length + montaggiVisibili.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nessun mezzo è ancora rientrato da questo cantiere.</p>
         ) : righe.length === 0 && righeMontaggi.length === 0 ? (
           <p className="text-sm text-muted-foreground max-sm:text-xs">{mezzi.length === 0 ? "Il parco mezzi è vuoto. Registra prima il mezzo o l'attrezzatura, anche a noleggio, poi assegnalo al cantiere." : "Nessun mezzo è ancora passato da questo cantiere."}</p>
         ) : (
@@ -231,7 +240,7 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
             ))}
           </ul>
         )}
-        {compact && !mostraStorico && righeVisibili.length + montaggiVisibili.length === 0 && storici > 0 && <p className="text-sm text-muted-foreground">Nessun mezzo presente adesso. Le assegnazioni precedenti sono nello storico.</p>}
+        {compact && !storico && !mostraStorico && righeVisibili.length + montaggiVisibili.length === 0 && storici > 0 && <p className="text-sm text-muted-foreground">Nessun mezzo presente adesso. Le assegnazioni precedenti sono nello storico.</p>}
         {!montaggiError && !loadingMontaggi && montaggiVisibili.length > 0 && (
           <ul className="divide-y border-t">
             {montaggiVisibili.map((g) => (
@@ -257,9 +266,9 @@ export function MezziCommessaCard({ orderId, compact = false, readOnly = false }
           </ul>
         )}
         <ViaggiCommessa orderId={orderId} mezzi={mezzi} readOnly={!puoModificare} vedeCosti={vedeCosti} />
-        {!error && !parcoError && !montaggiError && <details open={compact ? undefined : true} className={compact ? "rounded-lg border px-3 py-2" : ""}>
-        {compact && <summary className="cursor-pointer text-sm font-medium">Storico utilizzo, viaggio{vedeCosti ? " e stime di costo" : ""}</summary>}
-        <div className={compact ? "mt-3 space-y-3" : "space-y-3"}>
+        {!error && !parcoError && !montaggiError && <details open={compact && !storico ? undefined : true} className={compact && !storico ? "rounded-lg border px-3 py-2" : ""}>
+        {compact && !storico && <summary className="cursor-pointer text-sm font-medium">Storico utilizzo, viaggio{vedeCosti ? " e stime di costo" : ""}</summary>}
+        <div className={compact && !storico ? "mt-3 space-y-3" : "space-y-3"}>
         {righe.length > 1 && (
           <TimelineUso
             className="rounded-lg border bg-white px-3 py-2.5"

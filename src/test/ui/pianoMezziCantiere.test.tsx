@@ -59,7 +59,9 @@ const state = vi.hoisted(() => ({
   edit: true,
   priceError: false,
   rows: [] as unknown[],
+  presenti: [] as unknown[],
   mutate: vi.fn().mockResolvedValue(undefined),
+  assegna: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({
@@ -89,6 +91,14 @@ vi.mock("@/hooks/useMezzi", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useMezziDellaCommessa: () => ({ data: state.presenti, isLoading: false, isError: false, refetch: vi.fn() }),
+  useMontaggiDellaCommessa: () => ({ data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn() }),
+  useAssegnaMezzoACommessa: () => ({ mutateAsync: state.assegna, isPending: false }),
+  useMontaQuantita: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRientroQuantita: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock("react-router-dom", () => ({
+  Link: ({ to, children, className }: { to: string; children: React.ReactNode; className?: string }) => <a href={to} className={className}>{children}</a>,
 }));
 vi.mock("@/hooks/usePianoMezziCantiere", () => ({
   usePianoMezziCantiere: () => ({
@@ -138,12 +148,14 @@ beforeEach(() => {
   state.edit = true;
   state.priceError = false;
   state.rows = [];
+  state.presenti = [];
   state.mutate.mockClear();
+  state.assegna.mockClear();
 });
 describe("UX pianificazione mezzi", () => {
   it("dalla fase precompila la lavorazione e riusa le sue date su richiesta", () => {
     render(<PianoMezziCantiere orderId="o" faseId="fase-a" />);
-    fireEvent.click(screen.getByRole("button", { name: "Pianifica risorsa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi mezzo" }));
     expect(
       (screen.getByLabelText("Dove serve") as HTMLSelectElement).value,
     ).toBe("fasi");
@@ -166,7 +178,7 @@ describe("UX pianificazione mezzi", () => {
   it("senza permesso costi salva il piano senza cancellare o inviare importi", async () => {
     state.costi = false;
     render(<PianoMezziCantiere orderId="o" />);
-    fireEvent.click(screen.getByRole("button", { name: "Pianifica risorsa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi mezzo" }));
     fireEvent.change(screen.getByLabelText("Mezzo o attrezzatura"), {
       target: { value: "betoniera" },
     });
@@ -175,7 +187,7 @@ describe("UX pianificazione mezzi", () => {
       screen.getByRole("button", { name: "Usa il capocantiere" }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Salva pianificazione" }),
+      screen.getByRole("button", { name: "Aggiungi" }),
     );
     await waitFor(() => expect(state.mutate).toHaveBeenCalledTimes(1));
     expect(state.mutate.mock.calls[0][0]).not.toHaveProperty("costo");
@@ -203,7 +215,7 @@ describe("UX pianificazione mezzi", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
-    fireEvent.click(screen.getByText("Tutto il cantiere"));
+    fireEvent.click(screen.getByText(/Tutto il cantiere/));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
   it("lettura sola: dettaglio consultabile senza comandi di modifica", () => {
@@ -221,12 +233,46 @@ describe("UX pianificazione mezzi", () => {
     ];
     render(<PianoMezziCantiere orderId="o" />);
     expect(
-      screen.queryByRole("button", { name: "Pianifica risorsa" }),
+      screen.queryByRole("button", { name: "Aggiungi mezzo" }),
     ).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Betoniera propria" }));
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Salva pianificazione" }),
+      screen.queryByRole("button", { name: "Salva" }),
     ).toBeNull();
+  });
+  it("un elenco solo: prenotato, sul cantiere, e arrivo e rientro a un clic", async () => {
+    state.rows = [
+      { id: "p", mezzo_id: "betoniera", fase_ids: [], dal: "2020-01-01", al: null, quantita: 1, annullato: false },
+    ];
+    render(<PianoMezziCantiere orderId="o" />);
+    expect(screen.getByText(/^Atteso dal/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "È arrivato" }));
+    await waitFor(() => expect(state.assegna).toHaveBeenCalledWith({ mezzoId: "betoniera", orderId: "o" }));
+    cleanup();
+    state.presenti = [{ mezzo_id: "betoniera", adesso: true, periodi: [{ dal: "2020-01-02", al: null }] }];
+    render(<PianoMezziCantiere orderId="o" />);
+    expect(screen.getByText(/^Sul cantiere dal/)).toBeTruthy();
+    expect(screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("Betoniera propria"))).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "È rientrato" }));
+    await waitFor(() => expect(state.assegna).toHaveBeenCalledWith({ mezzoId: "betoniera", orderId: null }));
+    // La prenotazione senza fine si chiude oggi e va nello storico.
+    await waitFor(() => expect(state.mutate).toHaveBeenCalledWith(expect.objectContaining({ id: "p", al: expect.any(String) })));
+  });
+  it("le fasi spostate si segnalano e si allineano con un clic", async () => {
+    state.rows = [
+      { id: "p", mezzo_id: "betoniera", fase_ids: ["fase-a"], dal: "2026-11-01", al: "2026-11-03", quantita: 1, annullato: false },
+    ];
+    render(<PianoMezziCantiere orderId="o" />);
+    fireEvent.click(screen.getByRole("button", { name: "Allinea alle fasi" }));
+    await waitFor(() => expect(state.mutate).toHaveBeenCalledWith(expect.objectContaining({ dal: "2026-11-02", al: "2026-11-06" })));
+  });
+  it("un mezzo nuovo per una fase prende le date della fase", () => {
+    render(<PianoMezziCantiere orderId="o" />);
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi mezzo" }));
+    fireEvent.change(screen.getByLabelText("Dove serve"), { target: { value: "fasi" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Getti" }));
+    expect((screen.getByLabelText("Dal") as HTMLInputElement).value).toBe("2026-11-02");
+    expect((screen.getByLabelText("Al (compreso)") as HTMLInputElement).value).toBe("2026-11-06");
   });
 });
