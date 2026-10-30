@@ -16,7 +16,7 @@ export function BillingModeGuard({ requiredMode, children, redirectTo }: Billing
   useEffect(() => {
     if (!isLoading && mode !== requiredMode) {
       const fallback = redirectTo ?? (requiredMode === "native"
-        ? "/azienda/fatturazione"
+        ? "/azienda/documenti"
         : "/azienda/impostazioni/fatturazione");
       navigate(fallback, { replace: true });
     }

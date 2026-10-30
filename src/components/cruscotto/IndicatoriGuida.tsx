@@ -114,7 +114,7 @@ const DEFINIZIONI: DefIndicatore[] = [
     icona: UserRound,
     unita: "%",
     soglia: `allarme > ${s.quotaPrimoClienteAllarme}%`,
-    href: "/azienda/fatturazione",
+    href: "/azienda/documenti",
     comeSiCalcola:
       "Fatturato del cliente più grande ÷ fatturato totale degli ultimi 12 mesi, IVA esclusa e al netto delle note di credito (fatture emesse dall'app e importate, senza contarle due volte). Sopra il 25% non è più un cliente: è un socio senza capitale che può andarsene quando vuole.",
   },

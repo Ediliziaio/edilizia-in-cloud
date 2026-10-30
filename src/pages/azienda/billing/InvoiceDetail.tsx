@@ -243,7 +243,7 @@ export default function InvoiceDetail() {
     <div className="space-y-6 max-w-5xl max-sm:space-y-3">
       {/* Header — mobile: titolo 18px, stato e «Invia» sulla stessa riga */}
       <div className="flex items-center gap-3 flex-wrap max-sm:gap-2">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/fatturazione")}>
+        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate("/azienda/documenti")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold max-sm:text-lg">

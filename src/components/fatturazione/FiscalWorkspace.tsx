@@ -3,11 +3,9 @@ import { useSearchParams, useLocation, Navigate } from "react-router-dom";
 import { ReceiptText, Calculator, ShieldCheck, Archive } from "lucide-react";
 import { RequireCompanyPermission } from "@/components/auth/RequireCompanyPermission";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
-import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
 import { FiscalPeriodFilters } from "./FiscalPeriodFilters";
@@ -55,15 +53,9 @@ function Access({
         : section === "archivio"
           ? "archivio_sostitutivo"
           : "contabilita_fiscale";
-  const content = (
-    <FeatureRoute featureKey={feature}>
-      {section === "iva" ? (
-        <BillingModeGuard requiredMode="native">{children}</BillingModeGuard>
-      ) : (
-        children
-      )}
-    </FeatureRoute>
-  );
+  // Il Registro IVA legge native e importate (fatture_vendite_iva): vale per
+  // qualsiasi modo di fatturare.
+  const content = <FeatureRoute featureKey={feature}>{children}</FeatureRoute>;
   return delegated ? (
     content
   ) : (
@@ -99,13 +91,11 @@ function LegacyHubEligibility({
   // Original route guards still authorize this content. Do not add the native
   // billing entitlement to standalone accounting/guarantee/archive permissions.
   const permissions = usePermissions();
-  const billing = useBillingMode();
   const documents = useFeatureAccess("documenti");
-  if (permissions.isLoading || billing.isLoading || documents.isLoading)
+  if (permissions.isLoading || documents.isLoading)
     return <p role="status">Verifica accesso al workspace…</p>;
   if (
     !permissions.canViewBilling ||
-    billing.mode !== "native" ||
     (!documents.isEnabled && !documents.isPreview)
   )
     return <>{fallback}</>;

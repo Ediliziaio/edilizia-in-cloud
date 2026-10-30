@@ -241,6 +241,10 @@ export type TipoDocumento =
 export interface DocumentoFiscale {
   id: string;
   company_id: string;
+  /** Nell'hub di chi fattura con un gestionale esterno: «importata» = riga di `invoices`. */
+  origine?: "nativa" | "importata";
+  /** Il gestionale da cui arriva una fattura importata (fattureincloud, xml_import…). */
+  external_provider?: string;
   tipo: TipoDocumento;
   numero: string;
   numero_progressivo: number;

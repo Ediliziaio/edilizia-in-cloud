@@ -171,7 +171,7 @@ export function valutaQuotaPrimoCliente(
   if (quotaPerc === null) {
     return nd([{
       cosa: "fatture emesse negli ultimi 12 mesi",
-      link: "/azienda/fatturazione",
+      link: "/azienda/documenti",
       azione: "Emetti o importa le fatture di vendita",
     }]);
   }
