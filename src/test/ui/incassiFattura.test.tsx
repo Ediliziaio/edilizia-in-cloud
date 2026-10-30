@@ -13,13 +13,19 @@ import type { IncassoFattura } from "@/lib/fatturazione/abbinaBanca";
 
 const rpc = vi.fn();
 const from = vi.fn();
+const invoke = vi.fn();
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (...a: unknown[]) => from(...a) },
+  supabase: {
+    rpc: (...a: unknown[]) => rpc(...a),
+    from: (...a: unknown[]) => from(...a),
+    functions: { invoke: (...a: unknown[]) => invoke(...a) },
+  },
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "azienda-1" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
-import { IncassiFattura, PannelloIncassi } from "@/components/fatturazione/IncassiFattura";
+import { IncassiFattura, IncassiFatturaImportata, PannelloIncassi } from "@/components/fatturazione/IncassiFattura";
+import { toast } from "sonner";
 import { SceltaBonifico } from "@/components/fatturazione/AbbinaBonificoDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
@@ -222,5 +228,58 @@ describe("lo stesso aspetto per una fattura importata (dati e azioni passati da 
     fireEvent.click(screen.getByRole("button", { name: "Abbina" }));
     expect(onAbbina).toHaveBeenCalledWith({ transactionId: "tx-y", incassoId: null, punteggio: 100 });
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("«Annulla incasso» su una fattura importata da Fatture in Cloud", () => {
+  function montaImportata() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={qc}>
+          <IncassiFatturaImportata invoiceId="inv-9" stato="parziale" />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    invoke.mockReset();
+    vi.mocked(toast.warning).mockClear();
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === "pagamenti_fattura_importata") return { data: [riga({ id: "pag-7", importo: 250 })], error: null };
+      if (fn === "annulla_pagamento_importata")
+        return { data: { invoice_id: "inv-9", importo: 250, provider: "fattureincloud" }, error: null };
+      return { data: null, error: null };
+    });
+  });
+
+  it("stesso pannello, senza i pulsanti delle native: segna pagata e abbina restano dell'hub", async () => {
+    montaImportata();
+    expect(await screen.findByRole("button", { name: /Annulla incasso di/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Segna pagata/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Abbina al bonifico/ })).toBeNull();
+  });
+
+  it("toglie il pagamento nel database, poi su Fatture in Cloud con «annulla»", async () => {
+    invoke.mockResolvedValue({ data: { ok: true, pagato: 0 }, error: null });
+    montaImportata();
+    fireEvent.click(await screen.findByRole("button", { name: /Annulla incasso di/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Annulla incasso" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    expect(rpc).toHaveBeenCalledWith("annulla_pagamento_importata", { p_payment_id: "pag-7" });
+    expect(invoke).toHaveBeenCalledWith("billing-payment-push", {
+      body: { invoice_id: "inv-9", azione: "annulla", importo: 250 },
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("se Fatture in Cloud non risponde, lo dice: qui annullato, là ancora pagata", async () => {
+    invoke.mockResolvedValue({ data: { ok: false, messaggio: "Permesso mancante" }, error: null });
+    montaImportata();
+    fireEvent.click(await screen.findByRole("button", { name: /Annulla incasso di/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Annulla incasso" }));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    expect(vi.mocked(toast.warning).mock.calls[0][0]).toContain("su Fatture in Cloud la fattura risulta ancora pagata");
   });
 });
