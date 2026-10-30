@@ -9,6 +9,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import type { TipoStanza } from "@/modules/render-stanza/lib/types";
 import type { Destinazione } from "../../../../shared/planimetrie/modello.ts";
 import type { AperturaInquadrata, PartenzaRender } from "../../../../shared/render-planimetria/prompt.ts";
@@ -51,13 +52,15 @@ export function tipoStanzaDaDestinazione(d: Destinazione | string): TipoStanza {
 }
 
 export const chiaviRenderPianta = {
-  dellaPianta: (planimetriaId: string | null | undefined) => ["planimetrie", "render", planimetriaId] as const,
+  dellaPianta: (planimetriaId: string | null | undefined, companyId?: string | null) =>
+    companyId === undefined ? ["planimetrie", "render", planimetriaId] as const : ["planimetrie", "render", planimetriaId, companyId] as const,
 };
 
-export async function elencaRenderDellaPianta(planimetriaId: string): Promise<RenderDellaPianta[]> {
+export async function elencaRenderDellaPianta(companyId: string, planimetriaId: string): Promise<RenderDellaPianta[]> {
   const { data, error } = await supabase
     .from("render_stanza_sessions" as never)
     .select("id, status, result_urls, created_at, saved_to_gallery, planimetria:config->planimetria" as never)
+    .eq("company_id" as never, companyId as never)
     .eq("config->planimetria->>planimetria_id" as never, planimetriaId as never)
     .order("created_at", { ascending: false })
     .limit(60);
@@ -66,10 +69,11 @@ export async function elencaRenderDellaPianta(planimetriaId: string): Promise<Re
 }
 
 export function useRenderDellaPianta(planimetriaId: string | null | undefined) {
+  const companyId = useAuth().effectiveCompany?.id ?? null;
   return useQuery({
-    queryKey: chiaviRenderPianta.dellaPianta(planimetriaId),
-    enabled: !!planimetriaId,
-    queryFn: () => elencaRenderDellaPianta(planimetriaId!),
+    queryKey: chiaviRenderPianta.dellaPianta(planimetriaId, companyId),
+    enabled: !!planimetriaId && !!companyId,
+    queryFn: () => elencaRenderDellaPianta(companyId!, planimetriaId!),
   });
 }
 
