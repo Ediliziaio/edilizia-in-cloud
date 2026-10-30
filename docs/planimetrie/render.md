@@ -71,6 +71,15 @@ secondo tentativo riceve anche «porte e finestre come nella pianta».
 `segnalaErroreAI`: nessun punto nuovo che chiama un provider; i provider passano da
 `editImage` (`logImageError`) e `callOpenRouter`, già agganciati.
 
+## Al push su main
+
+- **Edge function deployate dalla CI**: solo `generate-room-render` (modificata: `index.ts`
+  e il nuovo `pianta.ts`). Le modifiche sotto `shared/render-planimetria/` arrivano con lei
+  perché `index.ts` è toccato. Senza `config.planimetria` il render stanza resta quello di prima.
+- **Migrazione**: `20281030290000_render_stanza_dalla_pianta.sql` va applicata e
+  riallineata (CLAUDE.md) prima del push, oppure tolta dalla cartella: un file lì entra in
+  produzione al primo push.
+
 ## Database
 
 `supabase/migrations/20281030290000_render_stanza_dalla_pianta.sql` (**non applicata**):
@@ -83,7 +92,10 @@ se la pianta viene cancellata.
 ## Prove
 
 - `src/test/logic/planimetrieRender.test.ts`: vincoli sugli esempi della fase 1, prompt,
-  QA, SVG.
+  QA, SVG; in `generate-room-render` la pianta si rilegge prima del credito.
+- `src/test/logic/planimetrieRenderBrowser.test.ts`: indirizzi e tipo di stanza.
+- Build, controllo dei tipi e prova nel browser: da fare sul ramo unito (non lanciati qui
+  per la memoria della macchina). Controllo dei tipi Deno di `generate-room-render`: passato.
 - Render veri: **non ancora provati** (nessuna chiave OpenRouter locale). Da fare dopo il
   deploy di `generate-room-render`: una stanza del bilocale di prova dalla vista 3D e una
   da foto, controllando nel log `qa_passed_first_attempt` / `qa_failed_retry_corrective`

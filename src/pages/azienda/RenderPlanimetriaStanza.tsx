@@ -336,7 +336,6 @@ export default function RenderPlanimetriaStanza() {
         currentStep={passo}
         accent="violet"
       />
-      <RenderCreditGate />
 
       {/* La stanza come la vede il render: misure e aperture con i loro nomi. */}
       {passo <= 2 && (
@@ -465,10 +464,13 @@ export default function RenderPlanimetriaStanza() {
               <StanzaConfigForm value={config} onChange={setConfig} companyId={companyId} />
             </CardContent>
           </Card>
-          <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" size="lg" disabled={inCorso} onClick={genera}>
-            {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            {preparo ? "Preparo il render…" : "Genera il render"}
-          </Button>
+          {/* Senza crediti avvisa e blocca, come negli altri render. */}
+          <RenderCreditGate hardBlock>
+            <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" size="lg" disabled={inCorso} onClick={genera}>
+              {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {preparo ? "Preparo il render…" : "Genera il render"}
+            </Button>
+          </RenderCreditGate>
         </div>
       )}
 

@@ -154,3 +154,28 @@ describe("svgPiantaStanza", () => {
     expect(svg).toContain("Sala &lt;grande&gt; &amp; &quot;bella&quot;");
   });
 });
+
+describe("generate-room-render con la pianta", () => {
+  const src = readFileSync(join(process.cwd(), "supabase/functions/generate-room-render/index.ts"), "utf8");
+  const pianta = readFileSync(join(process.cwd(), "supabase/functions/generate-room-render/pianta.ts"), "utf8");
+
+  it("rilegge la pianta PRIMA di prendere in carico la sessione e scalare il credito", () => {
+    const carica = src.indexOf("await caricaPiantaDelRender(");
+    expect(carica).toBeGreaterThan(src.indexOf("await canAccessCompany("));
+    expect(carica).toBeLessThan(src.indexOf('"claim_render_vertical_session"'));
+    expect(carica).toBeLessThan(src.indexOf("await deductRenderCreditSafe("));
+  });
+
+  it("misure dal database, pianta della stessa azienda, immagine solo dalla cartella dell'azienda", () => {
+    expect(pianta).toMatch(/from\("planimetrie_versioni"\)/);
+    expect(pianta).toMatch(/riga\.company_id !== companyId/);
+    expect(pianta).toMatch(/percorso\.startsWith\(`\$\{companyId\}\/`\)/);
+  });
+
+  it("prompt, riferimento e QA ricevono la pianta", () => {
+    expect(src).toMatch(/bloccoPartenza3D\(\)/);
+    expect(src).toMatch(/bloccoPianta\(pianta\.vincoli/);
+    expect(src).toMatch(/righeQaPianta\(pianta\.vincoli/);
+    expect(src).toMatch(/correzionePianta\(pianta\.vincoli\)/);
+  });
+});
