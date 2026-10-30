@@ -35,6 +35,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
@@ -207,16 +208,6 @@ const NEXT_ACTION_MAP: Record<string, {
   },
 };
 
-async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -271,7 +262,7 @@ Deno.serve(async (req) => {
       return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
     }
     const buffer = await (file as Blob).arrayBuffer();
-    const base64 = await bufferToBase64(buffer);
+    const base64 = bytesToBase64(buffer);
 
     // 2. Build multimodal message — supportiamo PDF e immagini
     const isImage = (mime_type ?? "").startsWith("image/");

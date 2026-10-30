@@ -25,6 +25,7 @@ import {
 } from "../_shared/doc-validation.ts";
 import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
 import { jsonDalModello } from "./jsonDalModello.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -304,15 +305,6 @@ async function segnaTentativo(db: any, emailId: string, esito: string, errore: s
   } catch (e) {
     console.warn("[email-ai-estrai-allegato] tentativo non registrato:", e instanceof Error ? e.message : e);
   }
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
 }
 
 function json(payload: any, status: number, headers: Record<string, string>) {

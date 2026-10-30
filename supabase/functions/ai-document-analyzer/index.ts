@@ -32,6 +32,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 import { controllaDocumento, statoAnalisi } from "../_shared/controlliDocumento.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { erroreAiPerUtente, erroreDaCorpo, type ErroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 interface AnalyzeRequest {
@@ -142,13 +143,7 @@ async function downloadStorageAsBase64(
   const blob = data as Blob;
   const buffer = await blob.arrayBuffer();
   const bytes = buffer.byteLength;
-  const view = new Uint8Array(buffer);
-  let raw = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < view.length; i += chunkSize) {
-    raw += String.fromCharCode(...view.subarray(i, i + chunkSize));
-  }
-  return { base64: btoa(raw), blob, bytes };
+  return { base64: bytesToBase64(buffer), blob, bytes };
 }
 
 async function copyStorageForParser(

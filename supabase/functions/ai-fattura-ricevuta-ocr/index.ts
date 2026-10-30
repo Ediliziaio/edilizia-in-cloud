@@ -26,6 +26,7 @@ import { BUCKET_OCR_FATTURA, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { controllaDocumento, conAvvisi } from "../_shared/controlliDocumento.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const SYSTEM_PROMPT = `Estrai da fattura passiva italiana i seguenti campi in JSON.
@@ -70,16 +71,6 @@ interface OcrPayload {
   mime_type?: string;
   company_id?: string;
   auto_create?: boolean;
-}
-
-function bufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
 }
 
 serve(async (req: Request) => {
@@ -134,7 +125,7 @@ serve(async (req: Request) => {
     }
 
     const mimeType = body?.mime_type || (file as Blob).type || "application/pdf";
-    const base64 = bufferToBase64(buffer);
+    const base64 = bytesToBase64(buffer);
     const dataUrl = `data:${mimeType};base64,${base64}`;
     const isImage = mimeType.startsWith("image/");
     const userContent: unknown[] = [

@@ -226,3 +226,26 @@ describe("gli errori del router arrivano all'utente da una tabella sola", () => 
     });
   }
 });
+
+describe("la conversione in base64 sta in un punto solo", () => {
+  // Nove copie dello stesso ciclo (String.fromCharCode(...blocco) + btoa), una per funzione:
+  // ora c'è _shared/base64.ts, che usa il metodo nativo dove il runtime lo ha (100 volte più veloce).
+  const LETTORI = [
+    "ai-document-analyzer",
+    "ai-fattura-ricevuta-ocr",
+    "ai-importa-condizioni",
+    "ai-tabella-finanziamento-extract",
+    "computo-ai-extract",
+    "ddt-ai-extract",
+    "document-ai-router",
+    "email-ai-estrai-allegato",
+    "generic-doc-ai-extract",
+  ];
+  for (const nome of LETTORI) {
+    it(`${nome}: usa _shared/base64 e non ha un convertitore suo`, () => {
+      const src = sorgente(nome);
+      expect(src).toMatch(/import\s*\{[^}]*\b(?:bytesToBase64|arrayBufferToBase64)\b[^}]*\}\s*from\s*["']\.\.\/_shared\/base64\.ts["']/);
+      expect(src).not.toMatch(/String\.fromCharCode\(\s*\.\.\./);
+    });
+  }
+});

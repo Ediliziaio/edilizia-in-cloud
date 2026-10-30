@@ -19,6 +19,7 @@ import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { controllaDocumento } from "../_shared/controlliDocumento.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
 const DDT_EXTRACTION_PROMPT = `Sei un esperto di logistica e amministrazione edilizia italiana ed europea.
@@ -119,16 +120,6 @@ Restituisci SOLO JSON valido (no markdown):
   "confidence": 0.0-1.0,
   "warnings": ["string"]
 }`;
-
-async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
 
 // Normalizza l'output AI prima di mostrarlo/salvarlo: l'AI può restituire
 // oggetti quasi corretti ma con array mancanti o confidence fuori range.
@@ -231,7 +222,7 @@ Deno.serve(async (req) => {
       if (buffer.byteLength > 18 * 1024 * 1024) {
         return errorResponse("DDT troppo grande (max 18MB)", 413, cors);
       }
-      base64 = await bufferToBase64(buffer);
+      base64 = bytesToBase64(buffer);
       resolvedMimeType = mime_type ?? "application/pdf";
       resolvedFileName = file_name;
       fingerprintInput = `${storage_bucket}/${storage_path}`;

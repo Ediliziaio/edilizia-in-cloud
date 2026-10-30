@@ -34,6 +34,7 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { percorsoStorageSicuro } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 
 interface Hint {
@@ -64,14 +65,7 @@ async function downloadPdfBase64(supabaseAdmin: any, storagePath: string): Promi
     .from("finanziamenti-tabelle")
     .download(storagePath);
   if (error || !data) throw new Error(`Download storage error: ${error?.message ?? "empty"}`);
-  const buf = new Uint8Array(await data.arrayBuffer());
-  let bin = "";
-  // Chunk per evitare stack overflow su file grandi
-  const CHUNK = 0x8000;
-  for (let i = 0; i < buf.length; i += CHUNK) {
-    bin += String.fromCharCode(...buf.subarray(i, i + CHUNK));
-  }
-  return btoa(bin);
+  return bytesToBase64(new Uint8Array(await data.arrayBuffer()));
 }
 
 const SYSTEM_PROMPT = `Sei un assistente esperto nell'estrazione di dati strutturati da TABELLE FINANZIARIE PDF di finanziarie italiane (Fiditalia, Findomestic, Compass, Agos, Cofidis, Deutsche Bank, BNL, Banca Sella, Younited, Santander, IBL, ecc.).

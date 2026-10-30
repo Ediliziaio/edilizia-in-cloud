@@ -22,6 +22,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
@@ -194,16 +195,6 @@ Restituisci SOLO JSON valido (no markdown), formato:
   "warnings": []
 }`;
 
-async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buf);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -267,7 +258,7 @@ Deno.serve(async (req) => {
     if (buffer.byteLength > 18 * 1024 * 1024) {
       return errorResponse("Documento troppo grande (max 18MB)", 413, cors);
     }
-    const base64 = await bufferToBase64(buffer);
+    const base64 = bytesToBase64(buffer);
     const isImage = (mime_type ?? "").startsWith("image/");
     const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

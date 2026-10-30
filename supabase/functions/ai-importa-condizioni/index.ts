@@ -18,6 +18,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_IMPORT_CONDIZIONI, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento, incorniciaTestoDocumento } from "../_shared/documentoNonFidato.ts";
+import { bytesToBase64 } from "../_shared/base64.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
 
@@ -30,16 +31,6 @@ REGOLE
 - Formato markdown: "# Condizioni contrattuali" con sezioni "## 1. Oggetto", "## 2. Prezzi e pagamenti", ecc. (numerazione progressiva, un titolo per sezione), poi "# Termini legali" con "## Privacy (GDPR)", "## Diritto di recesso", "## Foro competente" se presenti nel documento. Elenchi con "- ". Niente tabelle, niente HTML.
 
 Rispondi SOLO con JSON: {"markdown": "…", "note": ["cosa hai cambiato o unito"], "mancanze": ["sezioni tipiche assenti nel documento"]}`;
-
-async function bufferToBase64(buffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -78,7 +69,7 @@ Deno.serve(async (req) => {
       if (dlErr || !file) return errorResponse(`Download fallito: ${dlErr?.message ?? "?"}`, 500, cors);
       const buffer = await (file as Blob).arrayBuffer();
       if (buffer.byteLength > 18 * 1024 * 1024) return errorResponse("Documento troppo grande (max 18MB)", 413, cors);
-      const base64 = await bufferToBase64(buffer);
+      const base64 = bytesToBase64(buffer);
       const isImage = (mime_type ?? "").startsWith("image/");
       const dataUrl = `data:${mime_type ?? (isImage ? "image/jpeg" : "application/pdf")};base64,${base64}`;
       userContent.push({ type: "text", text: `Leggi il documento allegato "${file_name ?? "documento"}" e produci il blocco condizioni.` });
