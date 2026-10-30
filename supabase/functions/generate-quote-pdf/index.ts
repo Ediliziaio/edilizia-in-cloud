@@ -1,3 +1,4 @@
+// 31/10/2026: il renderer comune stampa il cronoprogramma del preventivo classico (quotes.cronoprogramma). Questo commento fa ripubblicare la funzione: la CI guarda solo i file sotto la sua cartella.
 // @ts-ignore bundle generato da scripts/preventivi-render/build.mjs
 import { renderGenerico } from "../_shared/preventivoRenderer.mjs";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

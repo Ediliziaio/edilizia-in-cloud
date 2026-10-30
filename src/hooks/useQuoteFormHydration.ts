@@ -21,6 +21,7 @@ export interface QuoteExtraFields {
   template_layout_override?: string | null;
   payment_method?: string | null;
   payment_phases?: unknown;
+  cronoprogramma?: unknown;
   bonus_lines?: unknown;
   /** Prezzo scritto a mano (21/09/2026): sostituisce la somma delle righe. */
   prezzo_manuale?: number | null;
@@ -62,6 +63,8 @@ export interface QuoteFormSetters {
   setLayoutOverride: (v: string | null) => void;
   setPaymentMethod: (v: string) => void;
   setPaymentPhases: (v: QuotePaymentPhase[]) => void;
+  /** Le fasi del cantiere scritte sul preventivo (31/10/2026). */
+  setCronoprogramma?: (v: unknown) => void;
   setBonusLines?: (v: BonusLine[]) => void;
 }
 
@@ -145,6 +148,7 @@ export function useQuoteFormHydration(
     s.setLayoutOverride(q.template_layout_override ?? null);
     s.setPaymentMethod(q.payment_method || "");
     s.setPaymentPhases(parseQuotePaymentPhases(q.payment_phases));
+    s.setCronoprogramma?.(q.cronoprogramma ?? null);
     s.setBonusLines?.(parseBonusLines(q.bonus_lines));
   }, [existingQuote]);
 }

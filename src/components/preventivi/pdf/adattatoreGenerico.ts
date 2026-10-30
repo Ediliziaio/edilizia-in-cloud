@@ -19,6 +19,8 @@ export function datiGenerici(input: { quote: Riga; items: Riga[]; righePerIva?: 
     code: str(q.quote_number), tipo_intervento: str(q.title), cliente_nome: str(q.client_name), cliente_cognome: null,
     cantiere_indirizzo: str(q.work_address || q.client_address), cantiere_citta: null, cantiere_cap: null, cantiere_provincia: null,
     immobile_tipo: null, immobile_superficie_mq: null, immobile_anno: null, immobile_piani: null, created_at: str(q.created_at), mostra_finanziamento: false,
+    // Le fasi del cantiere scritte sul preventivo (31/10/2026): il documento le stampa come nei preventivatori edili.
+    cronoprogramma: q.cronoprogramma ?? null,
   };
   const capitoli = new Map<string, typeof items>();
   for (const r of items) {

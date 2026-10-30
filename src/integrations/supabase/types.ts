@@ -69442,6 +69442,7 @@ export type Database = {
           client_vat_number: string | null
           client_tipo: string | null
           client_codice_univoco: string | null
+          cronoprogramma: Json | null
           commission_amount_snapshot: number | null
           company_id: string
           computo_upload_id: string | null
@@ -69542,6 +69543,7 @@ export type Database = {
           client_vat_number?: string | null
           client_tipo?: string | null
           client_codice_univoco?: string | null
+          cronoprogramma?: Json | null
           commission_amount_snapshot?: number | null
           company_id: string
           computo_upload_id?: string | null
@@ -69642,6 +69644,7 @@ export type Database = {
           client_vat_number?: string | null
           client_tipo?: string | null
           client_codice_univoco?: string | null
+          cronoprogramma?: Json | null
           commission_amount_snapshot?: number | null
           company_id?: string
           computo_upload_id?: string | null
