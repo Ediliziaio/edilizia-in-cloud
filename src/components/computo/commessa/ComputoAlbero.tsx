@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { alberoComputo, numeroVoce, tariffaVoce, type NodoComputo, type VoceComputo } from "@/lib/computo/alberoComputo";
+import { alberoComputo, numeroVoce, tariffaVoce, type MisuraComputo, type NodoComputo, type VoceComputo } from "@/lib/computo/alberoComputo";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 
@@ -15,7 +15,18 @@ function contieneVoce(nodo: NodoComputo, numeroOrdine: string | null): boolean {
   return nodo.voci.some(v => numeroVoce(v) === numeroOrdine) || nodo.figli.some(f => contieneVoce(f, numeroOrdine));
 }
 
-function RigaVoce({ voce, aperta, onToggle, mostraImporti }: { voce: VoceComputo; aperta: boolean; onToggle: () => void; mostraImporti: boolean }) {
+/**
+ * Aggiunte di chi usa l'albero, senza che l'albero sappia da dove vengono: oggi le
+ * piante (fase 4 delle Planimetrie) — «Prendi dalla pianta» sotto la voce, «dalla
+ * pianta · stimata» sulla riga, «contiene misure stimate» sul totale.
+ */
+export interface ExtraVoci {
+  azioniVoce?: (voce: VoceComputo) => ReactNode;
+  notaMisura?: (misura: MisuraComputo, voce: VoceComputo) => ReactNode;
+  notaVoce?: (voce: VoceComputo) => ReactNode;
+}
+
+function RigaVoce({ voce, aperta, onToggle, mostraImporti, extra }: { voce: VoceComputo; aperta: boolean; onToggle: () => void; mostraImporti: boolean; extra?: ExtraVoci }) {
   const avvisi = voce.warnings?.filter(Boolean) ?? [];
   const n = numeroVoce(voce);
   return (
@@ -63,6 +74,7 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti }: { voce: VoceComputo
                       <td className="px-2 py-1">
                         {m.descrizione || <span className="text-slate-400">—</span>}
                         {m.formula && <span className="ml-1 font-mono text-[11px] text-slate-500">({m.formula})</span>}
+                        {extra?.notaMisura?.(m, voce)}
                       </td>
                       <td className="px-2 py-1 text-right tabular-nums">{numero(m.parti_uguali)}</td>
                       <td className="px-2 py-1 text-right tabular-nums">{numero(m.lunghezza)}</td>
@@ -74,7 +86,7 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti }: { voce: VoceComputo
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-slate-50 font-semibold">
-                    <td className="px-2 py-1" colSpan={5}>{voce.is_detrazione ? "Si detraggono" : "Sommano"} {voce.unita_misura}</td>
+                    <td className="px-2 py-1" colSpan={5}>{voce.is_detrazione ? "Si detraggono" : "Sommano"} {voce.unita_misura}{extra?.notaVoce?.(voce)}</td>
                     <td className="px-2 py-1 text-right tabular-nums">{numero(voce.quantita)}</td>
                   </tr>
                 </tfoot>
@@ -86,6 +98,7 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti }: { voce: VoceComputo
               {avvisi.map(a => <li key={a}>{a}</li>)}
             </ul>
           )}
+          {extra?.azioniVoce?.(voce)}
         </div>
       )}
     </li>
@@ -94,9 +107,9 @@ function RigaVoce({ voce, aperta, onToggle, mostraImporti }: { voce: VoceComputo
 
 export interface EvidenzaVoce { numero: string; volta: number }
 
-function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mostraImporti }: {
+function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mostraImporti, extra }: {
   nodo: NodoComputo; apertiForzati: boolean; voceInEvidenza: EvidenzaVoce | null;
-  vociAperte: (n: string) => boolean; toggleVoce: (n: string) => void; mostraImporti: boolean;
+  vociAperte: (n: string) => boolean; toggleVoce: (n: string) => void; mostraImporti: boolean; extra?: ExtraVoci;
 }) {
   // Aperto a mano, oppure perché contiene la voce appena indicata dal controllo dei totali
   // (finché l'utente non lo richiude dopo quell'indicazione).
@@ -119,12 +132,12 @@ function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mos
         <div className={cn(nodo.livello === 0 && "pb-1")}>
           {nodo.figli.map(f => (
             <Nodo key={f.chiave} nodo={f} apertiForzati={apertiForzati} voceInEvidenza={voceInEvidenza}
-              vociAperte={vociAperte} toggleVoce={toggleVoce} mostraImporti={mostraImporti} />
+              vociAperte={vociAperte} toggleVoce={toggleVoce} mostraImporti={mostraImporti} extra={extra} />
           ))}
           {nodo.voci.length > 0 && (
             <ul className="mx-2 mb-2 rounded border bg-white">
               {nodo.voci.map(v => (
-                <RigaVoce key={v.id} voce={v} aperta={vociAperte(numeroVoce(v))} onToggle={() => toggleVoce(numeroVoce(v))} mostraImporti={mostraImporti} />
+                <RigaVoce key={v.id} voce={v} aperta={vociAperte(numeroVoce(v))} onToggle={() => toggleVoce(numeroVoce(v))} mostraImporti={mostraImporti} extra={extra} />
               ))}
             </ul>
           )}
@@ -135,8 +148,8 @@ function Nodo({ nodo, apertiForzati, voceInEvidenza, vociAperte, toggleVoce, mos
 }
 
 /** Albero super-categoria › categoria › sotto-categoria con subtotali e voci espandibili. */
-export function ComputoAlbero({ voci, totaleComputo, ricercaAttiva, voceInEvidenza, mostraImporti }: {
-  voci: VoceComputo[]; totaleComputo: number; ricercaAttiva: boolean; voceInEvidenza: EvidenzaVoce | null; mostraImporti: boolean;
+export function ComputoAlbero({ voci, totaleComputo, ricercaAttiva, voceInEvidenza, mostraImporti, extra }: {
+  voci: VoceComputo[]; totaleComputo: number; ricercaAttiva: boolean; voceInEvidenza: EvidenzaVoce | null; mostraImporti: boolean; extra?: ExtraVoci;
 }) {
   const { nodi } = alberoComputo(voci, totaleComputo);
   // Per ogni voce: aperta o chiusa a mano, e a quale «indicazione» risale la scelta.
@@ -157,7 +170,7 @@ export function ComputoAlbero({ voci, totaleComputo, ricercaAttiva, voceInEviden
     <div className="space-y-2">
       {nodi.map(n => (
         <Nodo key={n.chiave} nodo={n} apertiForzati={ricercaAttiva} voceInEvidenza={voceInEvidenza}
-          vociAperte={vociAperte} toggleVoce={toggleVoce} mostraImporti={mostraImporti} />
+          vociAperte={vociAperte} toggleVoce={toggleVoce} mostraImporti={mostraImporti} extra={extra} />
       ))}
     </div>
   );

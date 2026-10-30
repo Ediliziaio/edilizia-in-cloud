@@ -9,7 +9,7 @@
  */
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Search, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Map as IconaPianta, Search, Upload, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ComputoAlbero, type EvidenzaVoce } from "./ComputoAlbero";
+import { ComputoAlbero, type EvidenzaVoce, type ExtraVoci } from "./ComputoAlbero";
+import PiantaCambiata from "./pianta/PiantaCambiata";
+import PrendiDallaPianta from "./pianta/PrendiDallaPianta";
+import { usePianteDelComputo } from "@/hooks/useComputoPianta";
+import { ETICHETTA_ORIGINE } from "@/lib/planimetrie/computo";
 import { filtraVoci, numeroVoce, type VoceComputo } from "@/lib/computo/alberoComputo";
 import { controllaTotali, formatEuro, type ComputoVoceStrutturata, type ControlloTotali } from "@/lib/computo/computoStrutturato";
 import { quadroEconomicoCompleto, sezioneVoce, type QuadroEconomicoCompleto } from "@/lib/computo/quadroEconomico";
@@ -189,6 +193,8 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   const [evidenza, setEvidenza] = useState<EvidenzaVoce | null>(null);
   const [nuovo, setNuovo] = useState(false);
   const [esportando, setEsportando] = useState<"xlsx" | "pdf" | null>(null);
+  const [prendiPer, setPrendiPer] = useState<VoceComputo | null>(null);
+  const piante = usePianteDelComputo(voci);
 
   // Calcoli semplici: li memorizza il compilatore di React.
   const totale = Math.round(voci.reduce((s, v) => s + (Number(v.importo_computo) || 0), 0) * 100) / 100;
@@ -202,6 +208,25 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   }
   const filtrate = filtraVoci(voci, ricerca);
   const bloccato = !canEdit || computo?.stato === "contrattuale";
+
+  // Le righe prese da una pianta: da dove vengono, se sono stimate, «Prendi dalla pianta».
+  const stimate = voci.flatMap(v => v.misure).filter(m => piante.origineMisura(m) === "stimata").length;
+  const extraPianta: ExtraVoci = {
+    azioniVoce: v => !bloccato && computo?.stato !== "archiviato" && (
+      <Button type="button" size="sm" variant="outline" onClick={() => setPrendiPer(v)}><IconaPianta className="mr-1 h-4 w-4" />Prendi dalla pianta</Button>
+    ),
+    notaMisura: m => {
+      if (!m.planimetria_id) return null;
+      const origine = piante.origineMisura(m);
+      const titolo = piante.piante.get(m.planimetria_id)?.titolo;
+      return <span className="ml-1 whitespace-nowrap text-[11px] text-slate-500" title={titolo ? `Dalla pianta «${titolo}»` : undefined}>
+        · dalla pianta v{m.planimetria_versione}
+        {origine && origine !== "rilevata" && <span className={origine === "stimata" ? "font-medium text-amber-800" : ""}> · {ETICHETTA_ORIGINE[origine]}</span>}
+      </span>;
+    },
+    notaVoce: v => v.misure.some(m => piante.origineMisura(m) === "stimata")
+      && <span className="ml-2 text-xs font-normal text-amber-800">· contiene misure stimate</span>,
+  };
 
   if (isLoading) return <div className="flex items-center gap-2 p-4 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico il computo…</div>;
   if (error) return <p role="alert" className="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm">Computo non disponibile: {(error as Error).message}</p>;
@@ -363,6 +388,9 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
         <div className="flex items-center gap-2 p-4 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico le voci…</div>
       ) : (
         <section aria-label="Voci del computo" className="space-y-2">
+          <PiantaCambiata cambiate={piante.cambiate} voci={voci} computo={computo} computi={computi} orderId={orderId} canEdit={canEdit}
+            onApriVarianti={computo.lavoro_pubblico ? () => setScheda("varianti") : undefined} />
+          {piante.errore && <p role="alert" className="text-xs text-rose-700">{piante.errore.message}</p>}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative sm:w-96">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" aria-hidden="true" />
@@ -372,15 +400,21 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
             <p className="text-sm text-slate-600">
               {ricerca ? `${filtrate.length} di ${voci.length} voci` : `${voci.length} voci`}
               {canViewAmounts && <> · totale <strong>{euro(totale)}</strong></>}
+              {stimate > 0 && <span className="text-amber-800"> · contiene misure stimate ({stimate === 1 ? "1 riga" : `${stimate} righe`})</span>}
             </p>
           </div>
-          <ComputoAlbero voci={filtrate} totaleComputo={totale} ricercaAttiva={!!ricerca.trim()} voceInEvidenza={evidenza} mostraImporti={canViewAmounts} />
+          <ComputoAlbero voci={filtrate} totaleComputo={totale} ricercaAttiva={!!ricerca.trim()} voceInEvidenza={evidenza} mostraImporti={canViewAmounts} extra={extraPianta} />
         </section>
       ))}
     </div>
   );
 
-  if (!computo.lavoro_pubblico || !letto) return <>{vistaComputo}{finestraSblocco}</>;
+  const finestraPianta = prendiPer && (
+    <PrendiDallaPianta key={prendiPer.id} voce={prendiPer} uploadId={computo.id} companyId={companyId} orderId={orderId}
+      aperta onChiudi={() => setPrendiPer(null)} />
+  );
+
+  if (!computo.lavoro_pubblico || !letto) return <>{vistaComputo}{finestraSblocco}{finestraPianta}</>;
   return (
     <Tabs value={scheda} onValueChange={v => setScheda(v as typeof scheda)} className="space-y-3">
       <div className="-mx-1 overflow-x-auto px-1">
@@ -401,6 +435,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
         </TabsContent>
       )}
       {finestraSblocco}
+      {finestraPianta}
     </Tabs>
   );
 }

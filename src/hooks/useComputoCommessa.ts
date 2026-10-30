@@ -70,7 +70,7 @@ export function useVociComputo(uploadId: string | undefined, abilitato: boolean)
       const tutte: VoceComputo[] = [];
       for (let da = 0; ; da += 1000) {
         const { data, error } = await supabase.from("computo_voci_estratte")
-          .select("id, ordine, numero_ordine, codice_voce, codice_tariffa, codice_prezzario, descrizione_breve, descrizione_estesa, unita_misura, quantita, prezzo_unitario_computo, importo_computo, super_categoria, categoria, sotto_categoria, is_sicurezza, is_detrazione, a_corpo, warnings, quadro_voce, voce_origine_id, nuovo_prezzo, misure:computo_voci_misure(id, ordine, descrizione, parti_uguali, lunghezza, larghezza, altezza_peso, quantita, formula)")
+          .select("id, ordine, numero_ordine, codice_voce, codice_tariffa, codice_prezzario, descrizione_breve, descrizione_estesa, unita_misura, quantita, prezzo_unitario_computo, importo_computo, super_categoria, categoria, sotto_categoria, is_sicurezza, is_detrazione, a_corpo, warnings, quadro_voce, voce_origine_id, nuovo_prezzo, misure:computo_voci_misure(id, ordine, descrizione, parti_uguali, lunghezza, larghezza, altezza_peso, quantita, formula, planimetria_id, planimetria_versione, planimetria_chiavi)")
           .eq("computo_upload_id", uploadId!).order("ordine").range(da, da + 999);
         if (error) throw error;
         tutte.push(...((data ?? []) as unknown as VoceComputo[]).map(v => ({ ...v, misure: [...(v.misure ?? [])].sort((a, b) => a.ordine - b.ordine) })));

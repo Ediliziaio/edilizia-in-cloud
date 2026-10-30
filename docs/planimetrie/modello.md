@@ -277,13 +277,17 @@ in italiano (`messaggioErrorePlanimetria`).
   un JSON di questo schema, segna `stimata` ciò che deduce e `da_documento` ciò che legge
   in scala, poi `controllaPlanimetria` e salva solo senza errori (`origine: ai_pdf` …).
   Import: `../../../shared/planimetrie/controllo.ts`.
-- **Computo (fase 4)**: «Prendi dalla pianta» crea righe di `computo_voci_misure` con
-  `quantita = Σ valore` delle chiavi, `descrizione` dalla quantità, e le tre colonne della
-  pianta. Se `versione_corrente` > `planimetria_versione` ricalcola le stesse chiavi sulla
-  versione nuova e mostra il confronto. Computo contrattuale: perizia di variante, non
-  aggiornamento. Da fare in quella fase: la copia delle righe in variante
-  (`20281023053000_computo_contrattuale_bloccato_e_varianti.sql`) non copia ancora le tre
-  colonne nuove.
+- **Computo (fase 4, `src/lib/planimetrie/computo.ts`, `src/hooks/useComputoPianta.ts`,
+  `src/components/computo/commessa/pianta/`)**: «Prendi dalla pianta» su una voce del
+  computo di commessa crea righe di `computo_voci_misure` (una per locale, o una per la
+  pianta intera per demolizioni, pareti nuove, porte e finestre) con `quantita = Σ valore`
+  delle chiavi arrotondata a 2 decimali come PriMus, negativa nelle voci «si detrae», e le
+  tre colonne della pianta; la voce cambia della somma delle righe nuove. Se
+  `versione_corrente` > `planimetria_versione` ricalcola le stesse chiavi sulla versione
+  nuova e mostra il confronto; aggiorna solo con conferma. Computo contrattuale: niente
+  aggiornamento; con la contabilità dei lavori pubblici le differenze vanno nella perizia
+  di variante. La copia delle righe in variante porta le tre colonne dalla migrazione
+  `20281030264000_computo_variante_copia_pianta.sql`.
 - **3D (fase 5a, `src/lib/planimetrie/tred`)**: ogni muro è un prisma lungo l'asse
   (spessore, altezza) con i vani da `offset/larghezza/davanzale/altezza`; pavimenti dai
   contorni dei locali alla `quota` del livello; elementi come blocchi

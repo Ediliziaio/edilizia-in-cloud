@@ -12,6 +12,10 @@ export interface MisuraComputo {
   altezza_peso: number | null;
   quantita: number | null;
   formula: string | null;
+  /** La riga viene da una pianta (modulo Planimetrie): quale, da quale versione, quali quantità. */
+  planimetria_id?: string | null;
+  planimetria_versione?: number | null;
+  planimetria_chiavi?: string[] | null;
 }
 
 export interface VoceComputo {
