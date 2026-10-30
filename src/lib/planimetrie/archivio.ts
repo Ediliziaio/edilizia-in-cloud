@@ -90,13 +90,13 @@ export function messaggioErrorePlanimetria(errore: { code?: string; message?: st
 /** Valida il documento e lo restituisce, o lancia un errore leggibile. */
 function documentoValido(documento: unknown): Planimetria {
   const esito = validaPlanimetria(documento);
-  if (!esito.ok) throw new Error(`La pianta non è valida: ${esito.errori.slice(0, 3).join(" ")}`);
+  if (esito.ok === false) throw new Error(`La pianta non è valida: ${esito.errori.slice(0, 3).join(" ")}`);
   return esito.planimetria;
 }
 
 function versioneLetta(riga: Record<string, unknown>): VersionePlanimetria {
   const esito = validaPlanimetria(riga.documento);
-  if (!esito.ok) throw new Error(`La pianta salvata non si legge: ${esito.errori[0]}`);
+  if (esito.ok === false) throw new Error(`La pianta salvata non si legge: ${esito.errori[0]}`);
   return { ...(riga as unknown as InfoVersione), documento: esito.planimetria, quantita: (riga.quantita as MappaQuantita | null) ?? null };
 }
 
