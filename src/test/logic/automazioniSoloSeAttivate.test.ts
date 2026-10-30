@@ -16,6 +16,16 @@ describe("solo se l'azienda le accende", () => {
     expect(codice).toContain("return !!s && (s.tutti || s.utenti.has(c.user_id));");
   });
 
+  it("brief di Silvio: interruttore dell'azienda anche senza WhatsApp, spento di base (31/10/2026)", () => {
+    const codice = leggi("supabase/functions/silvio-morning-brief/index.ts");
+    expect(codice).toContain('.neq("silvio_brief_mattino", "spento")');
+    expect(codice).toContain('if (m === "tutti" || (m === "responsabili" && amministratori.has(c.user_id))) return true;');
+    const sql = leggi("supabase/migrations/20281031237000_brief_silvio_interruttore.sql");
+    expect(sql).toContain("silvio_brief_mattino text not null default 'spento'");
+    const ui = leggi("src/components/impostazioni/AutomazioniCheParteDaSole.tsx");
+    expect(ui).toContain("Brief di Silvio del mattino");
+  });
+
   it("giornale di cantiere e brief ai capisquadra: spenti di base e spenti per tutti", () => {
     const sql = leggi("supabase/migrations/20281019235500_automazioni_solo_se_attivate.sql");
     expect(sql).toContain("alter column morning_briefing_enabled set default false");

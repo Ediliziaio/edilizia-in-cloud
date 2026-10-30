@@ -134,7 +134,24 @@ Deno.serve(async (req: Request) => {
         for (const u of utenti) prima.utenti.add(u);
         scelte.set(r.company_id, prima);
       }
+      // Interruttore dell'azienda (31/10/2026): Impostazioni → Automazioni AI → «Cosa parte da solo».
+      // Vale anche senza bot WhatsApp; la routine resta valida per chi l'ha accesa.
+      const { data: accese, error: errAccese } = await supabase.from("companies")
+        .select("id, silvio_brief_mattino").neq("silvio_brief_mattino", "spento");
+      if (errAccese) throw new Error(`companies.silvio_brief_mattino: ${errAccese.message}`);
+      const modo = new Map<string, string>(((accese ?? []) as Array<{ id: string; silvio_brief_mattino: string }>).map((c) => [c.id, c.silvio_brief_mattino]));
+      // «responsabili» = gli amministratori dell'azienda.
+      const daControllare = tutti.filter((c) => modo.get(c.company_id) === "responsabili").map((c) => c.user_id);
+      const amministratori = new Set<string>();
+      if (daControllare.length) {
+        const { data: ruoli, error: errRuoli } = await supabase.from("user_roles").select("user_id, role")
+          .in("user_id", daControllare).in("role", ["company_admin", "super_admin"]);
+        if (errRuoli) throw new Error(`user_roles: ${errRuoli.message}`);
+        for (const r of (ruoli ?? []) as Array<{ user_id: string }>) amministratori.add(r.user_id);
+      }
       candidati = tutti.filter((c) => {
+        const m = modo.get(c.company_id);
+        if (m === "tutti" || (m === "responsabili" && amministratori.has(c.user_id))) return true;
         const s = scelte.get(c.company_id);
         return !!s && (s.tutti || s.utenti.has(c.user_id));
       });
