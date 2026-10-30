@@ -7,6 +7,8 @@ import { supportaProdottiPos } from "../_shared/posProdotti.ts";
 import { verificaVersionePos } from "../_shared/posVersione.ts";
 import { percorsoStorageSicuro } from "../_shared/posPercorsi.ts";
 import { oggiRoma } from "../_shared/posData.ts";
+import { AZIONI_POS, scriveAzionePos, type AzionePos } from "../_shared/posAzioni.ts";
+import { lavorazioniDaRispostaAi } from "../_shared/posAi.ts";
 /**
  * genera-pos — Piano Operativo di Sicurezza sul modello ufficiale
  * (DI 9 settembre 2014, Allegato I; Allegato XV punto 3.2.1 del D.Lgs 81/2008).
@@ -39,8 +41,7 @@ import { applicaRiusoPos, lavorazioniRiutilizzabili } from "../_shared/posRiuso.
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
-const AZIONI = ["apri_originale_addetto","apri_documento_mezzo","crea", "dati_app", "lavorazioni_ai", "approva", "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf"] as const;
-type Azione = typeof AZIONI[number];
+type Azione = AzionePos;
 
 async function verificaPermesso(db: Db, userId: string, companyId: string, scrive: boolean, cors: Record<string, string>) {
   const { data: ok, error: permessoError } = await db.rpc("has_permission_for_company", {
@@ -64,6 +65,12 @@ async function verificaPermesso(db: Db, userId: string, companyId: string, scriv
   }
 }
 
+/** Un RAISE EXCEPTION dei nostri trigger (P0001) dice all'utente cosa correggere; gli altri errori del database restano nei log del server. */
+function erroreDb(contesto: string, error: { message: string; code?: string }, cors: Record<string, string>) {
+  console.error(`genera-pos: ${contesto}`, error.code ?? "", error.message);
+  return errorResponse(error.code === "P0001" ? `${contesto}: ${error.message}` : `${contesto}: riprova tra poco`, 500, cors);
+}
+
 async function caricaPos(db: Db, companyId: string, posId: string, cors: Record<string, string>) {
   const { data, error } = await db
     .from("pos_documents")
@@ -71,7 +78,7 @@ async function caricaPos(db: Db, companyId: string, posId: string, cors: Record<
     .eq("id", posId)
     .eq("company_id", companyId)
     .maybeSingle();
-  if (error) throw errorResponse(`POS non leggibile: ${error.message}`, 500, cors);
+  if (error) throw erroreDb("POS non leggibile", error, cors);
   if (!data || (data.document_type && data.document_type !== "pos")) throw errorResponse("POS non trovato", 404, cors);
   return data;
 }
@@ -153,16 +160,7 @@ async function proponiLavorazioni(db: Db, companyId: string, userId: string, pos
   const elenco = Array.isArray((parsed as { lavorazioni?: unknown })?.lavorazioni)
     ? (parsed as { lavorazioni: unknown[] }).lavorazioni
     : [];
-  const base = Date.now().toString(36);
-  // Rischi, misure e DPI arrivano come elenchi: nella scheda diventano righe.
-  const righe = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).join("\n") : v);
-  const lavorazioni = elenco
-    .map((l, i) => {
-      const o = l && typeof l === "object" ? (l as Record<string, unknown>) : {};
-      const conRighe = { ...o, tecnica:undefined, requisiti_addetti:undefined, rischi: righe(o.rischi), misure: righe(o.misure), dpi: righe(o.dpi), sostanze: righe(o.sostanze) };
-      return { ...normalizzaLavorazione(conRighe, `ai-${base}-${i + 1}`), origine: "ai" as const, verificata: false };
-    })
-    .filter((l) => l.titolo.trim() || l.descrizione.trim());
+  const lavorazioni = lavorazioniDaRispostaAi(elenco, `ai-${Date.now().toString(36)}`);
   if (!lavorazioni.length) throw errorResponse("L'AI non ha proposto lavorazioni: riprova o scrivile a mano", 502, cors);
   const modalita = (parsed as { modalita_organizzative?: unknown })?.modalita_organizzative;
   return { lavorazioni, modalita_organizzative: typeof modalita === "string" ? modalita.trim() : "" };
@@ -180,11 +178,11 @@ Deno.serve(async (req: Request) => {
     // Compatibilità: chi chiamava senza azione con order_id voleva creare un POS.
     const azione: Azione = body.azione == null && body.order_id ? "crea" : body.azione;
     const companyId = typeof body.company_id === "string" ? body.company_id : "";
-    if (!AZIONI.includes(azione)) return errorResponse("Azione non riconosciuta", 400, cors);
+    if (!AZIONI_POS.includes(azione)) return errorResponse("Azione non riconosciuta", 400, cors);
     if (!companyId) return errorResponse("company_id obbligatorio", 400, cors);
 
     await requireCompanyAccess(db, userId, companyId, cors);
-    await verificaPermesso(db, userId, companyId, ["crea", "approva", "salva_modello", "archivia_modello", "emetti", "scarica_emissione", "anteprima_pdf"].includes(azione), cors);
+    await verificaPermesso(db, userId, companyId, scriveAzionePos(azione), cors);
 
     if(azione === "apri_originale_addetto") {
       const persona=String(body.persona_id||"");
@@ -298,7 +296,7 @@ Deno.serve(async (req: Request) => {
         })
         .select("id")
         .single();
-      if (error) return errorResponse(`POS non salvato: ${error.message}`, 500, cors);
+      if (error) return erroreDb("POS non salvato", error, cors);
       return jsonResponse({ ok: true, pos_id: doc.id, avvisi: preparato.contesto.avvisi, contesto: preparato.contesto }, 200, cors);
     }
 
@@ -362,7 +360,9 @@ Deno.serve(async (req: Request) => {
     if (mancanti.length) {
       return jsonResponse({ ok: false, error: "Il POS non ha ancora tutti i contenuti minimi dell'Allegato XV", mancanti }, 422, cors);
     }
-    const { data: profilo } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
+    // Il nome di chi approva resta nel PDF immutabile e in approvato_da_nome: se il profilo non si legge, si riprova.
+    const { data: profilo, error: profiloError } = await db.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle();
+    if (profiloError) return errorResponse("Profilo di chi approva non leggibile: riprova tra poco", 503, cors);
     const nome = [profilo?.first_name, profilo?.last_name].filter(Boolean).join(" ") || profilo?.email || "utente";
     if(body.versione_client===2) {
       const {conservaEmissionePos}=await import("../_shared/posEmissione.ts");
@@ -391,7 +391,7 @@ Deno.serve(async (req: Request) => {
       .eq("status", pos.status);
     approvazione = pos.updated_at ? approvazione.eq("updated_at",pos.updated_at) : approvazione.is("updated_at",null);
     const {data:approvato,error}=await approvazione.select('id').maybeSingle();
-    if (error) return errorResponse(`POS non approvato: ${error.message}`, 500, cors);
+    if (error) return erroreDb("POS non approvato", error, cors);
     if(!approvato) return errorResponse("Il POS è cambiato durante la verifica. Ricarica e ricontrolla la bozza.",409,cors);
     return jsonResponse({ ok: true, approvato_da_nome: nome }, 200, cors);
   } catch (err) {
