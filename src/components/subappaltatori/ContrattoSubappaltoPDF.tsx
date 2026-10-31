@@ -12,7 +12,7 @@
 import { Document, Font, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import {
   articoliContratto, articoliDaApprovare, dataContratto, elencoPerFase, euroContratto, quantitaContratto,
-  codiciElenco, riepilogoEconomicoContratto, totaleElencoLavori, type DatiContrattoSubappalto,
+  codiciElenco, elencoCantiereSenzaCifre, riepilogoEconomicoContratto, totaleElencoLavori, type DatiContrattoSubappalto,
 } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 Font.registerHyphenationCallback((word) => [word]);
@@ -241,4 +241,42 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
 /** Il PDF come Blob, pronto da caricare. */
 export async function generaPdfContrattoSubappalto(d: DatiContrattoSubappalto): Promise<Blob> {
   return pdf(<ContrattoSubappaltoPDF d={d} />).toBlob();
+}
+
+const sCantiere = StyleSheet.create({
+  pagina: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
+  titolo: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#2b6cb0", marginBottom: 4 },
+  sotto: { fontSize: 9, color: "#555", marginBottom: 14 },
+  fase: { backgroundColor: "#f0f0f0", padding: 4, fontFamily: "Helvetica-Bold", marginTop: 8 },
+  riga: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#bbb", paddingVertical: 3 },
+  desc: { flex: 1, paddingRight: 8 },
+  um: { width: 50 },
+  qta: { width: 60, textAlign: "right" },
+});
+
+/** Elenco dei lavori senza cifre, da lasciare in cantiere. */
+export async function generaPdfElencoCantiere(d: DatiContrattoSubappalto): Promise<Blob> {
+  const gruppi = elencoCantiereSenzaCifre(d);
+  return pdf(
+    <Document title={`Elenco lavori ${d.commessa.codice}`} author={d.committente.ragioneSociale} producer="Edilizia in Cloud">
+      <Page size="A4" style={sCantiere.pagina}>
+        <Text style={sCantiere.titolo}>ELENCO LAVORI</Text>
+        <Text style={sCantiere.sotto}>
+          {[d.committente.ragioneSociale, `ditta ${d.subappaltatore.ragioneSociale}`, `commessa ${d.commessa.codice}`, d.commessa.indirizzoCantiere && `cantiere ${d.commessa.indirizzoCantiere}`].filter(Boolean).join(" · ")}
+        </Text>
+        {gruppi.map((g) => (
+          <View key={g.fase}>
+            <Text style={sCantiere.fase}>{g.fase}</Text>
+            {g.righe.map((r, i) => (
+              <View key={i} style={sCantiere.riga} wrap={false}>
+                <Text style={sCantiere.desc}>{r.descrizione}</Text>
+                <Text style={sCantiere.um}>{r.unita}</Text>
+                <Text style={sCantiere.qta}>{r.quantita}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </Page>
+    </Document>,
+  ).toBlob();
 }

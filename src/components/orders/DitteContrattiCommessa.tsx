@@ -403,9 +403,16 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         importo_contrattuale: totaleElencoLavori(righe), elenco_lavori: righe,
         data_inizio: periodo.dal, data_fine_prevista: periodo.al,
       };
+      // Con una base lavori già registrata (quadro) l'importo non si tocca: il database lo vieta, serve una variante.
+      let baseRegistrata = false;
+      if (contratto && !senzaElenco) {
+        const { count } = await db.from("subappalto_quadri_lavori").select("id", { count: "exact", head: true }).eq("contratto_id", contratto.id);
+        baseRegistrata = (count ?? 0) > 0;
+      }
+      const soloElenco = senzaElenco || baseRegistrata;
       const q = contratto
-        ? senzaElenco
-          ? db.from("contratti_subappalto").update({ elenco_lavori: righe }).eq("id", contratto.id).is("firmato_il", null)
+        ? soloElenco
+          ? db.from("contratti_subappalto").update(baseRegistrata ? { elenco_lavori: righe, data_inizio: periodo.dal, data_fine_prevista: periodo.al } : { elenco_lavori: righe }).eq("id", contratto.id).is("firmato_il", null)
           : db.from("contratti_subappalto").update(campi).eq("id", contratto.id).eq("stato", "bozza")
         : db.from("contratti_subappalto").insert({
             ...campi, company_id: companyId, subappaltatore_id: await schedaPerContratto(), order_id: orderId,
@@ -413,9 +420,10 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           });
       const { error } = await q;
       if (error) throw error;
+      return { baseRegistrata };
     },
-    onSuccess: () => {
-      toast.success(!contratto ? "Contratto creato in bozza" : senzaElenco ? "Elenco dei lavori aggiornato (l'importo pattuito non cambia)" : "Contratto aggiornato con l'elenco dei lavori");
+    onSuccess: (esito) => {
+      toast.success(!contratto ? "Contratto creato in bozza" : senzaElenco || esito?.baseRegistrata ? "Elenco dei lavori aggiornato (l'importo pattuito non cambia)" : "Contratto aggiornato con l'elenco dei lavori");
       setBozzaElenco(null);
       onCambio();
     },
@@ -458,6 +466,26 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     },
     onError: (e: Error) => toast.error(`PDF non generato: ${e.message}`),
   });
+  /** L'elenco dei lavori senza cifre, da lasciare in cantiere (Dimora Torino, 31/10/2026). */
+  const scaricaCantiere = useMutation({
+    mutationFn: async () => {
+      const righe = (elencoSalvato.length ? elencoSalvato : elenco);
+      if (!righe.length) throw new Error("Non ci sono lavori da elencare.");
+      const { generaPdfElencoCantiere } = await import("@/components/subappaltatori/ContrattoSubappaltoPDF");
+      const blob = await generaPdfElencoCantiere({ committente: { ragioneSociale: "", partitaIva: "", indirizzo: "", rappresentante: "" },
+        subappaltatore: { ragioneSociale: ditta.name, partitaIva: "", indirizzo: "", email: "", pec: "" },
+        commessa: { codice: "", descrizione: "", indirizzoCantiere: "", cliente: "" }, elencoLavori: righe,
+        numero: null, dataStipula: null, descrizioneLavori: "", importo: 0, oneriSicurezza: 0, ritenutaPct: 0, dataInizio: null, dataFinePrevista: null,
+        responsabileImpresa: null, referenteSubappaltatore: null, obblighi: null, modalitaPagamento: null, penali: null, garanzie: null, durataGaranziaMesi: 12, note: null });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Elenco lavori ${ditta.name}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    },
+    onError: (e: Error) => toast.error(`PDF non generato: ${e.message}`),
+  });
   const diverso = contratto && (modificabile || senzaElenco) && Math.abs(Number(contratto.importo_contrattuale) - totale) > 0.005;
   return (
     <li className="flex flex-wrap items-center gap-3 p-3">
@@ -486,6 +514,12 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         {contratto && (
           <Button size="sm" variant="outline" disabled={scarica.isPending} onClick={() => scarica.mutate()}>
             {scarica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}PDF
+          </Button>
+        )}
+        {elenco.length > 0 && (
+          <Button size="sm" variant="outline" disabled={scaricaCantiere.isPending} onClick={() => scaricaCantiere.mutate()}
+            title="Lavori e quantità, senza prezzi: da lasciare in cantiere">
+            {scaricaCantiere.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}Elenco cantiere
           </Button>
         )}
         {contratto && (
@@ -640,6 +674,10 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
           </div>
           <Button type="button" size="sm" variant="outline" onClick={() => onRighe([...righe, conChiave({ fase: faseNuova, descrizione: "", unita: "a corpo", quantita: 1, prezzo: 0, importo: 0 })])}>
             <Plus className="mr-1 h-4 w-4" />Riga a mano
+          </Button>
+          <Button type="button" size="sm" variant="outline" title="Una voce sola per tutta la fase scelta, a corpo: scrivi solo l'importo"
+            onClick={() => onRighe([...righe, conChiave({ fase: faseNuova, descrizione: `${faseNuova}: lavori a corpo`, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0 })])}>
+            <Plus className="mr-1 h-4 w-4" />Computo a corpo
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={() => onRighe(dalleVoci.map(conChiave))}
             title="Rimette le voci delle fasi affidate alla ditta, coi prezzi del listino. Le modifiche fatte qui si perdono.">

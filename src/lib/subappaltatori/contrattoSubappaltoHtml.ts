@@ -328,3 +328,38 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   </section>` : ""}
 </body></html>`;
 }
+
+/**
+ * L'elenco dei lavori da lasciare in cantiere (Dimora Torino, 31/10/2026): gli stessi lavori
+ * dell'Allegato A, con unità e quantità ma senza prezzi, importi e totali. Per chi lavora in
+ * cantiere e non deve vedere le cifre.
+ */
+export function elencoCantiereSenzaCifre(d: DatiContrattoSubappalto): Array<{ fase: string; righe: Array<{ descrizione: string; unita: string; quantita: string }> }> {
+  return elencoPerFase(d.elencoLavori ?? []).map((g) => ({
+    fase: g.fase,
+    righe: g.righe.map((r) => ({ descrizione: r.descrizione, unita: r.unita ?? "", quantita: quantitaContratto(r.quantita) })),
+  }));
+}
+
+export function costruisciElencoCantiereHtml(d: DatiContrattoSubappalto): string {
+  const gruppi = elencoCantiereSenzaCifre(d);
+  return `<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8"><title>Elenco lavori ${esc(d.commessa.codice)}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font-family: Arial, sans-serif; color: #111; font-size: 11pt; max-width: 800px; margin: 24px auto; }
+  h1 { font-size: 16pt; margin-bottom: 4px; color: #2b6cb0; }
+  .sotto { color: #555; margin-bottom: 16px; font-size: 10pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  th, td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; }
+  th { background: #eee; text-align: left; }
+  td.n { text-align: right; white-space: nowrap; }
+  tr.fase td { background: #f5f5f5; font-weight: bold; }
+</style></head><body>
+  <h1>ELENCO LAVORI</h1>
+  <p class="sotto">${esc(d.committente.ragioneSociale)} · ditta ${esc(d.subappaltatore.ragioneSociale)} · commessa ${esc(d.commessa.codice)} · cantiere ${esc(d.commessa.indirizzoCantiere || "—")}</p>
+  <table><thead><tr><th>Lavoro</th><th>U.M.</th><th>Quantità</th></tr></thead><tbody>
+  ${gruppi.map((g) => `<tr class="fase"><td colspan="3">${esc(g.fase)}</td></tr>${g.righe.map((r) => `<tr><td>${esc(r.descrizione)}</td><td>${esc(r.unita)}</td><td class="n">${esc(r.quantita)}</td></tr>`).join("")}`).join("")}
+  </tbody></table>
+</body></html>`;
+}

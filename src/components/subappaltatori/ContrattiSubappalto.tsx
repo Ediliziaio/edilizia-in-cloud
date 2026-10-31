@@ -15,7 +15,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Download, FileText, Link2, Loader2, Pencil, Plus, Printer, Send, Unlink, XCircle } from "lucide-react";
+import { AlertTriangle, Clock, Download, FileText, Link2, Loader2, Pencil, Plus, Printer, Send, Trash2, Unlink, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
-import { costruisciContrattoSubappaltoHtml, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
-import { generaPdfContrattoSubappalto } from "./ContrattoSubappaltoPDF";
+import { costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { generaPdfContrattoSubappalto, generaPdfElencoCantiere } from "./ContrattoSubappaltoPDF";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { riepilogoContratto, type RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
 
@@ -204,7 +204,7 @@ export function ContrattiSubappalto({
   const ids = contratti.map((c) => c.id);
   const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
   const [form, setForm] = useState<FormContratto>(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
-  const [stampa, setStampa] = useState<{ html: string; nome: string } | null>(null);
+  const [stampa, setStampa] = useState<{ html: string; nome: string; pdf: () => Promise<Blob> } | null>(null);
   const [collega, setCollega] = useState<string | null>(null);
   // Fattura scelta nel collegamento: poi si sceglie il SAL che paga.
   const [fatturaScelta, setFatturaScelta] = useState<string | null>(null);
@@ -379,6 +379,30 @@ export function ContrattiSubappalto({
   const stampaContratto = (c: ContrattoCompleto) => setStampa({
     nome: `Contratto subappalto ${sub.ragione_sociale ?? ""} ${c.commessa?.order_code ?? ""}`.trim(),
     html: costruisciContrattoSubappaltoHtml(datiContratto(c)),
+    pdf: () => generaPdfContrattoSubappalto(datiContratto(c)),
+  });
+
+  // Dimora Torino, 31/10/2026: l'elenco dei lavori da lasciare in cantiere, senza prezzi né importi.
+  const stampaElencoCantiere = (c: ContrattoCompleto) => setStampa({
+    nome: `Elenco lavori ${sub.ragione_sociale ?? ""} ${c.commessa?.order_code ?? ""}`.trim(),
+    html: costruisciElencoCantiereHtml(datiContratto(c)),
+    pdf: () => generaPdfElencoCantiere(datiContratto(c)),
+  });
+
+  // Un contratto non firmato e senza SAL né fatture si può eliminare (resta nello storico: deleted_at).
+  const eliminaContratto = useMutation({
+    mutationFn: async (c: ContrattoCompleto) => {
+      if (c.firmato_il) throw new Error("Il contratto è firmato: non si elimina. Annullalo dallo stato, se serve.");
+      const [{ count: sal }, { count: fatt }] = await Promise.all([
+        supabase.from("sal_subappaltatori" as never).select("id", { count: "exact", head: true }).eq("contratto_id", c.id),
+        supabase.from("fatture_ricevute" as never).select("id", { count: "exact", head: true }).eq("contratto_subappalto_id", c.id),
+      ]);
+      if ((sal ?? 0) > 0 || (fatt ?? 0) > 0) throw new Error("Ci sono SAL o fatture collegati a questo contratto: non si può eliminare.");
+      const { error } = await supabase.from("contratti_subappalto").update({ deleted_at: new Date().toISOString() } as never).eq("id", c.id).eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Contratto eliminato"); invalida(); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   // Invio in firma: PDF congelato nello storage, poi la richiesta di firma
@@ -492,6 +516,17 @@ export function ContrattiSubappalto({
                 </div>
               )}
               <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={!!richiesta && ["pending","otp_verified","signed"].includes(richiesta.status)} onSaved={invalida}>                <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaContratto(c)}><Printer className="h-3.5 w-3.5" />Contratto da firmare</Button>
+                {Array.isArray(c.elenco_lavori) && c.elenco_lavori.length > 0 && (
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaElencoCantiere(c)} title="Gli stessi lavori con quantità, senza prezzi: da lasciare in cantiere">
+                    <FileText className="h-3.5 w-3.5" />Elenco lavori per il cantiere
+                  </Button>
+                )}
+                {!c.firmato_il && (
+                  <Button size="sm" variant="ghost" className="gap-1 text-destructive" disabled={eliminaContratto.isPending}
+                    onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ci sono SAL o fatture collegati.")) eliminaContratto.mutate(c); }}>
+                    <Trash2 className="h-3.5 w-3.5" />Elimina
+                  </Button>
+                )}
                 {!c.firmato_il && (
                   <Button size="sm" className="gap-1" onClick={() => setInvio({
                     c, nome: c.referente_subappaltatore || sub.responsabile || "",
@@ -692,7 +727,7 @@ export function ContrattiSubappalto({
       }}/>}
       {verbaleDaMisure && <VerbaleSalSubDialog key={verbaleDaMisure.id} companyId={companyId} sal={verbaleDaMisure} onClose={()=>setVerbaleDaMisure(null)} />}
       {stampa && (
-        <PrintPreviewModal htmlContent={stampa.html} fileName={stampa.nome} title={stampa.nome}
+        <PrintPreviewModal htmlContent={stampa.html} fileName={stampa.nome} title={stampa.nome} onDownloadPdf={stampa.pdf}
           open={!!stampa} onOpenChange={(v) => { if (!v) setStampa(null); }} />
       )}
     </div>
