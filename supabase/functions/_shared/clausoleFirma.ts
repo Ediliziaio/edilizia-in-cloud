@@ -40,13 +40,16 @@ interface RichiestaFirma {
 // deno-lint-ignore no-explicit-any
 /** Le clausole del contratto di subappalto da approvare a parte (stessi articoli del testo stampato). */
 export const CLAUSOLE_SUBAPPALTO: ClausolaFirma[] = [
-  { id: "sub-pagamenti", testo: "Stati di avanzamento e pagamenti: i pagamenti sono subordinati alla verifica del SAL e alla regolarità contributiva (DURC)." },
-  { id: "sub-ritenuta", testo: "Ritenuta di garanzia: su ogni SAL è trattenuta la percentuale pattuita, svincolata alla fine del periodo di garanzia." },
-  { id: "sub-responsabilita", testo: "Personale e responsabilità: il committente può sospendere i pagamenti fino alla prova del pagamento di retribuzioni e contributi (art. 29 D.Lgs. 276/2003)." },
-  { id: "sub-penali", testo: "Penali per il ritardo sul termine di fine lavori." },
-  { id: "sub-divieto", testo: "Divieto di subappaltare i lavori senza autorizzazione scritta del committente." },
-  { id: "sub-risoluzione", testo: "Risoluzione di diritto (art. 1456 c.c.) per gravi violazioni della sicurezza, DURC irregolare non sanato o subappalto non autorizzato." },
-  { id: "sub-foro", testo: "Foro competente: quello della sede del committente." },
+  // Testo standard del 31/10/2026 (contratto di Dimora Torino reso generico): stessi titoli di ARTICOLI_APPROVAZIONE_SPECIFICA.
+  { id: "sub-pagamenti", testo: "Pagamenti: prezzo pattuito, pagamenti subordinati al DURC regolare, detrazione dei materiali forniti dall'Affidataria e ritenuta di garanzia se pattuita." },
+  { id: "sub-penali", testo: "Penali per ritardi e assenze ingiustificate: 200 € al giorno fino al decimo giorno lavorativo, 400 € dall'undicesimo (o quelle scritte nel contratto)." },
+  { id: "sub-rifacimento", testo: "Sistemazione e rifacimento: vizi e difformità corretti a proprie spese entro 3 giorni, con penale di 150 € per giorno di ritardo." },
+  { id: "sub-modifiche", testo: "Divieto di modifica: le modifiche non autorizzate per iscritto non si contabilizzano; il rifiuto ingiustificato delle varianti chieste consente la risoluzione." },
+  { id: "sub-garanzie", testo: "Garanzie dei lavori: vizi eliminati entro 3 giorni anche dopo il collaudo, penale di 150 € al giorno, garanzie degli artt. 1667-1669 c.c." },
+  { id: "sub-divieto", testo: "Divieto di subappalto: nessuna cessione o subappalto, anche parziale; la violazione consente la risoluzione immediata." },
+  { id: "sub-personale", testo: "Personale non regolarmente assunto: risoluzione immediata e sospensione dei pagamenti (responsabilità solidale, art. 29 D.Lgs. 276/2003)." },
+  { id: "sub-risoluzione", testo: "Risoluzione del contratto: casi di risoluzione, pagamento dei soli lavori eseguiti e accettati, liberazione del cantiere entro 3 giorni con penale di 300 € al giorno." },
+  { id: "sub-foro", testo: "Mediazione e foro competente: prima la mediazione, poi il foro della sede dell'Affidataria." },
 ];
 
 export async function clausoleDellaFirma(sb: any, r: RichiestaFirma): Promise<ClausolaFirma[]> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi } from "@/lib/orders/ditteLavori";
+import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta } from "@/lib/orders/ditteLavori";
 
 // I nomi veri delle fasi di Dimora Torino (O-0001 e O-0002).
 const storico = [
@@ -57,5 +57,28 @@ describe("elenco dei lavori della ditta", () => {
     expect(costoFaseDitta("a", voci, "termotecnico", varianti)).toBe(520);
     expect(costoFaseDitta("a", voci, "altra", varianti)).toBe(580);
     expect(periodoFasi(fasi, ["a", "b"])).toEqual({ dal: "2026-11-03", al: "2026-11-12" });
+  });
+});
+
+describe("le due schede della ditta: campo e sicurezza", () => {
+  const schede = [
+    { id: "sic-altra-commessa", campo_subappaltatore_id: "campo-1", order_id: "altra", created_at: "2026-10-01" },
+    { id: "sic-generale", campo_subappaltatore_id: "campo-1", order_id: null, created_at: "2026-10-21" },
+    { id: "sic-commessa", campo_subappaltatore_id: "campo-1", order_id: "o1", created_at: "2026-10-25" },
+    { id: "sic-altro", campo_subappaltatore_id: "campo-2", order_id: null, created_at: "2026-10-21" },
+  ];
+
+  it("trova il contratto anche se punta alla scheda sicurezza (id diverso dalla ditta)", () => {
+    const contratti = [{ id: "c1", subappaltatore_id: "sic-generale" }, { id: "c2", subappaltatore_id: "sic-altro" }];
+    expect(contrattoDellaDitta("campo-1", contratti, schede)?.id).toBe("c1");
+    expect(contrattoDellaDitta("campo-2", contratti, schede)?.id).toBe("c2");
+    expect(contrattoDellaDitta("campo-3", contratti, schede)).toBeNull();
+    expect(contrattoDellaDitta(null, contratti, schede)).toBeNull();
+  });
+
+  it("per un contratto nuovo usa prima la scheda della commessa, poi quella generale, mai quella di un'altra commessa", () => {
+    expect(schedeSicurezzaDitta("campo-1", schede, "o1").map((s) => s.id)).toEqual(["sic-commessa", "sic-generale"]);
+    expect(schedeSicurezzaDitta("campo-1", schede, "o2").map((s) => s.id)).toEqual(["sic-generale"]);
+    expect(schedeSicurezzaDitta(null, schede, "o1")).toEqual([]);
   });
 });

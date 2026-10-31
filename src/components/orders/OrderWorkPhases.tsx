@@ -236,6 +236,12 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
   // Le voci del computo per sottofase (quantità, costo, venduto) e quelle ancora senza sottofase.
   const vociSottofasi = useMemo(() => vociDelleSottofasi(vociPreviste ?? []), [vociPreviste]);
+  // Quanto valgono le voci di ogni fase: lo si propone alla ditta che non ha un costo previsto.
+  const costoVociFase = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const v of vociPreviste ?? []) m.set(v.phase_id, (m.get(v.phase_id) ?? 0) + v.quantita * v.costo_manodopera);
+    return m;
+  }, [vociPreviste]);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -645,6 +651,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 externalTeams={externalTeams}
                 materials={materialsByPhase.get(phase.id) ?? []}
                 economia={economia.perFase.get(phase.id)}
+                costoVoci={Math.round((costoVociFase.get(phase.id) ?? 0) * 100) / 100}
                 tempi={tempiFasi.get(phase.id)}
                 oggi={oggi}
                 unassignedMaterials={unassignedMaterials}
@@ -774,6 +781,8 @@ interface PhaseCardProps {
   phase: WorkPhase;
   /** Venduto, costo previsto e costo consuntivo della fase (economiaFasi). */
   economia?: EconomiaFase;
+  /** Quanto valgono le voci della fase (quantità × costo), per la ditta senza previsto. */
+  costoVoci?: number;
   /** Date previste e reali e ritardi della fase (cronoprogramma). */
   tempi?: FaseCrono;
   /** Oggi, «yyyy-MM-dd». */
@@ -845,6 +854,7 @@ interface PhaseCardProps {
 function PhaseCard({
   phase,
   economia,
+  costoVoci = 0,
   tempi,
   oggi,
   health,
@@ -1347,6 +1357,8 @@ function PhaseCard({
                           phases={allPhases}
                           onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
                           onDelete={() => onDeleteAssignment(a.id, a.source)}
+                          // Solo con una ditta sola: con due, chi fa cosa lo decide chi scrive.
+                          previstoVoci={phase.assignments.filter((x) => x.executor_type !== "interno").length === 1 ? costoVoci : 0}
                         />
                       ))}
                     </ElencoAssegnazioni>

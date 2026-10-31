@@ -30,6 +30,7 @@ import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { costruisciContrattoSubappaltoHtml, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { generaPdfContrattoSubappalto } from "./ContrattoSubappaltoPDF";
+import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { riepilogoContratto, type RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
 
 export interface ContrattoCompleto {
@@ -74,6 +75,9 @@ interface SubPerContratto {
   telefono?: string | null;
   responsabile: string | null;
   order_id: string | null;
+  codice_fiscale?: string | null;
+  /** La scheda del campo, a cui è legata la ditta (e la sua IVA). */
+  campo_subappaltatore_id?: string | null;
 }
 
 const STATI: Record<ContrattoCompleto["stato"], { label: string; cls: string }> = {
@@ -258,11 +262,26 @@ export function ContrattiSubappalto({
     queryKey: ["contratto-sub-azienda", companyId],
     queryFn: async () => {
       const { data } = await supabase.from("anagrafica_azienda")
-        .select("ragione_sociale, partita_iva, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia")
+        .select("ragione_sociale, partita_iva, codice_fiscale, telefono, email, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia")
         .eq("company_id", companyId).maybeSingle();
       return data;
     },
     enabled: !!stampa || contratti.length > 0,
+  });
+  // Logo e colore dell'impresa, e l'IVA della ditta (0 = reverse charge): per la testata e il riquadro economico.
+  const { data: veste } = useQuery({
+    queryKey: ["contratto-sub-veste", companyId],
+    queryFn: () => vesteContratto(companyId),
+    enabled: contratti.length > 0, staleTime: 10 * 60_000,
+  });
+  const { data: ivaDitta = 0 } = useQuery({
+    queryKey: ["contratto-sub-iva-ditta", companyId, sub.campo_subappaltatore_id ?? null],
+    queryFn: async () => {
+      const { data } = await supabase.from("external_teams").select("vat_rate")
+        .eq("company_id", companyId).eq("subappaltatore_id", sub.campo_subappaltatore_id!).limit(1).maybeSingle();
+      return Number(data?.vat_rate) || 0;
+    },
+    enabled: contratti.length > 0 && !!sub.campo_subappaltatore_id,
   });
 
   const riepiloghi = useMemo(() => new Map<string, RiepilogoContratto>(contratti.map((c) => [
@@ -343,8 +362,11 @@ export function ContrattiSubappalto({
     const indirizzo = a ? [[a.indirizzo_via, a.indirizzo_numero_civico].filter(Boolean).join(" "), [a.indirizzo_cap, a.indirizzo_comune, a.indirizzo_provincia ? `(${a.indirizzo_provincia})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";
     return {
         numero: c.numero_contratto, dataStipula: c.data_stipula,
-        committente: { ragioneSociale: a?.ragione_sociale ?? "", partitaIva: a?.partita_iva ?? "", indirizzo, rappresentante: c.responsabile_impresa ?? "" },
-        subappaltatore: { ragioneSociale: sub.ragione_sociale ?? "", partitaIva: sub.piva ?? "", indirizzo: sub.indirizzo ?? "", email: sub.email ?? "", pec: sub.pec ?? "" },
+        committente: { ragioneSociale: a?.ragione_sociale ?? "", partitaIva: a?.partita_iva ?? "", indirizzo, rappresentante: c.responsabile_impresa ?? "",
+          codiceFiscale: a?.codice_fiscale ?? "", telefono: a?.telefono ?? "", email: a?.email ?? "" },
+        subappaltatore: { ragioneSociale: sub.ragione_sociale ?? "", partitaIva: sub.piva ?? "", indirizzo: sub.indirizzo ?? "", email: sub.email ?? "", pec: sub.pec ?? "",
+          codiceFiscale: sub.codice_fiscale ?? "", telefono: sub.telefono ?? "", responsabile: sub.responsabile ?? "" },
+        ivaPct: ivaDitta, veste: veste ?? undefined,
         commessa: { codice: c.commessa?.order_code ?? "", descrizione: c.commessa?.description ?? "", indirizzoCantiere: c.commessa?.work_address ?? "", cliente: c.commessa?.client_company || c.commessa?.client_name || "" },
         descrizioneLavori: c.descrizione_lavori, importo: c.importo_contrattuale, oneriSicurezza: c.oneri_sicurezza, ritenutaPct: c.ritenuta_garanzia_pct,
         dataInizio: c.data_inizio, dataFinePrevista: c.data_fine_prevista, responsabileImpresa: c.responsabile_impresa,

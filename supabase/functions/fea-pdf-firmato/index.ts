@@ -1,3 +1,5 @@
+// Tocco del 31/10/2026: clausole del contratto di subappalto nuove (_shared/clausoleFirma.ts, testo standard
+// di Dimora reso generico). Il deploy guarda solo la cartella della funzione: senza questa riga resterebbero le vecchie.
 /**
  * fea-pdf-firmato — il PDF firmato di una richiesta di firma, per chi lavora
  * nell'azienda. Se il file non c'è ancora (la generazione dopo la firma non è

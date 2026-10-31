@@ -28,8 +28,10 @@ import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { conIva, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
 import {
-  costoFaseDitta, dittaProposta, elencoLavoriDitta, periodoFasi, type FaseStorica,
+  contrattoDellaDitta, costoFaseDitta, dittaProposta, elencoLavoriDitta, periodoFasi, schedeSicurezzaDitta,
+  type FaseStorica, type SchedaSicurezza,
 } from "@/lib/orders/ditteLavori";
+import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { totaleElencoLavori, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
@@ -40,7 +42,11 @@ interface Fase { id: string; name: string; position: number | null; start_date: 
 interface Assegnazione { id: string; external_team_id: string | null; phase_id: string | null; cost_preventivo: number | null; vat_rate: number | null }
 interface Ditta { id: string; name: string; vat_rate: number | null; subappaltatore_id: string | null }
 interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number }
-interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; firmato_il: string | null }
+interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; firmato_il: string | null; elenco_lavori: unknown }
+/** La scheda sicurezza della ditta: è lei che il contratto nomina, e ha i dati per il PDF. */
+interface SchedaSic extends SchedaSicurezza { ragione_sociale: string; piva: string | null; indirizzo: string | null; email: string | null; pec: string | null }
+const COLONNE_SCHEDA = "id, campo_subappaltatore_id, order_id, created_at, ragione_sociale, piva, indirizzo, email, pec";
+const COLONNE_SCHEDA_PDF = "ragione_sociale, piva, codice_fiscale, indirizzo, email, pec, telefono, responsabile";
 
 const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
 
@@ -82,7 +88,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const dati = useQuery({
     queryKey: ["ditte-contratti-commessa", companyId, orderId],
     queryFn: async () => {
-      const [fasi, assegnazioni, ditte, storico, varianti, contratti] = await Promise.all([
+      const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede] = await Promise.all([
         db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
         db.from("order_external_teams").select("id, external_team_id, phase_id, cost_preventivo, vat_rate").eq("order_id", orderId),
         db.from("external_teams").select("id, name, vat_rate, subappaltatore_id, kind, is_active").eq("company_id", companyId).eq("is_active", true).order("name"),
@@ -90,9 +96,10 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         db.from("order_external_teams").select("external_team_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
           .eq("ordine.company_id", companyId).neq("order_id", orderId).not("phase_id", "is", null).limit(3000),
         db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, costo, is_default, attivo, sort_order").eq("company_id", companyId),
-        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il").eq("order_id", orderId).eq("company_id", companyId),
+        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
+        db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
       ]);
-      for (const r of [fasi, assegnazioni, ditte, storico, varianti, contratti]) if (r.error) throw r.error;
+      for (const r of [fasi, assegnazioni, ditte, storico, varianti, contratti, schede]) if (r.error) throw r.error;
       return {
         fasi: (fasi.data ?? []) as Fase[],
         assegnazioni: (assegnazioni.data ?? []) as Assegnazione[],
@@ -102,6 +109,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
           .map((s) => ({ external_team_id: s.external_team_id!, fase: s.fase!.name })) as FaseStorica[],
         varianti: (varianti.data ?? []) as VarianteCostoDitta[],
         contratti: (contratti.data ?? []) as Contratto[],
+        schede: (schede.data ?? []) as SchedaSic[],
       };
     },
   });
@@ -254,7 +262,8 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 elenco={elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti)}
                 periodo={periodoFasi(d.fasi, x.fasi)}
                 nomiFasi={d.fasi.filter((f) => x.fasi.includes(f.id)).map((f) => f.name)}
-                contratto={d.contratti.find((c) => c.subappaltatore_id === d.ditte.find((t) => t.id === x.id)?.subappaltatore_id) ?? null}
+                contratto={contrattoDellaDitta(d.ditte.find((t) => t.id === x.id)?.subappaltatore_id ?? null, d.contratti, d.schede)}
+                schede={schedeSicurezzaDitta(d.ditte.find((t) => t.id === x.id)?.subappaltatore_id ?? null, d.schede, orderId)}
                 onCambio={invalida}
               />
             ))}
@@ -348,12 +357,29 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
 }
 
 /** Il contratto di una ditta: crearlo in bozza con l'elenco dei lavori, aggiornarlo, scaricare il PDF. */
-function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, onCambio }: {
+function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, onCambio }: {
   orderId: string; companyId: string; ditta: Ditta; elenco: RigaElencoLavori[];
-  periodo: { dal: string | null; al: string | null }; nomiFasi: string[]; contratto: Contratto | null; onCambio: () => void;
+  periodo: { dal: string | null; al: string | null }; nomiFasi: string[]; contratto: Contratto | null; schede: SchedaSic[]; onCambio: () => void;
 }) {
   const totale = totaleElencoLavori(elenco);
   const modificabile = !contratto || contratto.stato === "bozza";
+  // Un contratto già attivo ma non firmato, fatto a mano senza elenco: si può allegare l'elenco senza toccare l'importo pattuito.
+  const senzaElenco = !!contratto && !modificabile && !contratto.firmato_il
+    && !(Array.isArray(contratto.elenco_lavori) && contratto.elenco_lavori.length);
+  /** La scheda sicurezza per un contratto nuovo: se la ditta non ce l'ha, la si crea dalla scheda del campo. */
+  const schedaPerContratto = async (): Promise<string> => {
+    if (schede[0]) return schede[0].id;
+    const { data: campo, error } = await db.from("subappaltatori")
+      .select("ragione_sociale, piva, indirizzo, email, telefono, responsabile").eq("id", ditta.subappaltatore_id).maybeSingle();
+    if (error) throw error;
+    const { data: nuova, error: errNuova } = await db.from("subappaltatori_sicurezza").insert({
+      company_id: companyId, campo_subappaltatore_id: ditta.subappaltatore_id,
+      ragione_sociale: campo?.ragione_sociale || ditta.name, piva: campo?.piva ?? null, indirizzo: campo?.indirizzo ?? null,
+      email: campo?.email ?? null, telefono: campo?.telefono ?? null, responsabile: campo?.responsabile ?? null,
+    }).select("id").single();
+    if (errNuova) throw errNuova;
+    return nuova.id as string;
+  };
   const salva = useMutation({
     mutationFn: async () => {
       if (!ditta.subappaltatore_id) throw new Error("La ditta non è collegata a un subappaltatore: collegala dalla sua scheda.");
@@ -363,31 +389,41 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         data_inizio: periodo.dal, data_fine_prevista: periodo.al,
       };
       const q = contratto
-        ? db.from("contratti_subappalto").update(campi).eq("id", contratto.id).eq("stato", "bozza")
+        ? senzaElenco
+          ? db.from("contratti_subappalto").update({ elenco_lavori: elenco }).eq("id", contratto.id).is("firmato_il", null)
+          : db.from("contratti_subappalto").update(campi).eq("id", contratto.id).eq("stato", "bozza")
         : db.from("contratti_subappalto").insert({
-            ...campi, company_id: companyId, subappaltatore_id: ditta.subappaltatore_id, order_id: orderId,
+            ...campi, company_id: companyId, subappaltatore_id: await schedaPerContratto(), order_id: orderId,
             stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: 0, data_stipula: oggi(),
           });
       const { error } = await q;
       if (error) throw error;
     },
-    onSuccess: () => { toast.success(contratto ? "Contratto aggiornato con i lavori di oggi" : "Contratto creato in bozza"); onCambio(); },
+    onSuccess: () => {
+      toast.success(!contratto ? "Contratto creato in bozza" : senzaElenco ? "Elenco dei lavori allegato al contratto" : "Contratto aggiornato con i lavori di oggi");
+      onCambio();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const scarica = useMutation({
     mutationFn: async () => {
       if (!contratto) return;
-      const [{ data: c, error }, { data: sub }, { data: az }] = await Promise.all([
+      const [{ data: c, error }, { data: sub }, { data: az }, veste] = await Promise.all([
         db.from("contratti_subappalto").select("*, commessa:orders!contratti_subappalto_order_id_fkey(order_code, description, work_address, client_name, client_company)").eq("id", contratto.id).single(),
-        db.from("subappaltatori").select("ragione_sociale, piva, indirizzo, email, pec").eq("id", ditta.subappaltatore_id).maybeSingle(),
-        db.from("anagrafica_azienda").select("ragione_sociale, partita_iva, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia").eq("company_id", companyId).maybeSingle(),
+        // I dati della ditta dalla scheda sicurezza del contratto (P.IVA, PEC): quella del campo spesso non li ha.
+        db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA_PDF).eq("id", contratto.subappaltatore_id).maybeSingle(),
+        db.from("anagrafica_azienda").select("ragione_sociale, partita_iva, codice_fiscale, telefono, email, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia").eq("company_id", companyId).maybeSingle(),
+        vesteContratto(companyId),
       ]);
       if (error) throw error;
       const indirizzo = az ? [[az.indirizzo_via, az.indirizzo_numero_civico].filter(Boolean).join(" "), [az.indirizzo_cap, az.indirizzo_comune, az.indirizzo_provincia ? `(${az.indirizzo_provincia})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";
       const dati: DatiContrattoSubappalto = {
         numero: c.numero_contratto, dataStipula: c.data_stipula,
-        committente: { ragioneSociale: az?.ragione_sociale ?? "", partitaIva: az?.partita_iva ?? "", indirizzo, rappresentante: c.responsabile_impresa ?? "" },
-        subappaltatore: { ragioneSociale: sub?.ragione_sociale ?? ditta.name, partitaIva: sub?.piva ?? "", indirizzo: sub?.indirizzo ?? "", email: sub?.email ?? "", pec: sub?.pec ?? "" },
+        committente: { ragioneSociale: az?.ragione_sociale ?? "", partitaIva: az?.partita_iva ?? "", indirizzo, rappresentante: c.responsabile_impresa ?? "",
+          codiceFiscale: az?.codice_fiscale ?? "", telefono: az?.telefono ?? "", email: az?.email ?? "" },
+        subappaltatore: { ragioneSociale: sub?.ragione_sociale ?? ditta.name, partitaIva: sub?.piva ?? "", indirizzo: sub?.indirizzo ?? "", email: sub?.email ?? "", pec: sub?.pec ?? "",
+          codiceFiscale: sub?.codice_fiscale ?? "", telefono: sub?.telefono ?? "", responsabile: sub?.responsabile ?? "" },
+        ivaPct: Number(ditta.vat_rate) || 0, veste,
         commessa: { codice: c.commessa?.order_code ?? "", descrizione: c.commessa?.description ?? "", indirizzoCantiere: c.commessa?.work_address ?? "", cliente: c.commessa?.client_company || c.commessa?.client_name || "" },
         descrizioneLavori: c.descrizione_lavori, importo: Number(c.importo_contrattuale) || 0, oneriSicurezza: Number(c.oneri_sicurezza) || 0,
         ritenutaPct: Number(c.ritenuta_garanzia_pct) || 0, dataInizio: c.data_inizio, dataFinePrevista: c.data_fine_prevista,
@@ -406,7 +442,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     },
     onError: (e: Error) => toast.error(`PDF non generato: ${e.message}`),
   });
-  const diverso = contratto && modificabile && Math.abs(Number(contratto.importo_contrattuale) - totale) > 0.005;
+  const diverso = contratto && (modificabile || senzaElenco) && Math.abs(Number(contratto.importo_contrattuale) - totale) > 0.005;
   return (
     <li className="flex flex-wrap items-center gap-3 p-3">
       <div className="min-w-0 flex-1">
@@ -424,10 +460,11 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
-        {modificabile && (
-          <Button size="sm" variant={contratto ? "outline" : "default"} disabled={!ditta.subappaltatore_id || !elenco.length || salva.isPending} onClick={() => salva.mutate()}>
+        {(modificabile || senzaElenco) && (
+          <Button size="sm" variant={contratto ? "outline" : "default"} disabled={!ditta.subappaltatore_id || !elenco.length || salva.isPending} onClick={() => salva.mutate()}
+            title={senzaElenco ? "Allega le voci delle sue fasi come elenco dei lavori. L'importo pattuito non cambia." : undefined}>
             {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileSignature className="mr-1 h-4 w-4" />}
-            {contratto ? "Aggiorna con i lavori" : "Crea contratto"}
+            {!contratto ? "Crea contratto" : senzaElenco ? "Allega l'elenco dei lavori" : "Aggiorna con i lavori"}
           </Button>
         )}
         {contratto && (
@@ -435,9 +472,10 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             {scarica.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}PDF
           </Button>
         )}
-        {contratto && ditta.subappaltatore_id && (
+        {contratto && (
           <Button asChild size="sm" variant="ghost">
-            <Link to={`/azienda/subappaltatori/${ditta.subappaltatore_id}?tab=contratto&contratto=${contratto.id}`}>Condizioni e firma</Link>
+            {/* La scheda della sicurezza, quella del contratto: non la ditta del campo. */}
+            <Link to={`/azienda/subappaltatori/${contratto.subappaltatore_id}?tab=contratto&contratto=${contratto.id}`}>Condizioni e firma</Link>
           </Button>
         )}
       </div>

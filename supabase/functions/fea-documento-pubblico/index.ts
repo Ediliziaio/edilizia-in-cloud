@@ -1,3 +1,5 @@
+// Tocco del 31/10/2026: clausole del contratto di subappalto nuove (_shared/clausoleFirma.ts, testo standard
+// di Dimora reso generico). Il deploy guarda solo la cartella della funzione: senza questa riga resterebbero le vecchie.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";

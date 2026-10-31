@@ -1,7 +1,23 @@
--- Ricostruita il 31/10/2026 dal registro (supabase_migrations.schema_migrations.statements):
--- applicata da un'altra sessione senza il file nel repository, e il controllo
--- Supabase Preview era rosso. SQL identico a quello eseguito; è già nel registro,
--- quindi non viene rieseguita.
+-- Il costo previsto della ditta segue le voci della sua lavorazione (Dimora Torino, 31/10/2026).
+--
+-- Prima il previsto si scriveva una volta, all'assegnazione o col pulsante di «Ditte e contratti»: se dopo si
+-- aggiungevano, cambiavano o toglievano voci, la ditta restava col numero vecchio. E chi aveva assegnato le
+-- ditte prima che le voci esistessero (O-0001, 28/10) si trovava 13 ditte a 0 € con 38.600 € di voci sotto.
+--
+-- Regola. Quando cambiano le voci di una lavorazione, il previsto della ditta si ricalcola se:
+--   · viene dalle voci (costo_origine = 'preventivo'): un previsto scritto a mano ('manuale', 'listino') non si
+--     tocca, perché chi l'ha scritto ha deciso lui;
+--   · sulla lavorazione c'è UNA ditta sola: con due, chi fa quali voci non si sa, e non lo si inventa.
+-- Il costo è Σ quantità × prezzo: il prezzo della ditta sul listino (tariffa_costi_varianti) se c'è, altrimenti
+-- il costo della voce. È lo stesso calcolo di costoFaseDitta() (src/lib/orders/ditteLavori.ts).
+--
+-- IVA. cost_preventivo si salva IVA compresa con l'aliquota della ditta, e chi lo legge la toglie
+-- (economiaFasi, v_ordine_marginalita). Le ditte in reverse charge hanno IVA 0: il previsto è l'imponibile.
+-- Una ditta che fattura con l'IVA ha il previsto × (1 + IVA), come scrive il pulsante «Assegna ditte e costi».
+--
+-- Una volta sola: le assegnazioni a 0 € su una lavorazione con voci e una ditta sola passano a 'preventivo' e
+-- si riempiono. Il 31/10/2026 sono le 13 della O-0001 di Dimora; nessun'altra azienda ha casi.
+
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
@@ -64,6 +80,7 @@ begin
 end $$;
 revoke all on function public.voci_ricalcola_ditte() from public, anon, authenticated;
 
+-- Una volta per istruzione, non per riga: il computo che diventa commessa inserisce centinaia di voci insieme.
 drop trigger if exists trg_voci_ricalcola_ditte_ins on public.order_work_phase_voci;
 drop trigger if exists trg_voci_ricalcola_ditte_upd on public.order_work_phase_voci;
 drop trigger if exists trg_voci_ricalcola_ditte_del on public.order_work_phase_voci;
@@ -74,6 +91,8 @@ create trigger trg_voci_ricalcola_ditte_upd after update on public.order_work_ph
 create trigger trg_voci_ricalcola_ditte_del after delete on public.order_work_phase_voci
   referencing old table as vecchie for each statement execute function public.voci_ricalcola_ditte();
 
+-- Le ditte a 0 € su lavorazioni con voci e una ditta sola: dal previsto non scritto a quello delle voci.
+-- Due istruzioni: dentro una sola, il ricalcolo non vedrebbe ancora l'origine cambiata.
 update public.order_external_teams oet
    set costo_origine = 'preventivo'
  where coalesce(oet.cost_preventivo, 0) = 0

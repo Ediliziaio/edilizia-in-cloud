@@ -61,3 +61,25 @@ describe("fornitori: referenti e condizioni d'acquisto", () => {
     expect(html).toContain("Nostro codice cliente: <strong>C-123</strong>");
   });
 });
+
+describe("email di richiesta d'offerta e d'ordine: la tabella dice il vero (31/10/2026)", () => {
+  it("ordine: una riga senza prezzo dice «prezzo da confermare», non 0,00 €", async () => {
+    const { buildOdaEmailBody } = await import("@/lib/odaEmail");
+    const html = buildOdaEmailBody({
+      odaNumber: "ODA-1", fornitoreNome: "Edil Forniture", aziendaNome: "Dimora", righe: [
+        { description: "Cemento", quantity: 10, unit_of_measure: "sacchi", unit_price: 5, line_total: 50 },
+        { description: "Sabbia", quantity: 2, unit_of_measure: "mc", unit_price: 0, line_total: 0 },
+      ], subtotal: 50, vatTotal: 11, total: 61,
+    } as never);
+    expect(html).toContain("prezzo da confermare");
+    expect(html).toContain("indicarci il prezzo unitario");
+    expect(html).toContain("5,00");
+  });
+  it("richiesta d'offerta: prezzo da compilare dal fornitore, e senza righe niente «allegato» inesistente", async () => {
+    const { buildRdoEmailBody } = await import("@/lib/rdoEmail");
+    const conRighe = buildRdoEmailBody({ rfqNumber: "RDO-1", titolo: "Cemento", righe: [{ descrizione: "Cemento", quantita: 10, unita_misura: "sacchi" }] } as never);
+    expect(conRighe).toContain("da compilare");
+    const senza = buildRdoEmailBody({ rfqNumber: "RDO-1", titolo: "Cemento", righe: [] } as never);
+    expect(senza).not.toContain("allegato");
+  });
+});

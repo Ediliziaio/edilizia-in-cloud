@@ -33,7 +33,7 @@ export function useOrderLaborEconomics(orderId: string) {
     enabled, staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.from("order_external_teams")
-        .select("id,cost_preventivo,total_cost,vat_rate,team:external_teams(name,kind),orders!inner(company_id)")
+        .select("id,cost_preventivo,total_cost,vat_rate,team:external_teams(name,kind),fase:order_work_phases(name,position),orders!inner(company_id)")
         .eq("order_id", orderId).eq("orders.company_id", companyId!).eq("team.company_id", companyId!);
       if (error) throw error;
       return (data ?? []) as unknown as ExternalLaborRow[];

@@ -54,6 +54,42 @@ describe("contratto stampabile", () => {
   });
 });
 
+describe("testo standard del contratto (Dimora Torino, 31/10/2026)", () => {
+  const dati = {
+    numero: "Edile1", dataStipula: "2026-10-30",
+    committente: { ragioneSociale: "Dimora srl", partitaIva: "13160300011", indirizzo: "Corso Trapani 132, Torino", rappresentante: "Luigi Borgato" },
+    subappaltatore: { ragioneSociale: "DecorEdil", partitaIva: "05951200012", indirizzo: "", email: "", pec: "" },
+    commessa: { codice: "O-0001", descrizione: "Ristrutturazione", indirizzoCantiere: "Torino", cliente: "Cliente" },
+    descrizioneLavori: "Demolizioni", importo: 10000, oneriSicurezza: 0, ritenutaPct: 0,
+    dataInizio: "2026-11-10", dataFinePrevista: "2027-02-19", responsabileImpresa: "Luigi Borgato", referenteSubappaltatore: "Cosimo Tulotti",
+    obblighi: null, modalitaPagamento: null, penali: null, garanzie: null, durataGaranziaMesi: 12, note: null,
+  };
+  it("ha le clausole di Dimora: reverse charge, polizza RC, penali a scaglioni, verifica finale", async () => {
+    const { articoliContratto } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
+    const testo = articoliContratto(dati).flatMap((a) => [a.titolo, ...a.paragrafi]).join("\n");
+    expect(testo).toContain("art. 17, comma 6, lettera a), DPR 633/1972");
+    expect(testo).toContain("500.000,00 €");
+    expect(testo).toMatch(/200,00 € al giorno fino al decimo giorno lavorativo e di 400,00 €/);
+    expect(testo).toContain("art. 1665 c.c.");
+    expect(testo).toContain("Cosimo Tulotti");
+    expect(testo).toContain("10/11/2026");
+    expect(testo).not.toContain("50/2016");
+    expect(testo).not.toContain("Ritenuta di garanzia");
+  });
+  it("le penali scritte nel contratto sostituiscono quelle base", async () => {
+    const { articoliContratto } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
+    const penali = articoliContratto({ ...dati, penali: "100€ ogni giorno di ritardo" }).find((a) => a.titolo.startsWith("Penali"))!;
+    expect(penali.paragrafi.join(" ")).toContain("100€ ogni giorno di ritardo");
+    expect(penali.paragrafi.join(" ")).not.toContain("400,00");
+  });
+  it("gli articoli da approvare a parte esistono tutti, col loro numero", async () => {
+    const { articoliContratto, articoliDaApprovare, ARTICOLI_APPROVAZIONE_SPECIFICA } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
+    const articoli = articoliContratto(dati);
+    for (const titolo of ARTICOLI_APPROVAZIONE_SPECIFICA) expect(articoli.map((a) => a.titolo)).toContain(titolo);
+    expect(articoliDaApprovare(articoli)).toMatch(/^Art\. 5 \(Pagamenti\)/);
+  });
+});
+
 describe("firma elettronica del contratto di subappalto", () => {
   it("la pagina di firma chiede di approvare gli stessi articoli che il contratto elenca (artt. 1341-1342 c.c.)", async () => {
     const { CLAUSOLE_SUBAPPALTO } = await import("../../../supabase/functions/_shared/clausoleFirma");
@@ -71,5 +107,33 @@ describe("firma elettronica del contratto di subappalto", () => {
     expect(readFileSync("supabase/functions/_shared/documentoCongelato.ts", "utf8")).toContain("Prepara prima il PDF del contratto da firmare");
     expect(readFileSync("supabase/functions/fea-documento-pubblico/index.ts", "utf8")).toContain('tipo === "subappalto"');
     expect(readFileSync("supabase/functions/_shared/pdfFirmato.ts", "utf8")).toContain('r.tipo_documento === "subappalto"');
+  });
+});
+
+describe("riquadro economico del contratto", () => {
+  it("reverse charge: niente IVA, ritenuta sull'imponibile", async () => {
+    const { riepilogoEconomicoContratto } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
+    expect(riepilogoEconomicoContratto({ importo: 10000, oneriSicurezza: 500, ivaPct: 0, ritenutaPct: 5 })).toEqual({
+      lavori: 10000, oneri: 500, imponibile: 10500, ivaPct: 0, reverseCharge: true, iva: 0, totaleFattura: 10500,
+      ritenutaPct: 5, ritenuta: 525, nettoAiSal: 9975,
+    });
+  });
+  it("ditta con IVA: l'IVA si paga, la ritenuta resta sull'imponibile", async () => {
+    const { riepilogoEconomicoContratto } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
+    const r = riepilogoEconomicoContratto({ importo: 1000, oneriSicurezza: 0, ivaPct: 22, ritenutaPct: 10 });
+    expect(r).toMatchObject({ reverseCharge: false, iva: 220, totaleFattura: 1220, ritenuta: 100, nettoAiSal: 1120 });
+  });
+  it("con IVA il testo della fatturazione non dice reverse charge", async () => {
+    const { articoliContratto } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
+    const base = {
+      numero: null, dataStipula: null, committente: { ragioneSociale: "A", partitaIva: "", indirizzo: "", rappresentante: "" },
+      subappaltatore: { ragioneSociale: "B", partitaIva: "", indirizzo: "", email: "", pec: "" },
+      commessa: { codice: "O-1", descrizione: "", indirizzoCantiere: "", cliente: "" }, descrizioneLavori: "", importo: 1, oneriSicurezza: 0,
+      ritenutaPct: 0, dataInizio: null, dataFinePrevista: null, responsabileImpresa: null, referenteSubappaltatore: null, obblighi: null,
+      modalitaPagamento: null, penali: null, garanzie: null, durataGaranziaMesi: 12, note: null,
+    };
+    const fatt = (iva: number) => articoliContratto({ ...base, ivaPct: iva }).find((a) => a.titolo === "Fatturazione")!.paragrafi.join(" ");
+    expect(fatt(0)).toContain("reverse charge");
+    expect(fatt(22)).toContain("IVA al 22%");
   });
 });

@@ -14,10 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { origineCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, origineCostoDitta } from "@/lib/orders/costoDitta";
 
 export type AssignmentPatch = Partial<Pick<PhaseAssignment,
-  "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">>;
+  "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes" | "costo_origine">>;
 
 // «1.140,00 €» come nel resto della commessa (formatCurrency), non «1140,00 €».
 const eur = { format: formatCurrency };
@@ -52,9 +52,14 @@ interface Props {
   onUpdate: (patch: AssignmentPatch) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
   compact?: boolean;
+  /**
+   * Quanto valgono le voci della lavorazione (quantità × costo). A una ditta senza costo previsto lo si
+   * propone in un clic: prima la scheda diceva «750 €» in alto e «0 €» sulla ditta, senza dire perché.
+   */
+  previstoVoci?: number;
 }
 
-export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete, compact = false }: Props) {
+export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete, compact = false, previstoVoci = 0 }: Props) {
   const { canEditOrders, canViewCosts, canManagePayments } = usePermissions();
   const internal = a.executor_type === "interno";
   const name = assignmentName(a, employees, externalTeams);
@@ -105,6 +110,17 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
   };
 
   const sforato = a.cost_preventivo > 0 && a.cost_consuntivo > a.cost_preventivo;
+  const propostaVoci = !internal && canViewCosts && a.cost_preventivo <= 0 && previstoVoci > 0;
+  // Il previsto della ditta si salva IVA compresa con la sua aliquota (0 in reverse charge), come «Assegna ditte e costi».
+  const ivaDitta = Number(a.vat_rate) || 0;
+  const previstoVociSalvato = conIva(previstoVoci, ivaDitta);
+  const usaVoci = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await onUpdate({ cost_preventivo: previstoVociSalvato, costo_origine: "preventivo" }); }
+    catch { toast.error("Costo previsto non salvato. Riprova."); }
+    finally { setBusy(false); }
+  };
   // Una riga dell'elenco (ElencoAssegnazioni): chi è, che cosa fa, i due costi
   // nelle colonne dell'intestazione, la matita per gestirla.
   return <div className="flex items-start gap-3 px-3 py-2.5">
@@ -122,6 +138,13 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
         {!internal && canViewCosts && <span className="max-sm:hidden"> · {a.is_paid ? "pagamento registrato" : "pagamento da registrare"}</span>}
       </p>
       {!internal && canViewCosts && origineCostoDitta(a) && <p className="mt-0.5 text-[11px] text-muted-foreground">{origineCostoDitta(a)}</p>}
+      {propostaVoci && <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800">
+        <span>Senza costo previsto: le voci della lavorazione valgono {eur.format(previstoVoci)}.</span>
+        {canEditOrders && <Button size="sm" variant="outline" className="tap-compact h-7 px-2 text-xs" disabled={busy} onClick={usaVoci}>
+          {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Usa {eur.format(previstoVociSalvato)}{ivaDitta > 0 ? ` (IVA ${ivaDitta}% inclusa)` : ""}
+        </Button>}
+        {canEditOrders && <span className="text-muted-foreground">o scrivilo con la matita</span>}
+      </p>}
       {a.notes && (compact ? <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Note assegnazione</summary><p className="mt-1 whitespace-pre-wrap break-words">{a.notes}</p></details> : <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>)}
     </div>
     {canViewCosts && !compact && <>

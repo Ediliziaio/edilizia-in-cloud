@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { calculateOrderEconomics } from "@/lib/orders/economics";
 import { buildExternalTeamCosts } from "@/lib/costsUtils";
+import { externalLaborNet } from "@/lib/orders/laborEconomics";
 
 // Le ditte esterne lavorano in reverse charge: un'IVA vuota vale 0 dappertutto. Prima la vista del margine,
 // il conto economico e la pagina Costi toglievano il 22%, la scheda Lavorazioni no: la stessa ditta dava
@@ -15,6 +16,11 @@ describe("IVA delle ditte esterne: un solo valore quando manca", () => {
     const [costo] = buildExternalTeamCosts([{ id: "t", total_cost: 500, vat_rate: null }]);
     expect(costo.amount).toBe(500);
     expect(costo.vat_rate).toBe(0);
+  });
+
+  it("il riepilogo Manodopera conta 0, non 22", () => {
+    expect(externalLaborNet({ id: "t", cost_preventivo: 0, total_cost: 500, vat_rate: null, team: null })).toBe(500);
+    expect(readFileSync("src/lib/orders/laborEconomics.ts", "utf8")).not.toMatch(/vat_rate\s*==\s*null\s*\?\s*22/);
   });
 
   it("con l'IVA scritta si toglie quella", () => {

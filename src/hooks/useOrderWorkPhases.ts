@@ -649,12 +649,12 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   });
 
   const updateAssignment = useMutation({
-    mutationFn: async ({ id, source, patch }: { id: string; source: AssignmentSource; patch: Partial<Pick<PhaseAssignment, "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">> }) => {
+    mutationFn: async ({ id, source, patch }: { id: string; source: AssignmentSource; patch: Partial<Pick<PhaseAssignment, "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes" | "costo_origine">> }) => {
       const table = source === "employee" ? "order_employees" : "order_external_teams";
       const row: Record<string, unknown> = {};
       if (patch.cost_preventivo !== undefined) row.cost_preventivo = patch.cost_preventivo;
-      // Previsto riscritto a mano: tariffa e quantità non lo spiegano più.
-      if (patch.cost_preventivo !== undefined && source === "team") row.costo_origine = "manuale";
+      // Previsto riscritto a mano: tariffa e quantità non lo spiegano più. Preso dalle voci: lo si dice.
+      if (patch.cost_preventivo !== undefined && source === "team") row.costo_origine = patch.costo_origine ?? "manuale";
       if (patch.cost_consuntivo !== undefined) row.total_cost = patch.cost_consuntivo;
       if (patch.hours !== undefined && source === "employee") row.hours_worked = patch.hours;
       // is_paid/paid_date esistono su entrambe le tabelle: gestione uniforme
