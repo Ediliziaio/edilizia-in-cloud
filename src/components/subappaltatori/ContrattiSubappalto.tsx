@@ -258,10 +258,10 @@ export function ContrattiSubappalto({
       const filtri = [ids.length ? `contratto_subappalto_id.in.(${ids.join(",")})` : null, sub.piva ? `cedente_piva.eq.${sub.piva.replace(/\s/g, "")}` : null].filter(Boolean).join(",");
       if (!filtri) return [];
       const { data, error } = await supabase.from("fatture_ricevute")
-        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, cedente_ragione_sociale")
+        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, cedente_ragione_sociale, stato")
         .eq("company_id", companyId).or(filtri).order("data_fattura", { ascending: false }).limit(200);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; numero_fattura: string | null; data_fattura: string | null; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null; cedente_ragione_sociale: string | null }>;
+      return (data ?? []) as unknown as Array<{ id: string; numero_fattura: string | null; data_fattura: string | null; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null; cedente_ragione_sociale: string | null; stato: string | null }>;
     },
     enabled: !!sub.piva || ids.length > 0,
   });
@@ -472,7 +472,8 @@ export function ContrattiSubappalto({
 
 
 
-  const fattureLibere = fatture.filter((f) => !f.contratto_subappalto_id);
+  // Le rifiutate non si collegano (il database lo vieta): non proporle.
+  const fattureLibere = fatture.filter((f) => !f.contratto_subappalto_id && f.stato !== "rifiutata");
   const campo = (k: keyof FormContratto) => ({ value: form[k] as string, onChange: (e: { target: { value: string } }) => setForm((p) => ({ ...p, [k]: e.target.value })) });
 
   return (

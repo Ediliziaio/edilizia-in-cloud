@@ -167,10 +167,11 @@ export function schedeSicurezzaDitta<T extends SchedaSicurezza>(campoId: string 
 }
 
 /** Il contratto della ditta in questa commessa: punta a una delle sue schede sicurezza (o, in dati vecchi, alla scheda del campo). */
-export function contrattoDellaDitta<C extends { subappaltatore_id: string }>(campoId: string | null, contratti: C[], schede: SchedaSicurezza[]): C | null {
+export function contrattoDellaDitta<C extends { subappaltatore_id: string; stato?: string | null }>(campoId: string | null, contratti: C[], schede: SchedaSicurezza[]): C | null {
   if (!campoId) return null;
   const ids = new Set([campoId, ...schede.filter((s) => s.campo_subappaltatore_id === campoId).map((s) => s.id)]);
-  return contratti.find((c) => ids.has(c.subappaltatore_id)) ?? null;
+  // Un contratto risolto è chiuso: non deve impedire di farne uno nuovo con la stessa ditta sulla commessa.
+  return contratti.find((c) => ids.has(c.subappaltatore_id) && c.stato !== "risolto") ?? null;
 }
 
 /**

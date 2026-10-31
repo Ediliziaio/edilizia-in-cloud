@@ -76,6 +76,13 @@ describe("le due schede della ditta: campo e sicurezza", () => {
     expect(contrattoDellaDitta(null, contratti, schede)).toBeNull();
   });
 
+  it("un contratto risolto non blocca il contratto nuovo con la stessa ditta", () => {
+    const solo = [{ id: "vecchio", subappaltatore_id: "campo-1", stato: "risolto" }];
+    expect(contrattoDellaDitta("campo-1", solo, [])).toBeNull();
+    const due = [...solo, { id: "nuovo", subappaltatore_id: "campo-1", stato: "bozza" }];
+    expect(contrattoDellaDitta("campo-1", due, [])?.id).toBe("nuovo");
+  });
+
   it("per un contratto nuovo usa prima la scheda della commessa, poi quella generale, mai quella di un'altra commessa", () => {
     expect(schedeSicurezzaDitta("campo-1", schede, "o1").map((s) => s.id)).toEqual(["sic-commessa", "sic-generale"]);
     expect(schedeSicurezzaDitta("campo-1", schede, "o2").map((s) => s.id)).toEqual(["sic-generale"]);

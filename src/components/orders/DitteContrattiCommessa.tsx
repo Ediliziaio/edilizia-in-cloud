@@ -393,6 +393,14 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     if (errNuova) throw errNuova;
     return nuova.id as string;
   };
+  /** Numero proposto per un contratto nuovo: codice commessa e progressivo (es. O-0001/S02). Si cambia da «Modifica». */
+  const numeroNuovoContratto = async (): Promise<string | null> => {
+    const [{ data: ord }, { count }] = await Promise.all([
+      db.from("orders").select("order_code").eq("id", orderId).maybeSingle(),
+      db.from("contratti_subappalto").select("id", { count: "exact", head: true }).eq("order_id", orderId).eq("company_id", companyId),
+    ]);
+    return ord?.order_code ? `${ord.order_code}/S${String((count ?? 0) + 1).padStart(2, "0")}` : null;
+  };
   const salva = useMutation({
     mutationFn: async (righeScelte: RigaElencoLavori[]) => {
       if (!ditta.subappaltatore_id) throw new Error("La ditta non è collegata a un subappaltatore: collegala dalla sua scheda.");
@@ -416,6 +424,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
           : db.from("contratti_subappalto").update(campi).eq("id", contratto.id).eq("stato", "bozza").is("firmato_il", null)
         : db.from("contratti_subappalto").insert({
             ...campi, company_id: companyId, subappaltatore_id: await schedaPerContratto(), order_id: orderId,
+            numero_contratto: await numeroNuovoContratto(),
             stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: 0, data_stipula: oggi(),
           });
       const { data: toccate, error } = await (contratto ? (q as { select: (c: string) => Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }> }).select("id") : q);
