@@ -245,19 +245,25 @@ export function salvataggioConAttesa<T>(
   };
 }
 
-/** Le bozze aperte dell'utente in questa azienda, dalla più recente: «Riprendi…». */
+/**
+ * Le bozze aperte dell'utente in questa azienda, dalla più recente: «Riprendi…». Col filtro
+ * si separano le due strade: `{ modo: "crea" }` per Nuova commessa, `{ modo: "completa",
+ * orderId }` per «Completa con Silvio» su quella commessa.
+ */
 export async function bozzeDaRiprendere(
   companyId: string,
   db: ClientBozze = clientVero,
   adesso: Date = new Date(),
+  filtro: { modo?: Bozza["modo"]; orderId?: string } = {},
 ): Promise<Bozza[]> {
-  const { data, error } = await tabella(db)
+  let q = tabella(db)
     .select("*")
     .eq("company_id", companyId)
     .eq("stato", "bozza")
-    .gt("scade_il", adesso.toISOString())
-    .order("updated_at", { ascending: false })
-    .limit(20);
+    .gt("scade_il", adesso.toISOString());
+  if (filtro.modo) q = q.eq("modo", filtro.modo);
+  if (filtro.orderId) q = q.eq("order_id", filtro.orderId);
+  const { data, error } = await q.order("updated_at", { ascending: false }).limit(20);
   if (error) lancia(error);
   return (data ?? []) as Bozza[];
 }

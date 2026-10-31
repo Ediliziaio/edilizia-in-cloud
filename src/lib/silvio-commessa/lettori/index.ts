@@ -5,5 +5,8 @@
  */
 export { frammentoDaPreventivo, modelloDelPreventivo, moduloDelPreventivo, MODULI_EDILI, preventivoFirmato, type DatiPreventivo } from "./preventivo";
 export { frammentoDaComputo, frammentoDaFileComputo, type DatiComputo } from "./computo";
-export { frammentoDaCommessa, type DatiCommessaEsistente } from "./commessa";
-export { leggiFrammentiPreventivo, leggiFrammentoComputo, leggiFrammentoCommessa } from "./daDatabase";
+export { frammentoDaCommessa, frammentiPerCompletare, type DatiCommessaEsistente } from "./commessa";
+export {
+  elencaAllegatiCommessa, leggiFrammentiCommessa, leggiFrammentiPreventivo, leggiFrammentoComputo, leggiFrammentoCommessa,
+  scaricaAllegatoCommessa, type AllegatoCommessa,
+} from "./daDatabase";

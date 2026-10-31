@@ -16,6 +16,9 @@
 import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO } from "../../../../shared/silvio-commessa/registro.ts";
 import { compilata } from "../../../../shared/silvio-commessa/completezza.ts";
+import {
+  frammentoDalModello, MODELLI_LAVORO, misuraDalTesto, riconosciTipoLavoro,
+} from "../../../../shared/silvio-commessa/modelliLavoro.ts";
 import { colonne, metti, nuovoFrammento, numero, testo } from "./comuni";
 
 export interface DatiCommessaEsistente {
@@ -89,4 +92,21 @@ export function frammentoDaCommessa(dati: DatiCommessaEsistente): Frammento {
     if (n > 0) metti(fr, v.chiave, { righe: n }, { nota, dove: "commessa" });
   }
   return fr;
+}
+
+/**
+ * I frammenti con cui parte «Completa con Silvio» (fase 2, lotto 2.1): la commessa e, se non
+ * ha le fasi ma si capisce il lavoro (tipo di lavoro, titolo, descrizione), il modello per
+ * tipo di lavoro con la misura che i testi dicono e, se c'è, l'inizio lavori della commessa.
+ * Il modello resta una proposta: quello che la commessa ha già vince in `fondi`.
+ */
+export function frammentiPerCompletare(dati: DatiCommessaEsistente): Frammento[] {
+  const commessa = frammentoDaCommessa(dati);
+  if (dati.fasi?.length) return [commessa];
+  const o = dati.order;
+  const testi = [o.tipo_lavoro, o.description, o.work_description].map(testo).filter(Boolean).join(" ");
+  const tipo = riconosciTipoLavoro(testi);
+  if (!tipo) return [commessa];
+  const inizio = testo(o.work_start_date).slice(0, 10) || null;
+  return [commessa, frammentoDalModello(tipo, { misura: misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita), inizio })];
 }

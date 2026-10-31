@@ -2,6 +2,9 @@
  * Fonti del popup «Crea con Silvio»: file da trascinare, preventivo o computo da scegliere,
  * vocale e testo libero; lo stato di ogni lettura, con la stima del costo prima e «Riprova»
  * dopo un errore. Vedi docs/piano-silvio-commessa-ai.md, 3.3–3.4.
+ *
+ * In «Completa» (fase 2) in cima ci sono i documenti già allegati alla commessa: ognuno si
+ * legge con un tocco su «Leggi», che porta davanti la stima del costo.
  */
 import { useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +18,9 @@ import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { formatCurrency } from "@/lib/formatters";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
-import { euroAI } from "./presentazione";
+import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
+import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
+import { euroAI, stimaLettura } from "./presentazione";
 import type { FonteDaAggiungere, FonteNelPopup } from "./useBozzaSilvio";
 import type { ServiziSilvioCommessa } from "./servizi";
 
@@ -47,7 +52,7 @@ function SchedaFonte({ f, onRiprova, onTogli }: { f: FonteNelPopup; onRiprova: (
             {STATI[f.stato]}
             {f.stato === "fatta" && f.valori != null ? ` · ${f.valori} ${f.valori === 1 ? "valore" : "valori"}` : ""}
             {f.stato === "fatta" && f.costoEur ? ` · ${euroAI(f.costoEur)}` : ""}
-            {f.stato === "fatta" && f.tipo !== "ripresa" && !f.costoEur ? " · gratis" : ""}
+            {f.stato === "fatta" && f.tipo !== "ripresa" && f.tipo !== "commessa" && !f.costoEur ? " · gratis" : ""}
             {(f.stato === "da_confermare" || f.stato === "in_coda" || f.stato === "in_lettura") && f.stimaEur > 0
               ? ` · circa ${euroAI(f.stimaEur)}` : ""}
           </p>
@@ -150,8 +155,48 @@ function ElencoDaScegliere({ tipo, companyId, servizi, onScegli, onChiudi }: {
   );
 }
 
+/** I documenti della commessa che Silvio sa leggere, con la stima di ognuno. */
+function DocumentiDellaCommessa({ orderId, fonti, servizi, onAggiungi }: {
+  orderId: string; fonti: FonteNelPopup[]; servizi: ServiziSilvioCommessa; onAggiungi: (f: FonteDaAggiungere[]) => void;
+}) {
+  const allegati = useQuery({
+    queryKey: ["silvio-commessa", "allegati", orderId], staleTime: 60_000,
+    queryFn: () => servizi.elencaAllegati(orderId),
+  });
+  const leggibili = useMemo(() => (allegati.data ?? [])
+    .map((a) => ({ a, r: riconosciDocumento({ nome: a.nome, mime: a.mime ?? "" }) }))
+    .filter(({ r }) => r.lettore !== "non_letto")
+    .map(({ a, r }) => ({ a, stima: stimaLettura(r, a.dimensione ?? 0) })), [allegati.data]);
+  const aggiunti = new Set(fonti.filter((f) => f.allegato).map((f) => f.allegato!.id));
+  if (allegati.isLoading) {
+    return <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Cerco i documenti della commessa…</p>;
+  }
+  if (allegati.error || !leggibili.length) return null;
+  return (
+    <section className="rounded-lg border bg-white p-2" aria-labelledby="silvio-documenti-commessa">
+      <h4 id="silvio-documenti-commessa" className="px-1 text-xs font-semibold text-slate-700">Documenti della commessa</h4>
+      <p className="px-1 text-xs text-slate-500">Silvio li legge solo se tocchi «Leggi».</p>
+      <ul className="mt-1 max-h-48 space-y-1 overflow-y-auto">
+        {leggibili.map(({ a, stima }: { a: AllegatoCommessa; stima: number }) => (
+          <li key={a.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm">
+            <FileText className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+            <span className="min-w-0 flex-1 truncate" title={a.nome}>{a.nome}</span>
+            <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 px-2 text-xs" disabled={aggiunti.has(a.id)}
+              aria-label={aggiunti.has(a.id) ? `${a.nome}: già tra le fonti` : `Leggi ${a.nome}${stima ? `, circa ${euroAI(stima)}` : ", gratis"}`}
+              onClick={() => onAggiungi([{ tipo: "allegato", allegato: a }])}>
+              {aggiunti.has(a.id) ? "Aggiunto" : `Leggi · ${stima ? `~${euroAI(stima)}` : "gratis"}`}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export interface ColonnaFontiProps {
   companyId: string;
+  /** «Completa»: la commessa di cui mostrare i documenti. */
+  orderId?: string | null;
   fonti: FonteNelPopup[];
   servizi: ServiziSilvioCommessa;
   onAggiungi: (f: FonteDaAggiungere[]) => void;
@@ -160,7 +205,7 @@ export interface ColonnaFontiProps {
   onTogli: (id: string) => void;
 }
 
-export function ColonnaFonti({ companyId, fonti, servizi, onAggiungi, onConferma, onRiprova, onTogli }: ColonnaFontiProps) {
+export function ColonnaFonti({ companyId, orderId, fonti, servizi, onAggiungi, onConferma, onRiprova, onTogli }: ColonnaFontiProps) {
   const [sopra, setSopra] = useState(false);
   const [elenco, setElenco] = useState<Elenco>(null);
   const [testo, setTesto] = useState("");
@@ -181,6 +226,7 @@ export function ColonnaFonti({ companyId, fonti, servizi, onAggiungi, onConferma
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
+      {orderId && <DocumentiDellaCommessa orderId={orderId} fonti={fonti} servizi={servizi} onAggiungi={onAggiungi} />}
       <div
         onDragOver={(e) => { e.preventDefault(); setSopra(true); }}
         onDragLeave={() => setSopra(false)}

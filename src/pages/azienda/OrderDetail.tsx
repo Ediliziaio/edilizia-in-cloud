@@ -96,6 +96,7 @@ import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/Or
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { StrisciaSilvioCommessa } from "@/components/silvio-commessa/StrisciaSilvioCommessa";
+import { CompletaConSilvio } from "@/components/silvio-commessa/CompletaConSilvio";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
@@ -1483,6 +1484,9 @@ function OrderDetailInner() {
 
       {/* Lotto 1.5: «Silvio ha preparato N cose», con «Annulla tutto». Solo se l'ha fatta Silvio. */}
       <StrisciaSilvioCommessa orderId={id!} companyId={companyId} puoModificare={permissions.canEditOrders} />
+      {/* Fase 2: «Completa al 34 %» e «Completa con Silvio», dietro lo stesso interruttore. */}
+      <CompletaConSilvio orderId={id!} companyId={companyId} orderCode={order.order_code} puoModificare={permissions.canEditOrders}
+        chiusa={["completato", "annullato"].includes(String(order.status)) || !!operationalIntervention} />
 
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}

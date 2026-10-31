@@ -6,8 +6,9 @@
  * totale dei pesi, più l'elenco di cosa manca. Tre strade, stessa regola:
  * - `completezza(dati)` su una commessa vera (colonne di `orders` + righe collegate);
  * - `completezzaPiano(piano)` sulla bozza del popup;
- * - `sqlPunteggio()` / `sqlCompilata()` per misurare nel database (quadro_commessa,
- *   la scheda di misura, la query di partenza della fase 0).
+ * - `sqlPunteggio()` / `sqlCompilata()` / `sqlMancano()` per misurare nel database
+ *   (quadro_commessa, la query di partenza della fase 0, `commesse_da_completare` della
+ *   fase 2: un test controlla che la migrazione usi queste stesse espressioni).
  *
  * Senza dipendenze, compatibile con Deno.
  */
@@ -146,4 +147,14 @@ export function sqlPunteggio(alias = "o"): string {
   const totale = conPeso.reduce((s, v) => s + v.peso, 0);
   const termini = conPeso.map((v) => `(case when ${sqlCompilata(v, alias)} then ${v.peso} else 0 end)`);
   return `round(100.0 * (${termini.join("\n + ")}) / ${totale})`;
+}
+
+/**
+ * Espressione text[]: le chiavi delle variabili col peso che mancano sulla commessa
+ * `alias`, dalla più pesante (lo stesso ordine di `completezza().mancano`).
+ */
+export function sqlMancano(alias = "o"): string {
+  const conPeso = REGISTRO.filter((v) => v.peso > 0).sort((a, b) => b.peso - a.peso);
+  const voci = conPeso.map((v) => `case when not ${sqlCompilata(v, alias)} then '${v.chiave}' end`);
+  return `array_remove(array[\n ${voci.join(",\n ")}\n]::text[], null)`;
 }

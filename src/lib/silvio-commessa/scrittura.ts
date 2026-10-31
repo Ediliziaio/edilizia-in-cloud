@@ -13,6 +13,10 @@
  * (🟢) o che chiede solo se mancano (❓). Le proposte 🟡 e 🔴 entrano solo se la persona le
  * ha accettate (allora sono «fatto», fonte persona). I conflitti fermano tutto: li conta
  * `conflitti`, e la RPC rifiuta.
+ *
+ * In «completa» (fase 2) quello che è già nella commessa (`giaNellaCommessa`) non si
+ * riscrive: resta fuori dalla scrittura e dal «Controlla». Le righe e il venditore si
+ * aggiungono solo a una commessa nuova: in «completa» finiscono nelle escluse.
  */
 import type {
   CondizioniContratto, CostoDelPiano, FaseDelPiano, PianoCommessa, RataDelPiano, TipoFonte, Valore,
@@ -106,6 +110,15 @@ const vuoto = (v: unknown) => v == null || (typeof v === "string" && v.trim() ==
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Il valore viene dalla commessa che si completa (lettore `frammentoDaCommessa`, fonte
+ * `persona` con l'id della commessa): l'ha scritto una persona, Silvio non lo tocca. Le
+ * modifiche fatte nel popup sono `persona` senza id: quelle no.
+ */
+export function giaNellaCommessa(piano: Pick<PianoCommessa, "orderId">, v: Pick<Valore, "fonte"> | null | undefined): boolean {
+  return !!piano.orderId && !!v && v.fonte.tipo === "persona" && v.fonte.id === piano.orderId;
+}
 
 /** Il valore entra? Null se sì, altrimenti il motivo. */
 function motivoFuori(v: Valore, variabile: Variabile): string | null {
@@ -214,7 +227,7 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
 
   for (const variabile of REGISTRO) {
     const v = piano.aree[variabile.area]?.[variabile.chiave];
-    if (!v) continue;
+    if (!v || giaNellaCommessa(piano, v)) continue;
     const motivo = motivoFuori(v, variabile);
     if (motivo) {
       if (motivo !== "manca") fuori(variabile, motivo);
@@ -232,7 +245,8 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
         continue;
       }
       case "economia.order_items":
-        if (Array.isArray(v.valore)) s.righe = righeScritte(v.valore);
+        if (s.modo === "completa") fuori(variabile, "a una commessa che c'è le righe si aggiungono dalla sua pagina");
+        else if (Array.isArray(v.valore)) s.righe = righeScritte(v.valore);
         continue;
       case "pagamenti.rate":
         if (Array.isArray(v.valore)) s.rate = rateScritte(v.valore as RataDelPiano[]);
@@ -244,6 +258,10 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
       case "costi.previsti":
         continue; // dentro le fasi
       case "persone.venditori": {
+        if (s.modo === "completa") {
+          fuori(variabile, "il venditore di una commessa che c'è si cambia dalla sua pagina");
+          continue;
+        }
         const primo = Array.isArray(v.valore) ? v.valore[0] : v.valore;
         if (typeof primo === "string" && UUID.test(primo)) s.venditore = primo;
         continue;
@@ -294,5 +312,12 @@ export function prontaPerScrivere(s: ScritturaCommessa): string[] {
   if (s.modo === "crea" && !s.cliente.customer_id && !s.preventivo_id && !s.cliente.nome && !s.cliente.email) {
     out.push("Manca il cliente");
   }
+  if (s.modo === "completa" && !daAggiungere(s)) out.push("Silvio non ha ancora niente da aggiungere");
   return out;
+}
+
+/** Quante cose «Completa» aggiungerebbe alla commessa: colonne, fasi, rate, condizioni. */
+export function daAggiungere(s: ScritturaCommessa): number {
+  return Object.keys(s.ordine).length + s.fasi.length + s.rate.length + s.righe.length
+    + (s.condizioni ? 1 : 0) + (s.cliente.customer_id ? 1 : 0);
 }

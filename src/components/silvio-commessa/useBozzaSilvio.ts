@@ -10,6 +10,10 @@
  * - Ogni modifica passa da `applica`, e l'annulla dalla storia: la stessa che si salva
  *   nella bozza, così Cmd+Z funziona anche su una bozza ripresa.
  * - La bozza si salva da sola, con un attimo d'attesa; la prima volta nasce la riga.
+ *
+ * Con `orderId` (fase 2, «Completa con Silvio») il piano parte dalla commessa che c'è: quello
+ * che ha già (`giaNellaCommessa`) è bloccato, qui e non solo nel popup, e «Completa» chiama
+ * `completaCommessa`. La lettura della commessa è la base: da sola non crea una bozza.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Frammento, Modifica, PianoCommessa } from "../../../shared/silvio-commessa/piano.ts";
@@ -17,9 +21,11 @@ import { annulla, applica, fondi, pianoVuoto, type Passo } from "../../../shared
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import { dateDelleFasi } from "../../../shared/silvio-commessa/modelliLavoro.ts";
 import type { FaseDelPiano } from "../../../shared/silvio-commessa/piano.ts";
-import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
+import { giaNellaCommessa, scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
+import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
+import { variabile } from "../../../shared/silvio-commessa/registro.ts";
 import {
-  creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
+  completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
   type Bozza, type EsitoCommessa, type FonteCaricata, type SalvataggioConAttesa,
 } from "@/lib/silvio-commessa/bozze";
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
@@ -32,13 +38,15 @@ export type StatoFonte = "da_confermare" | "in_coda" | "in_lettura" | "fatta" | 
 
 export interface FonteNelPopup {
   id: string;
-  tipo: "preventivo" | "computo" | "file" | "testo" | "ripresa";
+  tipo: "preventivo" | "computo" | "file" | "testo" | "ripresa" | "commessa" | "allegato";
   etichetta: string;
   stato: StatoFonte;
   /** Id della riga (preventivo, computo). */
   refId?: string;
   file?: File;
   testo?: string;
+  /** Un documento già allegato alla commessa («Completa»). */
+  allegato?: AllegatoCommessa;
   /** Stima prima della lettura, 0 per le letture a regole. */
   stimaEur: number;
   /** Costo vero, quando la lettura l'ha detto. */
@@ -65,13 +73,19 @@ interface Stato {
   messaggi: Messaggio[];
   /** Cresce a ogni cambiamento da salvare. */
   versione: number;
+  /** I frammenti della commessa che si completa: la base, che una bozza ripresa rilegge. */
+  base: Frammento[];
 }
 
 type Azione =
   | { tipo: "aggiungi_fonti"; fonti: FonteNelPopup[] }
   | { tipo: "aggiorna_fonte"; id: string; patch: Partial<FonteNelPopup> }
   | { tipo: "togli_fonte"; id: string }
-  | { tipo: "frammenti"; id: string; frammenti: Frammento[]; caricata?: FonteCaricata; patch?: Partial<FonteNelPopup> }
+  | {
+    tipo: "frammenti"; id: string; frammenti: Frammento[]; caricata?: FonteCaricata; patch?: Partial<FonteNelPopup>;
+    /** La lettura della commessa: si fonde ma non è un cambiamento da salvare. */
+    base?: boolean; messaggio?: string;
+  }
   | { tipo: "modifiche"; modifiche: Modifica[] }
   | { tipo: "annulla" }
   | { tipo: "spegni"; chiavi: string[] }
@@ -83,6 +97,23 @@ const nuovoId = () => `f${Date.now().toString(36)}${(contatore++).toString(36)}`
 
 function messaggio(s: Stato, testo: string, tono: Messaggio["tono"] = "silvio"): Messaggio[] {
   return [...s.messaggi, { id: (s.messaggi[s.messaggi.length - 1]?.id ?? 0) + 1, testo, tono }];
+}
+
+/** Le variabili che una modifica toccherebbe. */
+function chiaviDellaModifica(piano: PianoCommessa, m: Modifica): string[] {
+  if (m.tipo !== "sposta_date") return [m.chiave];
+  return ["fasi.order_work_phases", "fasi.work_start_date", "fasi.work_end_date", "fasi.expected_date"]
+    .filter((k) => piano.aree.fasi?.[k]);
+}
+
+/** Il motivo per cui la modifica non si fa (tocca quello che la commessa ha già), o null. */
+export function modificaBloccata(piano: PianoCommessa, m: Modifica): string | null {
+  const ferma = chiaviDellaModifica(piano, m).find((k) => {
+    const v = variabile(k);
+    return v && giaNellaCommessa(piano, piano.aree[v.area]?.[k]);
+  });
+  if (!ferma) return null;
+  return `«${variabile(ferma)?.etichetta ?? ferma}» è già nella commessa: Silvio non lo cambia. Si modifica dalla pagina della commessa.`;
 }
 
 /** Le chiavi che hanno un valore diverso (per riferimento) fra due piani. */
@@ -110,7 +141,7 @@ function riduttore(s: Stato, a: Azione): Stato {
       const fonte = s.fonti.find((f) => f.id === a.id);
       let messaggi = s.messaggi;
       const conMessaggio = (t: string, tono: Messaggio["tono"] = "silvio") => { messaggi = messaggio({ ...s, messaggi }, t, tono); };
-      conMessaggio(riassuntoFrammento(fonte?.etichetta ?? a.frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
+      conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? a.frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
       const nuoviConflitti = piano.conflitti.length - s.piano.conflitti.length;
       if (nuoviConflitti > 0) {
         conMessaggio(nuoviConflitti === 1
@@ -123,12 +154,15 @@ function riduttore(s: Stato, a: Azione): Stato {
         piano,
         fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, ...a.patch } : f)),
         caricate: a.caricata ? [...s.caricate.filter((c) => c.path !== a.caricata!.path), a.caricata] : s.caricate,
-        evidenziate: [...new Set([...s.evidenziate, ...cambiate])],
+        evidenziate: a.base ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
         messaggi,
-        versione: s.versione + 1,
+        versione: a.base ? s.versione : s.versione + 1,
+        base: a.base ? a.frammenti : s.base,
       };
     }
     case "modifiche": {
+      const bloccata = a.modifiche.map((m) => modificaBloccata(s.piano, m)).find(Boolean);
+      if (bloccata) return { ...s, messaggi: messaggio(s, bloccata, "avviso") };
       let bozza = { piano: s.piano, storia: s.storia };
       try {
         for (const m of a.modifiche) bozza = applica(bozza.piano, m, bozza.storia);
@@ -155,7 +189,9 @@ function riduttore(s: Stato, a: Azione): Stato {
     case "messaggio":
       return { ...s, messaggi: messaggio(s, a.testo, a.tono) };
     case "riprendi": {
-      const piano = a.bozza.piano;
+      // Una bozza che completa una commessa si rilegge sopra la commessa di adesso:
+      // quello che nel frattempo qualcuno ha scritto vince.
+      const piano = s.base.reduce((p, fr) => fondi(p, fr), a.bozza.piano);
       return {
         ...s,
         piano,
@@ -181,6 +217,8 @@ export type StatoSalvataggio =
 
 /** Una fonte da far leggere a Silvio, come la passa il popup. */
 export type FonteDaAggiungere =
+  | { tipo: "commessa"; id: string; etichetta?: string }
+  | { tipo: "allegato"; allegato: AllegatoCommessa }
   | { tipo: "preventivo"; id: string; etichetta?: string }
   | { tipo: "computo"; id: string; etichetta?: string }
   | { tipo: "file"; file: File }
@@ -190,13 +228,15 @@ export interface OpzioniBozza {
   companyId: string;
   userId: string;
   servizi: ServiziSilvioCommessa;
+  /** La commessa da completare: il popup è in modo «completa». */
+  orderId?: string | null;
   /** Attesa del salvataggio automatico. */
   attesaMs?: number;
 }
 
-export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: OpzioniBozza) {
+export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, attesaMs = 800 }: OpzioniBozza) {
   const [s, invia] = useReducer(riduttore, undefined, (): Stato => ({
-    piano: pianoVuoto(companyId), storia: [], fonti: [], caricate: [], evidenziate: [], messaggi: [], versione: 0,
+    piano: pianoVuoto(companyId, orderId), storia: [], fonti: [], caricate: [], evidenziate: [], messaggi: [], versione: 0, base: [],
   }));
   const ultimo = useRef(s);
   useLayoutEffect(() => { ultimo.current = s; }, [s]);
@@ -211,7 +251,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
     async (d) => {
       setSalvataggio({ tipo: "in_corso" });
       if (!bozzaId.current) {
-        const b = await creaBozza({ companyId, piano: d.piano, fonti: d.caricate }, servizi.db);
+        const b = await creaBozza({ companyId, orderId, piano: d.piano, fonti: d.caricate }, servizi.db);
         bozzaId.current = b.id;
         setIdBozza(b.id);
         if (d.storia.length) await salvaBozza(b.id, { piano: d.piano, fonti: d.caricate, storia: d.storia }, servizi.db);
@@ -224,7 +264,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
       quandoSalvato: () => setSalvataggio({ tipo: "salvata" }),
       quandoSbaglia: (e) => setSalvataggio({ tipo: "errore", messaggio: e.message }),
     },
-  )), [companyId, servizi.db, attesaMs]);
+  )), [companyId, orderId, servizi.db, attesaMs]);
 
   // Ogni cambiamento del piano (o delle fonti caricate) va nella bozza, con l'attesa.
   useEffect(() => {
@@ -252,6 +292,20 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
     invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "in_lettura", errore: undefined } });
     const opz = { companyId, userId, inizio: inizioLavori(), tentativo: f.tentativo };
     try {
+      if (f.tipo === "commessa") {
+        const frammenti = await servizi.frammentiCommessa(f.refId!);
+        const commessa = frammenti[0];
+        const scritte = Object.values(commessa?.aree ?? {}).reduce((n, area) => n + Object.keys(area ?? {}).length, 0);
+        const modello = frammenti.find((x) => x.fonte.tipo === "modello");
+        invia({
+          tipo: "frammenti", id: f.id, frammenti, base: true,
+          patch: { etichetta: commessa?.fonte.etichetta ?? f.etichetta, costoEur: 0, valori: scritte },
+          messaggio: `Nella ${commessa?.fonte.etichetta ?? "commessa"} ci sono già ${scritte} cose: restano come sono. `
+            + (modello ? `Non ha le fasi: te le propongo dal ${modello.fonte.etichetta}. ` : "")
+            + "Ti propongo solo quello che manca; puoi farmi leggere anche i suoi documenti.",
+        });
+        return;
+      }
       if (f.tipo === "preventivo") {
         const frammenti = await servizi.frammentiPreventivo(f.refId!, opz.inizio);
         invia({ tipo: "frammenti", id: f.id, frammenti, patch: { etichetta: frammenti[0]?.fonte.etichetta ?? f.etichetta, costoEur: 0 } });
@@ -263,7 +317,9 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
         invia({ tipo: "frammenti", id: f.id, frammenti: [fr], patch: { etichetta: fr.fonte.etichetta, costoEur: 0 } });
         return;
       }
-      const esito = f.tipo === "file" ? await servizi.leggiFile(f.file!, opz) : await servizi.leggiTesto(f.testo ?? "", opz);
+      const esito = f.tipo === "file" ? await servizi.leggiFile(f.file!, opz)
+        : f.tipo === "allegato" ? await servizi.leggiFile(await servizi.scaricaAllegato(f.allegato!), opz)
+          : await servizi.leggiTesto(f.testo ?? "", opz);
       if (esito.daCollegare) {
         invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "da_collegare", costoEur: 0 } });
         invia({
@@ -274,7 +330,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
         return;
       }
       const costo = esito.frammenti.reduce((t, x) => t + (x.costoEur ?? 0), 0);
-      const caricata: FonteCaricata | undefined = esito.percorso && f.file
+      // Un documento della commessa c'è già tra i suoi documenti: non si ricopia dopo «Completa».
+      const caricata: FonteCaricata | undefined = esito.percorso && f.file && f.tipo === "file"
         ? { path: esito.percorso, nome: f.file.name, mime: f.file.type || null, dimensione: f.file.size, fonte: f.etichetta }
         : undefined;
       invia({ tipo: "frammenti", id: f.id, frammenti: esito.frammenti, caricata, patch: { costoEur: costo } });
@@ -304,6 +361,15 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
     const fonti = nuove.map((n): FonteNelPopup => {
       const base = { id: nuovoId(), avvisi: [] as string[], tentativo: 0 };
       switch (n.tipo) {
+        case "commessa":
+          return { ...base, tipo: "commessa", refId: n.id, etichetta: n.etichetta ?? "la commessa", stato: "in_coda", stimaEur: 0 };
+        case "allegato": {
+          // Si aggiunge col tocco su «Leggi», che mostrava già la stima: parte subito.
+          const r = riconosciDocumento({ nome: n.allegato.nome, mime: n.allegato.mime ?? "" });
+          const comune = { ...base, tipo: "allegato" as const, allegato: n.allegato, etichetta: n.allegato.nome };
+          if (r.lettore === "non_letto") return { ...comune, stato: "errore", errore: r.motivo, stimaEur: 0 };
+          return { ...comune, stato: "in_coda", stimaEur: stimaLettura(r, n.allegato.dimensione ?? 0) };
+        }
         case "preventivo":
           return { ...base, tipo: "preventivo", refId: n.id, etichetta: n.etichetta ?? "preventivo", stato: "in_coda", stimaEur: 0 };
         case "computo":
@@ -333,7 +399,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
 
   const riprova = useCallback((id: string) => {
     const f = ultimo.current.fonti.find((x) => x.id === id);
-    if (!f || f.stato !== "errore" || (f.tipo === "file" && !f.file)) return;
+    if (!f || f.stato !== "errore" || (f.tipo === "file" && !f.file) || (f.tipo === "allegato" && !f.allegato)) return;
     invia({ tipo: "aggiorna_fonte", id, patch: { stato: "in_coda", errore: undefined, tentativo: f.tentativo + 1 } });
   }, []);
 
@@ -347,7 +413,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
     const modifiche: Modifica[] = Array.isArray(voluta) ? [...voluta] : [voluta];
     const m = modifiche[0];
     if (modifiche.length === 1 && m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
-      const fasi = ultimo.current.piano.aree.fasi?.["fasi.order_work_phases"]?.valore;
+      const pianoOra = ultimo.current.piano;
+      const elenco = pianoOra.aree.fasi?.["fasi.order_work_phases"];
+      // Le fasi che la commessa ha già non si ridatano: le date le mette chi le ha scritte.
+      const fasi = giaNellaCommessa(pianoOra, elenco) ? null : elenco?.valore;
       if (Array.isArray(fasi) && (fasi as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
         const datate = dateDelleFasi(fasi as FaseDelPiano[], m.valore);
         modifiche.push({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: datate });
@@ -369,20 +438,25 @@ export function useBozzaSilvio({ companyId, userId, servizi, attesaMs = 800 }: O
     invia({ tipo: "riprendi", bozza: b });
   }, []);
 
-  /** «Crea»: salva quello che aspetta, crea, registra le correzioni. */
+  /** «Crea» (o «Completa»): salva quello che aspetta, scrive, registra le correzioni. */
   const crea = useCallback(async (): Promise<EsitoCommessa> => {
+    // In «completa» la sola lettura della commessa non salva: prima di scrivere la bozza deve esserci.
+    if (!bozzaId.current && !salvatore().inAttesa()) {
+      const { piano, storia, caricate } = ultimo.current;
+      salvatore().programma({ piano, storia, caricate });
+    }
     await salvatore().subito();
     const id = bozzaId.current;
     if (!id) throw new ErroreBozza("La bozza non è ancora salvata: controlla la connessione e riprova.");
     const { piano, storia, caricate } = ultimo.current;
-    const esito = await creaCommessa({ id, fonti: caricate }, servizi.db);
+    const esito = await (orderId ? completaCommessa : creaCommessa)({ id, fonti: caricate }, servizi.db);
     try {
       await servizi.registraCorrezioni(correzioniDalPiano(pianoProposto(piano, storia), piano, { bozzaId: id, orderId: esito.order_id }));
     } catch {
       // La misura di Silvio non ferma la commessa, che è già nata.
     }
     return esito;
-  }, [salvatore, servizi]);
+  }, [salvatore, servizi, orderId]);
 
   /** «Riprova» sugli allegati che non si sono copiati. */
   const riallega = useCallback(async (orderId: string, nomi: string[]) => {

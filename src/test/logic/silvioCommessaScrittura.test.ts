@@ -150,8 +150,8 @@ describe("scritturaDalPiano", () => {
     expect(s.ordine.total_amount).toBeUndefined();
     expect(prontaPerScrivere(s)).toEqual(["C'è un valore in conflitto da decidere"]);
     expect(prontaPerScrivere(scritturaDalPiano(pianoVuoto("az-1")))).toEqual(["Manca il cliente"]);
-    // Completare una commessa non chiede il cliente: ce l'ha già.
-    expect(prontaPerScrivere(scritturaDalPiano(pianoVuoto("az-1", "ord-1")))).toEqual([]);
+    // Completare una commessa non chiede il cliente: ce l'ha già. Serve solo qualcosa da aggiungere (fase 2).
+    expect(prontaPerScrivere(scritturaDalPiano(pianoVuoto("az-1", "ord-1")))).toEqual(["Silvio non ha ancora niente da aggiungere"]);
   });
 
   it("completare: stesso piano, modo «completa»", () => {

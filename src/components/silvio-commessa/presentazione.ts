@@ -14,7 +14,7 @@ import { REGISTRO, variabile, variabiliDellArea, type Variabile } from "../../..
 import { completezzaPiano, type Completezza } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import { annulla, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
-import { COLONNE_SCRIVIBILI, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
+import { COLONNE_SCRIVIBILI, giaNellaCommessa, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
 
 export const NOMI_AREE: Record<Area, string> = {
   identita: "Identità",
@@ -78,8 +78,9 @@ export function dataConGiorno(s: string): string {
   return `${GIORNI[g]} ${dataBreve(s, false)}`;
 }
 
+// «9.800 €», non «9800 €»: in italiano le migliaia a quattro cifre si raggruppano solo con "always".
 export const euro = (n: number) =>
-  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: n % 1 === 0 ? 0 : 2 });
+  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: n % 1 === 0 ? 0 : 2, useGrouping: "always" });
 
 /** Il costo di una lettura: «0,01 €», con i millesimi quando servono. */
 export const euroAI = (n: number) =>
@@ -166,6 +167,11 @@ export function testoValore(chiave: string, valore: unknown): string {
       return "cliente del gestionale collegato";
   }
   if (Array.isArray(valore)) return `${valore.length} ${valore.length === 1 ? "elemento" : "elementi"}`;
+  // Le tabelle collegate che il lettore della commessa conta soltanto.
+  if (typeof valore === "object" && Object.keys(valore as object).join() === "righe") {
+    const n = Number((valore as { righe: unknown }).righe) || 0;
+    return `${n} già ${n === 1 ? "inserito" : "inseriti"}`;
+  }
   if (typeof valore === "object") {
     return Object.entries(valore as Record<string, unknown>)
       .filter(([c, v]) => !vuoto(v) && !/_id$/.test(c))
@@ -265,6 +271,8 @@ export function contiDellaBarra(piano: PianoCommessa, scrittura: ScritturaCommes
   let pronte = 0;
   for (const area of AREE) {
     for (const [chiave, v] of Object.entries(piano.aree[area] ?? {})) {
+      // In «completa» conta solo quello che si aggiunge.
+      if (giaNellaCommessa(piano, v)) continue;
       if (v.stato !== "manca" && !vuoto(v.valore) && !fuori.has(chiave)) pronte += 1;
     }
   }
@@ -427,11 +435,25 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
       .map((v): VoceControlla | null => {
         const x = piano.aree[area]?.[v.chiave];
         const motivo = escluse.get(v.chiave) ?? null;
+        if (giaNellaCommessa(piano, x)) return null;
         if (!motivo && (!x || x.stato === "manca" || vuoto(x.valore))) return null;
         return { chiave: v.chiave, etichetta: v.etichetta, testo: x ? testoValore(v.chiave, x.valore) : "—", fuori: motivo };
       })
       .filter((x): x is VoceControlla => x !== null),
   })).filter((g) => g.voci.length > 0);
+}
+
+/**
+ * Il piano della sola commessa che si completa (i valori `giaNellaCommessa`): il suo
+ * punteggio è il «prima» di «Completa al 34 % → 61 %».
+ */
+export function pianoDellaCommessa(piano: PianoCommessa): PianoCommessa {
+  const aree: PianoCommessa["aree"] = {};
+  for (const area of AREE) {
+    const solo = Object.entries(piano.aree[area] ?? {}).filter(([, v]) => giaNellaCommessa(piano, v));
+    if (solo.length) aree[area] = Object.fromEntries(solo);
+  }
+  return { ...piano, aree, conflitti: [] };
 }
 
 /**

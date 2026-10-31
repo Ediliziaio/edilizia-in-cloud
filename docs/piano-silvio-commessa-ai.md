@@ -522,6 +522,36 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 
 **Numero**: commesse aperte con fasi datate, da 7 su 465 a 100 entro un mese dall'accensione.
 
+**Lotti 2.1 e 2.3 fatti il 31/10/2026** (ramo `claude/scm-fase2-d5c0b9`, solo in locale; migrazione **non applicata**):
+- **«Completa con Silvio»**: lo stesso popup con `orderId`. Parte da `leggiFrammentiCommessa` (fonte `persona` con l'id
+  della commessa) e, se la commessa non ha fasi ma si capisce il lavoro da tipo, titolo o descrizione, dal modello per tipo
+  di lavoro con la misura dei testi e l'inizio della commessa (`frammentiPerCompletare`). Quello che la commessa ha già
+  (`giaNellaCommessa`) è chiuso: niente matita, 🔒, un'area tutta scritta si raccoglie in una riga «già nella commessa»;
+  il riduttore rifiuta comunque ogni modifica che lo tocca (`modificaBloccata`), le date di inizio non ridatano fasi che la
+  commessa ha già, e la scrittura lo lascia fuori (righe e venditore in «completa» restano nelle escluse col motivo).
+  «Completa» resta spento finché non c'è niente da aggiungere. In testa «Completa al 26 % → 40 %».
+- **Documenti della commessa** (`order_attachments`) in cima alle Fonti: solo quelli che Silvio sa leggere, ognuno con
+  «Leggi · ~0,01 €»; il tocco è il via. Il file si scarica nel browser e passa dal lettore di sempre (si ricarica in
+  silvio-uploads), e dopo «Completa» non si ricopia tra i documenti.
+- La sola lettura della commessa non crea una bozza (niente bozze vuote a ogni apertura); `bozzeDaRiprendere` ha il filtro
+  `{ modo, orderId }`: Nuova commessa riprende le «crea», la commessa le sue «completa» («Riprendi da lì», che rilegge la
+  commessa di adesso sopra la bozza).
+- **Ingressi**: sulla pagina della commessa la riga «Completa al 34 % · manca: fasi, rate e inizio lavori · [Completa con
+  Silvio]» (`CompletaConSilvio`, sotto la striscia di Silvio); nelle Commesse la scheda **«Da completare»** (`?tab=da_completare`).
+  Tutto dietro `silvio_crea_commessa`, solo per chi può modificare le commesse.
+- **«Da completare»**: la funzione `commesse_da_completare(p_company_id, p_order_id, p_limite)` (migrazione
+  `20281106120000`): punteggio e cosa manca con le espressioni di `sqlPunteggio()`/`sqlMancano()` (un test controlla che
+  siano identiche), ordine per data più vicina a oggi (inizio, altrimenti consegna), poi importo; al massimo 200 righe col
+  totale. SECURITY DEFINER con i controlli dentro: sessione, azienda in cui si lavora, `can_edit_orders`, `can_see_order`
+  per riga (chi vede solo le assegnate vede solo quelle), importo solo con `can_view_order_amounts`; chiusa ad anon.
+  Provata in transazioni annullate su Demo 2: 178 commesse in 67 ms; dipendente senza permesso, altra azienda e anon
+  rifiutati; «solo assegnate» senza importi → 2 righe, importi nulli.
+- **«Completa le prossime 5»**: apre il popup sulla prima («2 di 5» nel titolo), «Completa e vai alla prossima» e «Salta»
+  passano alla successiva senza tornare all'elenco; alla fine «4 commesse completate, 1 saltata» e l'elenco si rilegge.
+- Test: `silvioCommessaDaCompletare` (14, logica e migrazione) e `silvioCommessaCompleta` (6, interfaccia).
+- Guardato a 1280 e 390 px con l'anteprima senza login: corretti l'elenco sul telefono (colonne sovrapposte), il titolo del
+  popup troncato sul telefono, «9800 €» senza punto delle migliaia; raccolte le aree già tutte scritte.
+
 ### Fase 3 — Conversazione e più fonti insieme (3 sessioni)
 
 | Lotto | Cosa | Fatto quando |

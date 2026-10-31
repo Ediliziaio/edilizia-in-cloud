@@ -3,9 +3,12 @@
  * (✓ ✋ ❓ ⚠), la ⓘ della fonte di ogni valore, la modifica a mano (sempre da `applica`), i
  * conflitti da scegliere con un tocco e il cliente da collegare.
  * Vedi docs/piano-silvio-commessa-ai.md, 3.2 e 3.4.
+ *
+ * In «Completa» quello che la commessa ha già si vede fatto e chiuso (🔒): niente matita,
+ * si cambia dalla pagina della commessa.
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Info, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { Info, Lock, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +25,7 @@ import {
 } from "../../../shared/silvio-commessa/piano.ts";
 import type { Completezza } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Variabile } from "../../../shared/silvio-commessa/registro.ts";
+import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
   comeSiModifica, daConfermare, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea,
@@ -293,7 +297,8 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
-  const modo = comeSiModifica(v);
+  const bloccata = giaNellaCommessa(piano, valore);
+  const modo = bloccata ? "no" : comeSiModifica(v);
   const idInfo = useId();
   useEffect(() => {
     if (aperta) rif.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
@@ -317,7 +322,14 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
       <div className="flex items-start gap-2">
         <Segno stato={stato} />
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-slate-500">{v.etichetta}</p>
+          <p className="flex items-center gap-1 text-xs text-slate-500">
+            {v.etichetta}
+            {bloccata && (
+              <span className="inline-flex items-center gap-0.5 text-slate-400" title="Già nella commessa: si cambia dalla sua pagina">
+                <Lock className="h-3 w-3" aria-hidden /><span className="sr-only">(già nella commessa, non si cambia qui)</span>
+              </span>
+            )}
+          </p>
           <p className={cn("break-words text-sm", stato === "manca" ? "italic text-slate-400" : "font-medium text-slate-900")}>{testo}</p>
           {valore && stato !== "manca" && !aperta && <Dettaglio chiave={v.chiave} valore={valore.valore} />}
         </div>
@@ -428,14 +440,27 @@ export interface ColonnaCommessaProps {
 export function ColonnaCommessa({ companyId, piano, completezza, evidenziate, aperta, onApri, onModifica }: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
     const righe = righeDellArea(piano, area, completezza);
-    return { area, righe, stato: statoArea(righe) };
+    // In «Completa» un'area che la commessa ha già tutta si raccoglie in una riga: si guarda quello che manca.
+    const chiusa = righe.length > 0 && righe.every((r) => giaNellaCommessa(piano, r.valore));
+    return { area, righe, stato: statoArea(righe), chiusa };
   }), [piano, completezza]);
   const accese = new Set(evidenziate);
   const vuote = aree.filter((a) => !a.righe.length);
+  const [mostrate, setMostrate] = useState<Set<Area>>(() => new Set());
 
   return (
     <div className="space-y-3">
-      {aree.filter((a) => a.righe.length).map(({ area, righe, stato }) => (
+      {aree.filter((a) => a.righe.length).map(({ area, righe, stato, chiusa }) => chiusa && !mostrate.has(area) ? (
+        <section key={area} aria-label={NOMI_AREE[area as Area]} className="flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm shadow-sm">
+          <Segno stato="fatto" />
+          <span className="font-semibold text-slate-900">{NOMI_AREE[area as Area]}</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-slate-500">già nella commessa</span>
+          <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
+          <button type="button" className="shrink-0 rounded px-1.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            aria-label={`Mostra ${NOMI_AREE[area as Area].toLowerCase()}`}
+            onClick={() => setMostrate(new Set([...mostrate, area]))}>Mostra</button>
+        </section>
+      ) : (
         <section key={area} aria-label={NOMI_AREE[area as Area]}
           className={cn("rounded-xl border bg-white p-2 shadow-sm transition-colors duration-700 motion-reduce:transition-none",
             righe.some((r) => accese.has(r.variabile.chiave)) && "border-amber-300")}>

@@ -15,7 +15,8 @@ import { codiciSenzaCosto, type CostoListino } from "@/lib/computo/costiDalListi
 import type { BozzaComputo } from "@/lib/computo/editorNativo";
 import { frammentoDaPreventivo, modelloDelPreventivo, moduloDelPreventivo, MODULI_EDILI } from "./preventivo";
 import { frammentoDaComputo } from "./computo";
-import { frammentoDaCommessa } from "./commessa";
+import { frammentiPerCompletare, type DatiCommessaEsistente } from "./commessa";
+import { attachmentStorage } from "@/components/orders/filePreviewUtils";
 
 // Tabelle che i tipi generati non conoscono tutte (i preventivatori, le sottofasi).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,8 +92,8 @@ export async function leggiFrammentiPreventivo(quoteId: string, inizio?: string 
 const TABELLE_DA_CONTARE = [...new Set(REGISTRO.flatMap((v) => (v.controllo.tipo === "righe" ? v.controllo.tabelle : [])))]
   .filter((t) => !["order_work_phases", "order_installments", "order_items"].includes(t));
 
-/** La commessa esistente come frammento di fonte `persona` (fase 2, «Completa con Silvio»). */
-export async function leggiFrammentoCommessa(orderId: string): Promise<Frammento> {
+/** Le righe della commessa che servono al lettore, lette una volta. */
+async function leggiDatiCommessa(orderId: string): Promise<DatiCommessaEsistente> {
   const order = await una("orders", "*", orderId);
   if (!order) throw new Error("Commessa non trovata, o non hai il permesso di vederla.");
   const [fasi, rate, righe] = await Promise.all([
@@ -111,11 +112,49 @@ export async function leggiFrammentoCommessa(orderId: string): Promise<Frammento
     const { count } = await db.from(t).select("order_id", { count: "exact", head: true }).eq("order_id", orderId);
     conteggi[t] = count ?? 0;
   }));
-  return frammentoDaCommessa({
+  return {
     order,
     fasi: ((fasi.data ?? []) as Riga[]).map((f) => ({ ...f, sottofasi: ((sotto ?? []) as Riga[]).filter((s) => s.phase_id === f.id) })),
     rate: (rate.data ?? []) as Riga[],
     righe: (righe.data ?? []) as Riga[],
     conteggi,
-  });
+  };
+}
+
+/** La commessa esistente come frammento di fonte `persona` (fase 2, «Completa con Silvio»). */
+export async function leggiFrammentoCommessa(orderId: string): Promise<Frammento> {
+  return frammentiPerCompletare(await leggiDatiCommessa(orderId))[0];
+}
+
+/** La commessa e, se non ha fasi e si capisce il lavoro, il modello per tipo di lavoro. */
+export async function leggiFrammentiCommessa(orderId: string): Promise<Frammento[]> {
+  return frammentiPerCompletare(await leggiDatiCommessa(orderId));
+}
+
+/** Un documento già allegato alla commessa (`order_attachments`). */
+export interface AllegatoCommessa {
+  id: string;
+  nome: string;
+  path: string;
+  mime: string | null;
+  dimensione: number | null;
+}
+
+/** I documenti della commessa, i più recenti per primi (al massimo 50). */
+export async function elencaAllegatiCommessa(orderId: string): Promise<AllegatoCommessa[]> {
+  const { data, error } = await db.from("order_attachments").select("id, file_name, file_url, file_type, file_size")
+    .eq("order_id", orderId).order("created_at", { ascending: false }).limit(50);
+  if (error) throw new Error(`Non riesco a leggere i documenti della commessa: ${error.message}`);
+  return ((data ?? []) as Riga[]).map((a) => ({
+    id: String(a.id), nome: String(a.file_name ?? "documento"), path: String(a.file_url ?? ""),
+    mime: (a.file_type as string | null) ?? null, dimensione: (a.file_size as number | null) ?? null,
+  }));
+}
+
+/** Scarica un documento della commessa come File, per farlo leggere a Silvio. */
+export async function scaricaAllegatoCommessa(a: AllegatoCommessa): Promise<File> {
+  const { bucket, path } = attachmentStorage(a.path);
+  const { data, error } = await supabase.storage.from(bucket).download(path);
+  if (error || !data) throw new Error("Documento non trovato tra quelli della commessa.");
+  return new File([data], a.nome, { type: a.mime || data.type || "" });
 }

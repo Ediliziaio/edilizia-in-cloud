@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { ServiziSilvioCommessa } from "@/components/silvio-commessa/servizi";
 import type { EsitoLettura } from "@/lib/silvio-commessa/leggiDocumento";
+import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 
 vi.mock("@/hooks/useCompanyCustomers", () => ({
   useCompanyCustomers: () => ({ data: [{ id: "c0000000-0000-4000-a000-000000000001", first_name: "Mario", last_name: "Rossi", email: "mario@esempio.it" }] }),
@@ -99,7 +100,10 @@ function servizi(over: Partial<ServiziSilvioCommessa> = {}) {
       riconosciuto: { lettore: "silvio_commessa", fonte: "testo", ai: true, immagine: false, motivo: "testo" }, frammenti: [],
     })),
     registraCorrezioni: vi.fn(async () => {}),
-    db,
+    frammentiCommessa: vi.fn(async () => []),
+    elencaAllegati: vi.fn(async () => []),
+    scaricaAllegato: vi.fn(async () => new File([], "vuoto")),
+    db: db as unknown as ClientBozze,
     ...over,
   };
   return { s, db };

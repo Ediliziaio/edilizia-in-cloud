@@ -9,11 +9,15 @@
  * Si apre già al lavoro con la fonte che riceve (`iniziale`); senza, propone di riprendere
  * l'ultima bozza aperta. La bozza si salva da sola; «Crea» la scrive con una RPC e apre la
  * commessa.
+ *
+ * Con `orderId` è «Completa con Silvio» (fase 2, lotto 2.1): parte dalla commessa, mostra
+ * chiuso quello che ha già, propone il resto (anche dai suoi documenti) e «Completa» aggiunge
+ * senza toccare niente. Con `sequenza` è un passo di «Completa le prossime 5» (lotto 2.3).
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, Sparkles, Undo2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, SkipForward, Sparkles, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -27,6 +31,7 @@ import { ColonnaChat } from "./ColonnaChat";
 import { ColonnaCommessa } from "./ColonnaCommessa";
 import {
   contiDellaBarra, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, marginePrevisto, NOMI_AREE,
+  pianoDellaCommessa,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
@@ -43,6 +48,14 @@ export interface CreaConSilvioDialogProps {
   servizi?: ServiziSilvioCommessa;
   /** Dopo «Crea». Di serie apre la commessa. */
   onCreata?: (orderId: string) => void;
+  /** «Completa con Silvio»: la commessa da completare. */
+  orderId?: string | null;
+  /** Come si chiama la commessa nel titolo («ORD-2026-034»). */
+  etichettaCommessa?: string | null;
+  /** Dopo «Completa». Di serie chiude il popup e ricarica la pagina della commessa. */
+  onCompletata?: (orderId: string) => void;
+  /** «Completa le prossime 5»: a che punto siamo, e come saltare questa commessa. */
+  sequenza?: { posizione: number; totale: number; onSalta: () => void } | null;
 }
 
 /** Il nome di una bozza da riprendere: il cliente, o il titolo. */
@@ -56,9 +69,15 @@ const campoDiTesto = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
-  const { open, onOpenChange, companyId, userId, iniziale, servizi = serviziVeri } = props;
+  const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null, sequenza = null } = props;
+  const completa = !!orderId;
+  const { etichettaCommessa, iniziale: daFuori } = props;
+  const iniziale = useMemo((): FonteDaAggiungere | null | undefined => (orderId
+    ? { tipo: "commessa", id: orderId, etichetta: etichettaCommessa ? `commessa ${etichettaCommessa}` : undefined }
+    : daFuori), [orderId, etichettaCommessa, daFuori]);
   const navigate = useNavigate();
-  const b = useBozzaSilvio({ companyId, userId, servizi });
+  const queryClient = useQueryClient();
+  const b = useBozzaSilvio({ companyId, userId, servizi, orderId });
   const [scheda, setScheda] = useState<Scheda>(iniziale ? "commessa" : "fonti");
   const [aperta, setAperta] = useState<string | null>(null);
   const [controlla, setControlla] = useState(false);
@@ -75,16 +94,23 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     b.aggiungi([iniziale]);
   }, [iniziale, b]);
 
+  // Crea e completa non si mescolano: Nuova commessa riprende le bozze «crea», la commessa le sue.
   const daRiprendere = useQuery({
-    queryKey: ["silvio-commessa", "bozze", companyId, userId],
-    enabled: open && !iniziale,
+    queryKey: ["silvio-commessa", "bozze", companyId, userId, orderId ?? "crea"],
+    enabled: open && (completa || !iniziale),
     retry: false,
     staleTime: 0,
-    queryFn: async () => (await bozzeDaRiprendere(companyId, servizi.db)).filter((x) => x.modo === "crea" && x.created_by === userId),
+    queryFn: async () => (await bozzeDaRiprendere(companyId, servizi.db, new Date(),
+      completa ? { modo: "completa", orderId: orderId! } : { modo: "crea" }))
+      .filter((x) => x.created_by === userId && (completa ? x.modo === "completa" && x.order_id === orderId : x.modo === "crea")),
   });
-  const ripresa = !iniziale && !rifiutoRipresa && !b.fonti.length && !b.idBozza ? daRiprendere.data?.[0] : undefined;
+  const intatta = completa
+    ? !b.storia.length && b.fonti.every((f) => f.tipo === "commessa")
+    : !iniziale && !b.fonti.length;
+  const ripresa = intatta && !rifiutoRipresa && !b.idBozza ? daRiprendere.data?.[0] : undefined;
 
   const completezza = useMemo(() => completezzaPiano(b.piano), [b.piano]);
+  const prima = useMemo(() => (completa ? completezzaPiano(pianoDellaCommessa(b.piano)).punteggio : null), [completa, b.piano]);
   const costo = b.fonti.reduce((s, f) => s + (f.costoEur ?? 0), 0);
   const conti = contiDellaBarra(b.piano, b.scrittura, costo);
   const domanda = domandaDiSilvio(b.piano, b.scrittura);
@@ -114,10 +140,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     try {
       const fatto = await b.crea();
       if (fatto.allegatiNonRiusciti.length) setEsito(fatto);
-      else {
-        onOpenChange(false);
-        (props.onCreata ?? ((id: string) => navigate(`/azienda/ordini/${id}`)))(fatto.order_id);
-      }
+      else dopo(fatto.order_id);
     } catch (e) {
       const testo = e instanceof ErroreBozza ? e.message : messaggioErrore(e);
       setErrore(testo);
@@ -126,6 +149,22 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
       setCreando(false);
     }
   };
+
+  /** Dopo la scrittura: la commessa nuova si apre; quella completata si ricarica, o si passa alla prossima. */
+  const dopo = (id: string) => {
+    if (completa) {
+      if (props.onCompletata) props.onCompletata(id);
+      else {
+        // Sulla pagina della commessa: tutto quello che mostra va riletto.
+        void queryClient.invalidateQueries();
+        onOpenChange(false);
+      }
+      return;
+    }
+    onOpenChange(false);
+    (props.onCreata ?? ((x: string) => navigate(`/azienda/ordini/${x}`)))(id);
+  };
+  const avanti = sequenza && sequenza.posizione < sequenza.totale;
 
   const riallega = async () => {
     if (!esito) return;
@@ -162,10 +201,25 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-white px-4 py-3 pr-12 lg:px-6">
           <div className="min-w-0 flex-1">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 lg:text-lg">
-              <Sparkles className="h-5 w-5 shrink-0 text-orange-600" aria-hidden />Nuova commessa con Silvio
+              <Sparkles className="h-5 w-5 shrink-0 text-orange-600" aria-hidden />
+              <span className="min-w-0 break-words sm:truncate">
+                {completa
+                  ? <>
+                    <span className="sm:hidden" aria-hidden>Completa <span className="whitespace-nowrap">{props.etichettaCommessa ?? "la commessa"}</span></span>
+                    <span className="max-sm:sr-only">{`Completa ${props.etichettaCommessa ? `la commessa ${props.etichettaCommessa}` : "la commessa"} con Silvio`}</span>
+                  </>
+                  : "Nuova commessa con Silvio"}
+              </span>
+              {sequenza && (
+                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                  {sequenza.posizione} di {sequenza.totale}
+                </span>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 max-sm:sr-only">
-              Carica quello che hai: Silvio compone la commessa, tu controlli e crei.
+              {completa
+                ? "Quello che c'è già resta com'è: Silvio propone solo quello che manca, anche dai documenti della commessa."
+                : "Carica quello che hai: Silvio compone la commessa, tu controlli e crei."}
             </DialogDescription>
           </div>
           <p className="text-xs text-slate-500 max-sm:order-last max-sm:w-full" role="status">
@@ -180,10 +234,12 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
           </Button>
           <dl className="flex w-full flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600 lg:w-auto">
             <div className="flex items-center gap-2">
-              <dt>Completezza</dt>
+              <dt>{completa ? "Completa al" : "Completezza"}</dt>
               <dd className="flex items-center gap-2 font-semibold text-slate-900">
                 <Progress value={completezza.punteggio} className="h-1.5 w-20" aria-label={`Completezza ${completezza.punteggio} su 100`} />
-                {completezza.punteggio}/100
+                {prima != null && prima !== completezza.punteggio
+                  ? <span>{prima} % <span className="text-slate-400" aria-hidden>→</span><span className="sr-only">, con Silvio</span> {completezza.punteggio} %</span>
+                  : completa ? `${completezza.punteggio} %` : `${completezza.punteggio}/100`}
               </dd>
             </div>
             {margine && <div className="flex gap-1"><dt>Margine previsto</dt><dd className="font-semibold text-slate-900">{euro(margine.euro)} ({margine.percento} %)</dd></div>}
@@ -194,9 +250,13 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         {ripresa && (
           <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label="Bozza da riprendere">
             <p className="min-w-0 flex-1 text-amber-900">
-              Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(ripresa.updated_at.slice(0, 10))}.
+              {completa
+                ? <>Avevi già cominciato a completarla il {dataBreve(ripresa.updated_at.slice(0, 10))}.</>
+                : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(ripresa.updated_at.slice(0, 10))}.</>}
             </p>
-            <Button type="button" size="sm" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>Riprendi la commessa</Button>
+            <Button type="button" size="sm" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
+              {completa ? "Riprendi da lì" : "Riprendi la commessa"}
+            </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setRifiutoRipresa(true)}>Ricomincia</Button>
           </div>
         )}
@@ -218,7 +278,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
           <section className="min-h-0 flex-1 overflow-y-auto p-6" aria-label="Commessa creata">
             <div className="mx-auto max-w-lg space-y-4 rounded-xl border bg-white p-6 shadow-sm">
               <p className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden />La commessa è nata
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden />{completa ? "La commessa è completata" : "La commessa è nata"}
               </p>
               <p className="text-sm text-slate-600">
                 {esito.allegati ? `${esito.allegati} ${esito.allegati === 1 ? "fonte è" : "fonti sono"} tra i documenti della commessa. ` : ""}
@@ -234,8 +294,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                     {riallegando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}Riprova
                   </Button>
                 )}
-                <Button type="button" onClick={() => { onOpenChange(false); (props.onCreata ?? ((id: string) => navigate(`/azienda/ordini/${id}`)))(esito.order_id); }}>
-                  Apri la commessa
+                <Button type="button" onClick={() => dopo(esito.order_id)}>
+                  {completa ? (avanti ? "Vai alla prossima" : "Chiudi") : "Apri la commessa"}
                 </Button>
               </div>
             </div>
@@ -247,7 +307,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 <Button type="button" variant="ghost" size="sm" className="gap-1" onClick={() => setControlla(false)}>
                   <ArrowLeft className="h-4 w-4" aria-hidden />Torna alla commessa
                 </Button>
-                <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">Cosa nascerà</h3>
+                <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? "Cosa si aggiunge" : "Cosa nascerà"}</h3>
               </div>
               {elencoControlla(b.piano, b.scrittura).map((g) => (
                 <section key={g.area} className="rounded-xl border bg-white p-3 shadow-sm" aria-label={NOMI_AREE[g.area]}>
@@ -264,7 +324,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </section>
               ))}
               {!b.scrittura.fasi.length && !b.scrittura.rate.length && !Object.keys(b.scrittura.ordine).length && (
-                <p className="text-sm text-slate-500">Ancora niente: carica una fonte o scrivi due righe sul lavoro.</p>
+                <p className="text-sm text-slate-500">
+                  {completa ? "Ancora niente da aggiungere: rispondi alle domande di Silvio o fagli leggere un documento." : "Ancora niente: carica una fonte o scrivi due righe sul lavoro."}
+                </p>
               )}
             </div>
           </section>
@@ -273,7 +335,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             <section id="pannello-fonti" role="tabpanel" aria-label="Fonti"
               className={cn("min-h-0 overflow-y-auto p-4", scheda !== "fonti" && "max-lg:hidden")}>
               <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">Fonti</h3>
-              <ColonnaFonti companyId={companyId} fonti={b.fonti} servizi={servizi} onAggiungi={b.aggiungi}
+              <ColonnaFonti companyId={companyId} orderId={orderId} fonti={b.fonti} servizi={servizi} onAggiungi={b.aggiungi}
                 onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte} />
             </section>
             <section id="pannello-chat" role="tabpanel" aria-label="Chat con Silvio"
@@ -301,21 +363,29 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 {" · "}costo AI {euroAI(conti.costoEur)}
               </p>
               <div className="flex gap-2 max-sm:w-full">
+                {sequenza && (
+                  <Button type="button" variant="ghost" className="gap-1 max-sm:flex-1" disabled={creando} onClick={sequenza.onSalta}>
+                    <SkipForward className="h-4 w-4" aria-hidden />Salta
+                  </Button>
+                )}
                 <Button type="button" variant="outline" className="gap-1 max-sm:flex-1" aria-pressed={controlla}
                   onClick={() => setControlla(!controlla)}>
                   <ClipboardCheck className="h-4 w-4" aria-hidden />Controlla
                 </Button>
                 <Button type="button" className="gap-1 bg-orange-600 hover:bg-orange-700 max-sm:flex-1"
                   disabled={creando || motivi.length > 0} aria-describedby={motivi.length ? "silvio-crea-motivi" : undefined}
+                  aria-label={completa && avanti && !creando ? "Completa e vai alla prossima" : undefined}
                   onClick={() => void crea()}>
                   {creando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                  {creando ? "Creo…" : "Crea ▸"}
+                  {completa
+                    ? (creando ? "Completo…" : avanti ? <><span className="sm:hidden" aria-hidden>Completa ▸</span><span className="max-sm:hidden" aria-hidden>Completa e vai alla prossima ▸</span></> : "Completa ▸")
+                    : (creando ? "Creo…" : "Crea ▸")}
                 </Button>
               </div>
             </div>
             {motivi.length > 0 && (
               <p id="silvio-crea-motivi" className="mt-1 text-xs text-slate-500">
-                Per creare: {motivi.map((m) => m.charAt(0).toLowerCase() + m.slice(1)).join("; ")}.
+                {completa ? "Per completare" : "Per creare"}: {motivi.map((m) => m.charAt(0).toLowerCase() + m.slice(1)).join("; ")}.
               </p>
             )}
           </footer>
