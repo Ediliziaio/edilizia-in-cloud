@@ -224,7 +224,7 @@ Senza questa scheda non sappiamo se l'automatico funziona.
 
 ## 5. Come è fatto sotto
 
-**Un registro delle variabili, scritto una volta.** In `shared/commessaVariabili.ts` ogni
+**Un registro delle variabili, scritto una volta.** In `shared/silvio-commessa/registro.ts` ogni
 variabile della sezione 2 ha:
 - l'area;
 - la colonna o la tabella;
@@ -273,8 +273,8 @@ Non basta nasconderle nell'interfaccia.
 
 ### 5.1 Un piano solo, tanti frammenti
 
-Il cuore è un tipo condiviso, `shared/pianoCommessa.ts` (schema zod, usato da browser,
-edge function e test):
+Il cuore è un tipo condiviso, `shared/silvio-commessa/piano.ts` (TypeScript senza
+dipendenze, usato da browser, edge function e test; fusione in `fondi.ts`):
 
 - `PianoCommessa`: le 14 aree del registro, ogni valore con `{ valore, fonte, fiducia,
   stato: fatto | proposta | manca | attenzione }`;
@@ -326,11 +326,70 @@ Ogni fase ha **un numero che dice se ha funzionato**, misurato sulle aziende rea
 
 | Lotto | Cosa | Fatto quando |
 |---|---|---|
-| **0.1** | Registro delle variabili (`commessaVariabili.ts`), `PianoCommessa`, `fondi`, `applica`, con i test | ogni colonna di `orders` è classificata; fusione e conflitti provati su casi scritti |
+| **0.1** | Registro delle variabili (`registro.ts`), `PianoCommessa`, `fondi`, `applica`, con i test | ogni colonna di `orders` è classificata; fusione e conflitti provati su casi scritti |
 | **0.2** | **Punteggio di completezza** di una commessa, calcolato dal registro (0–100, con l'elenco di cosa manca), e la query di partenza | per le 465 commesse aperte esce il punteggio; media e distribuzione scritte qui |
 | **0.3** | Registro delle correzioni `silvio_correzioni` (valore proposto da Silvio, valore tenuto, area, fonte) | ogni modifica fatta nel popup lascia una riga: è la misura della qualità di Silvio e la materia prima per farlo imparare (fase 6) |
 
 **Numero**: nessuno, è la base. Senza 0.2 e 0.3 le fasi dopo non si possono giudicare.
+
+**Fatto il 31/10/2026** (ramo `claude/scm-fase0-747b69`, solo in locale):
+- `shared/silvio-commessa/registro.ts`: 60 variabili nelle 14 aree (56 colonne di `orders`, il resto tabelle collegate), ognuna con colonne o
+  tabella, fonti, livello e controllo «è compilata?»; le 18 colonne di `orders` che Silvio
+  non compila stanno in `COLONNE_IGNORATE` col motivo (tecniche, cestino, consuntivo:
+  pagamenti incassati e avanzamento). Il test `silvioCommessaRegistro` legge le colonne
+  dai tipi generati e fallisce se una colonna non ha posto.
+- `shared/silvio-commessa/fondi.ts`: `fondi`, `applica`, `annulla`. Il nome del file
+  del registro e del piano non è quello scritto in 5 e 5.1 (`commessaVariabili.ts`,
+  `pianoCommessa.ts`): tutto sta in `shared/silvio-commessa/`, niente zod per ora.
+- `shared/silvio-commessa/completezza.ts`: punteggio sulla commessa vera, sulla bozza e
+  in SQL, dallo stesso registro.
+- Migrazione `20281106090000_silvio_correzioni.sql` (provata in una transazione
+  annullata con un utente di Demo 2: scrive sulla sua azienda; rifiuta commessa di
+  un'altra azienda, scrittura a nome d'altri, chiave d'un'altra area, modifiche, anon)
+  e `src/lib/silvio-commessa/correzioni.ts`. **Non applicata**: va applicata con
+  `apply_migration` e riallineata prima del push.
+
+**Punto di partenza misurato il 31/10/2026** (aziende reali, escluse quelle con «demo»
+nel nome; commesse non cancellate e non `completato`: **426 commesse in 11 aziende**.
+Le 465 della sezione 1 contavano anche le 39 completate). Peso totale 42 punti su 30
+variabili; le altre hanno peso 0 (sempre compilate, derivate, o valide solo per alcune
+commesse: bonus, ditte, mezzi, POS).
+
+| | |
+|---|---|
+| **Media** | **32,4 / 100** |
+| Mediana | 33 |
+| Minimo – massimo | 17 – 64 |
+
+| Punteggio | 10–19 | 20–29 | 30–39 | 40–49 | 50–59 | 60–69 | 70+ |
+|---|---|---|---|---|---|---|---|
+| Commesse | 8 | 79 | **327** | 4 | 4 | 4 | 0 |
+
+Il 97 % delle commesse sta sotto 40: hanno l'anagrafica e l'importo, e quasi niente
+del resto. Compilate, per variabile (% delle 426):
+
+| Area | Variabile | % | | Area | Variabile | % |
+|---|---|---|---|---|---|---|
+| identità | numero, titolo | 100 | | fasi | fasi | 2,8 |
+| identità | tipo di lavoro | 0,2 | | fasi | date delle fasi | 1,6 |
+| identità | descrizione lavori | 0 | | fasi | inizio lavori | 4,0 |
+| identità | sede | 0,2 | | fasi | fine lavori | 2,3 |
+| cliente | cliente collegato | 96,0 | | fasi | consegna prevista | 22,8 |
+| cliente | nome, contatto, indirizzo | 92–95 | | persone | responsabile | 77,2 |
+| cantiere | indirizzo del cantiere | 3,1 | | persone | capomastro | 0 |
+| cantiere | posizione sulla mappa | 0,7 | | persone | squadra | 2,8 |
+| economia | importo > 0 | 88,3 | | costi | costi previsti | 0 |
+| economia | IVA | 99,8 | | sicurezza | adempimenti | 0 |
+| economia | righe | 1,2 | | SAL e scadenze | scadenze previsionali | 0 |
+| pagamenti | modalità | 100 | | comunicazione | prossima azione | 0 |
+| pagamenti | rate | 3,8 | | comunicazione | canale, attività | 0,7–1,6 |
+
+Da notare: l'indirizzo del **cantiere** c'è nel 3 % dei casi, quello del cliente nel 92 %
+(Silvio può proporre il secondo come primo, 🟡). Il SAL non si usa: 0 righe in `sal` e
+`appalto_sal`, 1 in `sal_records` (decisione 6 della sezione 7: la proposta regge).
+
+La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
+`completezza.ts`), con il filtro qui sopra; solo SELECT.
 
 ### Fase 1 — Crea la commessa da qualsiasi documento (5,5 sessioni) · prima pubblicazione
 

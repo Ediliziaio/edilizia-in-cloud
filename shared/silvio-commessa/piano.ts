@@ -77,6 +77,11 @@ export type PianoCommessa = {
   aree: Partial<Record<Area, Record<string, Valore>>>;
   conflitti: Conflitto[];
   fonti: Fonte[];
+  /**
+   * Avvisi dei lettori e della fusione («chiave sconosciuta…», «pagina 7 illeggibile»),
+   * con la fonte davanti. Aggiunto nella fase 0: `fondi` non scarta niente in silenzio.
+   */
+  avvisi?: string[];
 };
 
 /** Quello che un lettore restituisce: pezzi di aree, mai un piano intero. */
