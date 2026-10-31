@@ -33,7 +33,7 @@ import {
   type FaseStorica, type SchedaSicurezza,
 } from "@/lib/orders/ditteLavori";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
-import { totaleElencoLavori, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { totaleElencoLavori, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 // Tabelle recenti, non ancora tutte nei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -465,6 +465,8 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         vesteContratto(companyId),
       ]);
       if (error) throw error;
+      // Lo standard dell'azienda per gli articoli, sotto i testi propri del contratto.
+      const { data: modello } = await db.from("subappalto_modello_contratto").select("articoli").eq("company_id", companyId).maybeSingle();
       const indirizzo = az ? [[az.indirizzo_via, az.indirizzo_numero_civico].filter(Boolean).join(" "), [az.indirizzo_cap, az.indirizzo_comune, az.indirizzo_provincia ? `(${az.indirizzo_provincia})` : ""].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "";
       const dati: DatiContrattoSubappalto = {
         numero: c.numero_contratto, dataStipula: c.data_stipula,
@@ -479,6 +481,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         responsabileImpresa: c.responsabile_impresa, referenteSubappaltatore: c.referente_subappaltatore, obblighi: c.obblighi,
         modalitaPagamento: c.modalita_pagamento, penali: c.penali, garanzie: c.garanzie, durataGaranziaMesi: Number(c.durata_garanzia_mesi) || 12,
         note: c.note, elencoLavori: Array.isArray(c.elenco_lavori) ? c.elenco_lavori : [],
+        articoliPersonalizzati: unisciArticoliPersonalizzati(modello?.articoli, c.articoli_personalizzati),
       };
       const { generaPdfContrattoSubappalto } = await import("@/components/subappaltatori/ContrattoSubappaltoPDF");
       const blob = await generaPdfContrattoSubappalto(dati);

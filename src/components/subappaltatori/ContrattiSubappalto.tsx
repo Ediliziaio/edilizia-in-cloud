@@ -28,8 +28,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
-import { costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { generaPdfContrattoSubappalto, generaPdfElencoCantiere } from "./ContrattoSubappaltoPDF";
+import { CondizioniContrattoDialog } from "./CondizioniContrattoDialog";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { riepilogoContratto, type RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
 
@@ -60,6 +61,8 @@ export interface ContrattoCompleto {
   firmato_il: string | null;
   firmato_da: string | null;
   pdf_path: string | null;
+  /** Testi degli articoli propri di questo contratto: {titolo: testo}. */
+  articoli_personalizzati?: unknown;
   /** Allegato A: i lavori accettati, uno per uno (31/10/2026). */
   elenco_lavori?: RigaElencoLavori[] | null;
   commessa: { order_code: string | null; description: string | null; work_address: string | null; client_name: string | null; client_company: string | null } | null;
@@ -206,6 +209,7 @@ export function ContrattiSubappalto({
   const [form, setForm] = useState<FormContratto>(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
   const [stampa, setStampa] = useState<{ html: string; nome: string; pdf: () => Promise<Blob> } | null>(null);
   const [collega, setCollega] = useState<string | null>(null);
+  const [condizioni, setCondizioni] = useState<ContrattoCompleto | null>(null);
   // Variante tracciata: nuovo importo e oneri di un contratto con base lavori registrata.
   const [variante, setVariante] = useState<{ c: ContrattoCompleto; importo: string; oneri: string; motivo: string } | null>(null);
   // Fattura scelta nel collegamento: poi si sceglie il SAL che paga.
@@ -286,6 +290,15 @@ export function ContrattiSubappalto({
     queryKey: ["contratto-sub-veste", companyId],
     queryFn: () => vesteContratto(companyId),
     enabled: contratti.length > 0, staleTime: 10 * 60_000,
+  });
+  // Lo standard dell'azienda per gli articoli del contratto (vuoto = testo di base).
+  const { data: modelloArticoli = {} } = useQuery({
+    queryKey: ["subappalto-modello-contratto", companyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("subappalto_modello_contratto" as never).select("articoli").eq("company_id", companyId).maybeSingle();
+      return unisciArticoliPersonalizzati((data as { articoli?: unknown } | null)?.articoli, {});
+    },
+    enabled: !!companyId && contratti.length > 0, staleTime: 5 * 60_000,
   });
   const { data: ivaDitta = 0, isLoading: caricoIva } = useQuery({
     queryKey: ["contratto-sub-iva-ditta", companyId, sub.campo_subappaltatore_id ?? null],
@@ -431,6 +444,7 @@ export function ContrattiSubappalto({
         referenteSubappaltatore: c.referente_subappaltatore, obblighi: c.obblighi, modalitaPagamento: c.modalita_pagamento,
         penali: c.penali, garanzie: c.garanzie, durataGaranziaMesi: c.durata_garanzia_mesi, note: c.note,
         elencoLavori: Array.isArray(c.elenco_lavori) ? c.elenco_lavori : [],
+        articoliPersonalizzati: unisciArticoliPersonalizzati(modelloArticoli, c.articoli_personalizzati),
     };
   };
 
@@ -650,6 +664,9 @@ export function ContrattiSubappalto({
                 {permessiLavori.canViewCosts && permessiLavori.canViewSubappaltatoriAmministrazione && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
                 <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
                 <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
+                <Button size="sm" variant="ghost" className="gap-1" title="Riscrivi gli articoli del contratto, per questo subappaltatore o come standard dell'azienda" onClick={() => setCondizioni(c)}>
+                  <FileText className="h-3.5 w-3.5" />Condizioni
+                </Button>
                 {conBase.includes(c.id) && (
                   <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders}
                     title="Cambia importo e oneri del contratto con una variante tracciata"
@@ -668,6 +685,25 @@ export function ContrattiSubappalto({
       })}
         </div><DialogFooter className="border-t bg-background p-3"><Button variant="outline" onClick={chiudiDettaglio}>Torna ai contratti</Button></DialogFooter></DialogContent>
       </Dialog>
+
+      {condizioni && (
+        <CondizioniContrattoDialog
+          key={condizioni.id}
+          companyId={companyId}
+          contrattoId={condizioni.id}
+          dati={{ ...datiContratto(condizioni), articoliPersonalizzati: {} }}
+          modello={modelloArticoli}
+          personalizzati={unisciArticoliPersonalizzati({}, condizioni.articoli_personalizzati)}
+          bloccato={condizioni.firmato_il
+            ? "Contratto firmato: le sue condizioni non si cambiano più. Puoi ancora aggiornare lo standard dell'azienda."
+            : ["pending", "otp_verified"].includes(richiestaDi(condizioni.id)?.status ?? "")
+              ? "Il contratto è in firma: annulla la richiesta di firma prima di cambiarne le condizioni."
+              : null}
+          puoScrivere={!permessiLavori.solaLettura && permessiLavori.canEditOrders}
+          onClose={() => setCondizioni(null)}
+          onSalvato={invalida}
+        />
+      )}
 
       {/* Variante tracciata */}
       <Dialog open={!!variante} onOpenChange={(v) => { if (!v && !registraVariante.isPending) setVariante(null); }}>
@@ -740,9 +776,9 @@ export function ContrattiSubappalto({
               </Select>
             </div>
             <div className="space-y-1 sm:col-span-2"><Label>Obblighi e responsabilità specifici</Label><Textarea rows={2} {...campo("obblighi")} placeholder="es. fornitura dei materiali, pulizia giornaliera, smaltimento dei rifiuti" /></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Pagamenti</Label><Textarea rows={2} {...campo("modalita_pagamento")} placeholder="Standard: bonifico a 60 giorni data fattura, previa verifica del SAL" /></div>
-            <div className="space-y-1"><Label>Penali</Label><Textarea rows={2} {...campo("penali")} placeholder="Standard: 1‰ al giorno, massimo 10%" /></div>
-            <div className="space-y-1"><Label>Garanzie e polizze</Label><Textarea rows={2} {...campo("garanzie")} placeholder="Standard: polizza RCT/RCO" /></div>
+            <div className="space-y-1 sm:col-span-2"><Label>Pagamenti</Label><Textarea rows={2} {...campo("modalita_pagamento")} placeholder="Vuoto = standard: SAL dall'elenco pagamenti, fattura pagata entro 7 giorni lavorativi" /></div>
+            <div className="space-y-1"><Label>Penali</Label><Textarea rows={2} {...campo("penali")} placeholder="Vuoto = standard: 200 €/giorno fino al 10° giorno, poi 400 €/giorno" /></div>
+            <div className="space-y-1"><Label>Garanzie e polizze</Label><Textarea rows={2} {...campo("garanzie")} placeholder="Si aggiunge alle garanzie di legge (polizza RC minimo 500.000 €)" /></div>
             <div className="space-y-1 sm:col-span-2"><Label>Altre pattuizioni</Label><Textarea rows={2} {...campo("note")} /></div>
           </div>
           <DialogFooter>

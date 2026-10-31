@@ -58,6 +58,28 @@ export interface DatiContrattoSubappalto {
   note: string | null;
   /** Allegato A: i lavori uno per uno, con quantità e prezzi. Vuoto = solo la descrizione. */
   elencoLavori?: RigaElencoLavori[];
+  /**
+   * Testi personalizzati degli articoli, per titolo (standard dell'azienda unito a quello del contratto, vedi
+   * `unisciArticoliPersonalizzati`). Il testo sostituisce i paragrafi dell'articolo; il titolo resta.
+   */
+  articoliPersonalizzati?: Record<string, string>;
+}
+
+/** Testo personalizzato → paragrafi: una riga vuota separa i paragrafi. */
+export function paragrafiDaTesto(testo: string): string[] {
+  return testo.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+}
+
+/** Standard dell'azienda e testi del contratto: vince il contratto; un testo vuoto non conta. */
+export function unisciArticoliPersonalizzati(modello: unknown, contratto: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const fonte of [modello, contratto]) {
+    if (!fonte || typeof fonte !== "object" || Array.isArray(fonte)) continue;
+    for (const [titolo, testo] of Object.entries(fonte as Record<string, unknown>)) {
+      if (typeof testo === "string" && testo.trim()) out[titolo] = testo.trim();
+    }
+  }
+  return out;
 }
 
 /** Le righe dell'elenco divise per fase, nell'ordine in cui arrivano, col subtotale. */
@@ -246,6 +268,15 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
     ] },
   ];
   if (t(d.note)) art.push({ titolo: "Altre pattuizioni", paragrafi: [t(d.note)] });
+  // Testi personalizzati (standard dell'azienda o del singolo contratto): sostituiscono i paragrafi, non il titolo.
+  const pers = d.articoliPersonalizzati ?? {};
+  for (const a of art) {
+    const testo = pers[a.titolo];
+    if (typeof testo === "string" && testo.trim()) {
+      const par = paragrafiDaTesto(testo);
+      if (par.length) a.paragrafi = par;
+    }
+  }
   art.push({ titolo: "Allegati", paragrafi: [
     `Sono allegati al contratto: ${d.elencoLavori?.length ? "Allegato A – Elenco dei lavori" : "elenco dei lavori"} e modalità di pagamento; visura camerale, DURC e certificato assicurativo del Subappaltatore; cronoprogramma; disegni tecnici di cantiere; schede tecniche di materiali e componenti.`,
   ] });
@@ -362,4 +393,28 @@ export function costruisciElencoCantiereHtml(d: DatiContrattoSubappalto): string
   ${gruppi.map((g) => `<tr class="fase"><td colspan="3">${esc(g.fase)}</td></tr>${g.righe.map((r) => `<tr><td>${esc(r.descrizione)}</td><td>${esc(r.unita)}</td><td class="n">${esc(r.quantita)}</td></tr>`).join("")}`).join("")}
   </tbody></table>
 </body></html>`;
+}
+
+/**
+ * Gli articoli il cui testo standard dipende dai dati del contratto (importi, date, nomi): si personalizzano
+ * solo nel singolo contratto, mai come standard dell'azienda (altrimenti gli importi di uno finirebbero in tutti).
+ * Si riconoscono confrontando il testo prodotto da due contratti con dati diversi.
+ */
+export function articoliConDatiDelContratto(): Set<string> {
+  const base = (n: number): DatiContrattoSubappalto => ({
+    numero: `N${n}`, dataStipula: `202${n}-01-0${n}`,
+    committente: { ragioneSociale: `Impresa ${n}`, partitaIva: `${n}`, indirizzo: `Via ${n}`, rappresentante: `R${n}` },
+    subappaltatore: { ragioneSociale: `Ditta ${n}`, partitaIva: `${n}`, indirizzo: `Via ${n}`, email: "", pec: "" },
+    ivaPct: 0, commessa: { codice: `C${n}`, descrizione: `D${n}`, indirizzoCantiere: `Cantiere ${n}`, cliente: `Cliente ${n}` },
+    descrizioneLavori: `Lavori ${n}`, importo: 1000 * n, oneriSicurezza: 10 * n, ritenutaPct: n, dataInizio: `202${n}-02-0${n}`,
+    dataFinePrevista: `202${n}-03-0${n}`, responsabileImpresa: `Resp ${n}`, referenteSubappaltatore: `Ref ${n}`, obblighi: null,
+    modalitaPagamento: null, penali: null, garanzie: null, durataGaranziaMesi: 10 + n, note: null,
+    elencoLavori: [{ fase: "F", descrizione: `L${n}`, unita: "m", quantita: n, prezzo: 1000, importo: 1000 * n }],
+  });
+  const a = articoliContratto(base(1)), b = articoliContratto(base(2));
+  const out = new Set<string>();
+  a.forEach((x, i) => { if (x.paragrafi.join("\n") !== b[i]?.paragrafi.join("\n")) out.add(x.titolo); });
+  // Fatturazione dipende dall'IVA della ditta, che nei due contratti di prova è uguale.
+  out.add("Fatturazione");
+  return out;
 }
