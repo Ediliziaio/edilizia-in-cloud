@@ -206,6 +206,8 @@ export function ContrattiSubappalto({
   const [form, setForm] = useState<FormContratto>(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
   const [stampa, setStampa] = useState<{ html: string; nome: string; pdf: () => Promise<Blob> } | null>(null);
   const [collega, setCollega] = useState<string | null>(null);
+  // Variante tracciata: nuovo importo e oneri di un contratto con base lavori registrata.
+  const [variante, setVariante] = useState<{ c: ContrattoCompleto; importo: string; oneri: string; motivo: string } | null>(null);
   // Fattura scelta nel collegamento: poi si sceglie il SAL che paga.
   const [fatturaScelta, setFatturaScelta] = useState<string | null>(null);
   const [invio, setInvio] = useState<{ c: ContrattoCompleto; nome: string; email: string; telefono: string } | null>(null);
@@ -334,13 +336,38 @@ export function ContrattiSubappalto({
       const { data, error } = await q;
       if (error) {
         if (error.code === "23514" && /Base lavori/i.test(error.message ?? ""))
-          throw new Error("Questo contratto ha già una base lavori registrata: commessa, ditta, importo e oneri non si cambiano da qui. Per modificarli serve una variante tracciata; note, date e condizioni restano modificabili.");
+          throw new Error("Questo contratto ha già una base lavori registrata: commessa, ditta, importo e oneri non si cambiano da qui. Per importo e oneri usa il pulsante «Variante» sul contratto; note, date e condizioni restano modificabili.");
         if (error.code === "42501" || error.code === "PGRST116") throw new Error("Non hai il permesso di modificare questo contratto.");
         throw new Error("Contratto non salvato. Controlla i dati e riprova.");
       }
       return (data as unknown as { id: string }).id;
     },
     onSuccess: (id) => { toast.success(dialog?.id ? "Contratto aggiornato" : "Contratto creato"); invalida(); setDialog(null); onSeleziona(id); setDettaglio(id); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const registraVariante = useMutation({
+    mutationFn: async () => {
+      if (!variante) return null;
+      const importo = numero(variante.importo), oneri = numero(variante.oneri);
+      if (importo == null || importo < 0) throw new Error("Importo lavori non valido");
+      if (oneri == null || oneri < 0) throw new Error("Oneri della sicurezza non validi");
+      if (variante.motivo.trim().length < 5) throw new Error("Scrivi il motivo della variante (almeno 5 caratteri)");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("subappalto_variante_registra", {
+        p_company: companyId, p_contratto: variante.c.id, p_importo: Math.round(importo * 100) / 100,
+        p_oneri: Math.round(oneri * 100) / 100, p_motivo: variante.motivo.trim(),
+      });
+      if (error) throw new Error(error.message || "Variante non registrata. Riprova.");
+      return data as { quadro_da_riscrivere?: boolean } | null;
+    },
+    onSuccess: (esito) => {
+      toast.success(esito?.quadro_da_riscrivere
+        ? "Variante registrata. Importo ridotto: aggiorna le voci da «Lavori e quantità»."
+        : "Variante registrata: importo e oneri aggiornati, storico salvato.");
+      setVariante(null); invalida();
+      qc.invalidateQueries({ queryKey: ["contratti-base-registrata"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -598,6 +625,13 @@ export function ContrattiSubappalto({
                 {permessiLavori.canViewCosts && permessiLavori.canViewSubappaltatoriAmministrazione && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
                 <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
                 <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
+                {conBase.includes(c.id) && (
+                  <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders}
+                    title="Cambia importo e oneri del contratto con una variante tracciata"
+                    onClick={() => setVariante({ c, importo: String(c.importo_contrattuale ?? ""), oneri: String(c.oneri_sicurezza ?? 0), motivo: "" })}>
+                    <FileText className="h-3.5 w-3.5" />Variante
+                  </Button>
+                )}
                 <div className="ml-auto flex items-center gap-2"><span className="text-xs text-muted-foreground">Stato lavori</span><Select disabled={cambiaStato.isPending || permessiLavori.solaLettura || !permessiLavori.canEditOrders} value={c.stato} onValueChange={(v) => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
                   <SelectTrigger aria-label="Stato lavori del contratto" className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{(Object.keys(STATI) as ContrattoCompleto["stato"][]).map((s) => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}</SelectContent>
@@ -610,6 +644,42 @@ export function ContrattiSubappalto({
         </div><DialogFooter className="border-t bg-background p-3"><Button variant="outline" onClick={chiudiDettaglio}>Torna ai contratti</Button></DialogFooter></DialogContent>
       </Dialog>
 
+      {/* Variante tracciata */}
+      <Dialog open={!!variante} onOpenChange={(v) => { if (!v && !registraVariante.isPending) setVariante(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Variante del contratto</DialogTitle>
+            <DialogDescription>
+              Cambia importo lavori e oneri della sicurezza. Resta lo storico (prima, dopo, motivo, chi e quando).
+              Se l'importo sale, nell'elenco lavori si aggiunge una voce «Variante» a corpo per la differenza;
+              per ridurlo non devono esserci misure né SAL.
+            </DialogDescription>
+          </DialogHeader>
+          {variante && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Oggi: lavori {euro(Number(variante.c.importo_contrattuale))} · oneri {euro(Number(variante.c.oneri_sicurezza ?? 0))}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>Nuovo importo lavori (€)</Label>
+                  <Input inputMode="decimal" value={variante.importo} onChange={(e) => setVariante((p) => p && { ...p, importo: e.target.value })} /></div>
+                <div className="space-y-1"><Label>Nuovi oneri sicurezza (€)</Label>
+                  <Input inputMode="decimal" value={variante.oneri} onChange={(e) => setVariante((p) => p && { ...p, oneri: e.target.value })} /></div>
+              </div>
+              <div className="space-y-1"><Label>Motivo *</Label>
+                <Textarea rows={2} value={variante.motivo} placeholder="es. Lavori aggiuntivi al bagno richiesti dal cliente"
+                  onChange={(e) => setVariante((p) => p && { ...p, motivo: e.target.value })} /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={registraVariante.isPending} onClick={() => setVariante(null)}>Annulla</Button>
+            <Button disabled={registraVariante.isPending} onClick={() => registraVariante.mutate()}>
+              {registraVariante.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Registra variante
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Nuovo / modifica */}
       <Dialog open={!!dialog} onOpenChange={(v) => { if (!v && !salva.isPending) setDialog(null); }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -617,7 +687,7 @@ export function ContrattiSubappalto({
             <DialogTitle>{dialog?.id ? "Modifica contratto" : "Nuovo contratto di subappalto"}</DialogTitle>
             <DialogDescription>I dati finiscono nel contratto da stampare e firmare; quello che scrivi negli ultimi campi prende il posto del testo standard.</DialogDescription>
           </DialogHeader>
-          {baseCongelata && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Questo contratto ha già una base lavori registrata: commessa, importo e oneri non si cambiano da qui (serve una variante tracciata). Il resto si modifica normalmente.</p>}
+          {baseCongelata && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Questo contratto ha già una base lavori registrata: commessa, importo e oneri non si cambiano da qui: usa il pulsante «Variante» sul contratto. Il resto si modifica normalmente.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1 sm:col-span-2">
               <Label>Commessa *</Label>

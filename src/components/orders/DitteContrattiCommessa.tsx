@@ -428,7 +428,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: 0, data_stipula: oggi(),
           });
       const { data: toccate, error } = await (contratto ? (q as { select: (c: string) => Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }> }).select("id") : q);
-      if (error) throw new Error(error.code === "23514" ? "Il contratto ha una base lavori registrata: l'importo si cambia con una variante tracciata." : error.message);
+      if (error) throw new Error(error.code === "23514" ? "Il contratto ha una base lavori registrata: l'importo si cambia con «Variante», da «Condizioni e firma»." : error.message);
       if (contratto && !(toccate as unknown[] | null)?.length) throw new Error("Il contratto è cambiato nel frattempo (firmato o non più in bozza): ricarica la pagina e riprova.");
       return { baseRegistrata };
     },
@@ -515,7 +515,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             {diverso && <span className="ml-1 text-amber-800">· i lavori ora valgono {formatCurrency(totale)}</span>}
           </p>
         )}
-        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. Per cambiarli serve una variante.</p>}
+        {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. Per cambiare l'importo usa «Variante» da «Condizioni e firma».</p>}
         {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
