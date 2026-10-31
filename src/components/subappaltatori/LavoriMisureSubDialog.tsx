@@ -33,6 +33,7 @@ import {
   riepilogoVoceSub,
   misurePerSalSub,
   vociDaAllegato,
+  quotaOneriSal,
 } from "@/lib/subappaltatori/lavoriMisure";
 
 type Contratto = {
@@ -142,7 +143,7 @@ export function LavoriMisureSubDialog({
           .limit(1001),
         supabase
           .from("sal_subappaltatori")
-          .select("id,stato,importo_lordo")
+          .select("id,stato,importo_lordo,oneri_quota")
           .eq("company_id", companyId)
           .eq("contratto_id", c.id)
           .limit(1001),
@@ -154,6 +155,7 @@ export function LavoriMisureSubDialog({
         id: string;
         stato: string;
         importo_lordo: number;
+        oneri_quota: number | null;
       }[];
       if (
         (a.data?.length ?? 0) > 100 ||
@@ -357,12 +359,17 @@ export function LavoriMisureSubDialog({
     setNoteSal("");
     setDataSal(oggi());
   };
-  let totaleSal = 0;
+  let lavoriSal = 0;
   try {
-    totaleSal = misurePerSalSub(misure, selezionate).importo;
+    lavoriSal = misurePerSalSub(misure, selezionate).importo;
   } catch {
     /* Nessuna selezione pronta. */
   }
+  // Gli oneri della sicurezza maturano con i lavori: la quota la calcola il server con la stessa regola.
+  const oneriSal = lavoriSal > 0
+    ? quotaOneriSal(Number(c.oneri_sicurezza) || 0, Number(c.importo_contrattuale) || 0, q.data?.sal ?? [], lavoriSal)
+    : 0;
+  const totaleSal = Math.round((lavoriSal + oneriSal) * 100) / 100;
   const creaSal = () =>
     esegui(async () => {
       misurePerSalSub(misure, selezionate);
@@ -1281,6 +1288,11 @@ export function LavoriMisureSubDialog({
                     <p className="font-semibold">
                       Lordo del periodo: {euroSub(totaleSal)}
                     </p>
+                    {oneriSal > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Lavori {euroSub(lavoriSal)} + oneri della sicurezza {euroSub(oneriSal)} (in proporzione ai lavori; l'ultimo SAL prende il residuo)
+                      </p>
+                    )}
                     <p className="text-sm">
                       Ritenuta:{" "}
                       {euroSub(

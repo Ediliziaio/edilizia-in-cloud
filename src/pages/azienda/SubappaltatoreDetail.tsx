@@ -664,7 +664,7 @@ export default function SubappaltatoreDetail() {
       if (!data?.length) throw new Error("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
     },
     onSuccess: () => {
-      toast.success("SAL contestato");
+      toast.success("SAL contestato", { description: "Se era fatto dalle misure, le misure tornano libere: puoi rifare il SAL da «Lavori e quantità»." });
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       setContestaId(null);
       setContestaNote("");

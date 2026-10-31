@@ -371,6 +371,20 @@ export function ContrattiSubappalto({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const annullaFirma = useMutation({
+    mutationFn: async (contrattoId: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("subappalto_firma_annulla", { p_company: companyId, p_contratto: contrattoId });
+      if (error) throw new Error(error.message || "Richiesta non annullata. Riprova.");
+      return Number((data as { annullate?: number } | null)?.annullate ?? 0);
+    },
+    onSuccess: (n) => {
+      toast.success(n > 0 ? "Richiesta di firma annullata: il link non vale più" : "Non c'era nessuna richiesta di firma da annullare");
+      invalida(); qc.invalidateQueries({ queryKey: ["firme-subappalto", sub.id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: ContrattoCompleto["stato"] }) => {
       const extra = stato === "completato" ? { data_fine_effettiva: oggi() } : {};
@@ -470,6 +484,11 @@ export function ContrattiSubappalto({
       if (errFile) throw new Error("Non riesco a salvare il PDF del contratto. Riprova tra poco.");
       const { error: errC } = await supabase.from("contratti_subappalto" as never).update({ pdf_path: percorso } as never).eq("id", c.id);
       if (errC) throw new Error("Non riesco a collegare il PDF al contratto. Riprova tra poco.");
+      // Il reinvio sostituisce la richiesta vecchia: altrimenti restano due link validi, e quella vecchia
+      // blocca anche il caricamento della copia firmata su carta.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: errAnnulla } = await (supabase as any).rpc("subappalto_firma_annulla", { p_company: companyId, p_contratto: c.id });
+      if (errAnnulla) throw new Error("Non riesco ad annullare la richiesta di firma precedente. Riprova tra poco.");
       const { data, error } = await supabase.functions.invoke("fea-richiedi-firma", {
         body: {
           tipo_documento: "subappalto", documento_id: c.id, tipo_firmatario: "b2b",
@@ -583,6 +602,12 @@ export function ContrattiSubappalto({
                     email: sub.pec || sub.email || "", telefono: sub.telefono || "",
                   })}>
                     <Send className="h-3.5 w-3.5" />{richiesta && ["pending", "otp_verified"].includes(richiesta.status) ? "Invia di nuovo" : "Invia per la firma"}
+                  </Button>
+                )}
+                {!c.firmato_il && richiesta && ["pending", "otp_verified"].includes(richiesta.status) && (
+                  <Button size="sm" variant="ghost" className="gap-1" disabled={annullaFirma.isPending || permessiLavori.solaLettura || !permessiLavori.canEditOrders}
+                    onClick={() => { if (window.confirm("Annullare la richiesta di firma? Il link inviato smette di funzionare.")) annullaFirma.mutate(c.id); }}>
+                    <XCircle className="h-3.5 w-3.5" />Annulla richiesta di firma
                   </Button>
                 )}
                 {c.firmato_il && richiesta?.status === "signed" && (
