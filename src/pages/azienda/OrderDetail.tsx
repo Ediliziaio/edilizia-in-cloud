@@ -95,6 +95,7 @@ import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSect
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
+import { StrisciaSilvioCommessa } from "@/components/silvio-commessa/StrisciaSilvioCommessa";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
@@ -1479,6 +1480,9 @@ function OrderDetailInner() {
       {/* ── Azioni rapide: contatta cliente · invia PDF · appuntamento ──
           Da telefono stanno, solo icone, nella fila di «Registra incasso». */}
       {!isMobile && azioniRapide}
+
+      {/* Lotto 1.5: «Silvio ha preparato N cose», con «Annulla tutto». Solo se l'ha fatta Silvio. */}
+      <StrisciaSilvioCommessa orderId={id!} companyId={companyId} puoModificare={permissions.canEditOrders} />
 
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}

@@ -486,6 +486,32 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 - **Resta da sapere in produzione**: una funzione che scrive sulla commessa *dopo* la transazione (un'automazione via
   pg_net) farebbe rifiutare l'annullamento come «lavorata». È il lato sicuro; se succede, si escludono quelle tabelle.
 
+**Lotto 1.5 fatto il 31/10/2026** (ramo `claude/scm-fase1d-3e2765`, solo in locale; migrazione **non applicata**):
+- Il popup «Crea con Silvio» in `src/components/silvio-commessa/`: tre colonne da 1024 px (Fonti · Chat · La commessa),
+  tre schede sul telefono con la barra «N voci pronte · M aspettano te · costo AI» e [Controlla] [Crea] sempre visibili;
+  a schermo intero sul telefono, finestra grande sul computer.
+- **Fonti**: trascinare i file, scegliere un preventivo o un computo da un elenco con ricerca (dentro il popup, non in una
+  tendina: nei Dialog Radix il focus si perde), testo libero e vocale. Le letture a regole partono subito; quelle con l'AI
+  mostrano la stima e aspettano «Leggi». Al massimo 3 letture insieme; errore con «Riprova»; avvisi del lettore sulla
+  fonte; l'offerta di una ditta resta «da collegare».
+- **La commessa**: le 14 aree nell'ordine del registro con ✓ ✋ ❓ ⚠, l'evidenziato quando un valore arriva, la ⓘ con
+  fonte, posizione e citazione, la modifica a mano (sempre `applica`), i conflitti con le due cifre e «Tieni questo», le
+  proposte 🟡 con «Va bene», Cmd+Z sulla storia della bozza; in alto completezza, margine previsto e fine lavori. Le ❓
+  compaiono solo per quello che Silvio sa già scrivere.
+- **Chat**: i messaggi di Silvio e una domanda alla volta come pulsanti (conflitto, cliente, inizio lavori: la data mette
+  le date alle fasi, importo, cantiere, proposte). Il campo per scrivere c'è, spento: arriva con la fase 3.
+- **Crea**: spento finché `prontaPerScrivere` dice qualcosa o una lettura è in corso; «Manca il cliente» apre la scelta
+  (Select dei clienti o CreateCustomerDialog precompilato). Dopo: la commessa si apre; se un allegato non si copia, resta
+  la schermata con «Riprova». Le correzioni vanno in `silvio_correzioni` (proposto = il piano senza la storia).
+- **Striscia** su OrderDetail: «Silvio ha preparato N cose» con «Annulla tutto»; i rifiuti diventano parole («un costo»).
+- **Bozza**: salvataggio automatico (si crea al primo cambiamento) e «Riprendi la commessa …» all'apertura senza fonti.
+- **Ingressi**: Nuova commessa (testata) e preventivo accettato senza commessa («Trasforma in commessa con Silvio»), dietro
+  la chiave `silvio_crea_commessa` (migrazione `20281106110000`, da applicare dopo la 1C): spenta per tutti, accesa per
+  Demo 2 con un override. Il controllo non usa il passe-partout di demo e super admin.
+- Test: `src/test/ui/silvioCommessaPopup.test.tsx` (6) e `src/test/logic/silvioCommessaPresentazione.test.ts` (5).
+- Guardato a 1280 e 390 px con un'anteprima senza login: corretti un pulsante che usciva dalla colonna Fonti, la testata
+  del telefono su tre righe e le ❓ di variabili che Silvio non scrive ancora.
+
 ### Fase 2 — Completa le commesse che ci sono (2,5 sessioni)
 
 | Lotto | Cosa | Fatto quando |

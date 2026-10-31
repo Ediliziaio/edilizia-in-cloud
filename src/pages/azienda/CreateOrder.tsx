@@ -47,6 +47,7 @@ import {
   QuoteCard,
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { PulsanteCreaConSilvio } from "@/components/silvio-commessa/PulsanteCreaConSilvio";
 import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
@@ -1421,15 +1422,22 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         title="Nuova Commessa"
         subtitle="Crea una nuova commessa per un cliente"
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="text-xs"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-            Indietro
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Lotto 1.5: lo stesso lavoro con Silvio, che legge le fonti. Il modulo classico resta qui sotto. */}
+            {!createdOrderId && (
+              <PulsanteCreaConSilvio size="sm" className="text-xs"
+                iniziale={selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="text-xs"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+              Indietro
+            </Button>
+          </div>
         }
       />
 
