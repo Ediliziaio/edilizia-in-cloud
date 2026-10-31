@@ -635,11 +635,13 @@ export default function SubappaltatoreDetail() {
 
   const approvaSALMutation = useMutation({
     mutationFn: async (salId: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "verificato" })
-        .eq("id", salId);
+        .eq("id", salId)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
     },
     onSuccess: () => {
       toast.success("SAL approvato");
@@ -653,11 +655,13 @@ export default function SubappaltatoreDetail() {
 
   const contestaSALMutation = useMutation({
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "contestato", note_contestazione: note } as never)
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
     },
     onSuccess: () => {
       toast.success("SAL contestato");
@@ -1030,7 +1034,7 @@ export default function SubappaltatoreDetail() {
           <div className={`flex items-center justify-between gap-3 ${!contratto ? 'max-sm:hidden' : ''}`}><h3 className="text-sm font-semibold">SAL del contratto</h3>
             <Button
               size="sm"
-              disabled={!contratto || salCaricamento || salErrore || salControlloBase}
+              disabled={!contratto || !(permessi.canEditOrders && permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts && !permessi.solaLettura) || salCaricamento || salErrore || salControlloBase}
               onClick={async () => {
                 if (!contratto || salControlloBase) return;
                 setSalControlloBase(true);

@@ -32,6 +32,7 @@ import {
   importoVociSub,
   riepilogoVoceSub,
   misurePerSalSub,
+  vociDaAllegato,
 } from "@/lib/subappaltatori/lavoriMisure";
 
 type Contratto = {
@@ -42,6 +43,8 @@ type Contratto = {
   importo_contrattuale: number;
   oneri_sicurezza: number;
   ritenuta_garanzia_pct: number;
+  /** Allegato A: se c'è e torna all'importo, l'elenco lavori parte da qui. */
+  elenco_lavori?: unknown;
 };
 type Bozza = {
   id: string;
@@ -245,7 +248,7 @@ export function LavoriMisureSubDialog({
     setBozza(
       quadro
         ? quadro.voci.map(daVoce)
-        : [
+        : vociDaAllegato(c.elenco_lavori, Number(c.importo_contrattuale))?.map(daVoce) ?? [
             daVoce({
               id: crypto.randomUUID(),
               fase_id: null,
@@ -296,8 +299,11 @@ export function LavoriMisureSubDialog({
       d.tipo === "rileva"
         ? ""
         : String(
-            Number(d.misura.quantita_dichiarata) *
-              (d.voce.base === "corpo" ? 100 : 1),
+            Math.round(
+              Number(d.misura.quantita_dichiarata) *
+                (d.voce.base === "corpo" ? 100 : 1) *
+                10000,
+            ) / 10000,
           ),
     );
     setData(oggi());
@@ -842,6 +848,13 @@ export function LavoriMisureSubDialog({
                             Base lavori · Rev. {quadro.revisione} ·{" "}
                             {euroSub(Number(quadro.importo_lavori))}
                           </p>
+                          {(riconosciute || storici) && (
+                            <span className="text-xs text-muted-foreground">
+                              {riconosciute
+                                ? "Elenco bloccato: ci sono misure già verificate. Per cambiare l'importo serve una variante."
+                                : "Elenco bloccato: il contratto ha SAL già registrati."}
+                            </span>
+                          )}
                           {!riconosciute && !storici && (
                             <Button
                               size="sm"
@@ -1119,6 +1132,11 @@ export function LavoriMisureSubDialog({
                                         >
                                           Verifica
                                         </Button>
+                                      )}
+                                      {v && m.stato === "dichiarata" && m.quadro_id !== quadro?.id && (
+                                        <span className="text-xs text-muted-foreground">
+                                          Rilevata su un elenco precedente: annullala e rilevala di nuovo.
+                                        </span>
                                       )}
                                       {v &&
                                         m.stato !== "annullata" &&

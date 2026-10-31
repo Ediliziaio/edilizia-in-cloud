@@ -285,7 +285,7 @@ export function ContrattiSubappalto({
     queryFn: () => vesteContratto(companyId),
     enabled: contratti.length > 0, staleTime: 10 * 60_000,
   });
-  const { data: ivaDitta = 0 } = useQuery({
+  const { data: ivaDitta = 0, isLoading: caricoIva } = useQuery({
     queryKey: ["contratto-sub-iva-ditta", companyId, sub.campo_subappaltatore_id ?? null],
     queryFn: async () => {
       const { data } = await supabase.from("external_teams").select("vat_rate")
@@ -537,7 +537,7 @@ export function ContrattiSubappalto({
                     : `Inviato per la firma il ${dataIT(richiesta.created_at)} a ${richiesta.signer_name ?? ""} (${richiesta.signer_email ?? ""}): in attesa della firma.`}
                 </div>
               )}
-              <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={!!richiesta && ["pending","otp_verified","signed"].includes(richiesta.status)} onSaved={invalida}>                <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaContratto(c)}><Printer className="h-3.5 w-3.5" />Contratto da firmare</Button>
+              <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={!!richiesta && ["pending","otp_verified","signed"].includes(richiesta.status)} onSaved={invalida}>                <Button size="sm" variant="outline" className="gap-1" disabled={caricoIva} onClick={() => stampaContratto(c)}><Printer className="h-3.5 w-3.5" />Contratto da firmare</Button>
                 {Array.isArray(c.elenco_lavori) && c.elenco_lavori.length > 0 && (
                   <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaElencoCantiere(c)} title="Gli stessi lavori con quantità, senza prezzi: da lasciare in cantiere">
                     <FileText className="h-3.5 w-3.5" />Elenco lavori per il cantiere
@@ -550,7 +550,7 @@ export function ContrattiSubappalto({
                   </Button>
                 )}
                 {!c.firmato_il && (
-                  <Button size="sm" className="gap-1" onClick={() => setInvio({
+                  <Button size="sm" className="gap-1" disabled={(permessiLavori.solaLettura || !permessiLavori.canEditOrders) || caricoIva} title={caricoIva ? "Sto leggendo l'IVA della ditta" : undefined} onClick={() => setInvio({
                     c, nome: c.referente_subappaltatore || sub.responsabile || "",
                     email: sub.pec || sub.email || "", telefono: sub.telefono || "",
                   })}>
@@ -570,7 +570,7 @@ export function ContrattiSubappalto({
               <div className="rounded-lg border">
                 <div className="flex items-center justify-between px-3 py-2 text-sm font-medium">
                   Fatture del subappaltatore su questo contratto
-                  <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => setCollega(c.id)} disabled={!fattureLibere.length}
+                  <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => setCollega(c.id)} disabled={!fattureLibere.length || (permessiLavori.solaLettura || !permessiLavori.canEditOrders)}
                     title={fattureLibere.length ? "Collega una fattura ricevuta" : sub.piva ? "Nessuna fattura libera con questa partita IVA" : "Manca la partita IVA del subappaltatore"}>
                     <Link2 className="h-3.5 w-3.5" />Collega fattura
                   </Button>
@@ -585,7 +585,7 @@ export function ContrattiSubappalto({
                       ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">SAL n. {s.numero_sal}</span>
                       : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">SAL non indicato</span>; })()}
                     <span className="ml-auto tabular-nums">{euro(Number(f.imponibile_totale ?? f.totale_documento) || 0)}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Scollega la fattura" onClick={() => collegaFattura.mutate({ fatturaId: f.id, contrattoId: null })}>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Scollega la fattura" disabled={(permessiLavori.solaLettura || !permessiLavori.canEditOrders)} onClick={() => collegaFattura.mutate({ fatturaId: f.id, contrattoId: null })}>
                       <Unlink className="h-3.5 w-3.5" />
                     </Button>
                   </div>

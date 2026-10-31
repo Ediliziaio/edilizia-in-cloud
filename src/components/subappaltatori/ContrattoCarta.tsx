@@ -168,7 +168,12 @@ export function ContrattoCarta({
         "subappalto_carta_conferma" as never,
         { p_company: companyId, p_id: d.id } as never,
       );
-      if (f.error) throw Error(f.error.message);
+      if (f.error) {
+        // Il contratto è cambiato tra preparazione e conferma: la prossima prova riparte da una richiesta nuova,
+        // altrimenti riuserebbe la fotografia vecchia e fallirebbe per sempre.
+        if (/cambiato durante il caricamento/i.test(f.error.message)) richiesta.current = crypto.randomUUID();
+        throw Error(f.error.message);
+      }
       if ((f.data as unknown as { id?: string })?.id !== d.id)
         throw Error("Registrazione non confermata. Riprova.");
       setFile(null);
