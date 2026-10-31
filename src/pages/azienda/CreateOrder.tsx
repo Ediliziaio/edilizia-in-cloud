@@ -48,6 +48,8 @@ import {
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { PulsanteCreaConSilvio } from "@/components/silvio-commessa/PulsanteCreaConSilvio";
+import { fontiDaLink } from "@/components/silvio-commessa/useBozzaSilvio";
+import { fontiDalLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
@@ -129,6 +131,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     searchParams.get("quote_id"),
   );
   const { data: quotePrefill } = useQuotePrefill(selectedQuoteId);
+  // Il link della chat di Silvio e di WhatsApp (?silvio=1&fonte=…): il popup si apre già con le fonti.
+  const fontiSilvio = useMemo(() => fontiDalLink(searchParams), [searchParams]);
   const appliedQuoteRef = useRef<string | null>(null);
 
   // Dati iniziali per il dialog "Nuovo cliente" quando si arriva da un preventivo
@@ -1425,8 +1429,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           <div className="flex flex-wrap items-center gap-2">
             {/* Lotto 1.5: lo stesso lavoro con Silvio, che legge le fonti. Il modulo classico resta qui sotto. */}
             {!createdOrderId && (
-              <PulsanteCreaConSilvio size="sm" className="text-xs"
-                iniziale={selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
+              <PulsanteCreaConSilvio size="sm" className="text-xs" apriSubito={!!fontiSilvio}
+                iniziale={fontiSilvio?.length ? fontiDaLink(fontiSilvio) : selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
             )}
             <Button
               variant="outline"

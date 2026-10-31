@@ -562,6 +562,42 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 
 **Numero**: quota di valori proposti da Silvio che l'utente tiene così (da `silvio_correzioni`), sopra l'85 %.
 
+**Lotti 3.1, 3.2 e 3.3 fatti il 31/10/2026** (ramo `claude/scm-fase3-939f33`, solo in locale; migrazioni **non applicate**):
+- **La chat sulla bozza** (`shared/silvio-commessa/chat.ts`): i sei strumenti della sezione 5.4 sono funzioni pure che
+  restituiscono `Modifica` per `applica`; il riduttore le applica insieme (un `gruppo`: un annulla le toglie tutte). Il
+  testo della risposta lo compone il codice dalla modifica fatta («Ho spostato le date avanti di 5 giorni lavorativi (1
+  settimana). Ho tolto «Ditte».»), non il modello. Quello che la chat cambia resta segnato a destra («cambiato in chat»)
+  finché non lo tocchi; «Vedi» lo mostra, «Annulla» e Cmd+Z lo tolgono, «annulla» in chat si fa senza AI. I valori della
+  commessa (`giaNellaCommessa`) si rifiutano col motivo, con lo stesso `modificaBloccata` del riduttore (ora nel motore).
+- **Dove vive**: un modo `chat` della funzione `silvio-commessa`, non un contesto di `silvio-chat`. Gli strumenti non
+  scrivono nel database e non passano dalle conferme di `executeToolWithRouting`: in `silvio-chat` (9.000 righe di
+  strumenti condivisi, su cui lavorano altre sessioni) sarebbero stati un contesto in più nel prompt e nell'instradamento
+  per sei funzioni pure. La funzione restituisce gli strumenti scelti; il browser li traduce sulla bozza che ha davanti.
+- **Costo e crediti**: prima di ogni chiamata AI del popup (lettura, chat, dettatura) il saldo (`company_credit_pool` +
+  omaggio, `calls_blocked`); se non basta non parte niente e il messaggio resta nel campo. Il router ricontrolla (402).
+  Stima accanto al campo (≈0,003 € a messaggio, ≈0,03 € a dettatura). Gli errori del provider li segnala il router.
+- **Vocale**: dettatura col microfono accanto al campo (`useDettatura`, MediaRecorder → `trascrizione-audio`, come il
+  preventivatore), il testo va nel campo da rileggere.
+- **Più fonti e la ⓘ**: tre fonti (preventivo + contratto + offerta) danno i conflitti giusti (importo, costi; non il
+  cliente che dicono uguale), ognuno risolto con «Tieni questo». La ⓘ di un valore letto da un documento (e quella di
+  ogni candidato in conflitto) apre `VisoreFonte`: pdf.js come l'anteprima dei preventivi, alla pagina del «dove», con
+  i pezzi di testo della citazione evidenziati; le foto come immagine.
+- **Le porte**: «Fanne una commessa · N allegati · ~0,03 €» sotto gli allegati di un'email (letti dove stanno);
+  «Completa la commessa da questo contratto» nel dialogo del contratto AI (lettore a regole di `contratti_documents`,
+  senza costo); il link `/azienda/ordini/nuovo?silvio=1&fonte=…` apre il popup con le fonti, e lo strumento
+  `commessa_da_documento` di Silvio (chat e WhatsApp) risponde con quel link e gli allegati del messaggio. Nessun
+  messaggio parte da solo; dal link le letture AI aspettano «Leggi».
+- **Niente più copie orfane**: un documento della commessa o un allegato di un'email si legge dove sta. La funzione
+  riceve l'id della riga, la legge col client di chi chiama (la RLS decide) e prende il percorso da lì; solo dopo scarica
+  con la chiave di servizio. Scelto rispetto al «cancella dopo la lettura», che lascia la copia se la pagina si chiude a
+  metà e ricarica 20 MB dal telefono.
+- **Fasi senza date**: la commessa che ha fasi senza date riceve le date dal modello del lavoro (durate per parola in
+  comune, in sequenza dall'inizio lavori) o dal cronoprogramma di un preventivo, per nome, in `fasi.date_fasi` come
+  proposta 🟡; «Va bene» la mette in `scrittura.date_fasi` e `_silvio_aggiungi` la passa a `commessa_pianifica_fasi`
+  (solo fasi senza date). «Sposta» in completa sposta la proposta, non le fasi della commessa.
+- Test: `silvioCommessaChat` (22), `silvioCommessaFunzioneChat` (7), `silvioCommessaChat.test.tsx` (8). Guardato a
+  1280 e 390 px con l'anteprima senza login: corretta la colonna della chat che sbordava in basso dell'altezza del titolo.
+
 ### Fase 4 — Persone, ditte, mezzi, acquisti (3 sessioni)
 
 | Lotto | Cosa | Fatto quando |

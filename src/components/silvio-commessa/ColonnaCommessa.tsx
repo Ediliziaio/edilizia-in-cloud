@@ -6,9 +6,13 @@
  *
  * In «Completa» quello che la commessa ha già si vede fatto e chiuso (🔒): niente matita,
  * si cambia dalla pagina della commessa.
+ *
+ * Fase 3: quello che la chat ha cambiato resta segnato («cambiato in chat») finché non lo
+ * tocchi; la ⓘ di un valore letto da un documento apre il documento alla pagina citata
+ * (anche quella di ognuna delle fonti in conflitto).
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Info, Lock, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { FileSearch, Info, Lock, MessageSquare, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,8 +25,9 @@ import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { cn } from "@/lib/utils";
 import {
-  AREE, type Area, type FaseDelPiano, type Modifica, type PianoCommessa, type RataDelPiano, type Stato, type Valore,
+  AREE, type Area, type FaseDelPiano, type Fonte, type Modifica, type PianoCommessa, type RataDelPiano, type Stato, type Valore,
 } from "../../../shared/silvio-commessa/piano.ts";
+import { paginaCitata } from "./documentoCitato";
 import type { Completezza } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
@@ -48,7 +53,18 @@ function Segno({ stato }: { stato: Stato }) {
   );
 }
 
-function DaDove({ v }: { v: Valore }) {
+/** «Apri il documento · pagina 4»: c'è solo se la fonte è un documento che si può riaprire. */
+function ApriDocumento({ fonte, onApri }: { fonte: Fonte; onApri?: (() => void) | null }) {
+  if (!onApri) return null;
+  const pagina = paginaCitata(fonte.dove);
+  return (
+    <Button type="button" size="sm" variant="outline" className="mt-2 h-7 gap-1 bg-white text-xs" onClick={onApri}>
+      <FileSearch className="h-3.5 w-3.5" aria-hidden />{pagina ? `Apri il documento a pagina ${pagina}` : "Apri il documento"}
+    </Button>
+  );
+}
+
+function DaDove({ v, onApri }: { v: Valore; onApri?: (() => void) | null }) {
   const f = v.fonte;
   return (
     <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
@@ -56,6 +72,7 @@ function DaDove({ v }: { v: Valore }) {
       {f.citazione && <blockquote className="mt-1 border-l-2 border-orange-300 pl-2 italic">«{f.citazione}»</blockquote>}
       {f.tipo !== "persona" && <p className="mt-1 text-slate-500">Sicurezza di Silvio: {Math.round(v.fiducia * 100)} %</p>}
       {v.nota && <p className="mt-1 text-slate-500">{v.nota}</p>}
+      <ApriDocumento fonte={f} onApri={onApri} />
     </div>
   );
 }
@@ -291,9 +308,14 @@ interface RigaProps {
   aperta: boolean;
   onApri: (chiave: string | null) => void;
   onModifica: (m: Modifica | Modifica[]) => void;
+  /** Cambiata dalla chat e non ancora guardata. */
+  daGuardare?: boolean;
+  onVisto?: (chiave: string) => void;
+  /** Il documento di una fonte, se si può riaprire: null se no. */
+  apriFonte?: (f: Fonte) => (() => void) | null;
 }
 
-function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica }: RigaProps) {
+function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte }: RigaProps) {
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
@@ -315,15 +337,25 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
       ? "da collegare: alla creazione lo cerco per nome, oppure sceglilo tu"
       : "manca";
 
+  const apriDi = (f: Fonte) => apriFonte?.(f) ?? null;
+
   return (
-    <li ref={rif} data-chiave={v.chiave}
+    <li ref={rif} data-chiave={v.chiave} data-da-guardare={daGuardare || undefined}
+      onClick={daGuardare ? () => onVisto?.(v.chiave) : undefined}
+      onFocus={daGuardare ? () => onVisto?.(v.chiave) : undefined}
       className={cn("rounded-lg px-2 py-2 transition-colors duration-700 motion-reduce:transition-none",
-        evidenziata && "bg-amber-100/80", aperta && "bg-orange-50 ring-1 ring-orange-200")}>
+        evidenziata && "bg-amber-100/80", daGuardare && "bg-orange-50/70 ring-2 ring-orange-300",
+        aperta && "bg-orange-50 ring-1 ring-orange-200")}>
       <div className="flex items-start gap-2">
         <Segno stato={stato} />
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1 text-xs text-slate-500">
+          <p className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
             {v.etichetta}
+            {daGuardare && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 text-[11px] font-medium text-orange-800">
+                <MessageSquare className="h-3 w-3" aria-hidden />cambiato in chat
+              </span>
+            )}
             {bloccata && (
               <span className="inline-flex items-center gap-0.5 text-slate-400" title="Già nella commessa: si cambia dalla sua pagina">
                 <Lock className="h-3 w-3" aria-hidden /><span className="sr-only">(già nella commessa, non si cambia qui)</span>
@@ -348,7 +380,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
           )}
         </div>
       </div>
-      {info && valore && <div id={idInfo}><DaDove v={valore} /></div>}
+      {info && valore && <div id={idInfo}><DaDove v={valore} onApri={apriDi(valore.fonte)} /></div>}
 
       {conflitto && (
         <div className="mt-2 space-y-2" role="group" aria-label={`Scegli quale «${v.etichetta}» tenere`}>
@@ -358,6 +390,13 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
                 <p className="text-sm font-semibold text-slate-900">{testoValore(v.chiave, c.valore)}</p>
                 <p className="text-xs text-slate-500">{c.fonte.etichetta}{c.fonte.dove ? `, ${c.fonte.dove}` : ""}</p>
                 {c.fonte.citazione && <p className="text-xs italic text-slate-500">«{c.fonte.citazione}»</p>}
+                {apriDi(c.fonte) && (
+                  <button type="button" className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-orange-700 underline-offset-2 hover:underline"
+                    onClick={() => apriDi(c.fonte)?.()}>
+                    <FileSearch className="h-3 w-3" aria-hidden />
+                    {paginaCitata(c.fonte.dove) ? `Vedi a pagina ${paginaCitata(c.fonte.dove)}` : "Vedi nel documento"}
+                  </button>
+                )}
               </div>
               <Button type="button" size="sm" variant="outline" className="h-8"
                 onClick={() => onModifica({ tipo: "scegli_fonte", area: v.area, chiave: v.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null })}>
@@ -435,16 +474,24 @@ export interface ColonnaCommessaProps {
   aperta: string | null;
   onApri: (chiave: string | null) => void;
   onModifica: (m: Modifica | Modifica[]) => void;
+  /** Cambiate dalla chat e non ancora guardate. */
+  daGuardare?: string[];
+  onVisto?: (chiave: string) => void;
+  /** Come si apre il documento di una fonte; null se non si può. */
+  apriFonte?: (f: Fonte) => (() => void) | null;
 }
 
-export function ColonnaCommessa({ companyId, piano, completezza, evidenziate, aperta, onApri, onModifica }: ColonnaCommessaProps) {
+export function ColonnaCommessa({
+  companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte,
+}: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
     const righe = righeDellArea(piano, area, completezza);
     // In «Completa» un'area che la commessa ha già tutta si raccoglie in una riga: si guarda quello che manca.
-    const chiusa = righe.length > 0 && righe.every((r) => giaNellaCommessa(piano, r.valore));
+    const chiusa = righe.length > 0 && righe.every((r) => giaNellaCommessa(piano, r.valore)) && !righe.some((r) => daGuardare.includes(r.variabile.chiave));
     return { area, righe, stato: statoArea(righe), chiusa };
-  }), [piano, completezza]);
+  }), [piano, completezza, daGuardare]);
   const accese = new Set(evidenziate);
+  const segnate = new Set(daGuardare);
   const vuote = aree.filter((a) => !a.righe.length);
   const [mostrate, setMostrate] = useState<Set<Area>>(() => new Set());
 
@@ -473,7 +520,8 @@ export function ColonnaCommessa({ companyId, piano, completezza, evidenziate, ap
             {righe.map((r) => (
               <RigaVariabile key={r.variabile.chiave} riga={r} companyId={companyId} piano={piano}
                 evidenziata={accese.has(r.variabile.chiave)} aperta={aperta === r.variabile.chiave}
-                onApri={onApri} onModifica={onModifica} />
+                onApri={onApri} onModifica={onModifica}
+                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} />
             ))}
           </ul>
         </section>

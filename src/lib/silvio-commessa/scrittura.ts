@@ -17,11 +17,16 @@
  * In «completa» (fase 2) quello che è già nella commessa (`giaNellaCommessa`) non si
  * riscrive: resta fuori dalla scrittura e dal «Controlla». Le righe e il venditore si
  * aggiungono solo a una commessa nuova: in «completa» finiscono nelle escluse.
+ *
+ * Le fasi che la commessa ha già senza date (fase 3) ricevono le date in `date_fasi`, solo
+ * se la persona ha accettato la proposta: la RPC le passa a `commessa_pianifica_fasi`, che
+ * data solo le fasi senza date.
  */
 import type {
   CondizioniContratto, CostoDelPiano, FaseDelPiano, PianoCommessa, RataDelPiano, TipoFonte, Valore,
 } from "../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
+import { giaNellaCommessa } from "../../../shared/silvio-commessa/fondi.ts";
 import { rigaConQuantitaIntera } from "@/lib/orders/quantitaIntera";
 
 /**
@@ -68,6 +73,12 @@ export interface FaseScritta {
   sottofasi: SottofaseScritta[];
 }
 
+export interface DataFaseScritta {
+  nome: string;
+  inizio: string;
+  fine: string;
+}
+
 export interface RataScritta {
   position: number;
   label: string;
@@ -97,6 +108,8 @@ export interface ScritturaCommessa {
   righe: RigaScritta[];
   rate: RataScritta[];
   fasi: FaseScritta[];
+  /** «Completa»: le date per le fasi che la commessa ha già senza date, per nome. */
+  date_fasi: DataFaseScritta[];
   venditore: string | null;
   condizioni: CondizioniContratto | null;
   /** Quante decisioni aperte: con più di zero la RPC non scrive. */
@@ -111,14 +124,8 @@ const vuoto = (v: unknown) => v == null || (typeof v === "string" && v.trim() ==
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Il valore viene dalla commessa che si completa (lettore `frammentoDaCommessa`, fonte
- * `persona` con l'id della commessa): l'ha scritto una persona, Silvio non lo tocca. Le
- * modifiche fatte nel popup sono `persona` senza id: quelle no.
- */
-export function giaNellaCommessa(piano: Pick<PianoCommessa, "orderId">, v: Pick<Valore, "fonte"> | null | undefined): boolean {
-  return !!piano.orderId && !!v && v.fonte.tipo === "persona" && v.fonte.id === piano.orderId;
-}
+// Sta nel motore (fondi.ts), che la usa per le date delle fasi; qui resta per chi la importava da qui.
+export { giaNellaCommessa };
 
 /** Il valore entra? Null se sì, altrimenti il motivo. */
 function motivoFuori(v: Valore, variabile: Variabile): string | null {
@@ -210,6 +217,7 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
     righe: [],
     rate: [],
     fasi: [],
+    date_fasi: [],
     venditore: null,
     condizioni: null,
     conflitti: piano.conflitti.length,
@@ -255,6 +263,14 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
         if (Array.isArray(v.valore)) s.fasi = fasiScritte(v.valore as FaseDelPiano[], v.fonte.tipo, costi);
         continue;
       case "fasi.date_fasi":
+        // In «crea» le date stanno dentro le fasi; in «completa» sono per le fasi che ci sono.
+        if (s.modo === "completa" && Array.isArray(v.valore)) {
+          s.date_fasi = (v.valore as FaseDelPiano[])
+            .filter((f) => typeof f?.name === "string" && f.name.trim() && f.start_date && f.end_date
+              && DATA.test(f.start_date) && DATA.test(f.end_date) && f.end_date >= f.start_date)
+            .map((f) => ({ nome: f.name.trim(), inizio: f.start_date!, fine: f.end_date! }));
+        }
+        continue;
       case "costi.previsti":
         continue; // dentro le fasi
       case "persone.venditori": {
@@ -318,6 +334,6 @@ export function prontaPerScrivere(s: ScritturaCommessa): string[] {
 
 /** Quante cose «Completa» aggiungerebbe alla commessa: colonne, fasi, rate, condizioni. */
 export function daAggiungere(s: ScritturaCommessa): number {
-  return Object.keys(s.ordine).length + s.fasi.length + s.rate.length + s.righe.length
+  return Object.keys(s.ordine).length + s.fasi.length + s.date_fasi.length + s.rate.length + s.righe.length
     + (s.condizioni ? 1 : 0) + (s.cliente.customer_id ? 1 : 0);
 }

@@ -13,6 +13,11 @@
  * Il bucket è quello degli allegati della chat di Silvio: nessun bucket nuovo. Quando nascerà
  * la bozza (lotto 1.4) il file passerà alla commessa con lei.
  *
+ * Un documento che sta già da qualche parte (fase 3) non si ricarica: `origine` dice dove.
+ * Un documento della commessa o un allegato di un'email passano come riferimento alla riga
+ * (`RifDocumento`), un file già in silvio-uploads (un allegato della chat) col suo percorso.
+ * Così non restano copie orfane in silvio-uploads.
+ *
  * Se il documento non dice le fasi ma si capisce il lavoro («rifare bagno 6 mq»), si aggiunge
  * il frammento del modello per tipo di lavoro (lotto 1.3), come stima.
  *
@@ -21,6 +26,7 @@
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import { riconosciDocumento, type Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import type { FonteLetturaAI } from "../../../shared/silvio-commessa/letturaAI.ts";
+import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
   frammentoDalModello, frammentoDalTesto, MODELLI_LAVORO, misuraDalTesto, riconosciTipoLavoro,
 } from "../../../shared/silvio-commessa/modelliLavoro.ts";
@@ -46,13 +52,19 @@ export interface OpzioniLettura {
   tentativo?: number;
   /** L'offerta di una ditta si legge dentro la sua richiesta d'offerta. */
   rfqSupplierId?: string | null;
+  /** Dove sta già il documento: si legge lì, senza caricarlo di nuovo. */
+  origine?: OrigineDocumento | null;
 }
+
+export type OrigineDocumento = { documento: RifDocumento } | { percorso: string };
 
 export interface EsitoLettura {
   riconosciuto: Riconosciuto;
   frammenti: Frammento[];
-  /** Dove è stato caricato il file (solo per le letture AI). */
+  /** Dove è stato caricato il file (solo per le letture AI di un file nuovo: va con la bozza). */
   percorso?: string;
+  /** L'id della fonte nei frammenti: per la ⓘ, che riapre il documento. */
+  idFonte?: string;
   /** La proposta di `rdo-ai-estrai-offerta`, da mostrare nella griglia della richiesta. */
   offerta?: unknown;
   /** Cosa manca per leggerlo (per le offerte: la richiesta d'offerta a cui appartiene). */
@@ -88,7 +100,8 @@ export function conModelloSeMancanoLeFasi(fr: Frammento, inizio?: string | null)
 }
 
 async function leggiConSilvio(
-  servizi: ServiziLettura, opz: OpzioniLettura, corpo: { fonte: { tipo: FonteLetturaAI; etichetta: string }; file_path?: string; testo?: string },
+  servizi: ServiziLettura, opz: OpzioniLettura,
+  corpo: { fonte: { tipo: FonteLetturaAI; etichetta: string }; file_path?: string; documento?: RifDocumento; testo?: string },
 ): Promise<Frammento> {
   const risposta = await servizi.invoca("silvio-commessa", { company_id: opz.companyId, tentativo: opz.tentativo ?? 0, ...corpo });
   const frammento = (risposta as { frammento?: Frammento } | null)?.frammento;
@@ -139,11 +152,47 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
 }
 
 async function leggiFile(file: File, opz: OpzioniLettura, servizi: ServiziLettura, riconosciuto: Riconosciuto): Promise<EsitoLettura> {
-  const percorso = percorsoDocumento(opz, file.name);
-  await servizi.carica(percorso, file);
+  return leggiConAI(file.name, opz, servizi, riconosciuto, async () => {
+    const percorso = percorsoDocumento(opz, file.name);
+    await servizi.carica(percorso, file);
+    return percorso;
+  });
+}
+
+/** La lettura AI: dove sta già il documento (`origine`), oppure caricandolo. */
+async function leggiConAI(
+  nome: string, opz: OpzioniLettura, servizi: ServiziLettura, riconosciuto: Riconosciuto, carica: () => Promise<string>,
+): Promise<EsitoLettura> {
   const fonte = riconosciuto.fonte === "computo" || riconosciuto.fonte === "offerta" ? "documento" : riconosciuto.fonte;
-  const frammento = await leggiConSilvio(servizi, opz, { fonte: { tipo: fonte, etichetta: file.name }, file_path: percorso });
-  return { riconosciuto, percorso, frammenti: conModelloSeMancanoLeFasi(frammento, opz.inizio) };
+  const o = opz.origine;
+  const percorso = o ? null : await carica();
+  const documento = o && "documento" in o ? o.documento : null;
+  const dove = documento ? { documento } : { file_path: o && "percorso" in o ? o.percorso : percorso! };
+  const frammento = await leggiConSilvio(servizi, opz, { fonte: { tipo: fonte, etichetta: nome }, ...dove });
+  return {
+    riconosciuto, frammenti: conModelloSeMancanoLeFasi(frammento, opz.inizio),
+    ...(percorso ? { percorso } : {}),
+    ...(frammento.fonte.id ? { idFonte: frammento.fonte.id } : {}),
+  };
+}
+
+/**
+ * Un documento che il browser non può scaricare (un allegato di un'email): il lettore si
+ * sceglie dal nome e dal tipo, e lo legge Silvio dove sta. Un computo XPWE o un foglio
+ * vanno scaricati e caricati tra le fonti: si leggono nel browser.
+ */
+export async function leggiDocumentoRemoto(
+  documento: RifDocumento, meta: { nome: string; mime?: string | null }, opz: OpzioniLettura, servizi: ServiziLettura = serviziVeri,
+): Promise<EsitoLettura> {
+  const riconosciuto = riconosciDocumento({ nome: meta.nome, mime: meta.mime ?? "" });
+  if (riconosciuto.lettore === "non_letto") throw new Error(riconosciuto.motivo);
+  if (riconosciuto.lettore === "offerta_ditta") return { riconosciuto, frammenti: [], daCollegare: "richiesta_offerta" };
+  if (riconosciuto.lettore === "computo_xpwe") {
+    throw new Error("È un computo: scaricalo e trascinalo tra le fonti, lo leggo senza AI.");
+  }
+  const ai = riconosciuto.lettore === "silvio_commessa" ? riconosciuto
+    : { ...riconosciuto, lettore: "silvio_commessa" as const, fonte: "documento" as const, ai: true, motivo: "PDF letto da Silvio" };
+  return leggiConAI(meta.nome, { ...opz, origine: { documento } }, servizi, ai, async () => { throw new Error("da non caricare"); });
 }
 
 /**

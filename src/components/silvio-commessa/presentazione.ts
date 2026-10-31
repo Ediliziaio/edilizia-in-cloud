@@ -82,6 +82,9 @@ export function dataConGiorno(s: string): string {
 export const euro = (n: number) =>
   n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: n % 1 === 0 ? 0 : 2, useGrouping: "always" });
 
+/** Quanto può costare una dettatura della chat (90 secondi al massimo), markup compreso. */
+export const STIMA_DETTATURA_EUR = 0.03;
+
 /** Il costo di una lettura: «0,01 €», con i millesimi quando servono. */
 export const euroAI = (n: number) =>
   `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 3 : 2 })} €`;

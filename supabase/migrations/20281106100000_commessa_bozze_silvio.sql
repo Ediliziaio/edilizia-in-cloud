@@ -397,7 +397,8 @@ $$;
 revoke all on function public._silvio_registra_nuove(uuid, uuid, uuid) from public, anon, authenticated;
 
 -- Il lavoro comune a «crea» e «completa», su una commessa che c'è: colonne vuote,
--- fasi che mancano (con sottofasi, date e voci previste), rate se non ce ne sono,
+-- fasi che mancano (con sottofasi, date e voci previste), le date delle fasi che ci
+-- sono senza date (`date_fasi`, fase 3), rate se non ce ne sono,
 -- condizioni del contratto se non c'è un contratto. Solo aggiunte: un valore già
 -- presente non si tocca. Registra le colonne riempite col valore di prima.
 create or replace function public._silvio_aggiungi(p_bozza public.commessa_bozze, p_order uuid)
@@ -463,6 +464,13 @@ begin
        where f.order_id = p_order
          and lower(regexp_replace(btrim(f.name), '\s+', ' ', 'g')) = lower(regexp_replace(btrim(v_fase->>'nome'), '\s+', ' ', 'g')));
     v_fasi := v_fasi || jsonb_build_array(v_fase);
+  end loop;
+  -- «Completa» (fase 3): le date proposte per le fasi che la commessa ha già senza date.
+  -- Vanno a commessa_pianifica_fasi come le altre: per nome, solo alle fasi senza date.
+  for v_fase in select value from jsonb_array_elements(coalesce(s->'date_fasi', '[]'::jsonb)) loop
+    continue when btrim(coalesce(v_fase->>'nome', '')) = ''
+               or nullif(v_fase->>'inizio', '') is null or nullif(v_fase->>'fine', '') is null;
+    v_date := v_date || jsonb_build_array(jsonb_build_object('nome', v_fase->>'nome', 'inizio', v_fase->>'inizio', 'fine', v_fase->>'fine'));
   end loop;
 
   if jsonb_array_length(v_fasi) > 0 then

@@ -8,12 +8,17 @@
  * - `applica(piano, modifica, storia)`: le modifiche a mano e quelle della chat, con
  *   il passo per l'annulla. `annulla(piano, storia)` torna indietro di un passo.
  *
+ * Fase 3 (31/10/2026): una modifica che arriva con altre (una risposta della chat, la data
+ * d'inizio che data le fasi) ha un `gruppo`, e l'annulla le toglie tutte insieme. Le fasi
+ * che una commessa ha già senza date ricevono le date da un'altra fonte come proposta, in
+ * `fasi.date_fasi`: aggiungere una data che manca non è sovrascrivere.
+ *
  * Funzioni pure: non toccano il piano che ricevono, ne restituiscono uno nuovo.
  * Senza dipendenze, compatibile con Deno.
  */
 import {
   AREE, TIPI_FONTE,
-  type Area, type Conflitto, type Fonte, type Frammento, type Modifica, type PianoCommessa, type Valore,
+  type Area, type Conflitto, type FaseDelPiano, type Fonte, type Frammento, type Modifica, type PianoCommessa, type Valore,
 } from "./piano.ts";
 import { variabile } from "./registro.ts";
 
@@ -86,6 +91,50 @@ function candidati(prima: Valore[], nuovo: Valore): Valore[] {
     .map((x) => x.c);
 }
 
+/**
+ * Il valore viene dalla commessa che si completa (fonte `persona` con l'id della commessa):
+ * l'ha scritto una persona, Silvio non lo tocca. Le modifiche fatte nel popup sono `persona`
+ * senza id: quelle no.
+ */
+export function giaNellaCommessa(piano: Pick<PianoCommessa, "orderId">, v: Pick<Valore, "fonte"> | null | undefined): boolean {
+  return !!piano.orderId && !!v && v.fonte.tipo === "persona" && v.fonte.id === piano.orderId;
+}
+
+/** Il campo delle fasi che contiene la lista; ogni fase è un oggetto con `id?`, `name`, `start_date?`, `end_date?` (AAAA-MM-GG). */
+const CHIAVE_FASI = "fasi.order_work_phases";
+/** Le date proposte per le fasi che la commessa ha già senza date (fase 3). */
+const CHIAVE_DATE_FASI = "fasi.date_fasi";
+
+const nomeFase = (f: unknown) => String((f as { name?: unknown } | null)?.name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+const datata = (f: FaseDelPiano | null | undefined) => !!f?.start_date;
+
+/**
+ * Le date che `nuove` dà alle fasi di `esistenti` che non ne hanno: per nome (come
+ * `commessa_pianifica_fasi`), o per posizione se nessun nome combacia e gli elenchi sono
+ * lunghi uguali. Una fase senza date ma con i giorni li porta, per la data d'inizio che
+ * arriverà. Null se non c'è niente da proporre.
+ */
+export function dateProposteAlleFasi(esistenti: unknown, nuove: unknown): FaseDelPiano[] | null {
+  if (!Array.isArray(esistenti) || !Array.isArray(nuove)) return null;
+  const vecchie = esistenti as FaseDelPiano[];
+  const fonti = (nuove as FaseDelPiano[]).filter((f) => f && typeof f === "object");
+  if (!vecchie.some((f) => !datata(f))) return null;
+  const perNome = vecchie.some((v) => fonti.some((n) => nomeFase(n) === nomeFase(v)));
+  const out: FaseDelPiano[] = [];
+  vecchie.forEach((v, i) => {
+    if (datata(v)) return;
+    const n = perNome ? fonti.find((x) => nomeFase(x) === nomeFase(v)) : fonti.length === vecchie.length ? fonti[i] : undefined;
+    if (!n) return;
+    const proposta: FaseDelPiano = { name: v.name };
+    if (v.id) proposta.id = v.id;
+    if (n.start_date && n.end_date) { proposta.start_date = n.start_date; proposta.end_date = n.end_date; }
+    else if (n.giorni && n.giorno_inizio) { proposta.giorno_inizio = n.giorno_inizio; proposta.giorni = n.giorni; }
+    else return;
+    out.push(proposta);
+  });
+  return out.length ? out : null;
+}
+
 function fondiValore(piano: PianoCommessa, area: Area, chiave: string, nuovo: Valore): PianoCommessa {
   const esistente = piano.aree[area]?.[chiave];
   const aperto = piano.conflitti.find((c) => c.area === area && c.chiave === chiave);
@@ -94,7 +143,16 @@ function fondiValore(piano: PianoCommessa, area: Area, chiave: string, nuovo: Va
   if (nuovo.fonte.tipo === "persona") {
     return { ...conValore(piano, area, chiave, nuovo), conflitti: senzaConflitto(piano.conflitti, area, chiave) };
   }
-  if (esistente?.fonte.tipo === "persona") return piano;
+  if (esistente?.fonte.tipo === "persona") {
+    // Le fasi della commessa senza date: le date che dice un'altra fonte diventano una proposta.
+    const date = chiave === CHIAVE_FASI && giaNellaCommessa(piano, esistente)
+      ? dateProposteAlleFasi(esistente.valore, nuovo.valore) : null;
+    if (!date) return piano;
+    return fondiValore(piano, "fasi", CHIAVE_DATE_FASI, {
+      ...nuovo, valore: date, stato: "proposta",
+      nota: `Le fasi della commessa non hanno date: te le propongo dal ${nuovo.fonte.etichetta}. Le fasi restano come sono.`,
+    });
+  }
 
   const lista = candidati(aperto ? aperto.candidati : esistente ? [esistente] : [], nuovo);
   const altri = senzaConflitto(piano.conflitti, area, chiave);
@@ -139,6 +197,8 @@ export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa
 /** Un passo della storia: com'erano le variabili toccate prima della modifica. */
 export interface Passo {
   modifica: Modifica;
+  /** Le modifiche nate insieme (una risposta della chat) hanno lo stesso gruppo: si annullano insieme. */
+  gruppo?: string | null;
   prima: { area: Area; chiave: string; valore: Valore | null }[];
   /** I conflitti aperti, prima della modifica, sulle sole variabili toccate. */
   conflittiPrima: Conflitto[];
@@ -160,8 +220,6 @@ function daPersona(valore: unknown, etichetta: string, base?: Fonte): Valore {
   return { valore, fonte, fiducia: 1, stato: "fatto", nota: null };
 }
 
-/** Il campo delle fasi che contiene la lista; ogni fase è un oggetto con `id?`, `name`, `start_date?`, `end_date?` (AAAA-MM-GG). */
-const CHIAVE_FASI = "fasi.order_work_phases";
 /** Le date singole che seguono la fine dei lavori. */
 const DATE_FINALI = ["fasi.work_end_date", "fasi.expected_date"] as const;
 
@@ -224,11 +282,15 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
       if (n === 0) return [];
       const fasi = piano.aree.fasi ?? {};
       const out: { area: Area; chiave: string; valore: Valore | null }[] = [];
+      // Quello che la commessa ha già non si sposta: si spostano le date che Silvio propone.
+      const libera = (chiave: string) => !giaNellaCommessa(piano, fasi[chiave]);
       const sposta = (chiave: string, valore: unknown) => {
         out.push({ area: "fasi", chiave, valore: daPersona(valore, "spostato da te", fasi[chiave]?.fonte) });
       };
+      const conData = (f: unknown) => Array.isArray(f) && f.some((x) => typeof (x as FaseDelPiano | null)?.start_date === "string");
 
-      const elenco = fasi[CHIAVE_FASI]?.valore;
+      const elenco = libera(CHIAVE_FASI) ? fasi[CHIAVE_FASI]?.valore : fasi[CHIAVE_DATE_FASI]?.valore;
+      const chiaveElenco = libera(CHIAVE_FASI) ? CHIAVE_FASI : CHIAVE_DATE_FASI;
       let da = 0;
       if (modifica.daFase) {
         const i = Array.isArray(elenco)
@@ -240,12 +302,12 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
         if (i < 0) throw new Error(`La fase «${modifica.daFase}» non c'è`);
         da = i;
       }
-      if (Array.isArray(elenco)) sposta(CHIAVE_FASI, elenco.map((f, i) => (i >= da ? spostaFase(f, n) : f)));
+      if (conData(elenco)) sposta(chiaveElenco, (elenco as unknown[]).map((f, i) => (i >= da ? spostaFase(f, n) : f)));
 
       const date = modifica.daFase ? [...DATE_FINALI] : ["fasi.work_start_date", ...DATE_FINALI];
       for (const chiave of date) {
         const v = fasi[chiave]?.valore;
-        if (typeof v === "string") sposta(chiave, spostaGiorniLavorativi(v, n));
+        if (typeof v === "string" && libera(chiave)) sposta(chiave, spostaGiorniLavorativi(v, n));
       }
       return out;
     }
@@ -262,13 +324,17 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
   }
 }
 
-/** Applica una modifica e aggiunge alla storia il passo per annullarla. */
-export function applica(piano: PianoCommessa, modifica: Modifica, storia: Passo[] = []): Bozza {
+/**
+ * Applica una modifica e aggiunge alla storia il passo per annullarla. Con `gruppo`, le
+ * modifiche nate insieme si annullano insieme.
+ */
+export function applica(piano: PianoCommessa, modifica: Modifica, storia: Passo[] = [], gruppo: string | null = null): Bozza {
   const cambi = effetti(piano, modifica);
   if (cambi.length === 0) return { piano, storia };
 
   const passo: Passo = {
     modifica,
+    ...(gruppo ? { gruppo } : {}),
     prima: cambi.map(({ area, chiave }) => ({ area, chiave, valore: piano.aree[area]?.[chiave] ?? null })),
     conflittiPrima: piano.conflitti.filter((c) => cambi.some((x) => x.area === c.area && x.chiave === c.chiave)),
   };
@@ -279,19 +345,57 @@ export function applica(piano: PianoCommessa, modifica: Modifica, storia: Passo[
   return { piano: out, storia: [...storia, passo] };
 }
 
-/**
- * Annulla l'ultimo passo della storia: le variabili toccate tornano com'erano, coi loro
- * conflitti. Il resto del piano (frammenti arrivati nel frattempo) resta. Con la storia
- * vuota non fa niente.
- */
-export function annulla(piano: PianoCommessa, storia: Passo[]): Bozza {
-  const passo = storia[storia.length - 1];
-  if (!passo) return { piano, storia };
+function annullaPasso(piano: PianoCommessa, passo: Passo): PianoCommessa {
   let out = piano;
   let conflitti = piano.conflitti;
   for (const { area, chiave, valore } of passo.prima) {
     out = conValore(out, area, chiave, valore);
     conflitti = senzaConflitto(conflitti, area, chiave);
   }
-  return { piano: { ...out, conflitti: [...conflitti, ...passo.conflittiPrima] }, storia: storia.slice(0, -1) };
+  return { ...out, conflitti: [...conflitti, ...passo.conflittiPrima] };
+}
+
+/**
+ * Annulla l'ultimo passo della storia (e, se ha un gruppo, tutti quelli del gruppo): le
+ * variabili toccate tornano com'erano, coi loro conflitti. Il resto del piano (frammenti
+ * arrivati nel frattempo) resta. Con la storia vuota non fa niente.
+ */
+export function annulla(piano: PianoCommessa, storia: Passo[]): Bozza {
+  const ultimo = storia[storia.length - 1];
+  if (!ultimo) return { piano, storia };
+  let out = piano;
+  let resto = storia;
+  do {
+    out = annullaPasso(out, resto[resto.length - 1]);
+    resto = resto.slice(0, -1);
+  } while (ultimo.gruppo && resto.length && resto[resto.length - 1].gruppo === ultimo.gruppo);
+  return { piano: out, storia: resto };
+}
+
+// ── Valori chiusi ───────────────────────────────────────────────────────────
+
+/** Le variabili che una modifica toccherebbe. */
+function chiaviDellaModifica(piano: PianoCommessa, m: Modifica): string[] {
+  if (m.tipo !== "sposta_date") return [m.chiave];
+  return [CHIAVE_FASI, CHIAVE_DATE_FASI, "fasi.work_start_date", ...DATE_FINALI].filter((k) => piano.aree.fasi?.[k]);
+}
+
+/**
+ * Il motivo per cui la modifica non si fa (tocca quello che la commessa ha già), o null.
+ * Uno spostamento delle date è fermo solo se non c'è niente di libero da spostare.
+ */
+export function modificaBloccata(piano: PianoCommessa, m: Modifica): string | null {
+  const chiavi = chiaviDellaModifica(piano, m);
+  const chiuse = chiavi.filter((k) => {
+    const v = variabile(k);
+    return v && giaNellaCommessa(piano, piano.aree[v.area]?.[k]);
+  });
+  if (!chiuse.length) return null;
+  if (m.tipo === "sposta_date") {
+    const libere = chiavi.filter((k) => !chiuse.includes(k));
+    if (libere.length) return null;
+    return "Le date delle fasi sono già nella commessa: Silvio non le sposta. Si cambiano dalla pagina della commessa.";
+  }
+  const ferma = chiuse[0];
+  return `«${variabile(ferma)?.etichetta ?? ferma}» è già nella commessa: Silvio non lo cambia. Si modifica dalla pagina della commessa.`;
 }

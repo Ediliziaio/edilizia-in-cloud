@@ -7,9 +7,24 @@
  * Preventivi, computi (XPWE, PDF di PriMus) e offerte delle ditte hanno i loro lettori:
  * li sceglie il riconoscitore nel browser (shared/silvio-commessa/riconoscitore.ts).
  *
- * Input:  { company_id, fonte: { tipo, etichetta, id? }, file_path? | testo?, tentativo? }
- *         `file_path` è nel bucket silvio-uploads, sotto `<azienda>/<utente>/…`.
+ * Input:  { company_id, fonte: { tipo, etichetta, id? }, file_path? | documento? | testo?, tentativo? }
+ *         `file_path` è nel bucket silvio-uploads, sotto `<azienda>/<utente>/…`;
+ *         `documento` è un documento della commessa o un allegato di un'email (fase 3,
+ *         `documenti.ts`): si legge dove sta, senza copie in silvio-uploads.
  * Output: { ok, frammento, lettura: { metodo, pagine, modello, costo_eur } }
+ *
+ * Due modi in più (fase 3, lotto 3.1 e 3.2):
+ * - `modo: "chat"` { company_id, messaggio, contesto, storia?, richiesta_id }: la chat sulla
+ *   bozza. Il modello sceglie fra i sei strumenti di shared/silvio-commessa/chat.ts; la
+ *   funzione restituisce { ok, testo, strumenti, costo_eur } e non applica niente: le
+ *   modifiche le traduce e le applica il browser, sulla bozza che ha davanti. Qui e non in
+ *   `silvio-chat` perché gli strumenti non scrivono nel database, non passano dalle
+ *   conferme di `executeToolWithRouting` e vivono solo nel popup: aggiungerli a `silvio-chat`
+ *   (9.000 righe di strumenti condivisi, su cui lavorano altre sessioni) avrebbe voluto dire
+ *   un contesto in più nel suo prompt e nel suo instradamento per sei funzioni pure.
+ * - `modo: "apri"` { company_id, documento }: un indirizzo firmato per 5 minuti, per la ⓘ
+ *   che apre il documento alla pagina citata (gli allegati delle email il browser non li
+ *   scarica da sé). Stessi controlli della lettura, nessuna AI.
  *
  * Non scrive niente nel database: il frammento torna al browser, che lo fonde nella bozza.
  * Il testo del PDF viene da pdfExtraction (OCR solo per le pagine scansionate); foto e
@@ -27,6 +42,7 @@
  * OCR, 45 secondi di lettura del PDF, poi una sola chiamata al modello. Sotto i 150
  * secondi del gateway anche nel caso peggiore.
  */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -34,13 +50,21 @@ import { AiCompanyCreditError, aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { extractPdfWithCoverage } from "../_shared/pdfExtraction.ts";
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
+import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { BUCKET_SILVIO_COMMESSA, valutaFile } from "../_shared/storageAmmesso.ts";
 import {
   FONTI_LETTURA_AI, frammentoDaRispostaAI, istruzioniLettura, type FonteLetturaAI,
 } from "../../../shared/silvio-commessa/letturaAI.ts";
+import {
+  istruzioniChat, MAX_MESSAGGIO_CHAT, rispostaDelModello, STIMA_CHAT_EUR, STRUMENTI_CHAT,
+} from "../../../shared/silvio-commessa/chat.ts";
+import { rifDocumento, trovaDocumento, type DocumentoTrovato } from "./documenti.ts";
 
 const BUCKET = "silvio-uploads";
 const TASK_KEY = "silvio_commessa_lettura";
+const TASK_CHAT = "silvio_commessa_chat";
+/** Il contesto della chat è la bozza compatta: oltre, qualcosa non va. */
+const MAX_CONTESTO_CHAT = 40_000;
 const MAX_BYTE = 20 * 1024 * 1024;
 const MAX_CARATTERI = 60_000;
 const MAX_TESTO_LIBERO = 20_000;
@@ -73,24 +97,35 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const companyId = typeof body?.company_id === "string" ? body.company_id : "";
+    if (body?.modo === "chat") return await chat(body, companyId, userId, supabaseAdmin, cors);
+    if (body?.modo === "apri") return await apri(req, body, companyId, userId, supabaseAdmin, cors);
     const filePath: unknown = body?.file_path;
+    const documento = body?.documento == null ? null : rifDocumento(body.documento);
+    if (body?.documento != null && !documento) return errorResponse("Documento non valido", 400, cors);
     const testoLibero = typeof body?.testo === "string" ? body.testo.trim() : "";
     const tipoFonte: FonteLetturaAI = (FONTI_LETTURA_AI as readonly string[]).includes(body?.fonte?.tipo)
       ? body.fonte.tipo
       : testoLibero ? "testo" : "documento";
     const etichetta = (typeof body?.fonte?.etichetta === "string" && body.fonte.etichetta.trim().slice(0, 120))
-      || (typeof filePath === "string" ? filePath.split("/").pop()!.replace(/^commessa-\d+-/, "") : "testo scritto");
+      || (typeof filePath === "string" ? filePath.split("/").pop()!.replace(/^commessa-\d+-/, "") : documento ? "documento" : "testo scritto");
     const idFonte = typeof body?.fonte?.id === "string" ? body.fonte.id.slice(0, 200) : null;
 
     if (!UUID.test(companyId)) return errorResponse("company_id obbligatorio", 400, cors);
-    if (!filePath === !testoLibero) return errorResponse("Serve un file (file_path) oppure un testo, uno dei due", 400, cors);
+    if ([filePath, documento, testoLibero].filter(Boolean).length !== 1) {
+      return errorResponse("Serve un file (file_path o documento) oppure un testo, uno solo", 400, cors);
+    }
     if (testoLibero.length > MAX_TESTO_LIBERO) return errorResponse("Testo troppo lungo: caricalo come file", 413, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
 
+    let file: DocumentoTrovato | null = null;
     if (filePath) {
       const ammesso = valutaFile({ bucket: BUCKET, path: filePath }, BUCKET_SILVIO_COMMESSA, { companyId, userId });
       if (!ammesso.ok) return errorResponse("Bucket o percorso del file non validi", 400, cors);
       if (!ammesso.conChiaveDiServizio) return errorResponse("Il file non è nella cartella della tua azienda", 403, cors);
+      file = { bucket: BUCKET, path: filePath as string, nome: (filePath as string).split("/").pop()! };
+    } else if (documento) {
+      file = await trovaDocumento(documento, companyId, clientDiChiChiama(req), supabaseAdmin);
+      if (!file) return errorResponse("Documento non trovato, o non hai il permesso di vederlo", 404, cors);
     }
 
     // Prima del download e dell'OCR: chi non può pagare l'AI non fa partire niente.
@@ -99,19 +134,19 @@ Deno.serve(async (req: Request) => {
 
     // Il registro della spesa dice quale lettura è: stesso file e stesso tentativo = stesso addebito.
     const tentativo = Number.isInteger(body?.tentativo) ? body.tentativo : 0;
-    const chiave = await buildStableAiIdempotencyKey(TASK_KEY, [companyId, userId, filePath ?? testoLibero, tipoFonte, tentativo]);
+    const chiave = await buildStableAiIdempotencyKey(TASK_KEY, [companyId, userId, file ? `${file.bucket}/${file.path}` : testoLibero, tipoFonte, tentativo]);
 
     // ── Il contenuto: testo (PDF, testo libero) o immagine ──
     let contenuto: Contenuto;
     if (testoLibero) {
       contenuto = { tipo: "testo", testo: testoLibero, avvisi: [], pagine: null, costoEur: 0 };
     } else {
-      const { data: blob, error } = await supabaseAdmin.storage.from(BUCKET).download(filePath as string);
+      const { data: blob, error } = await supabaseAdmin.storage.from(file!.bucket).download(file!.path);
       if (error || !blob) return errorResponse("File non trovato: caricalo di nuovo", 404, cors);
       if ((blob.size ?? 0) > MAX_BYTE) return errorResponse("File troppo grande (massimo 20 MB)", 413, cors);
       const buffer: ArrayBuffer = await blob.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      const tipo = tipoDelFile(bytes, filePath as string);
+      const tipo = tipoDelFile(bytes, file!.path);
       if (!tipo) return errorResponse("Formato non letto: carica un PDF, una foto (JPG, PNG, WEBP) o un testo", 415, cors);
 
       if (tipo === "testo") {
@@ -162,7 +197,7 @@ Deno.serve(async (req: Request) => {
         supabase: supabaseAdmin,
         taskKey: TASK_KEY,
         messages: [
-          { role: "system", content: istruzioniLettura(tipoFonte, oggi) },
+          { role: "system", content: conRegoleDocumento(istruzioniLettura(tipoFonte, oggi)) },
           { role: "user", content: richiesta },
         ],
         params: { temperature: 0, max_tokens: 4000 },
@@ -180,7 +215,12 @@ Deno.serve(async (req: Request) => {
 
     const costoEur = Math.round(((contenuto.tipo === "testo" ? contenuto.costoEur : 0) + (risposta.costBilledEur ?? 0)) * 10000) / 10000;
     const frammento = frammentoDaRispostaAI(risposta.content, {
-      fonte: { tipo: tipoFonte, id: idFonte ?? (typeof filePath === "string" ? filePath : null), etichetta },
+      // L'id dice dove sta il documento: la ⓘ lo usa per riaprirlo alla pagina citata. Un
+      // allegato di un'email il browser non lo scarica: lo riapre con `modo: "apri"`.
+      fonte: {
+        tipo: tipoFonte, etichetta,
+        id: idFonte ?? (documento?.tipo === "allegato_email" ? `email:${documento.email_id}:${documento.indice}` : file ? file.path : null),
+      },
       testo: contenuto.tipo === "testo" ? contenuto.testo : null,
       immagine: contenuto.tipo === "immagine",
       costoEur,
@@ -203,3 +243,87 @@ Deno.serve(async (req: Request) => {
     return errorResponse("Errore interno", 500, getCorsHeaders(req));
   }
 });
+
+/** Il client col token di chi chiama: la RLS decide cosa vede, come nell'app. */
+function clientDiChiChiama(req: Request) {
+  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+/** Indirizzo firmato per la ⓘ: il documento si apre alla pagina citata. */
+// deno-lint-ignore no-explicit-any
+async function apri(req: Request, body: any, companyId: string, userId: string, admin: any, cors: Record<string, string>) {
+  if (!UUID.test(companyId)) return errorResponse("company_id obbligatorio", 400, cors);
+  const rif = rifDocumento(body?.documento);
+  if (!rif) return errorResponse("Documento non valido", 400, cors);
+  await requireCompanyAccess(admin, userId, companyId, cors);
+  const file = await trovaDocumento(rif, companyId, clientDiChiChiama(req), admin);
+  if (!file) return errorResponse("Documento non trovato, o non hai il permesso di vederlo", 404, cors);
+  const { data, error } = await admin.storage.from(file.bucket).createSignedUrl(file.path, 300);
+  if (error || !data?.signedUrl) return errorResponse("Non riesco ad aprire il documento: riprova", 502, cors);
+  return jsonResponse({ ok: true, url: data.signedUrl, nome: file.nome }, 200, cors);
+}
+
+/**
+ * La chat sulla bozza: una chiamata al modello con i sei strumenti. Gli strumenti tornano
+ * al browser, che li applica alla bozza (`eseguiRisposta`). Il saldo dei crediti lo
+ * controlla il router prima di chiamare il provider (402 se non basta); gli errori del
+ * provider li segnala il router (`segnalaErroreAI`).
+ */
+// deno-lint-ignore no-explicit-any
+async function chat(body: any, companyId: string, userId: string, admin: any, cors: Record<string, string>) {
+  if (!UUID.test(companyId)) return errorResponse("company_id obbligatorio", 400, cors);
+  const messaggio = typeof body?.messaggio === "string" ? body.messaggio.trim() : "";
+  if (!messaggio) return errorResponse("Scrivi qualcosa a Silvio", 400, cors);
+  if (messaggio.length > MAX_MESSAGGIO_CHAT) return errorResponse("Messaggio troppo lungo: se è un documento, caricalo tra le fonti", 413, cors);
+  const contesto = body?.contesto && typeof body.contesto === "object" ? body.contesto : null;
+  if (!contesto) return errorResponse("Manca la bozza", 400, cors);
+  const testoContesto = JSON.stringify(contesto);
+  if (testoContesto.length > MAX_CONTESTO_CHAT) return errorResponse("La bozza è troppo grande per la chat", 413, cors);
+  const storia = (Array.isArray(body?.storia) ? body.storia : [])
+    .filter((m: unknown) => m && typeof m === "object" && typeof (m as { testo?: unknown }).testo === "string")
+    .slice(-6)
+    .map((m: { ruolo?: unknown; testo: string }) => ({
+      role: m.ruolo === "persona" ? "user" as const : "assistant" as const,
+      content: m.testo.slice(0, 500),
+    }));
+  await requireCompanyAccess(admin, userId, companyId, cors);
+
+  const pagamento = await gateAiPayment(admin, companyId, cors);
+  if (pagamento) return pagamento;
+
+  const oggi = typeof contesto.oggi === "string" && /^\d{4}-\d{2}-\d{2}$/.test(contesto.oggi) ? contesto.oggi : new Date().toISOString().slice(0, 10);
+  const richiesta = typeof body?.richiesta_id === "string" ? body.richiesta_id.slice(0, 80) : crypto.randomUUID();
+  let risposta;
+  try {
+    risposta = await aiRouterComplete({
+      supabase: admin,
+      taskKey: TASK_CHAT,
+      messages: [
+        // Le regole dei documenti («estrai solo», «niente testo in più») qui non valgono: chi
+        // scrive è l'utente. Che le citazioni della bozza siano dati lo dice istruzioniChat.
+        { role: "system", content: istruzioniChat(oggi) },
+        { role: "user", content: `La bozza adesso:\n${testoContesto}` },
+        ...storia,
+        { role: "user", content: messaggio },
+      ],
+      params: { temperature: 0, max_tokens: 800, tools: [...STRUMENTI_CHAT], tool_choice: "auto" },
+      companyId, userId,
+      idempotencyKey: await buildStableAiIdempotencyKey(TASK_CHAT, [companyId, userId, richiesta]),
+      estimatedCostEur: STIMA_CHAT_EUR,
+    });
+  } catch (e) {
+    if (e instanceof AiCompanyCreditError) return errorResponse(e.message, 402, cors);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[silvio-commessa] chat non riuscita:", msg.slice(0, 300));
+    return errorResponse("Silvio non risponde: riprova tra poco", 502, cors);
+  }
+  const { testo, strumenti } = rispostaDelModello(risposta.rawResponse?.choices?.[0]?.message ?? { content: risposta.content });
+  return jsonResponse({
+    ok: true, testo, strumenti,
+    costo_eur: Math.round((risposta.costBilledEur ?? 0) * 10000) / 10000,
+    modello: risposta.modelUsed,
+  }, 200, cors);
+}

@@ -103,6 +103,16 @@ function servizi(over: Partial<ServiziSilvioCommessa> = {}) {
     frammentiCommessa: vi.fn(async () => []),
     elencaAllegati: vi.fn(async () => []),
     scaricaAllegato: vi.fn(async () => new File([], "vuoto")),
+    // Fase 3: qui non servono.
+    leggiRemoto: vi.fn(async (): Promise<EsitoLettura> => ({
+      riconosciuto: { lettore: "silvio_commessa", fonte: "documento", ai: true, immagine: false, motivo: "documento" }, frammenti: [],
+    })),
+    frammentoContratto: vi.fn(async (): Promise<Frammento> => ({ fonte: { tipo: "contratto", etichetta: "contratto" }, aree: {} })),
+    scaricaCaricato: vi.fn(async () => new File([], "vuoto")),
+    apriDocumento: vi.fn(async () => ""),
+    chat: vi.fn(async () => ({ testo: "", strumenti: [], costoEur: 0 })),
+    saldoAI: vi.fn(async () => ({ saldoEur: null, bloccato: false })),
+    trascrivi: vi.fn(async () => ""),
     db: db as unknown as ClientBozze,
     ...over,
   };
@@ -148,7 +158,7 @@ describe("Popup «Crea con Silvio»", () => {
     expect(within(commessa()).getByText(/2 fasi/)).toBeInTheDocument();
     expect(within(fonti).getByText(/letta/)).toBeInTheDocument();
     // Silvio dice cosa ha preso, e chiede l'inizio con un pulsante.
-    const chat = screen.getByRole("region", { name: "Messaggi di Silvio" });
+    const chat = screen.getByRole("log", { name: "Messaggi con Silvio" });
     expect(within(chat).getByText(/Da preventivo PR-0142 ho preso/)).toBeInTheDocument();
     expect(within(chat).getByRole("button", { name: /^Inizio / })).toBeInTheDocument();
     expect(crea()).toBeEnabled();
@@ -176,7 +186,7 @@ describe("Popup «Crea con Silvio»", () => {
   it("la data d'inizio data dalla chat mette le date alle fasi", async () => {
     const { s } = servizi();
     apri(s);
-    const chat = screen.getByRole("region", { name: "Messaggi di Silvio" });
+    const chat = screen.getByRole("log", { name: "Messaggi con Silvio" });
     fireEvent.click(await within(chat).findByRole("button", { name: /^Inizio / }));
     const fasi = within(commessa()).getByRole("region", { name: "Fasi e tempi" });
     expect(within(fasi).getByText(/2 fasi · \d+ \w+ → \d+ \w+/)).toBeInTheDocument();

@@ -16,6 +16,7 @@ import type { BozzaComputo } from "@/lib/computo/editorNativo";
 import { frammentoDaPreventivo, modelloDelPreventivo, moduloDelPreventivo, MODULI_EDILI } from "./preventivo";
 import { frammentoDaComputo } from "./computo";
 import { frammentiPerCompletare, type DatiCommessaEsistente } from "./commessa";
+import { COLONNE_CONTRATTO, frammentoDaContratto } from "./contratto";
 import { attachmentStorage } from "@/components/orders/filePreviewUtils";
 
 // Tabelle che i tipi generati non conoscono tutte (i preventivatori, le sottofasi).
@@ -157,4 +158,11 @@ export async function scaricaAllegatoCommessa(a: AllegatoCommessa): Promise<File
   const { data, error } = await supabase.storage.from(bucket).download(path);
   if (error || !data) throw new Error("Documento non trovato tra quelli della commessa.");
   return new File([data], a.nome, { type: a.mime || data.type || "" });
+}
+
+/** Un contratto scritto nell'app (`contratti_documents`), come frammento a regole. */
+export async function leggiFrammentoContratto(id: string): Promise<Frammento> {
+  const riga = await una("contratti_documents", COLONNE_CONTRATTO, id);
+  if (!riga) throw new Error("Contratto non trovato, o non hai il permesso di vederlo.");
+  return frammentoDaContratto(riga);
 }

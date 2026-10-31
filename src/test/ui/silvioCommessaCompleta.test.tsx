@@ -94,6 +94,16 @@ function servizi(over: Partial<ServiziSilvioCommessa> = {}) {
       { id: "a2", nome: "Pianta.dwg", path: `orders/${ORDINE}/2-pianta.dwg`, mime: null, dimensione: 1000 },
     ]),
     scaricaAllegato: vi.fn(async (a) => new File(["%PDF"], a.nome, { type: a.mime ?? "" })),
+    // Fase 3: qui non servono.
+    leggiRemoto: vi.fn(async (): Promise<EsitoLettura> => ({
+      riconosciuto: { lettore: "silvio_commessa", fonte: "documento", ai: true, immagine: false, motivo: "documento" }, frammenti: [],
+    })),
+    frammentoContratto: vi.fn(async (): Promise<Frammento> => ({ fonte: { tipo: "contratto", etichetta: "contratto" }, aree: {} })),
+    scaricaCaricato: vi.fn(async () => new File([], "vuoto")),
+    apriDocumento: vi.fn(async () => ""),
+    chat: vi.fn(async () => ({ testo: "", strumenti: [], costoEur: 0 })),
+    saldoAI: vi.fn(async () => ({ saldoEur: null, bloccato: false })),
+    trascrivi: vi.fn(async () => ""),
     db: db as unknown as ClientBozze,
     ...over,
   };

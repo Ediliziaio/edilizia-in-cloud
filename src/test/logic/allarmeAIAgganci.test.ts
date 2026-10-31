@@ -45,7 +45,7 @@ describe("I punti in cui il provider risponde sono agganciati all'allarme", () =
     expect(s).toContain('from "../_shared/aiRouter.ts"');
     // Né fetch diretti né il proxy Claude: un 402 lì passerebbe in silenzio.
     expect(s).not.toMatch(/\bfetch\(|claudeProxy|claudeMessages|callOpenRouter/);
-    expect(s.match(/aiRouterComplete\(/g)?.length).toBe(2); // OCR delle pagine scansionate e lettura
+    expect(s.match(/aiRouterComplete\(/g)?.length).toBe(3); // OCR delle pagine scansionate, lettura e chat sulla bozza
   });
 
   it("la funzione dei PDF non avvisa più per conto suo: lo fa il sistema degli allarmi", () => {

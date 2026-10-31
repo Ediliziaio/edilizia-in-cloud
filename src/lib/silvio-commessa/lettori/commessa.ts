@@ -17,7 +17,8 @@ import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../../shared/s
 import { REGISTRO } from "../../../../shared/silvio-commessa/registro.ts";
 import { compilata } from "../../../../shared/silvio-commessa/completezza.ts";
 import {
-  frammentoDalModello, MODELLI_LAVORO, misuraDalTesto, riconosciTipoLavoro,
+  dateDelleFasi, fasiDelModello, frammentoDalModello, MODELLI_LAVORO, misuraDalTesto, riconosciTipoLavoro,
+  type TipoLavoro,
 } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
 import { colonne, metti, nuovoFrammento, numero, testo } from "./comuni";
 
@@ -94,19 +95,52 @@ export function frammentoDaCommessa(dati: DatiCommessaEsistente): Frammento {
   return fr;
 }
 
+const parole = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z]+/).filter((p) => p.length > 3);
+
 /**
- * I frammenti con cui parte «Completa con Silvio» (fase 2, lotto 2.1): la commessa e, se non
- * ha le fasi ma si capisce il lavoro (tipo di lavoro, titolo, descrizione), il modello per
- * tipo di lavoro con la misura che i testi dicono e, se c'è, l'inizio lavori della commessa.
+ * Le fasi che la commessa ha, con le durate del modello: quella del modello che ha una
+ * parola in comune (Demolizioni ↔ «Demolizione e smaltimento»), altrimenti la durata media.
+ * Una dopo l'altra, con le date se c'è l'inizio: è la proposta per le fasi senza date.
+ */
+export function fasiDellaCommessaColModello(
+  fasi: readonly FaseDelPiano[], tipo: TipoLavoro, misura: number | null, inizio: string | null,
+): FaseDelPiano[] {
+  const modello = fasiDelModello(tipo, misura);
+  const media = Math.max(1, Math.round(modello.reduce((t, f) => t + (f.giorni ?? 0), 0) / Math.max(1, modello.length)));
+  let giorno = 1;
+  const durate = fasi.map((f) => {
+    const p = new Set(parole(f.name));
+    const simile = modello.find((m) => parole(m.name).some((x) => p.has(x)));
+    const giorni = simile?.giorni ?? media;
+    const fase: FaseDelPiano = { ...f, giorno_inizio: giorno, giorni };
+    giorno += giorni;
+    return fase;
+  });
+  return inizio ? dateDelleFasi(durate, inizio) : durate;
+}
+
+/**
+ * I frammenti con cui parte «Completa con Silvio» (fase 2, lotto 2.1): la commessa e, se si
+ * capisce il lavoro (tipo di lavoro, titolo, descrizione), il modello per tipo di lavoro con
+ * la misura che i testi dicono e, se c'è, l'inizio lavori della commessa:
+ * - senza fasi, le fasi del modello;
+ * - con fasi senza date (fase 3), le stesse fasi con le durate del modello: `fondi` ne fa la
+ *   proposta delle date (`fasi.date_fasi`), senza toccare le fasi.
  * Il modello resta una proposta: quello che la commessa ha già vince in `fondi`.
  */
 export function frammentiPerCompletare(dati: DatiCommessaEsistente): Frammento[] {
   const commessa = frammentoDaCommessa(dati);
-  if (dati.fasi?.length) return [commessa];
+  const fasi = dati.fasi?.length ? fasiDellaCommessa(dati.fasi) : [];
+  if (fasi.length && fasi.every((f) => f.start_date)) return [commessa];
   const o = dati.order;
   const testi = [o.tipo_lavoro, o.description, o.work_description].map(testo).filter(Boolean).join(" ");
   const tipo = riconosciTipoLavoro(testi);
   if (!tipo) return [commessa];
   const inizio = testo(o.work_start_date).slice(0, 10) || null;
-  return [commessa, frammentoDalModello(tipo, { misura: misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita), inizio })];
+  const misura = misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita);
+  const modello = frammentoDalModello(tipo, { misura, inizio });
+  if (fasi.length) {
+    modello.aree.fasi!["fasi.order_work_phases"].valore = fasiDellaCommessaColModello(fasi, tipo, misura, inizio);
+  }
+  return [commessa, modello];
 }

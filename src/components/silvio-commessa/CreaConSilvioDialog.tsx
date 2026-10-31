@@ -13,6 +13,10 @@
  * Con `orderId` è «Completa con Silvio» (fase 2, lotto 2.1): parte dalla commessa, mostra
  * chiuso quello che ha già, propone il resto (anche dai suoi documenti) e «Completa» aggiunge
  * senza toccare niente. Con `sequenza` è un passo di «Completa le prossime 5» (lotto 2.3).
+ *
+ * Fase 3: la chat scrive sulla bozza (anche a voce), la ⓘ apre il documento alla pagina
+ * citata (`VisoreFonte`), e il popup si apre con più fonti insieme (gli allegati di un'email,
+ * un contratto da aggiungere alla commessa che si completa).
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts";
-import type { Modifica } from "../../../shared/silvio-commessa/piano.ts";
+import type { Fonte, Modifica } from "../../../shared/silvio-commessa/piano.ts";
 import { prontaPerScrivere } from "@/lib/silvio-commessa/scrittura";
 import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { ColonnaFonti } from "./ColonnaFonti";
@@ -31,10 +35,12 @@ import { ColonnaChat } from "./ColonnaChat";
 import { ColonnaCommessa } from "./ColonnaCommessa";
 import {
   contiDellaBarra, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, marginePrevisto, NOMI_AREE,
-  pianoDellaCommessa,
+  pianoDellaCommessa, STIMA_DETTATURA_EUR,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
+import { VisoreFonte, type DocumentoDelVisore } from "./VisoreFonte";
+import { comeSiApre, paginaCitata, tipoDelDocumento } from "./documentoCitato";
 
 type Scheda = "fonti" | "chat" | "commessa";
 
@@ -43,8 +49,8 @@ export interface CreaConSilvioDialogProps {
   onOpenChange: (open: boolean) => void;
   companyId: string;
   userId: string;
-  /** La fonte con cui si apre: il popup parte già al lavoro. */
-  iniziale?: FonteDaAggiungere | null;
+  /** Le fonti con cui si apre: il popup parte già al lavoro. In «Completa» si aggiungono alla commessa. */
+  iniziale?: FonteDaAggiungere | FonteDaAggiungere[] | null;
   servizi?: ServiziSilvioCommessa;
   /** Dopo «Crea». Di serie apre la commessa. */
   onCreata?: (orderId: string) => void;
@@ -72,9 +78,11 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null, sequenza = null } = props;
   const completa = !!orderId;
   const { etichettaCommessa, iniziale: daFuori } = props;
-  const iniziale = useMemo((): FonteDaAggiungere | null | undefined => (orderId
-    ? { tipo: "commessa", id: orderId, etichetta: etichettaCommessa ? `commessa ${etichettaCommessa}` : undefined }
-    : daFuori), [orderId, etichettaCommessa, daFuori]);
+  const iniziale = useMemo((): FonteDaAggiungere[] | null => {
+    const fuori = daFuori ? (Array.isArray(daFuori) ? daFuori : [daFuori]) : [];
+    if (orderId) return [{ tipo: "commessa", id: orderId, etichetta: etichettaCommessa ? `commessa ${etichettaCommessa}` : undefined }, ...fuori];
+    return fuori.length ? fuori : null;
+  }, [orderId, etichettaCommessa, daFuori]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const b = useBozzaSilvio({ companyId, userId, servizi, orderId });
@@ -91,7 +99,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   useEffect(() => {
     if (partito.current || !iniziale) return;
     partito.current = true;
-    b.aggiungi([iniziale]);
+    b.aggiungi(iniziale);
   }, [iniziale, b]);
 
   // Crea e completa non si mescolano: Nuova commessa riprende le bozze «crea», la commessa le sue.
@@ -111,7 +119,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
 
   const completezza = useMemo(() => completezzaPiano(b.piano), [b.piano]);
   const prima = useMemo(() => (completa ? completezzaPiano(pianoDellaCommessa(b.piano)).punteggio : null), [completa, b.piano]);
-  const costo = b.fonti.reduce((s, f) => s + (f.costoEur ?? 0), 0);
+  const costo = b.fonti.reduce((s, f) => s + (f.costoEur ?? 0), 0) + b.costoChat;
+  const [visore, setVisore] = useState<DocumentoDelVisore | null>(null);
   const conti = contiDellaBarra(b.piano, b.scrittura, costo);
   const domanda = domandaDiSilvio(b.piano, b.scrittura);
   const margine = marginePrevisto(b.piano);
@@ -125,6 +134,40 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     if (chiave) { setControlla(false); setScheda("commessa"); }
   };
   const modifica = (m: Modifica | Modifica[]) => { setErrore(null); b.modifica(m); };
+
+  /** «Vedi» su una risposta della chat: la commessa, alla prima variabile cambiata. */
+  const vedi = (chiavi: string[]) => {
+    setControlla(false);
+    setScheda("commessa");
+    requestAnimationFrame(() => document.querySelector(`[data-chiave="${CSS.escape(chiavi[0] ?? "")}"]`)?.scrollIntoView?.({ block: "center", behavior: "smooth" }));
+  };
+
+  /** La ⓘ: come si riapre il documento da cui viene un valore, o null se non è un documento. */
+  const apriFonte = (fonte: Fonte): (() => void) | null => {
+    const delPopup = b.fonteDelPopup(fonte);
+    const doc = comeSiApre(fonte, companyId, delPopup);
+    if (!doc) return null;
+    const nome = doc.tipo === "file" ? doc.file.name : doc.nome;
+    const mime = doc.tipo === "file" ? doc.file.type : doc.mime;
+    const carica = async (): Promise<Blob> => {
+      switch (doc.tipo) {
+        case "file": return doc.file;
+        case "caricato": return servizi.scaricaCaricato(doc.path, doc.nome, doc.mime);
+        case "allegato_commessa": return servizi.scaricaAllegato({ id: "", nome: doc.nome, path: doc.path, mime: doc.mime ?? null, dimensione: null });
+        case "email": {
+          const url = await servizi.apriDocumento({ tipo: "allegato_email", email_id: doc.email_id, indice: doc.indice }, companyId);
+          const r = await fetch(url);
+          if (!r.ok) throw new Error("Non riesco a scaricare l'allegato.");
+          return await r.blob();
+        }
+      }
+    };
+    return () => setVisore({
+      titolo: fonte.etichetta.replace(/^(scelto|modificato|spostato) da te: /, ""),
+      tipo: tipoDelDocumento(nome, mime) ?? "pdf",
+      carica, pagina: paginaCitata(fonte.dove), citazione: fonte.citazione ?? null, dove: fonte.dove ?? null,
+    });
+  };
 
   const tasti = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !campoDiTesto(e.target)) {
@@ -181,7 +224,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
 
   const schede: { id: Scheda; nome: string; conta?: string }[] = [
     { id: "fonti", nome: "Fonti", conta: b.fonti.length ? String(b.fonti.length) : undefined },
-    { id: "chat", nome: "Chat", conta: domanda ? "1" : undefined },
+    { id: "chat", nome: "Chat", conta: domanda ? "1" : b.scrivendo ? "…" : undefined },
     { id: "commessa", nome: "Commessa", conta: `${completezza.punteggio}` },
   ];
 
@@ -339,15 +382,19 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte} />
             </section>
             <section id="pannello-chat" role="tabpanel" aria-label="Chat con Silvio"
-              className={cn("min-h-0 p-4 max-lg:overflow-y-auto", scheda !== "chat" && "max-lg:hidden")}>
+              className={cn("min-h-0 p-4 max-lg:overflow-y-auto lg:flex lg:flex-col", scheda !== "chat" && "max-lg:hidden")}>
               <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">Chat</h3>
-              <ColonnaChat messaggi={b.messaggi} domanda={domanda} legge={legge} onModifica={modifica} onApri={apri} />
+              <ColonnaChat messaggi={b.messaggi} domanda={domanda} legge={legge} onModifica={modifica} onApri={apri}
+                onScrivi={(t) => { setErrore(null); return b.scrivi(t); }} scrivendo={b.scrivendo} onVedi={vedi}
+                annullabile={b.storia.length > 0} onAnnulla={b.indietro}
+                trascrivi={servizi.trascrivi} primaDiDettare={() => b.controllaCrediti(STIMA_DETTATURA_EUR)} />
             </section>
             <section id="pannello-commessa" role="tabpanel" aria-label="La commessa"
               className={cn("min-h-0 overflow-y-auto p-4", scheda !== "commessa" && "max-lg:hidden")}>
               <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">La commessa</h3>
               <ColonnaCommessa companyId={companyId} piano={b.piano} completezza={completezza} evidenziate={b.evidenziate}
-                aperta={aperta} onApri={apri} onModifica={modifica} />
+                aperta={aperta} onApri={apri} onModifica={modifica}
+                daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} />
             </section>
           </div>
         )}
@@ -390,6 +437,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             )}
           </footer>
         )}
+        <VisoreFonte documento={visore} onChiudi={() => setVisore(null)} />
       </DialogContent>
     </Dialog>
   );

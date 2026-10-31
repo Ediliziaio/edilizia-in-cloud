@@ -81,7 +81,7 @@ describe("«Completa»: quello che c'è non si tocca", () => {
     expect(scritturaDalPiano(dopo).ordine.work_start_date).toBe("2026-11-09");
   });
 
-  it("senza fasi e col lavoro riconoscibile, il modello le propone con la misura; con le fasi no", () => {
+  it("senza fasi e col lavoro riconoscibile, il modello le propone con la misura; con le fasi già datate no", () => {
     const [commessa, modello] = frammentiPerCompletare({ order: ordine({ work_start_date: "2026-11-09" }) });
     expect(commessa.fonte.tipo).toBe("persona");
     expect(modello.fonte.etichetta).toBe("modello «bagno» (6 mq)");
@@ -89,7 +89,8 @@ describe("«Completa»: quello che c'è non si tocca", () => {
     expect(fasi.length).toBeGreaterThan(2);
     expect(fasi[0].start_date).toBe("2026-11-09");
 
-    expect(frammentiPerCompletare({ order: ordine(), fasi: [{ id: "f1", name: "Demolizioni", position: 0 }] })).toHaveLength(1);
+    const datata = { id: "f1", name: "Demolizioni", position: 0, start_date: "2026-11-09", end_date: "2026-11-11" };
+    expect(frammentiPerCompletare({ order: ordine(), fasi: [datata] })).toHaveLength(1);
     expect(frammentiPerCompletare({ order: ordine({ description: "Lavori vari", tipo_lavoro: null }) })).toHaveLength(1);
   });
 
