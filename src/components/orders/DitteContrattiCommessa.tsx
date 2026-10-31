@@ -208,6 +208,12 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                         <p key={a.id}>
                           <span className="font-medium">{nomeDitta(a.external_team_id)}</span>
                           {" · "}{Number(a.cost_preventivo) ? `previsto ${formatCurrency(Number(a.cost_preventivo))}` : <span className="text-amber-800">senza previsto{r.costo > 0 && r.assegnate.length === 1 ? ` → ${formatCurrency(r.costo)}` : ""}</span>}
+                          {/* Previsto scritto diverso dalle voci: resta quello scritto, un pallino lo segnala. */}
+                          {r.assegnate.length === 1 && Number(a.cost_preventivo) > 0 && r.costo > 0
+                            && Math.abs(conIva(r.costo, a.vat_rate ?? 0) - Number(a.cost_preventivo)) > Math.max(1, r.costo * 0.01) && (
+                            <span role="img" aria-label={`Diverso dalle voci: a listino ${formatCurrency(r.costo)}`} title={`Le voci valgono ${formatCurrency(r.costo)} a listino: resta il previsto scritto`}
+                              className="ml-1 inline-block h-2 w-2 rounded-full bg-red-600 align-middle" />
+                          )}
                         </p>
                       ))}
                     </div>
