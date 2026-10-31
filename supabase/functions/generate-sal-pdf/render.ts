@@ -183,7 +183,8 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const aliquota = Number.isFinite(Number(extra.aliquotaIva)) && extra.aliquotaIva != null ? Number(extra.aliquotaIva) : null;
   const ivaQuota = aliquota != null && !contratto?.reverse_charge ? Math.round(economic.daFatturare * aliquota) / 100 : null;
   const contrattoTot = Number(extra.importoContratto) > 0 ? Number(extra.importoContratto) : null;
-  const restaDaEseguire = contrattoTot != null ? Math.max(0, Math.round((contrattoTot - economic.totale) * 100) / 100) : Math.max(0, Math.round((totaleContrattuale - economic.totale) * 100) / 100);
+  // Sulle voci del verbale, non sull'importo della commessa: le varianti approvate entrano come voci e l'importo della commessa non le comprende.
+  const restaDaEseguire = Math.max(0, Math.round((totaleContrattuale - economic.totale) * 100) / 100);
   const etichetta = (t: string) => `<div style="font-size:7pt;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${t}</div>`;
   const campo = (t: string, v: string | null | undefined) => v ? `<div style="margin-bottom:6px;">${etichetta(t)}<div style="font-size:9pt;color:#0f172a;">${v}</div></div>` : "";
   const rigaRiep = (t: string, v: number, stile = "") => `<tr style="border-bottom:1px solid #eef2f7;${stile}"><td style="padding:6px 10px;font-size:9pt;">${t}</td><td style="padding:6px 10px;text-align:right;font-size:9pt;white-space:nowrap;">${fmtEur(v)}</td></tr>`;
@@ -281,7 +282,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     <div class="riquadro" style="flex:1;">
       ${etichetta("Resta da eseguire")}
       <div style="font-size:12pt;font-weight:700;">${fmtEur(restaDaEseguire)}</div>
-      <div style="font-size:7.5pt;color:#64748b;margin-top:2px;">${contrattoTot != null ? `su ${fmtEur(contrattoTot)} di lavori in commessa` : "sul valore delle voci"}</div>
+      <div style="font-size:7.5pt;color:#64748b;margin-top:2px;">su ${fmtEur(totaleContrattuale)} di voci del contratto</div>
     </div>
   </div>
   <p style="font-size:7.5pt;color:#64748b;margin:-6px 0 14px;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento. Acconti e fatture già emesse si verificano prima della fatturazione.</p>
