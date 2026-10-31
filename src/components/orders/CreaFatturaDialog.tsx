@@ -540,7 +540,8 @@ export function CreaFatturaDialog({
   // ── Pagamento ────────────────────────────────────────────────
   const metodo = metodoScelto
     ?? matchedAnagrafica?.metodo_pagamento_default
-    ?? aziendaFiscale?.metodo_pagamento_default
+    // Colonna di anagrafica_azienda che il tipo non dichiara (come in EditorPagamentoSection).
+    ?? (aziendaFiscale as { metodo_pagamento_default?: string | null } | null | undefined)?.metodo_pagamento_default
     ?? "MP05";
   const bonifico = metodo === "MP05";
   const iban = (aziendaFiscale?.iban_principale ?? "").replace(/\s+/g, "").toUpperCase();
