@@ -202,6 +202,8 @@ export function ContrattiSubappalto({
   const [form, setForm] = useState<FormContratto>(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
   const [stampa, setStampa] = useState<{ html: string; nome: string } | null>(null);
   const [collega, setCollega] = useState<string | null>(null);
+  // Fattura scelta nel collegamento: poi si sceglie il SAL che paga.
+  const [fatturaScelta, setFatturaScelta] = useState<string | null>(null);
   const [invio, setInvio] = useState<{ c: ContrattoCompleto; nome: string; email: string; telefono: string } | null>(null);
 
   const { data: commesse = [] } = useQuery({
@@ -241,10 +243,10 @@ export function ContrattiSubappalto({
       const filtri = [ids.length ? `contratto_subappalto_id.in.(${ids.join(",")})` : null, sub.piva ? `cedente_piva.eq.${sub.piva.replace(/\s/g, "")}` : null].filter(Boolean).join(",");
       if (!filtri) return [];
       const { data, error } = await supabase.from("fatture_ricevute")
-        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, cedente_ragione_sociale")
+        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, cedente_ragione_sociale")
         .eq("company_id", companyId).or(filtri).order("data_fattura", { ascending: false }).limit(200);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; numero_fattura: string | null; data_fattura: string | null; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; cedente_ragione_sociale: string | null }>;
+      return (data ?? []) as unknown as Array<{ id: string; numero_fattura: string | null; data_fattura: string | null; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null; cedente_ragione_sociale: string | null }>;
     },
     enabled: !!sub.piva || ids.length > 0,
   });
@@ -317,12 +319,22 @@ export function ContrattiSubappalto({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Fattura → contratto e SAL: la contabilizza se serve e ne porta il costo
+  // sulla commessa del contratto (subappalto_collega_fattura). Così il
+  // pagamento del SAL paga proprio quella fattura.
   const collegaFattura = useMutation({
-    mutationFn: async ({ fatturaId, contrattoId }: { fatturaId: string; contrattoId: string | null }) => {
-      const { error } = await supabase.from("fatture_ricevute").update({ contratto_subappalto_id: contrattoId } as never).eq("id", fatturaId).eq("company_id", companyId);
-      if (error) throw new Error("Collegamento non riuscito. Riprova.");
+    mutationFn: async ({ fatturaId, contrattoId, salId = null }: { fatturaId: string; contrattoId: string | null; salId?: string | null }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("subappalto_collega_fattura", { p_fattura: fatturaId, p_contratto: contrattoId, p_sal: salId });
+      if (error) throw new Error(error.message || "Collegamento non riuscito. Riprova.");
+      return data as { esito?: string } | null;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] }),
+    onSuccess: (esito) => {
+      qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] });
+      qc.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+      if (esito?.esito === "contabilizzata_e_collegata") toast.success("Fattura contabilizzata e messa fra i costi della commessa");
+      else if (esito?.esito === "collegata") toast.success("Fattura collegata");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -490,6 +502,9 @@ export function ContrattiSubappalto({
                   <div key={f.id} className="flex items-center gap-2 border-t px-3 py-1.5 text-xs">
                     <span className="font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</span>
                     <span className="text-muted-foreground">del {dataIT(f.data_fattura)}</span>
+                    {(() => { const s = sal.find((x) => x.id === f.sal_subappaltatore_id); return s
+                      ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">SAL n. {s.numero_sal}</span>
+                      : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">SAL non indicato</span>; })()}
                     <span className="ml-auto tabular-nums">{euro(Number(f.imponibile_totale ?? f.totale_documento) || 0)}</span>
                     <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Scollega la fattura" onClick={() => collegaFattura.mutate({ fatturaId: f.id, contrattoId: null })}>
                       <Unlink className="h-3.5 w-3.5" />
@@ -562,22 +577,57 @@ export function ContrattiSubappalto({
       </Dialog>
 
       {/* Collega fattura */}
-      <Dialog open={!!collega} onOpenChange={(v) => { if (!v) setCollega(null); }}>
+      <Dialog open={!!collega} onOpenChange={(v) => { if (!v) { setCollega(null); setFatturaScelta(null); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Collega una fattura ricevuta</DialogTitle>
-            <DialogDescription>Le fatture con la partita IVA {sub.piva ?? "—"} non ancora collegate a un contratto.</DialogDescription>
+            <DialogTitle>{fatturaScelta ? "Di quale SAL è questa fattura?" : "Collega una fattura ricevuta"}</DialogTitle>
+            <DialogDescription>
+              {fatturaScelta
+                ? "La fattura si emette dopo il benestare: si collega a un SAL verificato. Il costo va sulla commessa del contratto e il pagamento del SAL paga questa fattura."
+                : `Le fatture con la partita IVA ${sub.piva ?? "—"} non ancora collegate a un contratto.`}
+            </DialogDescription>
           </DialogHeader>
-          <div className="max-h-80 divide-y overflow-y-auto rounded-lg border">
-            {fattureLibere.map((f) => (
-              <button key={f.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
-                onClick={() => { collegaFattura.mutate({ fatturaId: f.id, contrattoId: collega! }); setCollega(null); }}>
-                <span className="font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</span>
-                <span className="text-xs text-muted-foreground">del {dataIT(f.data_fattura)}</span>
-                <span className="ml-auto tabular-nums">{euro(Number(f.imponibile_totale ?? f.totale_documento) || 0)}</span>
-              </button>
-            ))}
-          </div>
+          {!fatturaScelta ? (
+            <div className="max-h-80 divide-y overflow-y-auto rounded-lg border">
+              {fattureLibere.map((f) => (
+                <button key={f.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                  onClick={() => setFatturaScelta(f.id)}>
+                  <span className="font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</span>
+                  <span className="text-xs text-muted-foreground">del {dataIT(f.data_fattura)}</span>
+                  <span className="ml-auto tabular-nums">{euro(Number(f.imponibile_totale ?? f.totale_documento) || 0)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (() => {
+            const f = fatture.find((x) => x.id === fatturaScelta);
+            const imponibile = Number(f?.imponibile_totale ?? f?.totale_documento) || 0;
+            const candidati = sal.filter((s) => s.contratto_id === collega && ["verificato", "pagato"].includes(s.stato))
+              .sort((a, b) => Math.abs(Number(a.importo_netto) - imponibile) - Math.abs(Number(b.importo_netto) - imponibile));
+            const chiudi = () => { setCollega(null); setFatturaScelta(null); };
+            return (
+              <div className="space-y-2">
+                {candidati.length === 0 && <p className="text-sm text-amber-800">Nessun SAL verificato su questo contratto: verifica prima il SAL, poi collega la fattura. Puoi collegarla solo al contratto.</p>}
+                <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+                  {candidati.map((s) => {
+                    const coincide = Math.abs(Number(s.importo_netto) - imponibile) <= 0.01;
+                    return (
+                      <button key={s.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                        onClick={() => { collegaFattura.mutate({ fatturaId: fatturaScelta, contrattoId: collega!, salId: s.id }); chiudi(); }}>
+                        <span className="font-medium">SAL n. {s.numero_sal}</span>
+                        <span className="text-xs text-muted-foreground">{s.stato === "pagato" ? "pagato" : "verificato"}</span>
+                        {coincide && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">importo uguale alla fattura</span>}
+                        <span className="ml-auto tabular-nums">netto {euro(Number(s.importo_netto) || 0)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setFatturaScelta(null)}>Indietro</Button>
+                  <Button variant="outline" size="sm" onClick={() => { collegaFattura.mutate({ fatturaId: fatturaScelta, contrattoId: collega! }); chiudi(); }}>Solo al contratto</Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
