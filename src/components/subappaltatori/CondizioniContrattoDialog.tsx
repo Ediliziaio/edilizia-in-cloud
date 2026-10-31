@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  articoliConDatiDelContratto, articoliContratto, unisciArticoliPersonalizzati, type DatiContrattoSubappalto,
+  articoliConDatiDelContratto, articoliContratto, datiPerTestiBase, unisciArticoliPersonalizzati, type DatiContrattoSubappalto,
 } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,10 +43,12 @@ export function CondizioniContrattoDialog({
 }) {
   const qc = useQueryClient();
   const conDati = useMemo(() => articoliConDatiDelContratto(), []);
+  // Testi senza le aggiunte del contratto (obblighi specifici, garanzie, note): quelle restano in coda da sole.
+  const datiBase = useMemo(() => datiPerTestiBase(dati), [dati]);
   // Il testo di base (codice), quello con lo standard dell'azienda, e quello attuale del contratto.
-  const base = useMemo(() => articoliContratto({ ...dati, articoliPersonalizzati: {} }), [dati]);
-  const conModello = useMemo(() => articoliContratto({ ...dati, articoliPersonalizzati: unisciArticoliPersonalizzati(modello, {}) }), [dati, modello]);
-  const attuali = useMemo(() => articoliContratto({ ...dati, articoliPersonalizzati: unisciArticoliPersonalizzati(modello, personalizzati) }), [dati, modello, personalizzati]);
+  const base = useMemo(() => articoliContratto({ ...datiBase, articoliPersonalizzati: {} }), [datiBase]);
+  const conModello = useMemo(() => articoliContratto({ ...datiBase, articoliPersonalizzati: unisciArticoliPersonalizzati(modello, {}) }), [datiBase, modello]);
+  const attuali = useMemo(() => articoliContratto({ ...datiBase, articoliPersonalizzati: unisciArticoliPersonalizzati(modello, personalizzati) }), [datiBase, modello, personalizzati]);
   const [testi, setTesti] = useState<Record<string, string>>(() => Object.fromEntries(attuali.map((a) => [a.titolo, testoDi(a.paragrafi)])));
   const testoBase = (titolo: string) => testoDi(base.find((a) => a.titolo === titolo)?.paragrafi ?? []);
   const testoModello = (titolo: string) => testoDi(conModello.find((a) => a.titolo === titolo)?.paragrafi ?? []);
@@ -77,12 +79,15 @@ export function CondizioniContrattoDialog({
   const salvaStandard = useMutation({
     mutationFn: async () => {
       // Lo standard dell'azienda: solo gli articoli senza dati del contratto, e solo se diversi dal testo di base.
-      const nuovo: Record<string, string> = {};
+      // Si parte dallo standard che c'è: si cambia solo quello che si vede qui.
+      const nuovo: Record<string, string> = { ...modello };
+      let saltati = 0;
       for (const a of base) {
-        if (conDati.has(a.titolo)) continue;
         const v = norm(testi[a.titolo] ?? "");
-        if (v && v !== norm(testoBase(a.titolo))) nuovo[a.titolo] = v;
+        if (conDati.has(a.titolo)) { if (v && v !== norm(testoModello(a.titolo))) saltati += 1; continue; }
+        if (v && v !== norm(testoBase(a.titolo))) nuovo[a.titolo] = v; else delete nuovo[a.titolo];
       }
+      if (saltati) toast.info(`${saltati} ${saltati === 1 ? "articolo con importi o date resta" : "articoli con importi o date restano"} solo in questo contratto: lo standard dell'azienda non li prende.`);
       const { data: utente } = await supabase.auth.getUser();
       const { data, error } = await db.from("subappalto_modello_contratto")
         .upsert({ company_id: companyId, articoli: nuovo, updated_at: new Date().toISOString(), updated_by: utente.user?.id ?? null }, { onConflict: "company_id" })
@@ -107,7 +112,8 @@ export function CondizioniContrattoDialog({
           <DialogTitle>Condizioni del contratto</DialogTitle>
           <DialogDescription>
             Ogni articolo si può riscrivere. «Salva per questo contratto» vale solo qui; «Salva come standard dell'azienda»
-            vale per tutti i contratti che non hanno un testo proprio. Una riga vuota separa i paragrafi.
+            vale per tutti i contratti che non hanno un testo proprio. Una riga vuota separa i paragrafi. Obblighi specifici,
+            garanzie e note scritti in «Modifica» si aggiungono in coda da soli.
           </DialogDescription>
         </DialogHeader>
         {bloccato && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{bloccato}</p>}
@@ -123,6 +129,7 @@ export function CondizioniContrattoDialog({
                   {daContratto && <Badge variant="outline" className="text-[11px]">Solo questo contratto</Badge>}
                   {!daContratto && daModello && <Badge variant="outline" className="text-[11px]">Standard dell'azienda</Badge>}
                   {conDati.has(a.titolo) && <span className="text-[11px] text-muted-foreground">contiene dati del contratto: si cambia solo qui</span>}
+                  {conDati.has(a.titolo) && daContratto && <span className="text-[11px] text-amber-800">testo scritto a mano: se cambiano importo o date, aggiornalo</span>}
                   {(daContratto || daModello) && (
                     <Button type="button" size="sm" variant="ghost" className="ml-auto h-7 gap-1 text-xs" disabled={occupato}
                       title="Rimette il testo di base"

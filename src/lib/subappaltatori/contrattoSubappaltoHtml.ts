@@ -269,12 +269,18 @@ export function articoliContratto(d: DatiContrattoSubappalto): ArticoloContratto
   ];
   if (t(d.note)) art.push({ titolo: "Altre pattuizioni", paragrafi: [t(d.note)] });
   // Testi personalizzati (standard dell'azienda o del singolo contratto): sostituiscono i paragrafi, non il titolo.
+  // Quello che si scrive nel singolo contratto da «Modifica» (obblighi specifici, garanzie) resta in coda:
+  // uno standard dell'azienda non lo deve cancellare.
   const pers = d.articoliPersonalizzati ?? {};
+  const inCoda: Record<string, string[]> = {
+    "Obblighi del Subappaltatore": t(d.obblighi) ? [`Obblighi specifici: ${t(d.obblighi)}`] : [],
+    "Garanzie dei lavori": t(d.garanzie) ? [t(d.garanzie)] : [],
+  };
   for (const a of art) {
     const testo = pers[a.titolo];
     if (typeof testo === "string" && testo.trim()) {
       const par = paragrafiDaTesto(testo);
-      if (par.length) a.paragrafi = par;
+      if (par.length) a.paragrafi = [...par, ...(inCoda[a.titolo] ?? [])];
     }
   }
   art.push({ titolo: "Allegati", paragrafi: [
@@ -414,7 +420,15 @@ export function articoliConDatiDelContratto(): Set<string> {
   const a = articoliContratto(base(1)), b = articoliContratto(base(2));
   const out = new Set<string>();
   a.forEach((x, i) => { if (x.paragrafi.join("\n") !== b[i]?.paragrafi.join("\n")) out.add(x.titolo); });
-  // Fatturazione dipende dall'IVA della ditta, che nei due contratti di prova è uguale.
+  // Fatturazione dipende dall'IVA della ditta, che nei due contratti di prova è uguale; «Altre pattuizioni» è
+  // tutto testo del singolo contratto (le note).
   out.add("Fatturazione");
+  out.add("Altre pattuizioni");
   return out;
+}
+
+/** I dati da cui si calcolano i testi base degli articoli: senza le aggiunte del singolo contratto (obblighi
+ * specifici, garanzie, note), che restano in coda da sole e non devono finire nei testi personalizzati. */
+export function datiPerTestiBase(d: DatiContrattoSubappalto): DatiContrattoSubappalto {
+  return { ...d, obblighi: null, garanzie: null, note: null };
 }

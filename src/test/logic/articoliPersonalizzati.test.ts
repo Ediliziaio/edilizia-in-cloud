@@ -32,4 +32,11 @@ describe("articoli del contratto personalizzati", () => {
   it("una riga vuota separa i paragrafi", () => {
     expect(paragrafiDaTesto("uno\n\n\ndue\n  \ntre")).toEqual(["uno", "due", "tre"]);
   });
+  it("uno standard sugli obblighi non cancella gli obblighi specifici del contratto", () => {
+    const d = { ...dati, obblighi: "Pulizia giornaliera", articoliPersonalizzati: { "Obblighi del Subappaltatore": "Testo standard dell'azienda." } };
+    expect(art(d, "Obblighi del Subappaltatore").paragrafi).toEqual(["Testo standard dell'azienda.", "Obblighi specifici: Pulizia giornaliera"]);
+  });
+  it("«Altre pattuizioni» è solo del contratto, mai nello standard dell'azienda", () => {
+    expect(articoliConDatiDelContratto().has("Altre pattuizioni")).toBe(true);
+  });
 });

@@ -110,7 +110,7 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
               <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />Pagamenti della commessa
               {scaduteUscite > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{scaduteUscite} scaduti</span>}
             </CardTitle>
-            <p className="text-sm text-muted-foreground">Ogni impegno verso fornitori, subappaltatori, ditte, professionisti e noleggi, e i costi extra: con la fattura collegata, quanto è pagato, quanto resta e quando scade. Importi IVA inclusa.</p>
+            <p className="text-sm text-muted-foreground">Ogni impegno verso fornitori, subappaltatori, ditte, professionisti e noleggi, e i costi extra: con la fattura collegata, quanto è pagato, quanto resta e quando scade. Importi IVA inclusa, tranne i subappalti in reverse charge (l'IVA che versi tu è indicata a parte).</p>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.uscite.length === 0 ? (
@@ -203,7 +203,9 @@ function RigaUscita({ u, oggi, onPagamenti }: { u: Uscita; oggi: string; onPagam
         )}
         {(u.origine_tipo === "subappalto" || u.origine_tipo === "ditta") && u.iva_pct != null && (
           <p className="text-xs text-muted-foreground">
-            IVA {Number(u.iva_pct).toLocaleString("it-IT")}% inclusa{u.reverse_charge ? " · reverse charge: alla ditta va l'imponibile, l'IVA la versi tu" : ""}
+            {u.reverse_charge
+              ? `Reverse charge: alla ditta va l'imponibile; IVA ${Number(u.iva_pct).toLocaleString("it-IT")}% da versare tu${u.iva_da_versare ? ` (${formatCurrency(u.iva_da_versare)})` : ""}, non compresa qui`
+              : `IVA ${Number(u.iva_pct).toLocaleString("it-IT")}% inclusa`}
           </p>
         )}
         {u.stato !== "pagato" && u.scadenza && (

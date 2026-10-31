@@ -59,6 +59,8 @@ export interface Uscita {
   /** Subappalti e ditte: l'IVA aggiunta all'importo, e se è in reverse charge (la versa l'impresa). */
   iva_pct?: number | null;
   reverse_charge?: boolean | null;
+  /** Reverse charge: l'IVA che versa l'impresa, a parte (importo e pagato restano l'imponibile). */
+  iva_da_versare?: number | null;
 }
 
 export interface QuadroPagamenti {
@@ -89,6 +91,7 @@ export function normalizzaQuadro(raw: unknown): QuadroPagamenti | null {
       maturato_lordo: u.maturato_lordo == null ? null : n(u.maturato_lordo),
       ritenute: u.ritenute == null ? null : n(u.ritenute),
       iva_pct: u.iva_pct == null ? null : n(u.iva_pct),
+      iva_da_versare: u.iva_da_versare == null ? null : n(u.iva_da_versare),
     })),
     mezzi_stimati: q.mezzi_stimati ?? null,
   };

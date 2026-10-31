@@ -262,6 +262,7 @@ export function ContrattiSubappalto({
   // Base lavori con misure o SAL: commessa fissa; importo e oneri si cambiano con una variante registrata al salvataggio.
   const baseCongelata = !!dialog?.id && conLavoriContabilizzati(dialog.id);
   const [motivoVariante, setMotivoVariante] = useState("");
+  const varianteFatta = useRef(false);
   const { data: ritenute = [], isLoading: caricoRitenute, isError: erroreRitenute } = useQuery({
     queryKey: ["ritenute-sub-tutte", sub.id, ids.join(",")],
     queryFn: async () => {
@@ -306,10 +307,11 @@ export function ContrattiSubappalto({
     enabled: contratti.length > 0, staleTime: 10 * 60_000,
   });
   // Lo standard dell'azienda per gli articoli del contratto (vuoto = testo di base).
-  const { data: modelloArticoli = {} } = useQuery({
+  const { data: modelloArticoli = {}, isLoading: caricoModello, isError: erroreModello } = useQuery({
     queryKey: ["subappalto-modello-contratto", companyId],
     queryFn: async () => {
-      const { data } = await supabase.from("subappalto_modello_contratto" as never).select("articoli").eq("company_id", companyId).maybeSingle();
+      const { data, error } = await supabase.from("subappalto_modello_contratto" as never).select("articoli").eq("company_id", companyId).maybeSingle();
+      if (error) throw error;
       return unisciArticoliPersonalizzati((data as { articoli?: unknown } | null)?.articoli, {});
     },
     enabled: !!companyId && contratti.length > 0, staleTime: 5 * 60_000,
@@ -342,28 +344,38 @@ export function ContrattiSubappalto({
     mutationFn: async () => {
       if (!form.order_id) throw new Error("Scegli la commessa del contratto");
       if (!form.descrizione_lavori.trim()) throw new Error("Scrivi i lavori affidati");
-      const importo = numero(form.importo_contrattuale);
-      if (importo == null || importo < 0) throw new Error("Importo del contratto non valido");
-      // Contratto con lavori già contabilizzati: se cambiano importo o oneri, prima la variante tracciata.
-      if (dialog?.id && baseCongelata) {
-        const orig = contratti.find((x) => x.id === dialog.id);
-        const nuoviOneri = numero(form.oneri_sicurezza) ?? 0;
-        if (orig && (Math.abs(Number(orig.importo_contrattuale) - importo) > 0.004 || Math.abs(Number(orig.oneri_sicurezza ?? 0) - nuoviOneri) > 0.004)) {
-          const motivo = motivoVariante.trim() || "Correzione dell'importo del contratto";
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: errVar } = await (supabase as any).rpc("subappalto_variante_registra", {
-            p_company: companyId, p_contratto: dialog.id, p_importo: Math.round(importo * 100) / 100,
-            p_oneri: Math.round(nuoviOneri * 100) / 100, p_motivo: motivo.length >= 5 ? motivo : `${motivo} (variante)`,
-          });
-          if (errVar) throw new Error(errVar.message || "Variante non registrata: importo e oneri non cambiati.");
-        }
-      }
+      const importoLetto = numero(form.importo_contrattuale);
+      if (importoLetto == null || importoLetto < 0) throw new Error("Importo del contratto non valido");
+      // Arrotondati al centesimo come nel database: «1000,005» non deve far scattare il blocco dopo la variante.
+      const importo = Math.round(importoLetto * 100) / 100;
+      const oneriLetti = numero(form.oneri_sicurezza) ?? 0;
+      if (oneriLetti < 0) throw new Error("Oneri della sicurezza non validi");
+      const oneri = Math.round(oneriLetti * 100) / 100;
+      // Tutte le verifiche prima della variante: una variante registrata e poi un errore sul resto lasciavano a metà.
       const ritenuta = numero(form.ritenuta_garanzia_pct);
       if (ritenuta == null || ritenuta < 0 || ritenuta > 100) throw new Error("Ritenuta di garanzia non valida");
+      const orig = dialog?.id ? contratti.find((x) => x.id === dialog.id) : undefined;
+      const cambiaImporto = !!orig && (Math.abs(Number(orig.importo_contrattuale) - importo) > 0.004 || Math.abs(Number(orig.oneri_sicurezza ?? 0) - oneri) > 0.004);
+      // In firma: il subappaltatore firmerebbe il PDF con l'importo vecchio.
+      if (orig && cambiaImporto && ["pending", "otp_verified"].includes(richiestaDi(orig.id)?.status ?? ""))
+        throw new Error("Il contratto è in firma con l'importo attuale: annulla la richiesta di firma prima di cambiare importo o oneri.");
+      if (orig && cambiaImporto && orig.firmato_il && !baseCongelata)
+        throw new Error("Il contratto è firmato: importo e oneri si cambiano con una variante (pulsante «Variante»), non riscrivendo il contratto.");
+      // Contratto con lavori già contabilizzati: se cambiano importo o oneri, prima la variante tracciata.
+      if (orig && baseCongelata && cambiaImporto) {
+        const motivo = motivoVariante.trim() || "Correzione dell'importo del contratto";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: errVar } = await (supabase as any).rpc("subappalto_variante_registra", {
+          p_company: companyId, p_contratto: orig.id, p_importo: importo, p_oneri: oneri,
+          p_motivo: motivo.length >= 5 ? motivo : `${motivo} (variante)`,
+        });
+        if (errVar) throw new Error(errVar.message || "Variante non registrata: importo e oneri non cambiati.");
+        varianteFatta.current = true;
+      }
       const campi = {
         company_id: companyId, subappaltatore_id: sub.id, order_id: form.order_id,
         numero_contratto: form.numero_contratto.trim() || null, descrizione_lavori: form.descrizione_lavori.trim(),
-        importo_contrattuale: importo, oneri_sicurezza: numero(form.oneri_sicurezza) ?? 0, ritenuta_garanzia_pct: ritenuta,
+        importo_contrattuale: importo, oneri_sicurezza: oneri, ritenuta_garanzia_pct: ritenuta,
         durata_garanzia_mesi: Math.max(0, Math.round(numero(form.durata_garanzia_mesi) ?? 12)),
         data_stipula: form.data_stipula || null, data_inizio: form.data_inizio || null, data_fine_prevista: form.data_fine_prevista || null,
         stato: form.stato, responsabile_impresa: form.responsabile_impresa.trim() || null,
@@ -376,15 +388,34 @@ export function ContrattiSubappalto({
         : supabase.from("contratti_subappalto" as never).insert(campi as never).select("id").single();
       const { data, error } = await q;
       if (error) {
-        if (error.code === "23514" && /Base lavori/i.test(error.message ?? ""))
-          throw new Error("Questo contratto ha già una base lavori registrata: commessa, ditta, importo e oneri non si cambiano da qui. Per importo e oneri usa il pulsante «Variante» sul contratto; note, date e condizioni restano modificabili.");
-        if (error.code === "42501" || error.code === "PGRST116") throw new Error("Non hai il permesso di modificare questo contratto.");
-        throw new Error("Contratto non salvato. Controlla i dati e riprova.");
+        const prima = varianteFatta.current ? "La variante è registrata (importo e oneri aggiornati), ma il resto del contratto non è salvato: " : "";
+        if (error.code === "23514")
+          throw new Error(prima + (error.message || "il contratto ha misure o SAL: importo e oneri si cambiano con una variante."));
+        if (error.code === "42501" || error.code === "PGRST116") throw new Error(prima + "non hai il permesso di modificare questo contratto.");
+        throw new Error(prima + "controlla i dati e riprova.");
       }
       return (data as unknown as { id: string }).id;
     },
-    onSuccess: (id) => { toast.success(dialog?.id ? "Contratto aggiornato" : "Contratto creato"); invalida(); setDialog(null); onSeleziona(id); setDettaglio(id); },
-    onError: (e: Error) => toast.error(e.message),
+    onMutate: () => { varianteFatta.current = false; },
+    onSuccess: (id) => {
+      toast.success(dialog?.id ? (varianteFatta.current ? "Contratto aggiornato, con la variante registrata" : "Contratto aggiornato") : "Contratto creato");
+      invalida(); qc.invalidateQueries({ queryKey: ["contratti-con-misure"] }); qc.invalidateQueries({ queryKey: ["contratto-varianti"] });
+      setDialog(null); onSeleziona(id); setDettaglio(id);
+    },
+    // Si ricarica comunque: dopo una variante riuscita i dati del contratto sono cambiati.
+    onError: (e: Error) => { toast.error(e.message); invalida(); qc.invalidateQueries({ queryKey: ["contratti-con-misure"] }); },
+  });
+
+  // Lo storico delle varianti del contratto (prima, dopo, motivo, quando): si vede nel dialogo «Variante».
+  const { data: storicoVarianti = [] } = useQuery({
+    queryKey: ["contratto-varianti", variante?.c.id ?? null],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("subappalto_varianti_contratto" as never)
+        .select("id, importo_prima, importo_dopo, oneri_prima, oneri_dopo, motivo, created_at").eq("contratto_id", variante!.c.id).order("created_at", { ascending: false }).limit(50);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ id: string; importo_prima: number; importo_dopo: number; oneri_prima: number; oneri_dopo: number; motivo: string; created_at: string }>;
+    },
+    enabled: !!variante,
   });
 
   const registraVariante = useMutation({
@@ -408,6 +439,7 @@ export function ContrattiSubappalto({
         : "Variante registrata: importo e oneri aggiornati, storico salvato.");
       setVariante(null); invalida();
       qc.invalidateQueries({ queryKey: ["contratti-base-registrata"] });
+      qc.invalidateQueries({ queryKey: ["contratto-varianti"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -639,7 +671,7 @@ export function ContrattiSubappalto({
                   </Button>
                 )}
                 {!c.firmato_il && (
-                  <Button size="sm" className="gap-1" disabled={(permessiLavori.solaLettura || !permessiLavori.canEditOrders) || caricoIva} title={caricoIva ? "Sto leggendo l'IVA della ditta" : undefined} onClick={() => setInvio({
+                  <Button size="sm" className="gap-1" disabled={(permessiLavori.solaLettura || !permessiLavori.canEditOrders) || caricoIva || caricoModello || erroreModello} title={caricoIva || caricoModello ? "Sto leggendo IVA della ditta e condizioni dell'azienda" : erroreModello ? "Condizioni standard dell'azienda non lette: ricarica la pagina prima di inviare" : undefined} onClick={() => setInvio({
                     c, nome: c.referente_subappaltatore || sub.responsabile || "",
                     email: sub.pec || sub.email || "", telefono: sub.telefono || "",
                   })}>
@@ -695,9 +727,10 @@ export function ContrattiSubappalto({
                 <Button size="sm" variant="ghost" className="gap-1" title="Riscrivi gli articoli del contratto, per questo subappaltatore o come standard dell'azienda" onClick={() => setCondizioni(c)}>
                   <FileText className="h-3.5 w-3.5" />Condizioni
                 </Button>
-                {conBase.includes(c.id) && (
-                  <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders}
-                    title="Cambia importo e oneri del contratto con una variante tracciata"
+                {(conBase.includes(c.id) || !!c.firmato_il) && (
+                  <Button size="sm" variant="ghost" className="gap-1"
+                    disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders || ["pending", "otp_verified"].includes(richiestaDi(c.id)?.status ?? "")}
+                    title={["pending", "otp_verified"].includes(richiestaDi(c.id)?.status ?? "") ? "Il contratto è in firma: annulla prima la richiesta di firma" : "Cambia importo e oneri del contratto con una variante tracciata"}
                     onClick={() => setVariante({ c, importo: String(c.importo_contrattuale ?? ""), oneri: String(c.oneri_sicurezza ?? 0), motivo: "" })}>
                     <FileText className="h-3.5 w-3.5" />Variante
                   </Button>
@@ -758,6 +791,17 @@ export function ContrattiSubappalto({
               <div className="space-y-1"><Label>Motivo *</Label>
                 <Textarea rows={2} value={variante.motivo} placeholder="es. Lavori aggiuntivi al bagno richiesti dal cliente"
                   onChange={(e) => setVariante((p) => p && { ...p, motivo: e.target.value })} /></div>
+              {storicoVarianti.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium">Varianti già registrate</p>
+                  <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                    {storicoVarianti.map((v) => (
+                      <li key={v.id}>{new Date(v.created_at).toLocaleDateString("it-IT")}: lavori {euro(Number(v.importo_prima))} → {euro(Number(v.importo_dopo))}
+                        {Number(v.oneri_prima) !== Number(v.oneri_dopo) ? `, oneri ${euro(Number(v.oneri_prima))} → ${euro(Number(v.oneri_dopo))}` : ""} · {v.motivo}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -906,7 +950,7 @@ export function ContrattiSubappalto({
         </DialogContent>
       </Dialog>
 
-      {lavoriMisure && <LavoriMisureSubDialog key={lavoriMisure.id} companyId={companyId} contratto={lavoriMisure} onApriStorico={()=>{ const cid=lavoriMisure.id; setLavoriMisure(null); onApriContabilita(cid); }} onClose={()=>setLavoriMisure(null)} onApriVerbale={async (id)=>{
+      {lavoriMisure && <LavoriMisureSubDialog key={lavoriMisure.id} companyId={companyId} contratto={lavoriMisure} onApriStorico={()=>{ const cid=lavoriMisure.id; setLavoriMisure(null); onApriContabilita(cid); }} onClose={()=>{ setLavoriMisure(null); qc.invalidateQueries({ queryKey: ["contratti-con-misure"] }); qc.invalidateQueries({ queryKey: ["contratti-base-registrata"] }); }} onApriVerbale={async (id)=>{
         const {data,error}=await supabase.from('sal_subappaltatori').select('*').eq('id',id).eq('company_id',companyId).eq('contratto_id',lavoriMisure.id).single();
         if(error||!data)throw Error('SAL registrato ma non ancora consultabile: riprova la lettura');
         setVerbaleDaMisure(data as SALSubappaltatore);setLavoriMisure(null);
