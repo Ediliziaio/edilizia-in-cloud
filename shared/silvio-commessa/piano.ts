@@ -101,3 +101,58 @@ export type Modifica =
   | { tipo: "aggiungi"; area: Area; chiave: string; valore: unknown }
   | { tipo: "sposta_date"; giorniLavorativi: number; daFase?: string | null }
   | { tipo: "scegli_fonte"; area: Area; chiave: string; fonte: TipoFonte; idFonte?: string | null };
+
+// ── Forma degli elenchi (fase 1, lotto 1.1) ─────────────────────────────────
+// I lettori mettono gli elenchi in queste forme; la RPC di creazione (lotto 1.4) le
+// legge. Oltre a `name`/`label`, tutti i campi sono facoltativi.
+//
+// Le variabili con più colonne di `orders` (es. `cliente.contatto`: client_phone e
+// client_email) hanno per valore un oggetto con le sole colonne trovate; quelle con
+// una colonna sola hanno il valore e basta.
+
+/** Una fase in `fasi.order_work_phases`. Date AAAA-MM-GG. */
+export interface FaseDelPiano {
+  id?: string | null;
+  name: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  /** Primo giorno lavorativo della fase dall'inizio dei lavori, da 1. */
+  giorno_inizio?: number;
+  /** Durata in giorni lavorativi. */
+  giorni?: number;
+  /** Le voci della fase (dal computo: le voci del capitolo) → `order_work_subphases`. */
+  sottofasi?: SottofaseDelPiano[];
+}
+
+export interface SottofaseDelPiano {
+  name: string;
+  quantita?: number | null;
+  unita?: string | null;
+  /** Venduto della voce, senza IVA. */
+  importo?: number | null;
+  /** Costo previsto della voce, senza IVA (dal costo stimato o dal listino). */
+  costo?: number | null;
+  /** Codice di tariffa o del prezzario. */
+  codice?: string | null;
+}
+
+/** Una rata in `pagamenti.rate` → `order_installments`. */
+export interface RataDelPiano {
+  label: string;
+  type: "deposit" | "balance" | "financing";
+  amount: number;
+  /** Percentuale sul totale, se la fonte la dice. */
+  percent?: number | null;
+  /** Evento del cantiere che la rende esigibile (vedi src/lib/orders/rateEventi). */
+  trigger_evento?: string | null;
+  trigger_numero?: number | null;
+}
+
+/** Il costo previsto di una fase, in `costi.previsti`. */
+export interface CostoDelPiano {
+  fase: string;
+  /** Costo senza IVA delle voci che ne hanno uno. */
+  importo: number;
+  /** Voci della fase senza costo: il costo vero è più alto. */
+  vociSenzaCosto: number;
+}

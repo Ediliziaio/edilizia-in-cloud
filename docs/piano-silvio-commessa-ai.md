@@ -403,6 +403,24 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 
 **Numero**: commesse nuove con fasi datate, rate e inizio, dal 3 % di oggi a più della metà.
 
+**Lotti 1.1 e 1.3 fatti il 31/10/2026** (ramo `claude/scm-fase1a-234f2e`, solo in locale, nessuna migrazione):
+- `src/lib/silvio-commessa/lettori/`: funzioni pure `frammentoDaPreventivo` (classico, con
+  computo, 8 preventivatori edili), `frammentoDaComputo` e `frammentoDaFileComputo` (bozza
+  nativa, XPWE, PDF di PriMus), `frammentoDaCommessa` (fonte `persona`, per la fase 2);
+  letture sottili in `daDatabase.ts`. Il conto di `useQuotePrefill` è stato spostato in
+  `src/lib/preventivi/prefillPreventivo.ts` e lo usano tutti e due.
+- `piano.ts`: aggiunti i tipi facoltativi degli elenchi (`FaseDelPiano` con `giorno_inizio`,
+  `giorni`, `sottofasi`; `RataDelPiano` con `trigger_evento`; `CostoDelPiano`). Le variabili
+  con più colonne hanno per valore l'oggetto delle colonne trovate.
+- `shared/silvio-commessa/modelliLavoro.ts`: 10 modelli (bagno, tetto, fotovoltaico,
+  serramenti, elettrico, termoidraulica, climatizzazione, pavimenti, piscina,
+  ristrutturazione) dalle fasi tipiche dei preventivatori; `frammentoDalModello`,
+  `frammentoDalTesto`, `riconosciTipoLavoro`, `misuraDalTesto`, `dateDelleFasi`.
+- Su dati d'esempio, un lettore da solo porta il piano a 40–57/100 (contro 32,4 di oggi);
+  preventivo + computo 67. La prova sulle colonne vere (solo SELECT) le ha trovate tutte.
+- Resta per la 1.4: collegare il cliente del gestionale (`customer_id`) dal contatto CRM
+  del preventivo (`contact_id`), e scrivere `sottofasi` e `costi.previsti` con le RPC esistenti.
+
 ### Fase 2 — Completa le commesse che ci sono (2,5 sessioni)
 
 | Lotto | Cosa | Fatto quando |
