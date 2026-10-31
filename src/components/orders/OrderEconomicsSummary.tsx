@@ -7,7 +7,11 @@ import { useOrderEconomicsBase } from "@/hooks/useOrderEconomicsBase";
 import { useOrderControlTasks } from "@/hooks/useOrderControlTasks";
 import { useCompanyStructure } from "@/hooks/controlloGestione/useCompanyStructure";
 import { calculateOrderStructureImpact } from "@/lib/controlloGestione/strutturaCommessa";
-import { fmtMesi } from "@/lib/controlloGestione/tempoCommessa";
+import { fmtMesi, mesiApertura } from "@/lib/controlloGestione/tempoCommessa";
+import { useCostoPrevistoCommessa } from "@/hooks/useCostoPrevistoCommessa";
+import { useCostiDirettiPerTipo } from "@/hooks/useCostiDirettiPerTipo";
+import { contoEconomicoCommessa } from "@/lib/orders/contoEconomicoCommessa";
+import { ContoEconomicoMacroVoci } from "@/components/orders/ContoEconomicoMacroVoci";
 import type { OrderControlCheck } from "@/lib/orders/controlWorkflow";
 import { materialCostVariance } from "@/lib/orders/materialCostVariance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -62,13 +66,6 @@ interface OrderEconomicsSummaryProps {
 /** Percentuale it-IT a 1 decimale: 36,1 (virgola, non punto). */
 const pct1 = (n: number) => n.toFixed(1).replace(".", ",");
 
-/** "al 50%" ma "all'80%" / "all'8%" / "all'11%": articolo giusto davanti al numero. */
-const alPct = (n: number) => {
-  const r = Math.round(n);
-  const apostrofo = r === 8 || r === 11 || (r >= 80 && r <= 89) || (r >= 800 && r <= 899);
-  return `${apostrofo ? "all'" : "al "}${r}%`;
-};
-
 const CHART = {
   articoli: "hsl(var(--chart-1))",
   magazzino: "hsl(var(--chart-6, 28 92% 54%))",
@@ -102,7 +99,10 @@ export function OrderEconomicsSummary({
     vehicleCostsError,
     isPending: basePending,
     isError: baseError,
+    employees,
   } = useOrderEconomicsBase(orderId, totalAmount, items);
+  const previsto = useCostoPrevistoCommessa(orderId, true);
+  const direttiPerTipo = useCostiDirettiPerTipo(orderId, true);
   const structure = useCompanyStructure();
   const structureImpact = useMemo(
     () => calculateOrderStructureImpact({
@@ -116,6 +116,28 @@ export function OrderEconomicsSummary({
     }),
     [actual.margin, actual.revenue, avanzamentoPct, structure.data, workEndDate, workStartDate],
   );
+  const conto = useMemo(() => contoEconomicoCommessa({
+    ricavi: actual.revenue,
+    avanzamentoPct,
+    consuntivo: {
+      acquisti: actual.purchases,
+      magazzino: actual.warehouseMaterials,
+      manodopera: actual.labor,
+      persone: employees.reduce((s, e) => s + (Number(e.total_cost) || 0), 0),
+      provvigioni: actual.commissions,
+      rimborsi: actual.mileageReimbursements,
+      errori: actual.errors,
+      diretti: actual.directCosts,
+      direttiPerTipo: direttiPerTipo.data ?? {},
+    },
+    previsto: previsto.isError ? null : previsto.previsto,
+    struttura: {
+      mensile: structure.data?.monthlyPerActiveOrder ?? null,
+      mesiPrevisti: workStartDate && workEndDate ? mesiApertura(workStartDate, workEndDate, workEndDate) : null,
+      mesiMaturati: structureImpact.months,
+    },
+  }), [actual, avanzamentoPct, employees, direttiPerTipo.data, previsto.isError, previsto.previsto, structure.data, structureImpact.months, workEndDate, workStartDate]);
+  const [controlliAperti, setControlliAperti] = useState(false);
 
   // CONSUNTIVO materiali = somma degli ordini fornitore (ODA) realmente emessi.
   const { data: oda = [], isPending: odaPending } = useQuery({
@@ -274,7 +296,7 @@ export function OrderEconomicsSummary({
   // o dipendenti/squadre/provvigioni/errori), i costi sarebbero parziali → il
   // margine apparirebbe gonfiato (es. "100%"). Mostriamo uno skeleton: la card
   // di testata non deve MAI lampeggiare numeri sbagliati.
-  const costsLoading = itemsLoading || basePending || odaPending;
+  const costsLoading = itemsLoading || basePending || odaPending || previsto.isLoading || direttiPerTipo.isLoading;
   if (baseError) return <Card id="section-conto-economico" className="scroll-mt-24"><CardContent className="p-4 text-sm text-muted-foreground">Conto economico non disponibile: impossibile caricare tutti i costi.</CardContent></Card>;
   if (costsLoading) {
     return (
@@ -325,84 +347,72 @@ export function OrderEconomicsSummary({
         </Badge>
       </CardHeader>
       <CardContent className="max-sm:p-3 max-sm:pt-0">
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/30">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                  <ListChecks className="h-4 w-4 text-orange-500" />
+        {/* Controlli della commessa: una riga sola. Se sono tutti a posto basta
+            il segno di spunta; quelli da sistemare si leggono come pillole e il
+            dettaglio si apre a richiesta (prima erano sette riquadri grandi). */}
+        {(() => {
+          const totale = controlWorkflow.controls.length;
+          const daFare = controlWorkflow.controls.filter((c) => !c.resolved);
+          const tuttoOk = daFare.length === 0;
+          return (
+            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-950/30">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                  {tuttoOk ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <ListChecks className="h-3.5 w-3.5 text-orange-500" />}
                   Controllo commessa
-                </p>
-                <Badge
-                  variant="outline"
-                  className={completedControlChecks === controlWorkflow.controls.length
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-orange-200 bg-orange-50 text-orange-700"}
-                >
-                  {completedControlChecks}/{controlWorkflow.controls.length} verifiche completate
-                </Badge>
-              </div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Il sistema verifica i dati; le eccezioni diventano attività reali della commessa.
-              </p>
-            </div>
-            {controlWorkflow.controlsToCreate.length > 0 && !controlWorkflow.isError && (
-              <button
-                type="button"
-                onClick={controlWorkflow.createMissing}
-                disabled={controlWorkflow.isCreating || controlWorkflow.isLoading}
-                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {controlWorkflow.isCreating
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <ListChecks className="h-3.5 w-3.5" />}
-                Metti in agenda ({controlWorkflow.controlsToCreate.length})
-              </button>
-            )}
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            {controlWorkflow.controls.map((check) => {
-              const state = CONTROL_STATE[check.state];
-              const Icon = check.resolved ? CheckCircle2 : Circle;
-              return (
-                <div
-                  key={check.key}
-                  className={cn(
-                    "flex min-w-0 flex-col justify-between gap-2 rounded-lg border bg-white p-2.5 dark:bg-background",
-                    state.card,
+                </span>
+                <span className={tuttoOk ? "text-emerald-700" : "text-orange-700"}>{completedControlChecks}/{totale}</span>
+                {daFare.slice(0, 3).map((check) => (
+                  <Link key={check.key} to={check.state === "scheduled" ? "/azienda/attivita" : check.fixTo}
+                    className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] hover:bg-white",
+                      check.state === "scheduled" ? "border-blue-200 text-blue-700" : "border-orange-200 text-orange-700")}
+                    title={check.state === "scheduled" ? "In agenda: apri l'attività" : "Da sistemare: apri dove si corregge"}>
+                    <Circle className="h-2 w-2 fill-current" />{check.label}
+                  </Link>
+                ))}
+                {daFare.length > 3 && <span className="text-muted-foreground">+{daFare.length - 3}</span>}
+                <span className="ml-auto flex items-center gap-2">
+                  {controlWorkflow.controlsToCreate.length > 0 && !controlWorkflow.isError && (
+                    <button type="button" onClick={controlWorkflow.createMissing}
+                      disabled={controlWorkflow.isCreating || controlWorkflow.isLoading}
+                      className="inline-flex items-center gap-1 font-semibold text-orange-700 hover:underline disabled:opacity-60">
+                      {controlWorkflow.isCreating && <Loader2 className="h-3 w-3 animate-spin" />}
+                      Metti in agenda ({controlWorkflow.controlsToCreate.length})
+                    </button>
                   )}
-                >
-                  <div className="flex min-w-0 items-start gap-2">
-                    <Icon className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", state.icon)} />
-                    <p className="text-xs font-medium leading-snug text-foreground">{check.label}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pl-5">
-                    <span className={cn("text-[10px] font-semibold uppercase tracking-wide", state.text)}>
-                      {state.label}
-                    </span>
-                    {!check.resolved && (
-                      <Link
-                        to={check.state === "scheduled"
-                          ? "/azienda/attivita"
-                          : check.fixTo}
-                        className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300"
-                      >
-                        {check.state === "scheduled" ? "Apri attività" : "Sistema ora"}
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {controlWorkflow.isError && (
-            <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-              Le attività non sono disponibili; i controlli automatici restano attivi.
-            </p>
-          )}
-        </div>
+                  <button type="button" onClick={() => setControlliAperti((v) => !v)} aria-expanded={controlliAperti}
+                    className="text-muted-foreground hover:text-foreground hover:underline">
+                    {controlliAperti ? "Chiudi" : "Dettaglio"}
+                  </button>
+                </span>
+              </div>
+              {controlliAperti && (
+                <ul className="mt-1.5 grid gap-x-4 gap-y-0.5 border-t pt-1.5 sm:grid-cols-2">
+                  {controlWorkflow.controls.map((check) => {
+                    const state = CONTROL_STATE[check.state];
+                    const Icon = check.resolved ? CheckCircle2 : Circle;
+                    return (
+                      <li key={check.key} className="flex min-w-0 items-center gap-1.5">
+                        <Icon className={cn("h-3 w-3 shrink-0", state.icon)} />
+                        <span className="truncate text-foreground">{check.label}</span>
+                        <span className={cn("shrink-0 text-[10px]", state.text)}>· {state.label}</span>
+                        {!check.resolved && (
+                          <Link to={check.state === "scheduled" ? "/azienda/attivita" : check.fixTo}
+                            className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-orange-700 hover:underline">
+                            {check.state === "scheduled" ? "Apri" : "Sistema"}<ArrowRight className="h-3 w-3" />
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {controlWorkflow.isError && (
+                <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">Le attività non sono disponibili; i controlli automatici restano attivi.</p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Su desktop la colonna donut si allarga (era fissa 200px mentre la
             colonna KPI si stirava a nastro sui monitor larghi → donut minuscolo
@@ -430,102 +440,6 @@ export function OrderEconomicsSummary({
                 </strong>
               </p>
             )}
-
-            {/* Gli ODA sono costi impegnati. Gli scarichi da scorta sono costi
-                consumati e vengono aggiunti solo quando non risultano già
-                coperti dallo stesso ODA. */}
-            <div className="rounded-lg border bg-muted/20 p-2.5 text-xs max-sm:hidden">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="font-medium text-foreground">Materiali: pianificato vs impegnato</span>
-                {consuntivo.odaCount > 0 && (
-                  <span className="text-muted-foreground">{consuntivo.odaCount} ODA emessi</span>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Pianificato</span>
-                <span>{formatCurrency(consuntivo.materialiPianificati)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Prelevato da scorta</span>
-                <span className="font-medium">{formatCurrency(actual.warehouseMaterials)}</span>
-              </div>
-              {consuntivo.odaCount > 0 || actual.warehouseMaterials > 0 ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Impegnato con ODA</span>
-                    <span className="font-medium">{formatCurrency(consuntivo.materialiOrdinati)}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between border-t pt-1">
-                    <span className="text-muted-foreground">Scostamento (ODA + scorta)</span>
-                    <span
-                      className={`font-semibold ${
-                        consuntivo.scostamento > 0
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-emerald-600 dark:text-emerald-400"
-                      }`}
-                    >
-                      {consuntivo.scostamento > 0 ? "+" : ""}
-                      {formatCurrency(consuntivo.scostamento)}
-                      {Math.abs(consuntivo.scostamentoPct) >= 0.1 &&
-                        ` (${consuntivo.scostamento > 0 ? "+" : ""}${pct1(consuntivo.scostamentoPct)}%)`}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-                    <span className="font-medium text-foreground">
-                      Margine diretto sui costi registrati
-                      <span className="ml-1 font-normal text-muted-foreground">· come Controllo di Gestione</span>
-                    </span>
-                    {quality.canShowMargin ? <span
-                      className={`font-semibold ${
-                        actual.marginPct >= 20
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : actual.marginPct >= 0
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {formatCurrency(actual.margin)} · {pct1(actual.marginPct)}%
-                    </span> : <span className="font-semibold text-amber-600">Da completare</span>}
-                  </div>
-                </>
-              ) : (
-                <p className="mt-1 text-muted-foreground">
-                  Nessun ordine fornitore emesso: gli acquisti non sono ancora impegnati.
-                </p>
-              )}
-              {/* Proiezione a fine lavori: costi a finire = consuntivo/avanzamento.
-                  Solo con avanzamento ≥15% (sotto, la stima è rumore) e costi reali.
-                  "Di questo passo": se i materiali sono stati ordinati tutti subito,
-                  la proiezione è prudente per costruzione. */}
-              {(() => {
-                if (quality.status !== "ready" || avanzamentoPct == null || avanzamentoPct < 20 || actual.costs <= 0) return null;
-                const ricavoTot = actual.revenue;
-                if (ricavoTot <= 0) return null;
-                const costiAFine = actual.costs / (avanzamentoPct / 100);
-                const margineProiettato = ricavoTot - costiAFine;
-                const pct = (margineProiettato / ricavoTot) * 100;
-                return (
-                  <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-                    <span className="font-medium text-foreground">
-                      Scenario proporzionale ai costi registrati
-                      <span className="ml-1 font-normal text-muted-foreground">· lavori {alPct(avanzamentoPct)}</span>
-                      <span className="block text-xs font-normal text-muted-foreground">Acquisti anticipati e costi mancanti possono alterare la stima: non è il budget a finire.</span>
-                    </span>
-                    <span
-                      className={`font-semibold ${
-                        pct >= 20
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : pct >= 0
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {formatCurrency(margineProiettato)} · {pct1(pct)}%
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
 
             {/* Cassa — mobile no: incassato e residuo sono già nella testata della commessa. */}
             <div className="max-sm:hidden">
@@ -658,61 +572,27 @@ export function OrderEconomicsSummary({
           </p>
         )}
 
-        {/* La struttura resta separata dal consuntivo diretto: è una lettura
-            manageriale automatica basata sui costi mensili reali e sul numero
-            di cantieri contemporaneamente attivi. */}
-        {quality.canShowMargin && (
-          <div className="mt-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/80 to-orange-50/60 p-3 dark:border-blue-900/50 dark:from-blue-950/30 dark:to-orange-950/20">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Dopo la struttura aziendale</p>
-                <p className="text-[11px] text-muted-foreground">Stima automatica separata dai costi diretti della commessa.</p>
-              </div>
-              <Badge variant="outline" className="border-blue-200 bg-white/70 text-blue-700 dark:bg-background/60 dark:text-blue-300">
-                Lettura gestionale
-              </Badge>
-            </div>
-
-            {structure.isLoading ? (
-              <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-14 rounded-lg" />)}
-              </div>
-            ) : structure.isError || !structure.data?.monthlyPerActiveOrder ? (
-              <p className="mt-3 rounded-lg border border-dashed bg-white/60 px-3 py-2 text-xs text-muted-foreground dark:bg-background/40">
-                {structure.isError
-                  ? "Struttura non disponibile con i permessi correnti."
-                  : structure.data?.monthlyStructure
-                    ? "Nessun cantiere attivo: la quota mensile non può essere ripartita."
-                    : "Inserisci i costi fissi e il personale d'ufficio per calcolare automaticamente l'incidenza."}
-              </p>
-            ) : (
-              <>
-                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                  <StructureKpi label="Struttura aziendale" value={`${formatCurrency(structure.data.monthlyStructure)}/mese`} />
-                  <StructureKpi label="Cantieri attivi" value={String(structure.data.activeOrders)} />
-                  <StructureKpi label="Quota della commessa" value={`${formatCurrency(structure.data.monthlyPerActiveOrder)}/mese`} />
-                  <StructureKpi
-                    label="Margine dopo struttura"
-                    value={structureImpact.marginAfterStructure !== null
-                      ? formatCurrency(structureImpact.marginAfterStructure)
-                      : "Data inizio mancante"}
-                    valueClass={structureImpact.marginAfterStructure === null
-                      ? "text-muted-foreground"
-                      : structureImpact.marginAfterStructure >= 0
-                        ? "text-emerald-700 dark:text-emerald-300"
-                        : "text-red-700 dark:text-red-300"}
-                  />
-                </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  {structureImpact.allocatedStructure !== null && structureImpact.months !== null
-                    ? `Incidenza stimata dall'avvio: ${formatCurrency(structureImpact.allocatedStructure)} in ${fmtMesi(structureImpact.months)} mesi. Margine residuo ${structureImpact.marginAfterStructurePct?.toLocaleString("it-IT", { maximumFractionDigits: 1 }) ?? "—"}%.`
-                    : "Imposta la data di inizio lavori per misurare l'incidenza maturata nel tempo."}
-                  {" "}Questa stima non altera il consuntivo contabile.
-                </p>
-              </>
-            )}
-          </div>
-        )}
+        {/* Conto economico per macro-voci: preventivo, consuntivo, incidenze,
+            struttura e margine netto (contoEconomicoCommessa). */}
+        <div className="mt-3">
+          <ContoEconomicoMacroVoci conto={conto} mostraMargini={quality.canShowMargin} />
+          {quality.canShowMargin && !structure.isLoading && (structure.isError || !structure.data?.monthlyPerActiveOrder || structureImpact.months === null) && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {structure.isError
+                ? "Costi di struttura non disponibili con i permessi correnti."
+                : !structure.data?.monthlyPerActiveOrder
+                  ? structure.data?.monthlyStructure
+                    ? "Costi di struttura: nessun cantiere attivo su cui dividerli."
+                    : "Costi di struttura: inserisci i costi fissi e il personale d'ufficio per calcolarne la quota."
+                  : "Costi di struttura: imposta la data di inizio lavori per calcolare la quota maturata."}
+            </p>
+          )}
+          {quality.canShowMargin && structure.data?.monthlyPerActiveOrder != null && structureImpact.months != null && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Struttura: {formatCurrency(structure.data.monthlyStructure)}/mese su {structure.data.activeOrders} cantieri attivi = {formatCurrency(structure.data.monthlyPerActiveOrder)}/mese per commessa, {fmtMesi(structureImpact.months)} mesi maturati.
+            </p>
+          )}
+        </div>
 
         {/* Legenda composizione: hover su una voce → highlight del segmento nel donut */}
         {composition.length > 0 && (

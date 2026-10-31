@@ -1,10 +1,11 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { QuadroPagamenti } from "@/lib/orders/quadroPagamenti";
 
 // Risposta di commessa_quadro_pagamenti() come arriva dal database (DEMO-2026-N008,
 // ridotta) più una tassa comunale senza fattura scaduta e un ordine senza fattura.
-const quadro = {
+const quadro: QuadroPagamenti = {
   oggi: "2026-10-31",
   rate: [
     { id: "r1", label: "Acconto 30%", type: "deposit", amount: 18694.07, fattura: "DEM2026-008-1/2026", is_paid: true, scaduta: false, paid_date: "2026-03-15", expected_date: "2026-03-15" },
