@@ -17,13 +17,10 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Wallet, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
-import { PianoMezziCantiere } from "@/components/mezzi/PianoMezziCantiere";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
-import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
-import { OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
 import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
@@ -46,7 +43,6 @@ import {
 import { OrderItem } from "@/components/orders/OrderItemsList";
 import { OrderSerialsTrackingCard } from "@/components/orders/OrderSerialsTrackingCard";
 import { PaymentType } from "@/components/orders/FinancialSummary";
-import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
 import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
 import { SilvioAcquisti } from "@/components/orders/SilvioAcquisti";
@@ -61,6 +57,29 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
+// Le viste di economia e cantiere si caricano quando si aprono (31/10/2026):
+// prima erano tutte nel pacchetto del dettaglio, oltre 1 MB scaricato anche
+// per guardare solo la panoramica.
+const OrderWorkPhases = lazy(() => import("@/components/orders/OrderWorkPhases").then((m) => ({ default: m.OrderWorkPhases })));
+const CronoprogrammaCommessa = lazy(() => import("@/components/orders/CronoprogrammaCommessa").then((m) => ({ default: m.CronoprogrammaCommessa })));
+const OrdineSAL = lazy(() => import("@/components/orders/OrdineSAL").then((m) => ({ default: m.OrdineSAL })));
+const OrderErrors = lazy(() => import("@/components/orders/OrderErrors").then((m) => ({ default: m.OrderErrors })));
+const RendicontoAppalto = lazy(() => import("@/components/orders/RendicontoAppalto").then((m) => ({ default: m.RendicontoAppalto })));
+const SicurezzaCommessa = lazy(() => import("@/components/sicurezza/SicurezzaCommessa").then((m) => ({ default: m.SicurezzaCommessa })));
+const PianoMezziCantiere = lazy(() => import("@/components/mezzi/PianoMezziCantiere").then((m) => ({ default: m.PianoMezziCantiere })));
+const OrderEconomicsSummary = lazy(() => import("@/components/orders/OrderEconomicsSummary").then((m) => ({ default: m.OrderEconomicsSummary })));
+const RapportiniUfficio = lazy(() => import("@/components/orders/RapportiniUfficio").then((m) => ({ default: m.RapportiniUfficio })));
+const OrderAcceptanceReports = lazy(() => import("@/components/orders/OrderAcceptanceReports").then((m) => ({ default: m.OrderAcceptanceReports })));
+const OreEPersone = lazy(() => import("@/components/orders/OreEPersone").then((m) => ({ default: m.OreEPersone })));
+const OrderLaborEconomics = lazy(() => import("@/components/orders/OrderLaborEconomics").then((m) => ({ default: m.OrderLaborEconomics })));
+const OrderResourceStatistics = lazy(() => import("@/components/orders/OrderResourceStatistics").then((m) => ({ default: m.OrderResourceStatistics })));
+const TimelineCantiere = lazy(() => import("@/components/orders/TimelineCantiere").then((m) => ({ default: m.TimelineCantiere })));
+const vistaInCaricamento = (
+  <div className="space-y-3" aria-busy="true">
+    <Skeleton className="h-10 w-full" />
+    <Skeleton className="h-40 w-full" />
+  </div>
+);
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
 import { RiepilogoAppaltoCommessa } from "@/components/orders/RiepilogoAppaltoCommessa";
 import { totaliCommessaAppalto, type RigaPerTotali } from "@/lib/appalto/rendiconto";
@@ -70,11 +89,9 @@ import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation
 import { OrderViewTransition } from "@/components/orders/OrderViewTransition";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
-import { CronoprogrammaCommessa } from "@/components/orders/CronoprogrammaCommessa";
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
 import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
-import { SicurezzaCommessa } from "@/components/sicurezza/SicurezzaCommessa";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
@@ -86,15 +103,10 @@ import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
 import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
-import { RendicontoAppalto } from "@/components/orders/RendicontoAppalto";
-import { OrderWorkPhases } from "@/components/orders/OrderWorkPhases";
-import { OrderResourceStatistics } from "@/components/orders/OrderResourceStatistics";
-import { OrdineSAL } from "@/components/orders/OrdineSAL";
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
-import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
@@ -107,16 +119,13 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/o
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
-import { RapportiniUfficio } from "@/components/orders/RapportiniUfficio";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
-import { OreEPersone } from "@/components/orders/OreEPersone";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
 import { conIncassiUnita, incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
-import { OrderAcceptanceReports } from "@/components/orders/OrderAcceptanceReports";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
@@ -1500,8 +1509,11 @@ function OrderDetailInner() {
           installmentsError={installmentsError}
           collectedGross={collectedGross}
           cashTotalGross={cashTotalGross}
+          financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
+          varianti={variantiDatate}
           canViewAmounts={permissions.canViewOrderAmounts}
           canViewMargins={permissions.canViewMargins && contractLink.data?.workflow_kind !== "contratto"}
+          canViewCosts={permissions.canViewCosts}
           onOpenEconomics={() => navigateTo({ tab: "finanza", section: "section-conto-economico" })}
           onOpenPayments={() => vaiAllaFinanza()}
         />}
@@ -1863,6 +1875,7 @@ function OrderDetailInner() {
               <OrderWorkspaceNav label="Viste economiche" views={visteEconomiche} value={activeEconomiaView} onChange={economiaView => navigateTo({ tab: "finanza", economiaView })} />
             </div>
             <OrderViewTransition viewKey={activeEconomiaView}>
+            <Suspense fallback={vistaInCaricamento}>
             {activeEconomiaView === "sal" && <details open className="rounded-xl border border-slate-300 bg-white">
               <summary id="section-sal" className="cursor-pointer scroll-mt-24 px-4 py-3 text-sm font-medium">SAL e avanzamento economico</summary>
               <div className="p-4 pt-0">
@@ -2247,6 +2260,7 @@ function OrderDetailInner() {
               </div>
             </QuoteCard>
             </div>}
+            </Suspense>
             </OrderViewTransition>
             </>}
           </TabsContent>
@@ -2268,6 +2282,7 @@ function OrderDetailInner() {
               />
             </div>
             <OrderViewTransition viewKey={vistaCantiere}>
+            <Suspense fallback={vistaInCaricamento}>
             {vistaCantiere === "lavorazioni" && <>
             {permissions.canViewOrderAmounts && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => navigateTo({tab:"finanza",economiaView:"documenti",section:"section-varianti"})}>Lavori extra e varianti</Button></div>}
             <div id="section-lavorazioni" className="scroll-mt-24">
@@ -2340,6 +2355,7 @@ function OrderDetailInner() {
               />
               <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} /></div>
             </>}
+            </Suspense>
             </OrderViewTransition>
             </>}
           </TabsContent>

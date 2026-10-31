@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
-import { ArrowUpRight, Banknote, FileText, LayoutDashboard, Percent, ReceiptText, TrendingUp } from "lucide-react";
+import { ArrowUpRight, LayoutDashboard } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { useOrderEconomicsBase } from "@/hooks/useOrderEconomicsBase";
+import { useCostoPrevistoCommessa } from "@/hooks/useCostoPrevistoCommessa";
+import { useEsposizioneCommessa, type RataEsposizione } from "@/hooks/useEsposizioneCommessa";
 import type { EconItem } from "@/lib/orders/economics";
+import { numeriCommessa } from "@/lib/orders/numeriCommessa";
 import { paymentOverview } from "@/lib/orders/paymentOverview";
-import type { InstallmentLike } from "@/lib/commissions";
+import type { VarianteDatata } from "@/lib/commissions";
 
 interface Props {
   orderId: string;
@@ -16,93 +19,234 @@ interface Props {
   items: EconItem[];
   itemsLoading?: boolean;
   itemsError?: boolean;
-  installments: (InstallmentLike & { expected_date?: string | null })[];
+  installments: (RataEsposizione & { expected_date?: string | null })[];
   installmentsLoading?: boolean;
   installmentsError?: boolean;
   collectedGross: number;
   cashTotalGross: number;
+  /** Per il «da pagare»: lo stesso calcolo della cassa della commessa. */
+  financingCost?: number;
+  varianti?: ReadonlyArray<VarianteDatata>;
   canViewAmounts: boolean;
   canViewMargins: boolean;
+  /** Il «da pagare» si vede col permesso sui costi (come la cassa); se manca vale quello sui margini. */
+  canViewCosts?: boolean;
   onOpenEconomics: () => void;
   onOpenPayments: () => void;
 }
 
-/** Shared header, outside the tabs. No mutations or new financial data source. */
+const pctTesto = (n: number | null) => (n == null ? "" : `${n.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
+
+/**
+ * La commessa in numeri, in due righe allineate per colonna (31/10/2026):
+ *              Ricavi        Costi              Margine
+ *   Previsto   contratto     costo previsto     margine previsto
+ *   Reale      incassato     costi sostenuti    margine reale
+ *                            (e da pagare)      (e scarto sul previsto)
+ * Ogni numero viene da una fonte che la pagina usa già (numeriCommessa.ts):
+ * qui non si calcola niente di nuovo, si mette uno accanto all'altro.
+ */
 export function OrderFinancialOverview(props: Props) {
   const { totalAmount, vatRate, items, canViewAmounts, canViewMargins } = props;
+  const canViewCosts = props.canViewCosts ?? canViewMargins;
   const { actual, quality, isPending, isError } = useOrderEconomicsBase(props.orderId, totalAmount, items, canViewMargins);
+  const previsto = useCostoPrevistoCommessa(props.orderId, canViewMargins);
+  const { esposizione, isLoading: cassaLoading, isError: cassaError } = useEsposizioneCommessa({
+    orderId: props.orderId,
+    totalAmount,
+    vatRate,
+    financingCost: props.financingCost ?? 0,
+    installments: props.installments,
+    varianti: props.varianti,
+    enabled: canViewCosts,
+  });
   if (!canViewAmounts && !canViewMargins) return null;
+
   const loading = isPending || props.itemsLoading;
   const error = isError || props.itemsError;
-  const marginReady = !loading && !error && quality.canShowMargin;
-  const firstIssue = quality.issues[0]?.label;
-  const marginHint = error
+  const realeReady = !loading && !error && quality.canShowMargin;
+  const previstoReady = !previsto.isLoading && !previsto.isError;
+  // Il ricavo della vista (contratto + varianti approvate), lo stesso del margine reale:
+  // previsto, stima e percentuali stanno sulla stessa base. Finché la vista non c'è, il contratto.
+  const ricavo = actual.revenue > 0 ? actual.revenue : totalAmount;
+  const numeri = numeriCommessa({
+    ricavo,
+    costoPrevistoLavorazioni: previsto.costo,
+    lavorazioniSenzaPrevisto: previsto.lavorazioniSenzaPrevisto,
+    provvigioni: actual.commissions,
+    costiReali: actual.costs,
+    margineReale: actual.margin,
+  });
+  const { grossAmount } = calculateGrossFromNet(totalAmount, vatRate);
+  const payments = paymentOverview(props.cashTotalGross, props.collectedGross, props.installments);
+  const paymentReady = !props.installmentsLoading && !props.installmentsError;
+
+  const realeHint = error
     ? "Costi non disponibili"
     : loading
       ? "Caricamento costi…"
-      : quality.status === "ready"
-        ? "Sui costi registrati · IVA esclusa"
-        : firstIssue ?? quality.label;
-  const marginTone = marginReady
-    ? actual.margin < 0
-      ? "text-red-200"
-      : quality.status === "partial"
-        ? "text-amber-200"
-        : "text-emerald-200"
-    : "text-white";
-  const { grossAmount, vatAmount } = calculateGrossFromNet(totalAmount, vatRate);
-  const payments = paymentOverview(props.cashTotalGross, props.collectedGross, props.installments);
-  const paymentReady = !props.installmentsLoading && !props.installmentsError;
-  const paymentTone = payments.overdue || payments.excess > 0.01 ? "text-red-200" : payments.status === "Saldato" ? "text-emerald-200" : "text-white";
+      : quality.status === "ready" ? "Sui costi registrati" : quality.issues[0]?.label ?? quality.label;
+  const scarto = numeri.scostamento;
+  const fine = realeReady && previstoReady ? numeri.aFinire : null;
+  const costiHint = !realeReady || !fine || scarto == null
+    ? realeHint
+    : scarto > 0.5
+      ? `Oltre il previsto di ${formatCurrency(scarto)}`
+      : `Speso il ${fine.spesoPct}% del previsto · restano ${formatCurrency(fine.residuo)}`;
+  const previstoHint = !previstoReady
+    ? previsto.isError ? "Lavorazioni non disponibili" : "Caricamento lavorazioni…"
+    : !numeri.previsto
+      ? "Nessuna lavorazione ha un costo previsto"
+      : numeri.previsto.lavorazioniSenzaPrevisto > 0
+        ? `Parziale: ${numeri.previsto.lavorazioniSenzaPrevisto} di ${previsto.lavorazioni} lavorazioni senza costo previsto`
+        : "Dalle lavorazioni e dalle provvigioni";
+  const toneMargine = (m: number, parziale: boolean) => (m < 0 ? "text-red-200" : parziale ? "text-amber-200" : "text-emerald-200");
+
+  // Sul telefono i numeri di una riga stanno affiancati, sotto il nome della riga.
+  const perRiga = (canViewAmounts ? 1 : 0) + (canViewMargins ? 2 : 0);
+  const colonne = perRiga === 3
+    ? "grid-cols-3 sm:grid-cols-[6.5rem_repeat(3,minmax(0,1fr))]"
+    : perRiga === 2 ? "grid-cols-2 sm:grid-cols-[6.5rem_repeat(2,minmax(0,1fr))]" : "grid-cols-1 sm:grid-cols-[6.5rem_minmax(0,1fr)]";
 
   return (
     <section aria-label="Riepilogo economico commessa" className="overflow-hidden rounded-2xl border border-eic-navy-deep bg-eic-navy-deep p-3 text-white shadow-sm sm:p-4 max-sm:p-2">
-      {/* Mobile: niente intestazione né icone e niente riga di spiegazione nei
-          riquadri: nome e cifra. Prima il blocco era alto mezzo schermo. */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 max-sm:hidden">
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_6px_16px_rgba(249,115,22,0.25)]"><LayoutDashboard className="h-4 w-4" /></span>
           <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-100">La commessa in numeri</h2>
         </div>
-        <span className="hidden text-xs text-blue-100 sm:block">Importi e incassi sempre in vista</span>
+        <span className="hidden text-xs text-blue-100 sm:block">Importi senza IVA, tranne contratto, incassi e da pagare</span>
       </div>
-      {/* Da tablet i quattro numeri su una riga e i pagamenti sotto: a due per
-          riga il riquadro blu era alto 460px (a 1024 riempiva lo schermo). */}
-      <div className={`grid grid-cols-2 gap-2 sm:gap-3 ${canViewAmounts && canViewMargins ? "md:grid-cols-4 xl:grid-cols-6" : canViewAmounts ? "lg:grid-cols-4" : ""}`}>
-        {canViewAmounts && <>
-          <Metric label="Totale contratto" value={formatCurrency(grossAmount)} hint={`IVA inclusa · ${vatRate}%`} icon={<FileText />} onClick={props.onOpenPayments} highlight />
-          <Metric label="Imponibile" value={formatCurrency(totalAmount)} hint={`IVA ${formatCurrency(vatAmount)}`} icon={<ReceiptText />} onClick={props.onOpenPayments} />
-        </>}
-        {canViewMargins && <>
-          <Metric label="Margine diretto €" value={marginReady ? formatCurrency(actual.margin) : "—"} hint={marginHint} icon={<TrendingUp />} tone={marginTone} onClick={props.onOpenEconomics} />
-          <Metric label="Margine diretto %" value={marginReady ? `${actual.marginPct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%` : "—"} hint={marginReady ? `${quality.label} · margine / ricavi` : marginHint} icon={<Percent />} tone={marginTone} onClick={props.onOpenEconomics} />
-        </>}
-        {canViewAmounts && <button type="button" onClick={props.onOpenPayments} className={`col-span-2 min-w-0 ${canViewMargins ? "md:col-span-4 xl:col-span-2" : ""} rounded-xl border border-white/20 bg-white/[0.08] p-3 max-sm:px-2.5 max-sm:py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-eic-navy-deep sm:p-4`} aria-label="Apri stato pagamenti">
-          <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-blue-100"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-orange-200/25 bg-orange-400/15 text-orange-100 max-sm:hidden"><Banknote className="h-3.5 w-3.5" /></span> Stato pagamenti <ArrowUpRight className="ml-auto h-3.5 w-3.5" /></span>
-          <span className={`mt-2 block text-base font-semibold max-sm:mt-1 max-sm:text-sm ${paymentReady ? paymentTone : "text-blue-100"}`}>{props.installmentsError ? "Dati non disponibili" : props.installmentsLoading ? "Caricamento…" : payments.status}</span>
-          {paymentReady && <>
-            <span className="mt-1 flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-blue-100">
-              <span>Incassato <strong className="text-white">{formatCurrency(props.collectedGross)}</strong></span>
-              <span>Residuo <strong className="text-white">{formatCurrency(payments.remaining)}</strong></span>
-            </span>
-            <span role="progressbar" aria-label="Percentuale incassata" aria-valuenow={Math.round(payments.percent)} aria-valuemin={0} aria-valuemax={100} className="mt-2 block h-1.5 overflow-hidden rounded-full bg-white/15"><span className={`block h-full rounded-full ${payments.overdue ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${payments.percent}%` }} /></span>
-            <span className="mt-1.5 block text-[11px] text-blue-100">
-              {payments.excess > 0.01 ? `Eccedenza ${formatCurrency(payments.excess)}` : payments.remaining <= 0.01 && props.cashTotalGross > 0 ? "Tutto incassato" : payments.nextDate ? `${payments.overdue ? "Scaduta il" : "Prossima scadenza"} ${format(parseISO(payments.nextDate), "d MMM yyyy", { locale: it })}` : "Nessuna scadenza fissata"}
-              {Math.abs(grossAmount - props.cashTotalGross) > 0.01 && " · residuo sul piano incassi"}
-            </span>
+
+      <div role="table" aria-label="Previsto e reale" className={`grid gap-1.5 sm:gap-2 ${colonne}`}>
+        {/* Intestazione delle colonne, solo da tablet in su */}
+        <div role="row" className="contents max-sm:hidden">
+          <span role="columnheader" />
+          {canViewAmounts && <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Ricavi</span>}
+          {canViewMargins && <>
+            <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Costi</span>
+            <span role="columnheader" className="px-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Margine</span>
           </>}
-        </button>}
+        </div>
+
+        {/* PREVISTO */}
+        <div role="row" className="contents">
+          <Etichetta titolo="Previsto" sotto="dal contratto" />
+          {canViewAmounts && (
+            <Cella label="Contratto" value={formatCurrency(grossAmount)} hint={`Imponibile ${formatCurrency(totalAmount)} · IVA ${vatRate}%${Math.abs(actual.approvedVariations) > 0.005 ? ` · varianti ${actual.approvedVariations > 0 ? "+" : "−"}${formatCurrency(Math.abs(actual.approvedVariations))}` : ""}`} onClick={props.onOpenPayments} />
+          )}
+          {canViewMargins && <>
+            <Cella label="Costo previsto" value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.costo) : "—"} hint={previstoHint} onClick={props.onOpenEconomics} />
+            <Cella
+              label="Margine previsto"
+              value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.margine) : "—"}
+              aside={previstoReady && numeri.previsto ? pctTesto(numeri.previsto.marginePct) : undefined}
+              hint={previstoReady && numeri.previsto ? "Se i costi restano quelli previsti" : previstoHint}
+              tone={previstoReady && numeri.previsto ? toneMargine(numeri.previsto.margine, numeri.previsto.lavorazioniSenzaPrevisto > 0) : "text-white"}
+              onClick={props.onOpenEconomics}
+            />
+          </>}
+        </div>
+
+        {/* REALE */}
+        <div role="row" className="contents">
+          <Etichetta titolo="Reale" sotto="ad oggi" />
+          {canViewAmounts && (
+            <Cella
+              label="Incassato"
+              value={paymentReady ? formatCurrency(props.collectedGross) : props.installmentsError ? "Non disponibile" : "…"}
+              aside={paymentReady ? payments.status : undefined}
+              hint={!paymentReady ? "" : payments.excess > 0.01
+                ? `Eccedenza ${formatCurrency(payments.excess)}`
+                : payments.remaining <= 0.01 && props.cashTotalGross > 0
+                  ? "Tutto incassato"
+                  : `Da incassare ${formatCurrency(payments.remaining)}${payments.nextDate ? ` · ${payments.overdue ? "scaduta il" : "prossima"} ${format(parseISO(payments.nextDate), "d MMM", { locale: it })}` : ""}`}
+              tone={payments.overdue || payments.excess > 0.01 ? "text-red-200" : payments.status === "Saldato" ? "text-emerald-200" : "text-white"}
+              progresso={paymentReady ? payments.percent : undefined}
+              progressoNome="Percentuale incassata"
+              progressoColore={payments.overdue ? "bg-amber-400" : "bg-emerald-400"}
+              onClick={props.onOpenPayments}
+              apri
+            />
+          )}
+          {canViewMargins && <>
+            <Cella
+              label="Costi sostenuti"
+              value={realeReady ? formatCurrency(numeri.reale.costi) : "—"}
+              hint={costiHint}
+              dettaglio={realeReady ? dettaglioCosti(actual) : undefined}
+              progresso={fine ? Math.min(100, fine.spesoPct) : undefined}
+              progressoNome="Previsto già speso"
+              progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}
+              evidenza={canViewCosts && !cassaLoading && !cassaError && esposizione.daPagare > 0.005
+                ? `Da pagare ${formatCurrency(esposizione.daPagare)}`
+                : canViewCosts && !cassaLoading && !cassaError ? "Tutto pagato" : undefined}
+              evidenzaTitolo="Costi registrati non ancora pagati (fatture, costi della commessa, provvigioni), IVA compresa. Gli ordini ai fornitori non ancora fatturati non ci sono."
+              onClick={props.onOpenEconomics}
+            />
+            <Cella
+              label="Margine reale"
+              value={realeReady ? formatCurrency(numeri.reale.margine) : "—"}
+              aside={realeReady ? pctTesto(numeri.reale.marginePct) : undefined}
+              evidenza={fine ? `A fine lavori ≈ ${formatCurrency(fine.margine)} · ${pctTesto(fine.marginePct)}` : undefined}
+              evidenzaTitolo="Stima: ai costi sostenuti si aggiunge il previsto che resta da spendere. Se si è già oltre il previsto, contano i costi veri."
+              evidenzaTono={fine && fine.margine < 0 ? "text-red-200" : "text-emerald-200"}
+              hint={!realeReady ? realeHint : fine && fine.residuo > 0.5 ? "Ad oggi: ricavo intero meno i costi fin qui" : quality.label}
+              tone={realeReady ? toneMargine(numeri.reale.margine, quality.status === "partial") : "text-white"}
+              onClick={props.onOpenEconomics}
+            />
+          </>}
+        </div>
       </div>
     </section>
   );
 }
 
-function Metric({ label, value, hint, icon, tone = "text-white", onClick, highlight }: { label: string; value: string; hint: string; icon: ReactNode; tone?: string; onClick: () => void; highlight?: boolean }) {
-  return <button type="button" onClick={onClick} className={`relative flex min-w-0 flex-col items-stretch rounded-xl border p-3 max-sm:px-2.5 max-sm:py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-eic-navy-deep 2xl:p-4 ${highlight ? "border-orange-300/60 bg-white/[0.12]" : "border-white/20 bg-white/[0.08]"}`} aria-label={`Apri dettagli: ${label}`}>
-    <span className="flex min-h-8 items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-blue-100 max-sm:min-h-0 max-sm:text-[10px]">
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border max-sm:hidden [&>svg]:h-3.5 [&>svg]:w-3.5 ${highlight ? "border-orange-200/30 bg-orange-400/20 text-orange-100" : "border-blue-100/20 bg-white/10 text-blue-50"}`}>{icon}</span>{label}
-    </span>
-    <span className={`mt-2 block break-words text-base font-bold leading-tight tracking-tight tabular-nums sm:text-lg 2xl:text-xl max-sm:mt-0.5 ${tone}`}>{value}</span>
-    <span className="mt-1.5 block text-[11px] leading-snug text-blue-100 max-sm:hidden">{hint}</span>
-  </button>;
+/** Di cosa sono fatti i costi sostenuti: gli stessi addendi della vista, senza IVA. */
+function dettaglioCosti(a: { purchases: number; warehouseMaterials: number; labor: number; commissions: number; directCosts: number; errors: number; mileageReimbursements: number }) {
+  const merce = a.purchases + a.warehouseMaterials;
+  const altro = a.commissions + a.directCosts + a.errors + a.mileageReimbursements;
+  return [
+    merce > 0.005 && `Merce ${formatCurrency(merce)}`,
+    a.labor > 0.005 && `Manodopera e ditte ${formatCurrency(a.labor)}`,
+    altro > 0.005 && `Altro ${formatCurrency(altro)}`,
+  ].filter(Boolean).join(" · ");
+}
+
+function Etichetta({ titolo, sotto }: { titolo: string; sotto: string }) {
+  return (
+    <div role="rowheader" className="col-span-full flex items-center gap-2 px-1 sm:col-span-1 sm:flex-col sm:items-start sm:justify-center sm:gap-0">
+      <span className="text-sm font-semibold text-white">{titolo}</span>
+      <span className="text-[11px] text-blue-200">{sotto}</span>
+    </div>
+  );
+}
+
+function Cella({ label, value, aside, hint, dettaglio, tone = "text-white", evidenza, evidenzaTitolo, evidenzaTono = "text-orange-200", progresso, progressoNome, progressoColore = "bg-emerald-400", onClick, apri }: {
+  label: string; value: string; aside?: string; hint: string; dettaglio?: string; tone?: string;
+  evidenza?: string; evidenzaTitolo?: string; evidenzaTono?: string;
+  progresso?: number; progressoNome?: string; progressoColore?: string;
+  onClick: () => void; apri?: boolean;
+}) {
+  return (
+    <button type="button" role="cell" onClick={onClick} aria-label={`Apri dettagli: ${label}`}
+      className="min-w-0 rounded-xl border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-eic-navy-deep max-sm:rounded-lg max-sm:px-2 max-sm:py-1.5">
+      <span className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-blue-100 max-sm:text-[9px] max-sm:leading-tight">
+        {label}{apri && <ArrowUpRight className="ml-auto h-3.5 w-3.5 max-sm:hidden" aria-hidden />}
+      </span>
+      <span className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <span className={`text-lg font-bold leading-tight tabular-nums max-sm:text-[13px] ${tone}`}>{value}</span>
+        {aside && <span className={`text-sm font-semibold tabular-nums max-sm:text-[11px] ${tone}`}>{aside}</span>}
+      </span>
+      {evidenza && <span title={evidenzaTitolo} className={`mt-1 block text-xs font-semibold tabular-nums ${evidenzaTono} max-sm:mt-0.5 max-sm:text-[10px]`}>{evidenza}</span>}
+      {progresso !== undefined && (
+        <span role="progressbar" aria-label={progressoNome} aria-valuenow={Math.round(progresso)} aria-valuemin={0} aria-valuemax={100}
+          className="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/15">
+          <span className={`block h-full rounded-full ${progressoColore}`} style={{ width: `${progresso}%` }} />
+        </span>
+      )}
+      {hint && <span className="mt-1 block text-[11px] leading-snug text-blue-100 max-sm:hidden">{hint}</span>}
+      {dettaglio && <span className="mt-0.5 block text-[11px] leading-snug text-blue-200/80 tabular-nums max-sm:hidden">{dettaglio}</span>}
+    </button>
+  );
 }

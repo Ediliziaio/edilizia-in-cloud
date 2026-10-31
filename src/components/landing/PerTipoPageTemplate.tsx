@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
-import { blogPosts } from "@/data/blogPosts";
+import { blogIndice as blogPosts } from "@/data/blogIndice";
 import { BlogCover } from "@/components/blog/BlogCover";
 import type { JSX } from "react";
 

@@ -5,7 +5,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { blogPosts } from "@/data/blogPosts";
+import { blogIndice as blogPosts } from "@/data/blogIndice";
 import { FLO_AVATAR } from "@/data/blogAuthor";
 
 // Pagina autore (E-E-A-T, 2026-09-07): ogni articolo del blog firma
