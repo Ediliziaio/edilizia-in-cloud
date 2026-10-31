@@ -4,7 +4,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 
-import {buildSalHtml,type ContrattoSal,type SalRecord} from "./render.ts";
+import {buildSalHtml,chiaveVoce,type ContrattoSal,type SalExtra,type SalRecord} from "./render.ts";
 import {maturatoPrecedente} from "../_shared/salNetto.ts";
 
 Deno.serve(async (req) => {
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     // Fetch order
     const { data: order } = await supabase
       .from("orders")
-      .select("description, order_code, total_amount, company_id, indirizzo_lavori, work_address, customer:profiles!orders_customer_id_fkey(first_name,last_name,address)")
+      .select("description, order_code, total_amount, vat_rate, company_id, indirizzo_lavori, work_address, customer:profiles!orders_customer_id_fkey(first_name,last_name,address)")
       .eq("id", sal.order_id)
       .eq("company_id",company_id)
       .single();
@@ -85,6 +85,18 @@ Deno.serve(async (req) => {
     const {data:prior,error:priorError}=await supabase.from("sal_records").select("id,numero_sal,stato,importo_totale").eq("order_id",sal.order_id).eq("company_id",company_id).lt("numero_sal",sal.numero_sal).in("stato",["emesso","approvato","firmato"]).order("numero_sal",{ascending:false}).limit(2);
     if(priorError || (prior?.length===2 && prior[0].numero_sal===prior[1].numero_sal))throw new Error("Storico SAL non verificabile o numerazione duplicata");
     const previous=maturatoPrecedente(sal,prior??[]);
+    // Voci dell'ultimo SAL emesso: nel verbale, voce per voce, il già maturato e la quota di questo SAL.
+    // Se non si leggono il verbale resta completo, col solo cumulativo.
+    const ultimoPrecedente=(prior??[]).find(p=>p.id!==sal.id);
+    const extra:SalExtra={aliquotaIva:(order as {vat_rate?:number|null}).vat_rate ?? null,importoContratto:Number(order.total_amount)||null};
+    if(ultimoPrecedente){
+      const {data:vociPrec,error:vociPrecError}=await supabase.from("sal_voci").select("descrizione,importo_sal").eq("sal_id",ultimoPrecedente.id);
+      if(!vociPrecError && Array.isArray(vociPrec)){
+        const mappa:Record<string,number>={};
+        for(const v of vociPrec as Array<{descrizione:string|null;importo_sal:number|null}>)mappa[chiaveVoce(v.descrizione)]=(mappa[chiaveVoce(v.descrizione)]??0)+(Number(v.importo_sal)||0);
+        extra.vociPrecedenti=mappa;
+      }
+    }
     // SAL di contratto di una commessa generale: periodo, ritenuta, anticipazione e netto.
     // Per i SAL di commessa non c'è la riga e il documento resta com'era.
     const {data:contrattoSal,error:contrattoError}=await supabase.from("generale_sal").select("periodo_dal,periodo_al,lordo,ritenuta_pct,ritenuta,recupero_pct,recupero_anticipazione,netto,riferimento_contratto,cig,cup,split_payment,reverse_charge").eq("sal_id",sal_id).eq("company_id",company_id).maybeSingle();
@@ -119,7 +131,7 @@ Deno.serve(async (req) => {
       sal_voci: Array.isArray(sal.sal_voci) ? sal.sal_voci : [],
     };
     // Validate before granting a public signature link.
-    buildSalHtml(salWithVoci,order,azienda,null,undefined,previous,contratto);
+    buildSalHtml(salWithVoci,order,azienda,null,undefined,previous,contratto,extra);
 
     // Token di firma per il committente: RIUSA quello ancora valido e non
     // firmato — prima ogni export ne inseriva uno nuovo, lasciando righe
@@ -166,7 +178,7 @@ Deno.serve(async (req) => {
       ? `${branding.siteUrl}/firma-sal/${signToken.token}`
       : null;
 
-    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl, brandFooter,previous,contratto);
+    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl, brandFooter,previous,contratto,extra);
     const filename = `sal-${sal.numero_sal}-${sal.data_emissione}.html`;
 
     return new Response(JSON.stringify({ html, filename, signature_url: signatureUrl, signature_token: signToken?.token }), {
