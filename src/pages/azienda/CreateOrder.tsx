@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { rigaConQuantitaIntera } from "@/lib/orders/quantitaIntera";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
@@ -94,31 +95,8 @@ import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
   modello ? rateDaModello(modello, 0) : createDefaultInstallments('standard', 2);
 
-const arrotonda2 = (n: number): number => Math.round(n * 100) / 100;
-
-/**
- * Una riga con quantità non intera («massetto 12,5 mq») diventa 1 × il totale
- * di riga, come nel simulatore (`src/lib/simulatore/trasforma.ts`):
- * `order_items.quantity` è un intero e `create_order_atomic` lo converte, quindi
- * 12,5 la farebbe fallire. Prezzo di vendita, costo d'acquisto e costo standard
- * diventano importi di riga; la quantità vera resta scritta nella descrizione.
- * Le righe con quantità intera restano come sono.
- */
-export function rigaConQuantitaIntera<T extends Pick<OrderItem, "quantity" | "description" | "unit_price" | "purchase_price" | "standard_cost">>(riga: T): T {
-  const quantita = Number(riga.quantity);
-  if (!Number.isFinite(quantita) || Number.isInteger(quantita) || quantita <= 0) return riga;
-  const quantitaScritta = `Quantità ${quantita.toLocaleString("it-IT", { maximumFractionDigits: 4 })}`
-    + (riga.unit_price ? ` × ${formatDecimalIT(riga.unit_price)} €` : "");
-  const perRiga = (v: number | undefined) => (v == null ? v : arrotonda2(Number(v) * quantita));
-  return {
-    ...riga,
-    quantity: 1,
-    unit_price: perRiga(riga.unit_price),
-    purchase_price: perRiga(riga.purchase_price),
-    standard_cost: perRiga(riga.standard_cost),
-    description: riga.description?.trim() ? `${riga.description.trim()} · ${quantitaScritta}` : quantitaScritta,
-  };
-}
+// Spostata in src/lib/orders/quantitaIntera.ts (la usa anche Silvio): resta esportata da qui.
+export { rigaConQuantitaIntera };
 
 function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamento | null }) {
   const navigate = useNavigate();

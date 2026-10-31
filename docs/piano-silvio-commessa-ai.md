@@ -293,6 +293,14 @@ storia jsonb, order_id, scade_il)` con RLS per azienda e autore. I file caricati
 storage della bozza e passano alla commessa quando nasce. Il popup scrive la bozza a ogni
 modifica (con un attimo di attesa, non a ogni tasto).
 
+**Come passano i file** (lotto 1.4): restano in `silvio-uploads/<azienda>/<utente>/commessa-…`
+finché la bozza è una bozza, elencati in `commessa_bozze.fonti`. Dopo «Crea» o «Completa»
+`allegaFonti` (`src/lib/silvio-commessa/bozze.ts`) li copia in `order-attachments`, con lo
+stesso percorso della pagina Nuova commessa (`orders/<commessa>/…`), e li registra con la RPC
+`commessa_bozza_allega`: entrano così nel registro dell'annullamento, che li toglie dallo
+storage insieme al resto. Un file che non si copia non ferma la commessa: il popup lo
+mostra con «Riprova», e l'originale resta nella bozza.
+
 ### 5.3 Le letture in parallelo, senza flusso continuo
 
 Niente streaming da tenere aperto: il browser lancia **una chiamata per fonte** (in
@@ -438,6 +446,45 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
   proposta, nel lettore del preventivo e in quello AI. Nessun conflitto.
 - Costo stimato con la configurazione predefinita del router (gpt-4o-mini, fascia t2_vision): circa 0,01 € addebitati
   per un contratto di 10 pagine, 0,005 € per una foto o un testo, più circa 0,005 € per ogni pagina scansionata (OCR).
+
+**Lotti 1.4 e 2.2 fatti il 31/10/2026** (ramo `claude/scm-fase1c-672ca8`, solo in locale; migrazione **non applicata**):
+- Migrazione `20281106100000_commessa_bozze_silvio.sql` (richiede `20281106090000`): tabelle `commessa_bozze` (RLS: ognuno
+  le proprie, nell'azienda dove ha `can_edit_orders`; stato, scadenza e commessa nata le scrivono solo le RPC; la scadenza
+  si sposta a 30 giorni dall'ultima modifica) e `commessa_bozze_scritture` (il registro dell'annullamento, solo lettura per
+  l'autore); la chiave esterna `silvio_correzioni.bozza_id`; RPC `commessa_crea_con_silvio`, `commessa_completa_con_silvio`,
+  `commessa_bozza_allega`, `commessa_annulla_silvio` (chiuse ad anon, `set search_path = ''`, `lock_timeout` 5 s).
+- **La scrittura**: il piano lo traduce una funzione pura, `scritturaDalPiano` (`src/lib/silvio-commessa/scrittura.ts`), che
+  il client salva nella bozza insieme al piano. Le RPC leggono quella, la controllano (colonne ammesse, che un test confronta
+  con la migrazione; id della stessa azienda) e la scrivono. Il piano serve alle RPC solo per i conflitti. Entrano i valori
+  «fatto» e le proposte 🟢/❓; le 🟡 e 🔴 solo accettate. La stessa scrittura è l'elenco del «Controlla» (`escluse` col motivo).
+- **Una sola strada**: `create_order_atomic`, o `crea_commessa_preventivo_atomic` se c'è il preventivo d'origine; poi le colonne
+  fuori whitelist (come CreateOrder), `aggiungi_fasi_commessa` (fasi e sottofasi che mancano, per nome),
+  `commessa_pianifica_fasi` (date solo alle fasi senza), voci previste in `order_work_phase_voci` (costo unitario in
+  `costo_materiali`, origine preventivo o computo), `order_rate_sostituisci` solo su una commessa senza rate. Il codice della
+  commessa, se manca, da `prossimo_numero_commessa`. La quantità non intera delle righe con `rigaConQuantitaIntera`, spostata
+  da CreateOrder in `src/lib/orders/quantitaIntera.ts`.
+- **Cliente**: quello scelto, o il profilo cliente col `marketing_contact_id` del contatto del preventivo, o un solo cliente con
+  la stessa email o lo stesso nome (anche invertito). Se non c'è, «Crea» si ferma: «Manca il cliente: sceglilo o crealo».
+- **Condizioni del contratto**: una riga `contratti_documents` (bozza, `generated_by = 'silvio'`) con numero, durata, penale al
+  giorno e garanzia nelle colonne che ci sono, e l'oggetto intero in `ai_generated_raw.condizioni_silvio`. Niente colonne nuove.
+- **Scadenze previsionali**: non si scrivono: il previsionale di cassa legge già le rate, e le conterebbe due volte.
+- **Completare**: solo colonne vuote (null o testo vuoto: uno 0 scritto resta), fasi che mancano, date alle fasi senza, rate e
+  contratto solo se non ci sono; il cliente solo se la commessa non ce l'ha.
+- **Annullare**: il registro ha ogni riga nata nella transazione di Silvio (anche dai trigger: `created_at`/`changed_at =
+  now()`, tabelle trovate dalle chiavi esterne) e ogni colonna riempita col valore di prima. Si rifiuta se una riga di Silvio
+  è stata modificata dopo, se una riga nuova punta a una riga di Silvio (rapportino, costo, fattura, allegato), o se una
+  colonna non ha più il valore di Silvio. Una commessa nata da Silvio sparisce del tutto; la bozza torna «bozza».
+- Client `src/lib/silvio-commessa/bozze.ts`: `creaBozza`, `salvaBozza`, `salvataggioConAttesa` (solo l'ultima versione,
+  mai due salvataggi insieme, riprova dopo un errore di rete), `bozzeDaRiprendere`, `leggiBozza`, `creaCommessa`,
+  `completaCommessa`, `allegaFonti`, `annullaSilvio`, `messaggioErrore` (italiano).
+- **Prove** in transazioni annullate su Demo 2 (vedi le note della sessione): crea → commessa con cliente (trovato dal nome
+  invertito), codice DEMO2-0004, fasi datate, sottofasi, voce prevista, 2 rate con evento, riga, contratto con CIG, 12 righe
+  nel registro; annulla → 13 righe tolte, tutto a zero, file da togliere restituito; ricrea dalla stessa bozza; un costo su
+  una fase di Silvio → annullamento rifiutato; completa su DEMO2-0003 → aggiunti tipo di lavoro, indirizzo, 2 fasi, voce,
+  contratto, nessun valore vecchio cambiato, rate identiche; una colonna cambiata dopo → rifiutato; annulla → commessa
+  identica a prima. Conflitto aperto, utente d'un'altra azienda, dipendente senza permesso, anon: rifiutati.
+- **Resta da sapere in produzione**: una funzione che scrive sulla commessa *dopo* la transazione (un'automazione via
+  pg_net) farebbe rifiutare l'annullamento come «lavorata». È il lato sicuro; se succede, si escludono quelle tabelle.
 
 ### Fase 2 — Completa le commesse che ci sono (2,5 sessioni)
 
