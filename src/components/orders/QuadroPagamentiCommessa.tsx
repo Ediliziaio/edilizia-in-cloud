@@ -223,8 +223,9 @@ function RigaUscita({ u, oggi, onPagamenti }: { u: Uscita; oggi: string; onPagam
         {u.stato !== "pagato" && u.scadenza && (
           <p className={`text-xs ${scaduta ? "font-medium text-red-700" : "text-muted-foreground"}`}>
             {scaduta && <AlertTriangle className="mr-1 inline h-3 w-3" aria-hidden="true" />}
-            {u.origine_tipo === "oda" ? "Consegna prevista" : "Scadenza"} {dataIt(u.scadenza)}
-            {giorni != null && u.origine_tipo !== "oda" ? (giorni < 0 ? ` · scaduta da ${-giorni} giorni` : giorni === 0 ? " · oggi" : ` · tra ${giorni} giorni`) : ""}
+            {/* Subappalto: la data è quando il SAL è maturato; i termini di pagamento stanno nel contratto. */}
+            {u.origine_tipo === "oda" ? "Consegna prevista" : u.origine_tipo === "subappalto" ? "SAL da pagare dal" : "Scadenza"} {dataIt(u.scadenza)}
+            {giorni != null && u.origine_tipo !== "oda" && u.origine_tipo !== "subappalto" ? (giorni < 0 ? ` · scaduta da ${-giorni} giorni` : giorni === 0 ? " · oggi" : ` · tra ${giorni} giorni`) : ""}
           </p>
         )}
         {u.stato === "pagato" && u.pagato_il && <p className="text-xs text-muted-foreground">Pagato il {dataIt(u.pagato_il)}</p>}
