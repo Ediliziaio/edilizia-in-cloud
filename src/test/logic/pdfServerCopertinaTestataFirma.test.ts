@@ -72,7 +72,7 @@ describe("preventivo standard (generate-quote-pdf, documento edile)", () => {
   const doc = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
 
   it("la firma si chiama «ACCETTAZIONE PROPOSTA», come in tutti gli altri PDF dei preventivi", () => {
-    expect(src).toContain("renderGenerico({");
+    expect(src).toContain("renderGenericoConClausole({");
     expect(doc).toContain('<TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA"');
     expect(doc).not.toContain("ACCETTAZIONE DEL PREVENTIVO");
     expect(src).not.toContain("ACCETTAZIONE DEL PREVENTIVO");

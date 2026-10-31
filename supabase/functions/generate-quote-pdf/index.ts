@@ -1,6 +1,6 @@
 // 31/10/2026: il renderer comune stampa il cronoprogramma del preventivo classico (quotes.cronoprogramma). Questo commento fa ripubblicare la funzione: la CI guarda solo i file sotto la sua cartella.
 // @ts-ignore bundle generato da scripts/preventivi-render/build.mjs
-import { renderGenerico } from "../_shared/preventivoRenderer.mjs";
+import { renderGenericoConClausole } from "../_shared/preventivoRenderer.mjs";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
@@ -485,7 +485,9 @@ Deno.serve(async (req) => {
     t = { ...t, logo_url: t.show_logo === false ? null : logo, cover_image_url: copertina, timbro_firma_url: timbro,
       primary_color: colorePreventivo(t.primary_color, company?.brand_primary_color, [t.composed_cover, t.composed_terms, t.composed_legal]) };
     company = { ...company, logo_url: t.show_logo === false ? null : logo, brand_logo_dark_url: t.show_logo === false ? null : logoChiaro };
-    const pdfDoc = await PDFDocument.load(await renderGenerico({
+    // Il PDF e le clausole che stampa da approvare a parte: chi manda in firma le passa alla pagina di firma,
+    // così il cliente approva quelle del suo preventivo e non le condizioni standard (31/10/2026).
+    const disegnato = await renderGenericoConClausole({
       // Le opzioni del singolo preventivo passano da `opzione`: il PDF che va in FIRMA
       // ha sempre le condizioni (per_firma), e le note escono solo se lo step
       // «Documenti e PDF» le lascia accese.
@@ -505,7 +507,9 @@ Deno.serve(async (req) => {
       })),
       company,
       template: t,
-    }));
+    });
+    const pdfDoc = await PDFDocument.load(disegnato.pdf);
+    const clausoleStampate: Array<{ id: string; testo: string }> = (disegnato.clausole as string[]).map((testo, i) => ({ id: `doc-${i + 1}`, testo }));
 
     // La copertina PDF del modello (una pagina sola, caricata nell'editor) prende il
     // posto della copertina disegnata: si incorpora solo la pagina grafica, niente
@@ -588,6 +592,7 @@ Deno.serve(async (req) => {
       success: true,
       pdf_path: fileName,
       signed_url: signedData?.signedUrl || null,
+      clausole_da_approvare: clausoleStampate,
     }, 200, corsH);
   } catch (e) {
     if (e instanceof Response) return e;

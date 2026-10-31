@@ -10,6 +10,13 @@
  * non fa niente (anteprime, download). Se nello stesso intervallo si disegnano due documenti con clausole
  * diverse (un'anteprima che si aggiorna mentre si invia), non si indovina: si torna a null e vale la regola di prima.
  */
+import type { DocEdileDati } from "@/components/preventivi/pdf/documentoEdileTipi";
+
+/** Le clausole che il documento edile stampa nel riquadro «Approvazione specifica» ([] se non lo stampa). */
+export function clausoleStampateEdile(dati: Pick<DocEdileDati, "modello" | "bozzaLocale">): string[] {
+  return !dati.bozzaLocale && dati.modello.condizioniLegali.length > 0 ? dati.modello.clausoleDaApprovare : [];
+}
+
 export interface ClausolaDelDocumento {
   id: string;
   testo: string;

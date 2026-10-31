@@ -432,6 +432,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   // La pagina «Accettazione proposta», come negli altri preventivi (29/10/2026): il preventivo firmato è il
   // contratto. Riepilogo di ciò che si firma, dichiarazione, firme di impresa, committente e cointestatario e,
   // se il modello le elenca, l'approvazione specifica delle clausole (artt. 1341-1342 c.c.) con una seconda firma.
+  // Senza pagina di accettazione il documento non fa approvare clausole: la pagina di firma nemmeno (31/10/2026).
+  if (!(veste?.mostraFirma && i.sezioni?.firme !== false && voci.length)) segnaClausoleDelDocumento([]);
   if (veste?.mostraFirma && i.sezioni?.firme !== false && voci.length) {
     doc.addPage(); y = m + 6;
     font(8, true, t.inchiostroMarca); doc.text("PER ACCETTAZIONE", m, y, { charSpace: 1.2 }); y += 26;

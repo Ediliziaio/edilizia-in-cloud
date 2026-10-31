@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       // scritto, non un elenco nostro. Assenti: vale la regola di prima (configurazione o standard del settore).
       clausole_da_approvare,
     } = await req.json();
-    const clausoleDelDocumento = clausoleFissate(clausole_da_approvare);
+    let clausoleDelDocumento = clausoleFissate(clausole_da_approvare);
 
     if (!quote_id) return errorResponse("quote_id richiesto");
 
@@ -289,6 +289,8 @@ Deno.serve(async (req) => {
       }
       const pdfJson = await pdfResp.json();
       pdfPathFirma = typeof pdfJson?.pdf_path === "string" ? pdfJson.pdf_path : null;
+      // Il preventivo standard: le clausole le dice il PDF appena disegnato (quelle del modello o del preventivo).
+      clausoleDelDocumento ??= clausoleFissate(pdfJson?.clausole_da_approvare);
       if (!pdfPathFirma) return errorResponse("PDF del preventivo non disponibile", 500);
     }
     // Copia congelata per la richiesta: il PDF del preventivo può essere

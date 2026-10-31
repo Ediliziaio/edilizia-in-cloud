@@ -24,3 +24,13 @@ describe("clausole del documento", () => {
     expect((await conClausoleDelDocumento(async () => 1)).clausole).toBeNull();
   });
 });
+
+describe("clausole stampate dal documento edile", () => {
+  it("solo se le condizioni si stampano (non nella bozza locale)", async () => {
+    const { clausoleStampateEdile } = await import("@/lib/fea/clausoleDelDocumento");
+    const modello = { condizioniLegali: [{ tipo: "p", testo: "x" }], clausoleDaApprovare: ["Foro"] } as never;
+    expect(clausoleStampateEdile({ modello })).toEqual(["Foro"]);
+    expect(clausoleStampateEdile({ modello, bozzaLocale: {} as never })).toEqual([]);
+    expect(clausoleStampateEdile({ modello: { condizioniLegali: [], clausoleDaApprovare: ["Foro"] } as never })).toEqual([]);
+  });
+});

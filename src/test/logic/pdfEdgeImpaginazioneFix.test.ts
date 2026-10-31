@@ -47,8 +47,8 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
     const source = read("supabase/functions/generate-quote-pdf/index.ts");
 
     it("non disegna il PDF a mano: lo compone il documento condiviso", () => {
-      expect(source).toContain('import { renderGenerico } from "../_shared/preventivoRenderer.mjs";');
-      expect(source).toMatch(/renderGenerico\(\{[\s\S]*?\n\s+quote: \{\n\s+\.\.\.quote,[\s\S]*?\n\s+\},\n\s+righePerIva,/);
+      expect(source).toContain('import { renderGenericoConClausole } from "../_shared/preventivoRenderer.mjs";');
+      expect(source).toMatch(/renderGenericoConClausole\(\{[\s\S]*?\n\s+quote: \{\n\s+\.\.\.quote,[\s\S]*?\n\s+\},\n\s+righePerIva,/);
       // Niente pdf-lib per scrivere testo o righe: la pagina la fa il documento React.
       expect(source).not.toContain("drawText");
       expect(source).not.toContain("drawRectangle");
