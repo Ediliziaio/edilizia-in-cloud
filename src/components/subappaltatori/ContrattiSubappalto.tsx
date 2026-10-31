@@ -231,6 +231,17 @@ export function ContrattiSubappalto({
     },
     enabled: ids.length > 0,
   });
+  // Contratti con la base lavori registrata: commessa, importo e oneri sono congelati (serve una variante).
+  const { data: conBase = [] } = useQuery({
+    queryKey: ["contratti-base-registrata", sub.id, ids.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("subappalto_quadri_lavori" as never).select("contratto_id").in("contratto_id", ids);
+      if (error) throw error;
+      return [...new Set(((data ?? []) as unknown as Array<{ contratto_id: string }>).map((r) => r.contratto_id))];
+    },
+    enabled: ids.length > 0,
+  });
+  const baseCongelata = !!dialog?.id && conBase.includes(dialog.id);
   const { data: ritenute = [], isLoading: caricoRitenute, isError: erroreRitenute } = useQuery({
     queryKey: ["ritenute-sub-tutte", sub.id, ids.join(",")],
     queryFn: async () => {
@@ -321,7 +332,11 @@ export function ContrattiSubappalto({
         ? supabase.from("contratti_subappalto" as never).update(campi as never).eq("id", dialog.id).select("id").single()
         : supabase.from("contratti_subappalto" as never).insert(campi as never).select("id").single();
       const { data, error } = await q;
-      if (error) throw new Error("Contratto non salvato. Controlla i dati e riprova.");
+      if (error) {
+        if (error.code === "23514" && /Base lavori/i.test(error.message ?? ""))
+          throw new Error("Questo contratto ha già una base lavori registrata: commessa, ditta, importo e oneri non si cambiano da qui. Per modificarli serve una variante tracciata; note, date e condizioni restano modificabili.");
+        throw new Error("Contratto non salvato. Controlla i dati e riprova.");
+      }
       return (data as unknown as { id: string }).id;
     },
     onSuccess: (id) => { toast.success(dialog?.id ? "Contratto aggiornato" : "Contratto creato"); invalida(); setDialog(null); onSeleziona(id); setDettaglio(id); },
@@ -389,19 +404,24 @@ export function ContrattiSubappalto({
     pdf: () => generaPdfElencoCantiere(datiContratto(c)),
   });
 
-  // Un contratto non firmato e senza SAL né fatture si può eliminare (resta nello storico: deleted_at).
+  // Un contratto non firmato, senza SAL, fatture né base lavori registrata si elimina davvero: un contratto
+  // «cancellato» ma ancora nei conti di commessa e ritenute sarebbe peggio. Se ha già una storia, si segna Risolto.
   const eliminaContratto = useMutation({
     mutationFn: async (c: ContrattoCompleto) => {
-      if (c.firmato_il) throw new Error("Il contratto è firmato: non si elimina. Annullalo dallo stato, se serve.");
+      if (c.firmato_il) throw new Error("Il contratto è firmato: non si elimina. Segnalo come «Risolto» dallo stato lavori.");
       const [{ count: sal }, { count: fatt }] = await Promise.all([
         supabase.from("sal_subappaltatori" as never).select("id", { count: "exact", head: true }).eq("contratto_id", c.id),
         supabase.from("fatture_ricevute" as never).select("id", { count: "exact", head: true }).eq("contratto_subappalto_id", c.id),
       ]);
-      if ((sal ?? 0) > 0 || (fatt ?? 0) > 0) throw new Error("Ci sono SAL o fatture collegati a questo contratto: non si può eliminare.");
-      const { error } = await supabase.from("contratti_subappalto").update({ deleted_at: new Date().toISOString() } as never).eq("id", c.id).eq("company_id", companyId);
-      if (error) throw error;
+      if ((sal ?? 0) > 0 || (fatt ?? 0) > 0) throw new Error("Ci sono SAL o fatture collegati: non si elimina. Segnalo come «Risolto» dallo stato lavori.");
+      const { data, error } = await supabase.from("contratti_subappalto" as never).delete().eq("id", c.id).eq("company_id", companyId).select("id");
+      if (error) {
+        if (error.code === "23503") throw new Error("Il contratto ha già una base lavori o misure registrate: resta nello storico. Segnalo come «Risolto» dallo stato lavori.");
+        throw new Error("Contratto non eliminato. Riprova.");
+      }
+      if (!data?.length) throw new Error("Contratto non eliminato: non hai il permesso, o è già stato tolto.");
     },
-    onSuccess: () => { toast.success("Contratto eliminato"); invalida(); },
+    onSuccess: () => { toast.success("Contratto eliminato"); invalida(); setDettaglio(null); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -523,7 +543,7 @@ export function ContrattiSubappalto({
                 )}
                 {!c.firmato_il && (
                   <Button size="sm" variant="ghost" className="gap-1 text-destructive" disabled={eliminaContratto.isPending}
-                    onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ci sono SAL o fatture collegati.")) eliminaContratto.mutate(c); }}>
+                    onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ha SAL, fatture o una base lavori registrata (allora si segna Risolto).")) eliminaContratto.mutate(c); }}>
                     <Trash2 className="h-3.5 w-3.5" />Elimina
                   </Button>
                 )}
@@ -594,10 +614,11 @@ export function ContrattiSubappalto({
             <DialogTitle>{dialog?.id ? "Modifica contratto" : "Nuovo contratto di subappalto"}</DialogTitle>
             <DialogDescription>I dati finiscono nel contratto da stampare e firmare; quello che scrivi negli ultimi campi prende il posto del testo standard.</DialogDescription>
           </DialogHeader>
+          {baseCongelata && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Questo contratto ha già una base lavori registrata: commessa, importo e oneri non si cambiano da qui (serve una variante tracciata). Il resto si modifica normalmente.</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1 sm:col-span-2">
               <Label>Commessa *</Label>
-              <Select value={form.order_id} onValueChange={(v) => setForm((p) => ({ ...p, order_id: v }))}>
+              <Select disabled={baseCongelata} value={form.order_id} onValueChange={(v) => setForm((p) => ({ ...p, order_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Scegli la commessa" /></SelectTrigger>
                 <SelectContent>{commesse.map((o) => <SelectItem key={o.id} value={o.id}>{o.order_code ? `${o.order_code} · ` : ""}{o.description ?? ""}</SelectItem>)}</SelectContent>
               </Select>
@@ -605,8 +626,8 @@ export function ContrattiSubappalto({
             <div className="space-y-1 sm:col-span-2"><Label>Lavori affidati *</Label><Textarea rows={2} {...campo("descrizione_lavori")} placeholder="es. Montaggio e smontaggio del ponteggio di facciata" /></div>
             <div className="space-y-1"><Label>Numero contratto</Label><Input {...campo("numero_contratto")} /></div>
             <div className="space-y-1"><Label>Data di stipula</Label><Input type="date" {...campo("data_stipula")} /></div>
-            <div className="space-y-1"><Label>Importo lavori (€) *</Label><Input inputMode="decimal" {...campo("importo_contrattuale")} placeholder="0,00" /></div>
-            <div className="space-y-1"><Label>Oneri della sicurezza (€)</Label><Input inputMode="decimal" {...campo("oneri_sicurezza")} placeholder="Non soggetti a ribasso" /></div>
+            <div className="space-y-1"><Label>Importo lavori (€) *</Label><Input inputMode="decimal" disabled={baseCongelata} {...campo("importo_contrattuale")} placeholder="0,00" /></div>
+            <div className="space-y-1"><Label>Oneri della sicurezza (€)</Label><Input inputMode="decimal" disabled={baseCongelata} {...campo("oneri_sicurezza")} placeholder="Non soggetti a ribasso" /></div>
             <div className="space-y-1"><Label>Ritenuta di garanzia (%)</Label><Input inputMode="decimal" {...campo("ritenuta_garanzia_pct")} /></div>
             <div className="space-y-1"><Label>Garanzia (mesi dalla fine lavori)</Label><Input inputMode="numeric" {...campo("durata_garanzia_mesi")} /></div>
             <div className="space-y-1"><Label>Inizio lavori</Label><Input type="date" {...campo("data_inizio")} /></div>
