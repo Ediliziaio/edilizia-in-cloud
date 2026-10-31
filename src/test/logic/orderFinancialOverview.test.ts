@@ -86,6 +86,17 @@ describe("Economia condivisa della commessa", () => {
     expect(quality.issues[0]).toMatchObject({ code: "items_without_cost", count: 1 });
   });
 
+  it("avvisa quando una ditta ha l'IVA in fattura (in edilizia di solito reverse charge)", () => {
+    const actual = canonicalOrderEconomics({ preventivo_totale: 1000, consuntivo: 300, margine: 700, margine_perc: 70 });
+    const conIva = assessOrderEconomicsQuality({ sourceAvailable: true, actual, items: [], employees: [],
+      teams: [{ total_cost: 122, vat_rate: 22 }, { total_cost: 100, vat_rate: 0 }, { total_cost: 50, vat_rate: null }] });
+    expect(conIva.issues).toContainEqual(expect.objectContaining({ code: "teams_with_vat", count: 1 }));
+    expect(conIva.issues.find((i) => i.code === "teams_with_vat")?.label).toMatch(/1 ditta con IVA in fattura.*reverse charge/);
+    const senza = assessOrderEconomicsQuality({ sourceAvailable: true, actual, items: [], employees: [],
+      teams: [{ total_cost: 100, vat_rate: 0 }] });
+    expect(senza.issues.map((i) => i.code)).not.toContain("teams_with_vat");
+  });
+
   it("marca come parziale il margine quando un prelievo non ha costo unitario", () => {
     const actual = canonicalOrderEconomics({
       preventivo_totale: 1000,

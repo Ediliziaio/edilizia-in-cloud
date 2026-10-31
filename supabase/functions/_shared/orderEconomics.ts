@@ -40,7 +40,8 @@ export interface EconomicsQualityIssue {
     | "items_without_cost"
     | "employees_without_cost"
     | "labor_without_budget"
-    | "teams_without_cost";
+    | "teams_without_cost"
+    | "teams_with_vat";
   label: string;
   count?: number;
 }
@@ -109,7 +110,7 @@ export function assessOrderEconomicsQuality(input: {
   actual: CanonicalOrderEconomics;
   items: EconItem[];
   employees: { total_cost: number; cost_preventivo?: number | null }[];
-  teams: { total_cost: number }[];
+  teams: { total_cost: number; vat_rate?: number | null }[];
 }): EconomicsQuality {
   const issues: EconomicsQualityIssue[] = [];
   const { sourceAvailable, actual, items, employees, teams } = input;
@@ -174,6 +175,17 @@ export function assessOrderEconomicsQuality(input: {
       code: "teams_without_cost",
       label: `${teamsWithoutCost} ${teamsWithoutCost === 1 ? "squadra esterna senza costo" : "squadre esterne senza costo"}`,
       count: teamsWithoutCost,
+    });
+  }
+
+  // Una ditta con l'IVA in fattura: il costo conta l'imponibile (giusto), ma in un subappalto edile l'IVA
+  // di solito non c'è (reverse charge, IVA 0). Lo si dice perché qualcuno lo controlli.
+  const teamsWithVat = teams.filter((team) => finite(team.vat_rate) > 0).length;
+  if (teamsWithVat > 0) {
+    issues.push({
+      code: "teams_with_vat",
+      label: `${teamsWithVat} ${teamsWithVat === 1 ? "ditta con IVA in fattura" : "ditte con IVA in fattura"}: se è un subappalto edile va in reverse charge (IVA 0)`,
+      count: teamsWithVat,
     });
   }
 

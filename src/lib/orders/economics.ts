@@ -25,8 +25,9 @@ export function calculateOrderEconomics({ totalAmount, items, employees, teams, 
     }, 0);
 
   const employeesNet = employees.reduce((s, e) => s + (e.total_cost || 0), 0);
+  // Ditte: IVA vuota = 0 (reverse charge), come v_ordine_marginalita e la scheda Lavorazioni.
   const teamsNet = teams.reduce((s, t) => {
-    const { netAmount } = calculateNetFromGross(t.total_cost || 0, t.vat_rate ?? 22);
+    const { netAmount } = calculateNetFromGross(t.total_cost || 0, t.vat_rate ?? 0);
     return s + netAmount;
   }, 0);
   const laborNet = employeesNet + teamsNet;

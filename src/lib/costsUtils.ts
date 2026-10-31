@@ -113,8 +113,9 @@ export function buildExternalTeamCosts(externalTeamCosts: any[]): UnifiedCost[] 
     id: `${COST_ID_PREFIX.EXT_TEAM}${item.id}`,
     name: item.external_team?.name || "Squadra Esterna",
     cost_type: "variable",
-    // total_cost è IVA inclusa: qui come gli altri costi, imponibile + aliquota (come v_ordine_marginalita)
-    amount: Math.round(((Number(item.total_cost) || 0) / (1 + Number(item.vat_rate ?? 22) / 100)) * 100) / 100,
+    // total_cost è IVA inclusa: qui come gli altri costi, imponibile + aliquota (come v_ordine_marginalita).
+    // IVA vuota = 0: le ditte sono in reverse charge.
+    amount: Math.round(((Number(item.total_cost) || 0) / (1 + Number(item.vat_rate ?? 0) / 100)) * 100) / 100,
     category: "Squadre Esterne",
     recurrence: "once",
     due_date: item.payment_date || "9999-12-31",
@@ -125,7 +126,7 @@ export function buildExternalTeamCosts(externalTeamCosts: any[]): UnifiedCost[] 
     order: item.order ? { id: item.order.id, order_code: item.order.order_code } : null,
     isFromOrder: true,
     supplierName: null,
-    vat_rate: Number(item.vat_rate ?? 22),
+    vat_rate: Number(item.vat_rate ?? 0),
   }));
 }
 
