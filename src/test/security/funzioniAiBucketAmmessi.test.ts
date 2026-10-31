@@ -32,6 +32,7 @@ import {
   BUCKET_IMPORT_CONDIZIONI,
   BUCKET_LETTURA_GENERICA,
   BUCKET_OCR_FATTURA,
+  BUCKET_SILVIO_COMMESSA,
   nomeBucketSicuro,
   percorsoStorageSicuro,
   valutaFile,
@@ -212,7 +213,7 @@ describe("valutaFile: la chiave di servizio solo per le coppie ammesse", () => {
   });
 
   it("gli elenchi hanno solo bucket e cartelle noti, senza doppioni", () => {
-    for (const [nome, elenco] of Object.entries({ BUCKET_IMPORT_CONDIZIONI, BUCKET_ANALISI_DOCUMENTI, BUCKET_LETTURA_GENERICA, BUCKET_OCR_FATTURA })) {
+    for (const [nome, elenco] of Object.entries({ BUCKET_IMPORT_CONDIZIONI, BUCKET_ANALISI_DOCUMENTI, BUCKET_LETTURA_GENERICA, BUCKET_OCR_FATTURA, BUCKET_SILVIO_COMMESSA })) {
       const nomi = elenco.map((b) => b.bucket);
       expect(new Set(nomi).size, nome).toBe(nomi.length);
       for (const b of elenco) {
@@ -222,7 +223,7 @@ describe("valutaFile: la chiave di servizio solo per le coppie ammesse", () => {
       }
     }
     // hr-documenti e gli altri bucket riservati non sono in nessun elenco
-    const tutti = new Set([...BUCKET_IMPORT_CONDIZIONI, ...BUCKET_ANALISI_DOCUMENTI, ...BUCKET_LETTURA_GENERICA, ...BUCKET_OCR_FATTURA].map((b) => b.bucket));
+    const tutti = new Set([...BUCKET_IMPORT_CONDIZIONI, ...BUCKET_ANALISI_DOCUMENTI, ...BUCKET_LETTURA_GENERICA, ...BUCKET_OCR_FATTURA, ...BUCKET_SILVIO_COMMESSA].map((b) => b.bucket));
     for (const riservato of ["hr-documenti", "buste-paga", "documenti-fiscali", "pos-emissioni", "fascicoli-cantiere", "sicurezza-documenti"]) {
       expect(tutti.has(riservato), riservato).toBe(false);
     }
@@ -279,6 +280,14 @@ describe("l'elenco coincide con quello che l'app manda davvero", () => {
     expect(ha(BUCKET_OCR_FATTURA, "silvio-uploads", "azienda")).toBe(true);
   });
 
+  it("Silvio crea la commessa: silvio-uploads, sotto l'azienda e poi l'utente", () => {
+    const s = leggi("src/lib/silvio-commessa/leggiDocumento.ts");
+    expect(s).toContain('export const BUCKET_DOCUMENTI_COMMESSA = "silvio-uploads";');
+    expect(s).toContain("return `${opz.companyId}/${opz.userId}/commessa-${adesso}-${nomePerLoStorage(nome)}`;");
+    expect(leggi("supabase/functions/silvio-commessa/index.ts")).toContain('const BUCKET = "silvio-uploads";');
+    expect(BUCKET_SILVIO_COMMESSA).toEqual([{ bucket: "silvio-uploads", cartelle: ["azienda"] }]);
+  });
+
   it("i parser a bucket fisso ricevono ancora un percorso con il prefisso e il nome ripulito", () => {
     expect(leggi("src/pages/azienda/settings/SettingsFinanziamentiNuova.tsx")).toContain(
       "const path = `${effectiveCompany.id}/ai-staging/${ts}-${file.name.replace(/[^\\w.-]/g, \"_\")}`;",
@@ -310,6 +319,7 @@ describe("le funzioni chiamano la regola prima di toccare lo storage", () => {
     ["ddt-ai-extract", "BUCKET_ANALISI_DOCUMENTI"],
     ["generic-doc-ai-extract", "BUCKET_LETTURA_GENERICA"],
     ["ai-fattura-ricevuta-ocr", "BUCKET_OCR_FATTURA"],
+    ["silvio-commessa", "BUCKET_SILVIO_COMMESSA"],
   ];
 
   it.each(CON_ELENCO)("%s usa l'elenco %s, prima del download", (nome, elenco) => {

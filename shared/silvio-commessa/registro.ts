@@ -109,6 +109,11 @@ export const REGISTRO: readonly Variabile[] = [
     fonti: ["preventivo", "contratto"], livello: "da_solo", controllo: presente("has_building_bonus"), peso: 0 },
   { area: "economia", chiave: "economia.order_items", etichetta: "Righe della commessa", colonne: [], tabelle: ["order_items"],
     fonti: ["preventivo", "computo", "contratto", "documento"], livello: "da_solo", controllo: righe("order_items"), peso: 1 },
+  // Le condizioni del contratto con il committente (penali, ritenuta, CIG/CUP…) non hanno
+  // colonne in `orders`: vivono nel contratto della commessa. Valore = `CondizioniContratto`.
+  // Peso 0: valgono per le commesse che hanno un contratto (fase 1, lotto 1.2).
+  { area: "economia", chiave: "economia.condizioni_contratto", etichetta: "Condizioni del contratto", colonne: [], tabelle: ["contratti_documents"],
+    fonti: ["contratto", "documento"], livello: "propone", controllo: righe("contratti_documents"), peso: 0 },
   { area: "economia", chiave: "economia.order_bonus_lines", etichetta: "Righe del bonus", colonne: [], tabelle: ["order_bonus_lines"],
     fonti: ["preventivo"], livello: "da_solo", controllo: righe("order_bonus_lines"), peso: 0 },
 

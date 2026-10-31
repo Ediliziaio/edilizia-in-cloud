@@ -112,3 +112,12 @@ export const BUCKET_OCR_FATTURA: readonly BucketAmmesso[] = [
   { bucket: "silvio-uploads", cartelle: ["utente", "azienda"] },
   ...BUCKET_ANALISI_DOCUMENTI,
 ];
+
+/**
+ * silvio-commessa: i documenti caricati per creare una commessa con Silvio vanno in
+ * silvio-uploads, sotto `<azienda>/<utente>/commessa-…` (la policy dello storage vuole
+ * l'utente nella seconda cartella: lo carica solo lui, lo legge chi è dell'azienda).
+ */
+export const BUCKET_SILVIO_COMMESSA: readonly BucketAmmesso[] = [
+  { bucket: "silvio-uploads", cartelle: ["azienda"] },
+];

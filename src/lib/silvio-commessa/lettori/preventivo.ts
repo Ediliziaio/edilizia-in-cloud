@@ -22,7 +22,7 @@
  */
 import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
 import {
-  dateDelleFasi, MODELLI_LAVORO, riconosciTipoLavoro, type TipoLavoro,
+  dateDelleFasi, durateDalModello, misuraDalTesto, MODELLI_LAVORO, riconosciTipoLavoro, type TipoLavoro,
 } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
 import { prefillDaPreventivo } from "@/lib/preventivi/prefillPreventivo";
 import { parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
@@ -249,6 +249,7 @@ export function frammentoDaPreventivo(dati: DatiPreventivo): Frammento {
   let fasi: FaseDelPiano[] = [];
   let stimate: string[] = [];
   let doveFasi = "cronoprogramma";
+  let durateModello: { tipo: TipoLavoro; completate: string[] } | null = null;
   if (vociComputo.length) {
     // Preventivo con computo: un capitolo per fase, come la creazione della commessa.
     ({ fasi, stimate } = fasiDaCapitoli(vociComputo, crono?.fasi ?? [], giorniDalValore));
@@ -263,12 +264,28 @@ export function frammentoDaPreventivo(dati: DatiPreventivo): Frammento {
   } else if (lavorazioni.length) {
     fasi = lavorazioni.map((name) => ({ name: name.slice(0, 160) }));
     doveFasi = "lavorazioni del preventivo";
-    avvisa(fr, "il preventivo non ha il cronoprogramma: le fasi sono le lavorazioni, senza durate");
+    // Le fasi senza tempi prendono le durate del modello del lavoro, come proposta: il
+    // preventivo resta la fonte delle fasi, e non nasce un conflitto col modello.
+    const tipo = modelloDelPreventivo(dati);
+    if (tipo) {
+      const misura = misuraDalTesto(`${titolo} ${testo(q.description)}`, MODELLI_LAVORO[tipo].unita);
+      const conDurate = durateDalModello(fasi, tipo, misura);
+      fasi = conDurate.fasi;
+      durateModello = { tipo, completate: conDurate.completate };
+      avvisa(fr, `il preventivo non ha il cronoprogramma: le fasi sono le lavorazioni, con le durate del modello del ${MODELLI_LAVORO[tipo].etichetta}`);
+    } else {
+      avvisa(fr, "il preventivo non ha il cronoprogramma: le fasi sono le lavorazioni, senza durate");
+    }
   }
   if (crono?.senzaDurata.length) avvisa(fr, `fasi senza durata leggibile, contate un giorno: ${crono.senzaDurata.join(", ")}`);
   if (fasi.length) {
     const conDate = dati.inizio ? dateDelleFasi(fasi, dati.inizio) : fasi;
-    metti(fr, "fasi.order_work_phases", conDate, stimate.length
+    metti(fr, "fasi.order_work_phases", conDate, durateModello?.completate.length
+      ? {
+        fiducia: Math.min(fiducia, 0.5), stato: "proposta", dove: doveFasi,
+        nota: `Le fasi sono del preventivo, le durate del modello del ${MODELLI_LAVORO[durateModello.tipo].etichetta} (${durateModello.completate.join(", ")}): correggile coi tempi delle tue squadre.`,
+      }
+      : stimate.length
       ? { fiducia: Math.min(fiducia, 0.7), stato: "proposta", dove: doveFasi, nota: `Durate stimate dal valore dei capitoli (${stimate.join(", ")}): correggile.` }
       : { fiducia, dove: doveFasi });
     const fine = conDate.reduce<string | null>((max, f) => (f.end_date && (!max || f.end_date > max) ? f.end_date : max), null);

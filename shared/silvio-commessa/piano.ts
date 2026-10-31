@@ -156,3 +156,46 @@ export interface CostoDelPiano {
   /** Voci della fase senza costo: il costo vero è più alto. */
   vociSenzaCosto: number;
 }
+
+/**
+ * Le condizioni del contratto con il committente, in `economia.condizioni_contratto`
+ * (fase 1, lotto 1.2). Le scrive il lettore AI dei contratti; tutti i campi sono
+ * facoltativi e ci sono solo quelli che il documento dice.
+ */
+export interface CondizioniContratto {
+  numero_contratto?: string;
+  /** Durata dei lavori in giorni naturali e consecutivi, come la scrivono i contratti. */
+  durata_giorni?: number;
+  /** Penale per ogni giorno di ritardo, in euro… */
+  penale_giorno_eur?: number;
+  /** …o in per mille dell'importo (gli appalti pubblici la scrivono così). */
+  penale_giorno_permille?: number;
+  /** Tetto delle penali, in percentuale dell'importo. */
+  penale_massima_pct?: number;
+  /** Ritenuta di garanzia sui SAL, in percentuale. */
+  ritenuta_garanzia_pct?: number;
+  anticipo_pct?: number;
+  anticipo_eur?: number;
+  /** Giorni dalla fattura (o dal SAL) al pagamento. */
+  pagamento_giorni?: number;
+  subappalto_ammesso?: boolean;
+  /** Quota massima subappaltabile, in percentuale. */
+  subappalto_massimo_pct?: number;
+  garanzia_anni?: number;
+  /** Codice identificativo di gara: 10 caratteri. */
+  cig?: string;
+  /** Codice unico di progetto: 15 caratteri. */
+  cup?: string;
+  /** Da dove viene ogni campo: le condizioni stanno su pagine diverse del contratto. */
+  fonti?: Record<string, { dove: string | null; citazione: string | null }>;
+}
+
+/** Il ritmo dei SAL in `sal_scadenze.sal`, quando un contratto lo dice. */
+export interface PianoSal {
+  /** «mensile», «bimestrale», «a percentuale», o il testo del contratto. */
+  cadenza?: string;
+  /** Importo minimo di lavori per emettere un SAL. */
+  importo_minimo_eur?: number;
+  /** Le soglie di avanzamento, se il contratto le elenca (30, 60, 90…). */
+  percentuali?: number[];
+}

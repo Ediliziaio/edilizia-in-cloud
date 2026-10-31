@@ -184,6 +184,57 @@ export function giorniTotali(fasi: readonly FaseDelPiano[]): number {
   return fasi.reduce((max, x) => Math.max(max, (x.giorno_inizio ?? 1) + (x.giorni ?? 1) - 1), 0);
 }
 
+/** Le radici delle parole lunghe di un nome di fase: «Demolizioni e smaltimento» → demol, smalt. */
+function radici(nome: string): Set<string> {
+  return new Set(nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z]+/).filter((p) => p.length >= 5).map((p) => p.slice(0, 5)));
+}
+
+/**
+ * Le fasi di un documento che ha i nomi ma non i tempi (31/10/2026, decisione rimasta
+ * aperta dalla fase 1A): alle fasi senza durata dà quella del modello del lavoro, senza
+ * toccare le fasi che una durata ce l'hanno. Così il preventivo resta la fonte delle fasi
+ * e il modello riempie solo il buco: niente conflitto fra due elenchi.
+ *
+ * Una fase che somiglia a una del modello (una parola lunga in comune: «Demolizione del
+ * bagno» e «Protezioni e demolizioni») ne prende la durata; le altre si dividono in parti
+ * uguali i giorni che il modello dà al lavoro intero, tolti quelli già assegnati, almeno
+ * uno a testa. I giorni d'inizio seguono l'ordine del documento, una fase dopo l'altra.
+ */
+export function durateDalModello(
+  fasi: readonly FaseDelPiano[], tipo: TipoLavoro, misura?: number | null,
+): { fasi: FaseDelPiano[]; completate: string[] } {
+  const senza = (x: FaseDelPiano) => !(x.giorni && x.giorni > 0);
+  if (!fasi.some(senza)) return { fasi: fasi.map((x) => ({ ...x })), completate: [] };
+  const modello = fasiDelModello(tipo, misura);
+  // La fase del modello con più parole in comune («Posa del nuovo manto» → «Nuovo manto di copertura»).
+  const dalModello = (x: FaseDelPiano) => {
+    const r = radici(x.name);
+    let migliore: { giorni: number; comuni: number } | null = null;
+    for (const m of modello) {
+      const comuni = [...radici(m.name)].filter((p) => r.has(p)).length;
+      if (comuni && (!migliore || comuni > migliore.comuni)) migliore = { giorni: m.giorni ?? 1, comuni };
+    }
+    return migliore?.giorni ?? null;
+  };
+  const giorni = fasi.map((x) => (senza(x) ? dalModello(x) : x.giorni!));
+  const restano = giorni.filter((g) => g == null).length;
+  if (restano) {
+    const assegnati = giorni.reduce<number>((s, g) => s + (g ?? 0), 0);
+    const quota = Math.max(1, Math.round(Math.max(0, giorniTotali(modello) - assegnati) / restano));
+    for (let i = 0; i < giorni.length; i++) giorni[i] ??= quota;
+  }
+  const completate: string[] = [];
+  let giorno = 1;
+  const out = fasi.map((x, i) => {
+    const fase: FaseDelPiano = senza(x) ? { ...x, giorni: giorni[i]!, giorno_inizio: x.giorno_inizio ?? giorno } : { ...x };
+    if (senza(x)) completate.push(x.name);
+    giorno = Math.max(giorno, (fase.giorno_inizio ?? giorno) + (fase.giorni ?? 1));
+    return fase;
+  });
+  return { fasi: out, completate };
+}
+
 const PAROLE: ReadonlyArray<[TipoLavoro, RegExp]> = [
   ["fotovoltaico", /fotovolt|pannelli solari|\bfv\b|\bkwp?\b/],
   ["serramenti", /serrament|infiss|finestr|portefinestr/],

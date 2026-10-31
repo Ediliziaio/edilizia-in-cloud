@@ -40,6 +40,14 @@ describe("I punti in cui il provider risponde sono agganciati all'allarme", () =
     expect(s).toMatch(/function logImageError\([\s\S]*?segnalaErroreAI\(args\.msg,/);
   });
 
+  it("il lettore di Silvio per la commessa chiama il modello solo dal router, che segnala gli errori", () => {
+    const s = sorgente("supabase/functions/silvio-commessa/index.ts");
+    expect(s).toContain('from "../_shared/aiRouter.ts"');
+    // Né fetch diretti né il proxy Claude: un 402 lì passerebbe in silenzio.
+    expect(s).not.toMatch(/\bfetch\(|claudeProxy|claudeMessages|callOpenRouter/);
+    expect(s.match(/aiRouterComplete\(/g)?.length).toBe(2); // OCR delle pagine scansionate e lettura
+  });
+
   it("la funzione dei PDF non avvisa più per conto suo: lo fa il sistema degli allarmi", () => {
     const s = sorgente("supabase/functions/email-ai-estrai-allegato/index.ts");
     expect(s).not.toContain("alertOutreach");

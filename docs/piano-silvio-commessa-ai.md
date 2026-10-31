@@ -421,6 +421,24 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 - Resta per la 1.4: collegare il cliente del gestionale (`customer_id`) dal contatto CRM
   del preventivo (`contact_id`), e scrivere `sottofasi` e `costi.previsti` con le RPC esistenti.
 
+**Lotto 1.2 fatto il 31/10/2026** (ramo `claude/scm-fase1b-32e01f`, solo in locale, nessuna migrazione, funzione non pubblicata):
+- `supabase/functions/silvio-commessa`: un file (silvio-uploads, `<azienda>/<utente>/commessa-…`) o un testo → una sola
+  chiamata ad `aiRouterComplete` (task `silvio_commessa_lettura`) → `Frammento`. PDF da `pdfExtraction` (OCR al massimo
+  6 pagine), foto e piantine con la visione. Pagamento controllato prima del download, crediti dal router (402).
+  Risposta sincrona con tetti (60.000 caratteri, 45 s di lettura): un id da interrogare servirà con `commessa_bozze` (1.4).
+- `shared/silvio-commessa/letturaAI.ts`: prompt e `frammentoDaRispostaAI`. Ogni valore ha `dove` e `citazione`; la
+  citazione si cerca nel testo e la pagina la dice il testo; cifre e date devono comparire nella citazione; senza prova
+  il valore resta in `proposta` a fiducia 0,3. Risposte malformate → frammento vuoto con avviso.
+- Registro: nuova variabile `economia.condizioni_contratto` (penali, ritenuta, anticipo, termini di pagamento,
+  subappalto, garanzia, CIG, CUP, con la fonte di ogni campo), peso 0, sul contratto della commessa.
+- `shared/silvio-commessa/riconoscitore.ts` (XPWE e PriMus → lettori dei computi; offerte → `rdo-ai-estrai-offerta`;
+  il resto → `silvio-commessa`) e `src/lib/silvio-commessa/leggiDocumento.ts` (carica, riconosce, legge; testo con
+  ripiego sul modello se l'AI non risponde).
+- Decisione della fase 1A: fasi con i nomi ma senza tempi prendono le durate del modello (`durateDalModello`) come
+  proposta, nel lettore del preventivo e in quello AI. Nessun conflitto.
+- Costo stimato con la configurazione predefinita del router (gpt-4o-mini, fascia t2_vision): circa 0,01 € addebitati
+  per un contratto di 10 pagine, 0,005 € per una foto o un testo, più circa 0,005 € per ogni pagina scansionata (OCR).
+
 ### Fase 2 — Completa le commesse che ci sono (2,5 sessioni)
 
 | Lotto | Cosa | Fatto quando |
