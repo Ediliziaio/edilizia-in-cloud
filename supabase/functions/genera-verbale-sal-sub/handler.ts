@@ -8,6 +8,7 @@ import {
   verificaVerbaleSalSub,
 } from "../_shared/verbaleSalSub.ts";
 import { pdfVerbaleSalSub } from "../_shared/verbaleSalSubPdf.ts";
+import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
 import { PDFDocument } from "pdf-lib";
 import { strToU8, zipSync } from "fflate";
 const BUCKET = "verbali-sal-sub";
@@ -252,7 +253,7 @@ export function creaGestore(
           ),
           singolo(
             db.from("anagrafica_azienda").select(
-              "ragione_sociale,partita_iva,indirizzo_via,indirizzo_numero_civico,indirizzo_cap,indirizzo_comune,indirizzo_provincia",
+              "ragione_sociale,partita_iva,indirizzo_via,indirizzo_numero_civico,indirizzo_cap,indirizzo_comune,indirizzo_provincia,logo_url",
             ).eq("company_id", input.company_id),
             "Anagrafica azienda",
           ),
@@ -468,7 +469,21 @@ export function creaGestore(
           409,
         );
       }
-      const cover = await deps.pdf(d);
+      // Logo dell'impresa nell'intestazione: anagrafica, altrimenti quello aziendale.
+      // Se non si legge (formato, rete) il verbale esce lo stesso, senza logo.
+      let logoImpresa: string | null = null;
+      try {
+        const profilo = await db.from("companies").select("logo_url").eq("id", input.company_id).maybeSingle();
+        const logo = logoDiRiserva(azienda.logo_url, profilo?.data?.logo_url);
+        if (logo) {
+          const byte = await leggiLogo(db, logo, { supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "", bucket: ["company-logos", "branding"] });
+          const formato = byte ? formatoImmagine(byte) : null;
+          if (byte && formato && byte.length <= 1_500_000) {
+            logoImpresa = `data:image/${formato === "png" ? "png" : "jpeg"};base64,${Buffer.from(byte).toString("base64")}`;
+          }
+        }
+      } catch { logoImpresa = null; }
+      const cover = await deps.pdf(d, logoImpresa);
       const composto = await PDFDocument.load(cover);
       for (const a of daAccodare) {
         const pagine = await composto.copyPages(a, a.getPageIndices());

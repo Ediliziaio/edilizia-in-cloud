@@ -1,6 +1,6 @@
 import pdfMake from "pdfmake";
 import vfs from "pdfmake-fonts";
-import { type VerbaleSalSub, verificaVerbaleSalSub } from "./verbaleSalSub.ts";
+import { benestareFatturazione, type VerbaleSalSub, verificaVerbaleSalSub } from "./verbaleSalSub.ts";
 pdfMake.addVirtualFileSystem(vfs);
 const euro = (n: unknown) =>
   Number(n).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
@@ -8,7 +8,8 @@ const data = (s: string) =>
   /^\d{4}-\d{2}-\d{2}/.test(s)
     ? s.slice(0, 10).split("-").reverse().join("/")
     : s;
-export function layoutVerbaleSalSub(d: VerbaleSalSub) {
+/** logoImpresa: data URL PNG/JPEG del logo; resta fuori dal modello salvato del verbale. */
+export function layoutVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null = null) {
   const r = verificaVerbaleSalSub(d);
   const titolo = (t: string) => ({
     text: t,
@@ -30,7 +31,7 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub) {
     bold: true,
     alignment: "right",
   }];
-  const contenuto: any[] = [
+  const intestazioneTesto = [
     { text: d.impresa.ragione_sociale, style: "impresa" },
     {
       text: [
@@ -39,6 +40,23 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub) {
       ].filter(Boolean).join(" · "),
       fontSize: 8,
       color: "#475569",
+    },
+  ];
+  const logo = typeof logoImpresa === "string" && /^data:image\/(png|jpeg);base64,/.test(logoImpresa) ? logoImpresa : null;
+  const benestare = benestareFatturazione(d, r);
+  const contenuto: any[] = [
+    logo
+      ? {
+        columns: [
+          { stack: intestazioneTesto, width: "*" },
+          { image: logo, fit: [150, 48], alignment: "right", width: 160 },
+        ],
+        columnGap: 12,
+      }
+      : { stack: intestazioneTesto },
+    {
+      canvas: [{ type: "line", x1: 0, y1: 4, x2: 515, y2: 4, lineWidth: 2, lineColor: "#17324f" }],
+      margin: [0, 6, 0, 0],
     },
     {
       text: "VERBALE RIEPILOGATIVO SAL SUBAPPALTO",
@@ -222,6 +240,36 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub) {
           : "Non è stata eseguita una riconciliazione con il computo o le quantità."
       }`,
     ),
+    {
+      unbreakable: true,
+      margin: [0, 12, 0, 0],
+      table: {
+        widths: ["*"],
+        body: [[{
+          fillColor: benestare.autorizzato ? "#ecfdf5" : "#fffbeb",
+          margin: [10, 8, 10, 8],
+          stack: [
+            { text: benestare.titolo.toUpperCase(), bold: true, fontSize: 10, color: benestare.autorizzato ? "#047857" : "#b45309" },
+            { text: benestare.testo, margin: [0, 4, 0, 4] },
+            ...(benestare.righe.length
+              ? [{
+                table: {
+                  widths: ["*", 110],
+                  body: benestare.righe.map(([a, b], i) => [
+                    { text: a, bold: i === benestare.righe.length - 1, color: "#334155" },
+                    { text: b, bold: i === benestare.righe.length - 1, alignment: "right" },
+                  ]),
+                },
+                layout: "noBorders",
+                margin: [0, 2, 0, 4],
+              }]
+              : []),
+            ...benestare.istruzioni.map((t) => ({ text: `• ${t}`, fontSize: 8, color: "#475569", margin: [0, 1, 0, 1] })),
+          ],
+        }]],
+      },
+      layout: { hLineColor: () => (benestare.autorizzato ? "#6ee7b7" : "#fcd34d"), vLineColor: () => (benestare.autorizzato ? "#6ee7b7" : "#fcd34d") },
+    },
     {
       unbreakable: true,
       pageBreak: "before",
@@ -433,7 +481,7 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub) {
         titolo("8 · Sottoscrizioni da acquisire"),
         {
           text:
-            "Impresa affidataria: _______________________    Data: ______________\n\nSubappaltatore: __________________________    Data: ______________",
+            `Impresa affidataria${benestare.autorizzato ? " (per il benestare alla fatturazione)" : ""}: _______________________    Data: ______________\n\nSubappaltatore: __________________________    Data: ______________`,
           margin: [0, 8, 0, 8],
         },
         nota(
@@ -475,8 +523,8 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub) {
     }),
   };
 }
-export async function pdfVerbaleSalSub(d: VerbaleSalSub): Promise<Uint8Array> {
+export async function pdfVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null = null): Promise<Uint8Array> {
   return new Uint8Array(
-    await pdfMake.createPdf(layoutVerbaleSalSub(d)).getBuffer(),
+    await pdfMake.createPdf(layoutVerbaleSalSub(d, logoImpresa)).getBuffer(),
   );
 }
