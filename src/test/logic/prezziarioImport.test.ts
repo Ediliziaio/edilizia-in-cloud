@@ -283,6 +283,7 @@ describe("toImportPayload", () => {
     prezzoVendita: 22,
     costoInterno: 14,
     descrizione: "Gres",
+    codice: null,
     errors: [],
     warnings: [],
   };
@@ -343,9 +344,9 @@ describe("buildPrezziarioTemplateCsv", () => {
 describe("summarizePrezziario", () => {
   it("conta valide / con errori / con warning", () => {
     const rows: ParsedPrezziarioRow[] = [
-      { rowIndex: 2, nome: "A", tipo: "posa", unitaFatturazione: "pz", prezzoVendita: 10, costoInterno: null, descrizione: null, errors: [], warnings: [] },
-      { rowIndex: 3, nome: "B", tipo: "posa", unitaFatturazione: "pz", prezzoVendita: 0, costoInterno: null, descrizione: null, errors: ["x"], warnings: [] },
-      { rowIndex: 4, nome: "C", tipo: "posa", unitaFatturazione: "pz", prezzoVendita: 10, costoInterno: null, descrizione: null, errors: [], warnings: ["w"] },
+      { rowIndex: 2, nome: "A", tipo: "posa", unitaFatturazione: "pz", prezzoVendita: 10, costoInterno: null, descrizione: null, codice: null, errors: [], warnings: [] },
+      { rowIndex: 3, nome: "B", tipo: "posa", unitaFatturazione: "pz", prezzoVendita: 0, costoInterno: null, descrizione: null, codice: null, errors: ["x"], warnings: [] },
+      { rowIndex: 4, nome: "C", tipo: "posa", unitaFatturazione: "pz", prezzoVendita: 10, costoInterno: null, descrizione: null, codice: null, errors: [], warnings: ["w"] },
     ];
     expect(summarizePrezziario(rows)).toEqual({ total: 3, valid: 2, withErrors: 1, withWarnings: 1 });
   });
@@ -354,7 +355,7 @@ describe("summarizePrezziario", () => {
 describe("buildTariffeExportCsv", () => {
   const tariffe = [
     { codice: "NP.01", nome: "Posa gres", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 22, costo_interno: 14, descrizione: "Su sottofondo" },
-    { nome: "Manodopera", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 60, costo_interno: 40, descrizione: null },
+    { codice: null as string | null, nome: "Manodopera", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 60, costo_interno: 40, descrizione: null as string | null },
   ];
 
   it("include la colonna Costo solo per gli admin", () => {
