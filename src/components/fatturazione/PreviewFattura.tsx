@@ -4,7 +4,7 @@ import { nativePdfSnapshot } from "../../../supabase/functions/_shared/nativePdf
 import { logoDiRiserva } from "../../../supabase/functions/_shared/logoAzienda";
 import { iscrizioneRea } from "../../../supabase/functions/_shared/datiSocietari";
 import { naturaToXml } from "../../../supabase/functions/_shared/generateXML";
-import { TIPI_FISCALI, noteFiscali } from "../../../supabase/functions/generate-native-pdf/documentoHtml";
+import { TIPI_FISCALI, clausoleDocumento, noteFiscali } from "../../../supabase/functions/generate-native-pdf/documentoHtml";
 import {
   cssFoglio,
   dataBreve,
@@ -260,6 +260,12 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
           </div>
         )}
 
+        {clausoleDocumento(doc).length > 0 && (
+          <div className="fd-avvertenze fd-clausole">
+            <div className="fd-etichetta">Clausole</div>
+            {clausoleDocumento(doc).map((t) => <div key={t}>{t}</div>)}
+          </div>
+        )}
         {TIPI_FISCALI.includes(doc.tipo) && noteFiscali(doc).length > 0 && (
           <div className="fd-avvertenze">
             <div className="fd-etichetta">Note fiscali</div>

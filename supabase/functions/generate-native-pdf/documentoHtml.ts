@@ -35,6 +35,26 @@ import {
 export const TIPI_FISCALI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa"];
 
 /**
+ * Le clausole scritte in Causale (bonifico parlante, IVA agevolata, garanzia,
+ * tracciabilità…): fino al 31/10/2026 andavano solo nell'XML e la copia di
+ * cortesia, l'unica che il cliente legge, non le mostrava. Restano fuori le
+ * diciture che «Note fiscali» scrive già (scissione, IVA per cassa).
+ */
+export function clausoleDocumento(doc: Record<string, any>): string[] {
+  const causali: unknown[] = Array.isArray(doc.causale) ? doc.causale : [];
+  const viste = new Set<string>();
+  const out: string[] = [];
+  for (const c of causali) {
+    const testo = String(c ?? "").trim();
+    if (!testo || viste.has(testo)) continue;
+    if (/17-ter|scissione dei pagamenti|32-bis/i.test(testo)) continue;
+    viste.add(testo);
+    out.push(testo);
+  }
+  return out;
+}
+
+/**
  * Le diciture fiscali della fattura, le stesse che l'XML porta in Causale e in
  * RiferimentoNormativo (24/09/2026). Il PDF è l'unico documento che un privato
  * legge: prima mostrava «0% (N6_3)» e nessuna norma.
@@ -97,6 +117,7 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   const conSconto = righe.some((r) => (Number(r.sconto_percentuale) || 0) > 0);
   const fiscale = TIPI_FISCALI.includes(doc.tipo);
   const note = fiscale ? noteFiscali(doc) : [];
+  const clausole = clausoleDocumento(doc);
   const privato = !String(snap.partita_iva ?? "").trim();
   const numero = String(doc.numero ?? "").trim();
 
@@ -252,6 +273,8 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   ${pagamentoHtml || noteHtml ? `<div class="fd-info">${pagamentoHtml}${noteHtml}</div>` : ""}
 
   ${azienda.regime_fiscale === "RF19" ? `<div class="fd-forfettario">Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, L. n. 190/2014. Non soggetta a ritenuta d'acconto ai sensi del comma 67, L. n. 190/2014.</div>` : ""}
+
+  ${clausole.length > 0 ? `<div class="fd-avvertenze fd-clausole"><div class="fd-etichetta">Clausole</div>${clausole.map((t) => `<div>${esc(t)}</div>`).join("")}</div>` : ""}
 
   ${note.length > 0 ? `<div class="fd-avvertenze"><div class="fd-etichetta">Note fiscali</div>${note.map((t) => `<div>${esc(t)}</div>`).join("")}</div>` : ""}
 

@@ -239,7 +239,10 @@ export function righeConBeniSignificativi(p: {
 
 /** La frase che la fattura deve riportare (art. 7 c. 1 lett. b L. 488/1999). */
 export function fraseValoreBeniSignificativi(valoreBeni: number): string {
-  return `Ai fini dell'art. 7 comma 1 lett. b) L. 488/1999 e DM 29/12/1999 il valore complessivo dei beni significativi è pari a € ${numeroPuntato(valoreBeni)}`;
+  // Con la virgola dei decimali e il punto delle migliaia, come si scrive in Italia
+  // (fino al 31/10/2026 usciva «€ 13608.52»).
+  const importo = new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" }).format(due(valoreBeni));
+  return `Ai fini dell'art. 7 comma 1 lett. b) L. 488/1999 e DM 29/12/1999 il valore complessivo dei beni significativi è pari a € ${importo}`;
 }
 
 /** Aggiunge la frase alle note, una volta sola (sostituisce il valore se già c'è). */

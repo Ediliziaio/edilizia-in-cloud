@@ -313,6 +313,8 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-testo { white-space: pre-wrap; overflow-wrap: anywhere; }
 .fd-avvertenze { margin-top: 5mm; font-size: 7.6pt; line-height: 1.5; color: #475569; break-inside: avoid; page-break-inside: avoid; }
 .fd-avvertenze .fd-etichetta { margin-bottom: 0.8mm; }
+.fd-clausole { color: #334155; }
+.fd-clausole > div + div { margin-top: 1mm; }
 .fd-forfettario { margin-top: 3mm; font-size: 7.2pt; line-height: 1.5; font-style: italic; color: #64748b; }
 .fd-cortesia { margin-top: 3mm; font-size: 7.2pt; line-height: 1.5; color: #94a3b8; }
 .fd-piede { display: flex; justify-content: space-between; gap: 6mm; margin-top: 7mm; padding-top: 2.6mm; border-top: 1px solid #e2e8f0; font-size: 7pt; color: #94a3b8; break-inside: avoid; page-break-inside: avoid; }
