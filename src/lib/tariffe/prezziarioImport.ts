@@ -258,6 +258,8 @@ export interface ParsedPrezziarioRow {
   prezzoVendita: number;
   costoInterno: number | null;
   descrizione: string | null;
+  /** Il codice della voce (prezziario, listino): sta nella sua colonna, e al reimport ritrova la voce. */
+  codice: string | null;
   errors: string[];
   warnings: string[];
 }
@@ -387,11 +389,8 @@ export function parsePrezziarioRows(matrix: string[][]): PrezziarioParseResult {
       warnings.push(`Unità "${unitaRaw}" non riconosciuta: impostata "${unita}".`);
     }
 
-    // descrizione (opzionale) + codice prependato
-    let descrizione = at(vals, detected.descrizione) || null;
-    if (codice) {
-      descrizione = descrizione ? `Cod. ${codice} — ${descrizione}` : `Cod. ${codice}`;
-    }
+    // descrizione (opzionale); il codice va nella sua colonna, non più dentro la descrizione
+    const descrizione = at(vals, detected.descrizione) || null;
 
     rows.push({
       rowIndex: i + 1,
@@ -401,6 +400,7 @@ export function parsePrezziarioRows(matrix: string[][]): PrezziarioParseResult {
       prezzoVendita,
       costoInterno,
       descrizione,
+      codice: codice || null,
       errors,
       warnings,
     });
@@ -431,6 +431,7 @@ export interface TariffaImportPayload {
   company_id: string;
   nome: string;
   descrizione: string | null;
+  codice: string | null;
   tipo: TipoTariffa;
   unita: string;                 // legacy column
   unita_fatturazione: UnitaFatturazione;
@@ -454,6 +455,7 @@ export function toImportPayload(
     company_id: opts.companyId,
     nome: row.nome,
     descrizione: row.descrizione,
+    codice: row.codice,
     tipo: row.tipo,
     unita: legacyUnitaFrom(row.unitaFatturazione),
     unita_fatturazione: row.unitaFatturazione,
@@ -486,6 +488,7 @@ export function buildPrezziarioTemplateCsv(): string {
 
 /** Forma minima per esportare una tariffa (disaccoppiata dal tipo della pagina). */
 export interface TariffaExportInput {
+  codice?: string | null;
   nome: string;
   descrizione?: string | null;
   tipo: string;
@@ -511,11 +514,12 @@ export function buildTariffeExportCsv(
       ? ""
       : Number(n).toFixed(2).replace(".", ",");
   const fields = opts.includeCosto
-    ? ["Nome", "Tipo", "Unità", "Prezzo vendita", "Costo interno", "Descrizione"]
-    : ["Nome", "Tipo", "Unità", "Prezzo vendita", "Descrizione"];
+    ? ["Codice", "Nome", "Tipo", "Unità", "Prezzo vendita", "Costo interno", "Descrizione"]
+    : ["Codice", "Nome", "Tipo", "Unità", "Prezzo vendita", "Descrizione"];
   const data = rows.map((r) => {
     const um = (r.unita_fatturazione ?? r.unita ?? "") as string;
     const base = [
+      neutralizeCsvFormula(r.codice ?? ""),
       neutralizeCsvFormula(r.nome ?? ""),
       neutralizeCsvFormula(r.tipo ?? ""),
       neutralizeCsvFormula(um),

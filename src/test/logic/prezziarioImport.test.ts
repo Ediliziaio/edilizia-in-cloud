@@ -208,15 +208,17 @@ describe("parsePrezziarioRows", () => {
     expect(r.warnings.some((w) => /Unità .* non riconosciuta/i.test(w))).toBe(true);
   });
 
-  it("codice viene prependato alla descrizione", () => {
+  it("il codice sta nella sua colonna, la descrizione resta pulita", () => {
     const m = [
       ["Codice", "Nome", "Prezzo", "Descrizione"],
       ["NP.01", "Voce A", "10,00", "dettaglio"],
       ["NP.02", "Voce B", "10,00", ""],
     ];
     const res = parsePrezziarioRows(m);
-    expect(res.rows[0].descrizione).toBe("Cod. NP.01 — dettaglio");
-    expect(res.rows[1].descrizione).toBe("Cod. NP.02");
+    expect(res.rows[0].descrizione).toBe("dettaglio");
+    expect(res.rows[0].codice).toBe("NP.01");
+    expect(res.rows[1].descrizione).toBeNull();
+    expect(res.rows[1].codice).toBe("NP.02");
   });
 
   it("salta righe completamente vuote e file vuoto", () => {
@@ -256,7 +258,7 @@ describe("parsePrezziarioCsv", () => {
     expect(res.rows).toHaveLength(2);
     expect(res.rows[0].nome).toBe("Posa gres");
     expect(res.rows[0].prezzoVendita).toBe(22);
-    expect(res.rows[0].descrizione).toBe("Cod. NP.01");
+    expect(res.rows[0].codice).toBe("NP.01");
     expect(res.rows[1].unitaFatturazione).toBe("h");
   });
 
@@ -351,7 +353,7 @@ describe("summarizePrezziario", () => {
 
 describe("buildTariffeExportCsv", () => {
   const tariffe = [
-    { nome: "Posa gres", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 22, costo_interno: 14, descrizione: "Su sottofondo" },
+    { codice: "NP.01", nome: "Posa gres", tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 22, costo_interno: 14, descrizione: "Su sottofondo" },
     { nome: "Manodopera", tipo: "manodopera", unita_fatturazione: "h", prezzo_vendita: 60, costo_interno: 40, descrizione: null },
   ];
 
@@ -364,7 +366,7 @@ describe("buildTariffeExportCsv", () => {
 
   it("usa il delimitatore ; e i decimali con virgola", () => {
     const csv = buildTariffeExportCsv(tariffe, { includeCosto: true });
-    expect(csv.split(/\r?\n/)[0]).toBe("Nome;Tipo;Unità;Prezzo vendita;Costo interno;Descrizione");
+    expect(csv.split(/\r?\n/)[0]).toBe("Codice;Nome;Tipo;Unità;Prezzo vendita;Costo interno;Descrizione");
     expect(csv).toContain("22,00");
     expect(csv).toContain("60,00");
   });
@@ -374,7 +376,7 @@ describe("buildTariffeExportCsv", () => {
       [{ nome: "X", tipo: "altro", unita_fatturazione: "pz", prezzo_vendita: null, costo_interno: null }],
       { includeCosto: true },
     );
-    expect(csv).toContain("X;altro;pz;;;");
+    expect(csv).toContain(";X;altro;pz;;;");
   });
 
   it("round-trip: export → import restituisce le stesse voci", () => {
@@ -387,5 +389,7 @@ describe("buildTariffeExportCsv", () => {
     expect(res.rows[0].costoInterno).toBe(14);
     expect(res.rows[0].unitaFatturazione).toBe("mq");
     expect(res.rows[1].tipo).toBe("manodopera");
+    expect(res.rows[0].codice).toBe("NP.01");
+    expect(res.rows[0].descrizione).toBe("Su sottofondo");
   });
 });

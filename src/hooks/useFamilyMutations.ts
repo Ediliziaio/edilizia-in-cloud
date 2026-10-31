@@ -336,6 +336,9 @@ export function useFamilyMutations() {
       if (errNew) throw new Error(errNew.message);
       const newFamilyId = (newFam as unknown as { id: string }).id;
 
+      // Se la copia si interrompe a metà, si toglie: altrimenti resta una «(copia)» incompleta e il
+      // nuovo tentativo si ferma su «nome già in uso».
+      try {
       // 3. per ogni asse, insert + insert valori
       for (const ax of source.axes ?? []) {
         const { data: newAx, error: errAx } = await supabase
@@ -414,6 +417,11 @@ export function useFamilyMutations() {
           );
         if (errIns) throw new Error(errIns.message);
         if (page.length < PAGE) break;
+      }
+      } catch (err) {
+        await supabase.from("listino_griglia" as never).delete().eq("family_id", newFamilyId).eq("company_id", companyId);
+        await supabase.from("article_families" as never).delete().eq("id", newFamilyId).eq("company_id", companyId);
+        throw err instanceof Error ? new Error(`Copia non completata, annullata: ${err.message}`) : err;
       }
 
       return newFamilyId;
