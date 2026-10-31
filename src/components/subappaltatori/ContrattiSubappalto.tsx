@@ -247,7 +247,21 @@ export function ContrattiSubappalto({
     },
     enabled: ids.length > 0,
   });
-  const baseCongelata = !!dialog?.id && conBase.includes(dialog.id);
+  // Misure registrate: con la base lavori, importo e oneri passano da una variante (la registra «Salva» da solo).
+  const { data: conMisure = [] } = useQuery({
+    queryKey: ["contratti-con-misure", sub.id, ids.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("subappalto_misure" as never).select("contratto_id").in("contratto_id", ids).neq("stato", "annullata");
+      if (error) throw error;
+      return [...new Set(((data ?? []) as unknown as Array<{ contratto_id: string }>).map((r) => r.contratto_id))];
+    },
+    enabled: ids.length > 0,
+  });
+  const conLavoriContabilizzati = (id: string) => conBase.includes(id)
+    && (conMisure.includes(id) || sal.some((x) => x.contratto_id === id && x.stato !== "contestato" && Number(x.importo_lordo) > 0));
+  // Base lavori con misure o SAL: commessa fissa; importo e oneri si cambiano con una variante registrata al salvataggio.
+  const baseCongelata = !!dialog?.id && conLavoriContabilizzati(dialog.id);
+  const [motivoVariante, setMotivoVariante] = useState("");
   const { data: ritenute = [], isLoading: caricoRitenute, isError: erroreRitenute } = useQuery({
     queryKey: ["ritenute-sub-tutte", sub.id, ids.join(",")],
     queryFn: async () => {
@@ -330,6 +344,20 @@ export function ContrattiSubappalto({
       if (!form.descrizione_lavori.trim()) throw new Error("Scrivi i lavori affidati");
       const importo = numero(form.importo_contrattuale);
       if (importo == null || importo < 0) throw new Error("Importo del contratto non valido");
+      // Contratto con lavori già contabilizzati: se cambiano importo o oneri, prima la variante tracciata.
+      if (dialog?.id && baseCongelata) {
+        const orig = contratti.find((x) => x.id === dialog.id);
+        const nuoviOneri = numero(form.oneri_sicurezza) ?? 0;
+        if (orig && (Math.abs(Number(orig.importo_contrattuale) - importo) > 0.004 || Math.abs(Number(orig.oneri_sicurezza ?? 0) - nuoviOneri) > 0.004)) {
+          const motivo = motivoVariante.trim() || "Correzione dell'importo del contratto";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: errVar } = await (supabase as any).rpc("subappalto_variante_registra", {
+            p_company: companyId, p_contratto: dialog.id, p_importo: Math.round(importo * 100) / 100,
+            p_oneri: Math.round(nuoviOneri * 100) / 100, p_motivo: motivo.length >= 5 ? motivo : `${motivo} (variante)`,
+          });
+          if (errVar) throw new Error(errVar.message || "Variante non registrata: importo e oneri non cambiati.");
+        }
+      }
       const ritenuta = numero(form.ritenuta_garanzia_pct);
       if (ritenuta == null || ritenuta < 0 || ritenuta > 100) throw new Error("Ritenuta di garanzia non valida");
       const campi = {
@@ -663,7 +691,7 @@ export function ContrattiSubappalto({
               <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                 {permessiLavori.canViewCosts && permessiLavori.canViewSubappaltatoriAmministrazione && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
                 <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
-                <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
+                <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setMotivoVariante(""); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
                 <Button size="sm" variant="ghost" className="gap-1" title="Riscrivi gli articoli del contratto, per questo subappaltatore o come standard dell'azienda" onClick={() => setCondizioni(c)}>
                   <FileText className="h-3.5 w-3.5" />Condizioni
                 </Button>
@@ -748,7 +776,10 @@ export function ContrattiSubappalto({
             <DialogTitle>{dialog?.id ? "Modifica contratto" : "Nuovo contratto di subappalto"}</DialogTitle>
             <DialogDescription>I dati finiscono nel contratto da stampare e firmare; quello che scrivi negli ultimi campi prende il posto del testo standard.</DialogDescription>
           </DialogHeader>
-          {baseCongelata && <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Questo contratto ha già una base lavori registrata: commessa, importo e oneri non si cambiano da qui: usa il pulsante «Variante» sul contratto. Il resto si modifica normalmente.</p>}
+          {baseCongelata && <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <p>Questo contratto ha già misure o SAL registrati: la commessa resta quella. Se cambi importo o oneri, al salvataggio si registra una variante con lo storico (prima, dopo, motivo).</p>
+            <Input className="h-8 bg-white text-xs" placeholder="Motivo della variante (es. lavori aggiuntivi richiesti dal cliente)" value={motivoVariante} onChange={(e) => setMotivoVariante(e.target.value)} />
+          </div>}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1 sm:col-span-2">
               <Label>Commessa *</Label>
@@ -760,8 +791,8 @@ export function ContrattiSubappalto({
             <div className="space-y-1 sm:col-span-2"><Label>Lavori affidati *</Label><Textarea rows={2} {...campo("descrizione_lavori")} placeholder="es. Montaggio e smontaggio del ponteggio di facciata" /></div>
             <div className="space-y-1"><Label>Numero contratto</Label><Input {...campo("numero_contratto")} /></div>
             <div className="space-y-1"><Label>Data di stipula</Label><Input type="date" {...campo("data_stipula")} /></div>
-            <div className="space-y-1"><Label>Importo lavori (€) *</Label><Input inputMode="decimal" disabled={baseCongelata} {...campo("importo_contrattuale")} placeholder="0,00" /></div>
-            <div className="space-y-1"><Label>Oneri della sicurezza (€)</Label><Input inputMode="decimal" disabled={baseCongelata} {...campo("oneri_sicurezza")} placeholder="Non soggetti a ribasso" /></div>
+            <div className="space-y-1"><Label>Importo lavori (€) *</Label><Input inputMode="decimal" {...campo("importo_contrattuale")} placeholder="0,00" /></div>
+            <div className="space-y-1"><Label>Oneri della sicurezza (€)</Label><Input inputMode="decimal" {...campo("oneri_sicurezza")} placeholder="Non soggetti a ribasso" /></div>
             <div className="space-y-1"><Label>Ritenuta di garanzia (%)</Label><Input inputMode="decimal" {...campo("ritenuta_garanzia_pct")} /></div>
             <div className="space-y-1"><Label>Garanzia (mesi dalla fine lavori)</Label><Input inputMode="numeric" {...campo("durata_garanzia_mesi")} /></div>
             <div className="space-y-1"><Label>Inizio lavori</Label><Input type="date" {...campo("data_inizio")} /></div>

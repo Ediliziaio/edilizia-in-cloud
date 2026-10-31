@@ -1118,6 +1118,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           .eq("id", result.id);
         if (sedeErr) {
           console.warn("[CreateOrder] update sede/magazzino fallito (ordine creato comunque):", sedeErr.message);
+          toast.warning("Commessa creata, ma sede e magazzino non sono stati salvati: impostali dalla commessa.");
         }
       }
 
@@ -1152,7 +1153,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: cantErr } = await (supabase as any).from("orders").update(patch).eq("id", result.id);
-        if (cantErr) console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message);
+        if (cantErr) { console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message); toast.warning("Commessa creata, ma l'indirizzo del cantiere non è stato salvato: impostalo dalla commessa."); }
       }
 
       if (pianoContratto?.organizzazione === "interventi_su_ordine" && result.id) {

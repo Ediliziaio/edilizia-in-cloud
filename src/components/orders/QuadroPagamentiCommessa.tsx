@@ -163,7 +163,9 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
                 <ul className="flex flex-wrap gap-2" aria-label="SAL del cliente">
                   {data.sal_cliente.map((s) => (
                     <li key={s.id} className="rounded-md border px-3 py-2 text-sm">
-                      <span className="font-semibold">SAL {s.numero_sal}</span> · {dataIt(s.data_emissione)} · {formatCurrency(Number(s.importo_totale ?? 0))}
+                      <span className="font-semibold">SAL {s.numero_sal}</span> · {dataIt(s.data_emissione)} · {s.importo_sal_ivato != null
+                        ? <>{formatCurrency(s.importo_sal_ivato)} <span className="text-xs text-muted-foreground">IVA inclusa ({formatCurrency(s.importo_sal ?? 0)} + IVA {Number(s.iva_pct ?? 0).toLocaleString("it-IT")}%)</span></>
+                        : formatCurrency(Number(s.importo_totale ?? 0))}
                       <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${s.incassato ? "bg-green-50 text-green-800" : s.rata ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
                         {s.incassato ? "incassato" : s.rata ? `da incassare con «${s.rata}»` : s.stato === "approvato" ? "approvato, senza rata" : s.stato ?? "bozza"}
                       </span>
@@ -197,6 +199,11 @@ function RigaUscita({ u, oggi, onPagamenti }: { u: Uscita; oggi: string; onPagam
             Contratto {formatCurrency(u.contratto)} · maturato {formatCurrency(u.maturato_lordo ?? 0)}
             {u.ritenute ? ` · ritenute ${formatCurrency(u.ritenute)}` : ""}
             {u.contratto - (u.maturato_lordo ?? 0) > 0.01 ? ` · ancora da maturare ${formatCurrency(u.contratto - (u.maturato_lordo ?? 0))}` : ""}
+          </p>
+        )}
+        {(u.origine_tipo === "subappalto" || u.origine_tipo === "ditta") && u.iva_pct != null && (
+          <p className="text-xs text-muted-foreground">
+            IVA {Number(u.iva_pct).toLocaleString("it-IT")}% inclusa{u.reverse_charge ? " · reverse charge: alla ditta va l'imponibile, l'IVA la versi tu" : ""}
           </p>
         )}
         {u.stato !== "pagato" && u.scadenza && (

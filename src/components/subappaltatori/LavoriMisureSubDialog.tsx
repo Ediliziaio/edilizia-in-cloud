@@ -248,9 +248,10 @@ export function LavoriMisureSubDialog({
   const iniziaElenco = () => {
     richiesta.current = crypto.randomUUID();
     setBozza(
-      quadro
+      // Base che non torna più con l'importo del contratto (importo corretto dopo): si riparte dall'Allegato A.
+      quadro && Math.abs(Number(quadro.importo_lavori) - Number(c.importo_contrattuale)) < 0.005
         ? quadro.voci.map(daVoce)
-        : vociDaAllegato(c.elenco_lavori, Number(c.importo_contrattuale))?.map(daVoce) ?? [
+        : vociDaAllegato(c.elenco_lavori, Number(c.importo_contrattuale))?.map(daVoce) ?? (quadro ? quadro.voci.map(daVoce) : [
             daVoce({
               id: crypto.randomUUID(),
               fase_id: null,
@@ -260,7 +261,7 @@ export function LavoriMisureSubDialog({
               quantita: 1,
               prezzo: Number(c.importo_contrattuale),
             }),
-          ],
+          ]),
     );
     setMaturazione(quadro?.maturazione ?? "");
     setGiorni(

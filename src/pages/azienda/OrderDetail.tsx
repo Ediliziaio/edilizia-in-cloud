@@ -718,7 +718,7 @@ function OrderDetailInner() {
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
-    onError: () => { toast.error("Errore nell'aggiornamento dello stato."); },
+    onError: (e: unknown) => { const m = (e as { message?: string } | null)?.message; toast.error(m ? `Stato non aggiornato: ${m}` : "Errore nell'aggiornamento dello stato."); },
   });
 
   // Update notes mutation

@@ -143,7 +143,8 @@ function buildRigaFromItem(item: OrderItemRow, defaultVat: number, quota = 100):
     prezzo_unitario: prezzo,
     ...(discountPct > 0 && { sconto_percentuale: discountPct }),
     imponibile: 0,
-    aliquota_iva: String(item.vat_rate ?? defaultVat),
+    // L'IVA di vendita della commessa, non quella d'acquisto dell'articolo (una ristrutturazione al 10% usciva al 22%).
+    aliquota_iva: String(defaultVat),
     imposta: 0,
     totale_riga: 0,
   };
@@ -220,11 +221,13 @@ export function CreaFatturaDialog({
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const defaultVat = vatRate > 0 ? vatRate : 22;
+  // 0 è un'aliquota vera (reverse charge, esente): non diventa 22.
+  const defaultVat = Number.isFinite(vatRate) && vatRate >= 0 ? vatRate : 22;
   const { data: aziendaFiscale } = useAnagraficaAzienda();
 
-  // Il contratto IVA inclusa: la base delle percentuali. Senza valore, la somma delle rate.
-  const contratto = totalAmount > 0 ? totalAmount : installments.reduce((s, i) => s + (i.amount || 0), 0);
+  // Il contratto IVA inclusa: la base delle percentuali (le rate sono IVA inclusa). Il valore della commessa
+  // arriva senza IVA: prima si divideva una rata con IVA per un contratto senza, e la percentuale usciva gonfiata.
+  const contratto = totalAmount > 0 ? Math.round(totalAmount * (1 + defaultVat / 100) * 100) / 100 : installments.reduce((s, i) => s + (i.amount || 0), 0);
 
   const [mode, setMode] = useState<InvoiceMode>("articoli");
   const [selectedInstId, setSelectedInstId] = useState<string | null>(null);

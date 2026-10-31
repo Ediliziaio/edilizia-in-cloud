@@ -425,8 +425,13 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       // Con una base lavori già registrata (quadro) l'importo non si tocca: il database lo vieta, serve una variante.
       let baseRegistrata = false;
       if (contratto && !senzaElenco) {
-        const { count } = await db.from("subappalto_quadri_lavori").select("id", { count: "exact", head: true }).eq("contratto_id", contratto.id);
-        baseRegistrata = (count ?? 0) > 0;
+        // Bloccato solo se la base lavori ha già misure o SAL (prima bastava la base: Dimora, contratto «Marin»).
+        const [{ count: quadri }, { count: misure }, { count: salFatti }] = await Promise.all([
+          db.from("subappalto_quadri_lavori").select("id", { count: "exact", head: true }).eq("contratto_id", contratto.id),
+          db.from("subappalto_misure").select("id", { count: "exact", head: true }).eq("contratto_id", contratto.id).neq("stato", "annullata"),
+          db.from("sal_subappaltatori").select("id", { count: "exact", head: true }).eq("contratto_id", contratto.id).neq("stato", "contestato").gt("importo_lordo", 0),
+        ]);
+        baseRegistrata = (quadri ?? 0) > 0 && ((misure ?? 0) > 0 || (salFatti ?? 0) > 0);
       }
       const soloElenco = senzaElenco || baseRegistrata;
       const q = contratto

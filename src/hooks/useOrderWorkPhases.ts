@@ -568,8 +568,14 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     // ON DELETE SET NULL: le assegnazioni non vengono cancellate, tornano "Senza fase"
     // → nessun costo/margine perso.
     mutationFn: async (id: string) => {
-      const { error } = await db.from("order_work_phases").delete().eq("id", id);
-      if (error) throw error;
+      const { data, error } = await db.from("order_work_phases").delete().eq("id", id).select("id");
+      if (error) {
+        // Collegata a una variante del cliente, a verifiche, schede o incarichi di subappalto: il database la tiene.
+        if ((error as { code?: string }).code === "23503")
+          throw new Error("La fase è collegata a una variante, a verifiche o a incarichi di subappalto: non si elimina. Togli prima quei collegamenti, oppure rinominala.");
+        throw error;
+      }
+      if (!data?.length) throw new Error("Fase non eliminata: non hai il permesso o è già stata tolta.");
     },
     onSuccess: invalidate,
     onError,

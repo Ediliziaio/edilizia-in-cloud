@@ -24,7 +24,12 @@ export interface SalCliente {
   numero_sal: number | null;
   data_emissione: string | null;
   stato: string | null;
+  /** Cumulativo senza IVA (com'è il SAL). */
   importo_totale: number | null;
+  /** La quota di questo SAL (cumulativo meno il precedente), senza e con IVA. */
+  importo_sal?: number | null;
+  importo_sal_ivato?: number | null;
+  iva_pct?: number | null;
   rata: string | null;
   incassato: boolean | null;
 }
@@ -51,6 +56,9 @@ export interface Uscita {
   contratto: number | null;
   maturato_lordo: number | null;
   ritenute: number | null;
+  /** Subappalti e ditte: l'IVA aggiunta all'importo, e se è in reverse charge (la versa l'impresa). */
+  iva_pct?: number | null;
+  reverse_charge?: boolean | null;
 }
 
 export interface QuadroPagamenti {
@@ -71,13 +79,16 @@ export function normalizzaQuadro(raw: unknown): QuadroPagamenti | null {
   return {
     oggi: String(q.oggi ?? ""),
     rate: (q.rate ?? []).map((r) => ({ ...r, amount: n(r.amount), is_paid: !!r.is_paid, scaduta: !!r.scaduta })),
-    sal_cliente: (q.sal_cliente ?? []).map((s) => ({ ...s, importo_totale: s.importo_totale == null ? null : n(s.importo_totale) })),
+    sal_cliente: (q.sal_cliente ?? []).map((s) => ({ ...s, importo_totale: s.importo_totale == null ? null : n(s.importo_totale),
+      importo_sal: s.importo_sal == null ? null : n(s.importo_sal), importo_sal_ivato: s.importo_sal_ivato == null ? null : n(s.importo_sal_ivato),
+      iva_pct: s.iva_pct == null ? null : n(s.iva_pct) })),
     uscite: (q.uscite ?? []).map((u) => ({
       ...u,
       importo: n(u.importo), pagato: n(u.pagato), residuo: n(u.residuo), quota_pct: n(u.quota_pct),
       contratto: u.contratto == null ? null : n(u.contratto),
       maturato_lordo: u.maturato_lordo == null ? null : n(u.maturato_lordo),
       ritenute: u.ritenute == null ? null : n(u.ritenute),
+      iva_pct: u.iva_pct == null ? null : n(u.iva_pct),
     })),
     mezzi_stimati: q.mezzi_stimati ?? null,
   };

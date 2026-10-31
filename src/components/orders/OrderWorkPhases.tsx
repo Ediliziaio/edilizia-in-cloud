@@ -1200,7 +1200,7 @@ function PhaseCard({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Eliminare la fase?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Eliminare la fase «{phase.name}»? Persone, ditte e materiali restano nella commessa, senza fase; le squadre e le note di questa fase se ne vanno con lei.
+                    Eliminare la fase «{phase.name}»? Persone, ditte e materiali restano nella commessa, senza fase. Con la fase se ne vanno anche le sue sottofasi, le voci previste (e con loro il previsto della ditta calcolato dalle voci), la validazione dei materiali, le squadre e le note.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
