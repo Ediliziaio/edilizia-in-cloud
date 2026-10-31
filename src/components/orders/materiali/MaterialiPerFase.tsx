@@ -618,7 +618,11 @@ function SezioneFase({
   );
 }
 
-export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: string; orderCode?: string | null; editor?: EditorArticoli }) {
+export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
+  orderId: string; orderCode?: string | null; editor?: EditorArticoli;
+  /** Il bottone di Silvio, nella barra accanto ad «Aggiungi articolo». */
+  silvio?: ReactNode;
+}) {
   const perm = usePermissions();
   const permessi: PermessiMateriali = {
     canEditOrders: !!perm.canEditOrders, canValidateBom: !!perm.canValidateBom, canManagePurchasing: !!perm.canManagePurchasing,
@@ -803,6 +807,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
             </div>
           )}
           <div className="flex flex-wrap gap-1.5 sm:ml-auto">
+            {silvio}
             {puoScrivere && (
               <Button size="sm" className="tap-compact h-8 px-2.5 text-xs" onClick={() => nuovo(null)}>
                 <Plus className="mr-1 h-3.5 w-3.5" aria-hidden /> Aggiungi articolo
@@ -1107,7 +1112,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor }: { orderId: stri
         )}
 
         <Suspense fallback={null}>
-          {genera && <GeneraMaterialiDialog orderId={orderId} open={genera} onOpenChange={setGenera} />}
+          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
           {rientroDi && <RientroMagazzinoDialog orderId={orderId} riga={rientroDi} onClose={() => setRientroDi(null)} />}
         </Suspense>

@@ -68,11 +68,11 @@ describe("esportazione Excel e PDF", () => {
   }, 30_000);
 });
 
-describe("la scheda Computo nella commessa", () => {
-  it("è una vista dei materiali raggiungibile anche da link", () => {
-    expect(MATERIALI_VIEWS.map(v => v.value)).toContain("computo");
-    expect(resolveMaterialiView("?vista_materiali=computo")).toBe("computo");
-    expect(resolveMaterialiView("", "section-computo")).toBe("computo");
+describe("il computo nella commessa", () => {
+  it("non è più una scheda dei materiali: i vecchi link arrivano agli articoli (Genera dal computo)", () => {
+    expect(MATERIALI_VIEWS.map(v => v.value)).not.toContain("computo");
+    expect(resolveMaterialiView("?vista_materiali=computo")).toBe("articoli");
+    expect(resolveMaterialiView("", "section-computo")).toBe("articoli");
     expect(resolveOrderDetailDestination("?section=section-computo").tab).toBe("articoli");
   });
 });

@@ -55,7 +55,6 @@ import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
-const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 // Le viste di economia e cantiere si caricano quando si aprono (31/10/2026):
 // prima erano tutte nel pacchetto del dettaglio, oltre 1 MB scaricato anche
@@ -1715,9 +1714,6 @@ function OrderDetailInner() {
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
-              {/* Silvio sugli acquisti (31/10/2026): cosa ordinare e cosa serve presto. */}
-              {permissions.canEditOrders && <div className="flex justify-end"><SilvioAcquisti orderId={id!} orderCode={order.order_code}
-                onAzione={(a) => navigateTo(a === "acquisti" ? { tab: "articoli", materialiView: "acquisti" } : { tab: "articoli", materialiView: "articoli" })} /></div>}
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             <OrderViewTransition viewKey={activeMaterialiView}>
@@ -1731,6 +1727,9 @@ function OrderDetailInner() {
                 <MaterialiPerFase
                   orderId={id!}
                   orderCode={order.order_code}
+                  // Silvio sugli acquisti (31/10/2026): cosa ordinare e cosa serve presto, accanto ad «Aggiungi articolo».
+                  silvio={permissions.canEditOrders ? <SilvioAcquisti className="tap-compact px-2.5 text-xs" orderId={id!} orderCode={order.order_code}
+                    onAzione={(a) => navigateTo(a === "acquisti" ? { tab: "articoli", materialiView: "acquisti" } : { tab: "articoli", materialiView: "articoli" })} /> : undefined}
                   editor={{
                     items: displayItems,
                     companyId: effectiveCompany?.id || "",
@@ -1821,11 +1820,6 @@ function OrderDetailInner() {
               </Button>
             </div>
             </>}
-            {activeMaterialiView === "computo" && id && companyId && <div id="section-computo" className="scroll-mt-24">
-              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico il computo…</p>}>
-                <OrderComputoTab orderId={id} companyId={companyId} canEdit={permissions.canEditOrders} canViewAmounts={permissions.canViewOrderAmounts} orderLabel={order.order_code} />
-              </Suspense>
-            </div>}
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
               <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
               <OrderUsciteCard orderId={id!} canViewCosts={permissions.canViewCosts} />
