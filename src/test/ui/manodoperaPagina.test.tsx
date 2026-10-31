@@ -45,7 +45,8 @@ const righeDi = (tabella: string): unknown[] =>
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: string) => {
   let scrittura = false;
   const risposta = () => {
-    if (scrittura) return { data: null as unknown, error: state.erroreScrittura };
+    // Come il database con .select(): una scrittura riuscita restituisce le righe toccate.
+    if (scrittura) return { data: (state.erroreScrittura ? null : [{ id: "scritta" }]) as unknown, error: state.erroreScrittura };
     if (tabella === "tariffe_aziendali" && state.erroreCaricamento) return { data: null as unknown, error: state.erroreCaricamento };
     return { data: righeDi(tabella), error: null as unknown };
   };

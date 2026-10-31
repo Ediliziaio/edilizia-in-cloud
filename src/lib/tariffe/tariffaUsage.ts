@@ -43,6 +43,10 @@ export const TARIFFA_USAGE_SOURCES: TariffaUsageSourceDef[] = [
   { table: "preventivo_manodopera_assegnazioni", column: "tariffa_id", label: "Manodopera assegnata a preventivi", hint: "Assegnazioni di manodopera" },
   { table: "fv_manodopera_progetto", column: "tariffa_id", label: "Manodopera progetti (serramenti)", hint: "Manodopera nei progetti FV" },
   { table: "sr_servizi_progetto", column: "tariffa_id", label: "Manodopera progetti (sostituzione)", hint: "Manodopera nei progetti SR" },
+  // Commesse e contratti (audit 31/10/2026): mancavano, e una voce usata qui risultava «non usata».
+  { table: "order_work_phase_voci", column: "tariffa_id", label: "Voci delle lavorazioni di commessa", hint: "Voci previste nelle fasi delle commesse" },
+  { table: "order_external_teams", column: "tariffa_id", label: "Ditte assegnate alle commesse", hint: "Previsto delle ditte sulle commesse" },
+  { table: "appalto_tariffe", column: "tariffa_id", label: "Listino dei contratti d'appalto", hint: "Prezzi concordati nei contratti" },
 ];
 
 export interface TariffaUsageRow {

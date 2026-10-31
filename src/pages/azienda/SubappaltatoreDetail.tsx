@@ -579,7 +579,10 @@ export default function SubappaltatoreDetail() {
       ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
     ].sort();
     // Lo stesso DURC «effettivo» del badge: prima il badge diceva OK e il blocco no.
-    const scad = sub?.durc_scadenza ?? (daDocumenti.length ? daDocumenti[daDocumenti.length - 1] : null);
+    // La scadenza più lontana tra scheda e documenti: un DURC nuovo caricato dalla ditta conta anche se
+    // sulla scheda è rimasta la data vecchia (prima vinceva sempre la scheda e SAL e pagamenti restavano bloccati).
+    const tutte = [...(sub?.durc_scadenza ? [sub.durc_scadenza] : []), ...daDocumenti].sort();
+    const scad = tutte.length ? tutte[tutte.length - 1] : null;
     if (!scad) return 'DURC mancante: carica il DURC con la data di scadenza prima di procedere.';
     const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
     if (new Date(scad) < oggi) {
@@ -714,7 +717,8 @@ export default function SubappaltatoreDetail() {
     ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
     ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
   ].sort();
-  const effectiveDurc = sub.durc_scadenza ?? (durcDocScadenze.length ? durcDocScadenze[durcDocScadenze.length - 1] : null);
+  // Come il blocco di SAL e pagamenti: vale la scadenza più lontana tra scheda e documenti.
+  const effectiveDurc = [...(sub.durc_scadenza ? [sub.durc_scadenza] : []), ...durcDocScadenze].sort().pop() ?? null;
   // Esiste un documento DURC caricato (anche senza scadenza)? Distingue
   // "DURC presente · scadenza mancante" da "DURC assente".
   const hasDurcDoc =

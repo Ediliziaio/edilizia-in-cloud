@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -422,6 +422,19 @@ export function TariffaDialog({
   // Un id per campo, perché l'etichetta lo nomini per chi usa il lettore di schermo.
   const idBase = useId();
   const idDi = (campo: string) => `${idBase}-${campo}`;
+  // L'unità di fatturazione resta fissa solo per una voce già usata: se non è collegata a niente si corregge.
+  // Senza conteggio (in caricamento o non leggibile) l'unità resta bloccata: è il caso prudente.
+  const [usoVoce, setUsoVoce] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open || !editing?.id) return;
+    let vivo = true;
+    setUsoVoce(null);
+    countTariffaUsage(editing.id)
+      .then((righe) => { if (vivo) setUsoVoce(totalTariffaUsage(righe)); })
+      .catch(() => { /* resta bloccata */ });
+    return () => { vivo = false; };
+  }, [open, editing?.id]);
+  const unitaBloccata = !!editing && (usoVoce == null || usoVoce > 0);
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [codice, setCodice] = useState(editing?.codice ?? "");
   const [descrizione, setDescrizione] = useState(editing?.descrizione ?? "");
@@ -706,15 +719,15 @@ export function TariffaDialog({
             <div>
               <Label htmlFor={idDi("unita")}>
                 Unità di fatturazione
-                {editing && (
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    (fissa)
+                {unitaBloccata && (
+                  <span className="ml-1 text-xs text-muted-foreground" title="La voce è già usata in preventivi, commesse o listini: per un'unità diversa duplicala">
+                    (fissa: voce già usata)
                   </span>
                 )}
               </Label>
               <Select
                 value={unitaFatturazione}
-                disabled={!!editing}
+                disabled={unitaBloccata}
                 onValueChange={(v) => setUnitaFatturazione(v as UnitaFatturazione)}
               >
                 <SelectTrigger id={idDi("unita")} className={`mt-1.5 ${CAMPO_DA_DITO}`}><SelectValue /></SelectTrigger>
@@ -2041,12 +2054,19 @@ export default function SettingsTariffe() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!companyId) throw new Error("Azienda non disponibile");
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("tariffe_aziendali")
         .delete()
         .eq("id", id)
-        .eq("company_id", companyId);
-      if (error) throw error;
+        .eq("company_id", companyId)
+        .select("id");
+      if (error) {
+        // Assegnata come manodopera a un preventivo: il database non la lascia cancellare.
+        if ((error as { code?: string }).code === "23503")
+          throw new Error("La voce è assegnata come manodopera a uno o più preventivi: non si può eliminare. Archiviala.");
+        throw error;
+      }
+      if (!data?.length) throw new Error("Voce non eliminata: non hai il permesso o è già stata tolta.");
     },
     onSuccess: () => {
       invalidateAllTariffe(queryClient);
@@ -2062,12 +2082,14 @@ export default function SettingsTariffe() {
     mutationFn: async (t: Tariffa) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       const next = !(t.attivo !== false);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("tariffe_aziendali")
         .update({ attivo: next, attiva: next } as never)
         .eq("id", t.id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("Voce non aggiornata: non hai il permesso o è stata tolta.");
       return next;
     },
     onSuccess: (next) => {
@@ -2126,13 +2148,15 @@ export default function SettingsTariffe() {
     mutationFn: async ({ ids, attivo }: { ids: string[]; attivo: boolean }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (ids.length === 0) return { count: 0, attivo };
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("tariffe_aziendali")
         .update({ attivo, attiva: attivo } as never)
         .in("id", ids)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id");
       if (error) throw error;
-      return { count: ids.length, attivo };
+      if (!data?.length) throw new Error("Nessuna voce aggiornata: non hai il permesso o sono già state tolte.");
+      return { count: data.length, attivo };
     },
     onSuccess: ({ count, attivo }) => {
       invalidateAllTariffe(queryClient);
@@ -2152,13 +2176,19 @@ export default function SettingsTariffe() {
     mutationFn: async (ids: string[]) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (ids.length === 0) return 0;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("tariffe_aziendali")
         .delete()
         .in("id", ids)
-        .eq("company_id", companyId);
-      if (error) throw error;
-      return ids.length;
+        .eq("company_id", companyId)
+        .select("id");
+      if (error) {
+        if ((error as { code?: string }).code === "23503")
+          throw new Error("Almeno una voce è assegnata come manodopera a un preventivo: nessuna è stata eliminata. Archivia quelle voci.");
+        throw error;
+      }
+      if (!data?.length) throw new Error("Nessuna voce eliminata: non hai il permesso o sono già state tolte.");
+      return data.length;
     },
     onSuccess: (count) => {
       invalidateAllTariffe(queryClient);
@@ -2861,7 +2891,8 @@ export default function SettingsTariffe() {
                     Questa voce è collegata in {deleteUsageTotal}{" "}
                     {deleteUsageTotal === 1 ? "punto" : "punti"}.
                   </span>{" "}
-                  Eliminandola resteranno riferimenti vuoti (preventivi, kit e pacchetti, listini…).
+                  Eliminandola, preventivi e commesse tengono il testo ma perdono il collegamento alla voce;
+                  da pacchetti e alias viene tolta, e si perdono analisi prezzi e varianti di costo.
                   Ti consigliamo di <span className="font-medium">archiviarla</span> invece di eliminarla.
                 </div>
               </div>
@@ -2883,6 +2914,7 @@ export default function SettingsTariffe() {
             )}
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
+              disabled={deleteUsageLoading || deleteMutation.isPending}
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
             >
               Elimina definitivamente
@@ -2956,7 +2988,7 @@ export default function SettingsTariffe() {
                     Le voci selezionate sono collegate complessivamente in {bulkUsageTotal}{" "}
                     {bulkUsageTotal === 1 ? "punto" : "punti"}.
                   </span>{" "}
-                  Eliminarle lascerà riferimenti vuoti (preventivi, kit e pacchetti, listini…).
+                  Eliminandole, preventivi e commesse tengono il testo ma perdono il collegamento; da pacchetti e alias vengono tolte.
                   Ti consigliamo di <span className="font-medium">archiviarle</span> invece di eliminarle.
                 </div>
               </div>
@@ -2981,6 +3013,7 @@ export default function SettingsTariffe() {
             )}
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
+              disabled={bulkUsageLoading || bulkDeleteMutation.isPending}
               onClick={() => bulkDeleteMutation.mutate([...selectedIds])}
             >
               Elimina definitivamente

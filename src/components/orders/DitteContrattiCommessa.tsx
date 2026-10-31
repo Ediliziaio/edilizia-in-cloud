@@ -41,7 +41,7 @@ const db = supabase as any;
 
 interface Fase { id: string; name: string; position: number | null; start_date: string | null; end_date: string | null }
 interface Assegnazione { id: string; external_team_id: string | null; phase_id: string | null; cost_preventivo: number | null; vat_rate: number | null }
-interface Ditta { id: string; name: string; vat_rate: number | null; subappaltatore_id: string | null }
+interface Ditta { id: string; name: string; vat_rate: number | null; subappaltatore_id: string | null; is_active?: boolean | null }
 interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number }
 interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; firmato_il: string | null; elenco_lavori: unknown }
 /** La scheda sicurezza della ditta: è lei che il contratto nomina, e ha i dati per il PDF. */
@@ -85,6 +85,7 @@ export function DitteContrattiCommessa({ orderId, aperto: apertoFuori, onAperto 
 
 function Contenuto({ orderId, companyId }: { orderId: string; companyId: string }) {
   const qc = useQueryClient();
+  const { canViewSubappaltatoriAmministrazione, solaLettura } = usePermissions();
   const voci = useVociPrevisteFasi(orderId, true);
   const dati = useQuery({
     queryKey: ["ditte-contratti-commessa", companyId, orderId],
@@ -92,7 +93,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
       const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede] = await Promise.all([
         db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
         db.from("order_external_teams").select("id, external_team_id, phase_id, cost_preventivo, vat_rate").eq("order_id", orderId),
-        db.from("external_teams").select("id, name, vat_rate, subappaltatore_id, kind, is_active").eq("company_id", companyId).eq("is_active", true).order("name"),
+        db.from("external_teams").select("id, name, vat_rate, subappaltatore_id, kind, is_active").eq("company_id", companyId).order("name"),
         // Le fasi date alle ditte nelle altre commesse: chi fa sempre quel lavoro.
         db.from("order_external_teams").select("external_team_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
           .eq("ordine.company_id", companyId).neq("order_id", orderId).not("phase_id", "is", null).limit(3000),
@@ -185,7 +186,9 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   if (!d.fasi.length) return <p className="text-sm text-muted-foreground">La commessa non ha ancora fasi.</p>;
 
   // Le ditte della commessa, per i contratti.
-  const ditteCommessa = [...new Set(d.assegnazioni.map((a) => a.external_team_id).filter((x): x is string => !!x))]
+  // Anche le ditte che hanno un contratto su questa commessa senza fasi assegnate (contratto fatto dalla scheda).
+  const conContratto = d.ditte.filter((t) => t.subappaltatore_id && contrattoDellaDitta(t.subappaltatore_id, d.contratti, d.schede)).map((t) => t.id);
+  const ditteCommessa = [...new Set([...d.assegnazioni.map((a) => a.external_team_id).filter((x): x is string => !!x), ...conContratto])]
     .map((id) => ({ id, fasi: d.assegnazioni.filter((a) => a.external_team_id === id && a.phase_id).map((a) => a.phase_id!) }));
 
   return (
@@ -226,7 +229,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                         onChange={(e) => setScelte((s) => ({ ...s, [r.f.id]: e.target.value }))}
                       >
                         <option value="">Nessuna ditta</option>
-                        {d.ditte.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                        {d.ditte.filter((x) => x.is_active !== false || x.id === r.dittaId).map((x) => <option key={x.id} value={x.id}>{x.name}{x.is_active === false ? " (disattivata)" : ""}</option>)}
                       </select>
                       {r.proposta && r.dittaId === r.proposta.external_team_id && (
                         <Badge variant="outline" className="border-sky-200 bg-sky-50 text-[11px] text-sky-900" title={`Ha fatto «${r.proposta.come}» in altre commesse`}>
@@ -256,7 +259,11 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
       <section aria-label="Contratti delle ditte" className="space-y-2">
         <h3 className="text-sm font-semibold">Contratti di subappalto</h3>
-        {!ditteCommessa.length ? (
+        {!canViewSubappaltatoriAmministrazione || solaLettura ? (
+          <p className="text-sm text-muted-foreground">
+            {solaLettura ? "Sei in sola lettura: i contratti si creano e modificano da chi ha i permessi." : "Per vedere e creare i contratti serve il permesso «Amministrazione subappaltatori»: chiedilo all'amministratore."}
+          </p>
+        ) : !ditteCommessa.length ? (
           <p className="text-sm text-muted-foreground">Assegna prima le ditte alle fasi.</p>
         ) : (
           <ul className="divide-y rounded-lg border">
@@ -380,6 +387,9 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   const [bozzaElenco, setBozzaElenco] = useState<RigaElencoLavori[] | null>(null);
   const apriElenco = () => setBozzaElenco((elencoSalvato.length ? elencoSalvato : elenco).map(conChiave));
   /** La scheda sicurezza per un contratto nuovo: se la ditta non ce l'ha, la si crea dalla scheda del campo. */
+  // La scheda creata qui per un contratto nuovo: se poi il contratto non si salva va tolta, altrimenti
+  // a ogni tentativo resta una scheda doppia della stessa ditta.
+  const schedaCreata = { id: null as string | null };
   const schedaPerContratto = async (): Promise<string> => {
     if (schede[0]) return schede[0].id;
     const { data: campo, error } = await db.from("subappaltatori")
@@ -391,6 +401,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       email: campo?.email ?? null, telefono: campo?.telefono ?? null, responsabile: campo?.responsabile ?? null,
     }).select("id").single();
     if (errNuova) throw errNuova;
+    schedaCreata.id = nuova.id as string;
     return nuova.id as string;
   };
   /** Numero proposto per un contratto nuovo: codice commessa e progressivo (es. O-0001/S02). Si cambia da «Modifica». */
@@ -428,6 +439,10 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
             stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: 0, data_stipula: oggi(),
           });
       const { data: toccate, error } = await (contratto ? (q as { select: (c: string) => Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }> }).select("id") : q);
+      if (error && schedaCreata.id) {
+        await db.from("subappaltatori_sicurezza").delete().eq("id", schedaCreata.id).eq("company_id", companyId);
+        schedaCreata.id = null;
+      }
       if (error) throw new Error(error.code === "23514" ? "Il contratto ha una base lavori registrata: l'importo si cambia con «Variante», da «Condizioni e firma»." : error.message);
       if (contratto && !(toccate as unknown[] | null)?.length) throw new Error("Il contratto è cambiato nel frattempo (firmato o non più in bozza): ricarica la pagina e riprova.");
       return { baseRegistrata };
