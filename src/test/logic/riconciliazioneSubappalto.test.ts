@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { riepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
-import { costruisciContrattoSubappaltoHtml } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { costruisciContrattoSubappaltoHtml, type DatiContrattoSubappalto } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 const sal = (importo_lordo: number, stato: string, pct = 5) => ({
   importo_lordo, stato, ritenuta_importo: (importo_lordo * pct) / 100, importo_netto: importo_lordo - (importo_lordo * pct) / 100,
@@ -55,7 +55,7 @@ describe("contratto stampabile", () => {
 });
 
 describe("testo standard del contratto (Dimora Torino, 31/10/2026)", () => {
-  const dati = {
+  const dati: DatiContrattoSubappalto = {
     numero: "Edile1", dataStipula: "2026-10-30",
     committente: { ragioneSociale: "Dimora srl", partitaIva: "13160300011", indirizzo: "Corso Trapani 132, Torino", rappresentante: "Luigi Borgato" },
     subappaltatore: { ragioneSociale: "DecorEdil", partitaIva: "05951200012", indirizzo: "", email: "", pec: "" },
@@ -125,7 +125,7 @@ describe("riquadro economico del contratto", () => {
   });
   it("con IVA il testo della fatturazione non dice reverse charge", async () => {
     const { articoliContratto } = await import("@/lib/subappaltatori/contrattoSubappaltoHtml");
-    const base = {
+    const base: DatiContrattoSubappalto = {
       numero: null, dataStipula: null, committente: { ragioneSociale: "A", partitaIva: "", indirizzo: "", rappresentante: "" },
       subappaltatore: { ragioneSociale: "B", partitaIva: "", indirizzo: "", email: "", pec: "" },
       commessa: { codice: "O-1", descrizione: "", indirizzoCantiere: "", cliente: "" }, descrizioneLavori: "", importo: 1, oneriSicurezza: 0,

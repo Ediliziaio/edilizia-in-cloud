@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta } from "@/lib/orders/ditteLavori";
+import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
 
 // I nomi veri delle fasi di Dimora Torino (O-0001 e O-0002).
 const storico = [
@@ -80,5 +80,26 @@ describe("le due schede della ditta: campo e sicurezza", () => {
     expect(schedeSicurezzaDitta("campo-1", schede, "o1").map((s) => s.id)).toEqual(["sic-commessa", "sic-generale"]);
     expect(schedeSicurezzaDitta("campo-1", schede, "o2").map((s) => s.id)).toEqual(["sic-generale"]);
     expect(schedeSicurezzaDitta(null, schede, "o1")).toEqual([]);
+  });
+});
+
+describe("elenco dei lavori del contratto, modificabile", () => {
+  const varianti = [{ tariffa_id: "t1", external_team_id: "d1", costo: 12, is_default: true, attivo: true, sort_order: 0 }];
+  it("propone il prezzo concordato con la ditta, altrimenti il costo del listino", () => {
+    expect(prezzoListinoPerDitta({ id: "t1", costo: 15 }, "d1", varianti as never)).toEqual({ prezzo: 12, concordato: true });
+    expect(prezzoListinoPerDitta({ id: "t1", costo: 15 }, "d2", varianti as never)).toEqual({ prezzo: 15, concordato: false });
+    expect(prezzoListinoPerDitta({ id: "t2", costo: 9 }, null, varianti as never)).toEqual({ prezzo: 9, concordato: false });
+  });
+  it("rifà gli importi e scarta righe vuote o a quantità zero", () => {
+    const righe = elencoDaSalvare([
+      { fase: "Demolizione", descrizione: " Tramezzi ", unita: "mq", quantita: 14.55, prezzo: 15, importo: 0 },
+      { fase: "", descrizione: "Extra", unita: "cad", quantita: 1, prezzo: 99.999, importo: 0 },
+      { fase: "X", descrizione: "   ", unita: null, quantita: 2, prezzo: 1, importo: 2 },
+      { fase: "X", descrizione: "Zero", unita: null, quantita: 0, prezzo: 1, importo: 0 },
+    ]);
+    expect(righe).toEqual([
+      { fase: "Demolizione", descrizione: "Tramezzi", unita: "mq", quantita: 14.55, prezzo: 15, importo: 218.25 },
+      { fase: "Altri lavori", descrizione: "Extra", unita: "cad", quantita: 1, prezzo: 99.999, importo: 100 },
+    ]);
   });
 });

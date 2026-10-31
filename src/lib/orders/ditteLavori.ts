@@ -172,3 +172,38 @@ export function contrattoDellaDitta<C extends { subappaltatore_id: string }>(cam
   const ids = new Set([campoId, ...schede.filter((s) => s.campo_subappaltatore_id === campoId).map((s) => s.id)]);
   return contratti.find((c) => ids.has(c.subappaltatore_id)) ?? null;
 }
+
+/**
+ * L'elenco dei lavori del contratto si rivede prima di firmarlo (Dimora Torino, 31/10/2026): righe da
+ * togliere o aggiungere, quantità e prezzi da correggere. Per una voce presa dal listino si propone il
+ * prezzo concordato con quella ditta (la sua variante di listino), altrimenti il costo del listino:
+ * è un suggerimento, chi scrive il contratto lo può cambiare.
+ */
+export function prezzoListinoPerDitta(
+  tariffa: { id: string; costo: number },
+  dittaId: string | null,
+  varianti: ReadonlyArray<VarianteCostoDitta>,
+): { prezzo: number; concordato: boolean } {
+  const variante = dittaId ? varianteDellaSquadra(varianti, tariffa.id, dittaId) : null;
+  return variante?.costo != null
+    ? { prezzo: Number(variante.costo) || 0, concordato: true }
+    : { prezzo: Number(tariffa.costo) || 0, concordato: false };
+}
+
+/** Una riga dell'elenco con l'importo rifatto da quantità × prezzo, al centesimo. */
+export function rigaElencoRicalcolata(r: RigaElencoLavori): RigaElencoLavori {
+  const quantita = Number(r.quantita) || 0;
+  const prezzo = Number(r.prezzo) || 0;
+  return { ...r, quantita, prezzo, importo: centesimi(quantita * prezzo) };
+}
+
+/** Le righe pronte da salvare: senza descrizione o a quantità zero non entrano nel contratto. */
+export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
+  // Solo i campi del contratto: niente chiavi o altro che la finestra di modifica attacca alle righe.
+  return righe
+    .map((r) => rigaElencoRicalcolata({
+      fase: r.fase.trim() || "Altri lavori", descrizione: r.descrizione.trim(), unita: r.unita, quantita: r.quantita, prezzo: r.prezzo, importo: r.importo,
+      ...(r.codice != null ? { codice: r.codice } : {}),
+    }))
+    .filter((r) => r.descrizione && r.quantita > 0);
+}
