@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -34,7 +35,7 @@ export function SalPaymentDialog({sal, onClose, onSaved}: {sal:SALSubappaltatore
   const effectiveAmount=amount??String(linkExisting?Math.min(residual,available):residual);
   const effectiveDate=date??(linkExisting?candidates.data?.pagamenti.find(p=>p.id===existingId)?.data:null)??new Date().toLocaleDateString('en-CA');
   const mutation = useMutation({mutationFn:async()=>{
-    const {error}=await db.rpc('registra_pagamento_sal_sub',{p_sal:sal.id,p_richiesta:request,p_importo:Number(effectiveAmount.replace(',','.')),p_data:effectiveDate,p_metodo:method,p_riferimento:reference||null,p_costo:costId,p_esistente:linkExisting?existingId:null});
+    const {error}=await db.rpc('registra_pagamento_sal_sub',{p_sal:sal.id,p_richiesta:request,p_importo:parseDecimalIT(effectiveAmount),p_data:effectiveDate,p_metodo:method,p_riferimento:reference||null,p_costo:costId,p_esistente:linkExisting?existingId:null});
     if(error) throw new Error(error.message);
   },onSuccess:()=>{refreshFinancialQueries(qc);onSaved();toast.success(linkExisting?'Pagamento collegato al SAL, nessuna nuova uscita':'Pagamento e SAL aggiornati');},onError:(e:Error)=>toast.error(e.message)});
   return <Dialog open onOpenChange={v=>{if(!v&&!mutation.isPending)onClose();}}><DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>Pagamento SAL n. {sal.numero_sal}</DialogTitle><DialogDescription>Collega un pagamento esistente oppure registra un importo già versato. La garanzia rimane distinta.</DialogDescription></DialogHeader>
@@ -45,6 +46,6 @@ export function SalPaymentDialog({sal, onClose, onSaved}: {sal:SALSubappaltatore
       <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="sal-payment-amount">Importo da attribuire al SAL</Label><Input id="sal-payment-amount" inputMode="decimal" value={effectiveAmount} onChange={e=>{setAmount(e.target.value);changed();}}/></div><div className="space-y-2"><Label htmlFor="sal-payment-date">Data</Label><Input id="sal-payment-date" type="date" max={new Date().toLocaleDateString('en-CA')} value={effectiveDate} onChange={e=>{setDate(e.target.value);changed();}}/></div></div>
       {!linkExisting && <><div className="space-y-2"><Label>Metodo</Label><Select value={method} onValueChange={v=>{setMethod(v);changed();}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{['bonifico','contanti','assegno','altro'].map(m=><SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="sal-payment-reference">Riferimento</Label><Input id="sal-payment-reference" maxLength={500} value={reference} onChange={e=>{setReference(e.target.value);changed();}} placeholder="CRO o nota"/></div></>}
     </div>}
-    <DialogFooter><Button variant="outline" disabled={mutation.isPending} onClick={onClose}>Annulla</Button><Button disabled={mutation.isPending||!candidates.data||!effectiveDate||!Number.isFinite(Number(effectiveAmount.replace(',','.')))||Number(effectiveAmount.replace(',','.'))<=0||(linkExisting&&Number(effectiveAmount.replace(',','.'))>available)||(!linkExisting&&candidates.data.documenti.length>1&&!costId)} onClick={()=>mutation.mutate()}>{mutation.isPending?'Registrazione…':linkExisting?'Collega pagamento':'Conferma pagamento'}</Button></DialogFooter>
+    <DialogFooter><Button variant="outline" disabled={mutation.isPending} onClick={onClose}>Annulla</Button><Button disabled={mutation.isPending||!candidates.data||!effectiveDate||!(effectiveAmount.trim()!=='')||parseDecimalIT(effectiveAmount)<=0||(linkExisting&&parseDecimalIT(effectiveAmount)>available)||(!linkExisting&&candidates.data.documenti.length>1&&!costId)} onClick={()=>mutation.mutate()}>{mutation.isPending?'Registrazione…':linkExisting?'Collega pagamento':'Conferma pagamento'}</Button></DialogFooter>
   </DialogContent></Dialog>;
 }

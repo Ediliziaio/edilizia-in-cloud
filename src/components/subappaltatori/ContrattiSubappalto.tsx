@@ -634,7 +634,7 @@ export function ContrattiSubappalto({
             <div className="space-y-1"><Label>Garanzia (mesi dalla fine lavori)</Label><Input inputMode="numeric" {...campo("durata_garanzia_mesi")} /></div>
             <div className="space-y-1"><Label>Inizio lavori</Label><Input type="date" {...campo("data_inizio")} /></div>
             <div className="space-y-1"><Label>Fine lavori prevista</Label><Input type="date" {...campo("data_fine_prevista")} /></div>
-            <div className="space-y-1"><Label>Responsabile per la tua impresa</Label><Input {...campo("responsabile_impresa")} placeholder="es. direttore tecnico" /></div>
+            <div className="space-y-1"><Label>Rappresentante legale della tua impresa</Label><Input {...campo("responsabile_impresa")} placeholder="Chi firma il contratto per te (compare come «rappresentata da»)" /></div>
             <div className="space-y-1"><Label>Responsabile in cantiere del subappaltatore</Label><Input {...campo("referente_subappaltatore")} /></div>
             <div className="space-y-1">
               <Label>Stato</Label>
