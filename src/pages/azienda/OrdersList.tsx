@@ -795,13 +795,13 @@ function OrdersListInner() {
       } else if (ok === 0) {
         toast({
           title: "Eliminazione fallita",
-          description: `Nessuna commessa spostata nel cestino. Verifica permessi o riprova.`,
+          description: `Nessuna commessa spostata nel cestino. ${(results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? "Verifica permessi o riprova."}`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Eliminazione parziale",
-          description: `${ok} nel cestino · ${failed} non spostati. Le righe non spostate sono ancora presenti.`,
+          description: `${ok} nel cestino · ${failed} non spostati (es. ${(results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? "permessi"}). Le righe non spostate sono ancora presenti.`,
           variant: "destructive",
         });
       }

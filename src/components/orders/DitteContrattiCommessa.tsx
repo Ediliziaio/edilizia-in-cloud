@@ -11,7 +11,7 @@
  * Il contratto nasce in bozza: firma, SAL e pagamenti restano nella scheda del
  * subappaltatore, dove c'erano già.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -159,8 +159,11 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
 
   const daApplicare = righe.filter((r) => (!r.assegnate.length && r.dittaId) || (r.senzaPrevisto.length === 1 && r.assegnate.length === 1 && r.costo > 0));
 
+  // Quante righe sono già entrate: se una si ferma, il messaggio lo dice (le prime restano salvate).
+  const fatteApplica = useRef({ n: 0 }).current;
   const applica = useMutation({
     mutationFn: async () => {
+      fatteApplica.n = 0;
       for (const r of daApplicare) {
         const ditta = d!.ditte.find((x) => x.id === r.dittaId);
         const previsto = r.costo > 0 ? conIva(r.costo, ditta?.vat_rate ?? 0) : 0;
@@ -174,10 +177,16 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
           const { error } = await db.from("order_external_teams").update({ cost_preventivo: previsto, costo_origine: "preventivo" }).eq("id", r.senzaPrevisto[0].id);
           if (error) throw error;
         }
+        fatteApplica.n += 1;
       }
     },
     onSuccess: () => { toast.success("Ditte e costi previsti assegnati"); setScelte({}); invalida(); },
-    onError: (e: Error) => toast.error(`Non ho assegnato le ditte: ${e.message}`),
+    onError: (e: Error) => {
+      toast.error(fatteApplica.n
+        ? `Assegnate ${fatteApplica.n} fasi su ${daApplicare.length}, poi si è fermato: ${e.message}. Riprova per le altre.`
+        : `Non ho assegnato le ditte: ${e.message}`);
+      invalida();
+    },
   });
 
   if (dati.isLoading || voci.isLoading) return <Loader2 className="mx-auto my-8 h-6 w-6 animate-spin" />;

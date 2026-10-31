@@ -518,7 +518,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const addPhase = useMutation({
     mutationFn: async (name: string) => {
       const { error } = await db.from("order_work_phases").insert({
-        company_id: companyId, order_id: orderId, name, position: phases.length,
+        // In fondo: dopo un'eliminazione «quante sono» ripeteva una posizione già usata.
+        company_id: companyId, order_id: orderId, name, position: phases.reduce((m, p) => Math.max(m, Number(p.position ?? -1)), -1) + 1,
       });
       if (error) throw error;
     },
@@ -559,6 +560,19 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         .update({ ...patch, ...chiusura, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError,
+  });
+
+  // L'ordine delle fasi (prima non si poteva cambiare): posizioni 0..n nell'ordine dato.
+  const riordinaFasi = useMutation({
+    mutationFn: async (ids: ReadonlyArray<string>) => {
+      for (const [position, id] of ids.entries()) {
+        const { data, error } = await db.from("order_work_phases").update({ position }).eq("id", id).eq("order_id", orderId).select("id");
+        if (error) throw error;
+        if (!data?.length) throw new Error("Ordine delle fasi non salvato: non hai il permesso di modificarle.");
+      }
     },
     onSuccess: invalidate,
     onError,
@@ -772,6 +786,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     addPhase,
     applyTemplate,
     updatePhase,
+    riordinaFasi,
     deletePhase,
     addAssignment,
     updateAssignment,
