@@ -187,6 +187,8 @@ export async function sendModuleQuoteSignature(
   recipientPhone?: string,
   /** Preventivo cointestato: firma anche il secondo intestatario, con un suo link. */
   cointestatario?: { nome: string; email: string; telefono?: string | null } | null,
+  /** Le clausole del riquadro «Approvazione specifica» del PDF inviato: la pagina di firma mostra queste. */
+  clausoleDaApprovare?: Array<{ id: string; testo: string }> | null,
 ): Promise<{ invitoCointestatarioInviato: boolean | null }> {
   const { data, error } = await supabase.functions.invoke("send-quote-signature", {
     body: {
@@ -196,6 +198,7 @@ export async function sendModuleQuoteSignature(
       custom_message: customMessage || undefined,
       recipient_phone: recipientPhone || undefined,
       cointestatario: cointestatario ?? undefined,
+      clausole_da_approvare: clausoleDaApprovare ?? undefined,
     },
   });
   // La frase vera del rifiuto sta nel corpo della risposta: `error.message` è il generico «non-2xx».

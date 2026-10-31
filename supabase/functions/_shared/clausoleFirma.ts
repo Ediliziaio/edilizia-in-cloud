@@ -31,6 +31,8 @@ const SETTORE_DEL_MODULO: Record<string, SettoreCondizioni> = {
 
 interface RichiestaFirma {
   company_id: string;
+  /** Fissate all'invio dal testo del documento (31/10/2026): se ci sono, valgono loro. */
+  clausole_da_approvare?: unknown;
   tipo_documento: string | null;
   tipo_firmatario: string | null;
   quote_id?: string | null;
@@ -52,7 +54,28 @@ export const CLAUSOLE_SUBAPPALTO: ClausolaFirma[] = [
   { id: "sub-foro", testo: "Mediazione e foro competente: prima la mediazione, poi il foro della sede dell'Affidataria." },
 ];
 
+/**
+ * Le clausole passate da chi invia, lette dallo stesso testo del PDF (31/10/2026): pulite e con un tetto.
+ * null = non passate (o non valide): vale la regola di sempre. [] = il documento non ne ha.
+ */
+export function clausoleFissate(v: unknown): ClausolaFirma[] | null {
+  if (!Array.isArray(v) || v.length > 60) return null;
+  const out: ClausolaFirma[] = [];
+  const visti = new Set<string>();
+  for (const c of v) {
+    const id = typeof c?.id === "string" ? c.id.trim().slice(0, 80) : "";
+    const testo = typeof c?.testo === "string" ? c.testo.trim().slice(0, 6000) : "";
+    if (!id || !testo || visti.has(id)) return null;
+    visti.add(id);
+    out.push({ id, testo });
+  }
+  return out;
+}
+
 export async function clausoleDellaFirma(sb: any, r: RichiestaFirma): Promise<ClausolaFirma[]> {
+  // Quelle del documento firmato, fissate all'invio: l'azienda decide cosa si approva, non un elenco nostro.
+  const delDocumento = clausoleFissate(r.clausole_da_approvare);
+  if (delDocumento) return delDocumento;
   // Contratto di subappalto: le clausole che il testo del contratto chiede di
   // approvare specificamente (artt. 1341-1342 c.c.), una per una.
   if (r.tipo_documento === "subappalto") return CLAUSOLE_SUBAPPALTO;

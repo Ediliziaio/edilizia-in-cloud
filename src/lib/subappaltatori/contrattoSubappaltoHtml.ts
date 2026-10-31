@@ -296,6 +296,19 @@ export function articoliDaApprovare(articoli: ArticoloContratto[]): string {
     .join(", ");
 }
 
+/**
+ * Le clausole che la pagina di firma fa approvare a parte (31/10/2026): gli stessi articoli che il PDF elenca
+ * nell'approvazione specifica, col numero e il TESTO che hanno in questo contratto. Prima la firma mostrava un
+ * riassunto fisso (penali da 200 €, foro dell'Affidataria…) anche quando l'azienda aveva riscritto l'articolo.
+ */
+export function clausoleFirmaSubappalto(articoli: ArticoloContratto[]): Array<{ id: string; testo: string }> {
+  return ARTICOLI_APPROVAZIONE_SPECIFICA.map((titolo, k) => {
+    const i = articoli.findIndex((a) => a.titolo === titolo);
+    const testo = i >= 0 ? `Art. ${i + 1} – ${titolo}: ${articoli[i].paragrafi.join(" ")}` : titolo;
+    return { id: `sub-art-${k + 1}`, testo };
+  });
+}
+
 const esc = (v: unknown) =>
   String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 

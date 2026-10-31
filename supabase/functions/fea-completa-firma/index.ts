@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
     // Carica sigReq via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, tipo_documento, created_by, categoria, documento_path, livello_firma, sessione_firma_hash, sessione_firma_scadenza, gruppo_firma_id")
+      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, tipo_documento, created_by, categoria, documento_path, livello_firma, sessione_firma_hash, sessione_firma_scadenza, gruppo_firma_id, clausole_da_approvare")
       .in("token", varianti).order("created_at", { ascending: false }).limit(1)
       .maybeSingle();
 

@@ -28,6 +28,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { condividiLink } from "@/lib/mobile/condividiFile";
 import { cn } from "@/lib/utils";
 import { emailSembraAziendale, partitaIvaValida } from "@/lib/fea/tipoFirmatario";
+import { conClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
 import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
 import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import {
@@ -110,7 +111,8 @@ export function InviaFirmaCard(props: Props) {
     if (chiFirma === "azienda" && !partitaIvaValida(partitaIva)) { toast.error("La partita IVA ha 11 cifre: correggila o lasciala vuota"); return; }
     setWorking(true);
     try {
-      const pdfBlob = await props.generaPdfBlob();
+      // Le clausole da approvare a parte si leggono dal PDF stesso: il cliente approva quelle del suo contratto.
+      const { risultato: pdfBlob, clausole } = await conClausoleDelDocumento(() => props.generaPdfBlob());
       const row = await upsertModuleQuote({
         companyId: props.companyId,
         userId: user.id,
@@ -130,7 +132,7 @@ export function InviaFirmaCard(props: Props) {
         pdfBlob,
       });
       const esitoInvio = await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined,
-        co ? { nome: co.nome.trim(), email: coEmail.trim(), telefono: coTelefono.trim() || null } : null);
+        co ? { nome: co.nome.trim(), email: coEmail.trim(), telefono: coTelefono.trim() || null } : null, clausole);
       if (co && esitoInvio.invitoCointestatarioInviato === false) {
         // La richiesta del cointestatario c'è, la sua email no: serve dirlo, non fingere che siano partite due email.
         toast.warning("Inviato al cliente, ma non al cointestatario", {

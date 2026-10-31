@@ -71,6 +71,7 @@ import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/p
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
 import { IVA_PREDEFINITA_PCT } from "@/lib/preventivi/ivaPredefinita";
+import { segnaClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
 import {
   ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, PERCORSO_AMPIO, UTILE_PAGINA, altezzaDomanda, altezzaGrafico, altezzaPercorsoAmpio, carteDelPercorsoPerRiga, domandeCompatte, paddingCartaPercorso, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
@@ -2591,6 +2592,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   );
   const righeCondizioni = righeDelleCondizioni(condizioniLegaliTesto ?? "");
   const clausoleSeconda = clausoleDaApprovare(righeCondizioni);
+  // Le clausole che questo PDF fa approvare a parte, per la pagina di firma (31/10/2026): la pagina delle
+  // condizioni si stampa solo se attiva e con un testo.
+  segnaClausoleDelDocumento(condizioniLegaliAttivo && condizioniLegaliTesto ? clausoleSeconda : []);
   const esigenze = (Array.isArray(p.esigenze) ? p.esigenze : []) as SrEsigenza[];
   const soluzione = (Array.isArray(p.soluzione) ? p.soluzione : []) as SrSoluzioneItem[];
   const percheNoi = (Array.isArray(p.perche_noi) ? p.perche_noi : []) as Array<string | { titolo: string; descrizione?: string }>;

@@ -42,6 +42,7 @@ import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizion
 import type { PaginaConTestata } from "../../../../supabase/functions/_shared/testatePagine";
 import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
 import { TestoContrattoPdf } from './TestoContrattoPdf';
+import { segnaClausoleDelDocumento } from '@/lib/fea/clausoleDelDocumento';
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
   DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileTotali, DocEdileVoceElenco,
@@ -1036,6 +1037,9 @@ function CapitoloBlocco({ tema, numero, chiave, blocco, riempi = false, altezzaF
 
 export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   const { modello, modulo, totali, capitoli, opzioniComputo: oc } = dati;
+  // Le clausole che questo PDF fa approvare a parte: chi lo manda in firma le passa alla pagina di firma,
+  // così il cliente approva le stesse (31/10/2026). Le condizioni si stampano solo fuori dalla bozza locale.
+  segnaClausoleDelDocumento(!dati.bozzaLocale && modello.condizioniLegali.length > 0 ? modello.clausoleDaApprovare : []);
   const tema = creaTema({
     primario: modello.colorePrimario, secondario: modello.coloreSecondario, accento: modello.coloreAccento,
     tipografia: modello.tipografia,

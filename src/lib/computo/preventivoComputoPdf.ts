@@ -8,6 +8,7 @@ import { calcolaIvaComputo } from "./ivaComputo";
 import { calcolaSconto, oneriSicurezza } from "./scontoComputo";
 import { testoPianoPagamenti } from "./pianoPagamentiPdf";
 import { disegnaCronoprogramma } from "./stampaCronoprogramma";
+import { segnaClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
@@ -473,6 +474,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     y += 70;
     if (cointestatario?.trim()) { firma("FIRMA DEL COINTESTATARIO", cointestatario.trim(), m + 2 * (terzo + 16), terzo); y += 70; }
     const clausole = (veste.clausoleDaApprovare ?? "").split("\n").map(r => r.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
+    // Le stesse clausole vanno alla pagina di firma (31/10/2026): il cliente approva quelle stampate qui.
+    segnaClausoleDelDocumento(clausole);
     if (clausole.length) {
       const h = 60 + clausole.length * 13 + 60;
       ensure(h); y += 10;

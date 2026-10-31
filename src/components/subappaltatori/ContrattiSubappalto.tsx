@@ -28,7 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
-import { costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import { articoliContratto, clausoleFirmaSubappalto, costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { generaPdfContrattoSubappalto, generaPdfElencoCantiere } from "./ContrattoSubappaltoPDF";
 import { CondizioniContrattoDialog } from "./CondizioniContrattoDialog";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
@@ -567,6 +567,8 @@ export function ContrattiSubappalto({
         body: {
           tipo_documento: "subappalto", documento_id: c.id, tipo_firmatario: "b2b",
           signer_name: nome.trim(), signer_email: email.trim(), signer_phone: telefono.trim() || undefined,
+          // Gli articoli da approvare a parte, col testo di QUESTO contratto (anche quelli riscritti dall'azienda).
+          clausole_da_approvare: clausoleFirmaSubappalto(articoliContratto(datiContratto(c))),
           expires_giorni: 30, note: `Contratto di subappalto ${c.numero_contratto ?? ""} · ${c.commessa?.order_code ?? ""}`.trim(),
         },
       });

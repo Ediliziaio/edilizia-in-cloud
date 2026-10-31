@@ -15,6 +15,7 @@ import { brandingFirma, emailInvitoFirma } from "../_shared/emailFirma.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { titoloDelDocumento } from "../_shared/pdfFirmato.ts";
 import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
+import { clausoleFissate } from "../_shared/clausoleFirma.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -253,6 +254,10 @@ Deno.serve(async (req: Request) => {
       telefono = normalizzaTelefonoE164(fv?.cliente_telefono);
     }
     if (telefono) insertPayload.signer_phone = telefono;
+    // Le clausole da approvare a parte, lette da chi invia dallo stesso testo del documento (31/10/2026):
+    // il subappaltatore approva gli articoli del SUO contratto, anche se l'azienda li ha riscritti.
+    const clausoleDelDocumento = clausoleFissate(body.clausole_da_approvare);
+    if (clausoleDelDocumento) insertPayload.clausole_da_approvare = clausoleDelDocumento;
 
     // Assegna ID documento in base al tipo
     if (tipo_documento === "order") {
