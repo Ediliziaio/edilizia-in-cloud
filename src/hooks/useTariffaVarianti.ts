@@ -87,14 +87,22 @@ export function useTariffaVariantiMutations() {
    * un'altra lo ha già finiva in errore 23505 grezzo: qui il default corrente
    * viene azzerato prima, come già fa setDefault.
    */
-  const clearDefault = async (tariffaId: string) => {
+  const clearDefault = async (tariffaId: string): Promise<string[]> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase.from as any)("tariffa_costi_varianti")
+    const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
       .update({ is_default: false })
       .eq("company_id", companyId!)
       .eq("tariffa_id", tariffaId)
-      .eq("is_default", true);
+      .eq("is_default", true)
+      .select("id");
     if (error) throw new Error(error.message);
+    return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+  };
+  /** Se il secondo passo fallisce, il default di prima torna com'era: la voce non resta senza default. */
+  const ripristinaDefault = async (ids: string[]) => {
+    if (!ids.length) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.from as any)("tariffa_costi_varianti").update({ is_default: true }).in("id", ids).eq("company_id", companyId!);
   };
 
   /** Il dialog manodopera in commessa legge le varianti con un'altra chiave. */
@@ -106,13 +114,13 @@ export function useTariffaVariantiMutations() {
   const createVariante = useMutation({
     mutationFn: async (input: VarianteCreateInput) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
-      if (input.is_default) await clearDefault(input.tariffa_id);
+      const prima = input.is_default ? await clearDefault(input.tariffa_id) : [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .insert({ ...input, company_id: companyId })
         .select()
         .single();
-      if (error) throw new Error(error.message);
+      if (error) { await ripristinaDefault(prima); throw new Error(error.message); }
       return data as TariffaCostoVariante;
     },
     onSuccess: (v) => {
@@ -123,8 +131,7 @@ export function useTariffaVariantiMutations() {
   const updateVariante = useMutation({
     mutationFn: async (params: { id: string; patch: VarianteUpdateInput }) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
-      if (params.patch.is_default && params.patch.tariffa_id)
-        await clearDefault(params.patch.tariffa_id);
+      const prima = params.patch.is_default && params.patch.tariffa_id ? await clearDefault(params.patch.tariffa_id) : [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .update(params.patch)
@@ -132,7 +139,7 @@ export function useTariffaVariantiMutations() {
         .eq("company_id", companyId)
         .select()
         .single();
-      if (error) throw new Error(error.message);
+      if (error) { await ripristinaDefault(prima.filter((x) => x !== params.id)); throw new Error(error.message); }
       return data as TariffaCostoVariante;
     },
     onSuccess: (v) => {
@@ -172,20 +179,18 @@ export function useTariffaVariantiMutations() {
     mutationFn: async (params: { tariffaId: string; varianteId: string }) => {
       if (!companyId) throw new Error("Nessuna azienda selezionata");
       // Step 1: azzera eventuale default corrente (potrebbe non esserci)
+      const prima = await clearDefault(params.tariffaId);
+      // Step 2: setta nuovo default; se non riesce, torna il default di prima
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: clearError } = await (supabase.from as any)("tariffa_costi_varianti")
-        .update({ is_default: false })
-        .eq("company_id", companyId)
-        .eq("tariffa_id", params.tariffaId)
-        .eq("is_default", true);
-      if (clearError) throw new Error(clearError.message);
-      // Step 2: setta nuovo default
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from as any)("tariffa_costi_varianti")
+      const { data, error } = await (supabase.from as any)("tariffa_costi_varianti")
         .update({ is_default: true })
         .eq("id", params.varianteId)
-        .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+        .eq("company_id", companyId)
+        .select("id");
+      if (error || !data?.length) {
+        await ripristinaDefault(prima);
+        throw new Error(error?.message ?? "Variante predefinita non cambiata: non hai il permesso.");
+      }
     },
     onSuccess: (_data, vars) => {
       invalidateBoth(vars.tariffaId);
