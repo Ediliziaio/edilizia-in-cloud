@@ -335,6 +335,7 @@ export function ContrattiSubappalto({
       if (error) {
         if (error.code === "23514" && /Base lavori/i.test(error.message ?? ""))
           throw new Error("Questo contratto ha già una base lavori registrata: commessa, ditta, importo e oneri non si cambiano da qui. Per modificarli serve una variante tracciata; note, date e condizioni restano modificabili.");
+        if (error.code === "42501" || error.code === "PGRST116") throw new Error("Non hai il permesso di modificare questo contratto.");
         throw new Error("Contratto non salvato. Controlla i dati e riprova.");
       }
       return (data as unknown as { id: string }).id;
@@ -346,8 +347,9 @@ export function ContrattiSubappalto({
   const cambiaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: ContrattoCompleto["stato"] }) => {
       const extra = stato === "completato" ? { data_fine_effettiva: oggi() } : {};
-      const { error } = await supabase.from("contratti_subappalto" as never).update({ stato, ...extra } as never).eq("id", id);
+      const { data, error } = await supabase.from("contratti_subappalto" as never).update({ stato, ...extra } as never).eq("id", id).select("id");
       if (error) throw new Error("Stato non aggiornato. Riprova.");
+      if (!data?.length) throw new Error("Stato non aggiornato: non hai il permesso di modificare questo contratto.");
     },
     onSuccess: () => { toast.success("Stato del contratto aggiornato"); invalida(); },
     onError: (e: Error) => toast.error(e.message),
@@ -477,7 +479,7 @@ export function ContrattiSubappalto({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Un contratto per ogni commessa su cui lavora questa impresa.</p>
-        <Button size="sm" onClick={() => { setForm(formVuoto(sub.order_id ?? "", sub.responsabile ?? "")); setDialog({ id: null }); }}>
+        <Button size="sm" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(formVuoto(sub.order_id ?? "", sub.responsabile ?? "")); setDialog({ id: null }); }}>
           <Plus className="mr-1 h-4 w-4" />Nuovo contratto
         </Button>
       </div>
@@ -541,7 +543,7 @@ export function ContrattiSubappalto({
                     <FileText className="h-3.5 w-3.5" />Elenco lavori per il cantiere
                   </Button>
                 )}
-                {!c.firmato_il && (
+                {!c.firmato_il && !permessiLavori.solaLettura && permessiLavori.canEditOrders && (
                   <Button size="sm" variant="ghost" className="gap-1 text-destructive" disabled={eliminaContratto.isPending}
                     onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ha SAL, fatture o una base lavori registrata (allora si segna Risolto).")) eliminaContratto.mutate(c); }}>
                     <Trash2 className="h-3.5 w-3.5" />Elimina
@@ -594,7 +596,7 @@ export function ContrattiSubappalto({
               <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                 {permessiLavori.canViewCosts && permessiLavori.canViewSubappaltatoriAmministrazione && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
                 <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
-                <Button size="sm" variant="ghost" className="gap-1" onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
+                <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
                 <div className="ml-auto flex items-center gap-2"><span className="text-xs text-muted-foreground">Stato lavori</span><Select disabled={cambiaStato.isPending || permessiLavori.solaLettura || !permessiLavori.canEditOrders} value={c.stato} onValueChange={(v) => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
                   <SelectTrigger aria-label="Stato lavori del contratto" className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{(Object.keys(STATI) as ContrattoCompleto["stato"][]).map((s) => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}</SelectContent>

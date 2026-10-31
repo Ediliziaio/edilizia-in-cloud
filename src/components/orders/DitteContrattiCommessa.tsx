@@ -372,7 +372,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   tariffe: Tariffa[]; varianti: VarianteCostoDitta[]; onCambio: () => void;
 }) {
   const totale = totaleElencoLavori(elenco);
-  const modificabile = !contratto || contratto.stato === "bozza";
+  const modificabile = !contratto || (contratto.stato === "bozza" && !contratto.firmato_il);
   // Un contratto già attivo ma non firmato: l'elenco dei lavori si può ancora rivedere, l'importo pattuito no.
   const senzaElenco = !!contratto && !modificabile && !contratto.firmato_il;
   const elencoSalvato = contratto && Array.isArray(contratto.elenco_lavori) ? (contratto.elenco_lavori as RigaElencoLavori[]) : [];
@@ -413,7 +413,7 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       const q = contratto
         ? soloElenco
           ? db.from("contratti_subappalto").update(baseRegistrata ? { elenco_lavori: righe, data_inizio: periodo.dal, data_fine_prevista: periodo.al } : { elenco_lavori: righe }).eq("id", contratto.id).is("firmato_il", null)
-          : db.from("contratti_subappalto").update(campi).eq("id", contratto.id).eq("stato", "bozza")
+          : db.from("contratti_subappalto").update(campi).eq("id", contratto.id).eq("stato", "bozza").is("firmato_il", null)
         : db.from("contratti_subappalto").insert({
             ...campi, company_id: companyId, subappaltatore_id: await schedaPerContratto(), order_id: orderId,
             stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: 0, data_stipula: oggi(),
@@ -473,9 +473,13 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
       const righe = (elencoSalvato.length ? elencoSalvato : elenco);
       if (!righe.length) throw new Error("Non ci sono lavori da elencare.");
       const { generaPdfElencoCantiere } = await import("@/components/subappaltatori/ContrattoSubappaltoPDF");
-      const blob = await generaPdfElencoCantiere({ committente: { ragioneSociale: "", partitaIva: "", indirizzo: "", rappresentante: "" },
+      const [{ data: ord }, { data: az }] = await Promise.all([
+        db.from("orders").select("order_code, work_address").eq("id", orderId).maybeSingle(),
+        db.from("anagrafica_azienda").select("ragione_sociale").eq("company_id", companyId).maybeSingle(),
+      ]);
+      const blob = await generaPdfElencoCantiere({ committente: { ragioneSociale: az?.ragione_sociale ?? "", partitaIva: "", indirizzo: "", rappresentante: "" },
         subappaltatore: { ragioneSociale: ditta.name, partitaIva: "", indirizzo: "", email: "", pec: "" },
-        commessa: { codice: "", descrizione: "", indirizzoCantiere: "", cliente: "" }, elencoLavori: righe,
+        commessa: { codice: ord?.order_code ?? "", descrizione: "", indirizzoCantiere: ord?.work_address ?? "", cliente: "" }, elencoLavori: righe,
         numero: null, dataStipula: null, descrizioneLavori: "", importo: 0, oneriSicurezza: 0, ritenutaPct: 0, dataInizio: null, dataFinePrevista: null,
         responsabileImpresa: null, referenteSubappaltatore: null, obblighi: null, modalitaPagamento: null, penali: null, garanzie: null, durataGaranziaMesi: 12, note: null });
       const url = URL.createObjectURL(blob);
