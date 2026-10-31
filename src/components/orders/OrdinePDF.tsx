@@ -1,4 +1,6 @@
 import React from "react";
+import type { DossierEconomico } from "@/lib/orders/dossierEconomico";
+import { CATEGORIE, STATO_USCITA, documentoUscita } from "@/lib/orders/quadroPagamenti";
 import { ritenutaSuLordo } from "@/lib/orders/bonusFiscali";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
@@ -258,6 +260,9 @@ export interface OrdinePDFProps {
    *  sezione margine + provvigioni. Default true = retrocompatibile. */
   showCosts?: boolean;
   showMargins?: boolean;
+  /** Economia della commessa con i calcoli delle schermate (caricaDossierEconomico):
+   *  conto per voce, fasi, incassi e pagamenti. Assente = sezioni omesse. */
+  dossier?: DossierEconomico | null;
 }
 
 /* ── Component ───────────────────────────────────────────── */
@@ -280,6 +285,7 @@ export function createOrdinePDFDocument({
   statuses = [],
   showCosts = true,
   showMargins = true,
+  dossier = null,
 }: OrdinePDFProps) {
   // ── Financials ──
   const imponibile = order?.total_amount ?? 0;
@@ -600,8 +606,39 @@ export function createOrdinePDFDocument({
             )}
           </View>
 
-          {/* Analisi Margine — solo per chi può vedere i margini */}
-          {showMargins && (
+          {/* Analisi Margine — solo per chi può vedere i margini. Con il dossier:
+              i numeri ufficiali (v_ordine_marginalita, come Controllo di Gestione);
+              senza, la stima di prima su articoli e manodopera. */}
+          {showMargins && dossier && (
+          <View style={[styles.financialBox, styles.col]}>
+            <Text style={[styles.label, { marginBottom: 6 }]}>ANALISI MARGINE (COSTI REGISTRATI)</Text>
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Ricavi (contratto + varianti)</Text>
+              <Text style={styles.financialValue}>{fmt(dossier.conto.ricavi)}</Text>
+            </View>
+            {dossier.conto.righe.filter((r) => r.consuntivo !== 0).map((r) => (
+              <View key={r.key} style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
+                <Text style={[styles.financialLabel, { color: C.red }]}>{r.label}</Text>
+                <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(r.consuntivo)}</Text>
+              </View>
+            ))}
+            <View style={[styles.financialRow, { borderTop: `1pt solid ${C.gray300}`, paddingTop: 6, marginTop: 4 }]}>
+              <Text style={styles.financialTotalLabel}>Margine diretto</Text>
+              <Text style={[styles.financialTotal, { color: dossier.margineDiretto.importo >= 0 ? C.green : C.red }]}>{fmt(dossier.margineDiretto.importo)}</Text>
+            </View>
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>% margine</Text>
+              <Text style={[styles.financialValue, { color: dossier.margineDiretto.importo >= 0 ? C.green : C.red }]}>{fmtPerc(dossier.margineDiretto.pct)}</Text>
+            </View>
+            {dossier.conto.margineNettoMaturato != null && (
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Margine netto maturato (dopo struttura)</Text>
+                <Text style={styles.financialValue}>{fmt(dossier.conto.margineNettoMaturato)}</Text>
+              </View>
+            )}
+          </View>
+          )}
+          {showMargins && !dossier && (
           <View style={[styles.financialBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 6 }]}>ANALISI MARGINE</Text>
             <View style={styles.financialRow}>
@@ -641,6 +678,109 @@ export function createOrdinePDFDocument({
           </View>
           )}
         </View>
+
+        {/* ─── CONTO ECONOMICO PER VOCE, FASI, PAGAMENTI (dossier) ─── */}
+        {dossier && showCosts && (
+          <>
+            <Text style={styles.sectionTitle}>Conto economico per voce</Text>
+            <View style={styles.sectionLine} />
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 2.2 }]}>Voce</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Preventivo</Text>
+                <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Inc.</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Previsto a oggi</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Consuntivo</Text>
+                <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Inc.</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Scostamento</Text>
+              </View>
+              {dossier.conto.righe.map((r, idx) => (
+                <View key={r.key} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                  <Text style={[styles.tableCell, { flex: 2.2 }]}>{r.label}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{r.preventivo == null ? "—" : fmt(r.preventivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{r.incidenzaPreventivo == null ? "—" : fmtPerc(r.incidenzaPreventivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{r.previstoAOggi == null ? "—" : fmt(r.previstoAOggi)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(r.consuntivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{r.incidenzaConsuntivo == null ? "—" : fmtPerc(r.incidenzaConsuntivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", color: (r.scostamento ?? 0) > 0.5 ? C.red : C.gray700 }]}>{r.scostamento == null ? "—" : `${r.scostamento > 0 ? "+" : ""}${fmt(r.scostamento)}`}</Text>
+                </View>
+              ))}
+              <View style={styles.tableRowAlt} wrap={false}>
+                <Text style={[styles.tableCell, { flex: 2.2, fontFamily: "Helvetica-Bold" }]}>Totale costi</Text>
+                <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{dossier.conto.haPreventivo ? fmt(dossier.conto.costiPreventivo) : "—"}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7 }]} />
+                <Text style={[styles.tableCell, { flex: 1.2 }]} />
+                <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(dossier.conto.costiConsuntivo)}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7 }]} />
+                <Text style={[styles.tableCell, { flex: 1.2 }]} />
+              </View>
+            </View>
+            <Text style={[styles.tableCell, { fontSize: 7, color: C.gray500, marginBottom: 6 }]}>
+              Lavori al {dossier.ordine.avanzamento == null ? "—" : `${dossier.ordine.avanzamento}%`}: il previsto a oggi è il preventivo per l'avanzamento. Importi senza IVA. Incidenze sui ricavi (preventivo) e sul maturato (consuntivo).
+            </Text>
+
+            {dossier.fasi.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Economia delle fasi ({dossier.fasi.length})</Text>
+                <View style={styles.sectionLine} />
+                <View style={styles.table}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2.4 }]}>Fase</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Avanz.</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Venduto</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Previsto</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Sostenuto</Text>
+                    {showMargins && <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: "right" }]}>Margine</Text>}
+                  </View>
+                  {dossier.fasi.map((f, idx) => (
+                    <View key={f.id} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                      <Text style={[styles.tableCell, { flex: 2.4 }]}>{f.nome}</Text>
+                      <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{f.percentuale}%</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{f.economia.venduto ? fmt(f.economia.venduto) : "—"}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{f.economia.costoPrevisto ? fmt(f.economia.costoPrevisto) : "—"}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", color: f.economia.scostamento > 0.5 ? C.red : C.gray700 }]}>{f.economia.costoConsuntivo ? fmt(f.economia.costoConsuntivo) : "—"}</Text>
+                      {showMargins && <Text style={[styles.tableCell, { flex: 0.8, textAlign: "right" }]}>{f.economia.margineConsuntivoPct == null ? "—" : fmtPerc(f.economia.margineConsuntivoPct)}</Text>}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {dossier.quadro && dossier.quadro.uscite.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Pagamenti della commessa ({dossier.quadro.uscite.length})</Text>
+                <View style={styles.sectionLine} />
+                {dossier.totaliQuadro && (
+                  <Text style={[styles.tableCell, { marginBottom: 4 }]}>
+                    Pagato {fmt(dossier.totaliQuadro.pagato)} · da pagare {fmt(dossier.totaliQuadro.daPagare)}{dossier.totaliQuadro.pagamentoScaduto > 0 ? ` · scaduti ${fmt(dossier.totaliQuadro.pagamentoScaduto)}` : ""}{dossier.totaliQuadro.impegnato > 0 ? ` · ordinato senza fattura ${fmt(dossier.totaliQuadro.impegnato)}` : ""} (IVA inclusa)
+                  </Text>
+                )}
+                <View style={styles.table}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2.2 }]}>Controparte</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.3 }]}>Categoria</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.6 }]}>Documento</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Importo</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Residuo</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 0.9, textAlign: "right" }]}>Scadenza</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1 }]}>Stato</Text>
+                  </View>
+                  {dossier.quadro.uscite.map((u, idx) => (
+                    <View key={u.chiave} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                      <Text style={[styles.tableCell, { flex: 2.2 }]}>{u.controparte ?? "Senza fornitore"} · {u.descrizione ?? ""}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.3 }]}>{CATEGORIE.find((c) => c.value === u.categoria)?.label ?? u.categoria}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.6 }]}>{documentoUscita(u)}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(u.importo)}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(u.stato === "fattura_da_arrivare" ? 0 : u.residuo)}</Text>
+                      <Text style={[styles.tableCell, { flex: 0.9, textAlign: "right" }]}>{u.stato === "pagato" ? "—" : fmtDate(u.scadenza)}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, color: u.stato === "scaduto" ? C.red : C.gray700 }]}>{STATO_USCITA[u.stato].label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
+        )}
 
         {/* ─── BONUS EDILIZI: UNA PRATICA PER RIGA ─── */}
         {/* Il pezzo che il cliente deve avere davanti: quanti bonifici parlanti

@@ -1219,6 +1219,14 @@ function OrderDetailInner() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any).from("order_bonus_lines").select("*").eq("order_id", id!).order("position"),
     ]);
+    // Conto per voce, fasi e pagamenti con gli stessi calcoli di Economia: solo a chi vede i costi.
+    // Se non si legge il PDF esce lo stesso, senza quelle sezioni.
+    const dossier = permissions.canViewCosts
+      ? await import("@/lib/orders/dossierEconomico")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((m) => m.caricaDossierEconomico(supabase as any, id!))
+        .catch((e): null => { console.error("[OrderDetail] dossier economico non letto:", e); return null; })
+      : null;
     const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<Record<string, unknown>>).map((d) => ({
       ...d,
       subappaltatore: null as { nome?: string } | null,
@@ -1244,6 +1252,7 @@ function OrderDetailInner() {
       // margini/provvigioni vengono omessi a chi non è autorizzato.
       showCosts: permissions.canViewCosts,
       showMargins: permissions.canViewMargins,
+      dossier,
     };
   }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 

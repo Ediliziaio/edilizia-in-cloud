@@ -12,6 +12,11 @@ import { useCostoPrevistoCommessa } from "@/hooks/useCostoPrevistoCommessa";
 import { useCostiDirettiPerTipo } from "@/hooks/useCostiDirettiPerTipo";
 import { contoEconomicoCommessa } from "@/lib/orders/contoEconomicoCommessa";
 import { ContoEconomicoMacroVoci } from "@/components/orders/ContoEconomicoMacroVoci";
+import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { caricaDossierEconomico } from "@/lib/orders/dossierEconomico";
+import { htmlContoEconomico } from "@/lib/orders/contoEconomicoHtml";
+import { usePermissions } from "@/hooks/usePermissions";
+import { toast } from "sonner";
 import type { OrderControlCheck } from "@/lib/orders/controlWorkflow";
 import { materialCostVariance } from "@/lib/orders/materialCostVariance";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -20,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DonutChart, type DonutChartSegment } from "@/components/ui/donut-chart";
-import { TrendingUp, TrendingDown, AlertTriangle, Truck, CheckCircle2, Circle, ArrowRight, ListChecks, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, Truck, CheckCircle2, Circle, ArrowRight, ListChecks, Loader2, Download } from "lucide-react";
 
 /**
  * OrderEconomicsSummary — conto economico "a colpo d'occhio" in cima alla commessa.
@@ -138,6 +143,33 @@ export function OrderEconomicsSummary({
     },
   }), [actual, avanzamentoPct, employees, direttiPerTipo.data, previsto.isError, previsto.previsto, structure.data, structureImpact.months, workEndDate, workStartDate]);
   const [controlliAperti, setControlliAperti] = useState(false);
+  // «Scarica conto economico»: macro-voci, fasi, incassi e pagamenti in un documento da stampare o salvare in PDF.
+  const permessi = usePermissions();
+  const [documento, setDocumento] = useState<{ html: string; nome: string } | null>(null);
+  const [preparando, setPreparando] = useState(false);
+  const scaricaConto = async () => {
+    if (preparando) return;
+    setPreparando(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [dossier, azienda] = await Promise.all([
+        caricaDossierEconomico(db, orderId, { strutturaMensile: structure.data?.monthlyPerActiveOrder ?? null, conUscite: permessi.canViewCosts }),
+        db.from("orders").select("company_id").eq("id", orderId).maybeSingle()
+          .then(async (r: { data: { company_id: string } | null }) => r.data?.company_id
+            ? (await db.from("companies").select("name, logo_url").eq("id", r.data.company_id).maybeSingle()).data
+            : null),
+      ]);
+      const html = htmlContoEconomico(dossier, { ragione_sociale: azienda?.name ?? "", logo_url: azienda?.logo_url ?? null },
+        { mostraMargini: quality.canShowMargin && (permessi.canViewMargins || permessi.canViewCosts), mostraIncassi: permessi.canViewOrderAmounts });
+      setDocumento({ html, nome: `conto-economico-${dossier.ordine.codice ?? orderId.slice(0, 8)}` });
+    } catch (e) {
+      console.error("[conto economico] documento non preparato:", e);
+      toast.error("Non riesco a preparare il conto economico. Riprova.");
+    } finally {
+      setPreparando(false);
+    }
+  };
 
   // CONSUNTIVO materiali = somma degli ordini fornitore (ODA) realmente emessi.
   const { data: oda = [], isPending: odaPending } = useQuery({
@@ -342,9 +374,20 @@ export function OrderEconomicsSummary({
           )}
           Conto economico
         </CardTitle>
-        <Badge variant="outline" className={`text-xs font-semibold ${marginBadge}`}>
-          {quality.canShowMargin ? `Margine diretto ${pct1(actual.marginPct)}%` : quality.label}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void scaricaConto()} disabled={preparando}
+            className="inline-flex h-7 items-center gap-1 rounded-md border bg-white px-2 text-xs font-medium hover:bg-muted disabled:opacity-60 max-sm:hidden"
+            title="Conto per voce, fasi, incassi e pagamenti: da stampare o salvare in PDF">
+            {preparando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}Scarica conto economico
+          </button>
+          <Badge variant="outline" className={`text-xs font-semibold ${marginBadge}`}>
+            {quality.canShowMargin ? `Margine diretto ${pct1(actual.marginPct)}%` : quality.label}
+          </Badge>
+        </div>
+        {documento && (
+          <PrintPreviewModal htmlContent={documento.html} fileName={documento.nome} title="Conto economico della commessa"
+            open onOpenChange={(o) => { if (!o) setDocumento(null); }} />
+        )}
       </CardHeader>
       <CardContent className="max-sm:p-3 max-sm:pt-0">
         {/* Controlli della commessa: una riga sola. Se sono tutti a posto basta

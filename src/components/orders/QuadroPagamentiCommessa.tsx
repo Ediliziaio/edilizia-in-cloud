@@ -14,7 +14,7 @@ import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Paperclip, Receipt, Wallet 
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  CATEGORIE, STATO_USCITA, documentoUscita, filtraUscite, normalizzaQuadro, riepilogoCategorie, statoRata, totaliQuadro,
+  CATEGORIE, STATO_USCITA, documentoUscita, filtraUscite, normalizzaQuadro, riepilogoCategorie, totaliQuadro,
   type FiltroUscite, type Uscita,
 } from "@/lib/orders/quadroPagamenti";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
@@ -148,36 +148,15 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
         </Card>
       )}
 
-      {/* ── Da incassare ── */}
-      {mostraIncassi && (data.rate.length > 0 || data.sal_cliente.length > 0) && (
+      {/* ── SAL del cliente ── le rate (con fattura, stato e «Registra incasso») stanno nel
+          piano pagamenti subito sotto: qui non si ripetono. */}
+      {mostraIncassi && data.sal_cliente.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base"><ArrowDownLeft className="h-5 w-5 text-primary" aria-hidden="true" />Incassi dal cliente</CardTitle>
-            <p className="text-sm text-muted-foreground">Rate e SAL: cosa è fatturato, cosa è incassato, cosa deve ancora arrivare. Il piano rate si modifica e l’incasso si registra qui sotto.</p>
+            <p className="text-sm text-muted-foreground">I SAL emessi al cliente e la rata che li incassa. Rate, fatture e incassi si gestiscono nel piano pagamenti qui sotto.</p>
           </CardHeader>
           <CardContent className="space-y-3">
-            {data.rate.length > 0 && (
-              <ul className="divide-y rounded-md border" aria-label="Rate del cliente">
-                {data.rate.map((r) => {
-                  const st = statoRata(r);
-                  return (
-                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold">{r.label ?? "Rata"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {r.is_paid ? `Incassata il ${dataIt(r.paid_date)}` : `Scadenza ${dataIt(r.expected_date)}`}
-                          {" · "}{r.fattura ? `Fattura ${r.fattura}` : "non ancora fatturata"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.classe}`}>{st.label}</span>
-                        <span className="text-sm font-semibold tabular-nums">{formatCurrency(r.amount)}</span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
             {data.sal_cliente.length > 0 && (
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">SAL del cliente</p>
