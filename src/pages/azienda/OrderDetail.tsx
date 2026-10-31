@@ -98,7 +98,7 @@ import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
-import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
+import { QuadroPagamentiCommessa } from "@/components/orders/QuadroPagamentiCommessa";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
@@ -1929,6 +1929,15 @@ function OrderDetailInner() {
 
             {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
             {activeEconomiaView === "pagamenti" && <>
+            {/* Lo stato in una lettura: incassi e SAL del cliente, e ogni uscita
+                (fornitori, subappalti e ditte, professionisti, noleggi, extra)
+                con fattura, pagato, residuo e scadenza. */}
+            <QuadroPagamentiCommessa
+              orderId={id!}
+              mostraIncassi={permissions.canViewOrderAmounts}
+              mostraUscite={permissions.canViewCosts}
+              onApriSubappalti={() => navigateTo({ tab: "finanza", economiaView: "manodopera" })}
+            />
             <div id="section-pagamenti" className="scroll-mt-24">
               {permissions.canViewOrderAmounts && (
                 <OrdineEconomico
@@ -2096,15 +2105,9 @@ function OrderDetailInner() {
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 
-            {/* Soldi in uscita: i pagamenti ai fornitori stavano in "Articoli e
-                lavori", lontani dagli incassi. Qui il quadro è completo. */}
-            {activeEconomiaView === "pagamenti" && permissions.canViewCosts && (
-              <SupplierPaymentsCard
-                items={materialItems}
-                companyId={effectiveCompany?.id || ""}
-                orderId={id!}
-              />
-            )}
+            {/* Le uscite ai fornitori stanno nel quadro in cima alla vista
+                (QuadroPagamentiCommessa), insieme a subappalti, ditte,
+                professionisti, noleggi e costi extra. */}
             {/* Fatture e documenti fiscali della commessa: stavano nella
                 Panoramica, lontani da incassi e scadenze a cui appartengono.
                 Il database li mostra a chi vede gli importi della commessa o

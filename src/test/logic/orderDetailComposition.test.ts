@@ -101,7 +101,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
     ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrdineTempistiche", "LinkedAppointments", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
     ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "PianoMezziCantiere", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
     ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard", "OrderCostiCommessaCard"]],
-    ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
+    ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "QuadroPagamentiCommessa", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
     for (const component of components) {
       const matches = named(component);
