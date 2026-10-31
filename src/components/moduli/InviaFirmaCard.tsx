@@ -27,6 +27,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { condividiLink } from "@/lib/mobile/condividiFile";
 import { cn } from "@/lib/utils";
+import { emailSembraAziendale, partitaIvaValida } from "@/lib/fea/tipoFirmatario";
 import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
 import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import {
@@ -74,6 +75,10 @@ export function InviaFirmaCard(props: Props) {
   const [email, setEmail] = useState(props.clientEmail ?? "");
   const [telefono, setTelefono] = useState(props.clientPhone ?? "");
   const [messaggio, setMessaggio] = useState("");
+  // Privato o azienda: un'impresa non ha il recesso di 14 giorni, e la pagina di firma non glielo deve chiedere.
+  const [chiFirma, setChiFirma] = useState<"privato" | "azienda">("privato");
+  const [ragioneSociale, setRagioneSociale] = useState("");
+  const [partitaIva, setPartitaIva] = useState("");
   const co = props.cointestatario?.nome?.trim() ? props.cointestatario : null;
   const [coEmail, setCoEmail] = useState(co?.email ?? "");
   const [coTelefono, setCoTelefono] = useState(co?.telefono ?? "");
@@ -102,6 +107,7 @@ export function InviaFirmaCard(props: Props) {
     if (co && (!coEmail.trim() || !coEmail.includes("@"))) { toast.error(`Inserisci l'email di ${co.nome}: firma anche il cointestatario`); return; }
     if (co && coEmail.trim().toLowerCase() === email.trim().toLowerCase()) { toast.error("Il cointestatario deve avere un'email diversa da quella del cliente"); return; }
     if (props.total <= 0) { toast.error("Il preventivo non ha un totale: completa il computo"); return; }
+    if (chiFirma === "azienda" && !partitaIvaValida(partitaIva)) { toast.error("La partita IVA ha 11 cifre: correggila o lasciala vuota"); return; }
     setWorking(true);
     try {
       const pdfBlob = await props.generaPdfBlob();
@@ -114,6 +120,9 @@ export function InviaFirmaCard(props: Props) {
         clientName: props.clientName,
         clientEmail: email.trim(),
         clientPhone: telefono.trim() || null,
+        clientTipo: chiFirma,
+        clientCompany: chiFirma === "azienda" ? ragioneSociale.trim() || null : null,
+        clientVat: chiFirma === "azienda" ? partitaIva.trim() || null : null,
         subtotal: props.subtotal,
         vatAmount: props.vatAmount,
         total: props.total,
@@ -233,6 +242,29 @@ export function InviaFirmaCard(props: Props) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="cliente@esempio.it"
             />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Chi firma</Label>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Chi firma">
+              {(["privato", "azienda"] as const).map((v) => (
+                <Button key={v} type="button" role="radio" aria-checked={chiFirma === v} size="sm"
+                  variant={chiFirma === v ? "default" : "outline"} onClick={() => setChiFirma(v)}>
+                  {v === "privato" ? "Privato" : "Azienda (con P.IVA)"}
+                </Button>
+              ))}
+            </div>
+            {chiFirma === "privato" && emailSembraAziendale(email) && (
+              <p className="text-[11px] text-amber-800">L'email sembra di un'azienda: se firma per un'impresa scegli «Azienda», così non gli chiediamo il recesso di 14 giorni dei consumatori.</p>
+            )}
+            {chiFirma === "privato" && !emailSembraAziendale(email) && (
+              <p className="text-[11px] text-muted-foreground">Al privato la pagina di firma mostra anche il diritto di recesso di 14 giorni.</p>
+            )}
+            {chiFirma === "azienda" && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input className="h-9" value={ragioneSociale} onChange={(e) => setRagioneSociale(e.target.value)} placeholder="Ragione sociale" aria-label="Ragione sociale" />
+                <Input className="h-9" value={partitaIva} onChange={(e) => setPartitaIva(e.target.value)} placeholder="Partita IVA (facoltativa)" aria-label="Partita IVA" inputMode="numeric" />
+              </div>
+            )}
           </div>
           <div>
             <Label className="text-xs">Cellulare (opzionale)</Label>

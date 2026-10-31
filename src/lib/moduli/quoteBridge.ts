@@ -27,6 +27,11 @@ export interface ModuleQuoteInput {
   clientName: string;
   clientEmail?: string | null;
   clientPhone?: string | null;
+  /** Chi firma: «azienda» porta ragione sociale e partita IVA nel preventivo, e la firma diventa B2B
+   *  (niente recesso di 14 giorni). Assente: i dati del preventivo restano come sono. */
+  clientTipo?: "privato" | "azienda";
+  clientCompany?: string | null;
+  clientVat?: string | null;
   /** Totali già calcolati dal wizard (il PDF resta la fonte di dettaglio). */
   subtotal: number;
   vatAmount: number;
@@ -140,6 +145,9 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
     expires_at: expiresAt,
     pdf_storage_path: pdfPath,
     pdf_generated_at: new Date().toISOString(),
+    ...(input.clientTipo === "azienda"
+      ? { client_company: input.clientCompany?.trim() || input.clientName, client_vat_number: input.clientVat?.replace(/\s/g, "").toUpperCase().replace(/^IT/, "") || null }
+      : input.clientTipo === "privato" ? { client_company: null, client_vat_number: null } : {}),
   };
 
   // 2. Upsert per source-tag (la riga decisa è già stata respinta al punto 0).
