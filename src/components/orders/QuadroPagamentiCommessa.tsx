@@ -52,9 +52,16 @@ interface Props {
   mostraUscite: boolean;
   /** Apre la vista dei subappalti (contratti e SAL passivi). */
   onApriSubappalti?: () => void;
+  /**
+   * Le rate del cliente, subito sotto i quattro numeri (01/11/2026): la prima cosa da leggere è
+   * lo stato degli incassi, poi i fornitori. L'IVA della commessa sta in fondo alla pagina.
+   */
+  incassi?: ReactNode;
+  /** false = l'IVA della commessa la mostra chi chiama, più in basso. */
+  conIva?: boolean;
 }
 
-export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriSubappalti }: Props) {
+export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriSubappalti, incassi, conIva = true }: Props) {
   const { data, isLoading, isError, refetch } = useQuadroPagamenti(orderId);
   const [filtro, setFiltro] = useState<FiltroUscite>("aperte");
   const [costoAperto, setCostoAperto] = useState<string | null>(null);
@@ -103,8 +110,11 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
         </p>
       )}
 
-      {/* ── IVA della commessa: a debito, a credito, saldo ── */}
-      {mostraIncassi && mostraUscite && <IvaCommessa orderId={orderId} />}
+      {/* ── Incassi dal cliente: le rate ── */}
+      {incassi}
+
+      {/* ── SAL emessi al cliente ── */}
+      {mostraIncassi && data.sal_cliente.length > 0 && <SalCliente sal={data.sal_cliente} />}
 
       {/* ── Da pagare ── */}
       {mostraUscite && (
@@ -152,36 +162,35 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
         </Card>
       )}
 
-      {/* ── SAL del cliente ── le rate (con fattura, stato e «Registra incasso») stanno nel
-          piano pagamenti subito sotto: qui non si ripetono. */}
-      {mostraIncassi && data.sal_cliente.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base"><ArrowDownLeft className="h-5 w-5 text-primary" aria-hidden="true" />Incassi dal cliente</CardTitle>
-            <p className="text-sm text-muted-foreground">I SAL emessi al cliente e la rata che li incassa. Rate, fatture e incassi si gestiscono nel piano pagamenti qui sotto.</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {data.sal_cliente.length > 0 && (
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">SAL del cliente</p>
-                <ul className="flex flex-wrap gap-2" aria-label="SAL del cliente">
-                  {data.sal_cliente.map((s) => (
-                    <li key={s.id} className="rounded-md border px-3 py-2 text-sm">
-                      <span className="font-semibold">SAL {s.numero_sal}</span> · {dataIt(s.data_emissione)} · {s.importo_sal_ivato != null
-                        ? <>{formatCurrency(s.importo_sal_ivato)} <span className="text-xs text-muted-foreground">IVA inclusa ({formatCurrency(s.importo_sal ?? 0)} + IVA {Number(s.iva_pct ?? 0).toLocaleString("it-IT")}%)</span></>
-                        : formatCurrency(Number(s.importo_totale ?? 0))}
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${s.incassato ? "bg-green-50 text-green-800" : s.rata ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
-                        {s.incassato ? "incassato" : s.rata ? `da incassare con «${s.rata}»` : s.stato === "approvato" ? "approvato, senza rata" : s.stato ?? "bozza"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* ── IVA della commessa: a debito, a credito, saldo ── */}
+      {conIva && mostraIncassi && mostraUscite && <IvaCommessa orderId={orderId} />}
     </div>
+  );
+}
+
+/** I SAL emessi al cliente e la rata che li incassa: le rate si gestiscono nella scheda degli incassi. */
+function SalCliente({ sal }: { sal: ReturnType<typeof normalizzaQuadro>["sal_cliente"] }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base"><ArrowDownLeft className="h-5 w-5 text-primary" aria-hidden="true" />SAL emessi al cliente</CardTitle>
+        <p className="text-sm text-muted-foreground">Ogni SAL e la rata che lo incassa: rate, fatture e incassi si gestiscono negli incassi qui sopra.</p>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-wrap gap-2" aria-label="SAL del cliente">
+          {sal.map((s) => (
+            <li key={s.id} className="rounded-md border px-3 py-2 text-sm">
+              <span className="font-semibold">SAL {s.numero_sal}</span> · {dataIt(s.data_emissione)} · {s.importo_sal_ivato != null
+                ? <>{formatCurrency(s.importo_sal_ivato)} <span className="text-xs text-muted-foreground">IVA inclusa ({formatCurrency(s.importo_sal ?? 0)} + IVA {Number(s.iva_pct ?? 0).toLocaleString("it-IT")}%)</span></>
+                : formatCurrency(Number(s.importo_totale ?? 0))}
+              <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${s.incassato ? "bg-green-50 text-green-800" : s.rata ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
+                {s.incassato ? "incassato" : s.rata ? `da incassare con «${s.rata}»` : s.stato === "approvato" ? "approvato, senza rata" : s.stato ?? "bozza"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 

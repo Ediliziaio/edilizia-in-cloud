@@ -14,7 +14,7 @@ import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Wallet, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
@@ -24,7 +24,9 @@ import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
-import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
+import { AltroIncassiCommessa } from "@/components/orders/AltroIncassiCommessa";
+import { PrevisioneCassaMateriali } from "@/components/orders/PrevisioneCassaMateriali";
+import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -1372,11 +1374,9 @@ function OrderDetailInner() {
   // Materiali IVA inclusa, come gli incassi con cui si confrontano.
   const costoMaterialiGross = costoMaterialiIvato(displayItems);
   const saldoResiduoGross = Math.max(0, cashTotalGross - collectedGross);
-  const cassaDopoMateriali = collectedGross - costoMaterialiGross; // < 0 ⇒ anticipo
   // One data/permission boundary, placed in the active Cantiere layout only.
   // Framework contracts keep their intervention workspace, without losing figures.
   const figureResponsabilita = companyId && id ? <div id="section-figure-responsabilita" className="scroll-mt-24"><ErrorBoundary><IncarichiCantiere key={`${companyId}:${id}`} companyId={companyId} orderId={id} compact /></ErrorBoundary></div> : null;
-  const accontoCopreMateriali = costoMaterialiGross <= 0 || collectedGross >= costoMaterialiGross;
   const saldoDate =
     displayInstallments
       .filter((i) => !i.is_paid && i.expected_date)
@@ -1932,49 +1932,62 @@ function OrderDetailInner() {
 
             {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
             {activeEconomiaView === "pagamenti" && <>
-            {/* Lo stato in una lettura: incassi e SAL del cliente, e ogni uscita
-                (fornitori, subappalti e ditte, professionisti, noleggi, extra)
-                con fattura, pagato, residuo e scadenza. */}
+            {/* Lo stato in una lettura (01/11/2026): i quattro numeri, poi le rate del cliente, poi i SAL
+                emessi, poi ogni uscita verso fornitori, subappalti, ditte, professionisti, noleggi ed extra.
+                IVA, ritenute, blocca prezzo e bonus in fondo; provvigioni e «Chi finanzia il cantiere» in
+                Margini e costi. */}
             <QuadroPagamentiCommessa
               orderId={id!}
               mostraIncassi={permissions.canViewOrderAmounts}
               mostraUscite={permissions.canViewCosts}
               onApriSubappalti={() => navigateTo({ tab: "finanza", economiaView: "manodopera" })}
+              conIva={false}
+              incassi={permissions.canViewOrderAmounts ? (
+                <div id="section-pagamenti" className="scroll-mt-24">
+                  <OrdineEconomico
+                    orderId={id!}
+                    totalAmount={agreedAmount}
+                    vatRate={order.vat_rate ?? 22}
+                    paymentType={(order.payment_type as PaymentType) || "standard"}
+                    installments={displayInstallments}
+                    hasBuildingBonus={order.has_building_bonus}
+                    financingCost={order.financing_cost ?? undefined}
+                    collectedAmount={collectedAmount}
+                    varianti={variantiDatate}
+                    onInstallmentPaidToggle={handleInstallmentPaidToggle}
+                    onInstallmentDateChange={handleInstallmentDateChange}
+                    orderCode={order.order_code}
+                    conPrimaNota={permissions.canViewPrimaNota}
+                    clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
+                    customerId={order.customer_id}
+                    pivaImpresa={effectiveCompany?.vat_number ?? null}
+                  />
+                </div>
+              ) : undefined}
             />
-            <div id="section-pagamenti" className="scroll-mt-24">
-              {permissions.canViewOrderAmounts && (
-                <OrdineEconomico
-                  orderId={id!}
-                  totalAmount={agreedAmount}
-                  vatRate={order.vat_rate ?? 22}
-                  paymentType={
-                    (order.payment_type as PaymentType) || "standard"
-                  }
-                  installments={displayInstallments}
-                  hasBuildingBonus={order.has_building_bonus}
-                  financingCost={order.financing_cost ?? undefined}
-                  collectedAmount={collectedAmount}
-                  varianti={variantiDatate}
-                  onInstallmentPaidToggle={handleInstallmentPaidToggle}
-                  onInstallmentDateChange={handleInstallmentDateChange}
-                  orderCode={order.order_code}
-                  conPrimaNota={permissions.canViewPrimaNota}
-                  clienteNome={
-                    order.customer
-                      ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim()
-                      : null
-                  }
-                  customerId={order.customer_id}
-                  pivaImpresa={effectiveCompany?.vat_number ?? null}
-                />
-              )}
-            </div>
+            <AltroIncassiCommessa
+              orderId={id!}
+              vatRate={order.vat_rate ?? 22}
+              hasBuildingBonus={order.has_building_bonus}
+              customerId={order.customer_id}
+              saldoPagato={displayInstallments.some((i) => i.type === "balance" && i.is_paid)}
+              pivaImpresa={effectiveCompany?.vat_number ?? null}
+              conIva={permissions.canViewOrderAmounts && permissions.canViewCosts}
+              conImporti={permissions.canViewOrderAmounts}
+            />
+            </>}
 
-            {/* Chi finanzia il cantiere: cassa consuntiva — prima della previsione
-                qui sotto (quando ci sono movimenti, il consuntivo conta di più).
-                Vendite+costi → entrambi i permessi. L'ancora serve alla fascia
-                verdetto in Panoramica, su tutti i dispositivi. */}
-            {permissions.canViewOrderAmounts && permissions.canViewCosts && (
+            {/* Margini e costi (01/11/2026): dopo il conto economico, le provvigioni dei venditori (sono un
+                costo), chi finanzia il cantiere coi movimenti veri e la previsione sui materiali. Stavano
+                in fondo agli incassi, dove nessuno le trovava. */}
+            {activeEconomiaView === "margini" && permissions.canViewMargins && permissions.canViewOrderAmounts && (
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Provvigioni non disponibili. Ricarica la pagina per riprovare.</p>}>
+                <div className="max-sm:hidden">
+                  <OrderCommissions orderId={id!} totalAmount={agreedAmount} collectedAmount={collectedAmount} vatRate={order.vat_rate ?? 22} />
+                </div>
+              </ErrorBoundary>
+            )}
+            {activeEconomiaView === "margini" && permissions.canViewOrderAmounts && permissions.canViewCosts && (
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Movimenti di cassa non disponibili. Ricarica la pagina per riprovare.</p>}>
                 <EsposizioneCommessa
                   orderId={id!}
@@ -1987,112 +2000,11 @@ function OrderDetailInner() {
                   avanzamentoPct={avanzamentoPct}
                   anchorId="esposizione-commessa"
                 />
+                <div className="mt-4">
+                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} />
+                </div>
               </ErrorBoundary>
             )}
-
-            {/* Cassa della commessa — timeline acconto → materiali → saldo.
-                Mostra l'eventuale anticipo da sostenere (capitale circolante)
-                quando l'acconto non copre i fornitori. Additiva, non tocca il
-                Conto economico. Richiede ANCHE canViewCosts: il costo
-                materiali dei fornitori è metà del suo messaggio. */}
-            {/* Mobile no: è una stima d'ufficio (materiali contro acconto). */}
-            {permissions.canViewOrderAmounts &&
-              permissions.canViewCosts &&
-              (collectedGross > 0 || costoMaterialiGross > 0) && (
-                <details className="rounded-lg border border-slate-300 bg-white">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-blue-950">Stima di cassa sui materiali · apri dettaglio</summary>
-                <QuoteCard
-                  title={
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${accontoCopreMateriali ? "bg-emerald-500" : "bg-red-500"}`}
-                      />
-                      Cassa della commessa
-                    </span>
-                  }
-                  icon={<Wallet className="h-4 w-4" />}
-                >
-                  <div className="space-y-3">
-                    <p
-                      className={`text-[13px] leading-snug ${accontoCopreMateriali ? "text-emerald-700" : "text-red-600"}`}
-                    >
-                      {accontoCopreMateriali ? (
-                        <>
-                          L'incassato copre il costo dei materiali:
-                          nessun anticipo richiesto.
-                        </>
-                      ) : (
-                        <>
-                          L'incassato (
-                          <strong>{formatCurrency(collectedGross)}</strong>) non
-                          copre i materiali (
-                          <strong>{formatCurrency(costoMaterialiGross)}</strong>
-                          ): se paghi tutti i materiali prima dei prossimi incassi, il fabbisogno stimato è{" "}
-                          <strong>
-                            {formatCurrency(Math.abs(cassaDopoMateriali))}
-                          </strong>
-                        {saldoDate && new Date(saldoDate).getTime() >= Date.now() ? (
-                            <>
-                              {" "}
-                              fino al saldo del{" "}
-                              <strong>
-                                {format(new Date(saldoDate), "dd/MM/yyyy")}
-                              </strong>
-                            </>
-                          ) : null}
-                          .
-                        </>
-                      )}
-                    </p>
-                    <div className="rounded-lg border bg-muted/20 text-[13px]">
-                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                        <span className="text-muted-foreground">
-                          Incassato
-                        </span>
-                        <span className="font-medium text-emerald-600">
-                          + {formatCurrency(collectedGross)}
-                        </span>
-                      </div>
-                      {costoMaterialiGross > 0 && (
-                        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                          <span className="text-muted-foreground">
-                            Costo materiali (fornitori)
-                          </span>
-                          <span className="font-medium text-slate-700">
-                            − {formatCurrency(costoMaterialiGross)}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                        <span className="font-medium text-foreground">
-                          Punto minimo di cassa
-                        </span>
-                        <span
-                          className={`font-semibold ${cassaDopoMateriali < 0 ? "text-red-600" : "text-emerald-600"}`}
-                        >
-                          {formatCurrency(cassaDopoMateriali)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between px-3 py-2">
-                        <span className="text-muted-foreground">
-                          Saldo a fine lavori
-                          {saldoDate
-                            ? ` · ${format(new Date(saldoDate), "dd/MM/yyyy")}`
-                            : ""}
-                        </span>
-                        <span className="font-medium text-emerald-600">
-                          + {formatCurrency(saldoResiduoGross)}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Stima sui materiali · manodopera e altre spese escluse.
-                    </p>
-                  </div>
-                </QuoteCard>
-                </details>
-              )}
-            </>}
 
             {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
                 e si registra al computer. */}
@@ -2101,9 +2013,6 @@ function OrderDetailInner() {
               <OrderErrors orderId={id!} />
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
-            {activeEconomiaView === "pagamenti" && <div id="section-ritenute" className="scroll-mt-24">
-              <RitenuteTab orderId={id!} />
-            </div>}
             {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}

@@ -932,220 +932,220 @@ export function FinancialSummaryReadOnly({
     return format(new Date(dateStr), "dd/MM/yyyy", { locale: it });
   };
 
-  // SAL semplificato (richiesta utente): nel dettaglio commessa ogni rata si
-  // gestisce direttamente — bottoni Pagato/Non pagato ben visibili (prima era
-  // uno switch microscopico senza etichetta che nessuno riconosceva), data
-  // incasso/prevista modificabile inline, evidenza rossa sulle scadute.
+  // Ogni rata in una riga (01/11/2026, Dimora): prima lo STATO — incassata, da incassare, scaduta — poi
+  // importo, fattura e data. L'azienda incassa: «Incassata», non «Pagato» (pagato è quello che dà lei).
+  const oggi = new Date();
+  oggi.setHours(0, 0, 0, 0);
+  const giorniDa = (d: string) => Math.round((oggi.getTime() - new Date(d).setHours(0, 0, 0, 0)) / 86_400_000);
   const renderPaymentRow = (inst: Installment, displayAmount?: number) => {
     const amount = displayAmount ?? inst.amount;
     const partialPaid = Number(inst.fattura?.importo_pagato ?? 0);
     const isPartial = !inst.is_paid && partialPaid > 0 && partialPaid < amount;
     if (amount <= 0 && inst.type !== 'balance') return null;
 
-    const oggi = new Date();
-    oggi.setHours(0, 0, 0, 0);
     const scaduta = !inst.is_paid && !!inst.expected_date && new Date(inst.expected_date) < oggi;
     const canEditDate = !!onInstallmentDateChange && !!inst.id;
     // La data prevista di una rata a evento è quella dell'evento (la tiene il database): non si scrive a
     // mano. La data dell'incasso, invece, si scrive come sempre.
     const aEvento = !!inst.trigger_evento && inst.trigger_evento !== 'data_fissa';
     const canEditExpected = canEditDate && !aEvento;
+    const stato = inst.is_paid ? "incassata" : scaduta ? "scaduta" : isPartial ? "parziale" : "da_incassare";
+    const STILE = {
+      incassata: { punto: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-800 ring-emerald-200", testo: "Incassata" },
+      da_incassare: { punto: "bg-amber-400", pill: "bg-amber-50 text-amber-800 ring-amber-200", testo: "Da incassare" },
+      parziale: { punto: "bg-sky-500", pill: "bg-sky-50 text-sky-800 ring-sky-200", testo: "Incassata in parte" },
+      scaduta: { punto: "bg-red-500", pill: "bg-red-50 text-red-800 ring-red-200", testo: "Scaduta" },
+    }[stato];
+    // La data si legge nel selettore accanto quando c'è: qui non si ripete. Resta per le scadute (con i giorni).
+    const quando = inst.is_paid
+      ? (inst.paid_date && !canEditDate ? `il ${formatPaymentDate(inst.paid_date)}` : null)
+      : scaduta && inst.expected_date
+        ? `doveva entrare il ${formatPaymentDate(inst.expected_date)} · da ${giorniDa(inst.expected_date)} giorni`
+        : aEvento
+          ? `Si incassa ${quandoSiIncassa(inst.trigger_evento, inst.trigger_numero)}${inst.expected_date ? ` · il ${formatPaymentDate(inst.expected_date)}` : " · data ancora da conoscere"}`
+          : canEditExpected ? null : inst.expected_date ? `prevista il ${formatPaymentDate(inst.expected_date)}` : "senza data prevista";
+    // Al telefono il selettore della data non c'è (si corregge dal computer): la data si legge qui.
+    const dataTelefono = inst.is_paid
+      ? (inst.paid_date ? `il ${formatPaymentDate(inst.paid_date)}` : null)
+      : inst.expected_date ? `prevista il ${formatPaymentDate(inst.expected_date)}` : null;
 
     return (
-      <div
+      <li
         key={inst.position}
         className={cn(
-          "p-3 rounded-lg space-y-2",
-          scaduta
-            ? "bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-900"
-            : "bg-muted/30",
+          // Telefono (01/11/2026): tre righe al massimo — nome, stato e importo; data o fattura; comandi.
+          "grid gap-x-3 gap-y-1.5 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-y-2 sm:py-3",
+          stato === "scaduta" && "bg-red-50/60 dark:bg-red-950/20",
         )}
       >
-        <div className={cn("flex justify-between gap-2", inst.type === 'balance' && "pt-2 border-t")}>
-          <span className={cn("flex items-center gap-2 min-w-0", inst.type === 'balance' ? "font-medium" : "text-muted-foreground")}>
-            <span className="truncate">{inst.label}</span>
-            {scaduta && (
-              <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/50 dark:text-red-300">
-                Scaduta
-              </span>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span aria-hidden="true" className={cn("mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full", STILE.punto)} />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-x-2">
+              <span className="min-w-0 truncate font-medium">{inst.label}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", STILE.pill)}>{STILE.testo}</span>
+              <span className={cn("ml-auto shrink-0 font-semibold tabular-nums sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>
+            </p>
+            {/* Seconda riga: quando (al telefono anche la data, che al computer sta nel selettore) e fattura. */}
+            {(quando || isPartial || dataTelefono || inst.fattura) && (
+              <p className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug", stato === "scaduta" ? "font-medium text-red-700" : "text-muted-foreground")}>
+                {quando && <span>{quando}</span>}
+                {!quando && dataTelefono && <span className="sm:hidden">{dataTelefono}</span>}
+                {isPartial && <span>entrati {formatCurrency(partialPaid)}, restano {formatCurrency(Math.max(0, amount - partialPaid))}</span>}
+                {/* La fattura interna che incassa la rata (25/09/2026): pagata l'una, pagata l'altra. */}
+                {inst.fattura && (
+                  <Link to={`/azienda/documenti/${inst.fattura.id}/dettaglio`} className="tap-compact inline-flex items-center gap-1 font-normal text-primary hover:underline">
+                    <FileText className="h-3 w-3" />
+                    {inst.fattura.stato === "bozza" ? "Fattura in bozza" : `Fattura n. ${inst.fattura.numero ?? ""}`}
+                  </Link>
+                )}
+              </p>
             )}
-          </span>
-          <span className={inst.type === 'balance' ? "font-bold text-lg max-sm:text-base" : "text-primary font-medium"}>
-            {formatCurrency(amount)}
-          </span>
+          </div>
         </div>
-        {/* La fattura interna che incassa la rata (25/09/2026): pagata l'una,
-            pagata l'altra. */}
-        {inst.fattura && (
-          <Link
-            to={`/azienda/documenti/${inst.fattura.id}/dettaglio`}
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            <FileText className="h-3 w-3" />
-            {inst.fattura.stato === "bozza" ? "Fattura in bozza" : `Fattura n. ${inst.fattura.numero ?? ""}`}
-          </Link>
-        )}
-        {amount > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {onInstallmentPaidToggle ? (
-              <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato pagamento ${inst.label}`}>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={!inst.is_paid}
-                  onClick={() => inst.is_paid && onInstallmentPaidToggle(inst, false)}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    !inst.is_paid
-                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-                      : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  <Clock className="h-3 w-3" />
-                  {isPartial ? 'Parziale' : 'Non pagato'}
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={!!inst.is_paid}
-                  onClick={() => !inst.is_paid && onInstallmentPaidToggle(inst, true)}
-                  className={cn(
-                    "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                    inst.is_paid
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
-                      : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  <Check className="h-3 w-3" />
-                  {inst.type === 'financing' ? 'Incassato' : 'Pagato'}
-                </button>
-              </div>
-            ) : inst.is_paid ? (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <Check className="h-3 w-3" />
-                {inst.type === 'financing' ? 'Incassato' : 'Pagato'}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-amber-600">
-                <Clock className="h-3 w-3" />
-                {isPartial ? 'Incasso parziale' : 'In attesa'}
-              </span>
-            )}
-
-            {isPartial && (
-              <span className="text-xs text-muted-foreground">
-                Incassato {formatCurrency(partialPaid)} · Residuo {formatCurrency(Math.max(0, amount - partialPaid))}
-              </span>
-            )}
-
-            {/* Data: modificabile inline quando possibile, altrimenti testo */}
-            {inst.is_paid ? (
-              canEditDate ? (
-                <DatePickerField
-                  label="Data incasso"
-                  date={inst.paid_date ? new Date(inst.paid_date) : undefined}
-                  onDateChange={(d) => onInstallmentDateChange!(inst, 'paid_date', d)}
-                />
-              ) : (
-                inst.paid_date && (
-                  <span className="text-xs text-muted-foreground">il {formatPaymentDate(inst.paid_date)}</span>
-                )
-              )
-            ) : canEditExpected ? (
-              <DatePickerField
-                label="Data prevista"
-                date={inst.expected_date ? new Date(inst.expected_date) : undefined}
-                onDateChange={(d) => onInstallmentDateChange!(inst, 'expected_date', d)}
-              />
-            ) : aEvento ? (
-              <span className="text-xs text-muted-foreground">
-                Si incassa {quandoSiIncassa(inst.trigger_evento, inst.trigger_numero)}
-                {inst.expected_date ? ` · il ${formatPaymentDate(inst.expected_date)}` : " · data ancora da conoscere"}
-              </span>
-            ) : (
-              inst.expected_date && (
-                <span className="text-xs text-muted-foreground">Previsto {formatPaymentDate(inst.expected_date)}</span>
-              )
-            )}
-          </div>
-        )}
-        {/* Rata incassata → un tap e la registrazione nasce in Prima Nota
-            (solo rate su DB: senza id non c'e' aggancio idempotente). */}
-        {/* Con una fattura interna l'incasso in prima nota lo scrive la fattura:
-            un secondo sarebbe un doppione (e il database lo rifiuta). */}
-        {conPrimaNota && orderId && inst.is_paid && !!inst.id && amount > 0 && !inst.documento_fiscale_id && (
-          <div className="flex justify-end">
-            <RegistraIncassoPrimaNota
-              inst={inst}
-              amount={amount}
-              orderId={orderId}
-              orderCode={orderCode}
-              entryId={incassiRegistrati[inst.id]}
-            />
-          </div>
-        )}
-      </div>
+        <div className="flex flex-wrap items-center gap-1.5 pl-5 sm:justify-end sm:gap-2 sm:pl-0">
+          <span className={cn("text-base font-semibold tabular-nums max-sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>
+          {amount > 0 && onInstallmentPaidToggle && (
+            <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato incasso ${inst.label}`}>
+              <button
+                type="button" role="radio" aria-checked={!inst.is_paid}
+                onClick={() => inst.is_paid && onInstallmentPaidToggle(inst, false)}
+                className={cn("flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-2.5",
+                  !inst.is_paid ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" : "text-muted-foreground hover:bg-muted")}
+              >
+                <Clock className="h-3 w-3 max-sm:hidden" />Da incassare
+              </button>
+              <button
+                type="button" role="radio" aria-checked={!!inst.is_paid}
+                onClick={() => !inst.is_paid && onInstallmentPaidToggle(inst, true)}
+                className={cn("flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-2.5",
+                  inst.is_paid ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" : "text-muted-foreground hover:bg-muted")}
+              >
+                <Check className="h-3 w-3 max-sm:hidden" />Incassata
+              </button>
+            </div>
+          )}
+          {/* Data: si corregge da qui. Incassata → data dell'incasso; da incassare → data prevista. */}
+          {amount > 0 && (inst.is_paid ? canEditDate : canEditExpected) && (
+            <span className="max-sm:hidden"><DatePickerField
+              label={inst.is_paid ? "Data incasso" : "Data prevista"}
+              date={inst.is_paid ? (inst.paid_date ? new Date(inst.paid_date) : undefined) : (inst.expected_date ? new Date(inst.expected_date) : undefined)}
+              onDateChange={(d) => onInstallmentDateChange!(inst, inst.is_paid ? 'paid_date' : 'expected_date', d)}
+            /></span>
+          )}
+          {/* Rata incassata → un tap e la registrazione nasce in Prima Nota (solo rate su DB: senza id non
+              c'e' aggancio idempotente). Con una fattura interna l'incasso lo scrive la fattura: un secondo
+              sarebbe un doppione (e il database lo rifiuta). */}
+          {conPrimaNota && orderId && inst.is_paid && !!inst.id && amount > 0 && !inst.documento_fiscale_id && (
+            <RegistraIncassoPrimaNota inst={inst} amount={amount} orderId={orderId} orderCode={orderCode} entryId={incassiRegistrati[inst.id]} />
+          )}
+        </div>
+      </li>
     );
   };
 
-  // Mobile: testo a 14px e niente riquadri incassato/da incassare con la
-  // barra: li ha già la testata della commessa. Restano totali e rate.
+  const visibili = installments.filter(i => i.amount > 0 || i.type === 'balance');
+  const incassate = visibili.filter(i => i.is_paid).length;
+  // Rate ancora da incassare, con l'importo MOSTRATO (per il saldo quello calcolato): sono i candidati della
+  // riconciliazione banca. Senza le rate con una fattura interna: il bonifico va sulla fattura, e la rata la segue.
+  const daIncassare: RataDaIncassare[] = installments
+    .filter(i => !i.is_paid && !!i.id && !i.documento_fiscale_id)
+    .map(i => ({ id: i.id!, label: i.label, amount: importoRata(i), expected_date: i.expected_date ?? null }))
+    .filter(r => r.amount > 0);
+  const prossima = installments
+    .filter(i => !i.is_paid && importoRata(i) > 0)
+    .sort((a, b) => String(a.expected_date ?? "9999").localeCompare(String(b.expected_date ?? "9999")))[0];
+  const incassabile = totalWithVat - financingCostValue;
+  const pct = incassabile > 0 ? Math.min(100, Math.round((collectedAmount / incassabile) * 100)) : 0;
+  const ordinate = [
+    ...installments.filter(i => i.type === 'deposit'),
+    ...(paymentType === 'financing' ? installments.filter(i => i.type === 'financing') : []),
+    // Rate intermedie (SAL) e saldo finale: tutte le righe 'balance' in ordine di posizione.
+    ...installments.filter(i => i.type === 'balance').sort((a, b) => a.position - b.position),
+  ];
+
   return (
     <Card>
-      <CardHeader className="max-sm:p-3 max-sm:pb-2">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <Euro className="h-5 w-5 max-sm:h-4 max-sm:w-4" />
-          Riepilogo
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Imponibile</span>
-          <span className="font-medium">{formatCurrency(totalAmount)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">IVA ({vatRate}%)</span>
-          <span>{formatCurrency(vatAmount)}</span>
-        </div>
-        <div className="flex justify-between text-primary font-medium">
-          <span>Totale con IVA</span>
-          <span>{formatCurrency(totalWithVat)}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm max-sm:hidden">
-          <div className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">
-            <div className="text-[11px]">Incassato</div>
-            <div className="font-semibold">{formatCurrency(collectedAmount)}</div>
+      <CardHeader className="space-y-3 max-sm:p-3 max-sm:pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Euro className="h-5 w-5 max-sm:h-4 max-sm:w-4" />
+              Incassi dal cliente
+            </CardTitle>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {visibili.length === 0
+                ? "Nessuna rata ancora."
+                : incassate === visibili.length
+                  ? `Tutte le ${visibili.length} rate incassate.`
+                  : `${incassate} di ${visibili.length} rate incassate${prossima ? ` · prossima: ${prossima.label}${prossima.expected_date ? ` il ${formatPaymentDate(prossima.expected_date)}` : ""}` : ""}.`}
+            </p>
           </div>
-          <div className="rounded-md bg-amber-50 px-2 py-1 text-amber-700">
-            <div className="text-[11px]">Da incassare</div>
-            <div className="font-semibold">{formatCurrency(dueAmount)}</div>
-          </div>
+          {conPrimaNota && orderId && daIncassare.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setRiconciliaOpen(true)}
+              className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-orange-50 hover:text-orange-700 max-sm:hidden"
+              title="Cerca fra gli accrediti bancari i bonifici che combaciano con le rate da incassare"
+            >
+              <Landmark className="h-3.5 w-3.5" />
+              Riconcilia con banca
+            </button>
+          )}
+          {conPrimaNota && orderId && (
+            <RiconciliaRateBancaDialog
+              open={riconciliaOpen}
+              onOpenChange={setRiconciliaOpen}
+              companyId={effectiveCompany?.id}
+              orderId={orderId}
+              orderCode={orderCode}
+              clienteNome={clienteNome}
+              rateNonPagate={daIncassare}
+            />
+          )}
         </div>
-        {/* Avanzamento incasso a colpo d'occhio */}
-        {(() => {
-          const incassabile = totalWithVat - financingCostValue;
-          if (incassabile <= 0) return null;
-          const pct = Math.min(100, Math.round((collectedAmount / incassabile) * 100));
-          return (
-            <div className="space-y-1 max-sm:hidden">
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <p className="text-right text-[11px] text-muted-foreground">{pct}% incassato</p>
+        {incassabile > 0 && (
+          <div className="space-y-1">
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Quanto è incassato" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
             </div>
-          );
-        })()}
+            <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+              <span><strong className="text-emerald-700">{formatCurrency(collectedAmount)}</strong> incassati · {pct}%</span>
+              <span>{dueAmount > 0 ? <>da incassare <strong className="text-amber-700">{formatCurrency(dueAmount)}</strong></> : "niente da incassare"}</span>
+            </p>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
+        {ordinate.length > 0 ? (
+          <ul className="divide-y overflow-hidden rounded-lg border" aria-label="Rate del cliente">
+            {ordinate.map(inst => renderPaymentRow(inst, inst.type === 'balance' ? importoRata(inst) : undefined))}
+          </ul>
+        ) : (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare: nessuna rata o scadenza generata dal contratto.</p>
+        )}
+
+        {paymentType === 'financing' && financingCostValue > 0 && (
+          <p className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Costo della finanziaria</span>
+            <span className="font-medium text-destructive">- {formatCurrency(financingCostValue)}</span>
+          </p>
+        )}
+
+        {/* Il contratto, in fondo e in piccolo: è il riferimento, non la prima cosa da leggere. */}
+        <p className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
+          <span>Contratto: imponibile <span className="tabular-nums text-foreground">{formatCurrency(totalAmount)}</span> + IVA {vatRate}% <span className="tabular-nums">{formatCurrency(vatAmount)}</span></span>
+          <span>Totale <strong className="tabular-nums text-foreground">{formatCurrency(totalWithVat)}</strong> IVA inclusa</span>
+        </p>
+
         {hasBuildingBonus && (() => {
           // Base della banca: lordo scorporato al 22% convenzionale, non con
           // l'aliquota del documento (circolare AdE 40/E/2010).
           const bankTaxableBase = totalWithVat / (1 + IVA_SCORPORO_BANCA);
           const bankWithholding = ritenutaSuLordo(totalWithVat);
           return (
-            <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
-              <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1">
+            <div className="space-y-1 rounded border border-amber-200 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="flex items-center gap-1 text-xs font-medium text-amber-800 dark:text-amber-200">
                 <Building2 className="h-3 w-3" />
                 Ritenuta Bonus Edilizio
               </p>
@@ -1163,81 +1163,6 @@ export function FinancialSummaryReadOnly({
             </div>
           );
         })()}
-
-        <div className="pt-3 border-t space-y-3">
-          {/* Intestazione sezione: rende riconoscibile la gestione pagamenti */}
-          {(() => {
-            const visibili = installments.filter(i => i.amount > 0 || i.type === 'balance');
-            const pagate = visibili.filter(i => i.is_paid).length;
-            // Rate ancora da incassare, con l'importo MOSTRATO (per il saldo
-            // quello calcolato): sono i candidati della riconciliazione banca.
-            // Senza le rate con una fattura interna: il bonifico va sulla
-            // fattura (registro incassi o banca), e la rata la segue.
-            const daIncassare: RataDaIncassare[] = installments
-              .filter(i => !i.is_paid && !!i.id && !i.documento_fiscale_id)
-              .map(i => ({
-                id: i.id!,
-                label: i.label,
-                amount: importoRata(i),
-                expected_date: i.expected_date ?? null,
-              }))
-              .filter(r => r.amount > 0);
-            return (
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">Pagamenti</span>
-                <span className="flex items-center gap-2">
-                  {conPrimaNota && orderId && daIncassare.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setRiconciliaOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-orange-700 hover:bg-orange-50 transition-colors"
-                      title="Cerca fra gli accrediti bancari i bonifici che combaciano con le rate da incassare"
-                    >
-                      <Landmark className="h-3 w-3" />
-                      Riconcilia con banca
-                    </button>
-                  )}
-                  <span className="text-xs text-muted-foreground">{pagate}/{visibili.length} rate incassate</span>
-                </span>
-                {conPrimaNota && orderId && (
-                  <RiconciliaRateBancaDialog
-                    open={riconciliaOpen}
-                    onOpenChange={setRiconciliaOpen}
-                    companyId={effectiveCompany?.id}
-                    orderId={orderId}
-                    orderCode={orderCode}
-                    clienteNome={clienteNome}
-                    rateNonPagate={daIncassare}
-                  />
-                )}
-              </div>
-            );
-          })()}
-          {/* Deposit installments */}
-          {installments.filter(i => i.type === 'deposit').map(inst => renderPaymentRow(inst))}
-
-          {/* Financing (if applicable) */}
-          {paymentType === 'financing' && (() => {
-            const finInst = installments.find(i => i.type === 'financing');
-            return finInst ? renderPaymentRow(finInst) : null;
-          })()}
-
-          {/* Financing cost */}
-          {paymentType === 'financing' && financingCostValue > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Costo Finanziaria</span>
-              <span className="text-destructive font-medium">- {formatCurrency(financingCostValue)}</span>
-            </div>
-          )}
-
-          {/* Rate intermedie (SAL) e saldo finale: tutte le righe 'balance'
-              in ordine di posizione. Prima veniva mostrata solo la prima,
-              con l'intero residuo come importo. */}
-          {installments
-            .filter(i => i.type === 'balance')
-            .sort((a, b) => a.position - b.position)
-            .map(inst => renderPaymentRow(inst, importoRata(inst)))}
-        </div>
       </CardContent>
     </Card>
   );

@@ -1,10 +1,7 @@
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
 import type { VarianteDatata } from "@/lib/commissions";
-import { OrderCommissions } from "./OrderCommissions";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { Installment } from "@/lib/orderUtils";
-import { BonusRipartizioneCard } from "./BonusRipartizioneCard";
-import { BloccaPrezzoCard } from "./BloccaPrezzoCard";
 import { PianoPagamentiAzioni } from "./PianoPagamentiAzioni";
 
 interface OrdineEconomicoProps {
@@ -43,19 +40,15 @@ export function OrdineEconomico({
   installments,
   hasBuildingBonus,
   financingCost,
-  collectedAmount,
   onInstallmentPaidToggle,
   onInstallmentDateChange,
   orderCode,
   conPrimaNota,
   clienteNome,
-  customerId,
-  pivaImpresa,
   varianti,
 }: OrdineEconomicoProps) {
-  // Le provvigioni sono un dato di margine (vedi usePermissions: can_view_margins
-  // copre "margine e provvigioni"): un ruolo senza quel permesso non deve
-  // vederle solo perche' vede gli importi della commessa.
+  // Piano e rate del cliente. Bonus, blocca prezzo e IVA stanno in fondo alla vista (AltroIncassiCommessa),
+  // le provvigioni in Margini e costi (01/11/2026).
   const permissions = usePermissions();
   return (
     <div className="space-y-4 max-sm:space-y-3">
@@ -84,34 +77,6 @@ export function OrdineEconomico({
         clienteNome={clienteNome}
         varianti={varianti}
       />
-      {/* Bonus, blocca prezzo e provvigioni: conti d'ufficio, dal telefono no. */}
-      <div className="space-y-4 max-sm:hidden">
-      {/* Ripartizione su più bonus: quanti bonifici parlanti servono e con che
-          causale. Si mostra da sé solo se l'azienda l'ha accesa e le righe ci sono. */}
-      <BonusRipartizioneCard
-        orderId={orderId}
-        vatRate={vatRate}
-        hasBuildingBonus={hasBuildingBonus}
-        datiCausale={{ pivaImpresa: pivaImpresa ?? null }}
-      />
-
-      {/* Blocca prezzo: soldi che stanno FUORI dal contratto e vanno restituiti. */}
-      <BloccaPrezzoCard
-        orderId={orderId}
-        customerId={customerId}
-        hasBuildingBonus={hasBuildingBonus}
-        saldoPagato={installments.some((i) => i.type === "balance" && i.is_paid)}
-      />
-
-      {permissions.canViewMargins && (
-        <OrderCommissions
-          orderId={orderId}
-          totalAmount={totalAmount}
-          collectedAmount={collectedAmount}
-          vatRate={vatRate}
-        />
-      )}
-      </div>
     </div>
   );
 }

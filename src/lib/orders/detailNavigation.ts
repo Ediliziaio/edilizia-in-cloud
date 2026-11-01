@@ -34,7 +34,9 @@ export const MATERIALI_VIEWS = [
 export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
 export function resolveEconomiaView(search: string, section?: string): EconomiaView {
   if (section === "section-manodopera-costi") return "manodopera";
-  if (section === "section-pagamenti" || section === "esposizione-commessa" || section === "section-ritenute") return "pagamenti";
+  if (section === "section-pagamenti" || section === "section-ritenute") return "pagamenti";
+  // «Chi finanzia il cantiere» sta in Margini e costi dal 01/11/2026.
+  if (section === "esposizione-commessa") return "margini";
   if (section === "section-rendiconto") return "rendiconto";
   if (section === "section-sal") return "sal";
   if (section === "section-varianti") return "varianti";

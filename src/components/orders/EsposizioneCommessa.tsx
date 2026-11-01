@@ -15,13 +15,12 @@
  */
 import { useMemo } from "react";
 import {
-  Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
+  Area, Bar, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
 import { Banknote, CalendarClock, HandCoins, TrendingDown } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -207,51 +206,47 @@ export function EsposizioneCommessa({
 
   return (
     <Card id={anchorId} className={`scroll-mt-24 border-l-4 ${clienteFinanzia ? "border-l-emerald-500" : "border-l-red-500"}`}>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3 max-sm:p-3 max-sm:pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <HandCoins className={`h-4 w-4 ${clienteFinanzia ? "text-emerald-500" : "text-red-500"}`} />
-          Chi finanzia il cantiere
-        </CardTitle>
-        <Badge
-          variant="outline"
-          className={`text-xs font-semibold ${
-            clienteFinanzia
-              ? "bg-emerald-100 text-emerald-700 border-emerald-300"
-              : "bg-red-100 text-red-700 border-red-300"
-          }`}
-        >
-          {clienteFinanzia ? "+" : "−"}{formatCurrencyCompact(Math.abs(saldoOggi))}
-        </Badge>
-      </CardHeader>
-      {/* Mobile: il segno nella testata e i quattro numeri; frase e grafico al computer. */}
-      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
-        <p className="text-xs text-muted-foreground">{recorded ? 'Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti.' : 'Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota.'}</p>
-        <p className={`text-[13px] leading-snug max-sm:hidden ${clienteFinanzia ? "text-emerald-700" : "text-red-600"}`}>
+      {/* In testa il verdetto, grande (01/11/2026): chi sta mettendo i soldi in questo cantiere, e quanti. */}
+      <CardHeader className="space-y-2 pb-3 max-sm:p-3 max-sm:pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HandCoins className={`h-4 w-4 ${clienteFinanzia ? "text-emerald-500" : "text-red-500"}`} />
+            Chi finanzia il cantiere
+          </CardTitle>
+          <div className="text-right">
+            <p className={`text-2xl font-bold tabular-nums leading-none ${clienteFinanzia ? "text-emerald-700" : "text-red-700"}`}>
+              {clienteFinanzia ? "+" : "−"}{formatCurrency(Math.abs(saldoOggi))}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{clienteFinanzia ? "in cassa grazie al cliente" : "anticipati da te"}</p>
+          </div>
+        </div>
+        <p className={`rounded-lg px-3 py-2 text-sm ${clienteFinanzia ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>
           {clienteFinanzia ? (
-            <>
-              Fin qui il cantiere lo finanzia il cliente: incassato{" "}
-              <strong>{formatCurrency(incassato)}</strong>, pagato <strong>{formatCurrency(uscite)}</strong>.
-            </>
+            <>Fin qui il cantiere lo <strong>finanzia il cliente</strong>: entrati {formatCurrency(incassato)}, usciti {formatCurrency(uscite)}.</>
           ) : (
-            <>
-              Fin qui il cantiere lo stai finanziando tu: hai pagato{" "}
-              <strong>{formatCurrency(Math.abs(saldoOggi))}</strong> più di quanto incassato
-              ({formatCurrency(uscite)} usciti contro {formatCurrency(incassato)}).
-            </>
+            <>Fin qui il cantiere lo <strong>stai finanziando tu</strong>: hai pagato {formatCurrency(Math.abs(saldoOggi))} più di quanto hai incassato ({formatCurrency(uscite)} usciti, {formatCurrency(incassato)} entrati).</>
           )}
         </p>
-
+      </CardHeader>
+      {/* Mobile: verdetto e quattro numeri; il grafico al computer. */}
+      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
         {/* Grafico mensile — solo se c'è una storia da raccontare (≥2 mesi) */}
         {serieMensile.length >= 2 && (
           <div className="max-sm:hidden">
             <div className="mb-1 flex flex-wrap items-center justify-end gap-3 text-[11px]">
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Incassi</span>
               <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>
-              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-900" /> Saldo</span>
+              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-sky-600" /> Cassa del cantiere</span>
             </div>
-            <div className="h-[190px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+            <div className="h-[230px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={serieMensile} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="cassaCantiere" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0284c7" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
                   <YAxis
@@ -270,20 +265,15 @@ export function EsposizioneCommessa({
                     }}
                     formatter={(value, name) => [
                       Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }),
-                      name === "entrate" ? "Incassi" : name === "uscite" ? "Uscite" : "Saldo",
+                      name === "entrate" ? "Incassi del mese" : name === "uscite" ? "Uscite del mese" : "Cassa del cantiere",
                     ]}
                     labelFormatter={(label) => `Mese: ${label}`}
                   />
-                  <Bar dataKey="entrate" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                  <Bar dataKey="uscite" fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                  <Line
-                    type="monotone"
-                    dataKey="saldo"
-                    stroke="#0f172a"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
-                    activeDot={{ r: 4 }}
-                  />
+                  {/* Sotto la linea dello zero il cantiere lo stai finanziando tu. */}
+                  <ReferenceLine y={0} stroke="#94a3b8" />
+                  <Area type="monotone" dataKey="saldo" stroke="#0284c7" strokeWidth={2} fill="url(#cassaCantiere)" dot={{ r: 3, fill: "#0284c7", strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                  <Bar dataKey="entrate" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={16} />
+                  <Bar dataKey="uscite" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={16} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -327,6 +317,7 @@ export function EsposizioneCommessa({
             </span>
           </p>
         )}
+        <p className="text-[11px] text-muted-foreground">{recorded ? "Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti." : "Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota."}</p>
       </CardContent>
     </Card>
   );
