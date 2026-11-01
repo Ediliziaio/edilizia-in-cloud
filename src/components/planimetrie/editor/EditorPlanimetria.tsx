@@ -1125,8 +1125,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   // ─── interfaccia ──────────────────────────────────────────────────────────
   const impianti = useMemo(() => {
     const visibili = (pianta.elementi ?? []).filter((e) => C.visibile(e.stato, vista)).map((e) => ({ id: e.id, tipo: e.tipo, posizione: e.centro, stato: e.stato }));
-    return percorsiDaElementi(visibili);
-  }, [pianta, vista]);
+    return percorsiDaElementi(visibili, dati.locali.map((l) => l.contorno));
+  }, [pianta, vista, dati]);
   const totaliLinee = useMemo(() => {
     const t = new Map<string, number>();
     for (const p of impianti.percorsi) t.set(p.linea, (t.get(p.linea) ?? 0) + p.lunghezzaCm);

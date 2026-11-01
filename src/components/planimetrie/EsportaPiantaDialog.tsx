@@ -207,10 +207,13 @@ export function EsportaPiantaDialog({
         const r = await esportaPdf(vista, cartiglio, { formato: foglio, orientamento, scala: scala === "auto" ? "auto" : Number(scala), stile });
         const disegni = conProspetti ? disegniDellaTavola(statoDisegnato) : [];
         if (disegni.length) {
-          const { accodaTavole } = await import("@/lib/planimetrie/tavole");
-          const t = await accodaTavole(r.dati, disegni, { formato: foglio, intestazione: [titolo, vista.livello].filter(Boolean).join(" — "), primoNumero: 2 });
-          scarica(`${base}-tavola-${foglio}.pdf`, t.dati, "application/pdf");
-          toast.success(`Tavola pronta: pianta 1:${r.scala}, prospetti e sezione 1:${t.scala}`, { description: `${1 + t.fogli} fogli.` });
+          const { accodaTavole, accodaFoglioImpianti } = await import("@/lib/planimetrie/tavole");
+          const intestazione = [titolo, vista.livello].filter(Boolean).join(" — ");
+          const t = await accodaTavole(r.dati, disegni, { formato: foglio, intestazione, primoNumero: 2 });
+          // con prese, sanitari o split: un foglio in più con punti e linee degli impianti
+          const imp = statoDisegnato ? await accodaFoglioImpianti(t.dati, statoDisegnato, { formato: foglio, intestazione, numero: 2 + t.fogli }) : null;
+          scarica(`${base}-tavola-${foglio}.pdf`, imp?.dati ?? t.dati, "application/pdf");
+          toast.success(`Tavola pronta: pianta 1:${r.scala}, prospetti e sezione 1:${t.scala}${imp ? ", impianti" : ""}`, { description: `${1 + t.fogli + (imp ? 1 : 0)} fogli.` });
         } else {
           scarica(`${base}-${foglio}-1-${r.scala}.pdf`, r.dati, "application/pdf");
           toast.success(`PDF pronto in scala 1:${r.scala}`);
@@ -320,7 +323,7 @@ export function EsportaPiantaDialog({
                 <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div>
                     <Label htmlFor="tavola-completa" className="text-xs">Tavola completa</Label>
-                    <p className="text-[11px] text-muted-foreground">Dopo la pianta, i quattro prospetti e una sezione, in scala, nello stesso PDF.</p>
+                    <p className="text-[11px] text-muted-foreground">Dopo la pianta, i quattro prospetti e una sezione, in scala, nello stesso PDF; se ci sono impianti, anche il foglio con punti e linee.</p>
                   </div>
                   <Switch id="tavola-completa" checked={conProspetti} onCheckedChange={setConProspetti} />
                 </div>

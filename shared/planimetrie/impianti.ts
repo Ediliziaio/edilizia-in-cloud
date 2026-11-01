@@ -63,12 +63,26 @@ function piuVicino(da: ElementoImpianto, fra: ElementoImpianto[]): ElementoImpia
  * unità esterna) quella linea non si stima: lo dice `mancano`.
  */
 export function percorsiImpianti(stato: StatoPianta) {
-  return percorsiDaElementi(stato.elementi);
+  return percorsiDaElementi(stato.elementi, stato.locali.map((l) => l.contorno));
+}
+
+function dentroPoligono(p: Punto, poly: readonly Punto[]): boolean {
+  let s = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) s = !s;
+  }
+  return s;
 }
 
 export type PartenzaMancante = "quadro_elettrico" | "collettore" | "colonna_scarico" | "unita_esterna";
 
-export function percorsiDaElementi(elementi: readonly ElementoImpianto[]): { percorsi: Percorso[]; mancano: PartenzaMancante[] } {
+/**
+ * `stanze`: i contorni dei locali. Con le stanze l'elettrico si stima come si posa: dal quadro
+ * una dorsale al punto più vicino di ogni stanza, poi di punto in punto dentro la stanza.
+ * Senza, ogni punto ha la sua linea dal quadro (stima per eccesso).
+ */
+export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze: readonly (readonly Punto[])[] = []): { percorsi: Percorso[]; mancano: PartenzaMancante[] } {
   // quelli da togliere non contano
   const el = elementi.filter((e) => e.stato !== "da_demolire");
   const percorsi: Percorso[] = [];
@@ -87,7 +101,35 @@ export function percorsiDaElementi(elementi: readonly ElementoImpianto[]): { per
   const quadri = tipo("quadro_elettrico");
   const utenzeEl = el.filter((e) => UTENZE_ELETTRICHE.has(e.tipo));
   if (utenzeEl.length && !quadri.length) mancano.push("quadro_elettrico");
-  collega("elettrica", utenzeEl, quadri, (u, s) => quota(s) + quota(u));
+  if (quadri.length && stanze.length) {
+    const gruppi = new Map<number, ElementoImpianto[]>();
+    const soli: ElementoImpianto[] = [];
+    for (const u of utenzeEl) {
+      const i = stanze.findIndex((c) => c.length >= 3 && dentroPoligono(u.posizione, c));
+      if (i < 0) soli.push(u); else gruppi.set(i, [...(gruppi.get(i) ?? []), u]);
+    }
+    collega("elettrica", soli, quadri, (u, s) => quota(s) + quota(u));
+    for (const gruppo of gruppi.values()) {
+      // dorsale: dal quadro al punto più vicino; poi il più vicino fra quelli da collegare
+      const restanti = [...gruppo];
+      let ultimo: ElementoImpianto | null = null;
+      while (restanti.length) {
+        let migliore = 0, da: ElementoImpianto | null = null, d = Infinity;
+        restanti.forEach((u, i) => {
+          const s = ultimo ?? piuVicino(u, quadri)!;
+          const dist = squadra(u.posizione, s.posizione);
+          if (dist < d) { d = dist; migliore = i; da = s; }
+        });
+        const u = restanti.splice(migliore, 1)[0];
+        const s = da!;
+        // si scende al pavimento e si risale a ogni punto
+        percorsi.push({ linea: "elettrica", daId: s.id, aId: u.id, da: s.posizione, a: u.posizione, lunghezzaCm: d + quota(s) + quota(u) });
+        ultimo = u;
+      }
+    }
+  } else {
+    collega("elettrica", utenzeEl, quadri, (u, s) => quota(s) + quota(u));
+  }
 
   // Acqua: dal collettore o dalla caldaia.
   const sorgentiAcqua = el.filter((e) => SORGENTI_ACQUA.includes(e.tipo));

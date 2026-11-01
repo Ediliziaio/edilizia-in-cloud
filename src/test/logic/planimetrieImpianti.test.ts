@@ -31,6 +31,14 @@ describe("linee stimate degli impianti", () => {
     expect(r.percorsi.find((x) => x.aId === "p")!.daId).toBe("q2");
     expect(r.mancano.sort()).toEqual(["collettore", "colonna_scarico", "unita_esterna"]);
   });
+  it("con le stanze: una dorsale per stanza, di punto in punto, più corta della stella", () => {
+    const stanza = [{ x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 1000, y: 400 }, { x: 0, y: 400 }];
+    const el2 = [el("q", "quadro_elettrico", -100, 0), el("a", "presa", 100, 0), el("b", "presa", 300, 0), el("c", "presa", 500, 0)];
+    const stella = percorsiDaElementi(el2).percorsi.reduce((t, p) => t + p.lunghezzaCm, 0);
+    const dorsale = percorsiDaElementi(el2, [stanza]);
+    expect(dorsale.percorsi.map((p) => [p.daId, p.aId])).toEqual([["q", "a"], ["a", "b"], ["b", "c"]]);
+    expect(dorsale.percorsi.reduce((t, p) => t + p.lunghezzaCm, 0)).toBeLessThan(stella);
+  });
   it("i simboli da togliere non contano", () => {
     expect(percorsiDaElementi([el("q", "quadro_elettrico", 0, 0), { ...el("p", "presa", 100, 0), stato: "da_demolire" as const }]).percorsi).toHaveLength(0);
   });
