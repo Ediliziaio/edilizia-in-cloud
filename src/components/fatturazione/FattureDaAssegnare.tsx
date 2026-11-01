@@ -10,6 +10,10 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+// Le letture con i join (costo, fornitore, commessa proposta) superano la profondità dei tipi generati.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import { queryKeys } from "@/lib/queryKeys";
@@ -39,7 +43,7 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("fatture_ricevute")
         .select(
           "id,numero_fattura,data_fattura,cedente_ragione_sociale,totale_documento,order_match_confidenza,costo:company_costs!inner(id,order_id,supplier:suppliers(tipo)),suggerito:orders!fatture_ricevute_order_id_suggerito_fkey(id,order_code,client_name,deleted_at)",
@@ -56,7 +60,7 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
 
   const assegna = useMutation({
     mutationFn: async ({ costoId, orderId }: { costoId: string; orderId: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("company_costs")
         .update({ order_id: orderId })
         .eq("id", costoId)

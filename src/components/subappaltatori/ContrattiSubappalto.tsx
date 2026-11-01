@@ -1002,9 +1002,9 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
   const { data: fatture = [], isLoading: caricoFatture, isError: erroreFatture } = useQuery({
     queryKey: ["fatture-sub-lavori", subId, ids.join(",")],
     queryFn: async () => {
-      const { data, error } = await supabase.from("fatture_ricevute")
+      const { data, error } = await supabase.from("fatture_ricevute" as never)
         .select("id, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id")
-        .in("contratto_subappalto_id", ids);
+        .in("contratto_subappalto_id" as never, ids as never);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{ id: string; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null }>;
     },

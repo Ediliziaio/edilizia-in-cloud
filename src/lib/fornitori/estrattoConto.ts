@@ -70,7 +70,7 @@ export function statoFatture(fatture: FatturaFornitore[], rate: RataFornitore[],
     if (r.fattura_ricevuta_id) perFattura.set(r.fattura_ricevuta_id, [...(perFattura.get(r.fattura_ricevuta_id) ?? []), r]);
     else if (r.company_cost_id) perCosto.set(r.company_cost_id, [...(perCosto.get(r.company_cost_id) ?? []), r]);
   }
-  return fatture.map((f) => {
+  return fatture.map((f): RigaFattura => {
     const importo = importoFattura(f);
     const proprie = (perFattura.get(f.id) ?? (f.company_cost_id ? perCosto.get(f.company_cost_id) : undefined) ?? [])
       .slice()

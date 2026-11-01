@@ -8,6 +8,10 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
+// Le letture con i join (costo, fornitore, commessa proposta) superano la profondità dei tipi generati.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
@@ -52,7 +56,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
         ...variantiPartitaIva(partitaIva).map((v) => `cedente_piva.eq.${v}`),
       ].join(",");
       const fatture = await readAllPages<FatturaFornitore>((from, to) =>
-        supabase
+        db
           .from("fatture_ricevute")
           .select("id,numero_fattura,data_fattura,tipo_documento,totale_documento,netto_a_pagare,stato,company_cost_id,storico_esterno,costo:company_costs(is_paid,paid_date,order_id)")
           .eq("company_id", companyId!)
@@ -64,7 +68,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
       );
       // Le rate: quelle dei costi del fornitore e quelle delle sue fatture.
       const rate = !supplierId ? [] : await readAllPages<RataFornitore>((from, to) =>
-        supabase
+        db
           .from("rate_fornitori")
           .select("id,fattura_ricevuta_id,company_cost_id,numero,scadenza,importo,metodo,stato,pagata_il,cost:company_costs!inner(supplier_id)")
           .eq("company_id", companyId!)
@@ -77,7 +81,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
       const viste = new Set(rate.map((r) => r.id));
       const ids = fatture.map((f) => f.id);
       for (let i = 0; i < ids.length; i += 150) {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from("rate_fornitori")
           .select("id,fattura_ricevuta_id,company_cost_id,numero,scadenza,importo,metodo,stato,pagata_il")
           .eq("company_id", companyId!)
