@@ -92,6 +92,8 @@ export interface PiantaPer3D {
   locali: LocalePer3D[];
   elementi: ElementoPer3D[];
   aree?: AreaPer3D[];
+  /** Il tetto sopra il piano (Livello.tetto): si vede quando c'è il soffitto. */
+  tetto?: { tipo: "piano" | "due_falde" | "padiglione"; pendenza: number; sporto: number };
 }
 
 // ─── Risultato ──────────────────────────────────────────────────────────────
@@ -149,6 +151,8 @@ export interface OpzioniScena {
    * alberi restano sospesi nel vuoto. I limiti della scena non lo contano. Predefinito: niente.
    */
   terreno?: number;
+  /** Senza il pavimento del vano scala (piani sopra il primo: la scala sale dal piano sotto). */
+  foroScala?: boolean;
 }
 
 // ─── Telecamera ─────────────────────────────────────────────────────────────

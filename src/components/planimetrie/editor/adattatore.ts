@@ -32,6 +32,7 @@ import {
   type Proposta,
   type Quota as QuotaModello,
   type Ricalco,
+  type Tetto,
   type StatoLavori,
   type Testo as TestoModello,
   type StatoPianta,
@@ -808,8 +809,13 @@ export function impostaRicalco(doc: Planimetria, livelloId: string, ricalco: Ric
   };
 }
 
-export function rinominaLivello(doc: Planimetria, id: string, campi: { nome?: string; quota?: number }): Planimetria {
-  const livelli = doc.livelli.map((l) => (l.id === id ? { ...l, ...(campi.nome?.trim() ? { nome: campi.nome.trim() } : {}), ...(campi.quota != null ? { quota: campi.quota } : {}) } : l));
+export function rinominaLivello(doc: Planimetria, id: string, campi: { nome?: string; quota?: number; tetto?: Tetto | null }): Planimetria {
+  const livelli = doc.livelli.map((l) => {
+    if (l.id !== id) return l;
+    const { tetto: _prima, ...resto } = l;
+    const tetto = campi.tetto === undefined ? l.tetto : campi.tetto ?? undefined;
+    return { ...resto, ...(tetto ? { tetto } : {}), ...(campi.nome?.trim() ? { nome: campi.nome.trim() } : {}), ...(campi.quota != null ? { quota: campi.quota } : {}) };
+  });
   return { ...doc, livelli: [...livelli].sort((a, b) => a.quota - b.quota) };
 }
 

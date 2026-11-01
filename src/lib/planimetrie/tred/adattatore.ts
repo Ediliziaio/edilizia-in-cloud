@@ -68,5 +68,8 @@ export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string
   const fatto = daStatoPianta(livello.fatto);
   const proposta = (scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : undefined) ?? livello.proposte[0];
   // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
-  return { fatto, progetto: proposta ? daStatoPianta(proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : fatto, livello };
+  const progetto = proposta ? daStatoPianta(proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : fatto;
+  // il tetto è del piano, uguale oggi e nel progetto
+  if (livello.tetto) return { fatto: { ...fatto, tetto: livello.tetto }, progetto: { ...progetto, tetto: livello.tetto }, livello };
+  return { fatto, progetto, livello };
 }

@@ -16,6 +16,8 @@ export const MATERIALI: Record<string, Materiale3D> = {
   acqua: { nome: "Acqua", colore: "#3fa7d6", opacita: 0.85, ruvidita: 0.05 },
   fogliame: { nome: "Fogliame", colore: "#4f7f3a", opacita: 1, ruvidita: 1 },
   pietra: { nome: "Pietra", colore: "#d9d2c3", opacita: 1, ruvidita: 0.8 },
+  tegole: { nome: "Tegole", colore: "#a5523a", opacita: 1, ruvidita: 0.8 },
+  massa: { nome: "Edificio (piani sotto)", colore: "#dedad3", opacita: 1, ruvidita: 0.9 },
   ghiaia: { nome: "Ghiaia", colore: "#c8c3b7", opacita: 1, ruvidita: 1 },
   asfalto: { nome: "Asfalto", colore: "#6f7072", opacita: 1, ruvidita: 0.95 },
   terra: { nome: "Terra", colore: "#7d5f42", opacita: 1, ruvidita: 1 },

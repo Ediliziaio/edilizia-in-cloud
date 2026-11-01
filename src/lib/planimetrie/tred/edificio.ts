@@ -10,6 +10,7 @@ import type { Planimetria } from "../../../../shared/planimetrie/modello.ts";
 import { pianteDaPlanimetria } from "./adattatore";
 import { costruisciScena, limitiDi, meshTerreno } from "./scena";
 import { MATERIALI } from "./materiali";
+import { CostruttoreMesh } from "./costruttore";
 import type { Mesh3D, OpzioniScena, PiantaPer3D, Scena3D } from "./tipi";
 
 export interface PianoPer3D {
@@ -51,7 +52,19 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     const sopra = scelti[i + 1];
     const fino = sopra ? sopra.quota - piano.quota : 0;
     const pianta = fino > 0 ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })) } : base;
-    const s = costruisciScena(pianta, { ...opzioni, terreno: undefined });
+    // il tetto solo sull'ultimo piano mostrato (con «fino a» si scoperchia)
+    const conTetto = i === scelti.length - 1 ? pianta : { ...pianta, tetto: undefined };
+    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0 });
+    // un attico o un duplex ai piani alti: sotto c'è il resto dell'edificio, in grigio
+    if (i === 0 && piano.quota > 100) {
+      const l = limitiDi(s.mesh, (g) => g === "muro");
+      if (Number.isFinite(l.min[0])) {
+        const c = new CostruttoreMesh();
+        c.scatola((l.min[0] + l.max[0]) / 2, (l.min[2] + l.max[2]) / 2, 0, l.max[0] - l.min[0], l.max[2] - l.min[2], piano.quota / 100, 0);
+        mesh.push(c.mesh({ id: "edificio-sotto", nome: "Edificio (piani sotto)", genere: "muro", materiale: "massa", riferimento: "edificio" }));
+        materiali.massa = MATERIALI.massa;
+      }
+    }
     // l'ultimo piano mostrato resta senza soffitto se lo si guarda dall'alto: lo decide `soffitto`
     const dy = piano.quota / 100 + i * (opzioni.esploso ?? 0);
     for (const m of s.mesh) {

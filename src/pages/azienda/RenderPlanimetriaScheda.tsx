@@ -22,6 +22,7 @@ import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
 import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
 import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
+import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -205,6 +206,8 @@ export default function RenderPlanimetriaScheda() {
           vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"}
         />
       )}
+
+      <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} />
 
       {livello.proposte.length > 0 && (
         <PrimaEDopo

@@ -227,6 +227,18 @@ export interface Livello {
   proposte: Proposta[];
   /** L'immagine da ricalcare sotto il disegno di questo piano (mappa, foto aerea, rilievo). */
   ricalco?: Ricalco;
+  /** Il tetto sopra questo piano (di solito l'ultimo): nel 3D e nei render. */
+  tetto?: Tetto;
+}
+
+export type TipoTetto = "piano" | "due_falde" | "padiglione";
+export const TIPI_TETTO: readonly TipoTetto[] = ["piano", "due_falde", "padiglione"];
+export interface Tetto {
+  tipo: TipoTetto;
+  /** Pendenza delle falde, in percento (30 = 30%). */
+  pendenza: number;
+  /** Sporto della gronda oltre i muri, in cm. */
+  sporto: number;
 }
 
 /** Immagine da ricalcare: nel bucket «planimetrie»; (x, y) è l'angolo in alto a sinistra, in cm, y in su. */
@@ -256,6 +268,17 @@ export interface Planimetria {
   nord?: number;
   riferimenti?: Riferimenti;
   livelli: Livello[];
+  /** Listino delle unità (condomini, bifamiliari in vendita), per sigla dell'unità. */
+  vendite?: Record<string, VenditaUnita>;
+}
+
+export type StatoVendita = "libera" | "prenotata" | "venduta";
+export const STATI_VENDITA: readonly StatoVendita[] = ["libera", "prenotata", "venduta"];
+export interface VenditaUnita {
+  /** € al mq di superficie commerciale. */
+  prezzoMq?: number;
+  stato?: StatoVendita;
+  note?: string;
 }
 
 /** Uno stato su cui si calcola: «fatto» o «progetto:<id proposta>». */
@@ -344,6 +367,14 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.titolo !== undefined && typeof dato.titolo !== "string") errori.push("La pianta: il titolo deve essere un testo.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");
+  if (dato.vendite !== undefined) {
+    if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
+    else for (const [sigla, v] of Object.entries(dato.vendite)) {
+      if (!eOggetto(v) || (v.prezzoMq !== undefined && !(eNumero(v.prezzoMq) && v.prezzoMq >= 0)) || (v.stato !== undefined && !(STATI_VENDITA as readonly unknown[]).includes(v.stato)) || (v.note !== undefined && typeof v.note !== "string")) {
+        errori.push(`La pianta: il listino dell'unità «${sigla}» non è valido.`);
+      }
+    }
+  }
   if (dato.riferimenti !== undefined && !eOggetto(dato.riferimenti)) errori.push("La pianta: i riferimenti non sono validi.");
 
   if (!Array.isArray(dato.livelli) || dato.livelli.length === 0) {
@@ -363,6 +394,12 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
     else idLivelli.add(liv.id);
     if (typeof liv.nome !== "string" || !liv.nome.trim()) errori.push(`${nomeLiv}: manca il nome.`);
     if (!eNumero(liv.quota)) errori.push(`${nomeLiv}: la quota del pavimento deve essere un numero.`);
+    if (liv.tetto !== undefined) {
+      const t = liv.tetto;
+      if (!eOggetto(t) || !(TIPI_TETTO as readonly unknown[]).includes(t.tipo) || !eNumero(t.pendenza) || !eNumero(t.sporto) || (t.pendenza as number) < 0 || (t.pendenza as number) > 150) {
+        errori.push(`${nomeLiv}: il tetto non è valido.`);
+      }
+    }
     if (liv.ricalco !== undefined) {
       const r = liv.ricalco;
       if (!eOggetto(r) || typeof r.percorso !== "string" || !r.percorso || ![r.x, r.y, r.larghezzaCm, r.proporzione, r.opacita].every(eNumero) || !((r.larghezzaCm as number) > 0)) {

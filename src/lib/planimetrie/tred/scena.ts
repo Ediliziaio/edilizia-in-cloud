@@ -5,7 +5,7 @@
  */
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
-import { pulisciPoligono, v2 } from "./geometria2d";
+import { pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
@@ -32,11 +32,94 @@ export function nomeApertura(a: AperturaPer3D): string {
   return `${NOMI_APERTURA[a.tipo] ?? "Apertura"} ${a.id}`;
 }
 
+/** Altezza di un parapetto di balconi e terrazzi, in cm. */
+export const ALTEZZA_PARAPETTO = 110;
+
+/**
+ * I muri che sono parapetti: da un lato un balcone, un terrazzo o una loggia, dall'altro
+ * nessuna stanza (o un altro spazio aperto), e senza porte o finestre. Nel 3D sono alti 1,10 m.
+ */
+export function parapetti(pianta: PiantaPer3D): Set<string> {
+  const aperti = pianta.locali.filter((l) => /balcon|terrazz|loggia/i.test(l.destinazione));
+  const out = new Set<string>();
+  if (!aperti.length) return out;
+  const conAperture = new Set(pianta.aperture.map((a) => a.muroId));
+  for (const m of pianta.muri) {
+    if (conAperture.has(m.id)) continue;
+    const l = Math.hypot(m.b.x - m.a.x, m.b.y - m.a.y);
+    if (l < 1) continue;
+    const n = { x: -(m.b.y - m.a.y) / l, y: (m.b.x - m.a.x) / l };
+    const c = { x: (m.a.x + m.b.x) / 2, y: (m.a.y + m.b.y) / 2 };
+    const d = m.spessore / 2 + 15;
+    const lati = [1, -1].map((k) => pianta.locali.find((x) => x.contorno.length >= 3 && puntoNelPoligono({ x: c.x + n.x * d * k, y: c.y + n.y * d * k }, x.contorno)) ?? null);
+    const aperto = (x: (typeof lati)[number]) => !!x && aperti.includes(x);
+    if (lati.some(aperto) && lati.every((x) => x === null || aperto(x))) out.add(m.id);
+  }
+  return out;
+}
+
 export function muriCalcolati(pianta: PiantaPer3D, vista: Vista3D): MuroCalc[] {
+  const bassi = parapetti(pianta);
   return pianta.muri
     .filter((m) => muroPresente(m.stato, vista))
-    .map((m) => preparaMuro({ id: m.id, a: v2(m.a.x * CM, m.a.y * CM), b: v2(m.b.x * CM, m.b.y * CM), spessore: m.spessore * CM, altezza: m.altezza * CM, stato: m.stato }))
+    .map((m) => preparaMuro({ id: m.id, a: v2(m.a.x * CM, m.a.y * CM), b: v2(m.b.x * CM, m.b.y * CM), spessore: m.spessore * CM, altezza: (bassi.has(m.id) ? Math.min(m.altezza, ALTEZZA_PARAPETTO) : m.altezza) * CM, stato: m.stato }))
     .filter((m): m is MuroCalc => m !== null);
+}
+
+/**
+ * Il tetto sopra il piano: sul rettangolo che contiene i muri, allargato dello sporto. A due
+ * falde il colmo corre lungo il lato lungo (i timpani in muratura); a padiglione quattro falde;
+ * piano una soletta. Parte dalla cima dei muri.
+ */
+function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
+  const t = pianta.tetto;
+  if (!t || !muri.length) return [];
+  const xs = pianta.muri.flatMap((m) => [m.a.x - m.spessore / 2, m.a.x + m.spessore / 2, m.b.x - m.spessore / 2, m.b.x + m.spessore / 2]);
+  const zs = pianta.muri.flatMap((m) => [m.a.y - m.spessore / 2, m.a.y + m.spessore / 2, m.b.y - m.spessore / 2, m.b.y + m.spessore / 2]);
+  const s = t.sporto;
+  const x0 = (Math.min(...xs) - s) * CM, x1 = (Math.max(...xs) + s) * CM, z0 = (Math.min(...zs) - s) * CM, z1 = (Math.max(...zs) + s) * CM;
+  const h = Math.max(...muri.map((m) => m.altezza));
+  const falde = new CostruttoreMesh();
+  const timpani = new CostruttoreMesh();
+  const normale = (a: V3, b: V3, c: V3): V3 => {
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n: V3 = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const l = Math.hypot(...n) || 1;
+    return [n[0] / l, n[1] / l, n[2] / l];
+  };
+  // ogni faccia due volte (sopra e sotto), così si vede anche da dentro
+  const faccia = (c: CostruttoreMesh, p: V3[]) => {
+    const n = normale(p[0], p[1], p[2]);
+    c.poligono(p, n);
+    c.poligono([...p].reverse(), [-n[0], -n[1], -n[2]]);
+  };
+  if (t.tipo === "piano") {
+    falde.scatola((x0 + x1) / 2, (z0 + z1) / 2, h, x1 - x0, z1 - z0, 0.25, 0);
+    return [falde.mesh({ id: "tetto", nome: "Tetto piano", genere: "soffitto", materiale: "muro", riferimento: "tetto" })];
+  }
+  // si lavora con il lato lungo lungo x: se è lungo z, si scambiano gli assi
+  const lungoX = x1 - x0 >= z1 - z0;
+  const P = (a: number, y: number, b: number): V3 => (lungoX ? [a, y, b] : [b, y, a]);
+  const [a0, a1, b0, b1] = lungoX ? [x0, x1, z0, z1] : [z0, z1, x0, x1];
+  const meta = (b1 - b0) / 2, bc = (b0 + b1) / 2;
+  const colmo = h + meta * (t.pendenza / 100);
+  if (t.tipo === "due_falde") {
+    faccia(falde, [P(a0, h, b0), P(a1, h, b0), P(a1, colmo, bc), P(a0, colmo, bc)]);
+    faccia(falde, [P(a1, h, b1), P(a0, h, b1), P(a0, colmo, bc), P(a1, colmo, bc)]);
+    // timpani in muratura, al filo dei muri (non sullo sporto)
+    const s2 = s * CM;
+    for (const a of [a0 + s2, a1 - s2]) faccia(timpani, [P(a, h, b0 + s2), P(a, h, b1 - s2), P(a, h + (meta - s2) * (t.pendenza / 100), bc)]);
+  } else {
+    // padiglione: colmo accorciato di mezza larghezza per parte
+    const c0 = Math.min(a0 + meta, (a0 + a1) / 2), c1 = Math.max(a1 - meta, (a0 + a1) / 2);
+    faccia(falde, [P(a0, h, b0), P(a1, h, b0), P(c1, colmo, bc), P(c0, colmo, bc)]);
+    faccia(falde, [P(a1, h, b1), P(a0, h, b1), P(c0, colmo, bc), P(c1, colmo, bc)]);
+    faccia(falde, [P(a0, h, b1), P(a0, h, b0), P(c0, colmo, bc)]);
+    faccia(falde, [P(a1, h, b0), P(a1, h, b1), P(c1, colmo, bc)]);
+  }
+  const out = [falde.mesh({ id: "tetto", nome: "Tetto", genere: "soffitto", materiale: "tegole", riferimento: "tetto" })];
+  if (!timpani.vuoto()) out.push(timpani.mesh({ id: "tetto:timpani", nome: "Timpani", genere: "muro", materiale: "muro", riferimento: "tetto" }));
+  return out;
 }
 
 export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {}): Scena3D {
@@ -112,9 +195,13 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       avvisi.push(`${l.nome}: contorno non valido, pavimento non disegnato.`);
       continue;
     }
-    const pav = new CostruttoreMesh();
-    pav.orizzontale(contorno, 0, true);
-    mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialePavimento(l.destinazione), riferimento: l.id }));
+    // ai piani sopra, il vano scala non ha pavimento: la scala sale dal piano sotto
+    const foro = opzioni.foroScala && (/scal/i.test(l.nome) || pianta.elementi.some((e) => e.tipo === "scala" && puntoNelPoligono(e.centro, l.contorno)));
+    if (!foro) {
+      const pav = new CostruttoreMesh();
+      pav.orizzontale(contorno, 0, true);
+      mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialePavimento(l.destinazione), riferimento: l.id }));
+    }
     // all'aperto non c'è soffitto
     if (conSoffitto && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
       const sof = new CostruttoreMesh();
@@ -142,6 +229,8 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       }
     }
   }
+
+  if (conSoffitto) mesh.push(...meshTetto(pianta, muri));
 
   // Aree esterne: superfici appena sopra il terreno; il lotto recintato ha muretto e rete.
   for (const a of pianta.aree ?? []) {

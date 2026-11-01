@@ -9,7 +9,7 @@
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
-import type { Ricalco } from "../../../../shared/planimetrie/modello.ts";
+import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
 import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -1165,7 +1165,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
     vaiAlPiano(r.id, r.documento);
   };
-  const modificaPiano = (campi: { nome?: string; quota?: number }) => {
+  const modificaPiano = (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => {
     if (!livelloId) return;
     const doc = rinominaLivello(documento, livelloId, campi);
     vaiAlPiano(livelloId, doc);
@@ -1355,7 +1355,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           )}
           {!sola && (
             <BarraPiani
-              livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota }))}
+              livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota, tetto: l.tetto }))}
               livelloId={livelloId ?? documento.livelli[0]?.id}
               onScegli={(id) => vaiAlPiano(id)}
               onNuovo={nuovoPiano}
@@ -1569,11 +1569,11 @@ function BarraProposte({ proposte, propostaId, onScegli, onNuova, onRinomina, on
 }
 
 function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli }: {
-  livelli: Array<{ id: string; nome: string; quota: number }>;
+  livelli: Array<{ id: string; nome: string; quota: number; tetto?: Tetto }>;
   livelloId?: string;
   onScegli: (id: string) => void;
   onNuovo: (o: { nome: string; quota: number; base: BaseNuovoPiano }) => void;
-  onModifica: (campi: { nome?: string; quota?: number }) => void;
+  onModifica: (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => void;
   onTogli: () => void;
 }) {
   const [aperto, setAperto] = useState(false);
@@ -1606,6 +1606,25 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                   onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && Math.round(v * 100) !== attuale.quota) onModifica({ quota: Math.round(v * 100) }); }} />
               </div>
               <p className="text-[11px] text-muted-foreground">Quota del pavimento in metri (0 = piano terra, −3 = interrato).</p>
+              <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Tetto sopra questo piano</Label>
+                  <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50 } })}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nessuno">Nessuno (c'è un piano sopra)</SelectItem>
+                      <SelectItem value="due_falde">A due falde</SelectItem>
+                      <SelectItem value="padiglione">A padiglione (quattro falde)</SelectItem>
+                      <SelectItem value="piano">Piano</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {attuale.tetto && attuale.tetto.tipo !== "piano" && (
+                  <Input key={`t-${attuale.id}-${attuale.tetto.pendenza}`} defaultValue={String(attuale.tetto.pendenza)} aria-label="Pendenza in percento" inputMode="decimal"
+                    onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (attuale.tetto && Number.isFinite(v) && v >= 0 && v <= 150 && v !== attuale.tetto.pendenza) onModifica({ tetto: { ...attuale.tetto, pendenza: v } }); }} />
+                )}
+              </div>
+              {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
               {livelli.length > 1 && (
                 <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm(`Togliere «${attuale.nome}» con tutto quello che c'è disegnato?`)) { onTogli(); setAperto(false); } }}>
                   Togli questo piano
