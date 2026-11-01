@@ -231,3 +231,34 @@ export async function avvisaFatturaRicevuta(
     console.warn("[avvisaFatturaRicevuta]", e);
   }
 }
+
+/**
+ * Tutte le fatture di un file (01/11/2026). Un file SDI può contenere un lotto di più fatture dello
+ * stesso fornitore: prima ricevi-sdi e openapi salvavano solo la prima, con la nota «le altre vanno
+ * registrate a mano» (costi e debiti che mancavano). Ora ogni corpo diventa la sua riga, con il suo
+ * indice, come già faceva l'importazione dal cassetto fiscale (ITALA).
+ *
+ * Restituisce l'esito della prima (quello che i chiamanti già mostrano) e quante altre ne ha salvate.
+ */
+export async function salvaFattureDelFile(
+  supabase: Client,
+  base: Omit<FatturaDaSalvare, "letta" | "indiceCorpo">,
+  prima: FatturaRicevutaLetta,
+  leggi: (indiceCorpo: number) => FatturaRicevutaLetta | null,
+): Promise<EsitoSalvataggio & { altre: number; altreErrori: string[] }> {
+  const nelFile = Math.max(1, Number(prima.fatture_nel_file) || 1);
+  if (nelFile === 1) return { ...(await salvaFatturaRicevuta(supabase, { ...base, letta: prima })), altre: 0, altreErrori: [] };
+  const esito = await salvaFatturaRicevuta(supabase, { ...base, letta: prima, indiceCorpo: 0 });
+  let altre = 0;
+  const altreErrori: string[] = [];
+  for (let i = 1; i < nelFile; i++) {
+    const letta = leggi(i);
+    if (!letta) { altreErrori.push(`fattura ${i + 1} di ${nelFile}: non leggibile`); continue; }
+    // L'id openapi è unico per azienda: resta alla prima. Le altre si riconoscono da identificativo SDI
+    // e indice, o da fornitore, numero e data.
+    const r = await salvaFatturaRicevuta(supabase, { ...base, openapiId: null, letta, indiceCorpo: i });
+    if (r.errore) altreErrori.push(`fattura ${i + 1} di ${nelFile}: ${r.errore}`);
+    else if (!r.doppione) altre++;
+  }
+  return { ...esito, altre, altreErrori };
+}

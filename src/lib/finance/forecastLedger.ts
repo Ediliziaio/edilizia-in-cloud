@@ -180,6 +180,38 @@ export interface TaxRow {
   importo: Money;
   data_scadenza: string | null;
   tributo_descrizione: string | null;
+  tributo_code?: string | null;
+  anno?: number | null;
+  mese?: number | null;
+}
+/**
+ * Una fattura ricevuta (01/11/2026): se non è ancora un costo, le sue rate escono lo stesso (sono
+ * debiti veri, con le date scritte in fattura); se ha la ritenuta d'acconto, nasce l'F24 1040 stimato.
+ */
+export interface ReceivedInvoiceRow {
+  id: string;
+  cedente_ragione_sociale: string | null;
+  numero_fattura: string | null;
+  data_fattura: string | null;
+  tipo_documento: string | null;
+  stato: string | null;
+  storico_esterno?: boolean | null;
+  company_cost_id: string | null;
+  purchase_order_id?: string | null;
+  piano_pagamento: { scadenza: string | null; importo: Money | null; modalita?: string | null; pagata_il?: string | null }[] | null;
+  netto_a_pagare: Money | null;
+  totale_documento: Money | null;
+  ritenuta_importo: Money | null;
+  ritenuta_aliquota?: Money | null;
+}
+const NOTE_CREDITO_RICEVUTE = ["TD04", "TD08", "passive_credit_note"];
+const AUTOFATTURE_RICEVUTE = ["TD16", "TD17", "TD18", "TD19", "TD20", "TD21", "TD27", "TD28", "self_invoice"];
+/** Il 16 del mese dopo (giorno della ritenuta d'acconto in F24). */
+export function sediciDelMeseDopo(day: string): string {
+  const [y, m] = day.slice(0, 7).split("-").map(Number);
+  const anno = m === 12 ? y + 1 : y;
+  const mese = m === 12 ? 1 : m + 1;
+  return `${anno}-${String(mese).padStart(2, "0")}-16`;
 }
 export interface TeamRow {
   id: string;
@@ -254,6 +286,8 @@ export interface ForecastSources {
   costs: CostRow[];
   /** Le rate dei fornitori dei costi ancora aperti. */
   supplierInstallments: SupplierInstallmentRow[];
+  /** Fatture ricevute non ancora costo, e quelle con ritenuta d'acconto. */
+  receivedInvoices: ReceivedInvoiceRow[];
   deadlines: DeadlineRow[];
   items: SupplierItemRow[];
   coveredItems: { order_item_id: string; company_cost_id?: string }[];
@@ -295,6 +329,7 @@ export const emptyForecastSources = (): ForecastSources => ({
   invoices: [],
   costs: [],
   supplierInstallments: [],
+  receivedInvoices: [],
   deadlines: [],
   items: [],
   coveredItems: [],
@@ -924,6 +959,68 @@ export function buildForecastLedger(
       });
     }
   }
+  // Fatture ricevute non ancora registrate come costo (01/11/2026): le loro rate escono alle date
+  // scritte in fattura. Prima erano invisibili alla cassa finché qualcuno non le contabilizzava.
+  const odaConFattura = new Set<string>();
+  for (const f of s.receivedInvoices ?? []) {
+    if (f.company_cost_id || f.storico_esterno) continue;
+    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
+    const tipo = f.tipo_documento ?? "";
+    if (NOTE_CREDITO_RICEVUTE.includes(tipo) || AUTOFATTURE_RICEVUTE.includes(tipo)) continue;
+    // La fattura di un ordine d'acquisto prende il posto della stima dell'ordine.
+    if (f.purchase_order_id) odaConFattura.add(f.purchase_order_id);
+    const netto = toCents(f.netto_a_pagare ?? f.totale_documento ?? 0);
+    const piano = Array.isArray(f.piano_pagamento) && f.piano_pagamento.length
+      ? f.piano_pagamento
+      : [{ scadenza: null, importo: null }];
+    const quota = Math.round(netto / piano.length);
+    const fornitore = f.cedente_ragione_sociale || "Fornitore";
+    piano.forEach((r, i) => {
+      if ("pagata_il" in r && r.pagata_il) return;
+      const riba = "modalita" in r && r.modalita === "MP12";
+      add({
+        id: `fattura-ricevuta:${f.id}:${i + 1}`,
+        description: `${fornitore} · fattura ${f.numero_fattura ?? ""}${piano.length > 1 ? ` · ${riba ? "RiBa" : "rata"} ${i + 1} di ${piano.length}` : ""}`,
+        counterparty: fornitore,
+        category: "fornitori",
+        direction: "out",
+        cents: r.importo != null ? toCents(r.importo) : quota,
+        date: validDay(r.scadenza),
+        source: riba ? "RiBa da fattura da registrare" : "Fattura da registrare",
+        href: "/azienda/documenti/fatture-ricevute",
+        estimated: true,
+        note: "Fattura arrivata, non ancora registrata come costo: la scadenza è quella scritta in fattura.",
+      });
+    });
+  }
+  // Ritenuta d'acconto dei professionisti: F24 codice 1040 il 16 del mese dopo il pagamento. Stimata
+  // dalla prima scadenza della fattura, finché non c'è l'F24 registrato di quel mese.
+  const f24Ritenute = new Set(s.taxes.filter((t) => t.tributo_code === "1040" && t.anno && t.mese).map((t) => `${t.anno}-${t.mese}`));
+  for (const f of s.receivedInvoices ?? []) {
+    if (!(Number(f.ritenuta_importo) > 0) || f.storico_esterno) continue;
+    if (NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")) continue;
+    const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
+    const pagata = piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
+    const base = validDay(pagata ?? piano[0]?.scadenza ?? f.data_fattura);
+    if (!base) continue;
+    const date = sediciDelMeseDopo(base);
+    const [y, m] = date.split("-").map(Number);
+    if (f24Ritenute.has(`${y}-${m}`)) continue;
+    add({
+      id: `f24-1040:${f.id}`,
+      description: `F24 1040 · ritenuta d'acconto ${f.cedente_ragione_sociale ?? ""} (fattura ${f.numero_fattura ?? ""})`,
+      counterparty: "Erario",
+      category: "fisco",
+      direction: "out",
+      cents: toCents(f.ritenuta_importo),
+      date,
+      source: "Ritenuta d'acconto da versare",
+      href: "/azienda/contabilita-fiscale",
+      estimated: true,
+      note: "La ritenuta trattenuta al professionista si versa con F24 il 16 del mese dopo il pagamento.",
+    });
+  }
+
   const costPurchases = new Set(s.costs.map((c) => c.purchase_order_id));
   const itemsById = new Map(s.items.map((i) => [i.id, i]));
   const itemsByPurchase = new Map<string, Set<string>>();
@@ -938,6 +1035,7 @@ export function buildForecastLedger(
     // (che porta la sua scadenza), l'ODA ricevuto resta un'uscita da pianificare.
     if (
       costPurchases.has(p.id) ||
+      odaConFattura.has(p.id) ||
       !["inviato", "confermato", "parziale", "ricevuto"].includes(p.status)
     )
       continue;

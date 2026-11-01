@@ -17,7 +17,7 @@ import { corsHeaders } from "../_shared/headers.ts";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
 import { leggiFatturaRicevuta } from "../_shared/fatturaRicevutaXml.ts";
-import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
+import { avvisaFatturaRicevuta, salvaFattureDelFile } from "../_shared/salvaFatturaRicevuta.ts";
 import { base64ToBytes } from "../_shared/base64.ts";
 import { fileOriginale, xmlDaFile } from "../_shared/ricevuteOpenapi.ts";
 
@@ -110,7 +110,8 @@ Deno.serve(async (req) => {
       }
 
       // Doppione (id SDI o fornitore + numero + data), file, riga: una strada sola.
-      const esito = await salvaFatturaRicevuta(supabase, { companyId: azienda.company_id, xml: xmlBody, letta: parsed });
+      const esito = await salvaFattureDelFile(supabase, { companyId: azienda.company_id, xml: xmlBody }, parsed,
+        (i) => leggiFatturaRicevuta(xmlBody, lettore(), i));
       if (esito.errore) throw new Error(esito.errore);
       if (esito.doppione) {
         // Anche la corsa concorrente (23505) è un doppione: 200, così il
@@ -206,7 +207,9 @@ Deno.serve(async (req) => {
 
       // Senza nome del file: quello scelto dall'utente può ripetersi fra due
       // fatture diverse, il percorso si fa da fornitore, numero e data.
-      const esito = await salvaFatturaRicevuta(supabase, { companyId: company_id, xml, letta: parsed, originale });
+      // Tutte le fatture del file, non solo la prima (lotti, 01/11/2026).
+      const esito = await salvaFattureDelFile(supabase, { companyId: company_id, xml, originale }, parsed,
+        (i) => leggiFatturaRicevuta(xml, lettore(), i));
       if (esito.errore) throw new Error(esito.errore);
       if (esito.doppione) {
         return new Response(JSON.stringify({ success: true, duplicate: true, completed: !!esito.completata, id: esito.id }), {

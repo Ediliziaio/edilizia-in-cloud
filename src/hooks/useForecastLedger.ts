@@ -193,6 +193,19 @@ export async function loadForecastDataset(
         ).eq("cost.is_paid", false),
     },
     {
+      // Fatture ricevute arrivate ma non ancora costo, e quelle con ritenuta d'acconto (per l'F24 1040):
+      // le rate le dice la fattura stessa (XML o Fatture in Cloud), dal 01/11/2026.
+      key: "receivedInvoices",
+      label: "Fatture ricevute da registrare",
+      build: () =>
+        scoped(
+          "fatture_ricevute",
+          "id,cedente_ragione_sociale,numero_fattura,data_fattura,tipo_documento,stato,storico_esterno,company_cost_id,purchase_order_id,piano_pagamento,netto_a_pagare,totale_documento,ritenuta_importo,ritenuta_aliquota",
+        )
+          .gte("data_fattura", moveDay(today, -400))
+          .or("company_cost_id.is.null,ritenuta_importo.gt.0"),
+    },
+    {
       key: "deadlines",
       label: "Scadenzario",
       build: () =>
@@ -275,7 +288,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "f24_entries",
-          "id,importo,data_scadenza,tributo_descrizione",
+          "id,importo,data_scadenza,tributo_descrizione,tributo_code,anno,mese",
         ).eq("stato", "da_pagare"),
     },
     {
