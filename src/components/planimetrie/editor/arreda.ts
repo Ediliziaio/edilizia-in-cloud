@@ -12,7 +12,10 @@ import { CATALOGO, type VoceCatalogo } from "./catalogo";
 import { aggiungiElemento, statoNuovo, visibile, type Vista } from "./comandi";
 
 /** Cosa mettere, nell'ordine in cui conta. `angolo`: meglio in fondo a una parete. */
-interface Richiesta { tipo: string; angolo?: boolean; centro?: boolean; larghezzaMinima?: number }
+interface Richiesta { tipo: string; angolo?: boolean; centro?: boolean; larghezzaMinima?: number; etichetta?: string }
+
+/** Con `perNumero` un tipo già presente vale per una richiesta, non per tutte (prese, punti luce). */
+export interface OpzioniArreda { programma?: Richiesta[]; perNumero?: boolean }
 
 const PROGRAMMA: Partial<Record<Destinazione, Richiesta[]>> = {
   bagno: [{ tipo: "doccia", angolo: true }, { tipo: "wc" }, { tipo: "bidet" }, { tipo: "lavabo" }, { tipo: "lavatrice", angolo: true }],
@@ -155,13 +158,13 @@ export interface EsitoArreda {
  * Arreda la stanza `localeId`. Ciò che c'è già (stesso tipo) non si duplica e fa da ostacolo.
  * Nel progetto i mobili aggiunti sono «nuovi»; com'è oggi, «esistenti».
  */
-export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, destinazione?: Destinazione): EsitoArreda {
+export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, destinazione?: Destinazione, opzioni: OpzioniArreda = {}): EsitoArreda {
   const locale = pianta.locali.find((l) => l.id === localeId);
   const vuoto: EsitoArreda = { pianta, aggiunti: [], saltati: [], giaPresenti: [] };
   if (!locale || locale.contorno.length < 3) return vuoto;
   const dest = destinazione ?? (vista === "progetto" ? pianta.nomiProgetto?.[localeId]?.destinazione : undefined) ?? locale.destinazione;
-  const programma = PROGRAMMA[dest];
-  if (!programma) return vuoto;
+  const programma = opzioni.programma ?? PROGRAMMA[dest];
+  if (!programma?.length) return vuoto;
 
   const contorno = locale.contorno;
   const { lati, zoneLibere } = latiDellaStanza(pianta, contorno, vista);
@@ -175,8 +178,9 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
     const angoli = [{ x: box.x0 + 1, y: box.y0 + 1 }, { x: box.x1 - 1, y: box.y0 + 1 }, { x: box.x0 + 1, y: box.y1 - 1 }, { x: box.x1 - 1, y: box.y1 - 1 }];
     return angoli.every((p) => dentro(p, contorno)) && !ostacoli.some((o) => sovrapposti(o, box)) ? box : null;
   };
+  let etichettaCorrente: string | undefined;
   const posa = (voce: VoceCatalogo, centro: Punto, rotazione: number, larghezza = voce.larghezza) => {
-    const r = aggiungiElemento(esito.pianta, { ...voce, larghezza }, centro, { stato: statoNuovo(vista), rotazione });
+    const r = aggiungiElemento(esito.pianta, { ...voce, larghezza, ...(etichettaCorrente ? { etichetta: etichettaCorrente } : {}) }, centro, { stato: statoNuovo(vista), rotazione });
     esito.pianta = r.pianta;
     esito.aggiunti.push(r.id);
     ostacoli.push(ingombro(centro, larghezza, voce.profondita, rotazione));
@@ -214,11 +218,55 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
   const xs = contorno.map((p) => p.x), ys = contorno.map((p) => p.y);
   const centroStanza = { x: arrotonda((Math.min(...xs) + Math.max(...xs)) / 2), y: arrotonda((Math.min(...ys) + Math.max(...ys)) / 2) };
 
+  // Con perNumero: quanti ce ne sono già, per tipo; ognuno «consuma» una richiesta.
+  const giaContati = new Map<string, number>();
+  for (const e of presenti) giaContati.set(e.tipo, (giaContati.get(e.tipo) ?? 0) + 1);
+  // punti luce in mezzo: uno al centro, due sull'asse lungo
+  const luci = programma.filter((r) => r.tipo === "punto_luce").length;
+  let luceN = 0;
+
   for (const req of programma) {
     const v = voce(req.tipo);
-    if (presenti.some((e) => e.tipo === req.tipo || (req.tipo.startsWith("letto") && e.tipo.startsWith("letto")))) {
+    etichettaCorrente = req.etichetta;
+    if (opzioni.perNumero) {
+      const n = giaContati.get(req.tipo) ?? 0;
+      if (n > 0) { giaContati.set(req.tipo, n - 1); esito.giaPresenti.push(v.nome); continue; }
+    } else if (presenti.some((e) => e.tipo === req.tipo || (req.tipo.startsWith("letto") && e.tipo.startsWith("letto")))) {
       esito.giaPresenti.push(v.nome);
       continue;
+    }
+    if (req.tipo === "punto_luce") {
+      const largo = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys);
+      const passo = luci > 1 ? ((largo ? Math.max(...xs) - Math.min(...xs) : Math.max(...ys) - Math.min(...ys)) / luci) : 0;
+      const k = luceN++ - (luci - 1) / 2;
+      const c = { x: arrotonda(centroStanza.x + (largo ? k * passo : 0)), y: arrotonda(centroStanza.y + (largo ? 0 : k * passo)) };
+      // a soffitto: non ingombra il pavimento, basta che stia dentro
+      if (!dentro(c, contorno)) { esito.saltati.push(v.nome); continue; }
+      const r = aggiungiElemento(esito.pianta, v, c, { stato: statoNuovo(vista) });
+      esito.pianta = r.pianta;
+      esito.aggiunti.push(r.id);
+      continue;
+    }
+    if (req.tipo === "interruttore") {
+      // accanto alla porta, dal lato della maniglia: subito dopo il vano
+      let messo = false;
+      for (let i = 0; i < lati.length && !messo; i++) {
+        const l = lati[i];
+        for (const vt of l.vietati.filter((x) => x.soloAlti == null)) {
+          const t = Math.min(vt.a + v.larghezza / 2 + 2, l.lunghezza - v.larghezza / 2);
+          if (occupatiPerLato[i].some((o) => t + v.larghezza / 2 > o.da && t - v.larghezza / 2 < o.a)) continue;
+          const prof = v.profondita / 2 + STACCO;
+          const c = { x: arrotonda(l.a.x + l.u.x * t + l.n.x * prof), y: arrotonda(l.a.y + l.u.y * t + l.n.y * prof) };
+          if (!dentro(c, contorno)) continue;
+          const r = aggiungiElemento(esito.pianta, v, c, { stato: statoNuovo(vista), rotazione: l.rotazione });
+          esito.pianta = r.pianta;
+          esito.aggiunti.push(r.id);
+          occupatiPerLato[i].push({ da: t - v.larghezza / 2, a: t + v.larghezza / 2 });
+          messo = true;
+          break;
+        }
+      }
+      if (messo) continue;
     }
     if (req.centro) {
       // il tavolo in mezzo alla stanza, ruotato secondo il lato lungo; poi le sedie
@@ -306,4 +354,49 @@ export function magliaPilastri(pianta: Pianta, localeId: string, vista: Vista, p
     aggiunti.push(r.id);
   }
   return { pianta: p, aggiunti };
+}
+
+
+// ─── Impianto elettrico e clima con un clic ──────────────────────────────────
+
+/**
+ * Dotazione minima per locale dell'impianto elettrico, livello 1 della norma CEI 64-8
+ * (cap. 37), arrotondata alla prassi: prese, punti luce e un interruttore per punto luce.
+ * È il minimo di legge per le abitazioni nuove o rifatte; il livello 2 e 3 ne chiedono di più.
+ */
+export function dotazioneCei(dest: Destinazione, mq: number): { prese: number; luci: number } {
+  switch (dest) {
+    case "soggiorno": case "camera": case "studio":
+      return mq <= 8 ? { prese: 2, luci: 1 } : mq <= 12 ? { prese: 3, luci: 1 } : mq <= 20 ? { prese: 4, luci: 2 } : { prese: 5, luci: 2 };
+    case "cucina": return { prese: 5, luci: 2 };
+    case "bagno": return { prese: 2, luci: 2 };
+    case "lavanderia": return { prese: 3, luci: 1 };
+    case "ingresso": case "disimpegno": case "corridoio": return { prese: 1, luci: mq > 6 ? 2 : 1 };
+    case "ripostiglio": case "cantina": return { prese: 0, luci: 1 };
+    case "garage": return { prese: 2, luci: 1 };
+    case "balcone": case "terrazzo": return mq > 10 ? { prese: 1, luci: 1 } : { prese: 0, luci: 1 };
+    default: return { prese: 1, luci: 1 };
+  }
+}
+
+const mqDi = (c: Punto[]) => Math.abs(c.reduce((t, p, i) => { const q = c[(i + 1) % c.length]; return t + p.x * q.y - q.x * p.y; }, 0)) / 2 / 10_000;
+
+/** Prese, punti luce e interruttori che mancano alla dotazione minima della stanza. */
+export function impiantoElettrico(pianta: Pianta, localeId: string, vista: Vista, destinazione: Destinazione): EsitoArreda {
+  const locale = pianta.locali.find((l) => l.id === localeId);
+  if (!locale) return { pianta, aggiunti: [], saltati: [], giaPresenti: [] };
+  const { prese, luci } = dotazioneCei(destinazione, mqDi(locale.contorno));
+  const programma: Richiesta[] = [
+    ...Array.from({ length: luci }, () => ({ tipo: "punto_luce" })),
+    ...Array.from({ length: luci }, () => ({ tipo: "interruttore" })),
+    ...Array.from({ length: prese }, () => ({ tipo: "presa" })),
+  ];
+  return arredaStanza(pianta, localeId, vista, destinazione, { programma, perNumero: true });
+}
+
+/** Uno split (o più, se la stanza è grande) con la taglia in BTU consigliata scritta sopra. */
+export function climaStanza(pianta: Pianta, localeId: string, vista: Vista, destinazione: Destinazione, btu: { taglia: number; split: number }): EsitoArreda {
+  const etichetta = `${btu.taglia.toLocaleString("it-IT")} BTU`;
+  const programma: Richiesta[] = Array.from({ length: btu.split }, () => ({ tipo: "split", etichetta }));
+  return arredaStanza(pianta, localeId, vista, destinazione, { programma, perNumero: true });
 }

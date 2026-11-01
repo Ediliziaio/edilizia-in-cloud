@@ -1,0 +1,139 @@
+/**
+ * Impianti dalla pianta: linee stimate e potenza del clima.
+ *
+ * Nessuno disegna i cavi a mano. Dai simboli posati nella pianta si stimano i
+ * percorsi, che finiscono nel computo in metri:
+ * - elettrico: dal quadro a ogni presa, interruttore, punto luce e split. Il tratto
+ *   orizzontale va lungo le pareti (distanza «a squadra», |dx| + |dy|), più le
+ *   calate in verticale (quadro a 1,60 m, presa a 0,30 m, punto luce a soffitto).
+ *   Il corrugato è il percorso; il cavo vale tre conduttori (fase, neutro, terra);
+ * - acqua: dal collettore (o dalla caldaia) a ogni punto acqua e sanitario;
+ *   due tubi, acqua fredda e calda;
+ * - scarichi: da ogni sanitario, lavatrice e punto di scarico alla colonna più vicina;
+ * - clima: da ogni split all'unità esterna più vicina, con linea frigorifera
+ *   (due tubi di rame) e scarico condensa.
+ * A ogni percorso si aggiunge lo sfrido (10%). Sono quantità STIMATE, da controllare.
+ *
+ * Coordinate e misure del modello: cm, y in su.
+ */
+import type { Elemento, Locale, Punto, StatoPianta } from "./modello.ts";
+import { areaPoligono } from "./geometria.ts";
+
+export type LineaImpianto = "elettrica" | "acqua" | "scarico" | "frigorifera" | "condensa";
+
+export interface Percorso {
+  linea: LineaImpianto;
+  daId: string;
+  aId: string;
+  da: Punto;
+  a: Punto;
+  /** Orizzontale + verticale, senza sfrido, in cm. */
+  lunghezzaCm: number;
+}
+
+export const SFRIDO = 0.1;
+
+/** Altezza da terra del punto di arrivo (cm), quando il simbolo non la dice. */
+const QUOTA: Record<string, number> = {
+  quadro_elettrico: 160, presa: 30, interruttore: 110, punto_luce: 270, split: 220, unita_esterna: 30,
+  punto_acqua: 50, lavabo: 55, wc: 20, bidet: 20, doccia: 10, vasca: 10, lavatrice: 60, cucina: 60, caldaia: 150,
+  scarico: 0, colonna_scarico: 0, collettore: 40,
+};
+
+const UTENZE_ELETTRICHE = new Set(["presa", "interruttore", "punto_luce", "split", "caldaia", "lavatrice", "frigorifero"]);
+const UTENZE_ACQUA = new Set(["punto_acqua", "lavabo", "wc", "bidet", "doccia", "vasca", "lavatrice", "cucina"]);
+const UTENZE_SCARICO = new Set(["scarico", "lavabo", "wc", "bidet", "doccia", "vasca", "lavatrice", "cucina"]);
+const SORGENTI_ACQUA = ["collettore", "caldaia"];
+
+/** Quanto basta di un simbolo per stimare le linee (vale per il modello e per l'editor). */
+export type ElementoImpianto = Pick<Elemento, "id" | "tipo" | "posizione" | "stato">;
+
+const squadra = (a: Punto, b: Punto) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+const quota = (e: ElementoImpianto) => QUOTA[e.tipo] ?? 0;
+
+function piuVicino(da: ElementoImpianto, fra: ElementoImpianto[]): ElementoImpianto | null {
+  let migliore: ElementoImpianto | null = null;
+  for (const f of fra) if (!migliore || squadra(da.posizione, f.posizione) < squadra(da.posizione, migliore.posizione)) migliore = f;
+  return migliore;
+}
+
+
+/**
+ * I percorsi stimati di uno stato della pianta. Senza quadro (o collettore, colonna,
+ * unità esterna) quella linea non si stima: lo dice `mancano`.
+ */
+export function percorsiImpianti(stato: StatoPianta) {
+  return percorsiDaElementi(stato.elementi);
+}
+
+export type PartenzaMancante = "quadro_elettrico" | "collettore" | "colonna_scarico" | "unita_esterna";
+
+export function percorsiDaElementi(elementi: readonly ElementoImpianto[]): { percorsi: Percorso[]; mancano: PartenzaMancante[] } {
+  // quelli da togliere non contano
+  const el = elementi.filter((e) => e.stato !== "da_demolire");
+  const percorsi: Percorso[] = [];
+  const mancano: PartenzaMancante[] = [];
+  const tipo = (t: string) => el.filter((e) => e.tipo === t);
+
+  const collega = (linea: LineaImpianto, utenze: ElementoImpianto[], sorgenti: ElementoImpianto[], verticale: (u: ElementoImpianto, s: ElementoImpianto) => number) => {
+    for (const u of utenze) {
+      const s = piuVicino(u, sorgenti);
+      if (!s || s.id === u.id) continue;
+      percorsi.push({ linea, daId: s.id, aId: u.id, da: s.posizione, a: u.posizione, lunghezzaCm: squadra(u.posizione, s.posizione) + verticale(u, s) });
+    }
+  };
+
+  // Elettrico: le linee corrono a pavimento; dal quadro si scende, al punto si risale.
+  const quadri = tipo("quadro_elettrico");
+  const utenzeEl = el.filter((e) => UTENZE_ELETTRICHE.has(e.tipo));
+  if (utenzeEl.length && !quadri.length) mancano.push("quadro_elettrico");
+  collega("elettrica", utenzeEl, quadri, (u, s) => quota(s) + quota(u));
+
+  // Acqua: dal collettore o dalla caldaia.
+  const sorgentiAcqua = el.filter((e) => SORGENTI_ACQUA.includes(e.tipo));
+  const utenzeAcqua = el.filter((e) => UTENZE_ACQUA.has(e.tipo));
+  if (utenzeAcqua.length && !sorgentiAcqua.length) mancano.push("collettore");
+  collega("acqua", utenzeAcqua, sorgentiAcqua, (u, s) => quota(s) + quota(u));
+
+  // Scarichi: alla colonna più vicina, a pavimento.
+  const colonne = tipo("colonna_scarico");
+  const utenzeScarico = el.filter((e) => UTENZE_SCARICO.has(e.tipo));
+  if (utenzeScarico.length && !colonne.length) mancano.push("colonna_scarico");
+  collega("scarico", utenzeScarico, colonne, (u) => quota(u));
+
+  // Clima: linea frigorifera e condensa dallo split all'unità esterna.
+  const esterne = tipo("unita_esterna");
+  const split = tipo("split");
+  if (split.length && !esterne.length) mancano.push("unita_esterna");
+  collega("frigorifera", split, esterne, (u, s) => Math.abs(quota(u) - quota(s)));
+  collega("condensa", split, esterne, (u) => quota(u));
+
+  return { percorsi, mancano };
+}
+
+/** Metri con lo sfrido, arrotondati al decimetro. */
+export const metriConSfrido = (cm: number) => Math.round((cm / 100) * (1 + SFRIDO) * 10) / 10;
+
+// ─── Clima: potenza consigliata ──────────────────────────────────────────────
+
+/** Taglie commerciali degli split (BTU/h). */
+export const TAGLIE_BTU = [7000, 9000, 12000, 18000, 24000] as const;
+
+/**
+ * BTU/h consigliati per un locale: circa 340 BTU/h al mq con soffitto a 2,70 m,
+ * in proporzione all'altezza; si sale alla taglia commerciale successiva.
+ * Indicazione di massima (esposizione, vetrate e isolamento contano): oltre 24.000
+ * conviene più di uno split.
+ */
+export function btuConsigliati(locale: Pick<Locale, "contorno" | "altezza">): { btu: number; taglia: number; split: number } {
+  const mq = areaPoligono(locale.contorno) / 10_000;
+  const btu = Math.round(mq * 340 * Math.max(locale.altezza, 240) / 270);
+  const massima = TAGLIE_BTU[TAGLIE_BTU.length - 1];
+  const split = Math.max(1, Math.ceil(btu / massima));
+  const perSplit = btu / split;
+  const taglia = TAGLIE_BTU.find((t) => t >= perSplit) ?? massima;
+  return { btu, taglia, split };
+}
+
+/** Destinazioni dove di solito si mette uno split. */
+export const DESTINAZIONI_CLIMA = new Set(["soggiorno", "camera", "studio", "cucina"]);

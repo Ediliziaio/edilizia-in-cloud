@@ -136,6 +136,14 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
       const r = Math.min(w, d) / 2;
       return (<g><circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} /><circle cx={0} cy={0} r={r * 0.35} fill={colore} /></g>);
     }
+    case "unita_esterna":
+      return (<g>{base}<circle cx={x0 + w * 0.35} cy={0} r={Math.min(w * 0.28, d * 0.42)} {...tratto} /><line x1={x0 + w * 0.7} y1={y0 + d * 0.25} x2={-x0 - w * 0.08} y2={y0 + d * 0.25} {...tratto} /><line x1={x0 + w * 0.7} y1={-y0 - d * 0.25} x2={-x0 - w * 0.08} y2={-y0 - d * 0.25} {...tratto} /></g>);
+    case "collettore":
+      return (<g>{base}{[0.2, 0.4, 0.6, 0.8].map((k) => <circle key={k} cx={x0 + w * k} cy={0} r={Math.min(d * 0.3, 4)} fill={colore} />)}</g>);
+    case "colonna_scarico": {
+      const r = Math.min(w, d) / 2;
+      return (<g><circle cx={0} cy={0} r={r} fill={riempimento} stroke={colore} strokeWidth={spessore * 1.5} /><circle cx={0} cy={0} r={r * 0.55} fill={colore} /></g>);
+    }
     case "pilastro":
       return (<g><rect x={x0} y={y0} width={w} height={d} fill={colore} stroke={colore} strokeWidth={spessore} /><line x1={x0} y1={y0} x2={-x0} y2={-y0} stroke={riempimento} strokeWidth={spessore} /></g>);
     case "quadro_elettrico":

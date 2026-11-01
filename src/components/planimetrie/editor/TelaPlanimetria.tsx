@@ -60,6 +60,8 @@ interface Props extends Gestori {
   selezione: Selezione | null;
   /** Più oggetti selezionati insieme (arredi, quote, testi). */
   gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
+  /** Linee stimate degli impianti (percorso a squadra), da mostrare tratteggiate. */
+  lineeImpianti?: Array<{ linea: string; da: Punto; a: Punto }>;
   camera: Camera;
   larghezza: number;
   altezza: number;
@@ -87,9 +89,11 @@ const NOMI_ELEMENTI: Record<string, string> = {
   armadio: "armadio",
 };
 const SELEZIONE = "#2563eb";
+/** Colori delle linee impianti: come negli schemi (elettrico rosso, acqua blu, scarichi marroni). */
+export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d" };
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, lineeImpianti, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -411,6 +415,10 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             })()}
 
           {/* anteprime mentre si disegna */}
+          {lineeImpianti?.map((l, i) => (
+            <path key={i} d={`M ${l.da.x} ${l.da.y} L ${l.a.x} ${l.da.y} L ${l.a.x} ${l.a.y}`} fill="none" pointerEvents="none"
+              stroke={COLORI_LINEE[l.linea] ?? "#64748b"} strokeWidth={px(1.6)} strokeDasharray={`${px(6)} ${px(4)}`} opacity={0.85} />
+          ))}
           {sovrapposizioni.rettangolo && <AnteprimaRettangolo {...sovrapposizioni.rettangolo} px={px} />}
           {sovrapposizioni.riquadro && (
             <rect

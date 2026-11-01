@@ -41,6 +41,7 @@ import {
   type StatoPianta,
 } from "./modello.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
+import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
 
@@ -141,6 +142,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   const aperture = new Map<string, { acc: Accumulo; descrizione: string }>();
   // Arredi, sanitari e punti impianto per tipo (1/11/2026): «elementi:<stato>:<tipo>.numero».
   const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
+  // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
+  const linee = new Map<LineaImpianto, number>();
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
@@ -194,6 +197,9 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       }
     }
 
+    // ─── Linee degli impianti (stimate) ───
+    for (const p of percorsiImpianti(stato).percorsi) linee.set(p.linea, (linee.get(p.linea) ?? 0) + p.lunghezzaCm);
+
     // ─── Arredi, sanitari, punti impianto ───
     for (const e of stato.elementi) {
       if (!/^[a-z0-9_]+$/.test(e.tipo)) continue;
@@ -205,6 +211,18 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       elementi.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, e.origine] }, descrizione: `${nome} ${nomeStato}` });
     }
   }
+
+  // Impianti: «impianti:<impianto>.<misura>», stimati, con lo sfrido.
+  const stimata = (cm: number, per = 1): Accumulo => ({ valore: metriConSfrido(cm) * per, origini: ["stimata"] });
+  const lin = (l: LineaImpianto) => linee.get(l) ?? 0;
+  if (lin("elettrica")) {
+    metti("impianti:elettrico", "corrugato_ml", stimata(lin("elettrica")), "Corrugato impianto elettrico (stima dal quadro ai punti)");
+    metti("impianti:elettrico", "cavo_ml", stimata(lin("elettrica"), 3), "Cavo unipolare (fase, neutro, terra; stima)");
+  }
+  if (lin("acqua")) metti("impianti:acqua", "tubo_ml", stimata(lin("acqua"), 2), "Tubo acqua fredda e calda (stima dal collettore)");
+  if (lin("scarico")) metti("impianti:scarico", "tubo_ml", stimata(lin("scarico")), "Tubo di scarico (stima fino alla colonna)");
+  if (lin("frigorifera")) metti("impianti:clima", "rame_ml", stimata(lin("frigorifera"), 2), "Linea frigorifera in rame, due tubi (stima)");
+  if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
   for (const [misura, acc] of totaliPianta) metti("pianta", misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — tutti i locali`);
   for (const [dest, mappa] of totaliDestinazione) {
@@ -230,6 +248,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
   scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri",
+  collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",
   presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
   scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",
 };

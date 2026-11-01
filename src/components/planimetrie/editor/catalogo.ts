@@ -38,6 +38,10 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "scarico", nome: "Scarico", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 0 },
   { tipo: "termosifone", nome: "Termosifone", gruppo: "Impianti", larghezza: 80, profondita: 12, altezza: 60 },
   { tipo: "split", nome: "Split clima", gruppo: "Impianti", larghezza: 90, profondita: 25, altezza: 220 },
+  // Le partenze delle linee stimate (shared/planimetrie/impianti.ts).
+  { tipo: "unita_esterna", nome: "Unità esterna clima", gruppo: "Impianti", larghezza: 80, profondita: 30, altezza: 30 },
+  { tipo: "collettore", nome: "Collettore acqua", gruppo: "Impianti", larghezza: 50, profondita: 12, altezza: 40 },
+  { tipo: "colonna_scarico", nome: "Colonna di scarico", gruppo: "Impianti", larghezza: 16, profondita: 16, altezza: 0 },
   // Struttura: pilastri di capannoni, garage, piani pilotis.
   { tipo: "pilastro", nome: "Pilastro", gruppo: "Struttura", larghezza: 30, profondita: 30, altezza: 300 },
 ];

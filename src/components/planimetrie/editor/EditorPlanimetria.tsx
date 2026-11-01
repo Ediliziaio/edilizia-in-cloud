@@ -45,7 +45,9 @@ import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
 import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
 import { SimboloArredo } from "./SimboloArredo";
-import { arredaStanza, magliaPilastri } from "./arreda";
+import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri } from "./arreda";
+import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../shared/planimetrie/impianti.ts";
+import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
 
@@ -122,6 +124,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [selezione, setSelezione] = useState<Selezione | null>(null);
   // Più arredi, quote e testi insieme (Maiusc+clic o Maiusc+trascina).
   const [gruppo, setGruppo] = useState<C.Gruppo>(C.gruppoVuoto);
+  // Linee stimate degli impianti, dal quadro / collettore / colonna / unità esterna.
+  const [mostraLinee, setMostraLinee] = useState(false);
   // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
   const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
@@ -1010,6 +1014,29 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
         setAvviso(`Messi ${r.aggiunti.length} pilastri: trascinane uno per spostarli tutti, Canc per toglierli.`);
       },
+      impiantoElettrico: (id, destinazione) => {
+        const r = impiantoElettrico(p(), id, stato.current.vista, destinazione);
+        if (!r.aggiunti.length) {
+          setAvviso(r.giaPresenti.length ? "La stanza ha già la dotazione minima." : "Non c'è posto per i punti: le pareti sono occupate da porte e finestre.");
+          return;
+        }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Aggiunti ${r.aggiunti.length} punti (prese, luci, interruttori). Con «Linee impianti» vedi i percorsi dal quadro.${r.saltati.length ? ` Non ci stavano: ${r.saltati.join(", ").toLowerCase()}.` : ""}`);
+      },
+      clima: (id, destinazione) => {
+        const l = p().locali.find((x) => x.id === id);
+        if (!l) return;
+        const r = climaStanza(p(), id, stato.current.vista, destinazione, btuConsigliati(l));
+        if (!r.aggiunti.length) {
+          setAvviso(r.giaPresenti.length ? "Nella stanza c'è già lo split." : "Non c'è una parete libera per lo split.");
+          return;
+        }
+        applica(r.pianta);
+        setSelezione({ tipo: "elemento", id: r.aggiunti[0] });
+        setAvviso((p().elementi ?? []).some((e) => e.tipo === "unita_esterna") ? "Split aggiunto." : "Split aggiunto. Metti l'unità esterna (Arredi → Impianti) sul balcone o in facciata: da lì si contano rame e condensa.");
+      },
       arreda: (id, destinazione) => {
         const r = arredaStanza(p(), id, stato.current.vista, destinazione);
         if (!r.aggiunti.length) {
@@ -1096,6 +1123,18 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       : strumento === "testo" ? "text" : "default";
 
   // ─── interfaccia ──────────────────────────────────────────────────────────
+  const impianti = useMemo(() => {
+    const visibili = (pianta.elementi ?? []).filter((e) => C.visibile(e.stato, vista)).map((e) => ({ id: e.id, tipo: e.tipo, posizione: e.centro, stato: e.stato }));
+    return percorsiDaElementi(visibili);
+  }, [pianta, vista]);
+  const totaliLinee = useMemo(() => {
+    const t = new Map<string, number>();
+    for (const p of impianti.percorsi) t.set(p.linea, (t.get(p.linea) ?? 0) + p.lunghezzaCm);
+    return t;
+  }, [impianti]);
+  const NOMI_LINEE: Record<string, string> = { elettrica: "Elettrico", acqua: "Acqua", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa" };
+  const NOMI_PARTENZE: Record<string, string> = { quadro_elettrico: "il quadro elettrico", collettore: "il collettore (o la caldaia)", colonna_scarico: "la colonna di scarico", unita_esterna: "l'unità esterna del clima" };
+
   const barraVista = (
     <div className="inline-flex rounded-md border bg-background p-0.5 text-sm" role="radiogroup" aria-label="Quale pianta">
       {(
@@ -1210,6 +1249,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               onTogli={togliPropostaCorrente}
             />
           )}
+          {!sola && (
+            <Button size="sm" variant={mostraLinee ? "default" : "outline"} aria-pressed={mostraLinee} onClick={() => setMostraLinee((v) => !v)} title="Percorsi stimati di cavi, tubi e linee del clima">
+              Linee impianti
+            </Button>
+          )}
           {annullaRipeti}
           {!telefono && zoom}
         </div>
@@ -1227,6 +1271,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             vista={vista}
             selezione={selezione}
             gruppo={gruppo}
+            lineeImpianti={mostraLinee ? impianti.percorsi : undefined}
             camera={camera}
             larghezza={dimensioni.w}
             altezza={dimensioni.h}
@@ -1277,6 +1322,17 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               misura={misura}
               onChiudi={() => setMisura(null)}
             />
+          )}
+
+          {mostraLinee && (
+            <div className="pointer-events-none absolute right-2 top-2 max-w-xs space-y-1 rounded-md bg-background/95 p-2 text-xs shadow-sm">
+              <p className="font-semibold">Linee impianti (stima, con 10% di sfrido)</p>
+              {[...totaliLinee].map(([l, cm]) => (
+                <p key={l} className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4" style={{ background: COLORI_LINEE[l] }} />{NOMI_LINEE[l] ?? l}: {metriConSfrido(cm).toLocaleString("it-IT")} m</p>
+              ))}
+              {!totaliLinee.size && <p className="text-muted-foreground">Metti prese, sanitari o split e le loro partenze (Arredi → Impianti).</p>}
+              {impianti.mancano.map((m) => <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]}: quella linea non si stima.</p>)}
+            </div>
           )}
 
           {avviso && (

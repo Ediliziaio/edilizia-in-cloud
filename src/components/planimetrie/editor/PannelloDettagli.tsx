@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
 import { CATALOGO, nomeDelTipo } from "./catalogo";
-import { destinazioneArredabile } from "./arreda";
+import { destinazioneArredabile, dotazioneCei } from "./arreda";
+import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
 import { dist } from "./geometria";
 import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
@@ -41,6 +42,10 @@ export interface AzioniPannello {
   unitaStanza: (localeId: string, unita: string) => void;
   /** Pilastri a maglia regolare dentro la stanza (capannoni). */
   magliaPilastri: (localeId: string, passoCm: number) => void;
+  /** Prese, punti luce e interruttori minimi (CEI 64-8 livello 1). */
+  impiantoElettrico: (localeId: string, destinazione: Destinazione) => void;
+  /** Split con la taglia consigliata. */
+  clima: (localeId: string, destinazione: Destinazione) => void;
 }
 
 interface Props {
@@ -404,6 +409,27 @@ function DettaglioStanza({
           <p className="text-[11px] text-muted-foreground">Mette gli arredi tipici di {DESTINAZIONI.find((d) => d.valore === locale.destinazione)?.etichetta.toLowerCase() ?? "questa stanza"} lungo le pareti, lontano da porte e finestre. Poi li sposti come vuoi; il 3D e il render AI li usano dove stanno.</p>
         </div>
       )}
+      {!essenziale && diLavoro && (() => {
+        const cei = dotazioneCei(locale.destinazione, q.mq);
+        const clima = btuConsigliati(diLavoro);
+        return (
+          <div className="space-y-2 rounded-md border border-dashed p-2">
+            <p className="text-xs font-medium">Impianti</p>
+            <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.impiantoElettrico(locale.id, locale.destinazione)}>
+              Impianto elettrico minimo
+            </Button>
+            <p className="text-[11px] text-muted-foreground">Norma CEI 64-8, livello 1: {cei.prese} {cei.prese === 1 ? "presa" : "prese"}, {cei.luci} {cei.luci === 1 ? "punto luce" : "punti luce"} con interruttore accanto alla porta. Mette solo quello che manca.</p>
+            {DESTINAZIONI_CLIMA.has(locale.destinazione) && (
+              <>
+                <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.clima(locale.id, locale.destinazione)}>
+                  Clima: {clima.split > 1 ? `${clima.split} split da ` : "split da "}{clima.taglia.toLocaleString("it-IT")} BTU
+                </Button>
+                <p className="text-[11px] text-muted-foreground">Circa {clima.btu.toLocaleString("it-IT")} BTU/h per {q.mq.toLocaleString("it-IT", { maximumFractionDigits: 1 })} mq: indicazione di massima, esposizione e vetrate contano. Metti anche l'unità esterna (catalogo Impianti) per avere rame e condensa nel computo.</p>
+              </>
+            )}
+          </div>
+        );
+      })()}
       {!essenziale && diLavoro && q.mq >= 60 && <MagliaPilastri onMetti={(passo) => azioni.magliaPilastri(locale.id, passo)} />}
       <div className="flex flex-wrap gap-2 pt-1">
         {q.stimata && (
