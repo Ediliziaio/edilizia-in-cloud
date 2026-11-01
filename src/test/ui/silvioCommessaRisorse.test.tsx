@@ -16,7 +16,7 @@ import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 
 const CAPO = "c0000000-0000-4000-a000-0000000000c1";
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({
-  useCompanyStaffUsers: () => ({ data: [{ id: "c0000000-0000-4000-a000-0000000000c1", first_name: "Carlo", last_name: "Capo", email: null }] }),
+  useCompanyStaffUsers: () => ({ data: [{ id: "c0000000-0000-4000-a000-0000000000c1", first_name: "Carlo", last_name: "Capo", email: null as string | null }] }),
 }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({

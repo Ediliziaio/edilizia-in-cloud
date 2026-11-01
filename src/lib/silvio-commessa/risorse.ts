@@ -122,7 +122,7 @@ export async function leggiContestoRisorse(
         subappaltatore_id: d.subappaltatore_id as string, tipo: testo(d.tipo) || "altro", scadenza: data(d.scadenza), esito: (d.esito as string | null) ?? null,
       })),
       // Il DURC scritto sulla scheda di sicurezza della ditta vale come un DURC caricato.
-      ...schede.map((s) => ({ subappaltatore_id: s.campo_subappaltatore_id as string, tipo: "durc", scadenza: data(s.durc_scadenza), esito: null })),
+      ...schede.map((s) => ({ subappaltatore_id: s.campo_subappaltatore_id as string, tipo: "durc", scadenza: data(s.durc_scadenza), esito: null as string | null })),
     ],
     mezzi: mezzi.map((m) => ({
       id: m.id as string, nome: testo(m.nome) || "Mezzo", stato: (m.stato as string | null) ?? null,
