@@ -988,10 +988,32 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
     },
     enabled: ids.length > 0,
   });
+  // Fatture e ritenute dei contratti (01/11/2026): prima il riepilogo le riceveva vuote, e la scheda
+  // mostrava fatturato e ritenute a zero su ogni contratto.
+  const { data: ritenute = [], isLoading: caricoRitenute, isError: erroreRitenute } = useQuery({
+    queryKey: ["ritenute-sub-lavori", subId, ids.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("ritenute_garanzia" as never).select("contratto_id, importo, stato").in("contratto_id", ids);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ contratto_id: string; importo: number; stato: string }>;
+    },
+    enabled: ids.length > 0,
+  });
+  const { data: fatture = [], isLoading: caricoFatture, isError: erroreFatture } = useQuery({
+    queryKey: ["fatture-sub-lavori", subId, ids.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("fatture_ricevute")
+        .select("id, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id")
+        .in("contratto_subappalto_id", ids);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<{ id: string; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null }>;
+    },
+    enabled: ids.length > 0,
+  });
   const {data: firme = [], isLoading: caricoFirme, isError: erroreFirme} = useFirmeSubappalto(subId, ids);
-  const righe: RigaContrattoSub[] = contratti.map(c => ({contratto:c, riepilogo:{...riepilogoContratto(c, sal.filter(s => s.contratto_id === c.id), [], []), avvisi:[] as string[]}, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(firme.find(f => f.contratto_subappalto_id === c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}));
-  if (isError || erroreSal) return <div role="alert" className="rounded-lg border p-4 text-sm">Commesse e riepiloghi non disponibili. <Button variant="outline" onClick={() => {void refetch();void ricaricaSal();}}>Riprova</Button></div>;
-  if (isLoading || caricoSal) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento commesse e contratti…</p>;
+  const righe: RigaContrattoSub[] = contratti.map(c => ({contratto:c, riepilogo:{...riepilogoContratto(c, sal.filter(s => s.contratto_id === c.id), fatture.filter(f => f.contratto_subappalto_id === c.id), ritenute.filter(r => r.contratto_id === c.id)), avvisi:[] as string[]}, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(firme.find(f => f.contratto_subappalto_id === c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}));
+  if (isError || erroreSal || erroreRitenute || erroreFatture) return <div role="alert" className="rounded-lg border p-4 text-sm">Commesse e riepiloghi non disponibili. <Button variant="outline" onClick={() => {void refetch();void ricaricaSal();}}>Riprova</Button></div>;
+  if (isLoading || caricoSal || caricoRitenute || caricoFatture) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento commesse e contratti…</p>;
   if (!righe.length) return <p className="rounded-lg border p-6 text-sm text-muted-foreground">Nessun contratto collegato. Crea un contratto per ogni commessa nella scheda Contratti.</p>;
   return <ElencoContrattiSub righe={righe} contesto="commesse" onApri={onApriContratto} onCommessa={onApriCommessa}/>;
 }

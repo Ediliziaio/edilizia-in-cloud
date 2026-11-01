@@ -1,5 +1,6 @@
 import { FornitoreEditor } from "@/components/suppliers/FornitoreEditor";
 import { SchedaFornitore } from "@/components/suppliers/SchedaFornitore";
+import { FattureDebitiFornitore } from "@/components/suppliers/FattureDebitiFornitore";
 import { SupplierWorkspacePanel } from "@/components/suppliers/SupplierWorkspacePanel";
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import {
@@ -523,6 +524,7 @@ function SupplierDetail({
       >
         <TabsList className="h-auto max-w-full justify-start overflow-x-auto [&>button]:shrink-0">
           <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
+          <TabsTrigger value="fatture">Fatture e debiti</TabsTrigger>
           <TabsTrigger value="contratti">Contratti e ruoli</TabsTrigger>
           <TabsTrigger value="oda">OdA ({oda.length})</TabsTrigger>
           <TabsTrigger value="listino">Listino</TabsTrigger>
@@ -540,6 +542,10 @@ function SupplierDetail({
             supplier={supplier}
             onModifica={puoModificare ? startEdit : undefined}
           />
+        </TabsContent>
+
+        <TabsContent value="fatture" className="mt-4">
+          <FattureDebitiFornitore supplierId={supplierId} partitaIva={supplier.vat_number ?? null} />
         </TabsContent>
 
         <TabsContent value="contratti" className="mt-4">

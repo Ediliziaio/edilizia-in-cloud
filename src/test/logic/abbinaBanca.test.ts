@@ -133,7 +133,7 @@ describe("descriviPagamentoBanca", () => {
 
 describe("bonifico parlante riconosciuto dalla banca (01/11/2026)", () => {
   const fattura = { numero: "FT/67", cliente: "Mario Rossi", residuo: 20405, data_emissione: "2026-10-01" };
-  const mov = (importo: number, data = "2026-10-30") => ({ id: `m${importo}`, data, importo, descrizione: "BONIFICO DETRAZ 50%", controparte: null, riferimento: null, conto: null });
+  const mov = (importo: number, data = "2026-10-30") => ({ id: `m${importo}`, data, importo, descrizione: "BONIFICO DETRAZ 50%", controparte: null as string | null, riferimento: null as string | null, conto: null as string | null });
 
   it("residuo meno l'11% (e qualche euro di commissioni): proposto come bonifico parlante", () => {
     const [p] = ordinaMovimentiPerFattura([mov(18563.7)], fattura);

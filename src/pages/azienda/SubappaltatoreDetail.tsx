@@ -11,6 +11,7 @@ import { ContestoSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCom
 import { ImportaArchivioFascicolo } from "@/components/sicurezza/ImportaArchivioFascicolo";
 import { DocumentiMensiliSub } from "@/components/subappaltatori/DocumentiMensiliSub";
 import { SubcontractorSupplierLink } from "@/components/suppliers/SubcontractorSupplierLink";
+import { FattureDebitiSubappaltatore } from "@/components/suppliers/FattureDebitiSubappaltatore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useContext, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
@@ -1058,8 +1059,9 @@ export default function SubappaltatoreDetail() {
             {contratti.length > 0 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
           </div>
           <Tabs value={vistaContabilita} onValueChange={setVistaContabilita}>
-            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
+            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="fatture">Fatture e pagamenti</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
             {permessi.canViewSubappaltatoriAmministrazione && <TabsContent value="mensili" className="mt-4">{caricoContratti ? <p className="text-sm text-muted-foreground">Caricamento contratti…</p> : erroreContratti ? <p role="alert" className="text-sm text-destructive">Contratti non disponibili. <Button variant="link" onClick={()=>void ricaricaContratti()}>Riprova</Button></p> : <DocumentiMensiliSub key={`${companyId}:${id}`} companyId={companyId} subId={id!} contratti={contratti}/>}</TabsContent>}
+            <TabsContent value="fatture" className="mt-4"><FattureDebitiSubappaltatore subId={id!} partitaIva={sub.piva ?? null} /></TabsContent>
             <TabsContent value="sal" className="space-y-4 mt-4">
           <div className={`flex items-center justify-between gap-3 ${!contratto ? 'max-sm:hidden' : ''}`}><h3 className="text-sm font-semibold">SAL del contratto</h3>
             <Button
