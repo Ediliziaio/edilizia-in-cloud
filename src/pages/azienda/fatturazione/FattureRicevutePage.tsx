@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
+import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
@@ -239,6 +241,7 @@ function IntestazioneOrdinabile({ children, campo, ordinamento, onOrdina, classN
 export default function FattureRicevutePage() {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
+  const permessiCosti = usePermissions();
   const { data: pagate } = usePagamentiRicevute(companyId);
   const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
   const queryClient = useQueryClient();
@@ -1101,6 +1104,10 @@ export default function FattureRicevutePage() {
           </div>
         </div>
       </div>
+
+      {companyId && permessiCosti.canViewCosts && (
+        <FattureDaAssegnare companyId={companyId} puoModificare={!permessiCosti.solaLettura} />
+      )}
 
       {/* Mobile: «Da leggere» (filtra) e l'importo del periodo, nome e cifra. */}
       <KpiMobili

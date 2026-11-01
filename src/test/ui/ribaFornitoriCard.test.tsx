@@ -37,6 +37,15 @@ vi.mock("@/integrations/supabase/client", () => ({
       return {
         ...lettura,
         update: (valori: unknown) => ({
+          // In blocco: .in(ids).neq(stato).select()
+          in: (_c: string, id: unknown) => ({
+            neq: () => ({
+              select: () => {
+                scritture.push({ tabella, valori, id });
+                return Promise.resolve({ data: (id as unknown[]).map((x) => ({ id: x })), error: null });
+              },
+            }),
+          }),
           eq: (_c: string, id: unknown) => ({
             select: () => {
               scritture.push({ tabella, valori, id });
@@ -128,5 +137,16 @@ describe("Riquadro RiBa ai fornitori in Tesoreria", () => {
     expect(avvisi.errori[0]).toMatch(/permesso/);
     expect(avvisi.ok).toHaveLength(0);
     righeAggiornate = 1;
+  });
+
+  it("le RiBa passate si segnano pagate insieme, ognuna alla sua scadenza, dopo la conferma", async () => {
+    risposta = RIGHE;
+    scritture.length = 0;
+    await disegna(5000);
+    fireEvent.click(await screen.findByText("Segna pagate le passate"));
+    expect(scritture).toHaveLength(0);
+    fireEvent.click(screen.getByText("Sì, sono addebitate"));
+    await screen.findByText("Segna pagate le passate");
+    expect(scritture).toEqual([{ tabella: "rate_fornitori", valori: { stato: "pagata", pagata_il: "2026-05-31" }, id: ["r3"] }]);
   });
 });

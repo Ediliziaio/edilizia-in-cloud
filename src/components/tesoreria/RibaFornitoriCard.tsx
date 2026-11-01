@@ -21,7 +21,7 @@
 // solo con bonifico.
 // ============================================================================
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -142,6 +142,39 @@ export function RibaFornitoriCard({
 
   const r = useMemo(() => riepilogoRiba(righe, liquidita), [righe, liquidita]);
 
+  // Le passate, viste addebitate sull'estratto conto, si segnano pagate tutte insieme (01/11/2026):
+  // ognuna alla SUA data di scadenza, che è il giorno in cui la banca le ha addebitate.
+  const [confermaPassate, setConfermaPassate] = useState(false);
+  const pagaPassate = useMutation({
+    mutationFn: async () => {
+      const perData = new Map<string, string[]>();
+      for (const x of r.passate) {
+        if (!x.rata_id || !x.scadenza) continue;
+        perData.set(x.scadenza, [...(perData.get(x.scadenza) ?? []), x.rata_id]);
+      }
+      let segnate = 0;
+      for (const [data, ids] of perData) {
+        const { data: fatte, error } = await db
+          .from("rate_fornitori")
+          .update({ stato: "pagata", pagata_il: data })
+          .in("id", ids)
+          .neq("stato", "pagata")
+          .select("id");
+        if (error) throw error;
+        segnate += fatte?.length ?? 0;
+      }
+      if (segnate === 0) throw new Error("Nessuna RiBa aggiornata: non hai il permesso di modificare i costi.");
+      return segnate;
+    },
+    onSuccess: (n) => {
+      toast.success(n === 1 ? "Una RiBa segnata pagata" : `${n} RiBa segnate pagate`);
+      setConfermaPassate(false);
+      queryClient.invalidateQueries({ queryKey: ["riba-fornitori", companyId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
+    },
+    onError: (e: Error) => toast.error(e.message || "RiBa non aggiornate"),
+  });
+
   // Prima quelle che stanno per partire, poi le passate da verificare, poi le altre.
   const ordine = {
     insoluta: 0, da_bloccare: 1, in_arrivo: 2, avvisata: 2, passata: 3,
@@ -206,9 +239,31 @@ export function RibaFornitoriCard({
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               {r.passate.length > 0
-                ? "Addebitate o insolute? Lo dice l'estratto conto; poi si segnano pagate dai costi."
+                ? "Addebitate o insolute? Lo dice l'estratto conto."
                 : "Nessuna: tutte le RiBa passate sono registrate."}
             </p>
+            {r.passate.some((x) => x.rata_id && x.scadenza) && (
+              confermaPassate ? (
+                <div className="mt-2 space-y-1.5">
+                  <p className="text-[11px] text-rose-800 dark:text-rose-200">
+                    Segni pagate {r.passate.length} RiBa per {formatCurrency(r.totalePassate)}, ognuna alla sua scadenza.
+                    Fallo solo se le hai viste addebitate sull'estratto conto.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-7 text-xs" disabled={pagaPassate.isPending} onClick={() => pagaPassate.mutate()}>
+                      Sì, sono addebitate
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfermaPassate(false)}>
+                      Annulla
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={() => setConfermaPassate(true)}>
+                  Segna pagate le passate
+                </Button>
+              )
+            )}
           </div>
         </div>
 

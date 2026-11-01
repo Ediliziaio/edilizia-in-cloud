@@ -42,6 +42,21 @@ const db = supabase as any;
 
 const BUCKET = "order-attachments";
 
+/**
+ * I costi di cantiere senza fattura più comuni, pronti con un clic (01/11/2026, G3 del piano costi):
+ * compilano descrizione, IVA e «senza fattura». Le assicurazioni e le fideiussioni sono esenti IVA;
+ * lo smaltimento ha la sua fattura.
+ */
+export const COSTI_PRONTI: { descrizione: string; aliquotaIva: string; senzaFattura: boolean }[] = [
+  { descrizione: "Oneri e diritti comunali della pratica", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Occupazione suolo pubblico", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Marche da bollo", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Polizza CAR del cantiere", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Fideiussione", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Smaltimento rifiuti", aliquotaIva: "22", senzaFattura: false },
+  { descrizione: "Trasferta e vitto della squadra", aliquotaIva: "0", senzaFattura: true },
+];
+
 export interface CostoCommessa {
   id: string;
   name: string;
@@ -303,6 +318,18 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
           <div>
             <Label htmlFor="costo-descrizione">Che costo è *</Label>
             <Input id="costo-descrizione" value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder="es. Tassa comunale occupazione suolo" maxLength={200} autoFocus />
+            <div className="mt-1.5 flex flex-wrap gap-1" aria-label="Costi pronti">
+              {COSTI_PRONTI.map((c) => (
+                <button
+                  key={c.descrizione}
+                  type="button"
+                  className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary"
+                  onClick={() => setForm((f) => ({ ...f, descrizione: c.descrizione, aliquotaIva: c.aliquotaIva, senzaFattura: c.senzaFattura }))}
+                >
+                  {c.descrizione}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
