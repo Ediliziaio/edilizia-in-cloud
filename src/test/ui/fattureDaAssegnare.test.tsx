@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-const righe = [
+const righe: Record<string, unknown>[] = [
   { id: "f1", numero_fattura: "88", data_fattura: "2026-10-12", cedente_ragione_sociale: "Edilcemento", totale_documento: 2440, order_match_confidenza: 0.9,
     costo: { id: "c1", order_id: null, supplier: { tipo: "materiali" } }, suggerito: { id: "o1", order_code: "O-0012", client_name: "Rossi", deleted_at: null } },
   { id: "f2", numero_fattura: "9", data_fattura: "2026-10-10", cedente_ragione_sociale: "TIM", totale_documento: 61, order_match_confidenza: null,
@@ -14,7 +14,7 @@ const righe = [
 const aggiornati: unknown[] = [];
 const lettura: Record<string, unknown> = {};
 for (const m of ["select", "eq", "is", "order"]) lettura[m] = () => lettura;
-lettura.limit = () => Promise.resolve({ data: righe, error: null });
+lettura.range = () => Promise.resolve({ data: righe, error: null });
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({

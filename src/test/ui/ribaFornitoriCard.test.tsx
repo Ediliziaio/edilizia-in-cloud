@@ -39,7 +39,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         update: (valori: unknown) => ({
           // In blocco: .in(ids).neq(stato).select()
           in: (_c: string, id: unknown) => ({
-            neq: () => ({
+            in: () => ({
               select: () => {
                 scritture.push({ tabella, valori, id });
                 return Promise.resolve({ data: (id as unknown[]).map((x) => ({ id: x })), error: null });

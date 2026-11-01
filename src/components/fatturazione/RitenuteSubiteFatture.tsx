@@ -19,6 +19,7 @@ interface Riga {
   tipo: string;
   ritenuta_importo: number | null;
   ritenuta_aliquota: number | null;
+  ritenuta_causale: string | null;
   cliente_snapshot: { ragione_sociale?: string; denominazione?: string; nome?: string; cognome?: string } | null;
 }
 
@@ -37,11 +38,11 @@ export function RitenuteSubiteFatture({ anno, primoMese, ultimoMese }: { anno: n
       readAllPages<Riga>((from, to) =>
         supabase
           .from("documenti_fiscali")
-          .select("id,numero,data_emissione,stato,tipo,ritenuta_importo,ritenuta_aliquota,cliente_snapshot")
+          .select("id,numero,data_emissione,stato,tipo,ritenuta_importo,ritenuta_aliquota,ritenuta_causale,cliente_snapshot")
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .gt("ritenuta_importo", 0)
-          .not("stato", "in", "(bozza,annullata)")
+          .not("stato", "in", "(bozza,annullata,stornata)")
           .gte("data_emissione", `${anno}-01-01`)
           .lte("data_emissione", `${anno}-12-31`)
           .order("data_emissione", { ascending: false })
@@ -50,7 +51,9 @@ export function RitenuteSubiteFatture({ anno, primoMese, ultimoMese }: { anno: n
           .abortSignal(signal) as never,
       ),
   });
+  // Le fatture d'appalto di prima del 01/11/2026 scrivevano la garanzia come RT02: non è un acconto d'imposta.
   const righe = (q.data ?? []).filter((r) => {
+    if (/garanzia/i.test(r.ritenuta_causale ?? "")) return false;
     const m = Number(r.data_emissione.slice(5, 7));
     return m >= primoMese && m <= ultimoMese;
   });

@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { readAllPages } from "@/lib/personale/readAllPages";
 
 // Le letture con i join (costo, fornitore, commessa proposta) superano la profondità dei tipi generati.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,7 +27,8 @@ interface Riga {
   cedente_ragione_sociale: string | null;
   totale_documento: number | null;
   order_match_confidenza: number | null;
-  costo: { id: string; order_id: string | null; supplier: { tipo: string | null } | null } | null;
+  costo: { id: string; order_id: string | null; purchase_order_id: string | null; supplier: { tipo: string | null } | null } | null;
+  quote?: { purchase_order_id: string }[] | null;
   suggerito: { id: string; order_code: string | null; client_name: string | null; deleted_at: string | null } | null;
 }
 
@@ -43,18 +45,22 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await db
+      const data = await readAllPages<Riga>((from, to) => db
         .from("fatture_ricevute")
         .select(
-          "id,numero_fattura,data_fattura,cedente_ragione_sociale,totale_documento,order_match_confidenza,costo:company_costs!inner(id,order_id,supplier:suppliers(tipo)),suggerito:orders!fatture_ricevute_order_id_suggerito_fkey(id,order_code,client_name,deleted_at)",
+          "id,numero_fattura,data_fattura,cedente_ragione_sociale,totale_documento,order_match_confidenza,costo:company_costs!inner(id,order_id,purchase_order_id,supplier:suppliers(tipo)),quote:fattura_ricevuta_ordini(purchase_order_id),suggerito:orders!fatture_ricevute_order_id_suggerito_fkey(id,order_code,client_name,deleted_at)",
         )
         .eq("company_id", companyId)
         .eq("stato", "contabilizzata")
         .is("costo.order_id", null)
         .order("data_fattura", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return ((data ?? []) as unknown as Riga[]).filter((r) => !eSpesaGenerale(r.costo?.supplier?.tipo));
+        .order("id")
+        .range(from, to));
+      // Fuori anche le fatture d'ordine: il costo di un ordine (o diviso tra più ordini) è senza commessa
+      // apposta, il margine lo prende l'ordine. Assegnarlo lo conterebbe due volte.
+      return data.filter(
+        (r) => !eSpesaGenerale(r.costo?.supplier?.tipo) && !r.costo?.purchase_order_id && !(r.quote?.length),
+      );
     },
   });
 

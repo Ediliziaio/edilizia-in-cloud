@@ -212,7 +212,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "ritenute_garanzia",
-          "id,direzione,importo,stato,data_svincolo_prevista,controparte,order_id",
+          "id,direzione,importo,stato,data_svincolo_prevista,controparte,order_id,fideiussione",
         ).eq("stato", "trattenuta"),
     },
     {

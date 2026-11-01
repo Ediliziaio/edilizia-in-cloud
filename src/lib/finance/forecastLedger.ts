@@ -383,6 +383,7 @@ export interface GaranziaRow {
   controparte: string | null;
   order_id: string | null;
   note?: string | null;
+  fideiussione?: boolean | null;
 }
 /** Una fattura emessa o ricevuta ridotta a ciò che serve alla stima IVA. */
 export interface VatDocumentRow {
@@ -1037,6 +1038,9 @@ export function buildForecastLedger(
   // Fatture ricevute non ancora registrate come costo (01/11/2026): le loro rate escono alle date
   // scritte in fattura. Prima erano invisibili alla cassa finché qualcuno non le contabilizzava.
   const odaConFattura = new Set<string>();
+  // L'ordine ricevuto ha già il suo costo da pagare (nasce alla ricezione): la sua fattura, finché non è
+  // registrata, è lo stesso debito.
+  const odaConCosto = new Set(s.costs.map((c) => c.purchase_order_id).filter((x): x is string => !!x));
   // La ditta ancora da pagare in commessa e la sua fattura non ancora registrata sono lo stesso debito:
   // la fattura resta fuori dal piano (da collegare) e conta la riga della commessa.
   const soloCifre = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").replace(/^0+(?=\d{11}$)/, "");
@@ -1060,6 +1064,8 @@ export function buildForecastLedger(
     const quota = Math.round(netto / piano.length);
     const fornitore = f.cedente_ragione_sociale || "Fornitore";
     const dittaInCommessa = pivaDitteDaPagare.has(soloCifre(f.cedente_piva));
+    const ordineConCosto = !!f.purchase_order_id && odaConCosto.has(f.purchase_order_id);
+    const doppione = dittaInCommessa || ordineConCosto;
     piano.forEach((r, i) => {
       if ("pagata_il" in r && r.pagata_il) return;
       const riba = "modalita" in r && r.modalita === "MP12";
@@ -1074,10 +1080,12 @@ export function buildForecastLedger(
         source: riba ? "RiBa da fattura da registrare" : "Fattura da registrare",
         href: "/azienda/documenti/fatture-ricevute",
         estimated: true,
-        note: dittaInCommessa
-          ? "Fattura di una ditta ancora da pagare in commessa: probabilmente è lo stesso debito. Registrala e collegala alla commessa."
-          : "Fattura arrivata, non ancora registrata come costo: la scadenza è quella scritta in fattura.",
-        ...(dittaInCommessa ? { possibleDuplicate: true } : {}),
+        note: ordineConCosto
+          ? "Fattura di un ordine già ricevuto, che ha il suo costo da pagare: è lo stesso debito. Registrala per collegarla."
+          : dittaInCommessa
+            ? "Fattura di una ditta ancora da pagare in commessa: probabilmente è lo stesso debito. Registrala e collegala alla commessa."
+            : "Fattura arrivata, non ancora registrata come costo: la scadenza è quella scritta in fattura.",
+        ...(doppione ? { possibleDuplicate: true } : {}),
       });
     });
   }
@@ -1092,12 +1100,15 @@ export function buildForecastLedger(
   const f24Ritenute = f24Registrati("1040");
   for (const f of s.receivedInvoices ?? []) {
     if (!(Number(f.ritenuta_importo) > 0) || f.storico_esterno) continue;
+    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
     if (NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")) continue;
     const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
     const pagata = piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
     const base = validDay(pagata ?? piano[0]?.scadenza ?? f.data_fattura);
     if (!base) continue;
     const date = sediciDelMeseDopo(base);
+    // Una scadenza passata non si stima: o l'F24 è stato pagato fuori dal gestionale, o va registrato.
+    if (date < today) continue;
     // Nell'F24 il mese delle ritenute è quello in cui sono state trattenute (il pagamento), non la scadenza.
     const [y, m] = base.split("-").map(Number);
     if (f24Ritenute.has(`${y}-${m}`)) continue;
@@ -1119,7 +1130,8 @@ export function buildForecastLedger(
   // Ritenute di garanzia (01/11/2026): soldi trattenuti oggi che tornano allo svincolo. Attiva = il
   // committente ci deve la quota trattenuta; passiva = la dobbiamo noi al subappaltatore.
   for (const g of s.garanzie ?? []) {
-    if (g.stato !== "trattenuta" || !(Number(g.importo) > 0)) continue;
+    // Sostituita da fideiussione: i soldi sono già tornati, allo svincolo non si muove denaro.
+    if (g.stato !== "trattenuta" || g.fideiussione || !(Number(g.importo) > 0)) continue;
     const attiva = g.direzione === "attiva";
     const chi = g.controparte || (attiva ? "Committente" : "Subappaltatore");
     add({
@@ -1325,20 +1337,23 @@ export function buildForecastLedger(
       estimated: false,
     });
 
-  // F24 dei dipendenti (01/11/2026): ritenute IRPEF (1001) e contributi INPS del cedolino, il 16 del mese
-  // dopo il pagamento dello stipendio. Una stima per mese, finché non c'è l'F24 1001 registrato di quel mese.
+  // F24 dei dipendenti (01/11/2026): le ritenute IRPEF (1001) il 16 del mese dopo il PAGAMENTO dello
+  // stipendio; i contributi INPS (DM10) il 16 del mese dopo quello del CEDOLINO (competenza). Una stima per
+  // mese, finché non c'è l'F24 registrato di quel mese.
   const f24Dipendenti = f24Registrati("1001");
   const f24Contributi = f24Registrati("DM10");
   const perMese = new Map<string, { irpef: number; inps: number; n: number }>();
   for (const p of s.payroll) {
     if (p.stato === "bozza") continue;
-    const rif = validDay(p.data_pagamento) ?? `${p.anno}-${String(p.mese).padStart(2, "0")}-28`;
-    const key = rif.slice(0, 7);
-    const v = perMese.get(key) ?? { irpef: 0, inps: 0, n: 0 };
-    v.irpef += toCents(p.ritenute_irpef ?? 0);
-    v.inps += toCents(p.contributi_dipendente ?? 0) + toCents(p.contributi_datore ?? 0);
-    v.n += 1;
-    perMese.set(key, v);
+    const competenza = `${p.anno}-${String(p.mese).padStart(2, "0")}`;
+    const pagamento = (validDay(p.data_pagamento) ?? `${competenza}-28`).slice(0, 7);
+    const vi = perMese.get(pagamento) ?? { irpef: 0, inps: 0, n: 0 };
+    vi.irpef += toCents(p.ritenute_irpef ?? 0);
+    vi.n += 1;
+    perMese.set(pagamento, vi);
+    const vc = perMese.get(competenza) ?? { irpef: 0, inps: 0, n: 0 };
+    vc.inps += toCents(p.contributi_dipendente ?? 0) + toCents(p.contributi_datore ?? 0);
+    perMese.set(competenza, vc);
   }
   for (const [key, v] of perMese) {
     const date = sediciDelMeseDopo(`${key}-01`);
@@ -1357,12 +1372,12 @@ export function buildForecastLedger(
         source: "Ritenute dei dipendenti da versare",
         href: "/azienda/contabilita-fiscale",
         estimated: true,
-        note: `Somma delle ritenute di ${v.n} ${v.n === 1 ? "cedolino" : "cedolini"}: si versano il 16 del mese dopo lo stipendio. Confrontala col prospetto del consulente.`,
+        note: `Somma delle ritenute di ${v.n} ${v.n === 1 ? "cedolino pagato" : "cedolini pagati"} nel mese: si versano il 16 del mese dopo lo stipendio. Confrontala col prospetto del consulente.`,
       });
     if (v.inps > 0 && !f24Contributi.has(`${y}-${m}`))
       add({
         id: `f24-inps:${key}`,
-        description: `F24 INPS · contributi dei dipendenti (stipendi ${etichetta})`,
+        description: `F24 INPS · contributi dei dipendenti (cedolini ${etichetta})`,
         counterparty: "INPS",
         category: "fisco",
         direction: "out",
@@ -1371,7 +1386,7 @@ export function buildForecastLedger(
         source: "Contributi da versare",
         href: "/azienda/contabilita-fiscale",
         estimated: true,
-        note: "Contributi a carico del dipendente e dell'azienda letti dai cedolini: si versano il 16 del mese dopo. Confrontali col prospetto del consulente.",
+        note: "Contributi a carico del dipendente e dell'azienda letti dai cedolini del mese: si versano il 16 del mese dopo. Confrontali col prospetto del consulente.",
       });
   }
 
@@ -1380,7 +1395,12 @@ export function buildForecastLedger(
   {
     const fine = calendarDate(today);
     fine.setFullYear(fine.getFullYear() + 1);
-    for (const m of rateMutui(s.loans ?? [], today, dayKey(fine))) add(m);
+    const giaScritti =
+      s.costs.some((c) => !c.is_paid && /mutu|finanziament/i.test(c.name)) ||
+      s.deadlines.some((d) => !closed(d.status) && /mutu|finanziament/i.test(d.description ?? ""));
+    if ((s.loans ?? []).length && giaScritti)
+      warnings.add("Rate dei mutui del Controllo di gestione non aggiunte: tra spese e scadenze c'è già una rata di mutuo o finanziamento.");
+    else for (const m of rateMutui(s.loans ?? [], today, dayKey(fine))) add(m);
   }
 
   // Il giorno degli stipendi non è fisso: nel gestionale non c'è un'impostazione HR che lo dica,

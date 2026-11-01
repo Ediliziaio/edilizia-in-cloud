@@ -93,3 +93,23 @@ describe("previsionale: la fattura della ditta già in commessa non si conta due
     expect(buildForecastLedger(s, today).movements.filter((m) => m.id.startsWith("fattura-ricevuta:")).some((m) => m.possibleDuplicate)).toBe(false);
   });
 });
+
+describe("previsionale: fattura di un ordine già ricevuto (01/11/2026)", () => {
+  it("l'ordine ricevuto ha già il suo costo: la fattura non registrata resta da collegare", () => {
+    const s = emptyForecastSources();
+    s.costs = [{ id: "c1", name: "ODA-1", amount: 10000, vat_rate: 22, due_date: "2026-11-30", is_paid: false, purchase_order_id: "oda1" } as never];
+    s.receivedInvoices = [fattura({ purchase_order_id: "oda1" })];
+    const fatture = buildForecastLedger(s, today).movements.filter((m) => m.id.startsWith("fattura-ricevuta:"));
+    expect(fatture.length).toBeGreaterThan(0);
+    expect(fatture.every((m) => m.possibleDuplicate)).toBe(true);
+  });
+
+  it("il 1040 di una fattura rifiutata o di un mese già scaduto non si stima", () => {
+    const s = emptyForecastSources();
+    s.receivedInvoices = [
+      fattura({ id: "r", stato: "rifiutata", piano_pagamento: [{ scadenza: "2026-11-20", importo: 1020 }], ritenuta_importo: 200 }),
+      fattura({ id: "v", piano_pagamento: [{ scadenza: "2026-08-20", importo: 1020 }], ritenuta_importo: 200 }),
+    ];
+    expect(uscite(s).filter((m) => m.id.startsWith("f24-1040:"))).toHaveLength(0);
+  });
+});

@@ -158,7 +158,8 @@ export function RibaFornitoriCard({
           .from("rate_fornitori")
           .update({ stato: "pagata", pagata_il: data })
           .in("id", ids)
-          .neq("stato", "pagata")
+          // Solo quelle ancora attese: un'insoluta o una richiamata segnata altrove non diventa pagata.
+          .in("stato", ["da_pagare", "avvisata"])
           .select("id");
         if (error) throw error;
         segnate += fatte?.length ?? 0;
