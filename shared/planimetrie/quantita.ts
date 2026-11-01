@@ -137,6 +137,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   const demolizioni = new Map<string, Accumulo>();
   const costruzioni = new Map<string, Accumulo>();
   const aperture = new Map<string, { acc: Accumulo; descrizione: string }>();
+  // Arredi, sanitari e punti impianto per tipo (1/11/2026): «elementi:<stato>:<tipo>.numero».
+  const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
@@ -183,6 +185,17 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         aperture.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, ...origini] }, descrizione });
       }
     }
+
+    // ─── Arredi, sanitari, punti impianto ───
+    for (const e of stato.elementi) {
+      if (!/^[a-z0-9_]+$/.test(e.tipo)) continue;
+      const st = e.stato ?? "esistente";
+      const soggetto = `elementi:${st}:${e.tipo}`;
+      const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
+      const nome = NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
+      const prec = elementi.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+      elementi.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, e.origine] }, descrizione: `${nome} ${nomeStato}` });
+    }
   }
 
   for (const [misura, acc] of totaliPianta) metti("pianta", misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — tutti i locali`);
@@ -193,7 +206,18 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of demolizioni) metti("demolizioni", misura, acc, `Pareti da demolire (${nomiMuri[misura]})`);
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
+  for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
 }
+
+/** Nomi al plurale per le righe del computo («Prese nuove», «WC esistenti»). */
+const NOMI_ELEMENTI: Record<string, string> = {
+  wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
+  cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
+  letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie",
+  presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
+  scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",
+};
 
 /** Parte del vano che cade fra quota 0 e `fino` (cm), in cm². */
 function vuotoFino(a: Apertura, fino: number): number {

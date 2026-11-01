@@ -29,6 +29,15 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "scrivania", nome: "Scrivania", gruppo: "Camere", larghezza: 120, profondita: 60, altezza: 75 },
   { tipo: "divano", nome: "Divano", gruppo: "Soggiorno", larghezza: 200, profondita: 90, altezza: 85 },
   { tipo: "caldaia", nome: "Caldaia", gruppo: "Impianti", larghezza: 45, profondita: 35, altezza: 75 },
+  // Punti impianto (fase 7): simboli grandi abbastanza da vedersi in pianta; si contano nel computo.
+  { tipo: "presa", nome: "Presa", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 30 },
+  { tipo: "interruttore", nome: "Interruttore", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 110 },
+  { tipo: "punto_luce", nome: "Punto luce", gruppo: "Impianti", larghezza: 30, profondita: 30, altezza: 270 },
+  { tipo: "quadro_elettrico", nome: "Quadro elettrico", gruppo: "Impianti", larghezza: 40, profondita: 15, altezza: 160 },
+  { tipo: "punto_acqua", nome: "Punto acqua", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 50 },
+  { tipo: "scarico", nome: "Scarico", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 0 },
+  { tipo: "termosifone", nome: "Termosifone", gruppo: "Impianti", larghezza: 80, profondita: 12, altezza: 60 },
+  { tipo: "split", nome: "Split clima", gruppo: "Impianti", larghezza: 90, profondita: 25, altezza: 220 },
 ];
 
 export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Impianti"] as const;

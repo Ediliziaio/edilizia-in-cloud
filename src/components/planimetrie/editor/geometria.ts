@@ -117,6 +117,11 @@ export function aggancia(
     } else if (vicinoA(90)) {
       q = { x: da.x, y: da.y + Math.round(dy / GRIGLIA) * GRIGLIA };
       guida = "dritto";
+    } else if (vicinoA(45) || vicinoA(135)) {
+      // 45°: le pareti a squadro di bovindi e angoli smussati (fase 4)
+      const l = Math.round(((Math.abs(dx) + Math.abs(dy)) / 2) / GRIGLIA) * GRIGLIA;
+      q = { x: da.x + Math.sign(dx) * l, y: da.y + Math.sign(dy) * l };
+      guida = "dritto";
     }
   }
 

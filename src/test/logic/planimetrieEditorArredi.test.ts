@@ -80,3 +80,72 @@ describe("arredi, quote e testi nell'editor (fase 3)", () => {
     expect(copia).toMatchObject({ tipo: "wc", centro: { x: 40, y: 40 }, stato: "nuovo" });
   });
 });
+
+describe("disegno più libero (fase 4)", () => {
+  it("una stanza a L diventa un locale valido con le sue pareti", async () => {
+    const L = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 200 }, { x: 200, y: 200 }, { x: 200, y: 400 }, { x: 0, y: 400 }];
+    const r = C.aggiungiStanza(piantaVuota(), L, { spessore: 20 });
+    expect(r.pianta.muri).toHaveLength(6);
+    const doc = aPlanimetria(r.pianta);
+    expect(validaPlanimetria(doc).ok).toBe(true);
+    const mq = calcolaQuantita(doc)[`fatto:locale:${r.id}.pavimento_mq`].valore;
+    // asse 12 m² meno mezzo muro da 20 cm lungo tutto il perimetro interno: fra 10 e 12 m²
+    expect(mq).toBeGreaterThan(10);
+    expect(mq).toBeLessThan(12);
+  });
+
+  it("le pareti si agganciano anche a 45°", async () => {
+    const { aggancia } = await import("@/components/planimetrie/editor/geometria");
+    const a = aggancia(piantaVuota(), { x: 103, y: 97 }, { tolleranza: 5, da: { x: 0, y: 0 } });
+    expect(a.guida).toBe("dritto");
+    expect(a.punto.x).toBe(a.punto.y);
+  });
+});
+
+describe("piani (fase 5)", () => {
+  it("un piano nuovo dal perimetro copia le pareti esterne con id nuovi, ed è un documento valido", async () => {
+    const { aggiungiLivello, eliminaLivello, rinominaLivello } = await import("@/components/planimetrie/editor/adattatore");
+    const doc = carica("trilocale.json");
+    const esterni = doc.livelli[0].fatto.muri.filter((m) => m.tipo === "esterno" || m.tipo === "portante");
+    const r = aggiungiLivello(doc, { nome: "Primo piano", quota: 300, base: "esterni" });
+    expect(validaPlanimetria(r.documento).ok).toBe(true);
+    const nuovo = r.documento.livelli.find((l) => l.id === r.id)!;
+    expect(nuovo.fatto.muri).toHaveLength(esterni.length);
+    expect(nuovo.fatto.muri.every((m) => m.id.endsWith(`_${r.id}`))).toBe(true);
+    expect(nuovo.fatto.aperture).toHaveLength(0);
+    const tutto = aggiungiLivello(doc, { nome: "Copia", quota: 600, base: "tutto" });
+    expect(validaPlanimetria(tutto.documento).ok).toBe(true);
+    expect(tutto.documento.livelli.at(-1)!.fatto.aperture.length).toBe(doc.livelli[0].fatto.aperture.length);
+    const rinominato = rinominaLivello(r.documento, r.id, { nome: "Mansarda", quota: -300 });
+    expect(rinominato.livelli[0]).toMatchObject({ id: r.id, nome: "Mansarda" });
+    expect(eliminaLivello(rinominato, r.id).livelli).toHaveLength(1);
+    expect(eliminaLivello(doc, doc.livelli[0].id).livelli).toHaveLength(1);
+  });
+
+  it("l'editor lavora sul piano scelto senza toccare gli altri", async () => {
+    const { aggiungiLivello } = await import("@/components/planimetrie/editor/adattatore");
+    const doc = aggiungiLivello(carica("bilocale.json"), { nome: "Primo piano", quota: 300, base: "vuoto" });
+    const p = C.aggiungiStanzaDaMisure(daPlanimetria(doc.documento, doc.id), 300, 400, {}).pianta;
+    const dopo = aPlanimetria(p, doc.documento, doc.id);
+    expect(dopo.livelli[0]).toEqual(doc.documento.livelli[0]);
+    expect(dopo.livelli.find((l) => l.id === doc.id)!.fatto.locali).toHaveLength(1);
+    expect(validaPlanimetria(dopo).ok).toBe(true);
+  });
+});
+
+describe("impianti di base nel computo (fase 7)", () => {
+  it("prese e punti luce nuovi si contano per tipo e si scelgono in «Prendi dalla pianta»", async () => {
+    const { quantitaPianta } = await import("@/lib/planimetrie/computo");
+    const presa = CATALOGO.find((v) => v.tipo === "presa")!;
+    const luce = CATALOGO.find((v) => v.tipo === "punto_luce")!;
+    let p = C.aggiungiStanzaDaMisure(piantaVuota(), 300, 400, {}).pianta;
+    for (let i = 0; i < 3; i++) p = C.aggiungiElemento(p, presa, { x: 50 + i * 40, y: 50 }, { stato: "nuovo" }).pianta;
+    p = C.aggiungiElemento(p, luce, { x: 150, y: 200 }, { stato: "nuovo" }).pianta;
+    const doc = aPlanimetria(p);
+    const q = calcolaQuantita(doc);
+    expect(q["progetto:A:elementi:nuovo:presa.numero"]).toMatchObject({ valore: 3, unita: "n" });
+    expect(q["progetto:A:elementi:nuovo:punto_luce.numero"]?.descrizione).toContain("Punti luce nuovi");
+    const scelte = quantitaPianta(q, "progetto:A").map((s) => s.id);
+    expect(scelte).toContain("elementi:nuovo:presa.numero");
+  });
+});

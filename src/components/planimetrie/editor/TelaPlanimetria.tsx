@@ -38,6 +38,8 @@ export interface Sovrapposizioni {
   pareteInCorso?: { a: Punto; b: Punto } | null;
   aggancio?: Aggancio | null;
   aperturaFantasma?: { muroId: string; t: number; tipo: TipoApertura } | null;
+  /** Stanza libera in corso: i punti messi e il cursore. */
+  poligonoInCorso?: { punti: Punto[]; cursore: Punto } | null;
   /** Quota libera in corso: primo punto e cursore. */
   quotaInCorso?: { a: Punto; b: Punto } | null;
   /** Arredo che sta per essere posato. */
@@ -405,6 +407,23 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
           {/* anteprime mentre si disegna */}
           {sovrapposizioni.rettangolo && <AnteprimaRettangolo {...sovrapposizioni.rettangolo} px={px} />}
           {sovrapposizioni.pareteInCorso && <AnteprimaParete {...sovrapposizioni.pareteInCorso} px={px} />}
+          {sovrapposizioni.poligonoInCorso && (() => {
+            const { punti: pp, cursore } = sovrapposizioni.poligonoInCorso;
+            const tutti = [...pp, cursore];
+            const chiude = pp.length >= 3 && dist(cursore, pp[0]) < px(14);
+            return (
+              <g pointerEvents="none">
+                {pp.length >= 2 && <polygon points={punti(tutti)} fill={SELEZIONE} fillOpacity={0.08} stroke="none" />}
+                <polyline points={punti(tutti)} fill="none" stroke={SELEZIONE} strokeWidth={px(2)} strokeDasharray={`${px(6)} ${px(4)}`} />
+                {pp.map((q, i) => <circle key={i} cx={q.x} cy={q.y} r={px(i === 0 ? 6 : 4)} fill={i === 0 && chiude ? SELEZIONE : "#ffffff"} stroke={SELEZIONE} strokeWidth={px(2)} />)}
+                {pp.length > 0 && (
+                  <text x={(pp[pp.length - 1].x + cursore.x) / 2} y={(pp[pp.length - 1].y + cursore.y) / 2 - px(10)} textAnchor="middle" fontSize={px(12)} fontWeight={700} fill={SELEZIONE}>
+                    {scriviMetri(dist(pp[pp.length - 1], cursore))}
+                  </text>
+                )}
+              </g>
+            );
+          })()}
           {sovrapposizioni.quotaInCorso && (
             <g pointerEvents="none">
               <line x1={sovrapposizioni.quotaInCorso.a.x} y1={sovrapposizioni.quotaInCorso.a.y} x2={sovrapposizioni.quotaInCorso.b.x} y2={sovrapposizioni.quotaInCorso.b.y} stroke="#0f766e" strokeWidth={px(1.5)} strokeDasharray={`${px(5)} ${px(4)}`} />

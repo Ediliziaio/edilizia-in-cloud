@@ -661,8 +661,8 @@ export interface DatiVista {
  * Locali, quantità e problemi della vista scelta, calcolati dal documento con le
  * funzioni della fase 1. «Progetto» senza proposta è lo stato di fatto.
  */
-export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto" | "progetto"): DatiVista {
-  const livello = documento.livelli[0];
+export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto" | "progetto", livelloId?: string): DatiVista {
+  const livello = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
   const proposta = livello?.proposte.find((p) => p.id === ID_PROPOSTA);
   const ambito = vista === "progetto" && proposta ? `progetto:${ID_PROPOSTA}` : "fatto";
   const stato = ambito === "fatto" ? livello?.fatto : proposta;
@@ -697,4 +697,49 @@ export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto"
   }));
   const testi = (stato?.testi ?? []).map((t) => ({ id: t.id, posizione: capovolgi(t.posizione), testo: t.testo, rotazione: 0 - (t.rotazione ?? 0) }));
   return { ambito, locali, elementi, testi, problemi, quantita };
+}
+
+
+// ─── Piani (fase 5 del piano di completamento) ───────────────────────────────
+
+export type BaseNuovoPiano = "vuoto" | "esterni" | "tutto";
+
+/**
+ * Un piano nuovo sopra (o sotto) quelli che ci sono. Si può partire vuoti, dalle sole pareti
+ * esterne del piano scelto (il perimetro dell'edificio) o dalla copia di tutte le pareti, porte e
+ * finestre di oggi. Gli id copiati prendono un suffisso: gli id sono unici su tutti i livelli.
+ */
+export function aggiungiLivello(
+  doc: Planimetria,
+  o: { nome: string; quota: number; base: BaseNuovoPiano; daLivelloId?: string },
+): { documento: Planimetria; id: string } {
+  const usati = new Set(doc.livelli.map((l) => l.id));
+  let n = doc.livelli.length;
+  let id = `p${n}`;
+  while (usati.has(id)) id = `p${++n}`;
+  const origine = doc.livelli.find((l) => l.id === o.daLivelloId) ?? doc.livelli[doc.livelli.length - 1];
+  const fatto = statoVuoto();
+  if (origine && o.base !== "vuoto") {
+    const muri = origine.fatto.muri.filter((m) => o.base === "tutto" || m.tipo === "esterno" || m.tipo === "portante");
+    const ids = new Map(muri.map((m) => [m.id, `${m.id}_${id}`]));
+    fatto.muri = muri.map((m) => ({ ...m, id: ids.get(m.id)!, stato: "esistente" as const }));
+    if (o.base === "tutto") {
+      fatto.aperture = origine.fatto.aperture
+        .filter((a) => ids.has(a.muroId))
+        .map((a) => ({ ...a, id: `${a.id}_${id}`, muroId: ids.get(a.muroId)!, stato: "esistente" as const }));
+    }
+  }
+  const livello: Livello = { id, nome: o.nome.trim() || `Piano ${doc.livelli.length}`, quota: o.quota, fatto, proposte: [] };
+  return { documento: { ...doc, livelli: [...doc.livelli, livello].sort((a, b) => a.quota - b.quota) }, id };
+}
+
+export function rinominaLivello(doc: Planimetria, id: string, campi: { nome?: string; quota?: number }): Planimetria {
+  const livelli = doc.livelli.map((l) => (l.id === id ? { ...l, ...(campi.nome?.trim() ? { nome: campi.nome.trim() } : {}), ...(campi.quota != null ? { quota: campi.quota } : {}) } : l));
+  return { ...doc, livelli: [...livelli].sort((a, b) => a.quota - b.quota) };
+}
+
+/** Il piano si toglie solo se ne resta almeno uno. */
+export function eliminaLivello(doc: Planimetria, id: string): Planimetria {
+  if (doc.livelli.length <= 1) return doc;
+  return { ...doc, livelli: doc.livelli.filter((l) => l.id !== id) };
 }

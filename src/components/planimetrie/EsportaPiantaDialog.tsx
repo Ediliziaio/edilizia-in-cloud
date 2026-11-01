@@ -8,7 +8,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, FileImage, FileText, Loader2, PenTool } from "lucide-react";
+import { Download, FileImage, FileText, Loader2, Paperclip, PenTool } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/useBranding";
@@ -18,7 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { allegaSchedeTecniche } from "@/lib/quotes/allegatiPreventivo";
 import {
+  allegatoPreventivo,
   aziendaDelCartiglio, caricaLogo, ErroreImpaginazione, esportaDxfMigliore, esportaPdf, esportaPng, esportaSvg,
   SCALE_STANDARD, vistaDaPlanimetria, type DatiCartiglio, type FormatoFoglio, type ModoVista, type Orientamento,
 } from "@/lib/planimetrie/esporta";
@@ -50,9 +52,11 @@ function scarica(nome: string, dati: Uint8Array | Blob | string, tipo: string) {
 const nomeFile = (t: string) => (t || "pianta").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "pianta";
 
 export function EsportaPiantaDialog({
-  aperto, onChiudi, documento, titolo, versione, livelloId, propostaId, haProgetto,
+  aperto, onChiudi, documento, titolo, versione, livelloId, propostaId, haProgetto, planimetriaId,
 }: {
   aperto: boolean;
+  /** Per allegare la pianta a un preventivo (fase 8): il file prende l'id e la versione. */
+  planimetriaId?: string;
   onChiudi: () => void;
   documento: Planimetria;
   titolo: string;
@@ -73,6 +77,22 @@ export function EsportaPiantaDialog({
   const [cliente, setCliente] = useState("");
   const [cantiere, setCantiere] = useState("");
   const [inCorso, setInCorso] = useState(false);
+  const [preventivoId, setPreventivoId] = useState<string>("");
+  const [allegando, setAllegando] = useState(false);
+
+  // Preventivi a cui si può allegare: quelli standard (i moduli fanno il PDF nel browser), non firmati.
+  const preventivi = useQuery({
+    queryKey: ["planimetria-preventivi-allegabili", effectiveCompany?.id],
+    enabled: aperto && !!effectiveCompany?.id && !!planimetriaId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("quotes")
+        .select("id, quote_number, title, client_name, status, source")
+        .eq("company_id", effectiveCompany!.id).is("deleted_at", null).is("signed_at", null)
+        .order("created_at", { ascending: false }).limit(60);
+      if (error) throw error;
+      return (data ?? []).filter((q) => !String(q.source ?? "").startsWith("modulo:"));
+    },
+  });
 
   // I dati dell'impresa per il cartiglio: si leggono solo quando serve.
   const azienda = useQuery({
@@ -108,20 +128,53 @@ export function EsportaPiantaDialog({
 
   const base = `${nomeFile(titolo)}-${haProgetto ? modo : "fatto"}`;
 
+  const cartiglioPerOra = async (): Promise<DatiCartiglio | null> => {
+    if (!vista) return null;
+    const logo = await caricaLogo(branding?.logo_url ?? null).catch((): null => null);
+    return {
+      azienda: aziendaDelCartiglio(azienda.data ?? { name: effectiveCompany?.name ?? null }, branding ?? null, logo),
+      cliente: cliente.trim() || undefined,
+      indirizzoCantiere: cantiere.trim() || undefined,
+      oggetto: vista.livello ?? undefined,
+      data: new Date(),
+      versione: `v${versione}`,
+    };
+  };
+
+  /** La pianta in A4 come scheda del preventivo: si accoda al PDF che parte al cliente. */
+  const allega = async () => {
+    if (!vista || !planimetriaId || !preventivoId || !effectiveCompany?.id) return;
+    setAllegando(true);
+    try {
+      const cartiglio = await cartiglioPerOra();
+      if (!cartiglio) throw new Error("La pianta non ha niente da disegnare.");
+      const a = await allegatoPreventivo(vista, cartiglio, { stile });
+      const percorso = `${effectiveCompany.id}/planimetrie/${planimetriaId}-v${versione}-${Date.now()}.pdf`;
+      const corpo = new Uint8Array(a.dati).buffer as ArrayBuffer;
+      const { error: errFile } = await supabase.storage.from("quote-materials").upload(percorso, new Blob([corpo], { type: "application/pdf" }), { contentType: "application/pdf" });
+      if (errFile) throw new Error("Il file della pianta non si è caricato: controlla di poter modificare i preventivi.");
+      const { data: utente } = await supabase.auth.getUser();
+      const { data: scheda, error: errScheda } = await supabase.from("quote_pdf_materials")
+        .insert({ company_id: effectiveCompany.id, created_by: utente.user!.id, name: `Pianta — ${titolo} (v${versione})`, storage_path: percorso, category: "planimetria", file_size_bytes: a.dati.byteLength })
+        .select("id").single();
+      if (errScheda || !scheda) throw new Error("La scheda della pianta non si è creata.");
+      const nonAllegate = await allegaSchedeTecniche(preventivoId, [{ material_id: scheda.id, sort_order: 0, nome: titolo }]);
+      if (nonAllegate.length) throw new Error("La pianta non si è allegata al preventivo.");
+      const q = preventivi.data?.find((x) => x.id === preventivoId);
+      toast.success("Pianta allegata al preventivo", { description: `${q?.quote_number ?? ""} — esce in fondo al PDF del preventivo (se «schede tecniche» è acceso).` });
+    } catch (e) {
+      toast.error("Allegato non riuscito", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setAllegando(false);
+    }
+  };
+
   const esporta = async () => {
     if (!vista) { toast.error("La pianta non ha niente da disegnare in questo stato."); return; }
     setInCorso(true);
     try {
       if (formato === "pdf") {
-        const logo = await caricaLogo(branding?.logo_url ?? null).catch((): null => null);
-        const cartiglio: DatiCartiglio = {
-          azienda: aziendaDelCartiglio(azienda.data ?? { name: effectiveCompany?.name ?? null }, branding ?? null, logo),
-          cliente: cliente.trim() || undefined,
-          indirizzoCantiere: cantiere.trim() || undefined,
-          oggetto: vista.livello ?? undefined,
-          data: new Date(),
-          versione: `v${versione}`,
-        };
+        const cartiglio = (await cartiglioPerOra())!;
         const r = await esportaPdf(vista, cartiglio, { formato: foglio, orientamento, scala: scala === "auto" ? "auto" : Number(scala), stile });
         scarica(`${base}-${foglio}-1-${r.scala}.pdf`, r.dati, "application/pdf");
         toast.success(`PDF pronto in scala 1:${r.scala}`);
@@ -232,6 +285,25 @@ export function EsportaPiantaDialog({
           </div>
 
           <div className="space-y-2">
+            {planimetriaId && (
+              <div className="space-y-2 rounded-lg border p-3">
+                <Label className="text-xs">Allega a un preventivo</Label>
+                <div className="flex gap-2">
+                  <Select value={preventivoId} onValueChange={setPreventivoId}>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Preventivo"><SelectValue placeholder={preventivi.isLoading ? "Caricamento…" : "Scegli il preventivo"} /></SelectTrigger>
+                    <SelectContent>
+                      {(preventivi.data ?? []).map((q) => (
+                        <SelectItem key={q.id} value={q.id}>{[q.quote_number, q.client_name || q.title].filter(Boolean).join(" — ")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" className="h-9" disabled={!preventivoId || allegando || !vista} onClick={() => void allega()}>
+                    {allegando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Paperclip className="mr-1 h-4 w-4" />}Allega
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Un foglio A4 in scala con il cartiglio, in fondo al PDF del preventivo. Per i preventivi standard; non firmati.</p>
+              </div>
+            )}
             <Label className="text-xs">Anteprima</Label>
             <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border bg-white">
               {anteprima ? <img src={anteprima} alt="Anteprima della pianta da esportare" className="h-full w-full object-contain" />

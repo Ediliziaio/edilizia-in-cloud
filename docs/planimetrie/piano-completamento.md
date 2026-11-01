@@ -49,5 +49,18 @@ Regole di design per tutte le fasi (stesso linguaggio delle pagine Render AI):
 ## Fase 8 — Tavole e allegato al preventivo (§16)
 - Tavola con più viste (pianta, prospetto, dettaglio) e cartiglio; allegato della pianta al preventivo.
 
+## Stato (1/11/2026)
+
+| Fase | Stato | Dove |
+|---|---|---|
+| 1 Esportare | fatta | `src/components/planimetrie/EsportaPiantaDialog.tsx` |
+| 2 Abachi | fatta | `src/lib/planimetrie/abachi.ts`, `AbachiPianta.tsx` |
+| 3 Arredi, quote, testi | fatta | editor: `catalogo.ts`, `SimboloArredo.tsx`, comandi `aggiungiElemento`… |
+| 4 Disegno libero | in parte: stanza di forma qualunque e pareti a 45° | strumento «Stanza libera». Restano copia/ruota/specchia di più oggetti e la selezione a riquadro |
+| 5 Piani e proposte | in parte: piani sì (aggiungi dal perimetro, copia, vuoto; nome, quota, togli) | restano le proposte B/C (oggi una sola, «A») |
+| 6 Prospetti e sezioni | fatta | `src/lib/planimetrie/prospetti.ts`, `ProspettiDialog.tsx` (SVG, DXF, stampa PDF) |
+| 7 Impianti di base | fatta | prese, interruttori, punti luce, quadro, punti acqua, scarichi, termosifoni, split; contati nel computo (`elementi:<stato>:<tipo>.numero`) |
+| 8 Allegato al preventivo | fatta per i preventivi standard | «Allega a un preventivo» nell'esportazione; migrazione `20281105360000` (apre solo `<azienda>/planimetrie/`) |
+
 ## Fuori scopo
 Calcoli strutturali ed energetici, importazione DWG (formato chiuso; il DXF si valuta dopo la fase 8).

@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Box, Download, ImageIcon, PenLine, Wand2 } from "lucide-react";
+import { Box, Building2, Download, ImageIcon, PenLine, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlani
 import { Vista3DPigra } from "@/components/planimetrie/Vista3DPigra";
 import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialog";
 import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
+import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -37,6 +38,7 @@ export default function RenderPlanimetriaScheda() {
   const [ambito, setAmbito] = useState("fatto");
   const [mostra3D, setMostra3D] = useState(false);
   const [esporta, setEsporta] = useState(false);
+  const [prospetti, setProspetti] = useState(false);
 
   const livello = documento?.livelli.find((l) => l.id === livelloId) ?? documento?.livelli[0];
   const ambiti = useMemo(() => (documento ? ambitiDi(documento) : []), [documento]);
@@ -94,6 +96,10 @@ export default function RenderPlanimetriaScheda() {
               <Box className="mr-1.5 h-4 w-4" />
               {mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setProspetti(true)}>
+              <Building2 className="mr-1.5 h-4 w-4" />
+              Prospetti e sezioni
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEsporta(true)}>
               <Download className="mr-1.5 h-4 w-4" />
               Esporta
@@ -143,7 +149,10 @@ export default function RenderPlanimetriaScheda() {
         livelloId={livello.id}
         propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined}
         haProgetto={livello.proposte.length > 0}
+        planimetriaId={id}
       />
+
+      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} titolo={data.riga.titolo} />
 
       {mostra3D && piante3D && <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} />}
 

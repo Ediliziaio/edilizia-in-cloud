@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Hexagon, Layers, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +21,13 @@ import { cn } from "@/lib/utils";
 import {
   DESTINAZIONI,
   aPlanimetria,
+  aggiungiLivello,
   daPlanimetria,
   datiVista,
+  eliminaLivello,
   piantaVuota,
+  rinominaLivello,
+  type BaseNuovoPiano,
   type Destinazione,
   type Pianta,
   type Planimetria,
@@ -32,6 +36,7 @@ import {
 } from "./adattatore";
 import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
+import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
 import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
 import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
@@ -39,7 +44,7 @@ import { SimboloArredo } from "./SimboloArredo";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
 
-export type Strumento = "seleziona" | "stanza" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
+export type Strumento = "seleziona" | "stanza" | "poligono" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
 
 interface Props {
   /** Il documento della fase 1 (`shared/planimetrie/modello.ts`); senza, una pianta vuota. */
@@ -85,6 +90,7 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   parete: "Clic per l'inizio, clic per la fine: la parete va dritta da sola. Puoi anche scrivere la lunghezza e premere Invio. Esc per finire.",
   porta: "Trascina la porta su una parete (o clicca sulla parete). Poi un clic sulla porta selezionata ne gira il verso.",
   finestra: "Trascina la finestra su una parete (o clicca sulla parete).",
+  poligono: "Clic su ogni angolo della stanza; clic sul primo punto (o Invio) per chiuderla. Le pareti vanno dritte a 90° e 45° da sole. Esc per annullare.",
   arredo: "Clic sul foglio per posare l'arredo scelto. Poi trascinalo per spostarlo; R lo ruota di 90°.",
   quota: "Clic sul primo punto, clic sul secondo: la quota misura da sola. Si agganciano angoli e pareti.",
   testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
@@ -94,12 +100,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const telefono = useIsMobile();
   const sola = soloVista ?? telefono;
 
+  // Il piano su cui si lavora (fase 5): ogni piano ha il suo annulla/ripeti.
+  const [livelloId, setLivelloId] = useState<string | undefined>(piantaIniziale?.livelli[0]?.id);
   const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale) : piantaVuota()));
   const [anteprima, setAnteprima] = useState<Pianta | null>(null);
   const pianta = anteprima ?? storia.presente;
   // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
   const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
-  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current), [pianta]);
+  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current, livelloId), [pianta, livelloId]);
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
@@ -114,6 +122,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   // Arredo scelto dal catalogo, da posare col prossimo clic; primo punto della quota in corso.
   const [arredoScelto, setArredoScelto] = useState<VoceCatalogo | null>(null);
   const [inizioQuota, setInizioQuota] = useState<Punto | null>(null);
+  const [puntiPoligono, setPuntiPoligono] = useState<Punto[]>([]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const contenitoreRef = useRef<HTMLDivElement>(null);
@@ -123,15 +132,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const spazioPremuto = useRef(false);
 
   // Stanze, mq e problemi come li calcola il modello della fase 1.
-  const dati = useMemo(() => datiVista(pianta, documento, vista), [pianta, documento, vista]);
+  const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId), [pianta, documento, vista, livelloId]);
   const latiModificabili = useMemo(
     () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
     [pianta, vista, dati],
   );
 
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
-  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota };
+  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono });
+  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono };
 
   useEffect(() => {
     if (anteprima) return;
@@ -154,6 +163,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setStrumentoStato(s);
     setInizioParete(null);
     setInizioQuota(null);
+    setPuntiPoligono([]);
     setSovrapposizioni({});
     setMisura(null);
     if (s !== "seleziona") setSelezione(null);
@@ -303,6 +313,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setSovrapposizioni({});
   };
 
+  /** Chiude la stanza libera: crea il locale e le pareti che mancano (fase 4). */
+  const chiudiPoligono = (punti: Punto[]) => {
+    setPuntiPoligono([]);
+    setSovrapposizioni({});
+    if (punti.length < 3) return setAvviso("Servono almeno tre angoli per fare una stanza.");
+    if (contornoIncrociato(punti)) return setAvviso("Il contorno si incrocia: ridisegna la stanza senza che i lati si taglino.");
+    const r = C.aggiungiStanza(stato.current.storia.presente, punti, { stato: C.statoNuovo(stato.current.vista) });
+    applica(r.pianta);
+    setStrumento("seleziona");
+    setSelezione({ tipo: "locale", id: r.id });
+    setStanzaNuova(r.id);
+  };
+
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button === 2) return;
     // Il clic sul disegno chiude le caselle aperte (e ne salva il valore), ma non deve
@@ -327,6 +350,17 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       const a = aggancia(pi, p, { tolleranza: tolleranza() });
       gesto.current = { tipo: "rettangolo", a: a.punto };
       setSovrapposizioni({ rettangolo: { a: a.punto, b: a.punto }, aggancio: a });
+      return;
+    }
+    if (str === "poligono") {
+      const pts = stato.current.puntiPoligono;
+      const ultimo = pts[pts.length - 1];
+      if (pts.length >= 3 && dist(p, pts[0]) <= tolleranza() * 1.2) return chiudiPoligono(pts);
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: ultimo });
+      if (ultimo && dist(ultimo, a.punto) < 5) return;
+      const nuovi = [...pts, a.punto];
+      setPuntiPoligono(nuovi);
+      setSovrapposizioni({ poligonoInCorso: { punti: nuovi, cursore: a.punto }, aggancio: a });
       return;
     }
     if (str === "parete") {
@@ -555,6 +589,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni(inizio ? { pareteInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "stanza") {
       setSovrapposizioni({ aggancio: aggancia(pi, p, { tolleranza: tolleranza() }) });
+    } else if (str === "poligono") {
+      const pts = stato.current.puntiPoligono;
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: pts[pts.length - 1] });
+      setSovrapposizioni(pts.length ? { poligonoInCorso: { punti: pts, cursore: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "arredo" && stato.current.arredoScelto) {
       const v0 = stato.current.arredoScelto;
       setSovrapposizioni({ arredoFantasma: { tipo: v0.tipo, centro: p, larghezza: v0.larghezza, profondita: v0.profondita } });
@@ -627,6 +665,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     }
   };
 
+  const chiudiPoligonoRef = useRef(chiudiPoligono);
+  chiudiPoligonoRef.current = chiudiPoligono;
   const sovrapposizioniRef = useRef(sovrapposizioni);
   sovrapposizioniRef.current = sovrapposizioni;
   const anteprimaRef = useRef(anteprima);
@@ -738,6 +778,12 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         const r = C.duplicaElemento(stato.current.storia.presente, stato.current.selezione.id, stato.current.vista);
         applica(r.pianta);
         if (r.id) setSelezione({ tipo: "elemento", id: r.id });
+      } else if (e.key === "Enter" && stato.current.strumento === "poligono" && stato.current.puntiPoligono.length >= 3) {
+        e.preventDefault();
+        chiudiPoligonoRef.current(stato.current.puntiPoligono);
+      } else if (e.key === "Escape" && stato.current.puntiPoligono.length) {
+        setPuntiPoligono([]);
+        setSovrapposizioni({});
       } else if (e.key === "Escape" && stato.current.inizioQuota) {
         setInizioQuota(null);
         setSovrapposizioni({});
@@ -849,6 +895,31 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     };
   }, [applica, elimina]);
 
+  // ─── piani ────────────────────────────────────────────────────────────────
+  const vaiAlPiano = (id: string, doc: Planimetria = documento) => {
+    documentoBase.current = doc;
+    setAnteprima(null);
+    setLivelloId(id);
+    setStoria(nuovaStoria(daPlanimetria(doc, id)));
+    setSelezione(null);
+    setStrumento("seleziona");
+    setTimeout(adatta, 0);
+  };
+  const nuovoPiano = (o: { nome: string; quota: number; base: BaseNuovoPiano }) => {
+    const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
+    vaiAlPiano(r.id, r.documento);
+  };
+  const modificaPiano = (campi: { nome?: string; quota?: number }) => {
+    if (!livelloId) return;
+    const doc = rinominaLivello(documento, livelloId, campi);
+    vaiAlPiano(livelloId, doc);
+  };
+  const togliPiano = () => {
+    if (!livelloId || documento.livelli.length <= 1) return;
+    const doc = eliminaLivello(documento, livelloId);
+    vaiAlPiano(doc.livelli[0].id, doc);
+  };
+
   const cambiaVista = (v: C.Vista) => {
     setVista(v);
     setInizioParete(null);
@@ -864,7 +935,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   const vuota = storia.presente.muri.length === 0 && storia.presente.locali.length === 0;
   const cursore =
-    strumento === "stanza" || strumento === "parete" || strumento === "quota" ? "crosshair"
+    strumento === "stanza" || strumento === "poligono" || strumento === "parete" || strumento === "quota" ? "crosshair"
       : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
       : strumento === "testo" ? "text" : "default";
 
@@ -933,6 +1004,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
                 setTimeout(adatta, 0);
               }}
             />
+            <BottoneStrumento attivo={strumento === "poligono"} onClick={() => setStrumento("poligono")} icona={<Hexagon />} etichetta="Stanza libera" titolo="Una stanza di qualunque forma: clic su ogni angolo" />
             <BottoneStrumento attivo={strumento === "parete"} onClick={() => setStrumento("parete")} icona={<PenLine />} etichetta="Parete" />
             <BottoneStrumento
               attivo={strumento === "porta"}
@@ -961,6 +1033,16 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </div>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!sola && (
+            <BarraPiani
+              livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota }))}
+              livelloId={livelloId ?? documento.livelli[0]?.id}
+              onScegli={(id) => vaiAlPiano(id)}
+              onNuovo={nuovoPiano}
+              onModifica={modificaPiano}
+              onTogli={togliPiano}
+            />
+          )}
           {barraVista}
           {annullaRipeti}
           {!telefono && zoom}
@@ -1059,6 +1141,83 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       )}
 
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{SUGGERIMENTI[strumento]}</div>}
+    </div>
+  );
+}
+
+function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli }: {
+  livelli: Array<{ id: string; nome: string; quota: number }>;
+  livelloId?: string;
+  onScegli: (id: string) => void;
+  onNuovo: (o: { nome: string; quota: number; base: BaseNuovoPiano }) => void;
+  onModifica: (campi: { nome?: string; quota?: number }) => void;
+  onTogli: () => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const attuale = livelli.find((l) => l.id === livelloId) ?? livelli[0];
+  const [nome, setNome] = useState("");
+  const [quota, setQuota] = useState("");
+  const [base, setBase] = useState<BaseNuovoPiano>("esterni");
+  const metri = (cm: number) => (cm / 100).toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  return (
+    <div className="flex items-center gap-1">
+      {livelli.length > 1 && (
+        <Select value={attuale?.id} onValueChange={onScegli}>
+          <SelectTrigger className="h-9 w-40" aria-label="Piano"><SelectValue /></SelectTrigger>
+          <SelectContent>{livelli.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}</SelectContent>
+        </Select>
+      )}
+      <Popover open={aperto} onOpenChange={setAperto}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline" aria-label="Piani">
+            <Layers /> <span className="hidden lg:inline">{livelli.length > 1 ? "Piani" : attuale?.nome ?? "Piano"}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 space-y-4" align="end">
+          {attuale && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Questo piano</p>
+              <div className="grid grid-cols-[1fr_6rem] gap-2">
+                <Input key={`n-${attuale.id}`} defaultValue={attuale.nome} aria-label="Nome del piano" onBlur={(e) => e.target.value.trim() !== attuale.nome && onModifica({ nome: e.target.value })} />
+                <Input key={`q-${attuale.id}`} defaultValue={metri(attuale.quota)} aria-label="Quota del pavimento in metri" inputMode="decimal"
+                  onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && Math.round(v * 100) !== attuale.quota) onModifica({ quota: Math.round(v * 100) }); }} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Quota del pavimento in metri (0 = piano terra, −3 = interrato).</p>
+              {livelli.length > 1 && (
+                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm(`Togliere «${attuale.nome}» con tutto quello che c'è disegnato?`)) { onTogli(); setAperto(false); } }}>
+                  Togli questo piano
+                </Button>
+              )}
+            </div>
+          )}
+          <form className="space-y-2 border-t pt-3" onSubmit={(e) => {
+            e.preventDefault();
+            const q = Number((quota || "").replace(",", "."));
+            const sopra = Math.max(...livelli.map((l) => l.quota), 0) + 300;
+            onNuovo({ nome: nome.trim() || `Piano ${livelli.length}`, quota: Number.isFinite(q) && quota.trim() ? Math.round(q * 100) : sopra, base });
+            setNome(""); setQuota(""); setAperto(false);
+          }}>
+            <p className="text-sm font-semibold">Aggiungi un piano</p>
+            <div className="grid grid-cols-[1fr_6rem] gap-2">
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Primo piano" aria-label="Nome del nuovo piano" />
+              <Input value={quota} onChange={(e) => setQuota(e.target.value)} placeholder="3,00" inputMode="decimal" aria-label="Quota del nuovo piano in metri" />
+            </div>
+            <div className="space-y-1" role="radiogroup" aria-label="Da dove partire">
+              {([
+                ["esterni", "Dal perimetro", "Le pareti esterne e portanti del piano attuale"],
+                ["tutto", "Copia tutto", "Pareti, porte e finestre del piano attuale"],
+                ["vuoto", "Vuoto", "Si disegna da zero"],
+              ] as const).map(([v, t, d]) => (
+                <button key={v} type="button" role="radio" aria-checked={base === v} onClick={() => setBase(v)}
+                  className={cn("w-full rounded-md border p-2 text-left text-xs", base === v ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
+                  <span className="font-medium">{t}</span> <span className="text-muted-foreground">— {d}</span>
+                </button>
+              ))}
+            </div>
+            <Button type="submit" size="sm" className="w-full">Aggiungi il piano</Button>
+          </form>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

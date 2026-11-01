@@ -114,6 +114,34 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
     case "comodino":
     case "scrivania":
       return base;
+    // ─── punti impianto (fase 7): simboli da schema elettrico/idraulico ───
+    case "presa": {
+      const r = Math.min(w, d) / 2;
+      return (<g><circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} /><line x1={-r} y1={0} x2={r} y2={0} {...tratto} /><line x1={0} y1={-r} x2={0} y2={-r * 1.6} {...tratto} /></g>);
+    }
+    case "interruttore": {
+      const r = Math.min(w, d) / 2;
+      return (<g><circle cx={0} cy={0} r={r * 0.6} fill={riempimento} {...tratto} /><line x1={0} y1={0} x2={r * 1.2} y2={-r * 1.2} {...tratto} /><line x1={r * 1.2} y1={-r * 1.2} x2={r * 1.6} y2={-r * 0.8} {...tratto} /></g>);
+    }
+    case "punto_luce": {
+      const r = Math.min(w, d) / 2;
+      const k = r * 0.7;
+      return (<g><circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} /><line x1={-k} y1={-k} x2={k} y2={k} {...tratto} /><line x1={k} y1={-k} x2={-k} y2={k} {...tratto} /></g>);
+    }
+    case "punto_acqua": {
+      const r = Math.min(w, d) / 2;
+      return (<g><circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} /><path d={`M ${-r} 0 A ${r} ${r} 0 0 0 ${r} 0 Z`} fill={colore} /></g>);
+    }
+    case "scarico": {
+      const r = Math.min(w, d) / 2;
+      return (<g><circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} /><circle cx={0} cy={0} r={r * 0.35} fill={colore} /></g>);
+    }
+    case "quadro_elettrico":
+      return (<g>{base}<path d={`M ${x0} ${y0} L ${-x0} ${y0} L ${x0} ${-y0} Z`} fill={colore} /></g>);
+    case "termosifone":
+      return (<g>{base}{Array.from({ length: Math.max(2, Math.floor(w / 10)) }, (_, i) => <line key={i} x1={x0 + (i + 1) * (w / (Math.max(2, Math.floor(w / 10)) + 1))} y1={y0} x2={x0 + (i + 1) * (w / (Math.max(2, Math.floor(w / 10)) + 1))} y2={-y0} {...tratto} />)}</g>);
+    case "split":
+      return (<g>{base}<line x1={x0 + w * 0.08} y1={-y0 - d * 0.3} x2={-x0 - w * 0.08} y2={-y0 - d * 0.3} {...tratto} /><line x1={x0 + w * 0.08} y1={-y0 - d * 0.15} x2={-x0 - w * 0.08} y2={-y0 - d * 0.15} {...tratto} /></g>);
     default:
       return (
         <g>
