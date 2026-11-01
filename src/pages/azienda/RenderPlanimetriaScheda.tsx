@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Box, Building2, Download, ImageIcon, PenLine, Wand2 } from "lucide-react";
+import { Box, Building2, Download, ImageIcon, PenLine, Sparkles, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { Vista3DPigra } from "@/components/planimetrie/Vista3DPigra";
 import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialog";
 import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
 import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
+import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -39,6 +40,8 @@ export default function RenderPlanimetriaScheda() {
   const [mostra3D, setMostra3D] = useState(false);
   const [esporta, setEsporta] = useState(false);
   const [prospetti, setProspetti] = useState(false);
+  // Render in serie: null chiuso, "" tutte le stanze, altrimenti più stili per quella stanza.
+  const [serie, setSerie] = useState<string | null>(null);
 
   const livello = documento?.livelli.find((l) => l.id === livelloId) ?? documento?.livelli[0];
   const ambiti = useMemo(() => (documento ? ambitiDi(documento) : []), [documento]);
@@ -152,14 +155,34 @@ export default function RenderPlanimetriaScheda() {
         planimetriaId={id}
       />
 
+      <RenderInSerieDialog
+        aperto={serie !== null}
+        onChiudi={() => setSerie(null)}
+        planimetriaId={id}
+        versione={data.versione.numero}
+        documento={documento}
+        livelloId={livello.id}
+        ambito={ambito}
+        stanze={stanze.map((v) => ({ id: v.locale.id, nome: v.locale.nome, destinazione: v.locale.destinazione }))}
+        soloStanza={serie || null}
+      />
+
       <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} titolo={data.riga.titolo} />
 
       {mostra3D && piante3D && <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} />}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-          Stanze
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
+            Stanze
+          </h2>
+          {stanze.length > 1 && (
+            <Button size="sm" className="gap-1.5 bg-purple-600 hover:bg-purple-700" onClick={() => setSerie("")}>
+              <Sparkles className="h-4 w-4" />
+              Render di tutte le stanze
+            </Button>
+          )}
+        </div>
         {stanze.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -188,6 +211,10 @@ export default function RenderPlanimetriaScheda() {
                         <Wand2 className="mr-1.5 h-4 w-4" />
                         Fai il render di questa stanza
                       </Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="w-full text-purple-700" onClick={() => setSerie(v.locale.id)}>
+                      <Sparkles className="mr-1.5 h-4 w-4" />
+                      Più stili insieme
                     </Button>
                     {fatti > 0 && <p className="text-center text-xs text-muted-foreground">{fatti === 1 ? "1 render fatto" : `${fatti} render fatti`}</p>}
                   </CardContent>

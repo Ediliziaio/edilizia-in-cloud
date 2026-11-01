@@ -3,7 +3,7 @@
  * selezionato. Le misure si scrivono qui come sulla pianta.
  */
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, Copy, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { AlertTriangle, Armchair, Check, Copy, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
 import { CATALOGO, nomeDelTipo } from "./catalogo";
+import { destinazioneArredabile } from "./arreda";
 import { dist } from "./geometria";
 import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
@@ -34,6 +35,8 @@ export interface AzioniPannello {
   duplicaElemento: (id: string) => void;
   modificaQuota: (id: string, campi: Partial<Pick<QuotaLavoro, "scostamento">>) => void;
   modificaTesto: (id: string, campi: Partial<Pick<TestoLavoro, "testo" | "rotazione">>) => void;
+  /** Arredi tipici della destinazione, appoggiati alle pareti. */
+  arreda: (localeId: string, destinazione: Destinazione) => void;
 }
 
 interface Props {
@@ -380,6 +383,14 @@ function DettaglioStanza({
           ))}
         </div>
       </div>
+      {!essenziale && diLavoro && destinazioneArredabile(locale.destinazione) && (
+        <div className="space-y-1 rounded-md border border-dashed p-2">
+          <Button size="sm" variant="secondary" className="w-full" onClick={() => azioni.arreda(locale.id, locale.destinazione)}>
+            <Armchair /> Arreda con un clic
+          </Button>
+          <p className="text-[11px] text-muted-foreground">Mette gli arredi tipici di {DESTINAZIONI.find((d) => d.valore === locale.destinazione)?.etichetta.toLowerCase() ?? "questa stanza"} lungo le pareti, lontano da porte e finestre. Poi li sposti come vuoi; il 3D e il render AI li usano dove stanno.</p>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2 pt-1">
         {q.stimata && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "locale", id: locale.id })}>

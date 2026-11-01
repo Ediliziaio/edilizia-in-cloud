@@ -644,3 +644,124 @@ export function modificaTesto(pianta: Pianta, id: string, campi: Partial<Pick<Te
 export function eliminaTesto(pianta: Pianta, id: string): Pianta {
   return { ...pianta, testi: (pianta.testi ?? []).filter((t) => t.id !== id) };
 }
+
+// ─── più oggetti insieme (fase 4): arredi, quote e testi ───────────────────
+// Pareti e stanze restano una per volta: spostarle in gruppo romperebbe stanze e aperture.
+
+export interface Gruppo {
+  elementi: string[];
+  quote: string[];
+  testi: string[];
+}
+
+export const gruppoVuoto = (): Gruppo => ({ elementi: [], quote: [], testi: [] });
+export const quantiNelGruppo = (g: Gruppo) => g.elementi.length + g.quote.length + g.testi.length;
+
+/** Gli oggetti del gruppo che si possono toccare in questa vista (gli arredi di oggi nel progetto no). */
+export function gruppoModificabile(pianta: Pianta, g: Gruppo, vista: Vista): Gruppo {
+  const el = new Set(g.elementi);
+  return {
+    elementi: (pianta.elementi ?? []).filter((e) => el.has(e.id) && modificabile(e.stato, vista)).map((e) => e.id),
+    quote: (pianta.quote ?? []).filter((q) => g.quote.includes(q.id)).map((q) => q.id),
+    testi: (pianta.testi ?? []).filter((t) => g.testi.includes(t.id)).map((t) => t.id),
+  };
+}
+
+/** Ciò che sta tutto dentro il riquadro: il centro di un arredo, i due capi di una quota, un testo. */
+export function gruppoNelRiquadro(pianta: Pianta, a: Punto, b: Punto, vista: Vista): Gruppo {
+  const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  const dentro = (p: Punto) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
+  return {
+    elementi: (pianta.elementi ?? []).filter((e) => visibile(e.stato, vista) && dentro(e.centro)).map((e) => e.id),
+    quote: (pianta.quote ?? []).filter((q) => dentro(q.p1) && dentro(q.p2)).map((q) => q.id),
+    testi: (pianta.testi ?? []).filter((t) => dentro(t.posizione)).map((t) => t.id),
+  };
+}
+
+/** Il centro del riquadro che contiene il gruppo: perno per ruotare e specchiare. */
+export function centroGruppo(pianta: Pianta, g: Gruppo): Punto | null {
+  const punti: Punto[] = [
+    ...(pianta.elementi ?? []).filter((e) => g.elementi.includes(e.id)).map((e) => e.centro),
+    ...(pianta.quote ?? []).filter((q) => g.quote.includes(q.id)).flatMap((q) => [q.p1, q.p2]),
+    ...(pianta.testi ?? []).filter((t) => g.testi.includes(t.id)).map((t) => t.posizione),
+  ];
+  if (!punti.length) return null;
+  const xs = punti.map((p) => p.x), ys = punti.map((p) => p.y);
+  return { x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2), y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2) };
+}
+
+function trasformaGruppo(
+  pianta: Pianta,
+  g: Gruppo,
+  punto: (p: Punto) => Punto,
+  angolo: (r: number) => number,
+  scambiaQuota = false,
+): Pianta {
+  // «+ 0» toglie i -0 che la rotazione lascia
+  const arr = (p: Punto) => { const q = punto(p); return { x: Math.round(q.x) + 0, y: Math.round(q.y) + 0 }; };
+  const norm = (r: number) => (((Math.round(r) % 360) + 360) % 360) + 0;
+  return {
+    ...pianta,
+    elementi: (pianta.elementi ?? []).map((e) => (g.elementi.includes(e.id) ? { ...e, centro: arr(e.centro), rotazione: norm(angolo(e.rotazione)) } : e)),
+    quote: (pianta.quote ?? []).map((q) => {
+      if (!g.quote.includes(q.id)) return q;
+      const p1 = arr(q.p1), p2 = arr(q.p2);
+      return scambiaQuota ? { ...q, p1: p2, p2: p1 } : { ...q, p1, p2 };
+    }),
+    testi: (pianta.testi ?? []).map((t) => (g.testi.includes(t.id) ? { ...t, posizione: arr(t.posizione), rotazione: norm(angolo(t.rotazione)) } : t)),
+  };
+}
+
+export function spostaGruppo(pianta: Pianta, g: Gruppo, delta: Punto): Pianta {
+  return trasformaGruppo(pianta, g, (p) => ({ x: p.x + delta.x, y: p.y + delta.y }), (r) => r);
+}
+
+/** Ruota di 90° in senso orario sullo schermo attorno al centro del gruppo. */
+export function ruotaGruppo(pianta: Pianta, g: Gruppo, gradi = 90): Pianta {
+  const c = centroGruppo(pianta, g);
+  if (!c) return pianta;
+  const a = (gradi * Math.PI) / 180, cos = Math.cos(a), sin = Math.sin(a);
+  return trasformaGruppo(pianta, g, (p) => ({ x: c.x + (p.x - c.x) * cos - (p.y - c.y) * sin, y: c.y + (p.x - c.x) * sin + (p.y - c.y) * cos }), (r) => r + gradi);
+}
+
+/**
+ * Specchia sinistra↔destra attorno al centro del gruppo. Le quote si scambiano i capi così la
+ * linea di quota resta dal lato giusto; i testi restano leggibili (cambia solo la posizione e l'inclinazione).
+ */
+export function specchiaGruppo(pianta: Pianta, g: Gruppo): Pianta {
+  const c = centroGruppo(pianta, g);
+  if (!c) return pianta;
+  return trasformaGruppo(pianta, g, (p) => ({ x: 2 * c.x - p.x, y: p.y }), (r) => -r, true);
+}
+
+/** Copia il gruppo spostato di poco; ritorna il gruppo delle copie (che resta selezionato). */
+export function duplicaGruppo(pianta: Pianta, g: Gruppo, vista: Vista, delta: Punto = { x: 40, y: 40 }): { pianta: Pianta; gruppo: Gruppo } {
+  const nuovo = gruppoVuoto();
+  let p = pianta;
+  for (const e of (pianta.elementi ?? []).filter((x) => g.elementi.includes(x.id))) {
+    const r = aggiungiElemento(p, e, { x: e.centro.x + delta.x, y: e.centro.y + delta.y }, { stato: statoNuovo(vista), rotazione: e.rotazione });
+    p = r.pianta;
+    nuovo.elementi.push(r.id);
+  }
+  for (const q of (pianta.quote ?? []).filter((x) => g.quote.includes(x.id))) {
+    const r = aggiungiQuota(p, { x: q.p1.x + delta.x, y: q.p1.y + delta.y }, { x: q.p2.x + delta.x, y: q.p2.y + delta.y }, q.scostamento);
+    p = r.pianta;
+    nuovo.quote.push(r.id);
+  }
+  for (const t of (pianta.testi ?? []).filter((x) => g.testi.includes(x.id))) {
+    const r = aggiungiTesto(p, { x: t.posizione.x + delta.x, y: t.posizione.y + delta.y }, t.testo);
+    p = modificaTesto(r.pianta, r.id, { rotazione: t.rotazione });
+    nuovo.testi.push(r.id);
+  }
+  return { pianta: p, gruppo: nuovo };
+}
+
+export function eliminaGruppo(pianta: Pianta, g: Gruppo, vista: Vista): Pianta {
+  let p = pianta;
+  for (const id of g.elementi) p = eliminaElemento(p, id, vista);
+  return {
+    ...p,
+    quote: (p.quote ?? []).filter((q) => !g.quote.includes(q.id)),
+    testi: (p.testi ?? []).filter((t) => !g.testi.includes(t.id)),
+  };
+}

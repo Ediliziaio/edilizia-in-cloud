@@ -21,10 +21,14 @@ import { cn } from "@/lib/utils";
 import {
   DESTINAZIONI,
   aPlanimetria,
+  ID_PROPOSTA,
   aggiungiLivello,
   daPlanimetria,
   datiVista,
+  duplicaProposta,
   eliminaLivello,
+  eliminaProposta,
+  rinominaProposta,
   piantaVuota,
   rinominaLivello,
   type BaseNuovoPiano,
@@ -41,6 +45,7 @@ import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
 import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
 import { SimboloArredo } from "./SimboloArredo";
+import { arredaStanza } from "./arreda";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
 
@@ -60,6 +65,8 @@ type Gesto =
   | { tipo: "pan"; da: Punto; camera: Camera; mosso: boolean; bersaglio: Bersaglio | null }
   | { tipo: "pinch"; distanza: number; centro: Punto; camera: Camera }
   | { tipo: "rettangolo"; a: Punto }
+  | { tipo: "riquadro"; a: Punto }
+  | { tipo: "sposta-gruppo"; da: Punto; base: Pianta; gruppo: C.Gruppo; mosso: boolean }
   | { tipo: "sposta-muro"; id: string; da: Punto; base: Pianta; normale: Punto }
   | { tipo: "maniglia"; id: string; da: Punto; altro: Punto; base: Pianta }
   | { tipo: "sposta-apertura"; id: string; base: Pianta; da: Punto; mosso: boolean; eraSelezionata: boolean }
@@ -85,7 +92,7 @@ interface MisuraInModifica {
 }
 
 const SUGGERIMENTI: Record<Strumento, string> = {
-  seleziona: "Tocca una stanza, una parete o una porta per vederne le misure. Trascina una parete per spostarla. Clic su una misura per correggerla.",
+  seleziona: "Tocca una stanza, una parete o una porta per vederne le misure. Trascina una parete per spostarla. Clic su una misura per correggerla. Maiusc+trascina seleziona più arredi, quote e testi.",
   stanza: "Trascina per disegnare la stanza: le misure compaiono mentre la disegni. Oppure usa «Scrivi le misure».",
   parete: "Clic per l'inizio, clic per la fine: la parete va dritta da sola. Puoi anche scrivere la lunghezza e premere Invio. Esc per finire.",
   porta: "Trascina la porta su una parete (o clicca sulla parete). Poi un clic sulla porta selezionata ne gira il verso.",
@@ -102,15 +109,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   // Il piano su cui si lavora (fase 5): ogni piano ha il suo annulla/ripeti.
   const [livelloId, setLivelloId] = useState<string | undefined>(piantaIniziale?.livelli[0]?.id);
-  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale) : piantaVuota()));
+  // L'alternativa di progetto su cui si lavora (A, B, C…).
+  const [propostaId, setPropostaId] = useState<string>(piantaIniziale?.livelli[0]?.proposte[0]?.id ?? ID_PROPOSTA);
+  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale, undefined, piantaIniziale.livelli[0]?.proposte[0]?.id) : piantaVuota()));
   const [anteprima, setAnteprima] = useState<Pianta | null>(null);
   const pianta = anteprima ?? storia.presente;
   // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
   const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
-  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current, livelloId), [pianta, livelloId]);
+  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current, livelloId, propostaId), [pianta, livelloId, propostaId]);
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
+  // Più arredi, quote e testi insieme (Maiusc+clic o Maiusc+trascina).
+  const [gruppo, setGruppo] = useState<C.Gruppo>(C.gruppoVuoto);
   // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
   const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
@@ -132,15 +143,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const spazioPremuto = useRef(false);
 
   // Stanze, mq e problemi come li calcola il modello della fase 1.
-  const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId), [pianta, documento, vista, livelloId]);
+  const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId, propostaId), [pianta, documento, vista, livelloId, propostaId]);
   const latiModificabili = useMemo(
     () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
     [pianta, vista, dati],
   );
 
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
-  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono };
+  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo });
+  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo };
 
   useEffect(() => {
     if (anteprima) return;
@@ -166,7 +177,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setPuntiPoligono([]);
     setSovrapposizioni({});
     setMisura(null);
-    if (s !== "seleziona") setSelezione(null);
+    if (s !== "seleziona") {
+      setSelezione(null);
+      setGruppo(C.gruppoVuoto());
+    }
   }, []);
 
   // ─── dimensioni e inquadratura ─────────────────────────────────────────────
@@ -428,7 +442,32 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       return;
     }
 
-    // seleziona
+    // seleziona — più oggetti insieme
+    const gr = stato.current.gruppo;
+    const multiplo = b && (b.tipo === "elemento" || b.tipo === "quota" || b.tipo === "testo") && b.id ? (b as { tipo: "elemento" | "quota" | "testo"; id: string }) : null;
+    if (e.shiftKey && (!b || b.tipo === "sfondo" || b.tipo === "locale")) {
+      gesto.current = { tipo: "riquadro", a: p };
+      setSovrapposizioni({ riquadro: { a: p, b: p } });
+      return;
+    }
+    if (e.shiftKey && multiplo) {
+      const base: C.Gruppo = C.quantiNelGruppo(gr) ? gr : C.gruppoVuoto();
+      if (!C.quantiNelGruppo(gr) && sel && (sel.tipo === "elemento" || sel.tipo === "quota" || sel.tipo === "testo")) {
+        base[chiaveGruppo(sel.tipo)] = [sel.id];
+      }
+      const k = chiaveGruppo(multiplo.tipo);
+      const lista = base[k].includes(multiplo.id) ? base[k].filter((x) => x !== multiplo.id) : [...base[k], multiplo.id];
+      setGruppo({ ...base, [k]: lista });
+      setSelezione(null);
+      return;
+    }
+    if (C.quantiNelGruppo(gr)) {
+      if (multiplo && gr[chiaveGruppo(multiplo.tipo)].includes(multiplo.id)) {
+        gesto.current = { tipo: "sposta-gruppo", da: p, base: stato.current.storia.presente, gruppo: C.gruppoModificabile(pi, gr, v), mosso: false };
+        return;
+      }
+      setGruppo(C.gruppoVuoto());
+    }
     if (!b || b.tipo === "sfondo") {
       setSelezione(null);
       return pan();
@@ -540,6 +579,16 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni({ rettangolo: { a: g.a, b: a.punto }, aggancio: a });
       return;
     }
+    if (g?.tipo === "riquadro") {
+      setSovrapposizioni({ riquadro: { a: g.a, b: p } });
+      return;
+    }
+    if (g?.tipo === "sposta-gruppo") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      setAnteprima(C.spostaGruppo(g.base, g.gruppo, { x: Math.round((p.x - g.da.x) / 5) * 5, y: Math.round((p.y - g.da.y) / 5) * 5 }));
+      return;
+    }
     if (g?.tipo === "sposta-muro") {
       const d = (p.x - g.da.x) * g.normale.x + (p.y - g.da.y) * g.normale.y;
       const passo = Math.round(d / 5) * 5;
@@ -643,6 +692,27 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setStrumento("seleziona");
       setSelezione({ tipo: "locale", id: r.id });
       setStanzaNuova(r.id);
+      return;
+    }
+    if (g.tipo === "riquadro") {
+      const fine = sovrapposizioniRef.current.riquadro?.b ?? g.a;
+      setSovrapposizioni({});
+      const trovati = C.gruppoNelRiquadro(stato.current.storia.presente, g.a, fine, stato.current.vista);
+      const gr = stato.current.gruppo;
+      // Maiusc+trascina aggiunge a quello che c'è già
+      const unione: C.Gruppo = {
+        elementi: [...new Set([...gr.elementi, ...trovati.elementi])],
+        quote: [...new Set([...gr.quote, ...trovati.quote])],
+        testi: [...new Set([...gr.testi, ...trovati.testi])],
+      };
+      if (C.quantiNelGruppo(unione) === 0) setAvviso("Nel riquadro non ci sono arredi, quote o testi. Pareti e stanze si scelgono una per volta.");
+      setGruppo(unione);
+      setSelezione(null);
+      return;
+    }
+    if (g.tipo === "sposta-gruppo") {
+      if (g.mosso && anteprimaRef.current) applica(anteprimaRef.current);
+      else setAnteprima(null);
       return;
     }
     if (g.tipo === "sposta-elemento" || g.tipo === "sposta-testo" || g.tipo === "sposta-quota") {
@@ -768,6 +838,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         setStoria(ripeti);
+      } else if (C.quantiNelGruppo(stato.current.gruppo) && (e.key === "Delete" || e.key === "Backspace" || e.key === "Escape" || (!mod && (e.key === "r" || e.key === "R" || e.key === "m" || e.key === "M")) || (mod && e.key.toLowerCase() === "d"))) {
+        e.preventDefault();
+        const k = e.key.toLowerCase();
+        azioneGruppoRef.current(k === "escape" ? "deseleziona" : k === "r" ? "ruota" : k === "m" ? "specchia" : k === "d" ? "copia" : "elimina");
       } else if (!mod && (e.key === "r" || e.key === "R") && stato.current.selezione?.tipo === "elemento") {
         e.preventDefault();
         const sel = stato.current.selezione;
@@ -818,6 +892,38 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       window.removeEventListener("keyup", tasto);
     };
   }, [sola, elimina, setStrumento, pareteScritta, applica]);
+
+  // ─── azioni sul gruppo ─────────────────────────────────────────────────────
+  const azioneGruppo = useCallback((azione: "ruota" | "specchia" | "copia" | "elimina" | "deseleziona") => {
+    const { storia: st, vista: v, gruppo: gr } = stato.current;
+    if (azione === "deseleziona") return setGruppo(C.gruppoVuoto());
+    const tocca = C.gruppoModificabile(st.presente, gr, v);
+    if (azione === "copia") {
+      const r = C.duplicaGruppo(st.presente, gr, v);
+      applica(r.pianta);
+      setGruppo(r.gruppo);
+      return;
+    }
+    if (!C.quantiNelGruppo(tocca)) return setAvviso("Nel progetto gli arredi di oggi non si spostano: si tolgono e se ne mettono di nuovi.");
+    if (azione === "ruota") applica(C.ruotaGruppo(st.presente, tocca, 90));
+    else if (azione === "specchia") applica(C.specchiaGruppo(st.presente, tocca));
+    else {
+      applica(C.eliminaGruppo(st.presente, gr, v));
+      setGruppo(C.gruppoVuoto());
+    }
+  }, [applica]);
+  const azioneGruppoRef = useRef(azioneGruppo);
+  azioneGruppoRef.current = azioneGruppo;
+
+  // il gruppo perde ciò che non c'è più (annulla, cambio di vista o di piano)
+  useEffect(() => {
+    if (!C.quantiNelGruppo(gruppo)) return;
+    const el = new Set((pianta.elementi ?? []).filter((x) => C.visibile(x.stato, vista)).map((x) => x.id));
+    const qu = new Set((pianta.quote ?? []).map((x) => x.id));
+    const te = new Set((pianta.testi ?? []).map((x) => x.id));
+    const resto = { elementi: gruppo.elementi.filter((x) => el.has(x)), quote: gruppo.quote.filter((x) => qu.has(x)), testi: gruppo.testi.filter((x) => te.has(x)) };
+    if (C.quantiNelGruppo(resto) !== C.quantiNelGruppo(gruppo)) setGruppo(resto);
+  }, [pianta, vista, gruppo]);
 
   // la selezione sparisce se non si vede più (annulla, cambio di vista)
   useEffect(() => {
@@ -892,15 +998,28 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       },
       modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
       modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
+      arreda: (id, destinazione) => {
+        const r = arredaStanza(p(), id, stato.current.vista, destinazione);
+        if (!r.aggiunti.length) {
+          setAvviso(r.giaPresenti.length ? "La stanza è già arredata: sposta o elimina i mobili a mano." : `Non c'è posto per ${r.saltati.join(", ").toLowerCase() || "gli arredi"}: la stanza è piccola o le pareti sono occupate da porte e finestre.`);
+          return;
+        }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Aggiunti ${r.aggiunti.length} arredi: trascinane uno per spostarli tutti, oppure Esc e sistemali uno per uno.${r.saltati.length ? ` Non ci stavano: ${r.saltati.join(", ").toLowerCase()}.` : ""}`);
+      },
     };
   }, [applica, elimina]);
 
   // ─── piani ────────────────────────────────────────────────────────────────
-  const vaiAlPiano = (id: string, doc: Planimetria = documento) => {
+  const vaiAlPiano = (id: string, doc: Planimetria = documento, proposta?: string) => {
     documentoBase.current = doc;
     setAnteprima(null);
     setLivelloId(id);
-    setStoria(nuovaStoria(daPlanimetria(doc, id)));
+    const pid = proposta ?? doc.livelli.find((l) => l.id === id)?.proposte[0]?.id ?? ID_PROPOSTA;
+    setPropostaId(pid);
+    setStoria(nuovaStoria(daPlanimetria(doc, id, pid)));
     setSelezione(null);
     setStrumento("seleziona");
     setTimeout(adatta, 0);
@@ -918,6 +1037,31 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     if (!livelloId || documento.livelli.length <= 1) return;
     const doc = eliminaLivello(documento, livelloId);
     vaiAlPiano(doc.livelli[0].id, doc);
+  };
+
+  // ─── alternative di progetto ──────────────────────────────────────────────
+  const livelloCorrente = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
+  const vaiAllaProposta = (id: string, doc: Planimetria = documento) => {
+    if (!livelloCorrente) return;
+    vaiAlPiano(livelloCorrente.id, doc, id);
+    setVista("progetto");
+  };
+  const nuovaProposta = () => {
+    if (!livelloCorrente) return;
+    const r = duplicaProposta(documento, livelloCorrente.id, propostaId);
+    vaiAllaProposta(r.id, r.documento);
+  };
+  const rinominaPropostaCorrente = (nome: string) => {
+    if (!livelloCorrente) return;
+    const doc = rinominaProposta(documento, livelloCorrente.id, propostaId, nome);
+    documentoBase.current = doc;
+    vaiAllaProposta(propostaId, doc);
+  };
+  const togliPropostaCorrente = () => {
+    if (!livelloCorrente || livelloCorrente.proposte.length <= 1) return;
+    const doc = eliminaProposta(documento, livelloCorrente.id, propostaId);
+    const resta = doc.livelli.find((l) => l.id === livelloCorrente.id)?.proposte[0]?.id ?? ID_PROPOSTA;
+    vaiAllaProposta(resta, doc);
   };
 
   const cambiaVista = (v: C.Vista) => {
@@ -1044,6 +1188,16 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             />
           )}
           {barraVista}
+          {!sola && vista === "progetto" && livelloCorrente && livelloCorrente.proposte.length > 0 && (
+            <BarraProposte
+              proposte={livelloCorrente.proposte.map((x) => ({ id: x.id, nome: x.nome }))}
+              propostaId={propostaId}
+              onScegli={(id) => vaiAllaProposta(id)}
+              onNuova={nuovaProposta}
+              onRinomina={rinominaPropostaCorrente}
+              onTogli={togliPropostaCorrente}
+            />
+          )}
           {annullaRipeti}
           {!telefono && zoom}
         </div>
@@ -1060,6 +1214,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             misureSoloSelezione={sola}
             vista={vista}
             selezione={selezione}
+            gruppo={gruppo}
             camera={camera}
             larghezza={dimensioni.w}
             altezza={dimensioni.h}
@@ -1124,7 +1279,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         {/* pannello */}
         {!telefono && (
           <aside className="w-72 shrink-0 overflow-y-auto border-l p-3 xl:w-80">
-            <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+            {C.quantiNelGruppo(gruppo) > 0 ? (
+              <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
+            ) : (
+              <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+            )}
           </aside>
         )}
       </div>
@@ -1141,6 +1300,76 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       )}
 
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{SUGGERIMENTI[strumento]}</div>}
+    </div>
+  );
+}
+
+const chiaveGruppo = (tipo: "elemento" | "quota" | "testo"): keyof C.Gruppo => (tipo === "elemento" ? "elementi" : tipo === "quota" ? "quote" : "testi");
+
+function PannelloGruppo({ gruppo, onAzione }: { gruppo: C.Gruppo; onAzione: (a: "ruota" | "specchia" | "copia" | "elimina" | "deseleziona") => void }) {
+  const parti = [
+    gruppo.elementi.length && `${gruppo.elementi.length} ${gruppo.elementi.length === 1 ? "arredo" : "arredi"}`,
+    gruppo.quote.length && `${gruppo.quote.length} ${gruppo.quote.length === 1 ? "quota" : "quote"}`,
+    gruppo.testi.length && `${gruppo.testi.length} ${gruppo.testi.length === 1 ? "testo" : "testi"}`,
+  ].filter(Boolean);
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold">{C.quantiNelGruppo(gruppo)} oggetti selezionati</p>
+        <p className="text-xs text-muted-foreground">{parti.join(" · ")}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">Trascina uno di loro per spostarli tutti. Maiusc+clic aggiunge o toglie un oggetto.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button size="sm" variant="outline" onClick={() => onAzione("ruota")} title="R">Ruota 90°</Button>
+        <Button size="sm" variant="outline" onClick={() => onAzione("specchia")} title="M">Specchia</Button>
+        <Button size="sm" variant="outline" onClick={() => onAzione("copia")} title="Ctrl+D">Copia</Button>
+        <Button size="sm" variant="outline" className="text-destructive" onClick={() => onAzione("elimina")} title="Canc">Elimina</Button>
+      </div>
+      <Button size="sm" variant="ghost" className="w-full" onClick={() => onAzione("deseleziona")}>Deseleziona (Esc)</Button>
+    </div>
+  );
+}
+
+function BarraProposte({ proposte, propostaId, onScegli, onNuova, onRinomina, onTogli }: {
+  proposte: Array<{ id: string; nome: string }>;
+  propostaId: string;
+  onScegli: (id: string) => void;
+  onNuova: () => void;
+  onRinomina: (nome: string) => void;
+  onTogli: () => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const attuale = proposte.find((x) => x.id === propostaId) ?? proposte[0];
+  return (
+    <div className="flex items-center gap-1">
+      {proposte.length > 1 && (
+        <Select value={attuale?.id} onValueChange={onScegli}>
+          <SelectTrigger className="h-9 w-40" aria-label="Alternativa di progetto"><SelectValue /></SelectTrigger>
+          <SelectContent>{proposte.map((x) => <SelectItem key={x.id} value={x.id}>{x.nome}</SelectItem>)}</SelectContent>
+        </Select>
+      )}
+      <Popover open={aperto} onOpenChange={setAperto}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline">{proposte.length > 1 ? "Alternative" : "Altra proposta"}</Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 space-y-3" align="end">
+          {attuale && (
+            <div className="space-y-1">
+              <Label htmlFor="nome-proposta">Nome di questa proposta</Label>
+              <Input id="nome-proposta" key={attuale.id} defaultValue={attuale.nome}
+                onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== attuale.nome && onRinomina(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+            </div>
+          )}
+          <Button size="sm" className="w-full" onClick={() => { onNuova(); setAperto(false); }}>Duplica in una nuova alternativa</Button>
+          <p className="text-[11px] text-muted-foreground">Parte dalla proposta che vedi: cambi solo quello che è diverso, e il confronto lo fai nella scheda.</p>
+          {proposte.length > 1 && attuale && (
+            <Button size="sm" variant="ghost" className="w-full text-destructive" onClick={() => { if (window.confirm(`Togliere «${attuale.nome}»?`)) { onTogli(); setAperto(false); } }}>
+              Togli questa alternativa
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

@@ -18,13 +18,31 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
+import { prospetto, sezione, type Disegno2D } from "@/lib/planimetrie/prospetti";
 import { allegaSchedeTecniche } from "@/lib/quotes/allegatiPreventivo";
 import {
   allegatoPreventivo,
   aziendaDelCartiglio, caricaLogo, ErroreImpaginazione, esportaDxfMigliore, esportaPdf, esportaPng, esportaSvg,
   SCALE_STANDARD, vistaDaPlanimetria, type DatiCartiglio, type FormatoFoglio, type ModoVista, type Orientamento,
 } from "@/lib/planimetrie/esporta";
-import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
+import type { Planimetria, StatoPianta } from "../../../shared/planimetrie/modello.ts";
+
+/** I disegni della tavola completa: i quattro prospetti e una sezione a metà, sulla parte lunga. */
+export function disegniDellaTavola(stato: StatoPianta | null | undefined): Disegno2D[] {
+  if (!stato || !stato.muri.some((m) => m.stato !== "da_demolire")) return [];
+  const pts = stato.muri.flatMap((m) => [m.p1, m.p2]);
+  const minX = Math.min(...pts.map((p) => p.x)), maxX = Math.max(...pts.map((p) => p.x));
+  const minY = Math.min(...pts.map((p) => p.y)), maxY = Math.max(...pts.map((p) => p.y));
+  // il taglio attraversa il lato lungo: si vedono più stanze
+  const taglio = maxX - minX >= maxY - minY
+    ? { asse: "verticale" as const, valore: (minX + maxX) / 2 }
+    : { asse: "orizzontale" as const, valore: (minY + maxY) / 2 };
+  return [
+    prospetto(stato, "sud"), prospetto(stato, "nord"), prospetto(stato, "est"), prospetto(stato, "ovest"),
+    sezione(stato, taglio, "Sezione A-A"),
+  ].filter((d) => d.primitive.length > 0);
+}
 
 type Formato = "pdf" | "dxf" | "svg" | "png";
 type Stile = "tecnico" | "presentazione";
@@ -79,6 +97,8 @@ export function EsportaPiantaDialog({
   const [inCorso, setInCorso] = useState(false);
   const [preventivoId, setPreventivoId] = useState<string>("");
   const [allegando, setAllegando] = useState(false);
+  // Tavola completa: dopo la pianta, i fogli con prospetti e sezione.
+  const [conProspetti, setConProspetti] = useState(false);
 
   // Preventivi a cui si può allegare: quelli standard (i moduli fanno il PDF nel browser), non firmati.
   const preventivi = useQuery({
@@ -115,6 +135,14 @@ export function EsportaPiantaDialog({
       return null;
     }
   }, [documento, modo, livelloId, propostaId, haProgetto]);
+
+  // Lo stato disegnato nei prospetti: com'è oggi, oppure la proposta scelta.
+  const statoDisegnato = useMemo(() => {
+    const liv = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
+    if (!liv) return null;
+    if (!haProgetto || modo === "fatto") return liv.fatto;
+    return liv.proposte.find((p) => p.id === propostaId) ?? liv.proposte[0] ?? liv.fatto;
+  }, [documento, livelloId, propostaId, haProgetto, modo]);
 
   const anteprima = useMemo(() => {
     if (!vista || !aperto) return null;
@@ -176,8 +204,16 @@ export function EsportaPiantaDialog({
       if (formato === "pdf") {
         const cartiglio = (await cartiglioPerOra())!;
         const r = await esportaPdf(vista, cartiglio, { formato: foglio, orientamento, scala: scala === "auto" ? "auto" : Number(scala), stile });
-        scarica(`${base}-${foglio}-1-${r.scala}.pdf`, r.dati, "application/pdf");
-        toast.success(`PDF pronto in scala 1:${r.scala}`);
+        const disegni = conProspetti ? disegniDellaTavola(statoDisegnato) : [];
+        if (disegni.length) {
+          const { accodaTavole } = await import("@/lib/planimetrie/tavole");
+          const t = await accodaTavole(r.dati, disegni, { formato: foglio, intestazione: [titolo, vista.livello].filter(Boolean).join(" — "), primoNumero: 2 });
+          scarica(`${base}-tavola-${foglio}.pdf`, t.dati, "application/pdf");
+          toast.success(`Tavola pronta: pianta 1:${r.scala}, prospetti e sezione 1:${t.scala}`, { description: `${1 + t.fogli} fogli.` });
+        } else {
+          scarica(`${base}-${foglio}-1-${r.scala}.pdf`, r.dati, "application/pdf");
+          toast.success(`PDF pronto in scala 1:${r.scala}`);
+        }
       } else if (formato === "dxf") {
         const r = await esportaDxfMigliore(vista, { unita: "cm", scala: 50, stile });
         scarica(`${base}.dxf`, r.dati, "application/dxf");
@@ -280,6 +316,13 @@ export function EsportaPiantaDialog({
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.</p>
+                <div className="flex items-start justify-between gap-3 border-t pt-3">
+                  <div>
+                    <Label htmlFor="tavola-completa" className="text-xs">Tavola completa</Label>
+                    <p className="text-[11px] text-muted-foreground">Dopo la pianta, i quattro prospetti e una sezione, in scala, nello stesso PDF.</p>
+                  </div>
+                  <Switch id="tavola-completa" checked={conProspetti} onCheckedChange={setConProspetti} />
+                </div>
               </div>
             )}
           </div>

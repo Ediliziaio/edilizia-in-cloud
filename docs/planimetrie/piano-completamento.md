@@ -56,11 +56,47 @@ Regole di design per tutte le fasi (stesso linguaggio delle pagine Render AI):
 | 1 Esportare | fatta | `src/components/planimetrie/EsportaPiantaDialog.tsx` |
 | 2 Abachi | fatta | `src/lib/planimetrie/abachi.ts`, `AbachiPianta.tsx` |
 | 3 Arredi, quote, testi | fatta | editor: `catalogo.ts`, `SimboloArredo.tsx`, comandi `aggiungiElemento`… |
-| 4 Disegno libero | in parte: stanza di forma qualunque e pareti a 45° | strumento «Stanza libera». Restano copia/ruota/specchia di più oggetti e la selezione a riquadro |
-| 5 Piani e proposte | in parte: piani sì (aggiungi dal perimetro, copia, vuoto; nome, quota, togli) | restano le proposte B/C (oggi una sola, «A») |
+| 4 Disegno libero | fatta | «Stanza libera», pareti a 45°; Maiusc+clic e Maiusc+trascina per più arredi, quote e testi: sposta, Ruota 90° (R), Specchia (M), Copia (Ctrl+D), Elimina (`comandi.ts`, «più oggetti insieme») |
+| 5 Piani e proposte | fatta | piani (aggiungi dal perimetro, copia, vuoto; nome, quota, togli); in «Progetto» le alternative B, C… (duplica, rinomina, togli: `adattatore.ts`) |
 | 6 Prospetti e sezioni | fatta | `src/lib/planimetrie/prospetti.ts`, `ProspettiDialog.tsx` (SVG, DXF, stampa PDF) |
 | 7 Impianti di base | fatta | prese, interruttori, punti luce, quadro, punti acqua, scarichi, termosifoni, split; contati nel computo (`elementi:<stato>:<tipo>.numero`) |
-| 8 Allegato al preventivo | fatta per i preventivi standard | «Allega a un preventivo» nell'esportazione; migrazione `20281105360000` (apre solo `<azienda>/planimetrie/`) |
+| 8 Tavole e allegato | fatta (allegato per i preventivi standard) | «Tavola completa» nell'esportazione PDF: pianta + 4 prospetti + sezione in scala (`src/lib/planimetrie/tavole.ts`). Allegato: | «Allega a un preventivo» nell'esportazione; migrazione `20281105360000` (apre solo `<azienda>/planimetrie/`) |
 
 ## Fuori scopo
 Calcoli strutturali ed energetici, importazione DWG (formato chiuso; il DXF si valuta dopo la fase 8).
+
+---
+
+# Seconda parte (1/11/2026): completare il piano e usare l'AI per le stanze
+
+## A. Quel che resta del piano
+- **A1 Proposte B, C…** (fase 5): duplicare il progetto in un'alternativa, passare dall'una all'altra
+  nell'editor, rinominarle, toglierle; scheda, abachi, 3D ed esportazioni le vedono già.
+- **A2 Selezione multipla** (fase 4): Maiusc+clic e riquadro trascinato; sposta, copia, ruota di 90°,
+  specchia, elimina di arredi, quote e testi insieme. (Pareti e stanze restano una per volta: muoverle
+  in gruppo rompe stanze e aperture.)
+- **A3 Tavole** (fase 8): un PDF solo con pianta, i quattro prospetti e la sezione, vettoriale e in
+  scala, con titolo per foglio.
+
+## B. AI per le stanze
+- **B1 Arreda con un clic**: dal pannello della stanza, gli arredi tipici di quella destinazione
+  (bagno, cucina, camera, soggiorno…) disposti lungo le pareti, lontano da porte e finestre. Il 3D
+  e il render li usano: i mobili finiscono dove li hai messi.
+- **B2 Idee pronte e richieste a parole**: nel passo «Stile» del render della stanza, idee con un
+  clic (Scandinavo caldo, Industriale, Japandi, Lusso, Rustico moderno…) che impostano stile,
+  materiali e una richiesta scritta; la casella «Cosa vuoi vedere» per scrivere liberamente.
+- **B3 Render di tutte le stanze**: dalla scheda, un clic fa il render di ogni stanza dalla vista
+  3D interna, con lo stesso stile; avanzamento stanza per stanza, costo in crediti detto prima.
+- **B4 Più varianti**: per una stanza, due o tre stili diversi in una volta sola, da confrontare.
+
+## Stato della seconda parte (1/11/2026)
+
+| Punto | Stato | Dove |
+|---|---|---|
+| A1 Proposte B, C… | fatto | `adattatore.ts` (`duplicaProposta`, `rinominaProposta`, `eliminaProposta`), barra «Alternative» nell'editor |
+| A2 Selezione multipla | fatto | `comandi.ts` (`spostaGruppo`, `ruotaGruppo`, `specchiaGruppo`, `duplicaGruppo`, `eliminaGruppo`), `PannelloGruppo` |
+| A3 Tavole | fatto | `src/lib/planimetrie/tavole.ts`, interruttore «Tavola completa» in `EsportaPiantaDialog` |
+| B1 Arreda con un clic | fatto | `editor/arreda.ts`; bottone nel pannello della stanza (bagno, cucina, camera, soggiorno, studio, lavanderia) |
+| B2 Idee pronte | fatto | `src/modules/render-stanza/lib/ideePronte.ts`; nel modulo di ogni render stanza, con «Cosa vuoi vedere» |
+| B3 Render di tutte le stanze | fatto | `RenderInSerieDialog`, `src/lib/planimetrie/render/renderInSerie.ts` (due alla volta, costo detto prima) |
+| B4 Più varianti | fatto | stesso dialogo da «Più stili insieme» sulla scheda della stanza: fino a 3 stili |

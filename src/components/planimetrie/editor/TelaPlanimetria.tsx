@@ -35,6 +35,8 @@ export interface Selezione {
 
 export interface Sovrapposizioni {
   rettangolo?: { a: Punto; b: Punto } | null;
+  /** Riquadro di selezione (Maiusc + trascina). */
+  riquadro?: { a: Punto; b: Punto } | null;
   pareteInCorso?: { a: Punto; b: Punto } | null;
   aggancio?: Aggancio | null;
   aperturaFantasma?: { muroId: string; t: number; tipo: TipoApertura } | null;
@@ -56,6 +58,8 @@ interface Props extends Gestori {
   latiModificabili: ReadonlySet<string>;
   vista: Vista;
   selezione: Selezione | null;
+  /** Più oggetti selezionati insieme (arredi, quote, testi). */
+  gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
   camera: Camera;
   larghezza: number;
   altezza: number;
@@ -85,7 +89,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
 const SELEZIONE = "#2563eb";
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -93,7 +97,9 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
     const aperture = pianta.aperture.filter((a) => visibile(a.stato, vista) && muri.some((m) => m.id === a.muroId));
     const stanzeDiLavoro = pianta.locali.filter((l) => visibile(l.stato, vista));
     const locali = dati.locali;
-    const sel = (tipo: Selezione["tipo"], id: string) => selezione?.tipo === tipo && selezione.id === id;
+    const nelGruppo = (tipo: Selezione["tipo"], id: string) =>
+      !!gruppo && (tipo === "elemento" ? gruppo.elementi : tipo === "quota" ? gruppo.quote : tipo === "testo" ? gruppo.testi : []).includes(id);
+    const sel = (tipo: Selezione["tipo"], id: string) => (selezione?.tipo === tipo && selezione.id === id) || nelGruppo(tipo, id);
     const testo = 12;
 
     // Pareti che stanno su un lato di una stanza: la loro misura la scrive la stanza.
@@ -406,6 +412,15 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
 
           {/* anteprime mentre si disegna */}
           {sovrapposizioni.rettangolo && <AnteprimaRettangolo {...sovrapposizioni.rettangolo} px={px} />}
+          {sovrapposizioni.riquadro && (
+            <rect
+              x={Math.min(sovrapposizioni.riquadro.a.x, sovrapposizioni.riquadro.b.x)}
+              y={Math.min(sovrapposizioni.riquadro.a.y, sovrapposizioni.riquadro.b.y)}
+              width={Math.abs(sovrapposizioni.riquadro.b.x - sovrapposizioni.riquadro.a.x)}
+              height={Math.abs(sovrapposizioni.riquadro.b.y - sovrapposizioni.riquadro.a.y)}
+              fill={SELEZIONE} fillOpacity={0.08} stroke={SELEZIONE} strokeWidth={px(1)} strokeDasharray={`${px(4)} ${px(3)}`} pointerEvents="none"
+            />
+          )}
           {sovrapposizioni.pareteInCorso && <AnteprimaParete {...sovrapposizioni.pareteInCorso} px={px} />}
           {sovrapposizioni.poligonoInCorso && (() => {
             const { punti: pp, cursore } = sovrapposizioni.poligonoInCorso;
