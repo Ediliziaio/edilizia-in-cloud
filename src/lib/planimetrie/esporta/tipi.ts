@@ -80,6 +80,10 @@ export type TipoElemento =
   | "cucina" | "frigorifero" | "lavatrice" | "caldaia"
   | "letto_matrimoniale" | "letto_singolo" | "divano" | "tavolo" | "sedia"
   | "armadio" | "comodino" | "scrivania"
+  | "divano_angolare" | "poltrona" | "mobile_tv" | "libreria" | "tavolo_rotondo" | "cucina_angolare" | "isola_cucina" | "lavastoviglie"
+  | "auto" | "scaffale" | "banco_lavoro"
+  | "presa" | "interruttore" | "punto_luce" | "punto_acqua" | "scarico" | "quadro_elettrico" | "termosifone" | "split"
+  | "unita_esterna" | "collettore" | "colonna_scarico" | "pilastro" | "scala" | "ascensore"
   /** Un oggetto che non ha un simbolo suo: riquadro con la diagonale. */
   | "generico";
 

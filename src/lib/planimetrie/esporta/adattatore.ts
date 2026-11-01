@@ -63,7 +63,7 @@ export function pavimentoDaFinitura(testo?: string): Pavimento | undefined {
 
 /** I nomi che l'editor e l'AI usano per gli arredi, ricondotti ai simboli che sappiamo disegnare. */
 const ALIAS_ELEMENTI: Record<string, TipoElemento> = {
-  cucina_lineare: "cucina", cucina_angolare: "cucina", piano_cottura: "cucina", angolo_cottura: "cucina",
+  cucina_lineare: "cucina", piano_cottura: "cucina", angolo_cottura: "cucina",
   frigo: "frigorifero", piatto_doccia: "doccia", box_doccia: "doccia", vasca_bagno: "vasca",
   lavandino: "lavabo", lavello: "lavabo", water: "wc", vaso: "wc",
   letto: "letto_matrimoniale", letto_doppio: "letto_matrimoniale", letto_piazza: "letto_singolo",
@@ -72,6 +72,10 @@ const ALIAS_ELEMENTI: Record<string, TipoElemento> = {
 const NOTI = new Set<string>([
   "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia",
   "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania",
+  "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie",
+  "auto", "scaffale", "banco_lavoro",
+  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split",
+  "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
 ]);
 
 /** Il simbolo da disegnare per un tipo libero; «generico» è un riquadro con la diagonale. */

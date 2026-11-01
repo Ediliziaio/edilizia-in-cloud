@@ -18,7 +18,7 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
           const pts = f.punti.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
           const sw = f.sottile ? spessore * 0.6 : spessore;
           return f.chiuso
-            ? <polygon key={i} points={pts} fill={riempimento === "#ffffff" && f.riempimento ? (TINTE[f.riempimento] ?? riempimento) : riempimento} stroke={colore} strokeWidth={sw} strokeLinejoin="round" />
+            ? <polygon key={i} points={pts} fill={f.pieno ? (f.riempimento ?? colore) : riempimento === "#ffffff" && f.riempimento ? (TINTE[f.riempimento] ?? riempimento) : riempimento} stroke={colore} strokeWidth={sw} strokeLinejoin="round" />
             : <polyline key={i} points={pts} fill="none" stroke={colore} strokeWidth={sw} strokeLinecap="round" />;
         })}
       </g>

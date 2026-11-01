@@ -33,7 +33,7 @@ QUOTE — ogni misura scritta di cui capisci il tratto misurato (linea di quota 
 Solo numeri che leggi davvero. Ignora la scala grafica, il cartiglio, le superfici (vanno in superficie_scritta_mq) e le altezze.
 
 ELEMENTI — solo quelli disegnati: pilastri (quadratini o tondi pieni, anche tratteggiati, isolati o nei muri), sanitari, cucina, letti, armadi, divani, tavoli:
-- tipo: uno fra pilastro, wc, bidet, lavabo, doccia, vasca, lavatrice, cucina, frigorifero, tavolo, sedia, letto_matrimoniale, letto_singolo, comodino, armadio, scrivania, divano, caldaia.
+- tipo: uno fra pilastro, scala, wc, bidet, lavabo, doccia, vasca, lavatrice, cucina, cucina_angolare, isola_cucina, frigorifero, tavolo, tavolo_rotondo, sedia, letto_matrimoniale, letto_singolo, comodino, armadio, scrivania, divano, divano_angolare, poltrona, mobile_tv, libreria, caldaia, auto (nei garage e nelle piante di ville).
 - riquadro: [x0, y0, x1, y1], il rettangolo che lo contiene.
 - lato_muro: da che parte sta il lato appoggiato al muro (testata del letto, schienale del divano, cassetta del WC): "alto", "basso", "sinistra" o "destra"; null per pilastri e tavoli.
 - piano: come per le stanze.

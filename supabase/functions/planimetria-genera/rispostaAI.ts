@@ -65,10 +65,20 @@ export interface RispostaAI {
 export const TIPI_ELEMENTO_AI = [
   "pilastro", "wc", "bidet", "lavabo", "doccia", "vasca", "lavatrice", "cucina", "frigorifero", "tavolo", "sedia",
   "letto_matrimoniale", "letto_singolo", "comodino", "armadio", "scrivania", "divano", "caldaia",
+  "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "auto", "scala",
 ] as const;
 
 const SINONIMI_ELEMENTO: Array<[RegExp, string]> = [
   [/pilastr|colonn/i, "pilastro"],
+  [/auto|macchina|vettura/i, "auto"],
+  [/scal[ae]\b|rampa/i, "scala"],
+  [/divano.*(angol|penisola|chaise)|angolare/i, "divano_angolare"],
+  [/poltron/i, "poltrona"],
+  [/mobile.*tv|porta.?tv|tv/i, "mobile_tv"],
+  [/librer/i, "libreria"],
+  [/tavol.*(tond|rotond)/i, "tavolo_rotondo"],
+  [/cucina.*(angol|a l\b)/i, "cucina_angolare"],
+  [/isola/i, "isola_cucina"],
   [/^w\.?c|water|vaso/i, "wc"],
   [/bidet/i, "bidet"],
   [/lavab|lavandin/i, "lavabo"],

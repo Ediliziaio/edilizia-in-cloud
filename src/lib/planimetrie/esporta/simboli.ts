@@ -16,7 +16,7 @@ interface Pennello {
   sottile: Tratto;
 }
 
-export type Forma = { punti: Punto[]; chiuso: boolean; riempimento?: string; sottile?: boolean };
+export type Forma = { punti: Punto[]; chiuso: boolean; riempimento?: string; sottile?: boolean; /** Campito scuro anche nel disegno tecnico (pilastri, simboli pieni). */ pieno?: boolean };
 
 const rett = (x0: number, y0: number, x1: number, y1: number, riempimento?: string, r = 0): Forma => ({
   punti: r > 0 ? rettangoloArrotondato(x0, y0, x1, y1, r) : [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }],
@@ -147,6 +147,86 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
         ...fuochi,
       ];
     }
+    case "divano_angolare": {
+      // a L: il lato lungo contro il muro in alto, la penisola (chaise) a destra verso la stanza
+      const sch = Math.min(P * 0.28, 24), br = 18, pen = Math.min(L * 0.38, 95);
+      const contorno: Punto[] = [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: h }, { x: w - pen, y: h }, { x: w - pen, y: -h + sch + 70 }, { x: -w, y: -h + sch + 70 }];
+      const seduta: Punto[] = [{ x: -w + br, y: -h + sch }, { x: w - sch, y: -h + sch }, { x: w - sch, y: h - 4 }, { x: w - pen + 4, y: h - 4 }, { x: w - pen + 4, y: -h + sch + 66 }, { x: -w + br, y: -h + sch + 66 }];
+      const posti = Math.max(2, Math.round((L - pen - br) / 65));
+      const passo = (L - pen - br) / posti;
+      return [
+        { punti: contorno, chiuso: true, riempimento: C.tessuto },
+        { punti: seduta, chiuso: true, riempimento: C.tessutoChiaro },
+        ...Array.from({ length: posti }, (_, i) => linea(-w + br + passo * (i + 1), -h + sch + 3, -w + br + passo * (i + 1), -h + sch + 63)),
+        linea(w - pen + 4, -h + sch + 70, w - sch, -h + sch + 70),
+        rett(-w + 6, -h + sch + 10, -w + 30, -h + sch + 34, C.lenzuolo, 6),
+      ];
+    }
+    case "poltrona":
+      return [rett(-w, -h, w, h, C.tessuto, 8), rett(-w + L * 0.18, -h + P * 0.28, w - L * 0.18, h - 3, C.tessutoChiaro, 5)];
+    case "mobile_tv":
+      return [rett(-w, -h, w, h, C.legnoChiaro, 2), rett(-L * 0.3, h - 4, L * 0.3, h - 1, C.scuro, 1), linea(-w + L / 3, -h, -w + L / 3, h), linea(w - L / 3, -h, w - L / 3, h)];
+    case "libreria":
+      return [rett(-w, -h, w, h, C.legnoChiaro), ...Array.from({ length: Math.max(1, Math.round(L / 80)) - 1 }, (_, i) => linea(-w + (L * (i + 1)) / Math.max(1, Math.round(L / 80)), -h, -w + (L * (i + 1)) / Math.max(1, Math.round(L / 80)), h)), linea(-w, 0, w, 0)];
+    case "tavolo_rotondo": {
+      const r = Math.min(w, h);
+      const sedie = [0, 1, 2, 3].map((k) => { const a = (k * Math.PI) / 2 + Math.PI / 4; const cx = Math.cos(a) * (r + 14), cy = Math.sin(a) * (r + 14); return ell(cx, cy, 15, 15, C.legno); });
+      return [...sedie, ell(0, 0, r, r, C.legnoChiaro), ell(0, 0, r - 4, r - 4)];
+    }
+    case "cucina_angolare": {
+      // a L: il lato lungo contro il muro in alto, il ritorno sul muro di sinistra
+      const pr = Math.min(P, 62);
+      const contorno: Punto[] = [{ x: -w, y: -h }, { x: w, y: -h }, { x: w, y: -h + pr }, { x: -w + pr, y: -h + pr }, { x: -w + pr, y: h }, { x: -w, y: h }];
+      const r = Math.min(pr * 0.12, 8), cx = w - Math.min(L * 0.18, 40), cy = -h + pr / 2;
+      const fuochi = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [cerchio(cx + sx * r * 1.6, cy + sy * r * 1.5, r, C.scuro), cerchio(cx + sx * r * 1.6, cy + sy * r * 1.5, r * 0.45)]));
+      const lx = -w + pr + 30;
+      return [
+        { punti: contorno, chiuso: true, riempimento: C.piano },
+        rett(lx, -h + 10, lx + 46, -h + pr - 10, C.metallo, 4),
+        ...rubinetto(lx + 23, -h + 4, 6),
+        rett(cx - r * 3.2, cy - r * 3.1, cx + r * 3.2, cy + r * 3.1, C.scuro, 2),
+        ...fuochi,
+        rett(-w + 2, h - Math.min(P * 0.3, 65), -w + pr - 2, h - 2, C.metallo, 2),
+      ];
+    }
+    case "isola_cucina":
+      return [rett(-w, -h, w, h, C.piano, 4), rett(-w + 4, -h + 4, w - 4, h - 4), ...[-1, 0, 1].map((k) => ell(k * L * 0.3, h + 18, 16, 16, C.legno))];
+    case "lavastoviglie":
+      return [rett(-w, -h, w, h, C.metallo, 2), linea(-w, h - 5, w, h - 5), rett(-w * 0.5, h - 4, w * 0.5, h - 2, C.scuro, 1)];
+    case "auto": {
+      // vista dall'alto: cofano verso il muro (in alto), parabrezza, tetto, lunotto, ruote
+      const r = Math.min(w * 0.45, 30);
+      return [
+        ...[-1, 1].flatMap((sx) => [-1, 1].map((sy): Forma => ({ ...rett(sx * w - 6, sy * h * 0.62 - 18, sx * w + 6, sy * h * 0.62 + 18, undefined, 3), pieno: true, riempimento: C.scuro }))),
+        rett(-w + 4, -h, w - 4, h, C.metallo, r),
+        { punti: [{ x: -w + 14, y: -h * 0.42 }, { x: w - 14, y: -h * 0.42 }, { x: w - 22, y: -h * 0.18 }, { x: -w + 22, y: -h * 0.18 }], chiuso: true, riempimento: C.acqua },
+        rett(-w + 20, -h * 0.18, w - 20, h * 0.42, C.metallo, 8),
+        { punti: [{ x: -w + 22, y: h * 0.42 }, { x: w - 22, y: h * 0.42 }, { x: w - 16, y: h * 0.6 }, { x: -w + 16, y: h * 0.6 }], chiuso: true, riempimento: C.acqua },
+        linea(-w + 10, -h * 0.75, w - 10, -h * 0.75),
+      ];
+    }
+    case "scaffale":
+      return [rett(-w, -h, w, h), linea(-w, 0, w, 0), ...Array.from({ length: Math.max(1, Math.floor(L / 100)) }, (_, i) => linea(-w + (L * (i + 1)) / (Math.floor(L / 100) + 1), -h, -w + (L * (i + 1)) / (Math.floor(L / 100) + 1), h)), linea(-w, -h, w, h)];
+    case "banco_lavoro":
+      return [rett(-w, -h, w, h, C.legno, 2), rett(-w + 4, -h + 4, w - 4, h - 4), rett(w - L * 0.18, -h + 4, w - 6, -h + P * 0.45, C.metallo, 1)];
+    // ─── impianti e struttura (prima solo nell'editor: ora anche in PDF e DXF) ───
+    case "presa": { const r = Math.min(w, h); return [cerchio(0, 0, r, C.ceramica), linea(-r, 0, r, 0), linea(0, -r, 0, -r * 1.6)]; }
+    case "interruttore": { const r = Math.min(w, h); return [cerchio(0, 0, r * 0.6, C.ceramica), linea(0, 0, r * 1.2, -r * 1.2), linea(r * 1.2, -r * 1.2, r * 1.6, -r * 0.8)]; }
+    case "punto_luce": { const r = Math.min(w, h); const k = r * 0.7; return [cerchio(0, 0, r, C.ceramica), linea(-k, -k, k, k), linea(k, -k, -k, k)]; }
+    case "punto_acqua": { const r = Math.min(w, h); return [cerchio(0, 0, r, C.ceramica), { punti: [...ellisse({ x: 0, y: 0 }, r, r, 32).filter((q) => q.y >= -0.01)], chiuso: true, pieno: true, riempimento: "#2563EB" }]; }
+    case "scarico": { const r = Math.min(w, h); return [cerchio(0, 0, r, C.ceramica), { ...cerchio(0, 0, r * 0.35), pieno: true, riempimento: "#92400E" }]; }
+    case "quadro_elettrico": return [rett(-w, -h, w, h, C.ceramica), { punti: [{ x: -w, y: -h }, { x: w, y: -h }, { x: -w, y: h }], chiuso: true, pieno: true, riempimento: "#DC2626" }];
+    case "termosifone": { const n = Math.max(2, Math.floor(L / 10)); return [rett(-w, -h, w, h, C.metallo), ...Array.from({ length: n }, (_, i) => linea(-w + ((i + 1) * L) / (n + 1), -h, -w + ((i + 1) * L) / (n + 1), h))]; }
+    case "split": return [rett(-w, -h, w, h, C.ceramica, 3), linea(-w + L * 0.08, h - P * 0.3, w - L * 0.08, h - P * 0.3), linea(-w + L * 0.08, h - P * 0.15, w - L * 0.08, h - P * 0.15)];
+    case "unita_esterna": return [rett(-w, -h, w, h, C.metallo, 2), cerchio(-w + L * 0.35, 0, Math.min(L * 0.28, P * 0.42)), linea(-w + L * 0.7, -h + P * 0.25, w - L * 0.08, -h + P * 0.25), linea(-w + L * 0.7, h - P * 0.25, w - L * 0.08, h - P * 0.25)];
+    case "collettore": return [rett(-w, -h, w, h, C.metallo), ...[0.2, 0.4, 0.6, 0.8].map((k) => ({ ...cerchio(-w + L * k, 0, Math.min(P * 0.3, 4)), pieno: true, riempimento: "#2563EB" }))];
+    case "colonna_scarico": { const r = Math.min(w, h); return [cerchio(0, 0, r, C.ceramica), { ...cerchio(0, 0, r * 0.55), pieno: true, riempimento: "#92400E" }]; }
+    case "pilastro": return [{ ...rett(-w, -h, w, h), pieno: true, riempimento: "#52525B" }];
+    case "scala": {
+      const n = Math.max(3, Math.floor(P / 28));
+      return [rett(-w, -h, w, h, C.legnoChiaro), ...Array.from({ length: n - 1 }, (_, i) => linea(-w, -h + ((i + 1) * P) / n, w, -h + ((i + 1) * P) / n)), linea(0, h - P * 0.08, 0, -h + P * 0.1), { punti: [{ x: -L * 0.12, y: -h + P * 0.18 }, { x: 0, y: -h + P * 0.08 }, { x: L * 0.12, y: -h + P * 0.18 }], chiuso: false }];
+    }
+    case "ascensore": return [rett(-w, -h, w, h, C.metallo), linea(-w, -h, w, h), linea(w, -h, -w, h)];
     case "frigorifero":
       return [rett(-w, -h, w, h, C.metallo, 2), linea(-w, h - 5, w, h - 5), rett(w - 6, -h * 0.4, w - 3, h * 0.4, C.scuro, 1)];
     case "lavatrice":
@@ -208,7 +288,10 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
 }
 
 /** I tipi che hanno un disegno qui (gli altri, come i punti impianto, li disegna l'editor). */
-export const TIPI_CON_FORME = new Set(["wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);
+export const TIPI_CON_FORME = new Set([
+  "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie", "auto", "scaffale", "banco_lavoro",
+  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
+  "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);
 
 export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiva[] {
   const presentazione = stile === "presentazione";
@@ -223,7 +306,7 @@ export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiv
     layer: "ARREDI" as const,
     punti: f.punti.map(mondo),
     chiuso: f.chiuso,
-    riempimento: f.chiuso ? (p.presentazione ? f.riempimento : "#FFFFFF") : undefined,
+    riempimento: f.chiuso ? (f.pieno ? (p.presentazione ? f.riempimento ?? "#3F3F46" : "#333333") : p.presentazione ? f.riempimento : "#FFFFFF") : undefined,
     tratto: f.sottile ? p.sottile : p.tratto,
   }));
 }

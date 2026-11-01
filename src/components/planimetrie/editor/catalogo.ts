@@ -5,7 +5,7 @@
 export interface VoceCatalogo {
   tipo: string;
   nome: string;
-  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Impianti" | "Struttura";
+  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Esterni e garage" | "Impianti" | "Struttura";
   larghezza: number;
   profondita: number;
   altezza: number;
@@ -19,6 +19,9 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "vasca", nome: "Vasca", gruppo: "Bagno", larghezza: 170, profondita: 70, altezza: 55 },
   { tipo: "lavatrice", nome: "Lavatrice", gruppo: "Bagno", larghezza: 60, profondita: 60, altezza: 85 },
   { tipo: "cucina", nome: "Cucina lineare", gruppo: "Cucina", larghezza: 240, profondita: 60, altezza: 90 },
+  { tipo: "cucina_angolare", nome: "Cucina ad angolo", gruppo: "Cucina", larghezza: 300, profondita: 240, altezza: 90 },
+  { tipo: "isola_cucina", nome: "Isola con sgabelli", gruppo: "Cucina", larghezza: 180, profondita: 90, altezza: 90 },
+  { tipo: "lavastoviglie", nome: "Lavastoviglie", gruppo: "Cucina", larghezza: 60, profondita: 60, altezza: 85 },
   { tipo: "frigorifero", nome: "Frigorifero", gruppo: "Cucina", larghezza: 60, profondita: 65, altezza: 185 },
   { tipo: "tavolo", nome: "Tavolo", gruppo: "Cucina", larghezza: 140, profondita: 80, altezza: 75 },
   { tipo: "sedia", nome: "Sedia", gruppo: "Cucina", larghezza: 45, profondita: 50, altezza: 90 },
@@ -27,7 +30,15 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "comodino", nome: "Comodino", gruppo: "Camere", larghezza: 45, profondita: 40, altezza: 50 },
   { tipo: "armadio", nome: "Armadio", gruppo: "Camere", larghezza: 200, profondita: 60, altezza: 240 },
   { tipo: "scrivania", nome: "Scrivania", gruppo: "Camere", larghezza: 120, profondita: 60, altezza: 75 },
-  { tipo: "divano", nome: "Divano", gruppo: "Soggiorno", larghezza: 200, profondita: 90, altezza: 85 },
+  { tipo: "divano", nome: "Divano 3 posti", gruppo: "Soggiorno", larghezza: 210, profondita: 90, altezza: 85 },
+  { tipo: "divano_angolare", nome: "Divano angolare", gruppo: "Soggiorno", larghezza: 280, profondita: 170, altezza: 85 },
+  { tipo: "poltrona", nome: "Poltrona", gruppo: "Soggiorno", larghezza: 85, profondita: 85, altezza: 90 },
+  { tipo: "mobile_tv", nome: "Mobile TV", gruppo: "Soggiorno", larghezza: 180, profondita: 45, altezza: 50 },
+  { tipo: "libreria", nome: "Libreria", gruppo: "Soggiorno", larghezza: 160, profondita: 35, altezza: 200 },
+  { tipo: "tavolo_rotondo", nome: "Tavolo rotondo", gruppo: "Soggiorno", larghezza: 110, profondita: 110, altezza: 75 },
+  { tipo: "auto", nome: "Auto", gruppo: "Esterni e garage", larghezza: 180, profondita: 450, altezza: 150 },
+  { tipo: "scaffale", nome: "Scaffalatura", gruppo: "Esterni e garage", larghezza: 300, profondita: 100, altezza: 400 },
+  { tipo: "banco_lavoro", nome: "Banco da lavoro", gruppo: "Esterni e garage", larghezza: 200, profondita: 80, altezza: 90 },
   { tipo: "caldaia", nome: "Caldaia", gruppo: "Impianti", larghezza: 45, profondita: 35, altezza: 75 },
   // Punti impianto (fase 7): simboli grandi abbastanza da vedersi in pianta; si contano nel computo.
   { tipo: "presa", nome: "Presa", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 30 },
@@ -49,6 +60,6 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
 ];
 
-export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Impianti", "Struttura"] as const;
+export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Impianti", "Struttura"] as const;
 
 export const nomeDelTipo = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)?.nome ?? tipo.replace(/_/g, " ");

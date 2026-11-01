@@ -105,6 +105,95 @@ export const MODELLI: Record<string, ModelloElemento> = {
     misure: { l: 0.6, p: 0.65, h: 1.85 },
     blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h)],
   },
+  // ─── nuovi arredi ───
+  divano_angolare: {
+    nome: "Divano angolare",
+    misure: { l: 2.8, p: 1.7, h: 0.85 },
+    blocchi: (l, p, h) => {
+      const pen = Math.min(l * 0.38, 0.95);
+      return [
+        b("tessuto", 0, -p / 2 + 0.11, 0, l, 0.22, h),
+        b("tessuto", -pen / 2 + 0.04, -p / 2 + 0.22 + 0.35, 0, l - pen - 0.08, 0.7, 0.42),
+        b("tessuto", l / 2 - pen / 2, 0.11, 0, pen, p - 0.22, 0.42),
+        b("tessuto", -l / 2 + 0.08, -p / 2 + 0.57, 0, 0.16, 0.7, 0.6),
+      ];
+    },
+  },
+  poltrona: {
+    nome: "Poltrona",
+    misure: { l: 0.85, p: 0.85, h: 0.9 },
+    blocchi: (l, p, h) => [b("tessuto", 0, 0.05, 0, l - 0.2, p - 0.15, 0.42), b("tessuto", 0, -p / 2 + 0.1, 0, l, 0.2, h), b("tessuto", -l / 2 + 0.08, 0.05, 0, 0.16, p - 0.15, 0.62), b("tessuto", l / 2 - 0.08, 0.05, 0, 0.16, p - 0.15, 0.62)],
+  },
+  mobile_tv: {
+    nome: "Mobile TV",
+    misure: { l: 1.8, p: 0.45, h: 0.5 },
+    blocchi: (l, p, h) => [b("laccato", 0, 0, 0.05, l, p, h - 0.05), b("piano_cucina", 0, -p / 2 + 0.05, h + 0.25, Math.min(l * 0.7, 1.3), 0.04, 0.75)],
+  },
+  libreria: {
+    nome: "Libreria",
+    misure: { l: 1.6, p: 0.35, h: 2.0 },
+    blocchi: (l, p, h) => [b("legno", 0, 0, 0, l, p, h)],
+  },
+  tavolo_rotondo: {
+    nome: "Tavolo rotondo",
+    misure: { l: 1.1, p: 1.1, h: 0.75 },
+    blocchi: (l, p, h) => [b("legno", 0, 0, h - 0.04, l * 0.9, p * 0.9, 0.04), b("legno", 0, 0, 0, 0.12, 0.12, h - 0.04)],
+  },
+  cucina_angolare: {
+    nome: "Cucina ad angolo",
+    misure: { l: 3.0, p: 2.4, h: 0.9 },
+    blocchi: (l, p, h) => {
+      const pr = Math.min(p, 0.62);
+      return [
+        b("laccato", 0, -p / 2 + pr / 2, 0.1, l, pr - 0.04, h - 0.14), b("piano_cucina", 0, -p / 2 + pr / 2, h - 0.04, l, pr, 0.04),
+        b("laccato", -l / 2 + pr / 2, pr / 2, 0.1, pr - 0.04, p - pr, h - 0.14), b("piano_cucina", -l / 2 + pr / 2, pr / 2, h - 0.04, pr, p - pr, 0.04),
+        b("laccato", 0, -p / 2 + 0.18, 1.45, l, 0.35, 0.7),
+      ];
+    },
+  },
+  isola_cucina: {
+    nome: "Isola",
+    misure: { l: 1.8, p: 0.9, h: 0.9 },
+    blocchi: (l, p, h) => [b("laccato", 0, 0, 0.1, l, p - 0.1, h - 0.14), b("piano_cucina", 0, 0.1, h - 0.04, l, p + 0.2, 0.04)],
+  },
+  lavastoviglie: { nome: "Lavastoviglie", misure: { l: 0.6, p: 0.6, h: 0.85 }, blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h)] },
+  auto: {
+    nome: "Auto",
+    misure: { l: 1.8, p: 4.5, h: 1.5 },
+    blocchi: (l, p, h) => [
+      b("metallo", 0, 0, 0.18, l, p, h * 0.45),
+      b("metallo", 0, 0.05 * p, 0.18 + h * 0.45, l * 0.86, p * 0.5, h * 0.4),
+      ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => b("piano_cucina", sx * (l / 2 - 0.08), sz * p * 0.31, 0, 0.18, 0.62, 0.62))),
+    ],
+  },
+  scaffale: { nome: "Scaffalatura", misure: { l: 3.0, p: 1.0, h: 4.0 }, blocchi: (l, p, h) => [0, 1, 2, 3].map((k) => b("metallo", 0, 0, (h / 4) * k + 0.1, l, p, 0.06)).concat([-1, 1].map((sx) => b("metallo", sx * (l / 2 - 0.04), 0, 0, 0.08, p, h))) },
+  banco_lavoro: { nome: "Banco da lavoro", misure: { l: 2.0, p: 0.8, h: 0.9 }, blocchi: (l, p, h) => [b("legno", 0, 0, h - 0.06, l, p, 0.06), b("metallo", 0, 0, 0, l - 0.1, p - 0.1, h - 0.06)] },
+  // ─── struttura ───
+  pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("muro", 0, 0, 0, l, p, h)] },
+  ascensore: { nome: "Ascensore", misure: { l: 1.5, p: 1.5, h: 2.8 }, blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h)] },
+  scala: {
+    nome: "Scala",
+    misure: { l: 1.0, p: 4.5, h: 2.8 },
+    blocchi: (l, p, h) => {
+      // si sale verso il «retro» (in alto sulla pianta): gradini da circa 28 × 17,5 cm
+      const n = Math.max(3, Math.round(h / 0.175));
+      const pedata = p / n;
+      return Array.from({ length: n }, (_, i) => b("legno", 0, p / 2 - pedata * (i + 0.5), 0, l, pedata, (h / n) * (i + 1)));
+    },
+  },
+  // ─── impianti: piccoli e alla loro quota (h = altezza da terra), non scatole sul pavimento ───
+  presa: { nome: "Presa", misure: { l: 0.08, p: 0.02, h: 0.3 }, blocchi: (_l, p, h) => [b("ceramica", 0, -p / 2, h - 0.04, 0.08, 0.015, 0.08)] },
+  interruttore: { nome: "Interruttore", misure: { l: 0.08, p: 0.02, h: 1.1 }, blocchi: (_l, p, h) => [b("ceramica", 0, -p / 2, h - 0.04, 0.08, 0.015, 0.08)] },
+  punto_luce: { nome: "Punto luce", misure: { l: 0.3, p: 0.3, h: 2.7 }, blocchi: (l, p, h) => [b("ceramica", 0, 0, Math.max(h - 0.06, 2.2), Math.min(l, 0.35), Math.min(p, 0.35), 0.05)] },
+  split: { nome: "Split", misure: { l: 0.9, p: 0.25, h: 2.2 }, blocchi: (l, p, h) => [b("ceramica", 0, 0, Math.max(h - 0.3, 1.8), l, Math.min(p, 0.25), 0.3)] },
+  termosifone: { nome: "Termosifone", misure: { l: 0.8, p: 0.12, h: 0.6 }, blocchi: (l, p, h) => [b("ceramica", 0, 0, 0.12, l, Math.min(p, 0.12), Math.min(h, 0.8))] },
+  quadro_elettrico: { nome: "Quadro elettrico", misure: { l: 0.4, p: 0.12, h: 1.6 }, blocchi: (l, p, h) => [b("laccato", 0, -p / 2 + 0.05, Math.max(h - 0.3, 1.2), l, 0.1, 0.5)] },
+  unita_esterna: { nome: "Unità esterna", misure: { l: 0.8, p: 0.3, h: 0.3 }, blocchi: (l, p) => [b("laccato", 0, 0, 0.1, l, p, 0.6)] },
+  collettore: { nome: "Collettore", misure: { l: 0.5, p: 0.12, h: 0.4 }, blocchi: (l, p, h) => [b("laccato", 0, -p / 2 + 0.05, h, l, 0.1, 0.6)] },
+  // a filo pavimento o nel muro: nel 3D non si vedono
+  punto_acqua: { nome: "Punto acqua", misure: { l: 0.05, p: 0.05, h: 0.5 }, blocchi: () => [] },
+  scarico: { nome: "Scarico", misure: { l: 0.05, p: 0.05, h: 0 }, blocchi: () => [] },
+  colonna_scarico: { nome: "Colonna di scarico", misure: { l: 0.16, p: 0.16, h: 0 }, blocchi: () => [] },
   caldaia: {
     nome: "Caldaia",
     misure: { l: 0.4, p: 0.3, h: 0.7 },
