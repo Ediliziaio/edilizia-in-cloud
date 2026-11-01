@@ -58,12 +58,38 @@ describe("previsionale: fatture arrivate ma non ancora registrate (01/11/2026)",
     const s = emptyForecastSources();
     s.receivedInvoices = [fattura({ id: "p", company_cost_id: "c9", piano_pagamento: [{ scadenza: "2026-11-20", importo: 1020 }], ritenuta_importo: 200 })];
     expect(uscite(s).find((m) => m.id === "f24-1040:p")).toBeDefined();
+    // Nell'F24 il mese delle ritenute è quello del pagamento (novembre), non della scadenza (dicembre).
     s.taxes = [{ id: "t", importo: 200, data_scadenza: "2026-12-16", tributo_descrizione: "1040", tributo_code: "1040", anno: 2026, mese: 12 }];
+    expect(uscite(s).find((m) => m.id === "f24-1040:p")).toBeDefined();
+    s.taxes = [];
+    // Anche già pagato: l'F24 registrato toglie la stima.
+    s.f24Ritenute = [{ anno: 2026, mese: 11, tributo_code: "1040", stato: "pagato" }];
     expect(uscite(s).find((m) => m.id === "f24-1040:p")).toBeUndefined();
   });
 
   it("il 16 del mese dopo, anche a dicembre", () => {
     expect(sediciDelMeseDopo("2026-11-20")).toBe("2026-12-16");
     expect(sediciDelMeseDopo("2026-12-05")).toBe("2027-01-16");
+  });
+});
+
+describe("previsionale: la fattura della ditta già in commessa non si conta due volte (01/11/2026)", () => {
+  it("fattura non registrata di una ditta ancora da pagare in commessa: da collegare, non nel piano", () => {
+    const s = emptyForecastSources();
+    s.teams = [{ id: "t1", total_cost: 10000, vat_rate: 0, payment_date: "2026-11-30", is_paid: false, order_id: "o1",
+      external_team: { name: "Edil Rossi", subappaltatore: { piva: "IT01234567890" } } }];
+    s.receivedInvoices = [fattura({ cedente_piva: "01234567890" })];
+    const piano = buildForecastLedger(s, today);
+    const fatture = piano.movements.filter((m) => m.id.startsWith("fattura-ricevuta:"));
+    expect(fatture.every((m) => m.possibleDuplicate)).toBe(true);
+    expect(piano.movements.find((m) => m.id === "squadra:t1")?.possibleDuplicate).toBeFalsy();
+  });
+
+  it("pagata la ditta in commessa, la fattura torna nel piano", () => {
+    const s = emptyForecastSources();
+    s.teams = [{ id: "t1", total_cost: 10000, vat_rate: 0, payment_date: "2026-11-30", is_paid: true, order_id: "o1",
+      external_team: { name: "Edil Rossi", subappaltatore: { piva: "01234567890" } } }];
+    s.receivedInvoices = [fattura({ cedente_piva: "01234567890" })];
+    expect(buildForecastLedger(s, today).movements.filter((m) => m.id.startsWith("fattura-ricevuta:")).some((m) => m.possibleDuplicate)).toBe(false);
   });
 });

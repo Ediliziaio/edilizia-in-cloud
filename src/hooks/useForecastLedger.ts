@@ -200,7 +200,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "fatture_ricevute",
-          "id,cedente_ragione_sociale,numero_fattura,data_fattura,tipo_documento,stato,storico_esterno,company_cost_id,purchase_order_id,piano_pagamento,netto_a_pagare,totale_documento,ritenuta_importo,ritenuta_aliquota",
+          "id,cedente_ragione_sociale,cedente_piva,numero_fattura,data_fattura,tipo_documento,stato,storico_esterno,company_cost_id,purchase_order_id,piano_pagamento,netto_a_pagare,totale_documento,ritenuta_importo,ritenuta_aliquota",
         )
           .gte("data_fattura", moveDay(today, -400))
           .or("company_cost_id.is.null,ritenuta_importo.gt.0"),
@@ -286,7 +286,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "hr_cedolini",
-          "id,employee_id,anno,mese,netto,stato,data_pagamento",
+          "id,employee_id,anno,mese,netto,stato,data_pagamento,ritenute_irpef,contributi_dipendente,contributi_datore",
         )
           .neq("stato", "bozza")
           // I cedolini pagati servono solo per i periodi recenti e per il giorno di paga.
@@ -302,12 +302,32 @@ export async function loadForecastDataset(
         ).eq("stato", "da_pagare"),
     },
     {
+      // Gli F24 delle ritenute già registrati, anche pagati: il loro mese non si stima più (01/11/2026).
+      key: "f24Ritenute",
+      label: "F24 delle ritenute",
+      build: () =>
+        scoped("f24_entries", "id,anno,mese,tributo_code,stato")
+          .in("tributo_code", ["1001", "1040"])
+          .neq("stato", "annullato")
+          .gte("anno", String(year - 1)),
+    },
+    {
+      // Mutui e finanziamenti attivi: la rata esce ogni mese fino alla fine del piano.
+      key: "loans",
+      label: "Mutui e finanziamenti",
+      build: () =>
+        scoped(
+          "cg_loans",
+          "id,banca,descrizione,capitale_residuo,tasso_pct,rata_mensile,data_inizio,data_fine,is_active",
+        ).eq("is_active", true),
+    },
+    {
       key: "teams",
       label: "Squadre esterne",
       build: () =>
         jobScoped(
           "order_external_teams",
-          `id,order_id,total_cost,vat_rate,payment_date,is_paid,external_team:external_teams(name),${job}`,
+          `id,order_id,total_cost,vat_rate,payment_date,is_paid,external_team:external_teams(name,subappaltatore:subappaltatori(piva)),${job}`,
         ).eq("is_paid", false),
     },
     {

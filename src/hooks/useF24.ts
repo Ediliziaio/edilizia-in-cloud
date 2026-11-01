@@ -144,6 +144,36 @@ export function useF24(anno?: number) {
     onError: () => toast.error("Errore salvataggio F24"),
   });
 
+  // Segnare pagato (01/11/2026): con la data e il riferimento della quietanza (protocollo, CRO o
+  // contabile della banca). Il database lo accetta solo da da_pagare, con data e riferimento nuovi,
+  // e da allora la registrazione è immutabile e il previsionale non la conta più.
+  const pagatoMutation = useMutation({
+    mutationFn: async (input: { id: string; data: string; quietanza: string; notePrima: string | null }) => {
+      if (!companyId || !canEdit) throw Error("Modifica non autorizzata");
+      const rif = input.quietanza.trim();
+      if (rif.length < 5) throw Error("Scrivi il riferimento della quietanza");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(input.data)) throw Error("Data del pagamento non valida");
+      const note = [input.notePrima?.trim(), `Quietanza ${rif} del ${input.data.split("-").reverse().join("/")}`]
+        .filter(Boolean)
+        .join(" · ");
+      const { data, error } = await supabase
+        .from("f24_entries")
+        .update({ stato: "pagato", data_pagamento: input.data, note })
+        .eq("id", input.id)
+        .eq("company_id", companyId)
+        .eq("stato", "da_pagare")
+        .select("id");
+      if (error) throw error;
+      if (!data?.length) throw Error("L’F24 non è più da pagare: aggiorna la pagina");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["f24", "list", companyId, annoCorrente] });
+      qc.invalidateQueries({ queryKey: ["cashflow"] });
+      toast.success("F24 segnato pagato con la quietanza");
+    },
+    onError: (e) => toast.error("F24 non segnato pagato", { description: e instanceof Error ? e.message : String(e) }),
+  });
+
   const entries = f24Query.data ?? [];
   const oggi = new Date();
   const scadentiProssimi30gg = entries.filter((e) => {
@@ -173,6 +203,8 @@ export function useF24(anno?: number) {
     isLoading: f24Query.isLoading,
     salva: salvaMutation.mutateAsync,
     isSalvando: salvaMutation.isPending,
+    segnaPagato: pagatoMutation.mutateAsync,
+    isSegnandoPagato: pagatoMutation.isPending,
     scadentiProssimi30gg,
     totaleAPagare: entries
       .filter((e) => e.stato === "da_pagare")

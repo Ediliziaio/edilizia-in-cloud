@@ -52,6 +52,8 @@ interface Props {
     versione?: string,
   ) => Promise<void>;
   onAnteprima?: (mese: number) => Promise<string>;
+  /** Segna pagato con la quietanza: senza, il dettaglio resta in sola consultazione. */
+  onSegnaPagato?: (input: { id: string; data: string; quietanza: string; notePrima: string | null }) => Promise<void>;
   isSalvando: boolean;
   totaleAPagare: number | null;
   scadentiProssimi30gg: F24Entry[];
@@ -120,11 +122,14 @@ export function F24Generator({
   periodMonth,
   periodMonths,
   onAnteprima,
+  onSegnaPagato,
 }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("tutti"),
     [search, setSearch] = useState(""),
     [detail, setDetail] = useState<F24Entry | null>(null);
+  const [pagamento, setPagamento] = useState({ data: "", quietanza: "" }),
+    [segnando, setSegnando] = useState(false);
   const unpaid = entries.filter((entry) => entry.stato === "da_pagare");
   const overdue = unpaid.filter(
     (entry) => fiscalDue(entry.data_scadenza) === "scaduta",
@@ -510,7 +515,10 @@ export function F24Generator({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setDetail(entry)}
+                      onClick={() => {
+                        setDetail(entry);
+                        setPagamento({ data: new Date().toISOString().slice(0, 10), quietanza: "" });
+                      }}
                     >
                       Dati e documenti
                     </Button>
@@ -562,6 +570,52 @@ export function F24Generator({
                 </div>
               ))}
             </dl>
+          )}
+          {detail?.stato === "da_pagare" && !readOnly && onSegnaPagato && (
+            <form
+              className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSegnando(true);
+                try {
+                  await onSegnaPagato({ id: detail.id, data: pagamento.data, quietanza: pagamento.quietanza, notePrima: detail.note });
+                  setDetail(null);
+                } catch {
+                  // il messaggio lo mostra chi salva
+                } finally {
+                  setSegnando(false);
+                }
+              }}
+            >
+              <p className="text-sm font-medium">Segna pagato</p>
+              <p className="text-xs text-muted-foreground">
+                Con la data e il riferimento della quietanza (protocollo telematico, CRO o contabile della banca).
+                Dopo non si modifica più, ed esce dal previsionale.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="f24-data-pagamento">Pagato il</Label>
+                  <Input
+                    id="f24-data-pagamento"
+                    type="date"
+                    value={pagamento.data}
+                    onChange={(e) => setPagamento((v) => ({ ...v, data: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="f24-quietanza">Riferimento quietanza</Label>
+                  <Input
+                    id="f24-quietanza"
+                    value={pagamento.quietanza}
+                    placeholder="Protocollo o CRO"
+                    onChange={(e) => setPagamento((v) => ({ ...v, quietanza: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <Button type="submit" size="sm" disabled={segnando || !pagamento.data || pagamento.quietanza.trim().length < 5}>
+                Segna pagato
+              </Button>
+            </form>
           )}
         </DialogContent>
       </Dialog>
