@@ -4,6 +4,7 @@
  * che dice cosa sono; blocca prezzo e ripartizione dei bonus come schede, e solo quando l'azienda li usa
  * (si nascondono da sé).
  */
+import { useLocation } from "react-router-dom";
 import { Landmark, ShieldCheck } from "lucide-react";
 import { BloccaPrezzoCard } from "./BloccaPrezzoCard";
 import { BonusRipartizioneCard } from "./BonusRipartizioneCard";
@@ -19,6 +20,8 @@ export function AltroIncassiCommessa({ orderId, vatRate, hasBuildingBonus, custo
   /** Blocca prezzo e bonus sono importi del cliente. */
   conImporti: boolean;
 }) {
+  // Chi arriva da un link alle ritenute (#section-ritenute) le trova aperte, non una riga chiusa.
+  const { hash } = useLocation();
   return (
     <section aria-label="Altro su questa commessa" className="space-y-3">
       <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Altro su questa commessa</h3>
@@ -38,7 +41,7 @@ export function AltroIncassiCommessa({ orderId, vatRate, hasBuildingBonus, custo
         </SezioneRichiudibile>
       )}
       <div id="section-ritenute" className="scroll-mt-24">
-        <SezioneRichiudibile icona={<ShieldCheck className="h-4 w-4" />} titolo="Ritenute di garanzia"
+        <SezioneRichiudibile icona={<ShieldCheck className="h-4 w-4" />} titolo="Ritenute di garanzia" aperta={hash === "#section-ritenute"}
           descrizione="Le somme trattenute a garanzia, dal cliente e ai subappaltatori, e quando si svincolano.">
           <RitenuteTab orderId={orderId} />
         </SezioneRichiudibile>
