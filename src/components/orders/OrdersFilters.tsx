@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Search, X, CalendarDays, CheckCircle2 } from "lucide-react";
+import { Search, X, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,8 @@ const MONTHS = [
 
 interface OrdersFiltersProps {
   trailingControls?: ReactNode;
+  /** Il conteggio dei risultati, in fondo alla stessa riga. */
+  summary?: ReactNode;
   searchQuery: string;
   onSearchChange: (value: string) => void;
   statusFilter: string;
@@ -56,6 +58,7 @@ interface OrdersFiltersProps {
 
 export function OrdersFilters({
   trailingControls,
+  summary,
   searchQuery,
   onSearchChange,
   statusFilter,
@@ -75,15 +78,15 @@ export function OrdersFilters({
 }: OrdersFiltersProps) {
   return (
     <div
-      className="flex items-start gap-2 sm:gap-1.5"
+      className="flex items-start gap-2 sm:gap-1.5 lg:items-center"
       role="group"
       aria-label="Filtri commesse"
     >
-      <div className="grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5">
-        <div className="relative col-span-2 min-w-0 sm:w-[150px] sm:shrink-0">
+      <div className="grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5 xl:gap-1">
+        <div className="relative col-span-2 min-w-0 sm:w-[150px] sm:shrink-0 xl:w-[116px]">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Cerca commessa…"
+            placeholder="Cerca…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="h-10 border-slate-200 bg-white pl-7 shadow-none max-sm:h-9 sm:h-8 sm:text-xs"
@@ -94,7 +97,7 @@ export function OrdersFilters({
         <Select value={statusFilter} onValueChange={onStatusFilterChange}>
           <SelectTrigger
             aria-label="Stato commessa"
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[124px] sm:px-2 sm:text-xs sm:shrink-0"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[106px] sm:px-2 sm:text-xs sm:shrink-0"
           >
             <SelectValue placeholder="Stato" />
           </SelectTrigger>
@@ -143,13 +146,14 @@ export function OrdersFilters({
                 ? `${new Date().getFullYear()} + precedenti da gestire`
                 : undefined
             }
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[144px] sm:px-2 sm:text-xs sm:shrink-0"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
           >
-            <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
             <SelectValue placeholder="Anno">
               {yearFilter === "corrente"
                 ? `${new Date().getFullYear()} + pregresso`
-                : undefined}
+                : yearFilter === "all"
+                  ? "Tutti gli anni"
+                  : undefined}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -169,9 +173,8 @@ export function OrdersFilters({
         <Select value={monthFilter} onValueChange={onMonthFilterChange}>
           <SelectTrigger
             aria-label="Mese commesse"
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[128px] sm:px-2 sm:text-xs sm:shrink-0"
+            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
           >
-            <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
             <SelectValue placeholder="Mese" />
           </SelectTrigger>
           <SelectContent>
@@ -192,10 +195,13 @@ export function OrdersFilters({
           aria-pressed={hideCompleted}
           title="Nascondi commesse con lavori completati"
         >
-          <CheckCircle2 className="h-3.5 w-3.5" />
+          <CheckCircle2 className="h-3.5 w-3.5 sm:hidden" />
           <span>Nascondi completate</span>
         </Button>
         {trailingControls}
+        {summary && (
+          <div className="col-span-2 text-xs text-slate-600 sm:ml-auto sm:shrink-0 sm:whitespace-nowrap">{summary}</div>
+        )}
       </div>
       {hasAnyFilter && (
         <Button

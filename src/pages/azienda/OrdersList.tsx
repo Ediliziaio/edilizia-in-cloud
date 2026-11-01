@@ -1644,9 +1644,8 @@ function OrdersListInner() {
           <OrdersFilters
             trailingControls={viewMode === "table" ? (
               <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
-                <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
                 <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger aria-label="Ordina commesse per" className="h-8 w-[126px] px-2 text-xs">
+                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1661,26 +1660,26 @@ function OrdersListInner() {
                   </SelectContent>
                 </Select>
                 <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[172px] px-2 text-xs">
+                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="desc">{
                       ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↓ Più recente / grande"
+                        ? "↓ Recenti"
                         : "↓ Z → A"
                     }</SelectItem>
                     <SelectItem value="asc">{
                       ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↑ Più vecchio / piccolo"
+                        ? "↑ Vecchi"
                         : "↑ A → Z"
                     }</SelectItem>
                   </SelectContent>
                 </Select>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                      <Columns className="h-3.5 w-3.5" /><span>Colonne</span>
+                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                      <Columns className="h-3.5 w-3.5" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-[280px] p-3">
@@ -1728,6 +1727,11 @@ function OrdersListInner() {
                 )}
               </div>
             ) : undefined}
+            summary={
+              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
+                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
+              </span>
+            }
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             statusFilter={statusFilter}
@@ -1749,12 +1753,6 @@ function OrdersListInner() {
             }}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
-            <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2">
-              <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
-              {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
-            </div>
-          </div>
 
           {/* Content */}
           {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
