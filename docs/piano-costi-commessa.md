@@ -6,6 +6,34 @@ F24»). Si basa su quattro controlli del codice e su misure del database fatte l
 [flussi-acquisti-pagamenti.md](flussi-acquisti-pagamenti.md) e
 [piano-personale-costi-commesse.md](piano-personale-costi-commesse.md) senza ripeterli.*
 
+## Stato al 01/11/2026 sera
+
+**Fatto** (migrazioni applicate e riallineate, test verdi):
+- Lotto 0: C2 fattura d'appalto (trattenuta a garanzia in riga negativa, niente RT02).
+- Lotto 1: A1-A3, A5, B1, C1 (fatture ricevute complete da ogni canale; rate, RiBa, ritenuta, F24 1040).
+- Lotto 2: C3 (bonifico parlante dalla banca per fatture e rate), C4 (ritenute del condominio in
+  Contabilità fiscale), garanzie nel previsionale.
+- Lotto 3: D1 (Tesoreria → Previsioni = Previsionale), D2 (mutui, F24 1001 e INPS dai cedolini),
+  D3 (fattura della ditta già in commessa), E1 (F24 «Segna pagato» con quietanza).
+- Lotto 4: F1 (scheda fornitore «Fatture e debiti» con estratto conto), F2 (stessa vista nel
+  subappaltatore; totali dei contratti non più a zero).
+- Lotto 5: B2 (rate dall'accordo del fornitore), B4 (avviso RiBa a 5 giorni), D4 (RiBa passate pagate
+  in blocco), E2 (codici F24 completi).
+- Lotto 6: G1 (fatture registrate senza commessa con la proposta da confermare), G3 (costi pronti).
+- Lotto 7: E6 (f24_componi spenta anche da zero), TD08 nella contabilizzazione.
+
+**Resta**, e perché:
+- C2 garanzie attive dalle fatture emesse nel registro: il registro accetta solo scritture di un
+  amministratore (guardiano fiscale), e in produzione nessuna fattura emessa ha una trattenuta. Serve
+  decidere se la scrittura automatica può passare dal guardiano.
+- E3 F24 proposto dal mese: decisione 6. Le stime 1001/INPS/1040 sono già nel previsionale.
+- E4 archivio unico: `f24_entries` e `adempimenti_fiscali` sono entrambi vuoti; da unire alla prima riga.
+- E5 Cassa Edile: i cedolini non hanno il dato.
+- B3/F3 fornitore dalla P.IVA: le 10.000 fatture con P.IVA non trovano un fornitore in anagrafica
+  (0 collegabili): va creata l'anagrafica, non solo collegata.
+- B5 acconto sull'ODA, B6 note di credito che stornano le rate, G2, G4, G5, H1-H5, A4, A6-A8:
+  da fare; G4 e G5 aspettano le decisioni 3 e 4.
+
 ## L'obiettivo in una frase
 
 Per ogni commessa e per l'azienda: **quanto ho venduto, quanto mi costa davvero (senza IVA), quanto devo
