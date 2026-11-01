@@ -15,7 +15,7 @@ export interface VoceListino {
   descrizione: string;
   unita: "n" | "ml";
   prezzo: number;
-  capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento";
+  capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni";
 }
 
 export const LISTINO_IMPIANTI: readonly VoceListino[] = [
@@ -35,6 +35,18 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "impianti:clima.rame_ml", descrizione: "Linea frigorifera in rame coibentato (due tubi), compresa la traccia", unita: "ml", prezzo: 32, capitolo: "Climatizzazione e riscaldamento" },
   { id: "impianti:clima.condensa_ml", descrizione: "Tubo scarico condensa", unita: "ml", prezzo: 7, capitolo: "Climatizzazione e riscaldamento" },
   { id: "elementi:termosifone.numero", descrizione: "Radiatore in alluminio con valvola termostatica e detentore", unita: "n", prezzo: 290, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "impianti:riscaldamento.tubo_ml", descrizione: "Tubo multistrato coibentato per riscaldamento, mandata e ritorno", unita: "ml", prezzo: 12, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "elementi:termostato.numero", descrizione: "Termostato ambiente programmabile, posa e collegamento", unita: "n", prezzo: 140, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "elementi:pompa_calore.numero", descrizione: "Pompa di calore aria-acqua monoblocco, fornitura e posa", unita: "n", prezzo: 7800, capitolo: "Energia" },
+  { id: "elementi:bollitore.numero", descrizione: "Bollitore per acqua calda sanitaria 200 l", unita: "n", prezzo: 1500, capitolo: "Energia" },
+  { id: "elementi:inverter.numero", descrizione: "Inverter per impianto fotovoltaico, posa e collegamento", unita: "n", prezzo: 1900, capitolo: "Energia" },
+  { id: "elementi:batteria_accumulo.numero", descrizione: "Batteria di accumulo 10 kWh", unita: "n", prezzo: 5200, capitolo: "Energia" },
+  { id: "elementi:wallbox.numero", descrizione: "Wallbox per ricarica auto 7,4 kW, posa e linea dedicata", unita: "n", prezzo: 1100, capitolo: "Energia" },
+  { id: "elementi:vmc.numero", descrizione: "Ventilazione meccanica controllata con recupero di calore", unita: "n", prezzo: 3800, capitolo: "Energia" },
+  { id: "elementi:piscina.numero", descrizione: "Piscina interrata con vasca, impianto di filtrazione, bordo e scavo (a corpo, da adeguare alla misura)", unita: "n", prezzo: 38000, capitolo: "Esterni" },
+  { id: "elementi:idromassaggio.numero", descrizione: "Minipiscina idromassaggio da esterno, fornitura e posa", unita: "n", prezzo: 9500, capitolo: "Esterni" },
+  { id: "elementi:pergola.numero", descrizione: "Pergola in legno o alluminio con copertura, fornitura e posa", unita: "n", prezzo: 6500, capitolo: "Esterni" },
+  { id: "elementi:barbecue.numero", descrizione: "Barbecue in muratura con piano di lavoro", unita: "n", prezzo: 2200, capitolo: "Esterni" },
   { id: "elementi:caldaia.numero", descrizione: "Caldaia murale a condensazione, fornitura e posa", unita: "n", prezzo: 2300, capitolo: "Climatizzazione e riscaldamento" },
 ];
 

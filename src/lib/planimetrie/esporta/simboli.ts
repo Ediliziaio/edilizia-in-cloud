@@ -42,6 +42,10 @@ const C = {
   piano: "#D8D3CB",
   metallo: "#EEF0F2",
   scuro: "#3F3F46",
+  piscina: "#9FD3EA",
+  verde: "#B9D7A0",
+  verdeScuro: "#8DBA72",
+  pietra: "#E7E1D6",
 };
 
 /**
@@ -227,6 +231,60 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       return [rett(-w, -h, w, h, C.legnoChiaro), ...Array.from({ length: n - 1 }, (_, i) => linea(-w, -h + ((i + 1) * P) / n, w, -h + ((i + 1) * P) / n)), linea(0, h - P * 0.08, 0, -h + P * 0.1), { punti: [{ x: -L * 0.12, y: -h + P * 0.18 }, { x: 0, y: -h + P * 0.08 }, { x: L * 0.12, y: -h + P * 0.18 }], chiuso: false }];
     }
     case "ascensore": return [rett(-w, -h, w, h, C.metallo), linea(-w, -h, w, h), linea(w, -h, -w, h)];
+    // ─── energia ───
+    case "piscina": {
+      // bordo in pietra, vasca, scaletta all'angolo
+      const bordo = Math.min(30, L * 0.08, P * 0.08);
+      return [rett(-w, -h, w, h, C.pietra, 4), rett(-w + bordo, -h + bordo, w - bordo, h - bordo, C.piscina, 6),
+        linea(-w + bordo + 12, -h + bordo + 10, -w + bordo + 12, -h + bordo + 50), linea(-w + bordo + 32, -h + bordo + 10, -w + bordo + 32, -h + bordo + 50),
+        linea(-w + bordo + 12, -h + bordo + 24, -w + bordo + 32, -h + bordo + 24), linea(-w + bordo + 12, -h + bordo + 38, -w + bordo + 32, -h + bordo + 38)];
+    }
+    case "idromassaggio": {
+      const r = Math.min(w, h);
+      return [rett(-w, -h, w, h, C.pietra, 10), cerchio(0, 0, r * 0.82, C.piscina), cerchio(0, 0, r * 0.5), ...[0, 1, 2, 3, 4, 5].map((i) => cerchio(Math.cos((i * Math.PI) / 3) * r * 0.66, Math.sin((i * Math.PI) / 3) * r * 0.66, r * 0.05, C.scuro))];
+    }
+    case "pergola": {
+      // quattro pilastri e le lamelle del tetto
+      const n = Math.max(3, Math.round(P / 40));
+      const p0 = 8;
+      return [rett(-w, -h, w, h), ...[-1, 1].flatMap((sx) => [-1, 1].map((sy): Forma => ({ ...rett(sx * w - (sx > 0 ? 2 * p0 : 0), sy * h - (sy > 0 ? 2 * p0 : 0), sx * w + (sx < 0 ? 2 * p0 : 0), sy * h + (sy < 0 ? 2 * p0 : 0)), pieno: true, riempimento: C.scuro }))),
+        ...Array.from({ length: n - 1 }, (_, i) => ({ ...linea(-w, -h + (P * (i + 1)) / n, w, -h + (P * (i + 1)) / n), sottile: true }))];
+    }
+    case "albero": {
+      const r = Math.min(w, h);
+      const lobi = Array.from({ length: 9 }, (_, i) => ({ x: Math.cos((i * 2 * Math.PI) / 9) * r * 0.62, y: Math.sin((i * 2 * Math.PI) / 9) * r * 0.62 }));
+      return [cerchio(0, 0, r, C.verde), ...lobi.map((q) => ({ ...cerchio(q.x, q.y, r * 0.36, C.verdeScuro), sottile: true })), cerchio(0, 0, r * 0.1, C.legno)];
+    }
+    case "siepe": {
+      const n = Math.max(2, Math.round(L / 50));
+      return [rett(-w, -h, w, h, C.verde, Math.min(h, 20)), ...Array.from({ length: n }, (_, i) => ({ ...cerchio(-w + (L * (i + 0.5)) / n, 0, Math.min(h * 0.7, L / n / 2), C.verdeScuro), sottile: true }))];
+    }
+    case "aiuola": return [rett(-w, -h, w, h, C.verde, 6), rett(-w + 6, -h + 6, w - 6, h - 6), ...[-0.5, 0, 0.5].map((k) => ({ ...cerchio(k * w, 0, Math.min(h * 0.4, 25), C.verdeScuro), sottile: true }))];
+    case "ombrellone": {
+      const r = Math.min(w, h);
+      const spicchi = Array.from({ length: 8 }, (_, i) => ({ ...linea(0, 0, Math.cos((i * Math.PI) / 4) * r, Math.sin((i * Math.PI) / 4) * r), sottile: true }));
+      return [{ punti: Array.from({ length: 8 }, (_, i) => ({ x: Math.cos((i * Math.PI) / 4) * r, y: Math.sin((i * Math.PI) / 4) * r })), chiuso: true, riempimento: C.lenzuolo }, ...spicchi, cerchio(0, 0, r * 0.06, C.scuro)];
+    }
+    case "lettino": return [rett(-w, -h, w, h, C.legnoChiaro, 6), rett(-w + 5, -h + 5, w - 5, -h + P * 0.32, C.lenzuolo, 4), linea(-w, -h + P * 0.34, w, -h + P * 0.34), ...[0.5, 0.65, 0.8].map((k) => ({ ...linea(-w + 6, -h + P * k, w - 6, -h + P * k), sottile: true }))];
+    case "tavolo_esterno": {
+      const sedie = Math.max(2, Math.floor(L / 60));
+      return [rett(-w, -h, w, h, C.legno, 4), ...Array.from({ length: sedie }, (_, i) => -w + (L * (i + 0.5)) / sedie).flatMap((x) => [rett(x - 20, -h - 48, x + 20, -h - 8, C.legnoChiaro, 4), rett(x - 20, h + 8, x + 20, h + 48, C.legnoChiaro, 4)])];
+    }
+    case "barbecue": return [rett(-w, -h, w, h, C.pietra, 2), rett(-w * 0.45, -h * 0.6, w * 0.45, h * 0.6, C.scuro, 2), ...[-0.3, -0.1, 0.1, 0.3].map((k) => ({ ...linea(k * w, -h * 0.5, k * w, h * 0.5), sottile: true })), rett(-w + 6, -h + 6, -w * 0.55, h - 6), rett(w * 0.55, -h + 6, w - 6, h - 6)];
+    case "pompa_calore": {
+      // unità esterna con due ventilatori
+      const r = Math.min(L * 0.2, P * 0.42);
+      return [rett(-w, -h, w, h, C.metallo, 2), ...[-1, 1].flatMap((k) => [cerchio(k * L * 0.24, 0, r), cerchio(k * L * 0.24, 0, r * 0.25, C.scuro), linea(k * L * 0.24 - r, 0, k * L * 0.24 + r, 0), linea(k * L * 0.24, -r, k * L * 0.24, r)])];
+    }
+    case "bollitore": { const r = Math.min(w, h); return [cerchio(0, 0, r, C.metallo), cerchio(0, 0, r * 0.7), linea(-r * 0.5, -r * 0.2, r * 0.5, -r * 0.2), linea(-r * 0.5, r * 0.2, r * 0.5, r * 0.2)]; }
+    case "inverter": {
+      const onda: Punto[] = Array.from({ length: 13 }, (_, i) => ({ x: -w * 0.6 + (i * w * 1.2) / 12, y: Math.sin((i / 12) * Math.PI * 2) * h * 0.45 }));
+      return [rett(-w, -h, w, h, C.ceramica, 2), { punti: onda, chiuso: false, sottile: true }];
+    }
+    case "batteria_accumulo": return [rett(-w, -h, w, h, C.metallo, 2), rett(-w * 0.6, -h * 0.4, w * 0.6, h * 0.4), linea(-w * 0.3, 0, w * 0.3, 0), linea(w * 0.15, -h * 0.25, w * 0.15, h * 0.25)];
+    case "wallbox": return [rett(-w, -h, w, h, C.ceramica, 2), { punti: [{ x: w * 0.15, y: -h * 0.8 }, { x: -w * 0.3, y: h * 0.1 }, { x: w * 0.1, y: h * 0.1 }, { x: -w * 0.15, y: h * 0.8 }], chiuso: false }];
+    case "termostato": return [rett(-w, -h, w, h, C.ceramica, 1), cerchio(0, 0, Math.min(w, h) * 0.6)];
+    case "vmc": return [rett(-w, -h, w, h, C.metallo, 2), cerchio(0, 0, Math.min(w, h) * 0.6), linea(-w, -h, w, h), linea(w, -h, -w, h)];
     case "frigorifero":
       return [rett(-w, -h, w, h, C.metallo, 2), linea(-w, h - 5, w, h - 5), rett(w - 6, -h * 0.4, w - 3, h * 0.4, C.scuro, 1)];
     case "lavatrice":
@@ -291,6 +349,8 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
 export const TIPI_CON_FORME = new Set([
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie", "auto", "scaffale", "banco_lavoro",
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
+  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc",
+  "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);
 
 export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiva[] {

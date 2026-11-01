@@ -190,6 +190,39 @@ export const MODELLI: Record<string, ModelloElemento> = {
   quadro_elettrico: { nome: "Quadro elettrico", misure: { l: 0.4, p: 0.12, h: 1.6 }, blocchi: (l, p, h) => [b("laccato", 0, -p / 2 + 0.05, Math.max(h - 0.3, 1.2), l, 0.1, 0.5)] },
   unita_esterna: { nome: "Unità esterna", misure: { l: 0.8, p: 0.3, h: 0.3 }, blocchi: (l, p) => [b("laccato", 0, 0, 0.1, l, p, 0.6)] },
   collettore: { nome: "Collettore", misure: { l: 0.5, p: 0.12, h: 0.4 }, blocchi: (l, p, h) => [b("laccato", 0, -p / 2 + 0.05, h, l, 0.1, 0.6)] },
+  // ─── giardino e piscina ───
+  piscina: {
+    nome: "Piscina",
+    misure: { l: 8, p: 4, h: 0 },
+    // interrata: il bordo in pietra a filo terreno e l'acqua appena sotto
+    blocchi: (l, p) => { const s = Math.min(0.3, l * 0.08, p * 0.08); return [b("pietra", 0, -p / 2 + s / 2, 0, l, s, 0.04), b("pietra", 0, p / 2 - s / 2, 0, l, s, 0.04), b("pietra", -l / 2 + s / 2, 0, 0, s, p - 2 * s, 0.04), b("pietra", l / 2 - s / 2, 0, 0, s, p - 2 * s, 0.04), b("acqua", 0, 0, 0, l - 2 * s, p - 2 * s, 0.015)]; },
+  },
+  idromassaggio: { nome: "Minipiscina", misure: { l: 2.2, p: 2.2, h: 0 }, blocchi: (l, p) => [b("laccato", 0, 0, 0, l, p, 0.8), b("acqua", 0, 0, 0.8, l - 0.2, p - 0.2, 0.01)] },
+  pergola: {
+    nome: "Pergola",
+    misure: { l: 4, p: 3, h: 2.5 },
+    blocchi: (l, p, h) => {
+      const hh = Math.max(h, 2.3);
+      const pilastri = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => b("legno", sx * (l / 2 - 0.06), sz * (p / 2 - 0.06), 0, 0.12, 0.12, hh)));
+      const n = Math.max(3, Math.round(p / 0.4));
+      const lamelle = Array.from({ length: n }, (_, i) => b("legno", 0, -p / 2 + (p * (i + 0.5)) / n, hh, l + 0.2, 0.08, 0.14));
+      return [...pilastri, b("legno", 0, -p / 2 + 0.06, hh - 0.18, l, 0.12, 0.18), b("legno", 0, p / 2 - 0.06, hh - 0.18, l, 0.12, 0.18), ...lamelle];
+    },
+  },
+  albero: { nome: "Albero", misure: { l: 3, p: 3, h: 0 }, blocchi: (l, p) => [b("legno", 0, 0, 0, 0.3, 0.3, 2.2), b("fogliame", 0, 0, 2.0, l, p, Math.max(l, p) * 0.8), b("fogliame", 0, 0, 2.0 + Math.max(l, p) * 0.8, l * 0.6, p * 0.6, Math.max(l, p) * 0.4)] },
+  siepe: { nome: "Siepe", misure: { l: 3, p: 0.6, h: 1.2 }, blocchi: (l, p, h) => [b("fogliame", 0, 0, 0, l, p, Math.max(h, 0.6))] },
+  aiuola: { nome: "Aiuola", misure: { l: 2, p: 1, h: 0 }, blocchi: (l, p) => [b("pietra", 0, 0, 0, l, p, 0.2), b("fogliame", 0, 0, 0.2, l - 0.1, p - 0.1, 0.35)] },
+  ombrellone: { nome: "Ombrellone", misure: { l: 3, p: 3, h: 0 }, blocchi: (l, p) => [b("metallo", 0, 0, 0, 0.05, 0.05, 2.3), b("lenzuola", 0, 0, 2.2, l, p, 0.12)] },
+  lettino: { nome: "Lettino", misure: { l: 0.7, p: 1.9, h: 0 }, blocchi: (l, p) => [b("legno", 0, 0, 0.25, l, p, 0.08), b("lenzuola", 0, -p * 0.35, 0.33, l - 0.06, p * 0.3, 0.25)] },
+  tavolo_esterno: { nome: "Tavolo da esterno", misure: { l: 2, p: 1, h: 0 }, blocchi: (l, p) => [b("legno", 0, 0, 0.72, l, p, 0.04), ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => b("legno", sx * (l / 2 - 0.08), sz * (p / 2 - 0.08), 0, 0.06, 0.06, 0.72)))] },
+  barbecue: { nome: "Barbecue", misure: { l: 1.5, p: 0.6, h: 0 }, blocchi: (l, p) => [b("pietra", 0, 0, 0, l, p, 0.9), b("piano_cucina", 0, 0, 0.9, l * 0.45, p * 0.8, 0.05), b("pietra", 0, -p / 2 + 0.15, 0.9, l * 0.4, 0.3, 1.1)] },
+  pompa_calore: { nome: "Pompa di calore", misure: { l: 1.0, p: 0.4, h: 0 }, blocchi: (l, p) => [b("metallo", 0, 0, 0.1, l, p, 0.85)] },
+  bollitore: { nome: "Bollitore", misure: { l: 0.6, p: 0.6, h: 0 }, blocchi: (l, p) => [b("ceramica", 0, 0, 0, l, p, 1.6)] },
+  inverter: { nome: "Inverter", misure: { l: 0.5, p: 0.2, h: 1.4 }, blocchi: (l, p, h) => [b("ceramica", 0, -p / 2 + 0.1, Math.max(h - 0.25, 0.8), l, 0.2, 0.5)] },
+  batteria_accumulo: { nome: "Batteria", misure: { l: 0.6, p: 0.25, h: 0 }, blocchi: (l, p) => [b("ceramica", 0, 0, 0, l, p, 1.1)] },
+  wallbox: { nome: "Wallbox", misure: { l: 0.3, p: 0.15, h: 1.2 }, blocchi: (l, p, h) => [b("piano_cucina", 0, -p / 2 + 0.06, Math.max(h - 0.2, 0.8), l, 0.12, 0.4)] },
+  termostato: { nome: "Termostato", misure: { l: 0.12, p: 0.03, h: 1.5 }, blocchi: (_l, p, h) => [b("ceramica", 0, -p / 2, h - 0.05, 0.12, 0.02, 0.1)] },
+  vmc: { nome: "VMC", misure: { l: 0.6, p: 0.45, h: 2.6 }, blocchi: (l, p, h) => [b("metallo", 0, 0, Math.max(h - 0.3, 2.0), l, p, 0.3)] },
   // a filo pavimento o nel muro: nel 3D non si vedono
   punto_acqua: { nome: "Punto acqua", misure: { l: 0.05, p: 0.05, h: 0.5 }, blocchi: () => [] },
   scarico: { nome: "Scarico", misure: { l: 0.05, p: 0.05, h: 0 }, blocchi: () => [] },

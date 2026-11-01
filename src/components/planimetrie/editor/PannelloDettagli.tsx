@@ -46,6 +46,8 @@ export interface AzioniPannello {
   impiantoElettrico: (localeId: string, destinazione: Destinazione) => void;
   /** Split con la taglia consigliata. */
   clima: (localeId: string, destinazione: Destinazione) => void;
+  /** Termosifoni sotto le finestre. */
+  riscaldamento: (localeId: string) => void;
   /** Curva la parete con la freccia data (cm). */
   curvaParete: (id: string, frecciaCm: number) => void;
 }
@@ -421,6 +423,14 @@ function DettaglioStanza({
               Impianto elettrico minimo
             </Button>
             <p className="text-[11px] text-muted-foreground">Norma CEI 64-8, livello 1: {cei.prese} {cei.prese === 1 ? "presa" : "prese"}, {cei.luci} {cei.luci === 1 ? "punto luce" : "punti luce"} con interruttore accanto alla porta. Mette solo quello che manca.</p>
+            {!["balcone", "terrazzo", "garage", "cantina", "ripostiglio", "giardino"].includes(locale.destinazione) && (
+              <>
+                <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.riscaldamento(locale.id)}>
+                  Riscaldamento: termosifoni sotto le finestre
+                </Button>
+                <p className="text-[11px] text-muted-foreground">Circa {Math.round((q.mq * ((diLavoro.altezza ?? 270) / 100) * 40) / 50) * 50} W per questa stanza (40 W al m³, di massima). Metti la caldaia o la pompa di calore (Arredi → Energia) per avere i tubi nel computo.</p>
+              </>
+            )}
             {DESTINAZIONI_CLIMA.has(locale.destinazione) && (
               <>
                 <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.clima(locale.id, locale.destinazione)}>

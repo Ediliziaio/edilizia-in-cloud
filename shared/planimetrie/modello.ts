@@ -116,10 +116,11 @@ export type Destinazione =
   | "terrazzo"
   | "garage"
   | "cantina"
+  | "giardino"
   | "altro";
 export const DESTINAZIONI: readonly Destinazione[] = [
   "soggiorno", "cucina", "camera", "bagno", "ingresso", "disimpegno", "corridoio", "ripostiglio",
-  "studio", "lavanderia", "balcone", "terrazzo", "garage", "cantina", "altro",
+  "studio", "lavanderia", "balcone", "terrazzo", "garage", "cantina", "giardino", "altro",
 ];
 
 export interface Finiture {

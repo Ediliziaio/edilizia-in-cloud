@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { prendiFotoDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -190,6 +191,15 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const [step, setStep] = useState<Step>(1);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  // Arrivati dalla pianta («Render esterni»): la vista 3D è già la foto di partenza.
+  useEffect(() => {
+    if (moduleId !== "giardini" && moduleId !== "pavimenti-esterni") return;
+    const f = prendiFotoDaPianta(moduleId);
+    if (!f) return;
+    setPhoto(f);
+    setPhotoPreview(URL.createObjectURL(f));
+  }, [moduleId]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [contactId, setContactId] = useState<string | null>(null);
   const [opportunityId, setOpportunityId] = useState<string | null>(null);

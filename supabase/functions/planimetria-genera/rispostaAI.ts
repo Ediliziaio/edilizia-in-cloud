@@ -146,6 +146,7 @@ const SINONIMI: Array<[RegExp, Destinazione]> = [
   [/balcon|loggia/, "balcone"],
   [/terrazz|lastrico/, "terrazzo"],
   [/garage|box|autorimessa/, "garage"],
+  [/giardin|cortil|corte\b|prato|piscin/, "giardino"],
   [/cantin|deposito|magazzino/, "cantina"],
 ];
 

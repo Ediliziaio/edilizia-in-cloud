@@ -19,12 +19,18 @@ export interface OpzioniArreda { programma?: Richiesta[]; perNumero?: boolean }
 
 const PROGRAMMA: Partial<Record<Destinazione, Richiesta[]>> = {
   bagno: [{ tipo: "doccia", angolo: true }, { tipo: "wc" }, { tipo: "bidet" }, { tipo: "lavabo" }, { tipo: "lavatrice", angolo: true }],
-  cucina: [{ tipo: "cucina", larghezzaMinima: 180 }, { tipo: "frigorifero", angolo: true }, { tipo: "tavolo", centro: true }],
+  cucina: [{ tipo: "cucina_angolare", angolo: true }, { tipo: "frigorifero", angolo: true }, { tipo: "tavolo", centro: true }],
   camera: [{ tipo: "letto_matrimoniale" }, { tipo: "armadio", larghezzaMinima: 120 }, { tipo: "scrivania" }],
-  soggiorno: [{ tipo: "divano" }, { tipo: "tavolo", centro: true }],
-  studio: [{ tipo: "scrivania" }, { tipo: "armadio", larghezzaMinima: 100 }],
+  soggiorno: [{ tipo: "divano_angolare", angolo: true }, { tipo: "mobile_tv" }, { tipo: "tavolo", centro: true }],
+  studio: [{ tipo: "scrivania" }, { tipo: "libreria" }, { tipo: "armadio", larghezzaMinima: 100 }],
+  garage: [{ tipo: "auto" }, { tipo: "scaffale", larghezzaMinima: 150 }],
   lavanderia: [{ tipo: "lavatrice", angolo: true }, { tipo: "lavabo" }],
+  // la piscina e la pergola si mettono a mano (dimensioni e posto sono scelte di progetto)
+  giardino: [{ tipo: "barbecue", angolo: true }, { tipo: "tavolo_esterno", centro: true }, { tipo: "siepe", larghezzaMinima: 300 }],
 };
+
+/** Letto singolo o matrimoniale, divano dritto o angolare, cucina lineare o ad angolo: uno basta. */
+const FAMIGLIE = new Set(["letto", "divano", "cucina"]);
 
 export const destinazioneArredabile = (d: Destinazione) => !!PROGRAMMA[d]?.length;
 
@@ -197,7 +203,10 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
           ? Math.floor(spazio / 60) * 60
           : voce.larghezza;
         if (larghezza < (req.larghezzaMinima ?? voce.larghezza) || larghezza > spazio) continue;
-        const candidati = req.angolo
+        // gli elementi a L hanno il ritorno a sinistra: vanno solo all'inizio del tratto, contro l'angolo
+        const candidati = req.tipo.endsWith("_angolare")
+          ? (tratto.da < 1 ? [tratto.da + larghezza / 2] : [])
+          : req.angolo
           ? [tratto.da + larghezza / 2, tratto.a - larghezza / 2]
           : [(tratto.da + tratto.a) / 2, tratto.da + larghezza / 2, tratto.a - larghezza / 2];
         for (const t0 of candidati) {
@@ -231,7 +240,7 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
     if (opzioni.perNumero) {
       const n = giaContati.get(req.tipo) ?? 0;
       if (n > 0) { giaContati.set(req.tipo, n - 1); esito.giaPresenti.push(v.nome); continue; }
-    } else if (presenti.some((e) => e.tipo === req.tipo || (req.tipo.startsWith("letto") && e.tipo.startsWith("letto")))) {
+    } else if (presenti.some((e) => e.tipo === req.tipo || (FAMIGLIE.has(req.tipo.split("_")[0]) && e.tipo.split("_")[0] === req.tipo.split("_")[0]))) {
       esito.giaPresenti.push(v.nome);
       continue;
     }
@@ -287,11 +296,9 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
     }
     const messo = aParete(v, req);
     if (!messo) {
-      // in una camera piccola il matrimoniale lascia il posto al singolo
-      if (req.tipo === "letto_matrimoniale") {
-        const singolo = aParete(voce("letto_singolo"), { tipo: "letto_singolo" });
-        if (singolo) continue;
-      }
+      // se non ci sta, la versione più piccola: singolo, divano 3 posti, cucina lineare
+      const ripiego = ({ letto_matrimoniale: "letto_singolo", divano_angolare: "divano", cucina_angolare: "cucina" } as Record<string, string>)[req.tipo];
+      if (ripiego && aParete(voce(ripiego), { tipo: ripiego, ...(ripiego === "cucina" ? { larghezzaMinima: 180 } : {}) })) continue;
       esito.saltati.push(v.nome);
       continue;
     }
@@ -375,6 +382,7 @@ export function dotazioneCei(dest: Destinazione, mq: number): { prese: number; l
     case "ripostiglio": case "cantina": return { prese: 0, luci: 1 };
     case "garage": return { prese: 2, luci: 1 };
     case "balcone": case "terrazzo": return mq > 10 ? { prese: 1, luci: 1 } : { prese: 0, luci: 1 };
+    case "giardino": return { prese: 1, luci: 2 };
     default: return { prese: 1, luci: 1 };
   }
 }
@@ -399,4 +407,35 @@ export function climaStanza(pianta: Pianta, localeId: string, vista: Vista, dest
   const etichetta = `${btu.taglia.toLocaleString("it-IT")} BTU`;
   const programma: Richiesta[] = Array.from({ length: btu.split }, () => ({ tipo: "split", etichetta }));
   return arredaStanza(pianta, localeId, vista, destinazione, { programma, perNumero: true });
+}
+
+/**
+ * Termosifoni sotto le finestre (dove si mettono di solito: scaldano l'aria fredda che scende dal
+ * vetro); senza finestre, uno sulla parete libera più lunga. La potenza è di massima: circa
+ * 40 W al metro cubo, divisa fra i termosifoni della stanza e scritta sopra.
+ */
+export function riscaldamentoStanza(pianta: Pianta, localeId: string, vista: Vista): EsitoArreda {
+  const locale = pianta.locali.find((l) => l.id === localeId);
+  const esito: EsitoArreda = { pianta, aggiunti: [], saltati: [], giaPresenti: [] };
+  if (!locale) return esito;
+  const gia = (pianta.elementi ?? []).filter((e) => e.tipo === "termosifone" && e.stato !== "da_demolire" && visibile(e.stato, vista) && dentro(e.centro, locale.contorno));
+  if (gia.length) { esito.giaPresenti.push("Termosifone"); return esito; }
+  const { lati } = latiDellaStanza(pianta, locale.contorno, vista);
+  const sotto = lati.flatMap((l) => l.vietati.filter((v) => v.soloAlti != null).map((v) => ({ l, t: (v.da + v.a) / 2 }))).slice(0, 3);
+  const volume = mqDi(locale.contorno) * (locale.altezza / 100);
+  const watt = Math.round((volume * 40) / Math.max(1, sotto.length) / 50) * 50;
+  const v = CATALOGO.find((x) => x.tipo === "termosifone")!;
+  const larghezza = Math.min(160, Math.max(60, Math.round(watt / 15 / 10) * 10)); // ~150 W ogni 10 cm di radiatore
+  const voce = { ...v, larghezza, etichetta: `${watt.toLocaleString("it-IT")} W` };
+  if (sotto.length) {
+    for (const { l, t } of sotto) {
+      const prof = v.profondita / 2 + 6;
+      const c = { x: Math.round(l.a.x + l.u.x * t + l.n.x * prof), y: Math.round(l.a.y + l.u.y * t + l.n.y * prof) };
+      const r = aggiungiElemento(esito.pianta, voce, c, { stato: statoNuovo(vista), rotazione: l.rotazione });
+      esito.pianta = r.pianta;
+      esito.aggiunti.push(r.id);
+    }
+    return esito;
+  }
+  return arredaStanza(pianta, localeId, vista, undefined, { programma: [{ tipo: "termosifone", etichetta: voce.etichetta }], perNumero: true });
 }

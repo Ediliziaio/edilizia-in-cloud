@@ -57,6 +57,31 @@ export function vistaGiroIntorno(limiti: Limiti3D, aspetto = 1, fov = 45): Telec
   return { posizione: [c[0] + dir[0] * d, dir[1] * d, c[2] + dir[2] * d], guarda: [c[0], 0.4, c[2]], fov };
 }
 
+export type LatoEsterno = "sud" | "est" | "nord" | "ovest";
+
+/**
+ * Dal giardino, come una foto fatta da terra: un poco più alta degli occhi (2,2 m), a qualche
+ * metro dalla casa sul lato scelto (sud = in basso sulla pianta), che guarda il centro.
+ * È la foto di partenza per i render di piscine, pergole, giardini e facciate.
+ */
+export function vistaDalGiardino(limiti: Limiti3D, lato: LatoEsterno = "sud", fov = 60, casa: Limiti3D = limiti): Telecamera3D {
+  const c = centro(casa);
+  const t = Math.tan((fov * Math.PI) / 360);
+  const verso: Record<LatoEsterno, [number, number]> = { sud: [0, 1], nord: [0, -1], est: [1, 0], ovest: [-1, 0] };
+  const [dx, dz] = verso[lato];
+  const largo = dx === 0 ? (casa.max[0] - casa.min[0]) / 2 : (casa.max[2] - casa.min[2]) / 2;
+  // dal bordo della casa a quello di tutto (giardino, piscina, siepe di confine) su quel lato
+  const bordoCasa = dx > 0 ? casa.max[0] : dx < 0 ? -casa.min[0] : dz > 0 ? casa.max[2] : -casa.min[2];
+  const bordoTutto = dx > 0 ? limiti.max[0] : dx < 0 ? -limiti.min[0] : dz > 0 ? limiti.max[2] : -limiti.min[2];
+  const giardino = Math.max(0, bordoTutto - bordoCasa);
+  // abbastanza lontano da vedere tutta la casa (aspetto 4:3), ma dentro il giardino: la siepe
+  // o la recinzione di confine resta alle spalle, non davanti all'obiettivo
+  const serve = Math.max(6, (largo / (t * 4 / 3)) * 1.05);
+  const d = giardino > 6 ? Math.min(serve, giardino * 0.8) : serve;
+  const dc = dx === 0 ? (casa.max[2] - casa.min[2]) / 2 : (casa.max[0] - casa.min[0]) / 2;
+  return { posizione: [c[0] + dx * (dc + d), 2.2, c[2] + dz * (dc + d)], guarda: [c[0], 1.2, c[2]], fov };
+}
+
 function contornoM(l: LocalePer3D): V2[] {
   return pulisciPoligono(l.contorno.map((p) => v2(p.x * CM, p.y * CM)));
 }

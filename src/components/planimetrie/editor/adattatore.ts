@@ -154,6 +154,7 @@ export const DESTINAZIONI: ReadonlyArray<{ valore: Destinazione; etichetta: stri
   { valore: "terrazzo", etichetta: "Terrazzo" },
   { valore: "garage", etichetta: "Garage" },
   { valore: "cantina", etichetta: "Cantina" },
+  { valore: "giardino", etichetta: "Giardino / cortile" },
   { valore: "altro", etichetta: "Altro" },
 ];
 

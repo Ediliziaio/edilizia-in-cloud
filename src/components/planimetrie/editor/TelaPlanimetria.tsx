@@ -90,7 +90,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
 };
 const SELEZIONE = "#2563eb";
 /** Colori delle linee impianti: come negli schemi (elettrico rosso, acqua blu, scarichi marroni). */
-export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d" };
+export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d", riscaldamento: "#ea580c" };
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
     { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, lineeImpianti, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },

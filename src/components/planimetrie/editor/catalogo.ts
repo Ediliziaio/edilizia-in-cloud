@@ -5,7 +5,7 @@
 export interface VoceCatalogo {
   tipo: string;
   nome: string;
-  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Esterni e garage" | "Impianti" | "Struttura";
+  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Esterni e garage" | "Giardino e piscina" | "Impianti" | "Energia" | "Struttura";
   larghezza: number;
   profondita: number;
   altezza: number;
@@ -53,6 +53,25 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "unita_esterna", nome: "Unità esterna clima", gruppo: "Impianti", larghezza: 80, profondita: 30, altezza: 30 },
   { tipo: "collettore", nome: "Collettore acqua", gruppo: "Impianti", larghezza: 50, profondita: 12, altezza: 40 },
   { tipo: "colonna_scarico", nome: "Colonna di scarico", gruppo: "Impianti", larghezza: 16, profondita: 16, altezza: 0 },
+  { tipo: "termostato", nome: "Termostato", gruppo: "Impianti", larghezza: 14, profondita: 6, altezza: 150 },
+  { tipo: "vmc", nome: "VMC (ventilazione)", gruppo: "Impianti", larghezza: 60, profondita: 45, altezza: 260 },
+  // Giardino e piscina: fuori casa, a terra (la piscina è interrata: in pianta il bordo e l'acqua)
+  { tipo: "piscina", nome: "Piscina", gruppo: "Giardino e piscina", larghezza: 800, profondita: 400, altezza: 0 },
+  { tipo: "idromassaggio", nome: "Minipiscina idromassaggio", gruppo: "Giardino e piscina", larghezza: 220, profondita: 220, altezza: 0 },
+  { tipo: "pergola", nome: "Pergola", gruppo: "Giardino e piscina", larghezza: 400, profondita: 300, altezza: 250 },
+  { tipo: "albero", nome: "Albero", gruppo: "Giardino e piscina", larghezza: 300, profondita: 300, altezza: 0 },
+  { tipo: "siepe", nome: "Siepe", gruppo: "Giardino e piscina", larghezza: 300, profondita: 60, altezza: 120 },
+  { tipo: "aiuola", nome: "Aiuola", gruppo: "Giardino e piscina", larghezza: 200, profondita: 100, altezza: 0 },
+  { tipo: "ombrellone", nome: "Ombrellone", gruppo: "Giardino e piscina", larghezza: 300, profondita: 300, altezza: 0 },
+  { tipo: "lettino", nome: "Lettino prendisole", gruppo: "Giardino e piscina", larghezza: 70, profondita: 190, altezza: 0 },
+  { tipo: "tavolo_esterno", nome: "Tavolo da esterno", gruppo: "Giardino e piscina", larghezza: 200, profondita: 100, altezza: 0 },
+  { tipo: "barbecue", nome: "Barbecue in muratura", gruppo: "Giardino e piscina", larghezza: 150, profondita: 60, altezza: 0 },
+  // Energia: generatori e accumuli (le linee del riscaldamento partono da caldaia o pompa di calore)
+  { tipo: "pompa_calore", nome: "Pompa di calore (esterna)", gruppo: "Energia", larghezza: 100, profondita: 40, altezza: 0 },
+  { tipo: "bollitore", nome: "Bollitore acqua calda", gruppo: "Energia", larghezza: 60, profondita: 60, altezza: 0 },
+  { tipo: "inverter", nome: "Inverter fotovoltaico", gruppo: "Energia", larghezza: 50, profondita: 20, altezza: 140 },
+  { tipo: "batteria_accumulo", nome: "Batteria di accumulo", gruppo: "Energia", larghezza: 60, profondita: 25, altezza: 0 },
+  { tipo: "wallbox", nome: "Wallbox ricarica auto", gruppo: "Energia", larghezza: 30, profondita: 15, altezza: 120 },
   // Struttura: pilastri di capannoni, garage, piani pilotis.
   { tipo: "pilastro", nome: "Pilastro", gruppo: "Struttura", larghezza: 30, profondita: 30, altezza: 300 },
   // Rampa dritta: 16 alzate da 17,5 cm, pedata 28 cm; la freccia indica dove si sale.
@@ -60,6 +79,6 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
 ];
 
-export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Impianti", "Struttura"] as const;
+export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Giardino e piscina", "Impianti", "Energia", "Struttura"] as const;
 
 export const nomeDelTipo = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)?.nome ?? tipo.replace(/_/g, " ");

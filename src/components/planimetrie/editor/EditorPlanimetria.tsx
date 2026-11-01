@@ -45,7 +45,7 @@ import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
 import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
 import { SimboloArredo } from "./SimboloArredo";
-import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri } from "./arreda";
+import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldamentoStanza } from "./arreda";
 import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../shared/planimetrie/impianti.ts";
 import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
@@ -1002,6 +1002,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       },
       modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
       modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
+      riscaldamento: (id) => {
+        const r = riscaldamentoStanza(p(), id, stato.current.vista);
+        if (!r.aggiunti.length) { setAvviso(r.giaPresenti.length ? "La stanza ha già il suo termosifone." : "Non c'è una parete libera per il termosifone."); return; }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Aggiunti ${r.aggiunti.length} termosifoni.${(p().elementi ?? []).some((e) => e.tipo === "caldaia" || e.tipo === "pompa_calore") ? "" : " Metti la caldaia o la pompa di calore (Arredi → Energia): da lì partono i tubi nel computo."}`);
+      },
       curvaParete: (id, freccia) => {
         const r = C.curvaParete(p(), id, freccia);
         if (!r.ok) { setAvviso(r.motivo ?? "La parete non si curva."); return; }
@@ -1139,8 +1147,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     for (const p of impianti.percorsi) t.set(p.linea, (t.get(p.linea) ?? 0) + p.lunghezzaCm);
     return t;
   }, [impianti]);
-  const NOMI_LINEE: Record<string, string> = { elettrica: "Elettrico", acqua: "Acqua", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa" };
-  const NOMI_PARTENZE: Record<string, string> = { quadro_elettrico: "il quadro elettrico", collettore: "il collettore (o la caldaia)", colonna_scarico: "la colonna di scarico", unita_esterna: "l'unità esterna del clima" };
+  const NOMI_LINEE: Record<string, string> = { elettrica: "Elettrico", acqua: "Acqua", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa", riscaldamento: "Riscaldamento" };
+  const NOMI_PARTENZE: Record<string, string> = { quadro_elettrico: "il quadro elettrico", collettore: "il collettore (o la caldaia)", colonna_scarico: "la colonna di scarico", unita_esterna: "l'unità esterna del clima", generatore: "la caldaia o la pompa di calore (Arredi → Energia)" };
 
   const barraVista = (
     <div className="inline-flex rounded-md border bg-background p-0.5 text-sm" role="radiogroup" aria-label="Quale pianta">

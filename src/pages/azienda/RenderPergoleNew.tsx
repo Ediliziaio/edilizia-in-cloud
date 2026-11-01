@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { prendiFotoDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +66,14 @@ export default function RenderPergoleNew() {
   const [step, setStep] = useState<Step>(1);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  // Arrivati dalla pianta («Render esterni»): la vista 3D è già la foto di partenza.
+  useEffect(() => {
+    const f = prendiFotoDaPianta("pergole");
+    if (!f) return;
+    setPhoto(f);
+    setPhotoPreview(URL.createObjectURL(f));
+  }, []);
   const [, setPhotoPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);

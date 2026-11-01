@@ -170,10 +170,17 @@ export const SIGLE_IMPIANTI: Record<string, { sigla: string; nome: string; color
   unita_esterna: { sigla: "UE", nome: "Unità esterna", colore: "#0891b2" },
   termosifone: { sigla: "T", nome: "Termosifone", colore: "#ea580c" },
   caldaia: { sigla: "CA", nome: "Caldaia", colore: "#ea580c" },
+  pompa_calore: { sigla: "PdC", nome: "Pompa di calore", colore: "#ea580c" },
+  bollitore: { sigla: "B", nome: "Bollitore", colore: "#2563eb" },
+  inverter: { sigla: "INV", nome: "Inverter fotovoltaico", colore: "#16a34a" },
+  batteria_accumulo: { sigla: "BAT", nome: "Batteria di accumulo", colore: "#16a34a" },
+  wallbox: { sigla: "W", nome: "Wallbox", colore: "#16a34a" },
+  termostato: { sigla: "TA", nome: "Termostato", colore: "#ea580c" },
+  vmc: { sigla: "V", nome: "VMC", colore: "#0891b2" },
 };
 
-const COLORE_LINEA: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d" };
-const NOME_LINEA: Record<string, string> = { elettrica: "Linee elettriche", acqua: "Acqua fredda e calda", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa" };
+const COLORE_LINEA: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d", riscaldamento: "#ea580c" };
+const NOME_LINEA: Record<string, string> = { elettrica: "Linee elettriche", acqua: "Acqua fredda e calda", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa", riscaldamento: "Riscaldamento" };
 
 /** Accoda un foglio con la pianta, i punti impianto, le linee stimate, legenda e metri. */
 export async function accodaFoglioImpianti(pdf: Uint8Array | null, stato: StatoPianta, o: { formato?: Foglio; intestazione: string; numero?: number }): Promise<{ dati: Uint8Array; punti: number } | null> {

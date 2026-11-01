@@ -115,7 +115,8 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     const pav = new CostruttoreMesh();
     pav.orizzontale(contorno, 0, true);
     mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialePavimento(l.destinazione), riferimento: l.id }));
-    if (conSoffitto) {
+    // all'aperto non c'è soffitto
+    if (conSoffitto && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
       const sof = new CostruttoreMesh();
       sof.orizzontale(contorno, l.altezza * CM, false);
       mesh.push(sof.mesh({ id: `soffitto:${l.id}`, nome: `Soffitto ${l.nome}`, genere: "soffitto", materiale: "soffitto", riferimento: l.id }));
@@ -142,9 +143,17 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     }
   }
 
+  const limiti = limitiDi(mesh);
+  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) {
+    const k = opzioni.terreno;
+    const t = new CostruttoreMesh();
+    // un centimetro sotto i pavimenti, così non si sovrappone
+    t.orizzontale([v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -0.01, true);
+    mesh.push(t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" }));
+  }
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
-  return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti: limitiDi(mesh), avvisi };
+  return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi };
 }
 
 export function limitiDi(mesh: Mesh3D[], genere?: (g: Mesh3D["genere"]) => boolean): { min: V3; max: V3 } {

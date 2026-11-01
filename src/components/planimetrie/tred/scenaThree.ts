@@ -120,6 +120,8 @@ export function adattaAmbiente(ambiente: { sole: THREE.DirectionalLight; terreno
   cam.updateProjectionMatrix();
   terreno.position.set(cx, -0.005, cz);
   terreno.scale.setScalar(r * 4);
+  // con il prato della pianta (viste da fuori) il disco grigio non serve: lo coprirebbe
+  terreno.visible = !scena.mesh.some((m) => m.id === "terreno");
 }
 
 export function applicaTelecamera(camera: THREE.PerspectiveCamera, t: Telecamera3D): void {

@@ -19,7 +19,7 @@
 import type { Elemento, Locale, Punto, StatoPianta } from "./modello.ts";
 import { areaPoligono } from "./geometria.ts";
 
-export type LineaImpianto = "elettrica" | "acqua" | "scarico" | "frigorifera" | "condensa";
+export type LineaImpianto = "elettrica" | "acqua" | "scarico" | "frigorifera" | "condensa" | "riscaldamento";
 
 export interface Percorso {
   linea: LineaImpianto;
@@ -37,13 +37,14 @@ export const SFRIDO = 0.1;
 const QUOTA: Record<string, number> = {
   quadro_elettrico: 160, presa: 30, interruttore: 110, punto_luce: 270, split: 220, unita_esterna: 30,
   punto_acqua: 50, lavabo: 55, wc: 20, bidet: 20, doccia: 10, vasca: 10, lavatrice: 60, cucina: 60, caldaia: 150,
-  scarico: 0, colonna_scarico: 0, collettore: 40,
+  scarico: 0, colonna_scarico: 0, collettore: 40, termosifone: 15, pompa_calore: 30, bollitore: 120,
 };
 
-const UTENZE_ELETTRICHE = new Set(["presa", "interruttore", "punto_luce", "split", "caldaia", "lavatrice", "frigorifero"]);
+const UTENZE_ELETTRICHE = new Set(["presa", "interruttore", "punto_luce", "split", "caldaia", "lavatrice", "frigorifero", "pompa_calore", "wallbox", "inverter", "vmc", "termostato"]);
 const UTENZE_ACQUA = new Set(["punto_acqua", "lavabo", "wc", "bidet", "doccia", "vasca", "lavatrice", "cucina"]);
 const UTENZE_SCARICO = new Set(["scarico", "lavabo", "wc", "bidet", "doccia", "vasca", "lavatrice", "cucina"]);
-const SORGENTI_ACQUA = ["collettore", "caldaia"];
+const SORGENTI_ACQUA = ["collettore", "caldaia", "bollitore"];
+const GENERATORI = ["caldaia", "pompa_calore"];
 
 /** Quanto basta di un simbolo per stimare le linee (vale per il modello e per l'editor). */
 export type ElementoImpianto = Pick<Elemento, "id" | "tipo" | "posizione" | "stato">;
@@ -75,7 +76,7 @@ function dentroPoligono(p: Punto, poly: readonly Punto[]): boolean {
   return s;
 }
 
-export type PartenzaMancante = "quadro_elettrico" | "collettore" | "colonna_scarico" | "unita_esterna";
+export type PartenzaMancante = "quadro_elettrico" | "collettore" | "colonna_scarico" | "unita_esterna" | "generatore";
 
 /**
  * `stanze`: i contorni dei locali. Con le stanze l'elettrico si stima come si posa: dal quadro
@@ -142,6 +143,12 @@ export function percorsiDaElementi(elementi: readonly ElementoImpianto[], stanze
   const utenzeScarico = el.filter((e) => UTENZE_SCARICO.has(e.tipo));
   if (utenzeScarico.length && !colonne.length) mancano.push("colonna_scarico");
   collega("scarico", utenzeScarico, colonne, (u) => quota(u));
+
+  // Riscaldamento: dal generatore (caldaia o pompa di calore) a ogni termosifone, mandata e ritorno.
+  const generatori = el.filter((e) => GENERATORI.includes(e.tipo));
+  const radiatori = tipo("termosifone");
+  if (radiatori.length && !generatori.length) mancano.push("generatore");
+  collega("riscaldamento", radiatori, generatori, (u, s) => quota(s) + quota(u));
 
   // Clima: linea frigorifera e condensa dallo split all'unità esterna.
   const esterne = tipo("unita_esterna");

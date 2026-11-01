@@ -17,7 +17,9 @@ export {
   metadatiFotogramma,
   proietta,
   vistaDallAlto,
+  vistaDalGiardino,
   vistaDentroLocale,
+  type LatoEsterno,
   vistaGiroIntorno,
   type MetadatiFotogramma,
 } from "./telecamera";

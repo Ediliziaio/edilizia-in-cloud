@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Box, Building2, Download, ImageIcon, PenLine, Sparkles, Wand2 } from "lucide-react";
+import { Box, Building2, Download, ImageIcon, PenLine, Sparkles, Trees, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialo
 import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
 import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
 import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
+import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -27,6 +28,14 @@ import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
 import { riepilogoStanza, statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
+
+/** Con una piscina disegnata si propone il render della piscina, con una pergola quello della pergola. */
+function moduloEsterno(p: { elementi?: Array<{ tipo: string }> }) {
+  const tipi = new Set((p.elementi ?? []).map((e) => e.tipo));
+  if (tipi.has("piscina") || tipi.has("idromassaggio")) return "piscine" as const;
+  if (tipi.has("pergola")) return "pergole" as const;
+  return "giardini" as const;
+}
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
@@ -40,6 +49,7 @@ export default function RenderPlanimetriaScheda() {
   const [mostra3D, setMostra3D] = useState(false);
   const [esporta, setEsporta] = useState(false);
   const [prospetti, setProspetti] = useState(false);
+  const [esterni, setEsterni] = useState(false);
   // Render in serie: null chiuso, "" tutte le stanze, altrimenti più stili per quella stanza.
   const [serie, setSerie] = useState<string | null>(null);
 
@@ -98,6 +108,10 @@ export default function RenderPlanimetriaScheda() {
             <Button variant="outline" size="sm" onClick={() => setMostra3D((v) => !v)} disabled={stanze.length === 0}>
               <Box className="mr-1.5 h-4 w-4" />
               {mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setEsterni(true)} disabled={stanze.length === 0}>
+              <Trees className="mr-1.5 h-4 w-4" />
+              Render esterni
             </Button>
             <Button variant="outline" size="sm" onClick={() => setProspetti(true)}>
               <Building2 className="mr-1.5 h-4 w-4" />
@@ -166,6 +180,17 @@ export default function RenderPlanimetriaScheda() {
         stanze={stanze.map((v) => ({ id: v.locale.id, nome: v.locale.nome, destinazione: v.locale.destinazione }))}
         soloStanza={serie || null}
       />
+
+      {piante3D && (
+        <RenderEsterniDialog
+          aperto={esterni}
+          onChiudi={() => setEsterni(false)}
+          pianta={ambito === "fatto" ? piante3D.fatto : piante3D.progetto}
+          vista={ambito === "fatto" ? "fatto" : "progetto"}
+          titolo={data.riga.titolo}
+          moduloIniziale={moduloEsterno(ambito === "fatto" ? piante3D.fatto : piante3D.progetto)}
+        />
+      )}
 
       <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} titolo={data.riga.titolo} />
 

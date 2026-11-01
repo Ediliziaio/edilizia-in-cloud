@@ -132,6 +132,11 @@ export interface OpzioniScena {
   soffitto?: boolean;
   /** Sanitari e arredi. Predefinito: sì. */
   elementi?: boolean;
+  /**
+   * Un prato tutto intorno (metri oltre l'ingombro), per le viste da fuori: senza, piscine e
+   * alberi restano sospesi nel vuoto. I limiti della scena non lo contano. Predefinito: niente.
+   */
+  terreno?: number;
 }
 
 // ─── Telecamera ─────────────────────────────────────────────────────────────

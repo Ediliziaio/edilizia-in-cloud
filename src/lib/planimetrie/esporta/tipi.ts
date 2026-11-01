@@ -84,6 +84,8 @@ export type TipoElemento =
   | "auto" | "scaffale" | "banco_lavoro"
   | "presa" | "interruttore" | "punto_luce" | "punto_acqua" | "scarico" | "quadro_elettrico" | "termosifone" | "split"
   | "unita_esterna" | "collettore" | "colonna_scarico" | "pilastro" | "scala" | "ascensore"
+  | "pompa_calore" | "bollitore" | "inverter" | "batteria_accumulo" | "wallbox" | "termostato" | "vmc"
+  | "piscina" | "idromassaggio" | "pergola" | "albero" | "siepe" | "aiuola" | "ombrellone" | "lettino" | "tavolo_esterno" | "barbecue"
   /** Un oggetto che non ha un simbolo suo: riquadro con la diagonale. */
   | "generico";
 

@@ -222,6 +222,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("acqua")) metti("impianti:acqua", "tubo_ml", stimata(lin("acqua"), 2), "Tubo acqua fredda e calda (stima dal collettore)");
   if (lin("scarico")) metti("impianti:scarico", "tubo_ml", stimata(lin("scarico")), "Tubo di scarico (stima fino alla colonna)");
   if (lin("frigorifera")) metti("impianti:clima", "rame_ml", stimata(lin("frigorifera"), 2), "Linea frigorifera in rame, due tubi (stima)");
+  if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
   for (const [misura, acc] of totaliPianta) metti("pianta", misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — tutti i locali`);
@@ -250,6 +251,10 @@ const NOMI_ELEMENTI: Record<string, string> = {
   scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", ascensore: "Ascensori",
   divano_angolare: "Divani angolari", poltrona: "Poltrone", mobile_tv: "Mobili TV", libreria: "Librerie", tavolo_rotondo: "Tavoli rotondi",
   cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
+  piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",
+  ombrellone: "Ombrelloni", lettino: "Lettini", tavolo_esterno: "Tavoli da esterno", barbecue: "Barbecue",
+  pompa_calore: "Pompe di calore", bollitore: "Bollitori", inverter: "Inverter fotovoltaici", batteria_accumulo: "Batterie di accumulo",
+  wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC",
   collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",
   presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
   scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",

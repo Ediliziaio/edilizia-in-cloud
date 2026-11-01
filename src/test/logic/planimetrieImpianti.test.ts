@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aPlanimetria, type Pianta } from "@/components/planimetrie/editor/adattatore";
-import { climaStanza, dotazioneCei, impiantoElettrico } from "@/components/planimetrie/editor/arreda";
+import { climaStanza, dotazioneCei, impiantoElettrico, riscaldamentoStanza } from "@/components/planimetrie/editor/arreda";
 import * as C from "@/components/planimetrie/editor/comandi";
 import { CATALOGO } from "@/components/planimetrie/editor/catalogo";
 import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../shared/planimetrie/impianti.ts";
@@ -119,5 +119,27 @@ describe("pareti curve: casi da rifiutare", () => {
     p = C.aggiungiStanza(p, C.rettangolo({ x: 300, y: 0 }, { x: 600, y: 300 })).pianta;
     const lungo = p.muri.find((m) => Math.abs(m.p1.y - m.p2.y) < 1 && Math.abs(m.p1.x - m.p2.x) > 500);
     if (lungo) expect(C.curvaParete(p, lungo.id, 50).ok).toBe(false);
+  });
+});
+
+describe("riscaldamento", () => {
+  it("dal generatore ai termosifoni; senza caldaia né pompa di calore lo dice", () => {
+    expect(percorsiDaElementi([el("t", "termosifone", 0, 0)]).mancano).toEqual(["generatore"]);
+    const r = percorsiDaElementi([el("pdc", "pompa_calore", 0, 0), el("c", "caldaia", 2000, 0), el("t", "termosifone", 300, 0)]);
+    expect(r.mancano).toEqual(["quadro_elettrico"]); // pompa e caldaia sono anche utenze elettriche
+    // dalla pompa di calore (più vicina): 300 + 30 + 15
+    expect(r.percorsi.find((x) => x.linea === "riscaldamento")).toEqual(expect.objectContaining({ daId: "pdc", aId: "t", lunghezzaCm: 345 }));
+  });
+  it("un termosifone sotto la finestra, con la potenza scritta; la seconda volta non ne aggiunge", () => {
+    const { p, id } = stanza(400, 400, "camera");
+    const muro = p.muri.find((m) => Math.abs(m.p1.y) < 1 && Math.abs(m.p2.y) < 1)!;
+    const conFinestra = C.aggiungiApertura(p, muro.id, "finestra", 200).pianta;
+    const r = riscaldamentoStanza(conFinestra, id, "progetto");
+    expect(r.aggiunti).toHaveLength(1);
+    const t = r.pianta.elementi!.find((e) => e.id === r.aggiunti[0])!;
+    expect(t.tipo).toBe("termosifone");
+    expect(Math.abs(t.centro.x - 200)).toBeLessThan(5);
+    expect(t.etichetta).toMatch(/W$/);
+    expect(riscaldamentoStanza(r.pianta, id, "progetto").aggiunti).toHaveLength(0);
   });
 });
