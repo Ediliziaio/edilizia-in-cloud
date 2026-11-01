@@ -1,0 +1,143 @@
+/**
+ * Abachi della pianta (fase 2 del piano di completamento, 1/11/2026): l'elenco dei serramenti e
+ * quello delle stanze, come gli abachi di AutoCAD Architecture, letti dagli oggetti del modello.
+ *
+ * - Serramenti: codice (P1, F1, PF1, V1 in ordine di parete e posizione), tipo, manovra, misure,
+ *   stanze su cui si apre, stato dei lavori, misure stimate.
+ * - Stanze: le stesse quantità del computo (`calcolaQuantita`), quindi gli stessi numeri.
+ */
+import type { Apertura, Locale, Planimetria, StatoPianta, TipoApertura } from "../../../shared/planimetrie/modello.ts";
+import { distanzaDalContorno, facceDellApertura, TOLLERANZA_LOCALE_CM } from "../../../shared/planimetrie/geometria.ts";
+import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
+import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
+
+export const PREFISSO_CODICE: Record<TipoApertura, string> = { porta: "P", finestra: "F", portafinestra: "PF", varco: "V" };
+const NOME_TIPO: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
+const NOME_MANOVRA = { battente: "Battente", scorrevole: "Scorrevole", nessuna: "—" } as const;
+const NOME_STATO = { esistente: "Esistente", nuovo: "Nuovo", da_demolire: "Da demolire" } as const;
+
+export interface RigaSerramento {
+  id: string;
+  codice: string;
+  tipo: string;
+  manovra: string;
+  /** cm */
+  larghezza: number;
+  altezza: number;
+  davanzale: number;
+  /** m² del vano */
+  superficieMq: number;
+  stanze: string;
+  stato: string;
+  stimata: boolean;
+}
+
+export interface RigaStanza {
+  id: string;
+  nome: string;
+  destinazione: string;
+  pavimentoMq: number;
+  perimetroMl: number;
+  paretiNetteMq: number;
+  soffittoMq: number;
+  altezzaCm: number;
+  volumeMc: number;
+  battiscopaMl: number;
+  rivestimentoMq: number | null;
+  finiture: string;
+  stimata: boolean;
+}
+
+/** Le stanze su cui si affaccia un'apertura (anche se da demolire, a differenza di `apertureDelLocale`). */
+function stanzeDellApertura(a: Apertura, stato: StatoPianta): Locale[] {
+  const muro = stato.muri.find((m) => m.id === a.muroId);
+  if (!muro) return [];
+  const facce = facceDellApertura(a, muro);
+  return stato.locali.filter((l) => facce.some((f) => distanzaDalContorno(f, l.contorno) <= TOLLERANZA_LOCALE_CM));
+}
+
+const stimata = (o: { origine?: string; origineMisure?: Record<string, string | undefined> }) =>
+  o.origine === "stimata" || Object.values(o.origineMisure ?? {}).includes("stimata");
+
+export function abacoSerramenti(p: Planimetria, livelloId: string, ambito: string): RigaSerramento[] {
+  const stato = statoPerAmbito(p, livelloId, ambito);
+  if (!stato) return [];
+  const ordineMuro = new Map(stato.muri.map((m, i) => [m.id, i]));
+  const ordinate = [...stato.aperture].sort((a, b) =>
+    (ordineMuro.get(a.muroId) ?? 0) - (ordineMuro.get(b.muroId) ?? 0) || a.offset - b.offset);
+  const contatori: Record<string, number> = {};
+  return ordinate.map((a) => {
+    const prefisso = PREFISSO_CODICE[a.tipo] ?? "A";
+    contatori[prefisso] = (contatori[prefisso] ?? 0) + 1;
+    const stanze = stanzeDellApertura(a, stato).map((l) => l.nome || "Stanza");
+    return {
+      id: a.id,
+      codice: `${prefisso}${contatori[prefisso]}`,
+      tipo: NOME_TIPO[a.tipo] ?? a.tipo,
+      manovra: NOME_MANOVRA[a.manovra] ?? a.manovra,
+      larghezza: Math.round(a.larghezza),
+      altezza: Math.round(a.altezza),
+      davanzale: Math.round(a.davanzale),
+      superficieMq: Math.round((a.larghezza * a.altezza) / 100) / 100,
+      stanze: stanze.length ? stanze.join(" / ") : "—",
+      stato: NOME_STATO[a.stato] ?? a.stato,
+      stimata: stimata(a),
+    };
+  });
+}
+
+export function abacoStanze(p: Planimetria, livelloId: string, ambito: string): RigaStanza[] {
+  const stato = statoPerAmbito(p, livelloId, ambito);
+  if (!stato) return [];
+  const q = calcolaQuantita(p);
+  const val = (localeId: string, misura: string) => q[`${ambito}:locale:${localeId}.${misura}`]?.valore;
+  const r2 = (v: number | undefined) => Math.round((v ?? 0) * 100) / 100;
+  return stato.locali.map((l) => {
+    const riv = val(l.id, "rivestimento_mq");
+    const finiture = [
+      l.finiture?.pavimento && `Pavimento: ${l.finiture.pavimento}`,
+      l.finiture?.pareti && `Pareti: ${l.finiture.pareti}`,
+      l.finiture?.soffitto && `Soffitto: ${l.finiture.soffitto}`,
+      l.finiture?.rivestimento && `Rivestimento${l.finiture.rivestimento.materiale ? ` ${l.finiture.rivestimento.materiale}` : ""} h ${l.finiture.rivestimento.altezza} cm`,
+    ].filter(Boolean).join(" · ");
+    return {
+      id: l.id,
+      nome: l.nome || "Stanza",
+      destinazione: l.destinazione,
+      pavimentoMq: r2(val(l.id, "pavimento_mq")),
+      perimetroMl: r2(val(l.id, "perimetro_ml")),
+      paretiNetteMq: r2(val(l.id, "pareti_nette_mq")),
+      soffittoMq: r2(val(l.id, "soffitto_mq")),
+      altezzaCm: Math.round(l.altezza),
+      volumeMc: r2(val(l.id, "volume_mc")),
+      battiscopaMl: r2(val(l.id, "battiscopa_ml")),
+      rivestimentoMq: riv == null ? null : r2(riv),
+      finiture: finiture || "—",
+      stimata: stimata(l),
+    };
+  });
+}
+
+/** CSV per Excel italiano: punto e virgola, virgola decimale, BOM per gli accenti. */
+export function inCsv(intestazioni: string[], righe: Array<Array<string | number | null>>): string {
+  const cella = (v: string | number | null) => {
+    if (v == null) return "";
+    const s = typeof v === "number" ? String(v).replace(".", ",") : v;
+    return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return "﻿" + [intestazioni, ...righe].map((r) => r.map(cella).join(";")).join("\r\n");
+}
+
+export function csvSerramenti(righe: RigaSerramento[]): string {
+  return inCsv(
+    ["Codice", "Tipo", "Manovra", "Larghezza cm", "Altezza cm", "Davanzale cm", "Superficie m²", "Stanze", "Stato", "Misure"],
+    righe.map((r) => [r.codice, r.tipo, r.manovra, r.larghezza, r.altezza, r.davanzale, r.superficieMq, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
+  );
+}
+
+export function csvStanze(righe: RigaStanza[]): string {
+  return inCsv(
+    ["Stanza", "Destinazione", "Pavimento m²", "Perimetro m", "Pareti nette m²", "Soffitto m²", "Altezza cm", "Volume m³", "Battiscopa m", "Rivestimento m²", "Finiture", "Misure"],
+    righe.map((r) => [r.nome, r.destinazione, r.pavimentoMq, r.perimetroMl, r.paretiNetteMq, r.soffittoMq, r.altezzaCm, r.volumeMc, r.battiscopaMl, r.rivestimentoMq, r.finiture, r.stimata ? "stimate" : "rilevate"]),
+  );
+}

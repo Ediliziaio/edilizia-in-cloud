@@ -3,13 +3,15 @@
  * selezionato. Le misure si scrivono qui come sulla pianta.
  */
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { AlertTriangle, Check, Copy, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type LocaleVista, type Muro, type Pianta, type TipoApertura } from "./adattatore";
+import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
+import { CATALOGO, nomeDelTipo } from "./catalogo";
+import { dist } from "./geometria";
 import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
@@ -27,6 +29,11 @@ export interface AzioniPannello {
   conferma: (sel: Selezione) => void;
   confermaTutte: () => void;
   seleziona: (sel: Selezione | null) => void;
+  modificaElemento: (id: string, campi: Partial<Pick<ElementoLavoro, "rotazione" | "larghezza" | "profondita" | "altezza" | "etichetta" | "tipo">>) => void;
+  ruotaElemento: (id: string, gradi: number) => void;
+  duplicaElemento: (id: string) => void;
+  modificaQuota: (id: string, campi: Partial<Pick<QuotaLavoro, "scostamento">>) => void;
+  modificaTesto: (id: string, campi: Partial<Pick<TestoLavoro, "testo" | "rotazione">>) => void;
 }
 
 interface Props {
@@ -69,7 +76,118 @@ export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezi
     const a = pianta.aperture.find((x) => x.id === selezione.id);
     if (a) return <DettaglioApertura vista={vista} apertura={a} azioni={azioni} essenziale={essenziale} />;
   }
+  if (selezione?.tipo === "elemento") {
+    const e = (pianta.elementi ?? []).find((x) => x.id === selezione.id);
+    if (e) return <DettaglioElemento key={e.id} vista={vista} elemento={e} azioni={azioni} essenziale={essenziale} />;
+  }
+  if (selezione?.tipo === "quota") {
+    const q = (pianta.quote ?? []).find((x) => x.id === selezione.id);
+    if (q) return <DettaglioQuota quota={q} azioni={azioni} />;
+  }
+  if (selezione?.tipo === "testo") {
+    const t = (pianta.testi ?? []).find((x) => x.id === selezione.id);
+    if (t) return <DettaglioTesto key={t.id} testo={t} azioni={azioni} />;
+  }
   return <ElencoStanze pianta={pianta} dati={dati} vista={vista} azioni={azioni} />;
+}
+
+function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: Vista; elemento: ElementoLavoro; azioni: AzioniPannello; essenziale?: boolean }) {
+  const ok = modificabile(e.stato, vista);
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-muted-foreground">Arredo</p>
+        <p className="font-semibold">{e.etichetta || nomeDelTipo(e.tipo)}</p>
+        {vista === "progetto" && e.stato === "nuovo" && <p className="text-xs text-red-700">Nuovo, nel progetto</p>}
+        {vista === "progetto" && e.stato === "da_demolire" && <p className="text-xs text-amber-700">Da togliere</p>}
+        {!ok && e.stato === "esistente" && <p className="text-xs text-muted-foreground">Nel progetto gli arredi di oggi non si spostano: toglilo e mettine uno nuovo.</p>}
+      </div>
+      <div className="space-y-1">
+        <Label>Cos'è</Label>
+        <Select value={CATALOGO.some((v) => v.tipo === e.tipo) ? e.tipo : "altro"} disabled={!ok} onValueChange={(t) => {
+          const v = CATALOGO.find((x) => x.tipo === t);
+          if (v) azioni.modificaElemento(e.id, { tipo: v.tipo, larghezza: v.larghezza, profondita: v.profondita, altezza: v.altezza });
+        }}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CATALOGO.map((v) => <SelectItem key={v.tipo} value={v.tipo}>{v.nome}</SelectItem>)}
+            {!CATALOGO.some((v) => v.tipo === e.tipo) && <SelectItem value="altro">{nomeDelTipo(e.tipo)}</SelectItem>}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <CampoMisura etichetta="Larghezza (cm)" valore={e.larghezza} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { larghezza: cm })} />
+        <CampoMisura etichetta="Profondità (cm)" valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
+      </div>
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground">Rotazione: {e.rotazione}°</span>
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -90)} aria-label="Ruota a sinistra di 90°"><RotateCcw /> 90°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 90)} aria-label="Ruota a destra di 90°"><RotateCw /> 90°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -15)} aria-label="Ruota a sinistra di 15°">−15°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 15)} aria-label="Ruota a destra di 15°">+15°</Button>
+        </div>
+      </div>
+      {!essenziale && (
+        <div className="space-y-1">
+          <Label htmlFor={`etichetta-${e.id}`}>Nome sulla pianta (facoltativo)</Label>
+          <Input id={`etichetta-${e.id}`} defaultValue={e.etichetta ?? ""} placeholder={nomeDelTipo(e.tipo)} disabled={!ok}
+            onBlur={(ev) => { const v = ev.target.value.trim(); if (v !== (e.etichetta ?? "")) azioni.modificaElemento(e.id, { etichetta: v || undefined }); }}
+            onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); }} />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button size="sm" variant="outline" onClick={() => azioni.duplicaElemento(e.id)}><Copy /> Duplica</Button>
+        {!essenziale && (
+          vista === "progetto" && e.stato === "da_demolire"
+            ? <Button size="sm" variant="outline" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}><Undo2 /> Rimetti</Button>
+            : <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}>
+                <Trash2 /> {vista === "progetto" && e.stato === "esistente" ? "Togli nel progetto" : "Elimina"}
+              </Button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">Trascinalo per spostarlo · R ruota di 90° · Ctrl+D duplica · Canc elimina</p>
+    </div>
+  );
+}
+
+function DettaglioQuota({ quota: q, azioni }: { quota: QuotaLavoro; azioni: AzioniPannello }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-muted-foreground">Quota</p>
+        <p className="text-lg font-semibold tabular-nums">{scriviMetri(dist(q.p1, q.p2))} m</p>
+        <p className="text-xs text-muted-foreground">Misura da sola la distanza fra i due punti.</p>
+      </div>
+      <CampoMisura etichetta="Distanza dalla linea (cm)" valore={Math.abs(q.scostamento)} centimetri
+        onConferma={(cm) => azioni.modificaQuota(q.id, { scostamento: q.scostamento < 0 ? -cm : cm })} />
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaQuota(q.id, { scostamento: -q.scostamento })}>Dall'altra parte</Button>
+        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "quota", id: q.id })}><Trash2 /> Elimina</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Trascina la quota per allontanarla o avvicinarla.</p>
+    </div>
+  );
+}
+
+function DettaglioTesto({ testo: t, azioni }: { testo: TestoLavoro; azioni: AzioniPannello }) {
+  const [valore, setValore] = useState(t.testo);
+  const salva = () => { const v = valore.trim(); if (v && v !== t.testo) azioni.modificaTesto(t.id, { testo: v }); };
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label htmlFor={`testo-${t.id}`}>Testo</Label>
+        <Input id={`testo-${t.id}`} autoFocus value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaTesto(t.id, { rotazione: ((t.rotazione - 90) % 360 + 360) % 360 })}><RotateCcw /> 90°</Button>
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaTesto(t.id, { rotazione: (t.rotazione + 90) % 360 })}><RotateCw /> 90°</Button>
+        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "testo", id: t.id })}><Trash2 /> Elimina</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Trascina il testo per spostarlo.</p>
+    </div>
+  );
 }
 
 function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: DatiVista; vista: Vista; azioni: AzioniPannello }) {

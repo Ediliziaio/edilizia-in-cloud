@@ -19,6 +19,7 @@ import {
 } from "./disegno";
 import { dist, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
 import { scriviMetri, scriviMq } from "./misure";
+import { SimboloArredo } from "./SimboloArredo";
 
 export interface Camera {
   /** pixel per centimetro */
@@ -28,7 +29,7 @@ export interface Camera {
 }
 
 export interface Selezione {
-  tipo: "muro" | "apertura" | "locale";
+  tipo: "muro" | "apertura" | "locale" | "elemento" | "quota" | "testo";
   id: string;
 }
 
@@ -37,6 +38,10 @@ export interface Sovrapposizioni {
   pareteInCorso?: { a: Punto; b: Punto } | null;
   aggancio?: Aggancio | null;
   aperturaFantasma?: { muroId: string; t: number; tipo: TipoApertura } | null;
+  /** Quota libera in corso: primo punto e cursore. */
+  quotaInCorso?: { a: Punto; b: Punto } | null;
+  /** Arredo che sta per essere posato. */
+  arredoFantasma?: { tipo: string; centro: Punto; larghezza: number; profondita: number } | null;
 }
 
 type Gestori = Pick<SVGProps<SVGSVGElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel">;
@@ -146,27 +151,40 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             />
           ))}
 
-          {/* arredi e sanitari (dal documento; si spostano in una fase successiva) */}
-          {dati.elementi.map((e) => (
-            <g key={e.id} transform={`translate(${e.centro.x} ${e.centro.y}) rotate(${e.rotazione})`} pointerEvents="none">
-              <rect
-                x={-e.larghezza / 2}
-                y={-e.profondita / 2}
-                width={e.larghezza}
-                height={e.profondita}
-                rx={2}
-                fill="#ffffff"
-                fillOpacity={0.7}
-                stroke="#94a3b8"
-                strokeWidth={px(1)}
-              />
-              {Math.min(e.larghezza, e.profondita) * camera.s > 28 && (
-                <text y={px(4)} textAnchor="middle" fontSize={px(10)} fill="#64748b">
-                  {e.etichetta ?? NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ")}
-                </text>
-              )}
-            </g>
-          ))}
+          {/* arredi e sanitari: si selezionano, si spostano e si ruotano (fase 3) */}
+          {(pianta.elementi ?? dati.elementi.map((e) => ({ ...e, stato: "esistente" as const })))
+            .filter((e) => visibile(e.stato, vista))
+            .map((e) => {
+              const selezionato = sel("elemento", e.id);
+              const colore = selezionato ? SELEZIONE : vista === "progetto" && e.stato === "nuovo" ? "#dc2626" : vista === "progetto" && e.stato === "da_demolire" ? "#ca8a04" : "#475569";
+              const etichetta = e.etichetta ?? NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
+              return (
+                <g
+                  key={e.id}
+                  transform={`translate(${e.centro.x} ${e.centro.y}) rotate(${e.rotazione})`}
+                  data-tipo="elemento"
+                  data-id={e.id}
+                  style={{ cursor: "move" }}
+                  opacity={vista === "progetto" && e.stato === "da_demolire" ? 0.55 : 1}
+                >
+                  <SimboloArredo
+                    tipo={e.tipo}
+                    larghezza={e.larghezza}
+                    profondita={e.profondita}
+                    colore={colore}
+                    spessore={px(selezionato ? 2 : 1.2)}
+                    riempimento={vista === "progetto" && e.stato === "da_demolire" ? "#fef9c3" : "#ffffff"}
+                  />
+                  {/* bersaglio pieno: si prende anche cliccando dentro il simbolo */}
+                  <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                  {Math.min(e.larghezza, e.profondita) * camera.s > 34 && (
+                    <text y={e.profondita / 2 - px(3)} textAnchor="middle" fontSize={px(9)} fill="#64748b" pointerEvents="none">
+                      {etichetta}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
 
           {/* pareti */}
           {muri.map((m) => {
@@ -316,14 +334,47 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             );
           })}
 
-          {dati.testi.map((t) => (
+          {/* quote libere */}
+          {(pianta.quote ?? []).map((q) => {
+            const l = dist(q.p1, q.p2);
+            if (l < 1) return null;
+            const n = { x: -(q.p2.y - q.p1.y) / l, y: (q.p2.x - q.p1.x) / l };
+            const a = { x: q.p1.x + n.x * q.scostamento, y: q.p1.y + n.y * q.scostamento };
+            const b = { x: q.p2.x + n.x * q.scostamento, y: q.p2.y + n.y * q.scostamento };
+            const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const colore = sel("quota", q.id) ? SELEZIONE : "#0f766e";
+            const tick = px(5);
+            const ang = angoloTesto(a, b);
+            return (
+              <g key={q.id} data-tipo="quota" data-id={q.id} style={{ cursor: "pointer" }}>
+                <line x1={q.p1.x} y1={q.p1.y} x2={a.x} y2={a.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
+                <line x1={q.p2.x} y1={q.p2.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
+                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(1.4)} />
+                {[a, b].map((p, i) => (
+                  <line key={i} x1={p.x - (n.x + n.y) * tick} y1={p.y - (n.y - n.x) * tick} x2={p.x + (n.x + n.y) * tick} y2={p.y + (n.y - n.x) * tick} stroke={colore} strokeWidth={px(1.6)} />
+                ))}
+                {/* bersaglio largo per prenderla col mouse */}
+                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={px(14)} data-tipo="quota" data-id={q.id} />
+                <text transform={`translate(${m.x + n.x * px(9)} ${m.y + n.y * px(9)}) rotate(${ang})`} textAnchor="middle" dominantBaseline="middle" fontSize={px(11)} fontWeight={600} fill={colore} pointerEvents="none">
+                  {scriviMetri(l)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* testi */}
+          {(pianta.testi ?? dati.testi).map((t) => (
             <text
               key={t.id}
               transform={`translate(${t.posizione.x} ${t.posizione.y}) rotate(${t.rotazione})`}
               textAnchor="middle"
-              fontSize={px(12)}
-              fill="#334155"
-              pointerEvents="none"
+              dominantBaseline="middle"
+              fontSize={px(13)}
+              fontWeight={sel("testo", t.id) ? 700 : 500}
+              fill={sel("testo", t.id) ? SELEZIONE : "#334155"}
+              data-tipo="testo"
+              data-id={t.id}
+              style={{ cursor: "move" }}
             >
               {t.testo}
             </text>
@@ -354,6 +405,19 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
           {/* anteprime mentre si disegna */}
           {sovrapposizioni.rettangolo && <AnteprimaRettangolo {...sovrapposizioni.rettangolo} px={px} />}
           {sovrapposizioni.pareteInCorso && <AnteprimaParete {...sovrapposizioni.pareteInCorso} px={px} />}
+          {sovrapposizioni.quotaInCorso && (
+            <g pointerEvents="none">
+              <line x1={sovrapposizioni.quotaInCorso.a.x} y1={sovrapposizioni.quotaInCorso.a.y} x2={sovrapposizioni.quotaInCorso.b.x} y2={sovrapposizioni.quotaInCorso.b.y} stroke="#0f766e" strokeWidth={px(1.5)} strokeDasharray={`${px(5)} ${px(4)}`} />
+              <text x={(sovrapposizioni.quotaInCorso.a.x + sovrapposizioni.quotaInCorso.b.x) / 2} y={(sovrapposizioni.quotaInCorso.a.y + sovrapposizioni.quotaInCorso.b.y) / 2 - px(10)} textAnchor="middle" fontSize={px(12)} fontWeight={700} fill="#0f766e">
+                {scriviMetri(dist(sovrapposizioni.quotaInCorso.a, sovrapposizioni.quotaInCorso.b))}
+              </text>
+            </g>
+          )}
+          {sovrapposizioni.arredoFantasma && (
+            <g transform={`translate(${sovrapposizioni.arredoFantasma.centro.x} ${sovrapposizioni.arredoFantasma.centro.y})`} pointerEvents="none" opacity={0.6}>
+              <SimboloArredo tipo={sovrapposizioni.arredoFantasma.tipo} larghezza={sovrapposizioni.arredoFantasma.larghezza} profondita={sovrapposizioni.arredoFantasma.profondita} colore={SELEZIONE} spessore={px(1.5)} />
+            </g>
+          )}
           {sovrapposizioni.aperturaFantasma &&
             (() => {
               const f = sovrapposizioni.aperturaFantasma;

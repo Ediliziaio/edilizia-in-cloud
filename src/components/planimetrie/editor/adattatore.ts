@@ -19,6 +19,7 @@ import {
   statoVuoto,
   type Apertura as AperturaModello,
   type Destinazione,
+  type Elemento as ElementoModello,
   type Finiture,
   type Livello,
   type Locale as LocaleModello,
@@ -27,7 +28,9 @@ import {
   type Origine,
   type Planimetria,
   type Proposta,
+  type Quota as QuotaModello,
   type StatoLavori,
+  type Testo as TestoModello,
   type StatoPianta,
   type TipoMuro,
 } from "../../../../shared/planimetrie/modello.ts";
@@ -87,12 +90,49 @@ export interface Locale {
   origine: Origine;
 }
 
+/** Arredo o sanitario (fase 3 del piano di completamento): centro e rotazione oraria sullo schermo. */
+export interface ElementoLavoro {
+  id: string;
+  tipo: string;
+  etichetta?: string;
+  centro: Punto;
+  /** Gradi, in senso orario sullo schermo. */
+  rotazione: number;
+  larghezza: number;
+  profondita: number;
+  altezza?: number;
+  stato: StatoElemento;
+  origine: Origine;
+}
+
+/** Quota libera: misura da sola la distanza fra p1 e p2. Uguale in «oggi» e nel progetto. */
+export interface QuotaLavoro {
+  id: string;
+  p1: Punto;
+  p2: Punto;
+  /** Distanza della linea di quota, positiva a destra di p1→p2 sullo schermo. */
+  scostamento: number;
+}
+
+/** Testo libero sulla pianta. Uguale in «oggi» e nel progetto. */
+export interface TestoLavoro {
+  id: string;
+  posizione: Punto;
+  testo: string;
+  /** Gradi, in senso orario sullo schermo. */
+  rotazione: number;
+}
+
 export interface Pianta {
   versione: 1;
   unita: "cm";
   muri: Muro[];
   aperture: Apertura[];
   locali: Locale[];
+  /** Arredi, quote e testi: assenti nelle piante di lavoro vecchie (allora restano quelli del documento). */
+  elementi?: ElementoLavoro[];
+  quote?: QuotaLavoro[];
+  testi?: TestoLavoro[];
   /** Nome e destinazione dei locali del progetto, quando sono diversi da quelli di oggi. */
   nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione }>;
 }
@@ -362,8 +402,61 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string): Pianta {
     stato: "esistente",
     origine: origineDi(l),
   }));
-  return { ...piantaVuota(), muri, aperture, locali, ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
+  // Arredi: quelli di oggi; nel progetto quelli che mancano sono da togliere, quelli in più sono nuovi.
+  const elementi: ElementoLavoro[] = fatto.elementi.map((e) => {
+    const tolto = !!proposta && !proposta.elementi.some((x) => x.id === e.id);
+    return elementoDaModello(e, tolto ? "da_demolire" : "esistente");
+  });
+  for (const e of proposta?.elementi ?? []) if (!elementi.some((x) => x.id === e.id)) elementi.push(elementoDaModello(e, "nuovo"));
+  const quote = unisciPerId(fatto.quote, proposta?.quote).map(quotaDaModello);
+  const testi = unisciPerId(fatto.testi, proposta?.testi).map(testoDaModello);
+  return { ...piantaVuota(), muri, aperture, locali, elementi, quote, testi, ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
 }
+
+function unisciPerId<T extends { id: string }>(a: T[], b?: T[]): T[] {
+  const out = [...a];
+  for (const x of b ?? []) if (!out.some((y) => y.id === x.id)) out.push(x);
+  return out;
+}
+
+function elementoDaModello(e: ElementoModello, stato: StatoLavori): ElementoLavoro {
+  return {
+    id: e.id,
+    tipo: e.tipo,
+    ...(e.etichetta ? { etichetta: e.etichetta } : {}),
+    centro: capovolgi(e.posizione),
+    rotazione: arrotonda2(0 - (e.rotazione ?? 0)),
+    larghezza: e.larghezza,
+    profondita: e.profondita,
+    ...(e.altezza != null ? { altezza: e.altezza } : {}),
+    stato,
+    origine: origineDi(e),
+  };
+}
+
+function elementoAModello(e: ElementoLavoro, stato: StatoLavori, prima?: ElementoModello): ElementoModello {
+  return {
+    ...(prima?.localeId !== undefined ? { localeId: prima.localeId } : {}),
+    id: e.id,
+    tipo: e.tipo,
+    ...(e.etichetta ? { etichetta: e.etichetta } : {}),
+    posizione: capovolgi(e.centro),
+    rotazione: arrotonda2(0 - e.rotazione),
+    larghezza: e.larghezza,
+    profondita: e.profondita,
+    ...(e.altezza != null ? { altezza: e.altezza } : {}),
+    ...(stato !== "esistente" || prima?.stato ? { stato } : {}),
+    ...origineVerso(e.origine, prima),
+  };
+}
+
+const quotaDaModello = (q: QuotaModello): QuotaLavoro => ({ id: q.id, p1: capovolgi(q.p1), p2: capovolgi(q.p2), scostamento: arrotonda2(0 - q.scostamento) });
+const quotaAModello = (q: QuotaLavoro): QuotaModello => ({ id: q.id, p1: capovolgi(q.p1), p2: capovolgi(q.p2), scostamento: arrotonda2(0 - q.scostamento) });
+const testoDaModello = (t: TestoModello): TestoLavoro => ({ id: t.id, posizione: capovolgi(t.posizione), testo: t.testo, rotazione: arrotonda2(0 - (t.rotazione ?? 0)) });
+const testoAModello = (t: TestoLavoro, prima?: TestoModello): TestoModello => ({
+  id: t.id, posizione: capovolgi(t.posizione), testo: t.testo,
+  ...(t.rotazione || prima?.rotazione !== undefined ? { rotazione: arrotonda2(0 - t.rotazione) } : {}),
+});
 
 function muroAModello(m: Muro, stato: StatoLavori, prima?: MuroModello): MuroModello {
   return {
@@ -430,13 +523,19 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
       .filter((a) => a.stato !== "nuovo" && muriOggi.some((m) => m.id === a.muroId))
       .map((a) => aperturaAModello(a, "esistente", trova(fattoBase.aperture, a.id))),
     locali: pianta.locali.filter((l) => l.stato !== "nuovo").map((l) => localeAModello(pianta, l, trova(fattoBase.locali, l.id))),
+    ...(pianta.elementi
+      ? { elementi: pianta.elementi.filter((e) => e.stato !== "nuovo").map((e) => elementoAModello(e, "esistente", trova(fattoBase.elementi, e.id))) }
+      : {}),
+    ...(pianta.quote ? { quote: pianta.quote.map(quotaAModello) } : {}),
+    ...(pianta.testi ? { testi: pianta.testi.map((t) => testoAModello(t, trova(fattoBase.testi, t.id))) } : {}),
   };
 
   const serveProposta =
     !!propostaBase ||
     pianta.muri.some((m) => m.stato !== "esistente") ||
     pianta.aperture.some((a) => a.stato !== "esistente") ||
-    pianta.locali.some((l) => l.stato === "nuovo");
+    pianta.locali.some((l) => l.stato === "nuovo") ||
+    (pianta.elementi ?? []).some((e) => e.stato !== "esistente");
   let proposte = livelloBase.proposte;
   if (serveProposta) {
     const muri = pianta.muri.map((m) => muroAModello(m, m.stato, trova(propostaBase?.muri, m.id) ?? trova(fattoBase.muri, m.id)));
@@ -449,6 +548,15 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
         .filter((a) => pianta.muri.some((m) => m.id === a.muroId))
         .map((a) => aperturaAModello(a, a.stato, trova(propostaBase?.aperture, a.id) ?? trova(fattoBase.aperture, a.id))),
       locali: localiDelProgetto(pianta, muri, propostaBase),
+      ...(pianta.elementi
+        ? {
+            elementi: pianta.elementi
+              .filter((e) => e.stato !== "da_demolire")
+              .map((e) => elementoAModello(e, e.stato === "nuovo" ? "nuovo" : "esistente", trova(propostaBase?.elementi, e.id) ?? trova(fattoBase.elementi, e.id))),
+          }
+        : {}),
+      ...(pianta.quote ? { quote: pianta.quote.map(quotaAModello) } : {}),
+      ...(pianta.testi ? { testi: pianta.testi.map((t) => testoAModello(t, trova(propostaBase?.testi, t.id))) } : {}),
     };
     proposte = propostaBase ? proposte.map((p) => (p.id === ID_PROPOSTA ? proposta : p)) : [proposta, ...proposte];
   }

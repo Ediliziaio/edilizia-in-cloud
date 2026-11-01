@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Box, ImageIcon, PenLine, Wand2 } from "lucide-react";
+import { Box, Download, ImageIcon, PenLine, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
 import { Vista3DPigra } from "@/components/planimetrie/Vista3DPigra";
+import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialog";
+import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -34,6 +36,7 @@ export default function RenderPlanimetriaScheda() {
   const [livelloId, setLivelloId] = useState<string | null>(null);
   const [ambito, setAmbito] = useState("fatto");
   const [mostra3D, setMostra3D] = useState(false);
+  const [esporta, setEsporta] = useState(false);
 
   const livello = documento?.livelli.find((l) => l.id === livelloId) ?? documento?.livelli[0];
   const ambiti = useMemo(() => (documento ? ambitiDi(documento) : []), [documento]);
@@ -91,6 +94,10 @@ export default function RenderPlanimetriaScheda() {
               <Box className="mr-1.5 h-4 w-4" />
               {mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setEsporta(true)}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Esporta
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link to={percorsiPlanimetrie.modifica(id)}>
                 <PenLine className="mr-1.5 h-4 w-4" />
@@ -126,6 +133,17 @@ export default function RenderPlanimetriaScheda() {
           )}
         </div>
       )}
+
+      <EsportaPiantaDialog
+        aperto={esporta}
+        onChiudi={() => setEsporta(false)}
+        documento={documento}
+        titolo={data.riga.titolo}
+        versione={data.versione.numero}
+        livelloId={livello.id}
+        propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined}
+        haProgetto={livello.proposte.length > 0}
+      />
 
       {mostra3D && piante3D && <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} />}
 
@@ -170,6 +188,8 @@ export default function RenderPlanimetriaScheda() {
           </div>
         )}
       </section>
+
+      <AbachiPianta documento={documento} livelloId={livello.id} ambito={ambito} titolo={data.riga.titolo} />
 
       {completati.length > 0 && (
         <section className="space-y-3">

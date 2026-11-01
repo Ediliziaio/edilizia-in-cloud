@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, DoorOpen, Maximize2, Minus, MousePointer2, PenLine, Plus, Redo2, Square, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,10 +34,12 @@ import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
 import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
+import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
+import { SimboloArredo } from "./SimboloArredo";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
 
-export type Strumento = "seleziona" | "stanza" | "parete" | "porta" | "finestra";
+export type Strumento = "seleziona" | "stanza" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
 
 interface Props {
   /** Il documento della fase 1 (`shared/planimetrie/modello.ts`); senza, una pianta vuota. */
@@ -56,7 +58,10 @@ type Gesto =
   | { tipo: "sposta-muro"; id: string; da: Punto; base: Pianta; normale: Punto }
   | { tipo: "maniglia"; id: string; da: Punto; altro: Punto; base: Pianta }
   | { tipo: "sposta-apertura"; id: string; base: Pianta; da: Punto; mosso: boolean; eraSelezionata: boolean }
-  | { tipo: "apertura-nuova"; quale: TipoApertura; da: Punto; mosso: boolean };
+  | { tipo: "apertura-nuova"; quale: TipoApertura; da: Punto; mosso: boolean }
+  | { tipo: "sposta-elemento"; id: string; da: Punto; centro: Punto; base: Pianta; mosso: boolean }
+  | { tipo: "sposta-testo"; id: string; da: Punto; posizione: Punto; base: Pianta; mosso: boolean }
+  | { tipo: "sposta-quota"; id: string; da: Punto; base: Pianta; normale: Punto; scostamento: number; mosso: boolean };
 
 interface Bersaglio {
   tipo: string;
@@ -80,6 +85,9 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   parete: "Clic per l'inizio, clic per la fine: la parete va dritta da sola. Puoi anche scrivere la lunghezza e premere Invio. Esc per finire.",
   porta: "Trascina la porta su una parete (o clicca sulla parete). Poi un clic sulla porta selezionata ne gira il verso.",
   finestra: "Trascina la finestra su una parete (o clicca sulla parete).",
+  arredo: "Clic sul foglio per posare l'arredo scelto. Poi trascinalo per spostarlo; R lo ruota di 90°.",
+  quota: "Clic sul primo punto, clic sul secondo: la quota misura da sola. Si agganciano angoli e pareti.",
+  testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
 };
 
 export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className }: Props) {
@@ -103,6 +111,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [inizioParete, setInizioParete] = useState<Punto | null>(null);
   const [misura, setMisura] = useState<MisuraInModifica | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
+  // Arredo scelto dal catalogo, da posare col prossimo clic; primo punto della quota in corso.
+  const [arredoScelto, setArredoScelto] = useState<VoceCatalogo | null>(null);
+  const [inizioQuota, setInizioQuota] = useState<Punto | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const contenitoreRef = useRef<HTMLDivElement>(null);
@@ -119,8 +130,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   );
 
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
-  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati };
+  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota });
+  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota };
 
   useEffect(() => {
     if (anteprima) return;
@@ -142,6 +153,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const setStrumento = useCallback((s: Strumento) => {
     setStrumentoStato(s);
     setInizioParete(null);
+    setInizioQuota(null);
     setSovrapposizioni({});
     setMisura(null);
     if (s !== "seleziona") setSelezione(null);
@@ -347,6 +359,40 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       mettiApertura(str, p);
       return;
     }
+    if (str === "arredo") {
+      const voce = stato.current.arredoScelto;
+      if (!voce) return;
+      const r = C.aggiungiElemento(stato.current.storia.presente, voce, p, { stato: C.statoNuovo(v) });
+      applica(r.pianta);
+      setSovrapposizioni({});
+      setStrumento("seleziona");
+      setSelezione({ tipo: "elemento", id: r.id });
+      return;
+    }
+    if (str === "quota") {
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: stato.current.inizioQuota ?? undefined });
+      const inizio = stato.current.inizioQuota;
+      if (!inizio) {
+        setInizioQuota(a.punto);
+        setSovrapposizioni({ quotaInCorso: { a: a.punto, b: a.punto }, aggancio: a });
+        return;
+      }
+      if (dist(inizio, a.punto) < 5) return;
+      const r = C.aggiungiQuota(stato.current.storia.presente, inizio, a.punto, 40);
+      applica(r.pianta);
+      setInizioQuota(null);
+      setSovrapposizioni({});
+      setStrumento("seleziona");
+      setSelezione({ tipo: "quota", id: r.id });
+      return;
+    }
+    if (str === "testo") {
+      const r = C.aggiungiTesto(stato.current.storia.presente, p);
+      applica(r.pianta);
+      setStrumento("seleziona");
+      setSelezione({ tipo: "testo", id: r.id });
+      return;
+    }
 
     // seleziona
     if (!b || b.tipo === "sfondo") {
@@ -380,6 +426,29 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSelezione({ tipo: "apertura", id: a.id });
       if (!C.modificabile(a.stato, v)) return;
       gesto.current = { tipo: "sposta-apertura", id: a.id, base: stato.current.storia.presente, da: s, mosso: false, eraSelezionata };
+      return;
+    }
+    if (b.tipo === "elemento" && b.id) {
+      const el = (pi.elementi ?? []).find((x) => x.id === b.id);
+      if (!el) return;
+      setSelezione({ tipo: "elemento", id: el.id });
+      if (!C.modificabile(el.stato, v)) return;
+      gesto.current = { tipo: "sposta-elemento", id: el.id, da: p, centro: el.centro, base: stato.current.storia.presente, mosso: false };
+      return;
+    }
+    if (b.tipo === "testo" && b.id) {
+      const t = (pi.testi ?? []).find((x) => x.id === b.id);
+      if (!t) return;
+      setSelezione({ tipo: "testo", id: t.id });
+      gesto.current = { tipo: "sposta-testo", id: t.id, da: p, posizione: t.posizione, base: stato.current.storia.presente, mosso: false };
+      return;
+    }
+    if (b.tipo === "quota" && b.id) {
+      const q = (pi.quote ?? []).find((x) => x.id === b.id);
+      if (!q) return;
+      setSelezione({ tipo: "quota", id: q.id });
+      const l = dist(q.p1, q.p2) || 1;
+      gesto.current = { tipo: "sposta-quota", id: q.id, da: p, base: stato.current.storia.presente, normale: { x: -(q.p2.y - q.p1.y) / l, y: (q.p2.x - q.p1.x) / l }, scostamento: q.scostamento, mosso: false };
       return;
     }
     if (b.tipo === "locale" && b.id) {
@@ -450,6 +519,26 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setAnteprima(C.spostaAngolo(g.base, g.da, a.punto));
       return;
     }
+    if (g?.tipo === "sposta-elemento") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      const centro = { x: Math.round((g.centro.x + p.x - g.da.x) / 5) * 5, y: Math.round((g.centro.y + p.y - g.da.y) / 5) * 5 };
+      setAnteprima(C.modificaElemento(g.base, g.id, { centro }));
+      return;
+    }
+    if (g?.tipo === "sposta-testo") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      setAnteprima(C.modificaTesto(g.base, g.id, { posizione: { x: Math.round(g.posizione.x + p.x - g.da.x), y: Math.round(g.posizione.y + p.y - g.da.y) } }));
+      return;
+    }
+    if (g?.tipo === "sposta-quota") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      const d = (p.x - g.da.x) * g.normale.x + (p.y - g.da.y) * g.normale.y;
+      setAnteprima(C.modificaQuota(g.base, g.id, { scostamento: Math.round((g.scostamento + d) / 5) * 5 }));
+      return;
+    }
     if (g?.tipo === "sposta-apertura") {
       if (!g.mosso && dist(s, g.da) < 5) return;
       g.mosso = true;
@@ -466,6 +555,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni(inizio ? { pareteInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "stanza") {
       setSovrapposizioni({ aggancio: aggancia(pi, p, { tolleranza: tolleranza() }) });
+    } else if (str === "arredo" && stato.current.arredoScelto) {
+      const v0 = stato.current.arredoScelto;
+      setSovrapposizioni({ arredoFantasma: { tipo: v0.tipo, centro: p, larghezza: v0.larghezza, profondita: v0.profondita } });
+    } else if (str === "quota") {
+      const inizio = stato.current.inizioQuota;
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: inizio ?? undefined });
+      setSovrapposizioni(inizio ? { quotaInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "porta" || str === "finestra") {
       const v = stato.current.vista;
       const vicino = muroPiuVicino(pi, p, tolleranza() * 1.5, (m) => C.visibile(m.stato, v) && m.stato !== "da_demolire");
@@ -492,7 +588,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       if (!g.mosso && sola && g.bersaglio) {
         const b = g.bersaglio;
         if (b.tipo === "lato" || b.tipo === "quota-muro") apriMisura(b);
-        else if ((b.tipo === "muro" || b.tipo === "locale" || b.tipo === "apertura") && b.id) setSelezione({ tipo: b.tipo, id: b.id });
+        else if ((b.tipo === "muro" || b.tipo === "locale" || b.tipo === "apertura" || b.tipo === "elemento" || b.tipo === "quota" || b.tipo === "testo") && b.id) setSelezione({ tipo: b.tipo, id: b.id });
         else setSelezione(null);
       }
       return;
@@ -509,6 +605,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setStrumento("seleziona");
       setSelezione({ tipo: "locale", id: r.id });
       setStanzaNuova(r.id);
+      return;
+    }
+    if (g.tipo === "sposta-elemento" || g.tipo === "sposta-testo" || g.tipo === "sposta-quota") {
+      if (g.mosso && anteprimaRef.current) applica(anteprimaRef.current);
+      else setAnteprima(null);
       return;
     }
     if (g.tipo === "sposta-muro" || g.tipo === "maniglia") {
@@ -581,11 +682,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       const { vista: v } = stato.current;
       const base = stato.current.storia.presente;
       const nuova =
-        sel.tipo === "muro" ? C.eliminaMuro(base, sel.id, v) : sel.tipo === "apertura" ? C.eliminaApertura(base, sel.id, v) : C.eliminaLocale(base, sel.id, v);
+        sel.tipo === "muro" ? C.eliminaMuro(base, sel.id, v)
+          : sel.tipo === "apertura" ? C.eliminaApertura(base, sel.id, v)
+          : sel.tipo === "elemento" ? C.eliminaElemento(base, sel.id, v)
+          : sel.tipo === "quota" ? C.eliminaQuota(base, sel.id)
+          : sel.tipo === "testo" ? C.eliminaTesto(base, sel.id)
+          : C.eliminaLocale(base, sel.id, v);
       applica(nuova);
-      if (!nuova.muri.some((m) => m.id === sel.id) && !nuova.aperture.some((a) => a.id === sel.id) && !nuova.locali.some((l) => l.id === sel.id)) {
-        setSelezione(null);
-      }
+      const ancora = [...nuova.muri, ...nuova.aperture, ...nuova.locali, ...(nuova.elementi ?? []), ...(nuova.quote ?? []), ...(nuova.testi ?? [])].some((x) => x.id === sel.id);
+      if (!ancora) setSelezione(null);
     },
     [applica],
   );
@@ -623,6 +728,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         setStoria(ripeti);
+      } else if (!mod && (e.key === "r" || e.key === "R") && stato.current.selezione?.tipo === "elemento") {
+        e.preventDefault();
+        const sel = stato.current.selezione;
+        const el = (stato.current.storia.presente.elementi ?? []).find((x) => x.id === sel.id);
+        if (el && C.modificabile(el.stato, stato.current.vista)) applica(C.ruotaElemento(stato.current.storia.presente, sel.id, e.shiftKey ? -90 : 90));
+      } else if (mod && e.key.toLowerCase() === "d" && stato.current.selezione?.tipo === "elemento") {
+        e.preventDefault();
+        const r = C.duplicaElemento(stato.current.storia.presente, stato.current.selezione.id, stato.current.vista);
+        applica(r.pianta);
+        if (r.id) setSelezione({ tipo: "elemento", id: r.id });
+      } else if (e.key === "Escape" && stato.current.inizioQuota) {
+        setInizioQuota(null);
+        setSovrapposizioni({});
       } else if (e.key === "Escape") {
         if (stato.current.inizioParete) {
           setInizioParete(null);
@@ -653,7 +771,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       window.removeEventListener("keydown", tasto);
       window.removeEventListener("keyup", tasto);
     };
-  }, [sola, elimina, setStrumento, pareteScritta]);
+  }, [sola, elimina, setStrumento, pareteScritta, applica]);
 
   // la selezione sparisce se non si vede più (annulla, cambio di vista)
   useEffect(() => {
@@ -663,7 +781,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         ? pianta.muri.find((m) => m.id === selezione.id)
         : selezione.tipo === "apertura"
           ? pianta.aperture.find((a) => a.id === selezione.id)
-          : dati.locali.find((l) => l.id === selezione.id);
+          : selezione.tipo === "elemento"
+            ? (pianta.elementi ?? []).find((x) => x.id === selezione.id)
+            : selezione.tipo === "quota"
+              ? (pianta.quote ?? []).find((x) => x.id === selezione.id)
+              : selezione.tipo === "testo"
+                ? (pianta.testi ?? []).find((x) => x.id === selezione.id)
+                : dati.locali.find((l) => l.id === selezione.id);
     if (!esiste || ("stato" in esiste && !C.visibile(esiste.stato, vista))) setSelezione(null);
   }, [pianta, dati, selezione, vista]);
 
@@ -709,10 +833,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             }
           }
           applica(nuova);
-        } else applica(C.confermaMisura(p(), sel.tipo, sel.id));
+        } else if (sel.tipo === "muro" || sel.tipo === "apertura") applica(C.confermaMisura(p(), sel.tipo, sel.id));
       },
       confermaTutte: () => applica(C.confermaTutte(p())),
       seleziona: setSelezione,
+      modificaElemento: (id, campi) => applica(C.modificaElemento(p(), id, campi)),
+      ruotaElemento: (id, gradi) => applica(C.ruotaElemento(p(), id, gradi)),
+      duplicaElemento: (id) => {
+        const r = C.duplicaElemento(p(), id, stato.current.vista);
+        applica(r.pianta);
+        if (r.id) setSelezione({ tipo: "elemento", id: r.id });
+      },
+      modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
+      modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
     };
   }, [applica, elimina]);
 
@@ -731,7 +864,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   const vuota = storia.presente.muri.length === 0 && storia.presente.locali.length === 0;
   const cursore =
-    strumento === "stanza" || strumento === "parete" ? "crosshair" : strumento === "porta" || strumento === "finestra" ? "copy" : "default";
+    strumento === "stanza" || strumento === "parete" || strumento === "quota" ? "crosshair"
+      : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
+      : strumento === "testo" ? "text" : "default";
 
   // ─── interfaccia ──────────────────────────────────────────────────────────
   const barraVista = (
@@ -813,6 +948,16 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               etichetta="Finestra"
               titolo="Trascinala su una parete"
             />
+            <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+            <CatalogoArredi
+              attivo={strumento === "arredo"}
+              onScegli={(voce) => {
+                setStrumento("arredo");
+                setArredoScelto(voce);
+              }}
+            />
+            <BottoneStrumento attivo={strumento === "quota"} onClick={() => setStrumento("quota")} icona={<MoveHorizontal />} etichetta="Quota" titolo="Misura fra due punti" />
+            <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
           </div>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -915,6 +1060,51 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{SUGGERIMENTI[strumento]}</div>}
     </div>
+  );
+}
+
+function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce: VoceCatalogo) => void }) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={attivo ? "default" : "outline"} aria-pressed={attivo}>
+          <Armchair />
+          Arredi
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[22rem] p-2" align="start">
+        <p className="px-1 pb-1 text-xs text-muted-foreground">Scegli e poi clicca sul foglio per posarlo.</p>
+        <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+          {GRUPPI_CATALOGO.map((g) => (
+            <div key={g}>
+              <p className="px-1 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g}</p>
+              <div className="grid grid-cols-3 gap-1">
+                {CATALOGO.filter((v) => v.gruppo === g).map((v) => {
+                  const lato = Math.max(v.larghezza, v.profondita);
+                  return (
+                    <button
+                      key={v.tipo}
+                      type="button"
+                      className="flex flex-col items-center gap-1 rounded-md border p-1.5 text-[11px] hover:border-primary hover:bg-primary/5"
+                      onClick={() => {
+                        onScegli(v);
+                        setAperto(false);
+                      }}
+                    >
+                      <svg viewBox={`${-lato / 2 - 4} ${-lato / 2 - 4} ${lato + 8} ${lato + 8}`} className="h-10 w-10" aria-hidden="true">
+                        <SimboloArredo tipo={v.tipo} larghezza={v.larghezza} profondita={v.profondita} colore="#334155" spessore={lato / 40} />
+                      </svg>
+                      <span className="leading-tight">{v.nome}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

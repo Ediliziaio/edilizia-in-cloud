@@ -13,12 +13,15 @@ import {
   quantitaLocale,
   type Apertura,
   type Destinazione,
+  type ElementoLavoro,
   type Locale,
   type Muro,
   type Origine,
   type Pianta,
   type Punto,
+  type QuotaLavoro,
   type StatoElemento,
+  type TestoLavoro,
   type TipoApertura,
 } from "./adattatore";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
@@ -555,4 +558,89 @@ export function rinominaStanza(
   const diLavoro = pianta.locali.find((l) => l.id === id);
   if (diLavoro && (vista === "fatto" || diLavoro.stato === "nuovo")) return modificaLocale(pianta, id, campi);
   return { ...pianta, nomiProgetto: { ...pianta.nomiProgetto, [id]: { ...attuale, ...campi } } };
+}
+
+// ─── Arredi, sanitari, quote e testi (fase 3 del piano di completamento) ──────
+
+/** Come per le pareti: nel progetto un arredo di oggi non si sposta, si toglie (e se ne mette uno nuovo). */
+export function aggiungiElemento(
+  pianta: Pianta,
+  voce: { tipo: string; larghezza: number; profondita: number; altezza?: number; etichetta?: string },
+  centro: Punto,
+  o: { stato?: StatoElemento; rotazione?: number } = {},
+): { pianta: Pianta; id: string } {
+  const id = nuovoId("arredo");
+  const elemento: ElementoLavoro = {
+    id,
+    tipo: voce.tipo,
+    ...(voce.etichetta ? { etichetta: voce.etichetta } : {}),
+    centro: { x: Math.round(centro.x), y: Math.round(centro.y) },
+    rotazione: o.rotazione ?? 0,
+    larghezza: voce.larghezza,
+    profondita: voce.profondita,
+    ...(voce.altezza ? { altezza: voce.altezza } : {}),
+    stato: o.stato ?? "esistente",
+    origine: "rilevata",
+  };
+  return { pianta: { ...pianta, elementi: [...(pianta.elementi ?? []), elemento] }, id };
+}
+
+export function modificaElemento(
+  pianta: Pianta,
+  id: string,
+  campi: Partial<Pick<ElementoLavoro, "centro" | "rotazione" | "larghezza" | "profondita" | "altezza" | "etichetta" | "tipo">>,
+): Pianta {
+  const norm = { ...campi };
+  if (norm.rotazione != null) norm.rotazione = ((Math.round(norm.rotazione) % 360) + 360) % 360;
+  return { ...pianta, elementi: (pianta.elementi ?? []).map((e) => (e.id === id ? { ...e, ...norm, origine: "rilevata" } : e)) };
+}
+
+export function ruotaElemento(pianta: Pianta, id: string, gradi: number): Pianta {
+  const e = (pianta.elementi ?? []).find((x) => x.id === id);
+  return e ? modificaElemento(pianta, id, { rotazione: e.rotazione + gradi }) : pianta;
+}
+
+/** Copia accanto all'originale (40 cm più in là), con lo stato della vista. */
+export function duplicaElemento(pianta: Pianta, id: string, vista: Vista): { pianta: Pianta; id: string | null } {
+  const e = (pianta.elementi ?? []).find((x) => x.id === id);
+  if (!e) return { pianta, id: null };
+  return aggiungiElemento(pianta, e, { x: e.centro.x + 40, y: e.centro.y + 40 }, { stato: statoNuovo(vista), rotazione: e.rotazione });
+}
+
+/** Nel progetto un arredo di oggi si «toglie» (resta in giallo) e un secondo clic lo rimette. */
+export function eliminaElemento(pianta: Pianta, id: string, vista: Vista = "fatto"): Pianta {
+  const e = (pianta.elementi ?? []).find((x) => x.id === id);
+  if (!e) return pianta;
+  if (vista === "progetto" && e.stato !== "nuovo") {
+    const stato: StatoElemento = e.stato === "da_demolire" ? "esistente" : "da_demolire";
+    return { ...pianta, elementi: (pianta.elementi ?? []).map((x) => (x.id === id ? { ...x, stato } : x)) };
+  }
+  return { ...pianta, elementi: (pianta.elementi ?? []).filter((x) => x.id !== id) };
+}
+
+export function aggiungiQuota(pianta: Pianta, p1: Punto, p2: Punto, scostamento = 40): { pianta: Pianta; id: string } {
+  const id = nuovoId("quota");
+  const arr = (p: Punto) => ({ x: Math.round(p.x), y: Math.round(p.y) });
+  return { pianta: { ...pianta, quote: [...(pianta.quote ?? []), { id, p1: arr(p1), p2: arr(p2), scostamento }] }, id };
+}
+
+export function modificaQuota(pianta: Pianta, id: string, campi: Partial<Pick<QuotaLavoro, "p1" | "p2" | "scostamento">>): Pianta {
+  return { ...pianta, quote: (pianta.quote ?? []).map((q) => (q.id === id ? { ...q, ...campi } : q)) };
+}
+
+export function eliminaQuota(pianta: Pianta, id: string): Pianta {
+  return { ...pianta, quote: (pianta.quote ?? []).filter((q) => q.id !== id) };
+}
+
+export function aggiungiTesto(pianta: Pianta, posizione: Punto, testo = "Testo"): { pianta: Pianta; id: string } {
+  const id = nuovoId("testo");
+  return { pianta: { ...pianta, testi: [...(pianta.testi ?? []), { id, posizione: { x: Math.round(posizione.x), y: Math.round(posizione.y) }, testo, rotazione: 0 }] }, id };
+}
+
+export function modificaTesto(pianta: Pianta, id: string, campi: Partial<Pick<TestoLavoro, "posizione" | "testo" | "rotazione">>): Pianta {
+  return { ...pianta, testi: (pianta.testi ?? []).map((t) => (t.id === id ? { ...t, ...campi } : t)) };
+}
+
+export function eliminaTesto(pianta: Pianta, id: string): Pianta {
+  return { ...pianta, testi: (pianta.testi ?? []).filter((t) => t.id !== id) };
 }
