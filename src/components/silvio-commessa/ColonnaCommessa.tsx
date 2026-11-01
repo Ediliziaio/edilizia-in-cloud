@@ -619,7 +619,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto }: {
         })}
         {d.nonDisponibili.map((n) => (
           <li key={`n-${n.chiave}-${n.indice}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-            <p className="min-w-0 flex-1 text-red-800 max-sm:basis-full">
+            <p className="min-w-0 flex-1 text-red-800 basis-full">
               <span aria-hidden>⚠ </span><strong>{n.nome}</strong>{n.avviso.startsWith(n.nome) ? n.avviso.slice(n.nome.length) : `: ${n.avviso}`}
             </p>
             {alternativePersona(piano, n, contesto).map((a) => (
