@@ -21,6 +21,7 @@ import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
 import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
 import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
+import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -202,6 +203,18 @@ export default function RenderPlanimetriaScheda() {
           piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined}
           nomeFile={data.riga.titolo}
           vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"}
+        />
+      )}
+
+      {livello.proposte.length > 0 && (
+        <PrimaEDopo
+          key={`${livello.id}:${ambito}`}
+          documento={documento}
+          titolo={data.riga.titolo}
+          planimetriaId={id}
+          versione={data.versione.numero}
+          livelloId={livello.id}
+          propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : livello.proposte[0].id}
         />
       )}
 
