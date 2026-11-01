@@ -6,7 +6,7 @@
  * Negli ultimi due la pianta la ricava l'AI (`planimetria-genera`, fase 3) e si apre
  * nell'editor con le misure stimate in evidenza; si salva solo dopo averla vista.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { FileUp, Loader2, PenLine, Ruler, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,9 @@ import {
   inBase64,
   leggiRispostaAI,
   misureImmagine,
+  paginaPdf,
   preparaImmagine,
+  type Rotazione,
   scalaDaConfermare,
   type EsitoAI,
   type IngressoAI,
@@ -71,9 +73,33 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
+  // Anteprima del foglio: si raddrizza (rotazione) e, nei PDF a più pagine, si sceglie la pagina.
+  const [rotazione, setRotazione] = useState<Rotazione>(0);
+  const [pagina, setPagina] = useState(1);
+  const [pagine, setPagine] = useState(1);
+  const [anteprima, setAnteprima] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    let url: string | null = null;
+    setAnteprima(null);
+    if (!file) return;
+    if (file.type === "application/pdf") {
+      paginaPdf(file, pagina)
+        .then((r) => { if (vivo) { setPagine(r.pagine); setAnteprima(r.canvas.toDataURL("image/jpeg", 0.7)); } })
+        .catch(() => { if (vivo) setPagine(1); });
+    } else {
+      url = URL.createObjectURL(file);
+      setAnteprima(url);
+    }
+    return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
+  }, [file, pagina]);
+
   const scegliFile = (f: File | null) => {
     setErrore(f ? fileNonValido(f) : null);
     setFile(f && !fileNonValido(f) ? f : null);
+    setRotazione(0);
+    setPagina(1);
+    setPagine(1);
   };
 
   const avvia = async () => {
@@ -84,8 +110,12 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
       richiesta.testo = testo.trim();
     } else {
       if (!file) return;
-      // Foto enormi e schermate CAD a sfondo nero: ridotte e portate a fondo bianco.
-      const pronta = await preparaImmagine(file);
+      // Foto enormi e schermate CAD a sfondo nero: ridotte e portate a fondo bianco; il foglio
+      // raddrizzato come l'ha girato l'utente. Un PDF a una pagina e dritto parte così com'è.
+      const pdf = file.type === "application/pdf";
+      const pronta = pdf
+        ? (pagine > 1 || rotazione !== 0 ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas)).catch((): null => null) : null)
+        : await preparaImmagine(file, rotazione);
       richiesta.mime = pronta?.mime ?? file.type;
       richiesta.file_base64 = await inBase64(pronta?.file ?? file);
       if (pronta) {
@@ -150,7 +180,26 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
               <div className="space-y-2">
                 <Label htmlFor="file-pianta">PDF o foto della pianta</Label>
                 <Input id="file-pianta" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => scegliFile(e.target.files?.[0] ?? null)} />
-                <p className="text-xs text-muted-foreground">Meglio una foto dritta e nitida, con le misure leggibili.</p>
+                <p className="text-xs text-muted-foreground">Va bene quasi tutto: catastale, disegno del tecnico, schermata di AutoCAD (anche a sfondo nero), foto del foglio, pianta arredata, condominio con più appartamenti, capannone, più piani sullo stesso foglio. Meglio se le misure si leggono.</p>
+                {file && anteprima && (
+                  <div className="space-y-2 rounded-md border bg-muted/30 p-2">
+                    <div className="flex h-56 items-center justify-center overflow-hidden rounded bg-white">
+                      <img src={anteprima} alt="Anteprima del foglio" className="max-h-52 max-w-full object-contain transition-transform" style={{ transform: `rotate(${rotazione}deg)` }} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Button type="button" size="sm" variant="outline" onClick={() => setRotazione((r) => ((r + 270) % 360) as Rotazione)}>Ruota ↺</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setRotazione((r) => ((r + 90) % 360) as Rotazione)}>Ruota ↻</Button>
+                      <span className="text-muted-foreground">Gira il foglio finché le scritte si leggono dritte.</span>
+                      {pagine > 1 && (
+                        <span className="ml-auto flex items-center gap-1">
+                          <Button type="button" size="sm" variant="ghost" disabled={pagina <= 1} onClick={() => setPagina((x) => x - 1)}>‹</Button>
+                          Pagina {pagina} di {pagine}
+                          <Button type="button" size="sm" variant="ghost" disabled={pagina >= pagine} onClick={() => setPagina((x) => x + 1)}>›</Button>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : (
