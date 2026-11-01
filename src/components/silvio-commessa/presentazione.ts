@@ -6,6 +6,7 @@
  * della barra in basso, la stima del costo di una lettura, la domanda di Silvio, il
  * «Controlla» e i rifiuti dell'annullamento in parole.
  */
+import { azioneDellaVariabile, livelloDi, ordineDaSolo, type Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import {
   AREE, type Area, type Conflitto, type CostoDelPiano, type FaseDelPiano, type PianoCommessa,
   type RataDelPiano, type Stato, type Valore, type CondizioniContratto, type Modifica,
@@ -188,6 +189,12 @@ export function testoValore(chiave: string, valore: unknown): string {
       return `${buoni.length} ${buoni.length === 1 ? cosa[0] : cosa[1]}${nomi ? `: ${nomi}` : ""}${soldi > 0 ? ` · ${euro(soldi)}` : ""}`
         + (ko ? ` · ⚠ ${ko} non ${ko === 1 ? "disponibile" : "disponibili"}` : "");
     }
+    case "fasi.avvisi_meteo": {
+      if (!Array.isArray(valore)) break;
+      const n = valore.length;
+      return `⚠ ${n} ${n === 1 ? "fase all'aperto" : "fasi all'aperto"} in mesi a rischio`;
+    }
+    case "sicurezza.adempimenti":
     case "sicurezza.pos_duvri": {
       if (!Array.isArray(valore)) break;
       const p = valore as Array<{ titolo?: string; scadenza?: string | null }>;
@@ -259,6 +266,8 @@ const ELENCHI_SCRITTI = new Set([
   // Fase 4.
   "persone.squadra", "ditte.assegnate", "ditte.contratti", "mezzi.allocazioni", "materiali.acquisti",
   "sicurezza.pos_duvri", "comunicazione.avvio_cliente",
+  // Fase 5.
+  "sicurezza.adempimenti",
 ]);
 
 /**
@@ -293,9 +302,26 @@ export function statoArea(righe: RigaArea[]): Stato | null {
   return "fatto";
 }
 
-/** Una proposta che entra solo se la persona la conferma (🟡 e 🔴). */
-export function daConfermare(r: RigaArea): boolean {
-  return r.stato === "proposta" && !!r.valore && (r.variabile.livello === "propone" || r.variabile.livello === "mai_da_solo");
+/**
+ * Una proposta che entra solo se la persona la conferma (🟡 e 🔴). Dalla fase 5 lo decide
+ * l'autonomia dell'azienda per le variabili delle sue azioni: «da sola» non chiede (gli ordini
+ * chiedono ancora se uno solo è senza prezzi o sopra la soglia).
+ */
+export function daConfermare(r: RigaArea, autonomia: Autonomia | null = null): boolean {
+  if (r.stato !== "proposta" || !r.valore) return false;
+  const azione = azioneDellaVariabile(r.variabile.chiave);
+  if (!azione) return r.variabile.livello === "propone" || r.variabile.livello === "mai_da_solo";
+  const livello = livelloDi(autonomia, azione.azione);
+  if (livello !== "da_sola") return livello === "chiede";
+  if (azione.azione !== "ordini") return false;
+  const oda = Array.isArray(r.valore.valore) ? (r.valore.valore as { righe?: Parameters<typeof ordineDaSolo>[1] }[]) : [];
+  return oda.some((o) => !ordineDaSolo(autonomia, o?.righe ?? []));
+}
+
+/** La proposta entra senza chiedere: l'azione è «da sola» nelle impostazioni. */
+export function fattoDaSolo(r: RigaArea, autonomia: Autonomia | null = null): boolean {
+  const azione = azioneDellaVariabile(r.variabile.chiave);
+  return r.stato === "proposta" && !!r.valore && !!azione && livelloDi(autonomia, azione.azione) === "da_sola" && !daConfermare(r, autonomia);
 }
 
 export interface ContiBarra {

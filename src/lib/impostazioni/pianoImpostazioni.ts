@@ -87,7 +87,7 @@ export const IMPOSTAZIONI_PER_TUTTI_I_PIANI = [
   // Integrazioni e canali (le parti legate al piano si filtrano dentro la pagina)
   "integrazioni", "api", "webhook", "dominio-email", "preferenze-email", "numeri-telefono", "telefonia",
   // AI
-  "ai-memoria", "ai-personas", "ai-automazioni", "ai-test-lab",
+  "ai-memoria", "ai-personas", "ai-automazioni", "ai-test-lab", "silvio-commesse",
   // Rimandi ad altre pagine, o pagine con la loro guardia del piano
   "catalogo", "listini-serramenti",
 ] as const;

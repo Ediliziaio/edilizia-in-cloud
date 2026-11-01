@@ -48,6 +48,8 @@ import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { dateDelleFasi } from "../../../shared/silvio-commessa/modelliLavoro.ts";
 import type { FaseDelPiano } from "../../../shared/silvio-commessa/piano.ts";
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
+import { IMPOSTAZIONI_PREDEFINITE, type ImpostazioniSilvio } from "@/lib/silvio-commessa/autonomia";
+import { calendarioAzienda, type CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
@@ -133,7 +135,9 @@ type Azione =
   | { tipo: "annulla" }
   | { tipo: "spegni"; chiavi: string[] }
   | { tipo: "messaggio"; testo: string; tono: Messaggio["tono"]; chiavi?: string[] }
-  | { tipo: "riprendi"; bozza: Bozza };
+  | { tipo: "riprendi"; bozza: Bozza }
+  /** Fase 5: il calendario dell'azienda per il cantiere; non è un cambiamento da salvare. */
+  | { tipo: "calendario"; calendario: CalendarioCantiere };
 
 let contatore = 0;
 const nuovoId = () => `f${Date.now().toString(36)}${(contatore++).toString(36)}`;
@@ -248,10 +252,14 @@ function riduttore(s: Stato, a: Azione): Stato {
       return { ...s, evidenziate: s.evidenziate.filter((k) => !a.chiavi.includes(k)) };
     case "messaggio":
       return { ...s, messaggi: messaggio(s, a.testo, a.tono, a.chiavi) };
+    case "calendario":
+      return { ...s, piano: { ...s.piano, calendario: a.calendario } };
     case "riprendi": {
       // Una bozza che completa una commessa si rilegge sopra la commessa di adesso:
       // quello che nel frattempo qualcuno ha scritto vince.
-      const piano = s.base.reduce((p, fr) => fondi(p, fr), a.bozza.piano);
+      const ripresa = s.base.reduce((p, fr) => fondi(p, fr), a.bozza.piano);
+      // Il calendario è quello di adesso, non quello salvato con la bozza.
+      const piano = s.piano.calendario ? { ...ripresa, calendario: s.piano.calendario } : ripresa;
       return {
         ...s,
         piano,
@@ -568,7 +576,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       const chiave = giaNellaCommessa(pianoOra, elenco) ? "fasi.date_fasi" : "fasi.order_work_phases";
       const fasi = pianoOra.aree.fasi?.[chiave]?.valore;
       if (Array.isArray(fasi) && (fasi as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
-        const datate = dateDelleFasi(fasi as FaseDelPiano[], m.valore);
+        const datate = dateDelleFasi(fasi as FaseDelPiano[], m.valore, pianoOra.calendario);
         modifiche.push({ tipo: "cambia_valore", area: "fasi", chiave, valore: datate });
         const fine = datate.map((f) => f.end_date).filter(Boolean).sort().pop();
         if (fine && !ultimo.current.piano.aree.fasi?.["fasi.work_end_date"]) {
@@ -691,16 +699,34 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       contestoChiesto.current = false; // Riprova al prossimo cambiamento delle fasi.
     });
   }, [ciSonoFasi, staffUtenti, servizi, companyId, orderId]);
+  // ── Fase 5: cosa fa Silvio da solo, e il calendario del cantiere ──
+  const [impostazioni, setImpostazioni] = useState<ImpostazioniSilvio>(IMPOSTAZIONI_PREDEFINITE);
+  useEffect(() => {
+    let vivo = true;
+    servizi.impostazioni?.(companyId).then((i) => { if (vivo) setImpostazioni(i); }, () => { /* resta il predefinito: tutto «chiede» */ });
+    return () => { vivo = false; };
+  }, [servizi, companyId]);
+  const indirizzoCantiere = (() => {
+    const v = s.piano.aree.cantiere?.["cantiere.indirizzo"]?.valore as { indirizzo_lavori?: string; work_address?: string } | string | undefined;
+    return typeof v === "string" ? v : v?.indirizzo_lavori ?? v?.work_address ?? null;
+  })();
+  useEffect(() => {
+    const cal = calendarioAzienda(impostazioni.calendario, indirizzoCantiere);
+    // Il patrono dipende dalla città del cantiere: si rimette solo se cambia davvero.
+    if (JSON.stringify(cal) !== JSON.stringify(ultimo.current.piano.calendario ?? null)) invia({ tipo: "calendario", calendario: cal });
+  }, [impostazioni.calendario, indirizzoCantiere]);
+  const autonomia = impostazioni.autonomia;
+
   // Le proposte si rifanno quando cambia quello da cui dipendono; se non cambia niente, niente.
   const primaVolta = useRef(true);
   useEffect(() => {
     if (!contesto) return;
-    const fr = proposteRisorse(s.piano, contesto);
+    const fr = proposteRisorse(s.piano, contesto, autonomia);
     if (!fr || !portaQualcosa(s.piano, fr)) return;
     const muto = !primaVolta.current;
     primaVolta.current = false;
     invia({ tipo: "frammenti", id: "silvio-risorse", frammenti: [fr], muto, ...(muto ? {} : { messaggio: riassuntoRisorse(fr) }) });
-  }, [s.piano, contesto]);
+  }, [s.piano, contesto, autonomia]);
 
   /**
    * L'offerta di una ditta, rimasta «da collegare»: si legge dentro la sua richiesta d'offerta e
@@ -732,13 +758,13 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     }
   }, [servizi, controllaCrediti]);
 
-  const scrittura = useMemo(() => scritturaDalPiano(s.piano), [s.piano]);
+  const scrittura = useMemo(() => scritturaDalPiano(s.piano, autonomia), [s.piano, autonomia]);
 
   return {
     piano: s.piano, storia: s.storia, fonti: s.fonti, caricate: s.caricate, evidenziate: s.evidenziate,
     messaggi: s.messaggi, scrittura, salvataggio, idBozza, daGuardare: s.daGuardare, scrivendo, costoChat,
     aggiungi, confermaLetture, riprova, togliFonte, modifica, indietro, riprendi, crea, riallega,
-    scrivi, visto, fonteDelPopup, controllaCrediti, collegaOfferta, contesto,
+    scrivi, visto, fonteDelPopup, controllaCrediti, collegaOfferta, contesto, autonomia,
   };
 }
 

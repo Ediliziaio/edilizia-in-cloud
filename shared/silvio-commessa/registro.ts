@@ -146,6 +146,9 @@ export const REGISTRO: readonly Variabile[] = [
     fonti: ["contratto", "preventivo", "modello", "stima"], livello: "propone", controllo: presente("work_end_date"), peso: 1 },
   { area: "fasi", chiave: "fasi.expected_date", etichetta: "Consegna prevista", colonne: ["expected_date"],
     fonti: ["contratto", "preventivo", "modello", "stima"], livello: "propone", controllo: presente("expected_date"), peso: 1 },
+  // Fase 5: l'avviso stagionale per le fasi all'aperto. Si mostra, non si scrive.
+  { area: "fasi", chiave: "fasi.avvisi_meteo", etichetta: "Avvisi meteo", colonne: [], tabelle: ["order_work_phases"],
+    fonti: ["modello"], livello: "da_solo", controllo: righe("order_work_phases"), peso: 0 },
 
   // ── 7. Persone ──────────────────────────────────────────────────────────────
   { area: "persone", chiave: "persone.assigned_to", etichetta: "Responsabile", colonne: ["assigned_to"],

@@ -294,6 +294,12 @@ verify_jwt = false
 [functions.attese-operatore-sollecito]
 verify_jwt = false
 
+# silvio-piano-volo (fase 5 di «Crea con Silvio»): il cron del mattino col solo
+# x-cron-secret, controllato nel codice con cronSecretValido. Il job si accende
+# dopo il deploy: supabase/migrations-pending/20281106142500_silvio_piano_volo_cron.sql.
+[functions.silvio-piano-volo]
+verify_jwt = false
+
 # whatsapp-canale-controllo: stesso motivo. Il segreto lo controlla la funzione
 # con cronSecretValido.
 [functions.whatsapp-canale-controllo]

@@ -28,6 +28,7 @@
  */
 import type { FaseDelPiano, Frammento } from "./piano.ts";
 import { spostaGiorniLavorativi } from "./fondi.ts";
+import { CALENDARIO_NAZIONALE, primoGiornoUtile, type CalendarioCantiere } from "./calendario.ts";
 
 export const TIPI_LAVORO = [
   "bagno", "tetto", "fotovoltaico", "serramenti", "elettrico", "termoidraulica",
@@ -159,23 +160,23 @@ export function fasiDelModello(tipo: TipoLavoro, misura?: number | null): FaseDe
   });
 }
 
-/** Il primo giorno lavorativo da `data` (AAAA-MM-GG) in poi. */
-export function primoLavorativo(data: string): string {
-  // Un giorno lavorativo indietro e uno avanti: lo stesso giorno, o il lunedì dopo un fine settimana.
-  return spostaGiorniLavorativi(spostaGiorniLavorativi(data, -1), 1);
+/** Il primo giorno lavorativo da `data` (AAAA-MM-GG) in poi: dalla fase 5 salta anche le feste. */
+export function primoLavorativo(data: string, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): string {
+  return primoGiornoUtile(data, cal);
 }
 
 /**
  * Le date di ogni fase con i lavori che partono il giorno `inizio` (AAAA-MM-GG), saltando
- * sabati e domeniche. Le fasi senza giorno d'inizio o durata restano come sono.
+ * sabati, domeniche e feste (fase 5: col calendario dell'azienda, anche patrono e chiusure).
+ * Le fasi senza giorno d'inizio o durata restano come sono.
  */
-export function dateDelleFasi(fasi: readonly FaseDelPiano[], inizio: string): FaseDelPiano[] {
+export function dateDelleFasi(fasi: readonly FaseDelPiano[], inizio: string, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): FaseDelPiano[] {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(inizio)) return fasi.map((x) => ({ ...x }));
-  const giorno1 = primoLavorativo(inizio);
+  const giorno1 = primoLavorativo(inizio, cal);
   return fasi.map((x) => {
     if (!x.giorno_inizio || !x.giorni) return { ...x };
-    const start = spostaGiorniLavorativi(giorno1, x.giorno_inizio - 1);
-    return { ...x, start_date: start, end_date: spostaGiorniLavorativi(start, x.giorni - 1) };
+    const start = spostaGiorniLavorativi(giorno1, x.giorno_inizio - 1, cal);
+    return { ...x, start_date: start, end_date: spostaGiorniLavorativi(start, x.giorni - 1, cal) };
   });
 }
 

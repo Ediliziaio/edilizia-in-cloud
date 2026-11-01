@@ -19,6 +19,7 @@ import {
 } from "./piano.ts";
 import { REGISTRO, variabile } from "./registro.ts";
 import { applica, giaNellaCommessa, modificaBloccata, spostaGiorniLavorativi } from "./fondi.ts";
+import type { CalendarioCantiere } from "./calendario.ts";
 
 export const NOMI_STRUMENTI_CHAT = ["cambia_valore", "sposta_date", "aggiungi_fase", "togli", "scegli_fonte", "spiega"] as const;
 export type NomeStrumentoChat = (typeof NOMI_STRUMENTI_CHAT)[number];
@@ -243,16 +244,16 @@ function giorniInParole(n: number): string {
 }
 
 /** La fase nuova: dopo la precedente se le date non le dice l'utente. */
-function faseNuova(fasi: FaseDelPiano[], dopo: number, a: Record<string, unknown>): FaseDelPiano {
+function faseNuova(fasi: FaseDelPiano[], dopo: number, a: Record<string, unknown>, cal?: CalendarioCantiere): FaseDelPiano {
   const fase: FaseDelPiano = { name: String(a.nome).trim().slice(0, 160) };
   const giorni = Number.isInteger(a.giorni) && (a.giorni as number) > 0 ? (a.giorni as number) : 1;
   const prima = fasi[dopo];
   if (typeof a.inizio === "string" && DATA.test(a.inizio)) {
     fase.start_date = a.inizio;
-    fase.end_date = typeof a.fine === "string" && DATA.test(a.fine) && a.fine >= a.inizio ? a.fine : spostaGiorniLavorativi(a.inizio, giorni - 1);
+    fase.end_date = typeof a.fine === "string" && DATA.test(a.fine) && a.fine >= a.inizio ? a.fine : spostaGiorniLavorativi(a.inizio, giorni - 1, cal);
   } else if (prima?.end_date) {
-    fase.start_date = spostaGiorniLavorativi(prima.end_date, 1);
-    fase.end_date = spostaGiorniLavorativi(fase.start_date, giorni - 1);
+    fase.start_date = spostaGiorniLavorativi(prima.end_date, 1, cal);
+    fase.end_date = spostaGiorniLavorativi(fase.start_date, giorni - 1, cal);
   } else if (prima?.giorno_inizio && prima.giorni) {
     fase.giorno_inizio = prima.giorno_inizio + prima.giorni;
     fase.giorni = giorni;
@@ -314,7 +315,7 @@ export function eseguiStrumento(
         ? fasi.findIndex((f) => norm(f.name) === norm(a.dopo_fase) || norm(f.name).includes(norm(a.dopo_fase)))
         : fasi.length - 1;
       if (typeof a.dopo_fase === "string" && a.dopo_fase.trim() && dopo < 0) return rifiuto(`Non trovo la fase «${a.dopo_fase}».`);
-      const nuova = faseNuova(fasi, dopo, a);
+      const nuova = faseNuova(fasi, dopo, a, piano.calendario);
       const lista = [...fasi.slice(0, dopo + 1), nuova, ...fasi.slice(dopo + 1)];
       const date = nuova.start_date ? ` dal ${nuova.start_date.split("-").reverse().join("/")}` : nuova.giorni ? `, ${nuova.giorni} ${nuova.giorni === 1 ? "giorno" : "giorni"}` : "";
       return conBlocco([{ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: lista }],

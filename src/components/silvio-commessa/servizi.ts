@@ -10,6 +10,9 @@
  *
  * Fase 4: i dati veri per le proposte di persone, ditte, mezzi e acquisti (`contestoRisorse`),
  * le richieste d'offerta aperte e la lettura di un'offerta dentro la sua richiesta.
+ *
+ * Fase 5: cosa fa Silvio da solo e il calendario dell'azienda (`impostazioni`). Facoltativo:
+ * senza, vale il predefinito (tutto «chiede», feste nazionali).
  */
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { ChiamataStrumento, ContestoChat } from "../../../shared/silvio-commessa/chat.ts";
@@ -24,6 +27,7 @@ import {
 import { registraCorrezioni, type Correzione } from "@/lib/silvio-commessa/correzioni";
 import type { ContestoRisorse, OffertaLetta, RichiestaOfferta } from "../../../shared/silvio-commessa/risorse.ts";
 import { elencaRichiesteOfferta, leggiContestoRisorse, quantitaRichiesta } from "@/lib/silvio-commessa/risorse";
+import { leggiImpostazioniSilvio, type ImpostazioniSilvio } from "@/lib/silvio-commessa/autonomia";
 import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +95,8 @@ export interface ServiziSilvioCommessa {
   richiesteOfferta(companyId: string): Promise<RichiestaOfferta[]>;
   /** Un'offerta letta dentro la sua richiesta (`rdo-ai-estrai-offerta`), con le quantità della richiesta. */
   leggiOfferta(rfqSupplierId: string, file: File): Promise<{ offerta: OffertaLetta; quantita: Record<string, number> }>;
+  /** Fase 5: autonomia e calendario dell'azienda. */
+  impostazioni?(companyId: string): Promise<ImpostazioniSilvio>;
   /** Il client delle bozze e delle RPC (`bozze.ts`). */
   db: ClientBozze;
 }
@@ -169,6 +175,7 @@ export const serviziVeri: ServiziSilvioCommessa = {
     ]);
     return { offerta: offerta ?? {}, quantita };
   },
+  impostazioni: (companyId) => leggiImpostazioniSilvio(companyId),
   // Le tabelle nuove non sono ancora nei tipi generati: si passa da un client senza tipi.
   db: supabase as unknown as ClientBozze,
 };

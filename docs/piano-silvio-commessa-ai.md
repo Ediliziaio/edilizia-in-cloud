@@ -659,6 +659,106 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 | **5.3** | Piano di volo: 3 giorni prima di ogni fase il controllo di persone, mezzi, materiali e DURC, con l'azione pronta; a fine fase la proposta del SAL | arriva il controllo con l'azione da confermare |
 | **5.4** | Scheda «Quanto lavora Silvio»: punteggio di completezza, correzioni, tempo risparmiato, costo AI | numeri veri dopo 2 settimane d'uso |
 
+**Lotti 5.1, 5.2, 5.3 e 5.4 fatti l'1/11/2026** (ramo `claude/scm-fase5-ea8686`, solo in locale; migrazioni **non applicate**, cron **non acceso**):
+- **5.1 Autonomia** (`shared/silvio-commessa/autonomia.ts`): 9 azioni con tre livelli, «Mai» (`vietata`), «Chiede», «Da solo».
+  Promuovibili a «Da solo»: squadra e capomastro, mezzi interni, ordini in bozza (solo coi prezzi e sotto una soglia in €),
+  promemoria e scadenze prima di partire. Fermi a «Chiede»: ditte (la ditta riceve l'avviso in app), contratti delle ditte,
+  messaggio d'avvio al cliente (decisione 3 ancora aperta), controllo prima della fase, proposta del SAL. Sempre della persona,
+  senza scelta: firma, fatture e SDI, pagamenti, importo del contratto, cancellazioni, fornitori nuovi (`SEMPRE_TU`).
+  Predefinito «Chiede» per tutti: una riga che manca vale «Chiede».
+  - Il livello sostituisce quello del registro per le variabili delle azioni: anche gli adempimenti (🟢 nel registro) aspettano il «Va bene».
+    «Da solo» entra senza «Va bene» e il popup lo dice («Silvio lo fa da solo: l'hai scelto in Impostazioni»); «Mai» non si propone e,
+    se arriva lo stesso, resta fuori dalla scrittura anche accettato.
+  - **Il controllo vero sta nel database**: `_silvio_bozza` (100000, modificata) passa la scrittura da `_silvio_scrittura_permessa`, che
+    toglie squadra (e `capomastro_user_id`), mezzi, ordini, ditte, contratti, promemoria e adempimenti delle azioni vietate, e lo scrive
+    in `tolte_autonomia`. Vale per «Crea», «Completa» e per chi chiama le RPC a mano. `silvio_autonomia_salva` rifiuta i livelli oltre il
+    massimo e le azioni fuori catalogo; la tabella ha un vincolo con lo stesso controllo, e nessun GRANT ai client.
+  - Pagina **Impostazioni → Silvio e le commesse** (`/azienda/impostazioni/silvio-commesse`, `SettingsSilvioCommesse`): una sezione sola,
+    una riga per azione col selettore a tre, la soglia degli ordini, la riga «Sempre tu», il calendario di cantiere. Si apre con «Vedi
+    impostazioni commesse», si cambia con «Modifica». Non è nel menu (dietro `silvio_crea_commessa`): ci si arriva dalla scheda
+    «Quanto lavora Silvio». Diversa da «Cosa fa Silvio da solo» (`ai-automazioni`), che governa le azioni della chat.
+- **5.2 Calendario vero** (`shared/silvio-commessa/calendario.ts`): domeniche, sabato (salvo che l'azienda lo lavori), feste nazionali con
+  Pasqua e Pasquetta calcolate, patrono (scritto in impostazioni, o dedotto dalla città del cantiere fra 36 capoluoghi: la città dopo il
+  CAP o dopo l'ultima virgola, mai «Via Roma»), chiusura estiva configurabile (anche a cavallo d'anno) e le festività di Personale
+  (`hr_festivita`). `spostaGiorniLavorativi` salta le feste nazionali anche senza calendario dell'azienda; il piano porta
+  `calendario` (lo rimette il popup a ogni apertura) e lo usano «sposta», `dateDelleFasi`, la chat e le scadenze dei promemoria.
+  I lettori a regole (preventivo, computo) datano ancora con le sole feste nazionali.
+  - **Meteo** (`partenza.ts`): regola stagionale, nessun servizio meteo. Coperture, facciate e cappotti, scavi, esterni nei mesi a rischio
+    (freddo nov–feb, pioggia in ott e mar, caldo per i tetti in lug–ago) → `fasi.avvisi_meteo` (variabile nuova del registro, peso 0,
+    si mostra e non si scrive). Il tetto di novembre ha l'avviso; il bagno no.
+  - **Adempimenti prima di partire** → `sicurezza.adempimenti` → `adempimenti_sicurezza` della commessa, con la scadenza in giorni
+    lavorativi prima dell'inizio: CILA o SCIA (lavori che toccano l'edificio; non serramenti, FV, impianti, pavimenti), cartello di
+    cantiere, notifica preliminare (art. 99 D.Lgs. 81/2008: con almeno una ditta, o oltre 200 uomini-giorno stimati con 2 persone per
+    fase se la squadra non c'è), suolo pubblico (ponteggi, cassoni, gru). Li scrive `_silvio_aggiungi_risorse` (130000, modificata);
+    l'annullamento li toglie (tabella con `order_id` e `created_at`).
+- **5.3 Piano di volo** (`shared/silvio-commessa/pianoVolo.ts`, funzione `silvio-piano-volo`):
+  - 1–3 giorni lavorativi prima di ogni fase, `controlloFase`: persone assegnate ancora libere (assenze, altre commesse) o nessuna
+    assegnata, mezzi prenotati liberi e in servizio, ordini della commessa partiti e in tempo (bozza, senza data, consegna dopo
+    l'inizio), DURC e documenti delle ditte per tutta la fase, meteo. Riusa `personaOccupata`, `mezzoOccupato`, `documentiDitta` della
+    fase 4 sullo stesso contesto: `leggiContestoRisorse` è passata in `shared/silvio-commessa/contestoRisorse.ts` (il browser la
+    chiama da `src/lib/silvio-commessa/risorse.ts`). Ogni problema ha, se c'è, l'azione pronta: assegnare chi è libero, prenotare
+    il mezzo usato di solito, un'attività («Manda l'ordine…», «Sollecita…», «Chiedi il DURC…»).
+  - Il giorno dopo la fine di una fase, `propostaSal`: solo se la commessa ha rate a SAL (`trigger_evento = 'sal_numero'`); importo
+    della rata di quel SAL, altrimenti l'avanzamento in giorni delle fasi per l'imponibile meno i SAL fatti.
+  - Le proposte vanno in **`silvio_piano_volo`** (tabella nuova, una riga per fase e tipo) e non in `ai_action_proposals`: quella la
+    leggono sette schermate e la esegue `silvio-execute-action`, che queste azioni non conosce. Si vedono sulla commessa
+    (`PianoDiVoloCommessa`, sotto la striscia di Silvio): le azioni spuntate, «Fai» → `silvio_volo_conferma` (con i permessi di chi
+    tocca, ricontrolla l'autonomia, ogni azione che non va è saltata col motivo), «Non serve» → `silvio_volo_scarta`. Il SAL nasce in
+    `sal` in bozza (`milestone_phase_end`, `auto_ai`): l'emissione resta alla persona. Una campanella (`notifications`, tipo
+    `silvio_piano_volo`, che non manda push) al responsabile e al capomastro. Nessuna email, WhatsApp o chiamata AI.
+  - «Da solo» nel piano di volo non esegue ancora niente: il giro gira senza utente, e scrivere con la chiave di servizio
+    salterebbe i permessi (`salva_piano_mezzo` vuole un utente). Arriva le proposte, sempre. Vedi la Fase 6.
+- **5.4 Quanto lavora Silvio**: scheda nelle Commesse (`?tab=silvio_lavora`, `QuantoLavoraSilvio`, dietro `silvio_crea_commessa`, per chi
+  modifica le commesse). RPC `silvio_quanto_lavora(azienda, dal, al, pagina, per_pagina)` (142000), ultimi 90 giorni: commesse create e
+  completate, punteggio di completezza di oggi di quelle commesse (`_silvio_punteggio`, l'espressione di `sqlPunteggio()`: un test la
+  confronta), proposte tenute così e corrette (`silvio_correzioni`, con le aree più corrette), voci scritte (registro
+  dell'annullamento), costo AI addebitato (`ai_call_ledger`, task `silvio_commessa_lettura` e `silvio_commessa_chat`), piano di volo per
+  stato, e l'elenco delle commesse a pagine (50 al massimo). Il tempo risparmiato è l'unica stima, con la regola accanto: 2 minuti a
+  voce (`MINUTI_PER_VOCE`). Senza dati: zero e «ancora nessun dato», la quota tenuta «—» e mai 100 %.
+- **Prova** (1/11, una transazione con `raise` finale, niente scritto): 090000 (tabella), le tabelle e `_silvio_bozza` della 100000,
+  130000, 140000, 141000, 142000, con l'md5 di ogni funzione uguale ai file. Titolare di Demo 2: legge 9 azioni tutte «chiede»;
+  salva squadra vietata, mezzi e ordini da soli (soglia 500), chiusura 10/08–23/08 e patrono 07/12; «ditte da sola» rifiutata, «firma»
+  rifiutata, insert diretto nella tabella rifiutato; dipendente senza «Modifica impostazioni commesse»: salvataggio rifiutato, lettura
+  sì. Una bozza con squadra, POS e due adempimenti su ORD-DEM-SR02: `_silvio_bozza` toglie la squadra (`tolte_autonomia: [squadra]`),
+  `_silvio_aggiungi_risorse` scrive 0 persone, 1 promemoria, 2 adempimenti con la scadenza. Piano di volo: `silvio_volo_registra` due
+  volte = la stessa riga; il titolare la vede; la conferma fa l'attività e il SAL in bozza (123,45 €) e salta «assegna» («nelle
+  impostazioni Silvio non assegna le persone»); la seconda conferma è rifiutata. `silvio_quanto_lavora`: 1 completata, punteggio 86,
+  2 voci, 1 correzione in «fasi», costo 0, piano di volo 1 confermata. Anon: le RPC e la tabella rifiutate.
+  Trovato e corretto nella prova: `text[] || 'squadra'` va scritto `'squadra'::text` (Postgres lo leggeva come un array).
+- Test: `silvioCommessaAutonomia` (15), `silvioCommessaCalendario` (14), `silvioCommessaPianoVolo` (14), `silvioCommessaQuantoLavora`
+  (4), `silvioCommessaPilota.test.tsx` (5).
+
+**Al push della fase 5** (dopo le migrazioni delle fasi 0–4, nell'ordine; riallineare ogni versione come da CLAUDE.md):
+1. `20281106100000_commessa_bozze_silvio.sql` — MODIFICATA anche qui: `_silvio_bozza` filtra la scrittura (per nome, solo se esiste).
+2. `20281106130000_silvio_risorse_commessa.sql` — MODIFICATA: gli adempimenti in `adempimenti_sicurezza`.
+3. **NUOVA** `20281106140000_silvio_autonomia.sql`: `silvio_autonomia`, `silvio_calendario`, `_silvio_azioni_autonomia`,
+   `_silvio_livello_ammesso`, `_silvio_livello`, `_silvio_scrittura_permessa`, `silvio_autonomia_leggi`, `silvio_autonomia_salva`.
+4. **NUOVA** `20281106141000_silvio_piano_volo.sql`: `silvio_piano_volo` (RLS per commessa visibile), `_silvio_volo`,
+   `silvio_volo_conferma`, `silvio_volo_scarta`, `silvio_volo_registra` e `silvio_volo_scadute` (solo service role).
+5. **NUOVA** `20281106142000_silvio_quanto_lavora.sql`: `_silvio_punteggio`, `silvio_quanto_lavora`.
+Nessuna è una bonifica: tabelle e funzioni nuove, nessuna riga esistente toccata.
+
+**Funzioni edge da ripubblicare**: `silvio-piano-volo` (nuova, `verify_jwt = false` in config.toml) e `silvio-commessa` (importa
+`chat.ts` → `fondi.ts` → `calendario.ts`, e il registro cambiato; il commento del suo `index.ts` è toccato apposta). Nessun file di
+`supabase/functions/_shared/` toccato. `_shared/silvioTools.ts` importa solo `ingressi.ts`, non cambiato.
+
+**Cron da accendere**, dopo il deploy di `silvio-piano-volo` e una prova `{"anteprima": true, "company_id": "<Demo 2>"}`:
+`supabase/migrations-pending/20281106142500_silvio_piano_volo_cron.sql` (alle 6:20 di Roma, attesa 15 secondi, segreto `cron_secret`
+dal Vault). Va spostato in `supabase/migrations` solo allora: una migrazione nella cartella va in produzione al primo push.
+
+**Resta per la Fase 6**:
+- «Da solo» nel piano di volo: eseguire le azioni promosse senza un utente, con un permesso di servizio per azienda che non salti i
+  controlli di `salva_piano_mezzo`; e «spostare le fasi dipendenti quando una slitta» (promuovibile nel piano, sezione 4), che vuole
+  i ritardi della Fase 6.
+- Il messaggio d'avvio «parte da solo dopo N ore se non lo fermi» (decisione 3): oggi resta «Chiede» e non si manda mai.
+- I lettori a regole (preventivo, computo) datano con le sole feste nazionali: passargli il calendario dell'azienda.
+- La notifica preliminare usa 2 persone a fase quando la squadra non c'è: con le ore vere dei rapportini delle commesse chiuse la
+  stima degli uomini-giorno diventa dell'azienda.
+- Il costo AI della scheda conta lettura e chat del popup; dettatura (`trascrizione-audio`) e offerte (`rdo-ai-estrai-offerta`) hanno
+  task di altre pagine e non si distinguono ancora.
+- Il resoconto settimanale per il cliente del venerdì (sezione 4) non è nel piano di volo: è un messaggio al cliente, da decidere con
+  la decisione 3.
+
 ### Fase 6 — La commessa che vive (da stimare dopo la fase 3)
 
 Varianti ed extra in corso d'opera (importo, fasi, rate e preventivo integrativo da

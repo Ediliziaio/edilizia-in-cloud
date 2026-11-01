@@ -27,6 +27,9 @@ import { rangoFonte, spostaGiorniLavorativi, giaNellaCommessa } from "./fondi.ts
 import type { Area, CostoDelPiano, FaseDelPiano, Fonte, Frammento, PianoCommessa, SottofaseDelPiano, Valore } from "./piano.ts";
 import { piuSimili, somiglianzaFasi, type FaseStorica } from "./somiglianza.ts";
 import { aggiungiGiorni, dataCorta, eData, siSovrappongono } from "./date.ts";
+import { livelloDellaVariabile, type Autonomia } from "./autonomia.ts";
+import { CALENDARIO_NAZIONALE, type CalendarioCantiere } from "./calendario.ts";
+import { adempimentiPrimaDiPartire, avvisiMeteo, avvisoMeteoInParole } from "./partenza.ts";
 
 // ── Le forme degli elenchi ──────────────────────────────────────────────────
 
@@ -485,9 +488,9 @@ function testoCliente(piano: PianoCommessa, inizio: string | null): { testo: str
   return { testo, canale: email ? "email" : telefono ? "whatsapp" : null, destinatario: email ?? telefono };
 }
 
-function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDitte: boolean): PromemoriaDelPiano[] {
+function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDitte: boolean, cal: CalendarioCantiere): PromemoriaDelPiano[] {
   const primo = inizio ?? fasi.map((f) => f.dal).filter((d): d is string => !!d).sort()[0] ?? null;
-  const entro = primo ? spostaGiorniLavorativi(primo, -ANTICIPO_POS) : null;
+  const entro = primo ? spostaGiorniLavorativi(primo, -ANTICIPO_POS, cal) : null;
   const out: PromemoriaDelPiano[] = [{
     tipo: "pos", titolo: "Prepara il POS del cantiere", scadenza: entro,
     testo: "Il Piano Operativo di Sicurezza va pronto prima che si entri in cantiere. Si prepara da Sicurezza della commessa; lo firma il datore di lavoro.",
@@ -504,17 +507,23 @@ function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDit
 /**
  * Le proposte di Silvio per persone, ditte, mezzi e acquisti, e le bozze collegate. Null se
  * la bozza non ha ancora le fasi o non c'è niente da proporre.
+ *
+ * Fase 5: le azioni che il titolare ha vietato (`autonomia`) non si propongono; le date dei
+ * promemoria seguono il calendario dell'azienda (`piano.calendario`); in più gli avvisi meteo
+ * delle fasi all'aperto e gli adempimenti prima di partire (partenza.ts).
  */
-export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse): Frammento | null {
+export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse, autonomia?: Autonomia | null): Frammento | null {
   const fasi = fasiDiLavoro(piano);
   if (!fasi.length) return null;
+  const cal = piano.calendario ?? CALENDARIO_NAZIONALE;
   const inizio = piano.aree.fasi?.["fasi.work_start_date"]?.valore;
   const dataInizio = eData(inizio) ? inizio : fasi.map((f) => f.dal).filter((d): d is string => !!d).sort()[0] ?? null;
   const aree: Frammento["aree"] = {};
-  const metti = (area: Area, chiave: string, valore: unknown, nota: string, fiducia = 0.6) => {
+  const metti = (area: Area, chiave: string, valore: unknown, nota: string, fiducia = 0.6, stato: Valore["stato"] = "proposta") => {
+    if (livelloDellaVariabile(autonomia, chiave) === "vietata") return;
     if (!libera(piano, area, chiave)) return;
     if (Array.isArray(valore) && !valore.length) return;
-    aree[area] = { ...(aree[area] ?? {}), [chiave]: { valore, fiducia, stato: "proposta", nota } };
+    aree[area] = { ...(aree[area] ?? {}), [chiave]: { valore, fiducia, stato, nota } };
   };
   const contaAvvisi = (r: Array<{ stato: StatoRisorsa }>) => r.filter((x) => x.stato === "attenzione").length;
   const notaElenco = (r: Array<{ stato: StatoRisorsa }>, cosa: string) => {
@@ -547,17 +556,37 @@ export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse): Fra
       "Il contratto di subappalto di ogni ditta, in bozza con l'elenco dei lavori. Si firma dalla pagina della commessa: Silvio non lo manda.", 0.5);
   }
   const conDitte = Array.isArray(ditteDelPiano) && ditteDelPiano.some((d) => d.stato !== "attenzione");
-  metti("sicurezza", "sicurezza.pos_duvri", promemoriaSicurezza(fasi, dataInizio, conDitte),
+  metti("sicurezza", "sicurezza.pos_duvri", promemoriaSicurezza(fasi, dataInizio, conDitte, cal),
     "Promemoria nelle attività della commessa, con la scadenza prima dell'inizio. I documenti si preparano e si firmano da Sicurezza.", 0.8);
 
   const cliente = testoCliente(piano, dataInizio);
   const avvio: PromemoriaDelPiano = {
     tipo: "avvio_cliente", titolo: "Manda al cliente il messaggio d'avvio lavori", testo: cliente.testo,
-    scadenza: dataInizio ? spostaGiorniLavorativi(dataInizio, -ANTICIPO_AVVIO) : null,
+    scadenza: dataInizio ? spostaGiorniLavorativi(dataInizio, -ANTICIPO_AVVIO, cal) : null,
     canale: cliente.canale, destinatario: cliente.destinatario,
   };
   metti("comunicazione", "comunicazione.avvio_cliente", avvio,
     "Il testo resta in bozza in un'attività della commessa: lo mandi tu, quando vuoi. Silvio non lo invia.", 0.8);
+
+  // ── Fase 5: prima di partire ──
+  const meteo = avvisiMeteo(fasi);
+  if (meteo.length) {
+    metti("fasi", "fasi.avvisi_meteo", meteo,
+      `Fasi all'aperto in mesi a rischio: ${meteo.map(avvisoMeteoInParole).join(" ")} È una regola di stagione, non una previsione.`, 0.7, "fatto");
+  }
+  const squadraFasi = (aree.persone?.["persone.squadra"]?.valore ?? piano.aree.persone?.["persone.squadra"]?.valore) as PersonaDelPiano[] | undefined;
+  const lavoro = [piano.aree.identita?.["identita.tipo_lavoro"]?.valore, piano.aree.identita?.["identita.description"]?.valore,
+    piano.aree.identita?.["identita.work_description"]?.valore].filter((x): x is string => typeof x === "string").join(" · ");
+  const adempimenti = adempimentiPrimaDiPartire({
+    lavoro, inizio: dataInizio,
+    ditte: Array.isArray(ditteDelPiano) ? new Set(ditteDelPiano.filter((d) => d.stato !== "attenzione").map((d) => d.external_team_id)).size : 0,
+    fasi: fasi.map((f) => ({
+      nome: f.nome, dal: f.dal, al: f.al,
+      persone: Array.isArray(squadraFasi) ? squadraFasi.filter((p) => p.fase === f.nome && p.stato !== "attenzione").length : null,
+    })),
+  }, cal);
+  metti("sicurezza", "sicurezza.adempimenti", adempimenti,
+    "Scadenze della commessa prima di aprire il cantiere. Silvio non sa se il tecnico le ha già fatte: si spuntano dalla Sicurezza della commessa.", 0.7);
 
   if (!Object.keys(aree).length) return null;
   return { fonte: FONTE_RISORSE, aree, costoEur: 0 };

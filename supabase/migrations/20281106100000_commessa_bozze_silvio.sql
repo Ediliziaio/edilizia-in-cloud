@@ -219,6 +219,11 @@ begin
      or public.has_permission_for_company(auth.uid(), 'can_edit_orders', b.company_id) is not true then
     raise exception 'Bozza non trovata, o non hai il permesso di modificare le commesse di questa azienda.' using errcode = '42501';
   end if;
+  -- Fase 5 (20281106140000): quello che il titolare ha vietato a Silvio esce dalla
+  -- scrittura qui, per tutte le RPC. Chiamata per nome: questa migrazione vale anche senza.
+  if b.scrittura is not null and to_regprocedure('public._silvio_scrittura_permessa(uuid, jsonb)') is not null then
+    execute 'select public._silvio_scrittura_permessa($1, $2)' into b.scrittura using b.company_id, b.scrittura;
+  end if;
   return b;
 end
 $$;

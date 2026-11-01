@@ -19,6 +19,8 @@
 --               `campo_subappaltatore_id`): se la ditta non ne ha una per la commessa, nasce;
 --   · promemoria (POS, DUVRI, messaggio d'avvio al cliente) → `tasks` della commessa,
 --               col testo nelle note. Nessun messaggio parte.
+--   · adempimenti (fase 5: CILA o SCIA, notifica preliminare, cartello, suolo pubblico)
+--               → `adempimenti_sicurezza` della commessa, con la scadenza.
 -- Le fasi si ritrovano per nome, come in `commessa_pianifica_fasi`. Solo aggiunte:
 -- quello che la commessa ha già (la stessa persona sulla stessa fase, la stessa ditta,
 -- un contratto per quella ditta, un'attività con lo stesso titolo) non si raddoppia.
@@ -75,6 +77,7 @@ declare
   v_oda integer := 0;
   v_contratti integer := 0;
   v_promemoria integer := 0;
+  v_adempimenti integer := 0;
   v_non_prenotati jsonb := '[]'::jsonb;
   v_saltati jsonb := '[]'::jsonb;
 begin
@@ -205,8 +208,19 @@ begin
     v_promemoria := v_promemoria + 1;
   end loop;
 
+  -- ── Adempimenti prima di partire (fase 5, lotto 5.2): CILA o SCIA, notifica preliminare,
+  --    cartello, suolo pubblico → le scadenze di sicurezza della commessa. ──
+  for x in select value from jsonb_array_elements(case when jsonb_typeof(s->'adempimenti') = 'array' then s->'adempimenti' else '[]'::jsonb end) loop
+    continue when btrim(coalesce(x->>'titolo', '')) = '';
+    continue when exists (select 1 from public.adempimenti_sicurezza a where a.order_id = p_order and a.titolo = left(btrim(x->>'titolo'), 300));
+    insert into public.adempimenti_sicurezza (company_id, order_id, titolo, tipo, scadenza_data, stato, note)
+    values (v_company, p_order, left(btrim(x->>'titolo'), 300), coalesce(nullif(x->>'tipo', ''), 'altro'),
+            nullif(x->>'scadenza', '')::date, 'da_fare', left(x->>'note', 4000));
+    v_adempimenti := v_adempimenti + 1;
+  end loop;
+
   return jsonb_build_object('persone', v_persone, 'ditte', v_ditte, 'mezzi', v_mezzi, 'oda', v_oda,
-                            'contratti', v_contratti, 'promemoria', v_promemoria,
+                            'contratti', v_contratti, 'promemoria', v_promemoria, 'adempimenti', v_adempimenti,
                             'non_prenotati', v_non_prenotati, 'saltati', v_saltati);
 end
 $$;

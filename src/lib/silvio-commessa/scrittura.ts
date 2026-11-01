@@ -27,6 +27,12 @@
  * e solo gli elementi disponibili: quelli segnati ⚠ restano fuori, col motivo. Il contratto
  * segue la sua ditta: una ditta che non entra non ha contratto. Le scrive
  * `_silvio_aggiungi_risorse` (migrazione 20281106130000), con le fasi per nome.
+ *
+ * Fase 5 (1/11/2026): l'autonomia dell'azienda (shared/silvio-commessa/autonomia.ts) decide per
+ * le variabili delle sue azioni, al posto del livello del registro: «vietata» resta fuori,
+ * «chiede» entra solo accettata, «da_sola» entra senza il «Va bene» (gli ordini solo coi prezzi
+ * e sotto la soglia). Le RPC ritolgono comunque quello che è vietato. Gli adempimenti prima di
+ * partire vanno in `adempimenti_sicurezza`; gli avvisi meteo si mostrano e non si scrivono.
  */
 import type {
   CondizioniContratto, CostoDelPiano, FaseDelPiano, PianoCommessa, RataDelPiano, TipoFonte, Valore,
@@ -36,6 +42,8 @@ import { giaNellaCommessa } from "../../../shared/silvio-commessa/fondi.ts";
 import type {
   ContrattoDelPiano, DittaDelPiano, MezzoDelPiano, OdaDelPiano, PersonaDelPiano, PromemoriaDelPiano,
 } from "../../../shared/silvio-commessa/risorse.ts";
+import type { AdempimentoDelPiano } from "../../../shared/silvio-commessa/partenza.ts";
+import { azioneDellaVariabile, livelloDi, ordineDaSolo, type Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { rigaConQuantitaIntera } from "@/lib/orders/quantitaIntera";
 
 /**
@@ -119,6 +127,7 @@ export interface ContrattoScritto {
   descrizione: string; elenco: ContrattoDelPiano["elenco"];
 }
 export interface PromemoriaScritto { tipo: PromemoriaDelPiano["tipo"]; titolo: string; testo: string; scadenza: string | null }
+export interface AdempimentoScritto { tipo: AdempimentoDelPiano["tipo"]; titolo: string; note: string; scadenza: string | null }
 
 export interface ScritturaCommessa {
   versione: 1;
@@ -142,6 +151,8 @@ export interface ScritturaCommessa {
   oda: OdaScritto[];
   contratti: ContrattoScritto[];
   promemoria: PromemoriaScritto[];
+  /** Fase 5: CILA o SCIA, notifica preliminare, cartello, suolo pubblico. */
+  adempimenti: AdempimentoScritto[];
   /** Quante decisioni aperte: con più di zero la RPC non scrive. */
   conflitti: number;
   /** Cosa resta fuori, e perché: per il «Controlla». */
@@ -159,13 +170,20 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export { giaNellaCommessa };
 
 /** Il valore entra? Null se sì, altrimenti il motivo. */
-function motivoFuori(v: Valore, variabile: Variabile): string | null {
+function motivoFuori(v: Valore, variabile: Variabile, autonomia: Autonomia | null): string | null {
   if (v.stato === "attenzione") return "due fonti dicono cose diverse: scegli quale tenere";
   if (v.stato === "manca" || vuoto(v.valore)) return "manca";
+  const azione = azioneDellaVariabile(variabile.chiave);
+  // Vietata vale anche per quello che la persona ha accettato: Silvio non lo scrive.
+  if (azione && livelloDi(autonomia, azione.azione) === "vietata") return "nelle impostazioni Silvio non lo fa: si fa dalla pagina della commessa";
   if (v.stato === "fatto" || v.fonte.tipo === "persona") return null;
+  if (azione) return livelloDi(autonomia, azione.azione) === "da_sola" ? null : "proposta da confermare";
   if (variabile.livello === "da_solo" || variabile.livello === "chiede") return null;
   return "proposta da confermare";
 }
+
+/** Una proposta che entra perché l'azione è «da sola», non perché la persona l'ha accettata. */
+const daSola = (v: Valore) => v.stato !== "fatto" && v.fonte.tipo !== "persona";
 
 /** Una colonna col tipo giusto, o undefined se il valore non va bene. */
 function colonna(nome: string, valore: unknown): string | number | boolean | undefined {
@@ -254,7 +272,7 @@ function disponibili<T extends { stato?: string; avviso?: string | null }>(
 }
 
 /** Traduce il piano. `modo` = completa se il piano ha già la commessa. */
-export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
+export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | null = null): ScritturaCommessa {
   const s: ScritturaCommessa = {
     versione: 1,
     modo: piano.orderId ? "completa" : "crea",
@@ -273,6 +291,7 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
     oda: [],
     contratti: [],
     promemoria: [],
+    adempimenti: [],
     conflitti: piano.conflitti.length,
     escluse: [],
   };
@@ -290,7 +309,7 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
   for (const variabile of REGISTRO) {
     const v = piano.aree[variabile.area]?.[variabile.chiave];
     if (!v || giaNellaCommessa(piano, v)) continue;
-    const motivo = motivoFuori(v, variabile);
+    const motivo = motivoFuori(v, variabile, autonomia);
     if (motivo) {
       if (motivo !== "manca") fuori(variabile, motivo);
       continue;
@@ -364,6 +383,12 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
       case "materiali.acquisti":
         s.oda = disponibili<OdaDelPiano>(v.valore, variabile, fuori, (o) => o.fornitore)
           .filter((o) => UUID.test(o.supplier_id) && Array.isArray(o.righe) && o.righe.length)
+          .filter((o) => {
+            // «Da sola» vale solo per gli ordini coi prezzi e sotto la soglia: gli altri si confermano.
+            if (!daSola(v) || ordineDaSolo(autonomia, o.righe)) return true;
+            fuori(variabile, `${o.fornitore}: senza prezzi o sopra la soglia, da confermare`);
+            return false;
+          })
           .map((o) => ({
             supplier_id: o.supplier_id, fase: o.fase?.trim() || null,
             data_ordine: o.data_ordine && DATA.test(o.data_ordine) ? o.data_ordine : null,
@@ -382,6 +407,19 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
         // Il contratto segue la ditta: si legge dopo il ciclo, quando le ditte sono note.
         contrattiAccettati = disponibili<ContrattoDelPiano>(v.valore, variabile, fuori, (c) => c.nome);
         continue;
+      case "fasi.avvisi_meteo":
+        continue; // si mostra nel popup, non si scrive
+      case "sicurezza.adempimenti": {
+        const elenco = (Array.isArray(v.valore) ? v.valore : []) as AdempimentoDelPiano[];
+        for (const a of elenco) {
+          if (!a?.titolo?.trim()) continue;
+          s.adempimenti.push({
+            tipo: a.tipo, titolo: a.titolo.trim(), note: a.testo ?? "",
+            scadenza: a.scadenza && DATA.test(a.scadenza) ? a.scadenza : null,
+          });
+        }
+        continue;
+      }
       case "sicurezza.pos_duvri":
       case "comunicazione.avvio_cliente": {
         const elenco = (Array.isArray(v.valore) ? v.valore : [v.valore]) as PromemoriaDelPiano[];
@@ -463,5 +501,6 @@ export function prontaPerScrivere(s: ScritturaCommessa): string[] {
 export function daAggiungere(s: ScritturaCommessa): number {
   return Object.keys(s.ordine).length + s.fasi.length + s.date_fasi.length + s.rate.length + s.righe.length
     + (s.condizioni ? 1 : 0) + (s.cliente.customer_id ? 1 : 0)
-    + s.squadra.length + s.ditte.length + s.mezzi.length + s.oda.length + s.contratti.length + s.promemoria.length;
+    + s.squadra.length + s.ditte.length + s.mezzi.length + s.oda.length + s.contratti.length + s.promemoria.length
+    + (s.adempimenti?.length ?? 0);
 }

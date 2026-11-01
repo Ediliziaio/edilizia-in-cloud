@@ -23,6 +23,7 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
 const ElencoDaCompletare = lazy(() => import("@/components/silvio-commessa/ElencoDaCompletare"));
+const QuantoLavoraSilvio = lazy(() => import("@/components/silvio-commessa/QuantoLavoraSilvio"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -1947,6 +1948,8 @@ export default function OrdersList() {
     { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
     // Fase 2 di Silvio: le commesse aperte coi buchi, da completare una dopo l'altra.
     { id: "da_completare", label: "Da completare", icon: Sparkles, show: permissions.canEditOrders && silvioCompleta && !!companyId && !!user?.id },
+    // Fase 5 di Silvio: quanto lavora, coi numeri veri (o «ancora nessun dato»).
+    { id: "silvio_lavora", label: "Quanto lavora Silvio", icon: Sparkles, show: permissions.canEditOrders && silvioCompleta && !!companyId },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
@@ -2028,6 +2031,14 @@ export default function OrdersList() {
         <ErrorBoundary title="Errore in Da completare">
           <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento…</div>}>
             <ElencoDaCompletare companyId={companyId} userId={user.id} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "silvio_lavora" && companyId && (
+        <ErrorBoundary title="Errore in Quanto lavora Silvio">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento…</div>}>
+            <QuantoLavoraSilvio companyId={companyId} />
           </Suspense>
         </ErrorBoundary>
       )}

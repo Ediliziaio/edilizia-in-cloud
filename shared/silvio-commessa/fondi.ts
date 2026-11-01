@@ -21,6 +21,7 @@ import {
   type Area, type Conflitto, type FaseDelPiano, type Fonte, type Frammento, type Modifica, type PianoCommessa, type Valore,
 } from "./piano.ts";
 import { variabile } from "./registro.ts";
+import { CALENDARIO_NAZIONALE, spostaLavorativi, type CalendarioCantiere } from "./calendario.ts";
 
 /** Un piano vuoto, da cui parte la bozza. */
 export function pianoVuoto(companyId: string, orderId: string | null = null): PianoCommessa {
@@ -223,25 +224,20 @@ function daPersona(valore: unknown, etichetta: string, base?: Fonte): Valore {
 /** Le date singole che seguono la fine dei lavori. */
 const DATE_FINALI = ["fasi.work_end_date", "fasi.expected_date"] as const;
 
-/** Sposta una data AAAA-MM-GG di `n` giorni lavorativi (lun–ven; i festivi arrivano nella fase 5). */
-export function spostaGiorniLavorativi(data: string, n: number): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
-  if (!m || n === 0) return data;
-  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  const passo = n > 0 ? 1 : -1;
-  for (let fatti = 0; fatti < Math.abs(n);) {
-    d.setUTCDate(d.getUTCDate() + passo);
-    const g = d.getUTCDay();
-    if (g !== 0 && g !== 6) fatti++;
-  }
-  return d.toISOString().slice(0, 10);
+/**
+ * Sposta una data AAAA-MM-GG di `n` giorni lavorativi. Dalla fase 5 salta anche le feste
+ * nazionali (Pasqua e Pasquetta comprese) e, col calendario dell'azienda, patrono, sabato e
+ * chiusure (calendario.ts).
+ */
+export function spostaGiorniLavorativi(data: string, n: number, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): string {
+  return spostaLavorativi(data, n, cal);
 }
 
-function spostaFase(fase: unknown, n: number): unknown {
+function spostaFase(fase: unknown, n: number, cal: CalendarioCantiere): unknown {
   if (!fase || typeof fase !== "object") return fase;
   const f = { ...(fase as Record<string, unknown>) };
   for (const k of ["start_date", "end_date"]) {
-    if (typeof f[k] === "string") f[k] = spostaGiorniLavorativi(f[k] as string, n);
+    if (typeof f[k] === "string") f[k] = spostaGiorniLavorativi(f[k] as string, n, cal);
   }
   return f;
 }
@@ -278,6 +274,7 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
 
     case "sposta_date": {
       const n = modifica.giorniLavorativi;
+      const cal = piano.calendario ?? CALENDARIO_NAZIONALE;
       if (!Number.isInteger(n)) throw new Error("Lo spostamento va in giorni lavorativi interi");
       if (n === 0) return [];
       const fasi = piano.aree.fasi ?? {};
@@ -302,12 +299,12 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
         if (i < 0) throw new Error(`La fase «${modifica.daFase}» non c'è`);
         da = i;
       }
-      if (conData(elenco)) sposta(chiaveElenco, (elenco as unknown[]).map((f, i) => (i >= da ? spostaFase(f, n) : f)));
+      if (conData(elenco)) sposta(chiaveElenco, (elenco as unknown[]).map((f, i) => (i >= da ? spostaFase(f, n, cal) : f)));
 
       const date = modifica.daFase ? [...DATE_FINALI] : ["fasi.work_start_date", ...DATE_FINALI];
       for (const chiave of date) {
         const v = fasi[chiave]?.valore;
-        if (typeof v === "string" && libera(chiave)) sposta(chiave, spostaGiorniLavorativi(v, n));
+        if (typeof v === "string" && libera(chiave)) sposta(chiave, spostaGiorniLavorativi(v, n, cal));
       }
       return out;
     }

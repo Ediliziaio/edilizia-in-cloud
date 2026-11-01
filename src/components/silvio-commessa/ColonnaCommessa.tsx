@@ -14,6 +14,7 @@
  * Fase 4: persone, ditte, mezzi, ordini e bozze si vedono uno per uno, col motivo; chi non è
  * disponibile ha il ⚠ e il perché, e non entra. Il capomastro si legge per nome dallo staff.
  */
+import type { Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { FileSearch, Info, Lock, MessageSquare, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ import type { Completezza } from "../../../shared/silvio-commessa/completezza.ts
 import type { Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
-  comeSiModifica, daConfermare, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoValore, tipoCampo,
+  comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea,
 } from "./presentazione";
 
@@ -323,7 +324,17 @@ function Dettaglio({ chiave, valore }: { chiave: string; valore: unknown }) {
       </ul>
     );
   }
-  if (chiave === "sicurezza.pos_duvri" && Array.isArray(valore)) {
+  if (chiave === "fasi.avvisi_meteo" && Array.isArray(valore)) {
+    return (
+      <ul className="mt-1 space-y-0.5 text-xs text-amber-800">
+        {(valore as { fase?: string; mesi?: string[]; motivo?: string }[]).map((a, i) => (
+          <li key={i}>• <span className="font-medium">{a.fase}</span> ({(a.mesi ?? []).join(", ")}): {a.motivo}</li>
+        ))}
+        <li className="text-slate-500">Regola di stagione, non una previsione: mettilo in conto nei tempi.</li>
+      </ul>
+    );
+  }
+  if ((chiave === "sicurezza.pos_duvri" || chiave === "sicurezza.adempimenti") && Array.isArray(valore)) {
     return (
       <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
         {(valore as { titolo?: string; scadenza?: string | null }[]).map((p, i) => (
@@ -391,9 +402,11 @@ interface RigaProps {
   onVisto?: (chiave: string) => void;
   /** Il documento di una fonte, se si può riaprire: null se no. */
   apriFonte?: (f: Fonte) => (() => void) | null;
+  /** Fase 5: cosa fa Silvio da solo, per l'azienda. */
+  autonomia?: Autonomia | null;
 }
 
-function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte }: RigaProps) {
+function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null }: RigaProps) {
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
@@ -487,7 +500,13 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
         </div>
       )}
 
-      {daConfermare(riga) && !aperta && (
+      {fattoDaSolo(riga, autonomia) && !aperta && (
+        <p className="mt-2 text-xs text-emerald-800">
+          Silvio lo fa da solo: l'hai scelto in Impostazioni → Silvio e le commesse. Se non va, toglilo con la matita.
+        </p>
+      )}
+
+      {daConfermare(riga, autonomia) && !aperta && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-xs text-amber-800">{valore?.nota ?? "Proposta di Silvio: entra nella commessa se la confermi."}</p>
           <Button type="button" size="sm" variant="outline" className="h-8"
@@ -562,10 +581,11 @@ export interface ColonnaCommessaProps {
   onVisto?: (chiave: string) => void;
   /** Come si apre il documento di una fonte; null se non si può. */
   apriFonte?: (f: Fonte) => (() => void) | null;
+  autonomia?: Autonomia | null;
 }
 
 export function ColonnaCommessa({
-  companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte,
+  companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte, autonomia = null,
 }: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
     const righe = righeDellArea(piano, area, completezza);
@@ -604,7 +624,7 @@ export function ColonnaCommessa({
               <RigaVariabile key={r.variabile.chiave} riga={r} companyId={companyId} piano={piano}
                 evidenziata={accese.has(r.variabile.chiave)} aperta={aperta === r.variabile.chiave}
                 onApri={onApri} onModifica={onModifica}
-                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} />
+                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} />
             ))}
           </ul>
         </section>

@@ -411,7 +411,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">La commessa</h3>
               <ColonnaCommessa companyId={companyId} piano={b.piano} completezza={completezza} evidenziate={b.evidenziate}
                 aperta={aperta} onApri={apri} onModifica={modifica}
-                daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} />
+                daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia} />
             </section>
           </div>
         )}

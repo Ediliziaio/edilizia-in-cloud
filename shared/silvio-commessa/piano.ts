@@ -2,10 +2,12 @@
  * Il piano della commessa che Silvio prepara (31/10/2026): il contratto comune fra lettori,
  * popup, chat, RPC e test. Vedi docs/piano-silvio-commessa-ai.md, sezioni 2 e 5.
  *
- * Senza dipendenze: lo importano il browser (`src/`), le edge function (Deno) e i test.
+ * Solo tipi, nessun codice importato: lo importano il browser (`src/`), le edge function (Deno) e i test.
  * Qui ci sono solo i tipi e i nomi; la fusione (`fondi`), le modifiche (`applica`), il
  * registro delle variabili e il punteggio di completezza stanno accanto, nella fase 0.
  */
+
+import type { CalendarioCantiere } from "./calendario.ts";
 
 /** Le 14 aree della commessa (sezione 2 del piano). L'ordine è quello del popup. */
 export const AREE = [
@@ -82,6 +84,12 @@ export type PianoCommessa = {
    * con la fonte davanti. Aggiunto nella fase 0: `fondi` non scarta niente in silenzio.
    */
   avvisi?: string[];
+  /**
+   * Il calendario dell'azienda per questo cantiere (fase 5): le date proposte e «sposta»
+   * saltano feste, patrono e chiusure. Senza, valgono le feste nazionali. Non si salva:
+   * il popup lo rimette a ogni apertura dalle impostazioni.
+   */
+  calendario?: CalendarioCantiere;
 };
 
 /** Quello che un lettore restituisce: pezzi di aree, mai un piano intero. */

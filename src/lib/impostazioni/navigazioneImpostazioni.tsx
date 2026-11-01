@@ -75,6 +75,7 @@ export function impostazioneAccessibile(url: string, permissions: Permissions, p
     "abbonamento": (permissions.isAdmin || permissions.canViewBilling) && !isIOSNativePlatform && schedaInternaAccessibile(url, sezione, permissions),
     "fatturazione-nativa": permissions.isAdmin || permissions.canViewBilling,
     "ai-automazioni": permissions.isAdmin || permissions.canViewSettingsCustomization,
+    "silvio-commesse": permissions.isAdmin || permissions.canViewSettingsOrders,
     "preferenze-email": permissions.isAdmin || permissions.canViewMarketingEmail,
     "whatsapp-bot": permissions.isAdmin || permissions.canViewSettingsIntegrations,
   };

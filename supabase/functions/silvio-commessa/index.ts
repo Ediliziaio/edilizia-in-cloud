@@ -47,6 +47,10 @@
  * nella bozza. Intanto la durata ha un tetto: 60.000 caratteri di testo, 6 pagine di
  * OCR, 45 secondi di lettura del PDF, poi una sola chiamata al modello. Sotto i 150
  * secondi del gateway anche nel caso peggiore.
+ *
+ * Fase 5 (1/11/2026): «sposta» e le fasi nuove della chat seguono il calendario dell'azienda
+ * (shared/silvio-commessa/calendario.ts, importato da chat.ts e fondi.ts). Questo commento
+ * c'è anche perché il job di deploy ripubblichi la funzione: guarda solo supabase/functions/.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
