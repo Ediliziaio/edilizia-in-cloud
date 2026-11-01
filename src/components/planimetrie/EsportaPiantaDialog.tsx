@@ -15,6 +15,7 @@ import { useBranding } from "@/hooks/useBranding";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -312,7 +313,7 @@ export function EsportaPiantaDialog({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs" htmlFor="cartiglio-cantiere">Indirizzo del cantiere</Label>
-                    <Input id="cartiglio-cantiere" className="h-9" value={cantiere} onChange={(e) => setCantiere(e.target.value)} placeholder="Via Roma 12, Torino" />
+                    <CampoIndirizzo id="cartiglio-cantiere" className="h-9" value={cantiere} onChange={setCantiere} placeholder="Via Roma 12, Torino" />
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.</p>
