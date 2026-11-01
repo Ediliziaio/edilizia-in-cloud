@@ -213,7 +213,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
                 placeholder="Es. Trilocale di 75 mq: soggiorno con cucina 30 mq, due camere, bagno 2 × 2,5, corridoio."
                 onChange={(e) => setTesto(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Le misure saranno tutte stimate: le controlli e le correggi nel disegno.</p>
+              <p className="text-xs text-muted-foreground">Va bene anche per una villa su due piani («con mansarda»), una bifamiliare («due appartamenti speculari da 90 mq su un lotto 14 × 11 m») o un capannone («20 × 40 m, alto 7 m, uffici e bagni su un lato, portone sul lato corto»). Le misure saranno tutte stimate: le controlli e le correggi nel disegno.</p>
             </div>
           )}
 

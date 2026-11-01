@@ -55,7 +55,7 @@ Rispondi SOLO con il JSON, senza testo prima o dopo:
 const SISTEMA_METRI = `COORDINATE: in METRI, origine in alto a sinistra della pianta, x verso destra, y verso il basso. Ogni punto è [x, y] con due decimali.
 Le stanze vicine si TOCCANO (ignora lo spessore dei muri): il lato in comune ha le stesse coordinate nelle due stanze, senza buchi né sovrapposizioni. Muri dritti e ad angolo retto, salvo che il disegno mostri chiaramente un muro storto.`;
 
-const APERTURE_METRI = `APERTURE — da, a: i due estremi del vano, sul lato della stanza dove sta (per una porta fra due stanze, sul lato in comune). tipo: "porta", "finestra" (sui lati esterni) o "portafinestra" (verso balconi e terrazzi). Larghezze tipiche se non scritte: porta 0,80 m, portoncino 0,90 m, finestra 1,20 m, portafinestra 1,40 m.`;
+const APERTURE_METRI = `APERTURE — da, a: i due estremi del vano, sul lato della stanza dove sta (per una porta fra due stanze, sul lato in comune). tipo: "porta", "finestra" (sui lati esterni), "portafinestra" (verso balconi e terrazzi) o "varco" (passaggio senza serramento, portone carrabile). Larghezze tipiche se non scritte: porta 0,80 m, portoncino 0,90 m, finestra 1,20 m, portafinestra 1,40 m. Se le stanze hanno il campo piano, ogni apertura ha lo stesso campo piano della sua stanza.`;
 
 export const PROMPT_SCHIZZO = `Sei un geometra italiano. Ricevi la foto di uno schizzo a mano di una pianta, fatto in cantiere, con le misure scritte a penna. Lo schizzo NON è in scala: contano le misure scritte, non le proporzioni del disegno. Trasformalo in JSON.
 
@@ -77,7 +77,7 @@ Rispondi SOLO con il JSON:
  "aperture":[{"tipo":"porta","da":[2.2,1.6],"a":[2.2,2.4]}],
  "quote":[]}`;
 
-export const PROMPT_DESCRIZIONE = `Sei un geometra italiano. Ricevi la descrizione a parole di un appartamento e disegni una pianta PLAUSIBILE in JSON: servirà come base da correggere, quindi deve essere sensata e semplice.
+export const PROMPT_DESCRIZIONE = `Sei un geometra italiano. Ricevi la descrizione a parole di un edificio (appartamento, villa, villetta bifamiliare o a schiera, piccolo condominio, capannone o magazzino con uffici) e disegni una pianta PLAUSIBILE in JSON: servirà come base da correggere, quindi deve essere sensata e semplice.
 
 ${SISTEMA_METRI}
 
@@ -86,13 +86,16 @@ REGOLE:
 - Pianta compatta, perimetro rettangolare o a L. Ingresso o disimpegno che collega le stanze; bagno e camere raggiungibili senza passare da un'altra camera.
 - Misure tipiche italiane se non dette: camera matrimoniale 14 mq, singola 9–10 mq, bagno 4–5 mq, cucina abitabile 9–12 mq, soggiorno 18–25 mq.
 - Ogni stanza ha la sua porta; finestre sui lati esterni (non nei bagni ciechi se la descrizione lo dice).
+- Più piani (es. "su due piani", "con mansarda"): ogni stanza ha il campo piano ("Piano terra", "Primo piano"…), e ogni piano usa le sue coordinate a partire da [0, 0]; il vano scala sta nella stessa posizione su tutti i piani (nome "Vano scala", destinazione altro).
+- Più appartamenti (bifamiliare, condominio): ogni stanza ha il campo unita ("A", "B"…; scale e androne "Parti comuni"); bifamiliare = due appartamenti speculari affiancati con un muro in comune.
+- Capannone: un grande locale (nome "Capannone", destinazione altro) con il lotto dato; uffici, bagni e spogliatoi in una fascia su un lato; portone carrabile come apertura "varco" largo 4–5 m sul lato corto; altezza_m quella detta (di solito 6–8 m).
 ${LOCALE_CAMPI}
 - misure_lette: sempre false. superficie_scritta_mq e altezza_scritta_m: null, salvo l'altezza se detta.
 
 ${APERTURE_METRI}
 
-Rispondi SOLO con il JSON:
-{"sistema":"metri","leggibile":true,"altezza_m":null,"locali":[...],"aperture":[...],"quote":[]}`;
+Rispondi SOLO con il JSON (piano e unita solo se servono):
+{"sistema":"metri","leggibile":true,"altezza_m":null,"locali":[{"nome":"Soggiorno","destinazione":"soggiorno","contorno":[[0,0],[5,0],[5,4],[0,4]],"misure_lette":false,"piano":null,"unita":null}],"aperture":[...],"quote":[]}`;
 
 export function promptCorrezione(errori: string[]): string {
   return `Il JSON che hai dato non va bene per questi motivi:

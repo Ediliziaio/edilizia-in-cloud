@@ -503,11 +503,12 @@ const centroDi = (pts: Coppia[]): Coppia => [pts.reduce((t, p) => t + p[0], 0) /
  */
 export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaGenerata {
   const piani = [...new Set(r.locali.filter((l) => l.contorno.length >= 3).map((l) => l.piano ?? ""))];
-  if (piani.length <= 1 || r.sistema !== "immagine") return costruisciPlanimetria(r, opz);
+  if (piani.length <= 1) return costruisciPlanimetria(r, opz);
 
+  // Sul foglio la scala è una sola; in metri (schizzo, descrizione) non serve.
   const W = opz.larghezzaImmagine && opz.larghezzaImmagine > 0 ? opz.larghezzaImmagine : 1000;
   const H = opz.altezzaImmagine && opz.altezzaImmagine > 0 ? opz.altezzaImmagine : 1000;
-  const scalaForzata = stimaScala(r, (c) => ({ x: (c[0] / 1000) * W, y: (c[1] / 1000) * H }));
+  const scalaForzata = r.sistema === "immagine" ? stimaScala(r, (c) => ({ x: (c[0] / 1000) * W, y: (c[1] / 1000) * H })) : null;
 
   // il riquadro di ogni piano, per assegnare ciò che non dice a quale piano sta
   const riquadri = piani.map((pn) => {

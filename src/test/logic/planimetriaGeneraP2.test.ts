@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { costruisciPiani } from "../../../supabase/functions/planimetria-genera/costruisci";
 import { controllaGenerata } from "../../../supabase/functions/planimetria-genera/controlloAI";
 import { leggiRispostaAI, tipoElementoDa, type RispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
-import { PROMPT_DOCUMENTO, VERSIONE_PROMPT } from "../../../supabase/functions/planimetria-genera/prompt";
+import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, VERSIONE_PROMPT } from "../../../supabase/functions/planimetria-genera/prompt";
 import { validaPlanimetria } from "../../../shared/planimetrie/modello";
 
 const opz = { ingresso: "documento" as const, larghezzaImmagine: 1000, altezzaImmagine: 1000 };
@@ -138,5 +138,26 @@ describe("condomini e capannoni", () => {
     const xs = [...new Set(r.pianta.elementi!.map((e) => e.centro.x))].sort((a, b) => a - b);
     expect(xs).toEqual([600, 1200, 1800]);
     expect(magliaPilastri(st.pianta, st.id, "fatto", 100).aggiunti).toHaveLength(0);
+  });
+});
+
+describe("progetto da descrizione su più piani", () => {
+  it("in metri, due piani con le stesse coordinate diventano due livelli e le aperture seguono il loro piano", () => {
+    const m = (nome: string, x0: number, y0: number, x1: number, y1: number, piano: string) =>
+      ({ nome, destinazione: "altro" as const, contorno: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as [number, number][], superficie_scritta_mq: null, altezza_scritta_m: null, misure_lette: false, piano });
+    const r: RispostaAI = {
+      sistema: "metri", leggibile: true, motivo_non_leggibile: null, altezza_m: null,
+      locali: [m("Soggiorno", 0, 0, 6, 5, "Piano terra"), m("Camera", 0, 0, 4, 4, "Primo piano"), m("Bagno", 4, 0, 6, 4, "Primo piano")],
+      aperture: [{ tipo: "porta", da: [4, 1], a: [4, 1.8], piano: "Primo piano" }, { tipo: "finestra", da: [2, 0], a: [3.2, 0], piano: "Piano terra" }],
+      quote: [],
+    };
+    const p = costruisciPiani(r, { ingresso: "descrizione" }).planimetria;
+    expect(p.livelli.map((l) => [l.nome, l.fatto.locali.length, l.fatto.aperture.length])).toEqual([["Piano terra", 1, 1], ["Primo piano", 2, 1]]);
+    expect(validaPlanimetria(p).ok).toBe(true);
+  });
+  it("il prompt della descrizione sa di ville, bifamiliari e capannoni", () => {
+    expect(PROMPT_DESCRIZIONE).toMatch(/bifamiliare/);
+    expect(PROMPT_DESCRIZIONE).toMatch(/Capannone/);
+    expect(PROMPT_DESCRIZIONE).toMatch(/piano/);
   });
 });
