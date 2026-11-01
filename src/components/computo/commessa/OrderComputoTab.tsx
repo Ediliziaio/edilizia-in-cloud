@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ComputoAlbero, type EvidenzaVoce, type ExtraVoci } from "./ComputoAlbero";
 import PiantaCambiata from "./pianta/PiantaCambiata";
+import VociImpiantiDallaPianta from "./pianta/VociImpiantiDallaPianta";
 import PrendiDallaPianta from "./pianta/PrendiDallaPianta";
 import { CaricaComputo as Caricamento } from "./CaricaComputo";
 import { usePianteDelComputo } from "@/hooks/useComputoPianta";
@@ -164,6 +165,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   }
   const filtrate = filtraVoci(voci, ricerca);
   const bloccato = !canEdit || computo?.stato === "contrattuale";
+  const [vociImpianti, setVociImpianti] = useState(false);
 
   // Le righe prese da una pianta: da dove vengono, se sono stimate, «Prendi dalla pianta».
   const stimate = voci.flatMap(v => v.misure).filter(m => piante.origineMisura(m) === "stimata").length;
@@ -344,6 +346,15 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
         <div className="flex items-center gap-2 p-4 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico le voci…</div>
       ) : (
         <section aria-label="Voci del computo" className="space-y-2">
+          {!bloccato && computo && (
+            <div className="flex justify-end">
+              <Button type="button" size="sm" variant="outline" onClick={() => setVociImpianti(true)}>Voci impianti dalla pianta</Button>
+            </div>
+          )}
+          {vociImpianti && computo && (
+            <VociImpiantiDallaPianta uploadId={computo.id} companyId={companyId} orderId={orderId} aperta={vociImpianti} onChiudi={() => setVociImpianti(false)}
+              ordineDa={Math.max(0, ...voci.map(v => v.ordine)) + 1} />
+          )}
           <PiantaCambiata cambiate={piante.cambiate} voci={voci} computo={computo} computi={computi} orderId={orderId} canEdit={canEdit}
             onApriVarianti={computo.lavoro_pubblico ? () => setScheda("varianti") : undefined} />
           {piante.errore && <p role="alert" className="text-xs text-rose-700">{piante.errore.message}</p>}
