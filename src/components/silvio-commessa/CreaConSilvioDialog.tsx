@@ -17,13 +17,21 @@
  * Fase 3: la chat scrive sulla bozza (anche a voce), la ⓘ apre il documento alla pagina
  * citata (`VisoreFonte`), e il popup si apre con più fonti insieme (gli allegati di un'email,
  * un contratto da aggiungere alla commessa che si completa).
+ *
+ * 01/11/2026, revisione dell'esperienza (per chi lo usa dal telefono, in cantiere): sul
+ * telefono le schede sono Chat · Commessa · Fonti e si parte dalla chat; quando la tastiera
+ * si apre il popup si accorcia e la barra di «Crea» si nasconde, così il campo resta in vista;
+ * «Crea» dice cosa scriverà e cosa resta da decidere.
  */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, SkipForward, Sparkles, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts";
@@ -34,8 +42,8 @@ import { ColonnaFonti } from "./ColonnaFonti";
 import { ColonnaChat } from "./ColonnaChat";
 import { ColonnaCommessa } from "./ColonnaCommessa";
 import {
-  contiDellaBarra, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, marginePrevisto, NOMI_AREE,
-  pianoDellaCommessa, STIMA_DETTATURA_EUR,
+  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, marginePrevisto,
+  minuscola, NOMI_AREE, pianoDellaCommessa, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
@@ -71,6 +79,26 @@ function nomeBozza(b: Bozza): string {
   return [nome?.client_name || nome?.client_company, typeof titolo === "string" ? titolo : null].filter(Boolean).join(" · ") || "senza nome";
 }
 
+/**
+ * Sul telefono la tastiera copre il fondo dello schermo ma `100dvh` non si accorcia: si
+ * segue l'altezza visibile, così il campo della chat resta sopra la tastiera.
+ */
+function useAltezzaVisibile(attivo: boolean): number | null {
+  const [altezza, setAltezza] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!attivo || !vv) return;
+    const aggiorna = () => setAltezza(window.innerWidth < 1024 && vv.height < window.innerHeight - 80 ? Math.round(vv.height) : null);
+    aggiorna();
+    vv.addEventListener("resize", aggiorna);
+    return () => vv.removeEventListener("resize", aggiorna);
+  }, [attivo]);
+  return altezza;
+}
+
+/** Il giorno di un istante, a Roma: «2026-10-31T23:30Z» è il 1° novembre, non il 31 ottobre. */
+const giornoInItalia = (istante: string) => new Date(istante).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+
 const campoDiTesto = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
@@ -86,7 +114,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const b = useBozzaSilvio({ companyId, userId, servizi, orderId });
-  const [scheda, setScheda] = useState<Scheda>(iniziale ? "commessa" : "fonti");
+  // La chat è la scheda principale del telefono: lì Silvio dice cosa legge e cosa chiede.
+  const [scheda, setScheda] = useState<Scheda>("chat");
+  const [tastiera, setTastiera] = useState(false);
+  const altezza = useAltezzaVisibile(open);
   const [aperta, setAperta] = useState<string | null>(null);
   const [controlla, setControlla] = useState(false);
   const [creando, setCreando] = useState(false);
@@ -122,18 +153,43 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const costo = b.fonti.reduce((s, f) => s + (f.costoEur ?? 0), 0) + b.costoChat;
   const [visore, setVisore] = useState<DocumentoDelVisore | null>(null);
   const conti = contiDellaBarra(b.piano, b.scrittura, costo);
-  const domanda = domandaDiSilvio(b.piano, b.scrittura);
+  // Prima di caricare qualcosa non si chiede niente: la chat dice cosa fare, la commessa aspetta.
+  const vuota = !completa && !b.fonti.length && !b.messaggi.length;
+  const legge = b.fonti.some((f) => f.stato === "in_lettura" || f.stato === "in_coda");
+  // Una domanda alla volta, e non mentre legge: la risposta può arrivare dal documento.
+  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura);
   const margine = marginePrevisto(b.piano);
   const fine = fineLavori(b.piano);
-  const legge = b.fonti.some((f) => f.stato === "in_lettura" || f.stato === "in_coda");
+  const costiParziali = useMemo(() => {
+    const fasi = b.piano.aree.fasi?.["fasi.order_work_phases"]?.valore;
+    return !b.piano.aree.costi?.["costi.previsti"] && Array.isArray(fasi)
+      && (fasi as { sottofasi?: { costo?: number }[] }[]).some((f) => !(f.sottofasi ?? []).some((x) => Number(x.costo) > 0));
+  }, [b.piano]);
   const motivi = [...prontaPerScrivere(b.scrittura), ...(legge ? ["Aspetta che finiscano le letture"] : [])];
   const ultimo = b.messaggi[b.messaggi.length - 1];
+  const daDecidere = useMemo(() => {
+    const d = cosaDecidere(b.piano, b.scrittura, completezza);
+    return vuota ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
+  }, [b.piano, b.scrittura, completezza, vuota]);
+  const suggerimenti = useMemo(() => suggerimentiChat(b.piano, completezza), [b.piano, completezza]);
+  const mancano = useMemo(() => completezza.mancano.filter(siRiempieOra).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza]);
+  const scrive = cosaScriveCrea(b.scrittura);
 
   const apri = (chiave: string | null) => {
     setAperta(chiave);
     if (chiave) { setControlla(false); setScheda("commessa"); }
   };
   const modifica = (m: Modifica | Modifica[]) => { setErrore(null); b.modifica(m); };
+
+  /**
+   * Il campo della chat. Finché non c'è nessuna fonte, quello che si scrive è il lavoro da
+   * leggere (come «Leggi il testo» nelle Fonti); dopo, è una correzione della bozza.
+   */
+  const scrivi = useCallback(async (t: string) => {
+    setErrore(null);
+    if (!completa && !b.fonti.length) { b.aggiungi([{ tipo: "testo", testo: t }]); return true; }
+    return b.scrivi(t);
+  }, [b, completa]);
 
   /** «Vedi» su una risposta della chat: la commessa, alla prima variabile cambiata. */
   const vedi = (chiavi: string[]) => {
@@ -210,6 +266,15 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   };
   const avanti = sequenza && sequenza.posizione < sequenza.totale;
 
+  /**
+   * Chiudere mentre Silvio legge o scrive vuol dire pagare la lettura e perderne il
+   * risultato: prima si chiede. Vale per la X, per Esc e per «Salta».
+   */
+  const [chiudere, setChiudere] = useState<(() => void) | null>(null);
+  const alLavoro = legge || b.scrivendo || creando;
+  const chiudiSeSicuro = (fai: () => void) => { if (alLavoro) setChiudere(() => fai); else fai(); };
+  const cambiaApertura = (o: boolean) => { if (o) onOpenChange(true); else chiudiSeSicuro(() => onOpenChange(false)); };
+
   const riallega = async () => {
     if (!esito) return;
     setRiallegando(true);
@@ -223,17 +288,21 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     }
   };
 
-  const schede: { id: Scheda; nome: string; conta?: string }[] = [
+  const schede: { id: Scheda; nome: string; conta?: string; avviso?: boolean; etichetta?: string }[] = [
+    { id: "chat", nome: "Chat", conta: b.scrivendo || legge ? "…" : undefined },
+    {
+      id: "commessa", nome: "Commessa", conta: daDecidere.totale ? String(daDecidere.totale) : undefined, avviso: daDecidere.totale > 0,
+      etichetta: daDecidere.totale ? `Commessa, ${daDecidere.totale} da decidere` : undefined,
+    },
     { id: "fonti", nome: "Fonti", conta: b.fonti.length ? String(b.fonti.length) : undefined },
-    { id: "chat", nome: "Chat", conta: domanda ? "1" : b.scrivendo ? "…" : undefined },
-    { id: "commessa", nome: "Commessa", conta: `${completezza.punteggio}` },
   ];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={cambiaApertura}>
       <DialogContent
         onInteractOutside={(e) => e.preventDefault()}
         onKeyDown={tasti}
+        style={altezza ? { height: altezza, maxHeight: altezza } : undefined}
         className={cn(
           "inset-0 left-0 top-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-slate-50 p-0",
           "lg:left-[50%] lg:top-[50%] lg:h-[calc(100dvh-48px)] lg:w-[calc(100vw-48px)] lg:max-w-[1500px] lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-2xl lg:border",
@@ -242,7 +311,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         <div className="sr-only" aria-live="polite" aria-atomic="true">{ultimo?.testo ?? ""}</div>
 
         {/* ── Testata ───────────────────────────────────────────── */}
-        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-white px-4 py-3 pr-12 lg:px-6">
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b bg-white px-4 py-2.5 pr-12 lg:px-5 lg:py-2">
           <div className="min-w-0 flex-1">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 lg:text-lg">
               <Sparkles className="h-5 w-5 shrink-0 text-orange-600" aria-hidden />
@@ -266,7 +335,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 : "Carica quello che hai: Silvio compone la commessa, tu controlli e crei."}
             </DialogDescription>
           </div>
-          <p className="text-xs text-slate-500 max-sm:order-last max-sm:w-full" role="status">
+          <p className="text-xs text-slate-500 max-sm:hidden" role="status">
             {b.salvataggio.tipo === "in_corso" ? "salvo la bozza…"
               : b.salvataggio.tipo === "salvata" ? "bozza salvata ✓"
                 : b.salvataggio.tipo === "errore" ? <span className="text-red-700" title={b.salvataggio.messaggio}>bozza non salvata: {b.salvataggio.messaggio}</span>
@@ -276,18 +345,24 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             onClick={b.indietro} aria-keyshortcuts="Meta+Z Control+Z" title="Annulla l'ultima modifica (Cmd+Z)">
             <Undo2 className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Annulla</span>
           </Button>
-          <dl className="flex w-full flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600 lg:w-auto">
+          <dl className={cn("flex w-full flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600 lg:w-auto", tastiera && "max-lg:hidden")}>
             <div className="flex items-center gap-2">
-              <dt>{completa ? "Completa al" : "Completezza"}</dt>
+              <dt>{completa ? "Completa al" : "Pronta al"}</dt>
               <dd className="flex items-center gap-2 font-semibold text-slate-900">
-                <Progress value={completezza.punteggio} className="h-1.5 w-20" aria-label={`Completezza ${completezza.punteggio} su 100`} />
+                <Progress value={completezza.punteggio} className="h-1.5 w-20" aria-label={`Pronta al ${completezza.punteggio} %`} />
                 {prima != null && prima !== completezza.punteggio
                   ? <span>{prima} % <span className="text-slate-400" aria-hidden>→</span><span className="sr-only">, con Silvio</span> {completezza.punteggio} %</span>
-                  : completa ? `${completezza.punteggio} %` : `${completezza.punteggio}/100`}
+                  : `${completezza.punteggio} %`}
               </dd>
             </div>
-            {margine && <div className="flex gap-1"><dt>Margine previsto</dt><dd className="font-semibold text-slate-900">{euro(margine.euro)} ({margine.percento} %)</dd></div>}
-            {fine && <div className="flex gap-1"><dt>Fine lavori</dt><dd className="font-semibold text-slate-900">{dataBreve(fine)}</dd></div>}
+            {margine && (
+              // Coi costi di una fase sola il margine viene 98 %: si dice che è parziale.
+              <div className="flex gap-1 max-sm:hidden" title={costiParziali ? "Calcolato sui costi che Silvio conosce: non tutte le fasi hanno un costo." : undefined}>
+                <dt>{costiParziali ? "Margine (costi parziali)" : "Margine previsto"}</dt>
+                <dd className="font-semibold text-slate-900">{euro(margine.euro)} ({margine.percento} %)</dd>
+              </div>
+            )}
+            {fine && <div className="flex gap-1 max-sm:hidden"><dt>Fine lavori</dt><dd className="font-semibold text-slate-900">{dataBreve(fine)}</dd></div>}
           </dl>
         </header>
 
@@ -295,8 +370,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
           <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label="Bozza da riprendere">
             <p className="min-w-0 flex-1 text-amber-900">
               {completa
-                ? <>Avevi già cominciato a completarla il {dataBreve(ripresa.updated_at.slice(0, 10))}.</>
-                : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(ripresa.updated_at.slice(0, 10))}.</>}
+                ? <>Avevi già cominciato a completarla il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>
+                : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
             </p>
             <Button type="button" size="sm" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
               {completa ? "Riprendi da lì" : "Riprendi la commessa"}
@@ -309,10 +384,11 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         <div role="tablist" aria-label="Sezioni" className={cn("grid grid-cols-3 border-b bg-white lg:hidden", (controlla || esito) && "hidden")}>
           {schede.map((s) => (
             <button key={s.id} type="button" role="tab" id={`scheda-${s.id}`} aria-controls={`pannello-${s.id}`} aria-selected={scheda === s.id}
-              onClick={() => setScheda(s.id)}
-              className={cn("flex h-11 items-center justify-center gap-1 border-b-2 text-sm",
+              onClick={() => setScheda(s.id)} aria-label={s.etichetta}
+              className={cn("flex h-12 items-center justify-center gap-1.5 border-b-2 text-[15px]",
                 scheda === s.id ? "border-orange-600 font-semibold text-slate-900" : "border-transparent text-slate-500")}>
-              {s.nome}{s.conta && <span className="rounded-full bg-slate-100 px-1.5 text-xs text-slate-600">{s.conta}</span>}
+              {s.nome}
+              {s.conta && <span className={cn("min-w-5 rounded-full px-1.5 text-xs font-semibold", s.avviso ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600")}>{s.conta}</span>}
             </button>
           ))}
         </div>
@@ -390,45 +466,58 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             </div>
           </section>
         ) : (
-          <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(250px,300px)_minmax(260px,1fr)_minmax(340px,1.35fr)] lg:divide-x">
+          <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(210px,248px)_minmax(340px,1.15fr)_minmax(320px,1fr)] xl:grid-cols-[248px_minmax(380px,1.2fr)_minmax(340px,460px)] lg:divide-x">
             <section id="pannello-fonti" role="tabpanel" aria-label="Fonti"
-              className={cn("min-h-0 overflow-y-auto p-4", scheda !== "fonti" && "max-lg:hidden")}>
-              <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">Fonti</h3>
+              className={cn("min-h-0 overflow-y-auto p-3", scheda !== "fonti" && "max-lg:hidden")}>
+              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Fonti</h3>
               <ColonnaFonti companyId={companyId} orderId={orderId} fonti={b.fonti} servizi={servizi} onAggiungi={b.aggiungi}
                 onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte}
                 onCollegaOfferta={(id, r) => void b.collegaOfferta(id, r)} />
             </section>
             <section id="pannello-chat" role="tabpanel" aria-label="Chat con Silvio"
-              className={cn("min-h-0 p-4 max-lg:overflow-y-auto lg:flex lg:flex-col", scheda !== "chat" && "max-lg:hidden")}>
-              <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">Chat</h3>
+              className={cn("flex min-h-0 flex-col p-3", scheda !== "chat" && "max-lg:hidden")}>
+              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Chat con Silvio</h3>
               <ColonnaChat messaggi={b.messaggi} domanda={domanda} legge={legge} onModifica={modifica} onApri={apri}
-                onScrivi={(t) => { setErrore(null); return b.scrivi(t); }} scrivendo={b.scrivendo} onVedi={vedi}
+                onScrivi={scrivi} scrivendo={b.scrivendo} onVedi={vedi}
                 annullabile={b.storia.length > 0} onAnnulla={b.indietro}
-                trascrivi={servizi.trascrivi} primaDiDettare={() => b.controllaCrediti(STIMA_DETTATURA_EUR)} />
+                trascrivi={servizi.trascrivi} primaDiDettare={() => b.controllaCrediti(STIMA_DETTATURA_EUR)}
+                fonti={b.fonti} onAllega={(f) => b.aggiungi(f.map((file) => ({ tipo: "file" as const, file })))} onConferma={b.confermaLetture}
+                suggerimenti={suggerimenti} daDecidere={daDecidere} mancano={mancano} onFonti={() => setScheda("fonti")} onFuoco={setTastiera} />
             </section>
             <section id="pannello-commessa" role="tabpanel" aria-label="La commessa"
-              className={cn("min-h-0 overflow-y-auto p-4", scheda !== "commessa" && "max-lg:hidden")}>
-              <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">La commessa</h3>
+              className={cn("min-h-0 overflow-y-auto p-3", scheda !== "commessa" && "max-lg:hidden")}>
+              <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">La commessa</h3>
               <ColonnaCommessa companyId={companyId} piano={b.piano} completezza={completezza} evidenziate={b.evidenziate}
                 aperta={aperta} onApri={apri} onModifica={modifica}
-                daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia} />
+                daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
+                daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} />
             </section>
           </div>
         )}
 
         {/* ── Barra ─────────────────────────────────────────────── */}
         {!esito && (
-          <footer className="border-t bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:px-6">
+          <footer className={cn("border-t bg-white px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] lg:px-5", tastiera && "max-lg:hidden")}>
             {errore && <p role="alert" className="mb-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{errore}</p>}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <p className="min-w-0 flex-1 text-sm text-slate-700">
-                <strong>{conti.pronte}</strong> {conti.pronte === 1 ? "voce pronta" : "voci pronte"}
-                {" · "}<strong className={conti.aspettano ? "text-amber-700" : undefined}>{conti.aspettano}</strong> {conti.aspettano === 1 ? "aspetta te" : "aspettano te"}
-                {" · "}costo AI {euroAI(conti.costoEur)}
-              </p>
+              <div className="min-w-0 flex-1 text-sm text-slate-700">
+                <p className={cn(vuota && "hidden")}>
+                  {scrive
+                    ? <>{completa ? "Aggiunge" : "Nasce con"} <strong>{scrive}</strong><span className="max-sm:hidden">{conti.pronte ? ` (${conti.pronte} ${conti.pronte === 1 ? "dato" : "dati"} in tutto)` : ""}</span>.</>
+                    : <><strong>{conti.pronte}</strong> {conti.pronte === 1 ? "dato pronto" : "dati pronti"}.</>}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {daDecidere.totale > 0
+                    ? <button type="button" className="text-left font-medium text-amber-700 underline-offset-2 hover:underline" onClick={() => vedi(["silvio-da-decidere"])}>
+                      Da decidere: {testoDaDecidere(daDecidere)}
+                    </button>
+                    : vuota ? "Carica un documento o scrivi il lavoro nella chat." : "Niente da decidere."}
+                  <span className="max-sm:hidden">{" · "}costo AI {euroAI(conti.costoEur)}</span>
+                </p>
+              </div>
               <div className="flex gap-2 max-sm:w-full">
                 {sequenza && (
-                  <Button type="button" variant="ghost" className="gap-1 max-sm:flex-1" disabled={creando} onClick={sequenza.onSalta}>
+                  <Button type="button" variant="ghost" className="gap-1 max-sm:flex-1" disabled={creando} onClick={() => chiudiSeSicuro(sequenza.onSalta)}>
                     <SkipForward className="h-4 w-4" aria-hidden />Salta
                   </Button>
                 )}
@@ -443,18 +532,38 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   {creando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
                   {completa
                     ? (creando ? "Completo…" : avanti ? <><span className="sm:hidden" aria-hidden>Completa ▸</span><span className="max-sm:hidden" aria-hidden>Completa e vai alla prossima ▸</span></> : "Completa ▸")
-                    : (creando ? "Creo…" : "Crea ▸")}
+                    : (creando ? "Creo…" : "Crea la commessa ▸")}
                 </Button>
               </div>
             </div>
             {motivi.length > 0 && (
-              <p id="silvio-crea-motivi" className="mt-1 text-xs text-slate-500">
-                {completa ? "Per completare" : "Per creare"}: {motivi.map((m) => m.charAt(0).toLowerCase() + m.slice(1)).join("; ")}.
+              <p id="silvio-crea-motivi" hidden={vuota} className="mt-1 text-xs text-slate-500">
+                {completa ? "Per completare" : "Per creare"}: {motivi.map(minuscola).join("; ")}.
               </p>
             )}
           </footer>
         )}
         <VisoreFonte documento={visore} onChiudi={() => setVisore(null)} />
+        <AlertDialog open={!!chiudere} onOpenChange={(o) => { if (!o) setChiudere(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{creando ? "Silvio sta creando la commessa" : legge ? "Silvio sta ancora leggendo" : "Silvio sta ancora rispondendo"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {creando
+                  ? "Aspetta un attimo: se chiudi adesso non vedi com'è andata."
+                  : legge
+                    ? "Se chiudi adesso perdi quello che ha trovato, e la lettura si paga lo stesso. La bozza resta salvata fin qui."
+                    : "Se chiudi adesso perdi la sua risposta. La bozza resta salvata fin qui."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Aspetta</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => { const f = chiudere; setChiudere(null); f?.(); }}>
+                Chiudi lo stesso
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

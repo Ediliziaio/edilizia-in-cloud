@@ -210,3 +210,94 @@ describe("Popup «Crea con Silvio», fase 4", () => {
     expect(within(fonti).getByText("offerta Termoidraulica Prova (RDO-2026-0001)")).toBeInTheDocument();
   });
 });
+
+describe("Popup «Crea con Silvio»: l'esperienza d'uso (01/11/2026)", () => {
+  it("in cima «Da decidere»: il ⚠ si toglie sul posto, le proposte con un tocco, e «Crea» dice cosa scrive", async () => {
+    const { s } = servizi();
+    apri(s);
+    const decidere = await within(commessa()).findByRole("region", { name: /Da decidere/ });
+    expect(await within(decidere).findByText("Mario Prova")).toBeInTheDocument();
+    expect(within(decidere).getByText(/mie proposte aspettano un sì/)).toBeInTheDocument();
+    expect(screen.getByText(/^Da decidere: .*1 non disponibile.* \d+ proposte$/)).toBeInTheDocument();
+
+    // Il ⚠ si risolve dove lo vedi: Mario esce dalla squadra.
+    fireEvent.click(within(decidere).getByRole("button", { name: "Toglilo" }));
+    const persone = await area("Persone");
+    await waitFor(() => expect(within(persone).queryByText(/⚠ Mario Prova/)).not.toBeInTheDocument());
+    expect(within(persone).getByText("Luca Prova")).toBeInTheDocument();
+
+    // «Va bene a tutte»: niente più da decidere, e «Crea» dice cosa nasce.
+    fireEvent.click(within(decidere).getByRole("button", { name: /^Va bene a tutte e \d+$/ }));
+    // Resta solo il dato che manca (qui l'indirizzo del cantiere), con «Aggiungi» accanto.
+    expect(within(decidere).queryByText(/proposte aspettano/)).not.toBeInTheDocument();
+    expect(within(decidere).getByText("indirizzo del cantiere")).toBeInTheDocument();
+    expect(screen.getByText("Da decidere: 1 dato che manca")).toBeInTheDocument();
+    expect(screen.getByText(/2 fasi, 1 persona, 1 ditta/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Crea la commessa/ })).toBeEnabled();
+  });
+
+  it("la chat suggerisce cosa chiedere secondo la bozza; «Cosa manca?» risponde senza AI", async () => {
+    // Un browser col microfono: il pulsante della dettatura si vede accanto al campo.
+    vi.stubGlobal("MediaRecorder", class {});
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn() } });
+    const { s } = servizi();
+    apri(s);
+    await area("Persone");
+    const suggerimenti = await screen.findByRole("group", { name: "Suggerimenti" });
+    expect(within(suggerimenti).getByRole("button", { name: "Sposta tutto di una settimana" })).toBeInTheDocument();
+    expect(within(suggerimenti).getByRole("button", { name: "Chi lavora qui?" })).toBeInTheDocument();
+    fireEvent.click(within(suggerimenti).getByRole("button", { name: "Cosa manca?" }));
+    expect(await screen.findByText(/Le trovi in cima a «La commessa»/)).toBeInTheDocument();
+    expect(s.chat).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Detta a Silvio/ })).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("al primo ingresso una frase con gli esempi; quello che scrivi diventa la prima fonte", async () => {
+    const { s } = servizi();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <CreaConSilvioDialog open onOpenChange={() => {}} companyId={AZIENDA} userId={UTENTE} servizi={s} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const chat = screen.getByRole("log", { name: "Messaggi con Silvio" });
+    expect(within(chat).getByText(/oppure scrivimi il lavoro in due righe/)).toBeInTheDocument();
+    // Prima di caricare niente: nessuna domanda, e la commessa dice cosa succederà.
+    expect(within(chat).queryByText(/Per chi è il lavoro/)).not.toBeInTheDocument();
+    expect(within(commessa()).getByText("Qui si compone la commessa.")).toBeInTheDocument();
+
+    fireEvent.click(within(chat).getByRole("button", { name: /Rifare il bagno di 6 mq/ }));
+    const campo = screen.getByLabelText("Scrivi a Silvio");
+    expect((campo as HTMLTextAreaElement).value).toMatch(/^Rifare il bagno di 6 mq/);
+    fireEvent.keyDown(campo, { key: "Enter" });
+    await waitFor(() => expect(s.leggiTesto).toHaveBeenCalledWith(expect.stringMatching(/^Rifare il bagno/), expect.anything()));
+    expect(s.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe("Le conseguenze di una modifica (01/11/2026)", () => {
+  it("al posto di chi non è libero, Silvio propone chi lo è nelle stesse date", async () => {
+    const { s } = servizi();
+    apri(s);
+    const decidere = await within(commessa()).findByRole("region", { name: /Da decidere/ });
+    fireEvent.click(await within(decidere).findByRole("button", { name: "Metti Luca Prova" }));
+    const persone = await area("Persone");
+    await waitFor(() => expect(within(persone).queryByText(/⚠ Mario Prova/)).not.toBeInTheDocument());
+    expect(within(persone).getByText(/al posto di Mario Prova/)).toBeInTheDocument();
+  });
+
+  it("togliere la ditta toglie anche il suo contratto in bozza", async () => {
+    const { s } = servizi();
+    apri(s);
+    const ditte = await area("Ditte e subappalti");
+    expect(within(ditte).getAllByText("Idraulica Prova")).toHaveLength(2);
+    const riga = within(ditte).getByText("Ditte").closest("li") as HTMLElement;
+    fireEvent.click(within(riga).getByRole("button", { name: "Modifica «Ditte»" }));
+    fireEvent.click(within(riga).getByRole("button", { name: "Togli tutto" }));
+    await waitFor(() => expect(within(commessa()).queryByText("Idraulica Prova")).not.toBeInTheDocument());
+  });
+});
+

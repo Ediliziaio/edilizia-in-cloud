@@ -63,10 +63,10 @@ function Proposta({ p, puoModificare, db, onFatto }: { p: PropostaVolo; puoModif
             ))}
           </ul>
           <div className="flex shrink-0 gap-2">
-            <Button type="button" size="sm" variant="ghost" className="h-8 gap-1" disabled={!!lavoro} onClick={() => void scarta()}>
+            <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 sm:h-8" disabled={!!lavoro} onClick={() => void scarta()}>
               {lavoro === "scarta" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}Non serve
             </Button>
-            <Button type="button" size="sm" className="h-8 gap-1" disabled={!!lavoro || !scelte.length} onClick={() => void fai()}>
+            <Button type="button" size="sm" className="h-11 gap-1 sm:h-8" disabled={!!lavoro || !scelte.length} onClick={() => void fai()}>
               {lavoro === "fai" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
               Fai {scelte.length === 1 ? "questa" : `queste ${scelte.length}`}
             </Button>
@@ -75,7 +75,7 @@ function Proposta({ p, puoModificare, db, onFatto }: { p: PropostaVolo; puoModif
       )}
       {p.azioni.length === 0 && puoModificare && (
         <div className="mt-1 flex justify-end">
-          <Button type="button" size="sm" variant="ghost" className="h-8 gap-1" disabled={!!lavoro} onClick={() => void scarta()}>
+          <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 sm:h-8" disabled={!!lavoro} onClick={() => void scarta()}>
             <Check className="h-4 w-4" aria-hidden />Visto
           </Button>
         </div>
@@ -105,7 +105,7 @@ export function PianoDiVoloCommessa({ orderId, companyId, puoModificare, db }: {
     <section className={cn("mx-0 mt-2 rounded-xl border border-sky-200 bg-sky-50 sm:mx-6")} aria-label="Piano di volo di Silvio">
       <h2 className="flex items-center gap-2 border-b border-sky-200 px-4 py-1.5 text-sm font-semibold text-sky-950">
         <CalendarCheck className="h-4 w-4 text-sky-700" aria-hidden />
-        Piano di volo di Silvio
+        Silvio ha controllato la partenza
         <span className="font-normal text-sky-800">· {elenco.length === 1 ? "una cosa da guardare" : `${elenco.length} cose da guardare`}</span>
       </h2>
       <ul className="divide-y divide-sky-100">

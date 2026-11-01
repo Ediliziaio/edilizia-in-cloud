@@ -291,3 +291,38 @@ describe("Le porte del popup", () => {
     expect(s.scaricaCaricato).toHaveBeenCalledWith(path, "Contratto.pdf", "application/pdf");
   });
 });
+
+describe("Difetti trovati in revisione (01/11/2026)", () => {
+  it("due invii di fila mentre si controllano i crediti fanno partire la chat una volta sola", async () => {
+    let paga!: (v: { saldoEur: number; bloccato: boolean }) => void;
+    const s = servizi({
+      saldoAI: vi.fn(() => new Promise<{ saldoEur: number; bloccato: boolean }>((r) => { paga = r; })),
+      chat: vi.fn(async () => ({ testo: "", costoEur: 0, strumenti: [{ nome: "cambia_valore" as const, argomenti: { chiave: "economia.vat_rate", valore: 10 } }] })),
+    });
+    apri(s);
+    await within(commessa()).findByRole("region", { name: "Economia" });
+    scrivi("IVA al 10");
+    scrivi("IVA al 10");
+    // Il messaggio si vede subito, con Silvio al lavoro.
+    expect(within(chat()).getByText("IVA al 10")).toBeInTheDocument();
+    expect(screen.getByText(/Silvio sta cambiando la bozza/)).toBeInTheDocument();
+    await act(async () => { paga({ saldoEur: 5, bloccato: false }); });
+    await within(chat()).findByText("«IVA» ora è 10 %.");
+    expect(s.chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("chiudere mentre Silvio legge chiede conferma; «Aspetta» lascia il popup aperto", async () => {
+    const chiudi = vi.fn();
+    const s = servizi({ frammentiPreventivo: vi.fn(() => new Promise<Frammento[]>(() => {})) });
+    apri(s, { onOpenChange: chiudi });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(await screen.findByText("Silvio sta ancora leggendo")).toBeInTheDocument();
+    expect(chiudi).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Aspetta" }));
+    expect(chiudi).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getAllByRole("dialog")[0], { key: "Escape" });
+    fireEvent.click(await screen.findByRole("button", { name: "Chiudi lo stesso" }));
+    expect(chiudi).toHaveBeenCalledWith(false);
+  });
+});
+

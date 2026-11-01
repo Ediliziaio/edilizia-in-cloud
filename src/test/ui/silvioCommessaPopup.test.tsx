@@ -164,7 +164,7 @@ describe("Popup «Crea con Silvio»", () => {
     expect(within(fonti).getByText(/letta/)).toBeInTheDocument();
     // Silvio dice cosa ha preso, e chiede l'inizio con un pulsante.
     const chat = screen.getByRole("log", { name: "Messaggi con Silvio" });
-    expect(within(chat).getByText(/Da preventivo PR-0142 ho preso/)).toBeInTheDocument();
+    expect(within(chat).getByText(/Dal preventivo PR-0142 ho preso/)).toBeInTheDocument();
     expect(within(chat).getByRole("button", { name: /^Inizio / })).toBeInTheDocument();
     expect(crea()).toBeEnabled();
   });

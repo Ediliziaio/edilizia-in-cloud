@@ -77,11 +77,11 @@ export function StrisciaSilvioCommessa({ orderId, companyId, puoModificare, db =
         {p.modo === "crea" ? "Silvio ha preparato" : "Silvio ha aggiunto"} <strong>{p.cose} {p.cose === 1 ? "cosa" : "cose"}</strong> in questa commessa.
       </p>
       {puoModificare && (
-        <Button type="button" size="sm" variant="outline" className="h-8 gap-1 bg-white" onClick={() => setConferma(true)}>
+        <Button type="button" size="sm" variant="outline" className="h-11 gap-1 bg-white sm:h-8" onClick={() => setConferma(true)}>
           <Undo2 className="h-4 w-4" aria-hidden />Annulla tutto
         </Button>
       )}
-      <button type="button" className="rounded p-1 text-orange-700 hover:bg-orange-100" aria-label="Nascondi" onClick={() => setChiusa(true)}>
+      <button type="button" className="grid h-11 w-11 place-items-center rounded text-orange-700 hover:bg-orange-100 sm:h-8 sm:w-8" aria-label="Nascondi" onClick={() => setChiusa(true)}>
         <X className="h-4 w-4" />
       </button>
       {rifiuto && !conferma && <p role="alert" className="w-full text-xs text-red-800">{rifiuto}</p>}

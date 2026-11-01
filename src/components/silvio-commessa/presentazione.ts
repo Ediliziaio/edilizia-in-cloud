@@ -14,6 +14,7 @@ import {
 import { REGISTRO, variabile, variabiliDellArea, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { completezzaPiano, type Completezza } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
+import { personaOccupata, type ContestoRisorse, type PersonaDelPiano } from "../../../shared/silvio-commessa/risorse.ts";
 import { annulla, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
 import { COLONNE_SCRIVIBILI, giaNellaCommessa, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
 
@@ -89,6 +90,9 @@ export const STIMA_DETTATURA_EUR = 0.03;
 /** Il costo di una lettura: «0,01 €», con i millesimi quando servono. */
 export const euroAI = (n: number) =>
   `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 3 : 2 })} €`;
+
+/** «Squadra» → «squadra», ma «POS e DUVRI» e «SAL e scadenze» restano come sono. */
+export const minuscola = (t: string) => (/^\p{Lu}(\p{Ll}|')/u.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 const CHIAVI_DATA = new Set(["fasi.work_start_date", "fasi.work_end_date", "fasi.expected_date"]);
 const TIPI_PAGAMENTO: Record<string, string> = { standard: "acconto e saldo", financing: "finanziamento" };
@@ -390,7 +394,7 @@ export function stimaLettura(r: Pick<Riconosciuto, "ai" | "immagine" | "fonte" |
 // ── Le domande di Silvio ────────────────────────────────────────────────────
 
 export type Risposta =
-  | { etichetta: string; modifica: Modifica }
+  | { etichetta: string; modifica: Modifica | Modifica[] }
   | { etichetta: string; apri: string };
 
 export interface Domanda {
@@ -462,11 +466,15 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
   }
   const daVedere = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare");
   if (daVedere.length) {
+    const tutte = accettaProposte(piano, daVedere.map((e) => e.chiave));
     return {
       testo: daVedere.length === 1
-        ? `«${daVedere[0].etichetta}» è una mia proposta: entra nella commessa solo se la confermi.`
-        : `Ho ${daVedere.length} proposte che entrano solo se le confermi: ${daVedere.map((e) => e.etichetta.toLowerCase()).join(", ")}.`,
-      risposte: [{ etichetta: daVedere.length === 1 ? "Guardala" : "Guardale", apri: daVedere[0].chiave }],
+        ? `«${daVedere[0].etichetta}» è una mia proposta: entra solo se mi dici di sì.`
+        : `${daVedere.length} mie proposte aspettano un tuo sì (${daVedere.map((e) => minuscola(e.etichetta)).join(", ")}).`,
+      risposte: [
+        ...(tutte.length ? [{ etichetta: daVedere.length === 1 ? "Va bene" : `Va bene a tutte e ${daVedere.length}`, modifica: tutte }] : []),
+        { etichetta: daVedere.length === 1 ? "Guardala prima" : "Guardale una per una", apri: daVedere[0].chiave },
+      ],
     };
   }
   return null;
@@ -474,11 +482,13 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
 
 /** «Dal preventivo PR-0142 ho preso cliente, importo e 6 fasi.» */
 export function riassuntoFrammento(etichetta: string, chiavi: string[]): string {
-  if (!chiavi.length) return `Da ${etichetta} non ho trovato niente di nuovo per la commessa.`;
-  const nomi = chiavi.map((k) => variabile(k)?.etichetta.toLowerCase() ?? k);
+  // «dal preventivo PR-0142», «dal computo …», ma «da Contratto.pdf».
+  const da = /^(preventivo|computo|contratto|testo|commessa|vocale)\s/.test(etichetta) ? `Dal ${minuscola(etichetta)}` : `Da ${etichetta}`;
+  if (!chiavi.length) return `${da} non ho trovato niente di nuovo per la commessa.`;
+  const nomi = chiavi.map((k) => minuscola(variabile(k)?.etichetta ?? k));
   const elenco = nomi.length <= 4 ? nomi : [...nomi.slice(0, 4), `altre ${nomi.length - 4} cose`];
   const testo = elenco.length === 1 ? elenco[0] : `${elenco.slice(0, -1).join(", ")} e ${elenco[elenco.length - 1]}`;
-  return `Da ${etichetta} ho preso ${testo}.`;
+  return `${da} ho preso ${testo}.`;
 }
 
 // ── Controlla ───────────────────────────────────────────────────────────────
@@ -591,4 +601,132 @@ export function rifiutoInParole(messaggio: string): string {
     return `Non si può annullare: «${v?.etichetta ?? nomeColonna(m[1])}» è stato cambiato dopo Silvio.`;
   }
   return messaggio;
+}
+
+// ── Da decidere, suggerimenti della chat, «Crea» (01/11/2026, revisione dell'esperienza) ──
+
+/** «Va bene» a più proposte insieme: confermano il valore che c'è, come il «Va bene» della riga. */
+export function accettaProposte(piano: PianoCommessa, chiavi: string[]): Modifica[] {
+  return chiavi.flatMap((chiave): Modifica[] => {
+    const v = variabile(chiave);
+    const x = v ? piano.aree[v.area]?.[chiave] : undefined;
+    return v && x && !vuoto(x.valore) ? [{ tipo: "cambia_valore", area: v.area, chiave, valore: x.valore }] : [];
+  });
+}
+
+/** Una persona, ditta o mezzo proposto ma non disponibile: il ⚠ dentro un elenco. */
+export interface NonDisponibile { chiave: string; area: Area; indice: number; nome: string; avviso: string }
+
+export function nonDisponibili(piano: PianoCommessa): NonDisponibile[] {
+  const out: NonDisponibile[] = [];
+  for (const chiave of ["persone.squadra", "ditte.assegnate", "mezzi.allocazioni", "materiali.acquisti", "ditte.contratti"]) {
+    const v = variabile(chiave);
+    const x = v ? piano.aree[v.area]?.[chiave]?.valore : undefined;
+    if (!v || !Array.isArray(x)) continue;
+    (x as { stato?: string; nome?: string; fornitore?: string; avviso?: string | null }[]).forEach((e, indice) => {
+      if (e?.stato === "attenzione") out.push({ chiave, area: v.area, indice, nome: e.nome ?? e.fornitore ?? v.etichetta, avviso: e.avviso ?? "non è disponibile" });
+    });
+  }
+  return out;
+}
+
+/** Le cose che aspettano la persona, nell'ordine in cui vanno decise: fonti in disaccordo, ⚠, domande, proposte. */
+export interface DaDecidere {
+  conflitti: Conflitto[];
+  nonDisponibili: NonDisponibile[];
+  /** I ❓ che chiedono una risposta (cliente, inizio, importo, cantiere). */
+  domande: Variabile[];
+  /** Le proposte che entrano solo con un sì. */
+  proposte: { chiave: string; etichetta: string }[];
+  totale: number;
+}
+
+export function cosaDecidere(piano: PianoCommessa, scrittura: ScritturaCommessa, c: Completezza = completezzaPiano(piano)): DaDecidere {
+  const domande = c.mancano.filter((v) => v.livello === "chiede" && siRiempieOra(v)
+    && !(v.chiave === "cliente.customer_id" && (scrittura.cliente.nome || scrittura.cliente.email || scrittura.preventivo_id)));
+  const proposte = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare").map(({ chiave, etichetta }) => ({ chiave, etichetta }));
+  const nd = nonDisponibili(piano);
+  return { conflitti: piano.conflitti, nonDisponibili: nd, domande, proposte, totale: piano.conflitti.length + nd.length + domande.length + proposte.length };
+}
+
+/** «1 conflitto, 1 persona non disponibile e 6 proposte»: per la barra e la scheda del telefono. */
+export function testoDaDecidere(d: DaDecidere): string {
+  const parti = [
+    d.conflitti.length ? `${d.conflitti.length} ${d.conflitti.length === 1 ? "valore da scegliere" : "valori da scegliere"}` : "",
+    d.nonDisponibili.length ? `${d.nonDisponibili.length} non ${d.nonDisponibili.length === 1 ? "disponibile" : "disponibili"}` : "",
+    d.domande.length ? `${d.domande.length} ${d.domande.length === 1 ? "dato che manca" : "dati che mancano"}` : "",
+    d.proposte.length ? `${d.proposte.length} ${d.proposte.length === 1 ? "proposta" : "proposte"}` : "",
+  ].filter(Boolean);
+  return parti.length <= 1 ? parti.join("") : `${parti.slice(0, -1).join(", ")} e ${parti[parti.length - 1]}`;
+}
+
+const conta = (n: number, uno: string, tanti: string) => `${n} ${n === 1 ? uno : tanti}`;
+
+/** Cosa scrive «Crea»: «4 fasi, 2 rate, 1 persona e 1 ditta». Solo quello che entra davvero. */
+export function cosaScriveCrea(s: ScritturaCommessa): string {
+  const parti = [
+    s.fasi.length ? conta(s.fasi.length, "fase", "fasi") : "",
+    s.date_fasi.length ? conta(s.date_fasi.length, "data di fase", "date di fase") : "",
+    s.righe.length ? conta(s.righe.length, "riga", "righe") : "",
+    s.rate.length ? conta(s.rate.length, "rata", "rate") : "",
+    s.squadra.length ? conta(s.squadra.length, "persona", "persone") : "",
+    s.ditte.length ? conta(s.ditte.length, "ditta", "ditte") : "",
+    s.mezzi.length ? conta(s.mezzi.length, "mezzo", "mezzi") : "",
+    s.oda.length ? conta(s.oda.length, "ordine in bozza", "ordini in bozza") : "",
+    s.contratti.length ? conta(s.contratti.length, "contratto in bozza", "contratti in bozza") : "",
+    s.promemoria.length + s.adempimenti.length ? conta(s.promemoria.length + s.adempimenti.length, "promemoria", "promemoria") : "",
+  ].filter(Boolean);
+  return parti.length <= 1 ? parti.join("") : `${parti.slice(0, -1).join(", ")} e ${parti[parti.length - 1]}`;
+}
+
+/** Un suggerimento della chat: o un messaggio da mandare a Silvio, o una risposta che il popup dà da sé. */
+export type Suggerimento =
+  | { etichetta: string; testo: string }
+  | { etichetta: string; locale: "cosa_manca" };
+
+/** I suggerimenti sotto la chat, secondo com'è la bozza adesso: al massimo quattro. */
+export function suggerimentiChat(piano: PianoCommessa, c: Completezza = completezzaPiano(piano)): Suggerimento[] {
+  const ha = (area: Area, chiave: string) => {
+    const x = piano.aree[area]?.[chiave];
+    return !!x && x.stato !== "manca" && !vuoto(x.valore);
+  };
+  const fasi = piano.aree.fasi?.["fasi.order_work_phases"]?.valore;
+  const conDate = Array.isArray(fasi) && (fasi as FaseDelPiano[]).some((f) => f.start_date);
+  const out: Suggerimento[] = [];
+  if (conDate) out.push({ etichetta: "Sposta tutto di una settimana", testo: "Sposta tutto di una settimana" });
+  if (ha("persone", "persone.squadra")) out.push({ etichetta: "Chi lavora qui?", testo: "Chi lavora su questa commessa?" });
+  if (ha("ditte", "ditte.assegnate")) out.push({ etichetta: "Togli la ditta", testo: "Togli la ditta" });
+  if (c.mancano.length || piano.conflitti.length) out.push({ etichetta: "Cosa manca?", locale: "cosa_manca" });
+  if (!conDate && Array.isArray(fasi) && fasi.length) out.push({ etichetta: "Si parte lunedì prossimo", testo: "Si parte lunedì prossimo" });
+  return out.slice(0, 4);
+}
+
+/** Gli esempi del primo ingresso: si toccano e finiscono nel campo, da completare. */
+export const ESEMPI_PRIMO_INGRESSO = [
+  "Rifare il bagno di 6 mq a Monza, 12.000 €, si parte a metà novembre",
+  "Cappotto su una villetta a Lodi, 38.000 €, due mesi di lavoro",
+];
+
+/**
+ * Chi può prendere il posto di una persona col ⚠: i dipendenti attivi liberi nelle stesse
+ * date, che non sono già su quella fase. Al massimo due, nell'ordine dell'elenco.
+ */
+export function alternativePersona(piano: PianoCommessa, n: NonDisponibile, ctx: ContestoRisorse | null): { id: string; nome: string }[] {
+  if (!ctx || n.chiave !== "persone.squadra") return [];
+  const squadra = piano.aree.persone?.["persone.squadra"]?.valore as PersonaDelPiano[] | undefined;
+  const chi = squadra?.[n.indice];
+  if (!chi) return [];
+  const giaSullaFase = new Set((squadra ?? []).filter((p) => p.fase === chi.fase).map((p) => p.employee_id));
+  return ctx.dipendenti
+    .filter((d) => d.attivo && !giaSullaFase.has(d.id) && !personaOccupata(ctx, d.id, chi.dal ?? null, chi.al ?? null))
+    .slice(0, 2)
+    .map((d) => ({ id: d.id, nome: d.nome }));
+}
+
+/** «Metti Luca al posto di Mario»: la squadra con la persona cambiata, libera nelle stesse date. */
+export function sostituisciPersona(piano: PianoCommessa, n: NonDisponibile, al: { id: string; nome: string }): Modifica {
+  const squadra = [...((piano.aree.persone?.["persone.squadra"]?.valore as PersonaDelPiano[] | undefined) ?? [])];
+  const prima = squadra[n.indice];
+  squadra[n.indice] = { ...prima, employee_id: al.id, nome: al.nome, stato: "proposta", avviso: null, motivo: `al posto di ${prima.nome}: libero in quelle date` };
+  return { tipo: "cambia_valore", area: "persone", chiave: "persone.squadra", valore: squadra };
 }
