@@ -608,6 +608,48 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 
 **Numero**: commesse aperte con le persone assegnate, da 12 su 465 a più della metà delle nuove.
 
+**Lotti 4.1, 4.2 e 4.3 fatti l'1/11/2026** (ramo `claude/scm-fase4-ad2d8b`, solo in locale; migrazioni **non applicate**):
+- **Un motore solo** (`shared/silvio-commessa/risorse.ts`): `proposteRisorse(piano, contesto)` legge le fasi della bozza
+  (in «completa» anche le date proposte alle fasi senza date) e i dati veri dell'azienda, e restituisce un `Frammento`
+  con fonte `modello`: squadra, capomastro, ditte col costo previsto della fase (le voci, o `costi.previsti`), mezzi,
+  ordini al fornitore abituale, e le bozze. Passa da `fondi` come ogni lettore; si rifà da solo quando cambiano fasi
+  e date, e non tocca quello che la persona ha accettato o scritto, né quello che viene da una fonte più fidata.
+  Gli strumenti «gialli» di `docs/silvio-commessa-piano.md` (fase 2) non esistono ancora: si riusano le funzioni pure
+  che c'erano (`dittaProposta`, ora con `paroleFase` e `somiglianzaFasi` in `shared/silvio-commessa/somiglianza.ts`,
+  re-esportate da `ditteLavori.ts`) e le RPC delle pagine.
+- **Chi**: le persone sono i dipendenti (`order_employees.employee_id` → `employees`) che hanno fatto più fasi con un
+  nome simile; il capomastro è il più frequente fra le altre commesse, solo se è nello staff di `useCompanyStaffUsers`
+  (mai `profiles` grezzo). Ditte dallo storico di `order_external_teams`, mezzi dai piani `mezzi_piani_cantiere` delle
+  fasi simili, fornitori dalle righe degli ordini passati.
+- **Disponibilità vere (4.2)**: una persona già su un'altra commessa nelle stesse date (date della fase, o della
+  commessa) o assente (`hr_assenze`); un mezzo prenotato (`mezzi_piani_cantiere`, `mezzi_allocazioni`, anche a
+  quantità), in officina o fuori servizio; una ditta senza subappaltatore collegato, senza DURC, con DURC irregolare,
+  scaduto o che scade prima della fine della fase (`subappaltatori_documenti` e `subappaltatori_sicurezza.durc_scadenza`),
+  o con altri documenti scaduti. Chi non va non si propone: si prende il prossimo; se non c'è, resta il migliore con
+  ⚠ e il perché, e la scrittura lo lascia fuori col motivo. Un test controlla che nessuna proposta metta la stessa
+  persona in due cantieri lo stesso giorno. `salva_piano_mezzo` ricontrolla i mezzi alla scrittura.
+- **Bozze 🔴 (4.3)**: contratto di subappalto in bozza per ogni ditta che entra (Allegato A dalle voci delle sue
+  fasi, a corpo se non ne ha); ordini in stato «bozza» con la data d'ordine = consegna (inizio fase) − tempi di
+  consegna del fornitore (`suppliers.lead_time_days`), e l'avviso se andava ordinato prima di oggi; promemoria del POS
+  e (con ditte) di DUVRI/PSC 5 giorni lavorativi prima dell'inizio; il messaggio d'avvio al cliente come testo, in
+  un'attività della commessa. Niente parte: `sent_at` resta vuoto, nessuna email o WhatsApp.
+- **Offerte «da collegare»** (rimaste dalla fase 3): sulla fonte si sceglie la richiesta d'offerta aperta, la legge
+  `rdo-ai-estrai-offerta` (stima ~0,03 € e saldo controllato prima), e diventa l'ordine in bozza a quel fornitore coi
+  prezzi (sconto compreso), le quantità della richiesta e i giorni di consegna dell'offerta. Gli altri ordini proposti
+  restano anche tenendo l'offerta.
+- **Allegati delle email**: dopo «Crea» o «Completa» un allegato di un'email letto nel popup finisce tra i documenti
+  della commessa: lo copia `silvio-commessa` (modo `allega`) e lo registra con `commessa_bozza_allega`, quindi
+  l'annullamento lo toglie.
+- **Scrittura**: `scritturaDalPiano` ha `squadra`, `ditte`, `mezzi`, `oda`, `contratti`, `promemoria`; le scrive
+  `_silvio_aggiungi_risorse` (migrazione `20281106130000`), chiamata da `_silvio_aggiungi` dopo le fasi, per nome di
+  fase, solo aggiunte. Provata il 1/11 in una transazione annullata su Demo 2 insieme alle migrazioni della fase 1–3
+  (compresa la modifica della fase 3 alle date proposte, mai provata prima): tutto entra, il secondo mezzo sovrapposto
+  torna in `non_prenotati`, l'annullamento toglie tutto (15 righe), non resta niente.
+- **Date in ora italiana**: `oggiInItalia` (`en-CA`, Europe/Rome) in `shared/silvio-commessa/date.ts`; l'urgenza
+  della fase 2 (`commesse_da_completare` e `oggiIso`) non usa più `current_date` in UTC.
+- Test: `silvioCommessaRisorse` (19), `silvioCommessaRisorse.test.tsx` (2). Guardato a 1280 e 390 px: corretto il
+  nome della persona che sul telefono si riduceva a «⚠ …».
+
 ### Fase 5 — Pilota automatico (3 sessioni)
 
 | Lotto | Cosa | Fatto quando |

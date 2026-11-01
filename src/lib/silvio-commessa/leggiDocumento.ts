@@ -212,7 +212,8 @@ export async function leggiTesto(testo: string, opz: OpzioniLettura, servizi: Se
   }
 }
 
-async function comeBase64(file: File): Promise<string> {
+/** Il file come lo vogliono le edge function: base64, con il prefisso data: per le immagini. */
+export async function comeBase64(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));

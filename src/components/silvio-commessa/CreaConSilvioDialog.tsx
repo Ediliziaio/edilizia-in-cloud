@@ -182,7 +182,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     setErrore(null);
     try {
       const fatto = await b.crea();
-      if (fatto.allegatiNonRiusciti.length) setEsito(fatto);
+      // Un file non copiato o un mezzo non prenotato (prenotato da altri nel frattempo) si dice prima di uscire.
+      if (fatto.allegatiNonRiusciti.length || fatto.risorse?.non_prenotati?.length) setEsito(fatto);
       else dopo(fatto.order_id);
     } catch (e) {
       const testo = e instanceof ErroreBozza ? e.message : messaggioErrore(e);
@@ -323,14 +324,29 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <p className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden />{completa ? "La commessa è completata" : "La commessa è nata"}
               </p>
-              <p className="text-sm text-slate-600">
-                {esito.allegati ? `${esito.allegati} ${esito.allegati === 1 ? "fonte è" : "fonti sono"} tra i documenti della commessa. ` : ""}
-                {esito.allegatiNonRiusciti.length === 1 ? "Un file non si è copiato" : `${esito.allegatiNonRiusciti.length} file non si sono copiati`}:
-                l'originale resta nella bozza.
-              </p>
-              <ul className="space-y-1 text-sm">
-                {esito.allegatiNonRiusciti.map((x) => <li key={x.nome}><strong>{x.nome}</strong>: {x.motivo}</li>)}
-              </ul>
+              {esito.allegatiNonRiusciti.length > 0 && (
+                <>
+                  <p className="text-sm text-slate-600">
+                    {esito.allegati ? `${esito.allegati} ${esito.allegati === 1 ? "fonte è" : "fonti sono"} tra i documenti della commessa. ` : ""}
+                    {esito.allegatiNonRiusciti.length === 1 ? "Un file non si è copiato" : `${esito.allegatiNonRiusciti.length} file non si sono copiati`}:
+                    l'originale resta nella bozza.
+                  </p>
+                  <ul className="space-y-1 text-sm">
+                    {esito.allegatiNonRiusciti.map((x) => <li key={x.nome}><strong>{x.nome}</strong>: {x.motivo}</li>)}
+                  </ul>
+                </>
+              )}
+              {!!esito.risorse?.non_prenotati?.length && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+                  <p className="font-medium">
+                    {esito.risorse.non_prenotati.length === 1 ? "Un mezzo non si è prenotato" : `${esito.risorse.non_prenotati.length} mezzi non si sono prenotati`}:
+                    il resto della commessa c'è. Prenotali dalla scheda Mezzi della commessa.
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {esito.risorse.non_prenotati.map((x, i) => <li key={`${x.mezzo_id}-${i}`}>• {x.motivo}</li>)}
+                  </ul>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {esito.allegatiNonRiusciti.length > 0 && (
                   <Button type="button" variant="outline" className="gap-1" disabled={riallegando} onClick={() => void riallega()}>
@@ -379,7 +395,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               className={cn("min-h-0 overflow-y-auto p-4", scheda !== "fonti" && "max-lg:hidden")}>
               <h3 className="mb-2 hidden text-xs font-semibold uppercase tracking-wide text-slate-500 lg:block">Fonti</h3>
               <ColonnaFonti companyId={companyId} orderId={orderId} fonti={b.fonti} servizi={servizi} onAggiungi={b.aggiungi}
-                onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte} />
+                onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte}
+                onCollegaOfferta={(id, r) => void b.collegaOfferta(id, r)} />
             </section>
             <section id="pannello-chat" role="tabpanel" aria-label="Chat con Silvio"
               className={cn("min-h-0 p-4 max-lg:overflow-y-auto lg:flex lg:flex-col", scheda !== "chat" && "max-lg:hidden")}>

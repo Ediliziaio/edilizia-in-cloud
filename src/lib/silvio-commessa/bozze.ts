@@ -17,15 +17,20 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { PianoCommessa } from "../../../shared/silvio-commessa/piano.ts";
+import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import { scritturaDalPiano, type ScritturaCommessa } from "./scrittura";
 import { BUCKET_DOCUMENTI_COMMESSA } from "./leggiDocumento";
 import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
 
 export const BUCKET_ALLEGATI_COMMESSA = "order-attachments";
 
-/** Un file caricato nella bozza, in silvio-uploads. */
+/**
+ * Un file caricato nella bozza, in silvio-uploads. Fase 4: anche un allegato di un'email letto
+ * dove sta (`documento`, senza `path`): dopo «Crea» lo copia la funzione `silvio-commessa`.
+ */
 export interface FonteCaricata {
   path: string;
+  documento?: RifDocumento | null;
   nome: string;
   mime?: string | null;
   dimensione?: number | null;
@@ -58,6 +63,12 @@ export interface EsitoScrittura {
   rate: number;
   contratto: boolean;
   righe_registrate: number;
+  /** Fase 4: quante persone, ditte, mezzi, ordini, contratti e promemoria; i mezzi non prenotati col motivo. */
+  risorse?: {
+    persone: number; ditte: number; mezzi: number; oda: number; contratti: number; promemoria: number;
+    non_prenotati: { mezzo_id: string; motivo: string }[];
+    saltati: { contratto: string; motivo: string }[];
+  };
 }
 
 export interface EsitoCommessa extends EsitoScrittura {
@@ -85,6 +96,8 @@ export interface ClientBozze {
       remove: (paths: string[]) => PromiseLike<Risposta<unknown>>;
     };
   };
+  /** Le edge function: gli allegati delle email li copia `silvio-commessa` (fase 4). */
+  functions?: { invoke: (nome: string, opz: { body: Record<string, unknown> }) => PromiseLike<Risposta<unknown>> };
 }
 
 // Le tabelle nuove non sono ancora nei tipi generati: si passa da un client senza tipi.
@@ -293,12 +306,20 @@ async function chiama<T>(db: ClientBozze, nome: string, args: Record<string, unk
  * ferma niente: torna nell'elenco dei non riusciti, e l'originale resta nella bozza.
  */
 export async function allegaFonti(
-  bozza: Pick<Bozza, "id" | "fonti">,
+  bozza: Pick<Bozza, "id" | "fonti"> & { company_id?: string | null },
   orderId: string,
   db: ClientBozze = clientVero,
 ): Promise<{ allegati: number; nonRiusciti: { nome: string; motivo: string }[] }> {
   const copiati: { path: string; nome: string; mime: string | null; dimensione: number }[] = [];
   const nonRiusciti: { nome: string; motivo: string }[] = [];
+  // Gli allegati delle email: il browser non li scarica, li copia la funzione.
+  const remoti = (bozza.fonti ?? []).filter((f) => f?.documento && !f.path);
+  let remotiAllegati = 0;
+  if (remoti.length) {
+    const r = await allegaDocumentiRemoti(bozza, remoti, db);
+    remotiAllegati = r.allegati;
+    nonRiusciti.push(...r.nonRiusciti);
+  }
   for (const f of bozza.fonti ?? []) {
     if (!f?.path) continue;
     const giu = await db.storage.from(BUCKET_DOCUMENTI_COMMESSA).download(f.path);
@@ -316,21 +337,41 @@ export async function allegaFonti(
     }
     copiati.push({ path: destinazione, nome: f.nome, mime: f.mime ?? null, dimensione: f.dimensione ?? contenuto.byteLength });
   }
-  if (!copiati.length) return { allegati: 0, nonRiusciti };
+  if (!copiati.length) return { allegati: remotiAllegati, nonRiusciti };
   try {
     await chiama<number>(db, "commessa_bozza_allega", { p_bozza_id: bozza.id, p_allegati: copiati });
   } catch (e) {
     // Senza la riga i file copiati sarebbero orfani: si tolgono.
     await db.storage.from(BUCKET_ALLEGATI_COMMESSA).remove(copiati.map((c) => c.path));
     const motivo = e instanceof ErroreBozza ? e.message : messaggioErrore(e);
-    return { allegati: 0, nonRiusciti: [...nonRiusciti, ...copiati.map((c) => ({ nome: c.nome, motivo }))] };
+    return { allegati: remotiAllegati, nonRiusciti: [...nonRiusciti, ...copiati.map((c) => ({ nome: c.nome, motivo }))] };
   }
-  return { allegati: copiati.length, nonRiusciti };
+  return { allegati: copiati.length + remotiAllegati, nonRiusciti };
 }
+
+/** Gli allegati delle email letti dal popup: li copia e li registra `silvio-commessa` (modo «allega»). */
+async function allegaDocumentiRemoti(
+  bozza: Pick<Bozza, "id"> & { company_id?: string | null }, fonti: FonteCaricata[], db: ClientBozze,
+): Promise<{ allegati: number; nonRiusciti: { nome: string; motivo: string }[] }> {
+  const tutti = (motivo: string) => ({ allegati: 0, nonRiusciti: fonti.map((f) => ({ nome: f.nome, motivo })) });
+  if (!db.functions || !bozza.company_id) return tutti("non si è potuto copiare tra i documenti della commessa");
+  try {
+    const { data, error } = await db.functions.invoke("silvio-commessa", {
+      body: { modo: "allega", company_id: bozza.company_id, bozza_id: bozza.id, documenti: fonti.map((f) => ({ documento: f.documento, nome: f.nome })) },
+    });
+    if (error) return tutti(error.message || "non si è potuto copiare tra i documenti della commessa");
+    const r = (data ?? {}) as { allegati?: number; non_riusciti?: { nome: string; motivo: string }[] };
+    return { allegati: Number(r.allegati) || 0, nonRiusciti: Array.isArray(r.non_riusciti) ? r.non_riusciti : [] };
+  } catch (e) {
+    return tutti(messaggioErrore(e));
+  }
+}
+
+type BozzaDaScrivere = Pick<Bozza, "id" | "fonti"> & { company_id?: string | null };
 
 async function scrivi(
   rpc: "commessa_crea_con_silvio" | "commessa_completa_con_silvio",
-  bozza: Pick<Bozza, "id" | "fonti">,
+  bozza: BozzaDaScrivere,
   db: ClientBozze,
 ): Promise<EsitoCommessa> {
   const esito = await chiama<EsitoScrittura>(db, rpc, { p_bozza_id: bozza.id });
@@ -339,12 +380,12 @@ async function scrivi(
 }
 
 /** «Crea»: la commessa nasce in una transazione, poi le fonti diventano suoi documenti. */
-export function creaCommessa(bozza: Pick<Bozza, "id" | "fonti">, db: ClientBozze = clientVero): Promise<EsitoCommessa> {
+export function creaCommessa(bozza: BozzaDaScrivere, db: ClientBozze = clientVero): Promise<EsitoCommessa> {
   return scrivi("commessa_crea_con_silvio", bozza, db);
 }
 
 /** «Completa»: solo aggiunte alla commessa che c'è; quello che una persona ha scritto resta. */
-export function completaCommessa(bozza: Pick<Bozza, "id" | "fonti">, db: ClientBozze = clientVero): Promise<EsitoCommessa> {
+export function completaCommessa(bozza: BozzaDaScrivere, db: ClientBozze = clientVero): Promise<EsitoCommessa> {
   return scrivi("commessa_completa_con_silvio", bozza, db);
 }
 

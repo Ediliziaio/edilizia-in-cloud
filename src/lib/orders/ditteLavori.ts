@@ -18,66 +18,11 @@ import { varianteDellaSquadra, type VarianteCostoDitta } from "@/lib/orders/cost
 
 export type { RigaElencoLavori };
 
-const PAROLE_VUOTE = new Set([
-  "di", "e", "ed", "in", "a", "da", "del", "della", "dello", "dei", "delle", "degli", "la", "il", "lo", "le", "gli", "i",
-  "per", "con", "su", "opera", "opere", "lavori", "lavoro", "impianto", "impianti", "varie", "vari",
-]);
-
-/** Le parole che contano nel nome di una fase, senza accenti, plurali e articoli. */
-export function paroleFase(nome: string): string[] {
-  const parole = nome
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter((p) => p.length >= 2 && !PAROLE_VUOTE.has(p))
-    // «demolizioni» e «demolizione», «cartongessi» e «cartongesso»: stessa radice.
-    .map((p) => (p.length > 4 ? p.replace(/[aeiou]+$/, "") : p))
-    .filter((p) => p.length >= 2);
-  return [...new Set(parole)];
-}
-
-/** Quanto si somigliano due nomi di fase: 0 niente, 1 uguali. */
-export function somiglianzaFasi(a: string, b: string): number {
-  const x = paroleFase(a);
-  const y = new Set(paroleFase(b));
-  if (!x.length || !y.size) return 0;
-  const comuni = x.filter((p) => y.has(p)).length;
-  return comuni / new Set([...x, ...y]).size;
-}
-
-export interface FaseStorica {
-  /** Nome della fase in un'altra commessa. */
-  fase: string;
-  external_team_id: string;
-}
-
-export interface DittaProposta {
-  external_team_id: string;
-  /** Quante fasi simili, nelle altre commesse, ha fatto questa ditta. */
-  volte: number;
-  /** La fase più simile, per dire perché. */
-  come: string;
-}
-
-/**
- * La ditta da proporre per una fase: quella che nelle altre commesse ha fatto
- * più fasi con un nome simile (almeno metà delle parole in comune). Nessuna = null.
- */
-export function dittaProposta(nomeFase: string, storico: FaseStorica[]): DittaProposta | null {
-  const perDitta = new Map<string, { punti: number; volte: number; migliore: number; come: string }>();
-  for (const s of storico) {
-    const sim = somiglianzaFasi(nomeFase, s.fase);
-    if (sim < 0.5) continue;
-    const d = perDitta.get(s.external_team_id) ?? { punti: 0, volte: 0, migliore: 0, come: s.fase };
-    d.punti += sim;
-    d.volte += 1;
-    if (sim > d.migliore) Object.assign(d, { migliore: sim, come: s.fase });
-    perDitta.set(s.external_team_id, d);
-  }
-  const [migliore] = [...perDitta.entries()].sort((a, b) => b[1].migliore - a[1].migliore || b[1].punti - a[1].punti);
-  return migliore ? { external_team_id: migliore[0], volte: migliore[1].volte, come: migliore[1].come } : null;
-}
+// Le parole delle fasi e la ditta proposta stanno in shared/: le usa anche Silvio quando
+// prepara la commessa (fase 4 di docs/piano-silvio-commessa-ai.md).
+export {
+  paroleFase, somiglianzaFasi, dittaProposta, type FaseStorica, type DittaProposta,
+} from "../../../shared/silvio-commessa/somiglianza.ts";
 
 export interface VoceLavoro {
   id: string;

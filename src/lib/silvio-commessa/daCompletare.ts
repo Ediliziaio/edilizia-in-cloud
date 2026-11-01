@@ -8,6 +8,7 @@
  * Qui ci sono la lettura, l'ordine scritto anche in TypeScript (per i test e per rimettere in
  * fila dopo un completamento) e la sequenza, tutte funzioni pure tranne la lettura.
  */
+import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 import { supabase } from "@/integrations/supabase/client";
 import { variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { ErroreBozza, messaggioErrore } from "./bozze";
@@ -61,9 +62,11 @@ export async function leggiDaCompletare(
 }
 
 const giorno = (data: string) => Date.UTC(Number(data.slice(0, 4)), Number(data.slice(5, 7)) - 1, Number(data.slice(8, 10)));
-/** AAAA-MM-GG di oggi nel calendario locale (come `current_date` del database, in Italia). */
-export const oggiIso = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/**
+ * AAAA-MM-GG di oggi a Roma, come la funzione SQL (che dal 1/11/2026 usa l'ora italiana e non
+ * `current_date`, in UTC): lo stesso giorno anche da un browser con un altro fuso.
+ */
+export const oggiIso = (d = new Date()) => oggiInItalia(d);
 
 /** La data che decide l'urgenza: l'inizio lavori, o la consegna prevista. */
 export const dataUrgenza = (c: Pick<CommessaDaCompletare, "inizio" | "consegna">) => c.inizio ?? c.consegna ?? null;

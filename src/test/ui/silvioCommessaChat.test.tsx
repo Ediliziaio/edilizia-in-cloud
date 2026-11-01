@@ -41,6 +41,7 @@ vi.mock("pdfjs-dist", () => ({
   }),
 }));
 vi.mock("pdfjs-dist/build/pdf.worker.min.mjs?url", () => ({ default: "worker.js" }));
+vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({
   useVoiceInput: () => ({ recording: false, transcribing: false, recordingMs: 0, toggle: vi.fn() }),
@@ -124,6 +125,10 @@ function servizi(over: Partial<ServiziSilvioCommessa> = {}): ServiziSilvioCommes
     chat: vi.fn(async () => ({ testo: "", strumenti: [], costoEur: 0 })),
     saldoAI: vi.fn(async () => ({ saldoEur: 5, bloccato: false })),
     trascrivi: vi.fn(async () => "sposta tutto di una settimana"),
+    // Fase 4: senza dati dell'azienda non si propone niente.
+    contestoRisorse: vi.fn(async () => { throw new Error("non in questo test"); }),
+    richiesteOfferta: vi.fn(async () => []),
+    leggiOfferta: vi.fn(async () => ({ offerta: {}, quantita: {} })),
     db: dbFinto() as unknown as ClientBozze,
     ...over,
   };

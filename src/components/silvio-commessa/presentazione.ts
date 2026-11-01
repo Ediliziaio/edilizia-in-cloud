@@ -168,6 +168,37 @@ export function testoValore(chiave: string, valore: unknown): string {
     }
     case "cliente.customer_id":
       return "cliente del gestionale collegato";
+    // Fase 4: gli elenchi di persone, ditte, mezzi, ordini e bozze.
+    case "persone.squadra":
+    case "ditte.assegnate":
+    case "mezzi.allocazioni":
+    case "materiali.acquisti":
+    case "ditte.contratti": {
+      if (!Array.isArray(valore)) break;
+      const elenco = valore as Array<{ stato?: string; costo_previsto?: number; importo?: number; nome?: string; fornitore?: string }>;
+      const buoni = elenco.filter((x) => x?.stato !== "attenzione");
+      const ko = elenco.length - buoni.length;
+      const cosa = ({
+        "persone.squadra": ["persona", "persone"], "ditte.assegnate": ["ditta", "ditte"], "mezzi.allocazioni": ["mezzo", "mezzi"],
+        "materiali.acquisti": ["ordine in bozza", "ordini in bozza"], "ditte.contratti": ["contratto in bozza", "contratti in bozza"],
+      } as Record<string, [string, string]>)[chiave];
+      const soldi = chiave === "ditte.assegnate" ? buoni.reduce((t, x) => t + (Number(x.costo_previsto) || 0), 0)
+        : chiave === "ditte.contratti" ? buoni.reduce((t, x) => t + (Number(x.importo) || 0), 0) : 0;
+      const nomi = [...new Set(buoni.map((x) => x.nome ?? x.fornitore).filter(Boolean))].slice(0, 3).join(", ");
+      return `${buoni.length} ${buoni.length === 1 ? cosa[0] : cosa[1]}${nomi ? `: ${nomi}` : ""}${soldi > 0 ? ` · ${euro(soldi)}` : ""}`
+        + (ko ? ` · ⚠ ${ko} non ${ko === 1 ? "disponibile" : "disponibili"}` : "");
+    }
+    case "sicurezza.pos_duvri": {
+      if (!Array.isArray(valore)) break;
+      const p = valore as Array<{ titolo?: string; scadenza?: string | null }>;
+      const entro = p.map((x) => x.scadenza).filter((d): d is string => !!d).sort()[0];
+      return `${p.length} ${p.length === 1 ? "promemoria" : "promemoria"}${entro ? ` · entro ${dataBreve(entro, false)}` : ""}`;
+    }
+    case "comunicazione.avvio_cliente": {
+      const m = valore as { canale?: string | null; destinatario?: string | null; scadenza?: string | null };
+      const dove = m.canale === "email" ? "per email" : m.canale === "whatsapp" ? "per WhatsApp" : "";
+      return `bozza da mandare ${dove}${m.scadenza ? ` entro ${dataBreve(m.scadenza, false)}` : ""}`.replace(/\s+/g, " ").trim();
+    }
   }
   if (Array.isArray(valore)) return `${valore.length} ${valore.length === 1 ? "elemento" : "elementi"}`;
   // Le tabelle collegate che il lettore della commessa conta soltanto.
@@ -223,7 +254,12 @@ export interface RigaArea {
 }
 
 /** Gli elenchi che Silvio scrive già (fase 1); le altre tabelle arrivano con le fasi dopo. */
-const ELENCHI_SCRITTI = new Set(["cliente.customer_id", "economia.order_items", "pagamenti.rate", "fasi.order_work_phases", "fasi.date_fasi"]);
+const ELENCHI_SCRITTI = new Set([
+  "cliente.customer_id", "economia.order_items", "pagamenti.rate", "fasi.order_work_phases", "fasi.date_fasi",
+  // Fase 4.
+  "persone.squadra", "ditte.assegnate", "ditte.contratti", "mezzi.allocazioni", "materiali.acquisti",
+  "sicurezza.pos_duvri", "comunicazione.avvio_cliente",
+]);
 
 /**
  * Una variabile che manca si mostra (❓) solo se si può riempire adesso: una colonna che

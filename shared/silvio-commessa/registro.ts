@@ -215,6 +215,10 @@ export const REGISTRO: readonly Variabile[] = [
     fonti: ["modello"], livello: "da_solo", controllo: righe("internal_chat_channels"), peso: 1 },
   { area: "comunicazione", chiave: "comunicazione.tasks", etichetta: "Attività d'ufficio", colonne: [], tabelle: ["tasks"],
     fonti: ["modello"], livello: "da_solo", controllo: righe("tasks"), peso: 1 },
+  // Il messaggio d'avvio al cliente (fase 4): un testo in bozza in un'attività della commessa.
+  // 🔴: esce verso il cliente, lo manda solo una persona. Peso 0: non tutte le commesse lo vogliono.
+  { area: "comunicazione", chiave: "comunicazione.avvio_cliente", etichetta: "Messaggio d'avvio al cliente", colonne: [], tabelle: ["tasks"],
+    fonti: ["modello"], livello: "mai_da_solo", controllo: righe("tasks"), peso: 0 },
   { area: "comunicazione", chiave: "comunicazione.calendario", etichetta: "Eventi in calendario", colonne: [], tabelle: ["google_calendar_order_events"],
     fonti: ["modello"], livello: "da_solo", controllo: righe("google_calendar_order_events"), peso: 0 },
 ];

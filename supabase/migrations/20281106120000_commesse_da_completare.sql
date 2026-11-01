@@ -145,7 +145,8 @@ begin
     from conti c
    where p_order_id is not null or c.punteggio < 100
    order by coalesce(c.work_start_date, c.expected_date) is null,
-            abs(coalesce(c.work_start_date, c.expected_date) - current_date),
+            -- Oggi in Italia, non in UTC: fra mezzanotte e le due current_date è ancora ieri.
+            abs(coalesce(c.work_start_date, c.expected_date) - (now() at time zone 'Europe/Rome')::date),
             case when v_importi then c.total_amount end desc nulls last,
             c.created_at desc
    limit least(greatest(coalesce(p_limite, 50), 1), 200);

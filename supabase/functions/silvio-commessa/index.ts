@@ -25,6 +25,12 @@
  * - `modo: "apri"` { company_id, documento }: un indirizzo firmato per 5 minuti, per la ⓘ
  *   che apre il documento alla pagina citata (gli allegati delle email il browser non li
  *   scarica da sé). Stessi controlli della lettura, nessuna AI.
+ * - `modo: "allega"` { company_id, bozza_id, documenti: [{ documento, nome? }] } (fase 4, lotto
+ *   4.3): dopo «Crea» o «Completa», gli allegati delle email letti dal popup diventano documenti
+ *   della commessa. Il browser non li può copiare (stanno in email-attachments): li trova
+ *   `trovaDocumento` col client di chi chiama, li copia qui in order-attachments e li registra
+ *   con `commessa_bozza_allega`, sempre col client di chi chiama: entrano nel registro
+ *   dell'annullamento come i file caricati. Nessuna AI.
  *
  * Non scrive niente nel database: il frammento torna al browser, che lo fonde nella bozza.
  * Il testo del PDF viene da pdfExtraction (OCR solo per le pagine scansionate); foto e
@@ -99,6 +105,7 @@ Deno.serve(async (req: Request) => {
     const companyId = typeof body?.company_id === "string" ? body.company_id : "";
     if (body?.modo === "chat") return await chat(body, companyId, userId, supabaseAdmin, cors);
     if (body?.modo === "apri") return await apri(req, body, companyId, userId, supabaseAdmin, cors);
+    if (body?.modo === "allega") return await allega(req, body, companyId, userId, supabaseAdmin, cors);
     const filePath: unknown = body?.file_path;
     const documento = body?.documento == null ? null : rifDocumento(body.documento);
     if (body?.documento != null && !documento) return errorResponse("Documento non valido", 400, cors);
@@ -264,6 +271,79 @@ async function apri(req: Request, body: any, companyId: string, userId: string, 
   const { data, error } = await admin.storage.from(file.bucket).createSignedUrl(file.path, 300);
   if (error || !data?.signedUrl) return errorResponse("Non riesco ad aprire il documento: riprova", 502, cors);
   return jsonResponse({ ok: true, url: data.signedUrl, nome: file.nome }, 200, cors);
+}
+
+const BUCKET_COMMESSA = "order-attachments";
+const MAX_DA_ALLEGARE = 10;
+
+/** Come `percorsoDocumento` dell'app (src/lib/commesse/documentiCommessa.ts). */
+function percorsoNellaCommessa(orderId: string, nome: string): string {
+  const pulito = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.-]/g, "_").slice(0, 120);
+  return `orders/${orderId}/${Date.now()}-${Math.floor(Math.random() * 1e6)}-${pulito}`;
+}
+
+/** Gli allegati delle email letti nel popup diventano documenti della commessa nata dalla bozza. */
+// deno-lint-ignore no-explicit-any
+async function allega(req: Request, body: any, companyId: string, userId: string, admin: any, cors: Record<string, string>) {
+  if (!UUID.test(companyId)) return errorResponse("company_id obbligatorio", 400, cors);
+  const bozzaId = typeof body?.bozza_id === "string" && UUID.test(body.bozza_id) ? body.bozza_id : null;
+  const elenco = Array.isArray(body?.documenti) ? body.documenti : null;
+  if (!bozzaId || !elenco || elenco.length === 0 || elenco.length > MAX_DA_ALLEGARE) {
+    return errorResponse(`Servono la bozza e da 1 a ${MAX_DA_ALLEGARE} documenti`, 400, cors);
+  }
+  await requireCompanyAccess(admin, userId, companyId, cors);
+  const utente = clientDiChiChiama(req);
+  // La bozza col client di chi chiama: la vede solo chi l'ha fatta.
+  const { data: b } = await utente.from("commessa_bozze").select("id, company_id, order_id, stato").eq("id", bozzaId).maybeSingle();
+  if (!b || b.company_id !== companyId) return errorResponse("Bozza non trovata", 404, cors);
+  if (b.stato === "bozza" || !b.order_id) return errorResponse("La commessa non è ancora nata: crea prima la commessa", 409, cors);
+
+  const copiati: { path: string; nome: string; mime: string; dimensione: number }[] = [];
+  const nonRiusciti: { nome: string; motivo: string }[] = [];
+  for (const voce of elenco) {
+    const rif = rifDocumento(voce?.documento);
+    const nomeChiesto = typeof voce?.nome === "string" ? voce.nome.slice(0, 200) : "allegato";
+    // Un documento della commessa è già tra i suoi documenti: non si ricopia.
+    if (!rif || rif.tipo !== "allegato_email") {
+      nonRiusciti.push({ nome: nomeChiesto, motivo: "non è un allegato di un'email" });
+      continue;
+    }
+    const file = await trovaDocumento(rif, companyId, utente, admin);
+    if (!file) {
+      nonRiusciti.push({ nome: nomeChiesto, motivo: "allegato non trovato, o non hai il permesso di vederlo" });
+      continue;
+    }
+    const { data: blob, error: errGiu } = await admin.storage.from(file.bucket).download(file.path);
+    if (errGiu || !blob) {
+      nonRiusciti.push({ nome: file.nome, motivo: "allegato non scaricabile" });
+      continue;
+    }
+    if (blob.size > MAX_BYTE) {
+      nonRiusciti.push({ nome: file.nome, motivo: "file troppo grande (oltre 20 MB)" });
+      continue;
+    }
+    const destinazione = percorsoNellaCommessa(b.order_id, file.nome);
+    const mime = blob.type || "application/octet-stream";
+    const { error: errSu } = await admin.storage.from(BUCKET_COMMESSA).upload(destinazione, blob, { contentType: mime, upsert: false });
+    if (errSu) {
+      nonRiusciti.push({ nome: file.nome, motivo: "non si è potuto copiare tra i documenti della commessa" });
+      continue;
+    }
+    copiati.push({ path: destinazione, nome: file.nome, mime, dimensione: blob.size });
+  }
+  if (!copiati.length) return jsonResponse({ ok: true, allegati: 0, non_riusciti: nonRiusciti }, 200, cors);
+
+  // La registrazione col client di chi chiama: la RPC controlla bozza, autore e permesso.
+  const { error } = await utente.rpc("commessa_bozza_allega", { p_bozza_id: bozzaId, p_allegati: copiati });
+  if (error) {
+    // Senza la riga i file copiati sarebbero orfani: si tolgono.
+    await admin.storage.from(BUCKET_COMMESSA).remove(copiati.map((c) => c.path));
+    return jsonResponse({
+      ok: true, allegati: 0,
+      non_riusciti: [...nonRiusciti, ...copiati.map((c) => ({ nome: c.nome, motivo: error.message }))],
+    }, 200, cors);
+  }
+  return jsonResponse({ ok: true, allegati: copiati.length, non_riusciti: nonRiusciti }, 200, cors);
 }
 
 /**

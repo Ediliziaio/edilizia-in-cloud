@@ -15,6 +15,7 @@ import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 import type { CommessaDaCompletare } from "@/lib/silvio-commessa/daCompletare";
 import { frammentiPerCompletare } from "@/lib/silvio-commessa/lettori/commessa";
 
+vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({
   useVoiceInput: () => ({ recording: false, transcribing: false, recordingMs: 0, toggle: vi.fn() }),
@@ -104,6 +105,10 @@ function servizi(over: Partial<ServiziSilvioCommessa> = {}) {
     chat: vi.fn(async () => ({ testo: "", strumenti: [], costoEur: 0 })),
     saldoAI: vi.fn(async () => ({ saldoEur: null, bloccato: false })),
     trascrivi: vi.fn(async () => ""),
+    // Fase 4: senza dati dell'azienda non si propone niente.
+    contestoRisorse: vi.fn(async () => { throw new Error("non in questo test"); }),
+    richiesteOfferta: vi.fn(async () => []),
+    leggiOfferta: vi.fn(async () => ({ offerta: {}, quantita: {} })),
     db: db as unknown as ClientBozze,
     ...over,
   };

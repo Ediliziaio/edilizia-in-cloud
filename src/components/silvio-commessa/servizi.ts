@@ -7,18 +7,23 @@
  * (`saldoAI`), la dettatura (`trascrivi`, con `trascrizione-audio` come il preventivatore), i
  * contratti dell'app, i documenti letti dove stanno (`leggiRemoto`), e la ⓘ che riapre un
  * documento (`scaricaCaricato`, `apriDocumento`).
+ *
+ * Fase 4: i dati veri per le proposte di persone, ditte, mezzi e acquisti (`contestoRisorse`),
+ * le richieste d'offerta aperte e la lettura di un'offerta dentro la sua richiesta.
  */
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { ChiamataStrumento, ContestoChat } from "../../../shared/silvio-commessa/chat.ts";
 import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
-  leggiDocumento, leggiDocumentoRemoto, leggiTesto, BUCKET_DOCUMENTI_COMMESSA, type EsitoLettura, type OpzioniLettura,
+  comeBase64, leggiDocumento, leggiDocumentoRemoto, leggiTesto, BUCKET_DOCUMENTI_COMMESSA, type EsitoLettura, type OpzioniLettura,
 } from "@/lib/silvio-commessa/leggiDocumento";
 import {
   elencaAllegatiCommessa, leggiFrammentiCommessa, leggiFrammentiPreventivo, leggiFrammentoComputo, leggiFrammentoContratto,
   scaricaAllegatoCommessa, type AllegatoCommessa,
 } from "@/lib/silvio-commessa/lettori";
 import { registraCorrezioni, type Correzione } from "@/lib/silvio-commessa/correzioni";
+import type { ContestoRisorse, OffertaLetta, RichiestaOfferta } from "../../../shared/silvio-commessa/risorse.ts";
+import { elencaRichiesteOfferta, leggiContestoRisorse, quantitaRichiesta } from "@/lib/silvio-commessa/risorse";
 import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,9 +85,16 @@ export interface ServiziSilvioCommessa {
   saldoAI(companyId: string): Promise<SaldoAI>;
   /** La dettatura: l'audio diventa testo (`trascrizione-audio`). */
   trascrivi(audio: Blob): Promise<string>;
+  /** Fase 4: i dati dell'azienda per proporre squadra, ditte, mezzi e ordini. Solo letture. */
+  contestoRisorse(companyId: string, staff: ContestoRisorse["staff"], orderId: string | null): Promise<ContestoRisorse>;
+  /** Le richieste d'offerta aperte, fornitore per fornitore. */
+  richiesteOfferta(companyId: string): Promise<RichiestaOfferta[]>;
+  /** Un'offerta letta dentro la sua richiesta (`rdo-ai-estrai-offerta`), con le quantità della richiesta. */
+  leggiOfferta(rfqSupplierId: string, file: File): Promise<{ offerta: OffertaLetta; quantita: Record<string, number> }>;
   /** Il client delle bozze e delle RPC (`bozze.ts`). */
   db: ClientBozze;
 }
+
 
 async function invoca<T>(funzione: string, body: Record<string, unknown> | FormData): Promise<T> {
   const { data, error } = await supabase.functions.invoke(funzione, { body });
@@ -147,6 +159,15 @@ export const serviziVeri: ServiziSilvioCommessa = {
     const r = await invoca<{ testo?: string }>("trascrizione-audio", fd);
     if (!r?.testo?.trim()) throw new Error("Non ho capito l'audio: riprova, o scrivi.");
     return r.testo.trim();
+  },
+  contestoRisorse: (companyId, staff, orderId) => leggiContestoRisorse(companyId, staff, orderId),
+  richiesteOfferta: (companyId) => elencaRichiesteOfferta(companyId),
+  leggiOfferta: async (rfqSupplierId, file) => {
+    const [offerta, quantita] = await Promise.all([
+      invoca<OffertaLetta>("rdo-ai-estrai-offerta", { rfq_supplier_id: rfqSupplierId, document_base64: await comeBase64(file) }),
+      quantitaRichiesta(rfqSupplierId),
+    ]);
+    return { offerta: offerta ?? {}, quantita };
   },
   // Le tabelle nuove non sono ancora nei tipi generati: si passa da un client senza tipi.
   db: supabase as unknown as ClientBozze,

@@ -5,8 +5,11 @@
  *
  * In «Completa» (fase 2) in cima ci sono i documenti già allegati alla commessa: ognuno si
  * legge con un tocco su «Leggi», che porta davanti la stima del costo.
+ *
+ * Fase 4: l'offerta di una ditta «da collegare» si collega qui alla sua richiesta d'offerta,
+ * scelta fra quelle aperte; la lettura parte col tocco che mostra il costo.
  */
-import { useId, useMemo, useRef, useState, type DragEvent } from "react";
+import { useId, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle, CheckCircle2, FileText, Loader2, Mic, Plus, RotateCcw, Search, Square, Upload, X, Calculator, Link2,
@@ -21,7 +24,8 @@ import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import { euroAI, stimaLettura } from "./presentazione";
-import type { FonteDaAggiungere, FonteNelPopup } from "./useBozzaSilvio";
+import { STIMA_OFFERTA_EUR, type FonteDaAggiungere, type FonteNelPopup } from "./useBozzaSilvio";
+import type { RichiestaOfferta } from "../../../shared/silvio-commessa/risorse.ts";
 import type { ServiziSilvioCommessa } from "./servizi";
 
 const STATI: Record<FonteNelPopup["stato"], string> = {
@@ -41,7 +45,47 @@ function IconaStato({ f }: { f: FonteNelPopup }) {
   return <FileText className="h-4 w-4 text-slate-500" aria-hidden />;
 }
 
-function SchedaFonte({ f, onRiprova, onTogli }: { f: FonteNelPopup; onRiprova: () => void; onTogli: () => void }) {
+/** A quale richiesta d'offerta risponde l'offerta: si sceglie fra le aperte, poi si legge. */
+function CollegaOfferta({ companyId, servizi, onCollega }: {
+  companyId: string; servizi: ServiziSilvioCommessa; onCollega: (r: RichiestaOfferta) => void;
+}) {
+  const id = useId();
+  const [scelta, setScelta] = useState("");
+  const richieste = useQuery({
+    queryKey: ["silvio-commessa-richieste-offerta", companyId],
+    queryFn: () => servizi.richiesteOfferta(companyId),
+    staleTime: 60_000,
+  });
+  const elenco = richieste.data ?? [];
+  const r = elenco.find((x) => x.id === scelta);
+  if (richieste.isLoading) return <p className="mt-2 text-xs text-slate-500">Cerco le richieste d'offerta aperte…</p>;
+  if (!elenco.length) {
+    return <p className="mt-2 text-xs text-slate-600">Non ci sono richieste d'offerta aperte: creane una da Acquisti → Richieste d'offerta, poi collegala qui.</p>;
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-end gap-2">
+      <label htmlFor={id} className="min-w-0 flex-1 text-xs text-slate-600">
+        A quale richiesta risponde?
+        <select id={id} value={scelta} onChange={(e) => setScelta(e.target.value)}
+          className="mt-1 h-9 w-full rounded-md border bg-white px-2 text-sm text-slate-900">
+          <option value="">Scegli…</option>
+          {elenco.map((x) => (
+            <option key={x.id} value={x.id}>{[x.rfq_number, x.titolo, x.fornitore].filter(Boolean).join(" · ")}</option>
+          ))}
+        </select>
+      </label>
+      <Button type="button" size="sm" className="h-9" disabled={!r} onClick={() => r && onCollega(r)}>
+        Leggi l'offerta · ~{euroAI(STIMA_OFFERTA_EUR)}
+      </Button>
+    </div>
+  );
+}
+
+function SchedaFonte({ f, onRiprova, onTogli, collega }: {
+  f: FonteNelPopup; onRiprova: () => void; onTogli: () => void;
+  /** Per un'offerta da collegare: la scelta della richiesta. */
+  collega?: ReactNode;
+}) {
   return (
     <li className="rounded-lg border bg-white p-3 text-sm shadow-sm" aria-busy={f.stato === "in_lettura" || undefined}>
       <div className="flex items-start gap-2">
@@ -75,9 +119,14 @@ function SchedaFonte({ f, onRiprova, onTogli }: { f: FonteNelPopup; onRiprova: (
         </div>
       )}
       {f.stato === "da_collegare" && (
-        <p className="mt-2 text-xs text-amber-800">
-          È l'offerta di una ditta: il suo totale è un costo. Si collega a una richiesta d'offerta, con ditte e costi.
-        </p>
+        <>
+          <p className="mt-2 text-xs text-amber-800">
+            È l'offerta di una ditta: il suo totale è un costo, non l'importo della commessa. Collegala alla sua richiesta
+            d'offerta e diventa l'ordine in bozza a quel fornitore.
+          </p>
+          {f.errore && <p className="mt-1 text-xs text-red-700">{f.errore}</p>}
+          {collega}
+        </>
       )}
       {f.avvisi.length > 0 && (
         <ul className="mt-2 space-y-1 text-xs text-amber-800">
@@ -203,9 +252,13 @@ export interface ColonnaFontiProps {
   onConferma: () => void;
   onRiprova: (id: string) => void;
   onTogli: (id: string) => void;
+  /** Fase 4: collega un'offerta da collegare alla sua richiesta d'offerta. */
+  onCollegaOfferta?: (id: string, r: RichiestaOfferta) => void;
 }
 
-export function ColonnaFonti({ companyId, orderId, fonti, servizi, onAggiungi, onConferma, onRiprova, onTogli }: ColonnaFontiProps) {
+export function ColonnaFonti({
+  companyId, orderId, fonti, servizi, onAggiungi, onConferma, onRiprova, onTogli, onCollegaOfferta,
+}: ColonnaFontiProps) {
   const [sopra, setSopra] = useState(false);
   const [elenco, setElenco] = useState<Elenco>(null);
   const [testo, setTesto] = useState("");
@@ -292,7 +345,11 @@ export function ColonnaFonti({ companyId, orderId, fonti, servizi, onAggiungi, o
       )}
 
       <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto" aria-label="Fonti caricate">
-        {fonti.map((f) => <SchedaFonte key={f.id} f={f} onRiprova={() => onRiprova(f.id)} onTogli={() => onTogli(f.id)} />)}
+        {fonti.map((f) => (
+          <SchedaFonte key={f.id} f={f} onRiprova={() => onRiprova(f.id)} onTogli={() => onTogli(f.id)}
+            collega={f.stato === "da_collegare" && onCollegaOfferta
+              ? <CollegaOfferta companyId={companyId} servizi={servizi} onCollega={(r) => onCollegaOfferta(f.id, r)} /> : null} />
+        ))}
       </ul>
     </div>
   );

@@ -433,6 +433,7 @@ declare
   v_fasi_dopo jsonb;
   v_rate integer := 0;
   v_contratto boolean := false;
+  v_risorse jsonb;
   c jsonb;
 begin
   select * into o from public.orders where id = p_order and company_id = p_bozza.company_id for update;
@@ -559,6 +560,13 @@ begin
     v_contratto := true;
   end if;
 
+  -- Fase 4: squadra, ditte, mezzi, ordini e contratti in bozza, promemoria
+  -- (20281106130000). Dopo le fasi, che ritrova per nome. Chiamata per nome: questa
+  -- migrazione vale anche senza quella.
+  if to_regprocedure('public._silvio_aggiungi_risorse(public.commessa_bozze, uuid)') is not null then
+    execute 'select public._silvio_aggiungi_risorse($1, $2)' into v_risorse using p_bozza, p_order;
+  end if;
+
   -- Le colonne della commessa riempite qui (anche dai trigger e da pianifica_fasi).
   select to_jsonb(x) into v_dopo from public.orders x where x.id = p_order;
   for k in select jsonb_object_keys(v_dopo) loop
@@ -574,7 +582,8 @@ begin
 
   return jsonb_build_object('colonne', (select count(*) from jsonb_object_keys(v_diff)),
                             'fasi', jsonb_array_length(v_fasi), 'voci', v_voci,
-                            'rate', v_rate, 'contratto', v_contratto);
+                            'rate', v_rate, 'contratto', v_contratto)
+         || case when v_risorse is null then '{}'::jsonb else jsonb_build_object('risorse', v_risorse) end;
 end
 $$;
 revoke all on function public._silvio_aggiungi(public.commessa_bozze, uuid) from public, anon, authenticated;

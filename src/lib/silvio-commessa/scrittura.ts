@@ -21,12 +21,21 @@
  * Le fasi che la commessa ha già senza date (fase 3) ricevono le date in `date_fasi`, solo
  * se la persona ha accettato la proposta: la RPC le passa a `commessa_pianifica_fasi`, che
  * data solo le fasi senza date.
+ *
+ * Fase 4 (1/11/2026): squadra, ditte, mezzi, ordini in bozza, contratti in bozza, promemoria di
+ * sicurezza e messaggio d'avvio (shared/silvio-commessa/risorse.ts). Entrano solo se accettati,
+ * e solo gli elementi disponibili: quelli segnati ⚠ restano fuori, col motivo. Il contratto
+ * segue la sua ditta: una ditta che non entra non ha contratto. Le scrive
+ * `_silvio_aggiungi_risorse` (migrazione 20281106130000), con le fasi per nome.
  */
 import type {
   CondizioniContratto, CostoDelPiano, FaseDelPiano, PianoCommessa, RataDelPiano, TipoFonte, Valore,
 } from "../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { giaNellaCommessa } from "../../../shared/silvio-commessa/fondi.ts";
+import type {
+  ContrattoDelPiano, DittaDelPiano, MezzoDelPiano, OdaDelPiano, PersonaDelPiano, PromemoriaDelPiano,
+} from "../../../shared/silvio-commessa/risorse.ts";
 import { rigaConQuantitaIntera } from "@/lib/orders/quantitaIntera";
 
 /**
@@ -97,6 +106,20 @@ export interface Esclusa {
   motivo: string;
 }
 
+export interface PersonaScritta { employee_id: string; fase: string | null }
+export interface DittaScritta { external_team_id: string; fase: string; costo_previsto: number }
+export interface MezzoScritto { mezzo_id: string; fasi: string[]; dal: string; al: string | null; quantita: number }
+export interface OdaScritto {
+  supplier_id: string; fase: string | null; data_ordine: string | null; data_consegna: string | null;
+  righe: { descrizione: string; quantita: number; unita: string | null; prezzo: number | null; iva: number | null }[];
+  note: string;
+}
+export interface ContrattoScritto {
+  external_team_id: string; fasi: string[]; dal: string | null; al: string | null; importo: number;
+  descrizione: string; elenco: ContrattoDelPiano["elenco"];
+}
+export interface PromemoriaScritto { tipo: PromemoriaDelPiano["tipo"]; titolo: string; testo: string; scadenza: string | null }
+
 export interface ScritturaCommessa {
   versione: 1;
   modo: "crea" | "completa";
@@ -112,6 +135,13 @@ export interface ScritturaCommessa {
   date_fasi: DataFaseScritta[];
   venditore: string | null;
   condizioni: CondizioniContratto | null;
+  /** Fase 4: le proposte accettate, già filtrate dei ⚠. */
+  squadra: PersonaScritta[];
+  ditte: DittaScritta[];
+  mezzi: MezzoScritto[];
+  oda: OdaScritto[];
+  contratti: ContrattoScritto[];
+  promemoria: PromemoriaScritto[];
   /** Quante decisioni aperte: con più di zero la RPC non scrive. */
   conflitti: number;
   /** Cosa resta fuori, e perché: per il «Controlla». */
@@ -122,6 +152,7 @@ const vuoto = (v: unknown) => v == null || (typeof v === "string" && v.trim() ==
   || (Array.isArray(v) && v.length === 0);
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const dataItaliana = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Sta nel motore (fondi.ts), che la usa per le date delle fasi; qui resta per chi la importava da qui.
@@ -206,6 +237,22 @@ function righeScritte(righe: unknown[]): RigaScritta[] {
     });
 }
 
+/**
+ * Gli elementi di un elenco della fase 4 che si possono scrivere: quelli segnati ⚠ (non
+ * disponibili) restano fuori, ognuno col suo motivo.
+ */
+function disponibili<T extends { stato?: string; avviso?: string | null }>(
+  valore: unknown, variabile: Variabile, fuori: (v: Variabile, motivo: string) => void, nome: (x: T) => string,
+): T[] {
+  if (!Array.isArray(valore)) return [];
+  return (valore as T[]).filter((x) => {
+    if (!x || typeof x !== "object") return false;
+    if (x.stato !== "attenzione") return true;
+    fuori(variabile, `${nome(x)}: ${x.avviso ?? "non disponibile"}`);
+    return false;
+  });
+}
+
 /** Traduce il piano. `modo` = completa se il piano ha già la commessa. */
 export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
   const s: ScritturaCommessa = {
@@ -220,6 +267,12 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
     date_fasi: [],
     venditore: null,
     condizioni: null,
+    squadra: [],
+    ditte: [],
+    mezzi: [],
+    oda: [],
+    contratti: [],
+    promemoria: [],
     conflitti: piano.conflitti.length,
     escluse: [],
   };
@@ -233,6 +286,7 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
     return v && Array.isArray(v.valore) ? (v.valore as CostoDelPiano[]) : null;
   })();
 
+  let contrattiAccettati: ContrattoDelPiano[] = [];
   for (const variabile of REGISTRO) {
     const v = piano.aree[variabile.area]?.[variabile.chiave];
     if (!v || giaNellaCommessa(piano, v)) continue;
@@ -285,6 +339,63 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
       case "economia.condizioni_contratto":
         if (v.valore && typeof v.valore === "object") s.condizioni = v.valore as CondizioniContratto;
         continue;
+      case "persone.squadra":
+        s.squadra = disponibili<PersonaDelPiano>(v.valore, variabile, fuori, (p) => p.nome)
+          .filter((p) => UUID.test(p.employee_id))
+          .map((p) => ({ employee_id: p.employee_id, fase: p.fase?.trim() || null }));
+        continue;
+      case "ditte.assegnate":
+        s.ditte = disponibili<DittaDelPiano>(v.valore, variabile, fuori, (d) => `${d.nome} (${d.fase})`)
+          .filter((d) => UUID.test(d.external_team_id) && d.fase?.trim())
+          .map((d) => ({ external_team_id: d.external_team_id, fase: d.fase.trim(), costo_previsto: Math.max(0, numero(d.costo_previsto) ?? 0) }));
+        continue;
+      case "mezzi.allocazioni":
+        s.mezzi = disponibili<MezzoDelPiano>(v.valore, variabile, fuori, (m) => m.nome)
+          .filter((m) => {
+            if (UUID.test(m.mezzo_id) && m.dal && DATA.test(m.dal)) return true;
+            fuori(variabile, `${m.nome}: senza le date delle fasi non si prenota`);
+            return false;
+          })
+          .map((m) => ({
+            mezzo_id: m.mezzo_id, fasi: (m.fasi ?? []).filter(Boolean), dal: m.dal!,
+            al: m.al && DATA.test(m.al) && m.al >= m.dal! ? m.al : null, quantita: numero(m.quantita) && numero(m.quantita)! > 0 ? numero(m.quantita)! : 1,
+          }));
+        continue;
+      case "materiali.acquisti":
+        s.oda = disponibili<OdaDelPiano>(v.valore, variabile, fuori, (o) => o.fornitore)
+          .filter((o) => UUID.test(o.supplier_id) && Array.isArray(o.righe) && o.righe.length)
+          .map((o) => ({
+            supplier_id: o.supplier_id, fase: o.fase?.trim() || null,
+            data_ordine: o.data_ordine && DATA.test(o.data_ordine) ? o.data_ordine : null,
+            data_consegna: o.data_consegna && DATA.test(o.data_consegna) ? o.data_consegna : null,
+            righe: o.righe.filter((r) => r?.descrizione?.trim()).map((r) => ({
+              descrizione: r.descrizione.trim(), quantita: numero(r.quantita) && numero(r.quantita)! > 0 ? numero(r.quantita)! : 1,
+              unita: r.unita ?? null, prezzo: numero(r.prezzo), iva: numero(r.iva),
+            })),
+            note: [o.fase ? `Per la fase «${o.fase}».` : "",
+              o.data_ordine ? `Da ordinare entro il ${dataItaliana(o.data_ordine)}${o.data_consegna ? `, per la consegna del ${dataItaliana(o.data_consegna)}` : ""}${o.giorni_consegna != null ? ` (tempi del fornitore: ${o.giorni_consegna} giorni)` : ""}.` : "",
+              o.offerta_id ? "Dall'offerta del fornitore." : "Prezzi da chiedere al fornitore.",
+              "Preparato da Silvio: va controllato e mandato da qui."].filter(Boolean).join(" "),
+          }));
+        continue;
+      case "ditte.contratti":
+        // Il contratto segue la ditta: si legge dopo il ciclo, quando le ditte sono note.
+        contrattiAccettati = disponibili<ContrattoDelPiano>(v.valore, variabile, fuori, (c) => c.nome);
+        continue;
+      case "sicurezza.pos_duvri":
+      case "comunicazione.avvio_cliente": {
+        const elenco = (Array.isArray(v.valore) ? v.valore : [v.valore]) as PromemoriaDelPiano[];
+        for (const p of elenco) {
+          if (!p?.titolo?.trim()) continue;
+          s.promemoria.push({
+            tipo: p.tipo, titolo: p.titolo.trim(), scadenza: p.scadenza && DATA.test(p.scadenza) ? p.scadenza : null,
+            testo: p.tipo === "avvio_cliente"
+              ? `${p.canale && p.destinatario ? `Da mandare per ${p.canale === "email" ? "email" : "WhatsApp"} a ${p.destinatario}.\n\n` : ""}${p.testo}`
+              : p.testo,
+          });
+        }
+        continue;
+      }
     }
 
     if (!variabile.colonne.length) {
@@ -306,6 +417,22 @@ export function scritturaDalPiano(piano: PianoCommessa): ScritturaCommessa {
     if (!scritte) fuori(variabile, coppie.some(([n]) => (COLONNE_SCRIVIBILI as readonly string[]).includes(n))
       ? "il valore non è nel formato giusto"
       : "Silvio non la scrive: la calcola il gestionale o la decide una persona");
+  }
+
+  // Un contratto solo per una ditta che entra nella commessa (o che c'è già, in «completa»).
+  const ditteCommessa = s.modo === "completa" && giaNellaCommessa(piano, piano.aree.ditte?.["ditte.assegnate"]);
+  const regContratti = REGISTRO.find((x) => x.chiave === "ditte.contratti")!;
+  for (const c of contrattiAccettati) {
+    if (!UUID.test(c.external_team_id)) continue;
+    if (!ditteCommessa && !s.ditte.some((d) => d.external_team_id === c.external_team_id)) {
+      fuori(regContratti, `${c.nome}: la ditta non è tra quelle confermate`);
+      continue;
+    }
+    s.contratti.push({
+      external_team_id: c.external_team_id, fasi: c.fasi ?? [], importo: Math.max(0, numero(c.importo) ?? 0),
+      dal: c.dal && DATA.test(c.dal) ? c.dal : null, al: c.al && DATA.test(c.al) ? c.al : null,
+      descrizione: `Lavorazioni delle fasi: ${(c.fasi ?? []).join(", ")}.`, elenco: Array.isArray(c.elenco) ? c.elenco : [],
+    });
   }
 
   // Il nome e l'email del cliente servono a ritrovarlo, anche se le colonne restano fuori.
@@ -335,5 +462,6 @@ export function prontaPerScrivere(s: ScritturaCommessa): string[] {
 /** Quante cose «Completa» aggiungerebbe alla commessa: colonne, fasi, rate, condizioni. */
 export function daAggiungere(s: ScritturaCommessa): number {
   return Object.keys(s.ordine).length + s.fasi.length + s.date_fasi.length + s.rate.length + s.righe.length
-    + (s.condizioni ? 1 : 0) + (s.cliente.customer_id ? 1 : 0);
+    + (s.condizioni ? 1 : 0) + (s.cliente.customer_id ? 1 : 0)
+    + s.squadra.length + s.ditte.length + s.mezzi.length + s.oda.length + s.contratti.length + s.promemoria.length;
 }

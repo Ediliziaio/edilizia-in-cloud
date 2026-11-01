@@ -23,15 +23,28 @@
  *   (`controllaCrediti`): se non basta non parte niente, e lo si dice;
  * - fonti nuove: il contratto dell'app, un file già caricato (dal link della chat), un allegato
  *   di un'email; i documenti della commessa si leggono dove stanno, senza copie.
+ *
+ * Fase 4:
+ * - le proposte di persone, ditte, mezzi e acquisti (`proposteRisorse`) si rifanno da sole
+ *   quando cambiano le fasi o le date, coi dati veri dell'azienda letti una volta; quello che
+ *   la persona ha già accettato non si tocca più;
+ * - un'offerta di una ditta rimasta «da collegare» si collega alla sua richiesta d'offerta
+ *   (`collegaOfferta`): la legge `rdo-ai-estrai-offerta` e diventa l'ordine in bozza;
+ * - gli allegati delle email letti dal popup vanno con la commessa tra i suoi documenti.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Fonte, Frammento, Modifica, PianoCommessa } from "../../../shared/silvio-commessa/piano.ts";
 import { eAnnulla, eseguiRisposta, pianoPerLaChat, STIMA_CHAT_EUR } from "../../../shared/silvio-commessa/chat.ts";
 import type { FonteDaLink, RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
-  annulla, applica, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, type Passo,
+  annulla, applica, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, type Passo,
 } from "../../../shared/silvio-commessa/fondi.ts";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
+import {
+  frammentoDaOfferta, proposteRisorse, riassuntoRisorse, type ContestoRisorse, type RichiestaOfferta,
+} from "../../../shared/silvio-commessa/risorse.ts";
+import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { dateDelleFasi } from "../../../shared/silvio-commessa/modelliLavoro.ts";
 import type { FaseDelPiano } from "../../../shared/silvio-commessa/piano.ts";
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
@@ -46,6 +59,8 @@ import { euroAI, pianoProposto, riassuntoFrammento, stimaLettura, testoValore } 
 import type { ServiziSilvioCommessa } from "./servizi";
 
 export const LETTURE_INSIEME = 3;
+/** Una lettura di un'offerta con `rdo-ai-estrai-offerta`: una pagina o due, come un documento. */
+export const STIMA_OFFERTA_EUR = 0.03;
 
 export type StatoFonte = "da_confermare" | "in_coda" | "in_lettura" | "fatta" | "errore" | "da_collegare";
 
@@ -110,6 +125,8 @@ type Azione =
     tipo: "frammenti"; id: string; frammenti: Frammento[]; caricata?: FonteCaricata; patch?: Partial<FonteNelPopup>;
     /** La lettura della commessa: si fonde ma non è un cambiamento da salvare. */
     base?: boolean; messaggio?: string;
+    /** Le proposte rifatte da sole (fase 4): niente messaggio, niente evidenziato. */
+    muto?: boolean;
   }
   | { tipo: "modifiche"; modifiche: Modifica[]; dallaChat?: { righe: string[] } }
   | { tipo: "visto"; chiavi: string[] }
@@ -124,6 +141,23 @@ const nuovoId = () => `f${Date.now().toString(36)}${(contatore++).toString(36)}`
 function messaggio(s: Stato, testo: string, tono: Messaggio["tono"] = "silvio", chiavi?: string[]): Messaggio[] {
   return [...s.messaggi, { id: (s.messaggi[s.messaggi.length - 1]?.id ?? 0) + 1, testo, tono, ...(chiavi?.length ? { chiavi } : {}) }];
 }
+
+/**
+ * Il frammento delle proposte cambia qualcosa? `fondi` rimette sempre un valore nuovo (anche
+ * uguale), quindi si confronta il contenuto: altrimenti le proposte si rifarebbero all'infinito.
+ */
+function portaQualcosa(piano: PianoCommessa, fr: Frammento): boolean {
+  return Object.entries(fr.aree).some(([area, valori]) => Object.entries(valori ?? {}).some(([chiave, v]) => {
+    // Già fra i candidati di un conflitto aperto: si aspetta la scelta della persona.
+    const conflitto = piano.conflitti.find((c) => c.chiave === chiave);
+    if (conflitto?.candidati.some((c) => c.fonte.id === fr.fonte.id && stessoValore(c.valore, v.valore))) return false;
+    const ora = piano.aree[area as keyof PianoCommessa["aree"]]?.[chiave];
+    return !ora || ora.fonte.id !== fr.fonte.id || !stessoValore(ora.valore, v.valore) || ora.nota !== v.nota;
+  }));
+}
+
+/** Un file caricato si riconosce dal percorso; un allegato di un'email dal suo riferimento. */
+const chiaveCaricata = (c: FonteCaricata) => c.path || JSON.stringify(c.documento ?? null);
 
 // Il controllo sta nel motore (fondi.ts): lo usano anche gli strumenti della chat.
 export { modificaBloccata };
@@ -155,7 +189,7 @@ function riduttore(s: Stato, a: Azione): Stato {
       const fonte = s.fonti.find((f) => f.id === a.id);
       let messaggi = s.messaggi;
       const conMessaggio = (t: string, tono: Messaggio["tono"] = "silvio") => { messaggi = messaggio({ ...s, messaggi }, t, tono); };
-      conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? a.frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
+      if (!a.muto) conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? a.frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
       const nuoviConflitti = piano.conflitti.length - s.piano.conflitti.length;
       if (nuoviConflitti > 0) {
         conMessaggio(nuoviConflitti === 1
@@ -167,8 +201,8 @@ function riduttore(s: Stato, a: Azione): Stato {
         ...s,
         piano,
         fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, ...a.patch } : f)),
-        caricate: a.caricata ? [...s.caricate.filter((c) => c.path !== a.caricata!.path), a.caricata] : s.caricate,
-        evidenziate: a.base ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
+        caricate: a.caricata ? [...s.caricate.filter((c) => chiaveCaricata(c) !== chiaveCaricata(a.caricata!)), a.caricata] : s.caricate,
+        evidenziate: a.base || a.muto ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
         messaggi,
         versione: a.base ? s.versione : s.versione + 1,
         base: a.base ? a.frammenti : s.base,
@@ -428,7 +462,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       const percorso = esito.percorso ?? (f.tipo === "caricato" ? f.percorso : undefined);
       const caricata: FonteCaricata | undefined = percorso && file && (f.tipo === "file" || f.tipo === "caricato")
         ? { path: percorso, nome: file.name, mime: file.type || null, dimensione: file.size, fonte: f.etichetta }
-        : undefined;
+        // Un allegato di un'email va con la commessa anche lui: lo copia la funzione dopo «Crea».
+        : f.tipo === "documento" && f.documento?.tipo === "allegato_email"
+          ? { path: "", documento: f.documento, nome: f.etichetta, mime: f.mime ?? null, fonte: f.etichetta }
+          : undefined;
       invia({
         tipo: "frammenti", id: f.id, frammenti: esito.frammenti, caricata,
         patch: { costoEur: costo, ...(esito.idFonte ? { idFonte: esito.idFonte } : {}) },
@@ -624,21 +661,76 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     const id = bozzaId.current;
     if (!id) throw new ErroreBozza("La bozza non è ancora salvata: controlla la connessione e riprova.");
     const { piano, storia, caricate } = ultimo.current;
-    const esito = await (orderId ? completaCommessa : creaCommessa)({ id, fonti: caricate }, servizi.db);
+    const esito = await (orderId ? completaCommessa : creaCommessa)({ id, fonti: caricate, company_id: companyId }, servizi.db);
     try {
       await servizi.registraCorrezioni(correzioniDalPiano(pianoProposto(piano, storia), piano, { bozzaId: id, orderId: esito.order_id }));
     } catch {
       // La misura di Silvio non ferma la commessa, che è già nata.
     }
     return esito;
-  }, [salvatore, servizi, orderId]);
+  }, [salvatore, servizi, orderId, companyId]);
 
   /** «Riprova» sugli allegati che non si sono copiati. */
   const riallega = useCallback(async (orderId: string, nomi: string[]) => {
     const id = bozzaId.current;
     if (!id) throw new ErroreBozza("Bozza non trovata.");
-    return allegaFonti({ id, fonti: ultimo.current.caricate.filter((c) => nomi.includes(c.nome)) }, orderId, servizi.db);
-  }, [servizi.db]);
+    return allegaFonti({ id, company_id: companyId, fonti: ultimo.current.caricate.filter((c) => nomi.includes(c.nome)) }, orderId, servizi.db);
+  }, [servizi.db, companyId]);
+
+  // ── Fase 4: persone, ditte, mezzi, acquisti ──
+  const { data: staffUtenti } = useCompanyStaffUsers(companyId);
+  const [contesto, setContesto] = useState<ContestoRisorse | null>(null);
+  const contestoChiesto = useRef(false);
+  const ciSonoFasi = Array.isArray(s.piano.aree.fasi?.["fasi.order_work_phases"]?.valore);
+  // I dati dell'azienda si leggono una volta, quando la bozza ha le fasi (e lo staff è arrivato).
+  useEffect(() => {
+    if (!ciSonoFasi || !staffUtenti || contestoChiesto.current) return;
+    contestoChiesto.current = true;
+    const staff = staffUtenti.map((u) => ({ id: u.id, nome: `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email || "Collega" }));
+    servizi.contestoRisorse(companyId, staff, orderId).then(setContesto, () => {
+      contestoChiesto.current = false; // Riprova al prossimo cambiamento delle fasi.
+    });
+  }, [ciSonoFasi, staffUtenti, servizi, companyId, orderId]);
+  // Le proposte si rifanno quando cambia quello da cui dipendono; se non cambia niente, niente.
+  const primaVolta = useRef(true);
+  useEffect(() => {
+    if (!contesto) return;
+    const fr = proposteRisorse(s.piano, contesto);
+    if (!fr || !portaQualcosa(s.piano, fr)) return;
+    const muto = !primaVolta.current;
+    primaVolta.current = false;
+    invia({ tipo: "frammenti", id: "silvio-risorse", frammenti: [fr], muto, ...(muto ? {} : { messaggio: riassuntoRisorse(fr) }) });
+  }, [s.piano, contesto]);
+
+  /**
+   * L'offerta di una ditta, rimasta «da collegare»: si legge dentro la sua richiesta d'offerta e
+   * diventa l'ordine in bozza a quel fornitore, coi prezzi e i tempi di consegna dell'offerta.
+   */
+  const collegaOfferta = useCallback(async (fonteId: string, richiesta: RichiestaOfferta) => {
+    const f = ultimo.current.fonti.find((x) => x.id === fonteId);
+    if (!f) return;
+    invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "in_lettura", errore: undefined } });
+    try {
+      const crediti = await controllaCrediti(STIMA_OFFERTA_EUR);
+      if (crediti) throw new ErroreBozza(crediti);
+      let file = f.file;
+      if (!file && f.tipo === "allegato") file = await servizi.scaricaAllegato(f.allegato!);
+      if (!file && f.tipo === "caricato") file = await servizi.scaricaCaricato(f.percorso!, f.etichetta, f.mime);
+      if (!file) throw new ErroreBozza("Questo allegato non si legge da qui: scaricalo e trascinalo tra le fonti, poi collegalo.");
+      const { offerta, quantita } = await servizi.leggiOfferta(richiesta.id, file);
+      speso();
+      const fr = frammentoDaOfferta(offerta, richiesta, ultimo.current.piano, quantita, oggiInItalia());
+      invia({
+        tipo: "frammenti", id: f.id, frammenti: [fr],
+        patch: { etichetta: fr.fonte.etichetta, idFonte: fr.fonte.id ?? undefined, costoEur: STIMA_OFFERTA_EUR },
+        messaggio: `Ho letto l'${fr.fonte.etichetta}: ne ho fatto l'ordine in bozza a ${richiesta.fornitore}, coi suoi prezzi. Lo confermi tu, e lo mandi dalla pagina dell'ordine.`,
+      });
+    } catch (e) {
+      const testo = e instanceof Error ? e.message : messaggioErrore(e);
+      invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "da_collegare", errore: testo } });
+      invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere l'offerta: ${testo}` });
+    }
+  }, [servizi, controllaCrediti]);
 
   const scrittura = useMemo(() => scritturaDalPiano(s.piano), [s.piano]);
 
@@ -646,7 +738,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     piano: s.piano, storia: s.storia, fonti: s.fonti, caricate: s.caricate, evidenziate: s.evidenziate,
     messaggi: s.messaggi, scrittura, salvataggio, idBozza, daGuardare: s.daGuardare, scrivendo, costoChat,
     aggiungi, confermaLetture, riprova, togliFonte, modifica, indietro, riprendi, crea, riallega,
-    scrivi, visto, fonteDelPopup, controllaCrediti,
+    scrivi, visto, fonteDelPopup, controllaCrediti, collegaOfferta, contesto,
   };
 }
 

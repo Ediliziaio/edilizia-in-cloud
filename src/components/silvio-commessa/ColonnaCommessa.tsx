@@ -10,6 +10,9 @@
  * Fase 3: quello che la chat ha cambiato resta segnato («cambiato in chat») finché non lo
  * tocchi; la ⓘ di un valore letto da un documento apre il documento alla pagina citata
  * (anche quella di ognuna delle fonti in conflitto).
+ *
+ * Fase 4: persone, ditte, mezzi, ordini e bozze si vedono uno per uno, col motivo; chi non è
+ * disponibile ha il ⚠ e il perché, e non entra. Il capomastro si legge per nome dallo staff.
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { FileSearch, Info, Lock, MessageSquare, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
@@ -22,6 +25,7 @@ import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { cn } from "@/lib/utils";
 import {
@@ -264,9 +268,83 @@ function NomeCliente({ companyId, id }: { companyId: string; id: string }) {
   return <>{c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "cliente del gestionale collegato"}</>;
 }
 
+/** Il nome di una persona dello staff: mai da `profiles` grezzo, dove ci sono anche i clienti. */
+function NomeStaff({ companyId, id }: { companyId: string; id: string }) {
+  const { data: staff = [] } = useCompanyStaffUsers(companyId);
+  const p = staff.find((x) => x.id === id);
+  return <>{p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email : "persona dello staff"}</>;
+}
+
 // ── Una riga ────────────────────────────────────────────────────────────────
 
+/** Gli elenchi della fase 4: un elemento per riga, il motivo sotto, e il ⚠ con il perché. */
+const ELENCHI_RISORSE = new Set(["persone.squadra", "ditte.assegnate", "mezzi.allocazioni", "materiali.acquisti", "ditte.contratti"]);
+
+interface ElementoRisorsa {
+  nome?: string; fornitore?: string; fase?: string | null; fasi?: string[]; motivo?: string; stato?: string; avviso?: string | null;
+  dal?: string | null; al?: string | null; costo_previsto?: number; importo?: number; data_ordine?: string | null;
+  righe?: unknown[];
+}
+
+function rigaRisorsa(chiave: string, x: ElementoRisorsa): { titolo: string; dettaglio: string } {
+  const periodo = x.dal ? `${dataBreve(x.dal, false)}${x.al && x.al !== x.dal ? ` → ${dataBreve(x.al, false)}` : ""}` : "";
+  switch (chiave) {
+    case "persone.squadra": return { titolo: x.nome ?? "Persona", dettaglio: [x.fase, periodo].filter(Boolean).join(" · ") };
+    case "ditte.assegnate": return { titolo: x.nome ?? "Ditta", dettaglio: [x.fase, x.costo_previsto ? euro(x.costo_previsto) : ""].filter(Boolean).join(" · ") };
+    case "mezzi.allocazioni": return { titolo: x.nome ?? "Mezzo", dettaglio: [(x.fasi ?? []).join(", "), periodo].filter(Boolean).join(" · ") };
+    case "materiali.acquisti": return {
+      titolo: x.fornitore ?? "Fornitore",
+      dettaglio: [x.fase, `${x.righe?.length ?? 0} voci`, x.data_ordine ? `ordinare entro ${dataBreve(x.data_ordine, false)}` : ""].filter(Boolean).join(" · "),
+    };
+    default: return { titolo: x.nome ?? "Contratto", dettaglio: [(x.fasi ?? []).join(", "), x.importo ? euro(x.importo) : "", periodo].filter(Boolean).join(" · ") };
+  }
+}
+
 function Dettaglio({ chiave, valore }: { chiave: string; valore: unknown }) {
+  if (ELENCHI_RISORSE.has(chiave) && Array.isArray(valore)) {
+    return (
+      <ul className="mt-1 space-y-1 text-xs">
+        {(valore as ElementoRisorsa[]).map((x, i) => {
+          const r = rigaRisorsa(chiave, x);
+          const ko = x.stato === "attenzione";
+          return (
+            <li key={i} data-stato={ko ? "attenzione" : "proposta"} className={cn("rounded-md px-1.5 py-1", ko && "bg-red-50")}>
+              {/* Il nome non si taglia mai: sul telefono il dettaglio va sotto. */}
+              <p className="flex flex-wrap justify-between gap-x-2">
+                <span className={cn("min-w-0 break-words font-medium", ko ? "text-red-800" : "text-slate-800")}>{ko ? "⚠ " : ""}{r.titolo}</span>
+                <span className="text-slate-600">{r.dettaglio}</span>
+              </p>
+              {ko && x.avviso && <p className="text-red-700">{x.avviso}</p>}
+              {!ko && x.motivo && <p className="text-slate-500">{x.motivo}</p>}
+              {!ko && x.avviso && <p className="text-amber-800">{x.avviso}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+  if (chiave === "sicurezza.pos_duvri" && Array.isArray(valore)) {
+    return (
+      <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+        {(valore as { titolo?: string; scadenza?: string | null }[]).map((p, i) => (
+          <li key={i} className="flex justify-between gap-2">
+            <span className="truncate">• {p.titolo}</span>
+            {p.scadenza && <span className="shrink-0">entro {dataBreve(p.scadenza, false)}</span>}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (chiave === "comunicazione.avvio_cliente" && valore && typeof valore === "object") {
+    const m = valore as { testo?: string; destinatario?: string | null };
+    return (
+      <div className="mt-1 rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-xs text-slate-700">
+        {m.destinatario && <p className="mb-1 text-slate-500">A: {m.destinatario}</p>}
+        <p className="whitespace-pre-line">{m.testo}</p>
+        <p className="mt-1 font-medium text-slate-500">Bozza: Silvio non la manda. La trovi nelle attività della commessa.</p>
+      </div>
+    );
+  }
   if (chiave === "fasi.order_work_phases" && Array.isArray(valore)) {
     return (
       <ol className="mt-1 space-y-0.5 text-xs text-slate-600">
@@ -332,7 +410,9 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
   const testo = valore && stato !== "manca"
     ? (v.chiave === "cliente.customer_id" && typeof valore.valore === "string"
       ? <NomeCliente companyId={companyId} id={valore.valore} />
-      : testoValore(v.chiave, valore.valore))
+      : (v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to") && typeof valore.valore === "string"
+        ? <NomeStaff companyId={companyId} id={valore.valore} />
+        : testoValore(v.chiave, valore.valore))
     : v.chiave === "cliente.customer_id" && piano.aree.cliente?.["cliente.nome"]
       ? "da collegare: alla creazione lo cerco per nome, oppure sceglilo tu"
       : "manca";
@@ -444,8 +524,11 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
                   <ul className="space-y-1">
                     {attuale.map((x, i) => (
                       <li key={i} className="flex items-center gap-2 text-xs">
-                        <span className="min-w-0 flex-1 truncate">{(x as { name?: string; label?: string; fase?: string })?.name
-                          ?? (x as { label?: string })?.label ?? (x as { fase?: string })?.fase ?? `Elemento ${i + 1}`}</span>
+                        <span className="min-w-0 flex-1 truncate">{(() => {
+                          const e = (x ?? {}) as { name?: string; label?: string; nome?: string; fornitore?: string; titolo?: string; fase?: string | null };
+                          const nome = e.name ?? e.label ?? e.nome ?? e.fornitore ?? e.titolo;
+                          return nome ? `${nome}${e.fase && nome !== e.fase ? ` · ${e.fase}` : ""}` : e.fase ?? `Elemento ${i + 1}`;
+                        })()}</span>
                         <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice: i })}>Togli</Button>
                       </li>
                     ))}
@@ -529,7 +612,7 @@ export function ColonnaCommessa({
       {vuote.length > 0 && (
         <p className="px-2 text-xs text-slate-500">
           Ancora niente su: {vuote.map((a) => NOMI_AREE[a.area].toLowerCase()).join(", ")}.
-          {" "}Arrivano con le fonti, o con le prossime fasi di Silvio.
+          {" "}Arrivano con le fonti, o dalle commesse passate quando ce ne sono di simili.
         </p>
       )}
     </div>
