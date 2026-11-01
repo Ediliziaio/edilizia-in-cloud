@@ -39,3 +39,14 @@ describe("previsionale: F24 dei dipendenti e mutui (01/11/2026)", () => {
     expect(m.map((x) => [x.date, x.cents])).toEqual([["2026-11-05", 100000], ["2026-12-05", 100000], ["2027-01-05", 50000]]);
   });
 });
+
+describe("previsionale: F24 DM10 registrato", () => {
+  it("toglie la stima dei contributi INPS di quel mese", () => {
+    const s = emptyForecastSources();
+    s.payroll = [cedolino()];
+    s.f24Ritenute = [{ anno: 2026, mese: 11, tributo_code: "DM10", stato: "da_pagare" }];
+    const m = ids(s);
+    expect(m.find((x) => x.id === "f24-inps:2026-11")).toBeUndefined();
+    expect(m.find((x) => x.id === "f24-1001:2026-11")).toBeDefined();
+  });
+});

@@ -307,7 +307,7 @@ export async function loadForecastDataset(
       label: "F24 delle ritenute",
       build: () =>
         scoped("f24_entries", "id,anno,mese,tributo_code,stato")
-          .in("tributo_code", ["1001", "1040"])
+          .in("tributo_code", ["1001", "1040", "DM10"])
           .neq("stato", "annullato")
           .gte("anno", String(year - 1)),
     },

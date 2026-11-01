@@ -42,6 +42,23 @@ export const TRIBUTI_PREDEFINITI: Array<{
     descrizione: `IVA mensile — ${["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"][i]}`,
     categoria: "ERARIO",
   })),
+  // Dal 01/11/2026 anche questi (stesso elenco di f24_codice_ammesso nel database).
+  ...[1, 2, 3, 4].map((t) => ({ code: String(6030 + t), descrizione: `IVA trimestrale — ${t}° trimestre`, categoria: "ERARIO" })),
+  { code: "6035", descrizione: "IVA — acconto di dicembre", categoria: "ERARIO" },
+  { code: "6099", descrizione: "IVA — saldo annuale", categoria: "ERARIO" },
+  { code: "1012", descrizione: "Ritenute su indennità di fine rapporto (TFR)", categoria: "ERARIO" },
+  { code: "1712", descrizione: "Imposta sostitutiva sulla rivalutazione del TFR — acconto", categoria: "ERARIO" },
+  { code: "1713", descrizione: "Imposta sostitutiva sulla rivalutazione del TFR — saldo", categoria: "ERARIO" },
+  { code: "3802", descrizione: "Addizionale regionale IRPEF trattenuta ai dipendenti", categoria: "REGIONI" },
+  { code: "3847", descrizione: "Addizionale comunale IRPEF trattenuta — acconto", categoria: "IMU E ALTRI TRIBUTI LOCALI" },
+  { code: "3848", descrizione: "Addizionale comunale IRPEF trattenuta — saldo", categoria: "IMU E ALTRI TRIBUTI LOCALI" },
+  { code: "2001", descrizione: "IRES — primo acconto", categoria: "ERARIO" },
+  { code: "2002", descrizione: "IRES — secondo acconto", categoria: "ERARIO" },
+  { code: "2003", descrizione: "IRES — saldo", categoria: "ERARIO" },
+  { code: "3812", descrizione: "IRAP — primo acconto", categoria: "REGIONI" },
+  { code: "3813", descrizione: "IRAP — secondo acconto", categoria: "REGIONI" },
+  { code: "3800", descrizione: "IRAP — saldo", categoria: "REGIONI" },
+  { code: "DM10", descrizione: "Contributi INPS dei dipendenti (sezione INPS)", categoria: "INPS" },
 ];
 
 export function useF24(anno?: number) {

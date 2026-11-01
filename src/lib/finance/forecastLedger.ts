@@ -354,7 +354,7 @@ export interface ForecastSources {
   employees: EmployeeRow[];
   payroll: PayrollRow[];
   taxes: TaxRow[];
-  /** F24 1001 e 1040 registrati in qualunque stato: il loro mese non si stima. */
+  /** F24 1001, 1040 e DM10 registrati in qualunque stato: il loro mese non si stima. */
   f24Ritenute?: { anno: number | null; mese: number | null; tributo_code: string | null; stato?: string }[];
   loans?: MutuoCG[];
   teams: TeamRow[];
@@ -1328,6 +1328,7 @@ export function buildForecastLedger(
   // F24 dei dipendenti (01/11/2026): ritenute IRPEF (1001) e contributi INPS del cedolino, il 16 del mese
   // dopo il pagamento dello stipendio. Una stima per mese, finché non c'è l'F24 1001 registrato di quel mese.
   const f24Dipendenti = f24Registrati("1001");
+  const f24Contributi = f24Registrati("DM10");
   const perMese = new Map<string, { irpef: number; inps: number; n: number }>();
   for (const p of s.payroll) {
     if (p.stato === "bozza") continue;
@@ -1358,7 +1359,7 @@ export function buildForecastLedger(
         estimated: true,
         note: `Somma delle ritenute di ${v.n} ${v.n === 1 ? "cedolino" : "cedolini"}: si versano il 16 del mese dopo lo stipendio. Confrontala col prospetto del consulente.`,
       });
-    if (v.inps > 0)
+    if (v.inps > 0 && !f24Contributi.has(`${y}-${m}`))
       add({
         id: `f24-inps:${key}`,
         description: `F24 INPS · contributi dei dipendenti (stipendi ${etichetta})`,
