@@ -144,7 +144,7 @@ describe("condomini e capannoni", () => {
 describe("progetto da descrizione su più piani", () => {
   it("in metri, due piani con le stesse coordinate diventano due livelli e le aperture seguono il loro piano", () => {
     const m = (nome: string, x0: number, y0: number, x1: number, y1: number, piano: string) =>
-      ({ nome, destinazione: "altro" as const, contorno: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as [number, number][], superficie_scritta_mq: null, altezza_scritta_m: null, misure_lette: false, piano });
+      ({ nome, destinazione: "altro" as const, contorno: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as [number, number][], superficie_scritta_mq: null as number | null, altezza_scritta_m: null as number | null, misure_lette: false, piano });
     const r: RispostaAI = {
       sistema: "metri", leggibile: true, motivo_non_leggibile: null, altezza_m: null,
       locali: [m("Soggiorno", 0, 0, 6, 5, "Piano terra"), m("Camera", 0, 0, 4, 4, "Primo piano"), m("Bagno", 4, 0, 6, 4, "Primo piano")],

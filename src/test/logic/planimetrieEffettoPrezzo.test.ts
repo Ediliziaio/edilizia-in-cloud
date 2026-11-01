@@ -10,7 +10,7 @@ const mappa = calcolaQuantita(doc);
 const chiavePavimento = Object.keys(mappa).find((k) => k.startsWith("fatto:locale:") && k.endsWith(".pavimento_mq"))!;
 const mq = mappa[chiavePavimento].valore;
 
-const riga = (over: Partial<RigaCollegata> & { prezzo?: number | null; detrazione?: boolean; computo?: string }): RigaCollegata => ({
+const riga = (over: Partial<Omit<RigaCollegata, "computo">> & { prezzo?: number | null; detrazione?: boolean; computo?: string }): RigaCollegata => ({
   id: over.id ?? "r1", descrizione: "Pavimento", quantita: over.quantita ?? mq, chiavi: over.chiavi ?? [chiavePavimento],
   voce: { id: "v1", descrizione: "Pavimento in gres", unita: "mq", prezzo: over.prezzo === undefined ? 50 : over.prezzo, detrazione: !!over.detrazione },
   computo: { id: over.computo ?? "c1", titolo: "Computo Rossi", stato: "bozza", orderId: "o1" },
