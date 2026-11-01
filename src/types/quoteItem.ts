@@ -37,6 +37,8 @@ export interface QuoteItemPro {
   //  - calcolo margine atteso coerente (FASE 11)
   supplier_catalog_id?: string | null;
   supplier_product_line_id?: string | null;
+  /** Voce del computo da cui viene la riga: il salvataggio la conserva (20281105370000). */
+  computo_voce_id?: string | null;
   _parentIdx?: number;
   // Preventivatore Unificato (Sprint A §4.9) — parent/child client-side
   // per la posa legata. `parent_item_id` è la colonna DB (persistita dopo
