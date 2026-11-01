@@ -18,12 +18,27 @@ export interface LocaleAI {
   altezza_scritta_m: number | null;
   /** Solo nel sistema «metri»: le misure di questo locale sono scritte sul foglio. */
   misure_lette: boolean;
+  /** Più piani sullo stesso foglio (piano terra e sottotetto): a quale appartiene. */
+  piano?: string | null;
+  /** Più appartamenti sullo stesso foglio (condominio, bifamiliare): «A», «B»… */
+  unita?: string | null;
+}
+
+/** Arredi, sanitari e pilastri disegnati: un riquadro e il lato appoggiato al muro. */
+export interface ElementoAI {
+  tipo: string;
+  /** [x0, y0, x1, y1] nello stesso sistema delle altre coordinate. */
+  riquadro: [number, number, number, number];
+  /** Da che parte sta lo schienale o l'attacco (sull'immagine). */
+  lato_muro: "alto" | "basso" | "sinistra" | "destra" | null;
+  piano?: string | null;
 }
 
 export interface AperturaAI {
   tipo: TipoApertura;
   da: Coppia;
   a: Coppia;
+  piano?: string | null;
 }
 
 export interface QuotaAI {
@@ -42,7 +57,45 @@ export interface RispostaAI {
   locali: LocaleAI[];
   aperture: AperturaAI[];
   quote: QuotaAI[];
+  /** Assente nelle risposte del prompt «p1». */
+  elementi?: ElementoAI[];
 }
+
+/** Tipi di elemento che l'editor e le esportazioni sanno disegnare, più i pilastri. */
+export const TIPI_ELEMENTO_AI = [
+  "pilastro", "wc", "bidet", "lavabo", "doccia", "vasca", "lavatrice", "cucina", "frigorifero", "tavolo", "sedia",
+  "letto_matrimoniale", "letto_singolo", "comodino", "armadio", "scrivania", "divano", "caldaia",
+] as const;
+
+const SINONIMI_ELEMENTO: Array<[RegExp, string]> = [
+  [/pilastr|colonn/i, "pilastro"],
+  [/^w\.?c|water|vaso/i, "wc"],
+  [/bidet/i, "bidet"],
+  [/lavab|lavandin/i, "lavabo"],
+  [/docc/i, "doccia"],
+  [/vasca/i, "vasca"],
+  [/lavatric/i, "lavatrice"],
+  [/frigo/i, "frigorifero"],
+  [/cucin|piano.?cottura|fornell/i, "cucina"],
+  [/tavol/i, "tavolo"],
+  [/sedi/i, "sedia"],
+  [/letto.*(singol|una piazza)|singol/i, "letto_singolo"],
+  [/letto|matrimonial/i, "letto_matrimoniale"],
+  [/comodin/i, "comodino"],
+  [/armad|guardarob/i, "armadio"],
+  [/scrivan/i, "scrivania"],
+  [/divan|sofa/i, "divano"],
+  [/caldaia/i, "caldaia"],
+];
+
+export function tipoElementoDa(v: unknown): string | null {
+  const t = String(v ?? "").trim().toLowerCase();
+  if (!t) return null;
+  if ((TIPI_ELEMENTO_AI as readonly string[]).includes(t)) return t;
+  return SINONIMI_ELEMENTO.find(([re]) => re.test(t))?.[1] ?? null;
+}
+
+const testoOpzionale = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 60) : null);
 
 /** Numero da un valore del modello: accetta "4,20", "4.20 m", 4.2. */
 export function numero(v: unknown): number | null {
@@ -143,6 +196,8 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
       superficie_scritta_mq: numero(r.superficie_scritta_mq),
       altezza_scritta_m: numero(r.altezza_scritta_m),
       misure_lette: r.misure_lette === true,
+      piano: testoOpzionale(r.piano),
+      unita: testoOpzionale(r.unita),
     });
   }
   const aperture: AperturaAI[] = [];
@@ -152,7 +207,7 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const tipo = tipoApertura(r.tipo);
     const da = coppia(r.da);
     const a = coppia(r.a);
-    if (tipo && da && a) aperture.push({ tipo, da, a });
+    if (tipo && da && a) aperture.push({ tipo, da, a, piano: testoOpzionale(r.piano) });
   }
   const quote: QuotaAI[] = [];
   for (const raw of Array.isArray(o.quote) ? o.quote : []) {
@@ -163,6 +218,18 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const a = coppia(r.a);
     if (valore && valore > 0 && da && a) quote.push({ valore_m: valore, da, a });
   }
+  const elementi: ElementoAI[] = [];
+  for (const raw of Array.isArray(o.elementi) ? o.elementi : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const tipo = tipoElementoDa(r.tipo);
+    const q = Array.isArray(r.riquadro) ? r.riquadro.map(numero) : [];
+    if (!tipo || q.length < 4 || q.some((v) => v === null)) continue;
+    const [x0, y0, x1, y1] = q as number[];
+    if (Math.abs(x1 - x0) <= 0 || Math.abs(y1 - y0) <= 0) continue;
+    const lato = r.lato_muro === "alto" || r.lato_muro === "basso" || r.lato_muro === "sinistra" || r.lato_muro === "destra" ? r.lato_muro : null;
+    elementi.push({ tipo, riquadro: [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)], lato_muro: lato, piano: testoOpzionale(r.piano) });
+  }
   return {
     sistema,
     leggibile: o.leggibile !== false,
@@ -171,5 +238,6 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     locali,
     aperture,
     quote,
+    elementi,
   };
 }

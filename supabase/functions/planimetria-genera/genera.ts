@@ -8,7 +8,7 @@
 
 import type { PiantaGenerata } from "./generazione.ts";
 import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
-import { costruisciPlanimetria, ErroreCostruzione } from "./costruisci.ts";
+import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
@@ -89,7 +89,7 @@ function leggi(testo: string, req: RichiestaGenerazione): Lettura {
   }
   const risposta = leggiRispostaAI(grezza, req.ingresso === "documento" ? "immagine" : "metri");
   try {
-    const g = costruisciPlanimetria(risposta, {
+    const g = costruisciPiani(risposta, {
       ingresso: req.ingresso,
       larghezzaImmagine: req.file?.larghezza ?? null,
       altezzaImmagine: req.file?.altezza ?? null,

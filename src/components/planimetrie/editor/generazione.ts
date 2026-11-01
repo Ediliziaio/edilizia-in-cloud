@@ -114,3 +114,69 @@ export function inBase64(file: Blob): Promise<string> {
     lettore.readAsDataURL(file);
   });
 }
+
+// ─── Preparazione dell'immagine prima della lettura ──────────────────────────
+// Schermate di AutoCAD a sfondo nero, foto da 12 megapixel: il modello legge meglio un
+// disegno scuro su fondo chiaro, a una misura ragionevole. I PDF partono come sono.
+
+/** Lato più lungo dopo la riduzione: oltre, il modello non vede di più e il file pesa. */
+export const LATO_MASSIMO = 2400;
+
+export function misuraRidotta(larghezza: number, altezza: number, massimo = LATO_MASSIMO): { larghezza: number; altezza: number } {
+  const k = Math.min(1, massimo / Math.max(larghezza, altezza, 1));
+  return { larghezza: Math.round(larghezza * k), altezza: Math.round(altezza * k) };
+}
+
+/** Fondo scuro (CAD a sfondo nero, negativo): la luminosità media dei pixel, da 0 a 1. */
+export const daInvertire = (luminanzaMedia: number) => luminanzaMedia < 0.4;
+
+export function luminanzaMedia(dati: Uint8ClampedArray, passo = 16): number {
+  let somma = 0, n = 0;
+  for (let i = 0; i < dati.length; i += 4 * passo) {
+    somma += (0.2126 * dati[i] + 0.7152 * dati[i + 1] + 0.0722 * dati[i + 2]) / 255;
+    n++;
+  }
+  return n ? somma / n : 1;
+}
+
+export interface ImmaginePreparata {
+  file: Blob;
+  mime: string;
+  larghezza: number;
+  altezza: number;
+  /** Sfondo nero portato a sfondo bianco. */
+  invertita: boolean;
+}
+
+/** Riduce e, se il fondo è scuro, inverte i colori. Se qualcosa non va, l'immagine resta com'è. */
+export async function preparaImmagine(file: File): Promise<ImmaginePreparata | null> {
+  if (!file.type.startsWith("image/")) return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error("immagine")); img.src = url; });
+    const m = misuraRidotta(img.naturalWidth, img.naturalHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = m.larghezza;
+    canvas.height = m.altezza;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, m.larghezza, m.altezza);
+    const pixel = ctx.getImageData(0, 0, m.larghezza, m.altezza);
+    const invertita = daInvertire(luminanzaMedia(pixel.data));
+    if (invertita) {
+      const d = pixel.data;
+      for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
+      ctx.putImageData(pixel, 0, 0);
+    }
+    const ridotta = m.larghezza !== img.naturalWidth;
+    if (!invertita && !ridotta) return { file, mime: file.type, larghezza: img.naturalWidth, altezza: img.naturalHeight, invertita: false };
+    const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/png"));
+    if (!blob || blob.size > MASSIMO_BYTES) return null;
+    return { file: blob, mime: "image/png", larghezza: m.larghezza, altezza: m.altezza, invertita };
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

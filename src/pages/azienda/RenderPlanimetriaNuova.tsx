@@ -27,6 +27,7 @@ import {
   inBase64,
   leggiRispostaAI,
   misureImmagine,
+  preparaImmagine,
   scalaDaConfermare,
   type EsitoAI,
   type IngressoAI,
@@ -83,9 +84,14 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
       richiesta.testo = testo.trim();
     } else {
       if (!file) return;
-      richiesta.mime = file.type;
-      richiesta.file_base64 = await inBase64(file);
-      if (file.type.startsWith("image/")) {
+      // Foto enormi e schermate CAD a sfondo nero: ridotte e portate a fondo bianco.
+      const pronta = await preparaImmagine(file);
+      richiesta.mime = pronta?.mime ?? file.type;
+      richiesta.file_base64 = await inBase64(pronta?.file ?? file);
+      if (pronta) {
+        richiesta.larghezza = pronta.larghezza;
+        richiesta.altezza = pronta.altezza;
+      } else if (file.type.startsWith("image/")) {
         const url = URL.createObjectURL(file);
         const misure = await misureImmagine(url);
         URL.revokeObjectURL(url);

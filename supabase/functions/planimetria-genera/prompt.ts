@@ -1,6 +1,6 @@
 // Prompt della generazione. Ogni modifica qui va misurata col banco di prova
 // (scripts/planimetrie-banco/): il punteggio si salva a ogni versione.
-export const VERSIONE_PROMPT = "p1";
+export const VERSIONE_PROMPT = "p2";
 
 const DESTINAZIONI_TESTO =
   "soggiorno, cucina, camera, bagno, disimpegno, ingresso, ripostiglio, studio, lavanderia, balcone, terrazzo, garage, cantina, altro";
@@ -8,24 +8,38 @@ const DESTINAZIONI_TESTO =
 const LOCALE_CAMPI = `- nome: come scritto sulla pianta (es. "Cucina", "Letto 1"); se non è scritto, deducilo (bagno se ci sono sanitari, disimpegno se è un corridoio).
 - destinazione: una fra ${DESTINAZIONI_TESTO}.`;
 
-export const PROMPT_DOCUMENTO = `Sei un geometra italiano che ricalca piante di appartamenti. Ricevi l'immagine di una pianta (catastale, disegno del geometra o del progettista). Descrivi in JSON ciò che vedi: stanze, porte, finestre e misure scritte. Non inventare nulla che non si veda.
+export const PROMPT_DOCUMENTO = `Sei un geometra italiano che ricalca piante di edifici: appartamenti, ville, bifamiliari, condomini, capannoni e magazzini. Ricevi l'immagine di una pianta (catastale, disegno del geometra o del progettista, schermata di AutoCAD anche a sfondo nero, scansione o foto storta, pianta arredata o resa in 3D vista dall'alto, annuncio immobiliare). Descrivi in JSON ciò che vedi: stanze, porte, finestre, misure scritte, arredi e pilastri. Non inventare nulla che non si veda.
+
+COSA IGNORARE: barre e pulsanti del telefono o del browser, loghi, filigrane, cartigli, testi pubblicitari, giardino e verde, auto, frecce d'ingresso, campiture e retini, linee tratteggiate di proiezione (controsoffitti, travi, sporti), linee di quota stesse. Le scritte possono essere ruotate: leggile in ogni verso, ma le coordinate restano quelle dell'immagine così come la ricevi.
 
 COORDINATE: ogni punto è [x, y] con x da 0 (bordo sinistro dell'immagine) a 1000 (bordo destro) e y da 0 (bordo alto) a 1000 (bordo basso). Le due scale sono indipendenti: anche se l'immagine è larga il doppio di quanto è alta, x e y vanno entrambe da 0 a 1000. Numeri interi.
 
 LOCALI — ogni stanza, compresi bagni, disimpegni, ripostigli, balconi e terrazzi:
 - contorno: il filo INTERNO dei muri, vertici in ordine lungo il perimetro. Stanza rettangolare = 4 vertici, a L = 6. I muri sono quasi sempre dritti e ad angolo retto: i due vertici di una parete orizzontale hanno la stessa y, quelli di una parete verticale la stessa x. Fra due stanze vicine c'è lo spessore del muro: i contorni non si sovrappongono.
-${LOCALE_CAMPI}
+${LOCALE_CAMPI} Vano scala → nome "Vano scala", destinazione altro; ascensore → nome "Ascensore", destinazione altro; capannone, magazzino o laboratorio → nome come scritto, destinazione altro (garage se è un'autorimessa).
+- piano: SOLO se sullo stesso foglio ci sono più piani disegnati separati (es. "Piano terra" e "Sottotetto", "Pianta piano primo"): il nome del piano di questa stanza, uguale per tutte le stanze di quel piano. Altrimenti null.
+- unita: SOLO se sul foglio ci sono più appartamenti distinti (condominio, bifamiliare, "Appartamento A"/"B", "0.01"/"0.02"): la sigla dell'appartamento di questa stanza. Le parti comuni (scale, ascensore, androne) hanno unita "Parti comuni". Altrimenti null.
 - superficie_scritta_mq: solo se nella stanza è scritta la superficie (es. "mq 14,50", "S=14.5"), altrimenti null.
 - altezza_scritta_m: solo se nella stanza è scritta l'altezza (es. "h 2,70"), altrimenti null.
 
 APERTURE — porte, finestre, portefinestre:
 - da, a: i due estremi del vano, sulla linea del muro (non l'arco di apertura).
-- tipo: "porta" (vano in un muro interno o portoncino d'ingresso, di solito con l'arco), "finestra" (sul muro esterno, disegnata con linee sottili parallele), "portafinestra" (finestra che arriva a terra, di solito verso un balcone o terrazzo).
+- tipo: "porta" (vano in un muro interno o portoncino d'ingresso, di solito con l'arco), "finestra" (sul muro esterno, disegnata con linee sottili parallele), "portafinestra" (finestra che arriva a terra, di solito verso un balcone o terrazzo), "varco" (apertura senza serramento, o portone di un capannone).
+- piano: come per le stanze, solo se il foglio ha più piani.
 
 QUOTE — ogni misura scritta di cui capisci il tratto misurato (linea di quota con frecce o trattini, oppure numero scritto lungo una parete):
 - valore_m: in metri (4.20; se è scritto "420" in centimetri, 4.20).
 - da, a: estremi del tratto misurato.
 Solo numeri che leggi davvero. Ignora la scala grafica, il cartiglio, le superfici (vanno in superficie_scritta_mq) e le altezze.
+
+ELEMENTI — solo quelli disegnati: pilastri (quadratini o tondi pieni, anche tratteggiati, isolati o nei muri), sanitari, cucina, letti, armadi, divani, tavoli:
+- tipo: uno fra pilastro, wc, bidet, lavabo, doccia, vasca, lavatrice, cucina, frigorifero, tavolo, sedia, letto_matrimoniale, letto_singolo, comodino, armadio, scrivania, divano, caldaia.
+- riquadro: [x0, y0, x1, y1], il rettangolo che lo contiene.
+- lato_muro: da che parte sta il lato appoggiato al muro (testata del letto, schienale del divano, cassetta del WC): "alto", "basso", "sinistra" o "destra"; null per pilastri e tavoli.
+- piano: come per le stanze.
+Le sedie attorno a un tavolo non servono una per una. Se la pianta non è arredata, elementi è [].
+
+MISURE: le quote si scrivono in molti modi — "420" o "4,20" o "4.20 m" o "4,20 ML"; "275 cm"; con due numeri sovrapposti su una porta o finestra ("80/210", "150/138") il primo è la larghezza in cm, il secondo l'altezza: non sono quote. "H 2,70", "H.3,85ML", "H 275" sono altezze. "R.I." e "mq" non sono quote.
 
 altezza_m: altezza dei locali se è scritta una volta per tutta la pianta ("H = 2,70"), altrimenti null.
 
@@ -35,7 +49,8 @@ Rispondi SOLO con il JSON, senza testo prima o dopo:
 {"sistema":"immagine","leggibile":true,"altezza_m":null,
  "locali":[{"nome":"Cucina","destinazione":"cucina","contorno":[[100,120],[380,120],[380,400],[100,400]],"superficie_scritta_mq":null,"altezza_scritta_m":null}],
  "aperture":[{"tipo":"porta","da":[380,250],"a":[380,300]}],
- "quote":[{"valore_m":4.2,"da":[100,90],"a":[380,90]}]}`;
+ "quote":[{"valore_m":4.2,"da":[100,90],"a":[380,90]}],
+ "elementi":[{"tipo":"wc","riquadro":[110,130,140,170],"lato_muro":"alto"}]}`;
 
 const SISTEMA_METRI = `COORDINATE: in METRI, origine in alto a sinistra della pianta, x verso destra, y verso il basso. Ogni punto è [x, y] con due decimali.
 Le stanze vicine si TOCCANO (ignora lo spessore dei muri): il lato in comune ha le stesse coordinate nelle due stanze, senza buchi né sovrapposizioni. Muri dritti e ad angolo retto, salvo che il disegno mostri chiaramente un muro storto.`;
