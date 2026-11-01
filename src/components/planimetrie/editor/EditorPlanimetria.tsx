@@ -8,9 +8,11 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Hexagon, Layers, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,9 +51,9 @@ import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldam
 import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../shared/planimetrie/impianti.ts";
 import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
-import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
+import { TelaPlanimetria, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
 
-export type Strumento = "seleziona" | "stanza" | "poligono" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
+export type Strumento = "seleziona" | "stanza" | "poligono" | "area" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
 
 interface Props {
   /** Il documento della fase 1 (`shared/planimetrie/modello.ts`); senza, una pianta vuota. */
@@ -75,6 +77,7 @@ type Gesto =
   | { tipo: "apertura-nuova"; quale: TipoApertura; da: Punto; mosso: boolean }
   | { tipo: "sposta-elemento"; id: string; da: Punto; centro: Punto; base: Pianta; mosso: boolean }
   | { tipo: "sposta-testo"; id: string; da: Punto; posizione: Punto; base: Pianta; mosso: boolean }
+  | { tipo: "sposta-area"; id: string; da: Punto; contorno: Punto[]; base: Pianta; mosso: boolean }
   | { tipo: "sposta-quota"; id: string; da: Punto; base: Pianta; normale: Punto; scostamento: number; mosso: boolean };
 
 interface Bersaglio {
@@ -100,6 +103,7 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   porta: "Trascina la porta su una parete (o clicca sulla parete). Poi un clic sulla porta selezionata ne gira il verso.",
   finestra: "Trascina la finestra su una parete (o clicca sulla parete).",
   poligono: "Clic su ogni angolo della stanza; clic sul primo punto (o Invio) per chiuderla. Le pareti vanno dritte a 90° e 45° da sole. Esc per annullare.",
+  area: "Clic su ogni angolo dell'area (lotto, prato, vialetto…); clic sul primo punto o Invio per chiuderla. Esc per annullare.",
   arredo: "Clic sul foglio per posare l'arredo scelto. Poi trascinalo per spostarlo; R lo ruota di 90°.",
   quota: "Clic sul primo punto, clic sul secondo: la quota misura da sola. Si agganciano angoli e pareti.",
   testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
@@ -138,6 +142,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [arredoScelto, setArredoScelto] = useState<VoceCatalogo | null>(null);
   const [inizioQuota, setInizioQuota] = useState<Punto | null>(null);
   const [puntiPoligono, setPuntiPoligono] = useState<Punto[]>([]);
+  // Lotto e aree esterne: il tipo che lo strumento «area» disegna.
+  const [tipoArea, setTipoArea] = useState<TipoArea>("prato");
+  // Immagine da ricalcare (mappa catastale, foto aerea, rilievo del lotto): resta finché la pagina è aperta.
+  const [sfondo, setSfondo] = useState<SfondoRicalco | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const contenitoreRef = useRef<HTMLDivElement>(null);
@@ -335,6 +343,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const chiudiPoligono = (punti: Punto[]) => {
     setPuntiPoligono([]);
     setSovrapposizioni({});
+    if (stato.current.strumento === "area") {
+      if (punti.length < 3) return setAvviso("Servono almeno tre angoli per fare un'area.");
+      if (contornoIncrociato(punti)) return setAvviso("Il contorno si incrocia: ridisegna l'area senza che i lati si taglino.");
+      const r = C.aggiungiArea(stato.current.storia.presente, tipoArea, punti, stato.current.vista);
+      applica(r.pianta);
+      setStrumento("seleziona");
+      setSelezione({ tipo: "area", id: r.id });
+      return;
+    }
     if (punti.length < 3) return setAvviso("Servono almeno tre angoli per fare una stanza.");
     if (contornoIncrociato(punti)) return setAvviso("Il contorno si incrocia: ridisegna la stanza senza che i lati si taglino.");
     const r = C.aggiungiStanza(stato.current.storia.presente, punti, { stato: C.statoNuovo(stato.current.vista) });
@@ -370,7 +387,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni({ rettangolo: { a: a.punto, b: a.punto }, aggancio: a });
       return;
     }
-    if (str === "poligono") {
+    if (str === "poligono" || str === "area") {
       const pts = stato.current.puntiPoligono;
       const ultimo = pts[pts.length - 1];
       if (pts.length >= 3 && dist(p, pts[0]) <= tolleranza() * 1.2) return chiudiPoligono(pts);
@@ -532,6 +549,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSelezione({ tipo: "locale", id: b.id });
       return pan();
     }
+    if (b.tipo === "area" && b.id) {
+      const ar = (pi.aree ?? []).find((x) => x.id === b.id);
+      if (!ar) return;
+      setSelezione({ tipo: "area", id: ar.id });
+      if (!C.modificabile(ar.stato, v)) return pan();
+      gesto.current = { tipo: "sposta-area", id: ar.id, da: p, contorno: ar.contorno, base: stato.current.storia.presente, mosso: false };
+      return;
+    }
   };
 
   const avvisaProgetto = () =>
@@ -613,6 +638,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setAnteprima(C.modificaElemento(g.base, g.id, { centro }));
       return;
     }
+    if (g?.tipo === "sposta-area") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      const dx = Math.round((p.x - g.da.x) / 5) * 5, dy = Math.round((p.y - g.da.y) / 5) * 5;
+      setAnteprima(C.modificaArea(g.base, g.id, { contorno: g.contorno.map((q) => ({ x: q.x + dx, y: q.y + dy })) }));
+      return;
+    }
     if (g?.tipo === "sposta-testo") {
       if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
       g.mosso = true;
@@ -642,7 +674,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni(inizio ? { pareteInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "stanza") {
       setSovrapposizioni({ aggancio: aggancia(pi, p, { tolleranza: tolleranza() }) });
-    } else if (str === "poligono") {
+    } else if (str === "poligono" || str === "area") {
       const pts = stato.current.puntiPoligono;
       const a = aggancia(pi, p, { tolleranza: tolleranza(), da: pts[pts.length - 1] });
       setSovrapposizioni(pts.length ? { poligonoInCorso: { punti: pts, cursore: a.punto }, aggancio: a } : { aggancio: a });
@@ -719,7 +751,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       else setAnteprima(null);
       return;
     }
-    if (g.tipo === "sposta-elemento" || g.tipo === "sposta-testo" || g.tipo === "sposta-quota") {
+    if (g.tipo === "sposta-elemento" || g.tipo === "sposta-testo" || g.tipo === "sposta-quota" || g.tipo === "sposta-area") {
       if (g.mosso && anteprimaRef.current) applica(anteprimaRef.current);
       else setAnteprima(null);
       return;
@@ -801,9 +833,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           : sel.tipo === "elemento" ? C.eliminaElemento(base, sel.id, v)
           : sel.tipo === "quota" ? C.eliminaQuota(base, sel.id)
           : sel.tipo === "testo" ? C.eliminaTesto(base, sel.id)
+          : sel.tipo === "area" ? C.eliminaArea(base, sel.id, v)
           : C.eliminaLocale(base, sel.id, v);
       applica(nuova);
-      const ancora = [...nuova.muri, ...nuova.aperture, ...nuova.locali, ...(nuova.elementi ?? []), ...(nuova.quote ?? []), ...(nuova.testi ?? [])].some((x) => x.id === sel.id);
+      const ancora = [...nuova.muri, ...nuova.aperture, ...nuova.locali, ...(nuova.elementi ?? []), ...(nuova.quote ?? []), ...(nuova.testi ?? []), ...(nuova.aree ?? [])].some((x) => x.id === sel.id);
       if (!ancora) setSelezione(null);
     },
     [applica],
@@ -856,7 +889,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         const r = C.duplicaElemento(stato.current.storia.presente, stato.current.selezione.id, stato.current.vista);
         applica(r.pianta);
         if (r.id) setSelezione({ tipo: "elemento", id: r.id });
-      } else if (e.key === "Enter" && stato.current.strumento === "poligono" && stato.current.puntiPoligono.length >= 3) {
+      } else if (e.key === "Enter" && (stato.current.strumento === "poligono" || stato.current.strumento === "area") && stato.current.puntiPoligono.length >= 3) {
         e.preventDefault();
         chiudiPoligonoRef.current(stato.current.puntiPoligono);
       } else if (e.key === "Escape" && stato.current.puntiPoligono.length) {
@@ -943,7 +976,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               ? (pianta.quote ?? []).find((x) => x.id === selezione.id)
               : selezione.tipo === "testo"
                 ? (pianta.testi ?? []).find((x) => x.id === selezione.id)
-                : dati.locali.find((l) => l.id === selezione.id);
+                : selezione.tipo === "area"
+                  ? (pianta.aree ?? []).find((x) => x.id === selezione.id)
+                  : dati.locali.find((l) => l.id === selezione.id);
     if (!esiste || ("stato" in esiste && !C.visibile(esiste.stato, vista))) setSelezione(null);
   }, [pianta, dati, selezione, vista]);
 
@@ -1010,6 +1045,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
         setAvviso(`Aggiunti ${r.aggiunti.length} termosifoni.${(p().elementi ?? []).some((e) => e.tipo === "caldaia" || e.tipo === "pompa_calore") ? "" : " Metti la caldaia o la pompa di calore (Arredi → Energia): da lì partono i tubi nel computo."}`);
       },
+      modificaArea: (id, campi) => applica(C.modificaArea(p(), id, campi)),
       curvaParete: (id, freccia) => {
         const r = C.curvaParete(p(), id, freccia);
         if (!r.ok) { setAvviso(r.motivo ?? "La parete non si curva."); return; }
@@ -1133,7 +1169,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   const vuota = storia.presente.muri.length === 0 && storia.presente.locali.length === 0;
   const cursore =
-    strumento === "stanza" || strumento === "poligono" || strumento === "parete" || strumento === "quota" ? "crosshair"
+    strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "quota" ? "crosshair"
       : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
       : strumento === "testo" ? "text" : "default";
 
@@ -1231,6 +1267,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               titolo="Trascinala su una parete"
             />
             <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+            <StrumentoEsterni
+              attivo={strumento === "area"}
+              tipo={tipoArea}
+              onScegli={(t) => {
+                setTipoArea(t);
+                setStrumento("area");
+              }}
+            />
             <CatalogoArredi
               attivo={strumento === "arredo"}
               onScegli={(voce) => {
@@ -1243,6 +1287,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </div>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!sola && <SfondoDaRicalcare sfondo={sfondo} onCambia={setSfondo} />}
           {!sola && (
             <BarraPiani
               livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota }))}
@@ -1287,6 +1332,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             selezione={selezione}
             gruppo={gruppo}
             lineeImpianti={mostraLinee ? impianti.percorsi : undefined}
+            sfondo={sfondo}
             camera={camera}
             larghezza={dimensioni.w}
             altezza={dimensioni.h}
@@ -1510,6 +1556,19 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
             setNome(""); setQuota(""); setAperto(false);
           }}>
             <p className="text-sm font-semibold">Aggiungi un piano</p>
+            <div className="flex flex-wrap gap-1">
+              {([
+                ["Primo piano", Math.max(...livelli.map((l) => l.quota), 0) + 300, "esterni"],
+                ["Interrato", Math.min(...livelli.map((l) => l.quota), 0) - 300, "esterni"],
+                ["Sottotetto", Math.max(...livelli.map((l) => l.quota), 0) + 300, "esterni"],
+                ["Piano tipo uguale", Math.max(...livelli.map((l) => l.quota), 0) + 300, "identico"],
+              ] as const).map(([n, q, b]) => (
+                <button key={n} type="button" className="rounded-full border px-2 py-0.5 text-[11px] hover:bg-muted"
+                  onClick={() => { setNome(n === "Piano tipo uguale" ? `Piano ${livelli.length}` : n); setQuota(metri(q)); setBase(b); }}>
+                  {n}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-[1fr_6rem] gap-2">
               <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Primo piano" aria-label="Nome del nuovo piano" />
               <Input value={quota} onChange={(e) => setQuota(e.target.value)} placeholder="3,00" inputMode="decimal" aria-label="Quota del nuovo piano in metri" />
@@ -1517,7 +1576,8 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
             <div className="space-y-1" role="radiogroup" aria-label="Da dove partire">
               {([
                 ["esterni", "Dal perimetro", "Le pareti esterne e portanti del piano attuale"],
-                ["tutto", "Copia tutto", "Pareti, porte e finestre del piano attuale"],
+                ["identico", "Piano identico", "Tutto: stanze, arredi e impianti (piano tipo, appartamenti uguali)"],
+                ["tutto", "Copia le pareti", "Pareti, porte e finestre del piano attuale"],
                 ["vuoto", "Vuoto", "Si disegna da zero"],
               ] as const).map(([v, t, d]) => (
                 <button key={v} type="button" role="radio" aria-checked={base === v} onClick={() => setBase(v)}
@@ -1531,6 +1591,90 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
         </PopoverContent>
       </Popover>
     </div>
+  );
+}
+
+/**
+ * Immagine da ricalcare: si carica (JPG, PNG, la prima pagina di un PDF no: va salvata come
+ * immagine), si dice quanto è larga davvero e la si mette sotto il disegno, semitrasparente.
+ */
+function SfondoDaRicalcare({ sfondo, onCambia }: { sfondo: SfondoRicalco | null; onCambia: (s: SfondoRicalco | null) => void }) {
+  const [aperto, setAperto] = useState(false);
+  const [larghezza, setLarghezza] = useState(sfondo ? String(sfondo.larghezzaCm / 100).replace(".", ",") : "30");
+  const metri = () => { const v = Number(larghezza.replace(",", ".")); return Number.isFinite(v) && v > 0 ? Math.round(v * 100) : null; };
+  const carica = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (sfondo) URL.revokeObjectURL(sfondo.url);
+      onCambia({ url, x: 0, y: 0, larghezzaCm: metri() ?? 3000, proporzione: img.naturalHeight / Math.max(1, img.naturalWidth), opacita: 0.5 });
+    };
+    img.src = url;
+  };
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={sfondo ? "default" : "outline"} title="Un'immagine sotto il disegno da ricalcare: mappa catastale, foto aerea, rilievo del lotto">
+          <ImageIcon /> <span className="hidden lg:inline">Ricalca</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 space-y-3" align="end">
+        <p className="text-sm font-semibold">Immagine da ricalcare</p>
+        <p className="text-xs text-muted-foreground">Carica la mappa del terreno, una foto aerea o un rilievo; scrivi quanto è larga davvero e ricalca sopra lotto, casa, vialetti. L'immagine non si salva con la pianta.</p>
+        <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
+          <Label className="text-xs" htmlFor="sfondo-larghezza">Larghezza reale dell'immagine (m)</Label>
+          <Input id="sfondo-larghezza" value={larghezza} inputMode="decimal" onChange={(e) => setLarghezza(e.target.value)}
+            onBlur={() => { const cm = metri(); if (sfondo && cm) onCambia({ ...sfondo, larghezzaCm: cm }); }} />
+        </div>
+        <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) carica(f); }} />
+        {sfondo && (
+          <>
+            <div className="space-y-1">
+              <Label className="text-xs">Trasparenza</Label>
+              <input type="range" min={0.1} max={1} step={0.05} value={sfondo.opacita} className="w-full" onChange={(e) => onCambia({ ...sfondo, opacita: Number(e.target.value) })} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Sposta a destra (m)</Label>
+                <Input defaultValue={String(sfondo.x / 100)} inputMode="decimal" onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v)) onCambia({ ...sfondo, x: Math.round(v * 100) }); }} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Sposta in basso (m)</Label>
+                <Input defaultValue={String(sfondo.y / 100)} inputMode="decimal" onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v)) onCambia({ ...sfondo, y: Math.round(v * 100) }); }} />
+              </div>
+            </div>
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { URL.revokeObjectURL(sfondo.url); onCambia(null); }}>Togli l'immagine</Button>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Lotto e aree esterne: si sceglie cosa disegnare, poi clic sugli angoli. */
+function StrumentoEsterni({ attivo, tipo, onScegli }: { attivo: boolean; tipo: TipoArea; onScegli: (t: TipoArea) => void }) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={attivo ? "default" : "outline"} aria-pressed={attivo} title="Lotto, prato, vialetti, ghiaia, parcheggio">
+          <Trees />
+          <span className="hidden lg:inline">Esterni</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="start">
+        <p className="px-1 pb-2 text-xs text-muted-foreground">Cosa disegni? Poi clic su ogni angolo. Comincia dal lotto (il confine del terreno), poi prato, vialetti e il resto. Piscine, alberi e pergole sono in «Arredi».</p>
+        <div className="grid grid-cols-2 gap-1">
+          {TIPI_AREA.map((t) => (
+            <button key={t} type="button" onClick={() => { onScegli(t); setAperto(false); }}
+              className={cn("flex items-center gap-2 rounded-md border p-2 text-left text-xs hover:bg-muted", attivo && tipo === t && "border-primary bg-primary/5")}>
+              <span className="inline-block h-3 w-3 shrink-0 rounded-sm border" style={{ background: t === "lotto" ? "transparent" : STILE_AREA[t].fill, borderColor: STILE_AREA[t].bordo, borderStyle: t === "lotto" ? "dashed" : "solid" }} />
+              {NOMI_AREA[t]}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -38,6 +38,7 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
     })),
     locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza })),
     elementi: s.elementi.map(daElemento),
+    ...(s.aree?.length ? { aree: s.aree.filter((a) => a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, contorno: a.contorno.map(giu), recinzione: a.recinzione })) } : {}),
   };
 }
 
@@ -66,5 +67,6 @@ export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string
   }
   const fatto = daStatoPianta(livello.fatto);
   const proposta = (scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : undefined) ?? livello.proposte[0];
-  return { fatto, progetto: proposta ? daStatoPianta(proposta) : fatto, livello };
+  // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
+  return { fatto, progetto: proposta ? daStatoPianta(proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : fatto, livello };
 }

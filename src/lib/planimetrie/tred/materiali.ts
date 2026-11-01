@@ -16,6 +16,10 @@ export const MATERIALI: Record<string, Materiale3D> = {
   acqua: { nome: "Acqua", colore: "#3fa7d6", opacita: 0.85, ruvidita: 0.05 },
   fogliame: { nome: "Fogliame", colore: "#4f7f3a", opacita: 1, ruvidita: 1 },
   pietra: { nome: "Pietra", colore: "#d9d2c3", opacita: 1, ruvidita: 0.8 },
+  ghiaia: { nome: "Ghiaia", colore: "#c8c3b7", opacita: 1, ruvidita: 1 },
+  asfalto: { nome: "Asfalto", colore: "#6f7072", opacita: 1, ruvidita: 0.95 },
+  terra: { nome: "Terra", colore: "#7d5f42", opacita: 1, ruvidita: 1 },
+  recinzione: { nome: "Recinzione", colore: "#3d5a40", opacita: 0.55, ruvidita: 0.6 },
   ceramica: { nome: "Ceramica", colore: "#fbfbfa", opacita: 1, ruvidita: 0.15 },
   legno: { nome: "Legno", colore: "#8a6a4b", opacita: 1, ruvidita: 0.6 },
   tessuto: { nome: "Tessuto", colore: "#7d8a9a", opacita: 1, ruvidita: 1 },
@@ -23,6 +27,11 @@ export const MATERIALI: Record<string, Materiale3D> = {
   laccato: { nome: "Mobile laccato", colore: "#e3e0da", opacita: 1, ruvidita: 0.4 },
   piano_cucina: { nome: "Piano cucina", colore: "#5f5f5f", opacita: 1, ruvidita: 0.3 },
   metallo: { nome: "Metallo", colore: "#b4b8bc", opacita: 1, ruvidita: 0.3 },
+};
+
+/** Materiale di un'area esterna. */
+export const MATERIALE_AREA: Record<string, string> = {
+  prato: "prato", aiuola: "fogliame", pavimentato: "pietra", vialetto: "pietra", ghiaia: "ghiaia", parcheggio: "asfalto", orto: "terra",
 };
 
 /** Materiale del pavimento secondo la destinazione del locale. */

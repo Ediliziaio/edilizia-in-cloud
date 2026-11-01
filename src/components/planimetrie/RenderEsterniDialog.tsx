@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { caricaFotogramma } from "@/components/planimetrie/Vista3DPigra";
-import { costruisciScena, limitiDi, vistaDalGiardino, vistaGiroIntorno, type LatoEsterno, type PiantaPer3D } from "@/lib/planimetrie/tred";
+import { costruisciScena, limitiDi, scenaEdificio, vistaDalGiardino, vistaGiroIntorno, type LatoEsterno, type PiantaPer3D, type PianoPer3D } from "@/lib/planimetrie/tred";
 import { lasciaFotoDaPianta, MODULI_ESTERNI, type ModuloEsterno } from "@/lib/planimetrie/render/fotoDaPianta";
 
 type Inquadratura = LatoEsterno | "tre_quarti";
@@ -37,51 +37,53 @@ interface Props {
   titolo: string;
   /** Il modulo proposto all'apertura (con una piscina disegnata: «Piscina»). */
   moduloIniziale?: ModuloEsterno;
+  /** Con più piani la casa si vede intera, tutti i piani uno sopra l'altro. */
+  piani?: PianoPer3D[];
 }
 
-export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, moduloIniziale }: Props) {
+export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, moduloIniziale, piani }: Props) {
   const navigate = useNavigate();
-  const [modulo, setModulo] = useState<ModuloEsterno>(moduloIniziale ?? "giardini");
+  // finché non se ne sceglie un altro vale quello proposto (con una piscina disegnata: «Piscina»)
+  const [scelto, setScelto] = useState<ModuloEsterno | null>(null);
+  const modulo = scelto ?? moduloIniziale ?? "giardini";
+  const setModulo = setScelto;
   const [inquadratura, setInquadratura] = useState<Inquadratura>("sud");
-  const [anteprima, setAnteprima] = useState<{ url: string; file: File } | null>(null);
-  const [errore, setErrore] = useState<string | null>(null);
-  const [carico, setCarico] = useState(false);
-
-  useEffect(() => { if (aperto && moduloIniziale) setModulo(moduloIniziale); }, [aperto, moduloIniziale]);
+  // anteprima ed errore ricordano per quale inquadratura sono: se non è quella di adesso, si sta caricando
+  const [anteprima, setAnteprima] = useState<{ url: string; file: File; per: Inquadratura } | null>(null);
+  const [errore, setErrore] = useState<{ testo: string; per: Inquadratura } | null>(null);
 
   const { limiti, casa } = useMemo(() => {
-    const s = costruisciScena(pianta, { vista, soffitto: true, elementi: true });
+    const s = piani && piani.length > 1 ? scenaEdificio(piani, { vista, soffitto: true, elementi: true }) : costruisciScena(pianta, { vista, soffitto: true, elementi: true });
     const muri = limitiDi(s.mesh, (g) => g === "muro");
     return { limiti: s.limiti, casa: Number.isFinite(muri.min[0]) ? muri : s.limiti };
-  }, [pianta, vista]);
+  }, [pianta, piani, vista]);
   const localeId = pianta.locali[0]?.id;
 
   useEffect(() => {
     if (!aperto || !localeId) return;
     let annullato = false;
     let url: string | null = null;
-    setCarico(true);
-    setErrore(null);
     (async () => {
       try {
         const cattura = await caricaFotogramma();
         const telecamera = inquadratura === "tre_quarti" ? vistaGiroIntorno(limiti, 4 / 3) : vistaDalGiardino(limiti, inquadratura, 60, casa);
-        const f = await cattura({ pianta, localeId, telecamera, vista, larghezza: 1280, altezza: 960, terreno: 40 });
+        const f = await cattura({ pianta, localeId, telecamera, vista, larghezza: 1280, altezza: 960, terreno: 40, piani });
         if (annullato) return;
         url = URL.createObjectURL(f.png);
         const nome = `${titolo.replace(/[^\w-]+/g, "-").slice(0, 40) || "pianta"}-esterno.png`;
-        setAnteprima({ url, file: new File([f.png], nome, { type: "image/png" }) });
+        setAnteprima({ url, file: new File([f.png], nome, { type: "image/png" }), per: inquadratura });
       } catch (e) {
-        if (!annullato) setErrore(e instanceof Error ? e.message : "Vista non creata.");
-      } finally {
-        if (!annullato) setCarico(false);
+        if (!annullato) setErrore({ testo: e instanceof Error ? e.message : "Vista non creata.", per: inquadratura });
       }
     })();
     return () => {
       annullato = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [aperto, inquadratura, limiti, casa, localeId, pianta, titolo, vista]);
+  }, [aperto, inquadratura, limiti, casa, localeId, pianta, piani, titolo, vista]);
+
+  const carico = !!localeId && anteprima?.per !== inquadratura && errore?.per !== inquadratura;
+  const erroreOra = errore?.per === inquadratura && anteprima?.per !== inquadratura ? errore.testo : null;
 
   const continua = () => {
     if (!anteprima) return;
@@ -128,7 +130,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
           <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border bg-muted">
             {anteprima && <img src={anteprima.url} alt="Vista 3D da fuori" className="h-full w-full object-cover" />}
             {carico && <Loader2 className="absolute h-6 w-6 animate-spin text-muted-foreground" />}
-            {errore && <p className="p-4 text-sm text-destructive">{errore}</p>}
+            {erroreOra && <p className="p-4 text-sm text-destructive">{erroreOra}</p>}
             {!localeId && <p className="p-4 text-sm text-muted-foreground">La pianta non ha stanze: disegnale prima.</p>}
           </div>
         </div>

@@ -501,6 +501,21 @@ const centroDi = (pts: Coppia[]): Coppia => [pts.reduce((t, p) => t + p[0], 0) /
  * sottotetto sullo stesso foglio) ne fa un livello per piano. La scala è quella del foglio intero;
  * porte, finestre e arredi senza piano vanno al piano che li contiene.
  */
+/**
+ * La quota di un piano dal suo nome: interrato e cantine sotto zero, piano terra a zero, primo,
+ * secondo… a 3 m l'uno, sottotetto e mansarda sopra tutti. Senza indizi: l'ordine del foglio.
+ */
+export function quotaDalNome(nome: string, ordine: number, quanti: number): number {
+  const n = nome.toLowerCase();
+  if (/secondo interrato|-2|meno due/.test(n)) return -600;
+  if (/interrat|seminterrat|cantin|piano -1|meno uno|scantinat|autorimessa interrata/.test(n)) return -300;
+  if (/terra|rialzat|pt\b/.test(n)) return 0;
+  const ordinali: Array<[RegExp, number]> = [[/primo|1°|piano 1\b|p1\b/, 300], [/secondo|2°|piano 2\b/, 600], [/terzo|3°|piano 3\b/, 900], [/quarto|4°|piano 4\b/, 1200], [/quinto|5°|piano 5\b/, 1500]];
+  for (const [re, q] of ordinali) if (re.test(n)) return q;
+  if (/sottotett|mansard|soffitt|attico/.test(n)) return Math.max(1, quanti - 1) * 300;
+  return ordine * 300;
+}
+
 export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaGenerata {
   const piani = [...new Set(r.locali.filter((l) => l.contorno.length >= 3).map((l) => l.piano ?? ""))];
   if (piani.length <= 1) return costruisciPlanimetria(r, opz);
@@ -537,7 +552,7 @@ export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaG
       ...l,
       id: i === 0 ? "pt" : `p${i + 1}`,
       nome: piani[i] || `Piano ${i + 1}`,
-      quota: i * 300,
+      quota: quotaDalNome(piani[i] ?? "", i, piani.length),
       fatto: {
         ...l.fatto,
         muri: l.fatto.muri.map((m) => ({ ...m, id: pre + m.id })),
@@ -554,7 +569,7 @@ export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaG
   const avvisi = [...new Set(generate.flatMap((g) => g.generazione.avvisi))];
   avvisi.push(`Sul foglio c'erano ${piani.length} piani: li trovi come piani separati (${piani.map((p, i) => p || `Piano ${i + 1}`).join(", ")}). Controlla la quota di ognuno.`);
   return {
-    planimetria: { ...generate[0].planimetria, livelli },
+    planimetria: { ...generate[0].planimetria, livelli: [...livelli].sort((a, b) => a.quota - b.quota) },
     generazione: { ...generate[0].generazione, avvisi, superfici_scritte: superfici },
   };
 }

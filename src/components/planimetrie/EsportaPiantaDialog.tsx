@@ -68,6 +68,17 @@ function scarica(nome: string, dati: Uint8Array | Blob | string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** Più PDF in uno, nell'ordine dato (i piani di un edificio). */
+export async function unisciPdf(parti: Uint8Array[]): Promise<Uint8Array> {
+  const { PDFDocument } = await import("pdf-lib");
+  const out = await PDFDocument.create();
+  for (const dati of parti) {
+    const d = await PDFDocument.load(dati);
+    for (const pagina of await out.copyPages(d, d.getPageIndices())) out.addPage(pagina);
+  }
+  return out.save();
+}
+
 const nomeFile = (t: string) => (t || "pianta").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "pianta";
 
 export function EsportaPiantaDialog({
@@ -100,6 +111,9 @@ export function EsportaPiantaDialog({
   const [allegando, setAllegando] = useState(false);
   // Tavola completa: dopo la pianta, i fogli con prospetti e sezione.
   const [conProspetti, setConProspetti] = useState(false);
+  // Con più piani: tutti nello stesso PDF, dal più basso, ognuno sulla sua pagina in scala.
+  const [tuttiIPiani, setTuttiIPiani] = useState(false);
+  const piuPiani = documento.livelli.length > 1;
 
   // Preventivi a cui si può allegare: quelli standard (i moduli fanno il PDF nel browser), non firmati.
   const preventivi = useQuery({
@@ -204,7 +218,18 @@ export function EsportaPiantaDialog({
     try {
       if (formato === "pdf") {
         const cartiglio = (await cartiglioPerOra())!;
-        const r = await esportaPdf(vista, cartiglio, { formato: foglio, orientamento, scala: scala === "auto" ? "auto" : Number(scala), stile });
+        const opzioniPdf = { formato: foglio, orientamento, scala: scala === "auto" ? ("auto" as const) : Number(scala), stile };
+        let r = await esportaPdf(vista, cartiglio, opzioniPdf);
+        if (piuPiani && tuttiIPiani) {
+          // ogni piano con la sua proposta (se ce l'ha) quando si esporta il progetto
+          const parti: Uint8Array[] = [];
+          for (const l of [...documento.livelli].sort((a, b) => a.quota - b.quota)) {
+            const pr = l.proposte.find((p) => p.id === propostaId) ?? l.proposte[0];
+            const v = vistaDaPlanimetria(documento, { modo: haProgetto && pr ? modo : "fatto", livelloId: l.id, propostaId: pr?.id });
+            parti.push((await esportaPdf(v, { ...cartiglio, oggetto: v.livello ?? undefined }, opzioniPdf)).dati);
+          }
+          r = { ...r, dati: await unisciPdf(parti) };
+        }
         const disegni = conProspetti ? disegniDellaTavola(statoDisegnato) : [];
         if (disegni.length) {
           const { accodaTavole, accodaFoglioImpianti } = await import("@/lib/planimetrie/tavole");
@@ -215,8 +240,8 @@ export function EsportaPiantaDialog({
           scarica(`${base}-tavola-${foglio}.pdf`, imp?.dati ?? t.dati, "application/pdf");
           toast.success(`Tavola pronta: pianta 1:${r.scala}, prospetti e sezione 1:${t.scala}${imp ? ", impianti" : ""}`, { description: `${1 + t.fogli + (imp ? 1 : 0)} fogli.` });
         } else {
-          scarica(`${base}-${foglio}-1-${r.scala}.pdf`, r.dati, "application/pdf");
-          toast.success(`PDF pronto in scala 1:${r.scala}`);
+          scarica(`${base}${piuPiani && tuttiIPiani ? "-tutti-i-piani" : ""}-${foglio}-1-${r.scala}.pdf`, r.dati, "application/pdf");
+          toast.success(piuPiani && tuttiIPiani ? `PDF pronto: ${documento.livelli.length} piani` : `PDF pronto in scala 1:${r.scala}`);
         }
       } else if (formato === "dxf") {
         const r = await esportaDxfMigliore(vista, { unita: "cm", scala: 50, stile });
@@ -320,6 +345,15 @@ export function EsportaPiantaDialog({
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.</p>
+                {piuPiani && (
+                  <div className="flex items-start justify-between gap-3 border-t pt-3">
+                    <div>
+                      <Label htmlFor="tutti-i-piani" className="text-xs">Tutti i piani ({documento.livelli.length})</Label>
+                      <p className="text-[11px] text-muted-foreground">Un foglio per piano, dal più basso al più alto, nello stesso PDF.</p>
+                    </div>
+                    <Switch id="tutti-i-piani" checked={tuttiIPiani} onCheckedChange={setTuttiIPiani} />
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div>
                     <Label htmlFor="tavola-completa" className="text-xs">Tavola completa</Label>

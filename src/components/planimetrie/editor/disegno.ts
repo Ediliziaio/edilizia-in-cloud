@@ -112,7 +112,20 @@ export const COLORE_STANZA: Record<string, string> = {
   studio: "#ede9fe",
   lavanderia: "#e0f2fe",
   balcone: "#dcfce7",
+  giardino: "#d9f99d",
   altro: "#f8fafc",
+};
+
+/** Lotto e aree esterne sulla tela: colore, bordo e motivo (definito nella tela). */
+export const STILE_AREA: Record<string, { fill: string; bordo: string; motivo?: string }> = {
+  lotto: { fill: "none", bordo: "#dc2626" },
+  prato: { fill: "#d9f0c4", bordo: "#86b56b", motivo: "pl-prato" },
+  pavimentato: { fill: "#ece6dc", bordo: "#b8ad9c", motivo: "pl-lastre" },
+  vialetto: { fill: "#e7e2d8", bordo: "#a8a090", motivo: "pl-lastre" },
+  ghiaia: { fill: "#e5e5e0", bordo: "#a3a39a", motivo: "pl-ghiaia" },
+  parcheggio: { fill: "#d6d6d6", bordo: "#8c8c8c" },
+  aiuola: { fill: "#b9dc9b", bordo: "#6a9a4f", motivo: "pl-prato" },
+  orto: { fill: "#e3d2b4", bordo: "#a0835a", motivo: "pl-orto" },
 };
 
 /** Il punto a metà parete, spostato di `off` cm a sinistra (guardando da p1 a p2). */

@@ -12,6 +12,7 @@ import {
   muroDelLato,
   quantitaLocale,
   type Apertura,
+  type AreaLavoro,
   type Destinazione,
   type ElementoLavoro,
   type Locale,
@@ -24,6 +25,7 @@ import {
   type TestoLavoro,
   type TipoApertura,
 } from "./adattatore";
+import type { TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
 
 /** «Com'è oggi» (stato di fatto) o «Progetto» (giallo = demolire, rosso = nuovo). */
@@ -616,6 +618,31 @@ export function eliminaElemento(pianta: Pianta, id: string, vista: Vista = "fatt
     return { ...pianta, elementi: (pianta.elementi ?? []).map((x) => (x.id === id ? { ...x, stato } : x)) };
   }
   return { ...pianta, elementi: (pianta.elementi ?? []).filter((x) => x.id !== id) };
+}
+
+// ─── Lotto e aree esterne ────────────────────────────────────────────────────
+
+export function aggiungiArea(pianta: Pianta, tipo: TipoArea, contorno: Punto[], vista: Vista = "fatto"): { pianta: Pianta; id: string } {
+  const id = nuovoId("area");
+  const area: AreaLavoro = { id, tipo, contorno: contorno.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), stato: statoNuovo(vista) };
+  // il lotto sta sotto tutto: va in testa, le altre aree sopra
+  const aree = tipo === "lotto" ? [area, ...(pianta.aree ?? [])] : [...(pianta.aree ?? []), area];
+  return { pianta: { ...pianta, aree }, id };
+}
+
+export function modificaArea(pianta: Pianta, id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione" | "contorno">>): Pianta {
+  return { ...pianta, aree: (pianta.aree ?? []).map((a) => (a.id === id ? { ...a, ...campi } : a)) };
+}
+
+/** Come per gli arredi: nel progetto un'area di oggi si segna da togliere (e un altro clic la rimette). */
+export function eliminaArea(pianta: Pianta, id: string, vista: Vista = "fatto"): Pianta {
+  const a = (pianta.aree ?? []).find((x) => x.id === id);
+  if (!a) return pianta;
+  if (vista === "progetto" && a.stato !== "nuovo") {
+    const stato: StatoElemento = a.stato === "da_demolire" ? "esistente" : "da_demolire";
+    return { ...pianta, aree: (pianta.aree ?? []).map((x) => (x.id === id ? { ...x, stato } : x)) };
+  }
+  return { ...pianta, aree: (pianta.aree ?? []).filter((x) => x.id !== id) };
 }
 
 export function aggiungiQuota(pianta: Pianta, p1: Punto, p2: Punto, scostamento = 40): { pianta: Pianta; id: string } {

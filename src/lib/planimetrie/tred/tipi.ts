@@ -75,11 +75,21 @@ export interface ElementoPer3D {
   localeId?: string;
 }
 
+/** Lotto e aree esterne: superfici a terra (y verso il basso, cm). */
+export interface AreaPer3D {
+  id: string;
+  tipo: string;
+  contorno: Punto2[];
+  /** Solo per il lotto: la recinzione lungo il confine (predefinito: sì). */
+  recinzione?: boolean;
+}
+
 export interface PiantaPer3D {
   muri: MuroPer3D[];
   aperture: AperturaPer3D[];
   locali: LocalePer3D[];
   elementi: ElementoPer3D[];
+  aree?: AreaPer3D[];
 }
 
 // ─── Risultato ──────────────────────────────────────────────────────────────

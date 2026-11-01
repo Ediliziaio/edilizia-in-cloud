@@ -118,7 +118,8 @@ export function adattaAmbiente(ambiente: { sole: THREE.DirectionalLight; terreno
   cam.left = -r * 1.3; cam.right = r * 1.3; cam.top = r * 1.3; cam.bottom = -r * 1.3;
   cam.near = 0.1; cam.far = r * 6;
   cam.updateProjectionMatrix();
-  terreno.position.set(cx, -0.005, cz);
+  // con un interrato il terreno scende sotto il piano più basso, altrimenti lo coprirebbe
+  terreno.position.set(cx, min[1] < -0.1 ? min[1] - 0.005 : -0.005, cz);
   terreno.scale.setScalar(r * 4);
   // con il prato della pianta (viste da fuori) il disco grigio non serve: lo coprirebbe
   terreno.visible = !scena.mesh.some((m) => m.id === "terreno");

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
+import { DESTINAZIONI, type Apertura, type AreaLavoro, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
 import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
@@ -18,6 +18,8 @@ import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
+import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 
 export interface AzioniPannello {
   nomeStanza: (id: string, nome: string) => void;
@@ -50,6 +52,7 @@ export interface AzioniPannello {
   riscaldamento: (localeId: string) => void;
   /** Curva la parete con la freccia data (cm). */
   curvaParete: (id: string, frecciaCm: number) => void;
+  modificaArea: (id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione">>) => void;
 }
 
 interface Props {
@@ -104,7 +107,44 @@ export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezi
     const t = (pianta.testi ?? []).find((x) => x.id === selezione.id);
     if (t) return <DettaglioTesto key={t.id} testo={t} azioni={azioni} />;
   }
+  if (selezione?.tipo === "area") {
+    const a = (pianta.aree ?? []).find((x) => x.id === selezione.id);
+    if (a) return <DettaglioArea key={a.id} vista={vista} area={a} azioni={azioni} />;
+  }
   return <ElencoStanze pianta={pianta} dati={dati} vista={vista} azioni={azioni} />;
+}
+
+function DettaglioArea({ vista, area: a, azioni }: { vista: Vista; area: AreaLavoro; azioni: AzioniPannello }) {
+  const mq = areaPoligono(a.contorno) / 10_000;
+  const perimetro = a.contorno.reduce((t, p, i) => t + dist(p, a.contorno[(i + 1) % a.contorno.length]), 0) / 100;
+  const libera = modificabile(a.stato, vista);
+  const [nome, setNome] = useState(a.nome ?? "");
+  return (
+    <div className="space-y-3 p-3">
+      <p className="text-sm font-semibold">{a.nome || NOMI_AREA[a.tipo]}</p>
+      <div className="space-y-1">
+        <Label className="text-xs">Tipo</Label>
+        <Select value={a.tipo} onValueChange={(v) => azioni.modificaArea(a.id, { tipo: v as TipoArea })} disabled={!libera}>
+          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>{TIPI_AREA.map((t) => <SelectItem key={t} value={t}>{NOMI_AREA[t]}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs" htmlFor="nome-area">Nome</Label>
+        <Input id="nome-area" value={nome} placeholder={NOMI_AREA[a.tipo]} onChange={(e) => setNome(e.target.value)} onBlur={() => nome !== (a.nome ?? "") && azioni.modificaArea(a.id, { nome: nome.trim() || undefined })} />
+      </div>
+      <p className="text-sm">{scriviMq(mq)}{a.tipo === "lotto" ? ` · perimetro ${perimetro.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m` : ""}</p>
+      {a.tipo === "lotto" && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={a.recinzione !== false} onChange={(e) => azioni.modificaArea(a.id, { recinzione: e.target.checked })} />
+          Recintato (conta i metri di recinzione, si vede nel 3D)
+        </label>
+      )}
+      <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => azioni.elimina({ tipo: "area", id: a.id })}>
+        <Trash2 /> {vista === "progetto" && a.stato !== "nuovo" ? (a.stato === "da_demolire" ? "Rimetti" : "Togli nel progetto") : "Elimina"}
+      </Button>
+    </div>
+  );
 }
 
 function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: Vista; elemento: ElementoLavoro; azioni: AzioniPannello; essenziale?: boolean }) {

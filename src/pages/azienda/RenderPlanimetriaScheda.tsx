@@ -21,7 +21,7 @@ import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
 import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
 import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
-import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
+import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
@@ -189,12 +189,21 @@ export default function RenderPlanimetriaScheda() {
           vista={ambito === "fatto" ? "fatto" : "progetto"}
           titolo={data.riga.titolo}
           moduloIniziale={moduloEsterno(ambito === "fatto" ? piante3D.fatto : piante3D.progetto)}
+          piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined}
         />
       )}
 
       <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} titolo={data.riga.titolo} />
 
-      {mostra3D && piante3D && <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} />}
+      {mostra3D && piante3D && (
+        <Vista3DPigra
+          key={`${livello.id}:${ambito}`}
+          piante={piante3D}
+          piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined}
+          nomeFile={data.riga.titolo}
+          vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"}
+        />
+      )}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

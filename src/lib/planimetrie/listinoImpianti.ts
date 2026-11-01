@@ -13,7 +13,7 @@ export interface VoceListino {
   /** Soggetto e misura della chiave, senza ambito né stato: «elementi:presa.numero», «impianti:elettrico.cavo_ml». */
   id: string;
   descrizione: string;
-  unita: "n" | "ml";
+  unita: "n" | "ml" | "mq";
   prezzo: number;
   capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni";
 }
@@ -47,6 +47,13 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "elementi:idromassaggio.numero", descrizione: "Minipiscina idromassaggio da esterno, fornitura e posa", unita: "n", prezzo: 9500, capitolo: "Esterni" },
   { id: "elementi:pergola.numero", descrizione: "Pergola in legno o alluminio con copertura, fornitura e posa", unita: "n", prezzo: 6500, capitolo: "Esterni" },
   { id: "elementi:barbecue.numero", descrizione: "Barbecue in muratura con piano di lavoro", unita: "n", prezzo: 2200, capitolo: "Esterni" },
+  { id: "esterni:prato.superficie_mq", descrizione: "Prato: preparazione del terreno, concimazione e semina (o posa a rotoli)", unita: "mq", prezzo: 9, capitolo: "Esterni" },
+  { id: "esterni:pavimentato.superficie_mq", descrizione: "Pavimentazione esterna in gres o pietra su massetto, compreso sottofondo", unita: "mq", prezzo: 85, capitolo: "Esterni" },
+  { id: "esterni:vialetto.superficie_mq", descrizione: "Vialetto pedonale in lastre o autobloccanti, compreso sottofondo", unita: "mq", prezzo: 70, capitolo: "Esterni" },
+  { id: "esterni:ghiaia.superficie_mq", descrizione: "Ghiaia su telo antiradice, spessore 8 cm", unita: "mq", prezzo: 22, capitolo: "Esterni" },
+  { id: "esterni:parcheggio.superficie_mq", descrizione: "Area di parcheggio in autobloccanti o asfalto, compreso cassonetto", unita: "mq", prezzo: 60, capitolo: "Esterni" },
+  { id: "esterni:aiuola.superficie_mq", descrizione: "Aiuola con cordolo, terra vegetale e piante", unita: "mq", prezzo: 45, capitolo: "Esterni" },
+  { id: "esterni:lotto.recinzione_ml", descrizione: "Recinzione: muretto in calcestruzzo e rete o pannelli metallici h 1,50 m", unita: "ml", prezzo: 110, capitolo: "Esterni" },
   { id: "elementi:caldaia.numero", descrizione: "Caldaia murale a condensazione, fornitura e posa", unita: "n", prezzo: 2300, capitolo: "Climatizzazione e riscaldamento" },
 ];
 

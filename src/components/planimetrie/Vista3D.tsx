@@ -7,7 +7,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Download, Eye, Map as MappaIcona, Rotate3d } from "lucide-react";
+import { Box, Building, Download, Eye, Map as MappaIcona, Rotate3d } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,12 +16,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import {
   costruisciScena,
+  scenaEdificio,
   esportaGlb,
   esportaObj,
   vistaDallAlto,
   vistaDentroLocale,
   vistaGiroIntorno,
   type PiantaPer3D,
+  type PianoPer3D,
   type Scena3D,
   type Telecamera3D,
   type Vista3D as VistaLavori,
@@ -45,6 +47,8 @@ export interface Vista3DProps {
   vistaIniziale?: VistaLavori;
   /** La stanza scelta all'apertura (predefinito: la prima). */
   localeIniziale?: string;
+  /** Tutti i piani (dal più basso): con due o più compare «Tutto l'edificio». */
+  piani?: PianoPer3D[];
 }
 
 export interface Vista3DHandle {
@@ -75,7 +79,7 @@ function scarica(dati: BlobPart, nome: string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma, modoIniziale = "giro", vistaIniziale = "progetto", localeIniziale }, ref) {
+const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma, modoIniziale = "giro", vistaIniziale = "progetto", localeIniziale, piani }, ref) {
   const contenitore = useRef<HTMLDivElement>(null);
   const motore = useRef<Motore | null>(null);
   const [vista, setVista] = useState<VistaLavori>(vistaIniziale);
@@ -96,7 +100,19 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     () => piante.progetto.muri.some((m) => m.stato !== "esistente") || piante.progetto.aperture.some((a) => a.stato !== "esistente") || piante.fatto !== piante.progetto,
     [piante],
   );
-  const scena: Scena3D = useMemo(() => costruisciScena(pianta, { vista, soffitto, elementi: arredi }), [pianta, vista, soffitto, arredi]);
+  // Tutto l'edificio: i piani uno sopra l'altro; staccati («esploso») e tagliati sopra un piano.
+  const conPiani = (piani?.length ?? 0) > 1;
+  const [edificio, setEdificio] = useState(false);
+  const [esploso, setEsploso] = useState(false);
+  const [finoA, setFinoA] = useState<string>("");
+  const tuttiIPiani = conPiani && edificio;
+  const scena: Scena3D = useMemo(
+    () =>
+      tuttiIPiani
+        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
+        : costruisciScena(pianta, { vista, soffitto, elementi: arredi }),
+    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, esploso, finoA],
+  );
 
   // Avvio di three.js, una volta.
   useEffect(() => {
@@ -155,6 +171,11 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     adattaAmbiente(m.ambiente, scena);
     m.disegna();
   }, [scena]);
+
+  // Con tutto l'edificio non si entra nelle stanze (sono del piano scelto): si gira intorno.
+  useEffect(() => {
+    if (tuttiIPiani && modo === "dentro") setModo("giro");
+  }, [tuttiIPiani, modo]);
 
   // Telecamera e comandi: si rifanno quando cambia il modo o la stanza.
   const limiti = scena.limiti;
@@ -303,7 +324,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             <Rotate3d className="mr-1 h-4 w-4" />
             Gira intorno
           </ToggleGroupItem>
-          <ToggleGroupItem value="dentro" aria-label="Entra nella stanza">
+          <ToggleGroupItem value="dentro" aria-label="Entra nella stanza" disabled={tuttiIPiani}>
             <Eye className="mr-1 h-4 w-4" />
             Entra nella stanza
           </ToggleGroupItem>
@@ -345,6 +366,29 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
               Demolizioni e nuovo
             </ToggleGroupItem>
           </ToggleGroup>
+        )}
+        {conPiani && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Switch id="vista3d-edificio" checked={edificio} onCheckedChange={setEdificio} />
+            <Label htmlFor="vista3d-edificio" className="flex items-center gap-1"><Building className="h-3.5 w-3.5" />Tutto l'edificio ({piani!.length} piani)</Label>
+            {edificio && (
+              <>
+                <Switch id="vista3d-esploso" checked={esploso} onCheckedChange={setEsploso} />
+                <Label htmlFor="vista3d-esploso">Piani staccati</Label>
+                <Select value={finoA || "tutti"} onValueChange={(v) => setFinoA(v === "tutti" ? "" : v)}>
+                  <SelectTrigger className="h-8 w-44" aria-label="Fino al piano">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutti i piani</SelectItem>
+                    {piani!.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>Fino a: {p.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
         )}
         <div className="flex items-center gap-2">
           <Switch id="vista3d-soffitto" checked={soffitto} onCheckedChange={setSoffitto} />

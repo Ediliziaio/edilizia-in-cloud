@@ -175,6 +175,29 @@ export interface Testo {
   rotazione?: number;
 }
 
+/**
+ * Aree esterne: il lotto (il confine del terreno) e le superfici di giardino e cortile.
+ * Non hanno pareti: sono pavimenti a cielo aperto, si contano in mq (e il lotto in metri di
+ * recinzione) e nel 3D sono prato, lastre, ghiaia, asfalto.
+ */
+export type TipoArea = "lotto" | "prato" | "pavimentato" | "vialetto" | "ghiaia" | "parcheggio" | "aiuola" | "orto";
+export const TIPI_AREA: readonly TipoArea[] = ["lotto", "prato", "pavimentato", "vialetto", "ghiaia", "parcheggio", "aiuola", "orto"];
+export const NOMI_AREA: Record<TipoArea, string> = {
+  lotto: "Lotto (confine)", prato: "Prato", pavimentato: "Pavimentazione esterna", vialetto: "Vialetto", ghiaia: "Ghiaia",
+  parcheggio: "Parcheggio / passo carraio", aiuola: "Aiuola", orto: "Orto",
+};
+
+export interface AreaEsterna {
+  id: string;
+  tipo: TipoArea;
+  nome?: string;
+  /** Contorno, almeno tre punti, in senso qualunque. */
+  contorno: Punto[];
+  /** Solo per il lotto: il confine è recintato (si conta e si vede nel 3D). Predefinito: sì. */
+  recinzione?: boolean;
+  stato?: StatoLavori;
+}
+
 /** Il contenuto di uno stato (fatto o una proposta) su un livello. */
 export interface StatoPianta {
   muri: Muro[];
@@ -183,6 +206,8 @@ export interface StatoPianta {
   elementi: Elemento[];
   quote: Quota[];
   testi: Testo[];
+  /** Lotto e aree esterne (assenti nelle piante fatte prima). */
+  aree?: AreaEsterna[];
 }
 
 export interface Proposta extends StatoPianta {
@@ -454,6 +479,15 @@ function validaStato(
     punto(o.p2, e, "la fine");
     if (!eNumero(o.scostamento)) errori.push(`${e}: la distanza dalla parete deve essere un numero.`);
   }, nomeDi("quota"));
+
+  if (stato.aree !== undefined) elenco("aree", "delle aree esterne", (o, e) => {
+    scelta(o.tipo, TIPI_AREA, e, "il tipo");
+    if (!Array.isArray(o.contorno) || o.contorno.length < 3) errori.push(`${e}: il contorno deve avere almeno tre punti.`);
+    else o.contorno.forEach((pt: unknown, k: number) => punto(pt, e, `il punto ${k + 1} del contorno`));
+    if (o.nome !== undefined && (typeof o.nome !== "string" || o.nome.length > 80)) errori.push(`${e}: il nome deve essere un testo breve.`);
+    if (o.recinzione !== undefined && typeof o.recinzione !== "boolean") errori.push(`${e}: «recinzione» deve essere sì o no.`);
+    statoLavori(o, e, false);
+  }, nomeDi("area"));
 
   elenco("testi", "dei testi", (o, e) => {
     punto(o.posizione, e, "la posizione");

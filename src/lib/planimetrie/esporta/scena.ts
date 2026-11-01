@@ -7,6 +7,7 @@
  * foglio» (spessore delle linee, altezza delle scritte, distanza delle quote)
  * sono in millimetri stampati e passano in centimetri con la scala.
  */
+import { NOMI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import {
   allarga, diff, distanza, lungo, numeroIt, per, puntiArco, puntoEtichetta, riquadroDi, riquadroVuoto, sinistra, somma, versore,
   type Riquadro,
@@ -18,11 +19,11 @@ import type {
 } from "./tipi";
 
 export type NomeLayer =
-  | "MURI" | "DEMOLIZIONI" | "NUOVO" | "APERTURE" | "LOCALI" | "PAVIMENTI" | "ARREDI" | "QUOTE" | "TESTI";
+  | "ESTERNI" | "MURI" | "DEMOLIZIONI" | "NUOVO" | "APERTURE" | "LOCALI" | "PAVIMENTI" | "ARREDI" | "QUOTE" | "TESTI";
 
 /** L'ordine in cui i livelli si disegnano: sotto i pavimenti, sopra le scritte. */
 export const ORDINE_LAYER: NomeLayer[] = [
-  "PAVIMENTI", "LOCALI", "ARREDI", "MURI", "DEMOLIZIONI", "NUOVO", "APERTURE", "QUOTE", "TESTI",
+  "ESTERNI", "PAVIMENTI", "LOCALI", "ARREDI", "MURI", "DEMOLIZIONI", "NUOVO", "APERTURE", "QUOTE", "TESTI",
 ];
 
 export interface Tratto {
@@ -183,6 +184,17 @@ export function pezziMuro(m: MuroVista, muri: MuroVista[], aperture: AperturaVis
   return pezzi;
 }
 
+/** Colori delle aree esterne nel disegno (presentazione: pieno; tecnico: solo il bordo). */
+const COLORI_AREA: Record<string, { pieno: string; bordo: string }> = {
+  prato: { pieno: "#DCEFC8", bordo: "#7FA865" },
+  aiuola: { pieno: "#BFDDA2", bordo: "#6A9A4F" },
+  pavimentato: { pieno: "#EDE7DC", bordo: "#B3A893" },
+  vialetto: { pieno: "#E8E2D6", bordo: "#A89F8C" },
+  ghiaia: { pieno: "#E6E5DF", bordo: "#A3A39A" },
+  parcheggio: { pieno: "#D9D9D9", bordo: "#8C8C8C" },
+  orto: { pieno: "#E6D5B6", bordo: "#A0835A" },
+};
+
 // ─── Costruzione ─────────────────────────────────────────────────────────────
 
 export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}): Scena {
@@ -193,6 +205,25 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
   const presentazione = stile === "presentazione";
   const primitive: Primitiva[] = [];
   const muriPerId = new Map(vista.muri.map((m) => [m.id, m]));
+
+  // Lotto e aree esterne: sotto tutto. Il lotto è il confine (tratto e punto rosso), le aree
+  // hanno il loro colore in presentazione e solo il contorno, col nome, nel tecnico.
+  for (const a of vista.aree ?? []) {
+    if (a.contorno.length < 3) continue;
+    const lotto = a.tipo === "lotto";
+    const colore = COLORI_AREA[a.tipo] ?? COLORI_AREA.prato;
+    primitive.push({
+      tipo: "poligono", layer: "ESTERNI", punti: a.contorno, chiuso: true,
+      ...(lotto || !presentazione ? {} : { riempimento: colore.pieno }),
+      tratto: lotto ? { colore: "#DC2626", spessoreMm: 0.35, tratteggioMm: [6, 1.5, 1, 1.5] } : { colore: colore.bordo, spessoreMm: 0.13, ...(a.stato === "nuovo" ? { tratteggioMm: [2, 1] } : {}) },
+    });
+    const etichetta = `${a.nome || NOMI_AREA[a.tipo as TipoArea] || a.tipo}${a.superficieMq && !lotto ? ` ${numeroIt(a.superficieMq)} m²` : ""}`;
+    const pos = lotto ? a.contorno.reduce((m, p) => (p.y < m.y || (p.y === m.y && p.x < m.x) ? p : m)) : a.contorno.reduce((t, p) => ({ x: t.x + p.x / a.contorno.length, y: t.y + p.y / a.contorno.length }), { x: 0, y: 0 });
+    primitive.push({
+      tipo: "testo", layer: "ESTERNI", posizione: lotto ? { x: pos.x + mm(2), y: pos.y + mm(2) } : pos, testo: etichetta, altezzaMm: 2,
+      allinea: lotto ? "sinistra" : "centro", verticale: lotto ? "alto" : "centro", rotazione: 0, colore: lotto ? "#DC2626" : "#4D7C0F",
+    });
+  }
 
   // Pavimenti (solo presentazione) e contorni dei locali
   for (const l of vista.locali) {

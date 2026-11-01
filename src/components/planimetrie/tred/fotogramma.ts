@@ -7,7 +7,7 @@
  * dalla finestra del browser. Importa three.js: caricarlo con `caricaFotogramma()`.
  */
 import * as THREE from "three";
-import { costruisciScena, metadatiFotogramma, type MetadatiFotogramma, type PiantaPer3D, type Telecamera3D, type Vista3D } from "@/lib/planimetrie/tred";
+import { costruisciScena, scenaEdificio, metadatiFotogramma, type PianoPer3D, type MetadatiFotogramma, type PiantaPer3D, type Telecamera3D, type Vista3D } from "@/lib/planimetrie/tred";
 import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
 
 export interface RichiestaFotogramma {
@@ -22,6 +22,8 @@ export interface RichiestaFotogramma {
   elementi?: boolean;
   /** Prato intorno, in metri (viste da fuori). */
   terreno?: number;
+  /** Viste da fuori di un edificio a più piani: tutti, uno sopra l'altro. */
+  piani?: PianoPer3D[];
 }
 
 export interface Fotogramma {
@@ -44,7 +46,8 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   renderer.setSize(larghezza, altezza, false);
   const scene = new THREE.Scene();
   const ambiente = preparaAmbiente(renderer, scene);
-  const scena = costruisciScena(r.pianta, { vista, soffitto: true, elementi: r.elementi ?? true, terreno: r.terreno });
+  const opzioni = { vista, soffitto: true, elementi: r.elementi ?? true, terreno: r.terreno };
+  const scena = r.piani && r.piani.length > 1 ? scenaEdificio(r.piani, opzioni) : costruisciScena(r.pianta, opzioni);
   adattaAmbiente(ambiente, scena);
   const gruppo = creaGruppo(scena);
   scene.add(gruppo);

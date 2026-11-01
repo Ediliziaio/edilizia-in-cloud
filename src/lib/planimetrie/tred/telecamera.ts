@@ -51,10 +51,15 @@ export function vistaDallAlto(limiti: Limiti3D, aspetto = 1, fov = 40): Telecame
 /** Vista di tre quarti da sud-est, per girare intorno. */
 export function vistaGiroIntorno(limiti: Limiti3D, aspetto = 1, fov = 45): Telecamera3D {
   const c = centro(limiti);
-  const r = Math.hypot(limiti.max[0] - limiti.min[0], limiti.max[2] - limiti.min[2]) / 2;
+  const alto = limiti.max[1] - limiti.min[1];
+  // un piano solo: si guarda poco sopra il pavimento; un edificio (più piani, o un attico in
+  // alto) si guarda a metà altezza, e la distanza tiene conto anche dell'altezza
+  const edificio = alto > 4 || limiti.min[1] > 1;
+  const r = edificio ? Math.hypot(limiti.max[0] - limiti.min[0], limiti.max[2] - limiti.min[2], alto) / 2 : Math.hypot(limiti.max[0] - limiti.min[0], limiti.max[2] - limiti.min[2]) / 2;
   const d = (r / Math.tan((fov * Math.PI) / 360)) * (aspetto < 1 ? 1.5 : 1.05);
   const dir = unit([0.55, 0.75, 0.75]);
-  return { posizione: [c[0] + dir[0] * d, dir[1] * d, c[2] + dir[2] * d], guarda: [c[0], 0.4, c[2]], fov };
+  const y = edificio ? c[1] : 0.4;
+  return { posizione: [c[0] + dir[0] * d, y - 0.4 + dir[1] * d, c[2] + dir[2] * d], guarda: [c[0], y, c[2]], fov };
 }
 
 export type LatoEsterno = "sud" | "est" | "nord" | "ovest";
@@ -76,10 +81,13 @@ export function vistaDalGiardino(limiti: Limiti3D, lato: LatoEsterno = "sud", fo
   const giardino = Math.max(0, bordoTutto - bordoCasa);
   // abbastanza lontano da vedere tutta la casa (aspetto 4:3), ma dentro il giardino: la siepe
   // o la recinzione di confine resta alle spalle, non davanti all'obiettivo
-  const serve = Math.max(6, (largo / (t * 4 / 3)) * 1.05);
+  // tutta la facciata in altezza (con più piani conta più della larghezza)
+  const altoCasa = casa.max[1] - Math.max(0, casa.min[1]);
+  const serve = Math.max(6, (largo / (t * 4 / 3)) * 1.05, (altoCasa / 2 / t) * 1.15);
   const d = giardino > 6 ? Math.min(serve, giardino * 0.8) : serve;
   const dc = dx === 0 ? (casa.max[2] - casa.min[2]) / 2 : (casa.max[0] - casa.min[0]) / 2;
-  return { posizione: [c[0] + dx * (dc + d), 2.2, c[2] + dz * (dc + d)], guarda: [c[0], 1.2, c[2]], fov };
+  const guardaY = altoCasa > 4 ? Math.max(1.2, altoCasa * 0.42) : 1.2;
+  return { posizione: [c[0] + dx * (dc + d), 2.2, c[2] + dz * (dc + d)], guarda: [c[0], guardaY, c[2]], fov };
 }
 
 function contornoM(l: LocalePer3D): V2[] {

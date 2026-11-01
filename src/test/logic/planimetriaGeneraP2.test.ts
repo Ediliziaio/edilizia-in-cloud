@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costruisciPiani } from "../../../supabase/functions/planimetria-genera/costruisci";
+import { costruisciPiani, quotaDalNome } from "../../../supabase/functions/planimetria-genera/costruisci";
 import { controllaGenerata } from "../../../supabase/functions/planimetria-genera/controlloAI";
 import { leggiRispostaAI, tipoElementoDa, type RispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, VERSIONE_PROMPT } from "../../../supabase/functions/planimetria-genera/prompt";
@@ -52,6 +52,11 @@ describe("lettura AI p2: fogli difficili", () => {
     const p = g.planimetria;
     expect(p.livelli.map((l) => l.nome)).toEqual(["Piano terra", "Sottotetto"]);
     expect(p.livelli[1].quota).toBe(300);
+    // la quota viene dal nome del piano: l'interrato sotto zero, il secondo piano a 6 m
+    expect(quotaDalNome("Interrato", 2, 3)).toBe(-300);
+    expect(quotaDalNome("Piano secondo", 0, 4)).toBe(600);
+    expect(quotaDalNome("Mansarda", 1, 3)).toBe(600);
+    expect(quotaDalNome("Zona notte", 1, 2)).toBe(300);
     expect(validaPlanimetria(p).ok).toBe(true);
     const ids = p.livelli.flatMap((l) => [...l.fatto.muri, ...l.fatto.locali, ...l.fatto.aperture].map((x) => x.id));
     expect(new Set(ids).size).toBe(ids.length);

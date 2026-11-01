@@ -6,7 +6,7 @@
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
 import { pulisciPoligono, v2 } from "./geometria2d";
-import { MATERIALI, materialeMuro, materialePavimento } from "./materiali";
+import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
 
@@ -143,17 +143,43 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     }
   }
 
-  const limiti = limitiDi(mesh);
-  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) {
-    const k = opzioni.terreno;
-    const t = new CostruttoreMesh();
-    // un centimetro sotto i pavimenti, così non si sovrappone
-    t.orizzontale([v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -0.01, true);
-    mesh.push(t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" }));
+  // Aree esterne: superfici appena sopra il terreno; il lotto recintato ha muretto e rete.
+  for (const a of pianta.aree ?? []) {
+    const contorno = pulisciPoligono(a.contorno.map((p) => v2(p.x * CM, p.y * CM)));
+    if (contorno.length < 3) continue;
+    if (a.tipo === "lotto") {
+      if (a.recinzione === false) continue;
+      const muretto = new CostruttoreMesh();
+      const rete = new CostruttoreMesh();
+      contorno.forEach((p, i) => {
+        const q = contorno[(i + 1) % contorno.length];
+        const l = Math.hypot(q.x - p.x, q.y - p.y);
+        if (l < 0.05) return;
+        const rot = Math.atan2(q.y - p.y, q.x - p.x);
+        muretto.scatola((p.x + q.x) / 2, (p.y + q.y) / 2, 0, l, 0.2, 0.3, rot);
+        rete.scatola((p.x + q.x) / 2, (p.y + q.y) / 2, 0.3, l, 0.03, 1.2, rot);
+      });
+      mesh.push(muretto.mesh({ id: `area:${a.id}:muretto`, nome: "Recinzione (muretto)", genere: "elemento", materiale: "pietra", riferimento: a.id }));
+      mesh.push(rete.mesh({ id: `area:${a.id}:rete`, nome: "Recinzione (rete)", genere: "elemento", materiale: "recinzione", riferimento: a.id }));
+      continue;
+    }
+    const c = new CostruttoreMesh();
+    c.orizzontale(contorno, a.tipo === "aiuola" ? 0.08 : 0.004, true);
+    mesh.push(c.mesh({ id: `area:${a.id}`, nome: `Area esterna ${a.tipo}`, genere: "pavimento", materiale: MATERIALE_AREA[a.tipo] ?? "pavimento_esterno", riferimento: a.id }));
   }
+
+  const limiti = limitiDi(mesh);
+  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno));
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
   return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi };
+}
+
+/** Il prato intorno, `k` metri oltre i limiti, un centimetro sotto quota zero (non si sovrappone ai pavimenti). */
+export function meshTerreno(limiti: { min: V3; max: V3 }, k: number): Mesh3D {
+  const t = new CostruttoreMesh();
+  t.orizzontale([v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -0.01, true);
+  return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
 }
 
 export function limitiDi(mesh: Mesh3D[], genere?: (g: Mesh3D["genere"]) => boolean): { min: V3; max: V3 } {

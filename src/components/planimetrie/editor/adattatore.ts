@@ -18,7 +18,9 @@ import {
   originePeggiore,
   statoVuoto,
   type Apertura as AperturaModello,
+  type AreaEsterna as AreaModello,
   type Destinazione,
+  type TipoArea,
   type Elemento as ElementoModello,
   type Finiture,
   type Livello,
@@ -93,6 +95,16 @@ export interface Locale {
 }
 
 /** Arredo o sanitario (fase 3 del piano di completamento): centro e rotazione oraria sullo schermo. */
+/** Lotto o area esterna nella pianta di lavoro (y verso il basso). */
+export interface AreaLavoro {
+  id: string;
+  tipo: TipoArea;
+  nome?: string;
+  contorno: Punto[];
+  recinzione?: boolean;
+  stato: StatoElemento;
+}
+
 export interface ElementoLavoro {
   id: string;
   tipo: string;
@@ -135,6 +147,8 @@ export interface Pianta {
   elementi?: ElementoLavoro[];
   quote?: QuotaLavoro[];
   testi?: TestoLavoro[];
+  /** Lotto e aree esterne. */
+  aree?: AreaLavoro[];
   /** Nome e destinazione dei locali del progetto, quando sono diversi da quelli di oggi. */
   nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione }>;
 }
@@ -414,13 +428,40 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
   for (const e of proposta?.elementi ?? []) if (!elementi.some((x) => x.id === e.id)) elementi.push(elementoDaModello(e, "nuovo"));
   const quote = unisciPerId(fatto.quote, proposta?.quote).map(quotaDaModello);
   const testi = unisciPerId(fatto.testi, proposta?.testi).map(testoDaModello);
-  return { ...piantaVuota(), muri, aperture, locali, elementi, quote, testi, ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
+  // Aree esterne: come gli arredi (tolte nel progetto = da demolire, in più = nuove).
+  // una proposta fatta prima delle aree non ha il campo: allora le aree sono quelle di oggi
+  const areeProposta = proposta?.aree;
+  const aree: AreaLavoro[] = (fatto.aree ?? []).map((a) => areaDaModello(a, areeProposta && !areeProposta.some((x) => x.id === a.id) ? "da_demolire" : "esistente"));
+  for (const a of proposta?.aree ?? []) if (!aree.some((x) => x.id === a.id)) aree.push(areaDaModello(a, "nuovo"));
+  return { ...piantaVuota(), muri, aperture, locali, elementi, quote, testi, ...(aree.length ? { aree } : {}), ...(Object.keys(nomiProgetto).length ? { nomiProgetto } : {}) };
 }
 
 function unisciPerId<T extends { id: string }>(a: T[], b?: T[]): T[] {
   const out = [...a];
   for (const x of b ?? []) if (!out.some((y) => y.id === x.id)) out.push(x);
   return out;
+}
+
+function areaDaModello(a: AreaModello, stato: StatoLavori): AreaLavoro {
+  return {
+    id: a.id,
+    tipo: a.tipo,
+    ...(a.nome ? { nome: a.nome } : {}),
+    contorno: a.contorno.map(capovolgi),
+    ...(a.recinzione !== undefined ? { recinzione: a.recinzione } : {}),
+    stato,
+  };
+}
+
+function areaAModello(a: AreaLavoro, stato: StatoLavori): AreaModello {
+  return {
+    id: a.id,
+    tipo: a.tipo,
+    ...(a.nome ? { nome: a.nome } : {}),
+    contorno: a.contorno.map(capovolgi),
+    ...(a.recinzione !== undefined ? { recinzione: a.recinzione } : {}),
+    ...(stato !== "esistente" ? { stato } : {}),
+  };
 }
 
 function elementoDaModello(e: ElementoModello, stato: StatoLavori): ElementoLavoro {
@@ -533,6 +574,7 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
       : {}),
     ...(pianta.quote ? { quote: pianta.quote.map(quotaAModello) } : {}),
     ...(pianta.testi ? { testi: pianta.testi.map((t) => testoAModello(t, trova(fattoBase.testi, t.id))) } : {}),
+    ...(pianta.aree ? { aree: pianta.aree.filter((a) => a.stato !== "nuovo").map((a) => areaAModello(a, "esistente")) } : {}),
   };
 
   const serveProposta =
@@ -540,7 +582,8 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
     pianta.muri.some((m) => m.stato !== "esistente") ||
     pianta.aperture.some((a) => a.stato !== "esistente") ||
     pianta.locali.some((l) => l.stato === "nuovo") ||
-    (pianta.elementi ?? []).some((e) => e.stato !== "esistente");
+    (pianta.elementi ?? []).some((e) => e.stato !== "esistente") ||
+    (pianta.aree ?? []).some((a) => a.stato !== "esistente");
   let proposte = livelloBase.proposte;
   if (serveProposta) {
     const muri = pianta.muri.map((m) => muroAModello(m, m.stato, trova(propostaBase?.muri, m.id) ?? trova(fattoBase.muri, m.id)));
@@ -562,6 +605,7 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
         : {}),
       ...(pianta.quote ? { quote: pianta.quote.map(quotaAModello) } : {}),
       ...(pianta.testi ? { testi: pianta.testi.map((t) => testoAModello(t, trova(propostaBase?.testi, t.id))) } : {}),
+      ...(pianta.aree ? { aree: pianta.aree.filter((a) => a.stato !== "da_demolire").map((a) => areaAModello(a, a.stato === "nuovo" ? "nuovo" : "esistente")) } : {}),
     };
     proposte = propostaBase ? proposte.map((p) => (p.id === propostaId ? proposta : p)) : [proposta, ...proposte];
   }
@@ -708,12 +752,13 @@ export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto"
 
 // ─── Piani (fase 5 del piano di completamento) ───────────────────────────────
 
-export type BaseNuovoPiano = "vuoto" | "esterni" | "tutto";
+export type BaseNuovoPiano = "vuoto" | "esterni" | "tutto" | "identico";
 
 /**
  * Un piano nuovo sopra (o sotto) quelli che ci sono. Si può partire vuoti, dalle sole pareti
- * esterne del piano scelto (il perimetro dell'edificio) o dalla copia di tutte le pareti, porte e
- * finestre di oggi. Gli id copiati prendono un suffisso: gli id sono unici su tutti i livelli.
+ * esterne del piano scelto (il perimetro dell'edificio), dalla copia di tutte le pareti, porte e
+ * finestre di oggi, oppure dal piano identico (anche stanze, arredi, impianti, quote e testi: il
+ * piano tipo di un condominio). Gli id copiati prendono un suffisso: sono unici su tutti i livelli.
  */
 export function aggiungiLivello(
   doc: Planimetria,
@@ -726,10 +771,18 @@ export function aggiungiLivello(
   const origine = doc.livelli.find((l) => l.id === o.daLivelloId) ?? doc.livelli[doc.livelli.length - 1];
   const fatto = statoVuoto();
   if (origine && o.base !== "vuoto") {
-    const muri = origine.fatto.muri.filter((m) => o.base === "tutto" || m.tipo === "esterno" || m.tipo === "portante");
+    const tutte = o.base === "tutto" || o.base === "identico";
+    const muri = origine.fatto.muri.filter((m) => tutte || m.tipo === "esterno" || m.tipo === "portante");
     const ids = new Map(muri.map((m) => [m.id, `${m.id}_${id}`]));
     fatto.muri = muri.map((m) => ({ ...m, id: ids.get(m.id)!, stato: "esistente" as const }));
-    if (o.base === "tutto") {
+    if (o.base === "identico") {
+      const loc = new Map(origine.fatto.locali.map((l) => [l.id, `${l.id}_${id}`]));
+      fatto.locali = origine.fatto.locali.map((l) => ({ ...l, id: loc.get(l.id)! }));
+      fatto.elementi = origine.fatto.elementi.map((e) => ({ ...e, id: `${e.id}_${id}`, stato: "esistente" as const, ...(e.localeId ? { localeId: loc.get(e.localeId) ?? null } : {}) }));
+      fatto.quote = origine.fatto.quote.map((q) => ({ ...q, id: `${q.id}_${id}` }));
+      fatto.testi = origine.fatto.testi.map((t) => ({ ...t, id: `${t.id}_${id}` }));
+    }
+    if (tutte) {
       fatto.aperture = origine.fatto.aperture
         .filter((a) => ids.has(a.muroId))
         .map((a) => ({ ...a, id: `${a.id}_${id}`, muroId: ids.get(a.muroId)!, stato: "esistente" as const }));

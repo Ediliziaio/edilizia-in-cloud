@@ -86,7 +86,8 @@ REGOLE:
 - Pianta compatta, perimetro rettangolare o a L. Ingresso o disimpegno che collega le stanze; bagno e camere raggiungibili senza passare da un'altra camera.
 - Misure tipiche italiane se non dette: camera matrimoniale 14 mq, singola 9–10 mq, bagno 4–5 mq, cucina abitabile 9–12 mq, soggiorno 18–25 mq.
 - Ogni stanza ha la sua porta; finestre sui lati esterni (non nei bagni ciechi se la descrizione lo dice).
-- Più piani (es. "su due piani", "con mansarda"): ogni stanza ha il campo piano ("Piano terra", "Primo piano"…), e ogni piano usa le sue coordinate a partire da [0, 0]; il vano scala sta nella stessa posizione su tutti i piani (nome "Vano scala", destinazione altro).
+- Più piani (es. "su due piani", "duplex", "con mansarda", "con interrato", "con taverna"): ogni stanza ha il campo piano con un nome chiaro ("Interrato", "Piano terra", "Primo piano", "Sottotetto"…), e ogni piano usa le sue coordinate a partire da [0, 0] con lo stesso perimetro esterno; il vano scala sta nella stessa posizione su tutti i piani (nome "Vano scala", destinazione altro). Interrato: garage, cantine, taverna, locale tecnico. Sottotetto o mansarda: camere, bagno, ripostigli, altezza minore.
+- Edificio con più piani uguali (condominio "di 4 piani"): disegna UN solo piano tipo (piano "Piano tipo") più il piano terra se è diverso: i piani uguali si duplicano dopo, nell'editor, con «Piano identico».
 - Più appartamenti (bifamiliare, condominio): ogni stanza ha il campo unita ("A", "B"…; scale e androne "Parti comuni"); bifamiliare = due appartamenti speculari affiancati con un muro in comune.
 - Capannone: un grande locale (nome "Capannone", destinazione altro) con il lotto dato; uffici, bagni e spogliatoi in una fascia su un lato; portone carrabile come apertura "varco" largo 4–5 m sul lato corto; altezza_m quella detta (di solito 6–8 m).
 ${LOCALE_CAMPI}

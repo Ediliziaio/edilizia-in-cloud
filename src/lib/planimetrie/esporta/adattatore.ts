@@ -18,6 +18,7 @@ import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
 } from "../../../../shared/planimetrie/modello.ts";
 import { calcolaQuantita, type MappaQuantita } from "../../../../shared/planimetrie/quantita.ts";
+import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type {
   AperturaVista, ElementoVista, LocaleVista, MuroVista, OrigineMisura, Pavimento, Punto, TipoElemento, VistaPianta,
 } from "./tipi";
@@ -158,6 +159,9 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
     elementi: stato.elementi.map((e) => elementoVista(e, modo)),
     quote: stato.quote.map((x) => ({ p1: giu(x.p1), p2: giu(x.p2), scostamento: x.scostamento })),
     testi: stato.testi.map((t) => ({ posizione: giu(t.posizione), testo: t.testo, rotazione: -(t.rotazione ?? 0) })),
+    ...((stato.aree ?? livello.fatto.aree)?.length
+      ? { aree: (stato.aree ?? livello.fatto.aree ?? []).filter((a) => modo !== "progetto" || a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, nome: a.nome, contorno: a.contorno.map(giu), superficieMq: Math.round(areaPoligono(a.contorno) / 100) / 100, stato: a.stato ?? "esistente" })) }
+      : {}),
     nord: p.nord === undefined ? undefined : -p.nord,
   };
 }

@@ -34,7 +34,7 @@ function useCreaVoci(uploadId: string, companyId: string) {
           const numero = `IMP.${String(i + 1).padStart(2, "0")}`;
           const { data, error } = await supabase.from("computo_voci_estratte").insert({
             computo_upload_id: uploadId, company_id: companyId, numero_ordine: numero, codice_tariffa: numero,
-            descrizione_breve: p.voce.descrizione.slice(0, 200), descrizione_estesa: p.voce.descrizione, unita_misura: p.voce.unita === "ml" ? "m" : "n",
+            descrizione_breve: p.voce.descrizione.slice(0, 200), descrizione_estesa: p.voce.descrizione, unita_misura: p.voce.unita === "ml" ? "m" : p.voce.unita === "mq" ? "mq" : "n",
             quantita: p.quantita, prezzo_unitario_computo: prezzo, importo_computo: Math.round(p.quantita * prezzo * 100) / 100,
             is_sicurezza: false, nuovo_prezzo: true, quadro_voce: "lavori", ordine: ordineDa + i, super_categoria: p.voce.capitolo,
             confidence: 1, is_included: true,
@@ -136,7 +136,7 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
                       <tr key={p.voce.id} className="border-t align-top">
                         <td className="p-2"><Checkbox checked={on} onCheckedChange={(v) => setEsclusi((x) => { const n = new Set(x); if (v) n.delete(p.voce.id); else n.add(p.voce.id); return n; })} aria-label={p.voce.descrizione} /></td>
                         <td className="p-2"><p className="text-xs text-slate-500">{p.voce.capitolo}</p><p>{p.voce.descrizione}</p></td>
-                        <td className="whitespace-nowrap p-2 text-right tabular-nums">{p.quantita.toLocaleString("it-IT")} {p.voce.unita === "ml" ? "m" : "n."}{p.stimata && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-800">stima</Badge>}</td>
+                        <td className="whitespace-nowrap p-2 text-right tabular-nums">{p.quantita.toLocaleString("it-IT")} {p.voce.unita === "ml" ? "m" : p.voce.unita === "mq" ? "m²" : "n."}{p.stimata && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-800">stima</Badge>}</td>
                         <td className="p-2 text-right"><Input className="h-8 w-24 text-right" inputMode="decimal" value={prezzi[p.voce.id] ?? String(p.voce.prezzo).replace(".", ",")} onChange={(e) => setPrezzi((x) => ({ ...x, [p.voce.id]: e.target.value }))} aria-label={`Prezzo di ${p.voce.descrizione}`} /></td>
                         <td className="whitespace-nowrap p-2 text-right tabular-nums">{on ? euro(p.quantita * prezzoDi(p)) : "—"}</td>
                       </tr>

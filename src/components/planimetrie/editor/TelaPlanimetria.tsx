@@ -5,8 +5,10 @@
 import { forwardRef, type SVGProps } from "react";
 import type { DatiVista, Pianta, Punto, TipoApertura } from "./adattatore";
 import { visibile, type Vista } from "./comandi";
+import { NOMI_AREA } from "../../../../shared/planimetrie/modello.ts";
 import {
   COLORE_STANZA,
+  STILE_AREA,
   angoloTesto,
   baricentro,
   colorePareti,
@@ -29,8 +31,19 @@ export interface Camera {
 }
 
 export interface Selezione {
-  tipo: "muro" | "apertura" | "locale" | "elemento" | "quota" | "testo";
+  tipo: "muro" | "apertura" | "locale" | "elemento" | "quota" | "testo" | "area";
   id: string;
+}
+
+/** Un'immagine da ricalcare: angolo in alto a sinistra in (x, y), larga `larghezzaCm`. */
+export interface SfondoRicalco {
+  url: string;
+  x: number;
+  y: number;
+  larghezzaCm: number;
+  /** Rapporto altezza / larghezza dell'immagine. */
+  proporzione: number;
+  opacita: number;
 }
 
 export interface Sovrapposizioni {
@@ -62,6 +75,8 @@ interface Props extends Gestori {
   gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
   /** Linee stimate degli impianti (percorso a squadra), da mostrare tratteggiate. */
   lineeImpianti?: Array<{ linea: string; da: Punto; a: Punto }>;
+  /** Immagine di riferimento sotto il disegno (mappa, foto aerea, rilievo), in scala. */
+  sfondo?: SfondoRicalco | null;
   camera: Camera;
   larghezza: number;
   altezza: number;
@@ -93,7 +108,7 @@ const SELEZIONE = "#2563eb";
 export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d", riscaldamento: "#ea580c" };
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, lineeImpianti, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, lineeImpianti, sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -132,6 +147,18 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
           <pattern id="pl-griglia" width={100} height={100} patternUnits="userSpaceOnUse">
             <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#e2e8f0" strokeWidth={px(1)} />
           </pattern>
+          <pattern id="pl-prato" width={30} height={30} patternUnits="userSpaceOnUse">
+            <path d="M5 20 l3 -7 l3 7 M18 10 l3 -7 l3 7" fill="none" stroke="#6a9a4f" strokeWidth={1.2} />
+          </pattern>
+          <pattern id="pl-lastre" width={60} height={40} patternUnits="userSpaceOnUse">
+            <path d="M0 0 H60 M0 20 H60 M30 0 V20 M0 20 V40" fill="none" stroke="#c9bfae" strokeWidth={1} />
+          </pattern>
+          <pattern id="pl-ghiaia" width={16} height={16} patternUnits="userSpaceOnUse">
+            <circle cx={4} cy={4} r={1.6} fill="#a3a39a" /><circle cx={12} cy={10} r={1.3} fill="#b5b5ac" />
+          </pattern>
+          <pattern id="pl-orto" width={40} height={40} patternUnits="userSpaceOnUse">
+            <path d="M0 10 H40 M0 30 H40" fill="none" stroke="#a0835a" strokeWidth={2} />
+          </pattern>
           <pattern id="pl-stimata" width={12} height={12} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width={12} height={12} fill="#ddd6fe" />
             <line x1={0} y1={0} x2={0} y2={12} stroke="#a78bfa" strokeWidth={4} />
@@ -148,6 +175,44 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             fill="url(#pl-griglia)"
             data-tipo="sfondo"
           />
+
+          {/* immagine da ricalcare: non si tocca, i clic passano al foglio */}
+          {sfondo && (
+            <image href={sfondo.url} x={sfondo.x} y={sfondo.y} width={sfondo.larghezzaCm} height={sfondo.larghezzaCm * sfondo.proporzione}
+              opacity={sfondo.opacita} preserveAspectRatio="none" pointerEvents="none" />
+          )}
+
+          {/* lotto e aree esterne: sotto le stanze */}
+          {(pianta.aree ?? []).filter((a) => visibile(a.stato, vista)).map((a) => {
+            const st = STILE_AREA[a.tipo] ?? STILE_AREA.prato;
+            const lotto = a.tipo === "lotto";
+            const demolire = a.stato === "da_demolire";
+            return (
+              <g key={a.id} opacity={demolire ? 0.45 : 1}>
+                <polygon
+                  points={punti(a.contorno)}
+                  fill={lotto ? "rgba(220,38,38,0.03)" : st.fill}
+                  stroke={sel("area", a.id) ? SELEZIONE : lotto ? "#dc2626" : st.bordo}
+                  strokeWidth={px(sel("area", a.id) ? 3 : lotto ? 2 : 1)}
+                  strokeDasharray={lotto ? `${px(10)} ${px(4)} ${px(2)} ${px(4)}` : a.stato === "nuovo" ? `${px(6)} ${px(3)}` : undefined}
+                  data-tipo="area"
+                  data-id={a.id}
+                  style={{ cursor: "pointer" }}
+                />
+                {!lotto && st.motivo && <polygon points={punti(a.contorno)} fill={`url(#${st.motivo})`} pointerEvents="none" />}
+                {(() => {
+                  const c = a.contorno.reduce((t, p) => ({ x: t.x + p.x / a.contorno.length, y: t.y + p.y / a.contorno.length }), { x: 0, y: 0 });
+                  const etichetta = a.nome || NOMI_AREA[a.tipo];
+                  const pos = lotto ? a.contorno.reduce((m, p) => (p.y < m.y || (p.y === m.y && p.x < m.x) ? p : m)) : c;
+                  return (
+                    <text x={pos.x + (lotto ? px(6) : 0)} y={pos.y + (lotto ? px(16) : 0)} textAnchor={lotto ? "start" : "middle"} fontSize={px(11)} fill={lotto ? "#dc2626" : "#3f6212"} pointerEvents="none">
+                      {etichetta}
+                    </text>
+                  );
+                })()}
+              </g>
+            );
+          })}
 
           {/* stanze */}
           {locali.map((l) => (

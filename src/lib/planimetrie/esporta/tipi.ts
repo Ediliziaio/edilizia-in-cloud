@@ -119,6 +119,16 @@ export interface TestoVista {
   rotazione?: number;
 }
 
+/** Lotto o area esterna (prato, vialetto, ghiaia…), coordinate y verso il basso. */
+export interface AreaVista {
+  id: string;
+  tipo: string;
+  nome?: string;
+  contorno: Punto[];
+  superficieMq?: number;
+  stato?: "esistente" | "da_demolire" | "nuovo";
+}
+
 export interface VistaPianta {
   titolo: string;
   /** «Piano terra», «Stato di progetto — proposta A»… */
@@ -129,6 +139,8 @@ export interface VistaPianta {
   elementi: ElementoVista[];
   quote: QuotaVista[];
   testi: TestoVista[];
+  /** Lotto e aree esterne (sotto tutto). */
+  aree?: AreaVista[];
   /** Gradi del nord rispetto all'alto del foglio, se noto. */
   nord?: number;
 }

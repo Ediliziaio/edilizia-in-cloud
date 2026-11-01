@@ -29,6 +29,7 @@
  */
 import {
   ambitiDi,
+  NOMI_AREA,
   originePeggiore,
   origineMisura,
   statoDelLivello,
@@ -39,6 +40,7 @@ import {
   type Origine,
   type Planimetria,
   type StatoPianta,
+  type TipoArea,
 } from "./modello.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
@@ -144,10 +146,19 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
   // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
   const linee = new Map<LineaImpianto, number>();
+  // Lotto e aree esterne: «esterni:<tipo>.superficie_mq», recinzione del lotto in metri.
+  const esterni = new Map<string, Accumulo>();
+  let recinzioneCm = 0;
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
     if (!stato) continue;
+    // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
+    for (const a of stato.aree ?? livello.fatto.aree ?? []) {
+      if (a.stato === "da_demolire" || a.contorno.length < 3) continue;
+      somma(esterni, a.tipo, { valore: areaPoligono(a.contorno) / 10_000, origini: ["rilevata"] });
+      if (a.tipo === "lotto" && a.recinzione !== false) recinzioneCm += perimetroPoligono(a.contorno);
+    }
 
     // ─── Locali ───
     for (const l of stato.locali) {
@@ -224,6 +235,9 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("frigorifera")) metti("impianti:clima", "rame_ml", stimata(lin("frigorifera"), 2), "Linea frigorifera in rame, due tubi (stima)");
   if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
+
+  for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
+  if (recinzioneCm > 0) metti("esterni:lotto", "recinzione_ml", { valore: recinzioneCm / 100, origini: ["rilevata"] }, "Recinzione lungo il confine del lotto");
 
   for (const [misura, acc] of totaliPianta) metti("pianta", misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — tutti i locali`);
   for (const [dest, mappa] of totaliDestinazione) {
