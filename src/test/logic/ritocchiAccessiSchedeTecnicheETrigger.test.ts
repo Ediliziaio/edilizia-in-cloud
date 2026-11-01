@@ -82,10 +82,26 @@ describe("il resto dell'app dice la stessa cosa", () => {
       return /\.(ts|tsx)$/.test(nome) ? [p] : [];
     });
 
+  // Le sole eccezioni, ognuna con la policy che la limita.
+  const ECCEZIONI: Record<string, string> = {
+    // Pianta allegata al preventivo (Planimetrie, fase 8): la migrazione 20281105360000 apre
+    // soltanto «<azienda>/planimetrie/», in inserimento, a chi può modificare i preventivi
+    // (collaudata in transazione annullata: altra azienda, altro percorso, altra categoria rifiutati).
+    "src/components/planimetrie/EsportaPiantaDialog.tsx": "solo <azienda>/planimetrie/ (20281105360000)",
+  };
+
   it("nessuna pagina scrive nel bucket delle schede tecniche", () => {
     const scrivono = sorgenti(join(ROOT, "src")).filter((p) =>
-      /\.from\(\s*["'`]quote-materials["'`]\s*\)\s*\.(upload|update|remove|move|copy)\(/.test(readFileSync(p, "utf8")));
+      /\.from\(\s*["'`]quote-materials["'`]\s*\)\s*\.(upload|update|remove|move|copy)\(/.test(readFileSync(p, "utf8")))
+      .map((p) => p.slice(ROOT.length + 1).replace(/\\/g, "/"))
+      .filter((p) => !ECCEZIONI[p]);
     expect(scrivono).toEqual([]);
+  });
+
+  it("l'eccezione della pianta scrive solo nella cartella planimetrie dell'azienda", () => {
+    const codice = readFileSync(join(ROOT, "src/components/planimetrie/EsportaPiantaDialog.tsx"), "utf8");
+    expect(codice).toMatch(/`\$\{effectiveCompany\.id\}\/planimetrie\//);
+    expect(codice).not.toMatch(/quote-materials["'`]\s*\)\s*\.(update|remove|move|copy)\(/);
   });
 });
 
