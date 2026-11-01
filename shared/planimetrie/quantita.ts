@@ -267,6 +267,8 @@ const NOMI_ELEMENTI: Record<string, string> = {
   cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
   piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",
   ombrellone: "Ombrelloni", lettino: "Lettini", tavolo_esterno: "Tavoli da esterno", barbecue: "Barbecue",
+  cancello_pedonale: "Cancelli pedonali", cancello_carrabile: "Cancelli carrabili", lampione: "Lampioni da giardino", faretto_giardino: "Faretti e segnapasso",
+  irrigatore: "Irrigatori", pozzetto: "Pozzetti",
   pompa_calore: "Pompe di calore", bollitore: "Bollitori", inverter: "Inverter fotovoltaici", batteria_accumulo: "Batterie di accumulo",
   wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC",
   collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",

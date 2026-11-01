@@ -6,7 +6,7 @@
 // (costruisci.ts): un modello di visione legge bene i numeri scritti e la forma
 // delle stanze, molto meno bene spessori e allineamenti al centimetro.
 
-import { DESTINAZIONI, type Destinazione, type TipoApertura } from "../../../shared/planimetrie/modello.ts";
+import { DESTINAZIONI, TIPI_AREA, type Destinazione, type TipoApertura, type TipoArea } from "../../../shared/planimetrie/modello.ts";
 
 export type Coppia = [number, number];
 
@@ -59,6 +59,30 @@ export interface RispostaAI {
   quote: QuotaAI[];
   /** Assente nelle risposte del prompt «p1». */
   elementi?: ElementoAI[];
+  /** Lotto e aree esterne (planimetrie generali, descrizioni con il giardino). */
+  aree?: AreaAI[];
+}
+
+export interface AreaAI {
+  tipo: TipoArea;
+  contorno: Coppia[];
+}
+
+const SINONIMI_AREA: Array<[RegExp, TipoArea]> = [
+  [/lott|confin|particell|terreno|propriet/i, "lotto"],
+  [/vialett|percors|camminament/i, "vialetto"],
+  [/parchegg|posto auto|passo carr|carrabil|asfalt/i, "parcheggio"],
+  [/ghiai/i, "ghiaia"],
+  [/aiuol|fiori/i, "aiuola"],
+  [/orto/i, "orto"],
+  [/pavim|cortil|lastric|terrazz|solarium|bordo piscina|marciapied/i, "pavimentato"],
+  [/prat|giardin|verde|erba/i, "prato"],
+];
+export function tipoAreaDa(v: unknown): TipoArea | null {
+  const t = String(v ?? "").toLowerCase().trim();
+  if ((TIPI_AREA as readonly string[]).includes(t)) return t as TipoArea;
+  for (const [re, tipo] of SINONIMI_AREA) if (re.test(t)) return tipo;
+  return null;
 }
 
 /** Tipi di elemento che l'editor e le esportazioni sanno disegnare, più i pilastri. */
@@ -66,10 +90,14 @@ export const TIPI_ELEMENTO_AI = [
   "pilastro", "wc", "bidet", "lavabo", "doccia", "vasca", "lavatrice", "cucina", "frigorifero", "tavolo", "sedia",
   "letto_matrimoniale", "letto_singolo", "comodino", "armadio", "scrivania", "divano", "caldaia",
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "auto", "scala",
+  "piscina", "pergola", "albero",
 ] as const;
 
 const SINONIMI_ELEMENTO: Array<[RegExp, string]> = [
   [/pilastr|colonn/i, "pilastro"],
+  [/piscin/i, "piscina"],
+  [/pergol|gazebo/i, "pergola"],
+  [/alber|pianta/i, "albero"],
   [/auto|macchina|vettura/i, "auto"],
   [/scal[ae]\b|rampa/i, "scala"],
   [/divano.*(angol|penisola|chaise)|angolare/i, "divano_angolare"],
@@ -241,6 +269,14 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const lato = r.lato_muro === "alto" || r.lato_muro === "basso" || r.lato_muro === "sinistra" || r.lato_muro === "destra" ? r.lato_muro : null;
     elementi.push({ tipo, riquadro: [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)], lato_muro: lato, piano: testoOpzionale(r.piano) });
   }
+  const aree: AreaAI[] = [];
+  for (const raw of Array.isArray(o.aree) ? o.aree : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const tipo = tipoAreaDa(r.tipo);
+    const contorno = Array.isArray(r.contorno) ? r.contorno.map(coppia).filter((c): c is Coppia => c !== null) : [];
+    if (tipo && contorno.length >= 3) aree.push({ tipo, contorno });
+  }
   return {
     sistema,
     leggibile: o.leggibile !== false,
@@ -250,5 +286,6 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     aperture,
     quote,
     elementi,
+    aree,
   };
 }

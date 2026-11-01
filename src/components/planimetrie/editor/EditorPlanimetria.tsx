@@ -8,6 +8,8 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
+import type { Ricalco } from "../../../../shared/planimetrie/modello.ts";
 import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -33,6 +35,7 @@ import {
   rinominaProposta,
   piantaVuota,
   rinominaLivello,
+  impostaRicalco,
   type BaseNuovoPiano,
   type Destinazione,
   type Pianta,
@@ -63,6 +66,8 @@ interface Props {
   /** Forza la vista da telefono (solo guardare e correggere misure). */
   soloVista?: boolean;
   className?: string;
+  /** Dove si salva l'immagine da ricalcare; senza, resta solo finché la pagina è aperta. */
+  ricalco?: ArchivioRicalco;
 }
 
 type Gesto =
@@ -109,7 +114,7 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
 };
 
-export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className }: Props) {
+export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
   const telefono = useIsMobile();
   const sola = soloVista ?? telefono;
 
@@ -122,7 +127,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const pianta = anteprima ?? storia.presente;
   // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
   const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
-  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current, livelloId, propostaId), [pianta, livelloId, propostaId]);
+  // Immagine da ricalcare (mappa catastale, foto aerea, rilievo del lotto), per piano: si salva
+  // nel documento (`Livello.ricalco`) se c'è un archivio, altrimenti resta finché la pagina è aperta.
+  const [ricalco, setRicalco] = useState<Ricalco | null>(() => piantaIniziale?.livelli[0]?.ricalco ?? null);
+  const documento = useMemo(() => {
+    const d = aPlanimetria(pianta, documentoBase.current, livelloId, propostaId);
+    // l'immagine locale (senza archivio) non entra nel documento
+    const lid = livelloId ?? d.livelli[0]?.id;
+    return lid ? impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null) : d;
+  }, [pianta, livelloId, propostaId, ricalco]);
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
@@ -144,8 +157,22 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [puntiPoligono, setPuntiPoligono] = useState<Punto[]>([]);
   // Lotto e aree esterne: il tipo che lo strumento «area» disegna.
   const [tipoArea, setTipoArea] = useState<TipoArea>("prato");
-  // Immagine da ricalcare (mappa catastale, foto aerea, rilievo del lotto): resta finché la pagina è aperta.
-  const [sfondo, setSfondo] = useState<SfondoRicalco | null>(null);
+  const [urlRicalco, setUrlRicalco] = useState<{ percorso: string; url: string } | null>(null);
+  useEffect(() => {
+    const p = ricalco?.percorso;
+    if (!p || p.startsWith("blob:") || !archivio || urlRicalco?.percorso === p) return;
+    let annullato = false;
+    archivio.url(p).then((url) => { if (!annullato) setUrlRicalco({ percorso: p, url }); }).catch((): void => undefined);
+    return () => { annullato = true; };
+  }, [ricalco?.percorso, archivio, urlRicalco?.percorso]);
+  // sulla tela: coordinate dell'editor (y in giù)
+  const sfondo: SfondoRicalco | null = useMemo(() => {
+    if (!ricalco) return null;
+    const url = ricalco.percorso.startsWith("blob:") ? ricalco.percorso : urlRicalco?.percorso === ricalco.percorso ? urlRicalco.url : null;
+    return url ? { url, x: ricalco.x, y: -ricalco.y, larghezzaCm: ricalco.larghezzaCm, proporzione: ricalco.proporzione, opacita: ricalco.opacita } : null;
+  }, [ricalco, urlRicalco]);
+  // Metti in scala con due punti: i punti cliccati sul foglio (null = non si sta misurando).
+  const [calibra, setCalibra] = useState<Punto[] | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const contenitoreRef = useRef<HTMLDivElement>(null);
@@ -380,6 +407,24 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const pan = () => (gesto.current = { tipo: "pan", da: s, camera: stato.current.camera, mosso: false, bersaglio: b });
 
     if (sola || e.button === 1 || spazioPremuto.current) return pan();
+
+    // Metti in scala l'immagine da ricalcare: due clic, poi la distanza vera
+    if (calibra !== null && ricalco) {
+      const punti = [...calibra, p];
+      if (punti.length < 2) { setCalibra(punti); return; }
+      setCalibra(null);
+      const misurata = dist(punti[0], punti[1]);
+      const scritta = window.prompt("Quanto sono distanti davvero i due punti? (metri)", "");
+      const vera = Number((scritta ?? "").replace(",", ".")) * 100;
+      if (!(vera > 0) || misurata < 1) { setAvviso("Scala non cambiata."); return; }
+      const k = vera / misurata;
+      // il primo punto resta fermo, il resto dell'immagine si allarga o si stringe attorno a lui
+      const a = punti[0];
+      const xE = a.x - (a.x - ricalco.x) * k, yE = a.y - (a.y - -ricalco.y) * k;
+      setRicalco({ ...ricalco, larghezzaCm: Math.round(ricalco.larghezzaCm * k), x: Math.round(xE), y: Math.round(-yE) });
+      setAvviso(`Immagine in scala: larga ${(ricalco.larghezzaCm * k / 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} m.`);
+      return;
+    }
 
     if (str === "stanza") {
       const a = aggancia(pi, p, { tolleranza: tolleranza() });
@@ -1110,6 +1155,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const pid = proposta ?? doc.livelli.find((l) => l.id === id)?.proposte[0]?.id ?? ID_PROPOSTA;
     setPropostaId(pid);
     setStoria(nuovaStoria(daPlanimetria(doc, id, pid)));
+    setRicalco(doc.livelli.find((l) => l.id === id)?.ricalco ?? null);
+    setCalibra(null);
     setSelezione(null);
     setStrumento("seleziona");
     setTimeout(adatta, 0);
@@ -1287,7 +1334,25 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </div>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!sola && <SfondoDaRicalcare sfondo={sfondo} onCambia={setSfondo} />}
+          {!sola && (
+            <SfondoDaRicalcare
+              ricalco={ricalco}
+              onCambia={setRicalco}
+              onCarica={async (file) => {
+                const proporzione = await new Promise<number>((ok, ko) => {
+                  const img = new Image();
+                  const u = URL.createObjectURL(file);
+                  img.onload = () => { ok(img.naturalHeight / Math.max(1, img.naturalWidth)); URL.revokeObjectURL(u); };
+                  img.onerror = () => ko(new Error("Immagine non leggibile."));
+                  img.src = u;
+                });
+                const percorso = archivio ? await archivio.carica(file) : URL.createObjectURL(file);
+                setRicalco({ percorso, x: 0, y: 0, larghezzaCm: ricalco?.larghezzaCm ?? 3000, proporzione, opacita: 0.5 });
+              }}
+              calibrando={calibra !== null}
+              onCalibra={() => { setCalibra([]); setAvviso("Clicca due punti dell'immagine di cui conosci la distanza (per esempio i due capi di una quota o di un lato del lotto)."); }}
+            />
+          )}
           {!sola && (
             <BarraPiani
               livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota }))}
@@ -1595,55 +1660,65 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
 }
 
 /**
- * Immagine da ricalcare: si carica (JPG, PNG, la prima pagina di un PDF no: va salvata come
- * immagine), si dice quanto è larga davvero e la si mette sotto il disegno, semitrasparente.
+ * Immagine da ricalcare: si carica (PNG, JPG, WEBP: un PDF va salvato prima come immagine), la
+ * si mette in scala (larghezza vera, oppure due punti a distanza nota) e la si lascia sotto il
+ * disegno, semitrasparente. Si salva con il piano.
  */
-function SfondoDaRicalcare({ sfondo, onCambia }: { sfondo: SfondoRicalco | null; onCambia: (s: SfondoRicalco | null) => void }) {
+function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra }: {
+  ricalco: Ricalco | null;
+  onCambia: (r: Ricalco | null) => void;
+  onCarica: (file: File) => Promise<void>;
+  calibrando: boolean;
+  onCalibra: () => void;
+}) {
   const [aperto, setAperto] = useState(false);
-  const [larghezza, setLarghezza] = useState(sfondo ? String(sfondo.larghezzaCm / 100).replace(".", ",") : "30");
-  const metri = () => { const v = Number(larghezza.replace(",", ".")); return Number.isFinite(v) && v > 0 ? Math.round(v * 100) : null; };
-  const carica = (file: File) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      if (sfondo) URL.revokeObjectURL(sfondo.url);
-      onCambia({ url, x: 0, y: 0, larghezzaCm: metri() ?? 3000, proporzione: img.naturalHeight / Math.max(1, img.naturalWidth), opacita: 0.5 });
-    };
-    img.src = url;
-  };
+  const [caricando, setCaricando] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const numero = (v: string) => { const n = Number(v.replace(",", ".")); return Number.isFinite(n) ? n : null; };
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant={sfondo ? "default" : "outline"} title="Un'immagine sotto il disegno da ricalcare: mappa catastale, foto aerea, rilievo del lotto">
+        <Button size="sm" variant={ricalco ? "default" : "outline"} title="Un'immagine sotto il disegno da ricalcare: mappa catastale, foto aerea, rilievo del lotto">
           <ImageIcon /> <span className="hidden lg:inline">Ricalca</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 space-y-3" align="end">
         <p className="text-sm font-semibold">Immagine da ricalcare</p>
-        <p className="text-xs text-muted-foreground">Carica la mappa del terreno, una foto aerea o un rilievo; scrivi quanto è larga davvero e ricalca sopra lotto, casa, vialetti. L'immagine non si salva con la pianta.</p>
-        <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
-          <Label className="text-xs" htmlFor="sfondo-larghezza">Larghezza reale dell'immagine (m)</Label>
-          <Input id="sfondo-larghezza" value={larghezza} inputMode="decimal" onChange={(e) => setLarghezza(e.target.value)}
-            onBlur={() => { const cm = metri(); if (sfondo && cm) onCambia({ ...sfondo, larghezzaCm: cm }); }} />
-        </div>
-        <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => { const f = e.target.files?.[0]; if (f) carica(f); }} />
-        {sfondo && (
+        <p className="text-xs text-muted-foreground">Carica la mappa del terreno, una foto aerea o un rilievo, mettila in scala e ricalca sopra lotto, casa, vialetti. Si salva con questo piano.</p>
+        <Input type="file" accept="image/png,image/jpeg,image/webp" disabled={caricando}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setCaricando(true); setErrore(null);
+            try { await onCarica(f); } catch (err) { setErrore(err instanceof Error ? err.message : "Immagine non caricata."); } finally { setCaricando(false); }
+          }} />
+        {caricando && <p className="text-xs text-muted-foreground">Carico l'immagine…</p>}
+        {errore && <p className="text-xs text-destructive">{errore}</p>}
+        {ricalco && (
           <>
+            <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
+              <Label className="text-xs" htmlFor="sfondo-larghezza">Larghezza reale (m)</Label>
+              <Input id="sfondo-larghezza" key={`l-${ricalco.larghezzaCm}`} defaultValue={String(ricalco.larghezzaCm / 100).replace(".", ",")} inputMode="decimal"
+                onBlur={(e) => { const v = numero(e.target.value); if (v && v > 0 && Math.round(v * 100) !== ricalco.larghezzaCm) onCambia({ ...ricalco, larghezzaCm: Math.round(v * 100) }); }} />
+            </div>
+            <Button size="sm" variant="outline" className="w-full" onClick={() => { onCalibra(); setAperto(false); }} disabled={calibrando}>
+              {calibrando ? "Clicca i due punti sul foglio…" : "Metti in scala con due punti"}
+            </Button>
             <div className="space-y-1">
               <Label className="text-xs">Trasparenza</Label>
-              <input type="range" min={0.1} max={1} step={0.05} value={sfondo.opacita} className="w-full" onChange={(e) => onCambia({ ...sfondo, opacita: Number(e.target.value) })} />
+              <input type="range" min={0.1} max={1} step={0.05} value={ricalco.opacita} className="w-full" onChange={(e) => onCambia({ ...ricalco, opacita: Number(e.target.value) })} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">Sposta a destra (m)</Label>
-                <Input defaultValue={String(sfondo.x / 100)} inputMode="decimal" onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v)) onCambia({ ...sfondo, x: Math.round(v * 100) }); }} />
+                <Input key={`x-${ricalco.x}`} defaultValue={String(ricalco.x / 100)} inputMode="decimal" onBlur={(e) => { const v = numero(e.target.value); if (v != null) onCambia({ ...ricalco, x: Math.round(v * 100) }); }} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Sposta in basso (m)</Label>
-                <Input defaultValue={String(sfondo.y / 100)} inputMode="decimal" onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v)) onCambia({ ...sfondo, y: Math.round(v * 100) }); }} />
+                <Input key={`y-${ricalco.y}`} defaultValue={String(-ricalco.y / 100)} inputMode="decimal" onBlur={(e) => { const v = numero(e.target.value); if (v != null) onCambia({ ...ricalco, y: -Math.round(v * 100) }); }} />
               </div>
             </div>
-            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { URL.revokeObjectURL(sfondo.url); onCambia(null); }}>Togli l'immagine</Button>
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onCambia(null)}>Togli l'immagine</Button>
           </>
         )}
       </PopoverContent>

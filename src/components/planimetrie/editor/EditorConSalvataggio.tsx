@@ -14,6 +14,7 @@ import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlani
 import { chiaviPlanimetrie, creaPlanimetria, salvaNuovaVersione, type OrigineVersione } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import EditorPlanimetria from "./EditorPlanimetria";
+import { archivioRicalco } from "@/lib/planimetrie/ricalco";
 import type { Planimetria } from "./adattatore";
 import { salvaPianta } from "./salvataggio";
 import { EffettoPrezzo } from "../EffettoPrezzo";
@@ -53,6 +54,7 @@ export function EditorConSalvataggio({
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
   const [salvando, setSalvando] = useState(false);
   const [conflitto, setConflitto] = useState<string | null>(null);
@@ -173,7 +175,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} />
+      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} />
     </div>
   );
 }

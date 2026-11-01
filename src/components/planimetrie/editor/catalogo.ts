@@ -66,6 +66,12 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "lettino", nome: "Lettino prendisole", gruppo: "Giardino e piscina", larghezza: 70, profondita: 190, altezza: 0 },
   { tipo: "tavolo_esterno", nome: "Tavolo da esterno", gruppo: "Giardino e piscina", larghezza: 200, profondita: 100, altezza: 0 },
   { tipo: "barbecue", nome: "Barbecue in muratura", gruppo: "Giardino e piscina", larghezza: 150, profondita: 60, altezza: 0 },
+  { tipo: "cancello_pedonale", nome: "Cancello pedonale", gruppo: "Giardino e piscina", larghezza: 110, profondita: 12, altezza: 150 },
+  { tipo: "cancello_carrabile", nome: "Cancello carrabile", gruppo: "Giardino e piscina", larghezza: 400, profondita: 12, altezza: 150 },
+  { tipo: "lampione", nome: "Lampione da giardino", gruppo: "Giardino e piscina", larghezza: 30, profondita: 30, altezza: 300 },
+  { tipo: "faretto_giardino", nome: "Faretto / segnapasso", gruppo: "Giardino e piscina", larghezza: 15, profondita: 15, altezza: 0 },
+  { tipo: "irrigatore", nome: "Irrigatore", gruppo: "Giardino e piscina", larghezza: 20, profondita: 20, altezza: 0 },
+  { tipo: "pozzetto", nome: "Pozzetto", gruppo: "Giardino e piscina", larghezza: 40, profondita: 40, altezza: 0 },
   // Energia: generatori e accumuli (le linee del riscaldamento partono da caldaia o pompa di calore)
   { tipo: "pompa_calore", nome: "Pompa di calore (esterna)", gruppo: "Energia", larghezza: 100, profondita: 40, altezza: 0 },
   { tipo: "bollitore", nome: "Bollitore acqua calda", gruppo: "Energia", larghezza: 60, profondita: 60, altezza: 0 },

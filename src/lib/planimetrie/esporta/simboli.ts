@@ -271,6 +271,25 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       return [rett(-w, -h, w, h, C.legno, 4), ...Array.from({ length: sedie }, (_, i) => -w + (L * (i + 0.5)) / sedie).flatMap((x) => [rett(x - 20, -h - 48, x + 20, -h - 8, C.legnoChiaro, 4), rett(x - 20, h + 8, x + 20, h + 48, C.legnoChiaro, 4)])];
     }
     case "barbecue": return [rett(-w, -h, w, h, C.pietra, 2), rett(-w * 0.45, -h * 0.6, w * 0.45, h * 0.6, C.scuro, 2), ...[-0.3, -0.1, 0.1, 0.3].map((k) => ({ ...linea(k * w, -h * 0.5, k * w, h * 0.5), sottile: true })), rett(-w + 6, -h + 6, -w * 0.55, h - 6), rett(w * 0.55, -h + 6, w - 6, h - 6)];
+    case "cancello_pedonale":
+    case "cancello_carrabile": {
+      // anta (o due ante) in pianta con l'arco di apertura verso l'interno
+      const due = tipo === "cancello_carrabile";
+      const pezzi: Forma[] = [rett(-w, -h, w, h, C.metallo)];
+      const ante = due ? [[-w, 1], [w, -1]] as const : [[-w, 1]] as const;
+      for (const [x0, verso] of ante) {
+        const l = due ? w : L;
+        const a0 = verso > 0 ? 0 : Math.PI, a1 = verso > 0 ? Math.PI / 2 : Math.PI / 2;
+        const passi = 10;
+        pezzi.push({ ...linea(x0, h, x0, h + l), sottile: true });
+        pezzi.push({ punti: Array.from({ length: passi + 1 }, (_, i) => { const t = a0 + ((a1 - a0) * i) / passi; return { x: x0 + Math.cos(t) * l, y: h + Math.sin(t) * l }; }), chiuso: false, sottile: true });
+      }
+      return pezzi;
+    }
+    case "lampione": { const r = Math.min(w, h); return [cerchio(0, 0, r, C.metallo), cerchio(0, 0, r * 0.4, "#FDE68A"), ...[0, 1, 2, 3].map((i) => ({ ...linea(Math.cos(i * Math.PI / 2) * r * 1.2, Math.sin(i * Math.PI / 2) * r * 1.2, Math.cos(i * Math.PI / 2) * r * 1.7, Math.sin(i * Math.PI / 2) * r * 1.7), sottile: true }))]; }
+    case "faretto_giardino": { const r = Math.min(w, h); return [cerchio(0, 0, r, "#FDE68A"), linea(-r * 0.7, -r * 0.7, r * 0.7, r * 0.7), linea(r * 0.7, -r * 0.7, -r * 0.7, r * 0.7)]; }
+    case "irrigatore": { const r = Math.min(w, h); return [cerchio(0, 0, r * 0.4, C.piscina), ...[0, 1, 2, 3, 4, 5].map((i) => ({ ...linea(0, 0, Math.cos(i * Math.PI / 3) * r, Math.sin(i * Math.PI / 3) * r), sottile: true }))]; }
+    case "pozzetto": return [rett(-w, -h, w, h, C.pietra), rett(-w * 0.7, -h * 0.7, w * 0.7, h * 0.7), linea(-w * 0.7, 0, w * 0.7, 0), linea(0, -h * 0.7, 0, h * 0.7)];
     case "pompa_calore": {
       // unità esterna con due ventilatori
       const r = Math.min(L * 0.2, P * 0.42);
@@ -351,6 +370,7 @@ export const TIPI_CON_FORME = new Set([
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
+  "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
   "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);
 
 export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiva[] {

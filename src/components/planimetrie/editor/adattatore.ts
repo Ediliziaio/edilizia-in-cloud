@@ -31,6 +31,7 @@ import {
   type Planimetria,
   type Proposta,
   type Quota as QuotaModello,
+  type Ricalco,
   type StatoLavori,
   type Testo as TestoModello,
   type StatoPianta,
@@ -102,6 +103,7 @@ export interface AreaLavoro {
   nome?: string;
   contorno: Punto[];
   recinzione?: boolean;
+  quota?: number;
   stato: StatoElemento;
 }
 
@@ -449,6 +451,7 @@ function areaDaModello(a: AreaModello, stato: StatoLavori): AreaLavoro {
     ...(a.nome ? { nome: a.nome } : {}),
     contorno: a.contorno.map(capovolgi),
     ...(a.recinzione !== undefined ? { recinzione: a.recinzione } : {}),
+    ...(a.quota ? { quota: a.quota } : {}),
     stato,
   };
 }
@@ -460,6 +463,7 @@ function areaAModello(a: AreaLavoro, stato: StatoLavori): AreaModello {
     ...(a.nome ? { nome: a.nome } : {}),
     contorno: a.contorno.map(capovolgi),
     ...(a.recinzione !== undefined ? { recinzione: a.recinzione } : {}),
+    ...(a.quota ? { quota: a.quota } : {}),
     ...(stato !== "esistente" ? { stato } : {}),
   };
 }
@@ -790,6 +794,18 @@ export function aggiungiLivello(
   }
   const livello: Livello = { id, nome: o.nome.trim() || `Piano ${doc.livelli.length}`, quota: o.quota, fatto, proposte: [] };
   return { documento: { ...doc, livelli: [...doc.livelli, livello].sort((a, b) => a.quota - b.quota) }, id };
+}
+
+/** L'immagine da ricalcare del piano (null per toglierla). */
+export function impostaRicalco(doc: Planimetria, livelloId: string, ricalco: Ricalco | null): Planimetria {
+  return {
+    ...doc,
+    livelli: doc.livelli.map((l) => {
+      if (l.id !== livelloId) return l;
+      const { ricalco: _vecchio, ...resto } = l;
+      return ricalco ? { ...resto, ricalco } : resto;
+    }),
+  };
 }
 
 export function rinominaLivello(doc: Planimetria, id: string, campi: { nome?: string; quota?: number }): Planimetria {

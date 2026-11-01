@@ -195,6 +195,8 @@ export interface AreaEsterna {
   contorno: Punto[];
   /** Solo per il lotto: il confine è recintato (si conta e si vede nel 3D). Predefinito: sì. */
   recinzione?: boolean;
+  /** Quota della superficie rispetto al piano terra, in cm (terrazzamenti, rialzi, rampe). Predefinito: 0. */
+  quota?: number;
   stato?: StatoLavori;
 }
 
@@ -223,6 +225,19 @@ export interface Livello {
   quota: number;
   fatto: StatoPianta;
   proposte: Proposta[];
+  /** L'immagine da ricalcare sotto il disegno di questo piano (mappa, foto aerea, rilievo). */
+  ricalco?: Ricalco;
+}
+
+/** Immagine da ricalcare: nel bucket «planimetrie»; (x, y) è l'angolo in alto a sinistra, in cm, y in su. */
+export interface Ricalco {
+  percorso: string;
+  x: number;
+  y: number;
+  larghezzaCm: number;
+  /** Altezza / larghezza dell'immagine. */
+  proporzione: number;
+  opacita: number;
 }
 
 export interface Riferimenti {
@@ -348,6 +363,12 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
     else idLivelli.add(liv.id);
     if (typeof liv.nome !== "string" || !liv.nome.trim()) errori.push(`${nomeLiv}: manca il nome.`);
     if (!eNumero(liv.quota)) errori.push(`${nomeLiv}: la quota del pavimento deve essere un numero.`);
+    if (liv.ricalco !== undefined) {
+      const r = liv.ricalco;
+      if (!eOggetto(r) || typeof r.percorso !== "string" || !r.percorso || ![r.x, r.y, r.larghezzaCm, r.proporzione, r.opacita].every(eNumero) || !((r.larghezzaCm as number) > 0)) {
+        errori.push(`${nomeLiv}: l'immagine da ricalcare non è valida.`);
+      }
+    }
 
     validaStato(liv.fatto, `${nomeLiv}, stato di fatto`, "fatto", true, errori, idPerAmbito);
 
@@ -486,6 +507,7 @@ function validaStato(
     else o.contorno.forEach((pt: unknown, k: number) => punto(pt, e, `il punto ${k + 1} del contorno`));
     if (o.nome !== undefined && (typeof o.nome !== "string" || o.nome.length > 80)) errori.push(`${e}: il nome deve essere un testo breve.`);
     if (o.recinzione !== undefined && typeof o.recinzione !== "boolean") errori.push(`${e}: «recinzione» deve essere sì o no.`);
+    if (o.quota !== undefined && !eNumero(o.quota)) errori.push(`${e}: la quota deve essere un numero.`);
     statoLavori(o, e, false);
   }, nomeDi("area"));
 

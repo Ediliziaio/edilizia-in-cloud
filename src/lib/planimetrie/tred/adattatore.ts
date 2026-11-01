@@ -38,7 +38,7 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
     })),
     locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza })),
     elementi: s.elementi.map(daElemento),
-    ...(s.aree?.length ? { aree: s.aree.filter((a) => a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, contorno: a.contorno.map(giu), recinzione: a.recinzione })) } : {}),
+    ...(s.aree?.length ? { aree: s.aree.filter((a) => a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, contorno: a.contorno.map(giu), recinzione: a.recinzione, quota: a.quota })) } : {}),
   };
 }
 

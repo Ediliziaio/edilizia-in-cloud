@@ -164,7 +164,17 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       continue;
     }
     const c = new CostruttoreMesh();
-    c.orizzontale(contorno, a.tipo === "aiuola" ? 0.08 : 0.004, true);
+    const q = (a.quota ?? 0) * CM;
+    c.orizzontale(contorno, q + (a.tipo === "aiuola" ? 0.08 : 0.004), true);
+    // un'area rialzata ha i fianchi (muretti del terrazzamento)
+    if (Math.abs(q) > 0.05) {
+      contorno.forEach((p, i) => {
+        const r = contorno[(i + 1) % contorno.length];
+        const [y0, y1] = q > 0 ? [0, q] : [q, 0];
+        const l = Math.hypot(r.x - p.x, r.y - p.y) || 1;
+        c.quad([p.x, y0, p.y], [r.x, y0, r.y], [r.x, y1, r.y], [p.x, y1, p.y], [(r.y - p.y) / l, 0, -(r.x - p.x) / l]);
+      });
+    }
     mesh.push(c.mesh({ id: `area:${a.id}`, nome: `Area esterna ${a.tipo}`, genere: "pavimento", materiale: MATERIALE_AREA[a.tipo] ?? "pavimento_esterno", riferimento: a.id }));
   }
 

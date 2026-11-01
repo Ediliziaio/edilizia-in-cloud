@@ -15,7 +15,7 @@
 
 import {
   VERSIONE_SCHEMA,
-  type Apertura, type CampoMisura, type Destinazione, type Elemento, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto, type Verso,
+  type Apertura, type AreaEsterna, type CampoMisura, type Destinazione, type Elemento, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto, type Verso,
 } from "../../../shared/planimetrie/modello.ts";
 import type { Coppia, LocaleAI, RispostaAI } from "./rispostaAI.ts";
 import type { IngressoGenerazione, InfoGenerazione, PiantaGenerata, ScalaPianta } from "./generazione.ts";
@@ -470,6 +470,13 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     });
   }
 
+  // Lotto e aree esterne (planimetrie generali, descrizioni col giardino)
+  const aree: AreaEsterna[] = (r.aree ?? []).map((a, i) => ({
+    id: `r${i + 1}`,
+    tipo: a.tipo,
+    contorno: a.contorno.map((c) => su(conv(c))).map((p) => ({ x: arr(p.x), y: arr(p.y) })),
+  })).filter((a) => a.contorno.length >= 3);
+
   const superfici: Record<string, number> = {};
   locali3.forEach((l, i) => {
     if (l.superficie_scritta_mq) superfici[`l${i + 1}`] = l.superficie_scritta_mq;
@@ -479,7 +486,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     unita: "cm",
     ...(opz.titolo ? { titolo: opz.titolo } : {}),
     scala: 100,
-    livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi, quote: [], testi: [] }, proposte: [] }],
+    livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi, quote: [], testi: [], ...(aree.length ? { aree } : {}) }, proposte: [] }],
   };
   const generazione: InfoGenerazione = {
     ingresso: opz.ingresso,
@@ -537,11 +544,14 @@ export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaG
     return piani[dist.indexOf(Math.min(...dist))];
   };
 
+  const pianoTerra = piani.find((pn, i) => quotaDalNome(pn, i, piani.length) === 0) ?? piani[0];
   const generate = piani.map((pn) => costruisciPlanimetria({
     ...r,
     locali: r.locali.filter((l) => (l.piano ?? "") === pn),
     aperture: r.aperture.filter((a) => pianoDi(a.piano, [a.da, a.a]) === pn),
     elementi: (r.elementi ?? []).filter((e) => pianoDi(e.piano, [[e.riquadro[0], e.riquadro[1]], [e.riquadro[2], e.riquadro[3]]]) === pn),
+    // il giardino e il lotto stanno al piano terra (o al primo piano del foglio)
+    aree: pn === pianoTerra ? r.aree : [],
   }, { ...opz, scalaForzata }));
 
   // id unici fra i piani: «m1» del secondo piano diventa «p2-m1»
@@ -559,6 +569,7 @@ export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaG
         aperture: l.fatto.aperture.map((a) => ({ ...a, id: pre + a.id, muroId: pre + a.muroId })),
         locali: l.fatto.locali.map((x) => ({ ...x, id: pre + x.id })),
         elementi: l.fatto.elementi.map((x) => ({ ...x, id: pre + x.id })),
+        ...(l.fatto.aree ? { aree: l.fatto.aree.map((x) => ({ ...x, id: pre + x.id })) } : {}),
       },
     };
   });
@@ -606,6 +617,7 @@ function ridimensiona(g: PiantaGenerata, f: number): PiantaGenerata {
           quote: l.fatto.quote.map((q) => ({ ...q, p1: s(q.p1), p2: s(q.p2) })),
           testi: l.fatto.testi.map((t) => ({ ...t, posizione: s(t.posizione) })),
           elementi: l.fatto.elementi.map((e) => ({ ...e, posizione: s(e.posizione) })),
+          ...(l.fatto.aree ? { aree: l.fatto.aree.map((a) => ({ ...a, contorno: a.contorno.map(s) })) } : {}),
         },
       })),
     },

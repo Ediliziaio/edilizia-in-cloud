@@ -630,7 +630,7 @@ export function aggiungiArea(pianta: Pianta, tipo: TipoArea, contorno: Punto[], 
   return { pianta: { ...pianta, aree }, id };
 }
 
-export function modificaArea(pianta: Pianta, id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione" | "contorno">>): Pianta {
+export function modificaArea(pianta: Pianta, id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione" | "contorno" | "quota">>): Pianta {
   return { ...pianta, aree: (pianta.aree ?? []).map((a) => (a.id === id ? { ...a, ...campi } : a)) };
 }
 

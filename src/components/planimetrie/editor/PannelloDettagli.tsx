@@ -52,7 +52,7 @@ export interface AzioniPannello {
   riscaldamento: (localeId: string) => void;
   /** Curva la parete con la freccia data (cm). */
   curvaParete: (id: string, frecciaCm: number) => void;
-  modificaArea: (id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione">>) => void;
+  modificaArea: (id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione" | "quota">>) => void;
 }
 
 interface Props {
@@ -133,6 +133,14 @@ function DettaglioArea({ vista, area: a, azioni }: { vista: Vista; area: AreaLav
         <Label className="text-xs" htmlFor="nome-area">Nome</Label>
         <Input id="nome-area" value={nome} placeholder={NOMI_AREA[a.tipo]} onChange={(e) => setNome(e.target.value)} onBlur={() => nome !== (a.nome ?? "") && azioni.modificaArea(a.id, { nome: nome.trim() || undefined })} />
       </div>
+      {a.tipo !== "lotto" && (
+        <div className="space-y-1">
+          <Label className="text-xs" htmlFor="quota-area">Quota rispetto al piano terra (m)</Label>
+          <Input id="quota-area" key={`q-${a.quota ?? 0}`} defaultValue={String((a.quota ?? 0) / 100).replace(".", ",")} inputMode="decimal"
+            onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && Math.round(v * 100) !== (a.quota ?? 0)) azioni.modificaArea(a.id, { quota: Math.round(v * 100) || undefined }); }} />
+          <p className="text-[11px] text-muted-foreground">Per terrazzamenti, rialzi e bordi piscina (−0,50 = mezzo metro sotto).</p>
+        </div>
+      )}
       <p className="text-sm">{scriviMq(mq)}{a.tipo === "lotto" ? ` · perimetro ${perimetro.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m` : ""}</p>
       {a.tipo === "lotto" && (
         <label className="flex items-center gap-2 text-sm">

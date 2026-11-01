@@ -166,3 +166,37 @@ describe("progetto da descrizione su più piani", () => {
     expect(PROMPT_DESCRIZIONE).toMatch(/piano/);
   });
 });
+
+describe("AI: lotto e giardino", () => {
+  it("legge le aree con i sinonimi e le mette nel documento, solo al piano terra", () => {
+    const r = leggiRispostaAI({
+      sistema: "metri",
+      locali: [
+        { nome: "Soggiorno", destinazione: "soggiorno", contorno: [[0, 0], [6, 0], [6, 5], [0, 5]], piano: "Piano terra" },
+        { nome: "Camera", destinazione: "camera", contorno: [[0, 0], [6, 0], [6, 5], [0, 5]], piano: "Primo piano" },
+      ],
+      aperture: [], quote: [],
+      elementi: [{ tipo: "Piscina interrata", riquadro: [8, 1, 16, 5], lato_muro: null }],
+      aree: [
+        { tipo: "confine del terreno", contorno: [[-5, -5], [25, -5], [25, 20], [-5, 20]] },
+        { tipo: "giardino", contorno: [[7, 0], [20, 0], [20, 10], [7, 10]] },
+        { tipo: "nuvola", contorno: [[0, 0], [1, 0], [1, 1]] },
+      ],
+    }, "metri");
+    expect(r.aree?.map((a) => a.tipo)).toEqual(["lotto", "prato"]);
+    expect(tipoElementoDa("Piscina interrata")).toBe("piscina");
+    const p = costruisciPiani(r, { ingresso: "descrizione" as const }).planimetria;
+    expect(validaPlanimetria(p).ok).toBe(true);
+    const terra = p.livelli.find((l) => l.quota === 0)!;
+    expect(terra.fatto.aree?.map((a) => a.tipo)).toEqual(["lotto", "prato"]);
+    expect(p.livelli.find((l) => l.quota === 300)!.fatto.aree ?? []).toEqual([]);
+    // 30 × 25 m di lotto
+    const lotto = terra.fatto.aree![0];
+    const xs = lotto.contorno.map((c) => c.x), ys = lotto.contorno.map((c) => c.y);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(3000, -1);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(2500, -1);
+    expect(terra.fatto.elementi.some((e) => e.tipo === "piscina")).toBe(true);
+    expect(PROMPT_DESCRIZIONE).toContain("piscina");
+    expect(PROMPT_DOCUMENTO).toContain("AREE ESTERNE");
+  });
+});

@@ -33,11 +33,13 @@ QUOTE — ogni misura scritta di cui capisci il tratto misurato (linea di quota 
 Solo numeri che leggi davvero. Ignora la scala grafica, il cartiglio, le superfici (vanno in superficie_scritta_mq) e le altezze.
 
 ELEMENTI — solo quelli disegnati: pilastri (quadratini o tondi pieni, anche tratteggiati, isolati o nei muri), sanitari, cucina, letti, armadi, divani, tavoli:
-- tipo: uno fra pilastro, scala, wc, bidet, lavabo, doccia, vasca, lavatrice, cucina, cucina_angolare, isola_cucina, frigorifero, tavolo, tavolo_rotondo, sedia, letto_matrimoniale, letto_singolo, comodino, armadio, scrivania, divano, divano_angolare, poltrona, mobile_tv, libreria, caldaia, auto (nei garage e nelle piante di ville).
+- tipo: uno fra pilastro, scala, wc, bidet, lavabo, doccia, vasca, lavatrice, cucina, cucina_angolare, isola_cucina, frigorifero, tavolo, tavolo_rotondo, sedia, letto_matrimoniale, letto_singolo, comodino, armadio, scrivania, divano, divano_angolare, poltrona, mobile_tv, libreria, caldaia, auto (nei garage e nelle piante di ville), piscina, pergola, albero (nelle planimetrie generali con il giardino).
 - riquadro: [x0, y0, x1, y1], il rettangolo che lo contiene.
 - lato_muro: da che parte sta il lato appoggiato al muro (testata del letto, schienale del divano, cassetta del WC): "alto", "basso", "sinistra" o "destra"; null per pilastri e tavoli.
 - piano: come per le stanze.
 Le sedie attorno a un tavolo non servono una per una. Se la pianta non è arredata, elementi è [].
+
+AREE ESTERNE — solo se il foglio è una planimetria generale, un estratto di mappa o un rilievo del lotto, con il confine disegnato (linea spessa o tratto e punto attorno all'edificio): aree [{"tipo":"lotto","contorno":[...]}] con il confine; se si distinguono, anche le superfici del giardino con tipo "prato", "pavimentato", "vialetto", "ghiaia", "parcheggio" o "aiuola". Nelle piante di un appartamento aree è [].
 
 MISURE: le quote si scrivono in molti modi — "420" o "4,20" o "4.20 m" o "4,20 ML"; "275 cm"; con due numeri sovrapposti su una porta o finestra ("80/210", "150/138") il primo è la larghezza in cm, il secondo l'altezza: non sono quote. "H 2,70", "H.3,85ML", "H 275" sono altezze. "R.I." e "mq" non sono quote.
 
@@ -50,7 +52,8 @@ Rispondi SOLO con il JSON, senza testo prima o dopo:
  "locali":[{"nome":"Cucina","destinazione":"cucina","contorno":[[100,120],[380,120],[380,400],[100,400]],"superficie_scritta_mq":null,"altezza_scritta_m":null}],
  "aperture":[{"tipo":"porta","da":[380,250],"a":[380,300]}],
  "quote":[{"valore_m":4.2,"da":[100,90],"a":[380,90]}],
- "elementi":[{"tipo":"wc","riquadro":[110,130,140,170],"lato_muro":"alto"}]}`;
+ "elementi":[{"tipo":"wc","riquadro":[110,130,140,170],"lato_muro":"alto"}],
+ "aree":[]}`;
 
 const SISTEMA_METRI = `COORDINATE: in METRI, origine in alto a sinistra della pianta, x verso destra, y verso il basso. Ogni punto è [x, y] con due decimali.
 Le stanze vicine si TOCCANO (ignora lo spessore dei muri): il lato in comune ha le stesse coordinate nelle due stanze, senza buchi né sovrapposizioni. Muri dritti e ad angolo retto, salvo che il disegno mostri chiaramente un muro storto.`;
@@ -92,11 +95,12 @@ REGOLE:
 - Capannone: un grande locale (nome "Capannone", destinazione altro) con il lotto dato; uffici, bagni e spogliatoi in una fascia su un lato; portone carrabile come apertura "varco" largo 4–5 m sul lato corto; altezza_m quella detta (di solito 6–8 m).
 ${LOCALE_CAMPI}
 - misure_lette: sempre false. superficie_scritta_mq e altezza_scritta_m: null, salvo l'altezza se detta.
+- Esterni (solo se la descrizione li nomina: giardino, terreno, piscina, posto auto, vialetto, pergolato): aree [{"tipo":..., "contorno":[...]}] in metri attorno alla casa — "lotto" per il terreno (con la superficie detta), "prato", "pavimentato" (terrazza a terra, bordo piscina), "vialetto", "parcheggio", "ghiaia"; piscina, pergola e alberi come elementi (tipo "piscina", "pergola", "albero", riquadro [x0,y0,x1,y1] in metri, lato_muro null; piscina tipica 8×4 m). Senza esterni nella descrizione, aree è [].
 
 ${APERTURE_METRI}
 
 Rispondi SOLO con il JSON (piano e unita solo se servono):
-{"sistema":"metri","leggibile":true,"altezza_m":null,"locali":[{"nome":"Soggiorno","destinazione":"soggiorno","contorno":[[0,0],[5,0],[5,4],[0,4]],"misure_lette":false,"piano":null,"unita":null}],"aperture":[...],"quote":[]}`;
+{"sistema":"metri","leggibile":true,"altezza_m":null,"locali":[{"nome":"Soggiorno","destinazione":"soggiorno","contorno":[[0,0],[5,0],[5,4],[0,4]],"misure_lette":false,"piano":null,"unita":null}],"aperture":[...],"quote":[],"elementi":[],"aree":[]}`;
 
 export function promptCorrezione(errori: string[]): string {
   return `Il JSON che hai dato non va bene per questi motivi:

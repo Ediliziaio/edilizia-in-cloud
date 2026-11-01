@@ -82,6 +82,8 @@ export interface AreaPer3D {
   contorno: Punto2[];
   /** Solo per il lotto: la recinzione lungo il confine (predefinito: sì). */
   recinzione?: boolean;
+  /** Quota della superficie, in cm (terrazzamenti, rialzi). */
+  quota?: number;
 }
 
 export interface PiantaPer3D {
