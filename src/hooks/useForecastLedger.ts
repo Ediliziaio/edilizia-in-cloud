@@ -206,6 +206,16 @@ export async function loadForecastDataset(
           .or("company_cost_id.is.null,ritenuta_importo.gt.0"),
     },
     {
+      // Ritenute di garanzia trattenute: tornano allo svincolo (01/11/2026).
+      key: "garanzie",
+      label: "Ritenute di garanzia",
+      build: () =>
+        scoped(
+          "ritenute_garanzia",
+          "id,direzione,importo,stato,data_svincolo_prevista,controparte,order_id",
+        ).eq("stato", "trattenuta"),
+    },
+    {
       key: "deadlines",
       label: "Scadenzario",
       build: () =>

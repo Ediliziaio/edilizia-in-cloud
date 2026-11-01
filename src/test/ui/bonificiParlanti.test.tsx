@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   mutate: vi.fn(),
   rows: [] as RitenutaBonifico[],
 }));
+// Le ritenute del condominio hanno la loro lettura: qui si prova solo il registro bancario.
+vi.mock("@/components/fatturazione/RitenuteSubiteFatture", () => ({ RitenuteSubiteFatture: () => null }));
 vi.mock("@/hooks/useRitenuteBonifici", () => ({
   useRitenuteBonifici: () => ({
     data: state.rows,

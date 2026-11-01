@@ -288,6 +288,8 @@ export interface ForecastSources {
   supplierInstallments: SupplierInstallmentRow[];
   /** Fatture ricevute non ancora costo, e quelle con ritenuta d'acconto. */
   receivedInvoices: ReceivedInvoiceRow[];
+  /** Ritenute di garanzia ancora trattenute: si incassano (attive) o si pagano (passive) allo svincolo. */
+  garanzie?: GaranziaRow[];
   deadlines: DeadlineRow[];
   items: SupplierItemRow[];
   coveredItems: { order_item_id: string; company_cost_id?: string }[];
@@ -310,6 +312,17 @@ export interface ForecastSources {
     stato?: string;
   }[];
 }
+/** Una riga del registro delle ritenute di garanzia. */
+export interface GaranziaRow {
+  id: string;
+  direzione: "attiva" | "passiva" | string;
+  importo: Money;
+  stato: string;
+  data_svincolo_prevista: string | null;
+  controparte: string | null;
+  order_id: string | null;
+  note?: string | null;
+}
 /** Una fattura emessa o ricevuta ridotta a ciò che serve alla stima IVA. */
 export interface VatDocumentRow {
   date: string | null;
@@ -330,6 +343,7 @@ export const emptyForecastSources = (): ForecastSources => ({
   costs: [],
   supplierInstallments: [],
   receivedInvoices: [],
+  garanzie: [],
   deadlines: [],
   items: [],
   coveredItems: [],
@@ -1018,6 +1032,30 @@ export function buildForecastLedger(
       href: "/azienda/contabilita-fiscale",
       estimated: true,
       note: "La ritenuta trattenuta al professionista si versa con F24 il 16 del mese dopo il pagamento.",
+    });
+  }
+
+  // Ritenute di garanzia (01/11/2026): soldi trattenuti oggi che tornano allo svincolo. Attiva = il
+  // committente ci deve la quota trattenuta; passiva = la dobbiamo noi al subappaltatore.
+  for (const g of s.garanzie ?? []) {
+    if (g.stato !== "trattenuta" || !(Number(g.importo) > 0)) continue;
+    const attiva = g.direzione === "attiva";
+    const chi = g.controparte || (attiva ? "Committente" : "Subappaltatore");
+    add({
+      id: `garanzia:${g.id}`,
+      description: `${chi} · svincolo ritenuta di garanzia`,
+      counterparty: chi,
+      category: attiva ? "clienti" : "squadre",
+      direction: attiva ? "in" : "out",
+      cents: toCents(g.importo),
+      date: validDay(g.data_svincolo_prevista),
+      source: attiva ? "Garanzia da svincolare (da ricevere)" : "Garanzia da svincolare (da pagare)",
+      href: "/azienda/ritenute-garanzia",
+      estimated: true,
+      orderId: g.order_id,
+      note: g.data_svincolo_prevista
+        ? "Ritenuta di garanzia trattenuta: torna alla data di svincolo prevista nel registro."
+        : "Ritenuta di garanzia senza data di svincolo: scrivila nel registro per metterla nel piano.",
     });
   }
 

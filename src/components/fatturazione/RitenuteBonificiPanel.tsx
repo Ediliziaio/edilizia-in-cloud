@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import type { RitenutaBonifico } from "@/lib/fatturazione/bonificiParlanti";
 import { exportToCSV } from "@/lib/csvExport";
+import { RitenuteSubiteFatture } from "./RitenuteSubiteFatture";
 
 export default function RitenuteBonificiPanel() {
   const period = useFiscalPeriod(),
@@ -409,6 +410,7 @@ export default function RitenuteBonificiPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <RitenuteSubiteFatture anno={period.anno} primoMese={first} ultimoMese={last} />
     </section>
   );
 }

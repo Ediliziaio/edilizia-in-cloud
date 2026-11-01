@@ -91,7 +91,13 @@ export function useAbbinaBonifico() {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { transactionId: string; documentoId: string; movimentoId?: string | null; punteggio?: number | null }) => {
+    mutationFn: async (input: { transactionId: string; documentoId: string; movimentoId?: string | null; punteggio?: number | null; parlante?: boolean }) => {
+      // Bonifico parlante: fattura saldata al lordo, ritenuta della banca registrata (01/11/2026).
+      if (input.parlante && !input.movimentoId) {
+        const { error } = await rpc("riconcilia_bonifico_parlante", { p_transaction_id: input.transactionId, p_documento_id: input.documentoId });
+        if (error) throw new Error(error.message || "Abbinamento non riuscito");
+        return;
+      }
       const { error } = await rpc("riconcilia_bonifico_fattura", {
         p_transaction_id: input.transactionId,
         p_documento_id: input.documentoId,
@@ -103,7 +109,8 @@ export function useAbbinaBonifico() {
     },
     onSuccess: (_d, input) => {
       aggiornaDopoIncasso(queryClient, companyId);
-      toast.success(input.movimentoId ? "Bonifico abbinato all'incasso" : "Bonifico abbinato: incasso registrato");
+      toast.success(input.movimentoId ? "Bonifico abbinato all'incasso"
+        : input.parlante ? "Bonifico parlante abbinato: fattura saldata e ritenuta registrata" : "Bonifico abbinato: incasso registrato");
     },
     onError: (err: Error) => toast.error("Abbinamento non riuscito", { description: err.message }),
   });

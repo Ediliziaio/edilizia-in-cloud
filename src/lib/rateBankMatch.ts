@@ -8,9 +8,13 @@
 // Punteggio: importo esatto > ~1% + vicinanza alla data prevista + cliente
 // citato nella descrizione. Un movimento chiude UNA sola rata (greedy).
 // Le rate sono gia' importi LORDI (nascono dal totale ivato della commessa).
+// Bonifico parlante (bonus edilizi): la banca accredita la rata meno la ritenuta
+// (lordo ÷ 1,22 × 11%, 8% prima del 01/03/2024) e qualche euro di commissioni.
+// Quell'accredito netto chiude la rata per intero: il match lo riconosce.
 // ============================================================================
 
 import { differenceInCalendarDays, parseISO } from "date-fns";
+import { previsioneBonifico } from "@/lib/fatturazione/bonificiParlanti";
 
 export interface RataDaIncassare {
   id: string;
@@ -18,6 +22,8 @@ export interface RataDaIncassare {
   /** Importo MOSTRATO (per il saldo e' quello calcolato, non il campo DB). */
   amount: number;
   expected_date?: string | null;
+  /** Fattura della rata: col bonifico parlante la ritenuta si registra lì. */
+  documento_fiscale_id?: string | null;
 }
 
 export interface CreditTxLite {
@@ -33,6 +39,17 @@ export interface RataBankMatch {
   tx: CreditTxLite;
   score: number;                // 0-100
   strength: "forte" | "possibile";
+  /** Accredito = rata meno la ritenuta bancaria: la rata è incassata al lordo. */
+  parlante: { ritenuta: number; commissioni: number; aliquota: number } | null;
+}
+
+/** L'accredito è la rata meno la ritenuta del bonifico parlante (e al più qualche euro di commissioni)? */
+export function bonificoParlanteDellaRata(importoRata: number, accredito: number, data: string) {
+  const prev = previsioneBonifico(importoRata, data);
+  if (!prev) return null;
+  const commissioni = Math.round((prev.netto - accredito) * 100) / 100;
+  if (commissioni < 0 || commissioni > Math.max(10, Math.round(importoRata * 0.5) / 100)) return null;
+  return { ritenuta: prev.ritenuta, commissioni, aliquota: prev.aliquota };
 }
 
 const STRONG_THRESHOLD = 70;
@@ -87,7 +104,9 @@ export function matchRateToBankTransactions(
 
       const txAmt = Number(tx.amount) || 0;
       let amountPts: number;
+      let parlante: RataBankMatch["parlante"] = null;
       if (Math.abs(txAmt - rata.amount) <= 0.01) amountPts = 50;
+      else if ((parlante = bonificoParlanteDellaRata(rata.amount, txAmt, tx.booking_date))) amountPts = 45;
       else if (Math.abs(txAmt - rata.amount) <= Math.max(1, rata.amount * 0.01)) amountPts = 28;
       else continue;
 
@@ -100,6 +119,7 @@ export function matchRateToBankTransactions(
         tx,
         score,
         strength: score >= STRONG_THRESHOLD ? "forte" : "possibile",
+        parlante,
       });
     }
   }

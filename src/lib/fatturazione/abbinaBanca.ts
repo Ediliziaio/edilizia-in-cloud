@@ -6,6 +6,8 @@
 // incasso nuovo, oppure il legame con un incasso già registrato a mano
 // (p_movimento_id), così lo stesso pagamento non si conta due volte.
 
+import { previsioneBonifico } from "@/lib/fatturazione/bonificiParlanti";
+
 /** Un accredito ancora da abbinare (movimenti_banca_per_fattura). */
 export interface MovimentoBanca {
   id: string;
@@ -54,6 +56,22 @@ export interface Proposta {
   motivi: string[];
   /** L'incasso già registrato a cui questo bonifico corrisponde, se c'è. */
   incassoUguale: IncassoFattura | null;
+  /**
+   * Bonifico parlante (bonus edilizi, 01/11/2026): l'accredito è il residuo meno la ritenuta d'acconto
+   * della banca (11%, 8% prima del 01/03/2024, su lordo/1,22) e al più qualche euro di commissioni.
+   * Si abbina con riconcilia_bonifico_parlante: fattura saldata al lordo e ritenuta registrata.
+   */
+  parlante: { lordo: number; ritenuta: number; commissioni: number; aliquota: number } | null;
+}
+
+/** Se un accredito è il bonifico parlante del residuo: ritenuta e commissioni, altrimenti null. */
+export function bonificoParlanteDelResiduo(importo: number, residuo: number, data: string | null): Proposta["parlante"] {
+  if (!(residuo > 0) || !(importo > 0) || !data) return null;
+  const p = previsioneBonifico(residuo, data.slice(0, 10));
+  if (!p) return null;
+  const commissioni = Math.round((p.netto - importo) * 100) / 100;
+  if (commissioni < 0 || commissioni > Math.max(10, Math.round(residuo * 0.5) / 100)) return null;
+  return { lordo: residuo, ritenuta: p.ritenuta, commissioni, aliquota: p.aliquota };
 }
 
 const centesimi = (n: number) => Math.round(n * 100);
@@ -132,8 +150,12 @@ export function ordinaMovimentiPerFattura(
     let punteggio = 0;
     const importo = Number(m.importo) || 0;
     const incassoUguale = liberi.find((i) => uguali(Number(i.importo), importo)) ?? null;
+    const parlante = uguali(importo, fattura.residuo) ? null : bonificoParlanteDelResiduo(importo, fattura.residuo, m.data);
 
-    if (fattura.residuo > 0 && uguali(importo, fattura.residuo)) {
+    if (parlante) {
+      punteggio += 48;
+      motivi.push(`Residuo meno la ritenuta della banca del ${parlante.aliquota}% (bonifico parlante)`);
+    } else if (fattura.residuo > 0 && uguali(importo, fattura.residuo)) {
       punteggio += 50;
       motivi.push("Importo uguale al residuo");
     } else if (incassoUguale) {
@@ -152,7 +174,7 @@ export function ordinaMovimentiPerFattura(
       punteggio += 20;
       motivi.push("Nome del cliente");
     }
-    return { movimento: m, punteggio, motivi, incassoUguale };
+    return { movimento: m, punteggio, motivi, incassoUguale, parlante };
   });
 
   const distanza = (p: Proposta) => {
