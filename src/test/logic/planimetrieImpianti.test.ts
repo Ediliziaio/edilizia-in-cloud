@@ -86,3 +86,38 @@ describe("clima e impianto elettrico con un clic", () => {
     expect(s.etichetta).toBe("12.000 BTU");
   });
 });
+
+describe("pareti curve", () => {
+  it("l'arco passa per la cima della freccia e la stanza lo segue", () => {
+    const r0 = C.aggiungiStanza({ versione: 1, unita: "cm", muri: [], aperture: [], locali: [] }, C.rettangolo({ x: 0, y: 0 }, { x: 400, y: 300 }));
+    const sopra = r0.pianta.muri.find((m) => m.p1.y === 0 && m.p2.y === 0)!;
+    const prima = aPlanimetria(r0.pianta);
+    const r = C.curvaParete(r0.pianta, sopra.id, 80);
+    expect(r.ok).toBe(true);
+    const archi = r.pianta.muri.filter((m) => m.spessore === sopra.spessore && (m.p1.y < 0 || m.p2.y < 0 || m.id === sopra.id));
+    expect(archi.length).toBeGreaterThanOrEqual(8);
+    // cima: a metà corda, 80 cm fuori (sopra o sotto la corda: la stanza cambia di superficie)
+    const ys = r.pianta.locali[0].contorno.map((p) => p.y);
+    expect(Math.max(Math.abs(Math.min(...ys)), Math.max(...ys) - 300)).toBeCloseTo(80, 0);
+    const dopo = aPlanimetria(r.pianta);
+    expect(validaPlanimetria(dopo).ok).toBe(true);
+    const mq = (d: ReturnType<typeof aPlanimetria>) => calcolaQuantita(d)["fatto:pianta.pavimento_mq"].valore;
+    expect(Math.abs(mq(dopo) - mq(prima))).toBeGreaterThan(1.5);
+  });
+  it("con una porta sopra non si curva", () => {
+    const r0 = C.aggiungiStanza({ versione: 1, unita: "cm", muri: [], aperture: [], locali: [] }, C.rettangolo({ x: 0, y: 0 }, { x: 400, y: 300 }));
+    const m = r0.pianta.muri[0];
+    const p = C.aggiungiApertura(r0.pianta, m.id, "porta", 100).pianta;
+    expect(C.curvaParete(p, m.id, 50).ok).toBe(false);
+  });
+});
+
+describe("pareti curve: casi da rifiutare", () => {
+  it("una parete che fa da lato a due stanze non si curva", () => {
+    let p: Pianta = { versione: 1, unita: "cm", muri: [], aperture: [], locali: [] };
+    p = C.aggiungiStanza(p, C.rettangolo({ x: 0, y: 0 }, { x: 300, y: 300 })).pianta;
+    p = C.aggiungiStanza(p, C.rettangolo({ x: 300, y: 0 }, { x: 600, y: 300 })).pianta;
+    const lungo = p.muri.find((m) => Math.abs(m.p1.y - m.p2.y) < 1 && Math.abs(m.p1.x - m.p2.x) > 500);
+    if (lungo) expect(C.curvaParete(p, lungo.id, 50).ok).toBe(false);
+  });
+});

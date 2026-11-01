@@ -247,7 +247,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
-  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", ascensore: "Ascensori",
   collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",
   presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
   scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",

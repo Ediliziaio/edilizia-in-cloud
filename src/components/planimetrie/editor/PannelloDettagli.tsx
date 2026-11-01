@@ -46,6 +46,8 @@ export interface AzioniPannello {
   impiantoElettrico: (localeId: string, destinazione: Destinazione) => void;
   /** Split con la taglia consigliata. */
   clima: (localeId: string, destinazione: Destinazione) => void;
+  /** Curva la parete con la freccia data (cm). */
+  curvaParete: (id: string, frecciaCm: number) => void;
 }
 
 interface Props {
@@ -510,6 +512,24 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
         )}
         {!essenziale && <BottoneElimina vista={vista} stato={muro.stato} cosa="la parete" onClick={() => azioni.elimina({ tipo: "muro", id: muro.id })} />}
       </div>
+      {!essenziale && misurabile && <CurvaParete onCurva={(f) => azioni.curvaParete(muro.id, f)} />}
+    </div>
+  );
+}
+
+function CurvaParete({ onCurva }: { onCurva: (frecciaCm: number) => void }) {
+  const [freccia, setFreccia] = useState("0,50");
+  const [verso, setVerso] = useState<1 | -1>(1);
+  const cm = leggiMisura(freccia);
+  return (
+    <div className="space-y-1 rounded-md border border-dashed p-2">
+      <Label htmlFor="pl-freccia" className="text-xs">Parete curva (bovindo, balcone tondo)</Label>
+      <div className="flex flex-wrap gap-2">
+        <Input id="pl-freccia" className="h-8 w-20" value={freccia} onChange={(e) => setFreccia(e.target.value)} aria-label="Freccia della curva in metri" />
+        <Button size="sm" variant="outline" onClick={() => setVerso((v) => (v === 1 ? -1 : 1))}>{verso === 1 ? "Verso un lato" : "Verso l'altro"}</Button>
+        <Button size="sm" variant="secondary" disabled={!cm} onClick={() => cm && onCurva(cm * verso)}>Curva</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">La freccia è quanto la curva si allontana dal centro della parete. Diventa un arco di tratti dritti; la stanza segue la curva. Ctrl+Z per tornare indietro.</p>
     </div>
   );
 }

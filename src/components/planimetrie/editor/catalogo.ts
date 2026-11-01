@@ -44,6 +44,9 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "colonna_scarico", nome: "Colonna di scarico", gruppo: "Impianti", larghezza: 16, profondita: 16, altezza: 0 },
   // Struttura: pilastri di capannoni, garage, piani pilotis.
   { tipo: "pilastro", nome: "Pilastro", gruppo: "Struttura", larghezza: 30, profondita: 30, altezza: 300 },
+  // Rampa dritta: 16 alzate da 17,5 cm, pedata 28 cm; la freccia indica dove si sale.
+  { tipo: "scala", nome: "Scala (rampa)", gruppo: "Struttura", larghezza: 100, profondita: 450, altezza: 280 },
+  { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
 ];
 
 export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Impianti", "Struttura"] as const;

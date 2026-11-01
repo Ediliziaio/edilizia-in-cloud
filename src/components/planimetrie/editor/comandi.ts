@@ -765,3 +765,72 @@ export function eliminaGruppo(pianta: Pianta, g: Gruppo, vista: Vista): Pianta {
     testi: (p.testi ?? []).filter((t) => !g.testi.includes(t.id)),
   };
 }
+
+// ─── Pareti curve ────────────────────────────────────────────────────────────
+
+/**
+ * Punti di un arco da a a b con la freccia data (cm, distanza del centro dell'arco dalla
+ * corda; positiva a sinistra di a→b sullo schermo). Esclusi a e b.
+ */
+export function puntiArco(a: Punto, b: Punto, freccia: number, segmenti: number): Punto[] {
+  const c = dist(a, b);
+  if (c < 1 || Math.abs(freccia) < 1 || segmenti < 2) return [];
+  const f = Math.min(Math.abs(freccia), c / 2) * Math.sign(freccia);
+  const r = (c * c) / (8 * Math.abs(f)) + Math.abs(f) / 2;
+  const u = { x: (b.x - a.x) / c, y: (b.y - a.y) / c };
+  const sinistra = { x: u.y, y: -u.x }; // y in giù: a sinistra di a→b
+  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  // il centro sta dalla parte opposta alla freccia
+  const centro = { x: m.x - sinistra.x * Math.sign(f) * (r - Math.abs(f)), y: m.y - sinistra.y * Math.sign(f) * (r - Math.abs(f)) };
+  const angA = Math.atan2(a.y - centro.y, a.x - centro.x);
+  let angB = Math.atan2(b.y - centro.y, b.x - centro.x);
+  // il verso che passa per la cima della freccia
+  const cima = { x: m.x + sinistra.x * f, y: m.y + sinistra.y * f };
+  const angC = Math.atan2(cima.y - centro.y, cima.x - centro.x);
+  const tra = (x: number, d: number, e: number) => { const n = (v: number) => ((v - d) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI); return n(x) <= n(e); };
+  if (!tra(angC, angA, angB)) angB = angB > angA ? angB - 2 * Math.PI : angB + 2 * Math.PI;
+  else if (angB < angA) angB += 2 * Math.PI;
+  const out: Punto[] = [];
+  for (let i = 1; i < segmenti; i++) {
+    const t = angA + ((angB - angA) * i) / segmenti;
+    out.push({ x: Math.round((centro.x + r * Math.cos(t)) * 10) / 10, y: Math.round((centro.y + r * Math.sin(t)) * 10) / 10 });
+  }
+  return out;
+}
+
+/**
+ * Curva una parete (bovindo, muro tondo del balcone): diventa un arco di tratti dritti con la
+ * stessa grossezza, e il contorno delle stanze che ci stanno contro segue la curva (superfici,
+ * perimetri e 3D tornano). Le pareti con porte o finestre non si curvano: prima si tolgono.
+ */
+export function curvaParete(pianta: Pianta, id: string, freccia: number, segmenti = 8): { pianta: Pianta; ok: boolean; motivo?: string } {
+  const m = pianta.muri.find((x) => x.id === id);
+  if (!m) return { pianta, ok: false, motivo: "Parete non trovata." };
+  if (pianta.aperture.some((a) => a.muroId === id)) return { pianta, ok: false, motivo: "Togli prima porte e finestre da questa parete: su una parete curva non si posano." };
+  // un angolo di stanza a metà parete: la parete fa da lato a più stanze, la curva le romperebbe
+  const lm = dist(m.p1, m.p2);
+  const aMeta = pianta.locali.some((l) => l.contorno.some((q) => {
+    const t = ((q.x - m.p1.x) * (m.p2.x - m.p1.x) + (q.y - m.p1.y) * (m.p2.y - m.p1.y)) / (lm * lm);
+    const piede = { x: m.p1.x + t * (m.p2.x - m.p1.x), y: m.p1.y + t * (m.p2.y - m.p1.y) };
+    return t > 0.01 && t < 0.99 && dist(q, piede) < 2;
+  }));
+  if (aMeta) return { pianta, ok: false, motivo: "Questa parete fa da lato a più stanze: dividila (o disegna una parete solo dove serve la curva) e curva quel tratto." };
+  const punti = puntiArco(m.p1, m.p2, freccia, segmenti);
+  if (!punti.length) return { pianta, ok: false, motivo: "Freccia troppo piccola." };
+  const catena = [m.p1, ...punti, m.p2];
+  const nuovi: Muro[] = catena.slice(1).map((q, i) => ({ ...m, id: i === 0 ? m.id : nuovoId("muro"), p1: { ...catena[i] }, p2: { ...q } }));
+  const vicino = (p: Punto, q: Punto) => dist(p, q) < 2;
+  const locali = pianta.locali.map((l) => {
+    const c = l.contorno;
+    for (let i = 0; i < c.length; i++) {
+      const p = c[i], q = c[(i + 1) % c.length];
+      const dritto = vicino(p, m.p1) && vicino(q, m.p2);
+      const rovescio = vicino(p, m.p2) && vicino(q, m.p1);
+      if (!dritto && !rovescio) continue;
+      const dentro = dritto ? punti : [...punti].reverse();
+      return { ...l, contorno: [...c.slice(0, i + 1), ...dentro, ...c.slice(i + 1)] };
+    }
+    return l;
+  });
+  return { pianta: { ...pianta, muri: pianta.muri.flatMap((x) => (x.id === id ? nuovi : [x])), locali }, ok: true };
+}

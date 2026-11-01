@@ -144,6 +144,20 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
       const r = Math.min(w, d) / 2;
       return (<g><circle cx={0} cy={0} r={r} fill={riempimento} stroke={colore} strokeWidth={spessore * 1.5} /><circle cx={0} cy={0} r={r * 0.55} fill={colore} /></g>);
     }
+    case "scala": {
+      // gradini ogni 28 cm lungo la profondità, freccia di salita
+      const n = Math.max(3, Math.floor(d / 28));
+      return (
+        <g>
+          {base}
+          {Array.from({ length: n - 1 }, (_, i) => <line key={i} x1={x0} y1={y0 + ((i + 1) * d) / n} x2={-x0} y2={y0 + ((i + 1) * d) / n} {...tratto} />)}
+          <line x1={0} y1={-y0 - d * 0.08} x2={0} y2={y0 + d * 0.1} {...tratto} />
+          <path d={`M ${-w * 0.12} ${y0 + d * 0.18} L 0 ${y0 + d * 0.08} L ${w * 0.12} ${y0 + d * 0.18}`} {...tratto} />
+        </g>
+      );
+    }
+    case "ascensore":
+      return (<g>{base}<line x1={x0} y1={y0} x2={-x0} y2={-y0} {...tratto} /><line x1={-x0} y1={y0} x2={x0} y2={-y0} {...tratto} /></g>);
     case "pilastro":
       return (<g><rect x={x0} y={y0} width={w} height={d} fill={colore} stroke={colore} strokeWidth={spessore} /><line x1={x0} y1={y0} x2={-x0} y2={-y0} stroke={riempimento} strokeWidth={spessore} /></g>);
     case "quadro_elettrico":

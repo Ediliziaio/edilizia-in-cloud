@@ -1002,6 +1002,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       },
       modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
       modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
+      curvaParete: (id, freccia) => {
+        const r = C.curvaParete(p(), id, freccia);
+        if (!r.ok) { setAvviso(r.motivo ?? "La parete non si curva."); return; }
+        applica(r.pianta);
+        setSelezione(null);
+        setAvviso("Parete curvata: la stanza segue la curva. Ctrl+Z per tornare com'era.");
+      },
       unitaStanza: (id, unita) => applica(C.modificaLocale(p(), id, { unita: unita || undefined })),
       magliaPilastri: (id, passo) => {
         const r = magliaPilastri(p(), id, stato.current.vista, passo);
@@ -1330,8 +1337,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               {[...totaliLinee].map(([l, cm]) => (
                 <p key={l} className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4" style={{ background: COLORI_LINEE[l] }} />{NOMI_LINEE[l] ?? l}: {metriConSfrido(cm).toLocaleString("it-IT")} m</p>
               ))}
-              {!totaliLinee.size && <p className="text-muted-foreground">Metti prese, sanitari o split e le loro partenze (Arredi → Impianti).</p>}
-              {impianti.mancano.map((m) => <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]}: quella linea non si stima.</p>)}
+              {!totaliLinee.size && !impianti.mancano.length && <p className="text-muted-foreground">Metti prese, sanitari o split (dal pannello della stanza o da Arredi → Impianti).</p>}
+              {impianti.mancano.map((m) => <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]} (Arredi → Impianti): senza, quella linea non si stima.</p>)}
             </div>
           )}
 
