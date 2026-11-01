@@ -442,7 +442,7 @@ export default function CommittenteDetail() {
                   </div>
                   <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                     <Voce t="Pagamento" v={`${contrattoAttivo.giorni_pagamento} gg`} />
-                    <Voce t="Ritenuta" v={`${formatDecimalIT(contrattoAttivo.ritenuta_pct, { minDecimals: 0 })} %`} />
+                    <Voce t="Ritenuta a garanzia" v={`${formatDecimalIT(contrattoAttivo.ritenuta_pct, { minDecimals: 0 })} %`} />
                     <Voce t="Straordinario" v={`+${formatDecimalIT(contrattoAttivo.maggiorazione_straordinario_pct, { minDecimals: 0 })} %`} />
                     <Voce t="Festivo" v={`+${formatDecimalIT(contrattoAttivo.maggiorazione_festivo_pct, { minDecimals: 0 })} %`} />
                     <Voce t="Fatturazione" v={contrattoAttivo.modo_fatturazione === "mensile_cumulativa" ? "Mensile, tutte le commesse" : "Per commessa"} />
@@ -630,7 +630,8 @@ export default function CommittenteDetail() {
                   onChange={(e) => setContrattoForm({ ...contrattoForm, giorni_pagamento: Number(e.target.value) })} />
               </div>
               <div>
-                <Label>Ritenuta %</Label>
+                {/* È la trattenuta a garanzia sui SAL (01/11/2026): non una ritenuta fiscale. */}
+                <Label>Ritenuta a garanzia %</Label>
                 <Input type="number" min={0} max={100} step="0.01" value={contrattoForm.ritenuta_pct ?? 0}
                   onChange={(e) => setContrattoForm({ ...contrattoForm, ritenuta_pct: Number(e.target.value) })} />
               </div>

@@ -166,8 +166,13 @@ export function scadenzaDaGiorni(giorni: number | null | undefined, oggi: Date =
  *   e la dicitura di legge in causale: metterci il 22% sarebbe un errore
  *   fiscale, e indovinarlo ogni volta è il modo di farlo.
  *
- * La ritenuta la scrive come ritenuta d'acconto (RT02, società): l'editor la
- * mostra e si corregge lì se il caso è un altro.
+ * La percentuale «ritenuta» del contratto d'appalto è una **trattenuta a
+ * garanzia** (così la chiama anche il rendiconto), non una ritenuta d'acconto:
+ * fra imprese in appalto la ritenuta fiscale non c'è. Fino al 01/11/2026 finiva
+ * nell'XML come ritenuta d'acconto (RT02, causale A), cioè dichiarata
+ * all'Agenzia come imposta trattenuta. Ora è una riga negativa «sarà fatturata
+ * allo svincolo», come la clausola «Trattenuta a garanzia» delle altre fatture:
+ * negli appalti si fattura quello che si incassa (art. 6, c. 3, DPR 633/72).
  */
 export function prefillFatturaDaRendiconto(d: DatiFatturaDaRendiconto): Partial<DocumentoFiscale> {
   const reverse = d.regimeIva === "reverse_charge";
@@ -191,14 +196,34 @@ export function prefillFatturaDaRendiconto(d: DatiFatturaDaRendiconto): Partial<
       ...(reverse ? { natura_iva: "N6_3" as const } : {}),
       imposta,
       totale_riga: arrotonda(imponibile + imposta),
-      ritenuta: d.ritenutaPct > 0,
+      ritenuta: false,
     };
   });
+
+  // Trattenuta a garanzia: una riga negativa, con la stessa aliquota delle righe.
+  const lordoLavori = arrotonda(righe.reduce((s, r) => s + r.imponibile, 0));
+  const trattenuta = d.ritenutaPct > 0 ? arrotonda((lordoLavori * d.ritenutaPct) / 100) : 0;
+  if (trattenuta > 0) {
+    const impostaTrattenuta = reverse ? 0 : arrotonda((trattenuta * Number(aliquota)) / 100);
+    righe.push({
+      id: `rendiconto-${d.numero}-trattenuta-garanzia`,
+      numero_linea: righe.length + 1,
+      descrizione: `Trattenuta a garanzia del ${String(d.ritenutaPct).replace(".", ",")}% come da contratto — sarà fatturata allo svincolo`,
+      quantita: 1,
+      unita_misura: "a corpo",
+      prezzo_unitario: -trattenuta,
+      imponibile: -trattenuta,
+      aliquota_iva: aliquota,
+      ...(reverse ? { natura_iva: "N6_3" as const } : {}),
+      imposta: impostaTrattenuta ? -impostaTrattenuta : 0,
+      totale_riga: -arrotonda(trattenuta + impostaTrattenuta),
+      ritenuta: false,
+    });
+  }
 
   const riepilogo: RiepilogoIVA[] = [];
   const imponibileTotale = arrotonda(righe.reduce((s, r) => s + r.imponibile, 0));
   const ivaTotale = arrotonda(righe.reduce((s, r) => s + r.imposta, 0));
-  const ritenutaImporto = arrotonda((imponibileTotale * d.ritenutaPct) / 100);
   riepilogo.push({
     aliquota,
     ...(reverse ? { natura: "N6_3" as const } : {}),
@@ -236,7 +261,7 @@ export function prefillFatturaDaRendiconto(d: DatiFatturaDaRendiconto): Partial<
   };
 
   const scadenza = scadenzaDaGiorni(d.giorniPagamento, d.oggi);
-  const totaleDaPagare = arrotonda(imponibileTotale + ivaTotale - ritenutaImporto);
+  const totaleDaPagare = arrotonda(imponibileTotale + ivaTotale);
 
   return {
     ...(d.anagraficaId ? { anagrafica_id: d.anagraficaId } : {}),
@@ -267,15 +292,8 @@ export function prefillFatturaDaRendiconto(d: DatiFatturaDaRendiconto): Partial<
     ...(d.riferimentoCommittente
       ? { riferimenti_ordine: [{ IdDocumento: d.riferimentoCommittente }] }
       : {}),
-    ritenuta_acconto: d.ritenutaPct > 0,
-    ...(d.ritenutaPct > 0
-      ? {
-          ritenuta_tipo: "RT02",
-          ritenuta_aliquota: d.ritenutaPct,
-          ritenuta_importo: ritenutaImporto,
-          ritenuta_causale: "A",
-        }
-      : {}),
+    // Niente ritenuta d'acconto: la garanzia è la riga negativa qui sopra.
+    ritenuta_acconto: false,
     note_documento: causale[0],
   };
 }
