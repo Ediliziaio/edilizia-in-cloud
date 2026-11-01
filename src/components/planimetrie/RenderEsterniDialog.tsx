@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { caricaFotogramma } from "@/components/planimetrie/Vista3DPigra";
 import { costruisciScena, limitiDi, scenaEdificio, vistaDalGiardino, vistaGiroIntorno, type LatoEsterno, type PiantaPer3D, type PianoPer3D } from "@/lib/planimetrie/tred";
-import { lasciaFotoDaPianta, MODULI_ESTERNI, type ModuloEsterno } from "@/lib/planimetrie/render/fotoDaPianta";
+import { lasciaFotoDaPianta, MODULI_ESTERNI, MOMENTI_ESTERNI, type ModuloEsterno } from "@/lib/planimetrie/render/fotoDaPianta";
 
 type Inquadratura = LatoEsterno | "tre_quarti";
 
@@ -48,6 +48,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const modulo = scelto ?? moduloIniziale ?? "giardini";
   const setModulo = setScelto;
   const [inquadratura, setInquadratura] = useState<Inquadratura>("sud");
+  const [momento, setMomento] = useState(MOMENTI_ESTERNI[0].id);
   // anteprima ed errore ricordano per quale inquadratura sono: se non è quella di adesso, si sta caricando
   const [anteprima, setAnteprima] = useState<{ url: string; file: File; per: Inquadratura } | null>(null);
   const [errore, setErrore] = useState<{ testo: string; per: Inquadratura } | null>(null);
@@ -88,7 +89,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const continua = () => {
     if (!anteprima) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
-    lasciaFotoDaPianta(modulo, anteprima.file);
+    lasciaFotoDaPianta(modulo, anteprima.file, MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota || undefined);
     onChiudi();
     toast.success("Vista 3D caricata come foto di partenza");
     navigate(m.percorso);
@@ -126,6 +127,12 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
               {INQUADRATURE.map((i) => <ToggleGroupItem key={i.valore} value={i.valore}>{i.nome}</ToggleGroupItem>)}
             </ToggleGroup>
             <p className="text-xs text-muted-foreground">Sud è il lato in basso della pianta.</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Luce e stagione</Label>
+            <ToggleGroup type="single" value={momento} onValueChange={(v) => v && setMomento(v)} variant="outline" size="sm" className="flex-wrap justify-start">
+              {MOMENTI_ESTERNI.map((m) => <ToggleGroupItem key={m.id} value={m.id}>{m.nome}</ToggleGroupItem>)}
+            </ToggleGroup>
           </div>
           <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border bg-muted">
             {anteprima && <img src={anteprima.url} alt="Vista 3D da fuori" className="h-full w-full object-cover" />}

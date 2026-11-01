@@ -25,7 +25,7 @@ import { allegaSchedeTecniche } from "@/lib/quotes/allegatiPreventivo";
 import {
   allegatoPreventivo,
   aziendaDelCartiglio, caricaLogo, ErroreImpaginazione, esportaDxfMigliore, esportaPdf, esportaPng, esportaSvg,
-  SCALE_STANDARD, vistaDaPlanimetria, type DatiCartiglio, type FormatoFoglio, type ModoVista, type Orientamento,
+  SCALE_STANDARD, numeraLocali, vistaDaPlanimetria, type DatiCartiglio, type FormatoFoglio, type ModoVista, type Orientamento,
 } from "@/lib/planimetrie/esporta";
 import type { Planimetria, StatoPianta } from "../../../shared/planimetrie/modello.ts";
 
@@ -113,6 +113,8 @@ export function EsportaPiantaDialog({
   const [conProspetti, setConProspetti] = useState(false);
   // Con più piani: tutti nello stesso PDF, dal più basso, ognuno sulla sua pagina in scala.
   const [tuttiIPiani, setTuttiIPiani] = useState(false);
+  // Locali numerati («1. Soggiorno»), per i rimandi in capitolati e computi
+  const [numera, setNumera] = useState(false);
   const piuPiani = documento.livelli.length > 1;
 
   // Preventivi a cui si può allegare: quelli standard (i moduli fanno il PDF nel browser), non firmati.
@@ -145,11 +147,12 @@ export function EsportaPiantaDialog({
 
   const vista = useMemo(() => {
     try {
-      return vistaDaPlanimetria(documento, { modo: haProgetto ? modo : "fatto", livelloId, propostaId });
+      const v = vistaDaPlanimetria(documento, { modo: haProgetto ? modo : "fatto", livelloId, propostaId });
+      return numera ? numeraLocali(v) : v;
     } catch {
       return null;
     }
-  }, [documento, modo, livelloId, propostaId, haProgetto]);
+  }, [documento, modo, livelloId, propostaId, haProgetto, numera]);
 
   // Lo stato disegnato nei prospetti: com'è oggi, oppure la proposta scelta.
   const statoDisegnato = useMemo(() => {
@@ -223,9 +226,13 @@ export function EsportaPiantaDialog({
         if (piuPiani && tuttiIPiani) {
           // ogni piano con la sua proposta (se ce l'ha) quando si esporta il progetto
           const parti: Uint8Array[] = [];
+          let n = 1;
           for (const l of [...documento.livelli].sort((a, b) => a.quota - b.quota)) {
             const pr = l.proposte.find((p) => p.id === propostaId) ?? l.proposte[0];
-            const v = vistaDaPlanimetria(documento, { modo: haProgetto && pr ? modo : "fatto", livelloId: l.id, propostaId: pr?.id });
+            const grezza = vistaDaPlanimetria(documento, { modo: haProgetto && pr ? modo : "fatto", livelloId: l.id, propostaId: pr?.id });
+            // numerazione continua su tutti i piani
+            const v = numera ? numeraLocali(grezza, n) : grezza;
+            n += grezza.locali.length;
             parti.push((await esportaPdf(v, { ...cartiglio, oggetto: v.livello ?? undefined }, opzioniPdf)).dati);
           }
           r = { ...r, dati: await unisciPdf(parti) };
@@ -345,6 +352,13 @@ export function EsportaPiantaDialog({
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Nel cartiglio: nome, recapiti e logo della tua azienda, data e versione {versione}.</p>
+                <div className="flex items-start justify-between gap-3 border-t pt-3">
+                  <div>
+                    <Label htmlFor="numera-locali" className="text-xs">Numera i locali</Label>
+                    <p className="text-[11px] text-muted-foreground">«1. Soggiorno», «2. Cucina»… nella pianta e nella tabella, per i rimandi nel capitolato.</p>
+                  </div>
+                  <Switch id="numera-locali" checked={numera} onCheckedChange={setNumera} />
+                </div>
                 {piuPiani && (
                   <div className="flex items-start justify-between gap-3 border-t pt-3">
                     <div>

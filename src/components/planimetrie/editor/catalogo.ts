@@ -85,6 +85,13 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
 ];
 
+/**
+ * I tipi che hanno un'immagine in `public/planimetrie/simboli/<tipo>.png` (miniatura del catalogo).
+ * Senza, la miniatura è il simbolo disegnato. Si aggiunge qui il tipo quando si mette l'immagine.
+ */
+export const IMMAGINI_SIMBOLI: ReadonlySet<string> = new Set<string>([]);
+export const urlImmagineSimbolo = (tipo: string) => (IMMAGINI_SIMBOLI.has(tipo) ? `/planimetrie/simboli/${tipo}.png` : null);
+
 export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Giardino e piscina", "Impianti", "Energia", "Struttura"] as const;
 
 export const nomeDelTipo = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)?.nome ?? tipo.replace(/_/g, " ");

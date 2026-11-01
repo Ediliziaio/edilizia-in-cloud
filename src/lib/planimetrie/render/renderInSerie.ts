@@ -24,11 +24,13 @@ export interface LavoroRender {
   localeId: string;
   localeNome: string;
   idea: IdeaPronta;
+  /** Il piano della stanza, se non è quello del contesto (render di tutto l'edificio). */
+  livelloId?: string;
 }
 
 /** Stanze × idee, nell'ordine: prima tutte le stanze con la prima idea, poi la seconda… */
-export function lavoriDaFare(stanze: Array<{ id: string; nome: string }>, idee: IdeaPronta[]): LavoroRender[] {
-  return idee.flatMap((idea) => stanze.map((s) => ({ chiave: `${s.id}:${idea.id}`, localeId: s.id, localeNome: s.nome, idea })));
+export function lavoriDaFare(stanze: Array<{ id: string; nome: string; livelloId?: string }>, idee: IdeaPronta[]): LavoroRender[] {
+  return idee.flatMap((idea) => stanze.map((s) => ({ chiave: `${s.id}:${idea.id}`, localeId: s.id, localeNome: s.nome, idea, ...(s.livelloId ? { livelloId: s.livelloId } : {}) })));
 }
 
 /** La configurazione del render: quella predefinita, il tipo di stanza dalla destinazione, poi l'idea. */
@@ -55,7 +57,12 @@ export interface ContestoSerie {
  * Avvia un render e ritorna l'id della sessione appena la funzione l'ha preso in carico (o ha
  * superato il tempo del gateway: allora il render va avanti e si controlla dalla sessione).
  */
-export async function avviaRenderStanza(ctx: ContestoSerie, lavoro: LavoroRender): Promise<string> {
+export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroRender): Promise<string> {
+  // un'altra stanza dell'edificio: il suo piano; se lì la proposta non c'è, com'è oggi
+  const livelloId = lavoro.livelloId ?? contesto.livelloId;
+  const livello = contesto.documento.livelli.find((l) => l.id === livelloId);
+  const propostaQui = contesto.ambito.startsWith("progetto:") && livello?.proposte.some((p) => `progetto:${p.id}` === contesto.ambito);
+  const ctx: ContestoSerie = { ...contesto, livelloId, ambito: contesto.ambito === "fatto" || propostaQui ? contesto.ambito : "fatto" };
   const vincoli = vincoliDellaStanza(ctx.documento, { livello_id: ctx.livelloId, ambito: ctx.ambito, locale_id: lavoro.localeId });
   if (!vincoli) throw new Error("Stanza non trovata nella pianta.");
   const propostaId = ctx.ambito.startsWith("progetto:") ? ctx.ambito.slice("progetto:".length) : undefined;

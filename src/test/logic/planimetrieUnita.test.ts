@@ -1,3 +1,8 @@
+import { numeraLocali, vistaDaPlanimetria } from "@/lib/planimetrie/esporta";
+import { IMMAGINI_SIMBOLI, urlImmagineSimbolo } from "@/components/planimetrie/editor/catalogo";
+import { existsSync } from "node:fs";
+import { lavoriDaFare } from "@/lib/planimetrie/render/renderInSerie";
+import { MOMENTI_ESTERNI, lasciaFotoDaPianta, prendiDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
 import { describe, expect, it } from "vitest";
 import { aPlanimetria, type Pianta } from "@/components/planimetrie/editor/adattatore";
 import * as C from "@/components/planimetrie/editor/comandi";
@@ -46,5 +51,23 @@ describe("unità, millesimi e listino", () => {
     const u = unitaDellEdificio(conVendita(palazzina(), "A", { prezzoMq: 2500 }))[0];
     const dati = await pdfSchedaUnita({ titolo: "Palazzina", unita: u, piante: [{ piano: "Piano terra", png }] });
     expect((await PDFDocument.load(dati)).getPageCount()).toBe(1);
+  });
+});
+
+
+describe("disegni e render", () => {
+  it("locali numerati, anche continuando da un altro piano", () => {
+    const v = numeraLocali(vistaDaPlanimetria(palazzina(), { modo: "fatto" }), 7);
+    expect(v.locali.map((l) => l.nome.split(".")[0])).toEqual(["7", "8", "9", "10", "11"]);
+  });
+  it("le immagini dei simboli elencate esistono davvero (senza, la miniatura è il disegno)", () => {
+    for (const t of IMMAGINI_SIMBOLI) expect(existsSync(`public/planimetrie/simboli/${t}.png`), t).toBe(true);
+    expect(urlImmagineSimbolo("tipo_che_non_ce")).toBeNull();
+  });
+  it("render di tutto l'edificio: ogni lavoro sa il suo piano; la nota di luce passa alla pagina", () => {
+    const l = lavoriDaFare([{ id: "a", nome: "Soggiorno", livelloId: "p1" }, { id: "b", nome: "Camera" }], [{ id: "x", nome: "X", descrizione: "", tavolozza: ["#000", "#111", "#222"] } as never]);
+    expect(l.map((x) => x.livelloId)).toEqual(["p1", undefined]);
+    lasciaFotoDaPianta("piscine", new File([new Uint8Array([1])], "v.png"), MOMENTI_ESTERNI.find((m) => m.id === "sera")!.nota);
+    expect(prendiDaPianta("piscine")?.nota).toMatch(/Sera/);
   });
 });

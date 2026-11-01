@@ -1,0 +1,4 @@
+Immagini dei simboli del catalogo planimetrie (miniature).
+Nome del file = tipo del catalogo, PNG trasparente quadrato: es. divano_angolare.png.
+Dopo averne aggiunta una, scrivere il tipo in IMMAGINI_SIMBOLI (src/components/planimetrie/editor/catalogo.ts).
+I prompt per generarle sono in docs/planimetrie-piano-sviluppo.md.

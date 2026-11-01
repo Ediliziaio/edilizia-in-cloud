@@ -48,7 +48,7 @@ import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geo
 import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
 import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
-import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
+import { CATALOGO, GRUPPI_CATALOGO, urlImmagineSimbolo, type VoceCatalogo } from "./catalogo";
 import { SimboloArredo } from "./SimboloArredo";
 import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldamentoStanza } from "./arreda";
 import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../shared/planimetrie/impianti.ts";
@@ -1801,9 +1801,13 @@ function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce
                         setAperto(false);
                       }}
                     >
-                      <svg viewBox={`${-lato / 2 - 4} ${-lato / 2 - 4} ${lato + 8} ${lato + 8}`} className="h-10 w-10" aria-hidden="true">
-                        <SimboloArredo tipo={v.tipo} larghezza={v.larghezza} profondita={v.profondita} colore="#334155" spessore={lato / 40} />
-                      </svg>
+                      {urlImmagineSimbolo(v.tipo) ? (
+                        <img src={urlImmagineSimbolo(v.tipo)!} alt="" className="h-10 w-10 object-contain" loading="lazy" />
+                      ) : (
+                        <svg viewBox={`${-lato / 2 - 4} ${-lato / 2 - 4} ${lato + 8} ${lato + 8}`} className="h-10 w-10" aria-hidden="true">
+                          <SimboloArredo tipo={v.tipo} larghezza={v.larghezza} profondita={v.profondita} colore="#334155" spessore={lato / 40} />
+                        </svg>
+                      )}
                       <span className="leading-tight">{v.nome}</span>
                     </button>
                   );

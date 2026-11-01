@@ -32,13 +32,18 @@ interface Props {
   livelloId: string;
   ambito: string;
   stanze: Array<{ id: string; nome: string; destinazione: string }>;
+  /** Con più piani: tutte le stanze dell'edificio, col piano (per «Tutti i piani»). */
+  stanzeEdificio?: Array<{ id: string; nome: string; destinazione: string; livelloId: string; piano: string }>;
   /** Aperto da una stanza: solo quella, con più stili. */
   soloStanza?: string | null;
 }
 
 interface Riga { lavoro: LavoroRender; stato: StatoLavoro; sessione?: string; url?: string; errore?: string }
 
-export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione, documento, livelloId, ambito, stanze, soloStanza }: Props) {
+export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione, documento, livelloId, ambito, stanze: stanzePiano, stanzeEdificio, soloStanza }: Props) {
+  const [tuttiIPiani, setTuttiIPiani] = useState(false);
+  const edificio = !soloStanza && (stanzeEdificio?.length ?? 0) > stanzePiano.length;
+  const stanze: Array<{ id: string; nome: string; destinazione: string; livelloId?: string; piano?: string }> = edificio && tuttiIPiani ? stanzeEdificio! : stanzePiano;
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -140,12 +145,20 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
           <div className="space-y-5">
             {!soloStanza && (
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">Stanze</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-sm font-semibold">Stanze</Label>
+                  {edificio && (
+                    <label className="flex cursor-pointer items-center gap-2 text-xs">
+                      <Checkbox checked={tuttiIPiani} onCheckedChange={(v) => { const tutti = !!v; setTuttiIPiani(tutti); setScelte(new Set((tutti ? stanzeEdificio! : stanzePiano).map((s) => s.id))); }} />
+                      Tutti i piani ({stanzeEdificio!.length} stanze)
+                    </label>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {stanze.map((s) => (
                     <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
                       <Checkbox checked={scelte.has(s.id)} onCheckedChange={(v) => setScelte((x) => { const n = new Set(x); if (v) n.add(s.id); else n.delete(s.id); return n; })} />
-                      <span className="truncate">{s.nome}</span>
+                      <span className="truncate">{s.nome}{s.piano && <span className="text-xs text-muted-foreground"> · {s.piano}</span>}</span>
                     </label>
                   ))}
                 </div>

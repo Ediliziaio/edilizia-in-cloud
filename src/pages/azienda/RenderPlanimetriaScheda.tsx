@@ -64,6 +64,14 @@ export default function RenderPlanimetriaScheda() {
       .map((l) => vincoliDellaStanza(documento, { livello_id: livello.id, ambito, locale_id: l.id }))
       .filter((v): v is NonNullable<typeof v> => v !== null);
   }, [documento, livello, ambito]);
+  // tutte le stanze di tutti i piani (render di tutto l'edificio): com'è oggi o la proposta, se il piano ce l'ha
+  const stanzeEdificio = useMemo(() => {
+    if (!documento) return [];
+    return [...documento.livelli].sort((a, b) => a.quota - b.quota).flatMap((l) => {
+      const st = statoPerAmbito(documento, l.id, ambito) ?? l.fatto;
+      return st.locali.map((x) => ({ id: x.id, nome: x.nome, destinazione: x.destinazione, livelloId: l.id, piano: l.nome }));
+    });
+  }, [documento, ambito]);
   const piante3D = useMemo(() => {
     if (!documento || !livello) return null;
     const propostaId = ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined;
@@ -180,6 +188,7 @@ export default function RenderPlanimetriaScheda() {
         livelloId={livello.id}
         ambito={ambito}
         stanze={stanze.map((v) => ({ id: v.locale.id, nome: v.locale.nome, destinazione: v.locale.destinazione }))}
+        stanzeEdificio={documento.livelli.length > 1 ? stanzeEdificio : undefined}
         soloStanza={serie || null}
       />
 

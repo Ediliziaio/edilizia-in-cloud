@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ChangeEvent } from "react";
-import { prendiFotoDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
+import { prendiDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -185,12 +185,13 @@ export default function RenderFacciataNew() {
 
   // Arrivati dalla pianta («Render esterni»): la vista 3D è già la foto di partenza.
   useEffect(() => {
-    const f = prendiFotoDaPianta("facciata");
-    if (!f) return;
-    const preview = URL.createObjectURL(f);
-    setPhoto(f);
+    const d = prendiDaPianta("facciata");
+    if (!d) return;
+    const preview = URL.createObjectURL(d.file);
+    setPhoto(d.file);
     setPhotoPreview(preview);
-    void readPhotoMeta(f, preview).then(setPhotoMeta);
+    void readPhotoMeta(d.file, preview).then(setPhotoMeta);
+    if (d.nota) setConfig((c) => ({ ...c, note_libere: [c.note_libere, d.nota].filter(Boolean).join("\n") }));
   }, []);
 
   const runAnalysis = useCallback(

@@ -167,6 +167,11 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
   };
 }
 
+/** Locali numerati («1. Soggiorno», «2. Cucina»…), nella pianta e nella tabella: per rimandi nei capitolati. */
+export function numeraLocali(v: VistaPianta, da = 1): VistaPianta {
+  return { ...v, locali: v.locali.map((l, i) => ({ ...l, nome: `${da + i}. ${l.nome}` })) };
+}
+
 /** Ci sono misure stimate fra quelle disegnate? Serve al PDF per la nota sotto la tabella. */
 export function haMisureStimate(v: VistaPianta): boolean {
   const stimata = (o?: OrigineMisura) => o === "stimata";

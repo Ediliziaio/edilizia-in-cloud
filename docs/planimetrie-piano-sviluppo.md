@@ -54,44 +54,36 @@ tutti i piani, DXF a layer (anche ESTERNI), SVG, PNG, GLB e OBJ; allegato al pre
 interrato, giardino, piscina e lotto, condominio con interrato box, negozi e tre piani tipo,
 attico duplex con mansarda.
 
-## Da fare, in ordine
+## Fatti il 1° novembre 2026 (punti 1–6)
 
-### 1. Prima e dopo (priorità alta)
-- Scheda della pianta: confronto affiancato «com'è oggi / progetto» con cursore, in pianta e in 3D.
-- Elenco dei lavori per stanza, letto dalla pianta (demolizioni, nuove pareti, impianti, finiture)
-  con il costo dalle voci collegate: è il riassunto da mostrare al cliente.
-- Render AI prima/dopo con la stessa inquadratura (stesso fotogramma 3D, due render).
-- PDF «Prima e dopo»: le due piante sullo stesso foglio più l'elenco dei lavori.
+1. **Prima e dopo**: nella scheda della pianta confronto a cursore o affiancato; lavori stanza
+   per stanza (demolizioni, murature, porte e finestre, impianti, arredi, esterni, cambi d'uso,
+   metri di linee in più) con costi di massima; PDF «Prima e dopo» (A3, piante affiancate e
+   lavori); render AI della stessa stanza oggi e col progetto (2 crediti).
+2. **Terreno**: immagine da ricalcare salvata col piano (bucket «planimetrie») e messa in scala
+   con due punti; aree con quota (terrazzamenti, rialzi); cancelli pedonali e carrabili,
+   lampioni, faretti, irrigatori, pozzetti; l'AI legge il confine del lotto da planimetrie
+   generali e mappe e, dalla descrizione, disegna giardino, piscina, pergola e posto auto.
+3. **Edificio nel 3D**: tetto per piano (due falde con timpani, padiglione, piano) con pendenza
+   e sporto; parapetti da 1,10 m attorno a balconi e terrazzi; foro della scala ai piani sopra;
+   edificio grigio sotto un attico o un duplex ai piani alti.
+4. **Condomini e vendite**: unità con superficie netta e commerciale, millesimi proposti, listino
+   (€/m², libera/prenotata/venduta) salvato come versione, scheda PDF per appartamento.
+5. **Render AI**: render di tutte le stanze di tutti i piani; per gli esterni luce e stagione
+   (tramonto, sera con luci, inverno, primavera).
+6. **Disegno**: miniature del catalogo da immagini (`IMMAGINI_SIMBOLI`, oggi vuoto: si riempie
+   quando arrivano le immagini); locali numerati nei PDF, continui su tutti i piani.
 
-### 2. Lotto e terreno
-- Salvare l'immagine da ricalcare con la pianta (storage) e calibrarla con due punti a distanza nota.
-- AI: leggere il confine del lotto da un estratto di mappa o da un rilievo.
-- AI: «giardino con piscina 8×4, vialetto e posto auto» → aree ed elementi già posati.
-- Terreno in pendenza (quote altimetriche), muri di contenimento, rampe.
-- Cancelli pedonali e carrabili nella recinzione; illuminazione esterna; irrigazione.
+## Ancora aperto
 
-### 3. Edificio più vero nel 3D
-- Tetto: falde con pendenza e gronde; sottotetto con altezza variabile (misure in mansarda).
-- Parapetti di balconi e terrazzi al posto delle pareti piene.
-- Solaio con il foro della scala; scala che collega davvero due piani.
-- Facciata: cappotto, colori, davanzali, persiane (oggi solo nei render AI).
-
-### 4. Condomini e vendite
-- Tabelle millesimali dalle superfici delle unità (con coefficienti per balconi e cantine).
-- Scheda PDF per appartamento (pianta dell'unità, superfici, 3D), per agenzie e cantieri in vendita.
-- Listino delle unità (prezzo al mq, stato venduto/libero) collegato alla pianta.
-- Computo per unità e per piano.
-
-### 5. Render AI
-- Render in serie per piano (tutte le stanze di un piano) e per edificio.
-- Render esterni partendo dalla vista dal giardino con l'edificio intero (fatto), più preset
-  «sera», «inverno», «estate».
-- Prova reale con crediti su Demo azienda 2 per confrontare 3D e render: finora verificato solo
-  con test e anteprime, non con un render vero.
-
-### 6. Disegno
-- Simboli da immagini (vedi sotto): miniature nel catalogo e stile «presentazione» più ricco.
-- Quote automatiche esterne su tutti i piani; numerazione dei locali.
+- **Render AI veri**: non provati con crediti reali da questa sessione (serve un utente
+  collegato). Da fare una prova su Demo azienda 2: una stanza, prima e dopo, e una piscina.
+- **Immagini dei simboli**: aspettano le immagini (prompt qui sotto).
+- **Terreno in pendenza continua** (curve di livello): oggi solo superfici a quote diverse.
+- **Sottotetto con altezza variabile**: il tetto c'è, ma le stanze sotto restano alte uguali
+  e le superfici non tengono conto delle altezze minime.
+- **Scala che collega due piani nel 3D** con la rampa intera: oggi ogni piano ha la sua.
+- **Listino unità**: nessun collegamento ancora con contratti e incassi delle vendite.
 
 ## Immagini per i simboli: come generarle
 
