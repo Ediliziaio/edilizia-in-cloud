@@ -265,3 +265,45 @@ export function arredaStanza(pianta: Pianta, localeId: string, vista: Vista, des
   }
   return esito;
 }
+
+/**
+ * Maglia di pilastri (capannoni, autorimesse, pilotis): una griglia a passo fisso dentro la
+ * stanza, a partire dal centro così la maglia è simmetrica. I pilastri troppo vicini ai muri
+ * (meno di mezzo passo) non si mettono: lì il carico lo portano i muri.
+ */
+export function magliaPilastri(pianta: Pianta, localeId: string, vista: Vista, passo = 600, lato = 30): { pianta: Pianta; aggiunti: string[] } {
+  const locale = pianta.locali.find((l) => l.id === localeId);
+  if (!locale || locale.contorno.length < 3 || !(passo >= 200)) return { pianta, aggiunti: [] };
+  const c = locale.contorno;
+  const xs = c.map((p) => p.x), ys = c.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const nx = Math.floor((x1 - x0) / 2 / passo), ny = Math.floor((y1 - y0) / 2 / passo);
+  const dispariX = (x1 - x0) / passo % 2 >= 1, dispariY = (y1 - y0) / passo % 2 >= 1;
+  const posizioni = (centro: number, n: number, mezzo: boolean) => {
+    const out: number[] = [];
+    for (let k = -n; k <= n; k++) out.push(centro + (mezzo ? (k + 0.5) * passo : k * passo));
+    return out;
+  };
+  const distanzaDalBordo = (p: Punto) => {
+    let d = Infinity;
+    for (let i = 0; i < c.length; i++) {
+      const a = c[i], b = c[(i + 1) % c.length];
+      const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2));
+      d = Math.min(d, Math.hypot(p.x - (a.x + t * (b.x - a.x)), p.y - (a.y + t * (b.y - a.y))));
+    }
+    return d;
+  };
+  const voce = CATALOGO.find((v) => v.tipo === "pilastro")!;
+  let p = pianta;
+  const aggiunti: string[] = [];
+  for (const x of posizioni(cx, nx, dispariX)) for (const y of posizioni(cy, ny, dispariY)) {
+    const q = { x: Math.round(x), y: Math.round(y) };
+    if (!dentro(q, c) || distanzaDalBordo(q) < passo / 2 - 1) continue;
+    const r = aggiungiElemento(p, { ...voce, larghezza: lato, profondita: lato, altezza: locale.altezza }, q, { stato: statoNuovo(vista) });
+    p = r.pianta;
+    aggiunti.push(r.id);
+  }
+  return { pianta: p, aggiunti };
+}

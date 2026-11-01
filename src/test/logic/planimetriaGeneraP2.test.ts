@@ -110,3 +110,33 @@ describe("preparazione dell'immagine", () => {
     expect(daInvertire(luminanzaMedia(pixel(245, 245, 245), 1))).toBe(false);
   });
 });
+
+import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
+import { magliaPilastri } from "@/components/planimetrie/editor/arreda";
+import * as C from "@/components/planimetrie/editor/comandi";
+
+describe("condomini e capannoni", () => {
+  it("le stanze lette con l'appartamento portano la sigla e il computo ha i totali per appartamento", () => {
+    const r: RispostaAI = {
+      sistema: "immagine", leggibile: true, motivo_non_leggibile: null, altezza_m: null,
+      locali: [stanza("Camera", 100, 100, 500, 500, { unita: "A" }), stanza("Bagno", 100, 510, 500, 700, { unita: "A" }), stanza("Camera", 510, 100, 900, 500, { unita: "B" })],
+      aperture: [], quote: [{ valore_m: 4, da: [100, 100], a: [500, 100] }],
+    };
+    const p = costruisciPiani(r, opz).planimetria;
+    expect(p.livelli[0].fatto.locali.map((l) => l.unita)).toEqual(["A", "A", "B"]);
+    const q = calcolaQuantita(p);
+    const a = q["fatto:unita:a.pavimento_mq"].valore, b = q["fatto:unita:b.pavimento_mq"].valore;
+    expect(a).toBeGreaterThan(b);
+    expect(a + b).toBeCloseTo(q["fatto:pianta.pavimento_mq"].valore, 2);
+  });
+
+  it("maglia di pilastri a 6 m in un capannone 24 × 18: lontano dai muri, contati nel computo", () => {
+    const st = C.aggiungiStanza({ versione: 1, unita: "cm", muri: [], aperture: [], locali: [] }, C.rettangolo({ x: 0, y: 0 }, { x: 2400, y: 1800 }));
+    const r = magliaPilastri(st.pianta, st.id, "fatto", 600);
+    // x: 600, 1200, 1800 · y: 600, 1200 → 6 pilastri
+    expect(r.aggiunti).toHaveLength(6);
+    const xs = [...new Set(r.pianta.elementi!.map((e) => e.centro.x))].sort((a, b) => a - b);
+    expect(xs).toEqual([600, 1200, 1800]);
+    expect(magliaPilastri(st.pianta, st.id, "fatto", 100).aggiunti).toHaveLength(0);
+  });
+});

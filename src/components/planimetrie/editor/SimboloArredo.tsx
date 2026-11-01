@@ -136,6 +136,8 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
       const r = Math.min(w, d) / 2;
       return (<g><circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} /><circle cx={0} cy={0} r={r * 0.35} fill={colore} /></g>);
     }
+    case "pilastro":
+      return (<g><rect x={x0} y={y0} width={w} height={d} fill={colore} stroke={colore} strokeWidth={spessore} /><line x1={x0} y1={y0} x2={-x0} y2={-y0} stroke={riempimento} strokeWidth={spessore} /></g>);
     case "quadro_elettrico":
       return (<g>{base}<path d={`M ${x0} ${y0} L ${-x0} ${y0} L ${x0} ${-y0} Z`} fill={colore} /></g>);
     case "termosifone":

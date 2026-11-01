@@ -37,6 +37,10 @@ export interface AzioniPannello {
   modificaTesto: (id: string, campi: Partial<Pick<TestoLavoro, "testo" | "rotazione">>) => void;
   /** Arredi tipici della destinazione, appoggiati alle pareti. */
   arreda: (localeId: string, destinazione: Destinazione) => void;
+  /** Appartamento della stanza (condomini, bifamiliari); vuoto per toglierlo. */
+  unitaStanza: (localeId: string, unita: string) => void;
+  /** Pilastri a maglia regolare dentro la stanza (capannoni). */
+  magliaPilastri: (localeId: string, passoCm: number) => void;
 }
 
 interface Props {
@@ -349,6 +353,15 @@ function DettaglioStanza({
           </SelectContent>
         </Select>
       </div>
+      {!essenziale && diLavoro && (
+        <div className="space-y-1">
+          <Label htmlFor="pl-unita">Appartamento (condominio, bifamiliare)</Label>
+          <Input id="pl-unita" key={`${locale.id}-unita`} defaultValue={diLavoro.unita ?? ""} placeholder="Es. A, Int. 3, Parti comuni" maxLength={40}
+            onBlur={(e) => e.target.value.trim() !== (diLavoro.unita ?? "") && azioni.unitaStanza(locale.id, e.target.value.trim())}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+          <p className="text-[11px] text-muted-foreground">Le stanze con la stessa sigla fanno un appartamento: nel computo trovi superfici e pareti per appartamento.</p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">
         <div>
           <div className="text-xs text-muted-foreground">Pavimento</div>
@@ -391,6 +404,7 @@ function DettaglioStanza({
           <p className="text-[11px] text-muted-foreground">Mette gli arredi tipici di {DESTINAZIONI.find((d) => d.valore === locale.destinazione)?.etichetta.toLowerCase() ?? "questa stanza"} lungo le pareti, lontano da porte e finestre. Poi li sposti come vuoi; il 3D e il render AI li usano dove stanno.</p>
         </div>
       )}
+      {!essenziale && diLavoro && q.mq >= 60 && <MagliaPilastri onMetti={(passo) => azioni.magliaPilastri(locale.id, passo)} />}
       <div className="flex flex-wrap gap-2 pt-1">
         {q.stimata && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "locale", id: locale.id })}>
@@ -403,6 +417,21 @@ function DettaglioStanza({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function MagliaPilastri({ onMetti }: { onMetti: (passoCm: number) => void }) {
+  const [passo, setPasso] = useState("6,00");
+  const cm = leggiMisura(passo);
+  return (
+    <div className="space-y-1 rounded-md border border-dashed p-2">
+      <Label htmlFor="pl-passo" className="text-xs">Pilastri a maglia (capannone, autorimessa)</Label>
+      <div className="flex gap-2">
+        <Input id="pl-passo" className="h-8 w-24" value={passo} onChange={(e) => setPasso(e.target.value)} aria-label="Passo dei pilastri in metri" />
+        <Button size="sm" variant="secondary" disabled={!cm || cm < 200} onClick={() => cm && onMetti(cm)}>Metti i pilastri</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Passo in metri, uguale nei due versi; la maglia parte dal centro. Si contano nel computo come «Pilastri».</p>
     </div>
   );
 }

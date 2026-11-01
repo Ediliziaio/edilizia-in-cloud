@@ -45,7 +45,7 @@ import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
 import { CATALOGO, GRUPPI_CATALOGO, type VoceCatalogo } from "./catalogo";
 import { SimboloArredo } from "./SimboloArredo";
-import { arredaStanza } from "./arreda";
+import { arredaStanza, magliaPilastri } from "./arreda";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
 import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
 
@@ -998,6 +998,18 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       },
       modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
       modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
+      unitaStanza: (id, unita) => applica(C.modificaLocale(p(), id, { unita: unita || undefined })),
+      magliaPilastri: (id, passo) => {
+        const r = magliaPilastri(p(), id, stato.current.vista, passo);
+        if (!r.aggiunti.length) {
+          setAvviso("Con questo passo non ci sta nessun pilastro lontano dai muri: prova un passo più piccolo.");
+          return;
+        }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Messi ${r.aggiunti.length} pilastri: trascinane uno per spostarli tutti, Canc per toglierli.`);
+      },
       arreda: (id, destinazione) => {
         const r = arredaStanza(p(), id, stato.current.vista, destinazione);
         if (!r.aggiunti.length) {

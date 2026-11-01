@@ -138,6 +138,8 @@ export interface Locale extends ConOrigine {
   contorno: Punto[];
   altezza: number;
   finiture?: Finiture;
+  /** Appartamento o unità immobiliare (condominio, bifamiliare): «A», «Int. 3», «Parti comuni». */
+  unita?: string;
 }
 
 /** Simboli e arredi. `tipo` è libero (catalogo dei simboli: fase editor). */
@@ -423,6 +425,7 @@ function validaStato(
     if (!Array.isArray(o.contorno) || o.contorno.length < 3) errori.push(`${e}: il contorno deve avere almeno tre punti.`);
     else o.contorno.forEach((pt: unknown, k: number) => punto(pt, e, `il punto ${k + 1} del contorno`));
     positivo(o, "altezza", e, "l'altezza");
+    if (o.unita !== undefined && (typeof o.unita !== "string" || o.unita.length > 40)) errori.push(`${e}: l'unità immobiliare deve essere un testo breve.`);
     if (o.finiture !== undefined) {
       if (!eOggetto(o.finiture)) errori.push(`${e}: le finiture non sono valide.`);
       else if (o.finiture.rivestimento !== undefined && o.finiture.rivestimento !== null) {

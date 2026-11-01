@@ -421,6 +421,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   const locali: Locale[] = locali3.map((l, i) => ({
     id: `l${i + 1}`,
     nome: piuUnita && l.unita ? `${l.unita} · ${l.nome}` : l.nome,
+    ...(piuUnita && l.unita ? { unita: l.unita.slice(0, 40) } : {}),
     destinazione: l.destinazione as Destinazione,
     contorno: contorni[i].map(su),
     altezza: altezze[i].valore,

@@ -177,7 +177,7 @@ export function aggiungiStanzaDaMisure(
   return aggiungiStanza(pianta, contorno, { ...o, spessore });
 }
 
-export function modificaLocale(pianta: Pianta, id: string, campi: Partial<Pick<Locale, "nome" | "destinazione" | "altezza" | "origine">>): Pianta {
+export function modificaLocale(pianta: Pianta, id: string, campi: Partial<Pick<Locale, "nome" | "destinazione" | "altezza" | "origine" | "unita">>): Pianta {
   return { ...pianta, locali: pianta.locali.map((l) => (l.id === id ? { ...l, ...campi } : l)) };
 }
 

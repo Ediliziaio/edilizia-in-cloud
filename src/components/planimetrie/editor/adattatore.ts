@@ -85,6 +85,8 @@ export interface Locale {
   contorno: Punto[];
   altezza: number;
   finiture?: Finiture;
+  /** Appartamento (condominio, bifamiliare). */
+  unita?: string;
   /** «nuovo» se la stanza nasce disegnata nel progetto. */
   stato: StatoElemento;
   origine: Origine;
@@ -399,6 +401,7 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
     contorno: contornoSullAsse(l.contorno, fatto.muri).map(capovolgi),
     altezza: l.altezza,
     ...(l.finiture ? { finiture: l.finiture } : {}),
+    ...(l.unita ? { unita: l.unita } : {}),
     stato: "esistente",
     origine: origineDi(l),
   }));
@@ -498,6 +501,7 @@ function localeAModello(pianta: Pianta, l: Locale, prima?: LocaleModello): Local
     contorno: contornoInterno(pianta, l).map(capovolgi),
     altezza: l.altezza,
     ...(l.finiture ? { finiture: l.finiture } : {}),
+    ...(l.unita ? { unita: l.unita } : {}),
     ...origineVerso(l.origine, prima),
   };
 }
@@ -607,6 +611,7 @@ function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase?: P
       contorno: f.contorno.map((p) => ({ x: arrotonda2(p.x), y: arrotonda2(p.y) })),
       altezza: fonte?.altezza ?? ALTEZZA_PIANO,
       ...(fonte?.finiture ? { finiture: fonte.finiture } : {}),
+      ...(fonte?.unita ? { unita: fonte.unita } : {}),
       origine: originePeggiore(...origini),
     });
   }

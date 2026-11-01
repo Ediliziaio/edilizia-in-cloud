@@ -5,7 +5,7 @@
 export interface VoceCatalogo {
   tipo: string;
   nome: string;
-  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Impianti";
+  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Impianti" | "Struttura";
   larghezza: number;
   profondita: number;
   altezza: number;
@@ -38,8 +38,10 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "scarico", nome: "Scarico", gruppo: "Impianti", larghezza: 24, profondita: 24, altezza: 0 },
   { tipo: "termosifone", nome: "Termosifone", gruppo: "Impianti", larghezza: 80, profondita: 12, altezza: 60 },
   { tipo: "split", nome: "Split clima", gruppo: "Impianti", larghezza: 90, profondita: 25, altezza: 220 },
+  // Struttura: pilastri di capannoni, garage, piani pilotis.
+  { tipo: "pilastro", nome: "Pilastro", gruppo: "Struttura", larghezza: 30, profondita: 30, altezza: 300 },
 ];
 
-export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Impianti"] as const;
+export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Impianti", "Struttura"] as const;
 
 export const nomeDelTipo = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)?.nome ?? tipo.replace(/_/g, " ");

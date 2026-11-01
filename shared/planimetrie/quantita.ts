@@ -134,6 +134,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
 
   const totaliPianta = new Map<string, Accumulo>();
   const totaliDestinazione = new Map<string, Map<string, Accumulo>>();
+  // Per appartamento (condomini, bifamiliari): «unita:<sigla>.pavimento_mq».
+  const totaliUnita = new Map<string, { nome: string; mappa: Map<string, Accumulo> }>();
   const demolizioni = new Map<string, Accumulo>();
   const costruzioni = new Map<string, Accumulo>();
   const aperture = new Map<string, { acc: Accumulo; descrizione: string }>();
@@ -155,6 +157,12 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         const perDest = totaliDestinazione.get(l.destinazione) ?? new Map<string, Accumulo>();
         somma(perDest, misura, acc);
         totaliDestinazione.set(l.destinazione, perDest);
+        if (l.unita?.trim()) {
+          const sigla = siglaUnita(l.unita);
+          const perUnita = totaliUnita.get(sigla) ?? { nome: l.unita.trim(), mappa: new Map<string, Accumulo>() };
+          somma(perUnita.mappa, misura, acc);
+          totaliUnita.set(sigla, perUnita);
+        }
       }
     }
 
@@ -202,6 +210,9 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [dest, mappa] of totaliDestinazione) {
     for (const [misura, acc] of mappa) metti(`destinazione:${dest}`, misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — locali «${dest}»`);
   }
+  for (const [sigla, { nome, mappa }] of totaliUnita) {
+    for (const [misura, acc] of mappa) metti(`unita:${sigla}`, misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — ${nome}`);
+  }
   const nomiMuri: Record<string, string> = { muri_ml: "lunghezza", muri_mq: "superficie", muri_mc: "volume" };
   for (const [misura, acc] of demolizioni) metti("demolizioni", misura, acc, `Pareti da demolire (${nomiMuri[misura]})`);
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
@@ -209,12 +220,16 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
 }
 
+/** La sigla di un appartamento dentro una chiave: «Int. 3» → «int_3». */
+export const siglaUnita = (unita: string) =>
+  unita.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "unita";
+
 /** Nomi al plurale per le righe del computo («Prese nuove», «WC esistenti»). */
 const NOMI_ELEMENTI: Record<string, string> = {
   wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
-  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri",
   presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
   scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",
 };
