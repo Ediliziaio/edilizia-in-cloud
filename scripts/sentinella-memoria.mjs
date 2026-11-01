@@ -27,6 +27,14 @@ export const SOGLIE = {
   attenzione: { impegnataPct: 90, disponibilePct: 20, swapPct: 25 },
   critico: { impegnataPct: 97, disponibilePct: 10, swapPct: 50 },
 };
+/*
+ * Lo swap conta solo se anche la RAM disponibile è bassa (1/11/2026). Linux non riporta in RAM le pagine
+ * finite nello swap durante un picco: lo swap resta occupato per giorni anche con la RAM libera al 60%.
+ * Dal 20/10 lo swap è salito dall'1 al 50% e la sentinella dava «critico» a ogni giro con il database sano
+ * (risposte in 0,6 s, nessuna query attiva): un allarme sempre rosso non avvisa più nessuno.
+ * Con la RAM sopra questa soglia lo swap alto è solo un avviso, non un fallimento.
+ */
+export const SWAP_CONTA_SOTTO_DISPONIBILE_PCT = 30;
 
 const NOMI = ["MemTotal", "MemAvailable", "SwapTotal", "SwapFree", "Committed_AS", "CommitLimit"];
 
@@ -55,7 +63,8 @@ export function leggiMemoria(testo) {
 
 /** "ok" | "attenzione" | "critico" per una lettura. */
 export function livello(l) {
-  const sopra = (s) => l.impegnataPct >= s.impegnataPct || l.disponibilePct <= s.disponibilePct || l.swapPct >= s.swapPct;
+  const swapConta = l.disponibilePct <= SWAP_CONTA_SOTTO_DISPONIBILE_PCT;
+  const sopra = (s) => l.impegnataPct >= s.impegnataPct || l.disponibilePct <= s.disponibilePct || (swapConta && l.swapPct >= s.swapPct);
   if (sopra(SOGLIE.critico)) return "critico";
   if (sopra(SOGLIE.attenzione)) return "attenzione";
   return "ok";
@@ -162,6 +171,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     } else if (liv === "critico") {
       console.error("::error title=MEMORIA del database quasi finita::Edilizia in Cloud: il server del database è al limite della memoria da almeno un minuto. Rischio blocco o riavvio entro pochi minuti. Guarda cosa sta girando (invii di massa, importazioni, automazioni) e fermalo.");
       process.exitCode = 1;
+    } else if (liv === "ok" && letture.length && letture.every((l) => l.swapPct >= SOGLIE.critico.swapPct)) {
+      // Swap rimasto pieno da un picco passato, RAM disponibile: si dice, ma non è un allarme.
+      console.warn(`::warning title=Swap del database alto ma RAM disponibile::Swap al ${Math.round(letture[0].swapPct)}% con ${Math.round(letture[0].disponibilePct)}% di RAM disponibile: resto di un picco passato, non un blocco in corso. Se i picchi si ripetono, riduci il pool di connessioni di PostgREST o aumenta il piano.`);
     } else if (liv === "attenzione") {
       console.error("::error title=Memoria del database alta::Edilizia in Cloud: la memoria del server del database è sopra il livello di attenzione da almeno un minuto. Non è ancora un blocco: controlla cosa sta girando.");
       process.exitCode = 1;
