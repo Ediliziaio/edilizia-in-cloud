@@ -16,7 +16,7 @@ interface Pennello {
   sottile: Tratto;
 }
 
-type Forma = { punti: Punto[]; chiuso: boolean; riempimento?: string; sottile?: boolean };
+export type Forma = { punti: Punto[]; chiuso: boolean; riempimento?: string; sottile?: boolean };
 
 const rett = (x0: number, y0: number, x1: number, y1: number, riempimento?: string, r = 0): Forma => ({
   punti: r > 0 ? rettangoloArrotondato(x0, y0, x1, y1, r) : [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }],
@@ -44,103 +44,171 @@ const C = {
   scuro: "#3F3F46",
 };
 
-function forme(tipo: ElementoVista["tipo"], L: number, P: number): Forma[] {
+/**
+ * Uovo: la forma delle tazze di WC e bidet. Centro (cx, cy), mezza larghezza rx, raggio verso
+ * il muro `su` e verso la stanza `giu` (la parte davanti è più lunga e più stretta).
+ */
+function uovo(cx: number, cy: number, rx: number, su: number, giu: number, riempimento?: string, n = 40): Forma {
+  const punti: Punto[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const sin = Math.sin(t);
+    const verso = sin >= 0 ? giu : su;
+    // davanti si stringe un po': la tazza è a uovo, non a ellisse
+    const stringi = sin > 0 ? 1 - 0.18 * sin * sin : 1;
+    punti.push({ x: cx + rx * Math.cos(t) * stringi, y: cy + verso * sin });
+  }
+  return { punti, chiuso: true, riempimento };
+}
+const cerchio = (cx: number, cy: number, r: number, riempimento?: string): Forma => ell(cx, cy, r, r, riempimento);
+/** Rubinetto visto dall'alto: un tondino sulla piastra e la canna verso la vasca. */
+const rubinetto = (cx: number, cy: number, canna: number): Forma[] => [cerchio(cx, cy, 2.2, C.metallo), linea(cx, cy + 2.2, cx, cy + canna)];
+
+/** Le forme di un simbolo, nel suo riferimento (cm, attacco al muro in alto). Serve anche all'editor. */
+export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
   const w = L / 2, h = P / 2;
   switch (tipo) {
-    case "wc":
+    case "wc": {
+      // cassetta (o placca) al muro, collo, tazza a uovo con il foro e il sedile
+      const cass = Math.min(P * 0.3, 18);
+      const ty = -h + cass + (P - cass) * 0.5;
+      const ryS = (P - cass) * 0.44, ryG = (P - cass) * 0.52;
       return [
-        rett(-w, -h, w, -h + P * 0.28, C.ceramica, 3),
-        ell(0, -h + P * 0.28 + P * 0.36, w * 0.92, P * 0.37, C.ceramica),
-        ell(0, -h + P * 0.28 + P * 0.38, w * 0.55, P * 0.24, C.acqua),
+        rett(-w, -h, w, -h + cass, C.ceramica, 3),
+        rett(-w * 0.5, -h + cass - 1, w * 0.5, -h + cass + 5, C.ceramica, 2),
+        uovo(0, ty, w * 0.92, ryS, ryG, C.ceramica),
+        uovo(0, ty + 2, w * 0.6, ryS * 0.62, ryG * 0.7, C.acqua),
+        linea(-w * 0.5, -h + cass + 5, w * 0.5, -h + cass + 5),
       ];
-    case "bidet":
+    }
+    case "bidet": {
+      const ty = -h + P * 0.5;
       return [
-        ell(0, 0.04 * P, w * 0.95, h * 0.95, C.ceramica),
-        ell(0, 0.1 * P, w * 0.55, h * 0.55, C.acqua),
-        ell(0, -h + P * 0.12, L * 0.06, L * 0.06, C.metallo),
+        uovo(0, ty, w * 0.96, P * 0.42, P * 0.52, C.ceramica),
+        uovo(0, ty + 3, w * 0.62, P * 0.27, P * 0.36, C.acqua),
+        cerchio(0, ty + P * 0.18, 1.6, C.metallo),
+        ...rubinetto(0, -h + P * 0.1, P * 0.08),
       ];
-    case "lavabo":
+    }
+    case "lavabo": {
+      // piano col bordo, catino ovale, piletta, miscelatore dietro
       return [
-        rett(-w, -h, w, h, C.ceramica, 4),
-        ell(0, P * 0.08, w * 0.72, h * 0.62, C.acqua),
-        ell(0, -h + P * 0.14, L * 0.04, L * 0.04, C.metallo),
+        rett(-w, -h, w, h, C.ceramica, 5),
+        ell(0, P * 0.08, w * 0.74, h * 0.66, C.acqua),
+        ell(0, P * 0.08, w * 0.66, h * 0.56),
+        cerchio(0, P * 0.12, 1.8, C.metallo),
+        ...rubinetto(0, -h + P * 0.11, P * 0.12),
       ];
-    case "doccia":
+    }
+    case "doccia": {
+      // piatto con bordo, piletta, linee della pendenza, vetro sul lato aperto
+      const m = Math.min(L, P);
       return [
-        rett(-w, -h, w, h, C.acqua),
-        linea(-w, -h, w, h),
-        linea(w, -h, -w, h),
-        ell(0, 0, Math.min(L, P) * 0.05, Math.min(L, P) * 0.05, C.metallo),
+        rett(-w, -h, w, h, C.acqua, 2),
+        rett(-w + 4, -h + 4, w - 4, h - 4),
+        linea(-w + 4, -h + 4, w - 4, h - 4),
+        linea(w - 4, -h + 4, -w + 4, h - 4),
+        cerchio(0, 0, m * 0.06, C.metallo),
+        cerchio(0, 0, m * 0.03),
+        ...rubinetto(0, -h + 6, 6),
+        { punti: [{ x: -w, y: h }, { x: w, y: h }], chiuso: false },
       ];
-    case "vasca":
+    }
+    case "vasca": {
+      const m = Math.min(L, P);
       return [
         rett(-w, -h, w, h, C.ceramica, 6),
-        rett(-w + 6, -h + 6, w - 6, h - 6, C.acqua, Math.min(L, P) * 0.3),
-        ell(-w + L * 0.14, 0, 2.5, 2.5, C.metallo),
+        // interno più largo alla testa (a destra), piletta ai piedi (a sinistra)
+        rett(-w + 7, -h + 7, w - 7, h - 7, C.acqua, m * 0.32),
+        cerchio(-w + L * 0.13, 0, 2.6, C.metallo),
+        ...[-1, 1].map((k) => cerchio(-w + 4, k * 6, 1.8, C.metallo)),
+        rett(w - L * 0.16, -h * 0.35, w - 9, h * 0.35, C.ceramica, 6),
       ];
+    }
     case "cucina": {
-      const fuochi = [-1, 1].flatMap((sx) => [-1, 1].map((sy) => ell(w * 0.45 + sx * 11, sy * P * 0.18, 7, 7, C.scuro)));
+      // piano di lavoro, lavello con gocciolatoio, piano cottura a 4 fuochi
+      const lavL = Math.min(L * 0.36, 80);
+      const xl = -w + 8;
+      const vasca = rett(xl, -h + P * 0.18, xl + lavL * 0.55, h - P * 0.16, C.metallo, 4);
+      const goccia = [0.2, 0.4, 0.6, 0.8].map((k) => linea(xl + lavL * 0.62, -h + P * (0.2 + 0.6 * k), xl + lavL, -h + P * (0.2 + 0.6 * k)));
+      const cx = w - Math.min(L * 0.22, 40), r = Math.min(P * 0.12, 8);
+      const fuochi = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [
+        cerchio(cx + sx * r * 1.6, sy * r * 1.5, r, C.scuro), cerchio(cx + sx * r * 1.6, sy * r * 1.5, r * 0.45),
+      ]));
       return [
         rett(-w, -h, w, h, C.piano),
-        rett(-w * 0.55, -h + 8, -w * 0.05, h - 8, C.metallo, 4),
+        linea(-w, h - 3, w, h - 3),
+        rett(xl - 2, -h + P * 0.14, xl + lavL + 2, h - P * 0.12, C.metallo, 3),
+        vasca,
+        cerchio(xl + lavL * 0.27, 0, 2, C.scuro),
+        ...goccia,
+        ...rubinetto(xl + lavL * 0.27, -h + 5, P * 0.1),
+        rett(cx - r * 3.2, -r * 3.1, cx + r * 3.2, r * 3.1, C.scuro, 2),
         ...fuochi,
       ];
     }
     case "frigorifero":
-      return [rett(-w, -h, w, h, C.metallo), linea(-w, h - 5, w, h - 5), linea(-w, -h, w, h - 5)];
+      return [rett(-w, -h, w, h, C.metallo, 2), linea(-w, h - 5, w, h - 5), rett(w - 6, -h * 0.4, w - 3, h * 0.4, C.scuro, 1)];
     case "lavatrice":
-      return [rett(-w, -h, w, h, C.metallo, 3), linea(-w, -h + P * 0.2, w, -h + P * 0.2), ell(0, P * 0.1, L * 0.3, L * 0.3, C.acqua)];
+      return [rett(-w, -h, w, h, C.metallo, 3), linea(-w, -h + P * 0.18, w, -h + P * 0.18), cerchio(0, P * 0.08, Math.min(L, P) * 0.32, C.acqua), cerchio(0, P * 0.08, Math.min(L, P) * 0.22)];
     case "caldaia":
-      return [rett(-w, -h, w, h, C.metallo, 2), ell(0, 0, Math.min(w, h) * 0.45, Math.min(w, h) * 0.45, C.scuro)];
+      return [rett(-w, -h, w, h, C.metallo, 2), cerchio(0, 0, Math.min(w, h) * 0.45, C.scuro), linea(-w * 0.6, h - 4, w * 0.6, h - 4)];
     case "letto_matrimoniale":
     case "letto_singolo": {
-      const cuscini = tipo === "letto_matrimoniale"
-        ? [rett(-w + 8, -h + 6, -4, -h + 32, C.ceramica, 6), rett(4, -h + 6, w - 8, -h + 32, C.ceramica, 6)]
-        : [rett(-w + 8, -h + 6, w - 8, -h + 32, C.ceramica, 6)];
+      const doppio = tipo === "letto_matrimoniale";
+      const cuscini = doppio
+        ? [rett(-w + 8, -h + 8, -5, -h + 34, C.ceramica, 7), rett(5, -h + 8, w - 8, -h + 34, C.ceramica, 7)]
+        : [rett(-w + 8, -h + 8, w - 8, -h + 34, C.ceramica, 7)];
+      const piega = -h + P * 0.36;
       return [
         rett(-w, -h, w, h, C.legnoChiaro, 3),
-        rett(-w + 3, -h + 3, w - 3, h - 3, C.lenzuolo, 3),
+        rett(-w + 3, -h + 4, w - 3, h - 3, C.lenzuolo, 3),
         ...cuscini,
-        rett(-w + 3, -h + P * 0.32, w - 3, h - 3, C.tessutoChiaro, 3),
-        linea(-w + 3, -h + P * 0.4, w - 3, -h + P * 0.4),
+        // coperta col risvolto a triangolo, come nelle piante arredate
+        { punti: [{ x: -w + 3, y: piega }, { x: w - 3, y: piega }, { x: w - 3, y: h - 3 }, { x: -w + 3, y: h - 3 }], chiuso: true, riempimento: C.tessutoChiaro },
+        { punti: [{ x: w - 3, y: piega }, { x: w - 3 - Math.min(L * 0.35, 45), y: piega + Math.min(P * 0.16, 30) }, { x: w - 3 - Math.min(L * 0.35, 45), y: piega }], chiuso: true, riempimento: C.lenzuolo },
+        linea(-w + 3, piega + 6, w - 3, piega + 6),
       ];
     }
     case "divano": {
-      const bracciolo = L * 0.1, schienale = P * 0.25;
-      const seduta = (L - 2 * bracciolo) / 3;
+      const bracciolo = Math.min(L * 0.11, 22), schienale = P * 0.26;
+      const posti = Math.max(2, Math.round((L - 2 * bracciolo) / 65));
+      const seduta = (L - 2 * bracciolo) / posti;
       return [
-        rett(-w, -h, w, h, C.tessuto, 6),
-        rett(-w + bracciolo, -h + schienale, w - bracciolo, h, C.tessutoChiaro, 3),
-        ...[1, 2].map((i) => linea(-w + bracciolo + seduta * i, -h + schienale, -w + bracciolo + seduta * i, h)),
+        rett(-w, -h, w, h, C.tessuto, 8),
+        rett(-w + bracciolo, -h + schienale, w - bracciolo, h - 2, C.tessutoChiaro, 5),
+        ...Array.from({ length: posti - 1 }, (_, i) => linea(-w + bracciolo + seduta * (i + 1), -h + schienale + 3, -w + bracciolo + seduta * (i + 1), h - 4)),
+        ...Array.from({ length: posti }, (_, i) => rett(-w + bracciolo + seduta * i + 4, -h + 4, -w + bracciolo + seduta * (i + 1) - 4, -h + schienale - 2, C.tessuto, 6)),
       ];
     }
-    case "tavolo": {
-      const sedie: Forma[] = [];
-      const sedia = (cx: number, cy: number, giu: boolean) => {
-        const s = 21;
-        sedie.push(rett(cx - s, cy - s, cx + s, cy + s, C.legno, 3));
-        sedie.push(linea(cx - s, giu ? cy + s - 5 : cy - s + 5, cx + s, giu ? cy + s - 5 : cy - s + 5));
-      };
-      const perLato = L >= 150 ? 2 : 1;
-      for (let i = 0; i < perLato; i++) {
-        const cx = perLato === 1 ? 0 : -w / 2 + i * w;
-        sedia(cx, -h - 16, false);
-        sedia(cx, h + 16, true);
-      }
-      return [...sedie, rett(-w, -h, w, h, C.legnoChiaro, 2)];
-    }
+    case "tavolo":
+      // le sedie sono elementi a sé (si mettono, si spostano e si contano una per una)
+      return [rett(-w, -h, w, h, C.legnoChiaro, 3), rett(-w + 4, -h + 4, w - 4, h - 4)];
     case "sedia":
-      return [rett(-w, -h, w, h, C.legno, 3), linea(-w, -h + 5, w, -h + 5)];
-    case "armadio":
-      return [rett(-w, -h, w, h, C.legnoChiaro), linea(-w, 0, w, 0), linea(0, -h, 0, h)];
+      return [rett(-w, -h, w, h, C.legno, 5), rett(-w + 3, -h + 3, w - 3, -h + 9, C.legnoChiaro, 2)];
+    case "armadio": {
+      // ante e appendiabiti (le grucce viste dall'alto)
+      const ante = Math.max(1, Math.round(L / 50));
+      const grucce = Math.max(3, Math.floor(L / 12));
+      return [
+        rett(-w, -h, w, h, C.legnoChiaro),
+        linea(-w + 4, 0, w - 4, 0),
+        ...Array.from({ length: ante - 1 }, (_, i) => linea(-w + (L * (i + 1)) / ante, h - 4, -w + (L * (i + 1)) / ante, h)),
+        ...Array.from({ length: grucce }, (_, i) => linea(-w + 6 + ((L - 12) * (i + 0.5)) / grucce - 3, -h * 0.55, -w + 6 + ((L - 12) * (i + 0.5)) / grucce + 3, h * 0.55)),
+        linea(-w, h - 4, w, h - 4),
+      ];
+    }
     case "comodino":
-      return [rett(-w, -h, w, h, C.legno, 2), ell(0, 0, Math.min(w, h) * 0.45, Math.min(w, h) * 0.45, C.lenzuolo)];
+      return [rett(-w, -h, w, h, C.legno, 2), cerchio(0, 0, Math.min(w, h) * 0.45, C.lenzuolo), cerchio(0, 0, Math.min(w, h) * 0.15)];
     case "scrivania":
-      return [rett(-w, -h, w, h, C.legnoChiaro, 2)];
+      return [rett(-w, -h, w, h, C.legnoChiaro, 2), rett(-w * 0.35, -h + 4, w * 0.35, -h + 8, C.scuro, 1), ell(w * 0.55, h * 0.3, 5, 4)];
     default:
       return [rett(-w, -h, w, h, C.piano), linea(-w, -h, w, h)];
   }
 }
+
+/** I tipi che hanno un disegno qui (gli altri, come i punti impianto, li disegna l'editor). */
+export const TIPI_CON_FORME = new Set(["wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);
 
 export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiva[] {
   const presentazione = stile === "presentazione";
@@ -150,7 +218,7 @@ export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiv
     sottile: { colore: presentazione ? "#6B7280" : "#555555", spessoreMm: 0.1 },
   };
   const mondo = (q: Punto) => somma(ruota(q, e.rotazione ?? 0), e.posizione);
-  return forme(e.tipo, e.larghezza, e.profondita).map((f) => ({
+  return formeSimbolo(e.tipo, e.larghezza, e.profondita).map((f) => ({
     tipo: "poligono" as const,
     layer: "ARREDI" as const,
     punti: f.punti.map(mondo),

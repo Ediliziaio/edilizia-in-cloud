@@ -2,9 +2,28 @@
  * Simboli di arredi e sanitari nell'editor (fase 3): disegno da pianta architettonica, in cm,
  * centrato sull'origine. A 0° il lato «attacco» (schienale, cassetta del WC, muro) è in alto (y negativo).
  */
+import { formeSimbolo, TIPI_CON_FORME } from "@/lib/planimetrie/esporta/simboli";
+
+/** Acqua e ripiani appena colorati anche nell'editor: si capisce subito cos'è. */
+const TINTE: Record<string, string> = { "#D6ECF5": "#e6f3f9", "#3F3F46": "#e5e7eb", "#EEF0F2": "#f3f4f6" };
+
 export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spessore, riempimento = "#ffffff" }: {
   tipo: string; larghezza: number; profondita: number; colore: string; spessore: number; riempimento?: string;
 }) {
+  // Sanitari, cucina e arredi: lo stesso disegno delle esportazioni (PDF, DXF, PNG).
+  if (TIPI_CON_FORME.has(tipo)) {
+    return (
+      <g>
+        {formeSimbolo(tipo, w, d).map((f, i) => {
+          const pts = f.punti.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+          const sw = f.sottile ? spessore * 0.6 : spessore;
+          return f.chiuso
+            ? <polygon key={i} points={pts} fill={riempimento === "#ffffff" && f.riempimento ? (TINTE[f.riempimento] ?? riempimento) : riempimento} stroke={colore} strokeWidth={sw} strokeLinejoin="round" />
+            : <polyline key={i} points={pts} fill="none" stroke={colore} strokeWidth={sw} strokeLinecap="round" />;
+        })}
+      </g>
+    );
+  }
   const x0 = -w / 2, y0 = -d / 2;
   const tratto = { stroke: colore, strokeWidth: spessore, fill: "none" } as const;
   const base = <rect x={x0} y={y0} width={w} height={d} rx={Math.min(w, d) * 0.06} fill={riempimento} stroke={colore} strokeWidth={spessore} />;
