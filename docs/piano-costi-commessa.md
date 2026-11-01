@@ -1,201 +1,236 @@
-# Piano: tutti i costi della commessa, giusti e alla data giusta
+# Piano completo: costi, pagamenti, ritenute, tesoreria, previsionale e F24
 
-*Scritto il 01/11/2026 su richiesta di Florin («ragiona dall'alto: vendita, operai, fornitori in RiBa
-30/60/90, costi senza fattura… dimmi se c'è tutto e se non ci sono problemi»). Si appoggia a
-[flussi-acquisti-pagamenti.md](flussi-acquisti-pagamenti.md) (ciclo passivo, 29/10) e a
-[piano-personale-costi-commesse.md](piano-personale-costi-commesse.md) (manodopera, 13/10): qui non si
-ripetono, si dice cosa manca e in che ordine farlo.*
+*Scritto il 01/11/2026 su richiesta di Florin («ragiona dall'alto… verifica tutti i sistemi, le ritenute di
+garanzia, la ritenuta bancaria dell'11%, le schede fornitori e subappaltatori, tesoreria, previsionale,
+F24»). Si basa su quattro controlli del codice e su misure del database fatte lo stesso giorno. Riprende
+[flussi-acquisti-pagamenti.md](flussi-acquisti-pagamenti.md) e
+[piano-personale-costi-commesse.md](piano-personale-costi-commesse.md) senza ripeterli.*
 
 ## L'obiettivo in una frase
 
-Per ogni commessa: **quanto ho venduto, quanto mi costa davvero (senza IVA), quanto devo ancora pagare
-e incassare e in che giorno (con IVA)**, con ogni numero che porta al documento da cui viene, nessun
-costo contato due volte e nessuna scelta fatta in silenzio.
+Per ogni commessa e per l'azienda: **quanto ho venduto, quanto mi costa davvero (senza IVA), quanto devo
+ancora pagare e incassare e in che giorno (con IVA, ritenute e trattenute al loro posto)**, con ogni
+numero che porta al documento da cui viene, niente contato due volte, niente scelto in silenzio.
 
-## 1. Come stanno le cose oggi (misurato il 01/11/2026)
+---
 
-| Voce | Lo strumento c'è? | Funziona sui dati veri? |
+## 1. Cosa manca ancora: le criticità, dalla più costosa
+
+### Gravi: i numeri o le scadenze sono sbagliati oggi
+
+| # | Criticità | Effetto | Dove |
+|---|---|---|---|
+| 1 | **Fatture in Cloud: le fatture ricevute perdono rate, scadenze, metodo (RiBa) e ritenuta.** L'import scarica `payments_list` ma lo butta, e non c'è l'XML | Per Dimora, Innovasol, Best Infissi ogni debito nasce «senza scadenza», una rata unica lorda | `billing-import/index.ts:927-945` |
+| 2 | **Le fatture ricevute non contabilizzate sono invisibili alla cassa.** Rate e RiBa nascono solo alla contabilizzazione | Bonarrigo: 20 RiBa nell'XML, 0 in cassa. Innovasol e Best: migliaia di fatture mai diventate debito | `useForecastLedger.ts:340-350` |
+| 3 | **Ritenuta d'acconto dei professionisti (20%) mai letta.** `fatture_ricevute` non ha colonne per ritenuta, cassa, bollo | Se manca `ImportoPagamento` si paga il lordo (si paga troppo); nessun F24 1040 al 16; niente CU | `fatturaRicevutaXml.ts`, `rate_fornitori.sql:179-196` |
+| 4 | **Fattura d'appalto: la «ritenuta a garanzia» del contratto finisce nell'XML come ritenuta d'acconto fiscale (RT02).** Il rendiconto la chiama garanzia, la fattura la dichiara all'Agenzia come ritenuta fiscale | Errore fiscale. Oggi 1 sola fattura, in Demo 2: va corretto prima che capiti a un'azienda vera | `src/lib/appalto/fattura.ts:270-277` |
+| 5 | **Ritenuta bancaria 11% dei bonifici parlanti persa alla riconciliazione.** Il bonifico netto (circa 91%) non si abbina alla rata lorda (tolleranza 1%); a mano la rata diventa pagata col netto e la ritenuta non si registra | Credito d'imposta non tracciato (circa 9% dei lavori in bonus); fattura «pagata in parte» per sempre | `rateBankMatch.ts:90`, `RiconciliaRateBancaDialog.tsx:118-138`, `riconcilia_bonifico_fattura` |
+| 6 | **Un F24 non si può segnare pagato** (serve una quietanza che non si può caricare) | Il previsionale lo conta come uscita per sempre, anche dopo l'addebito in banca | `useF24.ts:96-99`, `F24Generator.tsx:555` |
+| 7 | **La scheda «Previsioni» di Tesoreria guarda solo fatture vecchie e scadenze.** Mancano costi, rate e RiBa, stipendi, F24, IVA | Saldo a 90 giorni molto più alto del vero, in bella vista | `tesoreria/CashFlowForecast.tsx:34` |
+| 8 | **Contributi INPS, ritenute dei dipendenti e Cassa Edile non stimati né generati.** Il calcolo automatico F24 dai cedolini è stato spento | Le uscite fiscali più grosse di un'impresa edile non sono in cassa | `useForecastLedger.ts:1202`, migrazione `20261026220848:145` |
+| 9 | **File con più fatture (lotto) da SDI e OpenAPI: entra solo la prima**; le altre restano «da registrare a mano» | Costi e debiti mancanti | `salvaFatturaRicevuta.ts:178-180` |
+| 10 | **Trattenuta a garanzia nelle fatture emesse senza registro**: la rata è lorda, la fattura netta, e quando la fattura è pagata la rata risulta pagata per intero | Incassato della commessa gonfiato; la quota trattenuta nessuno la ricorda allo svincolo | `CreaFatturaDialog.tsx:393,633`, `allinea_rata_da_fattura` |
+
+### Importanti: buchi nel flusso
+
+| # | Criticità | Dove |
 |---|---|---|
-| Vendita: contratto, varianti, rate, SAL, fatture emesse | Sì | Sì |
-| Operai: ore dei rapportini × costo orario (lordo, mensilità, INPS, INAIL, Cassa Edile, TFR) | Sì | Nessuna delle 4 aziende vere registra ore in commessa |
-| Busta paga di fine mese che corregge il costo stimato | **No**: 1.021 cedolini, nessuno arriva alle commesse | — |
-| Ditte e subappalti: contratto, SAL, fattura, reverse charge | Sì (rifatto il 31/10) | Solo Dimora, 37 righe |
-| Fornitori: ordine → bolla → fattura → costo, ripartizione | Sì | **Dimora: 1.277 fatture, 0 su una commessa** |
-| Rate dei fornitori (RiBa 30/60/90) da XML SDI/OpenAPI | Sì, ma **solo quando la fattura è contabilizzata** | renova 224/224; Bonarrigo 20 RiBa nell'XML, 0 contabilizzate → invisibili in cassa |
-| Rate dei fornitori da Fatture in Cloud | **No**: `billing-import` legge `payments_list` solo per le EMESSE | Dimora, Innovasol, Best Infissi: scadenze e RiBa perse |
-| Accordo col fornitore (giorni, fine mese, metodo, IBAN) | Il posto c'è (`suppliers`) | Nessuno lo compila, nessuna funzione lo legge |
-| Ritenuta d'acconto dei professionisti (geometra, DL, progettista) | **No**: `fatture_ricevute` non la registra | Si paga il lordo, l'F24 del 16 non esiste |
-| Costi senza fattura (Comune, bolli, F24, extra) | Sì, con ricevuta e lavorazione | Usati pochissimo |
-| Debiti segnati pagati | Sì (spunta, prima nota) | **0 pagati** su Dimora, renova, Best Infissi; banca non collegata |
-| Acconto sull'ordine d'acquisto | Margine giusto | **Cassa sbagliata**: il saldo sparisce dopo la fattura d'acconto |
-| Fornitore riconosciuto dalla P.IVA | Parziale | Dimora 421/1.277, Innovasol 105/4.528, Best 13/7.172 |
+| 11 | **Lo svincolo della ritenuta di garanzia non genera niente**: né la fattura della quota (verso il cliente) né il debito (verso il sub). La quota trattenuta al sub non si può nemmeno pagare dal percorso SAL | `fiscalita_svincola`, `pagamenti_spese_atomici.sql:187` |
+| 12 | **Ritenute di garanzia fuori dalla cassa**: le attive (soldi parcheggiati dal committente) e le passive (da dare al sub) non sono né in Tesoreria né nel previsionale | `useForecastLedger.ts` |
+| 13 | **Ritenuta di garanzia nelle fatture dei sub non riconosciuta** (riga negativa o solo in causale): la quota trattenuta sparisce dal debito | `fatturaRicevutaXml.ts:120-190` |
+| 14 | **Scheda fornitore: niente fatture, debiti finti.** Non mostra le fatture ricevute; scadenze e KPI leggono la tabella vecchia `scadenze` invece di rate e RiBa | `useOperationalSuppliers.ts:166-235` |
+| 15 | **Scheda subappaltatore: totali vuoti su più contratti** (fatture e ritenute passate vuote), niente IBAN né termini, niente elenco unico di fatture e pagamenti | `ContrattiSubappalto.tsx:992` |
+| 16 | **Fornitore e subappaltatore scollegati.** Tre anagrafiche (fornitori, subappaltatori «campo», schede sicurezza) più le ditte, legate a mano da un solo collegamento. Solo 9 subappaltatori su 107 con P.IVA risultano anche fornitori | `supplier_relations`, `cedenti_fatture_ricevute` |
+| 17 | **Mutui e finanziamenti** (`cg_loans`) assenti dal previsionale | `useForecastLedger.ts` |
+| 18 | **SAL dei subappalti verificati ma non fatturati** assenti dal previsionale; possibile doppio conteggio tra ditte in commessa e fattura del sub | `forecastLedger.ts:1061` |
+| 19 | **IVA trimestrale e acconto di dicembre** (6031-6035, 6099) non registrabili, e quando ci sono la stima IVA si spegne | `useF24.ts:25-44` |
+| 20 | **RiBa non riconciliate con la banca**: l'abbinamento va per costo intero, mai per la singola rata | `costiBankMatch.ts` |
+| 21 | **Buste paga che non arrivano alle commesse**: 1.021 cedolini, nessuno corregge il costo stimato ore × tariffa | — |
+| 22 | **Fatture fornitori non assegnate alle commesse**: Dimora 1.277 fatture, 0 su una commessa | — |
 
-**In breve:** i pezzi principali ci sono. Tre buchi falsano i numeri (rate da Fatture in Cloud, busta paga,
-fatture non assegnate) e uno falsa la cassa (niente risulta pagato). Il resto è completezza.
+### Da sistemare: precisione e pulizia
+
+- **Aruba**: niente importi, niente XML, tipo sempre TD01 (una nota di credito diventa fattura).
+- **OCR da PDF/foto**: la scadenza viene letta e poi buttata; IBAN e metodo non vengono chiesti.
+- **Note di credito TD08** e documenti TD16-19 trattati come fatture da pagare.
+- **Metodo di pagamento preso solo dalla prima rata**; `CondizioniPagamento` non salvato; «giorni dalla data fattura» senza data di riferimento lascia la rata senza data.
+- **IBAN della fattura mai confrontato** con quello noto del fornitore (antifrode).
+- **Fatture allegate alle email** che dopo la conferma non diventano fatture ricevute.
+- **Ritenute subite sulle nostre fatture** (condominio 4%) non diventano credito.
+- **Riquadro bonus**: l'etichetta dice «÷ (1 + IVA reale)» ma il calcolo usa 1,22; l'11% viene applicato anche alle righe escluse dal bonus; il previsionale usa sempre l'11%, anche dove varrebbe l'8% (prima del 01/03/2024).
+- **Due archivi delle scadenze fiscali** (`f24_entries` e `adempimenti_fiscali`) che dicono cose diverse; scadenza del 16 non proposta.
+- **Quattro previsionali diversi** (ledger, Tesoreria, Controllo di gestione, rendiconto) che non danno lo stesso numero.
+- **Rischio sull'ordine delle migrazioni**: rieseguite da zero, riaccenderebbero `f24_componi` (spento apposta).
+- **Banca**: nessuna azienda vera ha un conto collegato; senza, niente risulta pagato e gli scaduti sono finti.
+
+---
 
 ## 2. Le regole che valgono per tutto il piano
 
-1. **Costo senza IVA, cassa con IVA.** Il margine si fa sull'imponibile, scadenze e pagamenti sul lordo
-   (o sul netto da pagare: ritenute e reverse charge cambiano quanto esce, non quanto costa).
-2. **Per la data di pagamento valgono tre fonti, in quest'ordine:** l'accordo (ordine d'acquisto, poi
-   scheda fornitore), poi la fattura (XML o Fatture in Cloud), poi niente. **Mai la data della fattura
-   da sola.** Se accordo e fattura non coincidono, **si segnala**, non si sceglie in silenzio.
-3. **Un costo, una fonte.** Ordine, bolla, fattura e costo a mano si collegano, non si sommano. Ogni
-   lotto ha un test che lo prova.
-4. **Stimato e consuntivo si distinguono.** Ogni costo dice se è una stima (ore × tariffa, ordine non
-   fatturato) o un fatto (cedolino, fattura). Il margine «reale» dice quanto è ancora stima.
-5. **Niente di nuovo nasce pagato.** Pagato lo dice la banca, la prima nota o una persona; una regola
-   automatica (RiBa scaduta = pagata) solo se l'azienda la accende.
+1. **Costo senza IVA, cassa con IVA.** Il margine sull'imponibile; scadenze e pagamenti su quanto esce davvero.
+2. **Ogni trattenuta ha il suo posto e la sua data.** Ritenuta d'acconto → debito F24 al 16. Ritenuta di
+   garanzia → debito (o credito) allo svincolo. Ritenuta bancaria 11% → credito d'imposta. Mai «sparita»
+   da un imponibile o da una rata.
+3. **Per la data di pagamento valgono tre fonti, in quest'ordine:** accordo (ordine, poi scheda fornitore),
+   poi fattura (XML o Fatture in Cloud), poi niente. Mai la data della fattura da sola. Se accordo e
+   fattura non coincidono, **si segnala**.
+4. **Un costo, una fonte.** Ordine, bolla, fattura, ditta, SAL e costo a mano si collegano, non si sommano;
+   ogni lotto ha un test che lo prova.
+5. **Stimato e consuntivo si distinguono**, in commessa e in cassa.
+6. **Un solo previsionale.** Tesoreria, Controllo di gestione e commessa leggono la stessa fonte.
+7. **Niente nasce pagato da solo**: lo dicono la banca, la prima nota o una persona; le regole automatiche
+   (RiBa scaduta = pagata) solo se l'azienda le accende.
 
-## 3. Le cose da fare
+---
 
-### A. Fornitori e pagamenti: le uscite alla data giusta
+## 3. Il piano, per aree
 
-**A1. Rate dalle fatture ricevute di Fatture in Cloud.** In `billing-import` (`salvaRicevuteFic`) leggere
-`payments_list` (importo, scadenza, stato, pagato il) e il metodo come per le emesse, e salvarli sulla
-fattura. Alla contabilizzazione `crea_rate_fornitore` crea una rata per scadenza, come per l'XML.
-Prima, una chiamata di prova per sapere se `received_documents` con `fieldset=detailed` restituisce
-`payments_list`. Se non lo fa, si usa l'accordo del fornitore (A3).
-*Fatto quando:* una fattura FIC da 10.000 € in RiBa 30/60/90 genera tre rate alle tre date, e lo
-scadenzario e la cassa della commessa le mostrano.
+### A. Fatture ricevute: leggere tutto, da ogni canale
 
-**A2. Fatture dallo SDI (OpenAPI, Aruba, XML caricato): il piano di pagamento appena arriva.** Oggi
-rate e RiBa nascono solo alla contabilizzazione. Proposta:
-- leggere subito `DatiPagamento` (tutte le rate, `ModalitaPagamento`, IBAN, `CondizioniPagamento`) e
-  mostrarli nella fattura ricevuta: «3 rate RiBa: 12/12, 11/01, 10/02»;
-- metterle nel previsionale di cassa come **uscite probabili**, anche prima della contabilizzazione;
-- un'impostazione dell'azienda: «contabilizza da sole le fatture con fornitore riconosciuto e ordine o
-  commessa certi», così le RiBa diventano debiti senza aspettare l'ufficio.
+- **A1. Fatture in Cloud**: leggere `payments_list` (rate, scadenze, stato, pagato il), metodo,
+  `amount_withholding_tax`; salvare tutto sulla fattura. Se FIC ha l'XML, scaricarlo e trattarlo come
+  gli altri.
+- **A2. Colonne sulla fattura ricevuta**: piano di pagamento (rate, metodo, IBAN, condizioni), ritenuta
+  d'acconto (tipo, aliquota, importo, causale), cassa previdenziale, bollo, trattenuta a garanzia
+  (riconosciuta da riga negativa, causale o AltriDatiGestionali), split payment. Lette **all'arrivo**
+  da un lettore unico per SDI, OpenAPI, ITALA, caricamento a mano.
+- **A3. Lotti**: tutte le fatture del file, non solo la prima (come fa già ITALA).
+- **A4. Aruba**: importi, tipo documento, XML; **OCR**: salvare scadenza, chiedere IBAN e metodo.
+- **A5. Tipi documento**: TD04 e TD08 come note di credito; TD16-19 fuori dai costi e dai debiti.
+- **A6. Metodo per rata**, `CondizioniPagamento` salvato, «giorni dalla data fattura» col ripiego giusto.
+- **A7. IBAN diverso da quello noto** del fornitore: avviso antifrode prima di pagare.
+- **A8. Email**: la fattura confermata da un allegato diventa una fattura ricevuta.
 
-*Fatto quando:* le 20 RiBa di Bonarrigo compaiono nel previsionale e in Tesoreria il giorno in cui
-arriva la fattura.
+*Fatto quando:* la stessa fattura (RiBa 30/60/90 da 10.000 €, con ritenuta e trattenuta) arrivata da FIC,
+SDI, OpenAPI o caricata a mano produce gli stessi tre debiti alle stesse date, lo stesso debito F24 e la
+stessa garanzia da svincolare.
 
-**A3. L'accordo col fornitore, usato davvero.** Nella scheda fornitore: giorni (30/60/90/120), fine
-mese sì/no, giorno fisso, metodo (bonifico, RiBa, RID, carta, contanti), IBAN. Lo leggono:
-`crea_rate_fornitore` quando la fattura non dice niente, l'ordine d'acquisto (che lo può cambiare) e il
-controllo che **segnala** quando la fattura dice altro («RiBa 60 gg in fattura, accordo 90 gg»).
-L'accordo si propone in automatico dalle ultime 5 fatture di quel fornitore.
+### B. Debiti e pagamenti ai fornitori
 
-**A4. Fornitore riconosciuto dalla P.IVA.** Ogni fattura ricevuta trova o crea il suo fornitore da
-P.IVA o codice fiscale (oggi 13 su 7.172 per Best Infissi). Doppioni uniti con una funzione apposita.
-È la base di A3, B1 e dei debiti per fornitore.
+- **B1. Debiti appena arriva la fattura**: rate e RiBa nel previsionale come uscite probabili anche prima
+  della contabilizzazione; impostazione «contabilizza da sole le fatture con fornitore e commessa certi».
+- **B2. Accordo col fornitore usato davvero** (i campi ci sono già: termini, fine mese, metodo, IBAN):
+  letto quando la fattura non dice niente, proposto dalle ultime fatture, confrontato con la fattura.
+- **B3. Fornitore riconosciuto dalla P.IVA** su ogni fattura; doppioni uniti.
+- **B4. Portafoglio RiBa**: in arrivo, avvisata, addebitata, insoluta; avviso 5 giorni prima con il
+  totale della settimana; riconciliazione **per singola rata** con l'addebito in banca.
+- **B5. Acconto sull'ordine d'acquisto**: il saldo resta debito finché non arriva la sua fattura.
+- **B6. Note di credito dei fornitori** che stornano costo e rate della fattura corretta.
 
-**A5. Il portafoglio RiBa.** Una vista per tutte le RiBa: in arrivo, avvisata dalla banca, addebitata,
-insoluta. Avviso al titolare 5 giorni prima delle RiBa della settimana, con il totale. Una RiBa
-addebitata chiude la rata; una RiBa insoluta la riapre e lo segnala.
+### C. Ritenute
 
-**A6. Ritenuta d'acconto dei professionisti.** Leggere `DatiRitenuta` dall'XML (o scriverla a mano):
-il costo della commessa è il **lordo**, al professionista si paga il **netto**, e nasce una scadenza
-F24 il 16 del mese dopo il pagamento, per l'importo della ritenuta. Vale anche per la cassa
-previdenziale (`DatiCassaPrevidenziale`) e il bollo.
+**C1. Ritenuta d'acconto sulle fatture ricevute (professionisti, agenti).** Costo = lordo; al
+professionista il netto; nasce un **debito F24 codice 1040 al 16 del mese dopo il pagamento**, collegato
+al pagamento e alla commessa; registro per la CU e il 770.
 
-**A7. Acconto sull'ordine d'acquisto, lato cassa.** Il saldo resta un debito (totale dell'ordine
-meno acconti fatturati) finché non arriva la sua fattura. Nessun costo contato due volte: lo prova un
-test sui tre casi (acconto prima, insieme, dopo l'ordine).
+**C2. Ritenuta di garanzia, tutto il ciclo.**
+- *Verso il cliente*: la trattenuta della fattura emessa (clausola e SAL) scrive la riga nel registro;
+  la rata della commessa non conta come incassata la quota trattenuta; allo svincolo nasce la bozza di
+  fattura o l'incasso atteso, con la data; le attive hanno sempre una data di svincolo.
+- *Verso il subappaltatore*: la quota trattenuta resta un **debito futuro con la sua data**; allo svincolo
+  si paga dal percorso SAL; la trattenuta scritta nella fattura del sub si riconosce e si confronta col SAL.
+- *Fattura d'appalto*: la percentuale del contratto è **garanzia**, non ritenuta d'acconto. Si toglie
+  dall'XML la ritenuta RT02 e si scrive come trattenuta; si controlla la fattura di Demo 2.
+- In Tesoreria e nel previsionale: soldi da ricevere e da dare allo svincolo.
 
-**A8. Note di credito dei fornitori.** Stornano il costo e la rata della fattura che correggono, sulla
-stessa commessa (come per le note di credito ai clienti del 23/10).
+**C3. Ritenuta bancaria 11% dei bonifici parlanti.**
+- La riconciliazione banca riconosce l'accredito netto di una rata o fattura in bonus (lordo ÷ 1,22 ×
+  11%, 8% prima del 01/03/2024): la rata risulta **incassata per intero**, la fattura pagata, e nasce la
+  riga della ritenuta subita.
+- Lo stesso da «Riconcilia con banca» della commessa e dalla spunta «Incassata» quando la commessa è in bonus.
+- La ritenuta subita diventa un **credito d'imposta** visibile (Tesoreria, stato patrimoniale), da usare in
+  dichiarazione o compensazione F24.
+- Il riquadro bonus usa la stessa formula del registro (1,22, righe escluse, aliquota per data).
 
-### B. Fatture e costi sulla commessa giusta
+**C4. Ritenute subite sulle nostre fatture** (condominio 4%, altri sostituti) come credito.
 
-**B1. «Fatture da assegnare».** Una coda unica delle fatture ricevute che non stanno su una commessa né
-sono spese generali, ognuna con una **proposta** e la sicurezza della proposta:
-- ordine d'acquisto o bolla collegati: certa;
-- fornitore che in quel periodo lavora su una sola commessa aperta: alta;
-- indirizzo del cantiere, codice commessa o nome del cliente nel testo della fattura: media;
-- AI sulle righe (esiste già `order_id_suggerito`): da confermare.
+### D. Tesoreria e previsionale: una sola verità
 
-Un clic conferma, due dividono su più commesse (per righe o per percentuale) o la segnano «spesa
-generale». La coda dice quanto vale il non assegnato. *Fatto quando:* su Dimora le fatture da luglio
-(255) sono tutte assegnate o spese generali.
+- **D1. Un solo previsionale**: la scheda «Previsioni» di Tesoreria, il Controllo di gestione e la
+  commessa leggono il ledger completo; la funzione ridotta va in pensione.
+- **D2. Fonti mancanti nel previsionale**: fatture ricevute non contabilizzate (rate XML/FIC), mutui e
+  finanziamenti, contributi INPS e ritenute dei dipendenti stimati dai cedolini, Cassa Edile, tredicesima,
+  SAL dei sub verificati non fatturati, ritenute di garanzia (entrate e uscite allo svincolo), F24 1040 dei
+  professionisti, credito dell'11%.
+- **D3. Doppioni ancora possibili**, chiusi con test: ordine + fattura non collegata; ditta in commessa +
+  fattura del sub; provvigioni + costo «provvigioni» a mano; acconto a mano non collegato.
+- **D4. Pagato vero**: riconciliazione banca per rata (RiBa, F24, stipendi), spunta in blocco dallo
+  scadenzario, regola «RiBa scaduta = pagata salvo insoluto» se accesa.
+- **D5. Tesoreria completa**: saldi, uscite e entrate con date, scaduti, RiBa, ritenute da svincolare,
+  crediti d'imposta, in una pagina.
 
-**B2. Regole dell'azienda.** «Il fornitore X va sempre in spese generali» (commercialista, utenze,
-software), «il fornitore Y va sulla commessa attiva in quel cantiere». Si applicano all'arrivo; ogni
-applicazione si può annullare.
+### E. F24
 
-**B3. Costi senza fattura del cantiere, già pronti.** Voci con nome, scadenza e metodo tipico: oneri
-comunali e diritti di segreteria, occupazione suolo pubblico, bolli e marche, smaltimento rifiuti e
-formulari, polizza CAR e fideiussioni, pratiche e permessi, noleggi senza fattura, spese di trasferta.
-Pagabili con F24 o bollettino; la ricevuta si fotografa dal telefono.
+- **E1. Segnare un F24 pagato**: con la quietanza (PDF) o col movimento di banca; allora esce dal previsionale.
+- **E2. Codici completi**: IVA trimestrale e acconto (6031-6035, 6099), INPS (DM10), addizionali,
+  IRES/IRAP, codici di credito per le compensazioni.
+- **E3. F24 proposto dal mese**: ritenute dei dipendenti e contributi dai cedolini, 1040 dalle parcelle
+  pagate, IVA dalla liquidazione; scadenza al 16 (o giorno lavorativo dopo) proposta; da confermare
+  sempre col prospetto del consulente.
+- **E4. Un solo archivio** delle scadenze fiscali (`f24_entries` e `adempimenti_fiscali` uniti).
+- **E5. Cassa Edile** come obbligo mensile di pagamento.
+- **E6. Migrazioni**: rendere impossibile che `f24_componi` torni acceso rieseguendo da zero.
 
-**B4. Spese generali di struttura.** Una percentuale (o un importo al mese) ripartita sulle commesse
-per ricavo o per ore, scelta dall'azienda, mostrata **a parte** nel conto economico: margine di
-commessa e margine dopo struttura.
+### F. Schede fornitore e subappaltatore
 
-### C. Manodopera: dalla stima alla busta paga
+**F1. Scheda fornitore**: fatture ricevute con stato contabile e di pagamento (pagata, parziale,
+scaduta); debiti veri da rate e RiBa (prossime, scaduto, pagato, residuo, stati RiBa); ordini, bolle e
+acconti; commesse servite e costo per commessa; note di credito; **estratto conto dare/avere** con saldo
+progressivo e cronologia; se è anche subappaltatore, SAL, ritenute e documenti (DURC) in un riquadro.
 
-**C1. Chiusura del mese con il cedolino.** A cedolino caricato, per ogni dipendente: costo vero del mese
-(lordo + oneri del datore + TFR + Cassa Edile, dal prospetto) meno costo già imputato ai cantieri
-(ore × tariffa). La differenza si **ripartisce sulle commesse in proporzione alle ore del mese**; le
-ore non di cantiere (magazzino, ufficio, assenze) vanno in struttura. Ogni commessa vede «stimato» e
-«consuntivato». Le tariffe sono storicizzate: una tariffa nuova non cambia i mesi chiusi.
-*Fatto quando:* un operaio con 168 ore su due cantieri e una busta da 3.200 € di costo azienda porta
-esattamente 3.200 € sui cantieri e sulla struttura, né un euro di più né di meno.
+**F2. Scheda subappaltatore**: totali su tutti i contratti (maturato, approvato, fatturato, pagato, da
+pagare, ritenute trattenute e da svincolare con le date); una sottoscheda «Fatture e pagamenti» unica;
+IBAN, metodo e termini (dal fornitore collegato o propri); estratto conto.
 
-**C2. Ore che mancano.** Avviso all'ufficio: rapportini da approvare più vecchi di 3 giorni, giornate HR
-senza cantiere, ore di cantiere senza giornata HR. Il margine della commessa dice «ore da approvare:
-32» invece di sembrare migliore del vero.
+**F3. Un'anagrafica sola per la stessa ditta**: fornitore, subappaltatore (campo e schede sicurezza) e
+ditta in commessa collegati dalla P.IVA, con proposta automatica e conferma; tutte le schede sicurezza
+della stessa ditta collegate, non una.
 
-**C3. Stipendi in cassa.** La quota degli stipendi di ogni commessa esce nella cassa alla data in cui
-l'azienda paga davvero (giorno imparato dai pagamenti: mai fisso), così «Chi finanzia il cantiere»
-conta anche gli operai.
+### G. Costi della commessa
 
-### D. Cassa: pagato vero e previsione per rata
+- **G1. «Fatture da assegnare»**: coda con proposta di commessa (ordine, bolla, fornitore abituale,
+  indirizzo del cantiere, AI) e conferma in un clic; divisione su più commesse; «spesa generale».
+- **G2. Regole dell'azienda** per fornitore (sempre spese generali / sempre la commessa attiva).
+- **G3. Costi senza fattura del cantiere già pronti** (oneri comunali, suolo pubblico, bolli,
+  smaltimento, polizza CAR, fideiussioni, permessi, trasferte), pagabili anche con F24.
+- **G4. Spese generali di struttura** ripartite, mostrate a parte.
+- **G5. Manodopera dal cedolino**: chiusura del mese con ripartizione della differenza per ore; tariffe
+  storicizzate; avvisi sulle ore da approvare; quota stipendi e contributi nella cassa della commessa.
 
-**D1. Segnare i pagamenti senza fatica.** Tre strade, l'azienda sceglie: banca collegata (movimento ↔
-rata, con proposta e conferma); RiBa scaduta = pagata salvo insoluto (se accesa); spunta in blocco
-dallo scadenzario («segna pagate le 12 RiBa di ottobre»). Gli «scaduti» diventano veri.
+### H. Controllo e chiusura
 
-**D2. Previsionale della commessa per rata.** Entrate (rate del cliente) e uscite (rate dei fornitori,
-SAL dei subappalti, F24 delle ritenute, quota stipendi) settimana per settimana fino a fine lavori,
-con il punto più basso della cassa. Sostituisce la stima «sui soli materiali».
+- **H1. Previsto, speso e «a finire» per lavorazione**, con allarme oltre la soglia.
+- **H2. Semaforo «dati completi»** per commessa e per azienda: fatture da assegnare, ore da approvare,
+  costi senza data, F24 da segnare, RiBa da chiudere, ritenute da svincolare.
+- **H3. Chiusura della commessa** con verbale economico finale.
+- **H4. Avvio per azienda**: data di taglio dello storico, banca, accordi dei 20 fornitori principali,
+  assegnazione delle fatture recenti; percentuale di completamento.
+- **H5. Silvio** con le stesse domande e gli stessi numeri.
 
-**D3. IVA della commessa completa.** A debito sulle fatture emesse, a credito sulle ricevute, reverse
-charge che entra e esce insieme, split payment per i committenti pubblici.
-
-### E. Controllo: accorgersene prima
-
-**E1. Preventivo, consuntivo e «a finire» per voce e per lavorazione.** Per ogni lavorazione: previsto,
-speso, ancora da spendere stimato, margine a fine lavori. **Allarme** al titolare quando una
-lavorazione supera il previsto del 10% o il margine a fine lavori scende sotto la soglia
-dell'azienda.
-
-**E2. Semaforo «dati completi» della commessa.** Fatture del fornitore non assegnate, ore da
-approvare, costi senza data di pagamento, ditte senza costo previsto, ordini non fatturati: un elenco
-di cose da sistemare, ognuna con il pulsante che la sistema. Il margine reale dice se è affidabile.
-
-**E3. Chiusura della commessa.** Verbale economico finale (ricavo, costi per voce, margine, cassa),
-controllo che non resti niente da fatturare o pagare, blocco dei costi dopo la chiusura salvo
-riapertura motivata.
-
-### F. Farlo usare
-
-**F1. Primo avvio per azienda.** Data di taglio dello storico (Dimora non l'ha ancora scelta),
-assegnazione guidata delle fatture degli ultimi 3 mesi, accordi dei 20 fornitori principali,
-collegamento banca. Una lista di controllo per azienda con la percentuale fatta.
-
-**F2. Silvio.** Le stesse domande al telefono: «quanto devo pagare questa settimana?», «quali fatture
-non sono assegnate?», «come va il margine della O-0001?», con i numeri delle stesse funzioni.
+---
 
 ## 4. In che ordine
 
-| Lotto | Cosa | Perché prima |
+| Lotto | Cosa | Perché |
 |---|---|---|
-| **1** | A1, A2, A3, A6 | Le uscite e le loro date: sono i soldi veri, e oggi per tre aziende su quattro mancano |
-| **2** | A4, B1, B2 | Senza fatture sulle commesse il margine reale non esiste |
-| **3** | D1, D2, A5, A7 | La cassa diventa vera: pagato, previsto per rata, RiBa |
-| **4** | C1, C2, C3 | Gli operai dalla stima al consuntivo |
-| **5** | E1, E2, E3, B3, B4, A8, D3 | Controllo, completezza, chiusura |
-| **6** | F1, F2 | Adozione per azienda e Silvio |
+| **0 (subito)** | C2 parte «fattura d'appalto» | Errore fiscale in un documento che va all'Agenzia |
+| **1** | A1, A2, A3, A5, B1, C1 | Ogni fattura entra completa, da ogni canale, con le sue rate e la sua ritenuta |
+| **2** | C3, C2 (resto), C4 | Le tre ritenute al loro posto: 11% bancaria, garanzie, condominio |
+| **3** | D1, D2, D3, E1, E3, E4 | Un solo previsionale con tutte le uscite vere, F24 compresi e segnabili pagati |
+| **4** | F1, F2, F3, B3 | Le schede fornitore e subappaltatore che dicono tutto |
+| **5** | B2, B4, D4, D5, E2, E5 | Accordi, RiBa per rata, banca, Tesoreria completa, codici F24 completi |
+| **6** | G1-G5 | Ogni costo sulla commessa giusta, manodopera consuntivata |
+| **7** | H1-H5, A4, A6, A7, A8, B5, B6, E6 | Controllo, chiusura, adozione, pulizia |
 
-Ogni lotto si chiude con: migrazione applicata e riallineata, test che provano niente doppioni e date
-giuste, prova su Demo 2 e su una copia dei dati di un'azienda vera (transazione annullata), e la pagina
-vista a schermo.
+Ogni lotto si chiude con migrazione applicata e riallineata, test (date giuste, niente doppioni, ritenute
+al centesimo), prova su Demo 2 e su una copia dei dati di un'azienda vera in una transazione annullata, e la
+pagina vista a schermo, computer e telefono.
 
 ## 5. Decisioni che servono da Florin
 
-1. **RiBa scaduta = pagata in automatico** (salvo insoluto), oppure solo quando lo dice la banca o una persona?
-2. **Contabilizzare da sole** le fatture SDI con fornitore e commessa certi, o sempre una persona?
-3. **Differenza della busta paga**: ripartita per ore sulle commesse del mese (proposta), o tutta in struttura?
-4. **Spese generali**: per percentuale sul ricavo, per ore, o importo fisso al mese?
-5. **Soglie degli allarmi**: sforamento della lavorazione (proposta 10%) e margine minimo a fine lavori.
+1. **RiBa scaduta = pagata** in automatico (salvo insoluto), o solo con la banca o una persona?
+2. **Contabilizzare da sole** le fatture con fornitore e commessa certi?
+3. **Differenza della busta paga**: ripartita per ore sulle commesse del mese, o tutta in struttura?
+4. **Spese generali**: percentuale sul ricavo, per ore, o importo fisso al mese?
+5. **Soglie degli allarmi** (proposta: lavorazione oltre il 10%, margine a fine lavori sotto il minimo dell'azienda).
+6. **F24 proposto dal sistema**: va bene come bozza da confermare col prospetto del consulente (proposta), o solo a mano come oggi?
