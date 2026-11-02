@@ -4,7 +4,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark, Layers } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark, Layers, FileCheck } from "lucide-react";
 
 /** I parametri dopo il «?» di un indirizzo («…/persone?tab=team#x» → tab=team). */
 function parametriDa(url: string): URLSearchParams {
@@ -136,6 +136,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       items: [
         { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
         { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsPeople },
+        { to: "/azienda/impostazioni/documenti-azienda", label: "Documenti e scadenze", icon: <FileCheck className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsProfile },
         { to: "/azienda/impostazioni/branding",      label: "Marchio e colori",    icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
         // Un solo ingresso. Da telefono e per chi ha solo Fatturazione si apre
         // direttamente Crediti, senza concedere gestione piano o portale Stripe.

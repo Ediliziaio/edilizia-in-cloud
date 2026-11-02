@@ -7,16 +7,27 @@ interface Props {
   created: boolean;
   onCancel: () => void;
   onOpenCreated: () => void;
+  /** Il totale con l'IVA, accanto al pulsante. */
+  totale?: string;
 }
 
-/** Sempre nel flusso, anche su tablet: non copre campi, tastiera o menu dell'app. */
-export function CreateOrderActions({ pending, created, onCancel, onOpenCreated }: Props) {
+/**
+ * Dal computer resta sempre in vista in basso a destra, lasciando posto al pulsante di Silvio:
+ * stava a 3.400 px dall'inizio. Fixed e non sticky, perché <main> ha overflow e sticky lì non si
+ * ferma mai. Dal telefono resta nel flusso: non copre campi, tastiera e menu dell'app.
+ */
+export function CreateOrderActions({ pending, created, onCancel, onOpenCreated, totale }: Props) {
   return (
     <div
       data-testid="create-order-actions"
       aria-busy={pending}
-      className="static flex w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 md:justify-end md:gap-3 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:pb-2 md:pt-4"
+      className="static z-20 flex w-full min-w-0 items-center gap-2 md:fixed md:bottom-4 md:right-24 md:w-auto md:max-w-[calc(100vw-22rem)] md:shadow-lg rounded-xl border border-slate-200 bg-white p-3 md:justify-end md:gap-3 md:bg-white md:px-3 md:py-2"
     >
+      {totale && !created && (
+        <p className="mr-auto min-w-0 text-sm text-muted-foreground max-md:hidden">
+          Totale con IVA <span className="font-semibold tabular-nums text-foreground">{totale}</span>
+        </p>
+      )}
       {!created && (
         <Button
           type="button"

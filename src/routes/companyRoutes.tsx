@@ -166,6 +166,7 @@ const SettingsQrCodici = lazy(() => import("@/pages/azienda/settings/SettingsQrC
 // SettingsSecurity, SettingsSecurityDashboard, SettingsActivityLog, SettingsPrivacy → rimpiazzati da SettingsSecurityHub
 const SettingsUserDetail = lazy(() => import("@/pages/azienda/settings/SettingsUserDetail"));
 const SettingsSedi = lazy(() => import("@/pages/azienda/settings/SettingsSedi"));
+const SettingsDocumentiAzienda = lazy(() => import("@/pages/azienda/settings/SettingsDocumentiAzienda"));
 const SettingsPeople = lazy(() => import("@/pages/azienda/settings/SettingsPeople"));
 const SettingsSecurityHub = lazy(() => import("@/pages/azienda/settings/SettingsSecurityHub"));
 const SettingsEsportaDati = lazy(() => import("@/pages/azienda/settings/SettingsEsportaDati"));
@@ -1353,6 +1354,7 @@ export default function CompanyRoutesContainer() {
           <Route path="venditori" element={<Navigate to="/azienda/impostazioni/persone?tab=venditori" replace />} />
           <Route path="staff" element={<Navigate to="/azienda/impostazioni/persone?tab=staff" replace />} />
           <Route path="sedi" element={withCompanyPermission("canViewSettingsPeople", <SettingsSedi />)} />
+          <Route path="documenti-azienda" element={withCompanyPermission("canViewSettingsProfile", <SettingsDocumentiAzienda />)} />
           <Route path="team" element={<Navigate to="/azienda/impostazioni/persone?tab=team" replace />} />
           {/* IMP4: Sicurezza & Privacy — privacy, dashboard e registro; password/2FA in Mio Profilo */}
           <Route path="sicurezza-privacy" element={withCompanyPermission("canViewSettingsSecurity", <SettingsSecurityHub />)} />

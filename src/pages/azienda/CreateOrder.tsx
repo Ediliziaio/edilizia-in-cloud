@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
+import { ChevronRight, ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
 import { useOrderDraft, bozzaHaContenuto, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
@@ -84,6 +84,8 @@ import { fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa } from "@/li
 import { PianificazioneCommessa } from "@/components/orders/PianificazioneCommessa";
 import { AnteprimaFasiCommessa } from "@/components/orders/AnteprimaFasiCommessa";
 import { CreateOrderActions } from "@/components/orders/CreateOrderActions";
+import { ClienteCombobox } from "@/components/orders/ClienteCombobox";
+import { aliquotaAbituale } from "@/lib/orders/nuovaCommessaProposte";
 import { CreateOrderChecklist } from "@/components/orders/CreateOrderChecklist";
 import AddressAutocomplete, { type AddressData } from "@/components/shared/AddressAutocomplete";
 import { indirizzoCantiereDaTesto, testoIndirizzoCantiere, indirizzoCantiereDaBozza, coordinateIndirizzoCantiere } from "@/lib/orders/indirizzoCantiere";
@@ -879,7 +881,39 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const toDateStr = (d: Date | undefined): string | null =>
     d ? format(d, "yyyy-MM-dd") : null;
 
+  // La nuova commessa parte dall'aliquota che l'azienda usa di più, finché nessuno la sceglie:
+  // una bozza, un preventivo, un contratto o una fattura portano già la loro.
+  const ivaToccataRef = useRef(false);
+  const { data: aliquotaProposta } = useQuery({
+    queryKey: ["aliquota-abituale", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("vat_rate")
+        .eq("company_id", effectiveCompany!.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return aliquotaAbituale((data ?? []).map((o) => o.vat_rate));
+    },
+  });
+  const ivaDaAbitudine = !!aliquotaProposta && !ivaToccataRef.current && !draftRestored && !selectedQuoteId && !contrattoImportato && !invoiceId;
+  useEffect(() => {
+    if (!ivaDaAbitudine || !aliquotaProposta) return;
+    const nuova = String(aliquotaProposta.aliquota);
+    if (getValues("vat_rate") === nuova) return;
+    setValue("vat_rate", nuova);
+    setInstallments((prev) => ricalcolaRatePercentuali(prev, parseDecimalIT(getValues("total_amount")) * (1 + aliquotaProposta.aliquota / 100)));
+  }, [ivaDaAbitudine, aliquotaProposta, getValues, setValue]);
+
   const contractDraftIdRef = useRef<string | null>(null);
+  const [altriDettagliAperti, setAltriDettagliAperti] = useState(false);
+  useEffect(() => {
+    if (salespersonId || destinationWarehouseId || sedeId) setAltriDettagliAperti(true);
+  }, [salespersonId, destinationWarehouseId, sedeId]);
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (options?: {contractDraft?: boolean}) => {
@@ -1478,7 +1512,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
       <CreateOrderChecklist checks={completionChecks} />
 
-      <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
+      <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6 md:pb-20">
         {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile: riprova prima di salvare il contratto." : "Caricamento configurazione aziendale…"}</p>}
         {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} />}
         {pianoContratto?.organizzazione === "interventi_su_ordine" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>Puoi salvare il contratto in bozza e completare cliente, quota economica, IVA e pagamenti dopo la conferma. La bozza non genera ricavi o rate.</p><Button type="button" className="mt-3" variant="outline" disabled={createOrderMutation.isPending || !!createdOrderId} onClick={()=>createOrderMutation.mutate({contractDraft:true})}>Salva bozza del contratto da verificare</Button></div>}
@@ -1541,19 +1575,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                     control={control}
                     name="customer_id"
                     render={({ field }) => (
-                      <Select value={field.value || "__none__"} onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Seleziona un cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
-                          {customerOptions.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.first_name} {customer.last_name}{customer.email ? ` (${customer.email})` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <ClienteCombobox id="customer" clienti={customerOptions} value={field.value || ""} onChange={field.onChange} />
                     )}
                   />
                   <Button
@@ -1674,6 +1696,21 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 )}
               />
 
+              {/* Assigned To Select */}
+              <AssignedToSelect
+                value={assignedTo || ""}
+                onChange={(val) => setValue("assigned_to", val)}
+                disabled={onlyAssigned}
+              />
+
+              {/* Li usano in pochi (3, 0 e 1 commessa su 115): chiusi, si aprono da soli se c'è un valore. */}
+              <details className="group" open={altriDettagliAperti} onToggle={(e) => setAltriDettagliAperti(e.currentTarget.open)}>
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                  Altri dettagli
+                  <span className="text-xs font-normal text-muted-foreground">venditore, magazzino, sede</span>
+                </summary>
+                <div className="mt-3 space-y-4">
               {/* Salesperson Select */}
               <SalespersonSelect
                 value={salespersonId || ""}
@@ -1685,13 +1722,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                     compensation_mode: salesperson.compensation_mode || null,
                   } : null);
                 }}
-              />
-
-              {/* Assigned To Select */}
-              <AssignedToSelect
-                value={assignedTo || ""}
-                onChange={(val) => setValue("assigned_to", val)}
-                disabled={onlyAssigned}
               />
 
               {/* Magazzino destinazione materiali */}
@@ -1714,6 +1744,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 onChange={(id) => setValue("sede_id", id)}
                 className="space-y-2"
               />
+                </div>
+              </details>
             </div>
           </QuoteCard>
 
@@ -1740,7 +1772,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               setValue("total_amount", val);
               setInstallments((prev) => ricalcolaRatePercentuali(prev, parseDecimalIT(val) * (1 + vat / 100)));
             }}
+            notaIva={ivaDaAbitudine && aliquotaProposta && vatRate === String(aliquotaProposta.aliquota)
+              ? `Proposta: la usi su ${aliquotaProposta.commesse} delle ultime ${aliquotaProposta.totale} commesse. Controlla che valga anche per questa.`
+              : undefined}
             onVatRateChange={(val) => {
+              ivaToccataRef.current = true;
               setValue("vat_rate", val);
               setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + (val.trim() ? parseDecimalIT(val) : 0) / 100)));
             }}
@@ -1803,6 +1839,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           created={!!createdOrderId}
           onCancel={() => navigate("/azienda/ordini")}
           onOpenCreated={() => navigate(`/azienda/ordini/${createdOrderId}`)}
+          totale={total > 0 ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(total * (1 + vat / 100)) : undefined}
         />
       </form>
 
