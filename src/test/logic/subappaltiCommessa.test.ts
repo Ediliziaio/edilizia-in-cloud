@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { righeSubappalti, statoRigaSubappalto, type ContrattoRiga, type SalRiga } from "@/lib/orders/subappaltiCommessa";
+import { percentualeMaturato, righeSubappalti, statoRigaSubappalto, totaliSubappalti, type ContrattoRiga, type SalRiga } from "@/lib/orders/subappaltiCommessa";
 import type { Uscita } from "@/lib/orders/quadroPagamenti";
 
 const uscita = (p: Partial<Uscita>): Uscita => ({
@@ -29,6 +29,20 @@ describe("Subappaltatori della commessa", () => {
   it("conta i SAL per stato solo del suo contratto", () => {
     const r = righeSubappalti([uscita({})], [sal({ stato: "ricevuto" }), sal({ stato: "ricevuto" }), sal({ stato: "verificato" }), sal({ stato: "contestato" }), sal({ contratto_id: "k2", stato: "ricevuto" })], contratti)[0];
     expect(r).toMatchObject({ salDaVerificare: 2, salContestati: 1, salTotali: 4 });
+  });
+  it("tiene i SAL in ordine di numero", () => {
+    const r = righeSubappalti([uscita({})], [sal({ id: "b", numero_sal: 2 }), sal({ id: "a", numero_sal: 1 })], contratti)[0];
+    expect(r.sal.map((s) => s.id)).toEqual(["a", "b"]);
+  });
+  it("somma i totali della pagina", () => {
+    const righe = righeSubappalti([uscita({ chiave: "a" }), uscita({ chiave: "b", origine_tipo: "costo", contratto: null, maturato_lordo: null, ritenute: null, pagato: 100, residuo: 20 })], [], contratti);
+    expect(totaliSubappalti(righe)).toEqual({ contratto: 5000, maturato: 1050, ritenute: 50, pagato: 100, residuo: 1020 });
+  });
+  it("dice quanto del contratto è maturato, senza inventarlo", () => {
+    expect(percentualeMaturato({ contratto: 5000, maturato_lordo: 1050 })).toBe(21);
+    expect(percentualeMaturato({ contratto: 100, maturato_lordo: 150 })).toBe(100);
+    expect(percentualeMaturato({ contratto: null, maturato_lordo: 150 })).toBeNull();
+    expect(percentualeMaturato({ contratto: 0, maturato_lordo: 0 })).toBeNull();
   });
   it.each([
     [{ salContestati: 1, salDaVerificare: 2, residuo: 10 }, "problema", "1 SAL contestato"],
