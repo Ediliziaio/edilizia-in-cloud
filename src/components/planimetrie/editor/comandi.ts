@@ -507,6 +507,22 @@ export function contaStimate(pianta: Pianta): number {
   );
 }
 
+/**
+ * Correzione guidata: la prossima misura stimata da controllare, dalla più importante. Prima le
+ * stanze (confermarne una conferma anche le sue pareti), dalla più grande; poi le pareti rimaste,
+ * dalla più lunga; infine porte e finestre. Null quando non ne resta nessuna.
+ */
+export function prossimaStimata(pianta: Pianta): { tipo: "locale" | "muro" | "apertura"; id: string } | null {
+  const area = (c: ReadonlyArray<{ x: number; y: number }>) => Math.abs(c.reduce((t, a, i) => { const b = c[(i + 1) % c.length]; return t + a.x * b.y - b.x * a.y; }, 0)) / 2;
+  const locale = pianta.locali.filter((l) => l.origine === "stimata").sort((a, b) => area(b.contorno) - area(a.contorno))[0];
+  if (locale) return { tipo: "locale", id: locale.id };
+  const lung = (m: Pianta["muri"][number]) => Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y);
+  const muro = pianta.muri.filter((m) => m.origine === "stimata").sort((a, b) => lung(b) - lung(a))[0];
+  if (muro) return { tipo: "muro", id: muro.id };
+  const ap = pianta.aperture.find((a) => a.origine === "stimata");
+  return ap ? { tipo: "apertura", id: ap.id } : null;
+}
+
 export function confermaTutte(pianta: Pianta): Pianta {
   const r = <T extends { origine: Origine }>(x: T): T => (x.origine === "stimata" ? { ...x, origine: "rilevata" } : x);
   return { ...pianta, muri: pianta.muri.map(r), aperture: pianta.aperture.map(r), locali: pianta.locali.map(r) };

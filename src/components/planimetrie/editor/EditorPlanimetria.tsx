@@ -220,6 +220,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setStoria((s) => esegui(s, nuova));
   }, []);
 
+  // Correzione guidata: confermata una misura stimata, si passa alla prossima (o si dice che è finita)
+  const avanti = useCallback((nuova: Pianta) => {
+    const dopo = C.prossimaStimata(nuova);
+    setSelezione(dopo);
+    setAvviso(dopo ? `Ancora ${C.contaStimate(nuova)} da controllare: eccone un'altra.` : "Tutte le misure stimate sono controllate.");
+  }, []);
+
   const setStrumento = useCallback((s: Strumento) => {
     setStrumentoStato(s);
     setInizioParete(null);
@@ -1080,7 +1087,12 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             }
           }
           applica(nuova);
-        } else if (sel.tipo === "muro" || sel.tipo === "apertura") applica(C.confermaMisura(p(), sel.tipo, sel.id));
+          avanti(nuova);
+        } else if (sel.tipo === "muro" || sel.tipo === "apertura") {
+          const nuova = C.confermaMisura(p(), sel.tipo, sel.id);
+          applica(nuova);
+          avanti(nuova);
+        }
       },
       confermaTutte: () => applica(C.confermaTutte(p())),
       seleziona: setSelezione,
