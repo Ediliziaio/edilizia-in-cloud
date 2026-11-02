@@ -1194,7 +1194,7 @@ function OrderDetailInner() {
 
   // Raccoglie tutti i dati "ricchi" (in parallelo) e costruisce gli opts del PDF.
   // Condiviso tra "Scarica PDF" (download) e "Invia PDF al cliente" (blob → email).
-  const gatherPdfOpts = useCallback(async (): Promise<OrdinePDFProps | null> => {
+  const gatherPdfOpts = useCallback(async ({ perCliente = false }: { perCliente?: boolean } = {}): Promise<OrdinePDFProps | null> => {
     if (!order) return null;
     const [
       laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
@@ -1223,12 +1223,27 @@ function OrderDetailInner() {
     ]);
     // Conto per voce, fasi e pagamenti con gli stessi calcoli di Economia: solo a chi vede i costi.
     // Se non si legge il PDF esce lo stesso, senza quelle sezioni.
-    const dossier = permissions.canViewCosts
+    const dossier = permissions.canViewCosts && !perCliente
       ? await import("@/lib/orders/dossierEconomico")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then((m) => m.caricaDossierEconomico(supabase as any, id!))
         .catch((e): null => { console.error("[OrderDetail] dossier economico non letto:", e); return null; })
       : null;
+    const dati = await import("@/lib/orders/riepilogoCommessaDati")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((m) => m.caricaDatiRiepilogo(supabase as any, id!, {
+        vedeCosti: permissions.canViewCosts,
+        vedeFatture: permissions.canViewBilling,
+        vedeSubappalti: permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione,
+        vedeSicurezza: permissions.canViewSicurezzaCantiere,
+      }, { perCliente }));
+    // Letture della pagina finite male: il PDF lo dice, non le fa passare per sezioni vuote.
+    const lettureFallite = ([
+      ["Dipendenti", laborEmployees], ["Subappaltatori", laborTeams], ["SAL", salList], ["Provvigioni", salespeople],
+      ["Ordini di acquisto", purchaseOrders], ["Personale di cantiere", campoAssignmentsRaw], ["Giornale lavori", giornaleLavori],
+      ["Varianti", odv], ["Varianti", vc], ["Diario", diaryEvents], ["Diario", diaryMessages], ["Bonus", bonusLinesRes],
+    ] as Array<[string, { error?: unknown } | null]>).filter(([, res]) => res?.error).map(([nome]) => nome);
+    dati.nonLette = [...new Set([...dati.nonLette, ...lettureFallite])];
     const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<Record<string, unknown>>).map((d) => ({
       ...d,
       subappaltatore: null as { nome?: string } | null,
@@ -1255,6 +1270,8 @@ function OrderDetailInner() {
       showCosts: permissions.canViewCosts,
       showMargins: permissions.canViewMargins,
       dossier,
+      dati,
+      perCliente,
     };
   }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 
@@ -1283,7 +1300,8 @@ function OrderDetailInner() {
       return null;
     }
     try {
-      const opts = await gatherPdfOpts();
+      // Questo PDF parte verso il cliente: solo la versione senza dati interni.
+      const opts = await gatherPdfOpts({ perCliente: true });
       if (!opts) return null;
       return await getPDFBlob(opts);
     } catch (e) {
