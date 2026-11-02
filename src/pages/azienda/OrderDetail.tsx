@@ -654,19 +654,21 @@ function OrderDetailInner() {
   const { data: fattureCollegate = [] } = useFattureByOrdine(schedaPronta ? id : undefined);
 
   const { data: documentiCommessa = [] } = useQuery<OrderDocumentSummary[]>({
-    queryKey: ["order-documents-summary", id],
+    queryKey: ["order-documents-summary", id, "tutti"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_attachments")
         .select("id, file_name, file_url, file_type, file_size, visible_to_customer, created_at, thumb_path")
         .eq("order_id", id!)
         .order("created_at", { ascending: false })
-        .limit(8);
+        // Era .limit(8): la finestra Documenti mostrava gli ultimi 8 file come se fossero tutti.
+        .limit(500);
       if (error) throw error;
       // thumb_path non è ancora nei tipi generati.
       return (data ?? []) as unknown as OrderDocumentSummary[];
     },
-    enabled: !!id && !!user && schedaPronta,
+    // Serve solo alla finestra Documenti: si legge quando la si apre.
+    enabled: !!id && !!user && filesOpen,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -2348,7 +2350,8 @@ function OrderDetailInner() {
       {/* Firma digitale (azione rapida): invio/gestione firma del cliente */}
       <Dialog open={firmaOpen} onOpenChange={setFirmaOpen}>
         <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
-          <DialogHeader>
+          {/* Il titolo lo mostra già la scheda firma qui sotto. */}
+          <DialogHeader className="sr-only">
             <DialogTitle>Firma digitale</DialogTitle>
           </DialogHeader>
           <OrdineFirma

@@ -64,9 +64,8 @@ describe("semina della scheda", () => {
     expect(qc.getQueryData(["orders", "statuses", "c1"])).toHaveLength(1);
     expect(qc.getQueryData(["order-phases-progress", "o1"])).toMatchObject({ total: 3, done: 1 });
     expect(qc.getQueryData(["order-attachments", "o1"])).toHaveLength(10);
-    const riepilogo = qc.getQueryData<Record<string, unknown>[]>(["order-documents-summary", "o1"]);
-    expect(riepilogo).toHaveLength(8);
-    expect(Object.keys(riepilogo![0])).not.toContain("order_id");
+    // La finestra Documenti legge tutti i file quando si apre: niente lista tagliata a 8.
+    expect(qc.getQueryData(["order-documents-summary", "o1"])).toBeUndefined();
     expect(qc.getQueryData(["order-contract-link", "c1", "o1"])).toEqual({ id: "o1", workflow_kind: "commessa", parent_contract_id: null, intervention_reference: null, order_code: "C-1" });
     expect(qc.getQueryData(["order-avanzamento", "o1"])).toBe(40);
     expect(qc.getQueryData(["peso-media-fasi", "c1"])).toBe("uguale");

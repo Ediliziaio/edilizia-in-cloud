@@ -73,7 +73,6 @@ export function fattureDellaCommessa(scheda: Pick<SchedaCommessa, "fatture_colle
   return Array.from(tutte.values());
 }
 
-const COLONNE_RIEPILOGO_DOCUMENTI = ["id", "file_name", "file_url", "file_type", "file_size", "visible_to_customer", "created_at", "thumb_path"] as const;
 
 /** Mette ogni pezzo della scheda sotto la chiave del componente che lo legge. */
 export function seminaSchedaCommessa(qc: QueryClient, scheda: SchedaCommessa, { id, companyId }: { id: string; companyId: string }) {
@@ -83,8 +82,6 @@ export function seminaSchedaCommessa(qc: QueryClient, scheda: SchedaCommessa, { 
   metti(["order-phases-progress", id], avanzamentoFasi(scheda.fasi));
   metti(["order-status-history", id], scheda.storia);
   metti(["order-attachments", id], scheda.allegati);
-  metti(["order-documents-summary", id], scheda.allegati.slice(0, 8).map((a) =>
-    Object.fromEntries(COLONNE_RIEPILOGO_DOCUMENTI.map((c) => [c, a[c] ?? null]))));
   metti(["order-next-task", id], scheda.prossima_attivita ?? null);
 
   if (scheda.commessa) {
