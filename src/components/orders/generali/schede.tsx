@@ -14,6 +14,16 @@ const MODULI_SCHEDA: Record<ModuloGenerale, ModuloScheda> = { contratto, piano, 
 
 export interface SchedaGenerale extends ModuloScheda { id: ModuloGenerale }
 
+/**
+ * I riquadri della Panoramica: anche da telefono, dove la scheda del modulo non c'è ma
+ * margine a finire, capitale, garanzie e SAL servono comunque a chi legge (piano §3.4).
+ */
+export function riquadriDelModello(modello: ModelloGenerale): SchedaGenerale[] {
+  return moduliDelModello(modello)
+    .map((id) => ({ id, ...MODULI_SCHEDA[id] }))
+    .filter((s) => s.pronto && !!s.Riquadro);
+}
+
 /** Le schede dei moduli da mostrare, nell'ordine del modello. Da telefono solo quelle che lo dichiarano. */
 export function schedeDelModello(modello: ModelloGenerale, telefono: boolean): SchedaGenerale[] {
   return moduliDelModello(modello)

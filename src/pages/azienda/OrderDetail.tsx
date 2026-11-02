@@ -50,7 +50,6 @@ import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
 import { SilvioAcquisti } from "@/components/orders/SilvioAcquisti";
 import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
-import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
@@ -97,6 +96,7 @@ import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/Or
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
+import { avvisoAlCliente } from "@/lib/orders/statoCommessa";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { QuadroPagamentiCommessa } from "@/components/orders/QuadroPagamentiCommessa";
@@ -123,7 +123,7 @@ import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
-import { conIncassiUnita, incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
@@ -1015,6 +1015,26 @@ function OrderDetailInner() {
     },
   });
 
+  const ultimoCambioDa = statusHistory[0]?.changed_by ?? null;
+  const { data: ultimoAutoreStato = null } = useQuery({
+    queryKey: ["order-status-autore", ultimoCambioDa],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("first_name, last_name, email").eq("id", ultimoCambioDa!).maybeSingle();
+      return [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim() || data?.email || null;
+    },
+    enabled: !!ultimoCambioDa,
+    staleTime: 300_000,
+  });
+  const { data: avvisoCambioAttivo = true } = useQuery({
+    queryKey: ["avviso-cambio-fase", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("companies").select("avvisa_cliente_cambio_fase").eq("id", effectiveCompany!.id).maybeSingle();
+      return (data as { avvisa_cliente_cambio_fase?: boolean } | null)?.avvisa_cliente_cambio_fase !== false;
+    },
+    enabled: statusChangeDialog.open && !!effectiveCompany?.id,
+    staleTime: 300_000,
+  });
+
   const handleStatusChange = (statusId: string) => {
     if (statusId === order?.current_status_id) return;
     const targetStatus = statuses.find((s) => s.id === statusId);
@@ -1053,7 +1073,6 @@ function OrderDetailInner() {
     }
   };
 
-  const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({ status_id: h.status_id, changed_at: h.changed_at }));
 
   const materialItems = orderItems.filter(item => !item.natura_riga || item.natura_riga === "materiale");
   const displayItems: (OrderItem & { id: string })[] = materialItems.map(item => ({
@@ -1373,7 +1392,7 @@ function OrderDetailInner() {
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
     varianti: variantiDatate,
-  }), incassiUnita.data ?? 0, order.vat_rate ?? 22);
+  }), nettoUnitaInLordo(incassiUnita.data?.incassi ?? 0, order.vat_rate ?? 22), order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
   const cashTotalGross = incassi.totaleLordo;
@@ -1567,51 +1586,23 @@ function OrderDetailInner() {
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
           onOpenPlanning={() => navigateTo({ tab: "panoramica", section: "section-pianificazione" })}
           onOpenTasks={() => prossimaTask?.title?.startsWith("Ufficio contratto · ") ? navigateTo({tab:"cantiere",section:"section-ufficio"}) : navigate(prossimaTask?.id ? `/azienda/attivita?attivita=${prossimaTask.id}` : "/azienda/attivita")}
-        >
-          <OrderStatusWorkflow
-            key={id}
-            orderId={id!}
-            companyId={effectiveCompany?.id ?? ""}
-            modelKey={order.tipo_lavoro}
-            version={order.version}
-            canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
-            canConfigure={permissions.canViewSettingsOrders}
-            workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })}
-            statuses={statuses}
-            currentStatusId={order.current_status_id}
-            statusHistory={progressHistory}
-            onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
-          />
-          <OrderScheduleBadge orderId={id!} />
-          <QuoteCard title="Cronologia degli stati">
-            {statusHistory.length === 0 ? (
-              <p className="text-slate-500 text-sm">Nessuno storico</p>
-            ) : (
-              <div className="space-y-3">
-                {statusHistory.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: entry.status.color }}
-                      />
-                      <span className="text-sm font-medium text-slate-900">
-                        {entry.status.name}
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      {formatDateTime(entry.changed_at)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </QuoteCard>
-        </OrderCommessaSummary>
+          statoControllo={
+            <OrderStatusWorkflow
+              key={id}
+              orderId={id!}
+              canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
+              workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
+              statuses={statuses}
+              currentStatusId={order.current_status_id}
+              statusHistory={statusHistory}
+              onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
+              ultimoAutore={ultimoAutoreStato}
+              formatoData={formatDateTime}
+            />
+          }
+          // Il semaforo dei tempi non dice niente su una commessa già finita.
+          tempi={phaseProgress && phaseProgress.total > 0 && phaseProgress.done === phaseProgress.total ? null : <OrderScheduleBadge orderId={id!} />}
+        />
         {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
@@ -2419,7 +2410,10 @@ function OrderDetailInner() {
           <DialogHeader>
             <DialogTitle>Conferma cambio stato</DialogTitle>
             <DialogDescription>
-              Vuoi cambiare lo stato della commessa a "{statusChangeDialog.targetStatusName}"?
+              Vuoi cambiare lo stato della commessa a "{statusChangeDialog.targetStatusName}"?{" "}
+              {avvisoAlCliente(order?.customer_id, avvisoCambioAttivo)
+                ? <strong className="font-medium text-foreground">Il cliente riceverà un avviso.</strong>
+                : "Il cliente non riceverà avvisi."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -13,7 +13,7 @@ export default function SettingsCommesseGenerali() {
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
   const { evidenziata } = useVaiASezione(true);
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
       <CommesseGeneraliConfig puoModificare={puoModificare} evidenziata={evidenziata === "tipi"} />
     </div>

@@ -174,7 +174,7 @@ describe("il modulo Investitori", () => {
     const Riquadro = modulo.Riquadro!;
     render(<MemoryRouter><Riquadro riepilogo={riepilogo()} totali={totali} puoModificare /></MemoryRouter>);
     const r = screen.getByRole("region", { name: "Investitori" });
-    expect(r).toHaveTextContent("Capitale raccolto");
+    expect(r).toHaveTextContent("Capitale ancora dentro");
     expect(r).toHaveTextContent("350.000");
     expect(r).toHaveTextContent("600.000");
     expect(r).toHaveTextContent("Rendimento atteso");

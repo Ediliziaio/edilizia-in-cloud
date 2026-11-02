@@ -36,36 +36,3 @@ export function addWorkflowStatuses(existing: OrderStatus[], model: OrderWorkflo
   if (!out.some(s => s.is_support_phase || workflowName(s.name) === "assistenza")) out.push({id: newId(), name: "Assistenza", icon: "Wrench", color: "#64748B", position: out.length, is_support_phase: true});
   return out;
 }
-
-/** Only exact standard-label matches are mapped. Unknown/custom states remain available. */
-export function resolveWorkflowStatuses(statuses: OrderStatus[], key: string | null | undefined) {
-  const model = orderWorkflowModel(key);
-  if (!model) return {model, complete: false, missing: [] as string[], path: statuses, additional: [] as OrderStatus[]};
-  const path: OrderStatus[] = [];
-  const missing: string[] = [];
-  for (const step of model.statuses) {
-    const matches = statuses.filter(s => !s.is_support_phase && workflowName(s.name) === workflowName(step.name));
-    if (matches.length !== 1) missing.push(step.name);
-    else path.push({...matches[0], position: path.length});
-  }
-  const pathIds = new Set(path.map(s => s.id));
-  return {model, complete: missing.length === 0, missing, path, additional: statuses.filter(s => !pathIds.has(s.id))};
-}
-
-export interface WorkflowProgress { total: number; done: number; inCorso: number; avgPct: number | null }
-/** A suggestion only. Never infers a signature, payment, activation or delivery. */
-export function suggestWorkflowStatus(resolved: ReturnType<typeof resolveWorkflowStatuses>, currentId: string | null, progress?: WorkflowProgress) {
-  if (!resolved.complete || !resolved.model || !progress || !Number.isInteger(progress.total) || progress.total < 1 ||
-    !Number.isInteger(progress.done) || progress.done < 0 || progress.done > progress.total ||
-    !Number.isInteger(progress.inCorso) || progress.inCorso < 0 || progress.inCorso > progress.total ||
-    (progress.avgPct !== null && (!Number.isFinite(progress.avgPct) || progress.avgPct < 0 || progress.avgPct > 100))) return null;
-  const currentIndex = resolved.path.findIndex(s => s.id === currentId);
-  if (currentIndex < 0) return null;
-  const meaning = resolved.model.statuses[currentIndex].meaning;
-  if (meaning === "verification" || meaning === "delivered") return null;
-  const target: WorkflowMeaning | null = progress.done === progress.total ? "verification"
-    : (progress.inCorso > 0 || (progress.avgPct ?? 0) > 0) && meaning !== "execution" ? "execution" : null;
-  const index = resolved.model.statuses.findIndex(s => s.meaning === target);
-  if (index < 0) return null;
-  return {status: resolved.path[index], reason: target === "verification" ? "Le lavorazioni risultano completate: verifica il prossimo passaggio." : "Le lavorazioni risultano avviate: verifica lo stato generale."};
-}

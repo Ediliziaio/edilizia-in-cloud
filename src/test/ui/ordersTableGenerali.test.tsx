@@ -75,6 +75,41 @@ describe("commesse generali nella lista", () => {
     expect(r).toHaveTextContent(/700,00/);
   });
 
+  it("le commesse fuori pagina entrano nei totali della generale, senza comparire due volte", () => {
+    cleanup();
+    render(
+      <MemoryRouter>
+        <OrdersTable
+          orders={[riga("g", "C-014", 0), riga("a", "ODL-1", 1000)]} figlieFuoriPagina={[riga("b", "ODL-2", 500)]}
+          onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} visibleColumns={new Set(["totalIvato", "total_amount"])} mappaGenerali={mappaGenerali}
+        />
+      </MemoryRouter>,
+    );
+    const generale = within(tabella()).getByText("Generale · 2").closest("tr")!;
+    expect(generale).toHaveTextContent(/1\.?500,00/);
+    expect(generale).not.toHaveTextContent(/^.*0,00 €.*0,00 €$/);
+    expect(within(tabella()).queryByText("ODL-2")).not.toBeInTheDocument();
+  });
+
+  it("«Raggruppa» compare con le commesse scelte e solo se la pagina lo offre", () => {
+    cleanup();
+    const onRaggruppa = vi.fn();
+    const conBottone = (extra: { onRaggruppa?: (ids: string[]) => void }) => render(
+      <MemoryRouter>
+        <OrdersTable orders={[riga("n", "C-020", 500)]} onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} {...extra} />
+      </MemoryRouter>,
+    );
+    conBottone({ onRaggruppa });
+    expect(screen.queryByRole("button", { name: /Raggruppa/ })).not.toBeInTheDocument();
+    fireEvent.click(within(tabella()).getAllByRole("checkbox")[1]);
+    fireEvent.click(screen.getByRole("button", { name: /Raggruppa/ }));
+    expect(onRaggruppa).toHaveBeenCalledWith(["n"]);
+    cleanup();
+    conBottone({});
+    fireEvent.click(within(tabella()).getAllByRole("checkbox")[1]);
+    expect(screen.queryByRole("button", { name: /Raggruppa/ })).not.toBeInTheDocument();
+  });
+
   it("senza generali la tabella non cambia", () => {
     cleanup();
     render(<MemoryRouter><OrdersTable orders={[riga("n", "C-020", 500)]} onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} /></MemoryRouter>);

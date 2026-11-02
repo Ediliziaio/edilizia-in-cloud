@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
-import { chiaviPlanimetrie, creaPlanimetria, salvaNuovaVersione, type OrigineVersione } from "@/lib/planimetrie/archivio";
+import { chiaviPlanimetrie, creaPlanimetria, salvaNuovaVersione, type CollegamentiPlanimetria, type OrigineVersione } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import EditorPlanimetria from "./EditorPlanimetria";
 import { archivioRicalco } from "@/lib/planimetrie/ricalco";
@@ -33,6 +33,8 @@ interface Props {
   versioneAttesa?: number;
   /** Per una pianta nuova: il nome proposto. */
   titoloProposto?: string;
+  /** Per una pianta nuova: a cosa è collegata (es. la commessa di un'unità). */
+  collegamenti?: CollegamentiPlanimetria;
   /** Da dove viene la pianta (per la prima versione salvata). */
   origine?: OrigineVersione;
   /** Frasi da mostrare sopra il disegno (es. «controlla le misure del bagno»). */
@@ -49,6 +51,7 @@ export function EditorConSalvataggio({
   planimetriaId,
   versioneAttesa,
   titoloProposto = "",
+  collegamenti,
   origine = "manuale",
   avvisi = [],
   sopra,
@@ -110,6 +113,7 @@ export function EditorConSalvataggio({
         versioneAttesa,
         // la prima versione dice da dove viene la pianta (a mano, dall'AI…); le successive sono modifiche a mano
         origine: nuova ? origine : "manuale",
+        collegamenti,
       },
     );
     setSalvando(false);

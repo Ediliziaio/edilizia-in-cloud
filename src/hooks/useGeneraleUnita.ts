@@ -43,10 +43,11 @@ function useRileggi(generaleId: string) {
   return (nuoveCommesse = false) => {
     void qc.invalidateQueries({ queryKey: chiaviUnita.elenco(generaleId) });
     void qc.invalidateQueries({ queryKey: chiaviGenerali.riepilogo(generaleId) });
-    if (nuoveCommesse) {
-      void qc.invalidateQueries({ queryKey: ["orders"] });
-      void qc.invalidateQueries({ queryKey: ["mappa-commesse-generali"] });
-    }
+    // Un pagamento cambia anche l'elenco delle commesse e i suoi riquadri.
+    void qc.invalidateQueries({ queryKey: ["mappa-commesse-generali"] });
+    void qc.invalidateQueries({ queryKey: ["incassi-unita"] });
+    void qc.invalidateQueries({ queryKey: ["orders-global-stats"] });
+    if (nuoveCommesse) void qc.invalidateQueries({ queryKey: ["orders"] });
   };
 }
 

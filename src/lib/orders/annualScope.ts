@@ -1,3 +1,4 @@
+import { nettoUnitaInLordo } from "@/lib/orders/incassiCommessa";
 import {getAmountCollected, getAmountDue, getGrossOrderAmount, type OrderWithDetails} from "@/lib/orderUtils";
 
 export function orderYear(order: Pick<OrderWithDetails, "created_at">): number {
@@ -22,15 +23,15 @@ export function currentManagementScope<T extends OrderWithDetails>(orders: T[], 
  * `incassiUnita`: caparre, acconti e saldi delle unità in vendita (commesse generali), per commessa.
  * Si prende il più alto tra rate/fatture e incassi dell'unità (stessi soldi, mai sommati).
  */
-export function orderEconomics(orders: OrderWithDetails[], incassiUnita?: ReadonlyMap<string, number>) {
+export function orderEconomics(orders: OrderWithDetails[], incassiUnita?: ReadonlyMap<string, number>, permuteUnita?: ReadonlyMap<string, number>) {
   return orders.reduce((total, order) => {
     const daRate = getAmountCollected(order);
-    const inPiu = Math.max(0, (incassiUnita?.get(order.id) ?? 0) - daRate);
+    const inPiu = Math.max(0, nettoUnitaInLordo(incassiUnita?.get(order.id) ?? 0, order.vat_rate) - daRate);
     return {
       count: total.count + 1,
       sold: total.sold + getGrossOrderAmount(order),
       collected: total.collected + daRate + inPiu,
-      pending: total.pending + Math.max(0, getAmountDue(order) - inPiu),
+      pending: total.pending + Math.max(0, getAmountDue(order) - inPiu - nettoUnitaInLordo(permuteUnita?.get(order.id) ?? 0, order.vat_rate)),
     };
   }, {count: 0, sold: 0, collected: 0, pending: 0});
 }

@@ -642,7 +642,8 @@ export function calcolaInvestitori(input: {
     tir: numeri?.tirProgetto ?? null,
   };
   const propri = conti.filter((c) => c.fonte.tipo === "propri");
-  const capitalePropri = somma(propri.map((c) => c.capitaleDentro + c.daUsare));
+  // Il capitale messo, non quello ancora dentro: a operazione chiusa è stato rimborsato, e il ROE resta da leggere.
+  const capitalePropri = somma(propri.map((c) => c.versato + c.daUsare));
   const utilePropri = somma(propri.map((c) => c.rendimento.stima));
   const flussiPropri = propri.flatMap((c) => [
     ...c.movimenti.map((m) => ({ data: m.data, importo: m.tipo === "versamento" ? -m.importo : m.importo })),

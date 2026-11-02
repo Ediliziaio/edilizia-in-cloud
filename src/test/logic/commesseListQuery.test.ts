@@ -12,7 +12,7 @@ beforeEach(()=>{
       eq:vi.fn((key:string,value:string)=>{mock.calls.push(["eq",key,value]);rows=rows.filter(row=>row[key as keyof typeof row]===value);return query;}),
       is:vi.fn().mockReturnThis(),
       in:vi.fn((key:string,ids:string[])=>{mock.calls.push(["in",key,ids]);rows=rows.filter(row=>ids.includes(row[key as keyof typeof row]));return query;}),
-      or:vi.fn().mockReturnThis(),gte:vi.fn().mockReturnThis(),lte:vi.fn().mockReturnThis(),
+      or:vi.fn((espressione:string)=>{mock.calls.push(["or",espressione]);return query;}),gte:vi.fn().mockReturnThis(),lte:vi.fn().mockReturnThis(),
       order:vi.fn().mockReturnThis(),
       range:vi.fn((from:number,to:number)=>{mock.calls.push(["range",from,to]);start=from;end=to;return query;}),
       then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(resolve({data:mock.error?null:rows.slice(start,end+1),error:mock.error,count:rows.length})),
@@ -20,6 +20,17 @@ beforeEach(()=>{
   });
 });
 describe("Filtri prima della paginazione delle commesse",()=>{
+  it("«Solo generali» tiene anche ciò che contengono; «Senza generale» toglie entrambe; di default nessun filtro",async()=>{
+    await readOrdersPage({...filters,generaliFilter:"solo"},0,19);
+    expect(mock.calls).toContainEqual(["or","workflow_kind.eq.generale,commessa_generale_id.not.is.null"]);
+    mock.calls=[];
+    await readOrdersPage({...filters,generaliFilter:"senza"},0,19);
+    expect(mock.calls).toContainEqual(["or","workflow_kind.neq.generale"]);
+    expect(mock.calls).toContainEqual(["or","commessa_generale_id.is.null"]);
+    mock.calls=[];
+    await readOrdersPage({...filters,generaliFilter:"all"},0,19);
+    expect(mock.calls.filter(call=>call[0]==="or")).toEqual([]);
+  });
   it("usa il perimetro annuale completo prima di contare, paginare ed esportare",async()=>{
     const scoped={...filters,isYearCorrente:true,periodIds:["004","023","064"]};
     expect((await readOrdersPage(scoped,0,1)).orders.map(row=>row.id)).toEqual(["004","023"]);

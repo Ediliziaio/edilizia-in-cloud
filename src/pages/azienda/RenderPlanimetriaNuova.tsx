@@ -38,8 +38,10 @@ import {
   type IngressoAI,
   type RichiestaAI,
 } from "@/components/planimetrie/editor/generazione";
+import type { CollegamentiPlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie, type ModoNuovaPianta } from "@/lib/planimetrie/render/percorsi";
 
+interface DaDove { collegamenti?: CollegamentiPlanimetria; titolo: string; indietro: string }
 type Generata = Extract<EsitoAI, { ok: true }> & { ingresso: IngressoAI; titolo: string };
 
 async function chiediAllAI(richiesta: RichiestaAI): Promise<EsitoAI> {
@@ -61,11 +63,19 @@ export default function RenderPlanimetriaNuova() {
   const [generata, setGenerata] = useState<Generata | null>(null);
   const companyId = effectiveCompany?.id;
   if (!companyId) return null;
+  // Arrivando da un'unità di una commessa generale: la pianta nasce collegata alla sua commessa.
+  const commessa = params.get("commessa");
+  const torna = params.get("torna");
+  const per: DaDove = {
+    collegamenti: commessa ? { orderId: commessa } : undefined,
+    titolo: params.get("titolo") ?? "",
+    indietro: torna?.startsWith("/azienda/") ? torna : percorsiPlanimetrie.elenco,
+  };
 
   if (modo === "disegno") {
-    return <EditorConSalvataggio companyId={companyId} titoloPagina="Disegna una pianta" indietro={percorsiPlanimetrie.elenco} />;
+    return <EditorConSalvataggio companyId={companyId} titoloPagina="Disegna una pianta" indietro={per.indietro} collegamenti={per.collegamenti} titoloProposto={per.titolo} />;
   }
-  if (generata) return <PiantaGenerata companyId={companyId} generata={generata} onAggiorna={setGenerata} />;
+  if (generata) return <PiantaGenerata companyId={companyId} generata={generata} onAggiorna={setGenerata} per={per} />;
   return <ChiediPianta companyId={companyId} modo={modo} onPronta={setGenerata} />;
 }
 
@@ -329,7 +339,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
   );
 }
 
-function PiantaGenerata({ companyId, generata, onAggiorna }: { companyId: string; generata: Generata; onAggiorna: (g: Generata) => void }) {
+function PiantaGenerata({ companyId, generata, onAggiorna, per }: { per: DaDove; companyId: string; generata: Generata; onAggiorna: (g: Generata) => void }) {
   const serveScala = scalaDaConfermare(generata.ingresso, generata.generazione);
   return (
     <EditorConSalvataggio
@@ -337,9 +347,10 @@ function PiantaGenerata({ companyId, generata, onAggiorna }: { companyId: string
       key={generata.generazione.scala?.cm_per_unita ?? "senza-scala"}
       companyId={companyId}
       titoloPagina="Controlla la pianta e salvala"
-      indietro={percorsiPlanimetrie.elenco}
+      indietro={per.indietro}
+      collegamenti={per.collegamenti}
       iniziale={generata.planimetria}
-      titoloProposto={generata.titolo}
+      titoloProposto={per.titolo || generata.titolo}
       origine={generata.origine}
       avvisi={[
         "Le misure in viola con «≈» sono stimate: controllale e correggile toccandole.",

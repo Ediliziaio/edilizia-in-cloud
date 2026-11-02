@@ -54,6 +54,9 @@ interface OrdersFiltersProps {
   onClearAllFilters: () => void;
   hideCompleted: boolean;
   onHideCompletedChange: (value: boolean) => void;
+  /** Solo per chi ha commesse generali: altrimenti il filtro non compare. */
+  generaliFilter?: "all" | "solo" | "senza";
+  onGeneraliFilterChange?: (value: "all" | "solo" | "senza") => void;
 }
 
 export function OrdersFilters({
@@ -75,6 +78,8 @@ export function OrdersFilters({
   onClearAllFilters,
   hideCompleted,
   onHideCompletedChange,
+  generaliFilter,
+  onGeneraliFilterChange,
 }: OrdersFiltersProps) {
   return (
     <div
@@ -138,6 +143,21 @@ export function OrdersFilters({
             <SelectItem value="overdue">Rate scadute</SelectItem>
           </SelectContent>
         </Select>
+        {generaliFilter && onGeneraliFilterChange && (
+          <Select value={generaliFilter} onValueChange={(val) => onGeneraliFilterChange(val as "all" | "solo" | "senza")}>
+            <SelectTrigger
+              aria-label="Commesse generali"
+              className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le commesse</SelectItem>
+              <SelectItem value="solo">Solo generali</SelectItem>
+              <SelectItem value="senza">Senza generale</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Select value={yearFilter} onValueChange={onYearFilterChange}>
           <SelectTrigger
             aria-label="Periodo commesse"

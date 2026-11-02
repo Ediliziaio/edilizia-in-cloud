@@ -233,7 +233,7 @@ function useInvalidaPiano(generaleId: string) {
   };
 }
 
-const vocePerDb = (v: VoceNuova, ordine: number, figliaId: string | null = null) => ({
+export const vocePerDb = (v: VoceNuova, ordine: number, figliaId: string | null = null) => ({
   tipo: v.tipo,
   categoria: v.categoria,
   descrizione: v.descrizione.slice(0, 300),

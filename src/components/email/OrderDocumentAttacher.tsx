@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useOrderDocuments } from "@/hooks/useOrderDocuments";
 import { Loader2, Paperclip, Check } from "lucide-react";
 
@@ -15,7 +16,9 @@ function formatSize(bytes: number | null): string {
 }
 
 export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDetach }: OrderDocumentAttacherProps) {
-  const { data: docs = [], isLoading, isError, refetch } = useOrderDocuments(orderId);
+  const { data: tutti = [], isLoading, isError, refetch } = useOrderDocuments(orderId);
+  const [cerca, setCerca] = useState("");
+  const docs = cerca.trim() ? tutti.filter((d) => d.file_name.toLowerCase().includes(cerca.trim().toLowerCase())) : tutti;
 
   if (isLoading) {
     return (
@@ -32,6 +35,13 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
         <Paperclip className="h-3.5 w-3.5" />
         Documenti commessa
       </div>
+      {tutti.length > 5 && (
+        <input
+          type="search" value={cerca} onChange={(e) => setCerca(e.target.value)}
+          placeholder={`Cerca tra ${tutti.length} documenti…`} aria-label="Cerca tra i documenti"
+          className="h-7 w-full rounded-md border bg-white px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        />
+      )}
 
       {isError ? (
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -49,7 +59,7 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
           Nessun documento collegato alla commessa.
         </p>
       ) : (
-        <ul className="space-y-1">
+        <ul className="max-h-48 space-y-1 overflow-y-auto">
           {docs.map((doc) => {
             const attached = alreadyAttached.includes(doc.file_url);
             return (
@@ -58,7 +68,7 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
                 className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] bg-white"
               >
                 <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-                  <span className="truncate font-medium">{doc.file_name}</span>
+                  <span className="min-w-0 break-words font-medium">{doc.file_name}</span>
                   {doc.file_size && (
                     <span className="text-muted-foreground shrink-0">{formatSize(doc.file_size)}</span>
                   )}
