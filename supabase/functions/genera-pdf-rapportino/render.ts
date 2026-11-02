@@ -1,3 +1,4 @@
+import { valoreInTesto, valoriDaStampare } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
 import { bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
 
@@ -298,6 +299,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     const minimo = testaH + Math.min(materialiH || (f.foto.length ? foto.h + 34 : 0), 140);
     return { nomeRighe, testaH, minimo, foto };
   };
+  // Un rapportino di fine lavori o firmato è un documento per il cliente: i valori interni restano nell'app.
+  const documentoPer = r.lavoro_completato === true || !!text(r.firma_cliente_url) ? "cliente" as const : "interno" as const;
   const scheda = async (f: FaseBlocco, titolo?: string) => {
     const { nomeRighe, testaH, minimo, foto } = misureScheda(f);
     const { colonne: colonneFoto, w: wFoto, h: hFoto } = foto;
@@ -322,6 +325,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     // Barra colorata a sinistra del corpo della scheda: solo se il pezzo sta tutto su una pagina.
     const barraLato = (inizio: number, paginaInizio: number) => { if (pdf.getPageCount() === paginaInizio) box(M, inizio, 2.5, inizio - y, accent); };
     // materiali della fase
+    for (const v of valoriDaStampare(f.campi, documentoPer)) paragraph(`${v.etichetta}: ${valoreInTesto(v)}`, 9, ink, interno, M + 16);
     if (f.materiali.length) {
       ensure(18 + 30);
       const inizio = y, paginaInizio = pdf.getPageCount();
@@ -376,6 +380,14 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
       x += w + 8;
     }
     y -= 46;
+  }
+
+  // ═════════ Campi propri dell'azienda ═════════
+  const valoriPropri = valoriDaStampare(blocchi.altriCampi, documentoPer);
+  if (valoriPropri.length) {
+    sezione("Altre informazioni", 60);
+    for (const v of valoriPropri) paragraph(`${v.etichetta}${v.fase_nome ? ` (${v.fase_nome})` : ""}: ${valoreInTesto(v)}`);
+    y -= 8;
   }
 
   // ═════════ Segnalazioni ═════════

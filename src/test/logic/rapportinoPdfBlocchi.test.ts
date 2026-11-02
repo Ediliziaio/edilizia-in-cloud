@@ -416,3 +416,54 @@ describe("rapportino a blocchi: il salto pagina", () => {
     }
   });
 });
+
+describe("campi propri nel PDF", () => {
+  const valori = [
+    { chiave: "a", etichetta: "Solo interno", tipo: "text", valore: "dentro", stampa: "interno" },
+    { chiave: "b", etichetta: "Per il cliente", tipo: "number", valore: 12, unita: "pz", stampa: "cliente" },
+    { chiave: "c", etichetta: "Mai stampato", tipo: "text", valore: "segreto", stampa: "mai" },
+  ];
+  const scritto = (testi: string[]) => testi.join(" ");
+
+  it("il giornaliero stampa interni e cliente, mai i «mai»", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: valori });
+    expect(testi).toContain("ALTRE INFORMAZIONI");
+    expect(scritto(testi)).toContain("Solo interno: dentro");
+    expect(scritto(testi)).toContain("Per il cliente: 12 pz");
+    expect(scritto(testi)).not.toContain("segreto");
+  });
+  it("il documento di fine lavori stampa solo i valori per il cliente", async () => {
+    const { testi } = await disegna({ ...base, lavoro_completato: true, campi_extra: valori });
+    expect(scritto(testi)).toContain("Per il cliente: 12 pz");
+    expect(scritto(testi)).not.toContain("dentro");
+  });
+  it("un rapportino con la firma del cliente è un documento per il cliente anche senza fine lavori", async () => {
+    const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", campi_extra: valori });
+    expect(scritto(testi)).not.toContain("dentro");
+  });
+  it("senza valori la sezione non c'è", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: [] });
+    expect(testi).not.toContain("ALTRE INFORMAZIONI");
+  });
+  it("un testo lungo va a capo e continua sulla pagina dopo senza perdersi", async () => {
+    const lunghissimo = Array.from({ length: 400 }, (_, i) => `parola${i}`).join(" ");
+    const { testi, risultato } = await disegna({ ...base, campi_extra: [{ chiave: "l", etichetta: "Lungo", tipo: "textarea", valore: lunghissimo, stampa: "interno" }] });
+    expect(risultato.pageCount).toBeGreaterThan(1);
+    expect(scritto(testi)).toContain("parola399");
+  });
+  it("un valore per fase sta nella scheda della sua fase, e rispetta la stampa", async () => {
+    const { testi } = await disegna({ ...base,
+      fasi_lavorate: [{ phase_id: "ph-1", percentuale: 50, nome: "Demolizioni e allestimento" }],
+      campi_extra: [
+        { chiave: "p", etichetta: "Pezzi posati", tipo: "number", valore: 3, stampa: "interno", phase_id: "ph-1", fase_nome: "Vecchio nome" },
+        { chiave: "q", etichetta: "Da non stampare", tipo: "number", valore: 9, stampa: "mai", phase_id: "ph-1", fase_nome: "Vecchio nome" },
+      ] });
+    expect(testi).not.toContain("ALTRE INFORMAZIONI");
+    expect(posizione(testi, "Pezzi posati: 3")).toBeGreaterThan(posizione(testi, "Demolizioni e allestimento"));
+    expect(testi.join(" ")).not.toContain("Da non stampare");
+  });
+  it("un valore di una fase non più nel rapportino non si perde, col nome salvato", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: [{ chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 3, stampa: "interno", phase_id: "x", fase_nome: "Vecchio nome" }] });
+    expect(testi.join(" ")).toContain("Pezzi (Vecchio nome): 3");
+  });
+});

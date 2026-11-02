@@ -30,3 +30,11 @@ export function dataOraItaliana(iso: string | null | undefined): { data: string;
   for (const parte of FORMATO.formatToParts(istante)) p[parte.type] = parte.value;
   return { data: `${p.year}-${p.month}-${p.day}`, ora: `${p.hour}:${p.minute}` };
 }
+
+/** Il giorno di oggi a Roma, con il nome: il modello, senza, lo tira a indovinare. */
+export function oggiInParole(at: Date = new Date()): { iso: string; testo: string } {
+  const f = (o: Intl.DateTimeFormatOptions, l = "it-IT") => new Intl.DateTimeFormat(l, { timeZone: "Europe/Rome", ...o }).format(at);
+  const iso = f({ year: "numeric", month: "2-digit", day: "2-digit" }, "en-CA");
+  const [a, m, g] = iso.split("-");
+  return { iso, testo: `${f({ weekday: "long" })} ${g}/${m}/${a}` };
+}

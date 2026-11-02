@@ -1,4 +1,5 @@
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
+import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
 import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
 /**
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
@@ -912,14 +913,15 @@ export default function CampoLavoroDetail() {
           </button>
         )}
 
-        <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
+        <div className="mt-2 grid auto-cols-fr grid-flow-col gap-1.5 md:mt-3 md:gap-2">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la
               sera dentro al rapportino (dove la galleria è irraggiungibile). */}
           {/* Bolla: parte da QUI (cantiere già impostato), non più dal menu "App".
               Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
           <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/merce?order=${orderId}`)} />
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
-          <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          <QuickAction icon={AlertCircle} label="Segnala" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          {orderId && <BottoneCollaudo orderId={orderId} />}
         </div>
         </>}
 

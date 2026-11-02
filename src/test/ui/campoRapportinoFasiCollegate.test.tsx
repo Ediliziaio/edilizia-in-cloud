@@ -40,9 +40,9 @@ vi.mock("@tanstack/react-query", () => ({
     queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
     isError: false, refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: () => void; onError?: (e: unknown) => void }) => ({
+  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: (esito?: unknown) => void; onError?: (e: unknown) => void }) => ({
     isPending: false,
-    mutate: async () => { try { await config.mutationFn(); config.onSuccess?.(); } catch (e) { config.onError?.(e); } },
+    mutate: async () => { try { config.onSuccess?.(await config.mutationFn()); } catch (e) { config.onError?.(e); } },
   }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
@@ -71,7 +71,7 @@ const FOTO_B = "https://local.invalid/b.jpg";
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
-  state.role = { isCapocantiere: false, esisteCapo: false };
+  state.role = { isCapocantiere: true, esisteCapo: true };
   state.phases = [
     { id: "p1", name: "Posa serramenti", status: "in_corso", percentuale: 20 },
     { id: "p2", name: "Finiture", status: "da_iniziare", percentuale: 0 },

@@ -1,6 +1,6 @@
 // src/test/logic/anteprimaAvanzamento.test.ts
 import { describe, expect, it } from "vitest";
-import { anteprimaAvanzamento } from "@/lib/orders/anteprimaAvanzamento";
+import { anteprimaAvanzamento, fasiAperte } from "@/lib/orders/anteprimaAvanzamento";
 
 const fase = (id: string, patch: Record<string, unknown> = {}) => ({ id, name: `Fase ${id}`, status: "in_corso", percentuale: 20 as number | null, ...patch });
 const sotto = (id: string, phase_id: string, fatta = false, peso = 1) => ({ id, phase_id, name: `Sotto ${id}`, position: 0, peso, fatta, fatta_il: null as string | null });
@@ -58,3 +58,26 @@ describe("anteprimaAvanzamento", () => {
     expect(anteprimaAvanzamento([fase("a")], [], [{ phase_id: "a", percentuale: 250 }])[0]).toMatchObject({ dopo: 100, dichiarata: 100 });
   });
 });
+
+describe("fase mai iniziata su cui si è lavorato", () => {
+  const nuova = (p = {}) => fase("a", { status: "da_iniziare", percentuale: 0, ...p });
+  it("senza percentuale parte comunque, e l'anteprima lo dice", () => {
+    expect(anteprimaAvanzamento([nuova()], [], [{ phase_id: "a", percentuale: 0 }])).toEqual([
+      { phaseId: "a", nome: "Fase a", prima: 0, dopo: 0, chiude: false, sottofasiNuove: [], dichiarata: 0, inizia: true },
+    ]);
+  });
+  it("con le sottofasi, anche senza nessuna finita", () => {
+    const righe = anteprimaAvanzamento([nuova()], [sotto("s", "a")], [{ phase_id: "a", sottofasi_fatte: [] }]);
+    expect(righe[0]).toMatchObject({ phaseId: "a", inizia: true, sottofasiNuove: [] });
+  });
+  it("una fase già in corso senza novità non aggiunge righe", () => {
+    expect(anteprimaAvanzamento([fase("a")], [], [{ phase_id: "a", percentuale: 20 }])).toEqual([]);
+  });
+});
+
+describe("fasiAperte", () => {
+  it("elenca le fasi non completate", () => {
+    expect(fasiAperte([fase("a"), fase("b", { status: "completata" }), fase("c", { status: "da_iniziare", percentuale: 0 })])).toEqual(["Fase a", "Fase c"]);
+  });
+});
+

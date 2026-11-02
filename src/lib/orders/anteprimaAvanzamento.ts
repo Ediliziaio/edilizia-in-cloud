@@ -23,6 +23,8 @@ export interface RigaAnteprima {
   sottofasiNuove: string[];
   /** La percentuale dichiarata dalla voce; `null` se la voce porta sottofasi. */
   dichiarata: number | null;
+  /** Fase mai iniziata su cui si è lavorato: parte, anche senza una percentuale. */
+  inizia?: true;
 }
 
 const limita = (n: number): number => Math.min(100, Math.max(0, Math.round(n)));
@@ -43,20 +45,35 @@ export function anteprimaAvanzamento(
 
     if (spunte && delle.length > 0) {
       const nuove = delle.filter((s) => !s.fatta && spunte.includes(s.id));
-      if (nuove.length === 0) continue;   // niente di nuovo: il database non tocca la fase
+      if (nuove.length === 0) {
+        // Niente di finito: il database non tocca l'avanzamento, ma una fase mai iniziata parte.
+        if (fase.status === "da_iniziare") righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo: prima, chiude: false, sottofasiNuove: [], dichiarata: null, inizia: true });
+        continue;
+      }
       const dopo = avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s) }))) ?? prima;
       righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo, chiude: dopo >= 100 && prima < 100, sottofasiNuove: nuove.map((s) => s.name), dichiarata: null });
       continue;
     }
-    if (delle.length > 0) continue;   // la decidono le sottofasi: una % dichiarata non cambia niente
+    if (delle.length > 0) {   // la decidono le sottofasi: una % dichiarata non cambia niente
+      if (fase.status === "da_iniziare") righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo: prima, chiude: false, sottofasiNuove: [], dichiarata: null, inizia: true });
+      continue;
+    }
 
     const grezza = voce.percentuale;
     const numero = grezza === undefined || grezza === null || grezza === "" ? 0 : Number(grezza);
     if (!Number.isFinite(numero)) continue;   // non è un numero: il server rifiuta l’approvazione
     const dichiarata = limita(numero);
     const dopo = Math.max(prima, dichiarata);
-    if (dopo === prima && dichiarata >= prima) continue;
+    if (dopo === prima && dichiarata >= prima) {
+      if (fase.status === "da_iniziare") righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo, chiude: false, sottofasiNuove: [], dichiarata, inizia: true });
+      continue;
+    }
     righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo, chiude: dopo >= 100 && prima < 100, sottofasiNuove: [], dichiarata });
   }
   return righe;
+}
+
+/** Le fasi ancora aperte: un rapporto di fine lavori non le chiude, e chi approva lo deve sapere. */
+export function fasiAperte(fasi: ReadonlyArray<Pick<FaseDellaCommessa, "name" | "status">>): string[] {
+  return fasi.filter((f) => f.status !== "completata").map((f) => f.name);
 }

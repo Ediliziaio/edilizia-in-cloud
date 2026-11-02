@@ -17,6 +17,12 @@ vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canEditOrders: false, canViewCosts: false }),
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+// La lettura del modulo è una rpc: qui `rpc` conta solo le scritture.
+vi.mock("@/components/orders/TotaliCampiCommessa", () => ({ TotaliCampiCommessa: (): null => null }));
+vi.mock("@/hooks/useModuliCantiere", async () => {
+  const { SCHEMA_COME_OGGI } = await import("../../../supabase/functions/_shared/moduliCantiere");
+  return { useModuloRapportino: () => ({ schema: SCHEMA_COME_OGGI, isLoading: false, isError: false }) };
+});
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: state.writes,

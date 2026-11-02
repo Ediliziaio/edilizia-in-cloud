@@ -8,6 +8,10 @@ project_id = "rsbrguhkodgnqfomrevo"
 [functions.bot-routine-dispatch]
 verify_jwt = false
 
+# L'operaio apre il link senza essere ancora entrato: il token del link è la sua prova.
+[functions.campo-link-entra]
+verify_jwt = false
+
 [functions.create-customer]
 verify_jwt = false
 

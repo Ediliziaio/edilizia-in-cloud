@@ -24,8 +24,12 @@ vi.mock("@/hooks/usePermissions", () => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke: mocks.invoke } },
 }));
+vi.mock("@/components/campo/FirmaPad", () => ({ FirmaPad: ({ label, onChange }: { label: string; onChange: (v: string | null) => void }) => <button onClick={() => onChange("data:image/png;base64,AAA")}>Traccia {label}</button> }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const moduli = vi.hoisted(() => ({ lista: [] as unknown[] }));
+vi.mock("@/hooks/useModuliCantiere", () => ({ useModuliAzienda: () => ({ data: moduli.lista }) }));
 beforeEach(() => {
+  moduli.lista = [];
   mocks.data = [];
   mocks.permission = true;
   mocks.invoke.mockReset();
@@ -103,3 +107,85 @@ describe("Collaudo: percorso essenziale", () => {
     expect(screen.getByRole("button", { name: "Apri PDF" })).toBeEnabled();
   });
 });
+
+describe("Verbale da modello", () => {
+  const modello = (id: string, nome: string, attivo = true) => ({
+    id, tipo: "verbale", nome, attivo,
+    schema: { formato: 1, blocchi: {}, voci: [`Voce di ${nome}`], titolo: `Collaudo ${nome}`,
+      campi: [{ chiave: "pz", etichetta: "Pezzi controllati", tipo: "number", obbligatorio: false, chi: "tutti", ditte: "tutti", quando: "sempre", livello: "rapportino", stampa: "cliente" }] },
+  });
+  const nuovo = () => fireEvent.click(screen.getByRole("button", { name: "Nuovo verbale" }));
+
+  it("senza modelli attivi parte dalle 4 voci di oggi senza chiedere nulla", () => {
+    moduli.lista = [modello("a", "Spento", false)];
+    show(); nuovo();
+    expect(screen.getByDisplayValue("Lavorazioni previste e finiture")).toBeInTheDocument();
+    expect(screen.queryByText(/Quale modello/)).toBeNull();
+  });
+  it("con un solo modello lo usa senza chiedere", () => {
+    moduli.lista = [modello("a", "Serramenti")];
+    show(); nuovo();
+    expect(screen.getByDisplayValue("Voce di Serramenti")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Cliente" })).toHaveValue("Cliente DEMO");
+  });
+  it("con più modelli chiede quale usare", () => {
+    moduli.lista = [modello("a", "Serramenti"), modello("b", "Fotovoltaico")];
+    show(); nuovo();
+    expect(screen.getByText("Quale modello?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fotovoltaico" }));
+    expect(screen.getByDisplayValue("Voce di Fotovoltaico")).toBeInTheDocument();
+  });
+  it("i dati del collaudo si compilano e si salvano con etichetta e tipo, senza toccare il modello", async () => {
+    moduli.lista = [modello("a", "Serramenti")];
+    mocks.invoke.mockResolvedValue({ data: { report: { id: "r1", status: "draft", version: 1, content: emptyAcceptance("2026-11-02") } }, error: null });
+    show(); nuovo();
+    fireEvent.change(screen.getByLabelText("Pezzi controllati"), { target: { value: "9" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi verifica" }));
+    fireEvent.click(screen.getByRole("button", { name: /Salva/ }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalled());
+    const { body } = mocks.invoke.mock.calls[0][1] as { body: { content: { valori: unknown[]; checks: unknown[] } } };
+    expect(body.content.valori).toEqual([{ chiave: "pz", etichetta: "Pezzi controllati", tipo: "number", valore: 9, stampa: "cliente" }]);
+    expect(body.content.checks).toHaveLength(2);
+    expect((moduli.lista[0] as { schema: { voci: string[] } }).schema.voci).toHaveLength(1);
+  });
+});
+
+describe("Firma del cliente", () => {
+  const riga = (p = {}) => ({ id: "r1", status: "draft", version: 2, pdf_path: "a.pdf", document_hash: "h", content: { ...emptyAcceptance("2026-11-02"), scope: "S", inspector: "I", customer: "C", outcome: "positive", documents: "D", checks: [{ label: "V", result: "ok", note: "" }] }, created_at: "2026-11-02T10:00:00Z", ...p });
+  const apriERivedi = async () => {
+    mocks.invoke.mockResolvedValue({ data: { report: riga(), url: "https://x/a.pdf" }, error: null });
+    show();
+    fireEvent.click(screen.getByRole("button", { name: /Verbale|Bozza/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Apri PDF" }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalled());
+    fireEvent.click(await screen.findByRole("checkbox"));
+  };
+  it("si firma solo dopo aver controllato il PDF, poi manda firma e nome", async () => {
+    mocks.data = [riga()];
+    await apriERivedi();
+    fireEvent.click(screen.getByRole("button", { name: "Fai firmare al cliente" }));
+    const conferma = screen.getByRole("button", { name: "Conferma la firma" });
+    expect(conferma).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Traccia/ }));
+    fireEvent.change(screen.getByLabelText("Nome e cognome di chi firma"), { target: { value: "Mario Rossi" } });
+    mocks.invoke.mockClear();
+    mocks.invoke.mockResolvedValue({ data: { report: riga({ status: "finalized", firma_cliente_nome: "Mario Rossi" }) }, error: null });
+    fireEvent.click(conferma);
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalled());
+    const { body } = mocks.invoke.mock.calls[0][1] as { body: Record<string, unknown> };
+    expect(body).toMatchObject({ action: "sign", reviewed: true, document_hash: "h", firma: { immagine: "data:image/png;base64,AAA", nome: "Mario Rossi" } });
+  });
+  it("in elenco dice chi ha firmato, oppure che non è firmato", () => {
+    mocks.data = [riga({ status: "finalized", finalized_at: "2026-11-02T10:00:00Z", firma_cliente_nome: "Mario Rossi" }), riga({ id: "r2", status: "finalized", finalized_at: "2026-11-02T10:00:00Z" })];
+    show();
+    expect(screen.getByText("Firmato da Mario Rossi")).toBeInTheDocument();
+    expect(screen.getByText("Congelato · non firmato")).toBeInTheDocument();
+  });
+  it("non presenta questa firma come firma elettronica", () => {
+    mocks.data = [];
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Nuovo verbale" }));
+    expect(document.body.textContent).not.toMatch(/firma elettronica/i);
+  });
+});
+

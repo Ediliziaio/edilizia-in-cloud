@@ -12736,6 +12736,123 @@ export type Database = {
           },
         ]
       }
+      azienda_documenti: {
+        Row: {
+          alert_destinatari: string[]
+          alert_giorni_prima: number
+          archiviato_il: string | null
+          categoria: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_documento: string | null
+          data_scadenza: string | null
+          ente: string | null
+          file_name: string | null
+          file_path: string | null
+          id: string
+          note: string | null
+          numero: string | null
+          rinnovo_mesi: number | null
+          sede_id: string | null
+          sostituisce_id: string | null
+          titolo: string
+          updated_at: string
+        }
+        Insert: {
+          alert_destinatari?: string[]
+          alert_giorni_prima?: number
+          archiviato_il?: string | null
+          categoria?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_documento?: string | null
+          data_scadenza?: string | null
+          ente?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          note?: string | null
+          numero?: string | null
+          rinnovo_mesi?: number | null
+          sede_id?: string | null
+          sostituisce_id?: string | null
+          titolo: string
+          updated_at?: string
+        }
+        Update: {
+          alert_destinatari?: string[]
+          alert_giorni_prima?: number
+          archiviato_il?: string | null
+          categoria?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_documento?: string | null
+          data_scadenza?: string | null
+          ente?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          note?: string | null
+          numero?: string | null
+          rinnovo_mesi?: number | null
+          sede_id?: string | null
+          sostituisce_id?: string | null
+          titolo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "azienda_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "azienda_documenti_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "azienda_documenti_sostituisce_id_fkey"
+            columns: ["sostituisce_id"]
+            isOneToOne: false
+            referencedRelation: "azienda_documenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      azienda_documenti_avvio: {
+        Row: {
+          chiuso_da: string | null
+          chiuso_il: string
+          company_id: string
+        }
+        Insert: {
+          chiuso_da?: string | null
+          chiuso_il?: string
+          company_id: string
+        }
+        Update: {
+          chiuso_da?: string | null
+          chiuso_il?: string
+          company_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "azienda_documenti_avvio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_name: string | null
@@ -15548,6 +15665,7 @@ export type Database = {
       }
       campo_rapportini: {
         Row: {
+          campi_extra: Json
           approvato: boolean | null
           approvato_at: string | null
           approvato_da: string | null
@@ -15587,6 +15705,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
           approvato_da?: string | null
@@ -15626,6 +15745,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
           approvato_da?: string | null
@@ -97034,6 +97154,48 @@ export type Database = {
           },
         ]
       }
+      azienda_documenti_stato: {
+        Row: {
+          alert_destinatari: string[] | null
+          alert_giorni_prima: number | null
+          categoria: string | null
+          company_id: string | null
+          created_at: string | null
+          data_documento: string | null
+          data_scadenza: string | null
+          ente: string | null
+          file_name: string | null
+          file_path: string | null
+          giorni_mancanti: number | null
+          id: string | null
+          note: string | null
+          numero: string | null
+          rinnovo_mesi: number | null
+          sede_id: string | null
+          sede_nome: string | null
+          sostituisce_id: string | null
+          stato: string | null
+          titolo: string | null
+          updated_at: string | null
+          versioni_precedenti: number | null
+        }
+        Relationships: []
+      }
+      azienda_scadenze_tutte: {
+        Row: {
+          categoria: string | null
+          company_id: string | null
+          data_scadenza: string | null
+          giorni_mancanti: number | null
+          mezzo_nome: string | null
+          origine: string | null
+          riferimento_id: string | null
+          stato: string | null
+          targa: string | null
+          titolo: string | null
+        }
+        Relationships: []
+      }
       callcenter_lead_journey: {
         Row: {
           appuntamenti_fissati: number | null
@@ -100899,6 +101061,17 @@ export type Database = {
       }
     }
     Functions: {
+      azienda_documento_rinnova: {
+        Args: {
+          p_documento_id: string
+          p_data_documento?: string
+          p_data_scadenza?: string
+          p_file_path?: string
+          p_file_name?: string
+          p_numero?: string
+        }
+        Returns: string
+      }
       computo_approva_variante: {
         Args: {
           p_variante_id: string
@@ -106389,7 +106562,7 @@ export type Database = {
         Returns: Json
       }
       silvio_employees_workload: {
-        Args: { p_company_id: string }
+        Args: { p_al?: string; p_company_id: string; p_dal?: string; p_escludi_order_id?: string }
         Returns: Json
       }
       silvio_executive_report: { Args: { p_company_id: string }; Returns: Json }

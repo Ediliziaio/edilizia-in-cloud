@@ -15,8 +15,14 @@
 // campanella `mezzo_scadenza` + email. Sta qui e non in una funzione
 // nuova perché il progetto è vicino al tetto di 500 edge function.
 //
+// Documenti dell'azienda (dal 02/11/2026) — ISO, SOA, DURC, visura, polizze,
+// iscrizioni, letti da azienda_documenti_stato. Avvisa chi l'azienda ha scelto
+// sul singolo documento (alert_destinatari) e, se non ha scelto nessuno, gli
+// admin: campanella `documento_azienda` + email.
+//
 // Anti-doppione: niente nuova notifica per lo stesso documento/utente se già
-// inviata negli ultimi 7 giorni.
+// inviata negli ultimi 7 giorni. Di scaduto si avvisa solo il recente (30
+// giorni): gli arretrati vecchi si guardano in elenco, non a suon di notifiche.
 // Nessun JWT utente (verify_jwt=false): l'auth è il cron-secret. Risposta
 // rapida a pg_net (withMetricsRapida): il lavoro finisce sotto waitUntil.
 // ============================================================================
@@ -338,6 +344,129 @@ async function controllaMezzi(admin: SupabaseClient, provider: Provider): Promis
   return { companies, notified, emails };
 }
 
+// ── Documenti dell'azienda ───────────────────────────────────────────────────
+
+type ScadenzaDitta = {
+  id: string; company_id: string; titolo: string; categoria: string;
+  ente: string | null; numero: string | null; data_scadenza: string;
+  giorni_mancanti: number | null; stato: "scaduto" | "in_scadenza";
+  alert_destinatari: string[] | null;
+};
+
+const CAT_DITTA: Record<string, string> = {
+  certificazioni: "Certificazioni",
+  appalti_pubblici: "Appalti pubblici",
+  assicurazioni: "Assicurazioni",
+  ambiente_rifiuti: "Ambiente e rifiuti",
+  sedi_utenze: "Sedi e utenze",
+  sicurezza: "Sicurezza",
+  altro: "Altro",
+};
+
+/** «scaduto il 15/10/2026», «scade fra 26 giorni, il 28/11/2026». */
+function quandoDitta(s: ScadenzaDitta): string {
+  if (s.stato === "scaduto") return `scaduto il ${fmtDate(s.data_scadenza)}`;
+  const g = s.giorni_mancanti ?? 0;
+  if (g <= 0) return `scade oggi, ${fmtDate(s.data_scadenza)}`;
+  return `scade ${g === 1 ? "domani" : `fra ${g} giorni`}, il ${fmtDate(s.data_scadenza)}`;
+}
+
+async function controllaDocumentiAzienda(admin: SupabaseClient, provider: Provider): Promise<Esito> {
+  const { data, error } = await admin
+    .from("azienda_documenti_stato")
+    .select("id, company_id, titolo, categoria, ente, numero, data_scadenza, giorni_mancanti, stato, alert_destinatari")
+    .in("stato", ["scaduto", "in_scadenza"]);
+  if (error) {
+    console.error("[hr-check-scadenze] azienda_documenti_stato:", error.message);
+    return NESSUNO;
+  }
+
+  // Lo scaduto di mesi fa non fa suonare niente: lo si vede rosso in elenco.
+  // Senza questo, il primo giro manderebbe una valanga di avvisi su carte vecchie.
+  const scadenze = ((data ?? []) as ScadenzaDitta[])
+    .filter((s) => s.stato === "in_scadenza" || (s.giorni_mancanti ?? 0) >= -30);
+  if (!scadenze.length) return NESSUNO;
+
+  const companyIds = [...new Set(scadenze.map((s) => s.company_id))];
+
+  // Destinatari: chi l'azienda ha scelto sul documento; se non ha scelto
+  // nessuno, gli admin dell'azienda.
+  const { data: roleRows } = await admin.from("user_roles").select("user_id").in("role", ["company_admin", "super_admin"]);
+  const adminUserIds = new Set<string>(((roleRows ?? []) as Array<{ user_id: string }>).map((r) => r.user_id));
+  const { data: profs } = await admin.from("profiles").select("id, email, company_id").in("company_id", companyIds);
+  const profili = (profs ?? []) as Array<{ id: string; email: string | null; company_id: string }>;
+  const emailDi = new Map<string, string | null>(profili.map((p) => [p.id, p.email]));
+  const adminDi = new Map<string, string[]>();
+  for (const cid of companyIds) adminDi.set(cid, []);
+  for (const p of profili) if (adminUserIds.has(p.id)) adminDi.get(p.company_id)?.push(p.id);
+
+  const since = new Date(Date.now() - 7 * 864e5).toISOString();
+  const { data: recenti } = await admin
+    .from("notifications").select("user_id, entity_id")
+    .eq("type", "documento_azienda").gte("created_at", since)
+    .in("entity_id", scadenze.map((s) => s.id));
+  const giaInviate = new Set(((recenti ?? []) as Array<{ user_id: string; entity_id: string }>).map((n) => `${n.user_id}|${n.entity_id}`));
+
+  let notified = 0, companies = 0, emails = 0;
+
+  for (const cid of companyIds) {
+    const sue = scadenze.filter((s) => s.company_id === cid);
+    const righe: Record<string, unknown>[] = [];
+    const nuovePerUtente = new Map<string, ScadenzaDitta[]>();
+
+    for (const s of sue) {
+      const scelti = (s.alert_destinatari ?? []).filter((u) => emailDi.has(u));
+      const utenti = scelti.length ? scelti : (adminDi.get(cid) ?? []);
+      if (!utenti.length) continue;
+      const cosa = CAT_DITTA[s.categoria] ?? "Documento";
+      const title = `${s.stato === "scaduto" ? "Scaduto" : "In scadenza"}: ${s.titolo}`;
+      const body = `${cosa}${s.ente ? " · " + s.ente : ""}${s.numero ? " · " + s.numero : ""} — ${quandoDitta(s)}`;
+      for (const u of utenti) {
+        if (giaInviate.has(`${u}|${s.id}`)) continue;
+        righe.push({
+          company_id: cid, user_id: u, type: "documento_azienda", title, body,
+          entity_type: "azienda_documento", entity_id: s.id,
+          action_url: "/azienda/impostazioni/documenti-azienda",
+        });
+        (nuovePerUtente.get(u) ?? nuovePerUtente.set(u, []).get(u)!).push(s);
+      }
+    }
+
+    if (!righe.length) continue;
+    companies++;
+    const { error: insErr } = await admin.from("notifications").insert(righe);
+    if (!insErr) notified += righe.length;
+    else console.error("[hr-check-scadenze] notifiche documenti azienda:", insErr.message);
+
+    if (!provider?.apiKey) continue;
+    for (const [u, nuove] of nuovePerUtente) {
+      const email = emailDi.get(u);
+      if (!email || !nuove.length) continue;
+      const tabella = nuove.map((s) => {
+        const colore = s.stato === "scaduto" ? "#b91c1c" : "#b45309";
+        return `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">${escHtml(s.titolo)}</td><td style="padding:6px 10px;border-bottom:1px solid #eee">${escHtml(CAT_DITTA[s.categoria] ?? "Documento")}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;color:${colore}">${escHtml(quandoDitta(s))}</td></tr>`;
+      }).join("");
+      const html = `<div style="font-family:system-ui,Arial,sans-serif;max-width:560px">
+        <h2 style="color:#0EA5E9;margin:0 0 4px">Le carte della ditta</h2>
+        <p style="color:#444;margin:0 0 12px">${nuove.length === 1 ? "C'è un documento da rinnovare" : `Ci sono ${nuove.length} documenti da rinnovare`}:</p>
+        <table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr style="text-align:left;color:#888;font-size:12px">
+          <th style="padding:6px 10px">Documento</th><th style="padding:6px 10px">Dove sta</th><th style="padding:6px 10px">Quando</th></tr></thead>
+          <tbody>${tabella}</tbody></table>
+        <p style="margin:16px 0 0"><a href="https://app.ediliziaincloud.com/azienda/impostazioni/documenti-azienda" style="background:#0EA5E9;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;display:inline-block">Apri documenti e scadenze</a></p>
+      </div>`;
+      try {
+        const r = await sendViaProviderWithFailover("transactional", provider, {
+          from: provider.fromDefault, to: [email],
+          subject: `Carte della ditta: ${nuove.length} da rinnovare`, html,
+        });
+        if (r.ok) emails++;
+      } catch (e) { console.error("[hr-check-scadenze] email documenti azienda:", e instanceof Error ? e.message : String(e)); }
+    }
+  }
+
+  return { companies, notified, emails };
+}
+
 serveConMetricheRapida("hr-check-scadenze", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
   if (!cronSecretValido(req)) {
@@ -347,7 +476,7 @@ serveConMetricheRapida("hr-check-scadenze", async (req) => {
   const provider: Provider = await loadProviderSettings("transactional").catch(() => null);
 
   // Un guasto sui mezzi non deve fermare gli avvisi del personale, e viceversa.
-  const [personale, mezzi] = await Promise.all([
+  const [personale, mezzi, ditta] = await Promise.all([
     controllaPersonale(admin, provider).catch((e) => {
       console.error("[hr-check-scadenze] personale:", e instanceof Error ? e.message : String(e));
       return NESSUNO;
@@ -356,12 +485,16 @@ serveConMetricheRapida("hr-check-scadenze", async (req) => {
       console.error("[hr-check-scadenze] mezzi:", e instanceof Error ? e.message : String(e));
       return NESSUNO;
     }),
+    controllaDocumentiAzienda(admin, provider).catch((e) => {
+      console.error("[hr-check-scadenze] documenti azienda:", e instanceof Error ? e.message : String(e));
+      return NESSUNO;
+    }),
   ]);
 
-  console.log(`[hr-check-scadenze] personale companies=${personale.companies} notified=${personale.notified} emails=${personale.emails} · mezzi companies=${mezzi.companies} notified=${mezzi.notified} emails=${mezzi.emails}`);
+  console.log(`[hr-check-scadenze] personale companies=${personale.companies} notified=${personale.notified} emails=${personale.emails} · mezzi companies=${mezzi.companies} notified=${mezzi.notified} emails=${mezzi.emails} · ditta companies=${ditta.companies} notified=${ditta.notified} emails=${ditta.emails}`);
   // Le chiavi di prima restano quelle del personale: chi legge la risposta non cambia.
   return new Response(
-    JSON.stringify({ ok: true, companies: personale.companies, notified: personale.notified, emails: personale.emails, mezzi }),
+    JSON.stringify({ ok: true, companies: personale.companies, notified: personale.notified, emails: personale.emails, mezzi, ditta }),
     { headers: { "Content-Type": "application/json" } },
   );
 });

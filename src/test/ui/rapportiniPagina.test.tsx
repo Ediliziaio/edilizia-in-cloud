@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   sceltaFatta: true, errore: false, letturaIn: false,
   mutate: vi.fn(), pending: false, successo: vi.fn(), erroreToast: vi.fn(), ricarica: vi.fn(),
 }));
+vi.mock("@/components/settings/ModuliCantiereConfig", () => ({ ModuliCantiereConfig: (): null => null }));
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: state.erroreToast } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, effectiveCompany: { id: state.azienda } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: state.caricamentoPermessi, canEditSettingsOrders: state.modifica }) }));

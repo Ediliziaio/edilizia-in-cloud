@@ -8,6 +8,7 @@ import { Mail, Phone, Building2, LogOut,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { eAccessoConLink } from "@/lib/campo/linkAccesso";
 
 export default function CampoProfilo() {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export default function CampoProfilo() {
   });
 
   const p = profile as any;
-  const nome = [p?.first_name, p?.last_name].filter(Boolean).join(" ") || user?.email || "—";
+  const nome = [p?.first_name, p?.last_name].filter(Boolean).join(" ") || (eAccessoConLink(user?.email) ? "—" : user?.email) || "—";
   const initials = [p?.first_name?.[0], p?.last_name?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 
   const handleLogout = async () => {
@@ -88,7 +89,7 @@ export default function CampoProfilo() {
       <div className="bg-muted border border-border rounded-2xl p-4 space-y-4">
         <p className="text-xs text-muted-foreground uppercase tracking-wide">Dati personali</p>
 
-        {user?.email && (
+        {user?.email && !eAccessoConLink(user.email) && (
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
               <Mail className="w-4 h-4 text-muted-foreground" />

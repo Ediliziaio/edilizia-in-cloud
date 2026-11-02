@@ -131,3 +131,18 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
     expect(screen.getByText("Firma cliente non presente nell’archivio")).toBeInTheDocument();
   });
 });
+
+describe("Campi propri nella scheda", () => {
+  it("si leggono in una riga, con la fase", () => {
+    disegna({ campi_extra: [
+      { chiave: "p", etichetta: "Pezzi posati", tipo: "number", valore: 12, unita: "pz", stampa: "interno", phase_id: "f", fase_nome: "Posa" },
+      { chiave: "s", etichetta: "Sicurezza", tipo: "boolean", valore: true, stampa: "mai" },
+    ] });
+    expect(screen.getByText("Pezzi posati (Posa): 12 pz · Sicurezza: Sì")).toBeInTheDocument();
+  });
+  it("senza valori non aggiunge nulla", () => {
+    disegna({ campi_extra: [] });
+    expect(screen.queryByText(/:.*·/)).toBeNull();
+  });
+});
+

@@ -127,6 +127,7 @@ const Login = lazy(() => import("@/pages/Login"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
 const LavoriLogin = lazy(() => import("@/pages/LavoriLogin"));
+const EntraConLink = lazy(() => import("@/pages/EntraConLink"));
 const ReferralLogin = lazy(() => import("@/pages/ReferralLogin"));
 const ProduttoreLogin = lazy(() => import("@/pages/ProduttoreLogin"));
 const CommercialistaLogin = lazy(() => import("@/pages/CommercialistaLogin"));
@@ -459,10 +460,10 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura|q)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|entra|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura|q)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|talent-profile|candidatura|q)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|entra|portale|portale-cliente|talent-profile|candidatura|q)(\/|$)/;
 
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
@@ -746,6 +747,7 @@ const App = () => (
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
               <Route path="/lavori-login" element={<LavoriLogin />} />
+              <Route path="/entra/:token" element={<EntraConLink />} />
               <Route path="/referral-login" element={<ReferralLogin />} />
               <Route path="/produttore-login" element={<ProduttoreLogin />} />
               <Route path="/commercialista-login" element={<CommercialistaLogin />} />

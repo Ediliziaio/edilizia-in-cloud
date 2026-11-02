@@ -78,7 +78,7 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
  */
 export const IMPOSTAZIONI_PER_TUTTI_I_PIANI = [
   // Account e azienda
-  "mio-profilo", "profilo", "sedi", "branding", "abbonamento", "crediti", "notifiche",
+  "mio-profilo", "profilo", "sedi", "documenti-azienda", "branding", "abbonamento", "crediti", "notifiche",
   // Persone e sicurezza
   "persone", "utenti", "venditori", "staff", "team",
   "sicurezza-privacy", "sicurezza", "privacy", "security-dashboard", "attivita", "esporta-dati",

@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { printable, wrap } from "../genera-pdf-rapportino/render.ts";
+import { leggiValori, valoreInTesto, valoriDaStampare } from "../_shared/moduliCantiere.ts";
 import { outcomes, results, type AcceptanceContent } from "./model.ts";
 
 export async function renderAcceptance(
@@ -11,6 +12,7 @@ export async function renderAcceptance(
     id: string;
     version: number;
   },
+  firma?: { immagine: Uint8Array; nome: string; quando: string },
 ) {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -67,7 +69,7 @@ export async function renderAcceptance(
   y -= 15;
   paragraph(c.title, 23, blue, true);
   y -= 5;
-  paragraph("EDIZIONE NON FIRMATA", 9, orange, true);
+  if (!firma) paragraph("EDIZIONE NON FIRMATA", 9, orange, true);
   paragraph(
     "Documento operativo: non sostituisce certificazioni, dichiarazioni di conformità o verifiche riservate a tecnici abilitati.",
     9,
@@ -96,6 +98,12 @@ export async function renderAcceptance(
     if (v.note) paragraph(v.note, 9);
     y -= 4;
   });
+  // Il verbale è un documento per il cliente: i valori interni restano nell'app.
+  const valoriCliente = valoriDaStampare(leggiValori(c.valori), "cliente");
+  if (valoriCliente.length) {
+    section("Dati del collaudo");
+    for (const v of valoriCliente) paragraph(`${v.etichetta}: ${valoreInTesto(v)}`);
+  }
   section("03 / Esito e riserve");
   paragraph(
     outcomes[c.outcome],
@@ -123,9 +131,20 @@ export async function renderAcceptance(
     section("Note condivise con il cliente");
     paragraph(c.notes);
   }
+  if (firma) {
+    const immagine = await pdf.embedPng(firma.immagine);
+    const d = immagine.scaleToFit(220, 80);
+    // Titolo, firma e nome stanno sulla stessa pagina.
+    ensure(d.height + 90);
+    section("Firma del cliente");
+    page.drawImage(immagine, { x: 42, y: y - d.height, width: d.width, height: d.height });
+    y -= d.height + 14;
+    paragraph(`Firmato su schermo da ${firma.nome} il ${firma.quando}.`, 10, ink, true);
+  }
   ensure(50);
   y -= 12;
   paragraph(
+    firma ? "La firma non approva costi extra e non modifica gli importi della commessa. Eventuali varianti richiedono approvazione separata." :
     "La registrazione di questo verbale non costituisce firma o accettazione del cliente, non approva costi extra e non modifica gli importi della commessa. Eventuali varianti richiedono approvazione separata.",
     9,
     muted,

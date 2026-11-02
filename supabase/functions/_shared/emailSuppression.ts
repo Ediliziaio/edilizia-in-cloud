@@ -15,6 +15,9 @@ export interface SuppressionHit {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Gli operai entrati con un link hanno un indirizzo costruito su questo dominio, che non ha posta. */
+export const DOMINIO_ACCESSO_CON_LINK = "operai.ediliziaincloud.com";
 const CHUNK_SIZE = 400;
 
 const GLOBAL_BLOCK_REASONS_TRANSACTIONAL = new Set([
@@ -60,7 +63,7 @@ export function normalizeRecipientList(input: string | string[]): EmailRecipient
 
   for (const item of raw) {
     const normalized = normalizeEmailAddress(item);
-    if (!normalized || !EMAIL_RE.test(normalized)) {
+    if (!normalized || !EMAIL_RE.test(normalized) || normalized.endsWith(`@${DOMINIO_ACCESSO_CON_LINK}`)) {
       invalid.push(String(item ?? ""));
       continue;
     }

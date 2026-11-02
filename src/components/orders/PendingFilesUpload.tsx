@@ -41,6 +41,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
   const { cartelle, isLoading, error } = useCartelleDocumenti();
+  const [cartelleAperte, setCartelleAperte] = useState(false);
   const permissions = usePermissions();
   const [selezione, setSelezione] = useState(TUTTI_DOCUMENTI);
   const [sopraCartella, setSopraCartella] = useState<string | null>(null);
@@ -142,7 +143,11 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
         )}
 
         {error && <p role="alert" className="text-sm text-destructive">Cartelle non disponibili. Ricarica la pagina prima di aggiungere i documenti.</p>}
-        <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)]">
+        {/* A pagina vuota erano un quarto del modulo: si aprono col primo file, o per scegliere prima dove metterlo. */}
+        {files.length === 0 && !cartelleAperte && (
+          <button type="button" onClick={() => setCartelleAperte(true)} className="text-xs font-medium text-primary hover:underline">Mostra cartelle</button>
+        )}
+        {(files.length > 0 || cartelleAperte) && <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)]">
           <DocumentFoldersNavigation
             cartelle={cartelle} conteggi={conteggi} totale={files.length} senzaCartella={senzaCartella}
             mancanti={mancanti.map((c) => c.id)} loading={isLoading}
@@ -214,7 +219,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
               );
             })}
           </div>
-        </div>
+        </div>}
         <p className="text-xs text-muted-foreground">{files.length ? `${files.length} file · ` : ""}Si salvano nelle cartelle scelte quando crei la commessa. Massimo {MAX_MB_PER_FILE} MB per file.</p>
       </CardContent>
     </Card>

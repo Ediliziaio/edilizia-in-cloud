@@ -1,3 +1,5 @@
+import { leggiSchema, leggiValori, mancanti, valoriInBozza, type CampoModulo, type ModuloSchema, type ValoreCampo } from "../_shared/moduliCantiere.ts";
+
 export type CheckResult = "pending" | "ok" | "reserve" | "na";
 export interface AcceptanceCheck {
   label: string;
@@ -21,6 +23,11 @@ export interface AcceptanceContent {
   actions: AcceptanceAction[];
   documents: string;
   notes: string;
+  /** Copia dei campi del modello presa alla creazione: se il modello cambia, questo verbale non cambia. */
+  campi?: CampoModulo[];
+  valori?: ValoreCampo[];
+  /** Il modello da cui nasce: decide se il capocantiere può vederlo e firmarlo. */
+  modulo_id?: string;
 }
 export const outcomes = {
   pending: "Da verificare",
@@ -54,6 +61,43 @@ export function emptyAcceptance(date: string): AcceptanceContent {
     notes: "",
   };
 }
+const LIMITE_FIRMA = 500 * 1024;
+const PNG_INIZIO = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** La firma tracciata sullo schermo (PNG in base64), in byte; null se non è un PNG o è troppo grande. */
+export function firmaInByte(immagine: unknown): Uint8Array | null {
+  if (typeof immagine !== "string" || !immagine.startsWith("data:image/png;base64,")) return null;
+  const base64 = immagine.slice("data:image/png;base64,".length);
+  if (base64.length > (LIMITE_FIRMA * 4) / 3 + 4) return null;
+  try {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return PNG_INIZIO.every((b, i) => bytes[i] === b) ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+export function validaFirma(firma: unknown): string[] {
+  const f = (firma ?? {}) as { immagine?: unknown; nome?: unknown };
+  const errori: string[] = [];
+  if (typeof f.nome !== "string" || !f.nome.trim() || f.nome.length > 200) errori.push("Scrivi il nome di chi firma");
+  if (!firmaInByte(f.immagine)) errori.push("Firma non valida: falla ripetere");
+  return errori;
+}
+
+/** Un verbale nuovo dal modello dell'azienda; senza modello è quello di sempre. */
+export function acceptanceDaModello(date: string, modello: ModuloSchema | null, moduloId?: string): AcceptanceContent {
+  const vuoto = emptyAcceptance(date);
+  if (!modello) return vuoto;
+  return {
+    ...vuoto,
+    title: modello.titolo?.trim() || vuoto.title,
+    checks: modello.voci?.length
+      ? modello.voci.map((label) => ({ label, result: "pending" as const, note: "" }))
+      : vuoto.checks,
+    campi: structuredClone(modello.campi.filter((c) => !c.archiviato)),
+    valori: [],
+    ...(moduloId ? { modulo_id: moduloId } : {}),
+  };
+}
 const validDate = (v: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v) &&
   !Number.isNaN(Date.parse(v)) &&
@@ -80,7 +124,16 @@ export function validateAcceptance(value: unknown, complete = false): string[] {
     )
       errors.push(`Campo ${key} non valido o troppo lungo`);
   }
+  if (c.campi !== undefined && !Array.isArray(c.campi)) errors.push("Dati del collaudo non validi");
+  if (c.modulo_id !== undefined && typeof c.modulo_id !== "string") errors.push("Modello del verbale non valido");
+  if (c.valori !== undefined && (!Array.isArray(c.valori) || leggiValori(c.valori).length !== c.valori.length))
+    errors.push("Valori del collaudo non validi");
   if (errors.length) return errors;
+  if (complete) {
+    const campi = leggiSchema({ campi: c.campi }).campi;
+    const manca = mancanti(campi, valoriInBozza(leggiValori(c.valori)));
+    if (manca.length) errors.push(`Compila: ${manca.join(", ")}`);
+  }
   if (!c.title.trim() || !validDate(c.date))
     errors.push("Inserisci titolo e data validi");
   if (!Object.hasOwn(outcomes, c.outcome)) errors.push("Esito non valido");

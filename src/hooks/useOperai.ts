@@ -218,6 +218,25 @@ export function useDaiAccessoApp() {
   });
 }
 
+export interface LinkAccesso {
+  employee_id: string;
+  nome: string;
+  telefono: string | null;
+  url?: string;
+  errore?: string;
+}
+
+/** Link per entrare nell'app senza email né password (funzione campo-link-crea, solo amministratori). */
+export function useLinkAccessoApp() {
+  return useMutation({
+    mutationFn: async (employeeIds: string[]): Promise<LinkAccesso[]> => {
+      const { data, error } = await supabase.functions.invoke("campo-link-crea", { body: { employee_ids: employeeIds } });
+      if (error) throw new Error("Non sono riuscito a preparare i link. Riprova tra qualche secondo.");
+      return (data?.risultati ?? []) as LinkAccesso[];
+    },
+  });
+}
+
 // ── Squadre ──────────────────────────────────────────────────────────────────
 
 export interface PersonaSquadra {

@@ -5,6 +5,7 @@ import {
   Plus,
   FileText,
   LockKeyhole,
+  PenLine,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
+import { CampiModulo } from "@/components/campo/CampiModulo";
+import { FirmaVerbaleDialog, type FirmaVerbale } from "@/components/orders/FirmaVerbaleDialog";
+import { useModuliAzienda, type ModuloAzienda } from "@/hooks/useModuliCantiere";
+import { componiValori, leggiValori, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +34,7 @@ import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewP
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { AcceptanceTaskActions } from "./AcceptanceTaskActions";
 import {
+  acceptanceDaModello,
   emptyAcceptance,
   validateAcceptance,
   outcomes,
@@ -41,6 +47,7 @@ interface Report {
   version: number;
   content: AcceptanceContent;
   status: "draft" | "finalized";
+  firma_cliente_nome?: string | null;
   document_hash: string | null;
   pdf_path: string | null;
   created_at: string;
@@ -76,6 +83,12 @@ export function OrderAcceptanceReports({
   const [content, setContent] = useState<AcceptanceContent>(() =>
     emptyAcceptance(today()),
   );
+  // Quello che si sta scrivendo nei dati del collaudo: il contenuto salvato ha solo i valori già puliti.
+  const [valoriCampi, setValoriCampi] = useState<Record<string, unknown>>({});
+  const [scegliModello, setScegliModello] = useState(false);
+  const [firmaAperta, setFirmaAperta] = useState(false);
+  const { data: moduli = [] } = useModuliAzienda(companyId, "verbale");
+  const modelli = moduli.filter((m) => m.attivo);
   const [dirty, setDirty] = useState(false),
     [preview, setPreview] = useState<string | null>(null),
     [reviewed, setReviewed] = useState(false);
@@ -117,19 +130,24 @@ export function OrderAcceptanceReports({
     setPreview(null);
     setReviewed(false);
   };
-  const start = (row: Report | null) => {
+  const nuovo = () => {
+    if (modelli.length > 1) setScegliModello(true);
+    else start(null, modelli[0] ?? null);
+  };
+  const start = (row: Report | null, modello: ModuloAzienda | null = null) => {
+    setScegliModello(false);
     setReport(row);
-    setContent(
-      row
-        ? structuredClone(row.content)
-        : { ...emptyAcceptance(today()), customer },
-    );
+    const iniziale = row
+      ? structuredClone(row.content)
+      : { ...acceptanceDaModello(today(), modello?.schema ?? null, modello?.id), customer };
+    setContent(iniziale);
+    setValoriCampi(valoriInBozza(leggiValori(iniziale.valori)));
     setDirty(!row);
     setPreview(null);
     setReviewed(false);
     setOpen(true);
   };
-  const invoke = async (action: string) => {
+  const invoke = async (action: string, firma?: FirmaVerbale) => {
     if (busy) return;
     setBusy(true);
     try {
@@ -144,6 +162,7 @@ export function OrderAcceptanceReports({
             content,
             document_hash: report?.document_hash,
             reviewed,
+            ...(firma ? { firma } : {}),
           },
         },
       );
@@ -171,6 +190,12 @@ export function OrderAcceptanceReports({
       if (action === "finalize") {
         setReviewed(false);
         toast.success("Edizione congelata. Non è una firma del cliente.");
+      }
+      if (action === "sign") {
+        setReviewed(false);
+        setFirmaAperta(false);
+        setPreview(null);
+        toast.success("Verbale firmato e congelato.");
       }
       await qc.invalidateQueries({ queryKey: key });
     } catch (e) {
@@ -203,7 +228,7 @@ export function OrderAcceptanceReports({
         </div>
         {canEditOrders && (
           <Button
-            onClick={() => start(null)}
+            onClick={nuovo}
             disabled={query.isLoading || query.isError}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -212,6 +237,16 @@ export function OrderAcceptanceReports({
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {scegliModello && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 p-3">
+            <span className="text-sm font-medium">Quale modello?</span>
+            {modelli.map((m) => (
+              <Button key={m.id} variant="outline" size="sm" onClick={() => start(null, m)}>
+                {m.nome}
+              </Button>
+            ))}
+          </div>
+        )}
         {query.isLoading ? (
           <p role="status">Caricamento verbali…</p>
         ) : query.isError ? (
@@ -249,9 +284,11 @@ export function OrderAcceptanceReports({
                 </span>
               </span>
               <Badge variant="outline">
-                {row.status === "finalized"
-                  ? "Congelato · non firmato"
-                  : "Bozza"}
+                {row.status !== "finalized"
+                  ? "Bozza"
+                  : row.firma_cliente_nome
+                    ? `Firmato da ${row.firma_cliente_nome}`
+                    : "Congelato · non firmato"}
               </Badge>
             </button>
           ))
@@ -269,7 +306,8 @@ export function OrderAcceptanceReports({
             {report?.status === "finalized" && (
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
                 <LockKeyhole className="mb-2 h-4 w-4" />
-                Edizione conservata e non modificabile. Non firmata dal cliente.
+                Edizione conservata e non modificabile.{" "}
+                {report.firma_cliente_nome ? `Firmata da ${report.firma_cliente_nome}.` : "Non firmata dal cliente."}{" "}
                 Per correggerla, crea una nuova bozza.
               </div>
             )}
@@ -438,6 +476,21 @@ export function OrderAcceptanceReports({
                   Aggiungi verifica
                 </Button>
               </section>
+              {(content.campi?.length ?? 0) > 0 && (
+                <section className="space-y-3">
+                  <h3 className="font-semibold">Dati del collaudo</h3>
+                  <CampiModulo
+                    campi={content.campi ?? []}
+                    valori={valoriCampi}
+                    mostraErrori={errors.length > 0 && reviewed}
+                    onChange={(k, v) => {
+                      const prossimi = { ...valoriCampi, [k]: v };
+                      setValoriCampi(prossimi);
+                      edit({ ...content, valori: componiValori(content.campi ?? [], prossimi) });
+                    }}
+                  />
+                </section>
+              )}
               <div>
                 <Label htmlFor="acceptance-outcome">Esito complessivo</Label>
                 <select
@@ -616,17 +669,16 @@ export function OrderAcceptanceReports({
                       checked={reviewed}
                       onChange={(e) => setReviewed(e.target.checked)}
                     />
-                    Ho controllato il PDF. Congelando questa edizione non potrò
-                    modificarla e non acquisirò una firma del cliente.
+                    Ho controllato il PDF. Dopo non potrò più modificare questa
+                    edizione.
                   </label>
                 )}
               </section>
             )}
             <p className="rounded-lg bg-slate-50 p-3 text-sm text-muted-foreground">
-              La firma elettronica del verbale non è ancora collegata: nessuna
-              richiesta viene inviata da questa schermata. Il verbale non
-              sostituisce certificazioni tecniche e non approva eventuali costi
-              extra.
+              Il cliente può firmare qui sullo schermo; congelando senza firma il
+              verbale resta non firmato. Il verbale non sostituisce certificazioni
+              tecniche e non approva eventuali costi extra.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-white p-4">
@@ -667,6 +719,7 @@ export function OrderAcceptanceReports({
             </Button>
             {!readonly && (
               <Button
+                variant="outline"
                 disabled={
                   busy || dirty || !preview || !reviewed || errors.length > 0
                 }
@@ -676,9 +729,29 @@ export function OrderAcceptanceReports({
                 Congela edizione
               </Button>
             )}
+            {!readonly && (
+              <Button
+                disabled={
+                  busy || dirty || !preview || !reviewed || errors.length > 0
+                }
+                onClick={() => setFirmaAperta(true)}
+              >
+                <PenLine className="mr-2 h-4 w-4" />
+                Fai firmare al cliente
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
+      {firmaAperta && (
+        <FirmaVerbaleDialog
+          aperto
+          nomeIniziale={content.customer}
+          occupato={busy}
+          onChiudi={() => setFirmaAperta(false)}
+          onConferma={(firma) => invoke("sign", firma)}
+        />
+      )}
     </Card>
   );
 }
