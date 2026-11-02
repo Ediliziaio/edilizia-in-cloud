@@ -58,6 +58,10 @@ describe("edificio più vero nel 3D", () => {
     expect(scala("pt")).toBe(true);
     expect(scala(doc.livelli[1].id)).toBe(false);
     expect(s.mesh.filter((m) => m.id.endsWith("/tetto")).map((m) => m.id)).toEqual([`${doc.livelli[1].id}/tetto`]);
+    // la scala sale fino al piano sopra (3 m), non i 2,80 del catalogo
+    const gradini = s.mesh.filter((m) => m.id.startsWith("pt/") && m.genere !== "muro" && m.genere !== "pavimento" && /scala/i.test(m.nome) && !/vano/i.test(m.nome));
+    expect(gradini.length).toBeGreaterThan(0);
+    expect(Math.max(...gradini.flatMap((m) => m.posizioni.filter((_, i) => i % 3 === 1)))).toBeCloseTo(3, 1);
     // attico al quarto piano
     const attico = rinominaLivello(casa(), "pt", { nome: "Quarto piano", quota: 1200 });
     const due = aggiungiLivello(attico, { nome: "Mansarda", quota: 1500, base: "esterni" }).documento;

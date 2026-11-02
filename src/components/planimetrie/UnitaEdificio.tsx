@@ -3,7 +3,7 @@
  * millesimi proposti, listino (prezzo al mq e stato) e la scheda PDF di ogni unità.
  * Il listino si salva come una nuova versione della pianta (con la nota «Listino unità»).
  */
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { FileDown, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSalvaVersionePlanimetria } from "@/lib/planimetrie/archivio";
 import { esportaSvg, vistaDaPlanimetria } from "@/lib/planimetrie/esporta";
-import { conVendita, NOMI_STATO_VENDITA, unitaDellEdificio, type Unita } from "@/lib/planimetrie/unita";
+import { conVendita, NOMI_STATO_VENDITA, riepilogoVendite, unitaDellEdificio, type Unita } from "@/lib/planimetrie/unita";
 import { STATI_VENDITA, type Planimetria, type StatoVendita, type VenditaUnita } from "../../../shared/planimetrie/modello.ts";
 
 interface Props {
@@ -22,6 +22,12 @@ interface Props {
   titolo: string;
   planimetriaId: string;
   versione: number;
+  /** Utente in sola lettura: il listino si guarda e basta. */
+  sola?: boolean;
+  /** Prezzi, trattative e incassi: solo a chi vede i preventivi. */
+  prezzi?: boolean;
+  /** Cambiare prezzi e vendite: solo a chi modifica i preventivi. */
+  modificaPrezzi?: boolean;
 }
 
 const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -42,7 +48,8 @@ async function pngDaSvg(svg: string, larghezza = 1600): Promise<Uint8Array> {
   return new Uint8Array(await b.arrayBuffer());
 }
 
-export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Props) {
+export function UnitaEdificio({ documento, titolo, planimetriaId, versione, sola = false, prezzi = true, modificaPrezzi = true }: Props) {
+  const scrive = !sola && modificaPrezzi;
   const { effectiveCompany } = useAuth();
   const salva = useSalvaVersionePlanimetria();
   const [bozza, setBozza] = useState<Record<string, VenditaUnita>>({});
@@ -52,8 +59,21 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
   if (unita.length < 2) return null;
 
   const cambia = (u: Unita, campi: VenditaUnita) => setBozza((b) => ({ ...b, [u.sigla]: { ...u.vendita, ...b[u.sigla], ...campi } }));
-  const totale = unita.reduce((t, u) => t + (u.prezzo ?? 0), 0);
-  const venduto = unita.filter((u) => u.vendita.stato === "venduta").reduce((t, u) => t + (u.prezzo ?? 0), 0);
+  const rv = riepilogoVendite(unita);
+  const numero = (testo: string) => { const v = Number(testo.replace(/\./g, "").replace(",", ".")); return Number.isFinite(v) && v > 0 ? Math.round(v) : undefined; };
+  const campoEuro = (u: Unita, campo: "prezzoPattuito" | "caparra" | "incassato", etichetta: string) => (
+    <label className="space-y-0.5">
+      <span className="block text-[11px] text-muted-foreground">{etichetta}</span>
+      <Input className="h-8 w-28 text-right" inputMode="decimal" key={`${u.sigla}-${campo}-${u.vendita[campo] ?? ""}`} defaultValue={u.vendita[campo] ? String(u.vendita[campo]) : ""} placeholder="€"
+        onBlur={(e) => { const n = numero(e.target.value); if (n !== u.vendita[campo]) cambia(u, { [campo]: n }); }} />
+    </label>
+  );
+  const campoData = (u: Unita, campo: "dataPreliminare" | "dataRogito", etichetta: string) => (
+    <label className="space-y-0.5">
+      <span className="block text-[11px] text-muted-foreground">{etichetta}</span>
+      <Input type="date" className="h-8 w-36" value={u.vendita[campo] ?? ""} onChange={(e) => cambia(u, { [campo]: e.target.value || undefined })} />
+    </label>
+  );
 
   const salvaListino = async () => {
     try {
@@ -79,7 +99,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
         piante.push({ piano: u.locali.find((l) => l.livelloId === livelloId)!.livello, png: await pngDaSvg(svg) });
       }
       const { pdfSchedaUnita } = await import("@/lib/planimetrie/unitaPdf");
-      const dati = await pdfSchedaUnita({ titolo, azienda: effectiveCompany?.name ?? undefined, unita: u, piante });
+      const dati = await pdfSchedaUnita({ titolo, azienda: effectiveCompany?.name ?? undefined, unita: prezzi ? u : { ...u, prezzo: null, residuo: null, vendita: { stato: u.vendita.stato } }, piante });
       const url = URL.createObjectURL(new Blob([new Uint8Array(dati).buffer as ArrayBuffer], { type: "application/pdf" }));
       const a = document.createElement("a");
       a.href = url;
@@ -97,7 +117,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Unità, millesimi e listino</h2>
-        {Object.keys(bozza).length > 0 && (
+        {scrive && Object.keys(bozza).length > 0 && (
           <Button size="sm" onClick={salvaListino} disabled={salva.isPending}>
             {salva.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Salva il listino
@@ -114,28 +134,29 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
                 <th className="p-2 text-right">Netta</th>
                 <th className="p-2 text-right">Commerciale</th>
                 <th className="p-2 text-right">Millesimi</th>
-                <th className="p-2 text-right">€/m²</th>
-                <th className="p-2 text-right">Prezzo</th>
+                {prezzi && <th className="p-2 text-right">€/m²</th>}
+                {prezzi && <th className="p-2 text-right">Prezzo</th>}
                 <th className="p-2 text-left">Stato</th>
                 <th className="p-2" />
               </tr>
             </thead>
             <tbody>
               {unita.map((u) => (
-                <tr key={u.sigla} className="border-b last:border-0">
+                <Fragment key={u.sigla}>
+                <tr className={prezzi && u.vendita.stato && u.vendita.stato !== "libera" ? "" : "border-b"}>
                   <td className="p-2 font-medium">{u.sigla}</td>
                   <td className="p-2 text-xs text-muted-foreground">{u.piani.join(", ")}</td>
                   <td className="p-2 text-right tabular-nums">{mq(u.mqNetti)}</td>
                   <td className="p-2 text-right tabular-nums">{mq(u.mqCommerciali)}</td>
                   <td className="p-2 text-right tabular-nums">{u.millesimi.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</td>
-                  <td className="p-2 text-right">
-                    <Input className="ml-auto h-8 w-24 text-right" inputMode="decimal" key={`${u.sigla}-${u.vendita.prezzoMq ?? ""}`} defaultValue={u.vendita.prezzoMq ? String(u.vendita.prezzoMq) : ""} placeholder="—"
+                  {prezzi && <td className="p-2 text-right">
+                    <Input disabled={!scrive} className="ml-auto h-8 w-24 text-right" inputMode="decimal" key={`${u.sigla}-${u.vendita.prezzoMq ?? ""}`} defaultValue={u.vendita.prezzoMq ? String(u.vendita.prezzoMq) : ""} placeholder="—"
                       aria-label={`Prezzo al metro quadro di ${u.sigla}`}
                       onBlur={(e) => { const v = Number(e.target.value.replace(/\./g, "").replace(",", ".")); const nuovo = Number.isFinite(v) && v > 0 ? Math.round(v) : undefined; if (nuovo !== u.vendita.prezzoMq) cambia(u, { prezzoMq: nuovo }); }} />
-                  </td>
-                  <td className="p-2 text-right tabular-nums">{u.prezzo ? euro(u.prezzo) : "—"}</td>
+                  </td>}
+                  {prezzi && <td className="p-2 text-right tabular-nums">{u.prezzo ? euro(u.prezzo) : "—"}</td>}
                   <td className="p-2">
-                    <Select value={u.vendita.stato ?? "libera"} onValueChange={(v) => cambia(u, { stato: v as StatoVendita })}>
+                    <Select disabled={!scrive} value={u.vendita.stato ?? "libera"} onValueChange={(v) => cambia(u, { stato: v as StatoVendita })}>
                       <SelectTrigger className="h-8 w-32" aria-label={`Stato di ${u.sigla}`}>
                         <Badge variant="outline" className={COLORE_STATO[u.vendita.stato ?? "libera"]}>{NOMI_STATO_VENDITA[u.vendita.stato ?? "libera"]}</Badge>
                       </SelectTrigger>
@@ -148,6 +169,26 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
                     </Button>
                   </td>
                 </tr>
+                {prezzi && u.vendita.stato && u.vendita.stato !== "libera" && (
+                  <tr className="border-b bg-muted/20">
+                    <td colSpan={9} className="px-2 pb-2">
+                      <fieldset disabled={!scrive} className="flex flex-wrap items-end gap-2">
+                        <label className="space-y-0.5">
+                          <span className="block text-[11px] text-muted-foreground">Acquirente</span>
+                          <Input className="h-8 w-44" key={`${u.sigla}-acq-${u.vendita.acquirente ?? ""}`} defaultValue={u.vendita.acquirente ?? ""} placeholder="Nome e cognome"
+                            onBlur={(e) => { if (e.target.value.trim() !== (u.vendita.acquirente ?? "")) cambia(u, { acquirente: e.target.value }); }} />
+                        </label>
+                        {campoEuro(u, "prezzoPattuito", "Prezzo pattuito")}
+                        {campoEuro(u, "caparra", "Caparra")}
+                        {campoEuro(u, "incassato", "Incassato in tutto")}
+                        {campoData(u, "dataPreliminare", "Preliminare")}
+                        {campoData(u, "dataRogito", "Rogito")}
+                        {u.residuo != null && <span className="pb-1.5 text-xs">Da incassare <span className="font-semibold tabular-nums">{euro(u.residuo)}</span></span>}
+                      </fieldset>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -155,8 +196,14 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
       </Card>
       <p className="text-xs text-muted-foreground">
         Commerciale: superfici nette con balconi e terrazzi al 30%, cantine al 25%, box al 50%. Millesimi proposti in proporzione, da far verificare a un tecnico.
-        {totale > 0 && <> Totale listino {euro(totale)}{venduto > 0 && <>, venduto {euro(venduto)}</>}.</>}
       </p>
+      {prezzi && rv.listino > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {([["Listino", rv.listino], ["Venduto", rv.venduto], ["Prenotato", rv.prenotato], ["Incassato", rv.incassato], ["Da incassare", rv.daIncassare]] as const).map(([n, v]) => (
+            <div key={n} className="rounded-md border p-2"><p className="text-[11px] text-muted-foreground">{n}</p><p className="font-semibold tabular-nums">{euro(v)}</p></div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

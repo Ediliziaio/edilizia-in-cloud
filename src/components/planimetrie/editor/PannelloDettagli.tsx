@@ -14,7 +14,7 @@ import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
 import { dist } from "./geometria";
-import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
+import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
@@ -304,9 +304,15 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
             <strong>{stimate}</strong> {stimate === 1 ? "misura è stimata" : "misure sono stimate"}: si vedono a righe viola e con «≈».
             Controllale sul posto, poi confermale.
           </p>
-          <Button size="sm" variant="outline" className="mt-2" onClick={azioni.confermaTutte}>
-            <Check /> Le ho controllate tutte
-          </Button>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => azioni.seleziona(prossimaStimata(pianta))}>
+              Controllale una alla volta
+            </Button>
+            <Button size="sm" variant="outline" onClick={azioni.confermaTutte}>
+              <Check /> Le ho controllate tutte
+            </Button>
+          </div>
+          <p className="mt-1.5 text-xs text-violet-900/80">Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima.</p>
         </div>
       )}
       <DaSistemare pianta={pianta} dati={dati} azioni={azioni} />

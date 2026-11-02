@@ -86,6 +86,10 @@ const STILE: Record<string, { fill: string | null; stroke: string; width: number
   terra: { fill: null, stroke: "#0f172a", width: 0.7 },
   quota: { fill: null, stroke: "#0f766e", width: 0.25 },
   solaio: { fill: null, stroke: "#475569", width: 0.35, dash: [2, 1.5] },
+  falda: { fill: "#e7d3c4", stroke: "#0f172a", width: 0.4 },
+  timpano: { fill: "#ffffff", stroke: "#0f172a", width: 0.5 },
+  falda_lontana: { fill: "#f8fafc", stroke: "#94a3b8", width: 0.3 },
+  taglio_tetto: { fill: "#1e293b", stroke: "#0f172a", width: 0.5 },
 };
 
 /** Testo sicuro per i font standard del PDF (WinAnsi): niente caratteri che pdf-lib rifiuta. */
@@ -138,6 +142,10 @@ export async function accodaTavole(pdf: Uint8Array | null, disegni: Disegno2D[],
           ...(st.fill ? { color: col(st.fill) } : {}), borderColor: col(st.stroke), borderWidth: st.width * PT * 0.6,
         });
         if (pr.stile === "porta") pagina.drawLine({ start: { x: X(pr.u1), y: Y(pr.z2) }, end: { x: X((pr.u1 + pr.u2) / 2), y: Y(pr.z1) }, thickness: 0.3, color: col("#94a3b8") });
+      } else if (pr.tipo === "poligono") {
+        // drawSvgPath ribalta la y: i punti vanno dati con la y cambiata di segno
+        const path = pr.punti.map((q, i) => `${i ? "L" : "M"} ${X(q.u).toFixed(2)} ${(-Y(q.z)).toFixed(2)}`).join(" ") + " Z";
+        pagina.drawSvgPath(path, { x: 0, y: 0, ...(st.fill ? { color: col(st.fill) } : {}), borderColor: col(st.stroke), borderWidth: st.width * PT * 0.6 });
       } else if (pr.tipo === "linea") {
         pagina.drawLine({ start: { x: X(pr.a.u), y: Y(pr.a.z) }, end: { x: X(pr.b.u), y: Y(pr.b.z) }, thickness: st.width * PT * 0.6, color: col(st.stroke), ...(st.dash ? { dashArray: st.dash.map((v) => v * PT) } : {}) });
       } else {

@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { disegnoInDxf, disegnoInSvg, prospetto, sezione, type Lato } from "@/lib/planimetrie/prospetti";
-import type { StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import type { StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
 
 type Scelta = Lato | "sezione";
 
@@ -26,7 +26,7 @@ function scarica(nome: string, dati: Uint8Array | string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function ProspettiDialog({ aperto, onChiudi, stato, titolo }: { aperto: boolean; onChiudi: () => void; stato: StatoPianta | null; titolo: string }) {
+export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto }: { aperto: boolean; onChiudi: () => void; stato: StatoPianta | null; titolo: string; tetto?: Tetto | null }) {
   const [scelta, setScelta] = useState<Scelta>("sud");
   const [asse, setAsse] = useState<"orizzontale" | "verticale">("orizzontale");
   const [posizione, setPosizione] = useState(50);
@@ -40,10 +40,10 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo }: { aperto: b
 
   const disegno = useMemo(() => {
     if (!stato || !limiti) return null;
-    if (scelta !== "sezione") return prospetto(stato, scelta);
+    if (scelta !== "sezione") return prospetto(stato, scelta, tetto);
     const [a, b] = asse === "orizzontale" ? [limiti.minY, limiti.maxY] : [limiti.minX, limiti.maxX];
-    return sezione(stato, { asse, valore: a + ((b - a) * posizione) / 100 }, "Sezione A-A");
-  }, [stato, limiti, scelta, asse, posizione]);
+    return sezione(stato, { asse, valore: a + ((b - a) * posizione) / 100 }, "Sezione A-A", tetto);
+  }, [stato, limiti, scelta, asse, posizione, tetto]);
   const svg = useMemo(() => (disegno ? disegnoInSvg(disegno, scala).svg : null), [disegno, scala]);
   const base = `${(titolo || "pianta").replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase()}-${scelta === "sezione" ? "sezione" : `prospetto-${scelta}`}`;
 

@@ -17,6 +17,7 @@ import EditorPlanimetria from "./EditorPlanimetria";
 import { archivioRicalco } from "@/lib/planimetrie/ricalco";
 import type { Planimetria } from "./adattatore";
 import { salvaPianta } from "./salvataggio";
+import { usePermissions } from "@/hooks/usePermissions";
 import { EffettoPrezzo } from "../EffettoPrezzo";
 import { effettoSulPrezzo, useRigheCollegate } from "@/lib/planimetrie/effettoPrezzo";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
@@ -57,6 +58,8 @@ export function EditorConSalvataggio({
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
   const [salvando, setSalvando] = useState(false);
+  // utente in sola lettura: la pianta si guarda, non si salva (il database lo rifiuterebbe comunque)
+  const { solaLettura } = usePermissions();
   const [conflitto, setConflitto] = useState<string | null>(null);
   const documento = useRef<Planimetria | null>(null);
   const cambi = useRef(0);
@@ -144,10 +147,10 @@ export function EditorConSalvataggio({
               />
             )}
             <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />
-            <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-purple-600 hover:bg-purple-700">
+            {!solaLettura && <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-purple-600 hover:bg-purple-700">
               {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salva
-            </Button>
+            </Button>}
           </>
         }
       />
@@ -175,7 +178,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} />
+      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} soloVista={solaLettura || undefined} />
     </div>
   );
 }

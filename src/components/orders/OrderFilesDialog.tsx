@@ -140,7 +140,7 @@ export function OrderFilesDialog({
               <SectionTitle icon={FileText}>Riepilogo commessa</SectionTitle>
               <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onDownloadOrderPdf} disabled={pdfBusy}>
                 {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-blue-600" />}
-                Scarica PDF riepilogo (articoli, costi, SAL, diario…)
+                Scarica PDF riepilogo (cronoprogramma, grafici, costi, SAL…)
               </Button>
             </section>
           )}

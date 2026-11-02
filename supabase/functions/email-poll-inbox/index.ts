@@ -157,13 +157,24 @@ function sanitizeFilename(name: string): string {
   return (name || "allegato").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "allegato";
 }
 
+/**
+ * L'ID di un messaggio IMAP è del tipo <abc@server>: Storage rifiuta quei caratteri
+ * e l'allegato spariva in silenzio, comprese le fatture che arrivano per email.
+ */
+function percorsoAllegato(companyId: string, messageId: string, filename: string): string {
+  return `${companyId}/${messageId.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 150)}/${Date.now()}-${sanitizeFilename(filename)}`;
+}
+
 let _attachBucketEnsured = false;
 async function ensureAttachBucket(supa: SupabaseClient): Promise<void> {
   if (_attachBucketEnsured) return;
   _attachBucketEnsured = true;
   try {
+    // Si crea solo se manca: crearlo a ogni giro riempiva il log di buckets_pkey duplicati.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supa as any).storage.createBucket(ATTACH_BUCKET, { public: false });
+    const { data } = await (supa as any).storage.getBucket(ATTACH_BUCKET);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!data) await (supa as any).storage.createBucket(ATTACH_BUCKET, { public: false });
   } catch { /* esiste già → no-op */ }
 }
 
@@ -211,7 +222,7 @@ async function materializeGmailAttachments(
       const bytes = decodeBase64UrlToBytes(j.data);
       if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
       await ensureAttachBucket(supa);
-      const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(meta.filename)}`;
+      const path = percorsoAllegato(companyId, providerMessageId, meta.filename);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const up = await (supa as any).storage.from(ATTACH_BUCKET).upload(path, bytes, {
         contentType: meta.mime || "application/octet-stream", upsert: true,
@@ -248,12 +259,15 @@ async function materializeImapAttachments(
       const bytes = decodeMailBase64(a.contentBase64);
       if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
       await ensureAttachBucket(supa);
-      const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(a.filename)}`;
+      const path = percorsoAllegato(companyId, providerMessageId, a.filename);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const up = await (supa as any).storage.from(ATTACH_BUCKET).upload(path, bytes, {
         contentType: a.mime || "application/octet-stream", upsert: true,
       });
-      if (up.error) continue;
+      if (up.error) {
+        console.warn("[email-poll] allegato IMAP non salvato:", a.filename, up.error.message);
+        continue;
+      }
       out.push({ filename: a.filename, mime: a.mime, size: bytes.byteLength, storage_path: path });
       runCounter.n++;
     } catch (e) {

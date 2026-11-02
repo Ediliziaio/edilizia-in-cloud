@@ -1,3 +1,4 @@
+import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -33,7 +34,7 @@ function buildHtml(cedolino: any, azienda: any): string {
   const periodoLabel = `${meseLabel} ${cedolino.anno}`;
   const ragioneSociale = azienda?.ragione_sociale ?? "Azienda";
   const pivaAzienda = azienda?.partita_iva ?? "";
-  const indirizzoAzienda = [azienda?.indirizzo, azienda?.comune, azienda?.cap]
+  const indirizzoAzienda = [azienda?.indirizzo, azienda?.citta, azienda?.cap]
     .filter(Boolean)
     .join(", ");
 
@@ -285,11 +286,7 @@ Deno.serve(async (req) => {
     }
 
     // Fetch azienda info
-    const { data: azienda } = await supabase
-      .from("anagrafica_azienda")
-      .select("ragione_sociale, partita_iva, indirizzo, comune, cap")
-      .eq("company_id", company_id)
-      .maybeSingle();
+    const azienda = await leggiAziendaDocumento(supabase, company_id);
 
     const meseLabel = MESI[(cedolino.mese ?? 1) - 1] ?? String(cedolino.mese);
     const html = buildHtml(cedolino, azienda);

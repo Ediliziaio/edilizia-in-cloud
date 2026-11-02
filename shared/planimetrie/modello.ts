@@ -272,6 +272,8 @@ export interface Planimetria {
   livelli: Livello[];
   /** Listino delle unità (condomini, bifamiliari in vendita), per sigla dell'unità. */
   vendite?: Record<string, VenditaUnita>;
+  /** Avanzamento: per ogni proposta, le chiavi dei lavori già fatti (vedi chiaveLavoro). */
+  lavoriFatti?: Record<string, string[]>;
 }
 
 export type StatoVendita = "libera" | "prenotata" | "venduta";
@@ -281,6 +283,31 @@ export interface VenditaUnita {
   prezzoMq?: number;
   stato?: StatoVendita;
   note?: string;
+  /** La trattativa, quando l'unità è prenotata o venduta. */
+  acquirente?: string;
+  /** Prezzo concordato, se diverso da prezzo al mq × superficie. */
+  prezzoPattuito?: number;
+  /** Caparra versata al preliminare. */
+  caparra?: number;
+  /** Totale incassato finora (caparra compresa). */
+  incassato?: number;
+  /** Date ISO (AAAA-MM-GG). */
+  dataPreliminare?: string;
+  dataRogito?: string;
+}
+
+const eData = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const eImporto = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+/** Il listino di un'unità ha la forma giusta? */
+export function venditaValida(v: unknown): boolean {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const x = v as Record<string, unknown>;
+  return (x.prezzoMq === undefined || eImporto(x.prezzoMq))
+    && (x.stato === undefined || (STATI_VENDITA as readonly unknown[]).includes(x.stato))
+    && (x.note === undefined || typeof x.note === "string")
+    && (x.acquirente === undefined || typeof x.acquirente === "string")
+    && [x.prezzoPattuito, x.caparra, x.incassato].every((n) => n === undefined || eImporto(n))
+    && [x.dataPreliminare, x.dataRogito].every((d) => d === undefined || eData(d));
 }
 
 /** Uno stato su cui si calcola: «fatto» o «progetto:<id proposta>». */
@@ -369,10 +396,13 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.titolo !== undefined && typeof dato.titolo !== "string") errori.push("La pianta: il titolo deve essere un testo.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");
+  if (dato.lavoriFatti !== undefined && (!eOggetto(dato.lavoriFatti) || !Object.values(dato.lavoriFatti).every((v) => Array.isArray(v) && v.every((x) => typeof x === "string")))) {
+    errori.push("La pianta: l'avanzamento dei lavori non è valido.");
+  }
   if (dato.vendite !== undefined) {
     if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
     else for (const [sigla, v] of Object.entries(dato.vendite)) {
-      if (!eOggetto(v) || (v.prezzoMq !== undefined && !(eNumero(v.prezzoMq) && v.prezzoMq >= 0)) || (v.stato !== undefined && !(STATI_VENDITA as readonly unknown[]).includes(v.stato)) || (v.note !== undefined && typeof v.note !== "string")) {
+      if (!venditaValida(v)) {
         errori.push(`La pianta: il listino dell'unità «${sigla}» non è valido.`);
       }
     }

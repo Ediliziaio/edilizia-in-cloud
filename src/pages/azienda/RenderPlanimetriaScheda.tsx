@@ -23,8 +23,10 @@ import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialo
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
 import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
 import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
+import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
+import { usePermissions } from "@/hooks/usePermissions";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
@@ -43,6 +45,7 @@ const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURICom
 
 export default function RenderPlanimetriaScheda() {
   const { id = "" } = useParams();
+  const permessi = usePermissions();
   const { data, isLoading, error } = usePlanimetria(id);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
@@ -134,7 +137,7 @@ export default function RenderPlanimetriaScheda() {
             <Button asChild variant="outline" size="sm">
               <Link to={percorsiPlanimetrie.modifica(id)}>
                 <PenLine className="mr-1.5 h-4 w-4" />
-                Modifica la pianta
+                {permessi.solaLettura ? "Apri la pianta" : "Modifica la pianta"}
               </Link>
             </Button>
           </>
@@ -204,7 +207,7 @@ export default function RenderPlanimetriaScheda() {
         />
       )}
 
-      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} titolo={data.riga.titolo} />
+      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} tetto={livello.tetto} titolo={data.riga.titolo} />
 
       {mostra3D && piante3D && (
         <Vista3DPigra
@@ -216,7 +219,9 @@ export default function RenderPlanimetriaScheda() {
         />
       )}
 
-      <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} />
+      <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} />
+
+      <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} sola={permessi.solaLettura} prezzi={permessi.canViewPreventivi} modificaPrezzi={permessi.canEditPreventivi} />
 
       {livello.proposte.length > 0 && (
         <PrimaEDopo
@@ -227,6 +232,10 @@ export default function RenderPlanimetriaScheda() {
           versione={data.versione.numero}
           livelloId={livello.id}
           propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : livello.proposte[0].id}
+          contactId={data.riga.contact_id}
+          sola={permessi.solaLettura}
+          prezzi={permessi.canViewPreventivi}
+          creaPreventivo={permessi.canEditPreventivi && !permessi.solaLettura}
         />
       )}
 

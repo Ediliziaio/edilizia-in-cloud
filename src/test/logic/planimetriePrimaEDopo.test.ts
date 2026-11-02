@@ -1,8 +1,10 @@
+import { itemsPreventivo, righeDaLavori, totaleRighe } from "@/lib/planimetrie/preventivoDaPianta";
 import { describe, expect, it } from "vitest";
 import { aPlanimetria, daPlanimetria, duplicaProposta, type Pianta } from "@/components/planimetrie/editor/adattatore";
 import * as C from "@/components/planimetrie/editor/comandi";
 import { CATALOGO } from "@/components/planimetrie/editor/catalogo";
-import { lavoriDaPianta, PREZZI_OPERE, stessoRiquadro } from "@/lib/planimetrie/primaEDopo";
+import { avanzamento, chiaveLavoro, lavoriDaPianta, PREZZI_OPERE, stessoRiquadro } from "@/lib/planimetrie/primaEDopo";
+import { validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
 import { pdfPrimaEDopo } from "@/lib/planimetrie/primaEDopoPdf";
 import { nuovaPlanimetria } from "../../../shared/planimetrie/modello.ts";
 
@@ -68,5 +70,41 @@ describe("prima e dopo: i lavori dalla pianta", () => {
     const { doc, propostaId } = progetto();
     const dati = await pdfPrimaEDopo({ titolo: "Casa Rossi — è così", prima: png, dopo: png, lavori: lavoriDaPianta(doc, doc.livelli[0].id, propostaId) });
     expect((await PDFDocument.load(dati)).getPageCount()).toBeGreaterThanOrEqual(2);
+  });
+});
+
+
+describe("dalla pianta al preventivo", () => {
+  it("una riga per lavoro con la stanza davanti; arredi senza prezzo esclusi; quantità a due decimali", () => {
+    const { doc, propostaId } = progetto();
+    const lav = lavoriDaPianta(doc, doc.livelli[0].id, propostaId);
+    const righe = righeDaLavori(lav);
+    expect(righe.find((r) => r.genere === "arredi")!.inclusa).toBe(false);
+    expect(totaleRighe(righe)).toBeCloseTo(lav.totale, 0);
+    const items = itemsPreventivo(righe, 10);
+    expect(items.every((i) => i.vat_rate === 10 && Number.isInteger(i.quantity * 100))).toBe(true);
+    expect(items.find((i) => i.name.startsWith("Soggiorno — Nuova finestra"))).toMatchObject({ unit_of_measure: "pz", item_category: "posa" });
+    expect(items.map((i) => i.sort_order)).toEqual(items.map((_, k) => k));
+  });
+});
+
+describe("avanzamento lavori (SAL dalla pianta)", () => {
+  it("niente spuntato 0%, tutto spuntato 100%, una stanza a metà", () => {
+    const { doc, propostaId } = progetto();
+    const lav = lavoriDaPianta(doc, doc.livelli[0].id, propostaId);
+    expect(avanzamento(lav, new Set()).percento).toBe(0);
+    const tutti = new Set(lav.stanze.flatMap((s) => s.lavori.map((l) => chiaveLavoro(s.stanza, l))));
+    expect(avanzamento(lav, tutti).percento).toBe(100);
+    const s0 = lav.stanze.find((s) => s.totale > 0)!;
+    const uno = new Set([chiaveLavoro(s0.stanza, s0.lavori.find((l) => l.importo > 0)!)]);
+    const a = avanzamento(lav, uno);
+    expect(a.percento).toBeGreaterThan(0);
+    expect(a.percento).toBeLessThan(100);
+    expect(a.stanze.find((s) => s.stanza === s0.stanza)!.fatti).toBe(1);
+  });
+  it("lavoriFatti si salva e si rifiuta se malformato", () => {
+    const { doc, propostaId } = progetto();
+    expect(validaPlanimetria({ ...doc, lavoriFatti: { [propostaId]: ["Cucina|x|mq"] } }).ok).toBe(true);
+    expect(validaPlanimetria({ ...doc, lavoriFatti: { [propostaId]: [3] } }).ok).toBe(false);
   });
 });

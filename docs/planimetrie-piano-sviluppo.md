@@ -74,16 +74,44 @@ attico duplex con mansarda.
 6. **Disegno**: miniature del catalogo da immagini (`IMMAGINI_SIMBOLI`, oggi vuoto: si riempie
    quando arrivano le immagini); locali numerati nei PDF, continui su tutti i piani.
 
+## Fatti il 2 novembre 2026
+
+- **Tetti e campi sportivi**: tetto a una falda e a shed, fotovoltaico sulle falde (pannelli,
+  kWp, a listino); campi da tennis, padel, calcio a 5/7/11, basket, pallavolo e beach volley.
+- **Verifiche per CILA e SCIA**: rapporto aeroilluminante 1/8, altezze, superfici minime di
+  camere e soggiorno, bagni ciechi con VMC, alloggi 28/38 m² e bagno completo; relazione PDF.
+- **Dalla pianta al preventivo**: i lavori del prima e dopo diventano un preventivo in bozza
+  (prezzi correggibili, IVA 10/22/4, cliente e pianta collegati).
+- **Avanzamento lavori**: nel prima e dopo ogni lavoro si spunta come fatto; percentuale per
+  stanza e totale, salvata come versione della pianta (`lavoriFatti`).
+- **Vendite delle unità**: acquirente, prezzo pattuito, caparra, incassato, preliminare e rogito;
+  riepilogo listino / venduto / prenotato / incassato / da incassare.
+- **3D**: la scala sale fino al pavimento del piano sopra; tour 3D da inviare (un file HTML con
+  il modello dentro, si apre col doppio clic anche dal telefono; serve internet per il visore).
+- **Prospetti e sezioni con il tetto**: falde e timpani in alzato, tetto tagliato in sezione,
+  anche nelle tavole PDF e nel DXF (layer TETTO).
+- **Render dalla pianta**: le finiture della stanza (pavimento, pareti, soffitto, rivestimento)
+  entrano nel prompt e valgono più dello stile generico.
+- **Correzione guidata** delle misure stimate dall'AI: una alla volta, dalla stanza più grande;
+  confermata una, l'editor passa alla prossima.
+- **Telefono**: l'editor si apre in sola lettura, «Modifica» per disegnare.
+- **Primo uso**: archivio vuoto con guida in tre passi e una pianta d'esempio da aprire.
+- **Permessi**: chi è in sola lettura non vede «Salva», non spunta lavori e non cambia il
+  listino (il database lo rifiutava già); prezzi, costi, trattative e «Crea il preventivo»
+  seguono i permessi dei preventivi.
+- **Velocità**: controllata; pagine, 3D, PDF e tour si caricano solo quando servono.
+
 ## Ancora aperto
 
-- **Render AI veri**: non provati con crediti reali da questa sessione (serve un utente
-  collegato). Da fare una prova su Demo azienda 2: una stanza, prima e dopo, e una piscina.
+- **Prove sul campo**: render AI veri con crediti, un cliente vero dall'inizio alla fine,
+  l'editor su un telefono vero. Non si fanno da qui (serve un utente collegato).
+- **Benchmark dell'AI sulle piante vere**: servono le immagini (caricarle nella pianta nuova).
+- **Da sopralluogo a pianta** (foto più misure dettate): non fatto.
 - **Immagini dei simboli**: aspettano le immagini (prompt qui sotto).
 - **Terreno in pendenza continua** (curve di livello): oggi solo superfici a quote diverse.
 - **Sottotetto con altezza variabile**: il tetto c'è, ma le stanze sotto restano alte uguali
   e le superfici non tengono conto delle altezze minime.
-- **Scala che collega due piani nel 3D** con la rampa intera: oggi ogni piano ha la sua.
-- **Listino unità**: nessun collegamento ancora con contratti e incassi delle vendite.
+- **Fotovoltaico → pratiche e preventivo energetico**: lasciato fuori su richiesta.
 
 ## Immagini per i simboli: come generarle
 
