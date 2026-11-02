@@ -2453,6 +2453,7 @@ function OrderDetailInner() {
       {/* Crea Fattura Dialog — smart prefill from order installments */}
       <CreaFatturaDialog
         open={creaFatturaOpen}
+        indirizzoLavori={order.work_address || order.indirizzo_lavori}
         onOpenChange={setCreaFatturaOpen}
         orderId={id!}
         orderCode={order.order_code}

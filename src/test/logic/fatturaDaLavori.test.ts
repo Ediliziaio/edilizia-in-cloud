@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  documentiDaArchivio,
   fatturatoDaDocumenti,
   fuoriDalleFasi,
   modoSuggerito,
+  primaRataDaFatturare,
   quotaDaFatturare,
   quoteDentroIlContratto,
   righeSal,
@@ -58,6 +60,31 @@ describe("Già fatturato letto dalle righe delle fatture", () => {
 
   it("righe illeggibili non rompono il conto", () => {
     expect(fatturatoDaDocumenti([doc(null as unknown as unknown[])]).totale).toBe(0);
+  });
+});
+
+describe("Fatture d'archivio", () => {
+  const fattura = (extra: Record<string, unknown>) => ({ id: "i1", document_type: "invoice", status: "issued", subtotal: 1000, ...extra });
+  const conto = (f: Parameters<typeof documentiDaArchivio>[0], letti = new Set<string>()) => fatturatoDaDocumenti(documentiDaArchivio(f, letti));
+  it("contano come fatturato senza dettaglio, le note di credito col meno", () => {
+    const c = conto([fattura({}), fattura({ id: "i2", document_type: "credit_note", subtotal: 300 })] as never);
+    expect(c.senzaDettaglio).toBe(700);
+    expect(c.totale).toBe(700);
+  });
+  it("una riga con lo stesso id di un documento è il suo gemello: non si conta due volte", () => {
+    expect(conto([fattura({})] as never, new Set(["i1"])).totale).toBe(0);
+  });
+  it("annullate, stornate, bozze e proforma non sono fatturato", () => {
+    for (const status of ["cancelled", "credited", "draft"]) expect(conto([fattura({ status })] as never).totale).toBe(0);
+    expect(conto([fattura({ document_type: "proforma" })] as never).totale).toBe(0);
+  });
+});
+
+describe("Rata da proporre", () => {
+  it("salta quelle pagate e quelle già fatturate", () => {
+    const rate = [{ id: "a", is_paid: true }, { id: "b", is_paid: false, documento_fiscale_id: "d" }, { id: "c", is_paid: false }];
+    expect(primaRataDaFatturare(rate)?.id).toBe("c");
+    expect(primaRataDaFatturare(rate.slice(0, 2))).toBeUndefined();
   });
 });
 
@@ -138,12 +165,11 @@ describe("SAL in fattura", () => {
 });
 
 describe("Da dove parte il popup", () => {
-  const nessuno = { salDaFatturare: false, fasiConQuota: false, rataDaFatturare: false, articoli: false };
-  it("SAL, poi fasi, poi rata, poi articoli, altrimenti importo", () => {
-    expect(modoSuggerito({ salDaFatturare: true, fasiConQuota: true, rataDaFatturare: true, articoli: true })).toBe("sal");
-    expect(modoSuggerito({ ...nessuno, fasiConQuota: true, rataDaFatturare: true, articoli: true })).toBe("fasi");
-    expect(modoSuggerito({ ...nessuno, rataDaFatturare: true, articoli: true })).toBe("importo");
-    expect(modoSuggerito({ ...nessuno, articoli: true })).toBe("articoli");
+  const nessuno = { salDaFatturare: false, fasiConQuota: false, rataDaFatturare: false };
+  it("SAL, poi la rata, poi le fasi; gli articoli mai da soli", () => {
+    expect(modoSuggerito({ salDaFatturare: true, fasiConQuota: true, rataDaFatturare: true })).toBe("sal");
+    expect(modoSuggerito({ ...nessuno, fasiConQuota: true, rataDaFatturare: true })).toBe("importo");
+    expect(modoSuggerito({ ...nessuno, fasiConQuota: true })).toBe("fasi");
     expect(modoSuggerito(nessuno)).toBe("importo");
   });
 });
