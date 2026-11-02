@@ -37,6 +37,12 @@ Deno.serve(async (req: Request) => {
     if (companyError || !company) return errorResponse("Dati azienda non disponibili", 500, cors);
     const warnings: string[] = [];
     let phases: RecordData[] = [];
+    // Inserito dall'ufficio: nel documento si legge chi l'ha fatto davvero.
+    if (rap.ufficio_created_by) {
+      const { data: chi } = await admin.from("profiles").select("first_name, last_name").eq("id", rap.ufficio_created_by).maybeSingle();
+      const nome = [chi?.first_name, chi?.last_name].filter(Boolean).join(" ").trim();
+      if (nome) (rap as Record<string, unknown>).inserito_da = nome;
+    }
     const phaseIds = rows(rap.fasi_lavorate).map(p => text(p.phase_id)).filter(Boolean);
     if (phaseIds.length && rap.order_id) {
       const { data, error } = await admin.from("order_work_phases").select("id, name").eq("order_id", rap.order_id).in("id", phaseIds);

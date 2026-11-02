@@ -492,5 +492,28 @@ describe("campi propri nel PDF", () => {
       campi_extra: [{ chiave: "a", etichetta: "Misure", tipo: "text", valore: "ok", stampa: "interno" }, { chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 5, stampa: "interno", phase_id: "ph-1", fase_nome: "Posa" }] });
     expect(risultato.pageCount).toBe(1);
   });
+  it("il giornaliero dice chi l'ha compilato e a che ora, senza firma del cliente", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z" });
+    expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
+    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+  });
+  it("con la firma di chi compila la mostra, con nome e ora", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2" });
+    expect(testi).toContain("FIRMA DEL COMPILATORE");
+    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+    expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
+  });
+  it("un giornaliero non stampa mai una firma del cliente, nemmeno se ne ha una vecchia", async () => {
+    const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
+    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+  });
+  it("se l'ha inserito l'ufficio lo dice", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", ufficio_created_by: "u1", inserito_da: "Anna Neri" });
+    expect(testi.join(" ")).toContain("Inserito da Anna Neri (ufficio) per Marco Operaio il 05/10/26 alle 17:30");
+  });
+  it("il collaudo ha ancora la firma del cliente", async () => {
+    const { testi } = await disegna({ ...base, lavoro_completato: true, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
+    expect(testi).toContain("FIRMA DEL CLIENTE");
+  });
 });
 

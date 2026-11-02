@@ -1,6 +1,6 @@
 import { valoreInTesto, valoriDaStampare, type ValoreCampo } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
-import { bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
+import { compilatoDa, bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
 
 /** Keep paragraph breaks; replace unsupported glyphs explicitly instead of crashing. */
 export function printable(value: string): string {
@@ -489,10 +489,19 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   }
 
   // ═════════ Firme ═════════
+  // La firma del cliente è solo del collaudo (rapporto di fine lavori). Il giornaliero lo firma chi lo compila.
   const firme = [
     { etichetta: "Firma del compilatore", ref: text(r.firma_operaio_url), nome: summary.author, data: "" },
-    { etichetta: "Firma del cliente", ref: text(r.firma_cliente_url), nome: text(r.firma_cliente_nome), data: r.firma_cliente_at ? timestamp(r.firma_cliente_at) : "" },
+    ...(fineLavori ? [{ etichetta: "Firma del cliente", ref: text(r.firma_cliente_url), nome: text(r.firma_cliente_nome), data: r.firma_cliente_at ? timestamp(r.firma_cliente_at) : "" }] : []),
   ].filter(s => s.ref || fineLavori);
+  const chiEQuando = compilatoDa(r);
+  if (chiEQuando) {
+    ensure(30);
+    box(M, y, CW, 22, pale);
+    box(M, y, 3.5, 22, accent);
+    T(chiEQuando, M + 14, y - 14.5, 8.8, bold, ink);
+    y -= 30;
+  }
   if (firme.length) {
     sezione("Firme", 150);
     const wF = (CW - 12) / 2;
@@ -509,7 +518,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
       if (s.data) T(`Data registrata: ${s.data}`, x + 12, y - 99, 7, regular, muted);
     }
     y -= 112;
-    paragraph("La firma si riferisce a questo rapportino: non approva costi extra e non sostituisce un verbale di collaudo con verifiche ed eventuali riserve.", 7.4, muted);
+    if (fineLavori) paragraph("La firma si riferisce a questo rapportino: non approva costi extra e non sostituisce un verbale di collaudo con verifiche ed eventuali riserve.", 7.4, muted);
   }
 
   // ═════════ Note del documento ═════════
