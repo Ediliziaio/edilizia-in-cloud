@@ -44,7 +44,7 @@ export function itemsPreventivo(righe: RigaProposta[], ivaPercento: number) {
       unit_of_measure: r.unita,
       item_category: opera ? ("posa" as const) : ("prodotto" as const),
       item_type: opera ? "labor" : "product",
-      tariffa_id: null,
+      tariffa_id: null as string | null,
       prezzo_acquisto: 0,
       sort_order: i,
     };
