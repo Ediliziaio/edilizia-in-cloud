@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync("supabase/migrations/20281107140000_fase_lavorata_parte.sql", "utf8");
+const sql = readFileSync("supabase/migrations/20281113140000_fase_lavorata_parte.sql", "utf8");
 
 describe("una fase lavorata e approvata parte", () => {
   it("anche con percentuale zero", () => {

@@ -222,14 +222,14 @@ describe("firma del cliente sul verbale", () => {
     expect(c).toMatch(/if\(error\|\|!data\)\{awaitadmin\.storage\.from\(bucket\)\.remove\(\[/);
   });
   it("la migrazione aggiunge le colonne della firma", () => {
-    const sql = readFileSync("supabase/migrations/20281107120000_verbale_firma_cliente.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20281113120000_verbale_firma_cliente.sql", "utf8");
     for (const x of ["firma_cliente_path text", "firma_cliente_nome text", "firma_cliente_at timestamptz", "firma_raccolta_da uuid"]) expect(sql).toContain(x);
   });
 });
 
 describe("verbale dal cantiere: permessi", () => {
   const fonte = () => readFileSync("supabase/functions/collaudo-commessa/index.ts", "utf8").replace(/\s+/g, "").replaceAll('"', "'");
-  const sql = () => readFileSync("supabase/migrations/20281107130000_verbale_dal_cantiere.sql", "utf8");
+  const sql = () => readFileSync("supabase/migrations/20281113130000_verbale_dal_cantiere.sql", "utf8");
 
   it("chi ha i permessi d'ufficio continua come prima, il capo passa da una verifica sua", () => {
     const c = fonte();
@@ -268,7 +268,7 @@ describe("verbale dal cantiere: permessi", () => {
 describe("correzioni dalla revisione", () => {
   const fonte = () => readFileSync("supabase/functions/collaudo-commessa/index.ts", "utf8").replace(/\s+/g, "").replaceAll('"', "'");
   it("il bucket accetta anche la firma in PNG", () => {
-    const sql = readFileSync("supabase/migrations/20281107120000_verbale_firma_cliente.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20281113120000_verbale_firma_cliente.sql", "utf8");
     expect(sql).toMatch(/update storage\.buckets set allowed_mime_types = array\['application\/pdf', 'image\/png'\]/);
     expect(sql).toContain("id = 'order-acceptance-reports'");
   });
@@ -281,7 +281,7 @@ describe("correzioni dalla revisione", () => {
   it("il capo in sola lettura non scrive", () => {
     const c = fonte();
     expect(c).toContain("caller.rpc('utente_sola_lettura',{p_company_id:order.company_id})");
-    expect(readFileSync("supabase/migrations/20281107130000_verbale_dal_cantiere.sql", "utf8")).toContain("public.utente_sola_lettura(v_company)");
+    expect(readFileSync("supabase/migrations/20281113130000_verbale_dal_cantiere.sql", "utf8")).toContain("public.utente_sola_lettura(v_company)");
   });
   it("il capo vede e tocca solo i verbali di un modello che lo permette", () => {
     const c = fonte();

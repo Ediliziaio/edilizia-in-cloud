@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync("supabase/migrations/20281107110000_rapportini_campi_totali.sql", "utf8");
+const sql = readFileSync("supabase/migrations/20281113110000_rapportini_campi_totali.sql", "utf8");
 
 describe("rapportini_campi_totali", () => {
   it("vale la RLS di chi chiede", () => {

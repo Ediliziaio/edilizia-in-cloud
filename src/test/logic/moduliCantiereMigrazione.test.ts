@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync("supabase/migrations/20281107100000_moduli_cantiere.sql", "utf8");
+const sql = readFileSync("supabase/migrations/20281113100000_moduli_cantiere.sql", "utf8");
 const funzione = (nome: string) => {
   const inizio = sql.indexOf(`create or replace function public.${nome}(`);
   expect(inizio, nome).toBeGreaterThan(-1);
