@@ -59,3 +59,18 @@ export function periodoDaControllare(ordine: { work_start_date?: string | null; 
   const al = fine && fine >= dal ? fine : dal;
   return { dal, al, senzaFine: !fine || fine < dal };
 }
+
+/**
+ * Il carico per Silvio: una riga corta a persona. Con l'elenco intero degli impegni il risultato
+ * superava il limite e il modello leggeva 3 persone su 34.
+ */
+export function compattaCarico(risultato: unknown): unknown {
+  if (!Array.isArray(risultato)) return risultato;
+  return risultato.map((r: Riga) => {
+    const impegni = Array.isArray(r.impegni) ? r.impegni as Riga[] : [];
+    return {
+      nome: r.nome, employee_id: r.employee_id, ruolo: r.role_type, stato: r.stato_carico, ore_30gg: r.ore_30gg, utilizzo_pct: r.utilizzo_pct,
+      commesse: impegni.length, prime_commesse: impegni.slice(0, 2).map((i) => i.commessa),
+    };
+  });
+}

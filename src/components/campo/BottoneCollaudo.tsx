@@ -23,8 +23,20 @@ export function useModelliCapo(orderId: string | undefined) {
 
 export function BottoneCollaudo({ orderId }: { orderId: string }) {
   const navigate = useNavigate();
-  const { data: modelli = [] } = useModelliCapo(orderId);
-  if (modelli.length === 0) return null;
+  const { data: modelli = [], isSuccess } = useModelliCapo(orderId);
+  // Con tutti i modelli spenti si entra solo se c'è qualcosa da rileggere.
+  const { data: haVerbali = false } = useQuery<boolean>({
+    queryKey: ["verbali-capo-ne-ha", orderId],
+    enabled: isSuccess && modelli.length === 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (f: string, a: unknown) => Promise<{ data: boolean | null; error: { code?: string } | null }>)(
+        "verbali_capo_ne_ha", { p_order_id: orderId });
+      if (error) return false;
+      return data === true;
+    },
+  });
+  if (modelli.length === 0 && !haVerbali) return null;
   return (
     <button type="button" onClick={() => navigate(`/campo/lavoro/${orderId}/verbale`)}
       className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-xs font-semibold">

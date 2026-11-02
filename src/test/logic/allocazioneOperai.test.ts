@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { operaiDaProporre, operaiPerIlModello, suggerimentiVerificati, periodoDaControllare } from "../../../supabase/functions/_shared/allocazioneOperai.ts";
+import { compattaCarico, operaiDaProporre, operaiPerIlModello, suggerimentiVerificati, periodoDaControllare } from "../../../supabase/functions/_shared/allocazioneOperai.ts";
 import { oggiInParole } from "../../../supabase/functions/_shared/oraItaliana.ts";
 
 const riga = (over: Record<string, unknown>) => ({
@@ -80,5 +80,20 @@ describe("oggi per Silvio", () => {
   it("dice il giorno della settimana giusto, nell'ora italiana", () => {
     expect(oggiInParole(new Date("2026-11-02T10:00:00Z")).testo).toBe("lunedì 02/11/2026");
     expect(oggiInParole(new Date("2026-11-01T23:30:00Z"))).toEqual({ iso: "2026-11-02", testo: "lunedì 02/11/2026" });
+  });
+});
+
+describe("il carico per Silvio", () => {
+  it("resta corto anche con tante commesse, e non nasconde quante sono", () => {
+    const impegni = Array.from({ length: 20 }, (_, i) => ({ commessa: `C-${i}`, dal: "2026-01-01", al: "2026-12-31" }));
+    const righe = Array.from({ length: 34 }, () => riga({ impegni, stato_carico: "impegnato" }));
+    const out = compattaCarico(righe) as { commesse: number; prime_commesse: string[] }[];
+    expect(out).toHaveLength(34);
+    expect(out[0].commesse).toBe(20);
+    expect(out[0].prime_commesse).toEqual(["C-0", "C-1"]);
+    expect(JSON.stringify(out).length).toBeLessThan(8000);
+  });
+  it("un errore passa com'è", () => {
+    expect(compattaCarico({ error: "x" })).toEqual({ error: "x" });
   });
 });

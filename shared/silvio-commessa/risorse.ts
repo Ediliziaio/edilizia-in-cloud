@@ -786,7 +786,7 @@ export function riassuntoRisorse(fr: Frammento): string {
     [conta("materiali", "materiali.acquisti"), "ordine in bozza", "ordini in bozza"],
   ].filter(([n]) => Number(n) > 0).map(([n, uno, tanti]) => `${n} ${n === 1 ? uno : tanti}`);
   if (!pezzi.length && !avvisi) return "Ho preparato i promemoria di sicurezza e il messaggio d'avvio per il cliente, in bozza.";
-  return `Ti propongo ${pezzi.join(", ") || "poco"}, più le bozze di contratti, sicurezza e avvio al cliente.`
+  return `${pezzi.length ? `Ti propongo ${pezzi.join(", ")}, più le bozze` : "Ti ho preparato le bozze"} di contratti, sicurezza e avvio al cliente.`
     + (avvisi ? ` ⚠ ${avvisi === 1 ? "Uno non è disponibile" : `${avvisi} non sono disponibili`}: te l'ho segnato.` : "")
     + " Niente entra finché non dici «Va bene».";
 }

@@ -1,7 +1,7 @@
 // src/test/ui/rapportiniPagina.test.tsx
 // Impostazioni → Rapportini e presenze: il salvataggio resta in vista e si può annullare, uscire con una scelta cambiata
 // chiede conferma, chi può solo leggere trova la frase giusta, un rifiuto del database arriva in italiano.
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RegoleCampo } from "@/lib/campo/regoleCampo";
@@ -10,9 +10,13 @@ const state = vi.hoisted(() => ({
   role: "company_admin", modifica: false, caricamentoPermessi: false, azienda: "azienda-1",
   regole: { chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null } as unknown as RegoleCampo,
   sceltaFatta: true, errore: false, letturaIn: false,
-  mutate: vi.fn(), pending: false, successo: vi.fn(), erroreToast: vi.fn(), ricarica: vi.fn(),
+  mutate: vi.fn(), salvaModulo: vi.fn(async (): Promise<boolean> => true), pending: false, successo: vi.fn(), erroreToast: vi.fn(), ricarica: vi.fn(),
 }));
-vi.mock("@/components/settings/ModuliCantiereConfig", () => ({ ModuliCantiereConfig: (): null => null }));
+vi.mock("@/components/settings/ModuliCantiereConfig", () => ({
+  ModuliCantiereConfig: ({ tipo, onStato }: { tipo: string; onStato?: (s: unknown) => void }) => (
+    <button type="button" onClick={() => onStato?.({ modificato: true, inCorso: false, salva: state.salvaModulo, annulla: (): void => undefined })}>{`modello finto ${tipo}`}</button>
+  ),
+}));
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: state.erroreToast } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, effectiveCompany: { id: state.azienda } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: state.caricamentoPermessi, canEditSettingsOrders: state.modifica }) }));
@@ -97,6 +101,25 @@ describe("Rapportini e presenze: salvare senza perdere le scelte", () => {
     expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
   });
 
+  it("«Salva modifiche» salva anche il modello cambiato: il bottone è uno solo", async () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: "modello finto rapportino" }));
+    const salva = screen.getByRole("button", { name: "Salva modifiche" });
+    expect(salva).toBeEnabled();
+    fireEvent.click(salva);
+    await waitFor(() => expect(state.salvaModulo).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(state.successo).toHaveBeenCalledWith("Impostazioni salvate"));
+    expect(state.mutate).not.toHaveBeenCalled();
+  });
+  it("se il modello non si salva non dice «Impostazioni salvate»", async () => {
+    state.salvaModulo.mockResolvedValueOnce(false);
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: "modello finto rapportino" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(state.salvaModulo).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 10));
+    expect(state.successo).not.toHaveBeenCalled();
+  });
   it("«Salva modifiche» manda le tre scelte e dice «Impostazioni salvate»", () => {
     state.mutate.mockImplementation((_regole: RegoleCampo, opzioni: { onSuccess: () => void }) => opzioni.onSuccess());
     apri();

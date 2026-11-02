@@ -23,6 +23,8 @@ import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts"
 import { normalizzaStatoPreventivo } from "./statoPreventivo.ts";
 import { buildDdtCarico } from "./ddtCarico.ts";
 import { silvioOrderReport } from "./silvioOrderReport.ts";
+import { silvioCalcolaPiano, silvioPrevediRitardi } from "./silvioPianoCantiere.ts";
+import { compattaCarico } from "./allocazioneOperai.ts";
 import { silvioQuadroCommessa } from "./silvioQuadroCommessa.ts";
 import { silvioSiteHealth } from "./silvioSiteHealth.ts";
 import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
@@ -954,11 +956,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         parameters: { type: "object", properties: { dal: { type: "string", format: "date", description: "Primo giorno del periodo" }, al: { type: "string", format: "date", description: "Ultimo giorno del periodo" } }, required: [] },
       },
     },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_employees_workload", {
+    executor: async (args, ctx) => compattaCarico(await callRpc(ctx.supabase, "silvio_employees_workload", {
       p_company_id: ctx.companyId,
       p_dal: args?.dal ?? null,
       p_al: args?.al ?? null,
-    }),
+    })),
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "hr", "assistente_imprenditore"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
@@ -4508,6 +4510,49 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       },
     },
     executor: silvioQuadroCommessa,
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  calcola_piano_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "calcola_piano_cantiere",
+        description: "Calcola per UNA commessa quante ore e quanti operai servono per fase per finire entro una data, chi è libero, quali mezzi, quanto margine resta e quando finirà al ritmo attuale, con la fonte di ogni numero. Usalo SEMPRE per 'quanti operai servono', 'chi metto', 'ce la faccio entro', 'quanto margine faccio'. Non assegna nessuno.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. O-0002)" },
+            order_id: { type: "string", description: "Id della commessa aperta nella pagina, se lo conosci" },
+            data_fine: { type: "string", format: "date", description: "Entro quando finire. Se manca vale la fine prevista della commessa" },
+            costo_orario: { type: "number", description: "Solo se l'utente lo dice" },
+            ore_giorno: { type: "number", description: "Solo se l'utente lo dice" },
+          },
+        },
+      },
+    },
+    executor: silvioCalcolaPiano,
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  prevedi_ritardi_cantieri: {
+    schema: {
+      type: "function",
+      function: {
+        name: "prevedi_ritardi_cantieri",
+        description: "Prevede quali commesse aperte finiranno in ritardo al ritmo attuale e dice quali non si possono prevedere e perché. Usalo per 'quali cantieri finiranno in ritardo'. Per i ritardi di oggi usa analizza_stato_commesse.",
+        parameters: { type: "object", properties: {} },
+      },
+    },
+    executor: silvioPrevediRitardi,
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],

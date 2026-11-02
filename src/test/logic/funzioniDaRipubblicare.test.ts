@@ -55,4 +55,11 @@ describe("Le funzioni da ripubblicare", () => {
     const funzioni = funzioniDaRipubblicare(["supabase/functions/_shared/imapSmtpClient.ts"]);
     expect(funzioni.some((f) => f.startsWith("_"))).toBe(false);
   });
+
+  it("segue anche il codice di shared/, pure di rimbalzo", () => {
+    const f = funzioniDaRipubblicare(["shared/piano-cantiere/calcolo.ts"]);
+    expect(f).toContain("silvio-chat");
+    expect(f).toContain("whatsapp-ai-processor");
+    expect(funzioniDaRipubblicare(["shared/silvio-commessa/calendario.ts"])).toContain("silvio-commessa");
+  });
 });
