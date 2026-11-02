@@ -27,8 +27,10 @@ export interface Unita {
   mqCommerciali: number;
   millesimi: number;
   vendita: VenditaUnita;
-  /** Prezzo al mq × superficie commerciale, se c'è il prezzo. */
+  /** Prezzo pattuito se c'è, altrimenti prezzo al mq × superficie commerciale. */
   prezzo: number | null;
+  /** Da incassare: prezzo meno incassato (solo per le unità prenotate o vendute). */
+  residuo: number | null;
 }
 
 const arr2 = (v: number) => Math.round(v * 100) / 100;
@@ -52,7 +54,8 @@ export function unitaDellEdificio(doc: Planimetria, ambito = "fatto"): Unita[] {
     return {
       sigla, locali, mqNetti, mqCommerciali, millesimi: 0, vendita,
       piani: [...new Set(locali.map((l) => l.livello))],
-      prezzo: vendita.prezzoMq ? Math.round(vendita.prezzoMq * mqCommerciali) : null,
+      prezzo: vendita.prezzoPattuito ? Math.round(vendita.prezzoPattuito) : vendita.prezzoMq ? Math.round(vendita.prezzoMq * mqCommerciali) : null,
+      residuo: null,
     };
   });
   // millesimi: arrotondati, poi il resto all'unità più grande perché la somma faccia 1000
@@ -63,7 +66,24 @@ export function unitaDellEdificio(doc: Planimetria, ambito = "fatto"): Unita[] {
     const grande = unita.reduce((m, u) => (u.mqCommerciali > m.mqCommerciali ? u : m), unita[0]);
     if (grande) grande.millesimi = arr2(grande.millesimi + scarto);
   }
+  for (const u of unita) {
+    if (u.vendita.stato && u.vendita.stato !== "libera" && u.prezzo != null) u.residuo = Math.max(0, u.prezzo - (u.vendita.incassato ?? u.vendita.caparra ?? 0));
+  }
   return unita.sort((a, b) => a.sigla.localeCompare(b.sigla, "it", { numeric: true }));
+}
+
+/** Il riepilogo delle vendite: listino, venduto e prenotato, incassato e da incassare. */
+export function riepilogoVendite(unita: Unita[]) {
+  const somma = (f: (u: Unita) => number) => unita.reduce((t, u) => t + f(u), 0);
+  const trattate = unita.filter((u) => u.vendita.stato && u.vendita.stato !== "libera");
+  return {
+    listino: somma((u) => u.prezzo ?? 0),
+    venduto: somma((u) => (u.vendita.stato === "venduta" ? u.prezzo ?? 0 : 0)),
+    prenotato: somma((u) => (u.vendita.stato === "prenotata" ? u.prezzo ?? 0 : 0)),
+    incassato: trattate.reduce((t, u) => t + (u.vendita.incassato ?? u.vendita.caparra ?? 0), 0),
+    daIncassare: trattate.reduce((t, u) => t + (u.residuo ?? 0), 0),
+    libere: unita.length - trattate.length,
+  };
 }
 
 export const NOMI_STATO_VENDITA: Record<StatoVendita, string> = { libera: "Libera", prenotata: "Prenotata", venduta: "Venduta" };
@@ -74,6 +94,12 @@ export function conVendita(doc: Planimetria, sigla: string, v: VenditaUnita): Pl
     ...(v.prezzoMq != null && v.prezzoMq > 0 ? { prezzoMq: v.prezzoMq } : {}),
     ...(v.stato && v.stato !== "libera" ? { stato: v.stato } : {}),
     ...(v.note?.trim() ? { note: v.note.trim() } : {}),
+    ...(v.acquirente?.trim() ? { acquirente: v.acquirente.trim() } : {}),
+    ...(v.prezzoPattuito != null && v.prezzoPattuito > 0 ? { prezzoPattuito: v.prezzoPattuito } : {}),
+    ...(v.caparra != null && v.caparra > 0 ? { caparra: v.caparra } : {}),
+    ...(v.incassato != null && v.incassato > 0 ? { incassato: v.incassato } : {}),
+    ...(v.dataPreliminare ? { dataPreliminare: v.dataPreliminare } : {}),
+    ...(v.dataRogito ? { dataRogito: v.dataRogito } : {}),
   };
   const vendite = { ...(doc.vendite ?? {}) };
   if (Object.keys(pulita).length) vendite[sigla] = pulita;

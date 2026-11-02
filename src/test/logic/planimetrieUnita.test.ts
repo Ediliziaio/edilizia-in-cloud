@@ -6,7 +6,7 @@ import { MOMENTI_ESTERNI, lasciaFotoDaPianta, prendiDaPianta } from "@/lib/plani
 import { describe, expect, it } from "vitest";
 import { aPlanimetria, type Pianta } from "@/components/planimetrie/editor/adattatore";
 import * as C from "@/components/planimetrie/editor/comandi";
-import { conVendita, unitaDellEdificio } from "@/lib/planimetrie/unita";
+import { conVendita, riepilogoVendite, unitaDellEdificio } from "@/lib/planimetrie/unita";
 import { pdfSchedaUnita } from "@/lib/planimetrie/unitaPdf";
 import { nuovaPlanimetria, validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
 
@@ -44,6 +44,19 @@ describe("unità, millesimi e listino", () => {
     doc = conVendita(doc, "A", { stato: "libera" });
     expect(doc.vendite).toBeUndefined();
     expect(validaPlanimetria({ ...doc, vendite: { A: { stato: "regalata" } } }).ok).toBe(false);
+  });
+  it("vendite: prezzo pattuito, caparra, incassi e date; riepilogo", () => {
+    let doc = conVendita(palazzina(), "A", { prezzoMq: 2500, stato: "venduta", acquirente: " Rossi ", prezzoPattuito: 100000, caparra: 10000, incassato: 30000, dataPreliminare: "2026-10-01", dataRogito: "2027-03-15" });
+    doc = conVendita(doc, "B", { prezzoMq: 2000, stato: "prenotata", caparra: 5000 });
+    expect(validaPlanimetria(doc).ok).toBe(true);
+    const [a, b] = unitaDellEdificio(doc);
+    expect(a.prezzo).toBe(100000);
+    expect(a.residuo).toBe(70000);
+    expect(b.residuo).toBe(b.prezzo! - 5000);
+    const r = riepilogoVendite([a, b]);
+    expect(r).toMatchObject({ venduto: 100000, prenotato: b.prezzo, incassato: 35000, libere: 0 });
+    expect(validaPlanimetria({ ...doc, vendite: { A: { dataRogito: "15/03/2027" } } }).ok).toBe(false);
+    expect(validaPlanimetria({ ...doc, vendite: { A: { caparra: -1 } } }).ok).toBe(false);
   });
   it("scheda PDF dell'unità", async () => {
     const { PDFDocument } = await import("pdf-lib");
