@@ -42,6 +42,9 @@ export function silvioHistoryMessages(rows: ReadonlyArray<{
   currentContent: string;
   currentMessageId?: string | null;
   otherSenderPrefix?: string;
+  /** Messaggi piu vecchi degli ultimi `recenti`: un limite piu stretto. Il segno
+   *  «parziale» resta, e le sintesi delle conversazioni stanno gia nella memoria. */
+  vecchi?: { recenti: number; maxChars: number };
 }): Array<{ role: "assistant" | "user"; content: string }> {
   return rows.flatMap((row, index) => {
     // The current request is appended separately and must never be truncated as history.
@@ -49,7 +52,12 @@ export function silvioHistoryMessages(rows: ReadonlyArray<{
       (options.currentMessageId ? row.id === options.currentMessageId :
         index === rows.length - 1 && row.content === options.currentContent)) return [];
     const assistant = row.sender_id === options.assistantSenderId;
-    const content = silvioHistoryContent(row.content, { assistant, streaming: row.streaming });
+    const vecchio = options.vecchi && index < rows.length - options.vecchi.recenti;
+    const content = silvioHistoryContent(row.content, {
+      assistant,
+      streaming: row.streaming,
+      ...(vecchio ? { maxChars: options.vecchi?.maxChars } : {}),
+    });
     return content ? [{
       role: assistant ? "assistant" as const : "user" as const,
       content: !assistant && row.sender_id !== options.currentSenderId && options.otherSenderPrefix
