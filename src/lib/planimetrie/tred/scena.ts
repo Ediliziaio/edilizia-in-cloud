@@ -8,6 +8,7 @@ import { costruisciElemento, modelloElemento } from "./elementi";
 import { pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
 import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
 import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
+import { meshImpianti } from "./impianti3d";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
@@ -264,6 +265,15 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
 
   if (conSoffitto) mesh.push(...meshTetto(pianta, muri));
 
+  // Tubazioni e cavi stimati dai simboli degli impianti (su richiesta)
+  let impianti: Scena3D["impianti"];
+  if (opzioni.impianti) {
+    const r = meshImpianti(pianta);
+    mesh.push(...r.mesh);
+    avvisi.push(...r.avvisi);
+    impianti = r.impianti;
+  }
+
   // Aree esterne: superfici appena sopra il terreno; il lotto recintato ha muretto e rete.
   for (const a of pianta.aree ?? []) {
     const contorno = pulisciPoligono(a.contorno.map((p) => v2(p.x * CM, p.y * CM)));
@@ -303,7 +313,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro")));
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
-  return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi };
+  return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi, ...(impianti ? { impianti } : {}) };
 }
 
 /**

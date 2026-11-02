@@ -51,6 +51,8 @@ export type ElementoImpianto = Pick<Elemento, "id" | "tipo" | "posizione" | "sta
 
 const squadra = (a: Punto, b: Punto) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const quota = (e: ElementoImpianto) => QUOTA[e.tipo] ?? 0;
+/** Altezza da terra (cm) a cui una linea arriva a un simbolo di questo tipo: serve anche al 3D per disegnare le calate. */
+export const quotaPunto = (tipo: string) => QUOTA[tipo] ?? 0;
 
 function piuVicino(da: ElementoImpianto, fra: ElementoImpianto[]): ElementoImpianto | null {
   let migliore: ElementoImpianto | null = null;

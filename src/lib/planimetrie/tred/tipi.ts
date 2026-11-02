@@ -141,6 +141,8 @@ export interface Scena3D {
   limiti: Limiti3D;
   /** Cose della pianta che il 3D ha dovuto correggere o saltare, in parole semplici. */
   avvisi: string[];
+  /** Linee degli impianti disegnate, con i metri stimati (sfrido compreso). Solo con `impianti`. */
+  impianti?: Array<{ linea: string; nome: string; colore: string; metri: number }>;
 }
 
 export interface OpzioniScena {
@@ -154,6 +156,8 @@ export interface OpzioniScena {
    * alberi restano sospesi nel vuoto. I limiti della scena non lo contano. Predefinito: niente.
    */
   terreno?: number;
+  /** Le tubazioni e i cavi stimati dai simboli degli impianti (quadro, prese, collettore, scarichi, clima). Predefinito: no. */
+  impianti?: boolean;
   /** Senza il pavimento del vano scala (piani sopra il primo: la scala sale dal piano sotto). */
   foroScala?: boolean;
 }

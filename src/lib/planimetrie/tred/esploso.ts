@@ -11,7 +11,7 @@ import { CostruttoreMesh } from "./costruttore";
 import { limitiDi } from "./scena";
 import type { Mesh3D, Scena3D } from "./tipi";
 
-/** Strati dal basso: -1 platea, 0 pavimenti, 1 pareti e arredi, 2 soffitti, 3 tetto. `null` = non si muove. */
+/** Strati dal basso: -1 platea, 0 pavimenti, 0,5 impianti, 1 pareti e arredi, 2 soffitti, 3 tetto. `null` = non si muove. */
 export function stratoDi(m: Pick<Mesh3D, "id" | "riferimento" | "genere">): number | null {
   const base = m.id.includes("/") ? m.id.slice(m.id.lastIndexOf("/") + 1) : m.id;
   if (base === "terreno" || base.startsWith("area:")) return null;
@@ -19,6 +19,8 @@ export function stratoDi(m: Pick<Mesh3D, "id" | "riferimento" | "genere">): numb
   if (m.riferimento === "tetto" || base.startsWith("tetto")) return 3;
   if (base.startsWith("soffitto:")) return 2;
   if (base.startsWith("pavimento:")) return 0;
+  // tubi e cavi corrono sul pavimento: nella vista esplosa stanno a metà fra il pavimento e le pareti, ben visibili
+  if (base.startsWith("impianto:")) return 0.5;
   return 1;
 }
 
