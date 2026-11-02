@@ -17,9 +17,9 @@ const draw = (props = {}) => {
 };
 
 describe("Stato della commessa", () => {
-  it("mostra tutti gli stati col nome intero e niente percorso", () => {
+  it("sta su una riga: barra degli stati, menu per cambiarlo, niente percorso", () => {
     draw();
-    expect(screen.getByText("Contratto firmato con nome lungo")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cambia stato" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Stato attuale: Contratto firmato con nome lungo" })).toHaveAttribute("aria-current", "step");
     expect(screen.queryByText(/Percorso operativo/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Cambia percorso/)).not.toBeInTheDocument();
@@ -37,6 +37,7 @@ describe("Stato della commessa", () => {
     expect(screen.queryByRole("button", { name: /Passa a/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: 'Imposta stato "Lavori completati"' }));
     expect(change).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Cambia stato" })).not.toBeInTheDocument();
   });
 
   it("l'ultimo cambio dice quando e chi; porta al Registro; senza storico lo dice", () => {
@@ -49,6 +50,6 @@ describe("Stato della commessa", () => {
     expect(screen.getByRole("link", { name: "Registro attività" })).toHaveAttribute("href", "/azienda/ordini/o1/diario");
     cleanup();
     draw();
-    expect(screen.getByText("Nessun cambio di stato registrato")).toBeVisible();
+    expect(screen.getByText("Nessun cambio registrato")).toBeVisible();
   });
 });
