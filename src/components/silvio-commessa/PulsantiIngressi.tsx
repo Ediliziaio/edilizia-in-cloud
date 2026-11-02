@@ -16,7 +16,7 @@ export function FanneUnaCommessa({ emailId, allegati }: { emailId: string; alleg
   const fonti = fontiDallEmail(emailId, allegati);
   if (!fonti.length) return null;
   return (
-    <div className="px-3 pb-3">
+    <div className="px-3 pb-3 empty:hidden">
       <PulsanteCreaConSilvio size="sm" variant="outline" className="h-8 border-orange-200 text-xs text-orange-800 hover:bg-orange-50"
         etichetta={`Fanne una commessa · ${fonti.length === 1 ? "1 allegato" : `${fonti.length} allegati`} · ~${euroAI(stimaDelleFonti(fonti))}`}
         iniziale={fonti} />
