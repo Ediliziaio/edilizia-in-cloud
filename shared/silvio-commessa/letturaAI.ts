@@ -628,6 +628,18 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const letti = new Map<string, { valore: unknown; prov: Provenienza }>();
 
   const grezzi = coppie(json, avvisi);
+  // Il modello a volte perde il telefono scritto da chi apre la commessa («telefono 333 000 7788»).
+  // Solo dal testo della persona: in un documento il primo numero può essere quello dell'impresa.
+  if (ctx.fonte.tipo === "testo" && ctx.testo) {
+    const contatto = grezzi.find(([k]) => k === "cliente.contatto");
+    const dentro = contatto && oggetto(contatto[1].valore) ? contatto[1].valore : null;
+    const trovato = /\b(?:tel(?:efono)?|cell(?:ulare)?)\b\.?[^\d+\n]{0,20}(\+?\d[\d\s./-]{7,16}\d)/i.exec(ctx.testo)?.[1];
+    if (trovato && !dentro?.client_phone) {
+      const valore = { ...(dentro ?? {}), client_phone: trovato };
+      if (contatto) contatto[1] = { ...contatto[1], valore };
+      else grezzi.push(["cliente.contatto", { valore, citazione: trovato, fiducia: 0.9 }]);
+    }
+  }
   const totaleGrezzo = grezzi.find(([k]) => k === "economia.total_amount")?.[1];
   const ivaGrezza = grezzi.find(([k]) => k === "economia.vat_rate")?.[1];
   const iva = numeroDa(ivaGrezza?.valore);
