@@ -422,7 +422,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
               onClick={() => setAiAperta("chat")}><Sparkles className="mr-1 h-4 w-4 text-orange-300" />Apri Silvio AI</Button>
             <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="Fa leggere all'AI un PDF, un Excel o una foto" onClick={() => setAiAperta("file")}><Sparkles className="mr-1 h-4 w-4 text-orange-500" /><span className="max-sm:hidden">Importa con l'AI</span><span className="sm:hidden">Da file</span></Button>
           </>}
-          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="PDF o XPWE di PriMus: voci e righe di misura esatte" onClick={() => importPrimus.current?.scegliFile()}><FileUp className="mr-1 h-4 w-4" /><span className="max-sm:hidden">Importa da PriMus</span><span className="sm:hidden">PriMus</span></Button>
+          <Button size="sm" variant="outline" className="bg-white" disabled={bozza.voci.length >= 5000} title="PDF o XPWE di PriMus, oppure foglio Excel (.xlsx): voci e importi come sono scritti" onClick={() => importPrimus.current?.scegliFile()}><FileUp className="mr-1 h-4 w-4" /><span className="max-sm:hidden">Importa da PriMus</span><span className="sm:hidden">PriMus</span></Button>
           <span className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" title="Annulla ultima modifica" aria-label="Annulla ultima modifica" disabled={!storico.length} onClick={() => {
               setBozza(storico.at(-1)!); setStorico(h => h.slice(0, -1)); modificato.current = true; setSalvato(false); setDocumentoPronto(false);

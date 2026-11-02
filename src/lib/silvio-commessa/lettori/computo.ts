@@ -1,6 +1,6 @@
 /**
  * Lettore del computo (31/10/2026, fase 1, lotto 1.1): la bozza nativa del preventivo con
- * computo, e i file di PriMus (XPWE e PDF stampato) letti da `leggiFileComputo`.
+ * computo, e i file (XPWE, PDF stampato da PriMus, foglio Excel) letti da `leggiFileComputo`.
  *
  * Ogni capitolo diventa una fase e ogni voce una sottofase, come nella creazione della
  * commessa dal computo (`crea_commessa_preventivo_atomic`). I tempi vengono dal
@@ -12,6 +12,10 @@
  * eventi del cantiere), fasi e sottofasi, inizio lavori e costi previsti per fase (dal costo
  * stimato delle voci o, se manca, dal listino aziendale col codice: `applicaCostiListino`).
  * Le righe della commessa no: dal computo nascono lavorazioni, non materiali.
+ *
+ * I prezzi di un computo sono prezzi di vendita al cliente: il totale (meno lo sconto) è
+ * l'importo della commessa, e non diventano mai costi. Per un foglio Excel non è scontato che
+ * sia così, perché può essere l'offerta di una ditta: l'importo resta una proposta, e lo si dice.
  */
 import type { FaseDelPiano, Fonte, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
 import { dateDelleFasi } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
@@ -163,7 +167,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   return fr;
 }
 
-/** Un file di PriMus (XPWE o PDF) già letto da `leggiFileComputo`, come frammento. */
+/** Un file (XPWE, PDF di PriMus, foglio Excel) già letto da `leggiFileComputo`, come frammento. */
 export function frammentoDaFileComputo(
   computo: ComputoStrutturato, nomeFile: string, opzioni: Pick<DatiComputo, "listino" | "inizio" | "calendario"> = {},
 ): Frammento {
@@ -175,6 +179,16 @@ export function frammentoDaFileComputo(
   if (esito.totaleDocumento != null && Math.abs(esito.totaleDocumento - esito.totaleRicalcolato) >= 0.01) {
     const euro = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" })} €`;
     avvisi.push(`il totale del documento (${euro(esito.totaleDocumento)}) non torna col ricalcolo (${euro(esito.totaleRicalcolato)})`);
+  }
+  if (computo.formato === "excel") {
+    const importo = fr.aree.economia?.["economia.total_amount"];
+    const nota = "I prezzi del foglio sono letti come prezzi di vendita al cliente: se è l'offerta di una ditta, il totale è un costo, non l'importo della commessa.";
+    if (importo) {
+      importo.stato = "proposta";
+      importo.fiducia = 0.7;
+      importo.nota = nota;
+    }
+    avvisi.push(nota);
   }
   return { ...fr, avvisi: [...(fr.avvisi ?? []), ...avvisi] };
 }

@@ -56,11 +56,22 @@ describe("riconoscitore", () => {
   });
 
   it("i formati che non si leggono lo dicono subito, senza spendere crediti", () => {
-    for (const nome of ["preventivo.docx", "foglio.xlsx", "tavola.dwg", "foto.heic", "video.mp4"]) {
+    for (const nome of ["preventivo.docx", "tavola.dwg", "foto.heic", "video.mp4"]) {
       expect(riconosciDocumento({ nome }), nome).toMatchObject({ lettore: "non_letto", ai: false });
     }
     expect(riconosciDocumento({ nome: "foto", mime: "image/heic" }).lettore).toBe("non_letto");
-    expect(riconosciDocumento({ nome: "computo.xlsx" }).motivo).toMatch(/Importa computo/);
+  });
+
+  it("un foglio Excel è un computo, gratis; quelli da convertire chiedono il .xlsx", () => {
+    for (const nome of ["Computo.xlsx", "offerta.xlsx", "foglio.XLSM"]) {
+      expect(riconosciDocumento({ nome }), nome).toMatchObject({ lettore: "computo_excel", fonte: "computo", ai: false });
+    }
+    const mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    expect(riconosciDocumento({ nome: "senza-estensione", mime }).lettore).toBe("computo_excel");
+    for (const nome of ["vecchio.xls", "foglio.ods", "dati.csv", "foglio.xlsb"]) {
+      expect(riconosciDocumento({ nome }), nome).toMatchObject({ lettore: "non_letto", ai: false, motivo: expect.stringMatching(/salvalo come \.xlsx/) });
+    }
+    expect(riconosciDocumento({ nome: "x", mime: "application/vnd.ms-excel" }).motivo).toMatch(/salvalo come \.xlsx/);
   });
 });
 
@@ -91,6 +102,30 @@ const OPZ = { companyId: AZIENDA, userId: UTENTE, inizio: "2027-03-08" };
 const file = (nome: string, tipo: string, corpo = "x") => new File([corpo], nome, { type: tipo });
 
 describe("leggiDocumento", () => {
+  it("un foglio Excel si legge qui: niente caricamento, niente AI; se non è un computo lo dice senza ripiegare sull'AI", async () => {
+    const computo: ComputoStrutturato = {
+      formato: "excel", metadata: { oggetto_lavori: "Lavori di prova" }, totale_dichiarato: null, riepiloghi: [], prezzari: [], avvisi: [],
+      voci: [{
+        numero_ordine: "1.1", codici: [], codice_tariffa: "", descrizione: "Scavo", descrizione_troncata: false, unita_misura: "mc",
+        quantita: 2, prezzo_unitario: 10, importo: 20, sezione: null, super_categoria: null, categoria: { numero: 1, nome: "SCAVI" },
+        sotto_categoria: null, is_sicurezza: false, is_detrazione: false, a_corpo: false, misure: [], pagina: null, avvisi: [],
+      }],
+    };
+    const mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const buono = servizi({ leggiComputo: vi.fn(async () => computo) });
+    const esito = await leggiDocumento(file("Computo.xlsx", mime), OPZ, buono.s);
+    expect(esito.riconosciuto).toMatchObject({ lettore: "computo_excel", ai: false });
+    expect(esito.frammenti[0].fonte).toMatchObject({ tipo: "computo", etichetta: "Computo.xlsx" });
+    expect(esito.frammenti[0].costoEur).toBe(0);
+    expect(buono.caricati).toEqual([]);
+    expect(buono.invocate).toEqual([]);
+
+    const cattivo = servizi({ leggiComputo: vi.fn(async (): Promise<ComputoStrutturato> => { throw new Error("Non sembra un computo: manca l'intestazione."); }) });
+    await expect(leggiDocumento(file("Rubrica.xlsx", mime), OPZ, cattivo.s)).rejects.toThrow(/^Non sembra un computo/);
+    expect(cattivo.caricati).toEqual([]);
+    expect(cattivo.invocate).toEqual([]);
+  });
+
   it("il percorso sta nella cartella che la policy di silvio-uploads concede, e la funzione lo accetta", () => {
     const p = percorsoDocumento(OPZ, "Contratto d'appalto (firmato) 100%.pdf", 1730300000000);
     expect(p).toBe(`${AZIENDA}/${UTENTE}/commessa-1730300000000-Contratto_d_appalto_firmato_100_.pdf`);

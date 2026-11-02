@@ -1,10 +1,11 @@
 import { pdfPositionedItems, type PdfTextItem } from "../../../supabase/functions/_shared/pdfExtraction";
 import { eComputoPrimus, leggiComputoPrimus, type PdfPaginaPosizionata } from "./primusPdf";
 import { leggiComputoXpwe, MESSAGGIO_DCF } from "./xpwe";
+import { eFoglioDaConvertire, eFoglioXlsx, leggiComputoExcel, MESSAGGIO_XLS } from "./computoExcel";
 import type { ComputoStrutturato } from "./computoStrutturato";
 
 /**
- * Legge nel browser un computo di PriMus: il PDF stampato o l'XPWE.
+ * Legge nel browser un computo: il PDF stampato da PriMus, l'XPWE o un foglio Excel.
  *
  * Gli stessi lettori della edge function `computo-ai-extract`, ma senza il
  * giro dal server: niente caricamento, niente AI, e soprattutto niente
@@ -16,6 +17,7 @@ import type { ComputoStrutturato } from "./computoStrutturato";
  */
 
 const MAX_BYTE = 50 * 1024 * 1024;
+const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 async function pagineDaPdf(dati: ArrayBuffer): Promise<PdfPaginaPosizionata[]> {
   const pdfjs = await import("pdfjs-dist");
@@ -42,8 +44,10 @@ export async function leggiFileComputo(file: File): Promise<ComputoStrutturato> 
   const nome = file.name.toLowerCase();
   if (nome.endsWith(".dcf")) throw new Error(MESSAGGIO_DCF);
   if (nome.endsWith(".xpwe")) return leggiComputoXpwe(await file.arrayBuffer());
+  if (eFoglioXlsx(nome) || file.type === MIME_XLSX) return leggiComputoExcel(await file.arrayBuffer());
+  if (eFoglioDaConvertire(nome) || file.type === "application/vnd.ms-excel") throw new Error(MESSAGGIO_XLS);
   if (!nome.endsWith(".pdf") && file.type !== "application/pdf") {
-    throw new Error("Si importano il PDF stampato da PriMus e il file .xpwe.");
+    throw new Error("Si importano il PDF stampato da PriMus, il file .xpwe e il foglio Excel .xlsx.");
   }
   const pagine = await pagineDaPdf(await file.arrayBuffer());
   if (!pagine.some(p => p.items.length)) {
