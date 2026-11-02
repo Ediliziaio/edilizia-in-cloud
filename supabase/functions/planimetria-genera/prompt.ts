@@ -96,6 +96,7 @@ REGOLE:
 ${LOCALE_CAMPI}
 - misure_lette: sempre false. superficie_scritta_mq e altezza_scritta_m: null, salvo l'altezza se detta.
 - Esterni (solo se la descrizione li nomina: giardino, terreno, piscina, posto auto, vialetto, pergolato): aree [{"tipo":..., "contorno":[...]}] in metri attorno alla casa — "lotto" per il terreno (con la superficie detta), "prato", "pavimentato" (terrazza a terra, bordo piscina), "vialetto", "parcheggio", "ghiaia"; piscina, pergola e alberi come elementi (tipo "piscina", "pergola", "albero", riquadro [x0,y0,x1,y1] in metri, lato_muro null; piscina tipica 8×4 m). Senza esterni nella descrizione, aree è [].
+- Centri sportivi (padel, tennis, calcetto, basket…): ogni campo è un elemento (tipo "campo_padel", "campo_tennis", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce"), riquadro con l'ingombro (padel 21×11 m, tennis 36,6×18,3, calcio a 5 44×24, a 7 71×51, a 11 113×74, basket 32×19, pallavolo 24×15, beach volley 22×14), affiancati con 2–3 m fra uno e l'altro; spogliatoi, bar e reception come locali; il lotto attorno; parcheggio come area.
 
 ${APERTURE_METRI}
 

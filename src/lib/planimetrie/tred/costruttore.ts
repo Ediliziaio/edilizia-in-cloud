@@ -78,10 +78,14 @@ export class CostruttoreMesh {
    * Parallelepipedo: centro della base (x, z), quota della base, misure lungo i suoi assi,
    * rotazione attorno all'asse verticale (radianti, l'asse x locale va verso (cos, sin) in pianta).
    */
-  scatola(cx: number, cz: number, base: number, larghezza: number, profondita: number, altezza: number, rotazione: number, dx = 0, dz = 0): void {
-    const c = Math.cos(rotazione);
-    const s = Math.sin(rotazione);
-    const mondo = (lx: number, lz: number, y: number): V3 => [cx + (lx + dx) * c - (lz + dz) * s, y, cz + (lx + dx) * s + (lz + dz) * c];
+  /** `girata`: rotazione della scatola attorno al suo centro (dx, dz), prima di quella dell'elemento. */
+  scatola(cx: number, cz: number, base: number, larghezza: number, profondita: number, altezza: number, rotazione: number, dx = 0, dz = 0, girata = 0): void {
+    const c = Math.cos(rotazione + girata);
+    const s = Math.sin(rotazione + girata);
+    const ce = Math.cos(rotazione), se = Math.sin(rotazione);
+    // centro della scatola nel mondo, poi i suoi assi girati
+    const ox = cx + dx * ce - dz * se, oz = cz + dx * se + dz * ce;
+    const mondo = (lx: number, lz: number, y: number): V3 => [ox + lx * c - lz * s, y, oz + lx * s + lz * c];
     const hx = larghezza / 2;
     const hz = profondita / 2;
     const y0 = base;

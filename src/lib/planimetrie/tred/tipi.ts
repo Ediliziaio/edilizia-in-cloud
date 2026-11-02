@@ -1,3 +1,4 @@
+import type { TettoGeom } from "../../../../shared/planimetrie/tetto.ts";
 /**
  * Tipi del 3D delle planimetrie.
  *
@@ -93,7 +94,7 @@ export interface PiantaPer3D {
   elementi: ElementoPer3D[];
   aree?: AreaPer3D[];
   /** Il tetto sopra il piano (Livello.tetto): si vede quando c'è il soffitto. */
-  tetto?: { tipo: "piano" | "due_falde" | "padiglione"; pendenza: number; sporto: number };
+  tetto?: TettoGeom;
 }
 
 // ─── Risultato ──────────────────────────────────────────────────────────────

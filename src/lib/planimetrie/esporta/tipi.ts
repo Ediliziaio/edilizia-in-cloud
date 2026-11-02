@@ -87,6 +87,7 @@ export type TipoElemento =
   | "pompa_calore" | "bollitore" | "inverter" | "batteria_accumulo" | "wallbox" | "termostato" | "vmc"
   | "piscina" | "idromassaggio" | "pergola" | "albero" | "siepe" | "aiuola" | "ombrellone" | "lettino" | "tavolo_esterno" | "barbecue"
   | "cancello_pedonale" | "cancello_carrabile" | "lampione" | "faretto_giardino" | "irrigatore" | "pozzetto"
+  | "campo_tennis" | "campo_padel" | "campo_calcio5" | "campo_calcio7" | "campo_calcio11" | "campo_basket" | "campo_pallavolo" | "campo_beach_volley" | "campo_pickleball" | "campo_bocce"
   /** Un oggetto che non ha un simbolo suo: riquadro con la diagonale. */
   | "generico";
 

@@ -44,6 +44,7 @@ import {
 } from "./modello.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
+import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
 
@@ -149,11 +150,27 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   // Lotto e aree esterne: «esterni:<tipo>.superficie_mq», recinzione del lotto in metri.
   const esterni = new Map<string, Accumulo>();
   let recinzioneCm = 0;
+  // Tetti: superficie delle falde e fotovoltaico (shared/planimetrie/tetto.ts)
+  let coperturaMq = 0, pannelliFv = 0, kWp = 0;
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
     if (!stato) continue;
     // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
+    if (livello.tetto) {
+      const muri = stato.muri.filter((m) => m.stato !== "da_demolire");
+      // la geometria del tetto lavora con y in giù (sud in basso, come sul foglio)
+      const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), livello.tetto.sporto);
+      if (r) {
+        const facce = facceTetto(r, Math.max(...muri.map((m) => m.altezza)), livello.tetto);
+        coperturaMq += superficieFalde(facce);
+        if (livello.tetto.fotovoltaico) {
+          const fv = fotovoltaicoSulTetto(facce, livello.tetto.fotovoltaico);
+          pannelliFv += fv.numero;
+          kWp += fv.kWp;
+        }
+      }
+    }
     for (const a of stato.aree ?? livello.fatto.aree ?? []) {
       if (a.stato === "da_demolire" || a.contorno.length < 3) continue;
       somma(esterni, a.tipo, { valore: areaPoligono(a.contorno) / 10_000, origini: ["rilevata"] });
@@ -237,6 +254,11 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
   for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
+  if (coperturaMq > 0) metti("tetto:copertura", "superficie_mq", { valore: coperturaMq, origini: ["stimata"] }, "Copertura: superficie delle falde (o del tetto piano)");
+  if (pannelliFv > 0) {
+    metti("impianti:fotovoltaico", "pannelli", { valore: pannelliFv, origini: ["stimata"] }, "Fotovoltaico: pannelli sul tetto");
+    metti("impianti:fotovoltaico", "kwp", { valore: kWp, origini: ["stimata"] }, "Fotovoltaico: potenza di picco (kWp)");
+  }
   if (recinzioneCm > 0) metti("esterni:lotto", "recinzione_ml", { valore: recinzioneCm / 100, origini: ["rilevata"] }, "Recinzione lungo il confine del lotto");
 
   for (const [misura, acc] of totaliPianta) metti("pianta", misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — tutti i locali`);
@@ -269,6 +291,9 @@ const NOMI_ELEMENTI: Record<string, string> = {
   ombrellone: "Ombrelloni", lettino: "Lettini", tavolo_esterno: "Tavoli da esterno", barbecue: "Barbecue",
   cancello_pedonale: "Cancelli pedonali", cancello_carrabile: "Cancelli carrabili", lampione: "Lampioni da giardino", faretto_giardino: "Faretti e segnapasso",
   irrigatore: "Irrigatori", pozzetto: "Pozzetti",
+  campo_tennis: "Campi da tennis", campo_padel: "Campi da padel", campo_calcio5: "Campi da calcio a 5", campo_calcio7: "Campi da calcio a 7",
+  campo_calcio11: "Campi da calcio a 11", campo_basket: "Campi da basket", campo_pallavolo: "Campi da pallavolo", campo_beach_volley: "Campi da beach volley",
+  campo_pickleball: "Campi da pickleball", campo_bocce: "Campi da bocce",
   pompa_calore: "Pompe di calore", bollitore: "Bollitori", inverter: "Inverter fotovoltaici", batteria_accumulo: "Batterie di accumulo",
   wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC",
   collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",

@@ -452,7 +452,9 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     const a = conv([e.riquadro[0], e.riquadro[1]]);
     const b = conv([e.riquadro[2], e.riquadro[3]]);
     const w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
-    if (w < 10 || h < 10 || w > 1500 || h > 1500) continue;
+    // i campi sportivi sono grandi (calcio a 11: 113 × 74 m)
+    const max = e.tipo.startsWith("campo_") ? 12000 : 1500;
+    if (w < 10 || h < 10 || w > max || h > max) continue;
     const giro = e.tipo === "pilastro" ? 0 : ROT_LATO[e.lato_muro ?? "alto"];
     const traverso = giro === 90 || giro === 270;
     const centro = su({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });

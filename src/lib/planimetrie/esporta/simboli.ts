@@ -7,6 +7,7 @@
  * tecnico sono linee sottili su fondo bianco, nella presentazione prendono colore.
  */
 import { ellisse, rettangoloArrotondato, ruota, somma } from "./geometria";
+import { definizioneCampo, disegnoCampo, eCampo } from "../campiSport";
 import type { Primitiva, Tratto } from "./scena";
 import type { ElementoVista, Punto, StileDisegno } from "./tipi";
 
@@ -16,7 +17,12 @@ interface Pennello {
   sottile: Tratto;
 }
 
-export type Forma = { punti: Punto[]; chiuso: boolean; riempimento?: string; sottile?: boolean; /** Campito scuro anche nel disegno tecnico (pilastri, simboli pieni). */ pieno?: boolean };
+export type Forma = {
+  punti: Punto[]; chiuso: boolean; riempimento?: string; sottile?: boolean;
+  /** Campito scuro anche nel disegno tecnico (pilastri, simboli pieni). */ pieno?: boolean;
+  /** Colore della linea nella presentazione e nell'editor (le linee bianche dei campi). */ colore?: string;
+  /** Il riempimento resta anche nell'editor (i campi sportivi hanno il loro colore). */ colorato?: boolean;
+};
 
 const rett = (x0: number, y0: number, x1: number, y1: number, riempimento?: string, r = 0): Forma => ({
   punti: r > 0 ? rettangoloArrotondato(x0, y0, x1, y1, r) : [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }],
@@ -69,8 +75,27 @@ const cerchio = (cx: number, cy: number, r: number, riempimento?: string): Forma
 const rubinetto = (cx: number, cy: number, canna: number): Forma[] => [cerchio(cx, cy, 2.2, C.metallo), linea(cx, cy + 2.2, cx, cy + canna)];
 
 /** Le forme di un simbolo, nel suo riferimento (cm, attacco al muro in alto). Serve anche all'editor. */
+/** Campo sportivo: fascia esterna, campo di gioco, linee bianche, rete, porte, canestri, pareti. */
+function formeCampo(tipo: string, L: number, P: number): Forma[] {
+  const d = definizioneCampo(tipo), g = disegnoCampo(tipo, L, P);
+  if (!d || !g) return [];
+  const w = L / 2, h = P / 2;
+  const out: Forma[] = [
+    { ...rett(-w, -h, w, h, d.colori.fuori), colorato: true },
+    { ...rett(g.gioco.x0, g.gioco.y0, g.gioco.x1, g.gioco.y1, d.colori.gioco), colorato: true, colore: d.colori.linee },
+    ...g.linee.map((l): Forma => ({ punti: l, chiuso: false, colore: d.colori.linee })),
+  ];
+  for (const p of g.porte) out.push({ ...rett(p.x0, p.y0, p.x1, p.y1, "#FFFFFF"), colore: "#334155" });
+  for (const pr of g.pareti) out.push({ punti: [pr.a, pr.b], chiuso: false, colore: pr.vetro ? "#7DD3FC" : "#475569" });
+  if (g.rete) out.push({ punti: g.rete, chiuso: false, colore: "#1F2937" });
+  for (const c of g.canestri) out.push({ ...cerchio(c.x, c.y, 23, "#F97316"), colorato: true, colore: "#9A3412" });
+  for (const p of g.pali) out.push({ ...cerchio(p.x, p.y, 8, "#1F2937"), pieno: true });
+  return out;
+}
+
 export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
   const w = L / 2, h = P / 2;
+  if (eCampo(tipo)) return formeCampo(tipo, L, P);
   switch (tipo) {
     case "wc": {
       // cassetta (o placca) al muro, collo, tazza a uovo con il foro e il sedile
@@ -371,6 +396,7 @@ export const TIPI_CON_FORME = new Set([
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
+  "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
   "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia", "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania"]);
 
 export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiva[] {
@@ -387,6 +413,6 @@ export function simboloElemento(e: ElementoVista, stile: StileDisegno): Primitiv
     punti: f.punti.map(mondo),
     chiuso: f.chiuso,
     riempimento: f.chiuso ? (f.pieno ? (p.presentazione ? f.riempimento ?? "#3F3F46" : "#333333") : p.presentazione ? f.riempimento : "#FFFFFF") : undefined,
-    tratto: f.sottile ? p.sottile : p.tratto,
+    tratto: f.colore && p.presentazione ? { ...(f.sottile ? p.sottile : p.tratto), colore: f.colore } : f.sottile ? p.sottile : p.tratto,
   }));
 }

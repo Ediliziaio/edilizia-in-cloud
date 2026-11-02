@@ -8,6 +8,7 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
 import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
 import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
@@ -182,6 +183,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const spazioPremuto = useRef(false);
 
   // Stanze, mq e problemi come li calcola il modello della fase 1.
+  // pannelli e kWp sul tetto (solo se c'è il fotovoltaico: il calcolo delle quantità costa)
+  const fotovoltaicoInfo = useMemo(() => {
+    if (!documento.livelli.some((l) => l.tetto?.fotovoltaico)) return null;
+    const q = calcolaQuantita(documento);
+    const n = q["fatto:impianti:fotovoltaico.pannelli"]?.valore ?? 0;
+    return { pannelli: n, kwp: q["fatto:impianti:fotovoltaico.kwp"]?.valore ?? 0 };
+  }, [documento]);
   const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId, propostaId), [pianta, documento, vista, livelloId, propostaId]);
   const latiModificabili = useMemo(
     () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
@@ -1356,6 +1364,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           {!sola && (
             <BarraPiani
               livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota, tetto: l.tetto }))}
+              fotovoltaico={fotovoltaicoInfo}
               livelloId={livelloId ?? documento.livelli[0]?.id}
               onScegli={(id) => vaiAlPiano(id)}
               onNuovo={nuovoPiano}
@@ -1568,7 +1577,9 @@ function BarraProposte({ proposte, propostaId, onScegli, onNuova, onRinomina, on
   );
 }
 
-function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli }: {
+function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli, fotovoltaico }: {
+  /** Pannelli e kWp di tutto l'edificio (dal computo della pianta). */
+  fotovoltaico?: { pannelli: number; kwp: number } | null;
   livelli: Array<{ id: string; nome: string; quota: number; tetto?: Tetto }>;
   livelloId?: string;
   onScegli: (id: string) => void;
@@ -1613,8 +1624,10 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="nessuno">Nessuno (c'è un piano sopra)</SelectItem>
-                      <SelectItem value="due_falde">A due falde</SelectItem>
+                      <SelectItem value="due_falde">A due falde (capanna)</SelectItem>
                       <SelectItem value="padiglione">A padiglione (quattro falde)</SelectItem>
+                      <SelectItem value="una_falda">A una falda</SelectItem>
+                      <SelectItem value="shed">A shed (dente di sega, capannoni)</SelectItem>
                       <SelectItem value="piano">Piano</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1625,6 +1638,25 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                 )}
               </div>
               {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
+              {attuale.tetto && (
+                <div className="space-y-1 rounded-md border p-2">
+                  <label className="flex items-center gap-2 text-xs font-medium">
+                    <input type="checkbox" checked={!!attuale.tetto.fotovoltaico} onChange={(e) => attuale.tetto && onModifica({ tetto: e.target.checked ? { ...attuale.tetto, fotovoltaico: { potenzaPannelloW: 430 } } : { tipo: attuale.tetto.tipo, pendenza: attuale.tetto.pendenza, sporto: attuale.tetto.sporto } })} />
+                    Fotovoltaico sul tetto
+                  </label>
+                  {attuale.tetto.fotovoltaico && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input key={`fvw-${attuale.id}-${attuale.tetto.fotovoltaico.potenzaPannelloW ?? 430}`} defaultValue={String(attuale.tetto.fotovoltaico.potenzaPannelloW ?? 430)} aria-label="Watt per pannello" inputMode="numeric"
+                          onBlur={(e) => { const v = Number(e.target.value); if (attuale.tetto?.fotovoltaico && v > 0 && v !== (attuale.tetto.fotovoltaico.potenzaPannelloW ?? 430)) onModifica({ tetto: { ...attuale.tetto, fotovoltaico: { ...attuale.tetto.fotovoltaico, potenzaPannelloW: v } } }); }} />
+                        <Input key={`fvn-${attuale.id}-${attuale.tetto.fotovoltaico.pannelliMax ?? ""}`} defaultValue={attuale.tetto.fotovoltaico.pannelliMax ? String(attuale.tetto.fotovoltaico.pannelliMax) : ""} placeholder="tutti" aria-label="Pannelli al massimo" inputMode="numeric"
+                          onBlur={(e) => { const v = Number(e.target.value); if (!attuale.tetto?.fotovoltaico) return; const { pannelliMax: _m, ...resto } = attuale.tetto.fotovoltaico; onModifica({ tetto: { ...attuale.tetto, fotovoltaico: v > 0 ? { ...resto, pannelliMax: Math.round(v) } : resto } }); }} />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">W per pannello e pannelli al massimo (vuoto: quanti ne stanno). Prima la falda a sud, poi est e ovest.{fotovoltaico ? ` Sul tetto: ${fotovoltaico.pannelli} pannelli, ${fotovoltaico.kwp.toLocaleString("it-IT")} kWp.` : ""}</p>
+                    </>
+                  )}
+                </div>
+              )}
               {livelli.length > 1 && (
                 <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm(`Togliere «${attuale.nome}» con tutto quello che c'è disegnato?`)) { onTogli(); setAperto(false); } }}>
                   Togli questo piano

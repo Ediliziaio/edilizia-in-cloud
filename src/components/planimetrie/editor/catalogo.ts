@@ -2,10 +2,12 @@
  * Catalogo di arredi e sanitari (fase 3): i tipi sono quelli che le esportazioni sanno disegnare
  * (`src/lib/planimetrie/esporta/simboli.ts`), con le misure più comuni in cm.
  */
+import { CAMPI } from "@/lib/planimetrie/campiSport";
+
 export interface VoceCatalogo {
   tipo: string;
   nome: string;
-  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Esterni e garage" | "Giardino e piscina" | "Impianti" | "Energia" | "Struttura";
+  gruppo: "Bagno" | "Cucina" | "Camere" | "Soggiorno" | "Esterni e garage" | "Giardino e piscina" | "Sport" | "Impianti" | "Energia" | "Struttura";
   larghezza: number;
   profondita: number;
   altezza: number;
@@ -83,6 +85,8 @@ export const CATALOGO: VoceCatalogo[] = [
   // Rampa dritta: 16 alzate da 17,5 cm, pedata 28 cm; la freccia indica dove si sale.
   { tipo: "scala", nome: "Scala (rampa)", gruppo: "Struttura", larghezza: 100, profondita: 450, altezza: 280 },
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
+  // Sport: campi con le misure regolamentari (src/lib/planimetrie/campiSport.ts), ingombro con le fasce di rispetto
+  ...CAMPI.map((c): VoceCatalogo => ({ tipo: c.tipo, nome: c.nome, gruppo: "Sport", larghezza: c.ingombro[0], profondita: c.ingombro[1], altezza: 0 })),
 ];
 
 /**
@@ -92,6 +96,6 @@ export const CATALOGO: VoceCatalogo[] = [
 export const IMMAGINI_SIMBOLI: ReadonlySet<string> = new Set<string>([]);
 export const urlImmagineSimbolo = (tipo: string) => (IMMAGINI_SIMBOLI.has(tipo) ? `/planimetrie/simboli/${tipo}.png` : null);
 
-export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Giardino e piscina", "Impianti", "Energia", "Struttura"] as const;
+export const GRUPPI_CATALOGO = ["Bagno", "Cucina", "Camere", "Soggiorno", "Esterni e garage", "Giardino e piscina", "Sport", "Impianti", "Energia", "Struttura"] as const;
 
 export const nomeDelTipo = (tipo: string) => CATALOGO.find((v) => v.tipo === tipo)?.nome ?? tipo.replace(/_/g, " ");

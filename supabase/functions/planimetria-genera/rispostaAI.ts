@@ -91,10 +91,21 @@ export const TIPI_ELEMENTO_AI = [
   "letto_matrimoniale", "letto_singolo", "comodino", "armadio", "scrivania", "divano", "caldaia",
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "auto", "scala",
   "piscina", "pergola", "albero",
+  "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
 ] as const;
 
 const SINONIMI_ELEMENTO: Array<[RegExp, string]> = [
   [/pilastr|colonn/i, "pilastro"],
+  [/padel/i, "campo_padel"],
+  [/tennis/i, "campo_tennis"],
+  [/calcio.*11|calcio a undici|stadio/i, "campo_calcio11"],
+  [/calcio.*7|calcio a sette/i, "campo_calcio7"],
+  [/calcett|calcio.*5|futsal|calcio/i, "campo_calcio5"],
+  [/basket|pallacanestro/i, "campo_basket"],
+  [/beach/i, "campo_beach_volley"],
+  [/pallavolo|volley/i, "campo_pallavolo"],
+  [/pickleball/i, "campo_pickleball"],
+  [/bocc/i, "campo_bocce"],
   [/piscin/i, "piscina"],
   [/pergol|gazebo/i, "pergola"],
   [/alber|pianta/i, "albero"],

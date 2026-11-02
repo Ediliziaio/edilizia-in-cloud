@@ -7,6 +7,7 @@
  * Le voci nascono con una riga di misura legata alla chiave della pianta: quando la pianta
  * cambia, «La pianta è cambiata» e l'«Effetto sul prezzo» dell'editor le seguono.
  */
+import { CAMPI } from "./campiSport";
 import type { MappaQuantita } from "../../../shared/planimetrie/quantita.ts";
 
 export interface VoceListino {
@@ -15,7 +16,7 @@ export interface VoceListino {
   descrizione: string;
   unita: "n" | "ml" | "mq";
   prezzo: number;
-  capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni";
+  capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni" | "Copertura" | "Sport";
 }
 
 export const LISTINO_IMPIANTI: readonly VoceListino[] = [
@@ -37,6 +38,8 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "elementi:termosifone.numero", descrizione: "Radiatore in alluminio con valvola termostatica e detentore", unita: "n", prezzo: 290, capitolo: "Climatizzazione e riscaldamento" },
   { id: "impianti:riscaldamento.tubo_ml", descrizione: "Tubo multistrato coibentato per riscaldamento, mandata e ritorno", unita: "ml", prezzo: 12, capitolo: "Climatizzazione e riscaldamento" },
   { id: "elementi:termostato.numero", descrizione: "Termostato ambiente programmabile, posa e collegamento", unita: "n", prezzo: 140, capitolo: "Climatizzazione e riscaldamento" },
+  { id: "impianti:fotovoltaico.kwp", descrizione: "Impianto fotovoltaico su tetto: moduli da 430 Wp, strutture, cavi e quadro di campo (inverter e accumulo a parte), per kWp", unita: "n", prezzo: 1450, capitolo: "Energia" },
+  { id: "tetto:copertura.superficie_mq", descrizione: "Copertura: manto in tegole (o guaina sul piano) con impermeabilizzazione e isolamento", unita: "mq", prezzo: 135, capitolo: "Copertura" },
   { id: "elementi:pompa_calore.numero", descrizione: "Pompa di calore aria-acqua monoblocco, fornitura e posa", unita: "n", prezzo: 7800, capitolo: "Energia" },
   { id: "elementi:bollitore.numero", descrizione: "Bollitore per acqua calda sanitaria 200 l", unita: "n", prezzo: 1500, capitolo: "Energia" },
   { id: "elementi:inverter.numero", descrizione: "Inverter per impianto fotovoltaico, posa e collegamento", unita: "n", prezzo: 1900, capitolo: "Energia" },
@@ -61,6 +64,8 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "esterni:aiuola.superficie_mq", descrizione: "Aiuola con cordolo, terra vegetale e piante", unita: "mq", prezzo: 45, capitolo: "Esterni" },
   { id: "esterni:lotto.recinzione_ml", descrizione: "Recinzione: muretto in calcestruzzo e rete o pannelli metallici h 1,50 m", unita: "ml", prezzo: 110, capitolo: "Esterni" },
   { id: "elementi:caldaia.numero", descrizione: "Caldaia murale a condensazione, fornitura e posa", unita: "n", prezzo: 2300, capitolo: "Climatizzazione e riscaldamento" },
+  // Sport: un campo «chiavi in mano», prezzo indicativo dal modulo dei campi
+  ...CAMPI.map((c): VoceListino => ({ id: `elementi:${c.tipo}.numero`, descrizione: c.descrizione, unita: "n", prezzo: c.prezzo, capitolo: "Sport" })),
 ];
 
 export interface ProposteVoce {

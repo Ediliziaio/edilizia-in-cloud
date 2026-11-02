@@ -6,6 +6,7 @@
  * profondità, il retro a z = -profondità/2 (contro il muro), misure in metri.
  */
 import { CostruttoreMesh } from "./costruttore";
+import { CAMPI, definizioneCampo, disegnoCampo, eCampo } from "../campiSport";
 
 export interface Blocco {
   materiale: string;
@@ -247,6 +248,65 @@ const GENERICO: ModelloElemento = {
 };
 
 /** Il modello del tipo; per i tipi composti («letto_matrimoniale», «piatto_doccia») vale la prima parola che si conosce. */
+// I campi sportivi: misure di partenza dal regolamento; il 3D lo fa costruisciCampo.
+for (const c of CAMPI) MODELLI[c.tipo] = { nome: c.nome, misure: { l: c.ingombro[0] / 100, p: c.ingombro[1] / 100, h: 0 }, blocchi: () => [] };
+
+/** Altezza della rete (cm): dal suolo fino a… (pallavolo: rete alta, staccata da terra). */
+const RETI: Record<string, { da: number; a: number; pali: number }> = {
+  campo_tennis: { da: 0, a: 107, pali: 107 }, campo_padel: { da: 0, a: 88, pali: 92 },
+  campo_pallavolo: { da: 143, a: 243, pali: 255 }, campo_beach_volley: { da: 143, a: 243, pali: 255 },
+  campo_pickleball: { da: 0, a: 91, pali: 91 },
+};
+const TRAVERSA: Record<string, number> = { campo_calcio5: 200, campo_calcio7: 200, campo_calcio11: 244 };
+
+/** Un campo sportivo: fondo, campo di gioco, linee, rete, porte, canestri, pareti del padel. */
+function costruisciCampo(tipo: string, centro: { x: number; z: number }, rotazione: number, l: number, p: number, costruttore: (materiale: string) => CostruttoreMesh): void {
+  const d = definizioneCampo(tipo), g = disegnoCampo(tipo, l * 100, p * 100);
+  if (!d || !g) return;
+  const m = (v: number) => v / 100;
+  const sc = (mat: string, x: number, z: number, y: number, ll: number, pp: number, h: number, girata = 0) => costruttore(mat).scatola(centro.x, centro.z, y, ll, pp, h, rotazione, x, z, girata);
+  // tre livelli ben staccati (fondo 3 cm, campo 8, linee 11): da lontano superfici quasi
+  // sovrapposte tremolano, e i campi grandi si guardano da 100 metri
+  // le facce sotto finiscono sotto il terreno (che le copre), altrimenti lottano con quelle sopra
+  sc(d.materiale.fuori, 0, 0, -0.2, l, p, 0.23);
+  const gi = g.gioco;
+  sc(d.materiale.gioco, m((gi.x0 + gi.x1) / 2), m((gi.y0 + gi.y1) / 2), -0.2, m(gi.x1 - gi.x0), m(gi.y1 - gi.y0), 0.28);
+  // linee: un listello sottile per ogni tratto, girato come il tratto
+  const lineaMat = tipo === "campo_beach_volley" ? "linee_blu" : "linee";
+  const tratto = (a: { x: number; y: number }, b: { x: number; y: number }, mat: string, y: number, spessore: number, alto: number) => {
+    const lungo = Math.hypot(b.x - a.x, b.y - a.y);
+    if (lungo < 1) return;
+    sc(mat, m((a.x + b.x) / 2), m((a.y + b.y) / 2), y, m(lungo) + spessore, spessore, alto, Math.atan2(b.y - a.y, b.x - a.x));
+  };
+  for (const linea of g.linee) for (let i = 0; i + 1 < linea.length; i++) tratto(linea[i], linea[i + 1], lineaMat, 0, 0.06, 0.11);
+  // rete e pali
+  const r = RETI[tipo];
+  if (g.rete && r) {
+    const [a, b] = g.rete;
+    const lungo = Math.hypot(b.x - a.x, b.y - a.y);
+    sc("rete", m((a.x + b.x) / 2), m((a.y + b.y) / 2), m(r.da), 0.02, m(lungo), m(r.a - r.da));
+    for (const q of g.pali) sc("metallo", m(q.x), m(q.y), 0, 0.08, 0.08, m(r.pali));
+  }
+  // porte da calcio: due pali sulla linea di fondo e la traversa
+  const traversa = TRAVERSA[tipo];
+  if (traversa) for (const po of g.porte) {
+    const xl = Math.abs(po.x0) < Math.abs(po.x1) ? po.x0 : po.x1;
+    for (const y of [po.y0, po.y1]) sc("linee", m(xl), m(y), 0, 0.12, 0.12, m(traversa));
+    sc("linee", m(xl), m((po.y0 + po.y1) / 2), m(traversa) - 0.12, 0.12, m(po.y1 - po.y0) + 0.12, 0.12);
+    sc("rete", m((po.x0 + po.x1) / 2), m((po.y0 + po.y1) / 2), 0, m(po.x1 - po.x0), m(po.y1 - po.y0), m(traversa) * 0.9);
+  }
+  // canestri: palo dietro la linea di fondo, tabellone, ferro a 3,05 m
+  for (const c of g.canestri) {
+    const verso = c.x > 0 ? 1 : -1;
+    sc("metallo", m(c.x + verso * 280), 0, 0, 0.2, 0.2, 3.0);
+    sc("metallo", m(c.x + verso * 140), 0, 2.9, m(280), 0.12, 0.12);
+    sc("vetro", m(c.x + verso * 40), 0, 2.9, 0.05, 1.8, 1.05);
+    sc("arancio", m(c.x), 0, 3.03, 0.45, 0.45, 0.03);
+  }
+  // padel: pareti di vetro e rete metallica
+  for (const pr of g.pareti) tratto(pr.a, pr.b, pr.vetro ? "vetro" : "recinzione", 0, 0.05, m(pr.altezza));
+}
+
 export function modelloElemento(tipo: string): ModelloElemento {
   const t = tipo.toLowerCase();
   if (MODELLI[t]) return MODELLI[t];
@@ -266,6 +326,7 @@ export function costruisciElemento(
   costruttore: (materiale: string) => CostruttoreMesh,
 ): void {
   const modello = modelloElemento(tipo);
+  if (eCampo(tipo)) return costruisciCampo(tipo, centro, rotazione, misure.l ?? modello.misure.l, misure.p ?? modello.misure.p, costruttore);
   const l = misure.l ?? modello.misure.l;
   const p = misure.p ?? modello.misure.p;
   const h = misure.h ?? modello.misure.h;

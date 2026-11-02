@@ -16,7 +16,7 @@ describe("voci impianti dalla pianta", () => {
   const mappa = calcolaQuantita(aPlanimetria(p));
 
   it("ogni voce del listino punta a una chiave che la pianta sa produrre", () => {
-    for (const v of LISTINO_IMPIANTI) expect(v.id).toMatch(/^(elementi:[a-z_]+\.numero|impianti:[a-z]+\.[a-z_]+|esterni:[a-z]+\.(superficie_mq|recinzione_ml))$/);
+    for (const v of LISTINO_IMPIANTI) expect(v.id).toMatch(/^(elementi:[a-z0-9_]+\.numero|impianti:[a-z]+\.[a-z_]+|esterni:[a-z]+\.(superficie_mq|recinzione_ml)|tetto:copertura\.superficie_mq)$/);
   });
   it("dallo stato di fatto: prese esistenti, metri stimati di cavo e rame", () => {
     const v = vociDallaPianta(mappa, "fatto");

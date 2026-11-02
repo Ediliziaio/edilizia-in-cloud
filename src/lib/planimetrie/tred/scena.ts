@@ -6,6 +6,7 @@
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
 import { pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
+import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
@@ -67,20 +68,17 @@ export function muriCalcolati(pianta: PiantaPer3D, vista: Vista3D): MuroCalc[] {
 }
 
 /**
- * Il tetto sopra il piano: sul rettangolo che contiene i muri, allargato dello sporto. A due
- * falde il colmo corre lungo il lato lungo (i timpani in muratura); a padiglione quattro falde;
- * piano una soletta. Parte dalla cima dei muri.
+ * Il tetto sopra il piano (shared/planimetrie/tetto.ts): falde in tegole, timpani in muratura,
+ * vetrate degli shed, e i pannelli fotovoltaici se ci sono. Parte dalla cima dei muri.
  */
 function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
   const t = pianta.tetto;
   if (!t || !muri.length) return [];
-  const xs = pianta.muri.flatMap((m) => [m.a.x - m.spessore / 2, m.a.x + m.spessore / 2, m.b.x - m.spessore / 2, m.b.x + m.spessore / 2]);
-  const zs = pianta.muri.flatMap((m) => [m.a.y - m.spessore / 2, m.a.y + m.spessore / 2, m.b.y - m.spessore / 2, m.b.y + m.spessore / 2]);
-  const s = t.sporto;
-  const x0 = (Math.min(...xs) - s) * CM, x1 = (Math.max(...xs) + s) * CM, z0 = (Math.min(...zs) - s) * CM, z1 = (Math.max(...zs) + s) * CM;
-  const h = Math.max(...muri.map((m) => m.altezza));
-  const falde = new CostruttoreMesh();
-  const timpani = new CostruttoreMesh();
+  const r = rettangoloTetto(pianta.muri, t.sporto);
+  if (!r) return [];
+  const h = Math.max(...muri.map((m) => m.altezza)) / CM;
+  const facce = facceTetto(r, h, t);
+  const v3 = (p: P3): V3 => [p.x * CM, p.z * CM, p.y * CM];
   const normale = (a: V3, b: V3, c: V3): V3 => {
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
     const n: V3 = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
@@ -88,37 +86,21 @@ function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
     return [n[0] / l, n[1] / l, n[2] / l];
   };
   // ogni faccia due volte (sopra e sotto), così si vede anche da dentro
-  const faccia = (c: CostruttoreMesh, p: V3[]) => {
+  const faccia = (c: CostruttoreMesh, pts: P3[]) => {
+    const p = pts.map(v3);
     const n = normale(p[0], p[1], p[2]);
     c.poligono(p, n);
     c.poligono([...p].reverse(), [-n[0], -n[1], -n[2]]);
   };
-  if (t.tipo === "piano") {
-    falde.scatola((x0 + x1) / 2, (z0 + z1) / 2, h, x1 - x0, z1 - z0, 0.25, 0);
-    return [falde.mesh({ id: "tetto", nome: "Tetto piano", genere: "soffitto", materiale: "muro", riferimento: "tetto" })];
-  }
-  // si lavora con il lato lungo lungo x: se è lungo z, si scambiano gli assi
-  const lungoX = x1 - x0 >= z1 - z0;
-  const P = (a: number, y: number, b: number): V3 => (lungoX ? [a, y, b] : [b, y, a]);
-  const [a0, a1, b0, b1] = lungoX ? [x0, x1, z0, z1] : [z0, z1, x0, x1];
-  const meta = (b1 - b0) / 2, bc = (b0 + b1) / 2;
-  const colmo = h + meta * (t.pendenza / 100);
-  if (t.tipo === "due_falde") {
-    faccia(falde, [P(a0, h, b0), P(a1, h, b0), P(a1, colmo, bc), P(a0, colmo, bc)]);
-    faccia(falde, [P(a1, h, b1), P(a0, h, b1), P(a0, colmo, bc), P(a1, colmo, bc)]);
-    // timpani in muratura, al filo dei muri (non sullo sporto)
-    const s2 = s * CM;
-    for (const a of [a0 + s2, a1 - s2]) faccia(timpani, [P(a, h, b0 + s2), P(a, h, b1 - s2), P(a, h + (meta - s2) * (t.pendenza / 100), bc)]);
-  } else {
-    // padiglione: colmo accorciato di mezza larghezza per parte
-    const c0 = Math.min(a0 + meta, (a0 + a1) / 2), c1 = Math.max(a1 - meta, (a0 + a1) / 2);
-    faccia(falde, [P(a0, h, b0), P(a1, h, b0), P(c1, colmo, bc), P(c0, colmo, bc)]);
-    faccia(falde, [P(a1, h, b1), P(a0, h, b1), P(c0, colmo, bc), P(c1, colmo, bc)]);
-    faccia(falde, [P(a0, h, b1), P(a0, h, b0), P(c0, colmo, bc)]);
-    faccia(falde, [P(a1, h, b0), P(a1, h, b1), P(c1, colmo, bc)]);
-  }
-  const out = [falde.mesh({ id: "tetto", nome: "Tetto", genere: "soffitto", materiale: "tegole", riferimento: "tetto" })];
+  const falde = new CostruttoreMesh(), timpani = new CostruttoreMesh(), vetrate = new CostruttoreMesh(), pannelli = new CostruttoreMesh();
+  for (const f of facce) faccia(f.genere === "falda" ? falde : f.genere === "vetrata" ? vetrate : timpani, f.vertici);
+  if (t.fotovoltaico) for (const p of fotovoltaicoSulTetto(facce, t.fotovoltaico).pannelli) faccia(pannelli, p);
+  const out: Mesh3D[] = [];
+  const piano = t.tipo === "piano";
+  if (!falde.vuoto()) out.push(falde.mesh({ id: "tetto", nome: piano ? "Tetto piano" : "Tetto", genere: "soffitto", materiale: piano ? "muro" : "tegole", riferimento: "tetto" }));
   if (!timpani.vuoto()) out.push(timpani.mesh({ id: "tetto:timpani", nome: "Timpani", genere: "muro", materiale: "muro", riferimento: "tetto" }));
+  if (!vetrate.vuoto()) out.push(vetrate.mesh({ id: "tetto:vetrate", nome: "Vetrate degli shed", genere: "vetro", materiale: "vetro", riferimento: "tetto" }));
+  if (!pannelli.vuoto()) out.push(pannelli.mesh({ id: "tetto:fotovoltaico", nome: "Pannelli fotovoltaici", genere: "elemento", materiale: "pannello_fv", riferimento: "tetto" }));
   return out;
 }
 
