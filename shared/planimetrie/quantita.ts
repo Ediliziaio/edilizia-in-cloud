@@ -230,7 +230,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
 
     // ─── Arredi, sanitari, punti impianto ───
     for (const e of stato.elementi) {
-      if (!/^[a-z0-9_]+$/.test(e.tipo)) continue;
+      // i punti quotati del terreno sono misure, non cose da comprare o posare
+      if (!/^[a-z0-9_]+$/.test(e.tipo) || e.tipo === "quota_terreno") continue;
       const st = e.stato ?? "esistente";
       const soggetto = `elementi:${st}:${e.tipo}`;
       const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
