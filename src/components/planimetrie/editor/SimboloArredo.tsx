@@ -176,6 +176,31 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
         </g>
       );
     }
+    case "scala_u": {
+      // due rampe affiancate, pianerottolo in cima (in alto sul disegno), freccia sulla rampa di sinistra
+      const pian = Math.min(100, d * 0.35), lungo = d - pian, n = Math.max(3, Math.round(lungo / 25));
+      return (
+        <g>
+          {base}
+          <line x1={0} y1={-y0} x2={0} y2={y0 + pian} {...tratto} />
+          <line x1={x0} y1={y0 + pian} x2={-x0} y2={y0 + pian} {...tratto} />
+          {Array.from({ length: n - 1 }, (_, i) => { const y = y0 + pian + ((i + 1) * lungo) / n; return (<g key={i}><line x1={x0} y1={y} x2={-8} y2={y} {...tratto} /><line x1={8} y1={y} x2={-x0} y2={y} {...tratto} /></g>); })}
+          <line x1={x0 + w / 4} y1={-y0 - lungo * 0.08} x2={x0 + w / 4} y2={y0 + pian + lungo * 0.1} {...tratto} />
+          <path d={`M ${x0 + w / 4 - w * 0.06} ${y0 + pian + lungo * 0.2} L ${x0 + w / 4} ${y0 + pian + lungo * 0.1} L ${x0 + w / 4 + w * 0.06} ${y0 + pian + lungo * 0.2}`} {...tratto} />
+        </g>
+      );
+    }
+    case "scala_chiocciola": {
+      const r = Math.min(w, d) / 2, n = 14;
+      return (
+        <g>
+          <circle cx={0} cy={0} r={r} fill={riempimento} {...tratto} />
+          {Array.from({ length: n }, (_, i) => <line key={i} x1={Math.cos((i * 2 * Math.PI) / n) * r * 0.12} y1={Math.sin((i * 2 * Math.PI) / n) * r * 0.12} x2={Math.cos((i * 2 * Math.PI) / n) * r} y2={Math.sin((i * 2 * Math.PI) / n) * r} {...tratto} />)}
+          <circle cx={0} cy={0} r={r * 0.12} fill={colore} />
+          <path d={`M ${r * 0.55} ${r * 0.25} L ${r * 0.7} ${-r * 0.05} L ${r * 0.42} ${-r * 0.05}`} {...tratto} />
+        </g>
+      );
+    }
     case "ascensore":
       return (<g>{base}<line x1={x0} y1={y0} x2={-x0} y2={-y0} {...tratto} /><line x1={-x0} y1={y0} x2={x0} y2={-y0} {...tratto} /></g>);
     case "pilastro":

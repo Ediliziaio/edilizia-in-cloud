@@ -40,7 +40,7 @@ export interface OpzioniEdificio extends OpzioniScena {
 }
 
 const MARGINE_BUCO_CM = 6;
-const PASSANTI = ["scala", "ascensore"];
+const PASSANTI = ["scala", "scala_u", "scala_chiocciola", "ascensore"];
 
 /** L'ingombro (ruotato) di scale e ascensori di un piano, un po' allargato: da lì passa il solaio bucato. */
 function ingombriPassanti(p: PiantaPer3D): Array<Array<{ x: number; y: number }>> {
@@ -72,7 +72,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     const fino = sopra ? sopra.quota - piano.quota : 0;
     // pareti fino al piano sopra; la scala e il vano ascensore salgono fino al pavimento del piano sopra (non 2,80 fissi)
     const pianta = fino > 0
-      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (e.tipo === "scala" || e.tipo === "ascensore" ? { ...e, altezza: fino } : e)) }
+      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (PASSANTI.includes(e.tipo) ? { ...e, altezza: fino } : e)) }
       : base;
     // il tetto solo sull'ultimo piano mostrato (con «fino a» si scoperchia)
     const conTetto = i === scelti.length - 1 ? pianta : { ...pianta, tetto: undefined };

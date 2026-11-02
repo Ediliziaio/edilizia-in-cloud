@@ -17,13 +17,14 @@
  */
 import { apertureDelLocale, areaPoligono } from "./geometria.ts";
 import { ALTEZZA_MEDIA_ABITABILI, ALTEZZA_MEDIA_SERVIZI, ALTEZZA_UTILE_MINIMA, altezzeLocale, falde } from "./sottotetto.ts";
+import { verificheDiProgetto } from "./interferenze.ts";
 import { ambitiDi, statoDelLivello, type Destinazione, type Locale, type Planimetria, type StatoPianta } from "./modello.ts";
 
 export type EsitoVerifica = "ok" | "attenzione" | "non_conforme";
 
 export interface Verifica {
   /** Codice breve per raggruppare: «rai», «altezza», «superficie», «bagno», «alloggio». */
-  codice: "rai" | "altezza" | "superficie" | "bagno" | "alloggio";
+  codice: "rai" | "altezza" | "superficie" | "bagno" | "alloggio" | "interferenza" | "scala";
   esito: EsitoVerifica;
   livello: string;
   /** Il locale (o l'alloggio) a cui si riferisce. */
@@ -63,6 +64,9 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
   for (const livello of doc.livelli) {
     const stato = statoDelLivello(livello, ambito) ?? livello.fatto;
     const sottoFalde = falde(livello, stato);
+    // alzata e pedata si stimano sull'interpiano vero (quota del piano sopra meno questo), se c'è
+    const sopra = [...doc.livelli].filter((x) => x.quota > livello.quota).sort((a, b) => a.quota - b.quota)[0];
+    out.push(...verificheDiProgetto(livello, stato, sopra ? sopra.quota - livello.quota : undefined));
     for (const l of stato.locali) {
       if (ESCLUSI.has(l.destinazione) || /comun|androne/i.test(l.unita ?? "")) continue;
       const areaLorda = areaPoligono(l.contorno) / 10_000;

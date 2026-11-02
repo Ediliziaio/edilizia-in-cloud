@@ -6,7 +6,7 @@
 import type { Elemento, Livello, Planimetria, StatoPianta } from "../../../shared/planimetrie/modello.ts";
 
 /** Gli elementi che hanno senso su tutti i piani. */
-export const TIPI_SU_TUTTI_I_PIANI: readonly string[] = ["ascensore", "scala", "pilastro"];
+export const TIPI_SU_TUTTI_I_PIANI: readonly string[] = ["ascensore", "scala", "scala_u", "scala_chiocciola", "pilastro"];
 
 const VICINO_CM = 40;
 

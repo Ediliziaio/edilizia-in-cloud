@@ -255,6 +255,20 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       const n = Math.max(3, Math.floor(P / 28));
       return [rett(-w, -h, w, h, C.legnoChiaro), ...Array.from({ length: n - 1 }, (_, i) => linea(-w, -h + ((i + 1) * P) / n, w, -h + ((i + 1) * P) / n)), linea(0, h - P * 0.08, 0, -h + P * 0.1), { punti: [{ x: -L * 0.12, y: -h + P * 0.18 }, { x: 0, y: -h + P * 0.08 }, { x: L * 0.12, y: -h + P * 0.18 }], chiuso: false }];
     }
+    case "scala_u": {
+      // due rampe affiancate (si sale dal basso), pianerottolo in cima, freccia lungo la rampa di sinistra
+      const pian = Math.min(100, P * 0.35), lungo = P - pian, n = Math.max(3, Math.round(lungo / 25));
+      return [rett(-w, -h, w, h, C.legnoChiaro), linea(0, h, 0, -h + pian), linea(-w, -h + pian, w, -h + pian),
+        ...Array.from({ length: n - 1 }, (_, i) => { const y = -h + pian + ((i + 1) * lungo) / n; return [linea(-w, y, -10, y), linea(10, y, w, y)]; }).flat(),
+        linea(-w / 2, h - lungo * 0.08, -w / 2, -h + pian + lungo * 0.1),
+        { punti: [{ x: -w / 2 - L * 0.06, y: -h + pian + lungo * 0.2 }, { x: -w / 2, y: -h + pian + lungo * 0.1 }, { x: -w / 2 + L * 0.06, y: -h + pian + lungo * 0.2 }], chiuso: false }];
+    }
+    case "scala_chiocciola": {
+      const r = Math.min(w, h), n = 14;
+      return [cerchio(0, 0, r, C.legnoChiaro), { ...cerchio(0, 0, r * 0.12), pieno: true, riempimento: "#52525B" },
+        ...Array.from({ length: n }, (_, i) => linea(Math.cos((i * 2 * Math.PI) / n) * r * 0.12, Math.sin((i * 2 * Math.PI) / n) * r * 0.12, Math.cos((i * 2 * Math.PI) / n) * r, Math.sin((i * 2 * Math.PI) / n) * r)),
+        { punti: [{ x: r * 0.55, y: r * 0.25 }, { x: r * 0.7, y: -r * 0.05 }, { x: r * 0.42, y: -r * 0.05 }], chiuso: false }];
+    }
     case "ascensore": return [rett(-w, -h, w, h, C.metallo), linea(-w, -h, w, h), linea(w, -h, -w, h)];
     // ─── energia ───
     case "piscina": {
@@ -396,7 +410,7 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
 /** I tipi che hanno un disegno qui (gli altri, come i punti impianto, li disegna l'editor). */
 export const TIPI_CON_FORME = new Set([
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie", "auto", "scaffale", "banco_lavoro",
-  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
+  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "scala_u", "scala_chiocciola", "ascensore",
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",

@@ -310,7 +310,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
-  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", ascensore: "Ascensori",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", scala_u: "Scale a U", scala_chiocciola: "Scale a chiocciola", ascensore: "Ascensori",
   divano_angolare: "Divani angolari", poltrona: "Poltrone", mobile_tv: "Mobili TV", libreria: "Librerie", tavolo_rotondo: "Tavoli rotondi",
   cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
   piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",
