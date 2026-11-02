@@ -129,6 +129,26 @@ export function passoLibero(pianta: PiantaPer3D, vista: Vista3D, da: V3, a: V3):
       ap.muroId === m.id && ap.tipo !== "finestra" && ap.stato !== "demolire" && Math.abs(ap.posizione - alMuro) <= ap.larghezza / 2);
     if (!varco) return false;
   }
+  // Ci si ferma a 20 cm dalla faccia del muro, non sull'asse: dentro lo spessore del muro si vede solo il vuoto.
+  // Ci si può sempre allontanare, anche se si parte vicino (la telecamera «entra» vicino a un lato corto).
+  for (const m of pianta.muri) {
+    if (vista === "fatto" && m.stato === "nuovo") continue;
+    if (vista === "progetto" && m.stato === "demolire") continue;
+    const ex = m.b.x - m.a.x;
+    const ey = m.b.y - m.a.y;
+    const lung2 = ex * ex + ey * ey;
+    if (lung2 < 1) continue;
+    const dist = (q: { x: number; y: number }) => {
+      const t = Math.max(0, Math.min(1, ((q.x - m.a.x) * ex + (q.y - m.a.y) * ey) / lung2));
+      return { d: Math.hypot(q.x - (m.a.x + t * ex), q.y - (m.a.y + t * ey)), alMuro: t * Math.sqrt(lung2) };
+    };
+    const nuova = dist(p1);
+    const margine = m.spessore / 2 + 20;
+    if (nuova.d >= margine || nuova.d >= dist(p0).d) continue;
+    const inVarco = pianta.aperture.some((ap) =>
+      ap.muroId === m.id && ap.tipo !== "finestra" && ap.stato !== "demolire" && Math.abs(ap.posizione - nuova.alMuro) <= ap.larghezza / 2);
+    if (!inVarco) return false;
+  }
   return true;
 }
 

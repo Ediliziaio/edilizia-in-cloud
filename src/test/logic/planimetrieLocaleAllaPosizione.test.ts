@@ -64,3 +64,39 @@ describe("camminare nel 3D: i muri bloccano, le porte no", () => {
     expect(passoLibero(p, "fatto", v(1, 1), v(2, 2))).toBe(true);
   });
 });
+
+import esempioTrilocale from "../../../shared/planimetrie/esempi/trilocale.json";
+import { pianteDaPlanimetria, vistaDentroLocale } from "@/lib/planimetrie/tred";
+
+describe("camminare in una pianta vera (trilocale d'esempio)", () => {
+  const piante = pianteDaPlanimetria(esempioTrilocale as never, {});
+  const pianta = piante.fatto;
+  const cammina = (id: string) => {
+    const loc = pianta.locali.find((l) => l.id === id)!;
+    const cam = vistaDentroLocale(loc as never);
+    let pos = [...cam.posizione] as V3;
+    const dx = cam.guarda[0] - cam.posizione[0];
+    const dz = cam.guarda[2] - cam.posizione[2];
+    const n = Math.hypot(dx, dz);
+    for (let i = 0; i < 120; i++) {
+      const nuovo: V3 = [pos[0] + (dx / n) * 0.25, pos[1], pos[2] + (dz / n) * 0.25];
+      if (!passoLibero(pianta, "fatto", pos, nuovo)) break;
+      pos = nuovo;
+    }
+    return { partito: localeAllaPosizione(pianta, cam.posizione), arrivato: localeAllaPosizione(pianta, pos) };
+  };
+
+  it("non si resta mai dentro un muro né fuori dalla casa: si finisce sempre in una stanza", () => {
+    for (const l of pianta.locali) {
+      const { partito, arrivato } = cammina(l.id);
+      expect(partito).toBe(l.id);
+      expect(arrivato).not.toBeNull();
+    }
+  });
+
+  it("dall'ingresso, camminando dritti, si passa dalla porta e si arriva in un'altra stanza", () => {
+    const { arrivato } = cammina("ingresso");
+    expect(arrivato).not.toBe("ingresso");
+    expect(arrivato).not.toBeNull();
+  });
+});
