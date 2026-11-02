@@ -17,9 +17,11 @@
  * - Gli id stanno dentro le chiavi delle quantità (`fatto:locale:<id>.pavimento_mq`):
  *   solo lettere, cifre, `-` e `_`, unici dentro lo stesso stato su tutti i livelli.
  *
- * Nessuna dipendenza: lo importano sia il frontend (Vite) sia le edge function (Deno).
+ * Nessuna dipendenza esterna (solo i file qui accanto): lo importano sia il frontend (Vite) sia le edge function (Deno).
  * Per questo il validatore è scritto a mano e non con zod.
  */
+
+import { rilievoValido, type Rilievo } from "./rilievo.ts";
 
 export const VERSIONE_SCHEMA = 1 as const;
 
@@ -274,6 +276,8 @@ export interface Planimetria {
   livelli: Livello[];
   /** Listino delle unità (condomini, bifamiliari in vendita), per sigla dell'unità. */
   vendite?: Record<string, VenditaUnita>;
+  /** Rilievo del topografo (punti con la quota): il terreno sotto e intorno alla casa. */
+  rilievo?: Rilievo;
   /** Avanzamento: per ogni proposta, le chiavi dei lavori già fatti (vedi chiaveLavoro). */
   lavoriFatti?: Record<string, string[]>;
 }
@@ -401,6 +405,7 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.lavoriFatti !== undefined && (!eOggetto(dato.lavoriFatti) || !Object.values(dato.lavoriFatti).every((v) => Array.isArray(v) && v.every((x) => typeof x === "string")))) {
     errori.push("La pianta: l'avanzamento dei lavori non è valido.");
   }
+  if (dato.rilievo !== undefined && !rilievoValido(dato.rilievo)) errori.push("La pianta: il rilievo del terreno non è valido.");
   if (dato.vendite !== undefined) {
     if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
     else for (const [sigla, v] of Object.entries(dato.vendite)) {

@@ -14,7 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
-import { curveDiLivello, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
+import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
 } from "../../../../shared/planimetrie/modello.ts";
@@ -165,21 +165,29 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
     ...((stato.aree ?? livello.fatto.aree)?.length
       ? { aree: (stato.aree ?? livello.fatto.aree ?? []).filter((a) => modo !== "progetto" || a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, nome: a.nome, contorno: a.contorno.map(giu), superficieMq: Math.round(areaPoligono(a.contorno) / 100) / 100, stato: a.stato ?? "esistente" })) }
       : {}),
-    ...terrenoDelLivello(livello.fatto),
+    ...terrenoDelLivello(p, livello),
     nord: p.nord === undefined ? undefined : -p.nord,
   };
 }
 
-/** Punti quotati del piano (com'è oggi) e curve di livello ogni 50 cm, se i punti sono almeno due. */
-function terrenoDelLivello(fatto: StatoPianta): Pick<VistaPianta, "terreno"> {
-  const punti = puntiTerreno({ livelli: [{ fatto } as Planimetria["livelli"][number]] });
+/**
+ * Terreno sul piano a terra (quello con la quota più vicina a zero): punti quotati del piano e
+ * rilievo del topografo, curve di livello (ogni 50 cm, più rade se il dislivello è grande).
+ * Le quote scritte sono quelle dei punti messi a mano; dei punti del rilievo, che possono
+ * essere migliaia, si scrivono solo le curve.
+ */
+function terrenoDelLivello(p: Planimetria, livello: Livello): Pick<VistaPianta, "terreno"> {
+  const aTerra = [...p.livelli].sort((a, b) => Math.abs(a.quota) - Math.abs(b.quota))[0];
+  if (aTerra?.id !== livello.id) return {};
+  const aMano = puntiTerreno({ livelli: [livello] });
+  const punti = puntiTerreno({ livelli: [livello], rilievo: p.rilievo });
   if (!punti.length) return {};
-  const r = rettangoloPunti(punti);
-  const curve = r ? curveDiLivello(punti, r) : [];
+  const r = rettangoloPunti(punti, p.rilievo ? 0 : 300);
+  const curve = r ? curveDiLivello(punti, r, passoCurve(punti)) : [];
   return {
     terreno: {
       curve: curve.map((c) => ({ a: giu(c.a), b: giu(c.b), quota: c.quota })),
-      punti: punti.map((q) => ({ posizione: giu(q), testo: scriviQuota(q.quota) })),
+      punti: aMano.map((q) => ({ posizione: giu(q), testo: scriviQuota(q.quota) })),
     },
   };
 }

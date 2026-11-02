@@ -1,16 +1,17 @@
 /**
  * Terreno in pendenza: dai punti quotati (elementi «quota_terreno» con la quota scritta
- * nell'etichetta, es. «+1,20») la superficie del terreno e le curve di livello.
+ * nell'etichetta, es. «+1,20») e dal rilievo del topografo (shared/planimetrie/rilievo.ts)
+ * la superficie del terreno e le curve di livello.
  *
- * - La quota in un punto qualsiasi si interpola dai punti quotati (media pesata con l'inverso
- *   del quadrato della distanza): passa esattamente per i punti misurati, è liscia, e con un
- *   solo punto è un terreno piano a quella quota. Va bene per un lotto rilevato con qualche
- *   punto; per un rilievo topografico vero serve il file del topografo.
+ * - Con tre punti o più la quota viene dalla triangolazione di Delaunay (piani fra tre punti
+ *   vicini, come nei programmi di topografia); fuori dai punti, e con uno o due punti, dalla
+ *   media pesata con l'inverso del quadrato della distanza (con un punto: terreno piano).
  * - Le curve di livello si tracciano su una griglia con i «marching squares».
  *
  * Coordinate in cm; la y è quella di chi chiama (y in su nel modello, in giù nel 3D).
  */
 import type { Planimetria } from "./modello.ts";
+import { indicizza, puntiDelRilievo, triangola, type Rilievo, type TinIndicizzato } from "./rilievo.ts";
 
 export const TIPO_PUNTO_QUOTA = "quota_terreno";
 
@@ -34,8 +35,8 @@ export function scriviQuota(cm: number): string {
 }
 
 /** I punti quotati della pianta (di ogni piano, com'è oggi): il terreno è uno solo. */
-export function puntiTerreno(doc: Pick<Planimetria, "livelli">): PuntoQuotato[] {
-  const out: PuntoQuotato[] = [];
+export function puntiTerreno(doc: Pick<Planimetria, "livelli"> & { rilievo?: Rilievo }): PuntoQuotato[] {
+  const out: PuntoQuotato[] = doc.rilievo ? puntiDelRilievo(doc.rilievo) : [];
   for (const l of doc.livelli) {
     for (const e of l.fatto.elementi) {
       if (e.tipo !== TIPO_PUNTO_QUOTA) continue;
@@ -46,9 +47,25 @@ export function puntiTerreno(doc: Pick<Planimetria, "livelli">): PuntoQuotato[] 
   return out;
 }
 
+// la triangolazione si fa una volta per elenco di punti (le griglie chiedono migliaia di quote)
+const TIN = new WeakMap<readonly PuntoQuotato[], TinIndicizzato>();
+function tinDi(punti: readonly PuntoQuotato[]): TinIndicizzato {
+  let t = TIN.get(punti);
+  if (!t) { t = indicizza(triangola([...punti])); TIN.set(punti, t); }
+  return t;
+}
+
 /** Quota del terreno (cm) nel punto (x, y). */
 export function quotaTerreno(punti: readonly PuntoQuotato[], x: number, y: number): number {
   if (!punti.length) return 0;
+  if (punti.length >= 3) {
+    const q = tinDi(punti).cerca(x, y);
+    if (q !== null) return q;
+  }
+  return mediaPesata(punti, x, y);
+}
+
+function mediaPesata(punti: readonly PuntoQuotato[], x: number, y: number): number {
   let num = 0, den = 0;
   for (const p of punti) {
     const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
@@ -58,6 +75,14 @@ export function quotaTerreno(punti: readonly PuntoQuotato[], x: number, y: numbe
     den += w;
   }
   return num / den;
+}
+
+/** Equidistanza delle curve (cm): 50 cm, più larga se il dislivello è grande (al massimo una quarantina di curve). */
+export function passoCurve(punti: readonly PuntoQuotato[]): number {
+  if (!punti.length) return 50;
+  const q = punti.map((p) => p.quota);
+  const dislivello = Math.max(...q) - Math.min(...q);
+  return [50, 100, 200, 500, 1000, 2000, 5000].find((p) => dislivello / p <= 40) ?? 10_000;
 }
 
 export interface Rettangolo { x0: number; y0: number; x1: number; y1: number }

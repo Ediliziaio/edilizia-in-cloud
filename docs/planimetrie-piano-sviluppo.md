@@ -115,6 +115,11 @@ attico duplex con mansarda.
   più punti il prato nel 3D segue la pendenza (sotto la casa resta a zero) e la pianta ha le
   curve di livello ogni 50 cm, marcate e quotate ogni metro (layer TERRENO in PDF e DXF)
   (`shared/planimetrie/terreno.ts`).
+- **Rilievo del topografo** (Esterni → «Rilievo del topografo…»): CSV, TXT o DXF (punti, polilinee
+  3D, curve di livello con la quota); si centra sulla casa, poi spostamento, rotazione, quota del
+  piano terra e «scambia X e Y». Il terreno fra i punti è una triangolazione di Delaunay (niente
+  cerchi attorno ai punti); curve più rade quando il dislivello è grande
+  (`shared/planimetrie/rilievo.ts`).
 
 ## Ancora aperto
 
@@ -122,8 +127,9 @@ attico duplex con mansarda.
   l'editor su un telefono vero. Non si fanno da qui (serve un utente collegato).
 - **Benchmark dell'AI sulle piante vere**: servono le immagini (caricarle nella pianta nuova).
 - **Immagini dei simboli**: aspettano le immagini (prompt qui sotto).
-- **Terreno da rilievo topografico** (file del topografo, nuvole di punti): oggi il terreno si
-  ricava dai punti quotati messi a mano; con pochi punti le curve fanno «cerchi» attorno ai punti.
+- **Rilievo georeferenziato**: il rilievo si posa a mano (spostamento, rotazione, quota zero);
+  non si aggancia ancora da solo a due punti noti né alle coordinate catastali. Le nuvole di
+  punti dei laser scanner (milioni di punti) vanno sfoltite prima (si tengono 5.000 punti).
 - **Fotovoltaico → pratiche e preventivo energetico**: lasciato fuori su richiesta.
 
 ## Immagini per i simboli: come generarle

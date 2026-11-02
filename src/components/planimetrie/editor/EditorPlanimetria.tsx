@@ -8,6 +8,8 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import { RilievoTerreno } from "./RilievoTerreno";
+import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
 import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
@@ -16,7 +18,7 @@ import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimet
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1217,6 +1219,18 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
     vaiAlPiano(r.id, r.documento);
   };
+  // rilievo del topografo: è di tutta la pianta (come il terreno), si cambia come un piano
+  const [rilievoAperto, setRilievoAperto] = useState(false);
+  const cambiaRilievo = (r: Rilievo | null) => {
+    const { rilievo: _prima, ...senza } = documento;
+    vaiAlPiano(livelloId ?? documento.livelli[0].id, r ? { ...senza, rilievo: r } : senza);
+  };
+  const centroPianta = () => {
+    const ps = documento.livelli.flatMap((l) => l.fatto.muri.flatMap((m) => [m.p1, m.p2]));
+    if (!ps.length) return { x: 0, y: 0 };
+    const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y);
+    return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+  };
   const modificaPiano = (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => {
     if (!livelloId) return;
     const doc = rinominaLivello(documento, livelloId, campi);
@@ -1373,6 +1387,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
             <StrumentoEsterni
               attivo={strumento === "area"}
+              onRilievo={() => setRilievoAperto(true)}
+              conRilievo={!!documento.rilievo}
               tipo={tipoArea}
               onScegli={(t) => {
                 setTipoArea(t);
@@ -1557,6 +1573,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
       )}
 
+      {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} onCambia={cambiaRilievo} />}
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
   );
@@ -1848,7 +1865,7 @@ function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra 
 }
 
 /** Lotto e aree esterne: si sceglie cosa disegnare, poi clic sugli angoli. */
-function StrumentoEsterni({ attivo, tipo, onScegli }: { attivo: boolean; tipo: TipoArea; onScegli: (t: TipoArea) => void }) {
+function StrumentoEsterni({ attivo, tipo, onScegli, onRilievo, conRilievo }: { attivo: boolean; tipo: TipoArea; onScegli: (t: TipoArea) => void; onRilievo?: () => void; conRilievo?: boolean }) {
   const [aperto, setAperto] = useState(false);
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
@@ -1869,6 +1886,12 @@ function StrumentoEsterni({ attivo, tipo, onScegli }: { attivo: boolean; tipo: T
             </button>
           ))}
         </div>
+        {onRilievo && (
+          <button type="button" onClick={() => { onRilievo(); setAperto(false); }} className="mt-2 flex w-full items-center gap-2 rounded-md border border-dashed p-2 text-left text-xs hover:bg-muted">
+            <Mountain className="h-4 w-4 shrink-0" />
+            <span><span className="font-medium">{conRilievo ? "Rilievo del topografo (caricato)" : "Rilievo del topografo…"}</span><br /><span className="text-muted-foreground">Punti battuti da CSV, TXT o DXF: terreno e curve di livello</span></span>
+          </button>
+        )}
       </PopoverContent>
     </Popover>
   );
