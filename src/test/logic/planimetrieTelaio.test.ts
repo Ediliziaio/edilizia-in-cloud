@@ -94,3 +94,18 @@ describe("telaio: computo e piani", () => {
     expect(r.documento.livelli[1].fatto.elementi.map((e) => e.tipo).sort()).toEqual(["pilastro", "solaio", "trave"]);
   });
 });
+
+describe("muro di contenimento: computo", () => {
+  it("metri, calcestruzzo, scavo e drenaggio", () => {
+    const vuoto = { muri: [], aperture: [], locali: [], quote: [], testi: [] };
+    const d = { schemaVersione: 1, titolo: "t", livelli: [{ id: "a", nome: "Terra", quota: 0, proposte: [], fatto: { ...vuoto, elementi: [
+      { id: "mc", tipo: "muro_contenimento", posizione: { x: 0, y: 0 }, rotazione: 0, larghezza: 1000, profondita: 220, altezza: 300, stato: "esistente", origine: "rilevata" }] } }] } as never;
+    const q = calcolaQuantita(d);
+    const v = (s: string) => Object.entries(q).find(([k]) => k.endsWith(s))?.[1].valore;
+    expect(v("struttura:esistente:muri_contenimento.ml")).toBeCloseTo(10, 3);
+    // suola = max(0,3; 3/8=0,375) → 10 × (2,2 × 0,375 + 0,4 × 3) = 10 × 2,025
+    expect(v("struttura:esistente:muri_contenimento.cls_mc")).toBeCloseTo(20.25, 3);
+    expect(v("struttura:esistente:muri_contenimento.drenaggio_ml")).toBeCloseTo(10, 3);
+    expect(v("struttura:esistente:muri_contenimento.scavo_mc")).toBeGreaterThan(20);
+  });
+});

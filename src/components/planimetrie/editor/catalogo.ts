@@ -91,6 +91,8 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "scala", nome: "Scala (rampa)", gruppo: "Struttura", larghezza: 100, profondita: 450, altezza: 280 },
   { tipo: "scala_u", nome: "Scala a U (due rampe)", gruppo: "Struttura", larghezza: 200, profondita: 360, altezza: 280 },
   { tipo: "scala_chiocciola", nome: "Scala a chiocciola", gruppo: "Struttura", larghezza: 160, profondita: 160, altezza: 280 },
+  // Muro di contenimento a mensola: larghezza = lunghezza del muro, profondità = base della fondazione, altezza = fusto fuori terra.
+  { tipo: "muro_contenimento", nome: "Muro di contenimento (c.a.)", gruppo: "Struttura", larghezza: 600, profondita: 220, altezza: 300 },
   { tipo: "trave", nome: "Trave in c.a.", gruppo: "Struttura", larghezza: 400, profondita: 30, altezza: 50 },
   { tipo: "solaio", nome: "Solaio (piastra)", gruppo: "Struttura", larghezza: 800, profondita: 600, altezza: 25 },
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },

@@ -243,6 +243,16 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         if (stesso) { stesso.fermate += 1; continue; }
         ascensori.push({ st, x: e.posizione.x, y: e.posizione.y, fermate: 1 });
       }
+      if (e.tipo === "muro_contenimento") {
+        // L = lunghezza, B = base della suola, H = fusto: suola 1/8 di H (30–50 cm), fusto medio ≈ 0,4 m
+        const L = (e.larghezza ?? 600) / 100, B = (e.profondita ?? 220) / 100, H = (e.altezza ?? 300) / 100;
+        const suola = Math.min(0.5, Math.max(0.3, H / 8));
+        const orig: Accumulo["origini"] = ["stimata"];
+        somma(struttura, `${st}:muri_contenimento.ml`, { valore: L, origini: orig });
+        somma(struttura, `${st}:muri_contenimento.cls_mc`, { valore: L * (B * suola + 0.4 * H), origini: orig });
+        somma(struttura, `${st}:muri_contenimento.scavo_mc`, { valore: L * (B + 0.6) * (suola + 0.3 + H * 0.5), origini: orig });
+        somma(struttura, `${st}:muri_contenimento.drenaggio_ml`, { valore: L, origini: orig });
+      }
       if (e.tipo === "pilastro" || e.tipo === "trave" || e.tipo === "solaio") {
         const l = e.larghezza ?? 30, pr = e.profondita ?? 30;
         const h = e.altezza ?? (e.tipo === "pilastro" ? 300 : e.tipo === "trave" ? 50 : 25);
@@ -325,7 +335,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
-  const NOMI_STRUTTURA: Record<string, string> = { "travi.ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri" };
+  const NOMI_STRUTTURA: Record<string, string> = { "travi.ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri", "muri_contenimento.ml": "Muri di contenimento (lunghezza)", "muri_contenimento.cls_mc": "Calcestruzzo dei muri di contenimento (suola + fusto)", "muri_contenimento.scavo_mc": "Scavo per i muri di contenimento", "muri_contenimento.drenaggio_ml": "Drenaggio a tergo dei muri di contenimento" };
   for (const [chiave, acc] of struttura) {
     const [st, resto] = chiave.split(":");
     const [soggetto, misura] = resto.split(".");
@@ -349,7 +359,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
-  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", trave: "Travi", solaio: "Solai", scala: "Scale (rampe)", scala_u: "Scale a U", scala_chiocciola: "Scale a chiocciola", ascensore: "Ascensori",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", muro_contenimento: "Muri di contenimento", trave: "Travi", solaio: "Solai", scala: "Scale (rampe)", scala_u: "Scale a U", scala_chiocciola: "Scale a chiocciola", ascensore: "Ascensori",
   divano_angolare: "Divani angolari", poltrona: "Poltrone", mobile_tv: "Mobili TV", libreria: "Librerie", tavolo_rotondo: "Tavoli rotondi",
   cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
   piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",

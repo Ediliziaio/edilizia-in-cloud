@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { riepilogoVerifiche, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 
-const NOMI = { rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala" } as const;
+const NOMI = { rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala", contenimento: "Muro di contenimento" } as const;
 
 export function VerifichePianta({ documento, titolo, ambito, nomeStato }: { documento: Planimetria; titolo: string; ambito: string; nomeStato: string }) {
   const { effectiveCompany } = useAuth();

@@ -78,3 +78,20 @@ describe("fondazioni", () => {
     expect(Object.keys(q).some((k) => k.startsWith("fatto:") && k.includes("fondazioni"))).toBe(false);
   });
 });
+
+describe("muro di contenimento", () => {
+  it("fusto fuori terra alto H, suola sottoterra, terreno sul retro e punta davanti", () => {
+    const bl = MODELLI.muro_contenimento.blocchi(6, 2.2, 3.0);
+    const fusto = bl.filter((x) => x.materiale === "calcestruzzo" && x.y >= 0);
+    expect(Math.max(...fusto.map((x) => x.y + x.h))).toBeCloseTo(3.0, 5);
+    const suola = bl.find((x) => x.y < 0)!;
+    expect(suola.y + suola.h).toBeCloseTo(0, 5);
+    expect(suola.p).toBeCloseTo(2.2, 5);
+    // il fusto sta davanti al centro (la punta è corta), il terreno dietro
+    const zFusto = fusto[0].z, zTerra = bl.find((x) => x.materiale === "terra")!.z;
+    expect(zFusto).toBeGreaterThan(0);
+    expect(zTerra).toBeLessThan(0);
+    // rastremato: più sottile in cima
+    expect(fusto[fusto.length - 1].p).toBeLessThan(fusto[0].p);
+  });
+});

@@ -176,6 +176,16 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
         </g>
       );
     }
+    case "muro_contenimento": {
+      const zf = y0 + d - d * 0.3, t = Math.min(40, d * 0.18);
+      return (
+        <g>
+          <rect x={x0} y={y0} width={w} height={d} fill="none" stroke={colore} strokeWidth={spessore} strokeDasharray={`${Math.max(10, d * 0.06)} ${Math.max(6, d * 0.04)}`} />
+          {Array.from({ length: Math.max(2, Math.floor(w / 40)) }, (_, i) => { const x = x0 + 20 + i * 40; return x < -x0 - 10 ? <line key={i} x1={x} y1={y0 + 6} x2={x - 14} y2={zf - t - 4} stroke={colore} strokeWidth={spessore * 0.6} /> : null; })}
+          <rect x={x0} y={zf - t} width={w} height={t} fill={colore} stroke={colore} strokeWidth={spessore} />
+        </g>
+      );
+    }
     case "trave":
       return (<g><rect x={x0} y={y0} width={w} height={d} fill="none" stroke={colore} strokeWidth={spessore} strokeDasharray={`${Math.max(8, d)} ${Math.max(6, d * 0.6)}`} /><line x1={x0} y1={0} x2={-x0} y2={0} stroke={colore} strokeWidth={spessore * 0.6} strokeDasharray={`${Math.max(10, d)} ${Math.max(10, d)}`} /></g>);
     case "solaio":

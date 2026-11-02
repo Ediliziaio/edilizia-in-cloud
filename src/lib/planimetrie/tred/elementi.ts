@@ -173,6 +173,27 @@ export const MODELLI: Record<string, ModelloElemento> = {
   banco_lavoro: { nome: "Banco da lavoro", misure: { l: 2.0, p: 0.8, h: 0.9 }, blocchi: (l, p, h) => [b("legno", 0, 0, h - 0.06, l, p, 0.06), b("metallo", 0, 0, 0, l - 0.1, p - 0.1, h - 0.06)] },
   // ─── struttura ───
   pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("calcestruzzo", 0, 0, 0, l, p, h)] },
+  // Muro di contenimento a mensola (sezione a «T rovescia»): suola sottoterra con punta davanti e tallone dietro,
+  // fusto rastremato (lo spessore cala verso l'alto, la faccia davanti resta verticale) e il terreno trattenuto sul retro.
+  muro_contenimento: {
+    nome: "Muro di contenimento",
+    misure: { l: 6.0, p: 2.2, h: 3.0 },
+    blocchi: (l, p, h) => {
+      const suola = Math.min(0.5, Math.max(0.3, h / 8)), punta = p * 0.3, base = Math.min(0.7, Math.max(0.3, h / 9)), cima = 0.3;
+      const zf = p / 2 - punta, fette = 8, alza = h / fette;
+      return [
+        b("calcestruzzo", 0, 0, -suola, l, p, suola),
+        ...Array.from({ length: fette }, (_, i) => {
+          const t = base - ((base - cima) * (i + 0.5)) / fette;
+          return b("calcestruzzo", 0, zf - t / 2, i * alza, l, t, alza);
+        }),
+        ...Array.from({ length: fette }, (_, i) => {
+          const t = base - ((base - cima) * (i + 0.5)) / fette, prof = zf - t + p / 2;
+          return b("terra", 0, -p / 2 + prof / 2, i * alza, l, prof, alza * 0.98);
+        }),
+      ];
+    },
+  },
   // Trave e solaio in c.a.: stanno sotto il pavimento del piano sopra (h = altezza della trave o spessore del solaio).
   trave: { nome: "Trave", misure: { l: 4.0, p: 0.3, h: 0.5 }, blocchi: (l, p, h, opz) => [b("calcestruzzo", 0, 0, (opz?.interpiano ?? 3.0) - h, l, p, h)] },
   solaio: { nome: "Solaio", misure: { l: 8.0, p: 6.0, h: 0.25 }, blocchi: (l, p, h, opz) => [b("calcestruzzo", 0, 0, (opz?.interpiano ?? 3.0) - h, l, p, h)] },

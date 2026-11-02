@@ -43,3 +43,12 @@ describe("verifiche di progetto", () => {
     expect(c.pedata).toBeGreaterThan(15);
   });
 });
+
+describe("muro di contenimento: proporzioni", () => {
+  it("la base stretta è non conforme, quella tipica va bene", () => {
+    const base = (profondita: number, altezza = 300) => verificheDiProgetto(liv, stato([{ tipo: "muro_contenimento", posizione: { x: 300, y: 600 }, larghezza: 600, profondita, altezza }])).find((x) => x.codice === "contenimento");
+    expect(base(100)?.esito).toBe("non_conforme");
+    expect(base(200)?.esito).toBe("ok");
+    expect(base(300)?.esito).toBe("attenzione");
+  });
+});

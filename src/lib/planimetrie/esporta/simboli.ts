@@ -255,6 +255,13 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       const n = Math.max(3, Math.floor(P / 28));
       return [rett(-w, -h, w, h, C.legnoChiaro), ...Array.from({ length: n - 1 }, (_, i) => linea(-w, -h + ((i + 1) * P) / n, w, -h + ((i + 1) * P) / n)), linea(0, h - P * 0.08, 0, -h + P * 0.1), { punti: [{ x: -L * 0.12, y: -h + P * 0.18 }, { x: 0, y: -h + P * 0.08 }, { x: L * 0.12, y: -h + P * 0.18 }], chiuso: false }];
     }
+    case "muro_contenimento": {
+      // in pianta: suola tratteggiata, fusto pieno vicino al lato davanti, terreno trattenuto con il tratteggio obliquo sul retro
+      const zf = h - P * 0.3, t = Math.min(40, P * 0.18);
+      const tratti: Forma[] = [];
+      for (let x = -w + 20; x < w - 10; x += 40) tratti.push({ ...linea(x, -h + 6, x - 14, zf - t - 4), sottile: true });
+      return [{ ...rett(-w, -h, w, h), sottile: true }, ...tratti, { ...rett(-w, zf - t, w, zf), pieno: true, riempimento: "#52525B" }];
+    }
     // trave: lati tratteggiati (è sopra di noi); solaio: solo il perimetro, per non coprire il resto
     case "trave": return [{ ...rett(-w, -h, w, h), sottile: true }, linea(-w, 0, w, 0)];
     case "solaio": return [{ ...rett(-w, -h, w, h), sottile: true }, linea(-w, -h, w, h), linea(w, -h, -w, h)];
@@ -413,7 +420,7 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
 /** I tipi che hanno un disegno qui (gli altri, come i punti impianto, li disegna l'editor). */
 export const TIPI_CON_FORME = new Set([
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie", "auto", "scaffale", "banco_lavoro",
-  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "trave", "solaio", "scala", "scala_u", "scala_chiocciola", "ascensore",
+  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "muro_contenimento", "trave", "solaio", "scala", "scala_u", "scala_chiocciola", "ascensore",
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
