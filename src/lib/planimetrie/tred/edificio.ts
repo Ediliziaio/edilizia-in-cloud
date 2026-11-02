@@ -51,7 +51,10 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     // piano e l'altro resterebbe una fessura
     const sopra = scelti[i + 1];
     const fino = sopra ? sopra.quota - piano.quota : 0;
-    const pianta = fino > 0 ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })) } : base;
+    // pareti fino al piano sopra; la scala sale fino al pavimento del piano sopra (non 2,80 fissi)
+    const pianta = fino > 0
+      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (e.tipo === "scala" ? { ...e, altezza: fino } : e)) }
+      : base;
     // il tetto solo sull'ultimo piano mostrato (con «fino a» si scoperchia)
     const conTetto = i === scelti.length - 1 ? pianta : { ...pianta, tetto: undefined };
     const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0 });
