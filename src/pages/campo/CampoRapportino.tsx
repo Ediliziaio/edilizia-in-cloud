@@ -31,6 +31,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
+import { CampiModulo } from "@/components/campo/CampiModulo";
+import { useModuloRapportino } from "@/hooks/useModuliCantiere";
+import { campiPerContesto, componiValori, leggiValori, mancanti, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
 import { buildRapportinoMaterials, restoreRapportinoMaterials, rapportinoStockSelectionKey, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
@@ -133,11 +136,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
   const [firmaClienteNome, setFirmaClienteNome] = useState("");
   const [firmaOperaio, setFirmaOperaio] = useState<string | null>(null);
+
+  // I campi propri dell'azienda (Impostazioni → Rapportini e presenze)
+  const [campiValori, setCampiValori] = useState<Record<string, unknown>>({});
+  const [erroriCampi, setErroriCampi] = useState(false);
+  const cambiaCampo = (chiave: string, valore: unknown) => setCampiValori(prev => ({ ...prev, [chiave]: valore }));
   const [voceAperta, setVoceAperta] = useState(() => params.get("input") === "voce" && tipo === "daily");
   const bozza = useFormDraft(`rapportino:${companyId}:${user?.id}:${orderId}:${workDay}:${tipo}`, {
     descrizione: "", meteo: "", oreLavorate: "" as CampoHoursDraft, oreStraordinario: 0,
     percentuale: 0, fasiDichiarate: {} as Record<string, number>, materialiSel: {} as Record<string, RapportinoMaterialDraft>,
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
+    campiValori: {} as Record<string, unknown>,
     sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
@@ -248,6 +257,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // Flusso «ore_proprie»: l'operaio semplice manda SOLO le sue ore; il racconto
   // del cantiere (cosa fatto, foto, materiali, avanzamento) lo fa il capocantiere.
   const soloOreAllOperaio = flusso.soloOre;
+  // Le parti che questa azienda usa e i suoi campi. Spegnere nasconde solo l'inserimento: quello che è già scritto resta.
+  const { schema: moduloCantiere } = useModuloRapportino(orderId);
+  const parti = moduloCantiere.blocchi;
   // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
   // sul giornaliero normale sono 2 step.
 
@@ -273,11 +285,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome }),
-    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome]);
+  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome, campiValori }),
+    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome, campiValori]);
   useEffect(() => {
     if (!ripresaDecisa || !companyId || !user?.id) return;
-    if (bozzaAttivata.current || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
+    if (bozzaAttivata.current || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
       bozzaAttivata.current = true;
       aggiornaBozza(bozzaCorrente);
     }
@@ -290,7 +302,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     setFasiDichiarate(b.fasiDichiarate || {}); setMaterialiSel(b.materialiSel || {}); setMezziSel(b.mezziSel || {});
     setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
     setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []);
-    setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || "");
+    setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || ""); setCampiValori(b.campiValori || {});
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
   };
@@ -325,7 +337,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     presenze: { employee_id?: string; subappaltatore_id?: string; ore?: number }[] | null;
     materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string; stock_item_id?: string; fase_id?: string }[] | null;
     meteo: string | null; percentuale_avanzamento: number | null;
-    lavoro_completato?: boolean | null; firma_cliente_url?: string | null;
+    lavoro_completato?: boolean | null; firma_cliente_url?: string | null; campi_extra?: unknown;
   };
   const protocollo = useRapportinoProtocollo(companyId, user?.id);
   const tipiSeparati = protocollo.data === 2;
@@ -336,7 +348,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     queryFn: async (): Promise<RapportinoEsistente | null> => {
       const { data, error } = await supabase
         .from("campo_rapportini")
-        .select("id, created_at, stato, motivo_rifiuto, descrizione_lavori, ore_lavorate, ore_straordinario, foto_urls, fasi_lavorate, presenze, materiali_usati, meteo, percentuale_avanzamento, lavoro_completato, firma_cliente_url")
+        // «*»: un'app aggiornata prima del database non deve fermarsi su una colonna che ancora non c'è (campi_extra).
+        .select("*")
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
         .eq("company_id", companyId!)
@@ -363,6 +376,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const verificaInCorso = !!ruoloLoading || !!esistenteLoading || !!regoleLoading || !!protocollo.isLoading;
   const verificaFallita = !!ruoloError || !!esistenteError || !!regoleError || !!protocollo.isError;
   const clienteNonConsentito = lavoro_completato && !!ruoloCampo && !puoDichiararePercentuali;
+  const campiModulo = useMemo(() => campiPerContesto(moduloCantiere, {
+    ruolo: ruoloCampo && (faSquadra || !ruoloCampo.esisteCapo) ? "capo" : "operaio",
+    momento: lavoro_completato ? "fine_lavori" : "giornaliero",
+    subappaltatore: isSubappaltatore,
+    soloOre: soloOreAllOperaio,
+  }), [moduloCantiere, ruoloCampo, faSquadra, lavoro_completato, isSubappaltatore, soloOreAllOperaio]);
+  const campiMancanti = mancanti(campiModulo, campiValori);
   const vocaleVisibile = voceAperta && !lavoro_completato && !soloOreAllOperaio && !flusso.soloTimbratura && !bloccatoDaEsistente;
   // Il respinto si rimanda anche oltre la scadenza: è l'ufficio che lo ha chiesto.
   // Quanti giorni indietro lo decide l'azienda (Impostazioni → Rapportini e presenze); lo controlla anche il database.
@@ -413,6 +433,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       const foto = Array.isArray(r.foto_urls) ? r.foto_urls.filter((u): u is string => typeof u === "string") : [];
       setFotoUrls(foto);
       setFotoPreviews(foto);
+      setCampiValori(valoriInBozza(leggiValori(r.campi_extra)));
       if (Array.isArray(r.fasi_lavorate)) {
         setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
         setSottofasiSpunte(sottofasiSpuntate(r.fasi_lavorate));
@@ -629,6 +650,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       if (!lavoro_completato && flusso.soloTimbratura && !daRifare) throw new Error("Il giornaliero lo invia il responsabile: tu registra entrata e uscita. Puoi aggiungere foto dal cantiere.");
       if (lavoro_completato && !descrizione.trim()) throw new Error("Descrivi i lavori che il cliente deve confermare prima di raccogliere la firma.");
       if (lavoro_completato && (!firmaCliente || !firmaClienteNome.trim())) throw new Error("Per il collaudo servono nome e cognome del cliente e la sua firma.");
+      if (campiMancanti.length > 0) throw new Error(`Compila: ${campiMancanti.join(", ")}`);
       controllaGiorno();
       if (sessioneDaChiudere && !oreNonMie && !confermaCliente) throw new Error("Timbra prima l’uscita da questo cantiere, poi conferma le ore del rapportino.");
       if (bloccatoDaEsistente) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
@@ -640,15 +662,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       if (!hasAssignment) {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
-      const materialiPayload = confermaCliente ? [] : buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
+      // Un'azienda può aver spento una parte dopo: un rapportino respinto tiene quello che aveva, uno nuovo non la scrive.
+      const straordinarioDaInviare = parti.straordinario || daRifare ? oreStraordinario : 0;
+      const materialiPayload = confermaCliente || !parti.materiali ? [] : buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
       // Se le mie ore le registra il capo, qui non se ne scrivono: sommate due
       // volte falserebbero il costo della commessa.
-      const orePayload = confermaCliente || oreNonMie ? 0 : validateRapportinoHours(oreLavorate, oreStraordinario, registraSquadra ? presenzeSel : {});
+      const orePayload = confermaCliente || oreNonMie ? 0 : validateRapportinoHours(oreLavorate, straordinarioDaInviare, registraSquadra ? presenzeSel : {});
 
       // Fasi dichiarate dall'operaio: [{phase_id, percentuale, nome, foto?, sottofasi_fatte?}]. Per le fasi con sottofasi
       // la voce la costruisce `fasiLavorateDelRapportino`; qui si aggiungono nome e foto. Le foto di ogni fase stanno anche
       // in foto_urls (che resta l'elenco di tutte); i materiali portano la loro fase in materiali_usati[].fase_id.
-      const fasiLavorate = confermaCliente ? [] : costruisciFasiLavorate({
+      const fasiLavorate = confermaCliente || !parti.fasi ? [] : costruisciFasiLavorate({
         dichiarate: fasiDichiarate,
         nomi: Object.fromEntries(fasiCommessa.map(f => [f.id, f.name])),
         fotoUrls,
@@ -698,13 +722,16 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               ore: presenzeSel[m.key],
             }))
         : null;
+      const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
+      const campiExtra = componiValori(campiModulo, campiValori, campiPrecedenti);
       const campi = {
+        ...(campiExtra.length > 0 || campiPrecedenti.length > 0 ? { campi_extra: campiExtra } : {}),
         ore_lavorate: orePayload,
-        ore_straordinario: !confermaCliente && !oreNonMie && oreStraordinario > 0 ? oreStraordinario : 0,
+        ore_straordinario: !confermaCliente && !oreNonMie && straordinarioDaInviare > 0 ? straordinarioDaInviare : 0,
         descrizione_lavori: descrizione || null,
-        foto_urls: fotoUrls,
+        foto_urls: parti.foto || daRifare ? fotoUrls : [],
         lavoro_completato,
-        percentuale_avanzamento: confermaCliente ? 0 : percentuale,
+        percentuale_avanzamento: confermaCliente || !(parti.avanzamento || daRifare) ? 0 : percentuale,
         gps_lat: lat || null,
         gps_lng: lng || null,
         gps_accuracy: accuracy || null,
@@ -732,9 +759,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             pdf_url: null,
             approvato: false,
             // Sul rimando si riscrive tutto quello che l'operaio vede nel modulo
-            fasi_lavorate: fasiLavorate,
+            ...(parti.fasi ? { fasi_lavorate: fasiLavorate } : {}),
             presenze: presenzeDaInviare ?? [],
-            materiali_usati: materialiPayload,
+            ...(parti.materiali ? { materiali_usati: materialiPayload } : {}),
             ...firme,
           })
           .eq("id", rapportinoGiaOggi.id)
@@ -790,7 +817,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
       // Mezzi e attrezzi di oggi: dove restano stasera e i km. Il rapportino è
       // già salvato: se questo non riesce, lo si dice senza farlo rimandare.
-      const righeMezzi = confermaCliente || workDay < shiftWorkDay(campoWorkDay(), -1) ? [] : righeDaSalvare(mezziSel);
+      const righeMezzi = !parti.mezzi || confermaCliente || workDay < shiftWorkDay(campoWorkDay(), -1) ? [] : righeDaSalvare(mezziSel);
       if (righeMezzi.length > 0) {
         const { error: mezziError } = await supabase.rpc("campo_mezzi_fine_giornata", {
           p_order_id: orderId,
@@ -836,6 +863,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const goNext = () => {
     if (verificaInCorso || verificaFallita || clienteNonConsentito) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
+    if (step === 1 && campiMancanti.length > 0) { setErroriCampi(true); toast.error(`Compila: ${campiMancanti.join(", ")}`); return; }
     if (step < totalSteps) setStep(s => s + 1);
     else salva();
   };
@@ -844,7 +872,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // non deve buttare via la giornata scritta senza nemmeno chiedere.
   const datiInseriti =
     descrizione.trim().length > 0 || (!confermaCliente && (oreLavorate !== "" || oreStraordinario > 0)) ||
-    fotoUrls.length > 0 ||
+    fotoUrls.length > 0 || Object.keys(campiValori).length > 0 ||
     Object.keys(fasiDichiarate).length > 0 ||
     Object.keys(presenzeSel).length > 0 ||
     Object.keys(materialiSel).length > 0 || Object.keys(mezziSel).length > 0 ||
@@ -1516,11 +1544,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   </button>
                 </div>
               </div>
-              {!semplice && bloccoStraordinario}
+              {!semplice && parti.straordinario && bloccoStraordinario}
             </div>
             ) : null}
 
-            {!soloOreAllOperaio && (
+            {!soloOreAllOperaio && parti.foto && (
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
               <div className="grid grid-cols-2 gap-2">
@@ -1579,20 +1607,26 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             </div>
             )}
 
-            {semplice && !soloOreAllOperaio && (
+            {campiModulo.length > 0 && (
+              <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                <CampiModulo campi={campiModulo} valori={campiValori} onChange={cambiaCampo} mostraErrori={erroriCampi} />
+              </div>
+            )}
+
+            {semplice && !soloOreAllOperaio && (parti.fasi || parti.materiali || parti.mezzi || (parti.straordinario && !oreNonMie)) && (
               <details className="rounded-2xl border bg-background p-4 shadow-sm">
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
-                <p className="mb-3 text-xs text-muted-foreground">Su cosa hai lavorato, materiali, mezzi e straordinario. Avanzamento e firme sono del capocantiere.</p>
+                <p className="mb-3 text-xs text-muted-foreground">{parti.fasi && parti.materiali && parti.mezzi && parti.straordinario ? "Su cosa hai lavorato, materiali, mezzi e straordinario. " : ""}Avanzamento e firme sono del capocantiere.</p>
                 <div className="space-y-3">
-                  {!oreNonMie && bloccoStraordinario}
-                  {bloccoFasi}
-                  {bloccoMateriali}
-                  {bloccoMezzi}
+                  {!oreNonMie && parti.straordinario && bloccoStraordinario}
+                  {parti.fasi && bloccoFasi}
+                  {parti.materiali && bloccoMateriali}
+                  {parti.mezzi && bloccoMezzi}
                 </div>
               </details>
             )}
             {/* «Ognuno le sue ore»: anche lo straordinario è un'ora propria. */}
-            {semplice && soloOreAllOperaio && !oreNonMie && (
+            {semplice && soloOreAllOperaio && !oreNonMie && parti.straordinario && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">{bloccoStraordinario}</div>
             )}
           </>
@@ -1602,15 +1636,15 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         {step === 2 && !semplice && (
           <>
             <h2 className="text-lg font-black text-foreground md:text-xl">Controlla prima di inviare</h2>
-            {!confermaCliente && <><details className="rounded-2xl border p-3">
-              <summary className="min-h-11 cursor-pointer text-sm font-semibold">Lavorazioni e avanzamento{Object.keys(fasiDichiarate).length > 0 ? ` · ${Object.keys(fasiDichiarate).length} selezionate` : ""}</summary>
-              <div className="space-y-3">{bloccoAvanzamento}{bloccoFasi}</div>
-            </details>
-            <details className="rounded-2xl border p-3">
+            {!confermaCliente && <>{(parti.avanzamento || parti.fasi) && <details className="rounded-2xl border p-3">
+              <summary className="min-h-11 cursor-pointer text-sm font-semibold">{parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento"}{Object.keys(fasiDichiarate).length > 0 ? ` · ${Object.keys(fasiDichiarate).length} selezionate` : ""}</summary>
+              <div className="space-y-3">{parti.avanzamento && bloccoAvanzamento}{parti.fasi && bloccoFasi}</div>
+            </details>}
+            {parti.materiali && <details className="rounded-2xl border p-3">
               <summary className="min-h-11 cursor-pointer text-sm font-semibold">Materiali usati · facoltativo{Object.keys(materialiSel).length > 0 ? ` · ${Object.keys(materialiSel).length}` : ""}</summary>
               {bloccoMateriali}
-            </details>
-            {bloccoMezzi && <details className="rounded-2xl border p-3">
+            </details>}
+            {parti.mezzi && bloccoMezzi && <details className="rounded-2xl border p-3">
               <summary className="min-h-11 cursor-pointer text-sm font-semibold">Mezzi e attrezzi · facoltativo</summary>
               {bloccoMezzi}
             </details>}
