@@ -23,6 +23,7 @@ export interface DatiPiano extends DatiVoci {
   fasi: (RigaFase & { id: string; costo_registrato?: number | null })[];
   ditte: { nome: string; costo: number | null; phase_id?: string | null }[];
   economia: (CostiRegistrati & { ricavi: number }) | null;
+  materiali_commessa: { costo: number; righe: number; senza_costo: number } | null;
   persone: { id: string; role_type: string | null; area: string | null; costo_orario: number | null }[];
   assegnati: { employee_id: string; phase_id: string | null }[];
   rese: { chiave: string; ore_per_unita: number }[];
@@ -94,6 +95,7 @@ export async function costruisciPiano(db: ClientPiano, orderId: string, op: Opzi
         ricavi: Number(dati.economia.ricavi) || 0,
         registrati: { manodopera: Number(dati.economia.manodopera) || 0, materiali: Number(dati.economia.materiali) || 0, ditte: Number(dati.economia.ditte) || 0, altri: Number(dati.economia.altri) || 0 },
         ditte: dati.ditte,
+        materialiCommessa: dati.materiali_commessa ? { costo: Number(dati.materiali_commessa.costo), righe: Number(dati.materiali_commessa.righe), senza_costo: Number(dati.materiali_commessa.senza_costo) } : null,
         manodoperaPerFase: new Map(dati.fasi.filter((f) => f.nome && Number(f.costo_registrato) > 0).map((f) => [f.nome!.trim(), Number(f.costo_registrato)])),
       })
     : null;

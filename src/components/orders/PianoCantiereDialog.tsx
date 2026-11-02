@@ -114,6 +114,7 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
               <Dato titolo={e.margine?.completo ? "Margine previsto" : "Margine al massimo"} valore={e.margine ? formatCurrency(e.margine.margineMassimo) : "—"} nota={e.margine?.percentuale != null ? `${e.margine.percentuale}%` : undefined} />
             </div>
 
+            {e.margine && e.margine.costi.manodopera > 0 && <p className="text-xs text-muted-foreground">Qui conto anche {formatCurrency(e.margine.costi.manodopera)} di manodopera dei tuoi operai: per questo può essere diverso dal margine previsto della commessa, che conta solo i costi già scritti.</p>}
             {e.margine && !e.margine.completo && <p className="text-muted-foreground">Per il margine esatto mancano: {e.margine.mancano.join(", ")}.</p>}
 
             <section>

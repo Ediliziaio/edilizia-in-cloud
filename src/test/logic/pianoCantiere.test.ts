@@ -195,6 +195,14 @@ describe("il margine", () => {
     expect(m.completo).toBe(false);
     expect(m.mancano.join(" ")).toContain("1 voce");
   });
+  it("le righe della commessa danno i materiali, come il costo previsto in commessa", () => {
+    const senzaCosti = [voce({ fase: "Murature", importo: 1000, ore_previste: 100 })];
+    const m = marginePrevisto(piano, senzaCosti, ip, { ricavi: 10000, registrati: zero, ditte: [], materialiCommessa: { costo: 3000, righe: 2, senza_costo: 0 } });
+    expect(m.costi.materiali).toBe(3000);
+    expect(m.completo).toBe(true);
+    const parziale = marginePrevisto(piano, senzaCosti, ip, { ricavi: 10000, registrati: zero, ditte: [], materialiCommessa: { costo: 3000, righe: 2, senza_costo: 1 } });
+    expect(parziale.mancano.join(" ")).toContain("1 articolo");
+  });
   it("«al massimo» è un tetto: usa le ore più basse dell'intervallo", () => {
     const stima = [voce({ fase: "Murature", importo: 2700, incidenza: { frazione: 0.5, min: 0.25, max: 0.75 } })];
     const pp = calcolaPiano(stima, [fase({})], ip, { oggi, al: "2026-11-13" });

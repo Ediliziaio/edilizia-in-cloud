@@ -43,7 +43,7 @@ export async function silvioCalcolaPiano(args: Record<string, unknown>, ctx: Ctx
   const perFase = (fase: string) => e.risorse.persone.filter((p) => p.fase === fase).map((p) => `${p.nome} (${p.motivo})`);
   return {
     disponibile: true,
-    come_leggere: "Questi numeri sono calcolati: riportali così, con la loro fonte, senza cambiarli. Le ore con «stima dal prezzario» sono una stima: dillo e dai l'intervallo. Se margine è null, di' «al massimo» e cosa manca. «fattibile» vuol dire solo che i giorni bastano con quegli operai, non che il cantiere andrà così: non dirlo come una certezza. Le persone sono scelte fra chi è libero, il mestiere va controllato. Non assegna nessuno: chiedi conferma, o manda a Silvio AI > Calcola come finire nella commessa.",
+    come_leggere: "Questi numeri sono calcolati: riportali così, con la loro fonte, senza cambiarli. Le ore con «stima dal prezzario» sono una stima: dillo e dai l'intervallo. Se margine è null, di' «al massimo» e cosa manca. Può differire dal margine previsto in commessa, che non conta la manodopera dei dipendenti non ancora assegnati: dillo. «fattibile» vuol dire solo che i giorni bastano con quegli operai, non che il cantiere andrà così: non dirlo come una certezza. Le persone sono scelte fra chi è libero, il mestiere va controllato. Non assegna nessuno: chiedi conferma, o manda a Silvio AI > Calcola come finire nella commessa.",
     commessa: e.commessa.codice,
     periodo: { dal: e.piano.dal, al: e.piano.al, giorni_lavorativi: e.piano.giorniDisponibili, fattibile: e.piano.fattibile },
     ipotesi: { costo_orario: e.ipotesi.costoOrario, costo_orario_da: e.costoOrarioDa, ore_giorno: e.ipotesi.oreGiorno, resa_pct: e.ipotesi.resaPct, regione_prezzario: e.regione ?? "tutta Italia" },

@@ -26,6 +26,8 @@ export function marginePrevisto(
     ricavi: number; registrati: CostiRegistrati; ditte: readonly { nome: string; costo: number | null }[];
     /** Il costo di manodopera già registrato su ogni fase, per nome. */
     manodoperaPerFase?: ReadonlyMap<string, number>;
+    /** Le righe materiali della commessa: se ci sono, valgono più delle voci del preventivo. */
+    materialiCommessa?: { costo: number; righe: number; senza_costo: number } | null;
   },
 ): MarginePrevisto {
   const mancano: string[] = [];
@@ -44,11 +46,17 @@ export function marginePrevisto(
   const manodopera = fuoriFase + costoFasi((f) => f.oreIntere);
   const manodoperaMinima = fuoriFase + costoFasi((f) => rapporto(f, f.oreMin));
 
-  const materialiPrevisti = voci.reduce((t, v) => t + (Number(v.costo_materiali) || 0) * (Number(v.quantita) || 0), 0);
-  // Una voce con importo, senza costo dei materiali e senza manodopera scritta: non si sa quanto costa.
-  const senzaMateriali = voci.filter((v) => Number(v.importo) > 0 && !(Number(v.costo_materiali) > 0) && !(Number(v.costo_manodopera) > 0)).length;
-  if (senzaMateriali) mancano.push(`il costo dei materiali di ${senzaMateriali} ${senzaMateriali === 1 ? "voce" : "voci"}`);
-  else if (materialiPrevisti <= 0 && dati.registrati.materiali <= 0) mancano.push("il costo dei materiali");
+  const righe = dati.materialiCommessa;
+  const materialiDalleVoci = voci.reduce((t, v) => t + (Number(v.costo_materiali) || 0) * (Number(v.quantita) || 0), 0);
+  const materialiPrevisti = Math.max(materialiDalleVoci, Number(righe?.costo) || 0);
+  if (righe && righe.righe > 0) {
+    if (righe.senza_costo) mancano.push(`il costo di ${righe.senza_costo} ${righe.senza_costo === 1 ? "articolo" : "articoli"} della commessa`);
+  } else {
+    // Una voce con importo, senza costo dei materiali e senza manodopera scritta: non si sa quanto costa.
+    const senzaMateriali = voci.filter((v) => Number(v.importo) > 0 && !(Number(v.costo_materiali) > 0) && !(Number(v.costo_manodopera) > 0)).length;
+    if (senzaMateriali) mancano.push(`il costo dei materiali di ${senzaMateriali} ${senzaMateriali === 1 ? "voce" : "voci"}`);
+    else if (materialiPrevisti <= 0 && dati.registrati.materiali <= 0) mancano.push("il costo dei materiali");
+  }
   if (piano.vociSenzaDato) mancano.push(`la manodopera di ${piano.vociSenzaDato} ${piano.vociSenzaDato === 1 ? "voce" : "voci"}`);
   for (const d of dati.ditte.filter((x) => !(Number(x.costo) > 0))) mancano.push(`il costo della ditta ${d.nome}`);
   const dittePreviste = dati.ditte.reduce((t, d) => t + (Number(d.costo) || 0), 0);
