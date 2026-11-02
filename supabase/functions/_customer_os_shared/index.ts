@@ -165,6 +165,9 @@ export async function completeWorkflowRun(
   llmResponse: LLMResponse | null,
   errorMessage?: string,
 ): Promise<void> {
+  // I giri lanciati dai cron non hanno un run da chiudere: senza run_id la chiamata
+  // perdeva un parametro e PostgREST rispondeva 404.
+  if (!runId) return;
   await supabase.rpc("complete_workflow_run", {
     p_run_id: runId,
     p_status: status,
