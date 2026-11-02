@@ -343,8 +343,8 @@ export default function RenderPlanimetriaStanza() {
       {/* La stanza come la vede il render: misure e aperture con i loro nomi. */}
       {passo <= 2 && (
         <Card>
-          <CardContent className="flex gap-4 p-4 max-md:flex-col">
-            <img src={svgUrl(svgPiantaStanza(vincoli, { lato: 360 }))} alt={`Pianta di ${vincoli.locale.nome}`} className="h-40 w-40 shrink-0 rounded border bg-white object-contain max-md:mx-auto" />
+          <CardContent className="flex gap-4 p-4 max-md:gap-3 max-md:p-3">
+            <img src={svgUrl(svgPiantaStanza(vincoli, { lato: 360 }))} alt={`Pianta di ${vincoli.locale.nome}`} className="h-40 w-40 shrink-0 rounded border bg-white object-contain max-md:h-20 max-md:w-20" />
             <div className="min-w-0 space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{vincoli.locale.nome}</p>
@@ -352,7 +352,7 @@ export default function RenderPlanimetriaStanza() {
               </div>
               <p className="text-muted-foreground">{riepilogoStanza(vincoli)}</p>
               {vincoli.aperture.length > 0 && (
-                <ul className="space-y-0.5 text-xs text-muted-foreground">
+                <ul className="space-y-0.5 text-xs text-muted-foreground max-md:hidden">
                   {vincoli.aperture.map((a) => (
                     <li key={a.id}>
                       <span className="font-medium text-foreground">{a.etichetta}</span> sulla parete {a.parete}: {metri(a.larghezza_cm)} × {metri(a.altezza_cm)}

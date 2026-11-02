@@ -331,18 +331,18 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare">
+        <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare" className="[&>*]:whitespace-nowrap">
           <ToggleGroupItem value="alto" aria-label="Vista dall'alto">
             <MappaIcona className="mr-1 h-4 w-4" />
             Dall'alto
           </ToggleGroupItem>
           <ToggleGroupItem value="giro" aria-label="Gira intorno">
             <Rotate3d className="mr-1 h-4 w-4" />
-            Gira intorno
+            <span className="max-sm:hidden">Gira intorno</span><span className="sm:hidden">Gira</span>
           </ToggleGroupItem>
           <ToggleGroupItem value="dentro" aria-label="Entra nella stanza" disabled={tuttiIPiani}>
             <Eye className="mr-1 h-4 w-4" />
-            Entra nella stanza
+            <span className="max-sm:hidden">Entra nella stanza</span><span className="sm:hidden">Dentro</span>
           </ToggleGroupItem>
         </ToggleGroup>
         {modo === "dentro" && locali.length > 0 && (
@@ -359,7 +359,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             </SelectContent>
           </Select>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2 max-md:hidden">
           <Button variant="outline" size="sm" disabled={occupato} onClick={() => esegui(() => scarica(esportaGlb(scena) as Uint8Array<ArrayBuffer>, `${nomeFile}.glb`, "model/gltf-binary"))}>
             <Download className="mr-1 h-4 w-4" />
             Scarica GLB
