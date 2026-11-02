@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { riepilogoVerifiche, verificaPianta, type Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 
-const NOMI = { rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio" } as const;
+const NOMI = { rai: "Aeroilluminazione 1/8", altezza: "Altezza", superficie: "Superficie minima", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala" } as const;
 
 export function VerifichePianta({ documento, titolo, ambito, nomeStato }: { documento: Planimetria; titolo: string; ambito: string; nomeStato: string }) {
   const { effectiveCompany } = useAuth();
@@ -44,7 +44,7 @@ export function VerifichePianta({ documento, titolo, ambito, nomeStato }: { docu
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Verifiche igienico-sanitarie</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Verifiche della pianta</h2>
         <Button size="sm" variant="outline" onClick={scarica} disabled={pdf}>
           {pdf ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
           Relazione PDF

@@ -40,7 +40,7 @@ export interface OpzioniEdificio extends OpzioniScena {
 }
 
 const MARGINE_BUCO_CM = 6;
-const PASSANTI = ["scala", "ascensore"];
+const PASSANTI = ["scala", "scala_u", "scala_chiocciola", "ascensore"];
 
 /** L'ingombro (ruotato) di scale e ascensori di un piano, un po' allargato: da lì passa il solaio bucato. */
 function ingombriPassanti(p: PiantaPer3D): Array<Array<{ x: number; y: number }>> {
@@ -72,14 +72,14 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     const fino = sopra ? sopra.quota - piano.quota : 0;
     // pareti fino al piano sopra; la scala e il vano ascensore salgono fino al pavimento del piano sopra (non 2,80 fissi)
     const pianta = fino > 0
-      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (e.tipo === "scala" || e.tipo === "ascensore" ? { ...e, altezza: fino } : e)) }
+      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (PASSANTI.includes(e.tipo) || e.tipo === "pilastro" ? { ...e, altezza: fino } : e.tipo === "trave" || e.tipo === "solaio" ? { ...e, interpiano: fino } : e)) }
       : base;
     // il tetto solo sull'ultimo piano mostrato (con «fino a» si scoperchia)
     const conTetto = i === scelti.length - 1 ? pianta : { ...pianta, tetto: undefined };
     // la scala e l'ascensore del piano sotto bucano il pavimento, quelli di questo piano il soffitto (se c'è un piano sopra)
     const buchiPavimento = i > 0 ? ingombriPassanti(pianteDi(scelti[i - 1])) : [];
     const buchiSoffitto = sopra ? ingombriPassanti(base) : [];
-    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0, buchiPavimento, buchiSoffitto });
+    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0, buchiPavimento, buchiSoffitto, fondazioni: !!opzioni.fondazioni && i === 0 });
     // un attico o un duplex ai piani alti: sotto c'è il resto dell'edificio, in grigio
     if (i === 0 && piano.quota > 100) {
       const l = limitiDi(s.mesh, (g) => g === "muro");

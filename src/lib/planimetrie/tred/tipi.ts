@@ -76,6 +76,8 @@ export interface ElementoPer3D {
   localeId?: string;
   /** Ascensore: senza la cabina (ai piani dove non si ferma, resta il vano con la porta di piano). */
   senzaCabina?: boolean;
+  /** Altezza fino al pavimento del piano sopra, in cm (travi e solai ci arrivano a filo). */
+  interpiano?: number;
 }
 
 /** Lotto e aree esterne: superfici a terra (y verso il basso, cm). */
@@ -166,6 +168,8 @@ export interface OpzioniScena {
   buchiPavimento?: Punto2[][];
   /** Buchi nel soffitto (la scala e l'ascensore di questo piano salgono): poligoni in cm. */
   buchiSoffitto?: Punto2[][];
+  /** Le fondazioni sotto il piano: cordoli sotto le pareti portanti, plinti sotto i pilastri. Predefinito: no. */
+  fondazioni?: boolean;
 }
 
 // ─── Telecamera ─────────────────────────────────────────────────────────────

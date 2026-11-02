@@ -253,7 +253,17 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                     riempimento={vista === "progetto" && e.stato === "da_demolire" ? "#fef9c3" : "#ffffff"}
                   />
                   {/* bersaglio pieno: si prende anche cliccando dentro il simbolo */}
-                  <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                  {e.tipo === "solaio" ? (
+                    // il solaio copre tutta la pianta: si prende solo dal bordo, così le stanze sotto restano cliccabili
+                    <>
+                      <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={25} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                      <rect x={-e.larghezza / 2} y={e.profondita / 2 - 25} width={e.larghezza} height={25} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                      <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={25} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                      <rect x={e.larghezza / 2 - 25} y={-e.profondita / 2} width={25} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                    </>
+                  ) : (
+                    <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                  )}
                   {Math.min(e.larghezza, e.profondita) * camera.s > 34 && (
                     <text y={e.profondita / 2 - px(3)} textAnchor="middle" fontSize={px(9)} fill="#64748b" pointerEvents="none">
                       {etichetta}

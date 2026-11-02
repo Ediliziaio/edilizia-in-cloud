@@ -147,6 +147,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   // Arredi, sanitari e punti impianto per tipo (1/11/2026): «elementi:<stato>:<tipo>.numero».
   const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
   // Un ascensore è un vano che attraversa i piani: lo stesso vano su più piani si conta una volta, con le sue fermate.
+  // Struttura in c.a. (pilastri, travi, solai): metri e calcestruzzo per stato, «struttura:<stato>:<tipo>.<misura>».
+  const struttura = new Map<string, Accumulo>();
   const ascensori: Array<{ st: string; x: number; y: number; fermate: number }> = [];
   // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
   const linee = new Map<LineaImpianto, number>();
@@ -241,6 +243,14 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         if (stesso) { stesso.fermate += 1; continue; }
         ascensori.push({ st, x: e.posizione.x, y: e.posizione.y, fermate: 1 });
       }
+      if (e.tipo === "pilastro" || e.tipo === "trave" || e.tipo === "solaio") {
+        const l = e.larghezza ?? 30, pr = e.profondita ?? 30;
+        const h = e.altezza ?? (e.tipo === "pilastro" ? 300 : e.tipo === "trave" ? 50 : 25);
+        const orig: Accumulo["origini"] = [e.origine];
+        if (e.tipo === "trave") somma(struttura, `${st}:travi.ml`, { valore: l / 100, origini: orig });
+        if (e.tipo === "solaio") somma(struttura, `${st}:solai.mq`, { valore: (l * pr) / 10_000, origini: orig });
+        somma(struttura, `${st}:${e.tipo === "pilastro" ? "pilastri" : e.tipo === "trave" ? "travi" : "solai"}.cls_mc`, { valore: (l * pr * h) / 1_000_000, origini: orig });
+      }
       const soggetto = `elementi:${st}:${e.tipo}`;
       const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
       const nome = NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
@@ -261,6 +271,28 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("frigorifera")) metti("impianti:clima", "rame_ml", stimata(lin("frigorifera"), 2), "Linea frigorifera in rame, due tubi (stima)");
   if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
+
+  // Fondazioni stimate: cordolo (spessore + 40 cm, alto 50 cm) sotto le pareti nuove portanti ed esterne del piano più basso,
+  // scavo largo 20 cm in più per lato e profondo 80 cm. Le pareti esistenti hanno già le loro; i tramezzi non ne hanno.
+  {
+    const basso = [...p.livelli].sort((x, y) => x.quota - y.quota)[0];
+    const sb = basso ? statoDelLivello(basso, ambito) : null;
+    if (sb) {
+      let ml = 0, cls = 0, scavo = 0;
+      for (const m of sb.muri) {
+        if (m.stato !== "nuovo" || m.tipo === "tramezzo") continue;
+        const l = lunghezzaMuro(m) / 100;
+        ml += l;
+        cls += l * ((m.spessore + 40) / 100) * 0.5;
+        scavo += l * ((m.spessore + 80) / 100) * 0.8;
+      }
+      if (ml > 0) {
+        metti("fondazioni:cordolo", "ml", { valore: ml, origini: ["stimata"] }, "Cordolo di fondazione sotto le pareti nuove portanti (stima)");
+        metti("fondazioni:cordolo", "cls_mc", { valore: cls, origini: ["stimata"] }, "Calcestruzzo dei cordoli di fondazione (stima: spessore + 40 cm, alto 50 cm)");
+        metti("fondazioni:cordolo", "scavo_mc", { valore: scavo, origini: ["stimata"] }, "Scavo per i cordoli di fondazione (stima)");
+      }
+    }
+  }
 
   for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
   // Terreno in pendenza o rilievo: scavi e riporti sotto il piano più basso
@@ -293,6 +325,13 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
+  const NOMI_STRUTTURA: Record<string, string> = { "travi.ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri" };
+  for (const [chiave, acc] of struttura) {
+    const [st, resto] = chiave.split(":");
+    const [soggetto, misura] = resto.split(".");
+    const nomeStato = { esistente: "esistenti", da_demolire: "da demolire", nuovo: "nuovi" }[st as "esistente"] ?? st;
+    metti(`struttura:${st}:${soggetto}`, misura, acc, `${NOMI_STRUTTURA[resto] ?? resto} ${nomeStato} (stima dalle misure)`);
+  }
   const fermatePerStato = new Map<string, number>();
   for (const a of ascensori) fermatePerStato.set(a.st, (fermatePerStato.get(a.st) ?? 0) + a.fermate);
   for (const [st, n] of fermatePerStato) {
@@ -310,7 +349,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
-  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", ascensore: "Ascensori",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", trave: "Travi", solaio: "Solai", scala: "Scale (rampe)", scala_u: "Scale a U", scala_chiocciola: "Scale a chiocciola", ascensore: "Ascensori",
   divano_angolare: "Divani angolari", poltrona: "Poltrone", mobile_tv: "Mobili TV", libreria: "Librerie", tavolo_rotondo: "Tavoli rotondi",
   cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
   piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",

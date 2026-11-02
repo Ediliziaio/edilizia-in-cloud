@@ -10,6 +10,8 @@ import { CAMPI, definizioneCampo, disegnoCampo, eCampo } from "../campiSport";
 
 export interface Blocco {
   materiale: string;
+  /** Rotazione del blocco attorno al suo centro (radianti), prima di quella dell'elemento. */
+  girata?: number;
   /** Centro della base del blocco, rispetto al centro dell'ingombro. */
   x: number;
   z: number;
@@ -22,7 +24,7 @@ export interface Blocco {
 interface ModelloElemento {
   nome: string;
   misure: { l: number; p: number; h: number };
-  blocchi: (l: number, p: number, h: number, opz?: { senzaCabina?: boolean }) => Blocco[];
+  blocchi: (l: number, p: number, h: number, opz?: { senzaCabina?: boolean; interpiano?: number }) => Blocco[];
 }
 
 const b = (materiale: string, x: number, z: number, y: number, l: number, p: number, h: number): Blocco => ({ materiale, x, z, y, l, p, h });
@@ -170,9 +172,44 @@ export const MODELLI: Record<string, ModelloElemento> = {
   scaffale: { nome: "Scaffalatura", misure: { l: 3.0, p: 1.0, h: 4.0 }, blocchi: (l, p, h) => [0, 1, 2, 3].map((k) => b("metallo", 0, 0, (h / 4) * k + 0.1, l, p, 0.06)).concat([-1, 1].map((sx) => b("metallo", sx * (l / 2 - 0.04), 0, 0, 0.08, p, h))) },
   banco_lavoro: { nome: "Banco da lavoro", misure: { l: 2.0, p: 0.8, h: 0.9 }, blocchi: (l, p, h) => [b("legno", 0, 0, h - 0.06, l, p, 0.06), b("metallo", 0, 0, 0, l - 0.1, p - 0.1, h - 0.06)] },
   // ─── struttura ───
-  pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("muro", 0, 0, 0, l, p, h)] },
+  pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("calcestruzzo", 0, 0, 0, l, p, h)] },
+  // Trave e solaio in c.a.: stanno sotto il pavimento del piano sopra (h = altezza della trave o spessore del solaio).
+  trave: { nome: "Trave", misure: { l: 4.0, p: 0.3, h: 0.5 }, blocchi: (l, p, h, opz) => [b("calcestruzzo", 0, 0, (opz?.interpiano ?? 3.0) - h, l, p, h)] },
+  solaio: { nome: "Solaio", misure: { l: 8.0, p: 6.0, h: 0.25 }, blocchi: (l, p, h, opz) => [b("calcestruzzo", 0, 0, (opz?.interpiano ?? 3.0) - h, l, p, h)] },
   // Vano ascensore: quattro pareti piene fino al piano sopra (l'altezza la decide l'edificio) e, sul davanti
   // (+p/2), l'apertura con la porta di piano in metallo. Su ogni piano ce n'è uno, uno sopra l'altro: fanno un vano unico.
+  // Scala a U: due rampe affiancate e un pianerottolo in fondo. Alzata ≈ 17,5 cm, pedata dalla lunghezza che resta (≈ 25 cm).
+  // Si sale dal davanti (+p/2): la prima rampa arriva al pianerottolo a metà altezza, la seconda torna indietro.
+  scala_u: {
+    nome: "Scala a U",
+    misure: { l: 2.0, p: 3.6, h: 2.8 },
+    blocchi: (l, p, h) => {
+      const n = Math.max(4, Math.round(h / 0.175)), meta = Math.floor(n / 2), alza = h / n;
+      const pian = Math.min(1.0, p * 0.35), lungo = p - pian, pedata = lungo / meta, rampa = (l - 0.2) / 2;
+      const xA = -(0.1 + rampa / 2), xB = 0.1 + rampa / 2;
+      return [
+        ...Array.from({ length: meta }, (_, i) => b("legno", xA, p / 2 - pedata * (i + 0.5), 0, rampa, pedata, alza * (i + 1))),
+        b("legno", 0, -p / 2 + pian / 2, 0, l, pian, alza * meta),
+        ...Array.from({ length: n - meta }, (_, j) => b("legno", xB, -p / 2 + pian + pedata * (j + 0.5), 0, rampa, pedata, alza * (meta + j + 1))),
+      ];
+    },
+  },
+  // Scala a chiocciola: palo centrale e gradini a ventaglio, un giro completo dal piano al piano sopra.
+  scala_chiocciola: {
+    nome: "Scala a chiocciola",
+    misure: { l: 1.6, p: 1.6, h: 2.8 },
+    blocchi: (l, p, h) => {
+      const R = Math.min(l, p) / 2, palo = 0.1, n = Math.max(10, Math.round(h / 0.175)), alza = h / n;
+      const raggio = R - palo, centro = palo + raggio / 2, largo = Math.max(0.2, ((2 * Math.PI * centro) / n) * 0.98);
+      return [
+        b("metallo", 0, 0, 0, palo * 2, palo * 2, h),
+        ...Array.from({ length: n }, (_, i) => {
+          const a = ((i + 0.5) / n) * 2 * Math.PI;
+          return { ...b("legno", Math.cos(a) * centro, Math.sin(a) * centro, alza * (i + 1) - 0.05, raggio, largo, 0.05), girata: a };
+        }),
+      ];
+    },
+  },
   ascensore: {
     nome: "Ascensore",
     misure: { l: 1.5, p: 1.5, h: 2.8 },
@@ -355,7 +392,7 @@ export function costruisciElemento(
   tipo: string,
   centro: { x: number; z: number },
   rotazione: number,
-  misure: { l?: number; p?: number; h?: number; senzaCabina?: boolean },
+  misure: { l?: number; p?: number; h?: number; senzaCabina?: boolean; interpiano?: number },
   costruttore: (materiale: string) => CostruttoreMesh,
 ): void {
   const modello = modelloElemento(tipo);
@@ -363,7 +400,7 @@ export function costruisciElemento(
   const l = misure.l ?? modello.misure.l;
   const p = misure.p ?? modello.misure.p;
   const h = misure.h ?? modello.misure.h;
-  for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina })) {
-    costruttore(bl.materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z);
+  for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina, interpiano: misure.interpiano })) {
+    costruttore(bl.materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z, bl.girata ?? 0);
   }
 }

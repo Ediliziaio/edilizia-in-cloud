@@ -262,6 +262,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
           p: el.profondita !== undefined ? el.profondita * CM : undefined,
           // in mansarda il lucernario sta sulla falda sopra di lui
           senzaCabina: el.senzaCabina,
+          interpiano: el.interpiano !== undefined ? el.interpiano * CM : undefined,
           h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02
             : el.tipo === "quota_terreno" ? (pianta.terreno?.length ? quotaTerreno(pianta.terreno, el.centro.x, el.centro.y) * CM : 0)
             : el.altezza !== undefined ? el.altezza * CM : undefined,
@@ -325,6 +326,11 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   }
 
   const limiti = limitiDi(mesh);
+  // fondazioni: dopo i limiti, così la telecamera non si allontana per ciò che sta sottoterra
+  if (opzioni.fondazioni) {
+    const f = meshFondazioni(pianta);
+    if (f) mesh.push(f);
+  }
   if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro")));
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
@@ -337,6 +343,25 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
  * terreno.ts), su una griglia; sotto l'edificio resta a quota zero (lo scavo o il riporto attorno
  * alla casa è il gradino che si vede).
  */
+/** Cordoli sotto le pareti portanti (almeno 25 cm) e plinti sotto i pilastri: 50 cm di altezza sotto il pavimento. */
+export const FONDAZIONE_ALTEZZA_CM = 50;
+export function meshFondazioni(pianta: PiantaPer3D): Mesh3D | null {
+  const c = new CostruttoreMesh();
+  for (const m of pianta.muri) {
+    if (m.stato === "demolire" || m.spessore < 25) continue;
+    const dx = (m.b.x - m.a.x) * CM, dz = (m.b.y - m.a.y) * CM, len = Math.hypot(dx, dz);
+    if (len < 0.05) continue;
+    const largo = Math.max(0.6, m.spessore * CM + 0.4);
+    c.scatola(((m.a.x + m.b.x) / 2) * CM, ((m.a.y + m.b.y) / 2) * CM, -FONDAZIONE_ALTEZZA_CM * CM, len + largo / 2, largo, FONDAZIONE_ALTEZZA_CM * CM, Math.atan2(dz, dx));
+  }
+  for (const e of pianta.elementi) {
+    if (e.tipo !== "pilastro") continue;
+    const lato = Math.max(1.0, Math.max(e.larghezza ?? 30, e.profondita ?? 30) * CM + 0.7);
+    c.scatola(e.centro.x * CM, e.centro.y * CM, -(FONDAZIONE_ALTEZZA_CM + 10) * CM, lato, lato, (FONDAZIONE_ALTEZZA_CM + 10) * CM, (e.rotazione * Math.PI) / 180);
+  }
+  return c.vuoto() ? null : c.mesh({ id: "fondazioni", nome: "Fondazioni", genere: "elemento", materiale: "calcestruzzo", riferimento: "fondazioni" });
+}
+
 export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: PuntoQuotato[], edificio?: { min: V3; max: V3 }): Mesh3D {
   const t = new CostruttoreMesh();
   if (punti && punti.length >= 2) {

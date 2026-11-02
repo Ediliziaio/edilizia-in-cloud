@@ -89,6 +89,10 @@ export const CATALOGO: VoceCatalogo[] = [
   // Finestra sulla falda (tipo Velux): conta nel rapporto aeroilluminante dei sottotetti.
   { tipo: "lucernario", nome: "Lucernario (finestra a tetto)", gruppo: "Struttura", larghezza: 78, profondita: 118, altezza: 220 },
   { tipo: "scala", nome: "Scala (rampa)", gruppo: "Struttura", larghezza: 100, profondita: 450, altezza: 280 },
+  { tipo: "scala_u", nome: "Scala a U (due rampe)", gruppo: "Struttura", larghezza: 200, profondita: 360, altezza: 280 },
+  { tipo: "scala_chiocciola", nome: "Scala a chiocciola", gruppo: "Struttura", larghezza: 160, profondita: 160, altezza: 280 },
+  { tipo: "trave", nome: "Trave in c.a.", gruppo: "Struttura", larghezza: 400, profondita: 30, altezza: 50 },
+  { tipo: "solaio", nome: "Solaio (piastra)", gruppo: "Struttura", larghezza: 800, profondita: 600, altezza: 25 },
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
   // Sport: campi con le misure regolamentari (src/lib/planimetrie/campiSport.ts), ingombro con le fasce di rispetto
   ...CAMPI.map((c): VoceCatalogo => ({ tipo: c.tipo, nome: c.nome, gruppo: "Sport", larghezza: c.ingombro[0], profondita: c.ingombro[1], altezza: 0 })),

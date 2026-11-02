@@ -3,7 +3,7 @@ import { copiaSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
 import type { Planimetria } from "../../../shared/planimetrie/modello";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
 
-const vuoto = { muri: [], aperture: [], locali: [], elementi: [], quote: [], testi: [] };
+const vuoto = { muri: [] as never[], aperture: [] as never[], locali: [] as never[], elementi: [] as never[], quote: [] as never[], testi: [] as never[] };
 const lift = { id: "e1", tipo: "ascensore", posizione: { x: 500, y: 500 }, rotazione: 0, larghezza: 150, profondita: 150, stato: "esistente", origine: "rilevata" };
 const doc = (): Planimetria => ({
   schemaVersione: 1, titolo: "t",
