@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { CampiDaCompletare } from "@/components/orders/CampiDaCompletare";
+import { TotaliCampiCommessa } from "@/components/orders/TotaliCampiCommessa";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
@@ -340,6 +341,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <p className="text-sm text-muted-foreground">{soloDaApprovare ? "Nessun rapportino da approvare" : "Nessun rapportino caricato dagli operai"}</p>
         ) : (
           <div className="space-y-4">
+            {!soloDaApprovare && <TotaliCampiCommessa orderId={orderId} rapportini={rapportini} />}
             {gruppi.map((gruppo) => (
               <section key={gruppo.mese} aria-label={gruppo.etichetta} className="space-y-2">
                 {/* Un titolo per mese: con molti rapportini si trova il periodo senza leggerli tutti. */}
