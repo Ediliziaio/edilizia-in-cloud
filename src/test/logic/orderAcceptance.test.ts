@@ -227,3 +227,41 @@ describe("firma del cliente sul verbale", () => {
   });
 });
 
+describe("verbale dal cantiere: permessi", () => {
+  const fonte = () => readFileSync("supabase/functions/collaudo-commessa/index.ts", "utf8").replace(/\s+/g, "").replaceAll('"', "'");
+  const sql = () => readFileSync("supabase/migrations/20281107130000_verbale_dal_cantiere.sql", "utf8");
+
+  it("chi ha i permessi d'ufficio continua come prima, il capo passa da una verifica sua", () => {
+    const c = fonte();
+    expect(c).toContain("caller.rpc('has_permission_for_company'");
+    expect(c).toContain("admin.rpc('verbale_capo_autorizzato',{p_order_id:order.id,p_user_id:userId})");
+  });
+  it("il capo non può congelare senza firma", () => {
+    expect(fonte()).toContain("capo&&body.action==='finalize'");
+  });
+  it("list è tra le azioni e non espone altro che i verbali della commessa", () => {
+    const c = fonte();
+    expect(c).toContain("'list'");
+    const l = c.slice(c.indexOf("body.action==='list'"), c.indexOf("letreport=null"));
+    expect(l).toContain(".eq('order_id',order.id)");
+    expect(l).toContain(".eq('company_id',order.company_id)");
+  });
+  it("l'azienda viene dalla commessa, mai dalla richiesta", () => {
+    expect(fonte()).not.toContain("body.company_id");
+  });
+  it("l'autorizzazione vuole capocantiere, dipendente, assegnato, e un modello che lo permette", () => {
+    const s = sql();
+    for (const x of ["a.user_id = p_user_id", "a.is_capocantiere", "a.role_type = 'employee'", "m.attivo", "dal_cantiere"]) expect(s).toContain(x);
+    expect(s).toContain("revoke all on function public.verbale_capo_autorizzato(uuid, uuid) from public, anon, authenticated");
+    expect(s).toContain("revoke all on function public.verbale_avvisa_ufficio(uuid) from public, anon, authenticated");
+  });
+  it("alla firma del capo l'ufficio riceve l'avviso, senza far fallire la firma", () => {
+    const c = fonte();
+    expect(c).toContain("if(capo){");
+    expect(c).toContain("const{error:erroreAvviso}=awaitadmin.rpc('verbale_avvisa_ufficio',{p_report_id:data.id})");
+    expect(c).toContain("if(erroreAvviso)console.error(");
+    expect(sql()).toContain("con riserve");
+    expect(sql()).toContain("esito negativo");
+  });
+});
+

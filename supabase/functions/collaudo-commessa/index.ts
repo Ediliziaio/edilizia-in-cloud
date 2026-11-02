@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     if (
       !uuid(body.order_id) ||
-      !["save", "preview", "finalize", "open", "sign"].includes(body.action) ||
+      !["save", "preview", "finalize", "open", "sign", "list"].includes(body.action) ||
       (body.id && !uuid(body.id))
     )
       return errorResponse("Richiesta non valida", 400, cors);
@@ -57,16 +57,35 @@ Deno.serve(async (req) => {
       {
         _user_id: userId,
         _permission:
-          body.action === "open" ? "can_view_orders" : "can_edit_orders",
+          body.action === "open" || body.action === "list" ? "can_view_orders" : "can_edit_orders",
         _company_id: order.company_id,
       },
     );
-    if (permError || permitted !== true)
-      return errorResponse(
-        "Non hai il permesso di gestire questo verbale",
-        403,
-        cors,
-      );
+    // Senza permessi d'ufficio: solo il capocantiere interno della commessa, se il modello lo permette.
+    let capo = false;
+    if (permError || permitted !== true) {
+      const { data: autorizzato, error: capoError } = await admin.rpc("verbale_capo_autorizzato", { p_order_id: order.id, p_user_id: userId });
+      if (capoError || autorizzato !== true)
+        return errorResponse(
+          "Non hai il permesso di gestire questo verbale",
+          403,
+          cors,
+        );
+      capo = true;
+    }
+    // In cantiere si chiude solo con la firma del cliente; senza firma lo chiude l'ufficio.
+    if (capo && body.action === "finalize")
+      return errorResponse("Dal cantiere il verbale si chiude con la firma del cliente", 403, cors);
+    if (body.action === "list") {
+      const { data: verbali, error: listError } = await admin
+        .from("order_acceptance_reports")
+        .select("id,status,version,pdf_path,document_hash,content,created_at,firma_cliente_nome")
+        .eq("order_id", order.id)
+        .eq("company_id", order.company_id)
+        .order("created_at", { ascending: false });
+      if (listError) throw listError;
+      return jsonResponse({ reports: verbali ?? [] }, 200, cors);
+    }
     let report = null;
     if (body.id) {
       const result = await admin
@@ -231,6 +250,11 @@ Deno.serve(async (req) => {
       if (error || !data) {
         await admin.storage.from(bucket).remove([pathFirma, pathPdf]);
         return errorResponse("Il verbale è cambiato: riaprilo prima di far firmare.", 409, cors);
+      }
+      if (capo) {
+        // L'avviso all'ufficio non deve far fallire una firma già raccolta.
+        const { error: erroreAvviso } = await admin.rpc("verbale_avvisa_ufficio", { p_report_id: data.id });
+        if (erroreAvviso) console.error("collaudo-commessa avviso", erroreAvviso);
       }
       return jsonResponse({ report: data }, 200, cors);
     }
