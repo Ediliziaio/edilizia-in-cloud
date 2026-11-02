@@ -231,6 +231,16 @@ export function mancanti(campi: CampoModulo[], valori: Record<string, unknown>, 
   return out;
 }
 
+/**
+ * Cosa manca a un rapportino già arrivato, per «Da completare». Non si chiedono i campi del capo: chi l'ha mandato può
+ * essere un operaio. Chi ha mandato solo le ore (nessuna descrizione) non deve nulla.
+ */
+export function daCompletare(s: ModuloSchema, r: { descrizione: string; subappaltatore: boolean; fineLavori: boolean; valori: ValoreCampo[]; fasi?: FaseScelta[] }): string[] {
+  if (!r.descrizione.trim()) return [];
+  const campi = campiPerContesto(s, { ruolo: "operaio", momento: r.fineLavori ? "fine_lavori" : "giornaliero", subappaltatore: r.subappaltatore, soloOre: false });
+  return mancanti(campi, valoriInBozza(r.valori), r.fasi);
+}
+
 function numeroInTesto(n: number): string {
   const [intero, decimali] = String(Math.abs(n)).split(".");
   const conPunti = intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");

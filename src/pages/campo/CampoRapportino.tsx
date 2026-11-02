@@ -725,7 +725,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
       const campiExtra = componiValori(campiModulo, campiValori, campiPrecedenti);
       const campi = {
-        ...(campiExtra.length > 0 || campiPrecedenti.length > 0 ? { campi_extra: campiExtra } : {}),
+        ...(campiExtra.length > 0 || campiPrecedenti.length > 0 ? { campi_extra: campiExtra as unknown as Json } : {}),
         ore_lavorate: orePayload,
         ore_straordinario: !confermaCliente && !oreNonMie && straordinarioDaInviare > 0 ? straordinarioDaInviare : 0,
         descrizione_lavori: descrizione || null,

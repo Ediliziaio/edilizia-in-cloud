@@ -2,6 +2,7 @@
  * Il modulo di cantiere dell'azienda: lettura per chi compila e per le impostazioni, salvataggio per chi configura.
  * Una lettura che fallisce non ferma il cantiere: si lavora con il modulo di oggi, e l'obbligatorietà non è sul server.
  */
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SCHEMA_COME_OGGI, leggiSchema, type ModuloSchema } from "../../supabase/functions/_shared/moduliCantiere";
@@ -27,7 +28,8 @@ export function useModuloRapportino(orderId: string | undefined): { schema: Modu
       return leggiSchema(data);
     },
   });
-  return { schema: q.data ?? SCHEMA_COME_OGGI, isLoading: q.isLoading, isError: q.isError };
+  const schema = useMemo(() => leggiSchema(q.data), [q.data]);
+  return { schema, isLoading: q.isLoading, isError: q.isError };
 }
 
 export function useModuliAzienda(companyId: string | undefined, tipo: TipoModulo) {

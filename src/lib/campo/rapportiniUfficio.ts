@@ -7,6 +7,7 @@
  * rapportino del cantiere (fasiLavorateDelRapportino), così l'approvazione le
  * tratta allo stesso modo.
  */
+import { componiValori, mancanti, type CampoModulo } from "../../../supabase/functions/_shared/moduliCantiere";
 import { fasiLavorateDelRapportino, type Sottofase } from "@/lib/orders/sottofasi";
 
 export type StatoSottofaseGiorno = "lavorata" | "finita";
@@ -39,6 +40,8 @@ export interface GiornoUfficio {
   materiali?: Record<string, string>;
   foto?: string[];
   meteo?: string;
+  /** I campi propri dell'azienda, per chiave. */
+  campi?: Record<string, unknown>;
 }
 
 /** «7,5» → 7.5; vuoto o non numero → null. */
@@ -65,7 +68,7 @@ export function giornoVuoto(oggi: string, chiave: string, dopo?: GiornoUfficio):
 }
 
 /** Cosa manca prima di salvare; vuoto se si può. */
-export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string): string[] {
+export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string, campi: CampoModulo[] = []): string[] {
   const errori: string[] = [];
   const visti = new Set<string>();
   giorni.forEach((g, i) => {
@@ -85,6 +88,7 @@ export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string)
       const n2 = oreLette(q);
       if (n2 == null || n2 <= 0) { errori.push(`Quantità dei materiali maggiore di zero${n}.`); break; }
     }
+    for (const m of mancanti(campi, g.campi ?? {})) errori.push(`Compila ${m}${n}.`);
     const chiave = `${g.data}|${g.autore}`;
     if (g.data && visti.has(chiave)) errori.push(`Due rapportini della stessa persona lo stesso giorno${n}.`);
     visti.add(chiave);
@@ -101,6 +105,7 @@ export function caricoRapportini(
     persone?: ReadonlyArray<PersonaPresenza>;
     mezzi?: ReadonlyArray<{ id: string; nome: string }>;
     materiali?: ReadonlyArray<{ id: string; nome: string; unita: string | null }>;
+    campi?: CampoModulo[];
   } = {},
 ) {
   const percentuale = new Map(fasi.map((f) => [f.id, f.percentuale]));
@@ -108,6 +113,7 @@ export function caricoRapportini(
     const dichiarate = Object.fromEntries(g.fasi.map((id) => [id, g.percentuali?.[id] ?? percentuale.get(id) ?? 0]));
     const finite = Object.entries(g.sottofasi).filter(([, s]) => s === "finita").map(([id]) => id);
     const lavorate = Object.entries(g.sottofasi).filter(([, s]) => s === "lavorata").map(([id]) => id);
+    const valori = componiValori(cataloghi.campi ?? [], g.campi ?? {});
     return {
       data_lavoro: g.data,
       autore: g.autore || null,
@@ -131,6 +137,7 @@ export function caricoRapportini(
       }),
       foto_urls: g.foto ?? [],
       meteo: g.meteo || null,
+      ...(valori.length > 0 ? { campi_extra: valori } : {}),
     };
   });
 }
@@ -159,7 +166,7 @@ export function giorniDaPeriodo(
     out.push({
       ...base, chiave: `p-${d}`, data: d, sottofasi: {},
       presenze: { ...(base.presenze ?? {}) }, mezzi: { ...(base.mezzi ?? {}) }, percentuali: { ...(base.percentuali ?? {}) },
-      fasi: [...base.fasi], foto: [], materiali: {},
+      fasi: [...base.fasi], foto: [], materiali: {}, campi: {},
     });
   }
   return out;

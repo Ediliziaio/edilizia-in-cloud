@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  SCHEMA_COME_OGGI, campiPerContesto, chiaveDaEtichetta, chiaveValore, componiValori, leggiSchema, leggiValori, mancanti,
+  SCHEMA_COME_OGGI, campiPerContesto, daCompletare, chiaveDaEtichetta, chiaveValore, componiValori, leggiSchema, leggiValori, mancanti,
   validaModifica, validaSchema, valoreInTesto, valoriDaStampare, valoriInBozza,
   type CampoModulo, type ContestoCampi, type ModuloSchema, type ValoreCampo,
 } from "../../../supabase/functions/_shared/moduliCantiere";
@@ -188,6 +188,27 @@ describe("mancanti", () => {
     const c = campo({ livello: "fase", obbligatorio: true });
     expect(mancanti([c], { [chiaveValore("pezzi", "f2")]: 1 }, FASI)).toEqual(["Pezzi posati (Posa infissi)"]);
     expect(mancanti([c], {}, [])).toEqual(["Pezzi posati"]);
+  });
+});
+
+describe("daCompletare", () => {
+  const rep = (p = {}) => ({ descrizione: "Posa", subappaltatore: false, fineLavori: false, valori: [] as ValoreCampo[], ...p });
+  it("elenca gli obbligatori di un rapportino arrivato senza valori", () => {
+    expect(daCompletare(schema([campo({ obbligatorio: true })]), rep())).toEqual(["Pezzi posati"]);
+  });
+  it("con il valore non manca nulla", () => {
+    expect(daCompletare(schema([campo({ obbligatorio: true })]), rep({ valori: [valore({ chiave: "pezzi", tipo: "number", valore: 2 })] }))).toEqual([]);
+  });
+  it("le sole ore non chiedono nulla", () => {
+    expect(daCompletare(schema([campo({ obbligatorio: true })]), rep({ descrizione: " " }))).toEqual([]);
+  });
+  it("non chiede all'operaio i campi del capo", () => {
+    expect(daCompletare(schema([campo({ obbligatorio: true, chi: "capo" })]), rep())).toEqual([]);
+  });
+  it("rispetta ditta e momento", () => {
+    const s = schema([campo({ obbligatorio: true, ditte: "dipendenti" }), campo({ chiave: "f", etichetta: "Fine", tipo: "text", obbligatorio: true, quando: "fine_lavori" })]);
+    expect(daCompletare(s, rep({ subappaltatore: true }))).toEqual([]);
+    expect(daCompletare(s, rep({ fineLavori: true }))).toEqual(["Pezzi posati", "Fine"]);
   });
 });
 

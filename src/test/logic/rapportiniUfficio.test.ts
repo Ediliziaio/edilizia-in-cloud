@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caricoRapportini, erroriGiorni, giornoVuoto } from "@/lib/campo/rapportiniUfficio";
+import { caricoRapportini, erroriGiorni, giorniDaPeriodo, giornoVuoto } from "@/lib/campo/rapportiniUfficio";
 
 /** Rapportini scritti dall'ufficio (31/10/2026): più giorni, fasi e sottofasi come dal cantiere. */
 describe("rapportini dall'ufficio", () => {
@@ -69,5 +69,32 @@ describe("più giorni insieme", () => {
     expect(giorni[0]).toMatchObject({ descrizione: "Posa cartongesso", fasi: ["f1"], presenze: { "e:1": "8" }, foto: [], materiali: {} });
     expect(giorniDaPeriodo(base, "2026-10-24", "2026-10-25", oggi, false).map((g) => g.data)).toEqual(["2026-10-24", "2026-10-25"]);
     expect(giorniDaPeriodo(base, "2026-10-30", "2026-10-20", oggi, true)).toEqual([]);
+  });
+});
+
+describe("campi propri dall'ufficio", () => {
+  const campo = { chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", obbligatorio: true, chi: "tutti", ditte: "tutti", quando: "sempre", livello: "rapportino", stampa: "cliente" } as const;
+  const giorno = { ...giornoVuoto("2026-10-30", "a"), descrizione: "Posa", campi: { pezzi: "12" } };
+
+  it("il carico contiene etichetta, tipo e stampa dei campi", () => {
+    const [c] = caricoRapportini([giorno], [], new Map(), { campi: [campo] });
+    expect(c.campi_extra).toEqual([{ chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", valore: 12, stampa: "cliente" }]);
+  });
+  it("senza modello il carico non ha valori", () => {
+    expect(caricoRapportini([giorno], [], new Map())[0]).not.toHaveProperty("campi_extra");
+  });
+  it("un obbligatorio vuoto si segnala con il giorno", () => {
+    const vuoto = { ...giorno, campi: {} };
+    expect(erroriGiorni([vuoto], "2026-10-30", [campo])).toEqual(["Compila Pezzi posati."]);
+    expect(erroriGiorni([giorno, { ...vuoto, data: "2026-10-29" }], "2026-10-30", [campo])).toEqual(["Compila Pezzi posati (giorno 2)."]);
+    expect(erroriGiorni([vuoto], "2026-10-30")).toEqual([]);
+  });
+  it("più giorni insieme non copiano i campi: sarebbero numeri doppi", () => {
+    const fatti = giorniDaPeriodo(giorno, "2026-10-28", "2026-10-29", "2026-10-30", false, []);
+    expect(fatti).toHaveLength(2);
+    expect(fatti.every(g => Object.keys(g.campi ?? {}).length === 0)).toBe(true);
+  });
+  it("il giorno aggiunto dopo non copia i campi: sarebbero numeri doppi", () => {
+    expect(giornoVuoto("2026-10-30", "b", giorno).campi).toBeUndefined();
   });
 });

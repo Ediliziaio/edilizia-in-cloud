@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
+import { CampiDaCompletare } from "@/components/orders/CampiDaCompletare";
+import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -105,6 +107,7 @@ export function orePersoneRapportino(r: RigaOre): number {
 export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
+  const { schema: moduloCantiere } = useModuloRapportino(orderId);
   const { role, effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
@@ -498,6 +501,8 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             })()}
 
                             {/* Lavorazioni con i loro materiali e le loro foto, poi quello che non è legato a una fase */}
+                            <CampiDaCompletare report={r} schema={moduloCantiere} puoModificare={canEditOrders}
+                              onSalvato={() => void qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] })} />
                             <RapportinoBlocchi report={r} nomiFasi={nomiFasi} onFoto={(url) => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }} />
 
                             {/* Firme */}

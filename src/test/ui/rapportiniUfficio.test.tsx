@@ -34,7 +34,12 @@ vi.mock("@/hooks/useAccessiCommessa", () => ({
   nomeAccesso: (a: { profile: { first_name: string; last_name: string } }) => `${a.profile.first_name} ${a.profile.last_name}`,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-afterEach(cleanup);
+const modulo = vi.hoisted(() => ({ schema: undefined as unknown }));
+vi.mock("@/hooks/useModuliCantiere", async () => {
+  const { SCHEMA_COME_OGGI } = await import("../../../supabase/functions/_shared/moduliCantiere");
+  return { useModuloRapportino: () => ({ schema: modulo.schema ?? SCHEMA_COME_OGGI, isLoading: false, isError: false }) };
+});
+afterEach(() => { cleanup(); modulo.schema = undefined; });
 
 describe("Rapportini dall'ufficio", () => {
   it("due giorni con fasi e sottofasi, a nome del capocantiere: una sola chiamata", async () => {
@@ -104,5 +109,24 @@ describe("Rapportini dall'ufficio", () => {
     expect(screen.getByLabelText("Giorno del rapportino 6")).toHaveValue("2026-10-23");
     expect(screen.getByLabelText("Cosa si è fatto, rapportino 6")).toHaveValue("Posa cartongesso");
     expect(screen.getByLabelText("Mario Rossi: ore", { selector: "section[aria-label='Rapportino 6'] input" })).toHaveValue("8");
+  });
+
+  it("le parti spente non si chiedono e i campi propri si salvano", async () => {
+    stato.rpc.mockClear();
+    modulo.schema = {
+      formato: 1, blocchi: { fasi: false, materiali: false, mezzi: false, foto: false, straordinario: true, avanzamento: true },
+      campi: [{ chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", obbligatorio: true, chi: "capo", ditte: "tutti", quando: "sempre", livello: "rapportino", stampa: "interno" }],
+    };
+    render(<QueryClientProvider client={new QueryClient()}><RapportiniUfficio orderId="o1" /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Scrivi rapportini" }));
+    for (const t of ["Fasi lavorate", "Mezzi e attrezzi usati", "Materiali usati", "Foto"]) expect(screen.queryByText(t)).toBeNull();
+    fireEvent.change(screen.getByLabelText("Cosa si è fatto, rapportino 1"), { target: { value: "Posa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva il rapportino" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Compila Pezzi posati.");
+    fireEvent.change(screen.getByLabelText("Pezzi posati"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva il rapportino" }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledTimes(1));
+    const [, args] = stato.rpc.mock.calls[0] as unknown as [string, { p_rapportini: Array<Record<string, unknown>> }];
+    expect(args.p_rapportini[0].campi_extra).toEqual([{ chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", valore: 4, stampa: "interno" }]);
   });
 });

@@ -15548,6 +15548,7 @@ export type Database = {
       }
       campo_rapportini: {
         Row: {
+          campi_extra: Json
           approvato: boolean | null
           approvato_at: string | null
           approvato_da: string | null
@@ -15587,6 +15588,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
           approvato_da?: string | null
@@ -15626,6 +15628,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
           approvato_da?: string | null
