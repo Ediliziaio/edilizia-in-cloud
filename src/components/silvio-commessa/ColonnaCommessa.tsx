@@ -45,7 +45,7 @@ import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
   comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoConferma, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea, accettaProposte, minuscola, type DaDecidere, alternativePersona, sostituisciPersona,
-  importoNascosto, importoRata, parlaDiCosti, TESTO_IMPORTO_NASCOSTO,
+  importoNascosto, importoRata, parlaDiCosti, quantitaMezzo, TESTO_IMPORTO_NASCOSTO,
 } from "./presentazione";
 
 const COLORI_STATO: Record<Stato, string> = {
@@ -301,7 +301,7 @@ const ELENCHI_RISORSE = new Set(["persone.squadra", "ditte.assegnate", "mezzi.al
 
 interface ElementoRisorsa {
   nome?: string; fornitore?: string; fase?: string | null; fasi?: string[]; motivo?: string; stato?: string; avviso?: string | null;
-  dal?: string | null; al?: string | null; costo_previsto?: number; importo?: number; data_ordine?: string | null;
+  dal?: string | null; al?: string | null; costo_previsto?: number; importo?: number; data_ordine?: string | null; quantita?: number | null;
   righe?: unknown[];
 }
 
@@ -310,7 +310,7 @@ function rigaRisorsa(chiave: string, x: ElementoRisorsa, vedeCosti: boolean): { 
   switch (chiave) {
     case "persone.squadra": return { titolo: x.nome ?? "Persona", dettaglio: [x.fase, periodo].filter(Boolean).join(" · ") };
     case "ditte.assegnate": return { titolo: x.nome ?? "Ditta", dettaglio: [x.fase, vedeCosti && x.costo_previsto ? euro(x.costo_previsto) : ""].filter(Boolean).join(" · ") };
-    case "mezzi.allocazioni": return { titolo: x.nome ?? "Mezzo", dettaglio: [(x.fasi ?? []).join(", "), periodo].filter(Boolean).join(" · ") };
+    case "mezzi.allocazioni": return { titolo: x.nome ?? "Mezzo", dettaglio: [(x.fasi ?? []).join(", "), periodo, quantitaMezzo(x)].filter(Boolean).join(" · ") };
     case "materiali.acquisti": return {
       titolo: x.fornitore ?? "Fornitore",
       dettaglio: [x.fase, `${x.righe?.length ?? 0} voci`, x.data_ordine ? `ordinare entro ${dataBreve(x.data_ordine, false)}` : ""].filter(Boolean).join(" · "),

@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Fonte, Modifica } from "../../../shared/silvio-commessa/piano.ts";
 import { prontaPerScrivere } from "@/lib/silvio-commessa/scrittura";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -126,6 +127,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   // «Importi di vendita» decide anche qui; il margine ha il suo permesso, e dagli importi si ricava.
   const { canViewOrderAmounts: vedeImporti, canViewMargins, canViewCosts: vedeCosti } = usePermissions();
   const b = useBozzaSilvio({ companyId, userId, servizi, orderId, vedeImporti, vedeCosti });
+  // Per dire prima di «Crea» se il cliente si ritrova: la stessa ricerca della RPC.
+  const { data: clientiDelGestionale } = useCompanyCustomers(companyId, open && !orderId);
   // La chat è la scheda principale del telefono: lì Silvio dice cosa legge e cosa chiede.
   const [scheda, setScheda] = useState<Scheda>("chat");
   const [campoAttivo, setCampoAttivo] = useState(false);
@@ -197,7 +200,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const inAttesa = b.fonti.filter((f) => f.stato === "da_confermare").map((f) => f.etichetta);
   const nonLetti = b.fonti.filter((f) => f.stato === "errore" || f.stato === "da_collegare").map((f) => f.etichetta);
   const motivi = [
-    ...prontaPerScrivere(b.scrittura),
+    ...prontaPerScrivere(b.scrittura, clientiDelGestionale),
     ...(legge ? ["Aspetta che finiscano le letture"] : []),
     ...(b.scrivendo ? ["Aspetta la risposta di Silvio"] : []),
     ...(inAttesa.length ? [`Leggi o togli ${inAttesa.join(", ")}`] : []),

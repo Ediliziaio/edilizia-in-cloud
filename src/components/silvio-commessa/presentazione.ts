@@ -120,6 +120,12 @@ function scalare(chiave: string, colonna: string | null, v: unknown): string {
   return "";
 }
 
+/** «quantità 1»: quanto si prenota di un mezzo (un ponteggio si prenota a quantità, e Silvio ne propone 1). */
+export function quantitaMezzo(x: { quantita?: number | null }): string {
+  return `quantità ${Number(x.quantita) > 0 ? Number(x.quantita).toLocaleString("it-IT") : 1}`;
+}
+const quantitaMezzi = (elenco: readonly { quantita?: number | null }[]) => [...new Set(elenco.map(quantitaMezzo))].join(", ");
+
 function condizioni(c: CondizioniContratto): string {
   const parti: string[] = [];
   if (c.numero_contratto) parti.push(`n. ${c.numero_contratto}`);
@@ -198,7 +204,8 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true): 
       const soldi = !vedeCosti ? 0 : chiave === "ditte.assegnate" ? buoni.reduce((t, x) => t + (Number(x.costo_previsto) || 0), 0)
         : chiave === "ditte.contratti" ? buoni.reduce((t, x) => t + (Number(x.importo) || 0), 0) : 0;
       const nomi = [...new Set(buoni.map((x) => x.nome ?? x.fornitore).filter(Boolean))].slice(0, 3).join(", ");
-      return `${buoni.length} ${buoni.length === 1 ? cosa[0] : cosa[1]}${nomi ? `: ${nomi}` : ""}${soldi > 0 ? ` · ${euro(soldi)}` : ""}`
+      const quante = chiave === "mezzi.allocazioni" && buoni.length ? ` · ${quantitaMezzi(buoni)}` : "";
+      return `${buoni.length} ${buoni.length === 1 ? cosa[0] : cosa[1]}${nomi ? `: ${nomi}` : ""}${quante}${soldi > 0 ? ` · ${euro(soldi)}` : ""}`
         + (ko ? ` · ⚠ ${ko} non ${ko === 1 ? "disponibile" : "disponibili"}` : "");
     }
     case "fasi.avvisi_meteo": {
@@ -589,6 +596,16 @@ export function prossimoLunedi(oggi: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Il predefinito di `orders.vat_rate`: l'IVA di una commessa che nasce senza che nessuno l'abbia detta. */
+export const IVA_PREDEFINITA = 22;
+
+/** «Crea» senza un'IVA detta: la colonna scriverebbe il predefinito. */
+export function ivaPredefinita(piano: PianoCommessa, scrittura: Pick<ScritturaCommessa, "modo" | "ordine" | "preventivo_id">): boolean {
+  if (scrittura.modo !== "crea" || scrittura.preventivo_id || scrittura.ordine.vat_rate !== undefined) return false;
+  const x = piano.aree.economia?.["economia.vat_rate"];
+  return !x || x.stato === "manca" || vuoto(x.valore);
+}
+
 function etichettaFonte(v: Valore): string {
   return v.fonte.etichetta.replace(/^(preventivo|computo)\s+/i, (m) => m.toLowerCase());
 }
@@ -646,6 +663,15 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
           : []),
         { etichetta: "Scrivi l'indirizzo", apri: "cantiere.indirizzo" },
       ],
+    };
+  }
+  // Nessuno l'ha detta: la commessa nascerebbe col predefinito della colonna, senza che la persona lo sappia.
+  if (vedeImporti && ivaPredefinita(piano, scrittura)) {
+    return {
+      testo: `Che IVA applico? Nessun documento la dice: se non scegli, la commessa nasce al ${IVA_PREDEFINITA} %.`,
+      risposte: [22, 10, 4].map((aliquota) => ({
+        etichetta: `${aliquota} %`, modifica: { tipo: "cambia_valore", area: "economia", chiave: "economia.vat_rate", valore: aliquota } as Modifica,
+      })),
     };
   }
   const daVedere = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare" && !importoNascosto(e.chiave, vedeImporti, vedeCosti));
@@ -721,6 +747,9 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
           return { ...base, testo: dataBreve(dataDalleFasi), fuori: null, nota: `segue le fasi${proposta}` };
         }
 
+        if (v.chiave === "economia.vat_rate" && !sue.length && !nascosto && ivaPredefinita(piano, scrittura)) {
+          return { ...base, testo: `${IVA_PREDEFINITA} %`, fuori: null, nota: "nessun documento la dice: è quella predefinita, cambiala se è un'altra" };
+        }
         if (!sue.length && (!x || x.stato === "manca" || vuoto(x.valore))) {
           // I costi delle voci entrano con le fasi anche senza la variabile: si dicono lo stesso.
           if (v.chiave !== "costi.previsti" || !entraNellaScrittura(v.chiave, scrittura)) return null;
@@ -733,8 +762,12 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
         const restano = sotto ? sue.filter((e) => e.motivo !== PROPOSTA) : sue;
         const mostrato = sotto ?? x;
         const testo = !mostrato ? "—" : nascosto ? TESTO_IMPORTO_NASCOSTO : testoValore(v.chiave, mostrato.valore, vedeCosti);
-        const nota = sotto && x && !nascosto
+        const proposta = sotto && x && !nascosto
           ? `proposta ${testoValore(v.chiave, x.valore, vedeCosti)} al posto di ${testoValore(v.chiave, sotto.valore, vedeCosti)}: entra solo se la confermi` : null;
+        // Un conto che non torna su un valore scelto da una persona: entra, perché l'ha scelto lei, ma si dice.
+        const nonTorna = mostrato?.quadratura && mostrato.nota && !restano.length
+          ? (nascosto || (parlaDiCosti(v.chiave, vedeCosti) && /\d\s*€/.test(mostrato.nota)) ? "⚠ il conto non torna: da controllare con chi vede gli importi" : `⚠ ${mostrato.nota}`) : null;
+        const nota = [proposta, nonTorna].filter(Boolean).join(" ") || null;
         // Il motivo può citare le cifre («le rate fanno 48.500 €»): chi non le vede legge solo che resta fuori.
         const motivi = restano.map((e) => (nascosto && !vedeImporti && CHIAVI_IMPORTI.has(v.chiave) ? "da sistemare, con chi vede gli importi"
           : nascosto || (parlaDiCosti(v.chiave, vedeCosti) && /\d\s*€/.test(e.motivo)) ? "da sistemare, con chi vede i costi" : e.motivo));
@@ -787,6 +820,7 @@ const PAROLE_TABELLE: Record<string, string> = {
   order_notes: "una nota",
   order_status_history: "un cambio di stato",
   company_costs: "un costo",
+  order_costs: "un costo",
   costi_commessa: "un costo",
   campo_rapportini: "un rapportino",
   rapportini: "un rapportino",
@@ -828,9 +862,30 @@ export function rifiutoInParole(messaggio: string): string {
   m = /«(\w+)» è stato cambiato dopo Silvio/.exec(messaggio);
   if (m) {
     const v = REGISTRO.find((x) => x.colonne.includes(m![1]));
-    return `Non si può annullare: «${v?.etichetta ?? nomeColonna(m[1])}» è stato cambiato dopo Silvio.`;
+    return `Non si può annullare: «${v?.etichetta ?? parolaDellaColonna(m[1])}» è stato cambiato dopo Silvio.`;
   }
-  return messaggio;
+  // Quello che dice `_silvio_cosa_e_cambiato`: «si è aggiunto lavoro, righe in «company costs» (company costs)».
+  return messaggio
+    .replace(/righe in «([a-z_ ]+)»/g, (_, t: string) => parolaDellaTabella(t.replace(/ /g, "_")))
+    .replace(/Una riga di «([a-z_ ]+)» creata da Silvio è stata cambiata/g, (_, t: string) => {
+      const parola = parolaDellaTabella(t.replace(/ /g, "_"));
+      return `${parola.charAt(0).toUpperCase()}${parola.slice(1)} preparato da Silvio è stato cambiato`;
+    })
+    .replace(/,\s*([^,()]+?) \(([a-z]+(?: [a-z]+)*)\)(\.|$)/g, (tutto, cosa: string, tecnico: string, fine: string) =>
+      (tecnico.includes(" ") || PAROLE_TABELLE[tecnico] ? `, ${cosa}${fine}` : tutto))
+    .replace(/\(«(\w+)»\)/g, (_, c: string) => `(${parolaDellaColonna(c)})`);
+}
+
+/** Le colonne che un rifiuto può citare, in parole. Mai il nome tecnico: lo legge chi lavora in cantiere. */
+const PAROLE_COLONNE: Readonly<Record<string, string>> = {
+  is_paid: "il pagamento", total_cost: "il costo", cost_preventivo: "il costo previsto", costo_origine: "il costo previsto",
+  vat_rate: "l'IVA", notes: "le note", phase_id: "la fase", hours_worked: "le ore", start_date: "la data d'inizio", end_date: "la data di fine",
+  status: "lo stato", stato: "lo stato", percentuale: "l'avanzamento", percentuale_avanzamento: "l'avanzamento", importo_venduto: "il venduto",
+  name: "il nome", title: "il titolo", due_date: "la scadenza", quantita: "la quantità", dal: "il periodo", al: "il periodo", importo: "l'importo",
+};
+
+function parolaDellaColonna(colonna: string): string {
+  return PAROLE_COLONNE[colonna] ?? REGISTRO.find((x) => x.colonne.includes(colonna))?.etichetta.toLowerCase() ?? "un dato";
 }
 
 // ── Da decidere, suggerimenti della chat, «Crea» (01/11/2026, revisione dell'esperienza) ──
@@ -928,6 +983,7 @@ const TOLTE_PERMESSI: Readonly<Record<string, string>> = {
   condizioni: "le condizioni del contratto (le cambia solo un amministratore)",
   adempimenti: "i promemoria di sicurezza (serve il permesso sulla sicurezza di cantiere)",
   ordini: "gli ordini ai fornitori (serve il permesso sui costi)",
+  costi: "i costi previsti di voci e ditte, che nascono a 0 (serve il permesso sui costi)",
 };
 const TOLTE_AUTONOMIA: Readonly<Record<string, string>> = {
   squadra: "la squadra", mezzi: "i mezzi", ordini: "gli ordini ai fornitori", ditte: "le ditte",

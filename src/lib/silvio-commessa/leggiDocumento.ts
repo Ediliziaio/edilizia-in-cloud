@@ -26,7 +26,8 @@
 import { erroreLeggibile } from "./testoErrore";
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
-import { dataVera } from "../../../shared/silvio-commessa/date.ts";
+import { conInizioUtile } from "../../../shared/silvio-commessa/fondi.ts";
+import { dataVera, oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 import { riconosciDocumento, type Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import type { FonteLetturaAI } from "../../../shared/silvio-commessa/letturaAI.ts";
 import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
@@ -96,7 +97,8 @@ export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userI
  * nasce un conflitto per niente. Se non c'è un inizio già deciso vale quello che dice il
  * documento: «si parte il 16/11» dà le date alle fasi.
  */
-export function conModelloSeMancanoLeFasi(fr: Frammento, inizio?: string | null, calendario?: CalendarioCantiere): Frammento[] {
+export function conModelloSeMancanoLeFasi(grezzo: Frammento, inizio?: string | null, calendario?: CalendarioCantiere, oggi: string = oggiInItalia()): Frammento[] {
+  const fr = conInizioUtile(grezzo, calendario, oggi);
   if (fr.aree.fasi?.["fasi.order_work_phases"]) return [fr];
   const testi = [fr.aree.identita?.["identita.description"]?.valore, fr.aree.identita?.["identita.work_description"]?.valore]
     .filter((x): x is string => typeof x === "string").join(" ");

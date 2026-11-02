@@ -70,11 +70,22 @@ export interface DatiPreventivo {
   calendario?: CalendarioCantiere;
 }
 
-const STATI_FIRMATI = new Set(["accettato", "accepted", "firmato", "signed", "approvato", "vinto"]);
+/**
+ * I valori veri di `quotes.status` (SELECT distinct del 2/11): solo `accettata` dice che il
+ * cliente ha detto sì, ed è anche l'unico che `crea_commessa_preventivo_atomic` accetta.
+ * `accettato` (al maschile) c'è su poche righe, e la creazione lo rifiuta: se ne avvisa.
+ */
+const STATI_FIRMATI = new Set(["accettata"]);
+const STATI_DA_CUI_NASCE_LA_COMMESSA = new Set(["accettata"]);
 const CHIAVI_TIPO_LAVORO = new Set(ORDER_WORKFLOW_MODELS.map((m) => m.key));
 
 export function preventivoFirmato(quote: Record<string, unknown>): boolean {
   return !!quote.signed_at || STATI_FIRMATI.has(testo(quote.status).toLowerCase());
+}
+
+/** La commessa può nascere da questo preventivo? Lo stesso controllo di `crea_commessa_preventivo_atomic`. */
+export function preventivoConvertibile(quote: Record<string, unknown>): boolean {
+  return STATI_DA_CUI_NASCE_LA_COMMESSA.has(testo(quote.status));
 }
 
 /** Il tipo di lavoro del modello che vale per questo preventivo, se si sa. */
@@ -170,6 +181,7 @@ export function frammentoDaPreventivo(dati: DatiPreventivo): Frammento {
   });
   const firmato = preventivoFirmato(q);
   if (!firmato) avvisa(fr, "il preventivo non risulta firmato: i valori sono quelli proposti al cliente");
+  else if (!preventivoConvertibile(q)) avvisa(fr, `il preventivo è segnato «${testo(q.status)}», non «accettata»: la commessa non può nascere da qui finché non lo segni accettato dalla sua pagina`);
   // Un preventivo non firmato non è il contratto: vale meno di uno firmato, ma resta un documento.
   const fiducia = firmato ? 1 : 0.8;
   const pf = prefillDaPreventivo(q, righe);
