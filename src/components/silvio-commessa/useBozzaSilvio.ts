@@ -49,7 +49,7 @@ import { dateDelleFasi } from "../../../shared/silvio-commessa/modelliLavoro.ts"
 import type { FaseDelPiano } from "../../../shared/silvio-commessa/piano.ts";
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
 import { IMPOSTAZIONI_PREDEFINITE, type ImpostazioniSilvio } from "@/lib/silvio-commessa/autonomia";
-import { calendarioAzienda, type CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
+import { calendarioAzienda, lavorativiTra, type CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
@@ -61,6 +61,38 @@ import { euroAI, pianoProposto, riassuntoFrammento, stimaLettura, testoValore } 
 import type { ServiziSilvioCommessa } from "./servizi";
 
 export const LETTURE_INSIEME = 3;
+
+/**
+ * Quello che una modifica si porta dietro, come se lo aspetta chi la fa (01/11/2026):
+ * - la data d'inizio nuova sposta anche le fasi che hanno già le date (dello stesso numero di
+ *   giorni lavorativi), prima di scriversi;
+ * - togliere una ditta toglie anche il suo contratto in bozza.
+ * Tutte insieme: un annulla le toglie tutte.
+ */
+export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[]): Modifica[] {
+  const out: Modifica[] = [];
+  for (const m of modifiche) {
+    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
+      const prima = piano.aree.fasi?.["fasi.work_start_date"]?.valore;
+      const fasi = piano.aree.fasi?.["fasi.order_work_phases"];
+      const datate = Array.isArray(fasi?.valore) && (fasi!.valore as FaseDelPiano[]).some((f) => f.start_date);
+      const inizio = typeof prima === "string" ? prima
+        : datate ? (fasi!.valore as FaseDelPiano[]).map((f) => f.start_date).filter((d): d is string => !!d).sort()[0] : null;
+      const n = inizio && datate && !giaNellaCommessa(piano, fasi) ? lavorativiTra(inizio, m.valore, piano.calendario) : 0;
+      if (n) out.push({ tipo: "sposta_date", giorniLavorativi: n, daFase: null });
+    }
+    out.push(m);
+    if (m.tipo === "togli" && m.chiave === "ditte.assegnate") {
+      const contratti = piano.aree.ditte?.["ditte.contratti"]?.valore;
+      if (!Array.isArray(contratti) || !contratti.length) continue;
+      if (m.indice == null) { out.push({ tipo: "togli", area: "ditte", chiave: "ditte.contratti" }); continue; }
+      const ditta = (piano.aree.ditte?.["ditte.assegnate"]?.valore as { nome?: string }[] | undefined)?.[m.indice]?.nome;
+      const i = ditta ? (contratti as { nome?: string }[]).findIndex((c) => c?.nome === ditta) : -1;
+      if (i >= 0) out.push({ tipo: "togli", area: "ditte", chiave: "ditte.contratti", indice: i });
+    }
+  }
+  return out;
+}
 /** Una lettura di un'offerta con `rdo-ai-estrai-offerta`: una pagina o due, come un documento. */
 export const STIMA_OFFERTA_EUR = 0.03;
 
@@ -544,6 +576,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       }
     });
     invia({ tipo: "aggiungi_fonti", fonti });
+    // Quello che la persona ha scritto si vede come suo messaggio, anche quando diventa una fonte.
+    for (const n of nuove) if (n.tipo === "testo") invia({ tipo: "messaggio", tono: "persona", testo: n.testo });
   }, []);
 
   /** «Leggi»: le fonti che aspettavano il via per il costo entrano in coda. */
@@ -566,9 +600,9 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
    * le prendono (e la fine lavori, se manca): un passo per volta, ognuno si annulla.
    */
   const modifica = useCallback((voluta: Modifica | Modifica[]) => {
-    const modifiche: Modifica[] = Array.isArray(voluta) ? [...voluta] : [voluta];
-    const m = modifiche[0];
-    if (modifiche.length === 1 && m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
+    const modifiche = conConseguenze(ultimo.current.piano, Array.isArray(voluta) ? [...voluta] : [voluta]);
+    const m = modifiche[modifiche.length - 1];
+    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
       const pianoOra = ultimo.current.piano;
       const elenco = pianoOra.aree.fasi?.["fasi.order_work_phases"];
       // Le fasi che la commessa ha già non si ridatano: le date le mette chi le ha scritte.
@@ -593,13 +627,15 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   const [scrivendo, setScrivendo] = useState(false);
   const [costoChat, setCostoChat] = useState(0);
   const inviate = useRef(0);
+  /** Il semaforo della chat: si prende prima di ogni await, così due invii di fila non partono due volte. */
+  const inCorso = useRef(false);
   /**
    * Un messaggio a Silvio. «annulla» si fa qui; il resto va al modello, e la risposta torna
    * modifiche applicate insieme. Restituisce false se non è partito (crediti, altro in corso).
    */
   const scrivi = useCallback(async (testo: string): Promise<boolean> => {
     const t = testo.trim();
-    if (!t || scrivendo) return false;
+    if (!t || inCorso.current) return false;
     const precedenti = ultimo.current.messaggi;
     invia({ tipo: "messaggio", tono: "persona", testo: t });
     if (eAnnulla(t)) {
@@ -608,13 +644,14 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       invia({ tipo: "messaggio", tono: "silvio", testo: vuota ? "Non c'è niente da annullare." : "Fatto: ho rimesso com'era prima dell'ultima modifica." });
       return true;
     }
-    const crediti = await controllaCrediti(STIMA_CHAT_EUR);
-    if (crediti) {
-      invia({ tipo: "messaggio", tono: "errore", testo: crediti });
-      return false;
-    }
+    inCorso.current = true;
     setScrivendo(true);
     try {
+      const crediti = await controllaCrediti(STIMA_CHAT_EUR);
+      if (crediti) {
+        invia({ tipo: "messaggio", tono: "errore", testo: crediti });
+        return false;
+      }
       const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       const risposta = await servizi.chat({
         companyId, messaggio: t, contesto: pianoPerLaChat(ultimo.current.piano, oggi),
@@ -627,16 +664,17 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       // Sulla bozza di adesso: nel frattempo può essere arrivata una lettura.
       const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, testoValore);
       const righe = esito.righe.length ? esito.righe : [risposta.testo || "Non ho capito cosa cambiare: prova a dirlo in un altro modo."];
-      invia({ tipo: "modifiche", modifiche: esito.modifiche, dallaChat: { righe } });
+      invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, esito.modifiche), dallaChat: { righe } });
       return true;
     } catch (e) {
       const m = e instanceof Error ? e.message : messaggioErrore(e);
       invia({ tipo: "messaggio", tono: "errore", testo: /credit|ricaric|402/i.test(m) ? `I crediti AI sono finiti: ${m}` : `Non riesco a rispondere: ${m}` });
       return false;
     } finally {
+      inCorso.current = false;
       setScrivendo(false);
     }
-  }, [scrivendo, controllaCrediti, servizi, companyId, idBozza]);
+  }, [controllaCrediti, servizi, companyId, idBozza]);
 
   /** Le variabili cambiate dalla chat che l'utente ha guardato. */
   const visto = useCallback((chiavi: string | string[]) => {

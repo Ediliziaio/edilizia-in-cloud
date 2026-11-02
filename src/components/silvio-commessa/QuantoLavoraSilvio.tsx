@@ -68,14 +68,14 @@ export default function QuantoLavoraSilvio({ companyId, leggi = leggiVero }: { c
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         <Numero titolo="Commesse create" valore={String(d.totali.commesse_create)} nota={`${d.totali.commesse_completate} completate`} />
-        <Numero titolo="Completezza media" valore={d.totali.punteggio_medio == null ? "—" : `${d.totali.punteggio_medio}/100`}
+        <Numero titolo="Completezza media" valore={d.totali.punteggio_medio == null ? "—" : `${d.totali.punteggio_medio} %`}
           nota={d.totali.punteggio_medio == null ? "ancora nessun dato" : "di oggi, sulle commesse di Silvio"} />
         <Numero titolo="Proposte tenute così" valore={quota == null ? "—" : `${quota} %`}
           nota={d.correzioni.totale ? `${d.correzioni.cambiate} corrette su ${d.correzioni.totale}` : "ancora nessun dato"} />
         <Numero titolo="Tempo risparmiato" valore={durataInParole(minuti)}
           nota={`stima: ${d.totali.voci_scritte} voci × ${MINUTI_PER_VOCE} min`} />
         <Numero titolo="Costo AI" valore={euro(d.costo_ai_eur)} nota="letture e chat del popup" />
-        <Numero titolo="Piano di volo" valore={String(voloTot)}
+        <Numero titolo="Controlli prima della partenza" valore={String(voloTot)}
           nota={voloTot ? `${volo.confermata ?? 0} confermate · ${volo.aperta ?? 0} aperte · ${(volo.scartata ?? 0) + (volo.scaduta ?? 0)} chiuse` : "ancora nessun dato"} />
       </div>
       {peggiori.length > 0 && (

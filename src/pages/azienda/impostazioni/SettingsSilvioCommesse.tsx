@@ -157,7 +157,7 @@ export default function SettingsSilvioCommesse({ db }: { db?: ClientAutonomia } 
                       <button key={l} type="button" role="radio" aria-checked={scelto === l} disabled={!puoModificare || oltre}
                         title={oltre ? "Esce verso terzi o ha valore legale: Silvio chiede sempre" : undefined}
                         onClick={() => metti({ livelli: { ...bozza.livelli, [a.azione]: l } })}
-                        className={cn("h-8 px-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        className={cn("h-11 px-3 text-sm transition-colors sm:h-8 sm:px-2.5 sm:text-xs disabled:cursor-not-allowed disabled:opacity-40",
                           l !== "vietata" && "border-l",
                           scelto === l ? (l === "da_sola" ? "bg-emerald-600 text-white" : l === "vietata" ? "bg-slate-700 text-white" : "bg-primary text-primary-foreground")
                             : "bg-background hover:bg-muted")}>

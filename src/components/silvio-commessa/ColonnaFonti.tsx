@@ -6,19 +6,20 @@
  * In «Completa» (fase 2) in cima ci sono i documenti già allegati alla commessa: ognuno si
  * legge con un tocco su «Leggi», che porta davanti la stima del costo.
  *
+ * 01/11/2026: il testo libero e il vocale si scrivono nella chat (prima c'era un secondo
+ * campo qui, doppione); qui restano file, preventivi e computi.
+ *
  * Fase 4: l'offerta di una ditta «da collegare» si collega qui alla sua richiesta d'offerta,
  * scelta fra quelle aperte; la lettura parte col tocco che mostra il costo.
  */
 import { useId, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, CheckCircle2, FileText, Loader2, Mic, Plus, RotateCcw, Search, Square, Upload, X, Calculator, Link2,
+  AlertTriangle, CheckCircle2, FileText, Loader2, Plus, RotateCcw, Search, Upload, X, Calculator, Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { formatCurrency } from "@/lib/formatters";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
@@ -58,16 +59,16 @@ function CollegaOfferta({ companyId, servizi, onCollega }: {
   });
   const elenco = richieste.data ?? [];
   const r = elenco.find((x) => x.id === scelta);
-  if (richieste.isLoading) return <p className="mt-2 text-xs text-slate-500">Cerco le richieste d'offerta aperte…</p>;
+  if (richieste.isLoading) return <p className="mt-2 text-xs lg:text-[11px] text-slate-500">Cerco le richieste d'offerta aperte…</p>;
   if (!elenco.length) {
-    return <p className="mt-2 text-xs text-slate-600">Non ci sono richieste d'offerta aperte: creane una da Acquisti → Richieste d'offerta, poi collegala qui.</p>;
+    return <p className="mt-2 text-xs lg:text-[11px] text-slate-600">Non ci sono richieste d'offerta aperte: creane una da Acquisti → Richieste d'offerta, poi collegala qui.</p>;
   }
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2">
-      <label htmlFor={id} className="min-w-0 flex-1 text-xs text-slate-600">
+      <label htmlFor={id} className="min-w-0 flex-1 text-xs lg:text-[11px] text-slate-600">
         A quale richiesta risponde?
         <select id={id} value={scelta} onChange={(e) => setScelta(e.target.value)}
-          className="mt-1 h-9 w-full rounded-md border bg-white px-2 text-sm text-slate-900">
+          className="mt-1 h-9 w-full rounded-md border bg-white px-2 text-sm lg:text-[13px] text-slate-900">
           <option value="">Scegli…</option>
           {elenco.map((x) => (
             <option key={x.id} value={x.id}>{[x.rfq_number, x.titolo, x.fornitore].filter(Boolean).join(" · ")}</option>
@@ -87,14 +88,14 @@ function SchedaFonte({ f, onRiprova, onTogli, collega }: {
   collega?: ReactNode;
 }) {
   return (
-    <li className="rounded-lg border bg-white p-3 text-sm shadow-sm" aria-busy={f.stato === "in_lettura" || undefined}>
+    <li className="rounded-lg border bg-white px-3 py-2 text-sm lg:text-[13px] shadow-sm" aria-busy={f.stato === "in_lettura" || undefined}>
       <div className="flex items-start gap-2">
         <span className="mt-0.5 shrink-0"><IconaStato f={f} /></span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-slate-900" title={f.etichetta}>{f.etichetta}</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs lg:text-[11px] text-slate-500">
             {STATI[f.stato]}
-            {f.stato === "fatta" && f.valori != null ? ` · ${f.valori} ${f.valori === 1 ? "valore" : "valori"}` : ""}
+            {f.stato === "fatta" && f.valori != null ? ` · ${f.valori} ${f.valori === 1 ? "dato preso" : "dati presi"}` : ""}
             {f.stato === "fatta" && f.costoEur ? ` · ${euroAI(f.costoEur)}` : ""}
             {f.stato === "fatta" && f.tipo !== "ripresa" && f.tipo !== "commessa" && !f.costoEur ? " · gratis" : ""}
             {(f.stato === "da_confermare" || f.stato === "in_coda" || f.stato === "in_lettura") && f.stimaEur > 0
@@ -110,7 +111,7 @@ function SchedaFonte({ f, onRiprova, onTogli, collega }: {
       </div>
       {f.stato === "errore" && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 text-xs text-red-700">{f.errore}</p>
+          <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-red-700">{f.errore}</p>
           {(f.tipo !== "file" || f.file) && !/formato|foglio di calcolo/.test(f.errore ?? "") && (
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={onRiprova}>
               <RotateCcw className="h-3.5 w-3.5" aria-hidden />Riprova
@@ -120,16 +121,16 @@ function SchedaFonte({ f, onRiprova, onTogli, collega }: {
       )}
       {f.stato === "da_collegare" && (
         <>
-          <p className="mt-2 text-xs text-amber-800">
+          <p className="mt-2 text-xs lg:text-[11px] text-amber-800">
             È l'offerta di una ditta: il suo totale è un costo, non l'importo della commessa. Collegala alla sua richiesta
             d'offerta e diventa l'ordine in bozza a quel fornitore.
           </p>
-          {f.errore && <p className="mt-1 text-xs text-red-700">{f.errore}</p>}
+          {f.errore && <p className="mt-1 text-xs lg:text-[11px] text-red-700">{f.errore}</p>}
           {collega}
         </>
       )}
       {f.avvisi.length > 0 && (
-        <ul className="mt-2 space-y-1 text-xs text-amber-800">
+        <ul className="mt-2 space-y-1 text-xs lg:text-[11px] text-amber-800">
           {f.avvisi.slice(0, 3).map((a) => <li key={a}>• {a}</li>)}
           {f.avvisi.length > 3 && <li>e altri {f.avvisi.length - 3} avvisi</li>}
         </ul>
@@ -184,18 +185,18 @@ function ElencoDaScegliere({ tipo, companyId, servizi, onScegli, onChiudi }: {
         </Button>
       </div>
       <ul className="mt-2 max-h-56 overflow-y-auto" aria-label={tipo === "preventivo" ? "Preventivi" : "Computi"}>
-        {caricamento && <li className="flex items-center gap-2 p-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Carico…</li>}
-        {errore && <li className="p-2 text-sm text-red-700">{errore instanceof Error ? errore.message : "Elenco non disponibile."}</li>}
-        {!caricamento && !errore && !righe.length && <li className="p-2 text-sm text-slate-500">Niente da mostrare.</li>}
+        {caricamento && <li className="flex items-center gap-2 p-2 text-sm lg:text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Carico…</li>}
+        {errore && <li className="p-2 text-sm lg:text-[13px] text-red-700">{errore instanceof Error ? errore.message : "Elenco non disponibile."}</li>}
+        {!caricamento && !errore && !righe.length && <li className="p-2 text-sm lg:text-[13px] text-slate-500">Niente da mostrare.</li>}
         {righe.map((r) => (
           <li key={r.id}>
             <button type="button" className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-white focus-visible:bg-white"
               onClick={() => onScegli({ tipo, id: r.id, etichetta: r.etichetta })}>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{r.titolo}</span>
-                <span className="block truncate text-xs text-slate-500">{[r.stato, r.sotto].filter(Boolean).join(" · ")}</span>
+                <span className="block truncate text-sm lg:text-[13px] font-medium">{r.titolo}</span>
+                <span className="block truncate text-xs lg:text-[11px] text-slate-500">{[r.stato, r.sotto].filter(Boolean).join(" · ")}</span>
               </span>
-              {r.totale != null && <span className="shrink-0 text-xs font-medium">{formatCurrency(r.totale)}</span>}
+              {r.totale != null && <span className="shrink-0 text-xs lg:text-[11px] font-medium">{formatCurrency(r.totale)}</span>}
             </button>
           </li>
         ))}
@@ -218,19 +219,19 @@ function DocumentiDellaCommessa({ orderId, fonti, servizi, onAggiungi }: {
     .map(({ a, r }) => ({ a, stima: stimaLettura(r, a.dimensione ?? 0) })), [allegati.data]);
   const aggiunti = new Set(fonti.filter((f) => f.allegato).map((f) => f.allegato!.id));
   if (allegati.isLoading) {
-    return <p className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Cerco i documenti della commessa…</p>;
+    return <p className="flex items-center gap-2 text-xs lg:text-[11px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />Cerco i documenti della commessa…</p>;
   }
   if (allegati.error || !leggibili.length) return null;
   return (
     <section className="rounded-lg border bg-white p-2" aria-labelledby="silvio-documenti-commessa">
-      <h4 id="silvio-documenti-commessa" className="px-1 text-xs font-semibold text-slate-700">Documenti della commessa</h4>
-      <p className="px-1 text-xs text-slate-500">Silvio li legge solo se tocchi «Leggi».</p>
+      <h4 id="silvio-documenti-commessa" className="px-1 text-xs lg:text-[11px] font-semibold text-slate-700">Documenti della commessa</h4>
+      <p className="px-1 text-xs lg:text-[11px] text-slate-500">Silvio li legge solo se tocchi «Leggi».</p>
       <ul className="mt-1 max-h-48 space-y-1 overflow-y-auto">
         {leggibili.map(({ a, stima }: { a: AllegatoCommessa; stima: number }) => (
-          <li key={a.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm">
+          <li key={a.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm lg:text-[13px]">
             <FileText className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
             <span className="min-w-0 flex-1 truncate" title={a.nome}>{a.nome}</span>
-            <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 px-2 text-xs" disabled={aggiunti.has(a.id)}
+            <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 px-2 text-xs lg:text-[11px]" disabled={aggiunti.has(a.id)}
               aria-label={aggiunti.has(a.id) ? `${a.nome}: già tra le fonti` : `Leggi ${a.nome}${stima ? `, circa ${euroAI(stima)}` : ", gratis"}`}
               onClick={() => onAggiungi([{ tipo: "allegato", allegato: a }])}>
               {aggiunti.has(a.id) ? "Aggiunto" : `Leggi · ${stima ? `~${euroAI(stima)}` : "gratis"}`}
@@ -261,10 +262,7 @@ export function ColonnaFonti({
 }: ColonnaFontiProps) {
   const [sopra, setSopra] = useState(false);
   const [elenco, setElenco] = useState<Elenco>(null);
-  const [testo, setTesto] = useState("");
   const inputFile = useRef<HTMLInputElement>(null);
-  const idTesto = useId();
-  const voce = useVoiceInput((t) => setTesto((p) => (p.trim() ? `${p.trim()}\n${t}` : t)));
   const daConfermare = fonti.filter((f) => f.stato === "da_confermare");
   const stima = daConfermare.reduce((s, f) => s + f.stimaEur, 0);
 
@@ -278,18 +276,17 @@ export function ColonnaFonti({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-2.5">
       {orderId && <DocumentiDellaCommessa orderId={orderId} fonti={fonti} servizi={servizi} onAggiungi={onAggiungi} />}
       <div
         onDragOver={(e) => { e.preventDefault(); setSopra(true); }}
         onDragLeave={() => setSopra(false)}
         onDrop={lascia}
-        className={cn("rounded-xl border-2 border-dashed p-4 text-center transition-colors",
+        className={cn("rounded-xl border-2 border-dashed p-3 text-center transition-colors",
           sopra ? "border-orange-400 bg-orange-50" : "border-slate-300 bg-white")}
       >
-        <Upload className="mx-auto h-6 w-6 text-orange-600" aria-hidden />
-        <p className="mt-1 text-sm font-medium text-slate-900">Trascina qui contratti, capitolati, PDF, foto</p>
-        <p className="text-xs text-slate-500">Preventivi e computi sono gratis; un PDF circa 0,01 €, una foto 0,005 €.</p>
+        <p className="flex items-center justify-center gap-1.5 text-sm lg:text-[13px] font-medium text-slate-900"><Upload className="h-4 w-4 shrink-0 text-orange-600" aria-hidden />Trascina qui i documenti</p>
+        <p className="text-xs lg:text-[11px] text-slate-500">Contratti, capitolati, PDF, foto: un PDF circa 0,01 €.</p>
         <Button type="button" variant="outline" size="sm" className="mt-2 gap-1" onClick={() => inputFile.current?.click()}>
           <Plus className="h-4 w-4" aria-hidden />Scegli i file
         </Button>
@@ -313,27 +310,12 @@ export function ColonnaFonti({
           onScegli={(f) => { onAggiungi([f]); setElenco(null); }} />
       )}
 
-      <div className="space-y-2">
-        <label htmlFor={idTesto} className="text-xs font-medium text-slate-600">Oppure scrivi o detta il lavoro</label>
-        <Textarea id={idTesto} value={testo} onChange={(e) => setTesto(e.target.value)} rows={3} className="bg-white text-sm"
-          placeholder="Rifare il bagno di 6 mq a Monza, 12.000 €, inizio a metà novembre" />
-        <div className="grid grid-cols-[auto_1fr] gap-2">
-          <Button type="button" variant="outline" size="sm" className={cn("gap-1", voce.recording && "border-red-300 text-red-700")}
-            onClick={voce.toggle} disabled={voce.transcribing} aria-pressed={voce.recording}>
-            {voce.transcribing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              : voce.recording ? <Square className="h-4 w-4" aria-hidden /> : <Mic className="h-4 w-4" aria-hidden />}
-            {voce.transcribing ? "Trascrivo…" : voce.recording ? `Ferma (${Math.round(voce.recordingMs / 1000)} s)` : "Parla"}
-          </Button>
-          <Button type="button" size="sm" className="min-w-0 whitespace-normal" disabled={!testo.trim()}
-            onClick={() => { onAggiungi([{ tipo: "testo", testo: testo.trim() }]); setTesto(""); }}>
-            Leggi il testo
-          </Button>
-        </div>
-        <p className="text-xs text-slate-500">Leggere il testo costa circa {euroAI(0.005)}; il vocale si trascrive nel campo.</p>
-      </div>
+      <p className="text-xs lg:text-[11px] text-slate-500">
+        Non hai un documento? Scrivi o detta il lavoro nella chat: Silvio lo legge come una fonte.
+      </p>
 
       {daConfermare.length > 0 && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm" role="group" aria-label="Letture da confermare">
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm lg:text-[13px]" role="group" aria-label="Letture da confermare">
           <p className="text-slate-800">
             {daConfermare.length === 1 ? "1 documento" : `${daConfermare.length} documenti`} da leggere con l'AI:
             {" "}<strong>circa {euroAI(stima)}</strong>{stima >= 0.01 ? " (di più se sono scansioni)" : ""}.
