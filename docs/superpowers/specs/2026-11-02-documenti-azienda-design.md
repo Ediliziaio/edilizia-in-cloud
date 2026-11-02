@@ -287,3 +287,47 @@ Tre cose decise mentre si costruiva, che il piano non diceva:
   primo senza dirlo.
 
 Resta fuori la fase 6: le date si continuano a battere a mano.
+
+---
+
+## Fase 6 — fatta il 02/11/2026: la scadenza letta dal documento
+
+Non è nata una funzione nuova. Il lettore esisteva già — `generic-doc-ai-extract`,
+quello che legge libretti dei mezzi e contratti — e gli è stato aggiunto un tipo,
+`documento_azienda`: gli si dà il file e risponde con tipo, titolo, ente, numero,
+data di emissione e scadenza. In cambio arrivano gratis la cache di novanta giorni
+(ricaricare lo stesso PDF non ripaga la lettura) e il registro dei costi. Il bucket
+`azienda-documenti` è entrato in `BUCKET_LETTURA_GENERICA`, con il suo caso nel test
+di sicurezza dei bucket.
+
+**Si legge dopo, non prima.** Il file sale nell'archivio e poi lo si legge, in tutti
+e tre i punti in cui una carta riceve un file: il caricamento in blocco, il bottone
+«Carica il file» sulla riga, il salvataggio dal modulo. Una finestra sola,
+`ConfermaDateLette`, perché il gesto è lo stesso: *«sul documento c'è scritto questo,
+lo metto?»*.
+
+**Quello che la macchina non fa**, che è il punto della fase:
+
+- **Non scrive.** La data compare in un campo, si può correggere, e quella che vince
+  è quella nel campo — non quella del modello. Niente spunta, niente scrittura.
+- **Non chiede dove non serve.** Una carta che ha già una scadenza non viene nemmeno
+  letta: quella data l'ha scritta una persona. Così la spesa AI è solo sulle carte
+  che la data non ce l'hanno.
+- **Non sovrascrive.** Ente, numero e data del documento si propongono solo dove il
+  campo è vuoto. Titolo e categoria solo sulle carte nate dal nome di un file
+  («Durc ottobre 2026» in «Altro»), dove il nome del file era un ripiego.
+- **Non tira a indovinare.** Sotto `FIDUCIA_MINIMA` (0,5) la proposta è vuota. Una
+  data che non esiste (`2026-02-31`) o fuori da una finestra credibile (prima di
+  quindici anni fa, oltre venticinque avanti) non arriva al campo. Una visura che
+  dichiara di non scadere resta senza scadenza, che è la verità.
+- **Non manda a leggere quello che non si legge.** `.doc` e `.heic` non partono
+  nemmeno: sarebbe solo spesa.
+
+Due alla volta, non venti insieme: leggere un PDF costa qualche secondo e la barra
+dice a che punto è.
+
+Le regole stanno in un posto solo, `src/lib/documentiAzienda/letturaAI.ts`
+(`interpretaLettura` e `campiDaScrivere`), con ventiquattro test: la metà di quei
+test guarda cosa NON si propone, perché è lì che sta il valore. Una scadenza
+sbagliata su un DURC è peggio di una mancante — la mancante si vede vuota, la
+sbagliata fa credere di essere a posto fino al giorno della gara.

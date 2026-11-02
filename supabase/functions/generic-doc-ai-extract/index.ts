@@ -89,6 +89,19 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "ultima_revisione": "YYYY-MM-DD: data dell'ultima revisione timbrata, o null",
   "prossima_revisione": "YYYY-MM-DD se indicata, o null"
 }`,
+  // Carte della ditta (02/11/2026): la pagina «Documenti e scadenze» ha mostrato
+  // ventitré scadenze dentro e zero file. Con i file dentro, la data la batte
+  // ancora a mano qualcuno: qui si legge dal documento e si PROPONE.
+  documento_azienda: `{
+  "tipo_documento": "DURC|SOA|visura camerale|ISO 9001|ISO 14001|ISO 45001|polizza assicurativa|verifica estintori|iscrizione albo o registro|certificato|altro",
+  "titolo": "come chiamarlo in elenco, corto: 'DURC', 'ISO 14001 - Ambiente', 'Polizza RC - ditta', 'Attestazione SOA'",
+  "ente": "chi lo rilascia: INAIL/INPS/Cassa Edile, Camera di Commercio, organismo di certificazione, compagnia assicurativa. null se non leggibile",
+  "numero": "numero del documento: protocollo, numero di polizza, numero di certificato. null se non c'e'",
+  "intestatario": "l'impresa a cui e' intestato, o null",
+  "data_documento": "YYYY-MM-DD: la data di emissione o rilascio stampata sul documento, o null",
+  "data_scadenza": "YYYY-MM-DD: il giorno in cui PERDE validita'. DURC -> la 'scadenza validita'' (NON la data di richiesta); polizza -> la fine della copertura (NON la scadenza di una rata, NON il frazionamento); certificato ISO -> la 'expiry date' del certificato in corso (NON la data di emissione, NON la scadenza del ciclo precedente); verifica estintori -> la prossima verifica. null se il documento non scade o se la data non e' leggibile: meglio nessuna data che una data sbagliata",
+  "senza_scadenza": "true solo se il documento dichiara di non avere scadenza (una visura camerale e' una fotografia del registro imprese: senza_scadenza true, data_scadenza null)"
+}`,
   documento_pa: `{
   "tipo_documento": "SCIA|CILA|PdC|DURC|certificato urbanistico|autorizzazione paesaggistica|abitabilita|altro",
   "numero_protocollo": "string",
