@@ -54,32 +54,23 @@ describe("Incassi e pagamenti della commessa", () => {
 
   it("elenca le uscite aperte con documento, scadenza e azione; il pagato si vede solo con «Tutti»", async () => {
     mostraUscite();
-    const elenco = await screen.findByRole("list", { name: "Pagamenti della commessa" });
+    const elenco = await screen.findByRole("table", { name: "Pagamenti della commessa" });
     expect(within(elenco).getByText(/Senza fattura · ricevuta allegata/)).toBeInTheDocument();
     expect(within(elenco).getByText(/scaduta da 11 giorni/)).toBeInTheDocument();
     expect(within(elenco).getByText(/ancora da maturare/)).toBeInTheDocument();
     expect(within(elenco).queryByText(/FOR-DEMO-2026-N008/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Tutti/ }));
-    expect(within(screen.getByRole("list", { name: "Pagamenti della commessa" })).getByText(/FOR-DEMO-2026-N008/)).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Pagamenti della commessa" })).getByText(/FOR-DEMO-2026-N008/)).toBeInTheDocument();
   });
 
   it("i pulsanti aprono il registro giusto", async () => {
     const onApriSubappalti = vi.fn();
     mostraUscite({ onApriSubappalti });
-    const elenco = await screen.findByRole("list", { name: "Pagamenti della commessa" });
+    const elenco = await screen.findByRole("table", { name: "Pagamenti della commessa" });
     fireEvent.click(within(elenco).getAllByRole("button", { name: "Registra pagamento" })[0]);
     expect(screen.getByText("dialogo costo t")).toBeInTheDocument();
     fireEvent.click(within(elenco).getByRole("button", { name: "Apri SAL" }));
     expect(onApriSubappalti).toHaveBeenCalledOnce();
-  });
-
-  it("con un tipo mostra solo le uscite di quel tipo, e i numeri contano solo quelle", async () => {
-    mostraUscite({ categoria: "subappalti" });
-    const elenco = await screen.findByRole("list", { name: "Pagamenti della commessa" });
-    expect(within(elenco).getByText(/ancora da maturare/)).toBeInTheDocument();
-    expect(within(elenco).queryByText(/Senza fattura · ricevuta allegata/)).toBeNull();
-    const daPagare = screen.getAllByText("Da pagare").find((e) => e.tagName === "P")!.parentElement!;
-    expect(daPagare).toHaveTextContent(/7\.462,72/);
   });
 
   it("Economia non ripete l'elenco delle uscite: porta a Fatture e costi", async () => {
@@ -87,7 +78,7 @@ describe("Incassi e pagamenti della commessa", () => {
     mostra({ onApriUscite });
     fireEvent.click(await screen.findByRole("button", { name: "Vedi le uscite" }));
     expect(onApriUscite).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("list", { name: "Pagamenti della commessa" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Pagamenti della commessa" })).toBeNull();
   });
 
   it("senza permesso sui costi non mostra le uscite", async () => {

@@ -17,11 +17,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import {
   CATEGORIE, STATO_USCITA, documentoUscita, filtraUscite, normalizzaQuadro, riepilogoCategorie, totaliQuadro,
-  type CategoriaUscita, type FiltroUscite, type Uscita,
+  type FiltroUscite, type Uscita,
 } from "@/lib/orders/quadroPagamenti";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { IvaCommessa } from "./IvaCommessa";
 import { PurchasePaymentsDialog } from "./PurchasePaymentsDialog";
+import { RiquadroCommessa, TabellaCommessa } from "./TabellaCommessa";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -104,28 +105,19 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
   );
 }
 
-const TITOLO_USCITE: Partial<Record<CategoriaUscita, string>> = {
-  subappalti: "Pagamenti a subappaltatori e ditte",
-  noleggi: "Pagamenti di noleggi e mezzi",
-};
-
-/**
- * Fatture e costi: ogni uscita della commessa. Con `categoria` solo quelle di un tipo,
- * e i numeri in cima contano solo quelle.
- */
-export function UsciteCommessa({ orderId, categoria, nascondiSeVuota, onApriSubappalti }: {
+/** Fatture e costi → Tutte: ogni uscita della commessa, in una tabella con la stessa veste delle altre viste. */
+export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
   orderId: string;
-  categoria?: CategoriaUscita;
-  /** Sotto un altro riquadro: niente numeri a zero né riquadro vuoto. */
-  nascondiSeVuota?: boolean;
   /** Apre la vista dei subappalti (contratti e SAL passivi). */
   onApriSubappalti?: () => void;
+  /** Porta ai mezzi del cantiere, dove si gestiscono noleggi e spese. */
+  onApriMezzi?: () => void;
 }) {
   const { data, isLoading, isError, refetch } = useQuadroPagamenti(orderId);
   const [filtro, setFiltro] = useState<FiltroUscite>("aperte");
   const [costoAperto, setCostoAperto] = useState<string | null>(null);
   const [odaAperto, setOdaAperto] = useState<string | null>(null);
-  const uscite = useMemo(() => (data?.uscite ?? []).filter((u) => !categoria || u.categoria === categoria), [data, categoria]);
+  const uscite = useMemo(() => data?.uscite ?? [], [data]);
   const totali = useMemo(() => totaliQuadro({ rate: [], uscite }), [uscite]);
   const categorie = useMemo(() => riepilogoCategorie(uscite), [uscite]);
   const righe = useMemo(() => filtraUscite(uscite, filtro), [uscite, filtro]);
@@ -134,56 +126,121 @@ export function UsciteCommessa({ orderId, categoria, nascondiSeVuota, onApriSuba
   if (isLoading || !data) return <Skeleton className="h-48 w-full" />;
 
   const scaduteUscite = uscite.filter((u) => u.stato === "scaduto").length;
-  if (nascondiSeVuota && uscite.length === 0) return null;
+  const azione = (u: Uscita) => u.origine_tipo === "costo" ? () => setCostoAperto(u.origine_id)
+    : u.origine_tipo === "oda" ? () => setOdaAperto(u.origine_id)
+    : u.origine_tipo === "subappalto" ? onApriSubappalti : undefined;
 
   return (
-    <div className="space-y-4">
+    <>
       {costoAperto && <ExpensePaymentDialog key={costoAperto} costId={costoAperto} onClose={() => setCostoAperto(null)} />}
       {odaAperto && <PurchasePaymentsDialog orderId={odaAperto} onClose={() => setOdaAperto(null)} />}
-      <div className="grid grid-cols-2 gap-2 lg:max-w-xl"><KpiUscite totali={totali} /></div>
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-            <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />{(categoria && TITOLO_USCITE[categoria]) ?? "Pagamenti della commessa"}
-            {scaduteUscite > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{scaduteUscite} scaduti</span>}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">Importi IVA inclusa, tranne i subappalti in reverse charge: lì alla ditta va l'imponibile (l'IVA integrata è indicata a parte).</p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {uscite.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{categoria ? "Nessun pagamento di questo tipo sulla commessa." : "Nessun costo, ordine d’acquisto, subappalto o ditta su questa commessa."}</p>
-          ) : <>
+      <RiquadroCommessa
+        icona={<Receipt className="h-5 w-5 text-primary" aria-hidden="true" />}
+        titolo="Pagamenti della commessa" conteggio={uscite.length}
+        riassunto={scaduteUscite > 0 ? <span className="font-medium text-red-700">{scaduteUscite} scaduti</span> : undefined}
+        numeri={<>
+          <dl className="grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl">
+            <NumeroUscite titolo="Pagato" valore={totali.pagato} />
+            <NumeroUscite titolo="Da pagare" valore={totali.daPagare} evidenza={totali.pagamentoScaduto > 0 ? "rosso" : "ambra"}
+              nota={[totali.pagamentoScaduto > 0 ? `${formatCurrency(totali.pagamentoScaduto)} scaduti` : null,
+                totali.impegnato > 0 ? `+ ${formatCurrency(totali.impegnato)} ordinati senza fattura` : null].filter(Boolean).join(" · ") || undefined} />
+          </dl>
+          {uscite.length > 0 && (
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtra i pagamenti">
               <Filtro attivo={filtro === "aperte"} onClick={() => setFiltro("aperte")}>Da pagare</Filtro>
               {scaduteUscite > 0 && <Filtro attivo={filtro === "scadute"} onClick={() => setFiltro("scadute")}>Scaduti ({scaduteUscite})</Filtro>}
-              {!categoria && categorie.map((c) => (
+              {categorie.map((c) => (
                 <Filtro key={c.value} attivo={filtro === c.value} onClick={() => setFiltro(c.value)}>
                   {c.label} · {c.residuo > 0 ? formatCurrency(c.residuo) : c.voci}
                 </Filtro>
               ))}
               <Filtro attivo={filtro === "tutte"} onClick={() => setFiltro("tutte")}>Tutti ({uscite.length})</Filtro>
             </div>
-            {righe.length === 0 ? (
-              <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Niente da pagare qui: tutto saldato.</p>
-            ) : (
-              <ul className="divide-y rounded-md border" aria-label="Pagamenti della commessa">
-                {righe.map((u) => (
-                  <RigaUscita key={u.chiave} u={u} oggi={data.oggi}
-                    onPagamenti={u.origine_tipo === "costo" ? () => setCostoAperto(u.origine_id)
-                      : u.origine_tipo === "oda" ? () => setOdaAperto(u.origine_id)
-                      : u.origine_tipo === "subappalto" ? onApriSubappalti : undefined} />
-                ))}
-              </ul>
-            )}
-          </>}
-          {(!categoria || categoria === "noleggi") && data.mezzi_stimati?.costo ? (
+          )}
+        </>}
+      >
+        <div className="space-y-3">
+          {uscite.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nessun costo, ordine d’acquisto, subappalto o ditta su questa commessa.</p>
+          ) : righe.length === 0 ? (
+            <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Niente da pagare qui: tutto saldato.</p>
+          ) : (
+            <TabellaCommessa etichetta="Pagamenti della commessa" righe={righe} chiave={(u) => u.chiave} colonne={[
+              { titolo: "A chi", principale: true, cella: (u) => <CellaUscita u={u} /> },
+              { titolo: "Documento", cella: (u) => <span className="text-xs">{documentoUscita(u)}{u.ha_ricevuta && !u.senza_fattura && <span className="block text-muted-foreground"><Paperclip className="mr-1 inline h-3 w-3" aria-hidden="true" />Ricevuta allegata</span>}</span> },
+              { titolo: "Scadenza", cella: (u) => <CellaScadenza u={u} oggi={data.oggi} /> },
+              { titolo: "Importo", destra: true, cella: (u) => formatCurrency(u.importo) },
+              { titolo: "Pagato", destra: true, cella: (u) => (u.pagato > 0 ? formatCurrency(u.pagato) : "—") },
+              { titolo: "Da pagare", destra: true, cella: (u) => <span className="font-medium">{u.stato === "fattura_da_arrivare" ? "—" : formatCurrency(u.residuo)}</span> },
+              { titolo: "Stato", cella: (u) => <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATO_USCITA[u.stato].classe}`}>{STATO_USCITA[u.stato].label}</span> },
+              { titolo: "Azioni", destra: true, cella: (u) => { const fai = azione(u); return fai ? (
+                <Button size="sm" variant="outline" onClick={fai}>{u.origine_tipo === "subappalto" ? "Apri SAL" : u.stato === "pagato" ? "Pagamenti" : "Registra pagamento"}</Button>
+              ) : null; } },
+            ]} />
+          )}
+          {data.mezzi_stimati?.costo ? (
             <p className="text-xs text-muted-foreground">
               Mezzi dell’azienda usati in cantiere: costo stimato {formatCurrency(Number(data.mezzi_stimati.costo))} ({data.mezzi_stimati.giorni ?? 0} giorni-mezzo). È un costo interno, non un pagamento.
             </p>
           ) : null}
-        </CardContent>
-      </Card>
+          <p className="text-xs text-muted-foreground">
+            Importi IVA inclusa, tranne i subappalti in reverse charge: lì alla ditta va l'imponibile.
+            {onApriMezzi && <>{" "}I noleggi si collegano ai mezzi in <button type="button" className="font-medium text-primary underline underline-offset-2" onClick={onApriMezzi}>Cantiere → Lavorazioni</button>.</>}
+          </p>
+        </div>
+      </RiquadroCommessa>
+    </>
+  );
+}
+
+function NumeroUscite({ titolo, valore, nota, evidenza }: { titolo: string; valore: number; nota?: string; evidenza?: "rosso" | "ambra" }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{titolo}</dt>
+      <dd className={`mt-1 text-sm font-semibold tabular-nums ${evidenza === "rosso" ? "text-red-700" : evidenza === "ambra" ? "text-amber-700" : ""}`}>{formatCurrency(valore)}</dd>
+      {nota && <dd className="text-xs text-muted-foreground">{nota}</dd>}
     </div>
+  );
+}
+
+function CellaUscita({ u }: { u: Uscita }) {
+  const categoria = CATEGORIE.find((c) => c.value === u.categoria)?.label ?? u.categoria;
+  return (
+    <div className="min-w-0">
+      <p className="font-medium">{u.controparte ?? "Senza fornitore"} <span className="font-normal text-muted-foreground">· {u.descrizione}</span></p>
+      <p className="text-xs text-muted-foreground">
+        {categoria}{u.riferimento ? ` · ${u.riferimento}` : ""}{u.ripartito ? ` · quota ${u.quota_pct.toLocaleString("it-IT")}%` : ""}
+      </p>
+      {u.origine_tipo === "subappalto" && u.contratto != null && (
+        <p className="text-xs text-muted-foreground">
+          Contratto {formatCurrency(u.contratto)} · maturato {formatCurrency(u.maturato_lordo ?? 0)}
+          {u.ritenute ? ` · ritenute ${formatCurrency(u.ritenute)}` : ""}
+          {u.contratto - (u.maturato_lordo ?? 0) > 0.01 ? ` · ancora da maturare ${formatCurrency(u.contratto - (u.maturato_lordo ?? 0))}` : ""}
+        </p>
+      )}
+      {(u.origine_tipo === "subappalto" || u.origine_tipo === "ditta") && u.iva_pct != null && (
+        <p className="text-xs text-muted-foreground">
+          {u.reverse_charge
+            ? `Reverse charge: alla ditta va l'imponibile; l'IVA ${Number(u.iva_pct).toLocaleString("it-IT")}%${u.iva_da_versare ? ` (${formatCurrency(u.iva_da_versare)})` : ""} la integri tu e la detrai insieme: non cambia quanto versi`
+            : `IVA ${Number(u.iva_pct).toLocaleString("it-IT")}% inclusa`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CellaScadenza({ u, oggi }: { u: Uscita; oggi: string }) {
+  if (u.stato === "pagato") return u.pagato_il ? <span className="whitespace-nowrap text-xs text-muted-foreground">Pagato il {dataIt(u.pagato_il)}</span> : <span className="text-xs">—</span>;
+  if (!u.scadenza) return <span className="text-xs">—</span>;
+  const scaduta = u.stato === "scaduto";
+  const giorni = oggi ? Math.round((Date.parse(u.scadenza) - Date.parse(oggi)) / 86_400_000) : null;
+  return (
+    <span className={`block text-xs ${scaduta ? "font-medium text-red-700" : "text-muted-foreground"}`}>
+      {scaduta && <AlertTriangle className="mr-1 inline h-3 w-3" aria-hidden="true" />}
+      {/* Subappalto: la data è quando il SAL è maturato; i termini di pagamento stanno nel contratto. */}
+      {u.origine_tipo === "oda" ? "Consegna prevista" : u.origine_tipo === "subappalto" ? "SAL da pagare dal" : ""} <span className="whitespace-nowrap">{dataIt(u.scadenza)}</span>
+      {giorni != null && u.origine_tipo !== "oda" && u.origine_tipo !== "subappalto" ? <span className="block whitespace-nowrap">{giorni < 0 ? `scaduta da ${-giorni} giorni` : giorni === 0 ? "oggi" : `tra ${giorni} giorni`}</span> : null}
+    </span>
   );
 }
 
@@ -227,62 +284,6 @@ function SalCliente({ sal }: { sal: ReturnType<typeof normalizzaQuadro>["sal_cli
         </ul>
       </CardContent>
     </Card>
-  );
-}
-
-function RigaUscita({ u, oggi, onPagamenti }: { u: Uscita; oggi: string; onPagamenti?: () => void }) {
-  const st = STATO_USCITA[u.stato];
-  const categoria = CATEGORIE.find((c) => c.value === u.categoria)?.label ?? u.categoria;
-  const scaduta = u.stato === "scaduto";
-  const giorni = u.scadenza && oggi ? Math.round((Date.parse(u.scadenza) - Date.parse(oggi)) / 86_400_000) : null;
-  return (
-    <li className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold">{u.controparte ?? "Senza fornitore"} <span className="font-normal text-muted-foreground">· {u.descrizione}</span></p>
-        <p className="text-xs text-muted-foreground">
-          {categoria}{u.riferimento ? ` · ${u.riferimento}` : ""} · {documentoUscita(u)}
-          {u.ripartito ? ` · quota ${u.quota_pct.toLocaleString("it-IT")}%` : ""}
-        </p>
-        {u.origine_tipo === "subappalto" && u.contratto != null && (
-          <p className="text-xs text-muted-foreground">
-            Contratto {formatCurrency(u.contratto)} · maturato {formatCurrency(u.maturato_lordo ?? 0)}
-            {u.ritenute ? ` · ritenute ${formatCurrency(u.ritenute)}` : ""}
-            {u.contratto - (u.maturato_lordo ?? 0) > 0.01 ? ` · ancora da maturare ${formatCurrency(u.contratto - (u.maturato_lordo ?? 0))}` : ""}
-          </p>
-        )}
-        {(u.origine_tipo === "subappalto" || u.origine_tipo === "ditta") && u.iva_pct != null && (
-          <p className="text-xs text-muted-foreground">
-            {u.reverse_charge
-              ? `Reverse charge: alla ditta va l'imponibile; l'IVA ${Number(u.iva_pct).toLocaleString("it-IT")}%${u.iva_da_versare ? ` (${formatCurrency(u.iva_da_versare)})` : ""} la integri tu e la detrai insieme: non cambia quanto versi`
-              : `IVA ${Number(u.iva_pct).toLocaleString("it-IT")}% inclusa`}
-          </p>
-        )}
-        {u.stato !== "pagato" && u.scadenza && (
-          <p className={`text-xs ${scaduta ? "font-medium text-red-700" : "text-muted-foreground"}`}>
-            {scaduta && <AlertTriangle className="mr-1 inline h-3 w-3" aria-hidden="true" />}
-            {/* Subappalto: la data è quando il SAL è maturato; i termini di pagamento stanno nel contratto. */}
-            {u.origine_tipo === "oda" ? "Consegna prevista" : u.origine_tipo === "subappalto" ? "SAL da pagare dal" : "Scadenza"} {dataIt(u.scadenza)}
-            {giorni != null && u.origine_tipo !== "oda" && u.origine_tipo !== "subappalto" ? (giorni < 0 ? ` · scaduta da ${-giorni} giorni` : giorni === 0 ? " · oggi" : ` · tra ${giorni} giorni`) : ""}
-          </p>
-        )}
-        {u.stato === "pagato" && u.pagato_il && <p className="text-xs text-muted-foreground">Pagato il {dataIt(u.pagato_il)}</p>}
-        {u.ha_ricevuta && <p className="text-xs text-muted-foreground"><Paperclip className="mr-1 inline h-3 w-3" aria-hidden="true" />Ricevuta allegata</p>}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.classe}`}>{st.label}</span>
-        <div className="text-right tabular-nums">
-          <p className="text-sm font-semibold">{formatCurrency(u.stato === "pagato" || u.stato === "fattura_da_arrivare" ? u.importo : u.residuo)}</p>
-          <p className="text-[11px] text-muted-foreground">
-            {u.stato === "fattura_da_arrivare" ? "ordinato" : u.stato === "pagato" ? "pagato" : u.pagato > 0 ? `resta · pagato ${formatCurrency(u.pagato)} su ${formatCurrency(u.importo)}` : "da pagare"}
-          </p>
-        </div>
-        {onPagamenti && (
-          <Button size="sm" variant="outline" onClick={onPagamenti}>
-            {u.origine_tipo === "subappalto" ? "Apri SAL" : u.stato === "pagato" ? "Pagamenti" : "Registra pagamento"}
-          </Button>
-        )}
-      </div>
-    </li>
   );
 }
 
