@@ -3,7 +3,10 @@
  *
  * Deploy 2026-06-10: token-opt attivo (tool filtrati per dominio via
  * classifyQuery + contratti compatti + prompt cache a prefisso statico).
- * Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED / AI_PROMPT_CACHE_DISABLED.
+ * 02/11/2026: cache a 5 minuti col breakpoint di coda, sola lettura, tetti sul
+ * turno (_shared/silvioRisparmioToken.ts).
+ * Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED / AI_PROMPT_CACHE_DISABLED /
+ * AI_PROMPT_CACHE_TAIL_DISABLED / SILVIO_SOLA_LETTURA_DISABLED.
  *
  * Bridge Internal Chat (Chat Team) ↔ Silvio (meta-persona orchestrator AI).
  * Supporta TOOL CALLING: Silvio invoca tool RPC su dati reali aziendali
@@ -68,6 +71,14 @@ import { classifyQuery, type QueryClassification } from "../_shared/queryClassif
 import { dominiPerAree, indiceAreeCaricabili } from "../_shared/silvioTools.ts";
 import { ruoloPrincipaleSilvio, usaPermessiStaff } from "../_shared/ruoloSilvio.ts";
 import { dichiaraAzioneNonEseguita, RICHIAMO_AZIONE_NON_ESEGUITA } from "../_shared/azioneDichiarata.ts";
+import {
+  CONCLUDI_ADESSO,
+  domandaDiSolaLettura,
+  limiteRisultatoStrumento,
+  PASSAGGI_SOLA_LETTURA,
+  REGOLE_DATI_SILVIO,
+  STORICO_VECCHI,
+} from "../_shared/silvioRisparmioToken.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
@@ -453,6 +464,10 @@ serve(async (req: Request) => {
     if (channel.name !== "silvio-ai") return errorResponse("Canale non è Silvio", 400, corsHeaders);
 
     const companyId: string = channel.company_id;
+    // Cache di coda, sola lettura e tetti (02/11/2026): prima su Demo Azienda 2, dove si misura col
+    // provider vero. Per tutti: SILVIO_RISPARMIO_TOKEN_PER_TUTTI=true, senza ripubblicare.
+    const risparmioToken = companyId === "d2000000-0000-4000-a000-000000000002" ||
+      Deno.env.get("SILVIO_RISPARMIO_TOKEN_PER_TUTTI") === "true";
 
     // Sei controlli indipendenti, una sola attesa. Prima erano in fila —
     // accesso, carta, membro del canale, persona, RBAC, e il credito non
@@ -778,23 +793,6 @@ serve(async (req: Request) => {
         "REGOLA: Usa questo context per default se la domanda è VAGA o si riferisce a 'questo/questa/questi'. Se la domanda nomina ESPLICITAMENTE altra entità (es. 'commessa ORD-X', 'cliente Bianchi'), IGNORA il context corrente e rispondi alla domanda esplicita.",
         "",
       ] : []),
-      "# REGOLE DUE-DILIGENCE NEI DATI",
-      "1. PRIMA di rispondere a domande SU DATI AZIENDALI (commesse, fatture, cashflow, clienti, ecc), DEVI invocare il tool appropriato. NON inventare numeri.",
-      "2. Se un tool ritorna un errore o dati vuoti, dillo esplicitamente.",
-      "3. Se la domanda è cross-area (es. 'posso assumere?'), invoca PIÙ tool e sintetizza.",
-      "4. Se il dato richiesto NON è coperto dai tool, dillo: 'Per questa info devi consultare [area]'.",
-      "5. Riporta SEMPRE i numeri reali dai tool, non arrotondamenti vaghi.",
-      "6. Cita sempre la fonte (es. 'in base alle 41 commesse attive registrate').",
-      "7. Se un tool ritorna data_quality.warnings, non trattare lo zero come certezza: spiega cosa manca e dai solo una lettura prudente.",
-      "8. Se un tool ritorna priorita_recupero o campi priorita, usa quell'ordine per dire chi/cosa fare prima.",
-      "9. Non nominare mai personas/consulenti interni nella risposta finale: rispondi come una sola regia, Silvio.",
-      "10. Se un tool ritorna proposalId, _proposal o riskLevel yellow/red, l'azione NON è conclusa: dì che è pronta/in attesa di conferma, non che è stata eseguita.",
-      "11. PERIODI TEMPORALI: per domande su un MESE SPECIFICO passato ('mese scorso', 'aprile', 'come è andato marzo', 'fatturato di X mese', 'confronto vs mese precedente'), usa SEMPRE get_monthly_performance(year, month). Per 'mese scorso' calcola year/month dalla data corrente meno 1 mese. NON dire 'dati non disponibili' senza prima aver provato questo tool.",
-      "",
-      "# REGOLA FORMATO",
-      "- Numeri sempre formato italiano: € 1.234,56",
-      "- Date sempre dd/mm/yyyy",
-      "- Risposte concise (max 250 parole) salvo richiesta esplicita di approfondimento",
     ].join("\n");
 
     // ── 4.ter) Carica memoria long-term: facts azienda + sintesi recenti utente
@@ -933,7 +931,8 @@ serve(async (req: Request) => {
     // byte-identico tra messaggi → cache-hit. Dinamico (data, memoria, RAG):
     // dopo il breakpoint. aiRouter mette i breakpoint su Anthropic e fonde i
     // due blocchi in un'unica stringa sugli altri provider.
-    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE;
+    // Niente data, azienda, utente o messaggio in questo blocco.
+    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE + REGOLE_DATI_SILVIO;
     let dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
@@ -950,6 +949,7 @@ serve(async (req: Request) => {
       currentSenderId: userId,
       currentContent: userMessage,
       currentMessageId: requestMessageId,
+      ...(risparmioToken ? { vecchi: STORICO_VECCHI } : {}),
     });
 
     // ── 6.5) Classificazione query (MP-09 + token-opt) ──────────────────
@@ -999,12 +999,19 @@ serve(async (req: Request) => {
     // quando serve.
     const dominiExtra = new Set<ToolDomain>();
     let dominiExtraApplicati = 0;
+    // Domanda chiaramente di lettura: niente strumenti che scrivono, che valgono
+    // un quarto dello schema. Solo col filtro attivo, perche' per riprenderli
+    // serve `carica_strumenti`. Kill-switch: SILVIO_SOLA_LETTURA_DISABLED=true.
+    let soloLettura = risparmioToken && !!toolDomains &&
+      Deno.env.get("SILVIO_SOLA_LETTURA_DISABLED") !== "true" &&
+      domandaDiSolaLettura(userMessage, attachments.length > 0);
     let allowedTools = getToolsForChannel({
       channel: "internal_chat",
       role: primaryRole,
       personaKey: PERSONA_KEY,
       domains: toolDomains,
       staffPermissions,
+      soloLettura,
     });
     // Senza filtro attivo il catalogo e gia tutto a bordo: offrire
     // `carica_strumenti` sarebbe solo un invito a sprecare un giro.
@@ -1017,18 +1024,19 @@ serve(async (req: Request) => {
         personaKey: PERSONA_KEY,
         domains: toolDomains ? [...new Set([...toolDomains, ...dominiExtra])].sort() : null,
         staffPermissions,
+        soloLettura,
       });
       toolSchemas = toolsToOpenAISpec(allowedTools);
-      console.log(`[silvio-chat] strumenti ricaricati: +${[...dominiExtra].join(",")} → ${allowedTools.length} tool`);
+      console.log(`[silvio-chat] strumenti ricaricati: +${[...dominiExtra].join(",")} soloLettura=${soloLettura} → ${allowedTools.length} tool`);
     };
     // Log per misurare prima/dopo su ai_router_usage_log (prompt_tokens) + qui (char).
     console.log(
-      `[silvio-chat] tool filter: ${toolDomains ? toolDomains.join(",") : "FULL"} → ${allowedTools.length} tool, ~${JSON.stringify(toolSchemas).length} char`,
+      `[silvio-chat] tool filter: ${toolDomains ? toolDomains.join(",") : "FULL"} soloLettura=${soloLettura} → ${allowedTools.length} tool, ~${JSON.stringify(toolSchemas).length} char`,
     );
     // Il modello deve SAPERE cosa gli manca, altrimenti l'unico modo di
     // scoprirlo e indovinare. Va nel blocco dinamico: cambia con la
     // classificazione, e metterlo in quello statico romperebbe la cache.
-    const indiceAree = indiceAreeCaricabili(toolDomains);
+    const indiceAree = indiceAreeCaricabili(toolDomains, soloLettura);
     if (indiceAree) dynamicSystemPrompt = `${dynamicSystemPrompt ?? ""}${indiceAree}`;
 
     const toolCtx: ToolContext = {
@@ -1467,10 +1475,18 @@ serve(async (req: Request) => {
 
     // Firme delle tool-call per iterazione (per il loop-detection sotto).
     const iterationSigs: string[] = [];
+    let azioniDaCaricare = false;
     let richiamoAzioneFatto = false;
-    while (!finalContent && iteration < MAX_TOOL_ITERATIONS) {
+    // Caratteri di risultati gia' messi nel prompt di questo turno.
+    let charRisultati = 0;
+    const limitePassaggi = () => (soloLettura ? PASSAGGI_SOLA_LETTURA : MAX_TOOL_ITERATIONS);
+    while (!finalContent && iteration < limitePassaggi()) {
       iteration++;
       const idempotencyKey = `${idempotencyBase}_iter${iteration}`;
+      // Ultimo passaggio: una risposta coi dati gia' letti vale piu' di «non sono
+      // riuscito», e gli strumenti restano nel body perche' la cache regga.
+      const ultimoPassaggio = iteration === limitePassaggi() && iteration > 1 && !skipToolsForModel;
+      if (ultimoPassaggio) messages.push({ role: "user", content: CONCLUDI_ADESSO });
 
       let result;
       try {
@@ -1486,7 +1502,10 @@ serve(async (req: Request) => {
             max_tokens: 2500,
             // Skip tools per modelli non supportati (Kimi/DeepSeek/Llama/...)
             tools: skipToolsForModel ? [] : toolSchemas,
-            tool_choice: skipToolsForModel ? undefined : "auto",
+            tool_choice: skipToolsForModel ? undefined : ultimoPassaggio ? "none" : "auto",
+            // 5 minuti: bastano ai passaggi dello stesso messaggio e ai messaggi
+            // vicini. L'ora costa 2x e rendeva su 1 ripresa su 6 (02/11/2026).
+            ...(risparmioToken ? { promptCache: { ttl: "5m" as const, coda: true } } : {}),
           },
           // MP-04: structured output (json_schema strict) per tier balanced/premium.
           // Disabilitato durante tool calls (json_schema entra in conflitto con tool_choice=auto).
@@ -1604,7 +1623,8 @@ serve(async (req: Request) => {
           const { tc, toolName, toolArgs } = chiamate[k];
           const toolResult = risultati[k];
           if (toolName === "search_brain") registerBrainToolSources(toolResult, ragSources);
-          const resultStr = silvioToolResultForPrompt(toolResult);
+          const resultStr = silvioToolResultForPrompt(toolResult, risparmioToken ? limiteRisultatoStrumento(charRisultati) : undefined);
+          charRisultati += resultStr.length;
           partialToolContext ||= silvioToolContextIsPartial(resultStr);
 
           toolCallsLog.push({
@@ -1643,6 +1663,10 @@ serve(async (req: Request) => {
           // domini si aggiungono qui, la lista strumenti si ricostruisce sotto
           // e alla prossima iterazione li ha davvero a bordo.
           if (toolName === "carica_strumenti" && toolResult.success) {
+            if (soloLettura && toolArgs?.azioni === true) {
+              soloLettura = false;
+              azioniDaCaricare = true;
+            }
             for (const d of dominiPerAree(toolArgs?.aree)) {
               // Solo i domini che NON sono gia' a bordo: rifare la lista con
               // gli stessi tool bucherebbe la cache del prompt per niente
@@ -1653,8 +1677,9 @@ serve(async (req: Request) => {
           }
         }
 
-        if (dominiExtra.size > dominiExtraApplicati) {
+        if (dominiExtra.size > dominiExtraApplicati || azioniDaCaricare) {
           dominiExtraApplicati = dominiExtra.size;
+          azioniDaCaricare = false;
           rebuildTools();
         }
 
@@ -1670,7 +1695,7 @@ serve(async (req: Request) => {
       if (
         !richiamoAzioneFatto &&
         !skipToolsForModel &&
-        iteration < MAX_TOOL_ITERATIONS &&
+        iteration < limitePassaggi() &&
         dichiaraAzioneNonEseguita(testoFinale, toolCallsLog)
       ) {
         richiamoAzioneFatto = true;
@@ -1685,7 +1710,7 @@ serve(async (req: Request) => {
       break;
     }
 
-    if (!finalContent && iteration >= MAX_TOOL_ITERATIONS) {
+    if (!finalContent && iteration >= limitePassaggi()) {
       finalContent = "⚠️ Non sono riuscito a completare l'analisi. Riformula la domanda in modo più specifico.";
     }
 

@@ -233,13 +233,13 @@ const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
 /**
  * Token-opt: legenda UNICA dei contratti/rischi, da appendere UNA volta al
  * system prompt dei caller che usano `toolsToOpenAISpec`. Le description dei
- * tool portano solo un tag compatto `[contratto:<dominio>|rischio:<livello>]`
- * (~25 char) invece di ~200 char ripetuti su ~185 tool (≈ -9K token/richiesta).
+ * tool portano solo un tag compatto `[<dominio>]`, col `|rischio:<livello>` se non e safe
+ * (~10 char) invece di ~200 char ripetuti su ~185 tool (≈ -9K token/richiesta).
  */
 export const TOOL_CONTRACT_LEGEND = [
   "",
   "## LEGENDA TOOL (tag compatti nelle description)",
-  "Ogni tool ha un tag `[contratto:<dominio>|rischio:<livello>]` (oppure `Contratto: ...` esplicito + `[rischio:...]`).",
+  "Ogni tool ha un tag `[<dominio>]` oppure `[<dominio>|rischio:<livello>]` (o `Contratto: ...` esplicito + `[rischio:...]`). Senza `rischio` il livello e safe.",
   "Contratto per dominio = come interpretare l'output del tool:",
   ...Object.entries(DOMAIN_RESULT_CONTRACTS).map(([d, c]) => `- ${d}: ${c}`),
   "- default: sintetizza dati in decisione operativa con perimetro, limiti e prossima azione.",
@@ -261,7 +261,7 @@ function enrichToolSchemaForLLM(tool: SilvioTool) {
     // restano inline. Per tutti gli altri solo il tag, spiegato in TOOL_CONTRACT_LEGEND.
     tool.resultContract
       ? `Contratto: ${tool.resultContract}\n[rischio:${risk}]`
-      : `[contratto:${contractKey}|rischio:${risk}]`,
+      : risk === "safe" ? `[${contractKey}]` : `[${contractKey}|rischio:${risk}]`,
   ].filter(Boolean).join("\n");
 
   if (schema?.function) {
@@ -8864,7 +8864,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "carica_strumenti",
-        description: "Carica gli strumenti di un'area che non hai a bordo. Il catalogo completo e troppo grande per essere spedito tutto a ogni messaggio, quindi parti con le aree piu probabili per la domanda: se ti serve qualcosa che non trovi tra i tuoi strumenti, chiama QUESTO e riprova subito dopo — gli strumenti dell'area saranno disponibili. Non dire mai all'utente che una cosa non si puo fare senza aver prima provato a caricare l'area giusta.",
+        description: "Carica gli strumenti di un'area che non hai a bordo: se non trovi quello che ti serve, chiama QUESTO e riprova subito. Non dire mai all'utente che una cosa non si puo fare senza aver prima provato a caricare l'area giusta.",
         parameters: {
           type: "object",
           properties: {
@@ -8874,7 +8874,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
                 type: "string",
                 enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "mezzi", "posta", "campagne", "calendario", "contenuti", "assistenza"],
               },
-              description: "Aree da caricare. Puoi chiederne piu di una in una volta sola.",
+              description: "Aree da caricare. Puoi chiederne piu di una in una volta sola. Vuoto se ti servono solo le azioni.",
+            },
+            azioni: {
+              type: "boolean",
+              description: "true per riavere gli strumenti che creano, inviano, registrano o approvano, quando ne hai solo di lettura.",
             },
           },
           required: ["aree"],
@@ -8884,6 +8888,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: (args, _ctx) => {
       const richieste = Array.isArray(args?.aree) ? args.aree.map((a: any) => String(a)) : [];
       const valide = richieste.filter((a: any) => a in AREE_CARICABILI);
+      if (valide.length === 0 && args?.azioni === true) {
+        return Promise.resolve({
+          caricate: [],
+          azioni: true,
+          nota: "Gli strumenti che scrivono sono ora a bordo: richiama subito quello che ti serve. Non ripetere questa chiamata.",
+        });
+      }
       if (valide.length === 0) {
         return Promise.resolve({
           error: `Area non riconosciuta. Aree disponibili: ${Object.keys(AREE_CARICABILI).join(", ")}.`,
@@ -8948,19 +8959,22 @@ export const AREE_CARICABILI: Record<string, { etichetta: string; domini: ToolDo
  * l'unico modo di scoprire le altre aree sarebbe indovinare.
  * Costa ~350 caratteri contro i ~13K token che fa risparmiare.
  */
-export function indiceAreeCaricabili(dominiGiaABordo: ToolDomain[] | null): string {
+export function indiceAreeCaricabili(dominiGiaABordo: ToolDomain[] | null, soloLettura = false): string {
   if (!dominiGiaABordo) return "";
   const presenti = new Set(dominiGiaABordo);
   const mancanti = Object.entries(AREE_CARICABILI)
     .filter(([, v]) => !v.domini.every((d) => presenti.has(d)))
     .map(([k, v]) => `${k} (${v.etichetta})`);
-  if (mancanti.length === 0) return "";
+  if (mancanti.length === 0 && !soloLettura) return "";
   return [
     "",
     "## STRUMENTI NON ANCORA A BORDO",
     "Hai solo gli strumenti delle aree piu probabili per questa domanda. Altre aree disponibili:",
     ...mancanti.map((m) => `- ${m}`),
     "Se ti serve qualcosa che non trovi, chiama `carica_strumenti` con l'area e riprova subito.",
+    ...(soloLettura
+      ? ["Per questa domanda hai solo strumenti di lettura: se l'utente chiede di creare, inviare, registrare, approvare o modificare, chiama `carica_strumenti` con `azioni: true`."]
+      : []),
     "Non rispondere MAI \"non posso farlo\" prima di aver provato a caricare l'area giusta.",
   ].join("\n");
 }
@@ -9022,7 +9036,11 @@ const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
   finance: ["anomalie", "banking", "fattura", "finance"],
   fiscal: ["anomalie", "banking", "compliance", "fattura", "finance"],
   // `mezzi` (2 tool): «dov'e il demolitore» e una domanda di cantiere.
-  operations: ["calendar", "cantiere", "filiera", "mezzi", "operations", "warehouse"],
+  // `hr` dal 02/11/2026: in 4 casi su 6 la chat caricava `persone` a meta' di una
+  // domanda sui cantieri («chi c'e su…»), e un ricaricamento riscrive tutta la
+  // cache (~0,10 $). Portarlo sempre costa ~0,008 $ a messaggio: conviene sopra
+  // l'8% di ricaricamenti.
+  operations: ["calendar", "cantiere", "filiera", "hr", "mezzi", "operations", "warehouse"],
   sales: ["calendar", "crm", "preventivi", "sales"],
   marketing: ["crm", "email", "generative", "marketing", "sales"],
   hr: ["calendar", "hr"],
@@ -9165,6 +9183,9 @@ export function getToolsForChannel(opts: {
   /** RBAC granulare per-utente (vedi DOMAIN_STAFF_PERMISSION): riga
    *  staff_permissions dell'utente. Se assente/null → nessun filtro extra. */
   staffPermissions?: Record<string, unknown> | null;
+  /** Solo i tool safe (domanda di sola lettura). Toglie e basta: i filtri sopra
+   *  restano tutti, e il resto si riprende con `carica_strumenti` area `azioni`. */
+  soloLettura?: boolean;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
   const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
@@ -9190,6 +9211,7 @@ export function getToolsForChannel(opts: {
     // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
     // staff mappato sul suo dominio è esplicitamente false.
     if (opts.staffPermissions && tool.domain && areaSpentaPerPermessi(opts.staffPermissions, tool.domain)) continue;
+    if (opts.soloLettura && (tool.riskLevel ?? "safe") !== "safe") continue;
     out.push(tool);
   }
   return out;
