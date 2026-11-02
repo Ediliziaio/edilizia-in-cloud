@@ -319,11 +319,11 @@ export function mapUnitaMisura(raw: string | null | undefined): EleUnitaMisura {
  * Ricerca prodotti dal listino aziendale (`article_templates`) per prefill di
  * `costo_materiali`. `term` typeahead (nome / sku / marca).
  */
-export function usePrefillFromArticolo(term: string) {
+export function usePrefillFromArticolo(term: string, attivo = true, limite = 40) {
   const companyId = useEffectiveCompanyId();
   return useQuery<PrefillArticoloOption[]>({
-    queryKey: K.articoliSearch(companyId, term),
-    enabled: !!companyId,
+    queryKey: [...K.articoliSearch(companyId, term), limite],
+    enabled: !!companyId && attivo,
     staleTime: 60_000,
     queryFn: async () => {
       let q = sb()
@@ -338,7 +338,7 @@ export function usePrefillFromArticolo(term: string) {
       if (t) {
         q = q.or(`name.ilike.%${t}%,sku.ilike.%${t}%,marca.ilike.%${t}%`);
       }
-      const { data, error } = await q.order("name").limit(40);
+      const { data, error } = await q.order("name").limit(limite);
       if (error) throw new Error(error.message);
       return ((data ?? []) as Record<string, unknown>[]).map((d) => ({
         id: String(d.id),
@@ -419,11 +419,11 @@ export interface ListinoVoceSearchOption {
  * capitolo (così la voce può essere pre-assegnata al capitolo giusto).
  */
 /** `capitoloId`: solo le voci di quel capitolo, tutte (si sfoglia il listino per capitolo). */
-export function useListinoVociSearch(term: string, capitoloId?: string | null) {
+export function useListinoVociSearch(term: string, capitoloId?: string | null, attivo = true, limite = 40) {
   const companyId = useEffectiveCompanyId();
   return useQuery<ListinoVoceSearchOption[]>({
-    queryKey: K.vociSearch(companyId, term, capitoloId),
-    enabled: !!companyId,
+    queryKey: [...K.vociSearch(companyId, term, capitoloId), limite],
+    enabled: !!companyId && attivo,
     staleTime: 60_000,
     queryFn: async () => {
       let q = sb()
@@ -435,7 +435,7 @@ export function useListinoVociSearch(term: string, capitoloId?: string | null) {
       const t = termineDiRicerca(term);
       if (t) q = q.or(`descrizione.ilike.%${t}%,codice.ilike.%${t}%`);
       if (capitoloId) q = q.eq("capitolo_id", capitoloId);
-      const { data, error } = await q.order("ordine").limit(capitoloId ? 300 : 40);
+      const { data, error } = await q.order("ordine").limit(capitoloId ? Math.max(300, limite) : limite);
       if (error) throw new Error(error.message);
       return ((data ?? []) as Record<string, unknown>[]).map((d) => {
         const cap = d.capitolo as { nome?: string } | null;

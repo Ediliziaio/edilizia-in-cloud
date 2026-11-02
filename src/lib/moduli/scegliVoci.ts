@@ -17,28 +17,50 @@ export interface RigaScelta {
   voce: VoceScelta;
 }
 
-/** «2,5» e «2.5» sono la stessa quantità, «1.500» e «1.500,5» hanno il punto delle migliaia. Null se non è un numero positivo. */
-export function leggiQuantita(testo: string): number | null {
+/** «2,5» e «2.5» sono lo stesso numero, «1.500» e «1.500,5» hanno il punto delle migliaia, «0.500» no. */
+function leggiNumero(testo: string): number | null {
   const t = testo.trim();
-  const conMigliaia = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t);
+  const conMigliaia = /^[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/.test(t);
   const n = Number((conMigliaia ? t.replace(/\./g, "") : t).replace(",", "."));
-  if (!t || !Number.isFinite(n)) return null;
+  return !t || !Number.isFinite(n) ? null : n;
+}
+
+/** Null se non è un numero positivo. */
+export function leggiQuantita(testo: string): number | null {
+  const n = leggiNumero(testo);
+  if (n === null) return null;
   const tonda = Math.round(n * 100) / 100;
   return tonda > 0 ? tonda : null;
 }
 
-/** Le voci pronte da aggiungere, il totale, e quante aspettano ancora una quantità valida. */
-export function totaleScelte(scelte: readonly { riga: RigaScelta; quantita: string }[]) {
+/** Il prezzo scritto sulla riga, fino a 4 decimali: «0,125» al pezzo non è 0,13. Zero è ammesso (voce da completare dopo), vuoto o negativo no. */
+export function leggiPrezzo(testo: string): number | null {
+  const n = leggiNumero(testo);
+  return n === null || n < 0 ? null : Math.round(n * 10000) / 10000;
+}
+
+/** Come si mostra nel campo il prezzo del listino. */
+export const prezzoInCampo = (prezzo: number) => String(Math.round(prezzo * 10000) / 10000).replace(".", ",");
+
+/** Le voci pronte da aggiungere, il totale, e quante aspettano ancora una quantità o un prezzo valido. */
+export function totaleScelte(scelte: readonly { riga: RigaScelta; quantita: string; prezzo?: string }[]) {
   const voci: VoceScelta[] = [];
   let totale = 0;
   let mancanti = 0;
+  let prezziDaCorreggere = 0;
   for (const s of scelte) {
     const q = leggiQuantita(s.quantita);
-    if (q === null) { mancanti++; continue; }
-    voci.push({ ...s.riga.voce, quantita: q });
-    totale += s.riga.prezzo * q;
+    const scritto = s.prezzo === undefined ? null : leggiPrezzo(s.prezzo);
+    const prezzoValido = s.prezzo === undefined || scritto !== null;
+    if (!prezzoValido) prezziDaCorreggere++;
+    if (q === null || !prezzoValido) { mancanti++; continue; }
+    // Se il campo dice ancora il prezzo del listino la voce resta quella, con tutti i suoi decimali.
+    const cambiato = scritto !== null && s.prezzo !== prezzoInCampo(s.riga.prezzo);
+    const prezzo = cambiato ? scritto : s.riga.prezzo;
+    voci.push({ ...s.riga.voce, quantita: q, ...(cambiato ? { prezzo_unitario: prezzo } : {}) });
+    totale += prezzo * q;
   }
-  return { voci, totale: Math.round(totale * 100) / 100, mancanti };
+  return { voci, totale: Math.round(totale * 100) / 100, mancanti, prezziDaCorreggere };
 }
 
 const normalizza = (t: string) => t.split("\n")[0].trim().toLowerCase();

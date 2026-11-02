@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { insiemeVoci, leggiQuantita, totaleScelte, voceGiaPresente, type RigaScelta } from "@/lib/moduli/scegliVoci";
+import { insiemeVoci, leggiPrezzo, leggiQuantita, totaleScelte, voceGiaPresente, type RigaScelta } from "@/lib/moduli/scegliVoci";
 
 const TARIFFE = vi.hoisted(() => Array.from({ length: 60 }, (_, i) => ({
   id: `t${i}`, nome: i === 0 ? "Platea in cemento" : i === 1 ? "Tinteggiatura" : `Voce ${i}`, codice: `C${i}`, tipo: "posa", unita_fatturazione: "mq", prezzo_vendita: 10,
@@ -181,5 +181,111 @@ describe("il codice della tariffa", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Platea in cemento" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
     expect(onPick.mock.calls[0][0][0].codice_tariffa).toBeUndefined();
+  });
+});
+
+describe("le aggiunte al popup delle voci", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(cleanup);
+  const spunta = (nome: string) => fireEvent.click(screen.getByRole("checkbox", { name: `Scegli: ${nome}` }));
+  const aggiungi = () => fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
+
+  it("il prezzo si cambia sulla riga: vale solo qui, e il totale lo segue", async () => {
+    const { onPick } = apri();
+    await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
+    spunta("Platea in cemento");
+    fireEvent.change(screen.getByLabelText("Quantità: Platea in cemento"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Prezzo: Platea in cemento"), { target: { value: "12,5" } });
+    expect(screen.getByRole("button", { name: /1 voce/ }).textContent).toContain("25,00");
+    aggiungi();
+    expect(onPick.mock.calls[0][0][0]).toMatchObject({ quantita: 2, prezzo_unitario: 12.5 });
+  });
+
+  it("un prezzo non valido ferma l'aggiunta e lo dice", async () => {
+    const { onPick } = apri();
+    await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
+    spunta("Platea in cemento");
+    fireEvent.change(screen.getByLabelText("Prezzo: Platea in cemento"), { target: { value: "abc" } });
+    expect(screen.getByText("controlla il prezzo")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Aggiungi al computo" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("le voci usate tornano in «Usate di recente» alla prossima apertura, senza il vecchio capitolo", async () => {
+    const primo = apri({ targetCapitolo: "Bagno" });
+    await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
+    expect(screen.queryByRole("button", { name: /Usate di recente/ })).toBeNull();
+    spunta("Platea in cemento");
+    aggiungi();
+    expect(primo.onPick).toHaveBeenCalled();
+    cleanup();
+    const secondo = apri();
+    fireEvent.click(await screen.findByRole("button", { name: /Usate di recente/ }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    spunta("Platea in cemento");
+    aggiungi();
+    expect(secondo.onPick.mock.calls[0][0][0].capitolo_nome).not.toBe("Bagno");
+  });
+
+  it("dal pulsante generale si sceglie il capitolo; da un capitolo la scelta non c'è", async () => {
+    const { onPick } = apri({ capitoliComputo: ["Bagno", "Bagno", "Cucina"], targetCapitolo: undefined });
+    await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
+    const select = screen.getByRole("combobox", { name: "Capitolo in cui mettere le voci" });
+    expect(within(select).getAllByRole("option")).toHaveLength(3);
+    fireEvent.change(select, { target: { value: "Cucina" } });
+    spunta("Platea in cemento");
+    aggiungi();
+    expect(onPick.mock.calls[0][0][0].capitolo_nome).toBe("Cucina");
+    cleanup();
+    apri({ capitoliComputo: ["Bagno"], targetCapitolo: "Bagno" });
+    expect(screen.queryByRole("combobox", { name: "Capitolo in cui mettere le voci" })).toBeNull();
+  });
+
+  it("oltre le prime voci se ne mostrano altre, e nessuna resta irraggiungibile", async () => {
+    const molte = { ...fonti, useVoci: () => ({ data: Array.from({ length: 350 }, (_, i) => ({ id: `m${i}`, descrizione: `Lavoro ${i}`, codice: null as string | null, unita_misura: "mq", prezzo_unitario: 1, costo_materiali: 0, costo_manodopera: 0 })) }) };
+    apri({ fonti: molte });
+    fireEvent.click(await screen.findByRole("button", { name: /Mostra altre voci/ }));
+    expect(await screen.findByRole("checkbox", { name: "Scegli: Lavoro 349" })).toBeTruthy();
+  });
+
+  it("la descrizione lunga si legge tutta sulla riga", async () => {
+    const lungo = `Fornitura e posa ${"di materiale ".repeat(12)}fine`;
+    const conLunga = { ...fonti, useVoci: () => ({ data: [{ id: "l1", descrizione: lungo, codice: null as string | null, unita_misura: "mq", prezzo_unitario: 1, costo_materiali: 0, costo_manodopera: 0 }] }) };
+    apri({ fonti: conLunga });
+    const riga = (await screen.findByRole("checkbox", { name: `Scegli: ${lungo}` })).closest("li") as HTMLElement;
+    fireEvent.click(within(riga).getByRole("button", { name: "Leggi tutta la descrizione" }));
+    expect(within(riga).getByRole("button", { name: "Riduci la descrizione" }).getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("le voci recenti si rileggono: prezzo nuovo, voci tolte sparite, niente costi nel browser", async () => {
+    const voce = (id: string, descrizione: string, prezzo_unitario: number) => ({ id, descrizione, codice: null as string | null, unita_misura: "mq", prezzo_unitario, costo_materiali: 7, costo_manodopera: 3 });
+    const prima = { ...fonti, useVoci: () => ({ data: [voce("a", "Massetto", 50), voce("b", "Vespaio", 20)] }) };
+    apri({ fonti: prima });
+    await screen.findByRole("checkbox", { name: "Scegli: Massetto" });
+    spunta("Massetto");
+    spunta("Vespaio");
+    aggiungi();
+    expect(JSON.stringify({ ...localStorage })).not.toMatch(/costo_|prezzo/);
+    cleanup();
+    const dopo = { ...fonti, useVoci: () => ({ data: [voce("a", "Massetto", 60)] }) };
+    apri({ fonti: dopo });
+    fireEvent.click(await screen.findByRole("button", { name: /Usate di recente/ }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: "Scegli: Massetto" }).closest("li")?.textContent).toContain("60,00");
+  });
+
+  it("il prezzo: «0.500» è mezzo euro e «0,125» resta tale", () => {
+    expect(leggiPrezzo("0.500")).toBe(0.5);
+    expect(leggiPrezzo("0,125")).toBe(0.125);
+    expect(leggiQuantita("0.500")).toBe(0.5);
+    expect(leggiQuantita("1.500")).toBe(1500);
+  });
+
+  it("il prezzo: zero è ammesso, vuoto e negativo no", () => {
+    expect(leggiPrezzo("0")).toBe(0);
+    expect(leggiPrezzo("0,00")).toBe(0);
+    expect(leggiPrezzo("1.500,5")).toBe(1500.5);
+    expect(leggiPrezzo("")).toBeNull();
+    expect(leggiPrezzo("-3")).toBeNull();
   });
 });
