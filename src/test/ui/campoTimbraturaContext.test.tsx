@@ -27,7 +27,7 @@ vi.mock("@/hooks/campo/useCampoGiornata", () => ({ useMiaGiornata: () => ({
 vi.mock("@/hooks/campo/useCampoDayTime", () => ({ useCampoDayTime: () => ({
   summary: summarizeCampoTime(state.punches, { start: new Date("2026-09-24T00:00:00Z"), end: new Date("2026-09-25T00:00:00Z"), now: new Date("2026-09-24T18:00:00Z"), includeOpen: true }),
   todayPunches: state.punches, now: new Date("2026-09-24T18:00:00Z"),
-  isSuccess: !state.timeError && !state.loading, isError: state.timeError, isLoading: state.loading, refetch: state.refetch,
+  pronto: !state.timeError && !state.loading, isSuccess: !state.timeError && !state.loading, isError: state.timeError, isLoading: state.loading, refetch: state.refetch,
 }) }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: [] as never[], isLoading: false }),

@@ -27,7 +27,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
-import { scriviTimbratura } from "@/lib/campo/timbra";
+import { scriviTimbratura, senzaRete } from "@/lib/campo/timbra";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -680,6 +680,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // ── Salvataggio ──────────────────────────────────────────────────────
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
+      // Il rapportino senza rete non parte: la bozza resta sul telefono e la giornata resta aperta.
+      if (senzaRete()) throw new Error("Sei senza rete: il rapportino resta qui sul telefono. Mandalo appena torna il campo.");
       if (verificaInCorso || verificaFallita || !ruoloCampo) throw new Error("Attendi la verifica del cantiere e dei rapporti già inviati, oppure riprova.");
       if (clienteNonConsentito) throw new Error("Il collaudo col cliente lo fa il capocantiere. Puoi inviare il tuo rapportino.");
       if (!lavoro_completato && flusso.soloTimbratura && !daRifare) throw new Error("Il giornaliero lo invia il responsabile: tu registra entrata e uscita. Puoi aggiungere foto dal cantiere.");

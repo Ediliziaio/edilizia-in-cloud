@@ -26,7 +26,7 @@ import { campoPunchOrderId, campoReportHours, canRecordCampoPunch } from "@/lib/
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
 import { campoWorkDay } from "@/lib/campo/workDay";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
-import { scriviTimbratura, type TipoTimbratura } from "@/lib/campo/timbra";
+import { cambiaLuogoTimbratura, scriviTimbratura, type TipoTimbratura } from "@/lib/campo/timbra";
 import {
   LUOGO_NESSUNO, chiaveLuogoCorrente, costruisciLuoghi, nomeLuogo, partenzaPredefinita, trovaLuogo,
   type Luogo,
@@ -39,6 +39,7 @@ export interface TimbroEsito {
   tipo: Tipo | "cambio";
   orderId: string | null;
   day: string;
+  inCoda?: boolean;
 }
 
 const MESSAGGI: Record<Tipo, string> = {
@@ -57,8 +58,6 @@ function ricordaPartenza(userId: string | undefined, key: string) {
   if (!userId) return;
   try { localStorage.setItem(chiaveRicordata(userId), key); } catch { /* navigazione privata: pazienza */ }
 }
-
-type RpcCambio = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
 
 function IconaLuogo({ luogo, className }: { luogo: Luogo; className?: string }) {
   return luogo.tipo === "sede"
@@ -130,14 +129,14 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
 
   const timbra = useMutation({
     mutationFn: async (tipo: Tipo): Promise<TimbroEsito> => {
-      if (!companyId || !user || !dayTime.isSuccess) throw new Error("Timbrature non disponibili, ricarica la pagina");
+      if (!companyId || !user || !dayTime.pronto) throw new Error("Timbrature non disponibili, ricarica la pagina");
       if (!canRecordCampoPunch(summary.state, tipo)) throw new Error("Sequenza non valida: aggiorna le timbrature");
       if (tipo === "entrata" && !partenza) throw new Error("Scegli da dove parti");
       const gps = posizione();
       const adesso = new Date().toISOString();
       const orderId = campoPunchOrderId(tipo, summary.activeOrderId, partenza?.orderId ?? null);
       const inizio = tipo === "entrata" ? partenza : corrente;
-      await scriviTimbratura({
+      const { inCoda } = await scriviTimbratura({
         companyId,
         userId: user.id,
         tipo,
@@ -151,10 +150,11 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       });
       if (tipo === "entrata" && partenzaKey) ricordaPartenza(user.id, partenzaKey);
       // La copia sul registro del Personale la fa il trigger del database, nella stessa transazione.
-      return { tipo, orderId, day: campoWorkDay(new Date(adesso)) };
+      return { tipo, orderId, day: campoWorkDay(new Date(adesso)), inCoda };
     },
     onSuccess: async (esito) => {
-      toast.success(MESSAGGI[esito.tipo as Tipo]);
+      if (esito.inCoda) toast.success(`${MESSAGGI[esito.tipo as Tipo]}: senza rete, la mando appena torna`);
+      else toast.success(MESSAGGI[esito.tipo as Tipo]);
       setScelta(null);
       await aggiorna();
       onPunched?.(esito);
@@ -164,32 +164,32 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
 
   const cambia = useMutation({
     mutationFn: async (luogo: Luogo): Promise<TimbroEsito> => {
-      if (!companyId || !user || !dayTime.isSuccess) throw new Error("Timbrature non disponibili, ricarica la pagina");
+      if (!companyId || !user || !dayTime.pronto) throw new Error("Timbrature non disponibili, ricarica la pagina");
       if (summary.state !== "working") throw new Error("Per cambiare posto devi essere in servizio e non in pausa");
       const gps = posizione();
       const adesso = new Date().toISOString();
-      const rpc = supabase.rpc.bind(supabase) as unknown as RpcCambio;
-      const { error } = await rpc("campo_timbra_cambio_luogo", {
-        p_order_id: luogo.tipo === "cantiere" ? luogo.orderId : null,
-        p_sede_id: luogo.tipo === "sede" ? luogo.sedeId : null,
-        p_quando: adesso,
-        p_lat: gps.lat,
-        p_lng: gps.lng,
-        p_accuracy: gps.accuracy,
-        p_note: notaPer(luogo),
+      const { inCoda } = await cambiaLuogoTimbratura({
+        companyId,
+        userId: user.id,
+        da: { orderId: corrente?.tipo === "cantiere" ? corrente.orderId : summary.activeOrderId, sedeId: corrente?.tipo === "sede" ? corrente.sedeId : null },
+        a: { orderId: luogo.tipo === "cantiere" ? luogo.orderId : null, sedeId: luogo.tipo === "sede" ? luogo.sedeId : null },
+        quando: adesso,
+        lat: gps.lat,
+        lng: gps.lng,
+        accuracy: gps.accuracy,
+        note: notaPer(luogo),
       });
-      if (error) throw error;
-      return { tipo: "cambio", orderId: luogo.orderId, day: campoWorkDay(new Date(adesso)) };
+      return { tipo: "cambio", orderId: luogo.orderId, day: campoWorkDay(new Date(adesso)), inCoda };
     },
     onSuccess: async (esito, luogo) => {
-      toast.success(`Ora sei: ${luogo.nome}`);
+      toast.success(esito.inCoda ? `Ora sei: ${luogo.nome} (senza rete, lo mando appena torna)` : `Ora sei: ${luogo.nome}`);
       await aggiorna();
       onPunched?.(esito);
     },
     onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a cambiare posto. Riprova.")),
   });
 
-  const occupato = timbra.isPending || cambia.isPending || !dayTime.isSuccess;
+  const occupato = timbra.isPending || cambia.isPending || !dayTime.pronto;
   const sediLuoghi = luoghi.filter(l => l.tipo === "sede");
   const cantieriOggi = luoghi.filter(l => l.tipo === "cantiere" && l.oggi);
   const cantieriAltri = luoghi.filter(l => l.tipo === "cantiere" && !l.oggi);
@@ -205,12 +205,12 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
     <section aria-label="Timbratura" className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-bold"><Clock className="h-4 w-4" aria-hidden="true" />Timbratura</h2>
-        {(inServizio || inPausa) && !dayTime.isError && (
+        {(inServizio || inPausa) && (!dayTime.isError || dayTime.pronto) && (
           <span className="text-sm font-semibold text-amber-600">{campoReportHours(summary.workMinutes)} h oggi</span>
         )}
       </div>
 
-      {dayTime.isError && (
+      {dayTime.isError && !dayTime.pronto && (
         <div role="alert" className="space-y-1 rounded-xl border border-destructive/30 p-3 text-sm">
           <p>Non riesco a leggere le timbrature. Le azioni restano ferme per non sbagliare una nuova entrata.</p>
           <button type="button" onClick={() => dayTime.refetch()} className="min-h-11 text-primary underline">Riprova</button>

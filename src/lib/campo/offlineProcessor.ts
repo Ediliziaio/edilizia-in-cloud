@@ -19,7 +19,8 @@ export async function processCampoOffline(item: SyncItem): Promise<void> {
     if (error) throw databaseError(error);
     return;
   }
-  const id = await syncOperationId(item);
+  // La timbratura porta il suo id da quando è nata: lo stesso del primo tentativo andato male.
+  const id = typeof payload.id === "string" ? payload.id : await syncOperationId(item);
   let table: "foto_cantiere" | "campo_timbrature";
   let insert: Record<string, unknown>;
   if (item.type === "foto") {
