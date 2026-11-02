@@ -42,6 +42,7 @@ import {
   type StatoPianta,
   type TipoArea,
 } from "./modello.ts";
+import { misureSerramento } from "./serramenti.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
 import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
@@ -221,6 +222,22 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       const nomeTipo = { porta: "Porte", finestra: "Finestre", portafinestra: "Portefinestre", varco: "Varchi" }[a.tipo];
       const nomeStato = { esistente: "esistenti", da_demolire: "da demolire", nuovo: "nuove" }[a.stato];
       const misura = `${Math.round(a.larghezza)}x${Math.round(a.altezza)}`;
+      // Controtelai e superficie dei serramenti: cosa ordinare prima della posa (misure di massima, vedi serramenti.ts)
+      if (a.tipo !== "varco" && a.stato !== "da_demolire") {
+        const ms = misureSerramento(a, stato.muri.find((m) => m.id === a.muroId));
+        const chiave = ms.controtelaioSpeciale ? "controtelaio_scomparsa" : "controtelaio";
+        const nomeCt = ms.controtelaioSpeciale ? "Controtelai per porte scorrevoli a scomparsa" : "Controtelai";
+        const orig = [...origini];
+        for (const [soggetto, descrizione, valore] of [
+          [`serramenti:${a.stato}:${chiave}`, `${nomeCt} ${nomeStato}`, 1],
+          [`serramenti:${a.stato}:${chiave}:${Math.round(ms.controtelaio.larghezza)}x${Math.round(ms.controtelaio.altezza)}`, `${nomeCt} ${nomeStato} ${Math.round(ms.controtelaio.larghezza)}×${Math.round(ms.controtelaio.altezza)} cm`, 1],
+        ] as Array<[string, string, number]>) {
+          const prec = aperture.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+          aperture.set(soggetto, { acc: { valore: prec.valore + valore, origini: [...prec.origini, ...orig] }, descrizione });
+        }
+        somma(struttura, `${a.stato}:serramenti.superficie_mq`, { valore: ms.superficieMq, origini: orig });
+        somma(struttura, `${a.stato}:controtelai.perimetro_ml`, { valore: ms.perimetroMl, origini: orig });
+      }
       for (const [soggetto, descrizione] of [
         [`aperture:${a.stato}:${a.tipo}`, `${nomeTipo} ${nomeStato}`],
         [`aperture:${a.stato}:${a.tipo}:${misura}`, `${nomeTipo} ${nomeStato} ${misura.replace("x", "×")} cm`],
@@ -248,7 +265,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         const L = (e.larghezza ?? 600) / 100, B = (e.profondita ?? 220) / 100, H = (e.altezza ?? 300) / 100;
         const suola = Math.min(0.5, Math.max(0.3, H / 8));
         const orig: Accumulo["origini"] = ["stimata"];
-        somma(struttura, `${st}:muri_contenimento.ml`, { valore: L, origini: orig });
+        somma(struttura, `${st}:muri_contenimento.lunghezza_ml`, { valore: L, origini: orig });
         somma(struttura, `${st}:muri_contenimento.cls_mc`, { valore: L * (B * suola + 0.4 * H), origini: orig });
         somma(struttura, `${st}:muri_contenimento.scavo_mc`, { valore: L * (B + 0.6) * (suola + 0.3 + H * 0.5), origini: orig });
         somma(struttura, `${st}:muri_contenimento.drenaggio_ml`, { valore: L, origini: orig });
@@ -257,8 +274,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         const l = e.larghezza ?? 30, pr = e.profondita ?? 30;
         const h = e.altezza ?? (e.tipo === "pilastro" ? 300 : e.tipo === "trave" ? 50 : 25);
         const orig: Accumulo["origini"] = [e.origine];
-        if (e.tipo === "trave") somma(struttura, `${st}:travi.ml`, { valore: l / 100, origini: orig });
-        if (e.tipo === "solaio") somma(struttura, `${st}:solai.mq`, { valore: (l * pr) / 10_000, origini: orig });
+        if (e.tipo === "trave") somma(struttura, `${st}:travi.lunghezza_ml`, { valore: l / 100, origini: orig });
+        if (e.tipo === "solaio") somma(struttura, `${st}:solai.superficie_mq`, { valore: (l * pr) / 10_000, origini: orig });
         somma(struttura, `${st}:${e.tipo === "pilastro" ? "pilastri" : e.tipo === "trave" ? "travi" : "solai"}.cls_mc`, { valore: (l * pr * h) / 1_000_000, origini: orig });
       }
       const soggetto = `elementi:${st}:${e.tipo}`;
@@ -297,7 +314,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         scavo += l * ((m.spessore + 80) / 100) * 0.8;
       }
       if (ml > 0) {
-        metti("fondazioni:cordolo", "ml", { valore: ml, origini: ["stimata"] }, "Cordolo di fondazione sotto le pareti nuove portanti (stima)");
+        metti("fondazioni:cordolo", "lunghezza_ml", { valore: ml, origini: ["stimata"] }, "Cordolo di fondazione sotto le pareti nuove portanti (stima)");
         metti("fondazioni:cordolo", "cls_mc", { valore: cls, origini: ["stimata"] }, "Calcestruzzo dei cordoli di fondazione (stima: spessore + 40 cm, alto 50 cm)");
         metti("fondazioni:cordolo", "scavo_mc", { valore: scavo, origini: ["stimata"] }, "Scavo per i cordoli di fondazione (stima)");
       }
@@ -335,7 +352,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
-  const NOMI_STRUTTURA: Record<string, string> = { "travi.ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri", "muri_contenimento.ml": "Muri di contenimento (lunghezza)", "muri_contenimento.cls_mc": "Calcestruzzo dei muri di contenimento (suola + fusto)", "muri_contenimento.scavo_mc": "Scavo per i muri di contenimento", "muri_contenimento.drenaggio_ml": "Drenaggio a tergo dei muri di contenimento" };
+  const NOMI_STRUTTURA: Record<string, string> = { "serramenti.superficie_mq": "Serramenti (superficie del vano)", "controtelai.perimetro_ml": "Perimetro dei controtelai (per sigillature e nastri)", "travi.lunghezza_ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.superficie_mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri", "muri_contenimento.lunghezza_ml": "Muri di contenimento (lunghezza)", "muri_contenimento.cls_mc": "Calcestruzzo dei muri di contenimento (suola + fusto)", "muri_contenimento.scavo_mc": "Scavo per i muri di contenimento", "muri_contenimento.drenaggio_ml": "Drenaggio a tergo dei muri di contenimento" };
   for (const [chiave, acc] of struttura) {
     const [st, resto] = chiave.split(":");
     const [soggetto, misura] = resto.split(".");

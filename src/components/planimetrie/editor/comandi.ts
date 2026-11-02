@@ -26,6 +26,7 @@ import {
   type TipoApertura,
 } from "./adattatore";
 import type { TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
 
 /** «Com'è oggi» (stato di fatto) o «Progetto» (giallo = demolire, rosso = nuovo). */
@@ -430,13 +431,15 @@ export function spostaApertura(pianta: Pianta, id: string, muroId: string, t: nu
 export function modificaApertura(
   pianta: Pianta,
   id: string,
-  campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "stato" | "origine">>,
+  campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "stato" | "origine" | "ante" | "sistema" | "manovra">>,
 ): Pianta {
   return {
     ...pianta,
     aperture: pianta.aperture.map((a) => {
       if (a.id !== id) return a;
-      const nuova = { ...a, ...campi };
+      let nuova = { ...a, ...campi };
+      // cambiando il tipo (finestra ↔ porta) un sistema che non ha più senso torna a «battente»
+      if (campi.tipo && nuova.sistema && !sistemiAmmessi(nuova.tipo).includes(nuova.sistema)) nuova = { ...nuova, sistema: undefined, manovra: nuova.tipo === "varco" ? "nessuna" : "battente" };
       const muro = pianta.muri.find((m) => m.id === a.muroId);
       return muro ? { ...nuova, posizione: limitaPosizione(muro, nuova.larghezza, nuova.posizione) } : nuova;
     }),

@@ -15,8 +15,7 @@ import {
   corpoParete,
   metaParete,
   punti,
-  simboloFinestra,
-  simboloPorta,
+  segniSerramento,
   vanoApertura,
 } from "./disegno";
 import { dist, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
@@ -309,18 +308,12 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   data-tipo="apertura"
                   data-id={a.id}
                 />
-                {a.tipo === "finestra" ? (
-                  simboloFinestra(a, m).map(([p, q], i) => (
-                    <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colore} strokeWidth={px(1.2)} data-tipo="apertura" data-id={a.id} />
+                {a.tipo === "varco" || (a.tipo !== "finestra" && a.manovra === "nessuna" && a.sistema !== "fisso") ? null : (
+                  segniSerramento(a, m).map((s, i) => s.tipo === "arco" ? (
+                    <path key={i} d={s.d} fill="none" stroke={colore} strokeWidth={px(1)} strokeDasharray={s.tratteggio ? `${px(4)} ${px(3)}` : undefined} data-tipo="apertura" data-id={a.id} />
+                  ) : (
+                    <line key={i} x1={s.p.x} y1={s.p.y} x2={s.q.x} y2={s.q.y} stroke={colore} strokeWidth={px(s.spesso ? 2 : 1.2)} strokeDasharray={s.tratteggio ? `${px(4)} ${px(3)}` : undefined} data-tipo="apertura" data-id={a.id} />
                   ))
-                ) : a.tipo === "varco" || a.manovra === "nessuna" ? null : a.manovra === "scorrevole" ? (
-                  simboloFinestra(a, m)
-                    .slice(1, 2)
-                    .map(([p, q], i) => (
-                      <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colore} strokeWidth={px(2)} data-tipo="apertura" data-id={a.id} />
-                    ))
-                ) : (
-                  <SimboloPorta a={a} m={m} colore={colore} px={px} />
                 )}
                 {a.origine === "stimata" && (
                   <circle cx={puntoSulMuro(m, a.posizione).x} cy={puntoSulMuro(m, a.posizione).y} r={px(4)} fill={STIMATA} />
@@ -600,24 +593,6 @@ function puntoVersoCentro(a: Punto, b: Punto, centro: Punto): Punto {
   const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   const verso = (centro.x - m.x) * n.x + (centro.y - m.y) * n.y;
   return verso >= 0 ? n : { x: -n.x, y: -n.y };
-}
-
-function SimboloPorta({ a, m, colore, px }: { a: Parameters<typeof simboloPorta>[0]; m: Parameters<typeof simboloPorta>[1]; colore: string; px: (n: number) => number }) {
-  const { anta, arco } = simboloPorta(a, m);
-  return (
-    <>
-      <line x1={anta[0].x} y1={anta[0].y} x2={anta[1].x} y2={anta[1].y} stroke={colore} strokeWidth={px(2)} data-tipo="apertura" data-id={a.id} />
-      <path
-        d={arco}
-        fill="none"
-        stroke={colore}
-        strokeWidth={px(1)}
-        strokeDasharray={a.tipo === "portafinestra" ? `${px(4)} ${px(3)}` : undefined}
-        data-tipo="apertura"
-        data-id={a.id}
-      />
-    </>
-  );
 }
 
 function EtichettaMisura({

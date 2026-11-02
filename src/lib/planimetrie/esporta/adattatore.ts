@@ -14,6 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
+import { anteDi, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
 import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
@@ -105,7 +106,8 @@ function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {
     davanzale: a.davanzale, manovra: a.manovra,
     cerniera: a.verso?.cardine === "p2" ? "fine" : "inizio",
     lato: a.verso?.lato ?? "sinistra",
-    ante: a.tipo === "porta" || a.larghezza < 100 ? 1 : 2,
+    ante: anteDi(a) || 1,
+    sistema: sistemaDi(a),
     stato: modo === "progetto" ? "esistente" : a.stato,
   };
 }

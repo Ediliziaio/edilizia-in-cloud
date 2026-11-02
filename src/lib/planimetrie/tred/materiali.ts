@@ -49,6 +49,7 @@ export const MATERIALI: Record<string, Materiale3D> = {
   lenzuola: { nome: "Lenzuola", colore: "#eef0f2", opacita: 1, ruvidita: 1 },
   laccato: { nome: "Mobile laccato", colore: "#e3e0da", opacita: 1, ruvidita: 0.4 },
   piano_cucina: { nome: "Piano cucina", colore: "#5f5f5f", opacita: 1, ruvidita: 0.3 },
+  telaio: { nome: "Telaio serramento", colore: "#e9e9e6", opacita: 1, ruvidita: 0.4 },
   calcestruzzo: { nome: "Calcestruzzo", colore: "#9a9a96", opacita: 1, ruvidita: 0.95 },
   metallo: { nome: "Metallo", colore: "#b4b8bc", opacita: 1, ruvidita: 0.3 },
 };

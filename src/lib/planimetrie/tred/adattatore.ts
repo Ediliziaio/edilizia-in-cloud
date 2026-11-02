@@ -17,6 +17,7 @@
 import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
 import type { Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
+import { anteDi, eScorrevole, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
 
 const stato = (s: StatoLavori | undefined): StatoOggetto => (s === "da_demolire" ? "demolire" : s === "nuovo" ? "nuovo" : "esistente");
 const giu = (p: { x: number; y: number }) => ({ x: p.x, y: -p.y });
@@ -36,6 +37,7 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
       altezza: a.altezza,
       davanzale: a.davanzale,
       stato: stato(a.stato),
+      ...(a.ante !== undefined || a.sistema !== undefined ? { ante: anteDi(a), scorrevole: eScorrevole(sistemaDi(a)) } : {}),
     })),
     locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza })),
     elementi: s.elementi.map(daElemento),

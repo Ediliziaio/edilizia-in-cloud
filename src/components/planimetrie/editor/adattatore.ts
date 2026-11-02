@@ -26,6 +26,7 @@ import {
   type Livello,
   type Locale as LocaleModello,
   type Manovra,
+  type SistemaApertura,
   type Muro as MuroModello,
   type Origine,
   type Planimetria,
@@ -75,6 +76,9 @@ export interface Apertura {
   altezza: number;
   davanzale: number;
   manovra: Manovra;
+  /** Ante (1-6) e sistema del serramento (vedi shared/planimetrie/serramenti.ts); assenti = quelli di default. */
+  ante?: number;
+  sistema?: SistemaApertura;
   /** Da che parte sta la cerniera e verso quale lato (sullo schermo) si apre. */
   verso: { cerniera: "inizio" | "fine"; lato: "sinistra" | "destra" };
   stato: StatoElemento;
@@ -334,6 +338,8 @@ function aperturaDaModello(a: AperturaModello): Apertura {
     altezza: a.altezza,
     davanzale: a.davanzale,
     manovra: a.manovra,
+    ...(a.ante ? { ante: a.ante } : {}),
+    ...(a.sistema ? { sistema: a.sistema } : {}),
     // capovolgendo y la sinistra del documento diventa la destra dello schermo
     verso: a.verso
       ? { cerniera: a.verso.cardine === "p1" ? "inizio" : "fine", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" }
@@ -532,6 +538,8 @@ function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModel
     altezza: a.altezza,
     davanzale: a.davanzale,
     manovra: a.tipo === "varco" ? "nessuna" : a.manovra,
+    ...(a.ante ? { ante: a.ante } : {}),
+    ...(a.sistema ? { sistema: a.sistema } : {}),
     ...(battente
       ? { verso: { cardine: a.verso.cerniera === "inizio" ? "p1" : "p2", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" } as const }
       : {}),

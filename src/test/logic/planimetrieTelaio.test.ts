@@ -81,9 +81,9 @@ describe("telaio: computo e piani", () => {
   it("conta metri di travi, metri quadri di solaio e calcestruzzo", () => {
     const q = calcolaQuantita(doc());
     const v = (s: string) => Object.entries(q).find(([k]) => k.endsWith(s))?.[1].valore;
-    expect(v("struttura:esistente:travi.ml")).toBeCloseTo(4, 3);
+    expect(v("struttura:esistente:travi.lunghezza_ml")).toBeCloseTo(4, 3);
     expect(v("struttura:esistente:travi.cls_mc")).toBeCloseTo(4 * 0.3 * 0.5, 3);
-    expect(v("struttura:esistente:solai.mq")).toBeCloseTo(48, 3);
+    expect(v("struttura:esistente:solai.superficie_mq")).toBeCloseTo(48, 3);
     expect(v("struttura:esistente:solai.cls_mc")).toBeCloseTo(12, 3);
     expect(v("struttura:esistente:pilastri.cls_mc")).toBeCloseTo(0.27, 3);
   });
@@ -102,7 +102,7 @@ describe("muro di contenimento: computo", () => {
       { id: "mc", tipo: "muro_contenimento", posizione: { x: 0, y: 0 }, rotazione: 0, larghezza: 1000, profondita: 220, altezza: 300, stato: "esistente", origine: "rilevata" }] } }] } as never;
     const q = calcolaQuantita(d);
     const v = (s: string) => Object.entries(q).find(([k]) => k.endsWith(s))?.[1].valore;
-    expect(v("struttura:esistente:muri_contenimento.ml")).toBeCloseTo(10, 3);
+    expect(v("struttura:esistente:muri_contenimento.lunghezza_ml")).toBeCloseTo(10, 3);
     // suola = max(0,3; 3/8=0,375) → 10 × (2,2 × 0,375 + 0,4 × 3) = 10 × 2,025
     expect(v("struttura:esistente:muri_contenimento.cls_mc")).toBeCloseTo(20.25, 3);
     expect(v("struttura:esistente:muri_contenimento.drenaggio_ml")).toBeCloseTo(10, 3);

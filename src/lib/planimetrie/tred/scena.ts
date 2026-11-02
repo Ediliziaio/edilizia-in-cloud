@@ -10,7 +10,7 @@ import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/
 import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { meshImpianti } from "./impianti3d";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
-import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
+import { calcolaIncroci, costruisciMuro, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
 
 const CM = 0.01;
@@ -203,6 +203,11 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
         const c = new CostruttoreMesh();
         costruisciVetro(m, v, c);
         mesh.push(c.mesh({ id: `vetro:${a.id}`, nome: `Vetro ${nomeApertura(a)}`, genere: "vetro", materiale: "vetro", riferimento: a.id }));
+        if (a.ante !== undefined) {
+          const t = new CostruttoreMesh();
+          costruisciTelaio(m, v, t, a.ante, !!a.scorrevole);
+          mesh.push(t.mesh({ id: `telaio:${a.id}`, nome: `Telaio ${nomeApertura(a)}`, genere: "elemento", materiale: "telaio", riferimento: a.id }));
+        }
       }
     }
   }

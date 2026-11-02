@@ -30,6 +30,9 @@ export interface MuroPer3D {
   spessore: number;
   altezza: number;
   stato: StatoOggetto;
+  /** Ante e sistema scelti da chi ha fatto la pianta: senza, la finestra resta il solo vetro. */
+  ante?: number;
+  scorrevole?: boolean;
 }
 
 /** `varco` = passaggio senza infisso. */

@@ -6,7 +6,8 @@
  * - alzata e pedata delle scale (regola 2a + p ≈ 62-64 cm, alzata fino a 18 cm, rampa larga almeno 80 cm).
  * Sono controlli di massima sui disegni: la verifica vera la firma il tecnico.
  */
-import { assiDelMuro } from "./geometria.ts";
+import { assiDelMuro, lunghezzaMuro } from "./geometria.ts";
+import { anteDi, misureSerramento, NOMI_SISTEMA, sistemaDi } from "./serramenti.ts";
 import type { Elemento, Livello, Muro, Punto, StatoPianta } from "./modello.ts";
 import type { Verifica } from "./verifiche.ts";
 
@@ -83,10 +84,41 @@ function verificheMuroContenimento(e: Elemento, v: (esito: Verifica["esito"], co
   if (H > 400) v("attenzione", "contenimento", nome, "Oltre 4 m di altezza servono contrafforti o un progetto strutturale dedicato.", cm(H), "fino a 4 m a mensola");
 }
 
+/** Porte a scomparsa (tasca di muro libera e spessore) e ante troppo larghe. */
+function verificheSerramenti(stato: StatoPianta, v: (esito: Verifica["esito"], codice: Verifica["codice"], oggetto: string, messaggio: string, valore?: string, richiesto?: string) => void) {
+  const muri = new Map(stato.muri.filter((m) => m.stato !== "da_demolire").map((m) => [m.id, m]));
+  const vive = stato.aperture.filter((a) => a.stato !== "da_demolire");
+  for (const a of vive) {
+    const m = muri.get(a.muroId);
+    if (!m || a.tipo === "varco") continue;
+    const sistema = sistemaDi(a);
+    const nome = `${a.tipo === "finestra" ? "Finestra" : a.tipo === "portafinestra" ? "Portafinestra" : "Porta"} ${NOMI_SISTEMA[sistema].toLowerCase()}`;
+    if (sistema === "scorrevole_scomparsa") {
+      const mis = misureSerramento(a, m);
+      const lung = lunghezzaMuro(m);
+      // il tratto di muro libero a lato, fino alla prima altra apertura dello stesso muro (o alla fine del muro)
+      const altre = vive.filter((x) => x.id !== a.id && x.muroId === m.id);
+      const fineDopo = Math.min(lung, ...altre.filter((x) => x.offset >= a.offset + a.larghezza - 0.5).map((x) => x.offset));
+      const finePrima = Math.max(0, ...altre.filter((x) => x.offset + x.larghezza <= a.offset + 0.5).map((x) => x.offset + x.larghezza));
+      const lato = Math.max(fineDopo - (a.offset + a.larghezza), a.offset - finePrima);
+      const richiesto = mis.tascaScomparsa;
+      if (lato < richiesto) v("non_conforme", "serramento", nome, `Manca la tasca nel muro: serve un tratto libero di ${Math.round(richiesto)} cm a fianco (senza porte né impianti), ce ne sono ${Math.round(lato)}.`, `${Math.round(lato)} cm`, `${Math.round(richiesto)} cm`);
+      else v("ok", "serramento", nome, "Tasca nel muro sufficiente per l'anta.", `${Math.round(lato)} cm`, `${Math.round(richiesto)} cm`);
+      if (m.spessore < 10) v("non_conforme", "serramento", nome, "Il muro è troppo sottile per il controtelaio a scomparsa (almeno 10 cm finiti).", `${Math.round(m.spessore)} cm`, "≥ 10 cm");
+    }
+    const ante = anteDi(a);
+    if ((sistema === "battente" || sistema === "anta_ribalta") && ante >= 1) {
+      const anta = misureSerramento(a, m).anta;
+      if (anta > 100) v("attenzione", "serramento", nome, `Ante molto larghe (${Math.round(anta)} cm): cerniere e ferramenta sotto sforzo, meglio più ante o uno scorrevole.`, `${Math.round(anta)} cm`, "≤ 100 cm");
+    }
+  }
+}
+
 export function verificheDiProgetto(livello: Livello, stato: StatoPianta, interpianoCm = ALTEZZA_INTERPIANO_CM): Verifica[] {
   const out: Verifica[] = [];
   const v = (esito: Verifica["esito"], codice: Verifica["codice"], oggetto: string, messaggio: string, valore?: string, richiesto?: string) =>
     out.push({ codice, esito, livello: livello.nome, oggetto, messaggio, valore, richiesto });
+  verificheSerramenti(stato, v);
   for (const e of stato.elementi) if (e.tipo === "muro_contenimento" && e.stato !== "da_demolire") verificheMuroContenimento(e, v);
   const muri = new Map(stato.muri.filter((m) => m.stato !== "da_demolire").map((m) => [m.id, m]));
   const elementi = stato.elementi.filter((e) => INGOMBRANTI.includes(e.tipo) && e.stato !== "da_demolire");

@@ -78,6 +78,16 @@ export type Manovra = "battente" | "scorrevole" | "nessuna";
 export const MANOVRE: readonly Manovra[] = ["battente", "scorrevole", "nessuna"];
 
 /**
+ * Il sistema del serramento, più preciso della manovra (che resta battente / scorrevole / nessuna):
+ * - `battente`: anta o ante su cerniere; `anta_ribalta` e `vasistas`: finestre con ribalta;
+ * - `scorrevole`: anta che scorre davanti al muro su binario; `scorrevole_scomparsa`: porta «scrigno» che scorre dentro il muro
+ *   (serve il controtelaio speciale e un tratto di muro libero accanto); `alzante_scorrevole`: portafinestra a grande luce;
+ * - `libro`: ante che si ripiegano; `fisso`: vetro senza ante apribili.
+ */
+export type SistemaApertura = "battente" | "anta_ribalta" | "vasistas" | "scorrevole" | "scorrevole_scomparsa" | "alzante_scorrevole" | "libro" | "fisso";
+export const SISTEMI_APERTURA: readonly SistemaApertura[] = ["battente", "anta_ribalta", "vasistas", "scorrevole", "scorrevole_scomparsa", "alzante_scorrevole", "libro", "fisso"];
+
+/**
  * Verso di un'anta a battente.
  * - `cardine`: l'estremo della parete (verso p1 o verso p2) dove stanno le cerniere.
  * - `lato`: dove si apre l'anta, guardando da p1 verso p2 (sinistra o destra dell'asse).
@@ -99,6 +109,10 @@ export interface Apertura extends ConOrigine {
   /** 0 per porte, portefinestre e varchi. */
   davanzale: number;
   manovra: Manovra;
+  /** Ante (1-6): assente = una per le porte e le finestre fino a 1,4 m, due oltre. */
+  ante?: number;
+  /** Sistema del serramento: assente = quello che dice la manovra (battente o scorrevole semplice). */
+  sistema?: SistemaApertura;
   verso?: Verso | null;
   stato: StatoLavori;
 }
@@ -539,6 +553,8 @@ function validaStato(
     positivo(o, "altezza", e, "l'altezza");
     nonNegativo(o, "davanzale", e, "l'altezza del davanzale");
     scelta(o.manovra, MANOVRE, e, "il modo di apertura");
+    if (o.ante !== undefined && !(Number.isInteger(o.ante) && (o.ante as number) >= 1 && (o.ante as number) <= 6)) errori.push(`${e}: le ante devono essere da 1 a 6.`);
+    if (o.sistema !== undefined) scelta(o.sistema, SISTEMI_APERTURA, e, "il sistema del serramento");
     if (o.verso !== undefined && o.verso !== null) {
       const v = o.verso;
       if (!eOggetto(v) || !["p1", "p2"].includes(v.cardine as string) || !["sinistra", "destra"].includes(v.lato as string)) {

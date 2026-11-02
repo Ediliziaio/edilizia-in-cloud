@@ -73,7 +73,7 @@ describe("fondazioni", () => {
       proposte: [{ id: "A", nome: "A", ...vuoto, muri: [muro("a", "portante", "esistente"), muro("b", "portante", "nuovo"), muro("c", "tramezzo", "nuovo")] }] }] } as never;
     const q = calcolaQuantita(doc);
     const v = (suffisso: string) => Object.entries(q).find(([k]) => k.endsWith(suffisso))?.[1].valore;
-    expect(v("fondazioni:cordolo.ml")).toBeCloseTo(10, 3);
+    expect(v("fondazioni:cordolo.lunghezza_ml")).toBeCloseTo(10, 3);
     expect(v("fondazioni:cordolo.cls_mc")).toBeCloseTo(10 * 0.7 * 0.5, 3);
     expect(Object.keys(q).some((k) => k.startsWith("fatto:") && k.includes("fondazioni"))).toBe(false);
   });

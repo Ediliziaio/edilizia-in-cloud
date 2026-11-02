@@ -5,6 +5,7 @@
 import type { Apertura, Muro, Pianta, Punto, StatoElemento } from "./adattatore";
 import { direzione, lunghezzaMuro, puntoSulMuro, uguali } from "./geometria";
 import type { Vista } from "./comandi";
+import { anteDi, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
 
 /** Poligono del corpo della parete; si allunga di mezzo spessore dove tocca un'altra parete, così gli angoli si chiudono. */
 export function corpoParete(muro: Muro, pianta: Pianta): Punto[] {
@@ -74,6 +75,81 @@ export function simboloFinestra(a: Apertura, muro: Muro): Array<[Punto, Punto]> 
   ];
   const h = muro.spessore / 2;
   return [linea(-h), linea(-2), linea(2), linea(h)];
+}
+
+/** Un segno del simbolo: linea piena, linea tratteggiata o arco (path SVG). */
+export type SegnoSerramento =
+  | { tipo: "linea"; p: Punto; q: Punto; spesso?: boolean; tratteggio?: boolean }
+  | { tipo: "arco"; d: string; tratteggio?: boolean };
+
+/**
+ * Il simbolo di una porta o finestra secondo il sistema e le ante:
+ * ante a battente (un arco per anta), scorrevole (anta sul binario e posizione aperta tratteggiata),
+ * scorrevole a scomparsa (la tasca dentro il muro), a libro (zig-zag), finestre con i montanti fra le ante.
+ */
+export function segniSerramento(a: Apertura, muro: Muro): SegnoSerramento[] {
+  const u = direzione(muro);
+  const n = { x: -u.y, y: u.x };
+  const c = puntoSulMuro(muro, a.posizione);
+  const w = a.larghezza;
+  const sistema = sistemaDi(a);
+  const ante = Math.max(1, anteDi(a));
+  const al = (s: number, off: number): Punto => ({ x: c.x + u.x * s + n.x * off, y: c.y + u.y * s + n.y * off });
+  const h = muro.spessore / 2;
+  const out: SegnoSerramento[] = [];
+  const x0 = -w / 2;
+  if (a.tipo === "finestra") {
+    for (const [p, q] of simboloFinestra(a, muro)) out.push({ tipo: "linea", p, q });
+    // montanti fra le ante
+    for (let i = 1; i < ante; i++) out.push({ tipo: "linea", p: al(x0 + (w * i) / ante, -2), q: al(x0 + (w * i) / ante, 2), spesso: true });
+    if (sistema === "scorrevole") for (let i = 0; i < ante; i++) out.push({ tipo: "linea", p: al(x0 + (w * i) / ante + 3, i % 2 ? 4 : -4), q: al(x0 + (w * (i + 1)) / ante - 3, i % 2 ? 4 : -4), spesso: true });
+    return out;
+  }
+  if (sistema === "fisso") return simboloFinestra(a, muro).slice(1, 3).map(([p, q]) => ({ tipo: "linea" as const, p, q }));
+  if (sistema === "scorrevole_scomparsa") {
+    // la tasca: un rettangolo tratteggiato dentro il muro, a lato del vano (dalla parte dove c'è più muro), con l'anta aperta
+    const lungo = lunghezzaMuro(muro);
+    const dopo = lungo - (a.posizione + w / 2) >= a.posizione - w / 2;
+    const dir = dopo ? 1 : -1, s0 = dir * (w / 2), s1 = dir * (w / 2 + w + 5);
+    const k = h - 1;
+    out.push({ tipo: "linea", p: al(s0, k), q: al(s1, k), tratteggio: true }, { tipo: "linea", p: al(s0, -k), q: al(s1, -k), tratteggio: true }, { tipo: "linea", p: al(s1, k), q: al(s1, -k), tratteggio: true });
+    out.push({ tipo: "linea", p: al(-w / 2, 0), q: al(w / 2, 0), spesso: true });
+    out.push({ tipo: "linea", p: al(dir * (w / 2 + 5), 0), q: al(dir * (w / 2 + w), 0), spesso: true, tratteggio: true });
+    return out;
+  }
+  if (sistema === "scorrevole" || sistema === "alzante_scorrevole") {
+    const n2 = sistema === "alzante_scorrevole" ? Math.max(2, ante) : ante;
+    const passo = w / n2;
+    for (let i = 0; i < n2; i++) {
+      // le ante scorrono su binari diversi: una davanti e una dietro, un po' sovrapposte
+      const off = i % 2 ? h + 3 : -(h + 3);
+      out.push({ tipo: "linea", p: al(x0 + passo * i + 1, off), q: al(x0 + passo * (i + 1) + (i < n2 - 1 ? 6 : -1), off), spesso: true });
+    }
+    // posizione aperta: la prima anta tratteggiata oltre il vano, e una freccia
+    out.push({ tipo: "linea", p: al(w / 2 + 2, -(h + 3)), q: al(w / 2 + passo, -(h + 3)), spesso: true, tratteggio: true });
+    out.push({ tipo: "linea", p: al(w / 2 - 6, -(h + 9)), q: al(w / 2 + 14, -(h + 9)) });
+    out.push({ tipo: "linea", p: al(w / 2 + 14, -(h + 9)), q: al(w / 2 + 8, -(h + 12)) }, { tipo: "linea", p: al(w / 2 + 14, -(h + 9)), q: al(w / 2 + 8, -(h + 6)) });
+    return out;
+  }
+  if (sistema === "libro") {
+    // ante ripiegate: zig-zag fra le due facce
+    const passo = w / Math.max(2, ante * 2);
+    const pts: Punto[] = [];
+    for (let i = 0; i <= Math.max(2, ante * 2); i++) pts.push(al(x0 + passo * i, i % 2 ? h * 0.9 : -h * 0.9));
+    for (let i = 0; i < pts.length - 1; i++) out.push({ tipo: "linea", p: pts[i], q: pts[i + 1], spesso: true });
+    return out;
+  }
+  // battente, anta-ribalta, vasistas: un arco per ogni anta
+  const base = { ...a, tipo: a.tipo };
+  const foglie = ante;
+  for (let i = 0; i < foglie; i++) {
+    const parte = w / foglie;
+    const cerniera: "inizio" | "fine" = foglie === 1 ? a.verso.cerniera : i < foglie / 2 ? "inizio" : "fine";
+    const f: Apertura = { ...base, posizione: a.posizione - w / 2 + parte * (i + 0.5), larghezza: parte, verso: { cerniera, lato: a.verso.lato } };
+    const { anta, arco } = simboloPorta(f, muro);
+    out.push({ tipo: "linea", p: anta[0], q: anta[1], spesso: true }, { tipo: "arco", d: arco, tratteggio: a.tipo === "portafinestra" });
+  }
+  return out;
 }
 
 export function baricentro(poligono: Punto[]): Punto {

@@ -10,6 +10,7 @@ import type { Apertura, Locale, Planimetria, StatoPianta, TipoApertura } from ".
 import { distanzaDalContorno, facceDellApertura, TOLLERANZA_LOCALE_CM } from "../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
+import { anteDi, misureSerramento, NOMI_SISTEMA, sistemaDi } from "../../../shared/planimetrie/serramenti.ts";
 
 export const PREFISSO_CODICE: Record<TipoApertura, string> = { porta: "P", finestra: "F", portafinestra: "PF", varco: "V" };
 const NOME_TIPO: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
@@ -21,6 +22,13 @@ export interface RigaSerramento {
   codice: string;
   tipo: string;
   manovra: string;
+  /** Sistema («A battente», «Scorrevole a scomparsa»…) e numero di ante (0 per i varchi). */
+  sistema: string;
+  ante: number;
+  /** Controtelaio (cm) da ordinare e se è quello speciale per la porta a scomparsa. */
+  controtelaio: { larghezza: number; altezza: number; speciale: boolean };
+  /** Larghezza di un'anta, cm. */
+  anta: number;
   /** cm */
   larghezza: number;
   altezza: number;
@@ -46,6 +54,25 @@ export interface RigaStanza {
   rivestimentoMq: number | null;
   finiture: string;
   stimata: boolean;
+}
+
+const NOMI_SISTEMA_FINALE = (a: Apertura) => NOMI_SISTEMA[sistemaDi(a)];
+
+function controtelaioDi(a: Apertura, stato: StatoPianta): RigaSerramento["controtelaio"] {
+  if (a.tipo === "varco") return { larghezza: 0, altezza: 0, speciale: false };
+  const m = misureSerramento(a, stato.muri.find((x) => x.id === a.muroId));
+  return { larghezza: m.controtelaio.larghezza, altezza: m.controtelaio.altezza, speciale: m.controtelaioSpeciale };
+}
+
+/** I controtelai da ordinare, raggruppati per misura (esclusi i serramenti da demolire e i varchi). */
+export function riepilogoControtelai(righe: RigaSerramento[]): Array<{ descrizione: string; numero: number }> {
+  const gruppi = new Map<string, number>();
+  for (const r of righe) {
+    if (r.controtelaio.larghezza <= 0 || r.stato === "Da demolire" || r.stato === "Esistente") continue;
+    const k = `${r.controtelaio.speciale ? "Controtelaio per scorrevole a scomparsa" : "Controtelaio"} ${r.controtelaio.larghezza.toLocaleString("it-IT")} × ${r.controtelaio.altezza.toLocaleString("it-IT")} cm`;
+    gruppi.set(k, (gruppi.get(k) ?? 0) + 1);
+  }
+  return [...gruppi].map(([descrizione, numero]) => ({ descrizione, numero })).sort((x, y) => x.descrizione.localeCompare(y.descrizione, "it"));
 }
 
 /** Le stanze su cui si affaccia un'apertura (anche se da demolire, a differenza di `apertureDelLocale`). */
@@ -75,6 +102,10 @@ export function abacoSerramenti(p: Planimetria, livelloId: string, ambito: strin
       codice: `${prefisso}${contatori[prefisso]}`,
       tipo: NOME_TIPO[a.tipo] ?? a.tipo,
       manovra: NOME_MANOVRA[a.manovra] ?? a.manovra,
+      sistema: a.tipo === "varco" ? "—" : NOMI_SISTEMA_FINALE(a),
+      ante: anteDi(a),
+      controtelaio: controtelaioDi(a, stato),
+      anta: a.tipo === "varco" ? 0 : misureSerramento(a).anta,
       larghezza: Math.round(a.larghezza),
       altezza: Math.round(a.altezza),
       davanzale: Math.round(a.davanzale),
@@ -130,8 +161,8 @@ export function inCsv(intestazioni: string[], righe: Array<Array<string | number
 
 export function csvSerramenti(righe: RigaSerramento[]): string {
   return inCsv(
-    ["Codice", "Tipo", "Manovra", "Larghezza cm", "Altezza cm", "Davanzale cm", "Superficie m²", "Stanze", "Stato", "Misure"],
-    righe.map((r) => [r.codice, r.tipo, r.manovra, r.larghezza, r.altezza, r.davanzale, r.superficieMq, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
+    ["Codice", "Tipo", "Sistema", "Ante", "Larghezza cm", "Altezza cm", "Davanzale cm", "Controtelaio L cm", "Controtelaio H cm", "Larghezza anta cm", "Superficie m²", "Stanze", "Stato", "Misure"],
+    righe.map((r) => [r.codice, r.tipo, r.sistema === "—" ? r.manovra : r.sistema, r.ante || null, r.larghezza, r.altezza, r.davanzale, r.controtelaio.larghezza || null, r.controtelaio.altezza || null, r.anta || null, r.superficieMq, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
   );
 }
 

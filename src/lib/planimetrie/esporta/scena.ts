@@ -441,6 +441,28 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
   // Varco o vano senza anta: solo le spalle
   if (a.tipo === "varco" || a.manovra === "nessuna") return out;
 
+  // Porta a scomparsa: la tasca nel muro (tratteggiata) a fianco del vano e l'anta chiusa nel vano
+  if (a.sistema === "scorrevole_scomparsa" && a.tipo !== "finestra") {
+    const lungoMuro = Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y);
+    const dopo = lungoMuro - aa >= da;
+    const tratteggio = { ...tratto, spessoreMm: 0.13, tratteggioMm: [1.2, 0.8] };
+    const s1 = dopo ? aa : da, s2 = dopo ? aa + a.larghezza + 5 : da - a.larghezza - 5;
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: tratteggio, punti: [asse(s1, t / 2 - 1), asse(s2, t / 2 - 1), asse(s2, -t / 2 + 1), asse(s1, -t / 2 + 1)] });
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: tratto.spessoreMm * 1.4 }, punti: [asse(da, 0), asse(aa, 0)] });
+    return out;
+  }
+  // Porta a libro: le ante ripiegate fanno uno zig-zag nel vano
+  if (a.sistema === "libro" && a.tipo !== "finestra") {
+    const passi = Math.max(2, (a.ante ?? 2) * 2);
+    const pt = Array.from({ length: passi + 1 }, (_, i) => asse(da + (a.larghezza * i) / passi, i % 2 ? t * 0.35 : -t * 0.35));
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: tratto.spessoreMm * 1.2 }, punti: pt });
+    return out;
+  }
+  // Fisso: solo il vetro
+  if (a.sistema === "fisso" && a.tipo !== "finestra") {
+    out.push({ tipo: "poligono", layer: "APERTURE", punti: [asse(da, 0), asse(aa, 0)], chiuso: false, tratto: { ...tratto, spessoreMm: 0.13 } });
+    return out;
+  }
   if (a.tipo === "porta" && a.manovra === "scorrevole") {
     // L'anta chiusa, sottile, sul lato dove scorre, e la linea del binario
     const s0 = da, s1 = aa;
@@ -453,6 +475,12 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
     return out;
   }
 
+  if (a.tipo === "porta" && (a.ante ?? 1) >= 2 && a.manovra !== "scorrevole") {
+    // porta a due ante: ognuna mezza luce, cerniere alle due spalle
+    const meta = a.larghezza / 2, faccia = (s: number) => asse(s, t / 2);
+    out.push(...anta(faccia(da), latoN, faccia(da + meta), meta, tratto, presentazione ? "rgba(255,255,255,0.55)" : undefined), ...anta(faccia(aa), latoN, faccia(aa - meta), meta, tratto, presentazione ? "rgba(255,255,255,0.55)" : undefined));
+    return out;
+  }
   if (a.tipo === "porta") {
     const inizio = a.cerniera !== "fine";
     const cerniera = asse(inizio ? da : aa, t / 2);
@@ -473,7 +501,16 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
   if (a.tipo === "finestra") {
     out.push({ tipo: "poligono", layer: "APERTURE", punti: [asse(da - 3, -t / 2), asse(aa + 3, -t / 2)], chiuso: false, tratto });
   }
-  if (a.tipo === "portafinestra" && a.manovra !== "scorrevole") {
+  // Montanti fra le ante (e anta scorrevole davanti al vetro per i sistemi a scorrere)
+  const nAnte = Math.max(1, a.ante ?? 1);
+  for (let i = 1; i < nAnte; i++) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: 0.2 }, punti: [asse(da + (a.larghezza * i) / nAnte, telaio / 2), asse(da + (a.larghezza * i) / nAnte, -telaio / 2)] });
+  if (a.manovra === "scorrevole") {
+    for (let i = 0; i < nAnte; i++) {
+      const off = i % 2 ? -(t / 2 + 3) : t / 2 + 3;
+      out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: tratto.spessoreMm * 1.4 }, punti: [asse(da + (a.larghezza * i) / nAnte, off), asse(da + (a.larghezza * (i + 1)) / nAnte + (i < nAnte - 1 ? 4 : 0), off)] });
+    }
+  }
+  if (a.tipo === "portafinestra" && a.manovra === "battente") {
     const ante = a.ante ?? 2;
     const faccia = (s: number) => asse(s, t / 2);
     const tr = { ...tratto, tratteggioMm: undefined as number[] | undefined };

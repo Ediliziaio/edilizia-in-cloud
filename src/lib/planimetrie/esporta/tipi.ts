@@ -47,6 +47,8 @@ export interface AperturaVista {
   davanzale?: number;
   /** Di serie a battente; «nessuna» è un vano senza anta. */
   manovra?: "battente" | "scorrevole" | "nessuna";
+  /** Sistema del serramento (scorrevole a scomparsa, a libro, fisso…): vedi shared/planimetrie/serramenti.ts. */
+  sistema?: "battente" | "anta_ribalta" | "vasistas" | "scorrevole" | "scorrevole_scomparsa" | "alzante_scorrevole" | "libro" | "fisso";
   /**
    * Da che parte sta la cerniera guardando da p1 verso p2 («inizio» = vicino a
    * p1) e su quale lato del muro si apre l'anta («sinistra» = a sinistra di chi

@@ -14,12 +14,13 @@ import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
 import { dist } from "./geometria";
+import { anteDi, manovraDi, misureSerramento, NOMI_SISTEMA, sistemaDi, sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
 import { TIPI_SU_TUTTI_I_PIANI } from "@/lib/planimetrie/copiaSuiPiani";
 import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
-import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { NOMI_AREA, TIPI_AREA, type SistemaApertura, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
@@ -30,7 +31,7 @@ export interface AzioniPannello {
   latoStanza: (id: string, lato: number, cm: number) => void;
   lunghezzaParete: (id: string, cm: number) => void;
   spessoreParete: (id: string, cm: number) => void;
-  modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale">>) => void;
+  modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra">>) => void;
   giraApertura: (id: string) => void;
   elimina: (sel: Selezione) => void;
   conferma: (sel: Selezione) => void;
@@ -648,6 +649,37 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
           </SelectContent>
         </Select>
       </div>
+      {a.tipo !== "varco" && (
+        <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+          <div className="space-y-1">
+            <Label>Come si apre</Label>
+            <Select
+              value={sistemaDi(a)}
+              onValueChange={(v) => {
+                const s = v as SistemaApertura;
+                azioni.modificaApertura(a.id, { sistema: s, manovra: manovraDi(s), ...(s === "scorrevole_scomparsa" ? { ante: 1 } : {}) });
+              }}
+              disabled={!misurabile}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {sistemiAmmessi(a.tipo).map((s) => <SelectItem key={s} value={s}>{NOMI_SISTEMA[s]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {sistemaDi(a) !== "scorrevole_scomparsa" && (
+            <div className="space-y-1">
+              <Label>Ante</Label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((n) => (
+                  <Button key={n} type="button" size="sm" variant={anteDi(a) === n ? "default" : "outline"} className="h-9 w-8 px-0" disabled={!misurabile} onClick={() => azioni.modificaApertura(a.id, { ante: n })}>{n}</Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {a.tipo !== "varco" && !essenziale && <MisureControtelaio a={a} />}
       <div className="grid grid-cols-2 gap-2">
         <CampoMisura
           etichetta="Larghezza (cm)"
@@ -690,6 +722,19 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
           <BottoneElimina vista={vista} stato={a.stato} cosa={a.tipo === "finestra" ? "la finestra" : "la porta"} onClick={() => azioni.elimina({ tipo: "apertura", id: a.id })} />
         )}
       </div>
+    </div>
+  );
+}
+
+/** Foro, controtelaio e anta, di massima: servono per ordinare il controtelaio prima della posa. */
+function MisureControtelaio({ a }: { a: Apertura }) {
+  const m = misureSerramento(a);
+  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  return (
+    <div className="space-y-0.5 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+      <p><span className="font-medium text-foreground">Controtelaio{m.controtelaioSpeciale ? " per scorrevole a scomparsa" : ""}:</span> {cm(m.controtelaio.larghezza)} × {cm(m.controtelaio.altezza)} cm</p>
+      <p>Serramento: {cm(m.telaio.larghezza)} × {cm(m.telaio.altezza)} cm · anta {cm(m.anta)} cm{anteDi(a) > 1 ? ` (${anteDi(a)} ante)` : ""}</p>
+      {m.tascaScomparsa > 0 && <p>Serve un tratto di muro libero di almeno {cm(m.tascaScomparsa)} cm a fianco, senza porte né impianti.</p>}
     </div>
   );
 }
