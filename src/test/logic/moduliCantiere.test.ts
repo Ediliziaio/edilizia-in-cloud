@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  SCHEMA_COME_OGGI, campiPerContesto, daCompletare, chiaveDaEtichetta, chiaveValore, componiValori, leggiSchema, leggiValori, mancanti,
+  SCHEMA_COME_OGGI, campiPerContesto, daCompletare, fasiDelRapportino, chiaveDaEtichetta, chiaveValore, componiValori, leggiSchema, leggiValori, mancanti,
   validaModifica, validaSchema, valoreInTesto, valoriDaStampare, valoriInBozza,
   type CampoModulo, type ContestoCampi, type ModuloSchema, type ValoreCampo,
 } from "../../../supabase/functions/_shared/moduliCantiere";
@@ -51,7 +51,7 @@ describe("validaSchema", () => {
   it("rifiuta chiavi doppie", () => {
     expect(validaSchema(schema([campo(), campo({ etichetta: "Altro" })])).length).toBeGreaterThan(0);
   });
-  it("rifiuta più di 40 voci", () => {
+  it("rifiuta troppe voci", () => {
     const voci = Array.from({ length: 41 }, (_, i) => `v${i}`);
     expect(validaSchema({ ...SCHEMA_COME_OGGI, voci }).length).toBeGreaterThan(0);
   });
@@ -256,5 +256,28 @@ describe("modelli pronti", () => {
   it("offre rapportino Edile, Serramenti, Impianti e verbale Generico, Serramenti, Fotovoltaico, Impianti", () => {
     expect(PRESET_RAPPORTINO.map(p => p.nome)).toEqual(["Edile", "Serramenti", "Impianti"]);
     expect(PRESET_VERBALE.map(p => p.nome)).toEqual(["Generico", "Serramenti", "Fotovoltaico", "Impianti"]);
+  });
+});
+
+describe("correzioni dalla revisione", () => {
+  it("un campo tornato sul rapportino non perde i valori scritti per fase", () => {
+    const vecchio = valore({ chiave: "pezzi", tipo: "number", valore: 9, phase_id: "f1", fase_nome: "Posa" });
+    expect(componiValori([campo()], {}, [vecchio])).toEqual([vecchio]);
+  });
+  it("le fasi di un rapportino sono quelle dichiarate più quelle dei valori, con il nome salvato", () => {
+    const v = [valore({ chiave: "p", phase_id: "f2", fase_nome: "Sigillature" })];
+    expect(fasiDelRapportino([{ phase_id: "f1", nome: "Posa" }, { phase_id: "f2" }], v)).toEqual([{ id: "f1", nome: "Posa" }, { id: "f2", nome: "Sigillature" }]);
+    expect(fasiDelRapportino(null, v)).toEqual([{ id: "f2", nome: "Sigillature" }]);
+    expect(fasiDelRapportino("x", [])).toEqual([]);
+  });
+  it("un obbligatorio per fase già compilato non risulta da completare", () => {
+    const s = schema([campo({ livello: "fase", obbligatorio: true })]);
+    const valori = [valore({ chiave: "pezzi", tipo: "number", valore: 2, phase_id: "f1" })];
+    expect(daCompletare(s, { descrizione: "x", subappaltatore: false, fineLavori: false, valori, fasi: [{ id: "f1", nome: "Posa" }] })).toEqual([]);
+  });
+  it("un modello non può avere più voci o voci più lunghe di quelle che il verbale accetta", () => {
+    const voci = Array.from({ length: 31 }, (_, i) => `v${i}`);
+    expect(validaSchema({ ...SCHEMA_COME_OGGI, voci }).length).toBeGreaterThan(0);
+    expect(validaSchema({ ...SCHEMA_COME_OGGI, voci: ["x".repeat(201)] }).length).toBeGreaterThan(0);
   });
 });

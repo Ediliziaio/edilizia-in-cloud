@@ -125,4 +125,39 @@ describe("Verbale dal telefono", () => {
     await waitFor(() => expect(azioni()).toContain("open"));
     expect(screen.queryByRole("button", { name: "Salva bozza" })).toBeNull();
   });
+
+  it("con le riserve si scrivono gli interventi e si può far firmare", async () => {
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Nuovo: Serramenti" }));
+    compila();
+    fireEvent.click(screen.getByRole("button", { name: "Con riserva: Vetri integri" }));
+    fireEvent.change(screen.getByLabelText("Motivo: Vetri integri"), { target: { value: "Vetro graffiato" } });
+    fireEvent.change(screen.getByLabelText("Esito"), { target: { value: "reserves" } });
+    fireEvent.change(screen.getByLabelText("Riserve"), { target: { value: "Da sostituire" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi un intervento" }));
+    fireEvent.change(screen.getByLabelText("Intervento 1"), { target: { value: "Sostituire il vetro" } });
+    fireEvent.change(screen.getByLabelText("Responsabile 1"), { target: { value: "Marco" } });
+    fireEvent.change(screen.getByLabelText("Entro 1"), { target: { value: "2099-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mostra il PDF" }));
+    await waitFor(() => expect(azioni()).toContain("preview"));
+    const s = stato.invocazioni.find(b => b.action === "save")! as { content: { actions: unknown[] } };
+    expect(s.content.actions).toEqual([{ work: "Sostituire il vetro", owner: "Marco", due: "2099-01-01" }]);
+  });
+  it("dopo l'anteprima l'elenco si rilegge, così la bozza riaperta ha la versione giusta", async () => {
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Nuovo: Serramenti" }));
+    compila();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra il PDF" }));
+    await screen.findByRole("checkbox", { name: "Il cliente ha visto il documento" });
+    await waitFor(() => expect(azioni().filter(a => a === "list").length).toBeGreaterThan(1));
+  });
+  it("il verbale nuovo porta con sé il modello da cui nasce", async () => {
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Nuovo: Serramenti" }));
+    compila();
+    fireEvent.click(screen.getByRole("button", { name: "Salva bozza" }));
+    await waitFor(() => expect(azioni()).toContain("save"));
+    expect((stato.invocazioni.find(b => b.action === "save") as { content: { modulo_id: string } }).content.modulo_id).toBe("a");
+  });
 });
+

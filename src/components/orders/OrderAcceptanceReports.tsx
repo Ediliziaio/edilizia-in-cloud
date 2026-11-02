@@ -15,8 +15,8 @@ import { formatDateShort } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { CampiModulo } from "@/components/campo/CampiModulo";
 import { FirmaVerbaleDialog, type FirmaVerbale } from "@/components/orders/FirmaVerbaleDialog";
-import { useModuliAzienda } from "@/hooks/useModuliCantiere";
-import { componiValori, leggiValori, valoriInBozza, type ModuloSchema } from "../../../supabase/functions/_shared/moduliCantiere";
+import { useModuliAzienda, type ModuloAzienda } from "@/hooks/useModuliCantiere";
+import { componiValori, leggiValori, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,14 +132,14 @@ export function OrderAcceptanceReports({
   };
   const nuovo = () => {
     if (modelli.length > 1) setScegliModello(true);
-    else start(null, modelli[0]?.schema ?? null);
+    else start(null, modelli[0] ?? null);
   };
-  const start = (row: Report | null, modello: ModuloSchema | null = null) => {
+  const start = (row: Report | null, modello: ModuloAzienda | null = null) => {
     setScegliModello(false);
     setReport(row);
     const iniziale = row
       ? structuredClone(row.content)
-      : { ...acceptanceDaModello(today(), modello), customer };
+      : { ...acceptanceDaModello(today(), modello?.schema ?? null, modello?.id), customer };
     setContent(iniziale);
     setValoriCampi(valoriInBozza(leggiValori(iniziale.valori)));
     setDirty(!row);
@@ -241,7 +241,7 @@ export function OrderAcceptanceReports({
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 p-3">
             <span className="text-sm font-medium">Quale modello?</span>
             {modelli.map((m) => (
-              <Button key={m.id} variant="outline" size="sm" onClick={() => start(null, m.schema)}>
+              <Button key={m.id} variant="outline" size="sm" onClick={() => start(null, m)}>
                 {m.nome}
               </Button>
             ))}

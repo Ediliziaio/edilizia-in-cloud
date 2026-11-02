@@ -26,6 +26,8 @@ export interface AcceptanceContent {
   /** Copia dei campi del modello presa alla creazione: se il modello cambia, questo verbale non cambia. */
   campi?: CampoModulo[];
   valori?: ValoreCampo[];
+  /** Il modello da cui nasce: decide se il capocantiere può vederlo e firmarlo. */
+  modulo_id?: string;
 }
 export const outcomes = {
   pending: "Da verificare",
@@ -82,7 +84,7 @@ export function validaFirma(firma: unknown): string[] {
 }
 
 /** Un verbale nuovo dal modello dell'azienda; senza modello è quello di sempre. */
-export function acceptanceDaModello(date: string, modello: ModuloSchema | null): AcceptanceContent {
+export function acceptanceDaModello(date: string, modello: ModuloSchema | null, moduloId?: string): AcceptanceContent {
   const vuoto = emptyAcceptance(date);
   if (!modello) return vuoto;
   return {
@@ -93,6 +95,7 @@ export function acceptanceDaModello(date: string, modello: ModuloSchema | null):
       : vuoto.checks,
     campi: structuredClone(modello.campi.filter((c) => !c.archiviato)),
     valori: [],
+    ...(moduloId ? { modulo_id: moduloId } : {}),
   };
 }
 const validDate = (v: string) =>
@@ -122,6 +125,7 @@ export function validateAcceptance(value: unknown, complete = false): string[] {
       errors.push(`Campo ${key} non valido o troppo lungo`);
   }
   if (c.campi !== undefined && !Array.isArray(c.campi)) errors.push("Dati del collaudo non validi");
+  if (c.modulo_id !== undefined && typeof c.modulo_id !== "string") errors.push("Modello del verbale non valido");
   if (c.valori !== undefined && (!Array.isArray(c.valori) || leggiValori(c.valori).length !== c.valori.length))
     errors.push("Valori del collaudo non validi");
   if (errors.length) return errors;

@@ -73,7 +73,7 @@ function EditorCampi({ tipoModulo, campi, uso, bloccato, onChange }: {
   };
   const aggiungi = () => riscrivi([...attivi, {
     // La chiave vera si fissa al salvataggio, dal nome scritto: qui serve solo a riconoscere il campo nuovo.
-    chiave: `nuovo_${Date.now()}_${attivi.length}`, etichetta: "", tipo: "text", obbligatorio: false,
+    chiave: `nuovo_${campi.reduce((max, c) => Math.max(max, Number(c.chiave.replace("nuovo_", "")) || 0), 0) + 1}`, etichetta: "", tipo: "text", obbligatorio: false,
     chi: "tutti", ditte: "tutti", quando: "sempre", livello: "rapportino", stampa: delRapportino ? "interno" : "cliente",
   }]);
   return (

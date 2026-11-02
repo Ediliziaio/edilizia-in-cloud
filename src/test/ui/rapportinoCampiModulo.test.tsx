@@ -110,4 +110,32 @@ describe("CampiDaCompletare", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Il rapportino è cambiato nel frattempo: ricarica e riprova."));
   });
+
+  it("con i valori per fase scritti non segnala nulla", () => {
+    const perFase = { ...campo, livello: "fase" as const };
+    const { container } = avvolgi(<CampiDaCompletare report={report({ fasi_lavorate: [{ phase_id: "f1", nome: "Posa" }], campi_extra: [{ chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", valore: 5, stampa: "interno", phase_id: "f1", fase_nome: "Posa" }] })} schema={{ ...SCHEMA_COME_OGGI, campi: [perFase] }} puoModificare onSalvato={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+  it("completando un altro campo non perde i valori per fase", async () => {
+    const perFase = { ...campo, chiave: "pf", etichetta: "Per fase", obbligatorio: false, livello: "fase" as const };
+    const scritto = { chiave: "pf", etichetta: "Per fase", tipo: "number", valore: 5, stampa: "interno", phase_id: "f1", fase_nome: "Posa" };
+    avvolgi(<CampiDaCompletare report={report({ fasi_lavorate: [{ phase_id: "f1", nome: "Posa" }], campi_extra: [scritto] })} schema={{ ...SCHEMA_COME_OGGI, campi: [campo, perFase] }} puoModificare onSalvato={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Completa" }));
+    expect(screen.getByLabelText("Per fase")).toHaveValue(5);
+    fireEvent.change(screen.getByLabelText("Pezzi posati"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(db.update).toHaveBeenCalled());
+    const { campi_extra } = db.update.mock.calls[0][0] as { campi_extra: Array<{ chiave: string; valore: number; phase_id?: string }> };
+    expect(campi_extra).toContainEqual(expect.objectContaining({ chiave: "pf", valore: 5, phase_id: "f1" }));
+    expect(campi_extra).toContainEqual(expect.objectContaining({ chiave: "pezzi", valore: 7 }));
+  });
+  it("il salvataggio chiede solo quello che ha segnalato", async () => {
+    const delCapo = { ...campo, chiave: "c", etichetta: "Del capo", chi: "capo" as const };
+    avvolgi(<CampiDaCompletare report={report()} schema={{ ...SCHEMA_COME_OGGI, campi: [campo, delCapo] }} puoModificare onSalvato={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Completa" }));
+    fireEvent.change(screen.getByLabelText("Pezzi posati"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(db.update).toHaveBeenCalled());
+  });
 });
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caricoRapportini, erroriGiorni, giorniDaPeriodo, giornoVuoto } from "@/lib/campo/rapportiniUfficio";
+import { applicaParti, caricoRapportini, erroriGiorni, giorniDaPeriodo, giornoVuoto } from "@/lib/campo/rapportiniUfficio";
 
 /** Rapportini scritti dall'ufficio (31/10/2026): più giorni, fasi e sottofasi come dal cantiere. */
 describe("rapportini dall'ufficio", () => {
@@ -96,5 +96,18 @@ describe("campi propri dall'ufficio", () => {
   });
   it("il giorno aggiunto dopo non copia i campi: sarebbero numeri doppi", () => {
     expect(giornoVuoto("2026-10-30", "b", giorno).campi).toBeUndefined();
+  });
+});
+
+describe("parti spente e lettura AI", () => {
+  const pieno = { ...giornoVuoto("2026-10-30", "a"), descrizione: "Posa", fasi: ["f1"], sottofasi: { s1: "finita" as const }, percentuali: { f1: 50 }, mezzi: { m1: "2" }, materiali: { i1: "3" }, foto: ["x"] };
+  const tutte = { fasi: true, materiali: true, mezzi: true, foto: true, straordinario: true, avanzamento: true };
+  it("con tutto acceso non cambia nulla", () => {
+    expect(applicaParti(pieno, tutte)).toEqual(pieno);
+  });
+  it("una parte spenta non parte, anche se l'AI l'aveva letta", () => {
+    const g = applicaParti(pieno, { ...tutte, fasi: false, materiali: false, mezzi: false, foto: false });
+    expect(g).toMatchObject({ fasi: [], sottofasi: {}, percentuali: {}, mezzi: {}, materiali: {}, foto: [] });
+    expect(g.descrizione).toBe("Posa");
   });
 });

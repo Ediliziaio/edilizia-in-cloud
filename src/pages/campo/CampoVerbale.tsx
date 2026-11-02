@@ -49,6 +49,8 @@ export default function CampoVerbale() {
   const elenco = useQuery<Verbale[]>({
     queryKey: ["verbali-capo", orderId],
     enabled: !!orderId,
+    // Ogni anteprima cambia la versione: una bozza riaperta deve avere sempre quella giusta.
+    staleTime: 0,
     queryFn: async () => (await chiama<{ reports: Verbale[] }>({ action: "list", order_id: orderId })).reports ?? [],
   });
   const [report, setReport] = useState<Verbale | null>(null);
@@ -66,7 +68,7 @@ export default function CampoVerbale() {
   const verificatore = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ");
   const nuovo = (m: ModelloCapo) => {
     setReport(null); setFirmato(null); setErrori([]); setAnteprima(null); setVisto(false);
-    setContent({ ...acceptanceDaModello(oggi, leggiSchema(m.schema)), inspector: verificatore });
+    setContent({ ...acceptanceDaModello(oggi, leggiSchema(m.schema), m.id), inspector: verificatore });
     setValoriCampi({});
     setModificato(true);
   };
@@ -100,6 +102,7 @@ export default function CampoVerbale() {
       const { report: aggiornato, url } = await chiama<{ report: Verbale; url: string }>({ action: "preview", order_id: orderId, id: r.id, version: r.version });
       setReport(aggiornato);
       setAnteprima(url);
+      void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
       window.open(url, "_blank");
     });
   };
@@ -207,6 +210,27 @@ export default function CampoVerbale() {
               </select></div>
             <div className="grid gap-1"><Label htmlFor="v-riserve">Riserve</Label>
               <Textarea id="v-riserve" rows={2} value={content.reservations} onChange={e => cambia({ reservations: e.target.value })} /></div>
+            {(content.outcome === "reserves" || content.outcome === "negative" || content.actions.length > 0) && (
+              <div className="space-y-2">
+                {content.actions.map((a, i) => (
+                  <div key={i} className="grid gap-1.5 rounded-lg border p-2">
+                    <Input aria-label={`Intervento ${i + 1}`} placeholder="Cosa fare" value={a.work} maxLength={2000}
+                      onChange={e => cambia({ actions: content.actions.map((x, k) => k === i ? { ...x, work: e.target.value } : x) })} />
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Input aria-label={`Responsabile ${i + 1}`} placeholder="Chi" value={a.owner} maxLength={200}
+                        onChange={e => cambia({ actions: content.actions.map((x, k) => k === i ? { ...x, owner: e.target.value } : x) })} />
+                      <Input aria-label={`Entro ${i + 1}`} type="date" value={a.due}
+                        onChange={e => cambia({ actions: content.actions.map((x, k) => k === i ? { ...x, due: e.target.value } : x) })} />
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" className="h-8 justify-self-end text-rose-600"
+                      onClick={() => cambia({ actions: content.actions.filter((_, k) => k !== i) })}>Togli</Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={() => cambia({ actions: [...content.actions, { work: "", owner: "", due: "" }] })}>
+                  <Plus className="mr-1.5 h-4 w-4" />Aggiungi un intervento
+                </Button>
+              </div>
+            )}
             <div className="grid gap-1"><Label htmlFor="v-documenti">Documenti consegnati</Label>
               <Input id="v-documenti" value={content.documents} onChange={e => cambia({ documents: e.target.value })} /></div>
           </div>

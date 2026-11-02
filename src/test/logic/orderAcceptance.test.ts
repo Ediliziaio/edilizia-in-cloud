@@ -265,3 +265,32 @@ describe("verbale dal cantiere: permessi", () => {
   });
 });
 
+describe("correzioni dalla revisione", () => {
+  const fonte = () => readFileSync("supabase/functions/collaudo-commessa/index.ts", "utf8").replace(/\s+/g, "").replaceAll('"', "'");
+  it("il bucket accetta anche la firma in PNG", () => {
+    const sql = readFileSync("supabase/migrations/20281107120000_verbale_firma_cliente.sql", "utf8");
+    expect(sql).toMatch(/update storage\.buckets set allowed_mime_types = array\['application\/pdf', 'image\/png'\]/);
+    expect(sql).toContain("id = 'order-acceptance-reports'");
+  });
+  it("il verbale ricorda il modello, e un modello senza id non inventa nulla", () => {
+    const m = { ...SCHEMA_COME_OGGI, voci: ["A"] };
+    expect(acceptanceDaModello("2026-11-02", m, "m1").modulo_id).toBe("m1");
+    expect(acceptanceDaModello("2026-11-02", m)).not.toHaveProperty("modulo_id");
+    expect(validateAcceptance({ ...emptyAcceptance("2026-11-02"), modulo_id: 3 }).length).toBeGreaterThan(0);
+  });
+  it("il capo in sola lettura non scrive", () => {
+    const c = fonte();
+    expect(c).toContain("caller.rpc('utente_sola_lettura',{p_company_id:order.company_id})");
+    expect(readFileSync("supabase/migrations/20281107130000_verbale_dal_cantiere.sql", "utf8")).toContain("public.utente_sola_lettura(v_company)");
+  });
+  it("il capo vede e tocca solo i verbali di un modello che lo permette", () => {
+    const c = fonte();
+    expect(c).toContain("modelliCapo.some((m)=>m.id===r.content?.modulo_id)");
+    expect(c).toContain("capo&&!daModelloCapo(report)");
+  });
+  it("il capo non cambia i campi del modello", () => {
+    const c = fonte();
+    expect(c).toContain("body.content.campi=report?report.content.campi:");
+    expect(c).toContain("body.content.modulo_id!==report.content?.modulo_id");
+  });
+});

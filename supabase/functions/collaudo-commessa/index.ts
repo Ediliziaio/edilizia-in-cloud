@@ -5,6 +5,7 @@ import {
   errorResponse,
   jsonResponse,
 } from "../_shared/headers.ts";
+import { leggiSchema } from "../_shared/moduliCantiere.ts";
 import { firmaInByte, validaFirma, validateAcceptance } from "./model.ts";
 import { renderAcceptance } from "./render.ts";
 const bucket = "order-acceptance-reports";
@@ -72,7 +73,27 @@ Deno.serve(async (req) => {
           cors,
         );
       capo = true;
+      // Chi l'azienda ha messo in sola lettura legge soltanto, anche se è capocantiere.
+      if (body.action !== "list" && body.action !== "open") {
+        const { data: solaLettura, error: solaError } = await caller.rpc("utente_sola_lettura", { p_company_id: order.company_id });
+        if (solaError || solaLettura !== false)
+          return errorResponse("Non hai il permesso di gestire questo verbale", 403, cors);
+      }
     }
+    // Il capo arriva solo ai verbali nati da un modello che lo permette, non a quelli dell'ufficio.
+    let modelliCapo: Array<{ id: string; schema: unknown }> = [];
+    if (capo) {
+      const { data: modelli, error: modelliError } = await admin
+        .from("moduli_cantiere")
+        .select("id,schema")
+        .eq("company_id", order.company_id)
+        .eq("tipo", "verbale")
+        .eq("attivo", true)
+        .is("deleted_at", null);
+      if (modelliError) throw modelliError;
+      modelliCapo = (modelli ?? []).filter((m: { id: string; schema: unknown }) => leggiSchema(m.schema).dal_cantiere === true);
+    }
+    const daModelloCapo = (r: { content?: { modulo_id?: unknown } }) => modelliCapo.some((m) => m.id === r.content?.modulo_id);
     // In cantiere si chiude solo con la firma del cliente; senza firma lo chiude l'ufficio.
     if (capo && body.action === "finalize")
       return errorResponse("Dal cantiere il verbale si chiude con la firma del cliente", 403, cors);
@@ -84,7 +105,7 @@ Deno.serve(async (req) => {
         .eq("company_id", order.company_id)
         .order("created_at", { ascending: false });
       if (listError) throw listError;
-      return jsonResponse({ reports: verbali ?? [] }, 200, cors);
+      return jsonResponse({ reports: capo ? (verbali ?? []).filter(daModelloCapo) : verbali ?? [] }, 200, cors);
     }
     let report = null;
     if (body.id) {
@@ -98,6 +119,8 @@ Deno.serve(async (req) => {
       if (result.error || !result.data)
         return errorResponse("Verbale non trovato", 404, cors);
       report = result.data;
+      if (capo && !daModelloCapo(report))
+        return errorResponse("Questo verbale lo gestisce l'ufficio", 403, cors);
     }
     const responseWithPdf = async (row: Record<string, unknown>) => {
       const { data, error } = await admin.storage
@@ -126,6 +149,13 @@ Deno.serve(async (req) => {
         cors,
       );
     if (body.action === "save") {
+      if (capo) {
+        // I campi vengono dal modello: dal telefono non si tolgono, né si cambia modello.
+        const modello = modelliCapo.find((m) => m.id === body.content?.modulo_id);
+        if (!modello || (report && body.content.modulo_id !== report.content?.modulo_id))
+          return errorResponse("Modello del verbale non disponibile", 403, cors);
+        body.content.campi = report ? report.content.campi : leggiSchema(modello.schema).campi.filter((c) => !c.archiviato);
+      }
       const errors = validateAcceptance(body.content);
       if (errors.length) return errorResponse(errors.join(". "), 422, cors);
       const query = report

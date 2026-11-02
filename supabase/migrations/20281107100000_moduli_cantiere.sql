@@ -25,6 +25,7 @@ create policy moduli_cantiere_lettura on public.moduli_cantiere for select to au
   using (not (select public.utente_bloccato())
          and (public.has_permission_for_company((select auth.uid()), 'can_view_settings_orders', company_id)
               or public.has_permission_for_company((select auth.uid()), 'can_view_orders', company_id)));
+grant select on public.moduli_cantiere to authenticated;
 revoke insert, update, delete on public.moduli_cantiere from authenticated, anon;
 
 alter table public.campo_rapportini add column if not exists campi_extra jsonb not null default '[]'::jsonb;

@@ -33,7 +33,7 @@ import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { CampiModulo } from "@/components/campo/CampiModulo";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
-import { campiPerContesto, componiValori, leggiValori, mancanti, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
+import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
 import { buildRapportinoMaterials, restoreRapportinoMaterials, rapportinoStockSelectionKey, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
@@ -516,9 +516,30 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const sceltaFasePerOgniCosa = fasiSelezionate.length > 1;
   // Un campo per fase si compila una volta per ogni fase lavorata. Senza fasi scelte, o a fasi spente, sta sul rapportino;
   // un respinto a fasi spente conserva i valori che aveva, senza richiederli.
-  const fasiPerCampi = useMemo(() => confermaCliente || !(parti.fasi || daRifare) ? [] : fasiSelezionate.map(f => ({ id: f.id, nome: f.name })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fasiSelezionate cambia solo con queste due
-    [confermaCliente, parti.fasi, daRifare, fasiCommessa, fasiDichiarate]);
+  // Si parte dalle fasi dichiarate, non dall'elenco della commessa: se l'elenco non è arrivato (poco segnale) o la fase è
+  // stata tolta dalla commessa, i valori di un respinto non si perdono.
+  const fasiPerCampi = useMemo(() => {
+    if (confermaCliente || !(parti.fasi || daRifare)) return [];
+    const salvate = daRifare ? fasiDelRapportino(rapportinoGiaOggi?.fasi_lavorate, leggiValori(rapportinoGiaOggi?.campi_extra)) : [];
+    return Object.keys(fasiDichiarate).map(id => ({
+      id, nome: fasiCommessa.find(f => f.id === id)?.name ?? salvate.find(f => f.id === id)?.nome ?? "",
+    }));
+  }, [confermaCliente, parti.fasi, daRifare, fasiCommessa, fasiDichiarate, rapportinoGiaOggi]);
+  // Scritto prima di scegliere la fase: passa alla prima fase scelta, invece di restare in un campo che non si vede più.
+  useEffect(() => {
+    if (!parti.fasi || fasiPerCampi.length === 0) return;
+    const pieno = (v: unknown) => v !== undefined && v !== null && v !== "";
+    setCampiValori(prima => {
+      let dopo = prima;
+      for (const c of campiModulo) {
+        const slot = chiaveValore(c.chiave, fasiPerCampi[0].id);
+        if (c.livello !== "fase" || !pieno(prima[c.chiave]) || pieno(prima[slot])) continue;
+        const { [c.chiave]: valore, ...resto } = dopo;
+        dopo = { ...resto, [slot]: valore };
+      }
+      return dopo;
+    });
+  }, [parti.fasi, fasiPerCampi, campiModulo]);
   const campiSulRapportino = campiModulo.filter(c => c.livello !== "fase" || fasiPerCampi.length === 0);
   const campiDiFase = parti.fasi && fasiPerCampi.length > 0 ? campiModulo.filter(c => c.livello === "fase") : [];
   const mancantiRapportino = mancanti(campiSulRapportino, campiValori);

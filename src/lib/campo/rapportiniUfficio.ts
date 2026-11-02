@@ -7,7 +7,7 @@
  * rapportino del cantiere (fasiLavorateDelRapportino), così l'approvazione le
  * tratta allo stesso modo.
  */
-import { componiValori, mancanti, type CampoModulo, type FaseScelta } from "../../../supabase/functions/_shared/moduliCantiere";
+import { componiValori, mancanti, type BloccoStandard, type CampoModulo, type FaseScelta } from "../../../supabase/functions/_shared/moduliCantiere";
 import { fasiLavorateDelRapportino, type Sottofase } from "@/lib/orders/sottofasi";
 
 export type StatoSottofaseGiorno = "lavorata" | "finita";
@@ -64,6 +64,17 @@ export function giornoVuoto(oggi: string, chiave: string, dopo?: GiornoUfficio):
     chiave, data, autore: dopo?.autore ?? "", descrizione: "", note: "", fasi: dopo ? [...dopo.fasi] : [], sottofasi: {},
     presenze: dopo?.presenze ? { ...dopo.presenze } : {}, mezzi: dopo?.mezzi ? { ...dopo.mezzi } : {},
     materiali: {}, foto: [], meteo: dopo?.meteo ?? "", percentuali: {},
+  };
+}
+
+/** Una parte spenta non parte, anche se l'ha letta l'AI da un documento: l'ufficio non la vedrebbe e non potrebbe toglierla. */
+export function applicaParti(g: GiornoUfficio, parti: Record<BloccoStandard, boolean>): GiornoUfficio {
+  return {
+    ...g,
+    ...(parti.fasi ? {} : { fasi: [], sottofasi: {}, percentuali: {} }),
+    ...(parti.mezzi ? {} : { mezzi: {} }),
+    ...(parti.materiali ? {} : { materiali: {} }),
+    ...(parti.foto ? {} : { foto: [] }),
   };
 }
 

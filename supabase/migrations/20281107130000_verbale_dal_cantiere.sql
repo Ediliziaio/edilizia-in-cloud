@@ -24,8 +24,11 @@ grant execute on function public.verbale_capo_autorizzato(uuid, uuid) to service
 create or replace function public.verbali_modelli_per_ordine(p_order_id uuid)
 returns jsonb language plpgsql stable security definer set search_path = public
 as $$
+declare v_company uuid;
 begin
-  if auth.uid() is null or public.utente_bloccato() or not public.verbale_capo_autorizzato(p_order_id, auth.uid()) then
+  select company_id into v_company from public.orders where id = p_order_id and deleted_at is null;
+  if auth.uid() is null or v_company is null or public.utente_bloccato() or public.utente_sola_lettura(v_company)
+     or not public.verbale_capo_autorizzato(p_order_id, auth.uid()) then
     return '[]'::jsonb;
   end if;
   return coalesce((

@@ -65,7 +65,9 @@ export interface ContestoCampi {
 }
 
 export const MAX_CAMPI = 30;
-export const MAX_VOCI = 40;
+// Lo stesso limite del verbale: un modello oltre non potrebbe generare verbali validi.
+export const MAX_VOCI = 30;
+const MAX_VOCE = 200;
 const MAX_ETICHETTA = 80;
 
 export const SCHEMA_COME_OGGI: ModuloSchema = {
@@ -119,6 +121,7 @@ export function validaSchema(s: ModuloSchema): string[] {
   if (s.campi.filter(c => !c.archiviato).length > MAX_CAMPI) errori.push(`Al massimo ${MAX_CAMPI} campi.`);
   if ((s.voci?.length ?? 0) > MAX_VOCI) errori.push(`Al massimo ${MAX_VOCI} voci.`);
   if (s.voci?.some(v => !v.trim())) errori.push("Ogni voce deve avere un testo.");
+  if (s.voci?.some(v => v.length > MAX_VOCE)) errori.push(`Ogni voce può avere al massimo ${MAX_VOCE} caratteri.`);
   const viste = new Set<string>();
   for (const c of s.campi) {
     const nome = c.etichetta.trim();
@@ -210,13 +213,28 @@ export function componiValori(campi: CampoModulo[], valori: Record<string, unkno
       });
     }
   }
-  // Quello che questa persona non compila (campo eliminato, campo del capo) resta com'era.
-  const compilati = new Set(campi.map(c => c.chiave));
-  return [...out, ...precedenti.filter(p => !compilati.has(p.chiave))];
+  // Quello che questa persona non compila (campo eliminato, campo del capo) resta com'era; anche i valori per fase di un
+  // campo che ora sta sul rapportino, che qui nessuno potrebbe più riscrivere.
+  const compilati = new Map(campi.map(c => [c.chiave, c]));
+  return [...out, ...precedenti.filter(p => {
+    const c = compilati.get(p.chiave);
+    return !c || (c.livello === "rapportino" && !!p.phase_id);
+  })];
 }
 
 export function valoriInBozza(precedenti: ValoreCampo[]): Record<string, unknown> {
   return Object.fromEntries(precedenti.map(v => [chiaveValore(v.chiave, v.phase_id), v.valore]));
+}
+
+/** Le fasi di un rapportino già scritto: quelle dichiarate, più quelle dei valori, col nome che avevano allora. */
+export function fasiDelRapportino(fasiLavorate: unknown, valori: ValoreCampo[]): FaseScelta[] {
+  const fasi = new Map<string, string>();
+  for (const f of Array.isArray(fasiLavorate) ? fasiLavorate : []) {
+    const v = oggetto(f);
+    if (typeof v.phase_id === "string" && v.phase_id) fasi.set(v.phase_id, typeof v.nome === "string" ? v.nome : "");
+  }
+  for (const v of valori) if (v.phase_id && !fasi.get(v.phase_id)) fasi.set(v.phase_id, v.fase_nome ?? "");
+  return [...fasi].map(([id, nome]) => ({ id, nome }));
 }
 
 /** Le etichette degli obbligatori non compilati, con la fase quando il campo è per fase. */
