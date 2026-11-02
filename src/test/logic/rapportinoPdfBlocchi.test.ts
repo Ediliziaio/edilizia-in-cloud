@@ -199,7 +199,7 @@ describe("rapportino a blocchi: i rapportini di sempre", () => {
       expect(testi.filter(t => t === titolo), titolo).toHaveLength(titolo === "LAVORAZIONI" ? 1 : 0); // «LAVORAZIONI» è anche il contatore
     }
     expect(testi).toContain("COSA È STATO FATTO");
-    expect(testi).toContain("NOTE DEL DOCUMENTO");
+    expect(testi.join(" ")).toContain("Nessuna timbratura");
     expect(risultato.pageCount).toBe(1);
   });
 
@@ -428,13 +428,13 @@ describe("campi propri nel PDF", () => {
   it("il giornaliero stampa interni e cliente, mai i «mai»", async () => {
     const { testi } = await disegna({ ...base, campi_extra: valori });
     expect(testi).toContain("ALTRE INFORMAZIONI");
-    expect(scritto(testi)).toContain("Solo interno: dentro");
-    expect(scritto(testi)).toContain("Per il cliente: 12 pz");
+    expect(scritto(testi)).toContain("Solo interno dentro");
+    expect(scritto(testi)).toContain("Per il cliente 12 pz");
     expect(scritto(testi)).not.toContain("segreto");
   });
   it("il documento di fine lavori stampa solo i valori per il cliente", async () => {
     const { testi } = await disegna({ ...base, lavoro_completato: true, campi_extra: valori });
-    expect(scritto(testi)).toContain("Per il cliente: 12 pz");
+    expect(scritto(testi)).toContain("Per il cliente 12 pz");
     expect(scritto(testi)).not.toContain("dentro");
   });
   it("un rapportino con la firma del cliente è un documento per il cliente anche senza fine lavori", async () => {
@@ -459,11 +459,38 @@ describe("campi propri nel PDF", () => {
         { chiave: "q", etichetta: "Da non stampare", tipo: "number", valore: 9, stampa: "mai", phase_id: "ph-1", fase_nome: "Vecchio nome" },
       ] });
     expect(testi).not.toContain("ALTRE INFORMAZIONI");
-    expect(posizione(testi, "Pezzi posati: 3")).toBeGreaterThan(posizione(testi, "Demolizioni e allestimento"));
+    expect(posizione(testi, "Pezzi posati  ")).toBeGreaterThan(posizione(testi, "Demolizioni e allestimento"));
+    expect(valoreDopo(testi, "Pezzi posati  ")).toBe("3");
     expect(testi.join(" ")).not.toContain("Da non stampare");
   });
   it("un valore di una fase non più nel rapportino non si perde, col nome salvato", async () => {
     const { testi } = await disegna({ ...base, campi_extra: [{ chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 3, stampa: "interno", phase_id: "x", fase_nome: "Vecchio nome" }] });
-    expect(testi.join(" ")).toContain("Pezzi (Vecchio nome): 3");
+    expect(testi.join(" ")).toContain("Pezzi (Vecchio nome) 3");
+  });
+  it("le precisazioni per l'ufficio non vanno nel documento per il cliente, l'avanzamento generale sì", async () => {
+    const fine = await disegna({ ...base, lavoro_completato: true, percentuale_avanzamento: 80 });
+    expect(fine.testi.join(" ")).not.toContain("non attestano");
+    expect(fine.testi.join(" ")).not.toContain("Nessuna timbratura");
+    expect(fine.testi.join(" ")).toContain("Avanzamento generale dichiarato della commessa: 80%");
+    const interno = await disegna({ ...base, materiali_usati: [{ nome: "Colla", quantita: 1, unita: "pz" }] });
+    expect(interno.testi.join(" ")).toContain("non attestano");
+  });
+  it("il fine lavori dice l'esito in alto, e senza ore né materiali non mostra quattro zeri", async () => {
+    const firmato = await disegna({ ...base, lavoro_completato: true, ore_lavorate: 0, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria Bianchi" });
+    expect(firmato.testi).toContain("LAVORI CONFERMATI DAL CLIENTE");
+    expect(firmato.testi).not.toContain("MATERIALI");
+    expect(firmato.testi).toContain("RAPPORTO DI FINE LAVORI");
+    const senza = await disegna({ ...base, lavoro_completato: true, ore_lavorate: 0 });
+    expect(senza.testi).toContain("CONFERMA DEL CLIENTE NON ACQUISITA");
+    const giornaliero = await disegna({ ...base });
+    expect(giornaliero.testi).toContain("MATERIALI");
+    expect(giornaliero.testi).not.toContain("LAVORI CONFERMATI DAL CLIENTE");
+  });
+  it("un giornaliero semplice sta in una pagina", async () => {
+    const { risultato } = await disegna({ ...base, foto_urls: ["foto:0"], fasi_lavorate: [{ phase_id: "ph-1", percentuale: 60, nome: "Posa", foto: ["foto:0"] }, { phase_id: "ph-2", percentuale: 20, nome: "Sigillature" }],
+      materiali_usati: [{ nome: "Colla", quantita: 1, unita: "pz", fase_id: "ph-1" }],
+      campi_extra: [{ chiave: "a", etichetta: "Misure", tipo: "text", valore: "ok", stampa: "interno" }, { chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 5, stampa: "interno", phase_id: "ph-1", fase_nome: "Posa" }] });
+    expect(risultato.pageCount).toBe(1);
   });
 });
+
