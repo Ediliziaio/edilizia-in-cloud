@@ -35,7 +35,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   "stati-ordine":         { title: "Stati commessa",           description: "I passaggi di una commessa, dal contratto all'assistenza. Le fasi di lavoro sono un'altra cosa: stanno in «Fasi e avanzamento»." },
   "cartelle-documenti":   { title: "Cartelle documenti",       description: "Le cartelle dei documenti di ogni commessa: quali si vedono al cliente e quali sono obbligatorie" },
   "calendari-lavori":     { title: "Squadre e calendari lavori", description: "Le squadre di posa, interne e di ditte esterne. Se vuoi, ognuna ha il suo calendario Google" },
-  "rapportini-cantiere":  { title: "Rapportini e presenze",    description: "Come lavorano i tuoi cantieri: chi scrive il rapportino e da dove vengono le ore" },
+  "rapportini-cantiere":  { title: "Rapportini e presenze",    description: "Come lavorano i tuoi cantieri: chi compila, cosa si compila e i verbali di collaudo" },
   "modelli-fasi":         { title: "Fasi e avanzamento",       description: "I modelli di fasi, con quali fasi parte una commessa nuova, chi spunta le sottofasi e come si calcola l'avanzamento" },
   "commesse-generali":    { title: "Commesse generali",        description: "Appalti con tanti ordini di lavoro, complessi con tante unità, immobili da rivendere: una commessa che ne raccoglie altre" },
   "modelli-pagamento":    { title: "Modelli di pagamento",     description: "Le rate con cui si incassa una commessa, e quando matura la rata di un SAL" },

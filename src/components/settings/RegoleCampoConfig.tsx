@@ -19,6 +19,8 @@ import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo"
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
+import { ModuliCantiereConfig } from "@/components/settings/ModuliCantiereConfig";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
   GIORNI_INDIETRO_PROPOSTI, REGOLE_COME_OGGI, SCOSTAMENTI_PROPOSTI, SCOSTAMENTO_PREDEFINITO, oreInTesto,
@@ -43,6 +45,12 @@ const SEZIONI = [
   { id: "avviso", etichetta: "Controllo ore" },
   { id: "giorni", etichetta: "Giorni indietro" },
   { id: "in-pratica", etichetta: "Anteprima" },
+];
+// Si configurano da tablet e computer: da telefono queste sezioni non ci sono.
+const SEZIONI_MODULI = [
+  { id: "parti", etichetta: "Parti" },
+  { id: "campi-propri", etichetta: "Campi propri" },
+  { id: "verbali", etichetta: "Verbali" },
 ];
 
 function Opzione({
@@ -116,6 +124,7 @@ function messaggioErroreSalvataggio(errore: unknown): string {
 export default function RegoleCampoConfig() {
   const { effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
+  const mobile = useIsMobile();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
   const companyId = effectiveCompany?.id;
@@ -197,7 +206,7 @@ export default function RegoleCampoConfig() {
 
       <div ref={contenitore} className="sticky top-2 z-20" style={{ height: altezza }}>
       <div ref={barra} style={stile} className="z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card/95 p-2 shadow-sm backdrop-blur">
-        <IndiceSezioni voci={SEZIONI} onVai={vai} />
+        <IndiceSezioni voci={mobile ? SEZIONI : [...SEZIONI, ...SEZIONI_MODULI]} onVai={vai} />
         {puoModificare && (
           <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:w-auto">
             <p
@@ -389,6 +398,9 @@ export default function RegoleCampoConfig() {
           {(isAdmin || permissions.canViewSettingsOrders) && <p className="px-1 text-xs text-muted-foreground">Altre regole dell’app: <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">chi può spuntare le sottofasi</Link>.</p>}
         </aside>
       </div>
+
+      <ModuliCantiereConfig tipo="rapportino" evidenziate={{ parti: evidenziata === "parti", "campi-propri": evidenziata === "campi-propri" }} />
+      <ModuliCantiereConfig tipo="verbale" evidenziate={{ verbali: evidenziata === "verbali" }} />
     </div>
   );
 }
