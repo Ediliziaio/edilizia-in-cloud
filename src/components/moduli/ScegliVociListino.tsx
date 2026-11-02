@@ -4,9 +4,9 @@
  * scrive sulla riga e in fondo si vede cosa si sta per aggiungere. Il popup resta aperto finché non
  * si conferma. Prima era una ricerca da tastiera che si chiudeva a ogni voce e mostrava 40 voci.
  */
-import { Fragment, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Library, Loader2, PlusCircle, Search } from "lucide-react";
+import { Check, ChevronDown, Library, Loader2, PlusCircle, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +24,8 @@ import { usePrezzarioVociGlobalSearch } from "@/lib/prezzario/queries";
 import { GRUPPI_LAVORAZIONE, gruppoLavorazione } from "@/lib/tariffe/costoLavorazione";
 import { costoTariffa, unitaTariffa, type CostiTariffa } from "@/lib/listino/costoTariffa";
 import { cn } from "@/lib/utils";
-import { insiemeVoci, rigaVoceLibera, totaleScelte, voceGiaPresente, type RigaScelta, type VoceScelta } from "@/lib/moduli/scegliVoci";
+import { insiemeVoci, prezzoInCampo, rigaVoceLibera, totaleScelte, voceGiaPresente, type RigaScelta, type VoceScelta } from "@/lib/moduli/scegliVoci";
+import { leggiVociRecenti, registraVociRecenti, type VoceRecente } from "@/lib/moduli/vociRecenti";
 
 export type { VoceScelta } from "@/lib/moduli/scegliVoci";
 
@@ -38,8 +39,8 @@ interface Risposta<T> { data?: T[]; isFetching?: boolean }
 export interface FontiModulo {
   verticale: VerticaleModulo;
   useCapitoli: () => Risposta<{ id: string; nome: string }>;
-  useVoci: (termine: string, capitoloId: string | null, attivo: boolean) => Risposta<VoceDiLavorazione>;
-  useArticoli: (termine: string, attivo: boolean) => Risposta<{ id: string; name: string; marca?: string | null; sku?: string | null; unita?: string | null; prezzo_vendita: number; costo: number }>;
+  useVoci: (termine: string, capitoloId: string | null, attivo: boolean, limite: number) => Risposta<VoceDiLavorazione>;
+  useArticoli: (termine: string, attivo: boolean, limite: number) => Risposta<{ id: string; name: string; marca?: string | null; sku?: string | null; unita?: string | null; prezzo_vendita: number; costo: number }>;
   mapUnita: (unita: string | null | undefined) => string;
 }
 
@@ -52,12 +53,14 @@ interface Props {
   targetCapitolo?: string;
   /** Le voci già nel computo, per dirlo sulla riga. */
   vociPresenti?: readonly string[];
+  /** I capitoli del computo: dal pulsante generale si può scegliere dove mettere le voci. */
+  capitoliComputo?: readonly string[];
   fonti: FontiModulo;
 }
 
-type Scheda = { tipo: "tutto" } | { tipo: "scelte" } | { tipo: "capitolo"; id: string } | { tipo: "gruppo"; id: string } | { tipo: "prodotti" };
+type Scheda = { tipo: "tutto" } | { tipo: "scelte" } | { tipo: "recenti" } | { tipo: "capitolo"; id: string } | { tipo: "gruppo"; id: string } | { tipo: "prodotti" };
 const RIGHE_MOSTRATE = 300;
-const TETTO_RICERCA = 40;
+const TETTO_RICERCA = 1000; // Quante voci chiede il popup a ogni fonte.
 const PAGINA_TARIFFE = 1000;
 const MASSIMO_TARIFFE = 10_000;
 const stessaScheda = (a: Scheda, b: Scheda) => a.tipo === b.tipo && ("id" in a ? a.id : "") === ("id" in b ? b.id : "");
@@ -90,10 +93,15 @@ function useVociAzienda(attivo: boolean) {
   });
 }
 
-function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuantita, onConferma }: {
-  riga: RigaScelta; scelta?: { quantita: string }; presente: boolean; conFocus: boolean; onFocusPreso: () => void;
-  onCambia: () => void; onQuantita: (q: string) => void; onConferma: () => void;
+function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuantita, onPrezzo, onConferma }: {
+  riga: RigaScelta; scelta?: { quantita: string; prezzo: string }; presente: boolean; conFocus: boolean; onFocusPreso: () => void;
+  onCambia: () => void; onQuantita: (q: string) => void; onPrezzo: (p: string) => void; onConferma: () => void;
 }) {
+  const [aperta, setAperta] = useState(false);
+  // Telefono: il prezzo si tocca solo se serve.
+  const [conPrezzo, setConPrezzo] = useState(false);
+  const estesa = riga.voce.descrizione_estesa?.trim();
+  const haAltro = riga.descrizione.length > 100 || (!!estesa && estesa !== riga.descrizione);
   return (
     <li className={cn("flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2 hover:bg-muted/50", scelta && "bg-orange-50/70 hover:bg-orange-50")}>
       <Checkbox checked={!!scelta} onCheckedChange={onCambia} aria-label={`Scegli: ${riga.descrizione}`} />
@@ -107,20 +115,47 @@ function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuan
           </span>
         </span>
       </button>
+      {haAltro && (
+        <button
+          type="button" aria-expanded={aperta} aria-label={aperta ? "Riduci la descrizione" : "Leggi tutta la descrizione"}
+          title={aperta ? "Riduci la descrizione" : "Leggi tutta la descrizione"} onClick={() => setAperta(!aperta)}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+        >
+          <ChevronDown className={cn("h-4 w-4 transition-transform", aperta && "rotate-180")} />
+        </button>
+      )}
       <span className="w-24 shrink-0 text-right">
         <span className="block text-sm font-semibold tabular-nums text-slate-900">{formatCurrency(riga.prezzo)}</span>
         <span className="block text-[10px] text-muted-foreground">{riga.unitaLabel}</span>
       </span>
       {scelta && (
-        <label className="flex w-full items-center justify-end gap-2 text-xs text-muted-foreground sm:w-auto">
-          <span className="sm:hidden">Quantità</span>
-          <Input
-            aria-label={`Quantità: ${riga.descrizione}`} className="h-8 w-20 text-right tabular-nums" inputMode="decimal"
-            value={scelta.quantita} placeholder={riga.chiedeQuantita ? "Quanti?" : "1"} autoFocus={conFocus} onFocus={onFocusPreso}
-            onChange={(e) => onQuantita(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onConferma(); } }}
-          />
-        </label>
+        <span className="flex w-full items-center justify-end gap-3 text-xs text-muted-foreground sm:w-auto">
+          <label className="flex items-center gap-1.5">
+            <span className="sm:hidden">Quantità</span>
+            <Input
+              aria-label={`Quantità: ${riga.descrizione}`} className="h-8 w-20 text-right tabular-nums" inputMode="decimal"
+              value={scelta.quantita} placeholder={riga.chiedeQuantita ? "Quanti?" : "1"} autoFocus={conFocus} onFocus={onFocusPreso}
+              onChange={(e) => onQuantita(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onConferma(); } }}
+            />
+          </label>
+          {!conPrezzo && (
+            <button type="button" className="text-primary underline sm:hidden" onClick={() => setConPrezzo(true)}>Cambia prezzo</button>
+          )}
+          <label className={cn("flex items-center gap-1.5", !conPrezzo && "max-sm:hidden")}>
+            <span>€</span>
+            <Input
+              aria-label={`Prezzo: ${riga.descrizione}`} className="h-8 w-24 text-right tabular-nums" inputMode="decimal"
+              value={scelta.prezzo} onChange={(e) => onPrezzo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onConferma(); } }}
+            />
+          </label>
+        </span>
+      )}
+      {aperta && (
+        <span className="w-full whitespace-pre-line pl-7 text-xs text-muted-foreground">
+          {[riga.descrizione, estesa].filter((t, n, tutti) => !!t && tutti.indexOf(t) === n).join("\n")}
+        </span>
       )}
     </li>
   );
@@ -157,12 +192,19 @@ function muoviTraSpunte(e: KeyboardEvent<HTMLElement>, contenitore: HTMLElement 
   spunte[prossima].focus();
 }
 
-export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, vociPresenti = [], fonti }: Props) {
+export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, vociPresenti = [], capitoliComputo = [], fonti }: Props) {
   const isMobile = useIsMobile();
   const [termine, setTermine] = useState("");
   const [fonte, setFonte] = useState<"listino" | "prezzario">("listino");
   const [scheda, setScheda] = useState<Scheda>({ tipo: "tutto" });
-  const [scelte, setScelte] = useState<Map<string, { riga: RigaScelta; quantita: string }>>(new Map());
+  const [scelte, setScelte] = useState<Map<string, { riga: RigaScelta; quantita: string; prezzo: string }>>(new Map());
+  const [capitoloScelto, setCapitoloScelto] = useState("");
+  const companyId = useEffectiveCompanyId();
+  const [recenti, setRecenti] = useState<VoceRecente[]>([]);
+  useEffect(() => {
+    if (open) setRecenti(leggiVociRecenti(companyId, fonti.verticale));
+  }, [open, companyId, fonti.verticale]);
+  const [filtroMostrate, setFiltroMostrate] = useState({ elenco: "", quante: RIGHE_MOSTRATE });
   // La riga appena spuntata che chiede la quantità: il cursore va lì una volta sola.
   const [conFocus, setConFocus] = useState<string | null>(null);
   const elencoRef = useRef<HTMLDivElement>(null);
@@ -170,14 +212,15 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
   // Chi scrive cerca in tutto il listino, da qualunque gruppo parta.
   const staCercando = cercato.trim().length > 0;
   const schedaVista: Scheda = staCercando && scheda.tipo !== "scelte" ? { tipo: "tutto" } : scheda;
+  const tutteLeFonti = schedaVista.tipo === "tutto" || schedaVista.tipo === "recenti";
   const presenti = useMemo(() => insiemeVoci(vociPresenti), [vociPresenti]);
 
   const suListino = open && fonte === "listino";
   const capitoloId = schedaVista.tipo === "capitolo" ? schedaVista.id : null;
   const capitoli = fonti.useCapitoli();
-  const lavorazioni = fonti.useVoci(suListino ? cercato : "", capitoloId, suListino && (schedaVista.tipo === "tutto" || schedaVista.tipo === "capitolo"));
-  const articoli = fonti.useArticoli(suListino ? cercato : "", suListino && (schedaVista.tipo === "tutto" || schedaVista.tipo === "prodotti"));
-  const prodotti = useProdottiListino(cercato, fonti.verticale, suListino && (schedaVista.tipo === "tutto" || schedaVista.tipo === "prodotti"));
+  const lavorazioni = fonti.useVoci(suListino ? cercato : "", capitoloId, suListino && (tutteLeFonti || schedaVista.tipo === "capitolo"), TETTO_RICERCA);
+  const articoli = fonti.useArticoli(suListino ? cercato : "", suListino && (tutteLeFonti || schedaVista.tipo === "prodotti"), TETTO_RICERCA);
+  const prodotti = useProdottiListino(cercato, fonti.verticale, suListino && (tutteLeFonti || schedaVista.tipo === "prodotti"), TETTO_RICERCA);
   const tariffe = useVociAzienda(suListino);
   const prezzario = usePrezzarioVociGlobalSearch(open && fonte === "prezzario" ? cercato : "");
   const { mapUnita, verticale } = fonti;
@@ -215,7 +258,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
       });
     }
     const voci: RigaScelta[] = [];
-    if (schedaVista.tipo === "tutto" || schedaVista.tipo === "capitolo") {
+    if (tutteLeFonti || schedaVista.tipo === "capitolo") {
       for (const v of lavorazioni.data ?? []) {
         voci.push({
           chiave: `lavorazione-${v.id}`, sezione: v.capitolo_nome?.trim() || "Lavorazioni", descrizione: v.descrizione, meta: v.codice ?? undefined, prezzo: v.prezzo_unitario, unitaLabel: `/ ${v.unita_misura}`,
@@ -223,7 +266,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         });
       }
     }
-    if (schedaVista.tipo === "tutto" || schedaVista.tipo === "prodotti") {
+    if (tutteLeFonti || schedaVista.tipo === "prodotti") {
       for (const p of prodotti.data ?? []) {
         const inRiga = prodottoInRiga(p);
         voci.push({
@@ -247,19 +290,28 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         voci.push({ ...r, sezione: GRUPPI_LAVORAZIONE.find((g) => g.id === r.gruppo)?.nome });
       }
     }
+    if (schedaVista.tipo === "recenti") {
+      const attuali = new Map(voci.map((r) => [r.chiave, r]));
+      return recenti.flatMap((v) => {
+        const riga = attuali.get(v.chiave) ?? (v.riga && { ...v.riga, voce: { ...v.riga.voce, capitolo_nome: targetCapitolo } });
+        return riga ? [{ ...riga, sezione: undefined as string | undefined }] : [];
+      });
+    }
     return voci;
-  }, [fonte, prezzario.data, schedaVista.tipo, schedaId, scelte, lavorazioni.data, prodotti.data, articoli.data, voceTariffa, cercato, targetCapitolo, mapUnita, verticale]);
+  }, [recenti, targetCapitolo, fonte, prezzario.data, schedaVista.tipo, schedaId, scelte, lavorazioni.data, prodotti.data, articoli.data, voceTariffa, cercato, targetCapitolo, mapUnita, verticale]);
 
   const caricamento = fonte === "prezzario" ? prezzario.isFetching : lavorazioni.isFetching || prodotti.isFetching || articoli.isFetching || tariffe.isFetching;
-  const elenco = righe.slice(0, RIGHE_MOSTRATE);
+  const chiaveElenco = JSON.stringify([fonte, schedaVista.tipo, schedaId, cercato]);
+  const quanteMostrate = filtroMostrate.elenco === chiaveElenco ? filtroMostrate.quante : RIGHE_MOSTRATE;
+  const elenco = righe.slice(0, quanteMostrate);
   const conto = totaleScelte([...scelte.values()]);
   const nScelte = scelte.size;
   // Le fonti danno al massimo 40 voci: se si tocca il tetto, sfogliando non si vedrebbe tutto.
-  const elencoParziale = fonte === "listino" && schedaVista.tipo !== "scelte" && schedaVista.tipo !== "gruppo" && schedaVista.tipo !== "capitolo"
+  const elencoParziale = fonte === "listino" && schedaVista.tipo !== "scelte" && schedaVista.tipo !== "recenti" && schedaVista.tipo !== "gruppo" && schedaVista.tipo !== "capitolo"
     && ((schedaVista.tipo === "tutto" && (lavorazioni.data?.length ?? 0) >= TETTO_RICERCA) || (prodotti.data?.length ?? 0) >= TETTO_RICERCA || (articoli.data?.length ?? 0) >= TETTO_RICERCA);
 
   const chiudi = () => {
-    setTermine(""); setFonte("listino"); setScheda({ tipo: "tutto" }); setScelte(new Map()); setConFocus(null);
+    setTermine(""); setFonte("listino"); setScheda({ tipo: "tutto" }); setScelte(new Map()); setConFocus(null); setCapitoloScelto("");
     onOpenChange(false);
   };
   const cambia = (r: RigaScelta) => {
@@ -267,7 +319,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
     setConFocus(nuova && r.chiedeQuantita ? r.chiave : null);
     setScelte((prima) => {
       const dopo = new Map(prima);
-      if (dopo.has(r.chiave)) dopo.delete(r.chiave); else dopo.set(r.chiave, { riga: r, quantita: r.chiedeQuantita ? "" : "1" });
+      if (dopo.has(r.chiave)) dopo.delete(r.chiave); else dopo.set(r.chiave, { riga: r, quantita: r.chiedeQuantita ? "" : "1", prezzo: prezzoInCampo(r.prezzo) });
       return dopo;
     });
   };
@@ -276,13 +328,23 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
     if (!c) return prima;
     return new Map(prima).set(chiave, { ...c, quantita: q });
   });
+  const prezzo = (chiave: string, p: string) => setScelte((prima) => {
+    const c = prima.get(chiave);
+    if (!c) return prima;
+    return new Map(prima).set(chiave, { ...c, prezzo: p });
+  });
+  const nelCapitolo = (voci: VoceScelta[]) => (capitoloScelto ? voci.map((v) => ({ ...v, capitolo_nome: capitoloScelto })) : voci);
+  const invia = (voci: VoceScelta[]) => {
+    if (onPick(nelCapitolo(voci)) === false) return;
+    registraVociRecenti(companyId, verticale, [...scelte.values()].map((c) => c.riga));
+    chiudi();
+  };
   const conferma = () => {
     if (!conto.voci.length || conto.mancanti) return;
-    if (onPick(conto.voci) !== false) chiudi();
+    invia(conto.voci);
   };
-  const voceLibera = () => {
-    if (onPick([...conto.voci, rigaVoceLibera(termine, targetCapitolo)]) !== false) chiudi();
-  };
+  const voceLibera = () => invia([...conto.voci, rigaVoceLibera(termine, targetCapitolo)]);
+  const capitoliDestinazione = targetCapitolo ? [] : [...new Set(capitoliComputo.filter((c) => c?.trim()))];
 
   const nav = (s: Scheda, nome: string, voci?: number) => (
     <VoceNav key={`${s.tipo}-${"id" in s ? s.id : ""}`} nome={nome} voci={voci} attiva={stessaScheda(s, schedaVista)} onClick={() => { setTermine(""); setScheda(s); }} />
@@ -321,6 +383,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
             <nav aria-label="Gruppi del listino" className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 md:w-56 md:flex-col md:overflow-y-auto md:border-b-0 md:border-r">
               {nav({ tipo: "tutto" }, "Tutte le voci")}
               {nScelte > 0 && <VoceNav nome="Le tue scelte" voci={nScelte} evidenza attiva={schedaVista.tipo === "scelte"} onClick={() => setScheda({ tipo: "scelte" })} />}
+              {recenti.length > 0 && nav({ tipo: "recenti" }, "Usate di recente")}
               {!!capitoli.data?.length && <TitoloNav testo="Capitoli" />}
               {(capitoli.data ?? []).map((c) => nav({ tipo: "capitolo", id: c.id }, c.nome))}
               {!!gruppiConVoci.length && <TitoloNav testo="Listino azienda" />}
@@ -339,7 +402,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
                     <Voce
                       riga={r} scelta={scelte.get(r.chiave)} presente={voceGiaPresente(r.descrizione, presenti)}
                       conFocus={conFocus === r.chiave} onFocusPreso={() => setConFocus(null)}
-                      onCambia={() => cambia(r)} onQuantita={(q) => quantita(r.chiave, q)} onConferma={conferma}
+                      onCambia={() => cambia(r)} onQuantita={(q) => quantita(r.chiave, q)} onPrezzo={(p) => prezzo(r.chiave, p)} onConferma={conferma}
                     />
                   </Fragment>
                 ))}
@@ -349,7 +412,14 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
                 {schedaVista.tipo === "scelte" ? "Non hai ancora scelto nessuna voce." : fonte === "prezzario" && cercato.trim().length < 2 ? "Scrivi almeno 2 lettere per cercare nel prezzario." : "Nessuna voce trovata. Prova un'altra parola, o aggiungi una voce libera."}
               </p>
             )}
-            {(righe.length > RIGHE_MOSTRATE || elencoParziale) && <p className="p-3 text-center text-xs text-muted-foreground">Qui vedi solo una parte delle voci: scegli un gruppo o scrivi cosa cerchi.</p>}
+            {righe.length > elenco.length && (
+              <div className="p-3 text-center">
+                <Button type="button" variant="outline" size="sm" onClick={() => setFiltroMostrate({ elenco: chiaveElenco, quante: quanteMostrate + RIGHE_MOSTRATE })}>
+                  Mostra altre voci ({righe.length - elenco.length})
+                </Button>
+              </div>
+            )}
+            {elencoParziale && <p className="p-3 text-center text-xs text-muted-foreground">Qui vedi solo una parte delle voci: scegli un gruppo o scrivi cosa cerchi.</p>}
           </div>
         </div>
 
@@ -357,11 +427,20 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
           <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={voceLibera} disabled={conto.mancanti > 0}>
             <PlusCircle className="h-4 w-4" />{termine.trim() ? `Voce libera: «${termine.trim().slice(0, 30)}»` : "Voce libera"}
           </Button>
+          {capitoliDestinazione.length > 0 && (
+            <select
+              aria-label="Capitolo in cui mettere le voci" value={capitoloScelto} onChange={(e) => setCapitoloScelto(e.target.value)}
+              className="h-9 max-w-56 rounded-md border bg-background px-2 text-sm max-sm:w-full max-sm:max-w-none"
+            >
+              <option value="">Capitolo: come nel listino</option>
+              {capitoliDestinazione.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
           <div className="ml-auto flex items-center gap-3">
             {nScelte > 0 && (
               <button type="button" className="text-left text-sm hover:underline" title="Vedi le voci che hai scelto" onClick={() => { setFonte("listino"); setTermine(""); setScheda({ tipo: "scelte" }); }}>
                 <strong>{nScelte} {nScelte === 1 ? "voce" : "voci"}</strong> · {formatCurrency(conto.totale)}
-                {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">scrivi la quantità</Badge>}
+                {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">{conto.prezziDaCorreggere > 0 ? "controlla il prezzo" : "scrivi la quantità"}</Badge>}
               </button>
             )}
             <Button type="button" onClick={conferma} disabled={!conto.voci.length || conto.mancanti > 0}>Aggiungi al computo</Button>
