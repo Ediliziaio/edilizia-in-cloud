@@ -282,7 +282,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
               <div className="space-y-2">
                 <Label htmlFor="file-pianta">PDF o foto della pianta</Label>
                 <Input id="file-pianta" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => scegliFile(e.target.files?.[0] ?? null)} />
-                <p className="text-xs text-muted-foreground">Va bene quasi tutto: catastale, disegno del tecnico, schermata di AutoCAD (anche a sfondo nero), foto del foglio, pianta arredata, condominio con più appartamenti, capannone, più piani sullo stesso foglio. Meglio se le misure si leggono.</p>
+                <p className="text-xs text-muted-foreground max-md:hidden">Va bene quasi tutto: catastale, disegno del tecnico, schermata di AutoCAD (anche a sfondo nero), foto del foglio, pianta arredata, condominio con più appartamenti, capannone, più piani sullo stesso foglio. Meglio se le misure si leggono.</p>
                 {file && anteprima && (
                   <div className="space-y-2 rounded-md border bg-muted/30 p-2">
                     <div className="flex h-56 items-center justify-center overflow-hidden rounded bg-white">
