@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fatturaVerificata, problemaRipartizione, quoteDaVoci, quoteDelCosto, residuoDaAssegnare, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
+import { fatturaVerificata, problemaRipartizione, quoteDaVoci, quoteDelCosto, quoteLordeInNette, residuoDaAssegnare, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
 
 describe("verifica di una fattura", () => {
   it("chi sceglie vince, in tutti e due i sensi", () => {
@@ -47,5 +47,19 @@ describe("controlli prima di salvare", () => {
   it("il residuo: una nota di credito ha l'imponibile negativo", () => {
     expect(residuoDaAssegnare([{ order_id: "a", importo: 60 }], 100)).toBe(40);
     expect(residuoDaAssegnare([{ order_id: "a", importo: 60 }], -100)).toBe(40);
+  });
+});
+
+describe("dal totale con IVA all'imponibile", () => {
+  it("converte in proporzione", () => {
+    expect(quoteLordeInNette([{ order_id: "a", importo: 610 }], 1220, 1000)).toEqual([{ order_id: "a", importo: 500 }]);
+  });
+  it("se è tutto assegnato i centesimi tornano esatti", () => {
+    const q = quoteLordeInNette([{ order_id: "a", importo: 333.33 }, { order_id: "b", importo: 333.33 }, { order_id: "c", importo: 333.34 }], 1000, 819.67);
+    expect(q.reduce((n, x) => n + x.importo, 0)).toBeCloseTo(819.67, 2);
+  });
+  it("le altre informazioni restano, e senza importi non inventa", () => {
+    expect(quoteLordeInNette([{ order_id: "a", importo: 122, righe: [1] }], 244, 200)[0]).toEqual({ order_id: "a", importo: 100, righe: [1] });
+    expect(quoteLordeInNette([{ order_id: "a", importo: 5 }], 0, 0)).toEqual([{ order_id: "a", importo: 5 }]);
   });
 });

@@ -529,7 +529,7 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
       for (const f of viste.values()) {
         const quote = quoteDelCosto(costiDivisi.find((c) => c.id === f.costId));
         if (quote.length < 2 && !(quote[0]?.pct < 100)) continue;
-        f.ripartizione = quote.map((q) => ({ orderId: q.order_id, codice: codici.get(q.order_id) ?? "Commessa", pct: q.pct, importo: q.importo ?? null }));
+        f.ripartizione = quote.map((q) => ({ orderId: q.order_id, codice: codici.get(q.order_id) ?? "Commessa", pct: q.pct, importo: (f.totaleDocumento ?? f.totale) == null ? null : Math.round((f.totaleDocumento ?? f.totale)! * q.pct) / 100 }));
         const mie = quote.find((q) => q.order_id === orderId)?.righe ?? [];
         f.vociQui = vociFattura(righeFattura.get(f.id)).filter((v) => mie.includes(v.numero)).map((v) => v.descrizione);
       }

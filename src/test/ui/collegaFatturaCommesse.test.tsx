@@ -26,27 +26,46 @@ beforeEach(() => { vi.clearAllMocks(); stato.righe = null; stato.costo = { order
 afterEach(cleanup);
 
 describe("Collegare una fattura alle commesse", () => {
-  it("una commessa con tutto l'imponibile", async () => {
+  it("il caso normale: scegli la commessa e salvi, senza importi da scrivere", async () => {
     mostra();
+    expect(await screen.findByText(/1\.220,00/)).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Cerca la commessa…" }));
+    expect(screen.queryByLabelText("Importo della commessa 1")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 1000 }] }));
     await waitFor(() => expect(stato.chiudi).toHaveBeenCalled());
   });
-  it("due commesse a importi: propone il residuo e dice se si sfora", async () => {
+  it("dividendo, gli importi hanno l'IVA e l'altra commessa prende il resto; si salva l'imponibile", async () => {
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: "Cerca la commessa…" }));
-    fireEvent.change(screen.getByLabelText("Importo della commessa 1"), { target: { value: "600" } });
-    expect(screen.getByText(/Restano .*400,00/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi una commessa" }));
-    expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("400");
+    fireEvent.click(screen.getByRole("button", { name: "Dividi su un’altra commessa" }));
+    expect(screen.getByLabelText("Importo della commessa 1")).toHaveValue("610");
+    expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("610");
     fireEvent.click(screen.getAllByRole("button", { name: "Cerca la commessa…" })[1]);
-    fireEvent.change(screen.getByLabelText("Importo della commessa 2"), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText("Importo della commessa 1"), { target: { value: "244" } });
+    expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("976");
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 200 }, { order_id: "c2", importo: 800 }] }));
+  });
+  it("oltre il totale non si salva", async () => {
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Cerca la commessa…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dividi su un’altra commessa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dividi su un’altra commessa" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Cerca la commessa…" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Cerca la commessa…" })[2]);
+    fireEvent.change(screen.getByLabelText("Importo della commessa 3"), { target: { value: "5000" } });
     expect(screen.getByRole("alert")).toHaveTextContent("superano");
     expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Importo della commessa 2"), { target: { value: "400" } });
+  });
+  it("togliendo la seconda commessa, la prima torna ad avere tutto", async () => {
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Cerca la commessa…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dividi su un’altra commessa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Togli la commessa 2" }));
+    expect(screen.queryByLabelText("Importo della commessa 1")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
-    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 600 }, { order_id: "c2", importo: 400 }] }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 1000 }] }));
   });
   it("voce per voce: ogni voce va sulla sua commessa", async () => {
     stato.righe = [{ numero_linea: 1, descrizione: "Moduli", imponibile: 700 }, { numero_linea: 2, descrizione: "Trasporto", imponibile: 300 }];
@@ -57,10 +76,10 @@ describe("Collegare una fattura alle commesse", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 700, righe: [1] }, { order_id: "c2", importo: 300, righe: [2] }] }));
   });
-  it("riparte da com'è, e si può scollegare", async () => {
+  it("riparte da com'è, con l'IVA, e si può scollegare", async () => {
     stato.costo = { order_id: null, allocations: [{ order_id: "x", pct: 60, importo: 600 }, { order_id: "y", pct: 40, importo: 400 }] };
     mostra();
-    await waitFor(() => expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("400"));
+    await waitFor(() => expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("488"));
     fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [] }));
   });

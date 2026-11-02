@@ -1505,7 +1505,7 @@ export default function FattureRicevutePage() {
                           <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? `Quota ${q.pct.toLocaleString("it-IT")}%` : undefined}>
                             <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300">
                               {q.codice}
-                              {q.pct < 100 && <span className="ml-1 text-muted-foreground">{formatCurrency(q.importo ?? (Number(f.imponibile_totale ?? 0) * q.pct) / 100)}</span>}
+                              {q.pct < 100 && <span className="ml-1 text-muted-foreground">{formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100)}</span>}
                             </Badge>
                           </Link>
                         ))}

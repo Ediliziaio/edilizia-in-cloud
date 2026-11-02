@@ -66,3 +66,20 @@ export function problemaRipartizione(quote: QuotaCommessa[], imponibile: number)
 
 export const residuoDaAssegnare = (quote: QuotaCommessa[], imponibile: number) =>
   centesimi(Math.abs(imponibile) - quote.reduce((n, q) => n + q.importo, 0));
+
+/**
+ * Chi collega ragiona col totale della fattura, IVA compresa; margine e quote ragionano sull'imponibile.
+ * L'ultima quota prende il resto, così se tutto è assegnato i centesimi tornano esatti.
+ */
+export function quoteLordeInNette(quote: QuotaCommessa[], totale: number, imponibile: number): QuotaCommessa[] {
+  const lordo = Math.abs(totale), netto = Math.abs(imponibile);
+  if (!lordo || !netto) return quote;
+  const somma = quote.reduce((n, q) => n + q.importo, 0);
+  const tutto = Math.abs(somma - lordo) <= 0.01;
+  let assegnato = 0;
+  return quote.map((q, i) => {
+    const importo = tutto && i === quote.length - 1 ? centesimi(netto - assegnato) : centesimi((q.importo * netto) / lordo);
+    assegnato = centesimi(assegnato + importo);
+    return { ...q, importo };
+  });
+}
