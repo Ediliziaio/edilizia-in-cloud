@@ -151,7 +151,6 @@ describe("contratto di composizione del dettaglio commessa", () => {
     const actions = named("OrderQuickActions")[0];
     expect(value(actions, "onCreateTask")).toContain("setTaskDialogOpen(true)");
     expect(value(actions, "onApplyPlaybook")).toContain("handleApplyPlaybook");
-    expect(value(actions, "onManagePlaybook")).toContain("setPlaybookEditorOpen(true)");
     expect(value(actions, "onCreateInvoice")).toContain("permissions.canViewBilling");
     expect(value(actions, "onCreateInvoice")).toContain("isNativeBilling && !permissions.solaLettura");
     expect(value(actions, "customer")).toContain("order.customer.phone || order.client_phone");
@@ -161,7 +160,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
   });
 
   it("mantiene i dialoghi di firma, documenti e creazione fiscale fuori dalle tab", () => {
-    for (const component of ["OrdineFirma", "OrderFilesDialog", "OrderNotesDialog", "CreaFatturaDialog", "CreaDDTDialog", "CreaProformaDialog", "CreaNotaCreditoDialog", "TaskDialog", "PlaybookEditorDialog"]) {
+    for (const component of ["OrdineFirma", "OrderFilesDialog", "OrderNotesDialog", "CreaFatturaDialog", "CreaDDTDialog", "CreaProformaDialog", "CreaNotaCreditoDialog", "TaskDialog"]) {
       expect(named(component), component).toHaveLength(1);
       expect(area(named(component)[0]), component).toBeUndefined();
     }

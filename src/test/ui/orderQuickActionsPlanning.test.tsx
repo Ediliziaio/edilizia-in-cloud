@@ -90,11 +90,11 @@ describe("Pianificazione nelle azioni rapide", () => {
     expect(screen.queryByRole("button", { name: "Applica flusso" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Appuntamento" })).toHaveLength(1);
   });
-  it("rende raggiungibile Gestisci flusso dal menu", async () => {
-    const manage = vi.fn();
-    render(<OrderQuickActions {...base} onManagePlaybook={manage} />);
+  it("il menu non ha il flusso aziendale né voci spente: senza telefono niente Chiama", async () => {
+    render(<OrderQuickActions {...base} customer={{ name: "Mario", email: "m@x.it", phone: null }} onOpenFirma={vi.fn()} onOpenNotes={vi.fn()} onOpenOps={vi.fn()} />);
     fireEvent.keyDown(screen.getByRole("button", { name: /Altre azioni/ }), { key: "Enter" });
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Gestisci flusso" }));
-    expect(manage).toHaveBeenCalledTimes(1);
+    const voci = (await screen.findAllByRole("menuitem")).map((v) => v.textContent);
+    expect(voci).toEqual(["Invia PDF", "Firma", "Note interne", "Responsabile"]);
+    expect(screen.queryByText("Flusso di lavoro")).not.toBeInTheDocument();
   });
 });

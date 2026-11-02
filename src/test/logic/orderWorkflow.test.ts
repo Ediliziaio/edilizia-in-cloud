@@ -57,3 +57,12 @@ describe("Percorsi commessa · modello", () => {
     expect(statusVisits([{status_id:"b",changed_at:"invalid"}]).has("b")).toBe(false);
   });
 });
+
+describe("Applica flusso: serve solo se manca qualcosa", () => {
+  it("confronta i titoli come applicaFlusso", async () => {
+    const { passiMancanti } = await import("@/lib/orderPlaybook");
+    expect(passiMancanti(["Ordine materiali", "Collaudo"], [" ordine MATERIALI "])).toEqual(["Collaudo"]);
+    expect(passiMancanti(["Collaudo"], ["Collaudo", null])).toEqual([]);
+    expect(passiMancanti(["Collaudo"], [])).toEqual(["Collaudo"]);
+  });
+});

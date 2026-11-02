@@ -96,7 +96,7 @@ import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/Or
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
-import { avvisoAlCliente } from "@/lib/orders/statoCommessa";
+import { avvisoAlCliente, statoConclusivo } from "@/lib/orders/statoCommessa";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { QuadroPagamentiCommessa } from "@/components/orders/QuadroPagamentiCommessa";
@@ -117,8 +117,7 @@ import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
 import { useVertical } from "@/hooks/useVertical";
-import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/orderPlaybook";
-import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
+import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder, flussoDaApplicare } from "@/lib/orderPlaybook";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
@@ -407,7 +406,6 @@ function OrderDetailInner() {
   const [filesOpen, setFilesOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [applyingPlaybook, setApplyingPlaybook] = useState(false);
-  const [playbookEditorOpen, setPlaybookEditorOpen] = useState(false);
   const { vertical } = useVertical();
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -1049,6 +1047,13 @@ function OrderDetailInner() {
   // Applica playbook commessa: crea in blocco le attività standard del mestiere
   // (task reali, scadenze relative alla data commessa). Idempotente: salta i
   // titoli già presenti. Le task compaiono nella card "Attività" e si assegnano.
+  const { data: haFlussoDaApplicare = false } = useQuery({
+    queryKey: ["order-flusso-da-applicare", id, vertical],
+    queryFn: () => flussoDaApplicare({ companyId: companyId!, orderId: id!, vertical }),
+    enabled: !!id && !!companyId && schedaPronta && permissions.canViewOrders,
+    staleTime: 60_000,
+  });
+
   const handleApplyPlaybook = async () => {
     if (!order || !companyId) return;
     setApplyingPlaybook(true);
@@ -1068,6 +1073,7 @@ function OrderDetailInner() {
       queryClient.invalidateQueries({ queryKey: ["order-next-task", id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       invalidateOfficeWorkspace(queryClient, id);
+      queryClient.invalidateQueries({ queryKey: ["order-flusso-da-applicare", id] });
     } catch (e) {
       toast.error("Errore nell'applicare il processo standard: " + (e instanceof Error ? e.message : "riprova"));
     } finally {
@@ -1475,8 +1481,8 @@ function OrderDetailInner() {
       })()}
       sollecitoRef={sollecitoRef}
       onCreateTask={permissions.canViewOrders ? () => setTaskDialogOpen(true) : undefined}
-      onApplyPlaybook={permissions.canViewOrders ? handleApplyPlaybook : undefined}
-      onManagePlaybook={permissions.canViewOrders ? () => setPlaybookEditorOpen(true) : undefined}
+      // Applica flusso solo se manca qualcosa e la commessa non è già chiusa.
+      onApplyPlaybook={permissions.canViewOrders && haFlussoDaApplicare && !statoConclusivo(statuses, order.current_status_id) ? handleApplyPlaybook : undefined}
       applyingPlaybook={applyingPlaybook}
       playbookLabel={PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}
       onOpenOps={() => setOpsOpen(true)}
@@ -2392,14 +2398,6 @@ function OrderDetailInner() {
       />
 
       {/* Editor del playbook commessa (per-azienda, per mestiere) */}
-      {companyId && (
-        <PlaybookEditorDialog
-          open={playbookEditorOpen}
-          onOpenChange={setPlaybookEditorOpen}
-          companyId={companyId}
-          vertical={vertical}
-        />
-      )}
 
       {/* Delete confirm (triggered by OrdineDetailHeader) */}
       <OrderTrashConfirmDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen} label={order.order_code} onConfirm={()=>deleteOrderMutation.mutateAsync()} />

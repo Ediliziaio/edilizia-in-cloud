@@ -184,7 +184,7 @@ describe("Testata della commessa dal telefono", () => {
     testata();
     expect(screen.getByRole("button", { name: "Modifica commessa" })).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni commessa" }), { key: "Enter" });
-    expect(await screen.findByRole("menuitem", { name: /Diario/ })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: /Registro attività/ })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Modifica commessa" })).not.toBeInTheDocument();
   });
 });

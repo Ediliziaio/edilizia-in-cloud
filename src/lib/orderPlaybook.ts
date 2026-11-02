@@ -6,7 +6,8 @@
  * incatena è condiviso con i ticket di assistenza: `src/lib/flussoLavoro.ts`.
  */
 
-import { applicaFlusso, type PassoFlusso } from "@/lib/flussoLavoro";
+import { supabase } from "@/integrations/supabase/client";
+import { applicaFlusso, leggiFlussoAzienda, type PassoFlusso } from "@/lib/flussoLavoro";
 
 /** I passi di un playbook sono passi di flusso: il tipo è quello condiviso. */
 export type PlaybookStep = PassoFlusso;
@@ -215,6 +216,22 @@ export function getOrderPlaybook(vertical?: string | null): {
  * il playbook predefinito del mestiere (che è una lista piatta: la catena è una
  * scelta dell'azienda).
  */
+/** I passi del flusso che sulla commessa non ci sono ancora (stesso confronto per titolo di applicaFlusso). */
+export function passiMancanti(titoliPassi: string[], titoliAttivita: Array<string | null>): string[] {
+  const norm = (t: string) => t.trim().toLowerCase();
+  const presenti = new Set(titoliAttivita.map((t) => norm(t ?? "")));
+  return titoliPassi.filter((t) => !presenti.has(norm(t)));
+}
+
+/** C'è ancora qualcosa da applicare? Se no, «Applica flusso» non serve. */
+export async function flussoDaApplicare(params: { companyId: string; orderId: string; vertical?: string | null }): Promise<boolean> {
+  const configurati = await leggiFlussoAzienda({ companyId: params.companyId, ambito: "commessa", vertical: params.vertical });
+  const passi = configurati.length > 0 ? configurati : getOrderPlaybook(params.vertical).steps;
+  const { data, error } = await supabase.from("tasks").select("title").eq("company_id", params.companyId).eq("order_id", params.orderId);
+  if (error) throw error;
+  return passiMancanti(passi.map((p) => p.titolo), (data ?? []).map((t) => t.title)).length > 0;
+}
+
 export async function applyPlaybookToOrder(params: {
   companyId: string;
   orderId: string;

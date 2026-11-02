@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Phone, MessageSquare, Smartphone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, Settings2, MoreHorizontal, type LucideIcon } from "lucide-react";
+import { Phone, MessageSquare, Smartphone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, MoreHorizontal, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,7 +70,6 @@ interface Props {
   invoiceHint?: string;
   onCreateTask?: () => void;
   onApplyPlaybook?: () => void;
-  onManagePlaybook?: () => void;
   applyingPlaybook?: boolean;
   playbookLabel?: string;
 }
@@ -100,7 +99,7 @@ type QuickAction = {
 
 export function OrderQuickActions({
   orderId, orderCode, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
-  onCreateTask, onApplyPlaybook, onManagePlaybook, applyingPlaybook = false, playbookLabel,
+  onCreateTask, onApplyPlaybook, applyingPlaybook = false, playbookLabel,
   onCreateInvoice, invoiceDisabled = false, invoiceHint, inline = false,
 }: Props) {
   const { user } = useAuth();
@@ -194,9 +193,9 @@ export function OrderQuickActions({
     // Stessi callback e dialoghi della commessa, accessibili da tutte le tab.
     ...(onCreateTask ? [{ id: "task", label: "Nuova attività", icon: ListPlus, iconClass: "text-primary", onClick: onCreateTask, group: "pianifica" as const, primary: true }] : []),
     ...(onApplyPlaybook ? [{ id: "playbook", label: applyingPlaybook ? "Applico…" : "Applica flusso", icon: Sparkles, iconClass: "text-primary", onClick: onApplyPlaybook, group: "pianifica" as const, primary: true, disabled: applyingPlaybook, busy: applyingPlaybook, hint: `Crea le attività del flusso ${playbookLabel ?? "della commessa"}` }] : []),
-    ...(onManagePlaybook ? [{ id: "manage-playbook", label: "Gestisci flusso", icon: Settings2, iconClass: "text-slate-600", onClick: onManagePlaybook, group: "pianifica" as const }] : []),
     // Comunica col cliente
-    { id: "call", label: "Chiama", icon: Phone, iconClass: "text-emerald-600", onClick: handleCall, group: "comunica", disabled: !hasPhone, hint: hasPhone ? `Chiama ${customer?.phone}` : "Telefono cliente mancante" },
+    // Senza telefono niente voce spenta: nel menu occuperebbe due righe per dirlo.
+    ...(hasPhone ? [{ id: "call", label: "Chiama", icon: Phone, iconClass: "text-emerald-600", onClick: handleCall, group: "comunica" as const, hint: `Chiama ${customer?.phone}` }] : []),
     { id: "whatsapp", label: "WhatsApp", icon: MessageSquare, iconClass: "text-emerald-700", onClick: () => openContact("whatsapp"), group: "comunica", disabled: !hasPhone, hint: hasPhone ? "Scrivi un WhatsApp al cliente" : "Telefono cliente mancante" },
     { id: "sms", label: "SMS", icon: Smartphone, iconClass: "text-blue-700", onClick: () => openContact("sms"), group: "comunica", disabled: !hasPhone, hint: hasPhone ? "Scrivi un SMS al cliente" : "Telefono cliente mancante" },
     { id: "email", label: "Email", icon: Mail, iconClass: "text-violet-600", onClick: () => openContact("email"), group: "comunica", primary: true, disabled: !hasEmail, hint: hasEmail ? "Invia email" : "Email cliente mancante" },
@@ -205,10 +204,10 @@ export function OrderQuickActions({
       ? [{ id: "sollecito", label: "Sollecita pagamento", icon: BellRing, iconClass: "text-amber-600", onClick: openSollecito, group: "comunica" as const, tone: "warning" as const, hint: `Sollecita il pagamento di ${fmtEur(paymentDue.amount)}` }]
       : []),
     // Gestisci commessa
-    ...(onOpenOps ? [{ id: "ops", label: "Responsabile", icon: UserCog, iconClass: "text-primary", onClick: onOpenOps, group: "gestisci" as const, hint: "Assegna chi segue questa commessa" }] : []),
     ...(onOpenFiles ? [{ id: "files", label: "Documenti", icon: FolderOpen, iconClass: "text-amber-600", onClick: onOpenFiles, group: "gestisci" as const, primary: true, hint: "Tutti i file: PDF, fatture, allegati commessa e schede articoli" }] : []),
-    ...(onOpenNotes ? [{ id: "notes", label: "Note interne", icon: StickyNote, iconClass: "text-violet-600", onClick: onOpenNotes, group: "gestisci" as const, hint: "Note interne e chat di team sulla commessa (@menziona i colleghi)" }] : []),
     ...(onOpenFirma ? [{ id: "firma", label: "Firma", icon: PenLine, iconClass: "text-blue-600", onClick: onOpenFirma, group: "gestisci" as const, hint: "Firma digitale: invia il documento al cliente e gestisci la firma" }] : []),
+    ...(onOpenNotes ? [{ id: "notes", label: "Note interne", icon: StickyNote, iconClass: "text-violet-600", onClick: onOpenNotes, group: "gestisci" as const, hint: "Note interne e chat di team sulla commessa (@menziona i colleghi)" }] : []),
+    ...(onOpenOps ? [{ id: "ops", label: "Responsabile", icon: UserCog, iconClass: "text-primary", onClick: onOpenOps, group: "gestisci" as const, hint: "Assegna chi segue questa commessa" }] : []),
     { id: "appt", label: "Appuntamento", icon: CalendarPlus, iconClass: "text-indigo-600", onClick: () => setApptOpen(true), group: "gestisci", primary: true, hint: "Fissa un appuntamento/sopralluogo/posa per questa commessa" },
     ...(onCreateInvoice ? [{ id: "invoice", label: "Crea fattura", icon: Receipt, iconClass: "text-orange-700", onClick: onCreateInvoice, group: "gestisci" as const, disabled: invoiceDisabled, hint: invoiceHint ?? "Prepara una fattura collegata alla commessa" }] : []),
   ];
@@ -217,9 +216,11 @@ export function OrderQuickActions({
   // nessuna funzione rimossa: contatti, fattura e appuntamento stanno nel menu.
   const primaryActions = actions.filter((a) => (isMobile ? ["task", "files"] : ["task", "files", "appt"]).includes(a.id));
   const shortcuts = isMobile ? [] : ["email", "whatsapp", "sms", "invoice"].flatMap(id => actions.filter(a => a.id === id));
-  const comunica = actions.filter((a) => a.group === "comunica");
-  const gestisci = actions.filter((a) => a.group === "gestisci");
-  const pianifica = actions.filter((a) => a.group === "pianifica");
+  // Nel menu solo ciò che non è già sulla barra: un gruppo vuoto non mostra il titolo.
+  const nelMenu = (gruppo: QuickAction["group"]) => actions.filter((a) => a.group === gruppo && ![...primaryActions, ...shortcuts].some((p) => p.id === a.id));
+  const comunica = nelMenu("comunica");
+  const gestisci = nelMenu("gestisci");
+  const pianifica = nelMenu("pianifica");
 
   const renderMenuItem = (a: QuickAction) => {
     if ([...primaryActions, ...shortcuts].some(primary => primary.id === a.id)) return null;
@@ -283,16 +284,18 @@ export function OrderQuickActions({
           >
             {pianifica.length > 0 && <>
               <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Attività e flusso
+                Flusso di lavoro
               </DropdownMenuLabel>
               {pianifica.map(renderMenuItem)}
               <DropdownMenuSeparator />
             </>}
-            <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Comunica col cliente
-            </DropdownMenuLabel>
-            {comunica.map(renderMenuItem)}
-            <DropdownMenuSeparator />
+            {comunica.length > 0 && <>
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                Comunica col cliente
+              </DropdownMenuLabel>
+              {comunica.map(renderMenuItem)}
+              <DropdownMenuSeparator />
+            </>}
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Gestisci commessa
             </DropdownMenuLabel>
