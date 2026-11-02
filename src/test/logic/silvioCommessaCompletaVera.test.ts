@@ -34,6 +34,8 @@ describe("il messaggio lungo si legge come un documento", () => {
 it("i codici della commessa si leggono", () => {
   expect(testoValore("identita.order_type", "appaltatore_lavoro")).toBe("Appaltatore lavoro");
   expect(testoValore("identita.stato", "in_corso")).toBe("In corso");
+  expect(testoValore("identita.stato", { status: "in_corso", current_status_id: "s1" })).toBe("In corso");
+  expect(testoValore("identita.stato", { current_status_id: "s1" })).toBe("—");
 });
 
 describe("un importo diverso da quello della commessa si vede", () => {

@@ -153,6 +153,13 @@ describe("la schermata", () => {
     fireEvent.click(aggiungi);
     expect(onPick.mock.calls[0][0][0]).toMatchObject({ quantita: 20, prezzo_unitario: 60, costo_manodopera: 5 });
   });
+  it("una descrizione lunga non riempie la schermata", async () => {
+    apri();
+    const nome = await screen.findByText("Platea in cemento");
+    expect(nome.className).toContain("line-clamp-2");
+    expect(nome.className).not.toMatch(/\bblock\b/);
+    expect(nome.getAttribute("title")).toBe("Platea in cemento");
+  });
   it("dice se una voce è già nel computo", async () => {
     apri({ vociPresenti: ["Platea in cemento"] });
     await screen.findByText("Platea in cemento");

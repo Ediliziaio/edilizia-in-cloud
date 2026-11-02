@@ -568,6 +568,9 @@ function cifraGiaSenzaIva(valore: number | null, iva: number, testo: string | nu
   return null;
 }
 
+/** Il documento non ne parla: non è un problema da dire a chi legge. */
+const MOTIVI_DI_NIENTE = new Set(["piano dei SAL vuoto", "nessuna condizione leggibile"]);
+
 /** Il nome che legge chi lavora in cantiere, mai la chiave tecnica. */
 const etichettaAvviso = (chiave: string): string => variabile(chiave)?.etichetta ?? "un campo del documento";
 
@@ -667,7 +670,7 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
     if (!lettura) { avvisi.push(`«${definita.etichetta}» non si legge da un documento: l'ho lasciato fuori.`); continue; }
     if (letti.has(chiave)) { avvisi.push(`«${definita.etichetta}» è scritto due volte: ho tenuto il primo.`); continue; }
     const esito = pulisci(lettura.forma, grezzo, { pagine, ctx, totaleIvato, imponibile });
-    if ("motivo" in esito) { avvisi.push(`«${definita.etichetta}»: ${esito.motivo}`); continue; }
+    if ("motivo" in esito) { if (!MOTIVI_DI_NIENTE.has(esito.motivo)) avvisi.push(`«${definita.etichetta}»: ${esito.motivo}`); continue; }
     letti.set(chiave, { valore: esito.valore, prov: { ...esito.prov, nota: [esito.prov.nota, esito.nota].filter(Boolean).join(" ") || null } });
   }
 
