@@ -6,50 +6,67 @@ import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 
 afterEach(cleanup);
 const stati = [
-  { id: "a", name: "Contratto firmato con nome lungo", color: "#123456", position: 0 },
-  { id: "b", name: "Lavori completati", color: "#123456", position: 1 },
+  { id: "a", name: "Aperta", color: "#123456", position: 0 },
+  { id: "b", name: "In corso", color: "#123456", position: 1 },
+  { id: "c", name: "Lavori completati", color: "#123456", position: 2 },
+  { id: "h", name: "Assistenza", color: "#123456", position: 3, is_support_phase: true },
 ];
 const finite = { total: 2, done: 2, inCorso: 0, avgPct: 100 };
+const storico = [
+  { id: "2", status_id: "b", changed_at: "2026-10-12T10:00:00Z", status: { name: "In corso" } },
+  { id: "1", status_id: "a", changed_at: "2026-10-01T10:00:00Z", status: { name: "Aperta" } },
+];
 const draw = (props = {}) => {
   const change = vi.fn();
-  render(<MemoryRouter><OrderStatusWorkflow orderId="o1" statuses={stati} currentStatusId="a" canEdit onStatusChange={change} formatoData={(d) => d.slice(0, 10)} {...props} /></MemoryRouter>);
+  render(<MemoryRouter><OrderStatusWorkflow orderId="o1" statuses={stati} currentStatusId="b" canEdit onStatusChange={change} formatoData={(d) => d.slice(0, 10)} {...props} /></MemoryRouter>);
   return change;
 };
+const apriMenu = () => fireEvent.keyDown(screen.getByRole("button", { name: /Cambia stato/ }), { key: "Enter" });
 
 describe("Stato della commessa", () => {
-  it("sta su una riga: barra degli stati, menu per cambiarlo, niente percorso", () => {
+  it("il nome dello stato è il controllo; dice a che fase è, senza contare l'assistenza", () => {
     draw();
-    expect(screen.getByRole("button", { name: "Cambia stato" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Stato attuale: Contratto firmato con nome lungo" })).toHaveAttribute("aria-current", "step");
-    expect(screen.queryByText(/Percorso operativo/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Cambia percorso/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stato commessa: In corso. Cambia stato" })).toBeVisible();
+    expect(screen.getByText("Fase 2 di 3")).toBeVisible();
+    expect(screen.getByRole("progressbar", { name: "Fase della commessa" })).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.queryByText(/Ultimo cambio/)).not.toBeInTheDocument();
+  });
+
+  it("nel menu: tutti gli stati, l'attuale non si sceglie, un clic chiede il cambio", () => {
+    const change = draw({ statusHistory: storico, ultimoAutore: "Mario Rossi" });
+    apriMenu();
+    expect(screen.getByRole("menuitem", { name: /In corso \(attuale\)/ })).toHaveAttribute("data-disabled");
+    expect(screen.getByText("2026-10-12 · In corso · Mario Rossi")).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: /Registro attività/ })).toHaveAttribute("href", "/azienda/ordini/o1/diario");
+    fireEvent.click(screen.getByRole("menuitem", { name: /Lavori completati/ }));
+    expect(change).toHaveBeenCalledExactlyOnceWith("c");
+  });
+
+  it("la spunta viene dallo storico, non dall'ordine degli stati", () => {
+    draw({ currentStatusId: "c", statusHistory: [storico[1]] });
+    apriMenu();
+    expect(screen.getByRole("menuitem", { name: /Aperta/ })).toHaveTextContent("/2026");
+    expect(screen.getByRole("menuitem", { name: /In corso/ })).not.toHaveTextContent("/2026");
   });
 
   it("le lavorazioni finite propongono lo stato, ma lo cambia solo il clic", () => {
     const change = draw({ workProgress: finite });
     expect(change).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Passa a «Lavori completati»" }));
-    expect(change).toHaveBeenCalledExactlyOnceWith("b");
+    fireEvent.click(screen.getByRole("button", { name: "Lavorazioni finite: passa a «Lavori completati»" }));
+    expect(change).toHaveBeenCalledExactlyOnceWith("c");
   });
 
-  it("in sola lettura non si cambia niente, anche se arriva una callback", () => {
-    const change = draw({ canEdit: false, workProgress: finite });
-    expect(screen.queryByRole("button", { name: /Passa a/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: 'Imposta stato "Lavori completati"' }));
-    expect(change).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "Cambia stato" })).not.toBeInTheDocument();
+  it("in sola lettura si legge e basta, anche se arriva una callback", () => {
+    draw({ canEdit: false, workProgress: finite });
+    expect(screen.getByText("In corso")).toBeVisible();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("l'ultimo cambio dice quando e chi; porta al Registro; senza storico lo dice", () => {
-    draw({ ultimoAutore: "Mario Rossi", statusHistory: [
-      { id: "2", status_id: "b", changed_at: "2026-10-12T10:00:00Z", status: { name: "Lavori completati" } },
-      { id: "1", status_id: "a", changed_at: "2026-10-01T10:00:00Z", status: { name: "Contratto" } },
-    ] });
-    expect(screen.getByText("Ultimo cambio: 2026-10-12, Mario Rossi")).toBeVisible();
-    expect(screen.getByText("Tutti i cambi (2)")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Registro attività" })).toHaveAttribute("href", "/azienda/ordini/o1/diario");
+  it("uno stato di assistenza o nessuno stato non hanno la fase", () => {
+    draw({ currentStatusId: "h" });
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     cleanup();
-    draw();
-    expect(screen.getByText("Nessun cambio registrato")).toBeVisible();
+    draw({ currentStatusId: null });
+    expect(screen.getByRole("button", { name: /Stato non impostato/ })).toBeVisible();
   });
 });
