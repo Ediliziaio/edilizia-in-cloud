@@ -94,8 +94,10 @@ export function triangola(poligono: V2[]): [number, number, number][] {
       const b = poligono[ib];
       const c = poligono[ic];
       if (!convesso(a, b, c)) continue;
+      // un vertice nello stesso punto di un angolo (il ponte di un buco) non conta come «dentro»
+      const coincide = (q: V2) => [a, b, c].some((r) => Math.abs(r.x - q.x) < 1e-9 && Math.abs(r.y - q.y) < 1e-9);
       const contiene = restanti.some(
-        (k) => k !== ia && k !== ib && k !== ic && dentroTriangolo(poligono[k], a, b, c),
+        (k) => k !== ia && k !== ib && k !== ic && !coincide(poligono[k]) && dentroTriangolo(poligono[k], a, b, c),
       );
       if (contiene) continue;
       out.push([ia, ib, ic]);
@@ -180,4 +182,49 @@ export function puntoInterno(poligono: V2[]): V2 {
     }
   }
   return migliore;
+}
+
+
+const incrociano = (a: V2, b: V2, c: V2, d: V2): boolean => {
+  const o = (p: V2, q: V2, r: V2) => vettoriale(meno(q, p), meno(r, p));
+  const d1 = o(a, b, c), d2 = o(a, b, d), d3 = o(c, d, a), d4 = o(c, d, b);
+  return ((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) && ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9));
+};
+
+/**
+ * Un poligono con dei buchi (vano scala, vano ascensore) come poligono unico: ogni buco si unisce al contorno
+ * con un «ponte» (due lati sovrapposti) che non taglia nulla. Va dato a `triangola`, che non conosce i buchi.
+ * I buchi che non stanno interamente nel contorno si ignorano.
+ */
+export function poligonoConBuchi(contorno: V2[], buchi: V2[][]): V2[] {
+  let esterno = contorno.slice();
+  if (areaConSegno(esterno) < 0) esterno.reverse();
+  const usati: V2[][] = [];
+  for (const b of buchi) {
+    if (b.length < 3 || !b.every((q) => puntoNelPoligono(q, esterno)) || usati.some((u) => puntoNelPoligono(b[0], u))) continue;
+    const buco = b.slice();
+    if (areaConSegno(buco) > 0) buco.reverse(); // il buco gira al contrario del contorno
+    const lati: Array<[V2, V2]> = [];
+    const aggiungiLati = (pol: V2[]) => pol.forEach((q, i) => lati.push([q, pol[(i + 1) % pol.length]]));
+    aggiungiLati(esterno);
+    for (const u of usati) aggiungiLati(u);
+    aggiungiLati(buco);
+    const coppie: Array<{ i: number; j: number; d: number }> = [];
+    esterno.forEach((q, i) => buco.forEach((r, j) => coppie.push({ i, j, d: distanza(q, r) })));
+    coppie.sort((x, y) => x.d - y.d);
+    const ponte = coppie.find(({ i, j }) => {
+      const q = esterno[i], r = buco[j];
+      const mezzo = v2((q.x + r.x) / 2, (q.y + r.y) / 2);
+      return puntoNelPoligono(mezzo, esterno) && !lati.some(([c, d]) => incrociano(q, r, c, d));
+    });
+    if (!ponte) continue;
+    const { i, j } = ponte;
+    esterno = [
+      ...esterno.slice(0, i + 1),
+      ...buco.slice(j), ...buco.slice(0, j), buco[j],
+      ...esterno.slice(i),
+    ];
+    usati.push(buco);
+  }
+  return esterno;
 }

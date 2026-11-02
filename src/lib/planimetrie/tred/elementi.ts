@@ -22,7 +22,7 @@ export interface Blocco {
 interface ModelloElemento {
   nome: string;
   misure: { l: number; p: number; h: number };
-  blocchi: (l: number, p: number, h: number) => Blocco[];
+  blocchi: (l: number, p: number, h: number, opz?: { senzaCabina?: boolean }) => Blocco[];
 }
 
 const b = (materiale: string, x: number, z: number, y: number, l: number, p: number, h: number): Blocco => ({ materiale, x, z, y, l, p, h });
@@ -176,16 +176,28 @@ export const MODELLI: Record<string, ModelloElemento> = {
   ascensore: {
     nome: "Ascensore",
     misure: { l: 1.5, p: 1.5, h: 2.8 },
-    blocchi: (l, p, h) => {
+    blocchi: (l, p, h, opz) => {
       const s = 0.12, porta = Math.min(0.9, l - 0.4), alta = Math.min(2.1, h), lato = (l - porta) / 2;
+      // la cabina, dove l'ascensore si ferma: pianale, tre pareti e le due ante della porta socchiuse
+      const cl = l - 2 * s - 0.16, cp = p - 2 * s - 0.2, cz = -p / 2 + s + 0.04 + cp / 2, ch = Math.min(2.2, h - 0.1), t = 0.04;
+      const cabina = opz?.senzaCabina ? [] : [
+        b("metallo", 0, cz, 0.02, cl, cp, 0.04),
+        b("metallo", 0, cz - cp / 2 + t / 2, 0.04, cl, t, ch),
+        b("metallo", -cl / 2 + t / 2, cz, 0.04, t, cp - 2 * t, ch),
+        b("metallo", cl / 2 - t / 2, cz, 0.04, t, cp - 2 * t, ch),
+        b("laccato", 0, cz + cp / 2 - t / 2, ch + 0.04, cl, cp, 0.04),
+        b("laccato", -cl / 4 - 0.1, cz + cp / 2 - t / 2, 0.04, cl / 2 - 0.2, t, Math.min(2.0, ch)),
+        b("laccato", cl / 4 + 0.1, cz + cp / 2 - t / 2, 0.04, cl / 2 - 0.2, t, Math.min(2.0, ch)),
+      ];
       return [
+        ...cabina,
         b("muro", 0, -p / 2 + s / 2, 0, l, s, h),
         b("muro", -l / 2 + s / 2, 0, 0, s, p - 2 * s, h),
         b("muro", l / 2 - s / 2, 0, 0, s, p - 2 * s, h),
         b("muro", -(porta + lato) / 2, p / 2 - s / 2, 0, lato, s, h),
         b("muro", (porta + lato) / 2, p / 2 - s / 2, 0, lato, s, h),
         ...(h > alta ? [b("muro", 0, p / 2 - s / 2, alta, porta, s, h - alta)] : []),
-        b("metallo", 0, p / 2 - s / 2, 0, porta, 0.04, alta),
+        ...(opz?.senzaCabina ? [b("metallo", 0, p / 2 - s / 2, 0, porta, 0.04, alta)] : []),
       ];
     },
   },
@@ -343,7 +355,7 @@ export function costruisciElemento(
   tipo: string,
   centro: { x: number; z: number },
   rotazione: number,
-  misure: { l?: number; p?: number; h?: number },
+  misure: { l?: number; p?: number; h?: number; senzaCabina?: boolean },
   costruttore: (materiale: string) => CostruttoreMesh,
 ): void {
   const modello = modelloElemento(tipo);
@@ -351,7 +363,7 @@ export function costruisciElemento(
   const l = misure.l ?? modello.misure.l;
   const p = misure.p ?? modello.misure.p;
   const h = misure.h ?? modello.misure.h;
-  for (const bl of modello.blocchi(l, p, h)) {
+  for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina })) {
     costruttore(bl.materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z);
   }
 }
