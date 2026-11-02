@@ -47,6 +47,11 @@ Planimetria { schema: 1, unita: "cm", titolo?, scala?, nord?, riferimenti?, live
   `manovra`: `battente` | `scorrevole` | `nessuna`. `verso` (solo battenti):
   `cardine` = verso quale capo del muro stanno le cerniere (`p1` o `p2`);
   `lato` = da che parte si apre l'anta guardando da p1 a p2 (`sinistra` | `destra`).
+  Facoltativi: `ante` (intero 1-6; assente = 1, oppure 2 per finestre e portefinestre più larghe di
+  1,4 m) e `sistema` (`battente` | `anta_ribalta` | `vasistas` | `scorrevole` | `scorrevole_scomparsa` |
+  `alzante_scorrevole` | `libro` | `fisso`; assente = quello che dice `manovra`). La `manovra` resta
+  coerente: ogni sistema a scorrere è `scorrevole`, `fisso` è `nessuna`. Controtelaio e misure dell'anta
+  si calcolano da `shared/planimetrie/serramenti.ts`, non si salvano.
 - **Locale** = poligono al **filo interno** delle pareti (`contorno`, almeno 3 punti,
   verso qualunque), `altezza`, `destinazione` (soggiorno, cucina, camera, bagno,
   ingresso, disimpegno, corridoio, ripostiglio, studio, lavanderia, balcone, terrazzo,
