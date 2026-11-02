@@ -73,7 +73,8 @@ describe("CampiDaCompletare", () => {
     fireEvent.change(screen.getByLabelText("Pezzi posati"), { target: { value: "7" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(db.update).toHaveBeenCalled());
-    expect(db.update).toHaveBeenCalledWith({ campi_extra: [
+    // Il PDF già generato non contiene questi valori: si rifà.
+    expect(db.update).toHaveBeenCalledWith({ pdf_url: null, campi_extra: [
       { chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", valore: 7, stampa: "interno" }, altro,
     ] });
     expect(db.condizioni).toContainEqual(["approvato", false]);

@@ -12,6 +12,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatDateShort } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
+import { CampiModulo } from "@/components/campo/CampiModulo";
+import { useModuliAzienda } from "@/hooks/useModuliCantiere";
+import { componiValori, leggiValori, valoriInBozza, type ModuloSchema } from "../../../supabase/functions/_shared/moduliCantiere";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +32,7 @@ import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewP
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { AcceptanceTaskActions } from "./AcceptanceTaskActions";
 import {
+  acceptanceDaModello,
   emptyAcceptance,
   validateAcceptance,
   outcomes,
@@ -76,6 +80,11 @@ export function OrderAcceptanceReports({
   const [content, setContent] = useState<AcceptanceContent>(() =>
     emptyAcceptance(today()),
   );
+  // Quello che si sta scrivendo nei dati del collaudo: il contenuto salvato ha solo i valori già puliti.
+  const [valoriCampi, setValoriCampi] = useState<Record<string, unknown>>({});
+  const [scegliModello, setScegliModello] = useState(false);
+  const { data: moduli = [] } = useModuliAzienda(companyId, "verbale");
+  const modelli = moduli.filter((m) => m.attivo);
   const [dirty, setDirty] = useState(false),
     [preview, setPreview] = useState<string | null>(null),
     [reviewed, setReviewed] = useState(false);
@@ -117,13 +126,18 @@ export function OrderAcceptanceReports({
     setPreview(null);
     setReviewed(false);
   };
-  const start = (row: Report | null) => {
+  const nuovo = () => {
+    if (modelli.length > 1) setScegliModello(true);
+    else start(null, modelli[0]?.schema ?? null);
+  };
+  const start = (row: Report | null, modello: ModuloSchema | null = null) => {
+    setScegliModello(false);
     setReport(row);
-    setContent(
-      row
-        ? structuredClone(row.content)
-        : { ...emptyAcceptance(today()), customer },
-    );
+    const iniziale = row
+      ? structuredClone(row.content)
+      : { ...acceptanceDaModello(today(), modello), customer };
+    setContent(iniziale);
+    setValoriCampi(valoriInBozza(leggiValori(iniziale.valori)));
     setDirty(!row);
     setPreview(null);
     setReviewed(false);
@@ -203,7 +217,7 @@ export function OrderAcceptanceReports({
         </div>
         {canEditOrders && (
           <Button
-            onClick={() => start(null)}
+            onClick={nuovo}
             disabled={query.isLoading || query.isError}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -212,6 +226,16 @@ export function OrderAcceptanceReports({
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {scegliModello && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 p-3">
+            <span className="text-sm font-medium">Quale modello?</span>
+            {modelli.map((m) => (
+              <Button key={m.id} variant="outline" size="sm" onClick={() => start(null, m.schema)}>
+                {m.nome}
+              </Button>
+            ))}
+          </div>
+        )}
         {query.isLoading ? (
           <p role="status">Caricamento verbali…</p>
         ) : query.isError ? (
@@ -438,6 +462,21 @@ export function OrderAcceptanceReports({
                   Aggiungi verifica
                 </Button>
               </section>
+              {(content.campi?.length ?? 0) > 0 && (
+                <section className="space-y-3">
+                  <h3 className="font-semibold">Dati del collaudo</h3>
+                  <CampiModulo
+                    campi={content.campi ?? []}
+                    valori={valoriCampi}
+                    mostraErrori={errors.length > 0 && reviewed}
+                    onChange={(k, v) => {
+                      const prossimi = { ...valoriCampi, [k]: v };
+                      setValoriCampi(prossimi);
+                      edit({ ...content, valori: componiValori(content.campi ?? [], prossimi) });
+                    }}
+                  />
+                </section>
+              )}
               <div>
                 <Label htmlFor="acceptance-outcome">Esito complessivo</Label>
                 <select

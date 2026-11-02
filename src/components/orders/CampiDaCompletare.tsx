@@ -40,7 +40,7 @@ export function CampiDaCompletare({ report, schema, puoModificare, onSalvato }: 
     mutationFn: async () => {
       const { data, error } = await (supabase.from("campo_rapportini") as unknown as {
         update: (v: unknown) => { eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { select: (c: string) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> } } } };
-      }).update({ campi_extra: componiValori(campi, valori, precedenti) }).eq("id", report.id).eq("approvato", false).select("id").maybeSingle();
+      }).update({ pdf_url: null, campi_extra: componiValori(campi, valori, precedenti) }).eq("id", report.id).eq("approvato", false).select("id").maybeSingle();
       if (error) throw error;
       if (!data) throw new Error("cambiato");
     },

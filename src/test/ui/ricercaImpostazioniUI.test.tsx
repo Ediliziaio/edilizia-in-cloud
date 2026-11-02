@@ -74,7 +74,7 @@ describe("scrivendo", () => {
   it("ogni parola conta, in qualunque ordine, e sotto il nome si legge a cosa serve", async () => {
     await cerca("lavorate ore");
     expect(await screen.findByText("Rapportini e presenze")).toBeInTheDocument();
-    expect(screen.getByText(/chi scrive il rapportino e da dove vengono le ore/)).toBeInTheDocument();
+    expect(screen.getByText(/chi compila, cosa si compila e i verbali di collaudo/)).toBeInTheDocument();
     expect(screen.queryByText("Le più cercate")).toBeNull();
   });
 

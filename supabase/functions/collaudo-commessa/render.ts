@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { printable, wrap } from "../genera-pdf-rapportino/render.ts";
+import { leggiValori, valoreInTesto, valoriDaStampare } from "../_shared/moduliCantiere.ts";
 import { outcomes, results, type AcceptanceContent } from "./model.ts";
 
 export async function renderAcceptance(
@@ -96,6 +97,12 @@ export async function renderAcceptance(
     if (v.note) paragraph(v.note, 9);
     y -= 4;
   });
+  // Il verbale è un documento per il cliente: i valori interni restano nell'app.
+  const valoriCliente = valoriDaStampare(leggiValori(c.valori), "cliente");
+  if (valoriCliente.length) {
+    section("Dati del collaudo");
+    for (const v of valoriCliente) paragraph(`${v.etichetta}: ${valoreInTesto(v)}`);
+  }
   section("03 / Esito e riserve");
   paragraph(
     outcomes[c.outcome],

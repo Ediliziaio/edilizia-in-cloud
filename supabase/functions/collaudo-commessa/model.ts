@@ -1,3 +1,5 @@
+import { leggiSchema, leggiValori, mancanti, valoriInBozza, type CampoModulo, type ModuloSchema, type ValoreCampo } from "../_shared/moduliCantiere.ts";
+
 export type CheckResult = "pending" | "ok" | "reserve" | "na";
 export interface AcceptanceCheck {
   label: string;
@@ -21,6 +23,9 @@ export interface AcceptanceContent {
   actions: AcceptanceAction[];
   documents: string;
   notes: string;
+  /** Copia dei campi del modello presa alla creazione: se il modello cambia, questo verbale non cambia. */
+  campi?: CampoModulo[];
+  valori?: ValoreCampo[];
 }
 export const outcomes = {
   pending: "Da verificare",
@@ -54,6 +59,20 @@ export function emptyAcceptance(date: string): AcceptanceContent {
     notes: "",
   };
 }
+/** Un verbale nuovo dal modello dell'azienda; senza modello è quello di sempre. */
+export function acceptanceDaModello(date: string, modello: ModuloSchema | null): AcceptanceContent {
+  const vuoto = emptyAcceptance(date);
+  if (!modello) return vuoto;
+  return {
+    ...vuoto,
+    title: modello.titolo?.trim() || vuoto.title,
+    checks: modello.voci?.length
+      ? modello.voci.map((label) => ({ label, result: "pending" as const, note: "" }))
+      : vuoto.checks,
+    campi: structuredClone(modello.campi.filter((c) => !c.archiviato)),
+    valori: [],
+  };
+}
 const validDate = (v: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v) &&
   !Number.isNaN(Date.parse(v)) &&
@@ -80,7 +99,15 @@ export function validateAcceptance(value: unknown, complete = false): string[] {
     )
       errors.push(`Campo ${key} non valido o troppo lungo`);
   }
+  if (c.campi !== undefined && !Array.isArray(c.campi)) errors.push("Dati del collaudo non validi");
+  if (c.valori !== undefined && (!Array.isArray(c.valori) || leggiValori(c.valori).length !== c.valori.length))
+    errors.push("Valori del collaudo non validi");
   if (errors.length) return errors;
+  if (complete) {
+    const campi = leggiSchema({ campi: c.campi }).campi;
+    const manca = mancanti(campi, valoriInBozza(leggiValori(c.valori)));
+    if (manca.length) errors.push(`Compila: ${manca.join(", ")}`);
+  }
   if (!c.title.trim() || !validDate(c.date))
     errors.push("Inserisci titolo e data validi");
   if (!Object.hasOwn(outcomes, c.outcome)) errors.push("Esito non valido");
