@@ -50,6 +50,8 @@ interface Dettaglio {
 export interface AzioniRiepilogo {
   /** Apre la scelta degli ordini d'acquisto (uno o più, con le quote). */
   onCollegaOrdine?: () => void;
+  /** Apre la scelta di una o più commesse, con le quote. */
+  onCollegaCommesse?: () => void;
   /** Contabilizza: la fattura diventa un costo. */
   onContabilizza?: () => void;
   /** La versione completa dall'XML (stampa, PDF del fornitore): solo se l'XML c'è. */
@@ -383,7 +385,12 @@ export function RiepilogoFatturaRicevuta({
                     return (
                       <>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {d.costo?.ripartito ? <span>Ripartita su più commesse</span>
+                          {d.costo?.ripartito ? (
+                            <>
+                              <span>Ripartita su più commesse</span>
+                              {azioni.onCollegaCommesse && d.ordini.length === 0 ? <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaCommesse}>Cambia</Button> : null}
+                            </>
+                          )
                             : uniche.length ? uniche.map((c) => (
                               <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
                             )) : <span className="text-muted-foreground">Nessuna</span>}
@@ -393,6 +400,9 @@ export function RiepilogoFatturaRicevuta({
                             </Button>
                           ) : null}
                         </div>
+                        {sceglibile && azioni.onCollegaCommesse && !scegliCommessa ? (
+                          <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaCommesse}>Dividi su più commesse</Button>
+                        ) : null}
                         {sceglibile && !uniche.length && d.suggerita && !scegliCommessa ? (
                           <div className="flex flex-wrap items-center gap-1.5 text-xs">
                             <Sparkles className="h-3.5 w-3.5 text-primary" />

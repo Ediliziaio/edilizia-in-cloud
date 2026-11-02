@@ -22,6 +22,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useDDTRicezioneMutations, type DDTStato } from "@/hooks/useDDTRicezione";
 import { useSegnaRicevutaPagata } from "@/components/fatturazione/PagamentoRicevuta";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
+import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
+import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
+import { fatturaVerificata, quoteDelCosto, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -372,14 +375,19 @@ export interface RigaFattura {
   /** Totale intero del documento, quando conta solo una quota. */
   totaleDocumento: number | null;
   /** Il pagamento vero sta sul costo collegato: sulla fattura c'è solo se qualcuno l'ha segnato lì. */
+  imponibileDocumento: number | null;
   pagamento: StatoPagamento;
   pagato: number | null;
   residuo: number | null;
   pagataIl: string | null;
   /** Una riga sola per capire cos'è. */
   descrizione: string | null;
-  /** Contabilizzata = controllata e nei conti: lo stesso stato delle Fatture ricevute. */
+  /** Scelta di chi controlla; finché nessuno sceglie, contabilizzata vale verificata. */
   verificata: boolean;
+  contabilizzata: boolean;
+  /** Le altre commesse su cui è divisa, e le voci di questa commessa. */
+  ripartizione: Array<{ orderId: string; codice: string; pct: number; importo: number | null }>;
+  vociQui: string[];
   /** Quanto l'AI è sicura che sia di questa commessa, da 0 a 1 (solo le suggerite). */
   confidenza: number | null;
   /** Cosa guardare prima di fidarsi: anomalie dell'AI, importo oltre l'ordine, fattura mai aperta. */
@@ -457,7 +465,7 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
       const totaleOda = new Map(oda.map((o) => [o.id, o.totale]));
       // Quota di questa commessa sui costi ripartiti (come in Economia → esposizione di cassa).
       const quotaCosto = quoteDeiCostiRipartiti(costiRipartiti as { id: string; order_id: string | null; allocations: unknown }[], orderId);
-      const campi = "id, numero_fattura, data_fattura, cedente_ragione_sociale, totale_documento, tipo_documento, stato, purchase_order_id, company_cost_id, pagata_il, order_match_confidenza, anomalie_rilevate, ai_riassunto, righe";
+      const campi = "id, numero_fattura, data_fattura, cedente_ragione_sociale, totale_documento, tipo_documento, stato, purchase_order_id, company_cost_id, pagata_il, order_match_confidenza, anomalie_rilevate, ai_riassunto, righe, imponibile_totale";
       const [daOda, daCosto, suggerite] = await Promise.all([
         Promise.all(aLotti(odaIds).map((ids) => allPaymentRows((da, a) => db.from("fatture_ricevute").select(campi)
           .eq("company_id", companyId).in("purchase_order_id", ids).order("id").range(da, a)))),
@@ -466,7 +474,14 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
         allPaymentRows((da, a) => db.from("fatture_ricevute").select(campi)
           .eq("company_id", companyId).eq("order_id_suggerito", orderId).order("id").range(da, a)),
       ]);
-      type Grezza = { id: string; numero_fattura: string | null; data_fattura: string | null; cedente_ragione_sociale: string | null; totale_documento: number | null; tipo_documento: string | null; stato: string | null; purchase_order_id: string | null; company_cost_id: string | null; pagata_il: string | null; order_match_confidenza: number | null; anomalie_rilevate: unknown; ai_riassunto: string | null; righe: unknown };
+      type Grezza = { id: string; numero_fattura: string | null; data_fattura: string | null; cedente_ragione_sociale: string | null; totale_documento: number | null; tipo_documento: string | null; stato: string | null; purchase_order_id: string | null; company_cost_id: string | null; pagata_il: string | null; order_match_confidenza: number | null; anomalie_rilevate: unknown; ai_riassunto: string | null; righe: unknown; imponibile_totale: number | null };
+      // La verifica scelta a mano: lettura a parte, così una base dati senza la colonna non ferma l'elenco.
+      const verifiche = new Map<string, string>();
+      const idFatture = [...new Set([...daOda.flat(), ...daCosto.flat(), ...suggerite].map((f) => (f as { id: string }).id))];
+      for (const ids of aLotti(idFatture)) {
+        const { data: v, error: errV } = await db.from("fatture_ricevute").select("id, verifica_manuale").eq("company_id", companyId).in("id", ids).not("verifica_manuale", "is", null);
+        if (!errV) for (const x of (v ?? []) as Array<{ id: string; verifica_manuale: string }>) verifiche.set(x.id, x.verifica_manuale);
+      }
       const viste = new Map<string, RigaFattura>();
       const aggiungi = (f: Grezza, legame: RigaFattura["legame"]) => {
         // Una fattura rifiutata non è un costo della commessa.
@@ -482,12 +497,16 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
           stato: f.stato, legame, oda: f.purchase_order_id ? perOda.get(f.purchase_order_id) ?? null : null,
           purchaseOrderId: f.purchase_order_id, costId:f.company_cost_id,
           notaCredito: segno < 0, quota,
+          imponibileDocumento: f.imponibile_totale,
           pagamento: f.pagata_il ? "pagata" : "da_pagare",
           pagato: null,
           residuo: null,
           pagataIl: f.pagata_il,
           descrizione: descrizioneFattura(f.ai_riassunto, f.righe),
-          verificata: f.stato === "contabilizzata",
+          verificata: fatturaVerificata({ stato: f.stato, verifica_manuale: verifiche.get(f.id) }),
+          contabilizzata: f.stato === "contabilizzata",
+          ripartizione: [],
+          vociQui: [],
           confidenza: legame === "suggerita" && f.order_match_confidenza != null ? Number(f.order_match_confidenza) : null,
           daControllare: Array.isArray(f.anomalie_rilevate) && f.anomalie_rilevate.length > 0 ? "L’AI ha segnalato un’anomalia"
             : f.stato === "non_letta" && legame !== "suggerita" ? "Non ancora aperta da nessuno" : null,
@@ -497,6 +516,23 @@ export function useFattureFornitoriCommessa(orderId: string, abilitato = true) {
       (daCosto.flat() as Grezza[]).forEach((f) => aggiungi(f, "costo"));
       // Suggerita = l'AI pensa che sia di questa commessa, ma nessun ordine o costo la lega ancora.
       (suggerite as Grezza[]).filter((f) => !f.purchase_order_id && !f.company_cost_id).forEach((f) => aggiungi(f, "suggerita"));
+      // Fattura divisa su più commesse: quanto a ciascuna e quali voci a questa.
+      const costiDivisi = costiRipartiti as Array<{ id: string; order_id: string | null; allocations: unknown }>;
+      const idAltreCommesse = [...new Set(costiDivisi.flatMap((c) => quoteDelCosto(c).map((q) => q.order_id)))];
+      const codici = new Map<string, string>();
+      for (const ids of aLotti(idAltreCommesse)) {
+        const { data: o, error: errO } = await db.from("orders").select("id, order_code").eq("company_id", companyId).in("id", ids);
+        if (errO) throw errO;
+        for (const x of (o ?? []) as Array<{ id: string; order_code: string | null }>) codici.set(x.id, x.order_code ?? "Commessa");
+      }
+      const righeFattura = new Map(([...daOda.flat(), ...daCosto.flat()] as Grezza[]).map((f) => [f.id, f.righe]));
+      for (const f of viste.values()) {
+        const quote = quoteDelCosto(costiDivisi.find((c) => c.id === f.costId));
+        if (quote.length < 2 && !(quote[0]?.pct < 100)) continue;
+        f.ripartizione = quote.map((q) => ({ orderId: q.order_id, codice: codici.get(q.order_id) ?? "Commessa", pct: q.pct, importo: q.importo ?? null }));
+        const mie = quote.find((q) => q.order_id === orderId)?.righe ?? [];
+        f.vociQui = vociFattura(righeFattura.get(f.id)).filter((v) => mie.includes(v.numero)).map((v) => v.descrizione);
+      }
       const costiCollegati = [...new Set([...viste.values()].flatMap((f) => (f.costId ? [f.costId] : [])))];
       const pagamenti = (await Promise.all(aLotti(costiCollegati).map((ids) => allPaymentRows((da, a) => db.from("company_costs")
         .select("id, is_paid, paid_date").eq("company_id", companyId).in("id", ids).order("id").range(da, a))))).flat() as Array<{ id: string; is_paid: boolean | null; paid_date: string | null }>;
@@ -538,6 +574,7 @@ const PAGAMENTO: Record<StatoPagamento, { testo: string; tono: TonoStato }> = {
 export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true, puoModificare = false }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean; puoModificare?: boolean }) {
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
+  const [daDividere, setDaDividere] = useState<RigaFattura | null>(null);
   const { effectiveCompany } = useAuth();
   const segnaPagata = useSegnaRicevutaPagata();
   const [occupata, setOccupata] = useState<string | null>(null);
@@ -567,12 +604,12 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     if (error) throw error;
   }, `Fattura ${f.numero ?? ""} tolta dai suggerimenti`, "Suggerimento non tolto");
   // Stessa azione di Fatture ricevute: crea il costo o corregge quello nato dall'ordine, senza contarlo due volte.
-  const verifica = (f: RigaFattura) => {
-    if (!window.confirm(`Confermi la fattura ${f.numero ?? ""}? Viene contabilizzata e il suo costo entra nei conti.`)) return;
+  const contabilizza = (f: RigaFattura) => {
+    if (!window.confirm(`Contabilizzare la fattura ${f.numero ?? ""}? Il suo costo entra nei conti.`)) return;
     void azione(f, async () => {
       const { error } = await db.rpc("contabilizza_fattura_ricevuta", { p_fattura_id: f.id });
       if (error) throw error;
-    }, `Fattura ${f.numero ?? ""} verificata`, "Fattura non verificata");
+    }, `Fattura ${f.numero ?? ""} contabilizzata`, "Fattura non contabilizzata");
   };
   const collegate = data.filter((f) => f.legame !== "suggerita");
   const suggerite = data.filter((f) => f.legame === "suggerita");
@@ -580,8 +617,9 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   const costiSenzaFattura = (costi?.costi ?? []).filter((c) => c.senza_fattura).length;
   const filtri: Record<string, (f: RigaFattura) => boolean> = {
     collegare: (f) => f.legame === "suggerita",
-    daVerificare: (f) => f.legame !== "suggerita" && (!f.verificata || !!f.daControllare),
-    verificate: (f) => f.legame !== "suggerita" && f.verificata && !f.daControllare,
+    // Chi l'ha verificata ha deciso: l'avviso resta scritto sulla riga, ma non la rimette da verificare.
+    daVerificare: (f) => f.legame !== "suggerita" && !f.verificata,
+    verificate: (f) => f.legame !== "suggerita" && f.verificata,
     pagare: (f) => f.legame !== "suggerita" && f.pagamento !== "pagata" && !f.notaCredito,
     pagate: (f) => f.legame !== "suggerita" && f.pagamento === "pagata",
   };
@@ -605,17 +643,27 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     { titolo: "Collegata a", cella: (f) => (
       <div className="text-xs text-muted-foreground">
         {f.oda ?? LEGAME[f.legame]}
-        {f.quota != null && f.totaleDocumento != null && mostraImporti && <p>Ripartita: {f.quota.toLocaleString("it-IT")}% di {formatCurrency(f.totaleDocumento)}</p>}
+        {f.quota != null && f.totaleDocumento != null && mostraImporti && <p>Quota {f.quota.toLocaleString("it-IT")}% di {formatCurrency(f.totaleDocumento)}</p>}
+        {f.ripartizione.length > 0 && (
+          <details>
+            <summary className="cursor-pointer">Divisa su {f.ripartizione.length} {f.ripartizione.length === 1 ? "commessa" : "commesse"}</summary>
+            <ul className="mt-0.5 space-y-0.5">
+              {f.ripartizione.map((q) => (
+                <li key={q.orderId} className={q.orderId === orderId ? "font-medium text-foreground" : undefined}>
+                  {q.codice} · {q.pct.toLocaleString("it-IT")}%{mostraImporti && q.importo != null ? ` · ${formatCurrency(q.importo)}` : ""}
+                </li>
+              ))}
+            </ul>
+            {f.vociQui.length > 0 && <p className="mt-0.5">Voci di questa commessa: {f.vociQui.join(", ")}</p>}
+          </details>
+        )}
         {f.confidenza != null && <p>L’AI è sicura al {Math.round(f.confidenza * 100)}%</p>}
       </div>
     ) },
     { titolo: "Verifica", cella: (f) => f.legame === "suggerita" ? <StatoPill tono="ambra">Da collegare</StatoPill> : (
       <div className="space-y-0.5">
-        {puoModificare && !f.verificata ? (
-          <button type="button" title="Segna verificata" aria-label={`Verifica la fattura ${f.numero ?? ""}`} disabled={occupata !== null} onClick={() => verifica(f)}>
-            <StatoPill tono="ambra">Da verificare<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
-          </button>
-        ) : <StatoPill tono={f.verificata && !f.daControllare ? "verde" : "ambra"}>{f.verificata && !f.daControllare ? "Verificata" : "Da verificare"}</StatoPill>}
+        <VerificaFatturaPill id={f.id} numero={f.numero} verificata={f.verificata} avviso={!!f.daControllare} puoCambiare={puoModificare}
+          altreAzioni={!f.contabilizzata ? [{ testo: "Contabilizza", fai: () => contabilizza(f) }] : undefined} />
         {f.daControllare && <p className="text-xs text-muted-foreground">{f.daControllare}</p>}
       </div>
     ) },
@@ -642,6 +690,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     ] : []),
     { titolo: "Azioni", destra: true, cella: (f) => (
       <div className="flex flex-wrap justify-end gap-1">
+        {puoModificare && f.legame !== "oda" && <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setDaDividere(f)}>{f.legame === "suggerita" ? "Dividi su più commesse" : "Commesse"}</Button>}
         {puoModificare && f.legame === "suggerita" && <>
           <Button size="sm" variant="outline" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void collega(f)}>{occupata === f.id ? "Collego…" : "Collega a questa commessa"}</Button>
           <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void nonDiQuesta(f)}>Non è di questa commessa</Button>
@@ -652,11 +701,19 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   return (
     <>
     {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={() => { setPaymentCostId(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }} />}
+    {daDividere && effectiveCompany?.id && (
+      <CollegaFatturaCommesseDialog companyId={effectiveCompany.id} commessaIniziale={orderId} onChiudi={() => { setDaDividere(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }}
+        fattura={{ id: daDividere.id, numero: daDividere.numero, fornitore: daDividere.fornitore, imponibile: daDividere.imponibileDocumento, totale: daDividere.totaleDocumento ?? daDividere.totale, companyCostId: daDividere.costId, purchaseOrderId: daDividere.purchaseOrderId }} />
+    )}
     {riepilogoId && (
       <RiepilogoFatturaRicevuta fatturaId={riepilogoId} companyId={effectiveCompany?.id} onClose={() => { setRiepilogoId(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }}
         azioni={(() => {
           const f = data.find((x) => x.id === riepilogoId);
-          return puoModificare && f && f.legame !== "suggerita" && !f.verificata ? { onContabilizza: () => verifica(f) } : {};
+          if (!puoModificare || !f) return {};
+          return {
+            ...(f.legame !== "oda" ? { onCollegaCommesse: () => { setRiepilogoId(null); setDaDividere(f); } } : {}),
+            ...(!f.contabilizzata ? { onContabilizza: () => contabilizza(f) } : {}),
+          };
         })()} />
     )}
     <RiquadroCommessa
