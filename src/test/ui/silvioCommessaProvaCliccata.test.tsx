@@ -247,7 +247,7 @@ describe("La chat dopo un annulla", () => {
   });
 
   it("una modifica a mano dopo la risposta: Annulla non sta più sulla risposta, che non toglierebbe lei", async () => {
-    const { s } = servizi({ chat: conStrumento("identita.description", "Tetto A") });
+    const { s } = servizi({ chat: conStrumento("identita.description", "Tetto A") as unknown as ServiziSilvioCommessa["chat"] });
     apri(s);
     await leggi(pdf("contratto.pdf"));
     await within(chat()).findByText(/Da contratto\.pdf ho preso/);
@@ -316,8 +316,8 @@ describe("Prima di aver letto non si chiede quello che il documento può dire", 
 describe("La bozza ripresa", () => {
   it("le proposte di Silvio non diventano una «fonte» da togliere", async () => {
     const contesto = {
-      oggi: "2026-11-02", dipendenti: [{ id: "e1", nome: "Mario Verdi", attivo: true }], storicoDipendenti: [{ employee_id: "e1", fase: "Ponteggio" }], impegniDipendenti: [], assenze: [],
-      staff: [{ id: CAPO, nome: "Carlo Capoferri" }], capomastri: [], ditte: [], storicoDitte: [], documentiDitte: [], mezzi: [], storicoMezzi: [], impegniMezzi: [], fornitori: [], storicoAcquisti: [],
+      oggi: "2026-11-02", dipendenti: [{ id: "e1", nome: "Mario Verdi", attivo: true }], storicoDipendenti: [{ employee_id: "e1", fase: "Ponteggio" }], impegniDipendenti: [] as never[], assenze: [] as never[],
+      staff: [{ id: CAPO, nome: "Carlo Capoferri" }], capomastri: [] as never[], ditte: [] as never[], storicoDitte: [] as never[], documentiDitte: [] as never[], mezzi: [] as never[], storicoMezzi: [] as never[], impegniMezzi: [] as never[], fornitori: [] as never[], storicoAcquisti: [] as never[],
     };
     const { s, db } = servizi({ contestoRisorse: vi.fn(async () => contesto as never) });
     const { unmount } = apri(s);
