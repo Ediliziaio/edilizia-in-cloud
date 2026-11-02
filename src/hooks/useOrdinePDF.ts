@@ -40,6 +40,14 @@ export interface OrdinePDFProps {
   statuses?: unknown[];
   showCosts?: boolean;
   showMargins?: boolean;
+  /** Economia con i calcoli delle schermate (caricaDossierEconomico). */
+  dossier?: unknown;
+  /** Sezioni lette da caricaDatiRiepilogo. */
+  dati?: unknown;
+  /** Il PDF che parte verso il cliente: niente costi, margini né dati interni. */
+  perCliente?: boolean;
+  /** Le parti da stampare. Assente = tutte. */
+  gruppi?: string[] | null;
 }
 
 /**
@@ -65,10 +73,11 @@ export function useOrdinePDF() {
       import("@/components/orders/OrdinePDF"),
     ]);
     // The factory returns the actual Document root expected by react-pdf.
-    return await pdf(createOrdinePDFDocument(opts)).toBlob();
+    // dossier: tipizzato `unknown` qui per non importare tipi verso il PDF (vedi sopra).
+    return await pdf(createOrdinePDFDocument(opts as Parameters<typeof createOrdinePDFDocument>[0])).toBlob();
   };
 
-  const pdfFileName = (opts: OrdinePDFProps) => `Ordine-${opts.order?.order_code ?? "dettaglio"}.pdf`;
+  const pdfFileName = (opts: OrdinePDFProps) => `Riepilogo-commessa-${opts.order?.order_code ?? "dettaglio"}.pdf`;
 
   const downloadPDF = async (opts: OrdinePDFProps) => {
     setIsGenerating(true);

@@ -1,6 +1,10 @@
 import React from "react";
+import type { DossierEconomico } from "@/lib/orders/dossierEconomico";
+import { CATEGORIE, STATO_USCITA, documentoUscita } from "@/lib/orders/quadroPagamenti";
 import { ritenutaSuLordo } from "@/lib/orders/bonusFiscali";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { avanzamentoSal, type DatiRiepilogo, type GruppoRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
+import { ancoraDi, etichetta, graficoSal, sezioneAgenda, sezioneCantiere, sezioneCompletezza, sezioneCronoprogramma, sezioneFatture, sezioneFoto, sezioneGrafici, sezioneGraficiCosti, sezioneIndice, sezioneProgramma, sezioneSubappalti, type KitPdf } from "./RiepilogoCommessaSezioni";
+import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -54,10 +58,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
-    marginBottom: 6,
-    marginTop: 14,
+    marginBottom: 4,
+    marginTop: 10,
   },
-  sectionLine: { height: 1, backgroundColor: C.gray200, marginBottom: 8 },
+  sectionLine: { height: 1, backgroundColor: C.gray200, marginBottom: 6 },
 
   // Grid
   row2: { flexDirection: "row" as const, gap: 10, marginBottom: 10 },
@@ -88,10 +92,10 @@ const styles = StyleSheet.create({
     padding: "5 8",
   },
   tableHeaderText: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.white },
-  tableRow: { flexDirection: "row" as const, padding: "5 8", borderTop: `0.5pt solid ${C.gray200}` },
+  tableRow: { flexDirection: "row" as const, padding: "3 8", borderTop: `0.5pt solid ${C.gray200}` },
   tableRowAlt: {
     flexDirection: "row" as const,
-    padding: "5 8",
+    padding: "3 8",
     borderTop: `0.5pt solid ${C.gray200}`,
     backgroundColor: C.gray50,
   },
@@ -174,6 +178,21 @@ const fmtDate = (d: string | null | undefined) => {
 
 const fmtPerc = (n: number) => `${n.toFixed(1)}%`;
 
+/** Dove una data mancante non è un'informazione: nelle tabelle basta il trattino. */
+const fmtData = (d: string | null | undefined) => (d ? fmtDate(d) : "—");
+
+const kit: KitPdf = { styles, C, fmt, fmtPerc, data: fmtData };
+
+/** L'importo vero della provvigione è quello registrato; il calcolo vale solo per le righe vecchie senza. */
+function provvigioneNetta(sp: any, imponibile: number, incassato: number): number {
+  const lorda = sp.commission_amount != null
+    ? Number(sp.commission_amount)
+    : sp.commission_type === "fixed"
+      ? Number(sp.commission_value ?? 0)
+      : (sp.commission_type === "percentage_sold" ? imponibile : incassato) * (Number(sp.commission_value ?? 0) / 100);
+  return lorda - Number(sp.deduction_amount ?? 0);
+}
+
 /* ── Status maps ─────────────────────────────────────────── */
 const ITEM_STATUS_MAP: Record<string, { label: string; style: any }> = {
   da_ordinare: { label: "Da ordinare", style: { backgroundColor: C.gray100, color: C.gray500 } },
@@ -182,6 +201,14 @@ const ITEM_STATUS_MAP: Record<string, { label: string; style: any }> = {
   in_arrivo: { label: "In Arrivo", style: { backgroundColor: C.amberBg, color: C.amber } },
   in_magazzino: { label: "In Magazzino", style: { backgroundColor: "#ede9fe", color: "#7c3aed" } },
   installato: { label: "Installato", style: { backgroundColor: C.greenBg, color: C.green } },
+};
+
+const ODA_STATO: Record<string, { label: string; tono: "green" | "cyan" | "orange" | "gray" }> = {
+  bozza: { label: "Bozza", tono: "gray" },
+  inviato: { label: "Inviato", tono: "cyan" },
+  confermato: { label: "Confermato", tono: "orange" },
+  parziale: { label: "Ricevuto in parte", tono: "orange" },
+  ricevuto: { label: "Ricevuto", tono: "green" },
 };
 
 const COMMISSION_TYPE: Record<string, string> = {
@@ -258,10 +285,52 @@ export interface OrdinePDFProps {
    *  sezione margine + provvigioni. Default true = retrocompatibile. */
   showCosts?: boolean;
   showMargins?: boolean;
+  /** Economia della commessa con i calcoli delle schermate (caricaDossierEconomico):
+   *  conto per voce, fasi, incassi e pagamenti. Assente = sezioni omesse. */
+  dossier?: DossierEconomico | null;
+  /** Le sezioni lette da caricaDatiRiepilogo: fasi, fatture, ore, foto, firme... */
+  dati?: DatiRiepilogo | null;
+  /** Il PDF che parte verso il cliente: niente costi, margini né dati interni. */
+  perCliente?: boolean;
+  /** Le parti da stampare. Assente = tutte. */
+  gruppi?: GruppoRiepilogo[] | null;
+}
+
+/**
+ * Cosa può uscire dall'azienda. Il filtro sta qui e non in chi chiama: qualunque
+ * dato passato alla versione per il cliente sparisce prima di arrivare alla pagina.
+ */
+function versionePerCliente(p: OrdinePDFProps): OrdinePDFProps {
+  const d = p.dati;
+  return {
+    ...p,
+    order: { ...p.order, internal_notes: null, financing_cost: null },
+    items: (p.items ?? []).map((i: any) => ({ ...i, purchase_price: null, standard_cost: null, supplier: null, supplier_name: null, notes: null })),
+    laborEmployees: [],
+    laborTeams: [],
+    purchaseOrders: [],
+    salespeople: [],
+    campoAssignments: (p.campoAssignments ?? []).filter((c: any) => c.is_capocantiere),
+    giornaleLavori: (p.giornaleLavori ?? []).filter((g: any) => g.visibile_cliente).map((g: any) => ({ ...g, note: null })),
+    varianti: (p.varianti ?? []).filter((v: any) => !["rifiutato", "rifiutata"].includes(v.status ?? v.stato)),
+    diaryEvents: [],
+    diaryMessages: [],
+    showCosts: false,
+    showMargins: false,
+    dossier: null,
+    dati: d ? {
+      ...d,
+      fornitoriArticoli: {}, contratti: [], salSub: [], ddt: [], usciteMagazzino: [], attivita: [], appuntamenti: [], sopralluoghi: [], ticket: [],
+      rapportini: [], ore: { rapportini: 0, giornate: 0, ore: 0, straordinari: 0, primo: null, ultimo: null, perPersona: [] }, mezzi: [], allegati: [],
+      sicurezzaPos: [], sicurezzaDuvri: [], sicurezzaVerbali: [], firme: [], storicoStati: [], segnalazioni: [], errori: [], noteCantiere: [],
+      fasi: d.fasi.map((f) => ({ ...f, notes: null as string | null })),
+    } : null,
+  };
 }
 
 /* ── Component ───────────────────────────────────────────── */
-export function createOrdinePDFDocument({
+export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
+  const {
   order,
   items = [],
   laborEmployees = [],
@@ -280,7 +349,11 @@ export function createOrdinePDFDocument({
   statuses = [],
   showCosts = true,
   showMargins = true,
-}: OrdinePDFProps) {
+  dossier = null,
+  dati = null,
+  perCliente = false,
+  gruppi = null,
+  } = ricevute.perCliente ? versionePerCliente(ricevute) : ricevute;
   // ── Financials ──
   const imponibile = order?.total_amount ?? 0;
   const ivaRate = order?.vat_rate ?? 22;
@@ -292,8 +365,9 @@ export function createOrdinePDFDocument({
   const costoTeams = laborTeams.reduce((s: number, t: any) => s + (t.total_cost ?? 0), 0);
   const costoManodopera = costoEmployees + costoTeams;
   const costoTotale = costoMateriali + costoManodopera;
-  const margine = imponibile - costoTotale;
-  const marginePerc = imponibile > 0 ? (margine / imponibile) * 100 : 0;
+  // Con il dossier i numeri di Controllo di Gestione, non la stima su articoli e manodopera.
+  const margine = dossier ? dossier.margineDiretto.importo : imponibile - costoTotale;
+  const marginePerc = dossier ? dossier.margineDiretto.pct : imponibile > 0 ? (margine / imponibile) * 100 : 0;
 
   // Vendita totale per articoli (prezzo vendita)
   const totaleVendita = items.reduce((s: number, i: any) => {
@@ -304,14 +378,8 @@ export function createOrdinePDFDocument({
   }, 0);
 
   // Provvigioni
-  const totaleProvvigioni = salespeople.reduce((sum: number, sp: any) => {
-    const gross = sp.commission_type === "fixed"
-      ? sp.commission_value
-      : (sp.commission_type === "percentage_sold"
-        ? imponibile * (sp.commission_value / 100)
-        : (order?.collected_amount ?? 0) * (sp.commission_value / 100));
-    return sum + (gross - (sp.deduction_amount || 0));
-  }, 0);
+  const incassatoOrdine = Number(order?.collected_amount ?? 0);
+  const totaleProvvigioni = salespeople.reduce((sum: number, sp: any) => sum + provvigioneNetta(sp, imponibile, incassatoOrdine), 0);
 
   // Installments
   const installmentsPaid = installments.filter((inst: any) => inst.is_paid);
@@ -319,12 +387,20 @@ export function createOrdinePDFDocument({
   const incassato = installmentsPaid.reduce((s: number, inst: any) => s + (inst.amount ?? 0), 0);
 
   // Customer
-  const nomeCliente = order?.customer
-    ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim()
-    : "—";
-  const emailCliente = order?.customer?.email ?? null;
-  const telCliente = order?.customer?.phone ?? null;
-  const indirizzoCliente = order?.customer?.address ?? null;
+  // Molte commesse hanno il cliente scritto sulla commessa, senza un account collegato.
+  const nomeAccount = `${order?.customer?.first_name ?? ""} ${order?.customer?.last_name ?? ""}`.trim();
+  const nomeCliente = nomeAccount || order?.client_company || order?.client_name || "—";
+  const emailCliente = order?.customer?.email ?? order?.client_email ?? null;
+  const telCliente = order?.customer?.phone ?? order?.client_phone ?? null;
+  const indirizzoCliente = order?.customer?.address ?? order?.client_address ?? null;
+  const datiCommessa: Array<[string, unknown]> = ([
+    ["Indirizzo cantiere", order?.indirizzo_lavori || order?.work_address],
+    ["Tipo di lavoro", order?.tipo_lavoro ? etichetta(order.tipo_lavoro) : null],
+    ["Preventivo", order?.quote_number],
+    ["Riferimento committente", order?.riferimento_committente],
+    ["Avanzamento lavori", order?.percentuale_avanzamento != null ? `${order.percentuale_avanzamento}%` : null],
+    ["Materiali presso", perCliente ? null : order?.materials_location],
+  ] as Array<[string, unknown]>).filter(([, v]) => v != null && v !== "");
 
   // Status
   const currentStatus = statuses.find((s: any) => s.id === order?.current_status_id);
@@ -342,15 +418,63 @@ export function createOrdinePDFDocument({
   const itemsInstallati = items.filter((i: any) => i.status === "installato").length;
   const itemsPagati = items.filter((i: any) => i.is_paid).length;
 
+  // Chi lavora su ogni fase, per il programma lavori.
+  const personePerFase: Record<string, string[]> = {};
+  const aggiungiAFase = (fase: unknown, nome: string) => {
+    if (fase && nome) (personePerFase[String(fase)] ??= []).push(nome);
+  };
+  laborEmployees.forEach((e: any) => aggiungiAFase(e.phase_id, `${e.employee?.first_name ?? ""} ${e.employee?.last_name ?? ""}`.trim()));
+  laborTeams.forEach((t: any) => aggiungiAFase(t.phase_id, t.external_team?.name ?? ""));
+
+  const mostra = (g: GruppoRiepilogo) => !gruppi || gruppi.includes(g);
+  const oggi = format(new Date(), "yyyy-MM-dd");
+  const permessi = dati?.permessi;
+  const conDate = (dati?.fasi ?? []).some((f) => f.start_date || f.end_date || (f.sottofasi ?? []).some((s: any) => s.data_inizio));
+  const sezioni: Array<{ nome: string; n: number; titolo?: string; gruppo: GruppoRiepilogo }> = ([
+    ...(dati && conDate ? [{ nome: "Cronoprogramma", n: 1, gruppo: "programma" as const }] : []),
+    ...(dati ? [{ nome: "Fasi di lavorazione", n: dati.fasi.length, gruppo: "programma" as const }] : []),
+    { nome: "Articoli", n: items.length, titolo: "Articoli della Commessa", gruppo: "articoli" as const },
+    ...(dati && dossier && showCosts ? [{ nome: "Grafici", n: 1, titolo: "A colpo d'occhio", gruppo: "economia" as const }, { nome: "Conto economico", n: dossier.conto.righe.length, titolo: "Conto economico per voce", gruppo: "economia" as const }] : []),
+    { nome: "SAL", n: salList.length, titolo: "SAL — Avanzamento Lavori", gruppo: "sal" as const },
+    { nome: "Varianti", n: varianti.length, gruppo: "sal" as const },
+    ...(permessi?.vedeFatture ? [{ nome: "Fatture", n: dati!.fatture.length, titolo: "Fatture al cliente", gruppo: "fatture" as const }] : []),
+    { nome: "Bonus", n: bonusLines.length, titolo: "Bonus Edilizi e Bonifici Parlanti", gruppo: "fatture" as const },
+    ...(dati && showCosts ? [
+      { nome: "Pagamenti", n: dossier?.quadro?.uscite.length ?? 0, titolo: "Pagamenti della commessa", gruppo: "economia" as const },
+      { nome: "Ordini di acquisto", n: purchaseOrders.length, titolo: "Ordini di Acquisto", gruppo: "risorse" as const },
+    ] : []),
+    ...(permessi?.vedeSubappalti ? [{ nome: "Contratti di subappalto", n: dati!.contratti.length, gruppo: "subappalti" as const }, { nome: "SAL dei subappaltatori", n: dati!.salSub.length, gruppo: "subappalti" as const }] : []),
+    { nome: "Giornale lavori", n: giornaleLavori.length, titolo: "Giornale Lavori", gruppo: "giornale" as const },
+    ...(dati && !perCliente ? [
+      { nome: "Rapportini", n: dati.ore.rapportini, titolo: "Ore di cantiere", gruppo: "cantiere" as const },
+      { nome: "Mezzi", n: dati.mezzi.length, titolo: "Mezzi usati", gruppo: "cantiere" as const },
+      { nome: "Bolle di consegna", n: dati.ddt.length, titolo: "Consegne e bolle", gruppo: "cantiere" as const },
+      { nome: "Uscite di magazzino", n: dati.usciteMagazzino.length, titolo: "Consegne e bolle", gruppo: "cantiere" as const },
+      ...(permessi?.vedeSicurezza ? [{ nome: "Sicurezza", n: dati.sicurezzaPos.length + dati.sicurezzaDuvri.length + dati.sicurezzaVerbali.length, gruppo: "cantiere" as const }] : []),
+      { nome: "Segnalazioni di cantiere", n: dati.segnalazioni.length, gruppo: "cantiere" as const },
+      { nome: "Attività", n: dati.attivita.length, gruppo: "agenda" as const },
+      { nome: "Appuntamenti", n: dati.appuntamenti.length, gruppo: "agenda" as const },
+      { nome: "Sopralluoghi", n: dati.sopralluoghi.length, gruppo: "agenda" as const },
+      { nome: "Assistenza", n: dati.ticket.length, gruppo: "agenda" as const },
+      { nome: "Firme", n: dati.firme.length, titolo: "Documenti alla firma", gruppo: "agenda" as const },
+      { nome: "Allegati", n: dati.allegati.length, titolo: "Allegati della commessa", gruppo: "agenda" as const },
+    ] : []),
+    ...(dati ? [{ nome: "Foto di cantiere", n: dati.fotoTotali, gruppo: "foto" as const }] : []),
+  ] as Array<{ nome: string; n: number; titolo?: string; gruppo: GruppoRiepilogo }>).filter((x) => mostra(x.gruppo));
+
   return (
     <Document title={`Commessa ${orderCode}`} author={companyName ?? "Edilizia in Cloud"}>
       <Page size="A4" style={styles.page} wrap>
 
         {/* ─── HEADER ─── */}
         <View style={styles.header} fixed>
-          <View>
-            <Text style={styles.companyName}>{companyName ?? "Edilizia in Cloud"}</Text>
-            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 3 }}>Scheda Commessa Completa</Text>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", maxWidth: "62%" }}>
+            {dati?.azienda?.logo && <Image src={dati.azienda.logo} style={{ maxHeight: 38, maxWidth: 90, objectFit: "contain" }} />}
+            <View>
+            <Text style={styles.companyName}>{dati?.azienda?.nome ?? companyName ?? "Edilizia in Cloud"}</Text>
+            {(dati?.azienda?.righe ?? []).map((riga) => <Text key={riga} style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{riga}</Text>)}
+            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 3 }}>{perCliente ? "Riepilogo commessa" : "Riepilogo commessa completo"}</Text>
+            </View>
           </View>
           <View>
             <Text style={styles.orderCode}>{orderCode}</Text>
@@ -415,6 +539,8 @@ export function createOrdinePDFDocument({
           </View>
         )}
 
+        {dati && sezioneIndice(kit, sezioni)}
+
         {/* ─── INFORMAZIONI GENERALI ─── */}
         <Text style={styles.sectionTitle}>Informazioni Generali</Text>
         <View style={styles.sectionLine} />
@@ -445,6 +571,7 @@ export function createOrdinePDFDocument({
           {/* Capocantiere / Campo */}
           <View style={[styles.infoBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 4 }]}>CANTIERE</Text>
+            {(!perCliente || capocantiere) && (
             <View style={styles.financialRow}>
               <Text style={[styles.financialLabel, { fontSize: 7 }]}>Capocantiere</Text>
               <Text style={[styles.value, { fontSize: 8 }]}>
@@ -453,10 +580,13 @@ export function createOrdinePDFDocument({
                   : "Non assegnato"}
               </Text>
             </View>
+            )}
+            {!perCliente && (
             <View style={styles.financialRow}>
               <Text style={[styles.financialLabel, { fontSize: 7 }]}>Operai in campo</Text>
               <Text style={[styles.valueNormal, { fontSize: 8 }]}>{operaiCampo.length}</Text>
             </View>
+            )}
             <View style={styles.financialRow}>
               <Text style={[styles.financialLabel, { fontSize: 7 }]}>Bonus edilizio</Text>
               <Text style={[styles.valueNormal, { fontSize: 8 }]}>
@@ -476,10 +606,28 @@ export function createOrdinePDFDocument({
           </View>
         </View>
 
+        {datiCommessa.length > 0 && (
+          <View style={[styles.infoBox, { marginBottom: 10 }]} wrap={false}>
+            <Text style={[styles.label, { marginBottom: 4 }]}>LA COMMESSA</Text>
+            {datiCommessa.map(([etichettaDato, valore]) => (
+              <View key={etichettaDato} style={styles.financialRow}>
+                <Text style={[styles.financialLabel, { fontSize: 7 }]}>{etichettaDato}</Text>
+                <Text style={[styles.valueNormal, { fontSize: 8, maxWidth: "70%", textAlign: "right" }]}>{String(valore)}</Text>
+              </View>
+            ))}
+            {order?.work_description ? (
+              <Text style={[styles.valueNormal, { fontSize: 8, marginTop: 4, lineHeight: 1.4 }]}>{order.work_description}</Text>
+            ) : null}
+          </View>
+        )}
+
+        {dati && mostra("programma") && sezioneCronoprogramma(kit, dati, order, salList, installments, oggi)}
+        {dati && mostra("programma") && sezioneProgramma(kit, dati, personePerFase, showCosts ? dossier : null, showMargins)}
+
         {/* ─── ARTICOLI ─── */}
-        {items.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
+        {mostra("articoli") && items.length > 0 && (
+          <View wrap={items.length > 5}>
+            <Text id={ancoraDi("Articoli della Commessa")} style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
@@ -487,14 +635,14 @@ export function createOrdinePDFDocument({
                   frammento della View tabella, non alle altre sezioni). */}
               <View style={styles.tableHeader} fixed>
                 <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>Articolo</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Fornitore</Text>
+                {!perCliente && <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Fornitore</Text>}
                 <Text style={[styles.tableHeaderText, { flex: 0.5, textAlign: "center" }]}>Qty</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Prezzo Unit.</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.5, textAlign: "center" }]}>Sc.%</Text>
                 {showCosts && <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Costo Acq.</Text>}
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Tot. Vendita</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: "center" }]}>Stato</Text>
-                <Text style={[styles.tableHeaderText, { flex: 0.6, textAlign: "center" }]}>Pag.</Text>
+                {!perCliente && <Text style={[styles.tableHeaderText, { flex: 0.6, textAlign: "center" }]}>Pag.</Text>}
               </View>
               {items.map((item: any, idx: number) => {
                 const rowStyle = idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
@@ -503,8 +651,11 @@ export function createOrdinePDFDocument({
                 const discount = item.discount_percent ?? 0;
                 const purchasePrice = item.purchase_price ?? 0;
                 const totalVendita = unitPrice * qty * (1 - discount / 100);
-                const statusInfo = ITEM_STATUS_MAP[item.status] ?? ITEM_STATUS_MAP.da_ordinare;
-                const supplier = item.supplier?.name ?? item.supplier_name ?? "—";
+                // Una lavorazione non si ordina: «Da ordinare» su di lei sarebbe falso.
+                const statusInfo = item.natura_riga === "lavorazione"
+                  ? { label: "Lavorazione", style: { backgroundColor: C.gray100, color: C.gray700 } }
+                  : ITEM_STATUS_MAP[item.status] ?? ITEM_STATUS_MAP.da_ordinare;
+                const supplier = dati?.fornitoriArticoli[item.id] ?? item.supplier?.name ?? item.supplier_name ?? "—";
                 return (
                   <View key={idx} style={rowStyle} wrap={false}>
                     <View style={{ flex: 2.5 }}>
@@ -513,7 +664,7 @@ export function createOrdinePDFDocument({
                         <Text style={{ fontSize: 6, color: C.gray500, marginTop: 1, maxLines: 1, textOverflow: "ellipsis" }}>{item.description}</Text>
                       ) : null}
                     </View>
-                    <Text style={[styles.tableCell, { flex: 1.5, fontSize: 7 }]}>{supplier}</Text>
+                    {!perCliente && <Text style={[styles.tableCell, { flex: 1.5, fontSize: 7 }]}>{supplier}</Text>}
                     <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{qty}</Text>
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(unitPrice)}</Text>
                     <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{discount > 0 ? `${discount}%` : "—"}</Text>
@@ -522,18 +673,20 @@ export function createOrdinePDFDocument({
                     <View style={{ flex: 0.8, alignItems: "center" }}>
                       <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, statusInfo.style]}>{statusInfo.label}</Text>
                     </View>
+                    {!perCliente && (
                     <View style={{ flex: 0.6, alignItems: "center" }}>
                       <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, item.is_paid ? { backgroundColor: C.greenBg, color: C.green } : { backgroundColor: C.redBg, color: C.red }]}>
                         {item.is_paid ? "Sì" : "No"}
                       </Text>
                     </View>
+                    )}
                   </View>
                 );
               })}
               {/* Totals row */}
               <View style={[styles.tableRow, { backgroundColor: C.gray100, borderTop: `1pt solid ${C.gray300}` }]}>
                 <Text style={[styles.tableCell, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>TOTALE</Text>
-                <Text style={{ flex: 1.5 }} />
+                {!perCliente && <Text style={{ flex: 1.5 }} />}
                 <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center", fontFamily: "Helvetica-Bold" }]}>
                   {items.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0)}
                 </Text>
@@ -544,18 +697,20 @@ export function createOrdinePDFDocument({
                 <Text style={[styles.tableCell, { flex: 0.8, textAlign: "center", fontFamily: "Helvetica-Bold", fontSize: 7 }]}>
                   {itemsInstallati}/{items.length}
                 </Text>
+                {!perCliente && (
                 <Text style={[styles.tableCell, { flex: 0.6, textAlign: "center", fontFamily: "Helvetica-Bold", fontSize: 7 }]}>
                   {itemsPagati}/{items.length}
                 </Text>
+                )}
               </View>
             </View>
-          </>
+          </View>
         )}
 
         {/* ─── RIEPILOGO ECONOMICO ─── */}
         <Text style={styles.sectionTitle}>Riepilogo Economico</Text>
         <View style={styles.sectionLine} />
-        <View style={styles.row2}>
+        <View style={styles.row2} wrap={false}>
           {/* Importi e pagamenti */}
           <View style={[styles.financialBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 6 }]}>IMPORTI E PAGAMENTI</Text>
@@ -584,7 +739,7 @@ export function createOrdinePDFDocument({
                         backgroundColor: inst.is_paid ? C.green : C.red,
                       }} />
                       <Text style={[styles.financialLabel, { fontSize: 7 }]}>
-                        {inst.label ?? `Rata ${idx + 1}`} — {fmtDate(inst.due_date ?? inst.expected_date)}
+                        {inst.label ?? `Rata ${idx + 1}`} — {inst.is_paid && inst.paid_date ? `incassata il ${fmtDate(inst.paid_date)}` : fmtData(inst.due_date ?? inst.expected_date)}
                       </Text>
                     </View>
                     <Text style={[styles.financialValue, { fontSize: 8, color: inst.is_paid ? C.green : C.gray900 }]}>
@@ -600,8 +755,39 @@ export function createOrdinePDFDocument({
             )}
           </View>
 
-          {/* Analisi Margine — solo per chi può vedere i margini */}
-          {showMargins && (
+          {/* Analisi Margine — solo per chi può vedere i margini. Con il dossier:
+              i numeri ufficiali (v_ordine_marginalita, come Controllo di Gestione);
+              senza, la stima di prima su articoli e manodopera. */}
+          {showMargins && dossier && (
+          <View style={[styles.financialBox, styles.col]}>
+            <Text style={[styles.label, { marginBottom: 6 }]}>ANALISI MARGINE (COSTI REGISTRATI)</Text>
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Ricavi (contratto + varianti)</Text>
+              <Text style={styles.financialValue}>{fmt(dossier.conto.ricavi)}</Text>
+            </View>
+            {dossier.conto.righe.filter((r) => r.consuntivo !== 0).map((r) => (
+              <View key={r.key} style={[styles.financialRow, { backgroundColor: C.redBg, padding: 3, borderRadius: 3, marginTop: 2 }]}>
+                <Text style={[styles.financialLabel, { color: C.red }]}>{r.label}</Text>
+                <Text style={[styles.financialValue, { color: C.red }]}>- {fmt(r.consuntivo)}</Text>
+              </View>
+            ))}
+            <View style={[styles.financialRow, { borderTop: `1pt solid ${C.gray300}`, paddingTop: 6, marginTop: 4 }]}>
+              <Text style={styles.financialTotalLabel}>Margine diretto</Text>
+              <Text style={[styles.financialTotal, { color: dossier.margineDiretto.importo >= 0 ? C.green : C.red }]}>{fmt(dossier.margineDiretto.importo)}</Text>
+            </View>
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>% margine</Text>
+              <Text style={[styles.financialValue, { color: dossier.margineDiretto.importo >= 0 ? C.green : C.red }]}>{fmtPerc(dossier.margineDiretto.pct)}</Text>
+            </View>
+            {dossier.conto.margineNettoMaturato != null && (
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Margine netto maturato (dopo struttura)</Text>
+                <Text style={styles.financialValue}>{fmt(dossier.conto.margineNettoMaturato)}</Text>
+              </View>
+            )}
+          </View>
+          )}
+          {showMargins && !dossier && (
           <View style={[styles.financialBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 6 }]}>ANALISI MARGINE</Text>
             <View style={styles.financialRow}>
@@ -642,13 +828,121 @@ export function createOrdinePDFDocument({
           )}
         </View>
 
+        {/* ─── CONTO ECONOMICO PER VOCE, FASI, PAGAMENTI (dossier) ─── */}
+        {dossier && showCosts && mostra("economia") && (
+          <>
+            {sezioneGrafici(kit, dossier, showMargins)}
+            {sezioneGraficiCosti(kit, dossier)}
+            <Text id={ancoraDi("Conto economico per voce")} style={styles.sectionTitle}>Conto economico per voce</Text>
+            <View style={styles.sectionLine} />
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, { flex: 2.2 }]}>Voce</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Preventivo</Text>
+                <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Inc.</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Previsto a oggi</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Consuntivo</Text>
+                <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Inc.</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Scostamento</Text>
+              </View>
+              {dossier.conto.righe.map((r, idx) => (
+                <View key={r.key} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                  <Text style={[styles.tableCell, { flex: 2.2 }]}>{r.label}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{r.preventivo == null ? "—" : fmt(r.preventivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{r.incidenzaPreventivo == null ? "—" : fmtPerc(r.incidenzaPreventivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{r.previstoAOggi == null ? "—" : fmt(r.previstoAOggi)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(r.consuntivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{r.incidenzaConsuntivo == null ? "—" : fmtPerc(r.incidenzaConsuntivo)}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", color: (r.scostamento ?? 0) > 0.5 ? C.red : C.gray700 }]}>{r.scostamento == null ? "—" : `${r.scostamento > 0 ? "+" : ""}${fmt(r.scostamento)}`}</Text>
+                </View>
+              ))}
+              <View style={styles.tableRowAlt} wrap={false}>
+                <Text style={[styles.tableCell, { flex: 2.2, fontFamily: "Helvetica-Bold" }]}>Totale costi</Text>
+                <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{dossier.conto.haPreventivo ? fmt(dossier.conto.costiPreventivo) : "—"}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7 }]} />
+                <Text style={[styles.tableCell, { flex: 1.2 }]} />
+                <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(dossier.conto.costiConsuntivo)}</Text>
+                <Text style={[styles.tableCell, { flex: 0.7 }]} />
+                <Text style={[styles.tableCell, { flex: 1.2 }]} />
+              </View>
+            </View>
+            <Text style={[styles.tableCell, { fontSize: 7, color: C.gray500, marginBottom: 6 }]}>
+              Lavori al {dossier.ordine.avanzamento == null ? "—" : `${dossier.ordine.avanzamento}%`}: il previsto a oggi è il preventivo per l'avanzamento. Importi senza IVA. Incidenze sui ricavi (preventivo) e sul maturato (consuntivo).
+            </Text>
+
+            {/* Con le sezioni nuove l'economia sta nella tabella unica delle fasi. */}
+            {!(dati && dati.fasi.length > 0) && dossier.fasi.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Economia delle fasi ({dossier.fasi.length})</Text>
+                <View style={styles.sectionLine} />
+                <View style={styles.table}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2.4 }]}>Fase</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Avanz.</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Venduto</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Previsto</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.2, textAlign: "right" }]}>Sostenuto</Text>
+                    {showMargins && <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: "right" }]}>Margine</Text>}
+                  </View>
+                  {dossier.fasi.map((f, idx) => (
+                    <View key={f.id} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                      <Text style={[styles.tableCell, { flex: 2.4 }]}>{f.nome}</Text>
+                      <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{f.percentuale}%</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{f.economia.venduto ? fmt(f.economia.venduto) : "—"}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right" }]}>{f.economia.costoPrevisto ? fmt(f.economia.costoPrevisto) : "—"}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2, textAlign: "right", color: f.economia.scostamento > 0.5 ? C.red : C.gray700 }]}>{f.economia.costoConsuntivo ? fmt(f.economia.costoConsuntivo) : "—"}</Text>
+                      {showMargins && <Text style={[styles.tableCell, { flex: 0.8, textAlign: "right" }]}>{f.economia.margineConsuntivoPct == null ? "—" : fmtPerc(f.economia.margineConsuntivoPct)}</Text>}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {dossier.quadro && dossier.quadro.uscite.length > 0 && (
+              <>
+                <Text id={ancoraDi("Pagamenti della commessa")} style={styles.sectionTitle}>Pagamenti della commessa ({dossier.quadro.uscite.length})</Text>
+                <View style={styles.sectionLine} />
+                {dossier.totaliQuadro && (
+                  <Text style={[styles.tableCell, { marginBottom: 4 }]}>
+                    Pagato {fmt(dossier.totaliQuadro.pagato)} · da pagare {fmt(dossier.totaliQuadro.daPagare)}{dossier.totaliQuadro.pagamentoScaduto > 0 ? ` · scaduti ${fmt(dossier.totaliQuadro.pagamentoScaduto)}` : ""}{dossier.totaliQuadro.impegnato > 0 ? ` · ordinato senza fattura ${fmt(dossier.totaliQuadro.impegnato)}` : ""} (IVA inclusa)
+                  </Text>
+                )}
+                <View style={styles.table}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2.2 }]}>Controparte</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.3 }]}>Categoria</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1.6 }]}>Documento</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Importo</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Residuo</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 0.9, textAlign: "right", paddingRight: 6 }]}>Scadenza</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1 }]}>Stato</Text>
+                  </View>
+                  {dossier.quadro.uscite.map((u, idx) => (
+                    <View key={u.chiave} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
+                      <Text style={[styles.tableCell, { flex: 2.2 }]}>{u.controparte ?? "Senza fornitore"} · {u.descrizione ?? ""}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.3 }]}>{CATEGORIE.find((c) => c.value === u.categoria)?.label ?? u.categoria}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.6 }]}>{documentoUscita(u)}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(u.importo)}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(u.stato === "fattura_da_arrivare" ? 0 : u.residuo)}</Text>
+                      <Text style={[styles.tableCell, { flex: 0.9, textAlign: "right", paddingRight: 6 }]}>{u.stato === "pagato" ? "—" : fmtData(u.scadenza)}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, color: u.stato === "scaduto" ? C.red : C.gray700 }]}>{STATO_USCITA[u.stato].label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        {dati && mostra("fatture") && sezioneFatture(kit, dati)}
+
         {/* ─── BONUS EDILIZI: UNA PRATICA PER RIGA ─── */}
         {/* Il pezzo che il cliente deve avere davanti: quanti bonifici parlanti
             servono, di quanto e con che causale. Un bonifico solo per due
             pratiche = una detrazione persa. */}
-        {bonusLines.length > 0 && (
+        {mostra("fatture") && bonusLines.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
+            <Text id={ancoraDi("Bonus Edilizi e Bonifici Parlanti")} style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
             <View style={styles.sectionLine} />
             <View style={[styles.financialBox, { marginBottom: 8 }]}>
               {bonusLines.map((b: any, idx: number) => {
@@ -686,7 +980,7 @@ export function createOrdinePDFDocument({
         )}
 
         {/* ─── MANODOPERA DIPENDENTI ─── */}
-        {showCosts && laborEmployees.length > 0 && (
+        {mostra("risorse") && showCosts && laborEmployees.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Dipendenti Assegnati ({laborEmployees.length})</Text>
             <View style={styles.sectionLine} />
@@ -728,7 +1022,7 @@ export function createOrdinePDFDocument({
         )}
 
         {/* ─── SUBAPPALTATORI ─── */}
-        {showCosts && laborTeams.length > 0 && (
+        {mostra("subappalti") && showCosts && laborTeams.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Subappaltatori ({laborTeams.length})</Text>
             <View style={styles.sectionLine} />
@@ -766,8 +1060,10 @@ export function createOrdinePDFDocument({
           </>
         )}
 
+        {dati && mostra("subappalti") && sezioneSubappalti(kit, dati)}
+
         {/* ─── PROVVIGIONI VENDITORI ─── */}
-        {showMargins && salespeople.length > 0 && (
+        {mostra("risorse") && showMargins && salespeople.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Provvigioni Venditori ({salespeople.length})</Text>
             <View style={styles.sectionLine} />
@@ -784,12 +1080,7 @@ export function createOrdinePDFDocument({
                 const nome = sp.salesperson
                   ? `${sp.salesperson.first_name ?? ""} ${sp.salesperson.last_name ?? ""}`.trim()
                   : "—";
-                const gross = sp.commission_type === "fixed"
-                  ? sp.commission_value
-                  : (sp.commission_type === "percentage_sold"
-                    ? imponibile * (sp.commission_value / 100)
-                    : (order?.collected_amount ?? 0) * (sp.commission_value / 100));
-                const net = gross - (sp.deduction_amount ?? 0);
+                const net = provvigioneNetta(sp, imponibile, incassatoOrdine);
                 return (
                   <View key={idx} style={rowStyle} wrap={false}>
                     <Text style={[styles.tableCell, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>{nome}</Text>
@@ -818,9 +1109,9 @@ export function createOrdinePDFDocument({
         )}
 
         {/* ─── ORDINI DI ACQUISTO ─── */}
-        {showCosts && purchaseOrders.length > 0 && (
+        {mostra("risorse") && showCosts && purchaseOrders.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
+            <Text id={ancoraDi("Ordini di Acquisto")} style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -831,14 +1122,9 @@ export function createOrdinePDFDocument({
               </View>
               {purchaseOrders.map((po: any, idx: number) => {
                 const rowStyle = idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
-                const statusBadge = po.status === "completed" ? styles.badgeGreen
-                  : po.status === "sent" ? styles.badgeCyan
-                  : po.status === "confirmed" ? styles.badgeOrange
-                  : styles.badgeGray;
-                const statusLabel = po.status === "completed" ? "Completato"
-                  : po.status === "sent" ? "Inviato"
-                  : po.status === "confirmed" ? "Confermato"
-                  : po.status === "draft" ? "Bozza" : po.status ?? "—";
+                const statoOda = ODA_STATO[po.status];
+                const statusBadge = { green: styles.badgeGreen, cyan: styles.badgeCyan, orange: styles.badgeOrange, gray: styles.badgeGray }[statoOda?.tono ?? "gray"];
+                const statusLabel = statoOda?.label ?? etichetta(po.status);
                 return (
                   <View key={idx} style={rowStyle} wrap={false}>
                     <Text style={[styles.tableCell, { flex: 1.5, fontFamily: "Helvetica-Bold" }]}>{po.oda_number ?? "—"}</Text>
@@ -855,44 +1141,56 @@ export function createOrdinePDFDocument({
         )}
 
         {/* ─── SAL ─── */}
-        {salList.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
+        {mostra("sal") && salList.length > 0 && (
+          <View wrap={salList.length > 3}>
+            <Text id={ancoraDi("SAL — Avanzamento Lavori")} style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
             <View style={styles.sectionLine} />
+            {graficoSal(kit, salList, imponibile)}
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderText, { flex: 1 }]}>N.</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Data</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "center" }]}>Stato</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "center" }]}>Avanzamento</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Importo</Text>
+                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Cumulativo</Text>
               </View>
               {salList.map((sal: any, idx: number) => {
                 const rowStyle = idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
-                const statoLabel = sal.stato === "approvato" ? "Approvato" : sal.stato === "emesso" ? "Emesso" : "Bozza";
-                const statoBadge = sal.stato === "approvato" ? styles.badgeGreen : sal.stato === "emesso" ? styles.badgeCyan : styles.badgeGray;
+                const statoLabel = etichetta(sal.stato ?? "bozza");
+                const statoBadge = sal.stato === "approvato" || sal.stato === "firmato" ? styles.badgeGreen : sal.stato === "emesso" ? styles.badgeCyan : styles.badgeGray;
+                const avanzamento = avanzamentoSal(sal.sal_voci);
                 return (
-                  <View key={idx} style={rowStyle} wrap={false}>
+                  <View key={idx} wrap={false}>
+                  <View style={rowStyle}>
                     <Text style={[styles.tableCell, { flex: 1, fontFamily: "Helvetica-Bold" }]}>SAL #{sal.numero_sal ?? idx + 1}</Text>
                     <Text style={[styles.tableCell, { flex: 1.5 }]}>{fmtDate(sal.data_emissione)}</Text>
                     <View style={{ flex: 1, alignItems: "center" }}>
                       <Text style={statoBadge}>{statoLabel}</Text>
                     </View>
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "center" }]}>
-                      {sal.percentuale_avanzamento != null ? `${sal.percentuale_avanzamento}%` : "—"}
+                      {avanzamento != null ? `${avanzamento}%` : "—"}
                     </Text>
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>
                       {fmt(sal.importo_totale)}
                     </Text>
                   </View>
+                  {(sal.sal_voci ?? []).map((voce: any, v: number) => (
+                    <View key={v} style={{ flexDirection: "row", padding: "2 8 2 20", backgroundColor: C.gray50, borderTop: `0.25pt solid ${C.gray200}` }}>
+                      <Text style={{ flex: 3, fontSize: 6.5, color: C.gray700 }}>{voce.descrizione ?? "—"}</Text>
+                      <Text style={{ flex: 1, fontSize: 6.5, color: C.gray500, textAlign: "right" }}>{fmt(Number(voce.importo_contrattuale ?? 0))}</Text>
+                      <Text style={{ flex: 0.6, fontSize: 6.5, color: C.gray500, textAlign: "right" }}>{Number(voce.percentuale_avanzamento ?? 0)}%</Text>
+                      <Text style={{ flex: 1, fontSize: 6.5, color: C.gray700, textAlign: "right" }}>{fmt(Number(voce.importo_sal ?? 0))}</Text>
+                    </View>
+                  ))}
+                  </View>
                 );
               })}
             </View>
-          </>
+          </View>
         )}
 
         {/* ─── PERSONALE CANTIERE ─── */}
-        {campoAssignments.length > 0 && (
+        {mostra("risorse") && !perCliente && campoAssignments.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Personale Cantiere ({campoAssignments.length})</Text>
             <View style={styles.sectionLine} />
@@ -908,13 +1206,13 @@ export function createOrdinePDFDocument({
                 const nome = ca.user
                   ? `${ca.user.first_name ?? ""} ${ca.user.last_name ?? ""}`.trim()
                   : ca.subappaltatore?.nome ?? "—";
-                const periodo = ca.data_inizio && ca.data_fine
-                  ? `${fmtDate(ca.data_inizio)} - ${fmtDate(ca.data_fine)}`
+                const periodo = ca.data_inizio && ca.data_fine_prevista
+                  ? `${fmtDate(ca.data_inizio)} - ${fmtDate(ca.data_fine_prevista)}`
                   : ca.data_inizio ? `Dal ${fmtDate(ca.data_inizio)}` : "—";
                 return (
                   <View key={idx} style={rowStyle} wrap={false}>
                     <Text style={[styles.tableCell, { flex: 2.5, fontFamily: ca.is_capocantiere ? "Helvetica-Bold" : "Helvetica" }]}>{nome}</Text>
-                    <Text style={[styles.tableCell, { flex: 1, fontSize: 7 }]}>{ca.ruolo ?? "Operaio"}</Text>
+                    <Text style={[styles.tableCell, { flex: 1, fontSize: 7 }]}>{ca.role_type === "subcontractor" ? "Subappaltatore" : "Operaio"}</Text>
                     <Text style={[styles.tableCell, { flex: 1.5, fontSize: 7 }]}>{periodo}</Text>
                     <View style={{ flex: 1, alignItems: "center" }}>
                       {ca.is_capocantiere ? (
@@ -930,10 +1228,12 @@ export function createOrdinePDFDocument({
           </>
         )}
 
+        {dati && mostra("cantiere") && sezioneCantiere(kit, dati)}
+
         {/* ─── GIORNALE LAVORI ─── */}
-        {giornaleLavori.length > 0 && (
+        {mostra("giornale") && giornaleLavori.length > 0 && (
           <>
-            <Text style={styles.sectionTitle} break>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
+            <Text id={ancoraDi("Giornale Lavori")} style={styles.sectionTitle}>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
             <View style={styles.sectionLine} />
             {giornaleLavori.map((g: any, idx: number) => (
               <View key={idx} style={[styles.infoBox, { marginBottom: 6 }]} wrap={false}>
@@ -959,6 +1259,12 @@ export function createOrdinePDFDocument({
                 {g.lavorazioni_eseguite && (
                   <Text style={{ fontSize: 8, color: C.gray700, lineHeight: 1.4 }}>{g.lavorazioni_eseguite}</Text>
                 )}
+                {g.materiali_utilizzati && (
+                  <Text style={{ fontSize: 7, color: C.gray500, marginTop: 3 }}>Materiali: {g.materiali_utilizzati}</Text>
+                )}
+                {g.note && (
+                  <Text style={{ fontSize: 7, color: C.gray500, marginTop: 2 }}>Note: {g.note}</Text>
+                )}
                 {g.giornale_foto && g.giornale_foto.length > 0 && (
                   <Text style={{ fontSize: 7, color: C.gray500, marginTop: 3 }}>
                     {g.giornale_foto.length} foto allegate
@@ -975,9 +1281,9 @@ export function createOrdinePDFDocument({
         )}
 
         {/* ─── VARIANTI / ORDINI DI VARIAZIONE ─── */}
-        {varianti.length > 0 && (
+        {mostra("sal") && varianti.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Varianti ({varianti.length})</Text>
+            <Text id={ancoraDi("Varianti")} style={styles.sectionTitle}>Varianti ({varianti.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1012,7 +1318,7 @@ export function createOrdinePDFDocument({
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "center" }]}>
                       {v.impatto_giorni != null ? `${v.impatto_giorni > 0 ? "+" : ""}${v.impatto_giorni}gg` : "—"}
                     </Text>
-                    <Text style={[styles.tableCell, { flex: 1, fontSize: 7 }]}>{fmtDate(v.richiesto_il ?? v.created_at)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1, fontSize: 7 }]}>{fmtData(v.richiesto_il ?? v.created_at)}</Text>
                   </View>
                 );
               })}
@@ -1020,10 +1326,13 @@ export function createOrdinePDFDocument({
           </>
         )}
 
+        {dati && mostra("agenda") && sezioneAgenda(kit, dati)}
+        {dati && mostra("foto") && sezioneFoto(kit, dati)}
+
         {/* ─── DIARIO COMMESSA (Eventi + Comunicazioni) ─── */}
-        {(diaryEvents.length > 0 || diaryMessages.length > 0) && (
+        {mostra("diario") && (diaryEvents.length > 0 || diaryMessages.length > 0) && (
           <>
-            <Text style={styles.sectionTitle} break>
+            <Text style={styles.sectionTitle}>
               Diario Commessa ({diaryEvents.length + diaryMessages.length} registrazioni)
             </Text>
             <View style={styles.sectionLine} />
@@ -1099,7 +1408,7 @@ export function createOrdinePDFDocument({
         )}
 
         {/* ─── NOTE INTERNE ─── */}
-        {order?.internal_notes ? (
+        {mostra("diario") && order?.internal_notes ? (
           <>
             <Text style={styles.sectionTitle}>Note Interne</Text>
             <View style={styles.sectionLine} />
@@ -1110,6 +1419,8 @@ export function createOrdinePDFDocument({
             </View>
           </>
         ) : null}
+
+        {dati && !perCliente && sezioneCompletezza(kit, sezioni, dati.nonLette)}
 
         {/* ─── FOOTER ─── */}
         <View style={styles.footer} fixed>

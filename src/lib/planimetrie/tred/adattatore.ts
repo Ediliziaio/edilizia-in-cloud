@@ -14,6 +14,7 @@
  *
  * Il livello si disegna alla sua quota zero: un livello per volta.
  */
+import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
 import type { Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
 
@@ -38,6 +39,7 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
     })),
     locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza })),
     elementi: s.elementi.map(daElemento),
+    ...(s.aree?.length ? { aree: s.aree.filter((a) => a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, contorno: a.contorno.map(giu), recinzione: a.recinzione, quota: a.quota })) } : {}),
   };
 }
 
@@ -66,5 +68,10 @@ export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string
   }
   const fatto = daStatoPianta(livello.fatto);
   const proposta = (scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : undefined) ?? livello.proposte[0];
-  return { fatto, progetto: proposta ? daStatoPianta(proposta) : fatto, livello };
+  // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
+  const progetto = proposta ? daStatoPianta(proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : fatto;
+  // il tetto è del piano, uguale oggi e nel progetto; il terreno è di tutta la pianta
+  const punti = puntiTerreno(p).map((q) => ({ x: q.x, y: -q.y, quota: q.quota }));
+  const extra = { ...(livello.tetto ? { tetto: livello.tetto } : {}), ...(punti.length ? { terreno: punti } : {}) };
+  return { fatto: { ...fatto, ...extra }, progetto: { ...progetto, ...extra }, livello };
 }

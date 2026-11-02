@@ -518,7 +518,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const addPhase = useMutation({
     mutationFn: async (name: string) => {
       const { error } = await db.from("order_work_phases").insert({
-        company_id: companyId, order_id: orderId, name, position: phases.length,
+        // In fondo: dopo un'eliminazione «quante sono» ripeteva una posizione già usata.
+        company_id: companyId, order_id: orderId, name, position: phases.reduce((m, p) => Math.max(m, Number(p.position ?? -1)), -1) + 1,
       });
       if (error) throw error;
     },
@@ -564,12 +565,31 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     onError,
   });
 
+  // L'ordine delle fasi (prima non si poteva cambiare): posizioni 0..n nell'ordine dato.
+  const riordinaFasi = useMutation({
+    mutationFn: async (ids: ReadonlyArray<string>) => {
+      for (const [position, id] of ids.entries()) {
+        const { data, error } = await db.from("order_work_phases").update({ position }).eq("id", id).eq("order_id", orderId).select("id");
+        if (error) throw error;
+        if (!data?.length) throw new Error("Ordine delle fasi non salvato: non hai il permesso di modificarle.");
+      }
+    },
+    onSuccess: invalidate,
+    onError,
+  });
+
   const deletePhase = useMutation({
     // ON DELETE SET NULL: le assegnazioni non vengono cancellate, tornano "Senza fase"
     // → nessun costo/margine perso.
     mutationFn: async (id: string) => {
-      const { error } = await db.from("order_work_phases").delete().eq("id", id);
-      if (error) throw error;
+      const { data, error } = await db.from("order_work_phases").delete().eq("id", id).select("id");
+      if (error) {
+        // Collegata a una variante del cliente, a verifiche, schede o incarichi di subappalto: il database la tiene.
+        if ((error as { code?: string }).code === "23503")
+          throw new Error("La fase è collegata a una variante, a verifiche o a incarichi di subappalto: non si elimina. Togli prima quei collegamenti, oppure rinominala.");
+        throw error;
+      }
+      if (!data?.length) throw new Error("Fase non eliminata: non hai il permesso o è già stata tolta.");
     },
     onSuccess: invalidate,
     onError,
@@ -649,12 +669,12 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   });
 
   const updateAssignment = useMutation({
-    mutationFn: async ({ id, source, patch }: { id: string; source: AssignmentSource; patch: Partial<Pick<PhaseAssignment, "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">> }) => {
+    mutationFn: async ({ id, source, patch }: { id: string; source: AssignmentSource; patch: Partial<Pick<PhaseAssignment, "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes" | "costo_origine">> }) => {
       const table = source === "employee" ? "order_employees" : "order_external_teams";
       const row: Record<string, unknown> = {};
       if (patch.cost_preventivo !== undefined) row.cost_preventivo = patch.cost_preventivo;
-      // Previsto riscritto a mano: tariffa e quantità non lo spiegano più.
-      if (patch.cost_preventivo !== undefined && source === "team") row.costo_origine = "manuale";
+      // Previsto riscritto a mano: tariffa e quantità non lo spiegano più. Preso dalle voci: lo si dice.
+      if (patch.cost_preventivo !== undefined && source === "team") row.costo_origine = patch.costo_origine ?? "manuale";
       if (patch.cost_consuntivo !== undefined) row.total_cost = patch.cost_consuntivo;
       if (patch.hours !== undefined && source === "employee") row.hours_worked = patch.hours;
       // is_paid/paid_date esistono su entrambe le tabelle: gestione uniforme
@@ -766,6 +786,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     addPhase,
     applyTemplate,
     updatePhase,
+    riordinaFasi,
     deletePhase,
     addAssignment,
     updateAssignment,

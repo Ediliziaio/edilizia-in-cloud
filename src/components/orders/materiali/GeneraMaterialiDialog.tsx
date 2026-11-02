@@ -4,21 +4,30 @@
  * che non sanno ancora diventare materiali (con la proposta dell'AI). Il
  * capitolo del computo va nella fase proposta; l'utente la cambia o fa creare
  * la fase. Salvando, i materiali diventano righe della commessa «da ordinare».
+ *
+ * Dal 31/10/2026 il computo si carica da qui: la scheda «Computo metrico» fra
+ * i materiali non c'è più. Senza computo il popup chiede il file, lo legge e
+ * passa all'anteprima; il computo completo (libretto, lavoro pubblico,
+ * contabilità) si apre da «Apri il computo».
  */
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import { FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { computoLetto, useComputiCommessa, useVociComputo } from "@/hooks/useComputoCommessa";
+import { computoInLettura, computoLetto, useComputiCommessa, useVociComputo } from "@/hooks/useComputoCommessa";
+import { usePermissions } from "@/hooks/usePermissions";
+import { CaricaComputo } from "@/components/computo/commessa/CaricaComputo";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { generaDistinta, type ConteggioConfermato, type Scomposizione } from "@/lib/distinta/generaDistinta";
 import { capitoloVoce, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
+
+const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 
 const NUOVA = VALORE_NUOVA;
 const SENZA = VALORE_SENZA;
@@ -36,8 +45,11 @@ async function caricaScomposizioni(companyId: string): Promise<Scomposizione[]> 
   })) as unknown as Scomposizione[];
 }
 
-export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: { orderId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpenChange }: { orderId: string; orderCode?: string | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
+  const [caricaAltro, setCaricaAltro] = useState(false);
+  const [apriComputo, setApriComputo] = useState(false);
   const companyId = effectiveCompany?.id ?? "";
   const qc = useQueryClient();
   const computi = useComputiCommessa(orderId, companyId);
@@ -46,6 +58,8 @@ export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: {
   const preferito = letti.find((c) => c.stato === "contrattuale") ?? letti.find((c) => c.stato === "verificato") ?? letti[0];
   const scelto = letti.find((c) => c.id === computoId) ?? preferito;
   const voci = useVociComputo(scelto?.id, open);
+  const inLettura = (computi.data ?? []).find(computoInLettura);
+  const nonLetto = !letti.length && !inLettura ? (computi.data ?? []).find((c) => c.extraction_status === "failed") : undefined;
 
   const dati = useQuery({
     queryKey: ["genera-materiali", orderId, companyId],
@@ -204,20 +218,43 @@ export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Genera i materiali dal computo e dalle tavole</DialogTitle>
+          <DialogTitle>Genera dal computo</DialogTitle>
           <DialogDescription>
-            Anteprima: niente è salvato finché non premi «Salva i materiali». Le righe generate prima e non ancora ordinate vengono sostituite; quelle inserite a mano restano.
+            Carica il computo: lo leggo e ti propongo gli articoli da comprare, divisi per fase (anche dalle tavole contate). Niente è salvato finché non premi «Salva i materiali». Le righe generate prima e non ancora ordinate vengono sostituite; quelle inserite a mano restano.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Il computo: si carica qui, e da qui si apre per intero. */}
+        <section aria-label="Il computo" className="space-y-2 rounded-lg border bg-slate-50/60 p-3 text-sm">
+          {inLettura ? (
+            <p className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin text-slate-500" aria-hidden />
+              Sto leggendo «{inLettura.titolo || inLettura.file_name}»{inLettura.progresso ? ` (${inLettura.progresso})` : ""}: appena finito compare qui sotto l'anteprima dei materiali.</p>
+          ) : scelto && !caricaAltro ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <FileText className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+              <span className="min-w-0 flex-1"><span className="font-medium">{scelto.titolo || scelto.file_name}</span>
+                <span className="text-muted-foreground"> · {scelto.stato}{voci.data ? ` · ${voci.data.length} voci` : ""}</span></span>
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setApriComputo(true)}>Apri il computo</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setCaricaAltro(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
+            </div>
+          ) : !computi.isLoading && companyId ? (
+            <>
+              <p className="font-medium">{scelto ? "Carica un altro computo" : "Carica il computo della commessa"}</p>
+              {nonLetto && <p role="alert" className="text-xs text-rose-700">L'ultimo file («{nonLetto.file_name}») non si è letto: {nonLetto.extraction_error || "riprova con il PDF di PriMus o l'XPWE"}.</p>}
+              <CaricaComputo orderId={orderId} companyId={companyId} sostituisce={caricaAltro ? scelto : null} onFatto={() => setCaricaAltro(false)} />
+              {caricaAltro && <Button type="button" size="sm" variant="ghost" onClick={() => setCaricaAltro(false)}>Tieni quello attuale</Button>}
+            </>
+          ) : null}
+        </section>
+
         {caricamento && <p className="text-sm text-slate-500">Leggo computo, scomposizioni e conteggi…</p>}
-        {nienteDaLeggere && (
-          <p className="rounded border bg-slate-50 p-3 text-sm">
-            Questa commessa non ha ancora un computo letto né conteggi confermati delle tavole. Carica il computo in «Computo metrico» o conta le tavole in «Tavole e conteggi».
+        {nienteDaLeggere && !inLettura && (
+          <p className="text-sm text-muted-foreground">
+            Appena il computo è letto, qui vedi i materiali divisi per fase, da controllare prima di salvarli. Senza computo puoi partire dalle tavole: «Tavole» nella barra degli articoli.
           </p>
         )}
 
-        {!caricamento && risultato && (
+        {!caricamento && risultato && !nienteDaLeggere && (
           <div className="space-y-4 text-sm">
             {letti.length > 1 && (
               <label className="flex flex-wrap items-center gap-2">
@@ -331,6 +368,19 @@ export default function GeneraMaterialiDialog({ orderId, open, onOpenChange }: {
           </Button>
         </DialogFooter>
       </DialogContent>
+      {apriComputo && companyId && (
+        <Dialog open={apriComputo} onOpenChange={setApriComputo}>
+          <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Computo metrico</DialogTitle>
+              <DialogDescription>Voci, misure, controllo dei totali, lavoro pubblico e contabilità dei lavori.</DialogDescription>
+            </DialogHeader>
+            <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico il computo…</p>}>
+              <OrderComputoTab orderId={orderId} companyId={companyId} canEdit={permessi.canEditOrders} canViewAmounts={permessi.canViewOrderAmounts} orderLabel={orderCode} />
+            </Suspense>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 }

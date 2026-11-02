@@ -7,6 +7,7 @@ import {
   aggiungiStanzaDaMisure,
   confermaMisura,
   confermaTutte,
+  prossimaStimata,
   contaStimate,
   eliminaApertura,
   eliminaLocale,
@@ -290,6 +291,17 @@ describe("misure stimate", () => {
     const tutte = confermaTutte(r.pianta);
     expect(contaStimate(tutte)).toBe(0);
     expect(quantitaLocale(tutte, tutte.locali[0]).stimata).toBe(false);
+  });
+
+  it("correzione guidata: prima la stanza, poi le pareti dalla più lunga, poi niente", () => {
+    const r = aggiungiStanza(piantaVuota(), rettangolo({ x: 0, y: 0 }, { x: 410, y: 510 }), { origine: "stimata" });
+    expect(prossimaStimata(r.pianta)).toEqual({ tipo: "locale", id: r.id });
+    const senzaStanza = confermaMisura(r.pianta, "locale", r.id);
+    const p = prossimaStimata(senzaStanza)!;
+    expect(p.tipo).toBe("muro");
+    const m = senzaStanza.muri.find((x) => x.id === p.id)!;
+    expect(Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y)).toBeGreaterThan(500);
+    expect(prossimaStimata(confermaTutte(r.pianta))).toBeNull();
   });
 
   it("scrivere una misura la rende rilevata", () => {

@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
+import { PreventivoDaAggiornare } from "@/components/marketing/preventivi/PreventivoDaAggiornare";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
@@ -523,6 +524,11 @@ export default function QuoteDetail() {
           </>
         }
       />
+
+      {/* Pianta o computo cambiati dopo il preventivo: quantità da aggiornare (o revisione). */}
+      {id && companyId && !rigaDiModulo && (
+        <PreventivoDaAggiornare quoteId={id} companyId={companyId} bozza={quote.status === "bozza" && !(quote as Record<string, unknown>).signed_at} />
+      )}
 
       {rigaDiModulo && (
         // Telefono: una riga sola, testo breve e «Apri».

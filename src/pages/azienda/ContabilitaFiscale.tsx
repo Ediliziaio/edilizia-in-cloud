@@ -153,6 +153,7 @@ function Content() {
                 isLoading={false}
                 onSalva={(data, versione) => f.salva({ ...data, versione })}
                 onAnteprima={f.anteprima}
+                onSegnaPagato={f.segnaPagato}
                 isSalvando={f.isSalvando}
                 totaleAPagare={fiscalAmountTotal(
                   periodEntries

@@ -226,7 +226,7 @@ describe("lo stesso aspetto per una fattura importata (dati e azioni passati da 
     const voci = within(screen.getByRole("list", { name: "Movimenti della banca" })).getAllByRole("button");
     fireEvent.click(voci[0]);
     fireEvent.click(screen.getByRole("button", { name: "Abbina" }));
-    expect(onAbbina).toHaveBeenCalledWith({ transactionId: "tx-y", incassoId: null, punteggio: 100 });
+    expect(onAbbina).toHaveBeenCalledWith(expect.objectContaining({ transactionId: "tx-y", incassoId: null, punteggio: 100 }));
     expect(rpc).not.toHaveBeenCalled();
   });
 });

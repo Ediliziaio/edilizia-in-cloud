@@ -90,3 +90,57 @@ export function misurePerSalSub(misure: MisuraSub[], ids: string[]) {
     throw Error("Il totale delle misure deve essere positivo");
   return { importo, numero: righe.length };
 }
+
+/**
+ * Le voci del quadro lavori a partire dall'Allegato A del contratto (elenco_lavori), così «Imposta elenco
+ * lavori» non riparte da una sola riga a corpo da ridigitare. A corpo → una quota; ore → «h»; il resto a
+ * misura. Null se l'elenco manca o non torna all'importo del contratto (il database lo rifiuterebbe).
+ */
+export function vociDaAllegato(
+  elenco: unknown,
+  importoContratto: number,
+  nuovoId: () => string = () => crypto.randomUUID(),
+): VoceSub[] | null {
+  if (!Array.isArray(elenco) || elenco.length === 0 || elenco.length > 100) return null;
+  const voci: VoceSub[] = [];
+  for (const r of elenco as Array<Record<string, unknown>>) {
+    const descrizione = String(r?.descrizione ?? "").trim();
+    const unita = String(r?.unita ?? "").trim().toLowerCase();
+    const quantita = Math.round(Number(r?.quantita) * 10000) / 10000;
+    const prezzo = Math.round(Number(r?.prezzo) * 100) / 100;
+    if (descrizione.length < 2 || !(quantita > 0) || !(prezzo >= 0)) return null;
+    const testo = descrizione.slice(0, 2000);
+    if (/corpo/.test(unita)) {
+      const importo = Math.round(quantita * prezzo * 100) / 100;
+      voci.push({ id: nuovoId(), fase_id: null, descrizione: testo, base: "corpo", unita: "quota", quantita: 1, prezzo: importo });
+    } else if (/^(h|ore|ora)$/.test(unita)) {
+      voci.push({ id: nuovoId(), fase_id: null, descrizione: testo, base: "ore", unita: "h", quantita, prezzo });
+    } else {
+      voci.push({ id: nuovoId(), fase_id: null, descrizione: testo, base: "misura", unita: (unita || "cad").slice(0, 15), quantita, prezzo });
+    }
+  }
+  const totale = voci.reduce((s, v) => s + Math.round(v.quantita * v.prezzo * 100) / 100, 0);
+  return Math.abs(Math.round(totale * 100) / 100 - Number(importoContratto)) < 0.005 ? voci : null;
+}
+
+/**
+ * Quota degli oneri della sicurezza di un SAL a misure: la stessa regola di subappalto_sal_da_misure.
+ * In proporzione ai lavori del SAL; il SAL che completa i lavori prende il residuo; mai oltre gli oneri.
+ */
+export function quotaOneriSal(
+  oneri: number,
+  importoLavori: number,
+  salPrecedenti: ReadonlyArray<{ stato: string; importo_lordo: number; oneri_quota?: number | null }>,
+  lavoriSal: number,
+): number {
+  const o = Number(oneri) || 0;
+  if (o <= 0) return 0;
+  const validi = salPrecedenti.filter((s) => s.stato !== "contestato");
+  const oneriPrec = validi.reduce((t, s) => t + (Number(s.oneri_quota) || 0), 0);
+  const lavoriPrec = validi.reduce((t, s) => t + (Number(s.importo_lordo) || 0) - (Number(s.oneri_quota) || 0), 0);
+  const residuo = Math.round((o - oneriPrec) * 100) / 100;
+  const quota = importoLavori <= 0 || lavoriPrec + lavoriSal >= importoLavori - 0.005
+    ? residuo
+    : Math.min(Math.round((o * lavoriSal / importoLavori) * 100) / 100, residuo);
+  return Math.max(0, Math.round(quota * 100) / 100);
+}

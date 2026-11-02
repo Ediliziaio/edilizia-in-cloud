@@ -44,9 +44,12 @@ describe("google-calendar-sync — un evento Google doppione non ferma il calend
   });
 
   it("il controllo di proprietà dell'azienda resta prima di tutto: un evento altrui si ignora", () => {
-    const proprieta = RICOLLEGA.indexOf("if (!owned) continue;");
+    // Dall'1/11/2026 la proprietà si verifica in una lettura sola per tutto il calendario (appuntamentiDellAzienda).
+    const proprieta = RICOLLEGA.indexOf("if (!appuntamentiDellAzienda.has(String(aptId))) continue;");
     const doppione = RICOLLEGA.indexOf("if (appuntamentiCollegati.has(");
     expect(proprieta).toBeGreaterThan(0);
     expect(proprieta).toBeLessThan(doppione);
+    // La lettura raggruppata filtra per l'azienda della connessione: un id copiato da un'altra azienda non passa.
+    expect(SORGENTE).toMatch(/from\("appointments"\)\.select\("id"\)\s*\.eq\("company_id", companyId\)\.in\("id", daRicollegare/);
   });
 });

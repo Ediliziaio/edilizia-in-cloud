@@ -1,3 +1,5 @@
+// Tocco del 31/10/2026: clausole del contratto di subappalto nuove (_shared/clausoleFirma.ts, testo standard
+// di Dimora reso generico). Il deploy guarda solo la cartella della funzione: senza questa riga resterebbero le vecchie.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
@@ -51,7 +53,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id, clausole_da_approvare")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)

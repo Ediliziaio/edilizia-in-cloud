@@ -157,13 +157,25 @@ function sanitizeFilename(name: string): string {
   return (name || "allegato").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "allegato";
 }
 
+/**
+ * L'ID di un messaggio IMAP è del tipo <abc@server>: Storage rifiuta quei caratteri
+ * e l'allegato spariva in silenzio, comprese le fatture che arrivano per email.
+ */
+function percorsoAllegato(companyId: string, messageId: string, filename: string, byte: number): string {
+  // Senza l'ora: lo stesso messaggio riletto a ogni giro creava un file nuovo ogni volta.
+  return `${companyId}/${messageId.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 150)}/${byte}-${sanitizeFilename(filename)}`;
+}
+
 let _attachBucketEnsured = false;
 async function ensureAttachBucket(supa: SupabaseClient): Promise<void> {
   if (_attachBucketEnsured) return;
   _attachBucketEnsured = true;
   try {
+    // Si crea solo se manca: crearlo a ogni giro riempiva il log di buckets_pkey duplicati.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supa as any).storage.createBucket(ATTACH_BUCKET, { public: false });
+    const { data } = await (supa as any).storage.getBucket(ATTACH_BUCKET);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!data) await (supa as any).storage.createBucket(ATTACH_BUCKET, { public: false });
   } catch { /* esiste già → no-op */ }
 }
 
@@ -211,7 +223,7 @@ async function materializeGmailAttachments(
       const bytes = decodeBase64UrlToBytes(j.data);
       if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
       await ensureAttachBucket(supa);
-      const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(meta.filename)}`;
+      const path = percorsoAllegato(companyId, providerMessageId, meta.filename, bytes.byteLength);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const up = await (supa as any).storage.from(ATTACH_BUCKET).upload(path, bytes, {
         contentType: meta.mime || "application/octet-stream", upsert: true,
@@ -248,12 +260,15 @@ async function materializeImapAttachments(
       const bytes = decodeMailBase64(a.contentBase64);
       if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
       await ensureAttachBucket(supa);
-      const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(a.filename)}`;
+      const path = percorsoAllegato(companyId, providerMessageId, a.filename, bytes.byteLength);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const up = await (supa as any).storage.from(ATTACH_BUCKET).upload(path, bytes, {
         contentType: a.mime || "application/octet-stream", upsert: true,
       });
-      if (up.error) continue;
+      if (up.error) {
+        console.warn("[email-poll] allegato IMAP non salvato:", a.filename, up.error.message);
+        continue;
+      }
       out.push({ filename: a.filename, mime: a.mime, size: bytes.byteLength, storage_path: path });
       runCounter.n++;
     } catch (e) {
@@ -846,6 +861,64 @@ async function resolveThreadsForUser(userId: string, batchSize: number): Promise
 // ════════════════════════════════════════════════════════════════════════════
 
 // A pg_net (i cron) si risponde entro pochi secondi: vedi _shared/rispostaRapidaCron.ts.
+/**
+ * Recupero una tantum degli allegati IMAP mai salvati: Storage rifiutava i percorsi
+ * con <abc@server> e le email entravano senza allegati. A ogni chiamata, una casella
+ * e pochi messaggi, dai più recenti; il punto a cui si è arrivati sta in
+ * email_recupero_allegati. Tocca solo righe senza allegati.
+ */
+const RECUPERO_PER_GIRO = 6;
+// deno-lint-ignore no-explicit-any
+async function recuperaAllegatiImap(supa: any): Promise<Record<string, unknown>> {
+  const { data: stato, error: statoErr } = await supa.from("email_recupero_allegati")
+    .select("connection_id, cursore, trovati, tentativi").is("finito_at", null).order("connection_id").limit(1).maybeSingle();
+  if (statoErr) throw statoErr;
+  if (!stato) return { finito: true };
+  const aggiorna = (campi: Record<string, unknown>) =>
+    supa.from("email_recupero_allegati").update({ ...campi, aggiornato_at: new Date().toISOString() }).eq("connection_id", stato.connection_id);
+
+  const { data: conn } = await supa.from("email_oauth_connections").select("id, company_id, email_address").eq("id", stato.connection_id).maybeSingle();
+  const { data: creds } = conn ? await supa.rpc("email_imap_get_credentials", { p_connection_id: conn.id }) : { data: null };
+  if (!conn?.company_id || !creds?.length) {
+    await aggiorna({ finito_at: new Date().toISOString(), ultimo_errore: "casella o credenziali non trovate" });
+    return { connection_id: stato.connection_id, saltata: true };
+  }
+  const { data: righe, error: righeErr } = await supa.from("email_inbox")
+    .select("id, message_id, received_at")
+    .eq("oauth_connection_id", conn.id).lt("received_at", stato.cursore).like("message_id", "<%")
+    .or("attachments.is.null,attachments.eq.[]").order("received_at", { ascending: false }).limit(RECUPERO_PER_GIRO);
+  if (righeErr) throw righeErr;
+  if (!righe?.length) {
+    await aggiorna({ finito_at: new Date().toISOString() });
+    return { connection_id: conn.id, finita: true, trovati: stato.trovati };
+  }
+  // Un messaggio che fa morire il worker non lascia errori: il tentativo si conta prima.
+  // Dopo tre giri fermi sullo stesso punto si supera il messaggio più recente del lotto.
+  if (stato.tentativi >= 3) {
+    await aggiorna({ cursore: righe[0].received_at, tentativi: 0, ultimo_errore: `saltato ${righe[0].id}` });
+    return { connection_id: conn.id, saltato: righe[0].id };
+  }
+  await aggiorna({ tentativi: stato.tentativi + 1 });
+  const c = creds[0];
+  const messaggi: ImapMessage[] = await imapScaricaNuovi(
+    { host: c.imap_host, port: c.imap_port, secure: c.imap_secure, username: c.imap_username || c.email_address, password: c.password },
+    new Date(0), RECUPERO_PER_GIRO, null, true, righe.map((r: { message_id: string }) => r.message_id),
+  );
+  let trovati = 0;
+  const contatore = { n: 0 };
+  for (const m of messaggi) {
+    if (!m.attachments?.length) continue;
+    const allegati = await materializeImapAttachments(supa, conn.company_id, m.messageId, m.attachments, contatore);
+    if (allegati.length === 0) continue;
+    const { error } = await supa.from("email_inbox").update({ attachments: allegati })
+      .eq("oauth_connection_id", conn.id).eq("message_id", m.messageId).or("attachments.is.null,attachments.eq.[]");
+    if (error) throw error;
+    trovati += allegati.length;
+  }
+  await aggiorna({ cursore: righe[righe.length - 1].received_at, trovati: stato.trovati + trovati, tentativi: 0, ultimo_errore: null });
+  return { connection_id: conn.id, letti: messaggi.length, trovati };
+}
+
 serveConMetricheRapida("email-poll-inbox", async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -855,7 +928,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
     });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { source?: string; connection_id?: string };
+  const body = (await req.json().catch(() => ({}))) as { source?: string; connection_id?: string; modo?: string };
 
   // Auth: x-cron-secret OR service_role bearer OR owner JWT for manual sync.
   const cronSecret = req.headers.get("x-cron-secret");
@@ -880,6 +953,18 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401, headers: { ...cors, "Content-Type": "application/json" },
     });
+  }
+
+  if (body.modo === "recupera_allegati") {
+    const ammesso = isAuthorizedCron || isServiceRole;
+    const esito = ammesso
+      ? await recuperaAllegatiImap(supa).catch(async (e: unknown) => {
+        const errore = e instanceof Error ? e.message : String(e);
+        console.error("[email-poll] recupero allegati:", errore);
+        return { errore };
+      })
+      : { error: "unauthorized" };
+    return new Response(JSON.stringify(esito), { status: ammesso ? 200 : 401, headers: { ...cors, "Content-Type": "application/json" } });
   }
 
   const summary = {

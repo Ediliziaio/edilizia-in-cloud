@@ -11,8 +11,9 @@ import { ContestoSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCom
 import { ImportaArchivioFascicolo } from "@/components/sicurezza/ImportaArchivioFascicolo";
 import { DocumentiMensiliSub } from "@/components/subappaltatori/DocumentiMensiliSub";
 import { SubcontractorSupplierLink } from "@/components/suppliers/SubcontractorSupplierLink";
+import { FattureDebitiSubappaltatore } from "@/components/suppliers/FattureDebitiSubappaltatore";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useContext, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -305,6 +306,7 @@ export default function SubappaltatoreDetail() {
     setAnagraficaDialog(true);
   };
 
+  const campoEsistente = useRef(false);
   const findOrCreateCampoSubappaltatore = async (source: typeof anagraficaForm) => {
     const ragioneSociale = source.ragione_sociale.trim();
     const piva = source.piva.trim();
@@ -326,7 +328,8 @@ export default function SubappaltatoreDetail() {
 
     const { data: existing, error: findError } = await query.maybeSingle();
     if (findError) throw findError;
-    if (existing?.id) return existing.id as string;
+    if (existing?.id) { campoEsistente.current = true; return existing.id as string; }
+    campoEsistente.current = false;
 
     const { data: created, error: createError } = await (supabase as any)
       .from('subappaltatori')
@@ -358,11 +361,13 @@ export default function SubappaltatoreDetail() {
         email: source.email.trim() || null,
         piva: source.piva.trim() || null,
         indirizzo: source.indirizzo.trim() || null,
-        user_email: source.email.trim() || source.pec.trim() || null,
         notes: source.note.trim() || null,
       })
       .eq('id', campoId);
     if (error) throw error;
+    // L'email di accesso all'app della ditta si scrive solo se manca: cambiarla toglierebbe l'accesso a chi la usa.
+    const accesso = source.email.trim() || source.pec.trim();
+    if (accesso) await (supabase as any).from('subappaltatori').update({ user_email: accesso }).eq('id', campoId).is('user_email', null);
   };
 
   const saveAnagraficaMutation = useMutation({
@@ -401,9 +406,23 @@ export default function SubappaltatoreDetail() {
         return;
       }
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      // La stessa ditta ha una scheda per commessa: nome, P.IVA e recapiti si correggono su tutte, e il nome
+      // anche nelle ditte delle commesse che portano ancora il nome vecchio.
+      const anagrafica = {
+        ragione_sociale: payload.ragione_sociale, piva: payload.piva, codice_fiscale: payload.codice_fiscale,
+        indirizzo: payload.indirizzo, email: payload.email, pec: payload.pec, telefono: payload.telefono, responsabile: payload.responsabile,
+      };
+      const { error: errAltre } = await (supabase as any).from('subappaltatori_sicurezza').update(anagrafica)
+        .eq('company_id', companyId).eq('campo_subappaltatore_id', campoId).neq('id', id!);
+      if (errAltre) throw new Error("Anagrafica salvata su questa scheda, ma non sulle altre schede della ditta. Riprova.");
+      const nomeVecchio = sub?.ragione_sociale?.trim();
+      if (nomeVecchio && nomeVecchio !== anagraficaForm.ragione_sociale.trim()) {
+        await (supabase as any).from('external_teams').update({ name: anagraficaForm.ragione_sociale.trim() })
+          .eq('company_id', companyId).eq('subappaltatore_id', campoId).eq('name', nomeVecchio);
+      }
     },
     onSuccess: () => {
-      toast.success('Anagrafica aggiornata');
+      toast.success('Anagrafica aggiornata su tutte le schede della ditta');
       queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatore-campo-access'] });
       queryClient.invalidateQueries({ queryKey: ['sub-campo-list', companyId] });
@@ -430,7 +449,8 @@ export default function SubappaltatoreDetail() {
         note: sub.note ?? '',
       };
       const campoId = await findOrCreateCampoSubappaltatore(source);
-      await upsertCampoSubappaltatore(campoId, source);
+      // Trovata per P.IVA, email o nome: si collega e basta, i suoi dati non si sovrascrivono con quelli della scheda.
+      if (!campoEsistente.current) await upsertCampoSubappaltatore(campoId, source);
       const { error } = await (supabase as any)
         .from('subappaltatori_sicurezza')
         .update({ campo_subappaltatore_id: campoId })
@@ -486,10 +506,13 @@ export default function SubappaltatoreDetail() {
       // Se carico un DURC con scadenza, allineo durc_scadenza della scheda così il
       // badge smette di dire "DURC mancante" (prima i due dati restavano scollegati).
       if (docForm.tipo === 'durc' && docForm.data_scadenza) {
-        await (supabase as any)
-          .from('subappaltatori_sicurezza')
-          .update({ durc_scadenza: docForm.data_scadenza })
-          .eq('id', id!);
+        // Solo se è più recente di quella che c'è, e su tutte le schede della ditta (una per commessa).
+        const nuova = docForm.data_scadenza;
+        const { error: errDurc } = sub?.campo_subappaltatore_id
+          ? await (supabase as any).from('subappaltatori_sicurezza').update({ durc_scadenza: nuova })
+              .eq('company_id', companyId).eq('campo_subappaltatore_id', sub.campo_subappaltatore_id).or(`durc_scadenza.is.null,durc_scadenza.lt.${nuova}`)
+          : await (supabase as any).from('subappaltatori_sicurezza').update({ durc_scadenza: nuova }).eq('id', id!);
+        if (errDurc) throw new Error('Documento caricato, ma la scadenza del DURC sulla scheda non è aggiornata: impostala a mano.');
       }
     },
     onSuccess: () => {
@@ -520,11 +543,13 @@ export default function SubappaltatoreDetail() {
 
   const deleteDocumentMutation = useMutation({
     mutationFn: async (doc: DocumentoSubappaltatore) => {
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('documenti_subappaltatore')
         .delete()
-        .eq('id', doc.id);
+        .eq('id', doc.id)
+        .select('id');
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      if (!data?.length) throw new Error('Documento non eliminato: non hai il permesso o è già stato tolto.');
       if (doc.url && !doc.url.startsWith('http')) {
         await supabase.storage.from(DOCUMENT_BUCKET).remove([doc.url]);
       }
@@ -541,11 +566,13 @@ export default function SubappaltatoreDetail() {
   const setDurcMutation = useMutation({
     mutationFn: async (date: string) => {
       if (!dataPlausibile(date)) throw new Error('Scadenza DURC non valida: controlla l\'anno');
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('subappaltatori_sicurezza')
         .update({ durc_scadenza: date || null })
-        .eq('id', id!);
+        .eq('id', id!)
+        .select('id');
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      if (!data?.length) throw new Error('Scadenza non aggiornata: non hai il permesso.');
     },
     onSuccess: () => {
       toast.success('Scadenza DURC aggiornata');
@@ -579,7 +606,10 @@ export default function SubappaltatoreDetail() {
       ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
     ].sort();
     // Lo stesso DURC «effettivo» del badge: prima il badge diceva OK e il blocco no.
-    const scad = sub?.durc_scadenza ?? (daDocumenti.length ? daDocumenti[daDocumenti.length - 1] : null);
+    // La scadenza più lontana tra scheda e documenti: un DURC nuovo caricato dalla ditta conta anche se
+    // sulla scheda è rimasta la data vecchia (prima vinceva sempre la scheda e SAL e pagamenti restavano bloccati).
+    const tutte = [...(sub?.durc_scadenza ? [sub.durc_scadenza] : []), ...daDocumenti].sort();
+    const scad = tutte.length ? tutte[tutte.length - 1] : null;
     if (!scad) return 'DURC mancante: carica il DURC con la data di scadenza prima di procedere.';
     const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
     if (new Date(scad) < oggi) {
@@ -635,11 +665,13 @@ export default function SubappaltatoreDetail() {
 
   const approvaSALMutation = useMutation({
     mutationFn: async (salId: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "verificato" })
-        .eq("id", salId);
+        .eq("id", salId)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("SAL non approvato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
     },
     onSuccess: () => {
       toast.success("SAL approvato");
@@ -653,14 +685,16 @@ export default function SubappaltatoreDetail() {
 
   const contestaSALMutation = useMutation({
     mutationFn: async ({ id, note }: { id: string; note: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("sal_subappaltatori")
         .update({ stato: "contestato", note_contestazione: note } as never)
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("SAL non contestato: non hai il permesso, o è già cambiato. Ricarica la pagina.");
     },
     onSuccess: () => {
-      toast.success("SAL contestato");
+      toast.success("SAL contestato", { description: "Se era fatto dalle misure, le misure tornano libere: puoi rifare il SAL da «Lavori e quantità»." });
       if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       setContestaId(null);
       setContestaNote("");
@@ -710,7 +744,8 @@ export default function SubappaltatoreDetail() {
     ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
     ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
   ].sort();
-  const effectiveDurc = sub.durc_scadenza ?? (durcDocScadenze.length ? durcDocScadenze[durcDocScadenze.length - 1] : null);
+  // Come il blocco di SAL e pagamenti: vale la scadenza più lontana tra scheda e documenti.
+  const effectiveDurc = [...(sub.durc_scadenza ? [sub.durc_scadenza] : []), ...durcDocScadenze].sort().pop() ?? null;
   // Esiste un documento DURC caricato (anche senza scadenza)? Distingue
   // "DURC presente · scadenza mancante" da "DURC assente".
   const hasDurcDoc =
@@ -1024,13 +1059,14 @@ export default function SubappaltatoreDetail() {
             {contratti.length > 0 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
           </div>
           <Tabs value={vistaContabilita} onValueChange={setVistaContabilita}>
-            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
+            <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="fatture">Fatture e pagamenti</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
             {permessi.canViewSubappaltatoriAmministrazione && <TabsContent value="mensili" className="mt-4">{caricoContratti ? <p className="text-sm text-muted-foreground">Caricamento contratti…</p> : erroreContratti ? <p role="alert" className="text-sm text-destructive">Contratti non disponibili. <Button variant="link" onClick={()=>void ricaricaContratti()}>Riprova</Button></p> : <DocumentiMensiliSub key={`${companyId}:${id}`} companyId={companyId} subId={id!} contratti={contratti}/>}</TabsContent>}
+            <TabsContent value="fatture" className="mt-4"><FattureDebitiSubappaltatore subId={id!} partitaIva={sub.piva ?? null} /></TabsContent>
             <TabsContent value="sal" className="space-y-4 mt-4">
           <div className={`flex items-center justify-between gap-3 ${!contratto ? 'max-sm:hidden' : ''}`}><h3 className="text-sm font-semibold">SAL del contratto</h3>
             <Button
               size="sm"
-              disabled={!contratto || salCaricamento || salErrore || salControlloBase}
+              disabled={!contratto || !(permessi.canEditOrders && permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts && !permessi.solaLettura) || salCaricamento || salErrore || salControlloBase}
               onClick={async () => {
                 if (!contratto || salControlloBase) return;
                 setSalControlloBase(true);

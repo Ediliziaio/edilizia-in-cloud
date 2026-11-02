@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { origineCostoDitta } from "@/lib/orders/costoDitta";
+import { conIva, origineCostoDitta } from "@/lib/orders/costoDitta";
 
 export type AssignmentPatch = Partial<Pick<PhaseAssignment,
-  "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">>;
+  "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes" | "costo_origine">>;
 
 // «1.140,00 €» come nel resto della commessa (formatCurrency), non «1140,00 €».
 const eur = { format: formatCurrency };
@@ -52,9 +53,14 @@ interface Props {
   onUpdate: (patch: AssignmentPatch) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
   compact?: boolean;
+  /**
+   * Quanto valgono le voci della lavorazione (quantità × costo). A una ditta senza costo previsto lo si
+   * propone in un clic: prima la scheda diceva «750 €» in alto e «0 €» sulla ditta, senza dire perché.
+   */
+  previstoVoci?: number;
 }
 
-export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete, compact = false }: Props) {
+export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete, compact = false, previstoVoci = 0 }: Props) {
   const { canEditOrders, canViewCosts, canManagePayments } = usePermissions();
   const internal = a.executor_type === "interno";
   const name = assignmentName(a, employees, externalTeams);
@@ -105,6 +111,22 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
   };
 
   const sforato = a.cost_preventivo > 0 && a.cost_consuntivo > a.cost_preventivo;
+  const propostaVoci = !internal && canViewCosts && a.cost_preventivo <= 0 && previstoVoci > 0;
+  // Il previsto della ditta si salva IVA compresa con la sua aliquota (0 in reverse charge), come «Assegna ditte e costi».
+  const ivaDitta = Number(a.vat_rate) || 0;
+  const previstoVociSalvato = conIva(previstoVoci, ivaDitta);
+  // Previsto scritto a mano diverso dalle voci della lavorazione (Dimora, 31/10/2026): resta quello scritto,
+  // perché è il prezzo concordato con la ditta; un pallino rosso dice che le voci danno un altro numero.
+  const scartoVoci = previstoVociSalvato - a.cost_preventivo;
+  const diversoDalleVoci = !internal && canViewCosts && a.cost_preventivo > 0 && previstoVoci > 0
+    && a.costo_origine !== "preventivo" && Math.abs(scartoVoci) > Math.max(1, previstoVociSalvato * 0.01);
+  const usaVoci = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await onUpdate({ cost_preventivo: previstoVociSalvato, costo_origine: "preventivo" }); }
+    catch { toast.error("Costo previsto non salvato. Riprova."); }
+    finally { setBusy(false); }
+  };
   // Una riga dell'elenco (ElencoAssegnazioni): chi è, che cosa fa, i due costi
   // nelle colonne dell'intestazione, la matita per gestirla.
   return <div className="flex items-start gap-3 px-3 py-2.5">
@@ -112,7 +134,28 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
       {internal ? <UserRound className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
     </span>
     <div className="min-w-0 flex-1">
-      <p className="break-words text-sm font-medium">{name}</p>
+      <p className="break-words text-sm font-medium">{name}
+        {diversoDalleVoci && <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" aria-label="Il costo previsto è diverso dalle voci della lavorazione" title="Diverso dalle voci della lavorazione"
+              className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full align-middle hover:bg-red-50">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-red-600" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 text-sm">
+            <p className="font-medium">Diverso dalle voci della lavorazione</p>
+            <dl className="mt-2 space-y-1 tabular-nums">
+              <div className="flex justify-between"><dt className="text-muted-foreground">Previsto scritto</dt><dd>{eur.format(a.cost_preventivo)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Voci a listino</dt><dd>{eur.format(previstoVociSalvato)}</dd></div>
+              <div className="flex justify-between font-medium"><dt>Differenza</dt><dd className={scartoVoci > 0 ? "text-emerald-700" : "text-red-700"}>{scartoVoci > 0 ? "+" : "-"}{eur.format(Math.abs(scartoVoci))}</dd></div>
+            </dl>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {scartoVoci > 0 ? "Il prezzo concordato con la ditta è sotto il listino." : "Il prezzo concordato con la ditta è sopra il listino."} Resta quello scritto: è quello che conta nei conti. Se le voci hanno quantità o unità sbagliate, la differenza viene da lì.
+            </p>
+            {canEditOrders && <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" disabled={busy} onClick={usaVoci}>Usa {eur.format(previstoVociSalvato)} delle voci</Button>}
+          </PopoverContent>
+        </Popover>}
+      </p>
       {/* Testo che va a capo da sé: niente puntini rimasti soli in fondo alla riga */}
       <p className="text-xs text-muted-foreground">
         <span>{internal ? "Dipendente" : (a.executor_kind ?? externalTeams.find(t => t.id === a.external_team_id)?.kind) === "interna" ? "Squadra interna" : "Ditta esterna"}</span>
@@ -122,6 +165,13 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
         {!internal && canViewCosts && <span className="max-sm:hidden"> · {a.is_paid ? "pagamento registrato" : "pagamento da registrare"}</span>}
       </p>
       {!internal && canViewCosts && origineCostoDitta(a) && <p className="mt-0.5 text-[11px] text-muted-foreground">{origineCostoDitta(a)}</p>}
+      {propostaVoci && <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800">
+        <span>Senza costo previsto: le voci della lavorazione valgono {eur.format(previstoVoci)}.</span>
+        {canEditOrders && <Button size="sm" variant="outline" className="tap-compact h-7 px-2 text-xs" disabled={busy} onClick={usaVoci}>
+          {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Usa {eur.format(previstoVociSalvato)}{ivaDitta > 0 ? ` (IVA ${ivaDitta}% inclusa)` : ""}
+        </Button>}
+        {canEditOrders && <span className="text-muted-foreground">o scrivilo con la matita</span>}
+      </p>}
       {a.notes && (compact ? <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Note assegnazione</summary><p className="mt-1 whitespace-pre-wrap break-words">{a.notes}</p></details> : <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>)}
     </div>
     {canViewCosts && !compact && <>

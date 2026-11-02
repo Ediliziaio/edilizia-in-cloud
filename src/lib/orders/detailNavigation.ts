@@ -26,7 +26,6 @@ export const ECONOMIA_VIEWS = [
 export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
 export const MATERIALI_VIEWS = [
   { value: "articoli", label: "Articoli e misure", description: "Materiali divisi per fase, validazione del tecnico, acquisti e verifica delle misure." },
-  { value: "computo", label: "Computo metrico", description: "Il computo della commessa: voci, misure, controllo dei totali e lavori pubblici." },
   { value: "acquisti", label: "Ordini d’acquisto", description: "Ordini ai fornitori collegati a questa commessa." },
   { value: "bolle", label: "Bolle e DDT", description: "Bolle dei fornitori, foto dal cantiere e DDT fatti al cliente." },
   { value: "fatture", label: "Fatture e costi", description: "Fatture dei fornitori e costi senza fattura (tasse, bolli, F24) della commessa." },
@@ -35,7 +34,9 @@ export const MATERIALI_VIEWS = [
 export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
 export function resolveEconomiaView(search: string, section?: string): EconomiaView {
   if (section === "section-manodopera-costi") return "manodopera";
-  if (section === "section-pagamenti" || section === "esposizione-commessa" || section === "section-ritenute") return "pagamenti";
+  if (section === "section-pagamenti" || section === "section-ritenute") return "pagamenti";
+  // «Chi finanzia il cantiere» sta in Margini e costi dal 01/11/2026.
+  if (section === "esposizione-commessa") return "margini";
   if (section === "section-rendiconto") return "rendiconto";
   if (section === "section-sal") return "sal";
   if (section === "section-varianti") return "varianti";
@@ -49,7 +50,8 @@ export function resolveMaterialiView(search: string, section?: string): Material
   if (section === "section-fatture-fornitori") return "fatture";
   if (section === "section-magazzino") return "magazzino";
   if (section === "section-materiali") return "articoli";
-  if (section === "section-computo") return "computo";
+  // Il computo non ha più una scheda (31/10/2026): si carica e si apre da «Genera dal computo».
+  if (section === "section-computo") return "articoli";
   return MATERIALI_VIEWS.find(view => view.value === new URLSearchParams(search).get("vista_materiali"))?.value ?? "articoli";
 }
 const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {

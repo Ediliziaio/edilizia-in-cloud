@@ -36,7 +36,17 @@ describe("sentinella della memoria del database", () => {
     expect(livello(leggiMemoria(metriche({ impegnata: 4.4, disponibile: 3 }))!)).toBe("attenzione");
     expect(livello(leggiMemoria(metriche({ impegnata: 4.7, disponibile: 3 }))!)).toBe("critico");
     expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 0.6 }))!)).toBe("critico");
-    expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 4, swapLibero: 0.7 }))!)).toBe("attenzione");
+    // Swap al 30% con la RAM quasi finita (20%): conta.
+    expect(livello(leggiMemoria(metriche({ impegnata: 3, disponibile: 1.6, swapLibero: 0.7 }))!)).toBe("attenzione");
+  });
+
+  it("lo swap rimasto pieno da un picco non è un allarme se la RAM è disponibile (1/11/2026)", () => {
+    // Il caso vero: impegnata 84%, RAM disponibile 60%, swap 51%. Prima: «critico» a ogni giro.
+    expect(livello(leggiMemoria(metriche({ impegnata: 4.0, disponibile: 4.8, swapLibero: 0.49 }))!)).toBe("ok");
+    // Con la RAM sotto il 30% lo stesso swap torna critico.
+    expect(livello(leggiMemoria(metriche({ impegnata: 4.0, disponibile: 2.0, swapLibero: 0.49 }))!)).toBe("critico");
+    // I picchi veri della memoria impegnata restano critici, swap o no.
+    expect(livello(leggiMemoria(metriche({ impegnata: 6.9, disponibile: 4.8 }))!)).toBe("critico");
   });
 
   it("un picco in una sola lettura non fa scattare l'avviso", () => {

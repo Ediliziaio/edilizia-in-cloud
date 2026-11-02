@@ -32,6 +32,8 @@ export interface RisultatoDxf {
 }
 
 export const LAYER_DXF: Record<NomeLayer, DefinizioneLayer> = {
+  TERRENO: { nome: "TERRENO", colore: 32 },
+  ESTERNI: { nome: "ESTERNI", colore: 3 },
   MURI: { nome: "MURI", colore: 7 },
   DEMOLIZIONI: { nome: "DEMOLIZIONI", colore: 2 },
   NUOVO: { nome: "NUOVO", colore: 1 },

@@ -42,6 +42,23 @@ export const TRIBUTI_PREDEFINITI: Array<{
     descrizione: `IVA mensile — ${["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"][i]}`,
     categoria: "ERARIO",
   })),
+  // Dal 01/11/2026 anche questi (stesso elenco di f24_codice_ammesso nel database).
+  ...[1, 2, 3, 4].map((t) => ({ code: String(6030 + t), descrizione: `IVA trimestrale — ${t}° trimestre`, categoria: "ERARIO" })),
+  { code: "6035", descrizione: "IVA — acconto di dicembre", categoria: "ERARIO" },
+  { code: "6099", descrizione: "IVA — saldo annuale", categoria: "ERARIO" },
+  { code: "1012", descrizione: "Ritenute su indennità di fine rapporto (TFR)", categoria: "ERARIO" },
+  { code: "1712", descrizione: "Imposta sostitutiva sulla rivalutazione del TFR — acconto", categoria: "ERARIO" },
+  { code: "1713", descrizione: "Imposta sostitutiva sulla rivalutazione del TFR — saldo", categoria: "ERARIO" },
+  { code: "3802", descrizione: "Addizionale regionale IRPEF trattenuta ai dipendenti", categoria: "REGIONI" },
+  { code: "3847", descrizione: "Addizionale comunale IRPEF trattenuta — acconto", categoria: "IMU E ALTRI TRIBUTI LOCALI" },
+  { code: "3848", descrizione: "Addizionale comunale IRPEF trattenuta — saldo", categoria: "IMU E ALTRI TRIBUTI LOCALI" },
+  { code: "2001", descrizione: "IRES — primo acconto", categoria: "ERARIO" },
+  { code: "2002", descrizione: "IRES — secondo acconto", categoria: "ERARIO" },
+  { code: "2003", descrizione: "IRES — saldo", categoria: "ERARIO" },
+  { code: "3812", descrizione: "IRAP — primo acconto", categoria: "REGIONI" },
+  { code: "3813", descrizione: "IRAP — secondo acconto", categoria: "REGIONI" },
+  { code: "3800", descrizione: "IRAP — saldo", categoria: "REGIONI" },
+  { code: "DM10", descrizione: "Contributi INPS dei dipendenti (sezione INPS)", categoria: "INPS" },
 ];
 
 export function useF24(anno?: number) {
@@ -144,6 +161,36 @@ export function useF24(anno?: number) {
     onError: () => toast.error("Errore salvataggio F24"),
   });
 
+  // Segnare pagato (01/11/2026): con la data e il riferimento della quietanza (protocollo, CRO o
+  // contabile della banca). Il database lo accetta solo da da_pagare, con data e riferimento nuovi,
+  // e da allora la registrazione è immutabile e il previsionale non la conta più.
+  const pagatoMutation = useMutation({
+    mutationFn: async (input: { id: string; data: string; quietanza: string; notePrima: string | null }) => {
+      if (!companyId || !canEdit) throw Error("Modifica non autorizzata");
+      const rif = input.quietanza.trim();
+      if (rif.length < 5) throw Error("Scrivi il riferimento della quietanza");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(input.data)) throw Error("Data del pagamento non valida");
+      const note = [input.notePrima?.trim(), `Quietanza ${rif} del ${input.data.split("-").reverse().join("/")}`]
+        .filter(Boolean)
+        .join(" · ");
+      const { data, error } = await supabase
+        .from("f24_entries")
+        .update({ stato: "pagato", data_pagamento: input.data, note })
+        .eq("id", input.id)
+        .eq("company_id", companyId)
+        .eq("stato", "da_pagare")
+        .select("id");
+      if (error) throw error;
+      if (!data?.length) throw Error("L’F24 non è più da pagare: aggiorna la pagina");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["f24", "list", companyId, annoCorrente] });
+      qc.invalidateQueries({ queryKey: ["cashflow"] });
+      toast.success("F24 segnato pagato con la quietanza");
+    },
+    onError: (e) => toast.error("F24 non segnato pagato", { description: e instanceof Error ? e.message : String(e) }),
+  });
+
   const entries = f24Query.data ?? [];
   const oggi = new Date();
   const scadentiProssimi30gg = entries.filter((e) => {
@@ -173,6 +220,8 @@ export function useF24(anno?: number) {
     isLoading: f24Query.isLoading,
     salva: salvaMutation.mutateAsync,
     isSalvando: salvaMutation.isPending,
+    segnaPagato: pagatoMutation.mutateAsync,
+    isSegnandoPagato: pagatoMutation.isPending,
     scadentiProssimi30gg,
     totaleAPagare: entries
       .filter((e) => e.stato === "da_pagare")

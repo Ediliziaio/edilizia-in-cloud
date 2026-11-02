@@ -24,6 +24,9 @@ function materialeThree(chiave: string, m: Materiale3D): THREE.MeshStandardMater
 }
 
 /** Un gruppo con una mesh per oggetto della pianta; `userData` porta id, genere e riferimento. */
+/** Materiali dei fondi dei campi sportivi e delle loro linee. */
+const SUPERFICI_A_TERRA = new Set(["terra_rossa", "terra_rossa_scura", "resina_blu", "resina_blu_scura", "resina_arancio", "resina_verde", "erba_sintetica", "erba_sintetica_scura", "sabbia", "linee", "linee_blu"]);
+
 export function creaGruppo(scena: Scena3D): THREE.Group {
   const gruppo = new THREE.Group();
   gruppo.name = "Planimetria";
@@ -38,7 +41,8 @@ export function creaGruppo(scena: Scena3D): THREE.Group {
     mesh.name = m.nome;
     mesh.userData = { id: m.id, genere: m.genere, riferimento: m.riferimento };
     const trasparente = m.genere === "vetro";
-    mesh.castShadow = !trasparente && m.genere !== "soffitto" && m.genere !== "pavimento";
+    // le superfici piatte dei campi (fondo, linee) non fanno ombra: su se stesse si righerebbero
+    mesh.castShadow = !trasparente && m.genere !== "soffitto" && m.genere !== "pavimento" && !SUPERFICI_A_TERRA.has(m.materiale);
     mesh.receiveShadow = !trasparente;
     if (trasparente) mesh.renderOrder = 1;
     gruppo.add(mesh);
@@ -117,9 +121,16 @@ export function adattaAmbiente(ambiente: { sole: THREE.DirectionalLight; terreno
   const cam = sole.shadow.camera;
   cam.left = -r * 1.3; cam.right = r * 1.3; cam.top = r * 1.3; cam.bottom = -r * 1.3;
   cam.near = 0.1; cam.far = r * 6;
+  // la mappa delle ombre copre tutta la scena: con un centro sportivo da 100 m ogni suo punto
+  // è largo decine di cm, e senza più tolleranza le superfici si rigano da sole
+  sole.shadow.normalBias = 0.02 * Math.max(1, r / 12);
+  sole.shadow.bias = -0.0004 * Math.max(1, r / 12);
   cam.updateProjectionMatrix();
-  terreno.position.set(cx, -0.005, cz);
+  // con un interrato il terreno scende sotto il piano più basso, altrimenti lo coprirebbe
+  terreno.position.set(cx, min[1] < -0.1 ? min[1] - 0.005 : -0.005, cz);
   terreno.scale.setScalar(r * 4);
+  // con il prato della pianta (viste da fuori) il disco grigio non serve: lo coprirebbe
+  terreno.visible = !scena.mesh.some((m) => m.id === "terreno");
 }
 
 export function applicaTelecamera(camera: THREE.PerspectiveCamera, t: Telecamera3D): void {

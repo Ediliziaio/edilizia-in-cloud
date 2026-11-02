@@ -1,3 +1,4 @@
+import type { TettoGeom } from "../../../../shared/planimetrie/tetto.ts";
 /**
  * Tipi del 3D delle planimetrie.
  *
@@ -75,11 +76,27 @@ export interface ElementoPer3D {
   localeId?: string;
 }
 
+/** Lotto e aree esterne: superfici a terra (y verso il basso, cm). */
+export interface AreaPer3D {
+  id: string;
+  tipo: string;
+  contorno: Punto2[];
+  /** Solo per il lotto: la recinzione lungo il confine (predefinito: sì). */
+  recinzione?: boolean;
+  /** Quota della superficie, in cm (terrazzamenti, rialzi). */
+  quota?: number;
+}
+
 export interface PiantaPer3D {
   muri: MuroPer3D[];
   aperture: AperturaPer3D[];
   locali: LocalePer3D[];
   elementi: ElementoPer3D[];
+  aree?: AreaPer3D[];
+  /** Il tetto sopra il piano (Livello.tetto): si vede quando c'è il soffitto. */
+  tetto?: TettoGeom;
+  /** Punti quotati del terreno (cm, y in giù): con due o più il prato intorno è in pendenza. */
+  terreno?: Array<{ x: number; y: number; quota: number }>;
 }
 
 // ─── Risultato ──────────────────────────────────────────────────────────────
@@ -132,6 +149,13 @@ export interface OpzioniScena {
   soffitto?: boolean;
   /** Sanitari e arredi. Predefinito: sì. */
   elementi?: boolean;
+  /**
+   * Un prato tutto intorno (metri oltre l'ingombro), per le viste da fuori: senza, piscine e
+   * alberi restano sospesi nel vuoto. I limiti della scena non lo contano. Predefinito: niente.
+   */
+  terreno?: number;
+  /** Senza il pavimento del vano scala (piani sopra il primo: la scala sale dal piano sotto). */
+  foroScala?: boolean;
 }
 
 // ─── Telecamera ─────────────────────────────────────────────────────────────

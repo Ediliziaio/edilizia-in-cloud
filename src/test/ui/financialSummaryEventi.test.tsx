@@ -65,3 +65,32 @@ describe("le rate a evento nel riepilogo della commessa", () => {
     expect(screen.getByRole("button", { name: /0[12]\/03\/2030/ })).toBeInTheDocument();
   });
 });
+
+describe("incassi dal cliente (01/11/2026): prima lo stato delle rate", () => {
+  it("l'azienda incassa: «Incassata» e «Da incassare», mai «Pagato»", () => {
+    mostra([
+      rata({ id: "a", position: 0, label: "Acconto 30%", is_paid: true, paid_date: "2025-08-06" }),
+      rata({ id: "s", position: 1, label: "Saldo", type: "balance", expected_date: "2099-01-01" }),
+    ]);
+    expect(screen.getByText("Incassi dal cliente")).toBeInTheDocument();
+    expect(screen.getAllByRole("radio", { name: /Incassata/ }).length).toBe(2);
+    expect(screen.getAllByRole("radio", { name: /Da incassare/ }).length).toBe(2);
+    expect(screen.queryByText("Pagato")).not.toBeInTheDocument();
+    expect(screen.queryByText("Non pagato")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 di 2 rate incassate · prossima: Saldo il 01\/01\/2099/)).toBeInTheDocument();
+  });
+
+  it("una rata scaduta lo dice, con da quanti giorni", () => {
+    mostra([rata({ id: "a", position: 0, label: "Acconto", expected_date: "2020-01-01" }), rata({ id: "s", position: 1, label: "Saldo", type: "balance" })]);
+    expect(screen.getAllByText("Scaduta").length).toBeGreaterThan(0);
+    expect(screen.getByText(/doveva entrare il 01\/01\/2020 · da \d+ giorni/)).toBeInTheDocument();
+  });
+
+  it("imponibile e IVA in fondo, in una riga, non in testa", () => {
+    mostra([rata({ id: "a", position: 0, label: "Acconto" }), rata({ id: "s", position: 1, label: "Saldo", type: "balance" })]);
+    const contratto = screen.getByText(/Contratto: imponibile/);
+    const rate = screen.getByRole("list", { name: "Rate del cliente" });
+    expect(rate.compareDocumentPosition(contratto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(contratto.textContent).toMatch(/IVA 22%/);
+  });
+});

@@ -80,6 +80,14 @@ export type TipoElemento =
   | "cucina" | "frigorifero" | "lavatrice" | "caldaia"
   | "letto_matrimoniale" | "letto_singolo" | "divano" | "tavolo" | "sedia"
   | "armadio" | "comodino" | "scrivania"
+  | "divano_angolare" | "poltrona" | "mobile_tv" | "libreria" | "tavolo_rotondo" | "cucina_angolare" | "isola_cucina" | "lavastoviglie"
+  | "auto" | "scaffale" | "banco_lavoro"
+  | "presa" | "interruttore" | "punto_luce" | "punto_acqua" | "scarico" | "quadro_elettrico" | "termosifone" | "split"
+  | "unita_esterna" | "collettore" | "colonna_scarico" | "pilastro" | "scala" | "ascensore"
+  | "pompa_calore" | "bollitore" | "inverter" | "batteria_accumulo" | "wallbox" | "termostato" | "vmc" | "lucernario" | "quota_terreno"
+  | "piscina" | "idromassaggio" | "pergola" | "albero" | "siepe" | "aiuola" | "ombrellone" | "lettino" | "tavolo_esterno" | "barbecue"
+  | "cancello_pedonale" | "cancello_carrabile" | "lampione" | "faretto_giardino" | "irrigatore" | "pozzetto"
+  | "campo_tennis" | "campo_padel" | "campo_calcio5" | "campo_calcio7" | "campo_calcio11" | "campo_basket" | "campo_pallavolo" | "campo_beach_volley" | "campo_pickleball" | "campo_bocce"
   /** Un oggetto che non ha un simbolo suo: riquadro con la diagonale. */
   | "generico";
 
@@ -113,6 +121,16 @@ export interface TestoVista {
   rotazione?: number;
 }
 
+/** Lotto o area esterna (prato, vialetto, ghiaia…), coordinate y verso il basso. */
+export interface AreaVista {
+  id: string;
+  tipo: string;
+  nome?: string;
+  contorno: Punto[];
+  superficieMq?: number;
+  stato?: "esistente" | "da_demolire" | "nuovo";
+}
+
 export interface VistaPianta {
   titolo: string;
   /** «Piano terra», «Stato di progetto — proposta A»… */
@@ -123,6 +141,10 @@ export interface VistaPianta {
   elementi: ElementoVista[];
   quote: QuotaVista[];
   testi: TestoVista[];
+  /** Lotto e aree esterne (sotto tutto). */
+  aree?: AreaVista[];
+  /** Terreno in pendenza: curve di livello e quote dei punti misurati (y in giù). */
+  terreno?: { curve: Array<{ a: Punto; b: Punto; quota: number }>; punti: Array<{ posizione: Punto; testo: string }> };
   /** Gradi del nord rispetto all'alto del foglio, se noto. */
   nord?: number;
 }

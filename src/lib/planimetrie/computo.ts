@@ -60,13 +60,16 @@ export function quantitaPianta(mappa: MappaQuantita, ambito: string): SceltaQuan
     if (q.ambito !== ambito) continue;
     const k = leggiChiave(q.chiave);
     if (!k) continue;
-    const intera = k.soggetto === "demolizioni" || k.soggetto === "costruzioni" || /^aperture:[a-z_]+:[a-z]+$/.test(k.soggetto);
+    const intera = k.soggetto === "demolizioni" || k.soggetto === "costruzioni" || /^aperture:[a-z_]+:[a-z]+$/.test(k.soggetto)
+      || /^elementi:[a-z_]+:[a-z0-9_]+$/.test(k.soggetto)
+      // linee stimate degli impianti e totali per appartamento (condomini)
+      || /^impianti:[a-z]+$/.test(k.soggetto) || /^unita:[a-z0-9_]+$/.test(k.soggetto);
     if (!intera) continue;
     // Nelle proposte la descrizione finisce con « (nome della proposta)»: nella scelta non serve.
     const etichetta = ambito === "fatto" ? q.descrizione : q.descrizione.replace(/ \([^()]*\)$/, "");
     out.push({ id: `${k.soggetto}.${k.misura}`, etichetta, unita: q.unita, per: "pianta" });
   }
-  const peso = (s: SceltaQuantita) => (s.id.startsWith("demolizioni") ? 0 : s.id.startsWith("costruzioni") ? 1 : 2);
+  const peso = (s: SceltaQuantita) => (s.id.startsWith("demolizioni") ? 0 : s.id.startsWith("costruzioni") ? 1 : s.id.startsWith("aperture") ? 2 : s.id.startsWith("unita") ? 3 : s.id.startsWith("impianti") ? 5 : 4);
   return out.sort((a, b) => peso(a) - peso(b) || a.etichetta.localeCompare(b.etichetta, "it"));
 }
 

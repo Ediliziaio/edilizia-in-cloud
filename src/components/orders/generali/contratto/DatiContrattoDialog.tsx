@@ -17,15 +17,17 @@ import {
 import { Campo, CampoNumero } from "./campi";
 import { euro, haNumeriSbagliati } from "./formato";
 
-export function DatiContrattoDialog({ open, onOpenChange, generaleId, contratto, atti }: {
+export function DatiContrattoDialog({ open, onOpenChange, generaleId, contratto, atti, valoreGenerale = null }: {
   open: boolean; onOpenChange: (o: boolean) => void; generaleId: string;
   contratto: ContrattoGenerale | null; atti: AttoAggiuntivo[];
+  /** Il valore scritto creando la generale: si riparte da lì, non da un campo vuoto. */
+  valoreGenerale?: number | null;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         {/* Il modulo nasce a ogni apertura con i valori di adesso. */}
-        {open && <Modulo onOpenChange={onOpenChange} generaleId={generaleId} iniziale={contratto ?? CONTRATTO_VUOTO} atti={atti} nuovo={!contratto} />}
+        {open && <Modulo onOpenChange={onOpenChange} generaleId={generaleId} iniziale={contratto ?? { ...CONTRATTO_VUOTO, importoBase: valoreGenerale }} atti={atti} nuovo={!contratto} />}
       </DialogContent>
     </Dialog>
   );

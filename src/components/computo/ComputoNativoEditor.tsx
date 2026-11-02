@@ -171,7 +171,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const { pianoPdf, pianoErrore } = useMemo(() => {
     const a = analizzaEconomia(bozzaPdf);
     return { pianoErrore: a.errorePiano, pianoPdf: a.rate.map(r => ({ descrizione: r.rata.descrizione.trim() || "Rata", quando: r.rata.quando === "sal" && r.rata.giorno ? `SAL al giorno ${r.rata.giorno} di cantiere` : MOMENTI_RATA[r.rata.quando],
-      percentuale: r.percentuale ?? 0, importo: r.importo, termine: r.rata.giorniPagamento ? `${r.rata.giorniPagamento} gg` : "" })) };
+      percentuale: r.percentuale ?? 0, importo: r.importo, termine: r.rata.giorniPagamento ? `${r.rata.giorniPagamento} gg` : "",
+      importoIvato: (() => { const f = calcolaIvaComputo(r.importo, bozzaPdf); return f.modalita === "applicata" && f.totale != null ? f.totale : null; })() })) };
   }, [bozzaPdf]);
   const erroreIva = bozza.formatoPdf !== "senza-prezzi" && bozza.mostraImportiPdf !== false ? calcolaIvaComputo(totale - sconto.importo, bozza).errore : "";
   const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,

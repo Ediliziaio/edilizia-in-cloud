@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { AnteprimaDocumento, apriDocumento } from '@/components/fea/AnteprimaDocumento';
 import { IdentificazioneFirmatario } from '@/components/fea/IdentificazioneFirmatario';
 import { corpoErroreEdge } from '@/lib/fea/erroreEdge';
+import { ETICHETTA_PASSO, elencoPassi, passiFirma, type PassoFirma } from '@/lib/fea/passiFirma';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -102,6 +103,9 @@ export default function FirmaDocumento() {
   const [rifiutoInCorso, setRifiutoInCorso] = useState(false);
   // Chiave data dal server dopo il codice giusto: senza, non si firma. Solo in memoria.
   const [sessioneFirma, setSessioneFirma] = useState<string | null>(null);
+  // Quando scade la sessione aperta dal codice (15 minuti): chi firma lo vede, non lo scopre al bottone.
+  const [sessioneScadenza, setSessioneScadenza] = useState<string | null>(null);
+  const [secondiSessione, setSecondiSessione] = useState(0);
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -283,6 +287,7 @@ export default function FirmaDocumento() {
       if (data?.error) throw new Error(data.error);
       if (data?.success !== true || typeof data?.sessione_firma !== 'string') throw new Error('Verifica del codice non confermata. Riprova.');
       setSessioneFirma(data.sessione_firma);
+      setSessioneScadenza(typeof data?.sessione_scadenza === 'string' ? data.sessione_scadenza : new Date(Date.now() + 15 * 60_000).toISOString());
       // Firma avanzata: al primo documento con l'azienda chi firma si identifica.
       if ((sessione?.identificazione_richiesta || sessione?.dichiarazione_richiesta) && sessione.dichiarazione_fea) {
         setStep('identificazione');
@@ -311,6 +316,7 @@ export default function FirmaDocumento() {
   /** Il tempo per firmare (15 minuti dal codice) è finito: si richiede un codice nuovo. */
   const sessioneScaduta = () => {
     setSessioneFirma(null);
+    setSessioneScadenza(null);
     toast.error('Il tempo per firmare è scaduto: ti mandiamo un nuovo codice.');
     void inviaOtp();
   };
@@ -369,6 +375,44 @@ export default function FirmaDocumento() {
     } finally {
       setRifiutoInCorso(false);
     }
+  };
+
+  useEffect(() => {
+    if (!sessioneScadenza) { setSecondiSessione(0); return; }
+    setSecondiSessione(secondiRestanti(sessioneScadenza));
+    const id = setInterval(() => setSecondiSessione(secondiRestanti(sessioneScadenza)), 1000);
+    return () => clearInterval(id);
+  }, [sessioneScadenza]);
+
+  /** «Passo 2 di 4» con i nomi dei passaggi, e dopo il codice il tempo che resta per firmare. */
+  const avanzamento = (passo: PassoFirma) => {
+    const passi = passiFirma(sessione);
+    const i = Math.max(0, passi.indexOf(passo));
+    const dopoCodice = passo !== 'codice' && !!sessioneScadenza;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+          <span className="font-semibold text-slate-700">Passo {i + 1} di {passi.length}</span>
+          {i < passi.length - 1 && <span className="text-right">Poi: {passi.slice(i + 1).map((p) => ETICHETTA_PASSO[p]).join(' → ')}</span>}
+        </div>
+        <div className="flex gap-1" aria-hidden="true">
+          {passi.map((p, k) => <div key={p} className={`h-1.5 flex-1 rounded-full ${k <= i ? 'bg-orange-500' : 'bg-slate-200'}`} />)}
+        </div>
+        {dopoCodice && secondiSessione > 0 && (
+          <p role="status" className={`text-xs ${secondiSessione < 300 ? 'font-medium text-amber-700' : 'text-slate-500'}`}>
+            Tempo per completare la firma: {formatTimer(secondiSessione)}{secondiSessione < 300 ? ' — arriva fino ad «Accetto e firmo»' : ''}
+          </p>
+        )}
+        {dopoCodice && secondiSessione === 0 && (
+          <div role="alert" className="flex flex-col gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            <span>Il tempo per firmare è scaduto. Le scelte fatte restano: chiedi un nuovo codice e continua da qui.</span>
+            <Button variant="outline" size="sm" className="self-start border-red-200 text-red-700" disabled={invioOtpInCorso} onClick={sessioneScaduta}>
+              {invioOtpInCorso ? 'Invio...' : 'Ricevi un nuovo codice'}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const formatTimer = (sec: number) => {
@@ -472,7 +516,7 @@ export default function FirmaDocumento() {
         <p className="text-slate-500 text-xs text-center">
           Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}{sessione.signer_telefono_mascherato ? ` e via SMS al ${sessione.signer_telefono_mascherato}` : ''}. {sessione.identificazione_richiesta
             ? 'Essendo il primo documento con questa azienda, ti chiederemo anche una foto del tuo documento d\'identità.'
-            : 'Due passaggi, un minuto.'}
+            : `Dopo il documento: ${elencoPassi(passiFirma(sessione))}. Pochi minuti: il bottone finale è «Accetto e firmo».`}
         </p>
       </div>
     </Wrapper>
@@ -481,6 +525,7 @@ export default function FirmaDocumento() {
   if (step === 'otp' && sessione) return (
     <Wrapper>
       <div className="space-y-6">
+        {avanzamento('codice')}
         <div>
           <h2 className="text-xl font-bold text-slate-800">Inserisci il codice</h2>
           <p className="text-slate-500 text-sm mt-1">Controlla la tua email{sessione.signer_telefono_mascherato ? ' e gli SMS' : ''} e inserisci il codice a 6 cifre</p>
@@ -560,6 +605,7 @@ export default function FirmaDocumento() {
 
   if (step === 'identificazione' && sessione?.dichiarazione_fea && sessioneFirma) return (
     <Wrapper largo>
+      <div className="mb-4">{avanzamento('identificazione')}</div>
       <IdentificazioneFirmatario
         token={token!}
         sessioneFirma={sessioneFirma}
@@ -579,6 +625,7 @@ export default function FirmaDocumento() {
   if (step === 'b2c_recesso' && sessione) return (
     <Wrapper>
       <div className="space-y-6">
+        {avanzamento('recesso')}
         <div>
           <h2 className="text-xl font-bold text-slate-800">Diritto di recesso</h2>
           <p className="text-slate-500 text-sm mt-1">Leggi attentamente prima di procedere</p>
@@ -615,6 +662,7 @@ export default function FirmaDocumento() {
     return (
       <Wrapper>
         <div className="space-y-6">
+          {avanzamento('clausole')}
           <div>
             <h2 className="text-xl font-bold text-slate-800">Seconda firma: clausole specifiche</h2>
             <p className="text-slate-500 text-sm mt-1">Ai sensi degli artt. 1341 e 1342 c.c. ogni clausola va approvata singolarmente, oltre alla firma del documento</p>
@@ -651,6 +699,7 @@ export default function FirmaDocumento() {
   if (step === 'firma' && sessione) return (
     <Wrapper>
       <div className="space-y-6">
+        {avanzamento('firma')}
         <div>
           <h2 className="text-xl font-bold text-slate-800">Firma il documento</h2>
           <p className="text-slate-500 text-sm mt-1">Ultimo passo — nessun disegno richiesto</p>

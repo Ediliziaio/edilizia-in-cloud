@@ -74,15 +74,16 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
       <CardContent className="space-y-3">
         <dl><Value label="Costo registrato netto IVA" value={money(subcontractNet)} /></dl>
         {!external.length && <p className="text-sm text-muted-foreground">Nessuna ditta esterna registrata in questa commessa.</p>}
-        {external.map(row => <section key={row.id} aria-label={`Costi ditta ${row.team?.name ?? "non disponibile"}`} className="rounded-lg border p-3">
-          <h3 className="mb-3 break-words text-sm font-semibold">{row.team?.name ?? "Ditta non disponibile"}</h3>
+        {[...external].sort((a, b) => (a.fase?.position ?? 1e9) - (b.fase?.position ?? 1e9)).map(row => <section key={row.id} aria-label={`Costi ditta ${row.team?.name ?? "non disponibile"}`} className="rounded-lg border p-3">
+          <h3 className="mb-3 break-words text-sm font-semibold">{row.team?.name ?? "Ditta non disponibile"}
+            <span className="font-normal text-muted-foreground"> · {row.fase?.name ?? "intera commessa"}</span></h3>
           {row.team?.kind === "interna" && <p role="alert" className="mb-2 text-sm text-amber-800">Squadra interna registrata fra le ditte: verifica l'attribuzione, senza duplicarne i costi.</p>}
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Value label="Budget IVA inclusa" value={laborAmount(row.cost_preventivo) == null ? "Da completare" : money(laborAmount(row.cost_preventivo))} />
-            <Value label="Costo registrato IVA inclusa" value={money(laborAmount(row.total_cost))} />
+            {/* Le ditte sono in reverse charge (31/10/2026): il previsto è senza IVA. «IVA inclusa» era rimasto da prima. */}
+            <Value label="Costo previsto" value={Number(laborAmount(row.cost_preventivo)) > 0 ? money(laborAmount(row.cost_preventivo)) : "Da scrivere nella lavorazione"} />
+            <Value label={Number(row.vat_rate) > 0 ? `Costo registrato (IVA ${Number(row.vat_rate)}% inclusa)` : "Costo registrato"} value={money(laborAmount(row.total_cost))} />
             <Value label="Costo netto IVA" value={money(externalLaborNet(row))} />
           </dl>
-          {row.vat_rate == null && <p className="mt-2 text-xs text-muted-foreground">IVA non specificata: 22% come nel conto economico. Verifica il contratto.</p>}
         </section>)}
         <p className="text-xs text-muted-foreground">Le presenze del subappaltatore non applicano il costo orario dei dipendenti. Il costo deriva dall'affidamento registrato; non equivale a una fattura pagata.</p>
       </CardContent>

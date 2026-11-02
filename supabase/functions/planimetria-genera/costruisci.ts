@@ -15,7 +15,7 @@
 
 import {
   VERSIONE_SCHEMA,
-  type Apertura, type CampoMisura, type Destinazione, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto, type Verso,
+  type Apertura, type AreaEsterna, type CampoMisura, type Destinazione, type Elemento, type Locale, type Muro, type Origine, type OrigineMisure, type Planimetria, type Punto, type Verso,
 } from "../../../shared/planimetrie/modello.ts";
 import type { Coppia, LocaleAI, RispostaAI } from "./rispostaAI.ts";
 import type { IngressoGenerazione, InfoGenerazione, PiantaGenerata, ScalaPianta } from "./generazione.ts";
@@ -28,6 +28,8 @@ export interface OpzioniCostruzione {
   altezzaImmagine?: number | null;
   sorgentePath?: string | null;
   titolo?: string;
+  /** Più piani sullo stesso foglio: la scala è una sola, si stima su tutto il foglio. */
+  scalaForzata?: Stima | null;
 }
 
 /** Due facce entro questa distanza sono lo stesso muro (cm). */
@@ -36,6 +38,8 @@ const SPESSORE_ESTERNO = 30;
 const SPESSORE_INTERNO = 10;
 const ALTEZZA_LOCALE = 270;
 const LARGHEZZA_PORTA = 80;
+/** Capannoni e magazzini arrivano a 12–15 m sotto trave. */
+const ALTEZZA_MASSIMA_M = 15;
 const ALTEZZE_APERTURA: Record<Apertura["tipo"], { h: number; davanzale: number }> = {
   porta: { h: 210, davanzale: 0 },
   finestra: { h: 140, davanzale: 90 },
@@ -47,7 +51,7 @@ const arr = (v: number) => Math.round(v * 10) / 10;
 
 // ── Scala ────────────────────────────────────────────────────────────────────
 
-interface Stima {
+export interface Stima {
   cm_per_unita: number;
   metodo: ScalaPianta["metodo"];
   concordi: number;
@@ -286,7 +290,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     const W = opz.larghezzaImmagine && opz.larghezzaImmagine > 0 ? opz.larghezzaImmagine : 1000;
     const H = opz.altezzaImmagine && opz.altezzaImmagine > 0 ? opz.altezzaImmagine : 1000;
     const inPixel = (c: Coppia): Punto => ({ x: (c[0] / 1000) * W, y: (c[1] / 1000) * H });
-    let stima = stimaScala(r, inPixel);
+    let stima = opz.scalaForzata ?? stimaScala(r, inPixel);
     if (!stima) {
       // Nessun appiglio: scala di ripiego (pianta larga circa 10 m), tutta da confermare.
       const xs = locali3.flatMap((l) => l.contorno.map((c) => inPixel(c).x));
@@ -312,21 +316,26 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     origineForma = () => (daDocumento ? "da_documento" : "stimata");
   } else {
     conv = (c) => ({ x: c[0] * 100, y: c[1] * 100 });
-    scala = { metodo: "in_metri", cm_per_unita: 1, da_confermare: opz.ingresso !== "sopralluogo" };
-    origineForma = (l) => (opz.ingresso === "schizzo" && l.misure_lette ? "da_documento" : "stimata");
+    scala = { metodo: "in_metri", cm_per_unita: 1, da_confermare: opz.ingresso !== "sopralluogo" && opz.ingresso !== "rilievo" };
+    // misure prese sul posto col metro: rilevate; quelle dedotte restano stimate
+    origineForma = (l) => (opz.ingresso === "schizzo" && l.misure_lette ? "da_documento" : opz.ingresso === "rilievo" && l.misure_lette ? "rilevata" : "stimata");
     if (opz.ingresso === "descrizione") {
       avvisi.push("Pianta di esempio costruita dalla descrizione: tutte le misure sono stimate, vanno controllate.");
     } else if (opz.ingresso === "schizzo" && locali3.some((l) => !l.misure_lette)) {
       avvisi.push("Alcune stanze non avevano misure scritte sullo schizzo: le loro dimensioni sono stimate.");
+    } else if (opz.ingresso === "rilievo") {
+      const senza = locali3.filter((l) => !l.misure_lette).map((l) => l.nome);
+      avvisi.push("Le misure dettate sono quelle prese sul posto; la posizione delle stanze, delle porte e delle finestre è dedotta: controllala.");
+      if (senza.length) avvisi.push(`Senza misure dettate (stimate): ${senza.slice(0, 8).join(", ")}${senza.length > 8 ? "…" : ""}.`);
     }
   }
 
   // Locali (ancora con y verso il basso)
-  const altezzaGenerale = r.altezza_m && r.altezza_m > 1.5 && r.altezza_m < 8 ? r.altezza_m * 100 : null;
+  const altezzaGenerale = r.altezza_m && r.altezza_m > 1.5 && r.altezza_m <= ALTEZZA_MASSIMA_M ? r.altezza_m * 100 : null;
   const contorni = locali3.map((l) => l.contorno.map(conv));
   if (r.sistema === "metri") separaStanzeAccostate(contorni);
   const altezze = locali3.map((l) => {
-    const hScritta = l.altezza_scritta_m && l.altezza_scritta_m > 1.5 && l.altezza_scritta_m < 8 ? l.altezza_scritta_m * 100 : null;
+    const hScritta = l.altezza_scritta_m && l.altezza_scritta_m > 1.5 && l.altezza_scritta_m <= ALTEZZA_MASSIMA_M ? l.altezza_scritta_m * 100 : null;
     if (hScritta) return { valore: hScritta, origine: "da_documento" as Origine };
     if (altezzaGenerale) return { valore: altezzaGenerale, origine: "da_documento" as Origine };
     return { valore: ALTEZZA_LOCALE, origine: "stimata" as Origine };
@@ -412,9 +421,12 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     stato: "esistente",
     ...origini(origineMuri, { spessore: "stimata", altezza: origineAltezzaMuri }),
   }));
+  // Più appartamenti sullo stesso foglio: il nome dice di quale («A · Camera»).
+  const piuUnita = new Set(locali3.map((l) => l.unita).filter(Boolean)).size > 1;
   const locali: Locale[] = locali3.map((l, i) => ({
     id: `l${i + 1}`,
-    nome: l.nome,
+    nome: piuUnita && l.unita ? `${l.unita} · ${l.nome}` : l.nome,
+    ...(piuUnita && l.unita ? { unita: l.unita.slice(0, 40) } : {}),
     destinazione: l.destinazione as Destinazione,
     contorno: contorni[i].map(su),
     altezza: altezze[i].valore,
@@ -438,6 +450,40 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     };
   });
 
+  // Arredi, sanitari e pilastri letti dal disegno: riquadro → centro, misure e verso.
+  const ROT_LATO = { alto: 0, destra: 90, basso: 180, sinistra: 270 } as const;
+  const elementi: Elemento[] = [];
+  for (const e of r.elementi ?? []) {
+    const a = conv([e.riquadro[0], e.riquadro[1]]);
+    const b = conv([e.riquadro[2], e.riquadro[3]]);
+    const w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+    // i campi sportivi sono grandi (calcio a 11: 113 × 74 m)
+    const max = e.tipo.startsWith("campo_") ? 12000 : 1500;
+    if (w < 10 || h < 10 || w > max || h > max) continue;
+    const giro = e.tipo === "pilastro" ? 0 : ROT_LATO[e.lato_muro ?? "alto"];
+    const traverso = giro === 90 || giro === 270;
+    const centro = su({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    elementi.push({
+      id: `e${elementi.length + 1}`,
+      tipo: e.tipo,
+      posizione: centro,
+      // il modello ha gli angoli antiorari, lo schermo orari
+      rotazione: giro === 0 ? 0 : -giro,
+      larghezza: arr(traverso ? h : w),
+      profondita: arr(traverso ? w : h),
+      ...(e.tipo === "pilastro" ? { altezza: altezzaMuri } : {}),
+      stato: "esistente",
+      origine: "stimata",
+    });
+  }
+
+  // Lotto e aree esterne (planimetrie generali, descrizioni col giardino)
+  const aree: AreaEsterna[] = (r.aree ?? []).map((a, i) => ({
+    id: `r${i + 1}`,
+    tipo: a.tipo,
+    contorno: a.contorno.map((c) => su(conv(c))).map((p) => ({ x: arr(p.x), y: arr(p.y) })),
+  })).filter((a) => a.contorno.length >= 3);
+
   const superfici: Record<string, number> = {};
   locali3.forEach((l, i) => {
     if (l.superficie_scritta_mq) superfici[`l${i + 1}`] = l.superficie_scritta_mq;
@@ -447,7 +493,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     unita: "cm",
     ...(opz.titolo ? { titolo: opz.titolo } : {}),
     scala: 100,
-    livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi: [], quote: [], testi: [] }, proposte: [] }],
+    livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi, quote: [], testi: [], ...(aree.length ? { aree } : {}) }, proposte: [] }],
   };
   const generazione: InfoGenerazione = {
     ingresso: opz.ingresso,
@@ -458,6 +504,92 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     superfici_scritte: superfici,
   };
   return { planimetria, generazione };
+}
+
+// ── Più piani sullo stesso foglio ────────────────────────────────────────────
+
+const centroDi = (pts: Coppia[]): Coppia => [pts.reduce((t, p) => t + p[0], 0) / pts.length, pts.reduce((t, p) => t + p[1], 0) / pts.length];
+
+/**
+ * Come `costruisciPlanimetria`, ma se il modello ha diviso le stanze per piano (piano terra e
+ * sottotetto sullo stesso foglio) ne fa un livello per piano. La scala è quella del foglio intero;
+ * porte, finestre e arredi senza piano vanno al piano che li contiene.
+ */
+/**
+ * La quota di un piano dal suo nome: interrato e cantine sotto zero, piano terra a zero, primo,
+ * secondo… a 3 m l'uno, sottotetto e mansarda sopra tutti. Senza indizi: l'ordine del foglio.
+ */
+export function quotaDalNome(nome: string, ordine: number, quanti: number): number {
+  const n = nome.toLowerCase();
+  if (/secondo interrato|-2|meno due/.test(n)) return -600;
+  if (/interrat|seminterrat|cantin|piano -1|meno uno|scantinat|autorimessa interrata/.test(n)) return -300;
+  if (/terra|rialzat|pt\b/.test(n)) return 0;
+  const ordinali: Array<[RegExp, number]> = [[/primo|1°|piano 1\b|p1\b/, 300], [/secondo|2°|piano 2\b/, 600], [/terzo|3°|piano 3\b/, 900], [/quarto|4°|piano 4\b/, 1200], [/quinto|5°|piano 5\b/, 1500]];
+  for (const [re, q] of ordinali) if (re.test(n)) return q;
+  if (/sottotett|mansard|soffitt|attico/.test(n)) return Math.max(1, quanti - 1) * 300;
+  return ordine * 300;
+}
+
+export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaGenerata {
+  const piani = [...new Set(r.locali.filter((l) => l.contorno.length >= 3).map((l) => l.piano ?? ""))];
+  if (piani.length <= 1) return costruisciPlanimetria(r, opz);
+
+  // Sul foglio la scala è una sola; in metri (schizzo, descrizione) non serve.
+  const W = opz.larghezzaImmagine && opz.larghezzaImmagine > 0 ? opz.larghezzaImmagine : 1000;
+  const H = opz.altezzaImmagine && opz.altezzaImmagine > 0 ? opz.altezzaImmagine : 1000;
+  const scalaForzata = r.sistema === "immagine" ? stimaScala(r, (c) => ({ x: (c[0] / 1000) * W, y: (c[1] / 1000) * H })) : null;
+
+  // il riquadro di ogni piano, per assegnare ciò che non dice a quale piano sta
+  const riquadri = piani.map((pn) => {
+    const pts = r.locali.filter((l) => (l.piano ?? "") === pn).flatMap((l) => l.contorno);
+    return { x0: Math.min(...pts.map((p) => p[0])), y0: Math.min(...pts.map((p) => p[1])), x1: Math.max(...pts.map((p) => p[0])), y1: Math.max(...pts.map((p) => p[1])) };
+  });
+  const pianoDi = (dichiarato: string | null | undefined, pts: Coppia[]): string => {
+    if (dichiarato && piani.includes(dichiarato)) return dichiarato;
+    const [cx, cy] = centroDi(pts);
+    const dist = riquadri.map((q) => Math.max(q.x0 - cx, 0, cx - q.x1) + Math.max(q.y0 - cy, 0, cy - q.y1));
+    return piani[dist.indexOf(Math.min(...dist))];
+  };
+
+  const pianoTerra = piani.find((pn, i) => quotaDalNome(pn, i, piani.length) === 0) ?? piani[0];
+  const generate = piani.map((pn) => costruisciPlanimetria({
+    ...r,
+    locali: r.locali.filter((l) => (l.piano ?? "") === pn),
+    aperture: r.aperture.filter((a) => pianoDi(a.piano, [a.da, a.a]) === pn),
+    elementi: (r.elementi ?? []).filter((e) => pianoDi(e.piano, [[e.riquadro[0], e.riquadro[1]], [e.riquadro[2], e.riquadro[3]]]) === pn),
+    // il giardino e il lotto stanno al piano terra (o al primo piano del foglio)
+    aree: pn === pianoTerra ? r.aree : [],
+  }, { ...opz, scalaForzata }));
+
+  // id unici fra i piani: «m1» del secondo piano diventa «p2-m1»
+  const livelli = generate.map((g, i) => {
+    const l = g.planimetria.livelli[0];
+    const pre = i === 0 ? "" : `p${i + 1}-`;
+    return {
+      ...l,
+      id: i === 0 ? "pt" : `p${i + 1}`,
+      nome: piani[i] || `Piano ${i + 1}`,
+      quota: quotaDalNome(piani[i] ?? "", i, piani.length),
+      fatto: {
+        ...l.fatto,
+        muri: l.fatto.muri.map((m) => ({ ...m, id: pre + m.id })),
+        aperture: l.fatto.aperture.map((a) => ({ ...a, id: pre + a.id, muroId: pre + a.muroId })),
+        locali: l.fatto.locali.map((x) => ({ ...x, id: pre + x.id })),
+        elementi: l.fatto.elementi.map((x) => ({ ...x, id: pre + x.id })),
+        ...(l.fatto.aree ? { aree: l.fatto.aree.map((x) => ({ ...x, id: pre + x.id })) } : {}),
+      },
+    };
+  });
+  const superfici: Record<string, number> = {};
+  generate.forEach((g, i) => {
+    for (const [k, v] of Object.entries(g.generazione.superfici_scritte)) superfici[(i === 0 ? "" : `p${i + 1}-`) + k] = v;
+  });
+  const avvisi = [...new Set(generate.flatMap((g) => g.generazione.avvisi))];
+  avvisi.push(`Sul foglio c'erano ${piani.length} piani: li trovi come piani separati (${piani.map((p, i) => p || `Piano ${i + 1}`).join(", ")}). Controlla la quota di ognuno.`);
+  return {
+    planimetria: { ...generate[0].planimetria, livelli: [...livelli].sort((a, b) => a.quota - b.quota) },
+    generazione: { ...generate[0].generazione, avvisi, superfici_scritte: superfici },
+  };
 }
 
 // ── Conferma della scala da parte dell'utente ────────────────────────────────
@@ -492,6 +624,7 @@ function ridimensiona(g: PiantaGenerata, f: number): PiantaGenerata {
           quote: l.fatto.quote.map((q) => ({ ...q, p1: s(q.p1), p2: s(q.p2) })),
           testi: l.fatto.testi.map((t) => ({ ...t, posizione: s(t.posizione) })),
           elementi: l.fatto.elementi.map((e) => ({ ...e, posizione: s(e.posizione) })),
+          ...(l.fatto.aree ? { aree: l.fatto.aree.map((a) => ({ ...a, contorno: a.contorno.map(s) })) } : {}),
         },
       })),
     },

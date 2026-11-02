@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffectiveCompanyId } from '@/hooks/useEffectiveCompanyId';
+import { FiscalReleaseDialog } from '@/components/fatturazione/FiscalReleaseDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/formatters';
 import { useRitenuteGaranzia } from '@/hooks/useRitenuteGaranzia';
@@ -40,11 +42,13 @@ function RitenuteAttiveLine({ orderId }: { orderId: string }) {
   if (attive.length === 0) return null;
 
   const oggi = new Date().toISOString().slice(0, 10);
+  // Annullate e perse non sono soldi trattenuti.
+  const chiuse = ['svincolata', 'annullata', 'persa'];
   const trattenuto = attive
-    .filter((r) => r.stato !== 'svincolata')
+    .filter((r) => !chiuse.includes(r.stato))
     .reduce((s, r) => s + (Number(r.importo) || 0), 0);
   const daSvincolare = attive
-    .filter((r) => r.stato !== 'svincolata' && r.data_svincolo_prevista && r.data_svincolo_prevista <= oggi)
+    .filter((r) => !chiuse.includes(r.stato) && r.data_svincolo_prevista && r.data_svincolo_prevista <= oggi)
     .reduce((s, r) => s + (Number(r.importo) || 0), 0);
   const svincolato = attive
     .filter((r) => r.stato === 'svincolata')
@@ -88,7 +92,6 @@ export function RitenuteTab({ orderId }: Props) {
     contratti,
     isLoading,
     noContratti,
-    svincola,
     isSvincolando,
     aggiungi,
     isAggiungendo,
@@ -96,13 +99,13 @@ export function RitenuteTab({ orderId }: Props) {
     totaleSvincolato,
   } = useRitenuteGaranzia(orderId);
 
-  async function handleSvincola(id: string) {
-    const oggi = new Date().toISOString().split('T')[0];
-    try {
-      await svincola({ id, data_svincolo_effettiva: oggi });
-    } catch {
-      // error toast is handled by the hook
-    }
+  // Lo svincolo passa dal registro fiscale, con data e riferimento (come nella scheda subappaltatore):
+  // l'aggiornamento diretto senza motivo veniva sempre rifiutato dal database.
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  const [daSvincolare, setDaSvincolare] = useState<string | null>(null);
+  function handleSvincola(id: string) {
+    setDaSvincolare(id);
   }
 
   async function handleAggiungi(data: Parameters<typeof aggiungi>[0]) {
@@ -188,6 +191,19 @@ export function RitenuteTab({ orderId }: Props) {
         onSvincola={handleSvincola}
         isSvincolando={isSvincolando}
       />
+
+      {daSvincolare && companyId && (
+        <FiscalReleaseDialog
+          key={daSvincolare}
+          companyId={companyId}
+          id={daSvincolare}
+          onClose={() => setDaSvincolare(null)}
+          onReleased={async () => {
+            setDaSvincolare(null);
+            await qc.invalidateQueries({ queryKey: ['ritenute-garanzia'] });
+          }}
+        />
+      )}
 
       {/* Modal */}
       <RitenutaFormModal

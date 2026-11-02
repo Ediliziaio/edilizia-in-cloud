@@ -8,6 +8,7 @@ import { FileText, ImagePlus, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PiantaUnita } from "@/components/orders/generali/vendita/PiantaUnita";
 import { openAttachmentInTab } from "@/components/orders/filePreviewUtils";
 import { messaggioDocumenti, useCaricaDocumentoVoce } from "@/hooks/useGeneraleDocumenti";
 import { useAnteprimaAllegato, useFileVenditaUnita, type AllegatoVendita } from "@/hooks/useGeneraleVendita";
@@ -59,8 +60,10 @@ export function MaterialeUnita({ generaleId, modello, orderId, sigla, puoCaricar
   };
 
   const vuoto = !planimetria && foto.length === 0;
+  const pianta = <PiantaUnita orderId={orderId} sigla={sigla} generaleId={generaleId} puoCreare={puoCaricare} />;
   return (
     <section aria-label="Planimetria e foto" className="space-y-2">
+      {pianta}
       {!vuoto && (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {planimetria && (

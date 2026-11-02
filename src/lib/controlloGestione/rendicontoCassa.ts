@@ -15,9 +15,14 @@
 import {
   daysBetween,
   projectForecast,
+  rateMutui,
   toCents,
   type ForecastMovement,
+  type MutuoCG,
 } from "@/lib/finance/forecastLedger";
+
+// Il piano dei mutui sta nel Previsionale dal 01/11/2026: qui si riusa.
+export { rateMutui, type MutuoCG };
 import { vociManualiComeMovimenti, type VoceManualeCashFlow } from "@/lib/controlloGestione/cashFlowMensile";
 import {
   classificaManuale,
@@ -48,17 +53,6 @@ export interface MovimentoRegistrato {
   orderId?: string | null;
 }
 
-export interface MutuoCG {
-  id: string;
-  banca?: string | null;
-  descrizione?: string | null;
-  capitale_residuo: number | string | null;
-  tasso_pct: number | string | null;
-  rata_mensile: number | string | null;
-  data_inizio?: string | null;
-  data_fine?: string | null;
-  is_active?: boolean | null;
-}
 
 export type VoceManualeRendiconto = VoceManualeCashFlow & { categoria?: string | null };
 
@@ -140,46 +134,6 @@ const sommaEsclusi = (rows: ForecastMovement[]) => ({
   numero: rows.length,
   cents: rows.reduce((s, m) => s + (m.direction === "in" ? m.cents : -m.cents), 0),
 });
-
-/** Le rate future dei mutui (piano alla francese dal capitale residuo di oggi), divise in capitale e interessi. */
-export function rateMutui(mutui: MutuoCG[], today: string, fino: string): ForecastMovement[] {
-  const out: ForecastMovement[] = [];
-  for (const l of mutui) {
-    if (l.is_active === false) continue;
-    let residuo = toCents(l.capitale_residuo);
-    const rata = toCents(l.rata_mensile);
-    const tasso = Number(l.tasso_pct) || 0;
-    if (residuo <= 0 || rata <= 0) continue;
-    const giorno = Math.min(28, Number((l.data_inizio ?? "").slice(8, 10)) || 1);
-    const nome = [l.descrizione || "Mutuo", l.banca].filter(Boolean).join(" · ");
-    let [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
-    while (residuo > 0) {
-      const data = `${y}-${pad(m)}-${pad(giorno)}`;
-      if (data > fino || (l.data_fine && data > l.data_fine)) break;
-      if (data >= today) {
-        const interessi = Math.round((residuo * tasso) / 100 / 12);
-        const capitale = Math.min(residuo, Math.max(0, rata - interessi));
-        residuo -= capitale;
-        const base = {
-          counterparty: l.banca ?? "",
-          category: "altri" as const,
-          direction: "out" as const,
-          date: data,
-          source: "Mutuo (Controllo di gestione)",
-          href: "/azienda/controllo-gestione/pfn-debiti",
-          estimated: false,
-        };
-        if (capitale > 0)
-          out.push({ ...base, id: `mutuo:${l.id}:${data}:capitale`, description: `${nome} · quota capitale`, cents: capitale, sourceCategory: "mutuo" });
-        if (interessi > 0)
-          out.push({ ...base, id: `mutuo:${l.id}:${data}:interessi`, description: `${nome} · interessi`, cents: interessi, sourceCategory: "interessi" });
-      }
-      m += 1;
-      if (m > 12) { m = 1; y += 1; }
-    }
-  }
-  return out;
-}
 
 export function costruisciRendiconto(input: {
   anno: number;
@@ -287,7 +241,7 @@ export function costruisciRendiconto(input: {
   const previstiBase = anno >= annoOggi ? input.previsti ?? [] : [];
   const mutuiGiaPrevisti =
     (input.mutui ?? []).length > 0 &&
-    previstiBase.some((m) => m.direction === "out" && /mutu|finanziament/i.test(`${m.description} ${m.sourceCategory ?? ""}`));
+    previstiBase.some((m) => m.direction === "out" && (m.id.startsWith("mutuo:") || /mutu|finanziament/i.test(`${m.description} ${m.sourceCategory ?? ""}`)));
   const extra: ForecastMovement[] = [];
   const manualiPerId = new Map<string, VoceCassa>();
   if (anno >= annoOggi) {

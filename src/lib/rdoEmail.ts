@@ -63,7 +63,8 @@ export function buildRdoEmailBody(d: RdoEmailDati): string {
 </tr>`,
         )
         .join("")
-    : `<tr><td colspan="3" style="padding:10px 8px;color:#888;font-style:italic;">Elenco in allegato.</td></tr>`;
+    // Senza righe non c'è nessun allegato: prima diceva «Elenco in allegato» (31/10/2026).
+    : `<tr><td colspan="3" style="padding:10px 8px;color:#888;font-style:italic;">Fornitura descritta sopra: indicate voi quantità e prezzi.</td></tr>`;
 
   const condizioni = [
     fabbisogno ? `<li>Ci serve in cantiere entro il <strong>${esc(fabbisogno)}</strong></li>` : "",
@@ -80,7 +81,7 @@ ${d.descrizione ? `<p style="font-size:13px;">${esc(d.descrizione)}</p>` : ""}
   <thead><tr style="background:#eef2f7;">
     <th style="padding:6px 8px;text-align:left;">Descrizione</th>
     <th style="padding:6px 8px;text-align:right;">Q.tà</th>
-    <th style="padding:6px 8px;text-align:right;">Vostro prezzo</th>
+    <th style="padding:6px 8px;text-align:right;">Vostro prezzo unitario<br><span style="font-weight:normal;font-size:11px;">IVA esclusa, da compilare</span></th>
   </tr></thead>
   <tbody>${righe}</tbody>
 </table>

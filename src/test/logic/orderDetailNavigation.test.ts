@@ -29,7 +29,7 @@ describe("Navigazione unica della commessa", () => {
     expect(resolveOrderDetailDestination(next.search, next.hash)).toEqual({ tab: "finanza" });
   });
   it.each([
-    ["section-pagamenti", "pagamenti"], ["section-ritenute", "pagamenti"], ["esposizione-commessa", "pagamenti"],
+    ["section-pagamenti", "pagamenti"], ["section-ritenute", "pagamenti"], ["esposizione-commessa", "margini"],
     ["section-sal", "sal"], ["section-varianti", "varianti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"], ["section-manodopera-costi", "manodopera"],
   ])("l'ancora economica %s monta la vista corretta", (section, view) => {
     expect(resolveEconomiaView("?vista_economia=altra", section)).toBe(view);

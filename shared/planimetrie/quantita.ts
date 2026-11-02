@@ -29,6 +29,7 @@
  */
 import {
   ambitiDi,
+  NOMI_AREA,
   originePeggiore,
   origineMisura,
   statoDelLivello,
@@ -39,8 +40,12 @@ import {
   type Origine,
   type Planimetria,
   type StatoPianta,
+  type TipoArea,
 } from "./modello.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
+import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
+import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
+import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
 
@@ -134,13 +139,44 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
 
   const totaliPianta = new Map<string, Accumulo>();
   const totaliDestinazione = new Map<string, Map<string, Accumulo>>();
+  // Per appartamento (condomini, bifamiliari): «unita:<sigla>.pavimento_mq».
+  const totaliUnita = new Map<string, { nome: string; mappa: Map<string, Accumulo> }>();
   const demolizioni = new Map<string, Accumulo>();
   const costruzioni = new Map<string, Accumulo>();
   const aperture = new Map<string, { acc: Accumulo; descrizione: string }>();
+  // Arredi, sanitari e punti impianto per tipo (1/11/2026): «elementi:<stato>:<tipo>.numero».
+  const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
+  // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
+  const linee = new Map<LineaImpianto, number>();
+  // Lotto e aree esterne: «esterni:<tipo>.superficie_mq», recinzione del lotto in metri.
+  const esterni = new Map<string, Accumulo>();
+  let recinzioneCm = 0;
+  // Tetti: superficie delle falde e fotovoltaico (shared/planimetrie/tetto.ts)
+  let coperturaMq = 0, pannelliFv = 0, kWp = 0;
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
     if (!stato) continue;
+    // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
+    if (livello.tetto) {
+      const muri = stato.muri.filter((m) => m.stato !== "da_demolire");
+      // la geometria del tetto lavora con y in giù (sud in basso, come sul foglio)
+      const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), livello.tetto.sporto);
+      if (r) {
+        const facce = facceTetto(r, Math.max(...muri.map((m) => m.altezza)), livello.tetto);
+        coperturaMq += superficieFalde(facce);
+        if (livello.tetto.fotovoltaico) {
+          const fv = fotovoltaicoSulTetto(facce, livello.tetto.fotovoltaico);
+          pannelliFv += fv.numero;
+          kWp += fv.kWp;
+        }
+      }
+    }
+    for (const a of stato.aree ?? livello.fatto.aree ?? []) {
+      if (a.stato === "da_demolire" || a.contorno.length < 3) continue;
+      somma(esterni, a.tipo, { valore: areaPoligono(a.contorno) / 10_000, origini: ["rilevata"] });
+      if (a.tipo === "lotto" && a.recinzione !== false) recinzioneCm += perimetroPoligono(a.contorno);
+    }
 
     // ─── Locali ───
     for (const l of stato.locali) {
@@ -153,6 +189,12 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         const perDest = totaliDestinazione.get(l.destinazione) ?? new Map<string, Accumulo>();
         somma(perDest, misura, acc);
         totaliDestinazione.set(l.destinazione, perDest);
+        if (l.unita?.trim()) {
+          const sigla = siglaUnita(l.unita);
+          const perUnita = totaliUnita.get(sigla) ?? { nome: l.unita.trim(), mappa: new Map<string, Accumulo>() };
+          somma(perUnita.mappa, misura, acc);
+          totaliUnita.set(sigla, perUnita);
+        }
       }
     }
 
@@ -183,17 +225,94 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         aperture.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, ...origini] }, descrizione });
       }
     }
+
+    // ─── Linee degli impianti (stimate) ───
+    for (const p of percorsiImpianti(stato).percorsi) linee.set(p.linea, (linee.get(p.linea) ?? 0) + p.lunghezzaCm);
+
+    // ─── Arredi, sanitari, punti impianto ───
+    for (const e of stato.elementi) {
+      // i punti quotati del terreno sono misure, non cose da comprare o posare
+      if (!/^[a-z0-9_]+$/.test(e.tipo) || e.tipo === "quota_terreno") continue;
+      const st = e.stato ?? "esistente";
+      const soggetto = `elementi:${st}:${e.tipo}`;
+      const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
+      const nome = NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
+      const prec = elementi.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+      elementi.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, e.origine] }, descrizione: `${nome} ${nomeStato}` });
+    }
   }
+
+  // Impianti: «impianti:<impianto>.<misura>», stimati, con lo sfrido.
+  const stimata = (cm: number, per = 1): Accumulo => ({ valore: metriConSfrido(cm) * per, origini: ["stimata"] });
+  const lin = (l: LineaImpianto) => linee.get(l) ?? 0;
+  if (lin("elettrica")) {
+    metti("impianti:elettrico", "corrugato_ml", stimata(lin("elettrica")), "Corrugato impianto elettrico (stima dal quadro ai punti)");
+    metti("impianti:elettrico", "cavo_ml", stimata(lin("elettrica"), 3), "Cavo unipolare (fase, neutro, terra; stima)");
+  }
+  if (lin("acqua")) metti("impianti:acqua", "tubo_ml", stimata(lin("acqua"), 2), "Tubo acqua fredda e calda (stima dal collettore)");
+  if (lin("scarico")) metti("impianti:scarico", "tubo_ml", stimata(lin("scarico")), "Tubo di scarico (stima fino alla colonna)");
+  if (lin("frigorifera")) metti("impianti:clima", "rame_ml", stimata(lin("frigorifera"), 2), "Linea frigorifera in rame, due tubi (stima)");
+  if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
+  if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
+
+  for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
+  // Terreno in pendenza o rilievo: scavi e riporti sotto il piano più basso
+  const punti = puntiTerreno(p);
+  if (punti.length) {
+    const basso = [...p.livelli].sort((a, b) => a.quota - b.quota)[0];
+    const stato = basso ? statoDelLivello(basso, ambito) ?? basso.fatto : null;
+    if (basso && stato?.locali.length) {
+      const sr = scaviERiporti(punti, stato.locali.map((l) => l.contorno), basso.quota);
+      if (sr.scavoMc > 0.05) metti("terreno:scavo", "volume_mc", { valore: sr.scavoMc, origini: ["stimata"] }, `Scavo sotto «${basso.nome}» fino al pavimento (stima dal terreno)`);
+      if (sr.riportoMc > 0.05) metti("terreno:riporto", "volume_mc", { valore: sr.riportoMc, origini: ["stimata"] }, `Riporto sotto «${basso.nome}» fino al pavimento (stima dal terreno)`);
+    }
+  }
+  if (coperturaMq > 0) metti("tetto:copertura", "superficie_mq", { valore: coperturaMq, origini: ["stimata"] }, "Copertura: superficie delle falde (o del tetto piano)");
+  if (pannelliFv > 0) {
+    metti("impianti:fotovoltaico", "pannelli", { valore: pannelliFv, origini: ["stimata"] }, "Fotovoltaico: pannelli sul tetto");
+    metti("impianti:fotovoltaico", "kwp", { valore: kWp, origini: ["stimata"] }, "Fotovoltaico: potenza di picco (kWp)");
+  }
+  if (recinzioneCm > 0) metti("esterni:lotto", "recinzione_ml", { valore: recinzioneCm / 100, origini: ["rilevata"] }, "Recinzione lungo il confine del lotto");
 
   for (const [misura, acc] of totaliPianta) metti("pianta", misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — tutti i locali`);
   for (const [dest, mappa] of totaliDestinazione) {
     for (const [misura, acc] of mappa) metti(`destinazione:${dest}`, misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — locali «${dest}»`);
   }
+  for (const [sigla, { nome, mappa }] of totaliUnita) {
+    for (const [misura, acc] of mappa) metti(`unita:${sigla}`, misura, acc, `${ETICHETTE_MISURE_LOCALE[misura as MisuraLocale]} — ${nome}`);
+  }
   const nomiMuri: Record<string, string> = { muri_ml: "lunghezza", muri_mq: "superficie", muri_mc: "volume" };
   for (const [misura, acc] of demolizioni) metti("demolizioni", misura, acc, `Pareti da demolire (${nomiMuri[misura]})`);
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
+  for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
 }
+
+/** La sigla di un appartamento dentro una chiave: «Int. 3» → «int_3». */
+export const siglaUnita = (unita: string) =>
+  unita.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "unita";
+
+/** Nomi al plurale per le righe del computo («Prese nuove», «WC esistenti»). */
+const NOMI_ELEMENTI: Record<string, string> = {
+  wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
+  cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
+  letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", ascensore: "Ascensori",
+  divano_angolare: "Divani angolari", poltrona: "Poltrone", mobile_tv: "Mobili TV", libreria: "Librerie", tavolo_rotondo: "Tavoli rotondi",
+  cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
+  piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",
+  ombrellone: "Ombrelloni", lettino: "Lettini", tavolo_esterno: "Tavoli da esterno", barbecue: "Barbecue",
+  cancello_pedonale: "Cancelli pedonali", cancello_carrabile: "Cancelli carrabili", lampione: "Lampioni da giardino", faretto_giardino: "Faretti e segnapasso",
+  irrigatore: "Irrigatori", pozzetto: "Pozzetti",
+  campo_tennis: "Campi da tennis", campo_padel: "Campi da padel", campo_calcio5: "Campi da calcio a 5", campo_calcio7: "Campi da calcio a 7",
+  campo_calcio11: "Campi da calcio a 11", campo_basket: "Campi da basket", campo_pallavolo: "Campi da pallavolo", campo_beach_volley: "Campi da beach volley",
+  campo_pickleball: "Campi da pickleball", campo_bocce: "Campi da bocce",
+  pompa_calore: "Pompe di calore", bollitore: "Bollitori", inverter: "Inverter fotovoltaici", batteria_accumulo: "Batterie di accumulo",
+  wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC", lucernario: "Lucernari",
+  collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",
+  presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
+  scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",
+};
 
 /** Parte del vano che cade fra quota 0 e `fino` (cm), in cm². */
 function vuotoFino(a: Apertura, fino: number): number {

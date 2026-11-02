@@ -179,3 +179,18 @@ describe("generate-room-render con la pianta", () => {
     expect(src).toMatch(/correzionePianta\(pianta\.vincoli\)/);
   });
 });
+
+describe("finiture della pianta nel prompt del render", () => {
+  it("pavimento, pareti e rivestimento del bagno arrivano nel blocco della pianta, puliti", () => {
+    const doc: Planimetria = JSON.parse(JSON.stringify(bilocale));
+    const bagno = doc.livelli[0].fatto.locali.find((l) => l.id === "l3")!;
+    bagno.finiture = { pavimento: 'gres effetto legno\n"rovere"', pareti: "bianco", rivestimento: { materiale: "mosaico verde", altezza: 220 } };
+    const v = vincoliDellaStanza(doc, { livello_id: "pt", ambito: "fatto", locale_id: "l3" })!;
+    const testo = bloccoPianta(v, { partenza: "vista_3d", inquadrate: [] });
+    expect(testo).toContain('floor: "gres effetto legno rovere"');
+    expect(testo).toContain('wall tiles "mosaico verde" up to 2.20 m');
+    delete bagno.finiture;
+    const senza = vincoliDellaStanza(doc, { livello_id: "pt", ambito: "fatto", locale_id: "l3" })!;
+    expect(bloccoPianta(senza, { partenza: "vista_3d", inquadrate: [] })).not.toContain("Finishes");
+  });
+});

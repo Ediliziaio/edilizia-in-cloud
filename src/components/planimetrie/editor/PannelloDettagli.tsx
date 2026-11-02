@@ -3,17 +3,25 @@
  * selezionato. Le misure si scrivono qui come sulla pianta.
  */
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { AlertTriangle, Armchair, Check, Copy, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DESTINAZIONI, type Apertura, type DatiVista, type Destinazione, type LocaleVista, type Muro, type Pianta, type TipoApertura } from "./adattatore";
-import { contaStimate, modificabile, visibile, type Vista } from "./comandi";
+import { DESTINAZIONI, type Apertura, type AreaLavoro, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
+import { CATALOGO, nomeDelTipo } from "./catalogo";
+import { destinazioneArredabile, dotazioneCei } from "./arreda";
+import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
+import { dist } from "./geometria";
+import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
+import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
+import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
+import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
 
 export interface AzioniPannello {
   nomeStanza: (id: string, nome: string) => void;
@@ -27,6 +35,26 @@ export interface AzioniPannello {
   conferma: (sel: Selezione) => void;
   confermaTutte: () => void;
   seleziona: (sel: Selezione | null) => void;
+  modificaElemento: (id: string, campi: Partial<Pick<ElementoLavoro, "rotazione" | "larghezza" | "profondita" | "altezza" | "etichetta" | "tipo">>) => void;
+  ruotaElemento: (id: string, gradi: number) => void;
+  duplicaElemento: (id: string) => void;
+  modificaQuota: (id: string, campi: Partial<Pick<QuotaLavoro, "scostamento">>) => void;
+  modificaTesto: (id: string, campi: Partial<Pick<TestoLavoro, "testo" | "rotazione">>) => void;
+  /** Arredi tipici della destinazione, appoggiati alle pareti. */
+  arreda: (localeId: string, destinazione: Destinazione) => void;
+  /** Appartamento della stanza (condomini, bifamiliari); vuoto per toglierlo. */
+  unitaStanza: (localeId: string, unita: string) => void;
+  /** Pilastri a maglia regolare dentro la stanza (capannoni). */
+  magliaPilastri: (localeId: string, passoCm: number) => void;
+  /** Prese, punti luce e interruttori minimi (CEI 64-8 livello 1). */
+  impiantoElettrico: (localeId: string, destinazione: Destinazione) => void;
+  /** Split con la taglia consigliata. */
+  clima: (localeId: string, destinazione: Destinazione) => void;
+  /** Termosifoni sotto le finestre. */
+  riscaldamento: (localeId: string) => void;
+  /** Curva la parete con la freccia data (cm). */
+  curvaParete: (id: string, frecciaCm: number) => void;
+  modificaArea: (id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione" | "quota">>) => void;
 }
 
 interface Props {
@@ -41,9 +69,11 @@ interface Props {
   essenziale?: boolean;
   /** Mette il cursore nel nome appena nasce una stanza. */
   focusNome?: boolean;
+  /** Mansarda: altezze sotto le falde, per stanza. */
+  sottotetto?: ReadonlyMap<string, AltezzeSottotetto>;
 }
 
-export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezione, azioni, essenziale, focusNome }: Props) {
+export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, vista, selezione, azioni, essenziale, focusNome }: Props) {
   if (selezione?.tipo === "locale") {
     const l = dati.locali.find((x) => x.id === selezione.id);
     if (l) {
@@ -57,6 +87,7 @@ export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezi
           azioni={azioni}
           essenziale={essenziale}
           focusNome={focusNome}
+          sottotetto={sottotetto?.get(l.id)}
         />
       );
     }
@@ -69,7 +100,172 @@ export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezi
     const a = pianta.aperture.find((x) => x.id === selezione.id);
     if (a) return <DettaglioApertura vista={vista} apertura={a} azioni={azioni} essenziale={essenziale} />;
   }
+  if (selezione?.tipo === "elemento") {
+    const e = (pianta.elementi ?? []).find((x) => x.id === selezione.id);
+    if (e) return <DettaglioElemento key={e.id} vista={vista} elemento={e} azioni={azioni} essenziale={essenziale} />;
+  }
+  if (selezione?.tipo === "quota") {
+    const q = (pianta.quote ?? []).find((x) => x.id === selezione.id);
+    if (q) return <DettaglioQuota quota={q} azioni={azioni} />;
+  }
+  if (selezione?.tipo === "testo") {
+    const t = (pianta.testi ?? []).find((x) => x.id === selezione.id);
+    if (t) return <DettaglioTesto key={t.id} testo={t} azioni={azioni} />;
+  }
+  if (selezione?.tipo === "area") {
+    const a = (pianta.aree ?? []).find((x) => x.id === selezione.id);
+    if (a) return <DettaglioArea key={a.id} vista={vista} area={a} azioni={azioni} />;
+  }
   return <ElencoStanze pianta={pianta} dati={dati} vista={vista} azioni={azioni} />;
+}
+
+function DettaglioArea({ vista, area: a, azioni }: { vista: Vista; area: AreaLavoro; azioni: AzioniPannello }) {
+  const mq = areaPoligono(a.contorno) / 10_000;
+  const perimetro = a.contorno.reduce((t, p, i) => t + dist(p, a.contorno[(i + 1) % a.contorno.length]), 0) / 100;
+  const libera = modificabile(a.stato, vista);
+  const [nome, setNome] = useState(a.nome ?? "");
+  return (
+    <div className="space-y-3 p-3">
+      <p className="text-sm font-semibold">{a.nome || NOMI_AREA[a.tipo]}</p>
+      <div className="space-y-1">
+        <Label className="text-xs">Tipo</Label>
+        <Select value={a.tipo} onValueChange={(v) => azioni.modificaArea(a.id, { tipo: v as TipoArea })} disabled={!libera}>
+          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>{TIPI_AREA.map((t) => <SelectItem key={t} value={t}>{NOMI_AREA[t]}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs" htmlFor="nome-area">Nome</Label>
+        <Input id="nome-area" value={nome} placeholder={NOMI_AREA[a.tipo]} onChange={(e) => setNome(e.target.value)} onBlur={() => nome !== (a.nome ?? "") && azioni.modificaArea(a.id, { nome: nome.trim() || undefined })} />
+      </div>
+      {a.tipo !== "lotto" && (
+        <div className="space-y-1">
+          <Label className="text-xs" htmlFor="quota-area">Quota rispetto al piano terra (m)</Label>
+          <Input id="quota-area" key={`q-${a.quota ?? 0}`} defaultValue={String((a.quota ?? 0) / 100).replace(".", ",")} inputMode="decimal"
+            onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && Math.round(v * 100) !== (a.quota ?? 0)) azioni.modificaArea(a.id, { quota: Math.round(v * 100) || undefined }); }} />
+          <p className="text-[11px] text-muted-foreground">Per terrazzamenti, rialzi e bordi piscina (−0,50 = mezzo metro sotto).</p>
+        </div>
+      )}
+      <p className="text-sm">{scriviMq(mq)}{a.tipo === "lotto" ? ` · perimetro ${perimetro.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m` : ""}</p>
+      {a.tipo === "lotto" && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={a.recinzione !== false} onChange={(e) => azioni.modificaArea(a.id, { recinzione: e.target.checked })} />
+          Recintato (conta i metri di recinzione, si vede nel 3D)
+        </label>
+      )}
+      <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => azioni.elimina({ tipo: "area", id: a.id })}>
+        <Trash2 /> {vista === "progetto" && a.stato !== "nuovo" ? (a.stato === "da_demolire" ? "Rimetti" : "Togli nel progetto") : "Elimina"}
+      </Button>
+    </div>
+  );
+}
+
+function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: Vista; elemento: ElementoLavoro; azioni: AzioniPannello; essenziale?: boolean }) {
+  const ok = modificabile(e.stato, vista);
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-muted-foreground">Arredo</p>
+        <p className="font-semibold">{e.etichetta || nomeDelTipo(e.tipo)}</p>
+        {vista === "progetto" && e.stato === "nuovo" && <p className="text-xs text-red-700">Nuovo, nel progetto</p>}
+        {vista === "progetto" && e.stato === "da_demolire" && <p className="text-xs text-amber-700">Da togliere</p>}
+        {!ok && e.stato === "esistente" && <p className="text-xs text-muted-foreground">Nel progetto gli arredi di oggi non si spostano: toglilo e mettine uno nuovo.</p>}
+      </div>
+      <div className="space-y-1">
+        <Label>Cos'è</Label>
+        <Select value={CATALOGO.some((v) => v.tipo === e.tipo) ? e.tipo : "altro"} disabled={!ok} onValueChange={(t) => {
+          const v = CATALOGO.find((x) => x.tipo === t);
+          if (v) azioni.modificaElemento(e.id, { tipo: v.tipo, larghezza: v.larghezza, profondita: v.profondita, altezza: v.altezza });
+        }}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CATALOGO.map((v) => <SelectItem key={v.tipo} value={v.tipo}>{v.nome}</SelectItem>)}
+            {!CATALOGO.some((v) => v.tipo === e.tipo) && <SelectItem value="altro">{nomeDelTipo(e.tipo)}</SelectItem>}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <CampoMisura etichetta="Larghezza (cm)" valore={e.larghezza} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { larghezza: cm })} />
+        <CampoMisura etichetta="Profondità (cm)" valore={e.profondita} centimetri disabled={!ok} onConferma={(cm) => azioni.modificaElemento(e.id, { profondita: cm })} />
+      </div>
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground">Rotazione: {e.rotazione}°</span>
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -90)} aria-label="Ruota a sinistra di 90°"><RotateCcw /> 90°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 90)} aria-label="Ruota a destra di 90°"><RotateCw /> 90°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, -15)} aria-label="Ruota a sinistra di 15°">−15°</Button>
+          <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 15)} aria-label="Ruota a destra di 15°">+15°</Button>
+        </div>
+      </div>
+      {e.tipo === TIPO_PUNTO_QUOTA && (
+        <div className="space-y-1">
+          <Label htmlFor={`quota-${e.id}`}>Quota del terreno (m)</Label>
+          <Input id={`quota-${e.id}`} key={`${e.id}-${e.etichetta ?? ""}`} defaultValue={leggiQuota(e.etichetta) !== null ? String(leggiQuota(e.etichetta)! / 100).replace(".", ",") : ""} placeholder="es. 1,20 oppure -0,50" inputMode="decimal" disabled={!ok}
+            onBlur={(ev) => { const q = leggiQuota(ev.target.value); const nuova = q === null ? undefined : scriviQuota(q); if (nuova !== e.etichetta) azioni.modificaElemento(e.id, { etichetta: nuova }); }}
+            onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); }} />
+          <p className="text-[11px] text-muted-foreground">Rispetto al pavimento del piano terra (0). Con almeno due punti il terreno nel 3D è in pendenza e la pianta ha le curve di livello ogni 50 cm.</p>
+        </div>
+      )}
+      {!essenziale && e.tipo !== TIPO_PUNTO_QUOTA && (
+        <div className="space-y-1">
+          <Label htmlFor={`etichetta-${e.id}`}>Nome sulla pianta (facoltativo)</Label>
+          <Input id={`etichetta-${e.id}`} defaultValue={e.etichetta ?? ""} placeholder={nomeDelTipo(e.tipo)} disabled={!ok}
+            onBlur={(ev) => { const v = ev.target.value.trim(); if (v !== (e.etichetta ?? "")) azioni.modificaElemento(e.id, { etichetta: v || undefined }); }}
+            onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); }} />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button size="sm" variant="outline" onClick={() => azioni.duplicaElemento(e.id)}><Copy /> Duplica</Button>
+        {!essenziale && (
+          vista === "progetto" && e.stato === "da_demolire"
+            ? <Button size="sm" variant="outline" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}><Undo2 /> Rimetti</Button>
+            : <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}>
+                <Trash2 /> {vista === "progetto" && e.stato === "esistente" ? "Togli nel progetto" : "Elimina"}
+              </Button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">Trascinalo per spostarlo · R ruota di 90° · Ctrl+D duplica · Canc elimina</p>
+    </div>
+  );
+}
+
+function DettaglioQuota({ quota: q, azioni }: { quota: QuotaLavoro; azioni: AzioniPannello }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-muted-foreground">Quota</p>
+        <p className="text-lg font-semibold tabular-nums">{scriviMetri(dist(q.p1, q.p2))} m</p>
+        <p className="text-xs text-muted-foreground">Misura da sola la distanza fra i due punti.</p>
+      </div>
+      <CampoMisura etichetta="Distanza dalla linea (cm)" valore={Math.abs(q.scostamento)} centimetri
+        onConferma={(cm) => azioni.modificaQuota(q.id, { scostamento: q.scostamento < 0 ? -cm : cm })} />
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaQuota(q.id, { scostamento: -q.scostamento })}>Dall'altra parte</Button>
+        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "quota", id: q.id })}><Trash2 /> Elimina</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Trascina la quota per allontanarla o avvicinarla.</p>
+    </div>
+  );
+}
+
+function DettaglioTesto({ testo: t, azioni }: { testo: TestoLavoro; azioni: AzioniPannello }) {
+  const [valore, setValore] = useState(t.testo);
+  const salva = () => { const v = valore.trim(); if (v && v !== t.testo) azioni.modificaTesto(t.id, { testo: v }); };
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label htmlFor={`testo-${t.id}`}>Testo</Label>
+        <Input id={`testo-${t.id}`} autoFocus value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaTesto(t.id, { rotazione: ((t.rotazione - 90) % 360 + 360) % 360 })}><RotateCcw /> 90°</Button>
+        <Button size="sm" variant="outline" onClick={() => azioni.modificaTesto(t.id, { rotazione: (t.rotazione + 90) % 360 })}><RotateCw /> 90°</Button>
+        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => azioni.elimina({ tipo: "testo", id: t.id })}><Trash2 /> Elimina</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Trascina il testo per spostarlo.</p>
+    </div>
+  );
 }
 
 function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: DatiVista; vista: Vista; azioni: AzioniPannello }) {
@@ -122,9 +318,15 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
             <strong>{stimate}</strong> {stimate === 1 ? "misura è stimata" : "misure sono stimate"}: si vedono a righe viola e con «≈».
             Controllale sul posto, poi confermale.
           </p>
-          <Button size="sm" variant="outline" className="mt-2" onClick={azioni.confermaTutte}>
-            <Check /> Le ho controllate tutte
-          </Button>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => azioni.seleziona(prossimaStimata(pianta))}>
+              Controllale una alla volta
+            </Button>
+            <Button size="sm" variant="outline" onClick={azioni.confermaTutte}>
+              <Check /> Le ho controllate tutte
+            </Button>
+          </div>
+          <p className="mt-1.5 text-xs text-violet-900/80">Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima.</p>
         </div>
       )}
       <DaSistemare pianta={pianta} dati={dati} azioni={azioni} />
@@ -185,7 +387,9 @@ function DettaglioStanza({
   azioni,
   essenziale,
   focusNome,
+  sottotetto,
 }: {
+  sottotetto?: AltezzeSottotetto;
   pianta: Pianta;
   vista: Vista;
   locale: LocaleVista;
@@ -228,6 +432,22 @@ function DettaglioStanza({
           </SelectContent>
         </Select>
       </div>
+      {!essenziale && diLavoro && (
+        <div className="space-y-1">
+          <Label htmlFor="pl-unita">Appartamento (condominio, bifamiliare)</Label>
+          <Input id="pl-unita" key={`${locale.id}-unita`} defaultValue={diLavoro.unita ?? ""} placeholder="Es. A, Int. 3, Parti comuni" maxLength={40}
+            onBlur={(e) => e.target.value.trim() !== (diLavoro.unita ?? "") && azioni.unitaStanza(locale.id, e.target.value.trim())}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+          <p className="text-[11px] text-muted-foreground">Le stanze con la stessa sigla fanno un appartamento: nel computo trovi superfici e pareti per appartamento.</p>
+        </div>
+      )}
+      {sottotetto && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+          <p className="font-medium">Sotto le falde</p>
+          <p className="mt-0.5 tabular-nums">Altezza minima {scriviMetri(sottotetto.minima)} m · massima {scriviMetri(sottotetto.massima)} m · <strong>media {scriviMetri(sottotetto.media)} m</strong></p>
+          <p className="tabular-nums">Superficie utile (sopra 1,50 m) <strong>{scriviMq(sottotetto.superficieUtile)}</strong> su {scriviMq(sottotetto.superficie)} · volume {sottotetto.volume.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m³</p>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">
         <div>
           <div className="text-xs text-muted-foreground">Pavimento</div>
@@ -262,6 +482,44 @@ function DettaglioStanza({
           ))}
         </div>
       </div>
+      {!essenziale && diLavoro && destinazioneArredabile(locale.destinazione) && (
+        <div className="space-y-1 rounded-md border border-dashed p-2">
+          <Button size="sm" variant="secondary" className="w-full" onClick={() => azioni.arreda(locale.id, locale.destinazione)}>
+            <Armchair /> Arreda con un clic
+          </Button>
+          <p className="text-[11px] text-muted-foreground">Mette gli arredi tipici di {DESTINAZIONI.find((d) => d.valore === locale.destinazione)?.etichetta.toLowerCase() ?? "questa stanza"} lungo le pareti, lontano da porte e finestre. Poi li sposti come vuoi; il 3D e il render AI li usano dove stanno.</p>
+        </div>
+      )}
+      {!essenziale && diLavoro && (() => {
+        const cei = dotazioneCei(locale.destinazione, q.mq);
+        const clima = btuConsigliati(diLavoro);
+        return (
+          <div className="space-y-2 rounded-md border border-dashed p-2">
+            <p className="text-xs font-medium">Impianti</p>
+            <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.impiantoElettrico(locale.id, locale.destinazione)}>
+              Impianto elettrico minimo
+            </Button>
+            <p className="text-[11px] text-muted-foreground">Norma CEI 64-8, livello 1: {cei.prese} {cei.prese === 1 ? "presa" : "prese"}, {cei.luci} {cei.luci === 1 ? "punto luce" : "punti luce"} con interruttore accanto alla porta. Mette solo quello che manca.</p>
+            {!["balcone", "terrazzo", "garage", "cantina", "ripostiglio", "giardino"].includes(locale.destinazione) && (
+              <>
+                <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.riscaldamento(locale.id)}>
+                  Riscaldamento: termosifoni sotto le finestre
+                </Button>
+                <p className="text-[11px] text-muted-foreground">Circa {Math.round((q.mq * ((diLavoro.altezza ?? 270) / 100) * 40) / 50) * 50} W per questa stanza (40 W al m³, di massima). Metti la caldaia o la pompa di calore (Arredi → Energia) per avere i tubi nel computo.</p>
+              </>
+            )}
+            {DESTINAZIONI_CLIMA.has(locale.destinazione) && (
+              <>
+                <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => azioni.clima(locale.id, locale.destinazione)}>
+                  Clima: {clima.split > 1 ? `${clima.split} split da ` : "split da "}{clima.taglia.toLocaleString("it-IT")} BTU
+                </Button>
+                <p className="text-[11px] text-muted-foreground">Circa {clima.btu.toLocaleString("it-IT")} BTU/h per {q.mq.toLocaleString("it-IT", { maximumFractionDigits: 1 })} mq: indicazione di massima, esposizione e vetrate contano. Metti anche l'unità esterna (catalogo Impianti) per avere rame e condensa nel computo.</p>
+              </>
+            )}
+          </div>
+        );
+      })()}
+      {!essenziale && diLavoro && q.mq >= 60 && <MagliaPilastri onMetti={(passo) => azioni.magliaPilastri(locale.id, passo)} />}
       <div className="flex flex-wrap gap-2 pt-1">
         {q.stimata && (
           <Button size="sm" variant="outline" onClick={() => azioni.conferma({ tipo: "locale", id: locale.id })}>
@@ -274,6 +532,21 @@ function DettaglioStanza({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function MagliaPilastri({ onMetti }: { onMetti: (passoCm: number) => void }) {
+  const [passo, setPasso] = useState("6,00");
+  const cm = leggiMisura(passo);
+  return (
+    <div className="space-y-1 rounded-md border border-dashed p-2">
+      <Label htmlFor="pl-passo" className="text-xs">Pilastri a maglia (capannone, autorimessa)</Label>
+      <div className="flex gap-2">
+        <Input id="pl-passo" className="h-8 w-24" value={passo} onChange={(e) => setPasso(e.target.value)} aria-label="Passo dei pilastri in metri" />
+        <Button size="sm" variant="secondary" disabled={!cm || cm < 200} onClick={() => cm && onMetti(cm)}>Metti i pilastri</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">Passo in metri, uguale nei due versi; la maglia parte dal centro. Si contano nel computo come «Pilastri».</p>
     </div>
   );
 }
@@ -326,6 +599,24 @@ function DettaglioParete({ vista, muro, azioni, essenziale }: { vista: Vista; mu
         )}
         {!essenziale && <BottoneElimina vista={vista} stato={muro.stato} cosa="la parete" onClick={() => azioni.elimina({ tipo: "muro", id: muro.id })} />}
       </div>
+      {!essenziale && misurabile && <CurvaParete onCurva={(f) => azioni.curvaParete(muro.id, f)} />}
+    </div>
+  );
+}
+
+function CurvaParete({ onCurva }: { onCurva: (frecciaCm: number) => void }) {
+  const [freccia, setFreccia] = useState("0,50");
+  const [verso, setVerso] = useState<1 | -1>(1);
+  const cm = leggiMisura(freccia);
+  return (
+    <div className="space-y-1 rounded-md border border-dashed p-2">
+      <Label htmlFor="pl-freccia" className="text-xs">Parete curva (bovindo, balcone tondo)</Label>
+      <div className="flex flex-wrap gap-2">
+        <Input id="pl-freccia" className="h-8 w-20" value={freccia} onChange={(e) => setFreccia(e.target.value)} aria-label="Freccia della curva in metri" />
+        <Button size="sm" variant="outline" onClick={() => setVerso((v) => (v === 1 ? -1 : 1))}>{verso === 1 ? "Verso un lato" : "Verso l'altro"}</Button>
+        <Button size="sm" variant="secondary" disabled={!cm} onClick={() => cm && onCurva(cm * verso)}>Curva</Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">La freccia è quanto la curva si allontana dal centro della parete. Diventa un arco di tratti dritti; la stanza segue la curva. Ctrl+Z per tornare indietro.</p>
     </div>
   );
 }

@@ -12,6 +12,30 @@ export const MATERIALI: Record<string, Materiale3D> = {
   pavimento_gres: { nome: "Pavimento in gres", colore: "#d6c7b0", opacita: 1, ruvidita: 0.5 },
   pavimento_esterno: { nome: "Pavimento esterno", colore: "#a7a299", opacita: 1, ruvidita: 0.85 },
   pavimento: { nome: "Pavimento", colore: "#c9b79c", opacita: 1, ruvidita: 0.6 },
+  prato: { nome: "Prato", colore: "#7da55a", opacita: 1, ruvidita: 1 },
+  acqua: { nome: "Acqua", colore: "#3fa7d6", opacita: 0.85, ruvidita: 0.05 },
+  fogliame: { nome: "Fogliame", colore: "#4f7f3a", opacita: 1, ruvidita: 1 },
+  pietra: { nome: "Pietra", colore: "#d9d2c3", opacita: 1, ruvidita: 0.8 },
+  tegole: { nome: "Tegole", colore: "#a5523a", opacita: 1, ruvidita: 0.8 },
+  terra_rossa: { nome: "Terra rossa", colore: "#c1643b", opacita: 1, ruvidita: 1 },
+  terra_rossa_scura: { nome: "Terra rossa (fuori campo)", colore: "#a95431", opacita: 1, ruvidita: 1 },
+  resina_blu: { nome: "Resina blu", colore: "#2d6cb5", opacita: 1, ruvidita: 0.6 },
+  resina_blu_scura: { nome: "Resina blu (fuori campo)", colore: "#24589a", opacita: 1, ruvidita: 0.6 },
+  resina_arancio: { nome: "Resina arancio", colore: "#e08a3c", opacita: 1, ruvidita: 0.6 },
+  resina_verde: { nome: "Resina verde", colore: "#2e7d5b", opacita: 1, ruvidita: 0.6 },
+  erba_sintetica: { nome: "Erba sintetica", colore: "#4e9a3e", opacita: 1, ruvidita: 1 },
+  erba_sintetica_scura: { nome: "Erba sintetica (fuori campo)", colore: "#3f8532", opacita: 1, ruvidita: 1 },
+  sabbia: { nome: "Sabbia", colore: "#e8d3a0", opacita: 1, ruvidita: 1 },
+  linee: { nome: "Linee", colore: "#ffffff", opacita: 1, ruvidita: 0.5 },
+  linee_blu: { nome: "Fettucce", colore: "#2d6cb5", opacita: 1, ruvidita: 0.5 },
+  rete: { nome: "Rete", colore: "#1f2937", opacita: 0.55, ruvidita: 0.8 },
+  arancio: { nome: "Ferro del canestro", colore: "#f97316", opacita: 1, ruvidita: 0.4 },
+  pannello_fv: { nome: "Pannelli fotovoltaici", colore: "#1d2b45", opacita: 1, ruvidita: 0.2 },
+  massa: { nome: "Edificio (piani sotto)", colore: "#dedad3", opacita: 1, ruvidita: 0.9 },
+  ghiaia: { nome: "Ghiaia", colore: "#c8c3b7", opacita: 1, ruvidita: 1 },
+  asfalto: { nome: "Asfalto", colore: "#6f7072", opacita: 1, ruvidita: 0.95 },
+  terra: { nome: "Terra", colore: "#7d5f42", opacita: 1, ruvidita: 1 },
+  recinzione: { nome: "Recinzione", colore: "#3d5a40", opacita: 0.55, ruvidita: 0.6 },
   ceramica: { nome: "Ceramica", colore: "#fbfbfa", opacita: 1, ruvidita: 0.15 },
   legno: { nome: "Legno", colore: "#8a6a4b", opacita: 1, ruvidita: 0.6 },
   tessuto: { nome: "Tessuto", colore: "#7d8a9a", opacita: 1, ruvidita: 1 },
@@ -21,12 +45,18 @@ export const MATERIALI: Record<string, Materiale3D> = {
   metallo: { nome: "Metallo", colore: "#b4b8bc", opacita: 1, ruvidita: 0.3 },
 };
 
+/** Materiale di un'area esterna. */
+export const MATERIALE_AREA: Record<string, string> = {
+  prato: "prato", aiuola: "fogliame", pavimentato: "pietra", vialetto: "pietra", ghiaia: "ghiaia", parcheggio: "asfalto", orto: "terra",
+};
+
 /** Materiale del pavimento secondo la destinazione del locale. */
 export function materialePavimento(destinazione: string): string {
   const d = destinazione.toLowerCase();
   if (/bagno|wc|lavanderia|servizi/.test(d)) return "pavimento_piastrelle";
   if (/cucin|angolo cottura/.test(d)) return "pavimento_gres";
-  if (/balcon|terrazz|loggia|cortile|giardino|esterno/.test(d)) return "pavimento_esterno";
+  if (/giardino|prato/.test(d)) return "prato";
+  if (/balcon|terrazz|loggia|cortile|esterno/.test(d)) return "pavimento_esterno";
   if (/soggiorno|salotto|camera|letto|studio|pranzo|living/.test(d)) return "pavimento_legno";
   return "pavimento";
 }

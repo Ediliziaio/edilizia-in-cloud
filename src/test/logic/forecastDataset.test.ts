@@ -180,7 +180,8 @@ describe("forecast sources", () => {
     ).toEqual(new Set(["company-A"]));
     const tables = new Set(filters.map((f) => f.table));
     // 22: dal 29/10/2026 anche `rate_fornitori` (le RiBa escono rata per rata)
-    expect(tables.size).toBe(22);
+    // 24: dal 01/11/2026 anche `ritenute_garanzia` (svincoli) e `cg_loans` (rate dei mutui)
+    expect(tables.size).toBe(24);
     for (const table of tables)
       expect(
         filters.some(

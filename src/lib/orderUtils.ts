@@ -397,7 +397,8 @@ export async function deleteOrderCascading(orderId: string, companyId: string): 
     p_company_id: companyId,
     p_trashed: true,
   });
-  if (error) throw error;
+  // Un Error vero: chi lo mostra legge il motivo scritto dal database («ci sono SAL del cliente già emessi…»).
+  if (error) throw new Error(error.message || "Commessa non spostata nel cestino.");
   dimenticaCommesseArchiviate(companyId);
 }
 

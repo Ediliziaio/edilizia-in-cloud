@@ -33,7 +33,7 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
 import type { LettoreXml } from "../_shared/fatturapaReader.ts";
 import { leggiFatturaRicevuta, lettaDiRiserva, motivoNonLeggibile } from "../_shared/fatturaRicevutaXml.ts";
-import { avvisaFatturaRicevuta, salvaFatturaRicevuta } from "../_shared/salvaFatturaRicevuta.ts";
+import { avvisaFatturaRicevuta, salvaFattureDelFile } from "../_shared/salvaFatturaRicevuta.ts";
 import {
   allegatoFattura,
   fatturaRicevutaPer,
@@ -196,16 +196,17 @@ async function importaUna(acc: Accesso, cfg: Config, id: string, giaLetta?: unkn
   xml = xml ?? "";
 
   const idSdi = identificativoSdi(fattura);
-  const salvata = await salvaFatturaRicevuta(supabase, {
+  // Tutte le fatture del file (lotti, 01/11/2026): prima entrava solo la prima.
+  const xmlLetto = xml;
+  const salvata = await salvaFattureDelFile(supabase, {
     companyId: cfg.company_id,
     xml,
-    letta,
     originale: fileOriginale(file),
     nomeFileSdi: nomeFileSdi(fattura),
     openapiId: id,
     identificativoSdi: idSdi,
     ricevutaIl: ricevutaIl(fattura),
-  });
+  }, letta, (i) => (xmlLetto ? leggiFatturaRicevuta(xmlLetto, new LettoreXmlMinimo(), i) : null));
   if (salvata.errore) return { esito: "errore", motivo: salvata.errore };
   if (salvata.doppione) return { esito: "doppione", id: salvata.id };
 

@@ -211,10 +211,36 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       return m;
     },
   });
-  const fascicoloPer = useMemo(() => new Map(subappaltatori.map((s) => {
-    const f = s.campo_subappaltatore_id ? fascicoli[s.campo_subappaltatore_id] : undefined;
-    return [s.id, { n: f?.n ?? 0, tipi: new Set(f?.tipi ?? []) }] as const;
-  })), [subappaltatori, fascicoli]);
+  // Anche i documenti caricati dalla scheda (documenti_subappaltatore): prima non contavano e l'elenco
+  // continuava a dire «manca la visura» dopo averla caricata. Stessa ditta = tutte le sue schede.
+  const { data: docSchede = [] } = useQuery({
+    queryKey: ['sub-documenti-schede', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('documenti_subappaltatore').select('subappaltatore_id, tipo').eq('company_id', companyId).limit(5000);
+      if (error) throw error;
+      return (data ?? []) as Array<{ subappaltatore_id: string | null; tipo: string | null }>;
+    },
+  });
+  const fascicoloPer = useMemo(() => {
+    const tipoUnico = (t: string) => (t === 'visura_camerale' ? 'visura' : t);
+    const campoDi = new Map(subappaltatori.map((s) => [s.id, s.campo_subappaltatore_id ?? s.id]));
+    const perDitta = new Map<string, { n: number; tipi: Set<string> }>();
+    const aggiungi = (chiave: string, tipo: string | null) => {
+      const f = perDitta.get(chiave) ?? { n: 0, tipi: new Set<string>() };
+      f.n += 1;
+      if (tipo) f.tipi.add(tipoUnico(tipo));
+      perDitta.set(chiave, f);
+    };
+    for (const [campo, f] of Object.entries(fascicoli)) for (const t of f.tipi) { aggiungi(campo, t); }
+    for (const [campo, f] of Object.entries(fascicoli)) { const x = perDitta.get(campo); if (x) x.n = f.n; }
+    for (const d of docSchede) if (d.subappaltatore_id) aggiungi(campoDi.get(d.subappaltatore_id) ?? d.subappaltatore_id, d.tipo);
+    return new Map(subappaltatori.map((s) => {
+      const f = perDitta.get(s.campo_subappaltatore_id ?? s.id);
+      return [s.id, { n: f?.n ?? 0, tipi: new Set(f?.tipi ?? []) }] as const;
+    }));
+  }, [subappaltatori, fascicoli, docSchede]);
   const docCountFor = (s: SubappaltatoreConDashboard) => fascicoloPer.get(s.id)?.n ?? 0;
 
   // Ordini per il selettore "Cantiere / Ordine" nel dialog di creazione.
@@ -378,11 +404,13 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
   // ── Mutation toggle Attivo/Inattivo (anagrafica app cantiere) ─────────────
   const toggleAttivoMutation = useMutation({
     mutationFn: async ({ subappaltatoreId, attivo }: { subappaltatoreId: string; attivo: boolean }) => {
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('subappaltatori')
         .update({ is_active: attivo })
-        .eq('id', subappaltatoreId);
+        .eq('id', subappaltatoreId)
+        .select('id');
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      if (!data?.length) throw new Error('Stato non cambiato: non hai il permesso o il subappaltatore non esiste più.');
     },
     onSuccess: (_data, vars) => {
       toast.success(vars.attivo ? 'Subappaltatore attivato' : 'Subappaltatore disattivato');
@@ -415,10 +443,11 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
     mutationFn: async (attivo: boolean) => {
       const campoIds = campoIdsForSelected();
       if (campoIds.length === 0) return 0;
-      const { error } = await (supabase as any)
-        .from('subappaltatori').update({ is_active: attivo }).in('id', campoIds);
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori').update({ is_active: attivo }).in('id', campoIds).select('id');
       if (error) throw new Error(error.message || 'Errore');
-      return campoIds.length;
+      if (!data?.length) throw new Error('Nessun subappaltatore aggiornato: non hai il permesso.');
+      return data.length as number;
     },
     onSuccess: (n, attivo) => {
       toast.success(`${n} ${n === 1 ? 'subappaltatore' : 'subappaltatori'} ${attivo ? 'attivati' : 'disattivati'}`);
@@ -446,10 +475,15 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           `${nContratti === 1 ? 'C\'è 1 contratto di subappalto collegato' : `Ci sono ${nContratti} contratti di subappalto collegati`}: eliminarlo cancellerebbe anche i contratti. Chiudili o eliminali prima.`
         );
       }
-      const { error } = await (supabase as any)
-        .from('subappaltatori_sicurezza').delete().in('id', schedaIds);
-      if (error) throw new Error(error.message || 'Errore');
-      return schedaIds.length;
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori_sicurezza').delete().in('id', schedaIds).select('id');
+      if (error) {
+        // Contratti (guardia del database) oppure operai e incarichi registrati: messaggio leggibile, non quello tecnico.
+        if (error.code === '23503') throw new Error(/contratt/i.test(error.message ?? '') ? error.message : 'Ci sono operai o incarichi registrati su questa ditta: non si elimina. Disattivala invece.');
+        throw new Error(error.message || 'Errore');
+      }
+      if (!data?.length) throw new Error('Nessuna scheda eliminata: non hai il permesso.');
+      return data.length as number;
     },
     onSuccess: (n) => {
       toast.success(`${n} ${n === 1 ? 'subappaltatore rimosso' : 'subappaltatori rimossi'} dalla lista`);

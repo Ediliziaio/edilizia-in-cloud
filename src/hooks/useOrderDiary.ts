@@ -177,7 +177,7 @@ export function useOrderDiary(orderId: string | undefined) {
           .order("created_at", { ascending: false }),
         supabase
           .from("tickets")
-          .select("id, subject, status, priority, tipo, assigned_to, data_intervento_prevista, data_intervento_effettiva, created_at")
+          .select("id, subject, status, priority, tipo, created_by, data_intervento_prevista, data_intervento_effettiva, created_at")
           .eq("order_id", orderId!)
           .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false }),
@@ -197,7 +197,7 @@ export function useOrderDiary(orderId: string | undefined) {
       photosResult.data?.forEach((row) => row.uploaded_by && userIds.add(row.uploaded_by));
       rapportiniResult.data?.forEach((row) => row.user_id && userIds.add(row.user_id));
       signaturesResult.data?.forEach((row) => row.created_by && userIds.add(row.created_by));
-      ticketsResult.data?.forEach((row) => row.assigned_to && userIds.add(row.assigned_to));
+      ticketsResult.data?.forEach((row) => row.created_by && userIds.add(row.created_by));
 
       const profileMap = new Map<string, { first_name: string | null; last_name: string | null; email: string | null }>();
       if (userIds.size > 0) {
@@ -277,16 +277,17 @@ export function useOrderDiary(orderId: string | undefined) {
       const ticketEntries: OrderDiaryAudit[] = (ticketsResult.data ?? []).map((row) => ({
         id: `ticket-${row.id}`,
         audit_type: "assistenza",
-        title: "Assistenza collegata",
+        title: "Assistenza aperta",
         description: [
           row.subject,
           row.status,
           row.priority ? `priorita ${row.priority}` : null,
           row.data_intervento_effettiva ? `fatta il ${row.data_intervento_effettiva}` : row.data_intervento_prevista ? `prevista il ${row.data_intervento_prevista}` : null,
         ].filter(Boolean).join(" · "),
-        actor_id: row.assigned_to,
-        actor_name: profileName(profileMap.get(row.assigned_to || "")),
-        created_at: row.data_intervento_effettiva || row.data_intervento_prevista || row.created_at,
+        // Chi l'ha aperta, non a chi è assegnata: qui conta chi ha fatto l'azione.
+        actor_id: row.created_by,
+        actor_name: profileName(profileMap.get(row.created_by || "")),
+        created_at: row.created_at,
         metadata: {
           stato: row.status,
           tipo: row.tipo,
@@ -371,6 +372,9 @@ export function useOrderDiary(orderId: string | undefined) {
 
   return {
     timeline,
+    events,
+    messages,
+    auditEntries,
     templates,
     sendMutation,
     addNoteMutation,

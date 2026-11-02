@@ -177,16 +177,21 @@ Ogni tappa si può rilasciare da sola e lascia l'app coerente: chi ha solo la ta
 
 ---
 
-## 7. Stato (30/10/2026)
+## 7. Stato (02/11/2026)
 
-**Tappa 0 scritta** nel ramo `commesse-generali` (non ancora pubblicata):
-- Migrazione `20281030270000_commesse_generali.sql`: `workflow_kind = 'generale'` (importo zero), `orders.commessa_generale_id`, tabelle `commesse_generali` e `company_commesse_generali_settings`, RPC `commessa_generale_crea / aggiorna / collega / scollega / riepilogo` e `commesse_generali_impostazioni_salva`. La generale non riceve il flusso di attività né le automazioni «commessa creata» verso il cliente. **Applicata il 30/10** e provata con una prova annullata.
-- Impostazioni → Commesse generali: un interruttore per tipo (appalto, sviluppo, compravendita). Spento = la scelta non compare.
-- «Nuova commessa»: se c'è almeno un tipo acceso, la scelta del tipo offre «Commessa generale · …» → una schermata con nome, committente/società e valore.
-- Pagina della generale: scala del valore, quattro numeri, «Cosa richiede attenzione», tabella delle figlie con totali; azioni Nuovo ordine di lavoro/Nuova unità, Collega commesse, Modifica, Togli da questa generale. Da telefono solo lettura.
-- Commessa figlia: «Parte di …» in cima; la creazione da una generale ci entra da sola, col cliente già scelto.
-- Lista commesse: «Generale · N» e importo «—» sulle generali, «in C-…» sulle figlie.
+**Pubblicato su main il 31/10 (`ffcc41433`):** nucleo, contratto e SAL di contratto, elenco prezzi e misure, subappalti, piano economico, unità e vendite, varianti, fonti e investitori, simulatore, dossier e rendiconto, documenti, fatture, avvisi, cruscotto e strumenti di Silvio. Si accende da Impostazioni → Commesse generali.
 
-- Contatori: la lista commesse non conta le generali; il cruscotto aziendale le toglie dal portafoglio con `20281030271000_cruscotto_senza_generali.sql` (**da applicare**).
+**Completato il 02/11:**
+- Da telefono i riquadri di Panoramica restano (margine a finire, capitale, garanzie, SAL), senza collegamenti a schede che lì non ci sono; la generale non si crea da telefono.
+- «A SAL» nella barra che scala dell'appalto; «Per partire» in Panoramica.
+- F3: «Togli» e «Sposta in un'altra generale» con il riepilogo di cosa cambia nei totali.
+- F8: «Raggruppa in una generale» dalla lista commesse; filtri «Solo generali» e «Senza generale».
+- Importo e peso sul valore nella striscia della commessa figlia; «Modifica nel contratto» in Nuova commessa.
+- Cron `generali-avvisi` in `20281105111000`: anteprima fatta il 02/11 (200, nessun errore).
+- Impostazioni «Come lavori?»: cosa comprende ogni tipo e «Crea la prima» da lì; la creazione prepara subito unità e piano con le voci tipiche.
 
-**Da fare nella tappa 0:** prova dal vivo con un utente vero.
+**Non fatto, da decidere:** vita del contratto (sospensioni, riserve, revisione prezzi, collaudo), affitti, post-vendita, cassa aziendale, modello personalizzato con moduli accendibili, criterio manuale dei costi comuni, scenari salvati del piano, lotti, indirizzo alla creazione, numeri a seconda del modello nei quattro riquadri, figlie a pagine, dove sta la funzione nei piani tariffari (§5).
+
+**Mai fatto:** prova dal vivo con un'azienda vera (Pistilli, un costruttore), prototipo P, prova con tre ruoli.
+
+**Simulazioni del 02/11 (Demo, dati veri):** corretti incassi delle unità in testata e nell'elenco (netti contro ivati), somme delle generali su tutte le commesse e non solo quelle della pagina, margine unico tra testata e piano, ROE a operazione chiusa, eseguito dalle misure, conteggio delle unità divise. Migrazione `20281105480500`. Piante: dal pannello dell'unità si disegna, si ricava da PDF o foto o a parole (collegata a `planimetrie.order_id`); «Carica piante e documenti» abbina i file alle unità dalla sigla nel nome.

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Download, X } from "lucide-react";
+import { toast } from "sonner";
 
 interface Props {
   /** HTML completo della pagina da stampare (incluso <html>, <head> e <body>). */
@@ -19,6 +20,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
+  /** Se c'è, «Scarica» dà il PDF costruito da qui (non l'HTML). */
+  onDownloadPdf?: () => Promise<Blob>;
 }
 
 export function PrintPreviewModal({
@@ -27,6 +30,7 @@ export function PrintPreviewModal({
   open,
   onOpenChange,
   title = "Anteprima documento",
+  onDownloadPdf,
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // L'iframe nasce dentro il portale del Dialog DOPO il primo effetto: col solo
@@ -74,7 +78,21 @@ export function PrintPreviewModal({
     win.print();
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (onDownloadPdf) {
+      try {
+        const pdf = await onDownloadPdf();
+        const url = URL.createObjectURL(pdf);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${fileName}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      } catch (e) {
+        toast.error(`PDF non generato: ${e instanceof Error ? e.message : "errore"}`);
+      }
+      return;
+    }
     const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

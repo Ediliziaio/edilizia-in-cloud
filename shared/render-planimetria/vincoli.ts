@@ -11,7 +11,7 @@
  * locale al filo interno delle pareti, aperture misurate sull'asse del muro dal p1.
  */
 import { apertureDelLocale, areaPoligono, assiDelMuro, perimetroPoligono, proiezioneSulSegmento, distanza, areaConSegno } from "../planimetrie/geometria.ts";
-import { origineMisura, statoDelLivello, type Apertura, type Locale, type Planimetria, type Punto, type StatoPianta, type TipoApertura } from "../planimetrie/modello.ts";
+import { origineMisura, statoDelLivello, type Apertura, type Finiture, type Locale, type Planimetria, type Punto, type StatoPianta, type TipoApertura } from "../planimetrie/modello.ts";
 
 /** Quale stanza di quale pianta: si salva nella sessione del render (`config.planimetria`). */
 export interface RiferimentoStanza {
@@ -61,6 +61,8 @@ export interface VincoliStanza {
     profondita_cm: number;
     rettangolare: boolean;
     stimata: boolean;
+    /** Materiali scelti nella pianta (pavimento, pareti, soffitto, rivestimento). */
+    finiture?: Finiture;
   };
   /** Contorno al filo interno, antiorario, in cm (y verso l'alto). */
   contorno: Punto[];
@@ -195,6 +197,7 @@ export function vincoliDellaStanza(p: Planimetria, rif: Pick<RiferimentoStanza, 
       profondita_cm: arrotonda(box.profondita, 0),
       rettangolare: Math.abs(box.larghezza * box.profondita / 10_000 - superficie) < 0.02 * superficie + 0.01,
       stimata: stimato(locale),
+      ...(locale.finiture ? { finiture: locale.finiture } : {}),
     },
     contorno,
     pareti,

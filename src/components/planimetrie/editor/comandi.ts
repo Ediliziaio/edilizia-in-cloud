@@ -12,15 +12,20 @@ import {
   muroDelLato,
   quantitaLocale,
   type Apertura,
+  type AreaLavoro,
   type Destinazione,
+  type ElementoLavoro,
   type Locale,
   type Muro,
   type Origine,
   type Pianta,
   type Punto,
+  type QuotaLavoro,
   type StatoElemento,
+  type TestoLavoro,
   type TipoApertura,
 } from "./adattatore";
+import type { TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
 
 /** «Com'è oggi» (stato di fatto) o «Progetto» (giallo = demolire, rosso = nuovo). */
@@ -174,7 +179,7 @@ export function aggiungiStanzaDaMisure(
   return aggiungiStanza(pianta, contorno, { ...o, spessore });
 }
 
-export function modificaLocale(pianta: Pianta, id: string, campi: Partial<Pick<Locale, "nome" | "destinazione" | "altezza" | "origine">>): Pianta {
+export function modificaLocale(pianta: Pianta, id: string, campi: Partial<Pick<Locale, "nome" | "destinazione" | "altezza" | "origine" | "unita">>): Pianta {
   return { ...pianta, locali: pianta.locali.map((l) => (l.id === id ? { ...l, ...campi } : l)) };
 }
 
@@ -502,6 +507,22 @@ export function contaStimate(pianta: Pianta): number {
   );
 }
 
+/**
+ * Correzione guidata: la prossima misura stimata da controllare, dalla più importante. Prima le
+ * stanze (confermarne una conferma anche le sue pareti), dalla più grande; poi le pareti rimaste,
+ * dalla più lunga; infine porte e finestre. Null quando non ne resta nessuna.
+ */
+export function prossimaStimata(pianta: Pianta): { tipo: "locale" | "muro" | "apertura"; id: string } | null {
+  const area = (c: ReadonlyArray<{ x: number; y: number }>) => Math.abs(c.reduce((t, a, i) => { const b = c[(i + 1) % c.length]; return t + a.x * b.y - b.x * a.y; }, 0)) / 2;
+  const locale = pianta.locali.filter((l) => l.origine === "stimata").sort((a, b) => area(b.contorno) - area(a.contorno))[0];
+  if (locale) return { tipo: "locale", id: locale.id };
+  const lung = (m: Pianta["muri"][number]) => Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y);
+  const muro = pianta.muri.filter((m) => m.origine === "stimata").sort((a, b) => lung(b) - lung(a))[0];
+  if (muro) return { tipo: "muro", id: muro.id };
+  const ap = pianta.aperture.find((a) => a.origine === "stimata");
+  return ap ? { tipo: "apertura", id: ap.id } : null;
+}
+
 export function confermaTutte(pianta: Pianta): Pianta {
   const r = <T extends { origine: Origine }>(x: T): T => (x.origine === "stimata" ? { ...x, origine: "rilevata" } : x);
   return { ...pianta, muri: pianta.muri.map(r), aperture: pianta.aperture.map(r), locali: pianta.locali.map(r) };
@@ -555,4 +576,304 @@ export function rinominaStanza(
   const diLavoro = pianta.locali.find((l) => l.id === id);
   if (diLavoro && (vista === "fatto" || diLavoro.stato === "nuovo")) return modificaLocale(pianta, id, campi);
   return { ...pianta, nomiProgetto: { ...pianta.nomiProgetto, [id]: { ...attuale, ...campi } } };
+}
+
+// ─── Arredi, sanitari, quote e testi (fase 3 del piano di completamento) ──────
+
+/** Come per le pareti: nel progetto un arredo di oggi non si sposta, si toglie (e se ne mette uno nuovo). */
+export function aggiungiElemento(
+  pianta: Pianta,
+  voce: { tipo: string; larghezza: number; profondita: number; altezza?: number; etichetta?: string },
+  centro: Punto,
+  o: { stato?: StatoElemento; rotazione?: number } = {},
+): { pianta: Pianta; id: string } {
+  const id = nuovoId("arredo");
+  const elemento: ElementoLavoro = {
+    id,
+    tipo: voce.tipo,
+    ...(voce.etichetta ? { etichetta: voce.etichetta } : {}),
+    centro: { x: Math.round(centro.x), y: Math.round(centro.y) },
+    rotazione: o.rotazione ?? 0,
+    larghezza: voce.larghezza,
+    profondita: voce.profondita,
+    ...(voce.altezza ? { altezza: voce.altezza } : {}),
+    stato: o.stato ?? "esistente",
+    origine: "rilevata",
+  };
+  return { pianta: { ...pianta, elementi: [...(pianta.elementi ?? []), elemento] }, id };
+}
+
+export function modificaElemento(
+  pianta: Pianta,
+  id: string,
+  campi: Partial<Pick<ElementoLavoro, "centro" | "rotazione" | "larghezza" | "profondita" | "altezza" | "etichetta" | "tipo">>,
+): Pianta {
+  const norm = { ...campi };
+  if (norm.rotazione != null) norm.rotazione = ((Math.round(norm.rotazione) % 360) + 360) % 360;
+  return { ...pianta, elementi: (pianta.elementi ?? []).map((e) => (e.id === id ? { ...e, ...norm, origine: "rilevata" } : e)) };
+}
+
+export function ruotaElemento(pianta: Pianta, id: string, gradi: number): Pianta {
+  const e = (pianta.elementi ?? []).find((x) => x.id === id);
+  return e ? modificaElemento(pianta, id, { rotazione: e.rotazione + gradi }) : pianta;
+}
+
+/** Copia accanto all'originale (40 cm più in là), con lo stato della vista. */
+export function duplicaElemento(pianta: Pianta, id: string, vista: Vista): { pianta: Pianta; id: string | null } {
+  const e = (pianta.elementi ?? []).find((x) => x.id === id);
+  if (!e) return { pianta, id: null };
+  return aggiungiElemento(pianta, e, { x: e.centro.x + 40, y: e.centro.y + 40 }, { stato: statoNuovo(vista), rotazione: e.rotazione });
+}
+
+/** Nel progetto un arredo di oggi si «toglie» (resta in giallo) e un secondo clic lo rimette. */
+export function eliminaElemento(pianta: Pianta, id: string, vista: Vista = "fatto"): Pianta {
+  const e = (pianta.elementi ?? []).find((x) => x.id === id);
+  if (!e) return pianta;
+  if (vista === "progetto" && e.stato !== "nuovo") {
+    const stato: StatoElemento = e.stato === "da_demolire" ? "esistente" : "da_demolire";
+    return { ...pianta, elementi: (pianta.elementi ?? []).map((x) => (x.id === id ? { ...x, stato } : x)) };
+  }
+  return { ...pianta, elementi: (pianta.elementi ?? []).filter((x) => x.id !== id) };
+}
+
+// ─── Lotto e aree esterne ────────────────────────────────────────────────────
+
+export function aggiungiArea(pianta: Pianta, tipo: TipoArea, contorno: Punto[], vista: Vista = "fatto"): { pianta: Pianta; id: string } {
+  const id = nuovoId("area");
+  const area: AreaLavoro = { id, tipo, contorno: contorno.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), stato: statoNuovo(vista) };
+  // il lotto sta sotto tutto: va in testa, le altre aree sopra
+  const aree = tipo === "lotto" ? [area, ...(pianta.aree ?? [])] : [...(pianta.aree ?? []), area];
+  return { pianta: { ...pianta, aree }, id };
+}
+
+export function modificaArea(pianta: Pianta, id: string, campi: Partial<Pick<AreaLavoro, "tipo" | "nome" | "recinzione" | "contorno" | "quota">>): Pianta {
+  return { ...pianta, aree: (pianta.aree ?? []).map((a) => (a.id === id ? { ...a, ...campi } : a)) };
+}
+
+/** Come per gli arredi: nel progetto un'area di oggi si segna da togliere (e un altro clic la rimette). */
+export function eliminaArea(pianta: Pianta, id: string, vista: Vista = "fatto"): Pianta {
+  const a = (pianta.aree ?? []).find((x) => x.id === id);
+  if (!a) return pianta;
+  if (vista === "progetto" && a.stato !== "nuovo") {
+    const stato: StatoElemento = a.stato === "da_demolire" ? "esistente" : "da_demolire";
+    return { ...pianta, aree: (pianta.aree ?? []).map((x) => (x.id === id ? { ...x, stato } : x)) };
+  }
+  return { ...pianta, aree: (pianta.aree ?? []).filter((x) => x.id !== id) };
+}
+
+export function aggiungiQuota(pianta: Pianta, p1: Punto, p2: Punto, scostamento = 40): { pianta: Pianta; id: string } {
+  const id = nuovoId("quota");
+  const arr = (p: Punto) => ({ x: Math.round(p.x), y: Math.round(p.y) });
+  return { pianta: { ...pianta, quote: [...(pianta.quote ?? []), { id, p1: arr(p1), p2: arr(p2), scostamento }] }, id };
+}
+
+export function modificaQuota(pianta: Pianta, id: string, campi: Partial<Pick<QuotaLavoro, "p1" | "p2" | "scostamento">>): Pianta {
+  return { ...pianta, quote: (pianta.quote ?? []).map((q) => (q.id === id ? { ...q, ...campi } : q)) };
+}
+
+export function eliminaQuota(pianta: Pianta, id: string): Pianta {
+  return { ...pianta, quote: (pianta.quote ?? []).filter((q) => q.id !== id) };
+}
+
+export function aggiungiTesto(pianta: Pianta, posizione: Punto, testo = "Testo"): { pianta: Pianta; id: string } {
+  const id = nuovoId("testo");
+  return { pianta: { ...pianta, testi: [...(pianta.testi ?? []), { id, posizione: { x: Math.round(posizione.x), y: Math.round(posizione.y) }, testo, rotazione: 0 }] }, id };
+}
+
+export function modificaTesto(pianta: Pianta, id: string, campi: Partial<Pick<TestoLavoro, "posizione" | "testo" | "rotazione">>): Pianta {
+  return { ...pianta, testi: (pianta.testi ?? []).map((t) => (t.id === id ? { ...t, ...campi } : t)) };
+}
+
+export function eliminaTesto(pianta: Pianta, id: string): Pianta {
+  return { ...pianta, testi: (pianta.testi ?? []).filter((t) => t.id !== id) };
+}
+
+// ─── più oggetti insieme (fase 4): arredi, quote e testi ───────────────────
+// Pareti e stanze restano una per volta: spostarle in gruppo romperebbe stanze e aperture.
+
+export interface Gruppo {
+  elementi: string[];
+  quote: string[];
+  testi: string[];
+}
+
+export const gruppoVuoto = (): Gruppo => ({ elementi: [], quote: [], testi: [] });
+export const quantiNelGruppo = (g: Gruppo) => g.elementi.length + g.quote.length + g.testi.length;
+
+/** Gli oggetti del gruppo che si possono toccare in questa vista (gli arredi di oggi nel progetto no). */
+export function gruppoModificabile(pianta: Pianta, g: Gruppo, vista: Vista): Gruppo {
+  const el = new Set(g.elementi);
+  return {
+    elementi: (pianta.elementi ?? []).filter((e) => el.has(e.id) && modificabile(e.stato, vista)).map((e) => e.id),
+    quote: (pianta.quote ?? []).filter((q) => g.quote.includes(q.id)).map((q) => q.id),
+    testi: (pianta.testi ?? []).filter((t) => g.testi.includes(t.id)).map((t) => t.id),
+  };
+}
+
+/** Ciò che sta tutto dentro il riquadro: il centro di un arredo, i due capi di una quota, un testo. */
+export function gruppoNelRiquadro(pianta: Pianta, a: Punto, b: Punto, vista: Vista): Gruppo {
+  const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  const dentro = (p: Punto) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1;
+  return {
+    elementi: (pianta.elementi ?? []).filter((e) => visibile(e.stato, vista) && dentro(e.centro)).map((e) => e.id),
+    quote: (pianta.quote ?? []).filter((q) => dentro(q.p1) && dentro(q.p2)).map((q) => q.id),
+    testi: (pianta.testi ?? []).filter((t) => dentro(t.posizione)).map((t) => t.id),
+  };
+}
+
+/** Il centro del riquadro che contiene il gruppo: perno per ruotare e specchiare. */
+export function centroGruppo(pianta: Pianta, g: Gruppo): Punto | null {
+  const punti: Punto[] = [
+    ...(pianta.elementi ?? []).filter((e) => g.elementi.includes(e.id)).map((e) => e.centro),
+    ...(pianta.quote ?? []).filter((q) => g.quote.includes(q.id)).flatMap((q) => [q.p1, q.p2]),
+    ...(pianta.testi ?? []).filter((t) => g.testi.includes(t.id)).map((t) => t.posizione),
+  ];
+  if (!punti.length) return null;
+  const xs = punti.map((p) => p.x), ys = punti.map((p) => p.y);
+  return { x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2), y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2) };
+}
+
+function trasformaGruppo(
+  pianta: Pianta,
+  g: Gruppo,
+  punto: (p: Punto) => Punto,
+  angolo: (r: number) => number,
+  scambiaQuota = false,
+): Pianta {
+  // «+ 0» toglie i -0 che la rotazione lascia
+  const arr = (p: Punto) => { const q = punto(p); return { x: Math.round(q.x) + 0, y: Math.round(q.y) + 0 }; };
+  const norm = (r: number) => (((Math.round(r) % 360) + 360) % 360) + 0;
+  return {
+    ...pianta,
+    elementi: (pianta.elementi ?? []).map((e) => (g.elementi.includes(e.id) ? { ...e, centro: arr(e.centro), rotazione: norm(angolo(e.rotazione)) } : e)),
+    quote: (pianta.quote ?? []).map((q) => {
+      if (!g.quote.includes(q.id)) return q;
+      const p1 = arr(q.p1), p2 = arr(q.p2);
+      return scambiaQuota ? { ...q, p1: p2, p2: p1 } : { ...q, p1, p2 };
+    }),
+    testi: (pianta.testi ?? []).map((t) => (g.testi.includes(t.id) ? { ...t, posizione: arr(t.posizione), rotazione: norm(angolo(t.rotazione)) } : t)),
+  };
+}
+
+export function spostaGruppo(pianta: Pianta, g: Gruppo, delta: Punto): Pianta {
+  return trasformaGruppo(pianta, g, (p) => ({ x: p.x + delta.x, y: p.y + delta.y }), (r) => r);
+}
+
+/** Ruota di 90° in senso orario sullo schermo attorno al centro del gruppo. */
+export function ruotaGruppo(pianta: Pianta, g: Gruppo, gradi = 90): Pianta {
+  const c = centroGruppo(pianta, g);
+  if (!c) return pianta;
+  const a = (gradi * Math.PI) / 180, cos = Math.cos(a), sin = Math.sin(a);
+  return trasformaGruppo(pianta, g, (p) => ({ x: c.x + (p.x - c.x) * cos - (p.y - c.y) * sin, y: c.y + (p.x - c.x) * sin + (p.y - c.y) * cos }), (r) => r + gradi);
+}
+
+/**
+ * Specchia sinistra↔destra attorno al centro del gruppo. Le quote si scambiano i capi così la
+ * linea di quota resta dal lato giusto; i testi restano leggibili (cambia solo la posizione e l'inclinazione).
+ */
+export function specchiaGruppo(pianta: Pianta, g: Gruppo): Pianta {
+  const c = centroGruppo(pianta, g);
+  if (!c) return pianta;
+  return trasformaGruppo(pianta, g, (p) => ({ x: 2 * c.x - p.x, y: p.y }), (r) => -r, true);
+}
+
+/** Copia il gruppo spostato di poco; ritorna il gruppo delle copie (che resta selezionato). */
+export function duplicaGruppo(pianta: Pianta, g: Gruppo, vista: Vista, delta: Punto = { x: 40, y: 40 }): { pianta: Pianta; gruppo: Gruppo } {
+  const nuovo = gruppoVuoto();
+  let p = pianta;
+  for (const e of (pianta.elementi ?? []).filter((x) => g.elementi.includes(x.id))) {
+    const r = aggiungiElemento(p, e, { x: e.centro.x + delta.x, y: e.centro.y + delta.y }, { stato: statoNuovo(vista), rotazione: e.rotazione });
+    p = r.pianta;
+    nuovo.elementi.push(r.id);
+  }
+  for (const q of (pianta.quote ?? []).filter((x) => g.quote.includes(x.id))) {
+    const r = aggiungiQuota(p, { x: q.p1.x + delta.x, y: q.p1.y + delta.y }, { x: q.p2.x + delta.x, y: q.p2.y + delta.y }, q.scostamento);
+    p = r.pianta;
+    nuovo.quote.push(r.id);
+  }
+  for (const t of (pianta.testi ?? []).filter((x) => g.testi.includes(x.id))) {
+    const r = aggiungiTesto(p, { x: t.posizione.x + delta.x, y: t.posizione.y + delta.y }, t.testo);
+    p = modificaTesto(r.pianta, r.id, { rotazione: t.rotazione });
+    nuovo.testi.push(r.id);
+  }
+  return { pianta: p, gruppo: nuovo };
+}
+
+export function eliminaGruppo(pianta: Pianta, g: Gruppo, vista: Vista): Pianta {
+  let p = pianta;
+  for (const id of g.elementi) p = eliminaElemento(p, id, vista);
+  return {
+    ...p,
+    quote: (p.quote ?? []).filter((q) => !g.quote.includes(q.id)),
+    testi: (p.testi ?? []).filter((t) => !g.testi.includes(t.id)),
+  };
+}
+
+// ─── Pareti curve ────────────────────────────────────────────────────────────
+
+/**
+ * Punti di un arco da a a b con la freccia data (cm, distanza del centro dell'arco dalla
+ * corda; positiva a sinistra di a→b sullo schermo). Esclusi a e b.
+ */
+export function puntiArco(a: Punto, b: Punto, freccia: number, segmenti: number): Punto[] {
+  const c = dist(a, b);
+  if (c < 1 || Math.abs(freccia) < 1 || segmenti < 2) return [];
+  const f = Math.min(Math.abs(freccia), c / 2) * Math.sign(freccia);
+  const r = (c * c) / (8 * Math.abs(f)) + Math.abs(f) / 2;
+  const u = { x: (b.x - a.x) / c, y: (b.y - a.y) / c };
+  const sinistra = { x: u.y, y: -u.x }; // y in giù: a sinistra di a→b
+  const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  // il centro sta dalla parte opposta alla freccia
+  const centro = { x: m.x - sinistra.x * Math.sign(f) * (r - Math.abs(f)), y: m.y - sinistra.y * Math.sign(f) * (r - Math.abs(f)) };
+  const angA = Math.atan2(a.y - centro.y, a.x - centro.x);
+  let angB = Math.atan2(b.y - centro.y, b.x - centro.x);
+  // il verso che passa per la cima della freccia
+  const cima = { x: m.x + sinistra.x * f, y: m.y + sinistra.y * f };
+  const angC = Math.atan2(cima.y - centro.y, cima.x - centro.x);
+  const tra = (x: number, d: number, e: number) => { const n = (v: number) => ((v - d) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI); return n(x) <= n(e); };
+  if (!tra(angC, angA, angB)) angB = angB > angA ? angB - 2 * Math.PI : angB + 2 * Math.PI;
+  else if (angB < angA) angB += 2 * Math.PI;
+  const out: Punto[] = [];
+  for (let i = 1; i < segmenti; i++) {
+    const t = angA + ((angB - angA) * i) / segmenti;
+    out.push({ x: Math.round((centro.x + r * Math.cos(t)) * 10) / 10, y: Math.round((centro.y + r * Math.sin(t)) * 10) / 10 });
+  }
+  return out;
+}
+
+/**
+ * Curva una parete (bovindo, muro tondo del balcone): diventa un arco di tratti dritti con la
+ * stessa grossezza, e il contorno delle stanze che ci stanno contro segue la curva (superfici,
+ * perimetri e 3D tornano). Le pareti con porte o finestre non si curvano: prima si tolgono.
+ */
+export function curvaParete(pianta: Pianta, id: string, freccia: number, segmenti = 8): { pianta: Pianta; ok: boolean; motivo?: string } {
+  const m = pianta.muri.find((x) => x.id === id);
+  if (!m) return { pianta, ok: false, motivo: "Parete non trovata." };
+  if (pianta.aperture.some((a) => a.muroId === id)) return { pianta, ok: false, motivo: "Togli prima porte e finestre da questa parete: su una parete curva non si posano." };
+  // un angolo di stanza a metà parete: la parete fa da lato a più stanze, la curva le romperebbe
+  const lm = dist(m.p1, m.p2);
+  const aMeta = pianta.locali.some((l) => l.contorno.some((q) => {
+    const t = ((q.x - m.p1.x) * (m.p2.x - m.p1.x) + (q.y - m.p1.y) * (m.p2.y - m.p1.y)) / (lm * lm);
+    const piede = { x: m.p1.x + t * (m.p2.x - m.p1.x), y: m.p1.y + t * (m.p2.y - m.p1.y) };
+    return t > 0.01 && t < 0.99 && dist(q, piede) < 2;
+  }));
+  if (aMeta) return { pianta, ok: false, motivo: "Questa parete fa da lato a più stanze: dividila (o disegna una parete solo dove serve la curva) e curva quel tratto." };
+  const punti = puntiArco(m.p1, m.p2, freccia, segmenti);
+  if (!punti.length) return { pianta, ok: false, motivo: "Freccia troppo piccola." };
+  const catena = [m.p1, ...punti, m.p2];
+  const nuovi: Muro[] = catena.slice(1).map((q, i) => ({ ...m, id: i === 0 ? m.id : nuovoId("muro"), p1: { ...catena[i] }, p2: { ...q } }));
+  const vicino = (p: Punto, q: Punto) => dist(p, q) < 2;
+  const locali = pianta.locali.map((l) => {
+    const c = l.contorno;
+    for (let i = 0; i < c.length; i++) {
+      const p = c[i], q = c[(i + 1) % c.length];
+      const dritto = vicino(p, m.p1) && vicino(q, m.p2);
+      const rovescio = vicino(p, m.p2) && vicino(q, m.p1);
+      if (!dritto && !rovescio) continue;
+      const dentro = dritto ? punti : [...punti].reverse();
+      return { ...l, contorno: [...c.slice(0, i + 1), ...dentro, ...c.slice(i + 1)] };
+    }
+    return l;
+  });
+  return { pianta: { ...pianta, muri: pianta.muri.flatMap((x) => (x.id === id ? nuovi : [x])), locali }, ok: true };
 }

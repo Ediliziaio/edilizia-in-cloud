@@ -156,21 +156,50 @@ export function ImportPrezziarioDialog({
       return;
     }
     setImporting(true);
+    let nuove = 0, aggiornate = 0;
     try {
       const payloads = toCreate.map((r) =>
         toImportPayload(r, { companyId, includeCosto: isAdmin }),
       );
+      // Una voce con un codice già nel listino si aggiorna (prezzi, nome, descrizione) invece di duplicarsi:
+      // così il giro esporta → correggi → reimporta funziona.
+      const codici = [...new Set(payloads.map((p) => p.codice?.trim()).filter((c): c is string => !!c))];
+      const esistenti = new Map<string, string>();
+      for (let i = 0; i < codici.length; i += 200) {
+        const { data, error } = await supabase.from("tariffe_aziendali").select("id, codice")
+          .eq("company_id", companyId).in("codice", codici.slice(i, i + 200));
+        if (error) throw error;
+        for (const t of (data ?? []) as Array<{ id: string; codice: string | null }>) if (t.codice && !esistenti.has(t.codice)) esistenti.set(t.codice, t.id);
+      }
+      const daAggiornare = payloads.filter((p) => p.codice && esistenti.has(p.codice.trim()));
+      const daCreare = payloads.filter((p) => !(p.codice && esistenti.has(p.codice.trim())));
+      for (const p of daAggiornare) {
+        const patch: Record<string, unknown> = { nome: p.nome, descrizione: p.descrizione, prezzo_vendita: p.prezzo_vendita };
+        if (p.costo_interno !== undefined) { patch.costo_interno = p.costo_interno; patch.prezzo_costo = p.prezzo_costo; }
+        const { data, error } = await supabase.from("tariffe_aziendali").update(patch as never)
+          .eq("id", esistenti.get(p.codice!.trim())!).eq("company_id", companyId).select("id");
+        if (error) throw error;
+        if (data?.length) aggiornate += 1;
+      }
       // Insert a blocchi per non superare i limiti di payload.
-      for (let i = 0; i < payloads.length; i += INSERT_CHUNK) {
-        const chunk = payloads.slice(i, i + INSERT_CHUNK);
+      for (let i = 0; i < daCreare.length; i += INSERT_CHUNK) {
+        const chunk = daCreare.slice(i, i + INSERT_CHUNK);
         const { error } = await supabase.from("tariffe_aziendali").insert(chunk as never);
         if (error) throw error;
+        nuove += chunk.length;
       }
-      toast.success(`${toCreate.length} voci importate nel listino`);
+      toast.success(aggiornate
+        ? `${nuove} voci nuove e ${aggiornate} aggiornate (stesso codice)`
+        : `${nuove} voci importate nel listino`);
       onImported();
       onClose();
     } catch (err) {
-      toast.error(testoErrore(err, "Voci non importate."));
+      // Quello che è già entrato resta: lo si dice, così non si reimporta tutto creando doppioni.
+      const fatte = nuove + aggiornate;
+      toast.error(fatte
+        ? `Importazione interrotta: ${nuove} voci create e ${aggiornate} aggiornate prima dell'errore. ${testoErrore(err, "")}`.trim()
+        : testoErrore(err, "Voci non importate."));
+      if (fatte) onImported();
     } finally {
       setImporting(false);
     }

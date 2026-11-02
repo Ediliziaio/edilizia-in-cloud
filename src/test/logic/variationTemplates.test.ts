@@ -44,3 +44,21 @@ describe("Modelli riutilizzabili delle varianti", () => {
     if (process.env.VARIATION_TEMPLATE_PDF_PROOF) writeFileSync(process.env.VARIATION_TEMPLATE_PDF_PROOF, Buffer.from(pdf.output("arraybuffer")));
   });
 });
+
+describe("modello «Variante in opera» (Dimora Torino, 31/10/2026)", () => {
+  const modello = VARIATION_TEMPLATE_EXAMPLES.find((m) => m.name === "Variante in opera")!;
+  it("è valido e si applica con committente, appaltatore e commessa", () => {
+    expect(modello).toBeDefined();
+    const bozza = applyVariationTemplate(emptyVariationDraft(), modello, { orderCode: "O-0001", customerName: "Mario Bianchi", companyName: "Dimora srl" });
+    expect(bozza.documentHeading).toBe("Variante in opera");
+    expect(bozza.documentIntro).toContain("O-0001");
+    expect(bozza.documentIntro).toContain("Mario Bianchi");
+    expect(bozza.documentIntro).toContain("IVA esclusa");
+    expect(bozza.additionalTerms).toContain("approvazione scritta");
+    expect(bozza.paymentTerms).toContain("prossima tranche di SAL");
+    expect(bozza.dayUnit).toBe("lavorativi");
+  });
+  it("senza il nome del cliente lo chiede, invece di stampare un buco", () => {
+    expect(() => applyVariationTemplate(emptyVariationDraft(), modello, { orderCode: "O-0001", companyName: "Dimora srl" })).toThrow(/cliente\.nome_completo/);
+  });
+});

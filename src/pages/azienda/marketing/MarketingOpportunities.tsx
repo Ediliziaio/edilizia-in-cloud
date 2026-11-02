@@ -59,6 +59,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { normalizeTagList } from "@/lib/marketingTags";
+import { useLossReasons } from "@/hooks/useLossReasons";
+import { EsportaOpportunitaDialog, type SceltaDialog } from "@/components/opportunities/EsportaOpportunitaDialog";
+import { colonneConCampi, excelOpportunita, NOMI_DATA_PERIODO, NOMI_STATO, rigaOpportunita, scegliOpportunita, soloColonne } from "@/lib/opportunita/esportaOpportunita";
 
 export default function MarketingOpportunities() {
   return (
@@ -273,6 +276,8 @@ function MarketingOpportunitiesContent() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [cestinoOpen, setCestinoOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [esportaAperto, setEsportaAperto] = useState(false);
+  const { motivi: motiviPerdita } = useLossReasons();
 
   const handleSelect = useCallback((id: string, sel: boolean) => {
     setSelectedIds((prev) => {
@@ -464,8 +469,8 @@ function MarketingOpportunitiesContent() {
     }
   }, [selectedPipelineId, filtriServer, idsPerFase, chiaveIdsColonne, handleSelectMany]);
 
-  const fetchAllOpportunitiesForExport = useCallback(async () => {
-    if (!companyId || !selectedPipelineId) return [];
+  const fetchAllOpportunitiesForExport = useCallback(async (tuttePipeline = false) => {
+    if (!companyId || (!selectedPipelineId && !tuttePipeline)) return [];
     const pageSize = 1000;
     let from = 0;
     let allRows: any[] = [];
@@ -475,11 +480,11 @@ function MarketingOpportunitiesContent() {
         .from("marketing_opportunities")
         .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, address, province, region, postal_code, source, company_name, tags)")
         .eq("company_id", companyId)
-        .eq("pipeline_id", selectedPipelineId)
         // Coerente con la lista: mai esportare righe soft-deleted.
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
+      if (!tuttePipeline) query = query.eq("pipeline_id", selectedPipelineId);
 
       // «Vede solo i propri»: venditore, call center o follower (come la pagina).
       if (permissions.onlyAssigned && currentUserId) {
@@ -496,7 +501,7 @@ function MarketingOpportunitiesContent() {
     return applyOpportunityFiltersAndSort(allRows);
   }, [companyId, selectedPipelineId, permissions.onlyAssigned, currentUserId, applyOpportunityFiltersAndSort]);
 
-  const handleExportOpportunities = useCallback(async () => {
+  const handleExportOpportunities = useCallback(async (scelta: SceltaDialog) => {
     if (!canExportClients || !companyId) return;
     if (!selectedPipelineId) {
       toast.error("Seleziona una pipeline prima di esportare");
@@ -504,21 +509,28 @@ function MarketingOpportunitiesContent() {
     }
     setIsExporting(true);
     try {
-      const exportRows = await fetchAllOpportunitiesForExport();
-      const stageMap = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
-      const staffMap = Object.fromEntries(staff.map((s: any) => [s.id, s.name]));
+      // le opportunità della pagina (ricerca e filtri compresi), poi le fasi e gli stati scelti
+      const exportRows = scegliOpportunita(await fetchAllOpportunitiesForExport(scelta.tuttePipeline), { fasi: scelta.fasi, stati: scelta.stati, periodo: scelta.periodo });
+      if (!exportRows.length) {
+        toast.info("Nessuna opportunità con le scelte fatte.");
+        return;
+      }
+      // con tutte le pipeline: le fasi di tutte, con il nome della pipeline davanti nei fogli
+      const pipelineInUso = scelta.tuttePipeline ? pipelines : pipelines.filter((pp: any) => pp.id === selectedPipelineId);
+      const tutteLeFasi = pipelineInUso.flatMap((pp: any) => (pp.marketing_pipeline_stages ?? []).map((st: any) => ({ id: st.id as string, name: st.name as string, pipeline: pp.name as string })));
+      const fasi = Object.fromEntries((tutteLeFasi.length ? tutteLeFasi : stages).map((s: any) => [s.id, s.name]));
+      const pipelineDellaFase = Object.fromEntries(tutteLeFasi.map((s) => [s.id, s.pipeline]));
+      const venditori = Object.fromEntries(staff.map((s: any) => [s.id, s.name]));
 
-      // v8.6.46 — C4: include custom fields nell'export opportunità.
-      // Fetch definitions + values con chunking per evitare i limiti Supabase IN().
+      // Campi personalizzati, a blocchi per i limiti di IN().
       const { data: cfDefs } = await supabase
         .from("marketing_custom_fields")
         .select("id, name")
         .eq("company_id", companyId!)
         .eq("object_type", "opportunity");
-      const cfDefsArr = (cfDefs ?? []) as Array<{ id: string; name: string }>;
-
-      const cfValueMap: Record<string, Record<string, string>> = {};
-      if (cfDefsArr.length > 0 && exportRows.length > 0) {
+      const campi = (cfDefs ?? []) as Array<{ id: string; name: string }>;
+      const valoriCampi: Record<string, Record<string, string>> = {};
+      if (campi.length > 0) {
         const oppIds = exportRows.map((o: any) => o.id);
         const CHUNK_SIZE = 2000;
         for (let i = 0; i < oppIds.length; i += CHUNK_SIZE) {
@@ -528,89 +540,59 @@ function MarketingOpportunitiesContent() {
             .select("opportunity_id, field_id, value")
             .in("opportunity_id", chunk);
           for (const v of (vals ?? []) as Array<{ opportunity_id: string; field_id: string; value: string | null }>) {
-            if (!cfValueMap[v.opportunity_id]) cfValueMap[v.opportunity_id] = {};
-            if (v.value) cfValueMap[v.opportunity_id][v.field_id] = v.value;
+            if (!valoriCampi[v.opportunity_id]) valoriCampi[v.opportunity_id] = {};
+            if (v.value) valoriCampi[v.opportunity_id][v.field_id] = v.value;
           }
         }
       }
 
-      const rows = exportRows.map((o: any) => {
-        const c = o.marketing_contacts || {};
-        // Ponderato coerente con la dashboard (OpportunityStatsStrip): la
-        // probabilità pesa SOLO le aperte; vinte = valore pieno, perse = 0.
-        // Prima ogni riga usciva a probabilità (default 50%) a prescindere
-        // dallo stato: una vinta appariva dimezzata, una persa valeva 50%.
-        const valueNum = Number(o.value || 0);
-        const probClamped = Math.max(0, Math.min(100, Number(o.probability ?? 50)));
-        const weighted =
-          o.status === "won" ? valueNum : o.status === "open" ? valueNum * (probClamped / 100) : 0;
-        const row: Record<string, string> = {
-          name: o.name || "",
-          contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
-          email: c.email || "",
-          phone: c.phone || "",
-          value: String(o.value || 0),
-          probability: String(o.probability ?? ""),
-          weighted_value: String(Math.round(weighted * 100) / 100),
-          status: o.status || "",
-          stage: stageMap[o.stage_id] || "",
-          assigned_to: staffMap[o.assigned_to] || "",
-          source: o.source || "",
-          tags: (o.tags || []).join(", "),
-          // Stessa formattazione it-IT delle altre colonne data (era ISO grezzo).
-          expected_close_date: o.expected_close_date
-            ? new Date(o.expected_close_date).toLocaleDateString("it-IT")
-            : "",
-          created_at: o.created_at ? new Date(o.created_at).toLocaleDateString("it-IT") : "",
-          updated_at: o.updated_at ? new Date(o.updated_at).toLocaleDateString("it-IT") : "",
-        };
-        // Custom field values
-        for (const cf of cfDefsArr) {
-          row[`cf_${cf.id}`] = cfValueMap[o.id]?.[cf.id] ?? "";
-        }
-        return row;
-      });
+      const ctx = { fasi, pipelineDellaFase, venditori, motivi: motiviPerdita, campi, valoriCampi };
+      const righe = exportRows.map((o: any) => ({ faseId: (o.stage_id as string | null) ?? null, riga: rigaOpportunita(o, ctx) }));
+      // colonne scelte: «cf» vuol dire tutti i campi personalizzati
+      const scelte = scelta.colonne.size ? new Set([...scelta.colonne, ...(scelta.colonne.has("cf") ? campi.map((c) => `cf_${c.id}`) : [])]) : null;
+      const colonne = soloColonne(colonneConCampi(campi).filter((c) => c.key !== "pipeline" || scelta.tuttePipeline), scelte);
       const today = new Date().toISOString().slice(0, 10);
-      const cfColumns = cfDefsArr.map((cf) => ({ key: `cf_${cf.id}`, label: cf.name }));
+      const nomiFasi = scelta.fasi.size ? stages.filter((s: any) => scelta.fasi.has(s.id)).map((s: any) => s.name) : [];
       // Prima il registro, poi il file: senza registrazione non parte.
       await registraEsportazioneCrm({
         companyId,
         oggetto: "opportunita",
-        formato: "csv",
-        righe: rows.length,
+        formato: scelta.formato,
+        righe: righe.length,
         filtri: {
-          pipeline: selectedPipeline?.name ?? selectedPipelineId,
+          pipeline: scelta.tuttePipeline ? "tutte" : selectedPipeline?.name ?? selectedPipelineId,
+          periodo: scelta.periodo ? `${scelta.periodo.da || "…"} – ${scelta.periodo.a || "…"} (${NOMI_DATA_PERIODO[scelta.periodo.data]})` : undefined,
+          colonne: scelta.colonne.size ? `${colonne.length} scelte` : undefined,
           ricerca: safeSearchQuery,
           filtri: filters,
+          // solo se scelti: senza, sono tutte le fasi e tutti gli stati
+          fasi: nomiFasi.length ? nomiFasi.join(", ") : undefined,
+          stati: scelta.stati.size ? [...scelta.stati].map((x) => NOMI_STATO[x] ?? x).join(", ") : undefined,
           solo_mie: onlyMine,
           perimetro: permissions.onlyAssigned ? "solo i propri" : "tutta l'azienda",
         },
       });
-      exportToCSV(rows, [
-        { key: "name", label: "Nome Opportunità" },
-        { key: "contact", label: "Contatto" },
-        { key: "email", label: "Email" },
-        { key: "phone", label: "Telefono" },
-        { key: "value", label: "Valore" },
-        { key: "probability", label: "Probabilità" },
-        { key: "weighted_value", label: "Valore ponderato" },
-        { key: "status", label: "Stato" },
-        { key: "stage", label: "Fase" },
-        { key: "assigned_to", label: "Venditore" },
-        { key: "source", label: "Fonte" },
-        { key: "tags", label: "Tag" },
-        { key: "expected_close_date", label: "Chiusura prevista" },
-        { key: "created_at", label: "Data Creazione" },
-        { key: "updated_at", label: "Ultimo aggiornamento" },
-        ...cfColumns,
-      ], `opportunita_${today}.csv`);
-      toast.success(`${rows.length} opportunità esportate${permissions.onlyAssigned ? " tra quelle assegnate a te" : ""}`);
+      const parteNome = nomiFasi.length === 1 ? `_${nomiFasi[0].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-")}` : "";
+      if (scelta.formato === "xlsx") {
+        const fogli = scelta.tuttePipeline ? tutteLeFasi.map((s) => ({ id: s.id, nome: `${s.pipeline} · ${s.name}` })) : stages.map((s: any) => ({ id: s.id, nome: s.name }));
+        const blob = await excelOpportunita(righe, colonne, fogli);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `opportunita${parteNome}_${today}.xlsx`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      } else {
+        exportToCSV(righe.map((r) => r.riga), colonne, `opportunita${parteNome}_${today}.csv`);
+      }
+      toast.success(`${righe.length} opportunità esportate${permissions.onlyAssigned ? " tra quelle assegnate a te" : ""}`);
+      setEsportaAperto(false);
     } catch (err) {
       toast.error(messaggioEsportazioneNonRiuscita(err));
     } finally {
       setIsExporting(false);
     }
-  }, [canExportClients, fetchAllOpportunitiesForExport, selectedPipelineId, selectedPipeline, safeSearchQuery, filters, onlyMine, stages, staff, permissions.onlyAssigned, companyId]);
+  }, [canExportClients, fetchAllOpportunitiesForExport, selectedPipelineId, selectedPipeline, safeSearchQuery, filters, onlyMine, stages, staff, permissions.onlyAssigned, companyId, motiviPerdita, pipelines]);
 
   const activeFilterCount = countActiveFilters(filters);
   // Mobile: il numero sul bottone dei filtri (Miei, Da fare/In stallo, filtri avanzati o elenco).
@@ -852,8 +834,8 @@ function MarketingOpportunitiesContent() {
               </DropdownMenuItem>
               {/* Niente export su telefono, né senza «Esporta Clienti». */}
               {!isMobile && canExportClients && (
-                <DropdownMenuItem onClick={handleExportOpportunities} disabled={isExporting}>
-                  {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta CSV
+                <DropdownMenuItem onClick={() => setEsportaAperto(true)} disabled={isExporting}>
+                  {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />} Esporta (Excel o CSV)
                 </DropdownMenuItem>
               )}
               {canEditOpportunities && (
@@ -1251,6 +1233,19 @@ function MarketingOpportunitiesContent() {
         </AlertDialogContent>
       </AlertDialog>
       <OpportunitaCestinoDialog open={cestinoOpen} onOpenChange={setCestinoOpen} />
+      {canExportClients && (
+        <EsportaOpportunitaDialog
+          aperto={esportaAperto}
+          onChiudi={() => setEsportaAperto(false)}
+          fasi={stages.map((s: any) => ({ id: s.id, name: s.name }))}
+          nomePipeline={selectedPipeline?.name}
+          piuPipeline={pipelines.length > 1}
+          chiaveMemoria={companyId ?? "azienda"}
+          filtriAttivi={activeFilterCount + (safeSearchQuery ? 1 : 0)}
+          inCorso={isExporting}
+          onEsporta={handleExportOpportunities}
+        />
+      )}
       <CreateListDialog
         open={createListOpen}
         onOpenChange={setCreateListOpen}

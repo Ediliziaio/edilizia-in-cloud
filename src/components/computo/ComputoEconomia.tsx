@@ -4,6 +4,7 @@
  * l'IVA stava in fondo al passo Documento, mescolata con le scelte di stampa,
  * e lo sconto non c'era: lo si faceva abbassando i prezzi delle voci.
  */
+import { calcolaIvaComputo } from "@/lib/computo/ivaComputo";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +40,8 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
   };
   const analisi = analizzaEconomia(bozza);
   const rate = bozza.pianoPagamenti.rate;
+  // L'aliquota IVA del preventivo, se è applicata e valida: le rate si mostrano anche con l'IVA.
+  const ivaRate = (() => { const f = calcolaIvaComputo(100, bozza); return f.modalita === "applicata" && !f.errore && f.aliquota != null ? f.aliquota : null; })();
   const durata = durataTotale(bozza.cronoprogramma);
   const cambiaRate = (r: Rata[]) => onChange({ pianoPagamenti: { rate: r } });
   const cambiaRata = (id: string, patch: Partial<Rata>) => cambiaRate(rate.map(r => r.id === id ? { ...r, ...patch } : r));
@@ -111,11 +114,11 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
     <section aria-label="Piano dei pagamenti" className="space-y-3 rounded-lg border bg-white p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div><h3 className="text-sm font-semibold">Piano dei pagamenti</h3>
-          <p className="text-xs text-muted-foreground">Acconto, SAL e saldo sull'imponibile{bozza.ivaModalita === "applicata" ? " (più IVA)" : ""}. Esce nel PDF con gli importi.</p></div>
+          <p className="text-xs text-muted-foreground">Acconto, SAL e saldo sull'imponibile{ivaRate != null ? `, e con l'IVA al ${ivaRate.toLocaleString("it-IT")}% (quello che paga il cliente)` : bozza.ivaModalita === "applicata" ? " (più IVA)" : ""}. Esce nel PDF con gli importi.</p></div>
         <div className="flex flex-wrap gap-1.5">{pianiPredefiniti(durata).map(piano => <Button key={piano.nome} type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => cambiaRate(piano.rate())}>{piano.nome}</Button>)}</div>
       </div>
       {!!rate.length && <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
-        <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground"><th className="min-w-[10rem] py-1 pr-2 font-medium">Rata</th><th className="w-20 py-1 pr-2 font-medium">%</th><th className="w-64 py-1 pr-2 font-medium">Quando</th><th className="w-24 py-1 pr-2 font-medium">Pagata entro</th><th className="w-28 py-1 text-right font-medium">Importo</th><th className="w-8" /></tr></thead>
+        <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground"><th className="min-w-[10rem] py-1 pr-2 font-medium">Rata</th><th className="w-20 py-1 pr-2 font-medium">%</th><th className="w-64 py-1 pr-2 font-medium">Quando</th><th className="w-24 py-1 pr-2 font-medium">Pagata entro</th><th className="w-28 py-1 text-right font-medium">Importo</th>{ivaRate != null && <th className="w-28 py-1 text-right font-medium">Con IVA</th>}<th className="w-8" /></tr></thead>
         <tbody>{analisi.rate.map(({ rata: r, importo }, k) => <tr key={r.id} className="border-t align-top">
           <td className="py-1.5 pr-2"><Input aria-label={`Nome della rata ${k + 1}`} className="h-8" maxLength={200} value={r.descrizione} onChange={e => cambiaRata(r.id, { descrizione: e.target.value })} /></td>
           <td className="py-1.5 pr-2"><Input aria-label={`Percentuale della rata ${k + 1}`} className="h-8 tabular-nums" inputMode="decimal" maxLength={20} value={r.percentuale} onChange={e => cambiaRata(r.id, { percentuale: e.target.value })} /></td>
@@ -131,9 +134,10 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
             <SelectContent>{[0, 15, 30, 60, 90].map(g => <SelectItem key={g} value={String(g)}>{g ? `${g} giorni` : "A vista"}</SelectItem>)}</SelectContent>
           </Select></td>
           <td className="py-1.5 text-right font-medium tabular-nums">{formatEuro(importo)} €</td>
+          {ivaRate != null && <td className="py-1.5 text-right tabular-nums">{formatEuro(Math.round(importo * (1 + ivaRate / 100) * 100) / 100)} €</td>}
           <td className="py-1.5 pl-1"><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Togli la rata ${k + 1}`} onClick={() => cambiaRate(rate.filter(x => x.id !== r.id))}><Trash2 className="h-4 w-4" /></Button></td>
         </tr>)}</tbody>
-        <tfoot><tr className="border-t text-sm"><td className="py-1.5 font-medium">Totale</td><td className={`py-1.5 tabular-nums ${analisi.errorePiano ? "text-amber-700" : ""}`}>{analisi.sommaPercentuali.toLocaleString("it-IT")}%</td><td colSpan={2} /><td className="py-1.5 text-right font-semibold tabular-nums">{formatEuro(analisi.rate.reduce((t, r) => t + r.importo, 0))} €</td><td /></tr></tfoot>
+        <tfoot><tr className="border-t text-sm"><td className="py-1.5 font-medium">Totale</td><td className={`py-1.5 tabular-nums ${analisi.errorePiano ? "text-amber-700" : ""}`}>{analisi.sommaPercentuali.toLocaleString("it-IT")}%</td><td colSpan={2} /><td className="py-1.5 text-right font-semibold tabular-nums">{formatEuro(analisi.rate.reduce((t, r) => t + r.importo, 0))} €</td>{ivaRate != null && <td className="py-1.5 text-right font-semibold tabular-nums">{formatEuro(analisi.rate.reduce((t, r) => t + Math.round(r.importo * (1 + ivaRate / 100) * 100) / 100, 0))} €</td>}<td /></tr></tfoot>
       </table></div>}
       {analisi.errorePiano && <p role="alert" className="text-sm text-amber-800">{analisi.errorePiano}</p>}
       <div className="flex flex-wrap items-center gap-2">

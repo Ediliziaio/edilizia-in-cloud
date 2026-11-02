@@ -127,6 +127,7 @@ export const inputSviluppo = (p: Partial<InputDossier> = {}): InputDossier => {
 };
 
 export const riepilogoAppalto = (permessi = permessiTutti): RiepilogoGenerale => ({
+  fattureGenerale: { fatturato: 238_500, incassato: 0 },
   generale: { id: "g2", codice: "AP-27", nome: "Manutenzione scuole 2027", cliente: "Comune di Asti", clienteId: "c1", modello: "appalto", creataIl: "2027-01-05", valore: 1_000_000 },
   figlie: [figlia("o1", "Scuola Rodari", { avanzamento: 70 }), figlia("o2", "Scuola Collodi", { avanzamento: 20 })],
   permessi,

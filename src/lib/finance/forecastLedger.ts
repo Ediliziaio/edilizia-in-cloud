@@ -174,12 +174,102 @@ export interface PayrollRow {
   netto: Money;
   stato: string;
   data_pagamento: string | null;
+  /** Per l'F24 del mese dopo: ritenute IRPEF (1001) e contributi INPS, del dipendente e dell'azienda. */
+  ritenute_irpef?: Money;
+  contributi_dipendente?: Money;
+  contributi_datore?: Money;
+}
+/** Un mutuo o finanziamento (cg_loans). */
+export interface MutuoCG {
+  id: string;
+  banca?: string | null;
+  descrizione?: string | null;
+  capitale_residuo: number | string | null;
+  tasso_pct: number | string | null;
+  rata_mensile: number | string | null;
+  data_inizio?: string | null;
+  data_fine?: string | null;
+  is_active?: boolean | null;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+/** Le rate future dei mutui (piano alla francese dal capitale residuo di oggi), divise in capitale e interessi. */
+export function rateMutui(mutui: MutuoCG[], today: string, fino: string): ForecastMovement[] {
+  const out: ForecastMovement[] = [];
+  for (const l of mutui) {
+    if (l.is_active === false) continue;
+    let residuo = toCents(l.capitale_residuo);
+    const rata = toCents(l.rata_mensile);
+    const tasso = Number(l.tasso_pct) || 0;
+    if (residuo <= 0 || rata <= 0) continue;
+    const giorno = Math.min(28, Number((l.data_inizio ?? "").slice(8, 10)) || 1);
+    const nome = [l.descrizione || "Mutuo", l.banca].filter(Boolean).join(" · ");
+    let [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+    while (residuo > 0) {
+      const data = `${y}-${pad2(m)}-${pad2(giorno)}`;
+      if (data > fino || (l.data_fine && data > l.data_fine)) break;
+      if (data >= today) {
+        const interessi = Math.round((residuo * tasso) / 100 / 12);
+        const capitale = Math.min(residuo, Math.max(0, rata - interessi));
+        residuo -= capitale;
+        const base = {
+          counterparty: l.banca ?? "",
+          category: "altri" as const,
+          direction: "out" as const,
+          date: data,
+          source: "Mutuo (Controllo di gestione)",
+          href: "/azienda/controllo-gestione/pfn-debiti",
+          estimated: false,
+        };
+        if (capitale > 0)
+          out.push({ ...base, id: `mutuo:${l.id}:${data}:capitale`, description: `${nome} · quota capitale`, cents: capitale, sourceCategory: "mutuo" });
+        if (interessi > 0)
+          out.push({ ...base, id: `mutuo:${l.id}:${data}:interessi`, description: `${nome} · interessi`, cents: interessi, sourceCategory: "interessi" });
+      }
+      m += 1;
+      if (m > 12) { m = 1; y += 1; }
+    }
+  }
+  return out;
 }
 export interface TaxRow {
   id: string;
   importo: Money;
   data_scadenza: string | null;
   tributo_descrizione: string | null;
+  tributo_code?: string | null;
+  anno?: number | null;
+  mese?: number | null;
+}
+/**
+ * Una fattura ricevuta (01/11/2026): se non è ancora un costo, le sue rate escono lo stesso (sono
+ * debiti veri, con le date scritte in fattura); se ha la ritenuta d'acconto, nasce l'F24 1040 stimato.
+ */
+export interface ReceivedInvoiceRow {
+  id: string;
+  cedente_ragione_sociale: string | null;
+  numero_fattura: string | null;
+  data_fattura: string | null;
+  tipo_documento: string | null;
+  stato: string | null;
+  storico_esterno?: boolean | null;
+  company_cost_id: string | null;
+  purchase_order_id?: string | null;
+  piano_pagamento: { scadenza: string | null; importo: Money | null; modalita?: string | null; pagata_il?: string | null }[] | null;
+  netto_a_pagare: Money | null;
+  totale_documento: Money | null;
+  ritenuta_importo: Money | null;
+  ritenuta_aliquota?: Money | null;
+  cedente_piva?: string | null;
+}
+const NOTE_CREDITO_RICEVUTE = ["TD04", "TD08", "passive_credit_note"];
+const AUTOFATTURE_RICEVUTE = ["TD16", "TD17", "TD18", "TD19", "TD20", "TD21", "TD27", "TD28", "self_invoice"];
+/** Il 16 del mese dopo (giorno della ritenuta d'acconto in F24). */
+export function sediciDelMeseDopo(day: string): string {
+  const [y, m] = day.slice(0, 7).split("-").map(Number);
+  const anno = m === 12 ? y + 1 : y;
+  const mese = m === 12 ? 1 : m + 1;
+  return `${anno}-${String(mese).padStart(2, "0")}-16`;
 }
 export interface TeamRow {
   id: string;
@@ -189,7 +279,7 @@ export interface TeamRow {
   is_paid: boolean | null;
   order_id: string;
   order?: OrderRow | null;
-  external_team?: { name: string } | null;
+  external_team?: { name: string; subappaltatore?: { piva: string | null } | null } | null;
 }
 export interface CommissionRow {
   id: string;
@@ -254,12 +344,19 @@ export interface ForecastSources {
   costs: CostRow[];
   /** Le rate dei fornitori dei costi ancora aperti. */
   supplierInstallments: SupplierInstallmentRow[];
+  /** Fatture ricevute non ancora costo, e quelle con ritenuta d'acconto. */
+  receivedInvoices: ReceivedInvoiceRow[];
+  /** Ritenute di garanzia ancora trattenute: si incassano (attive) o si pagano (passive) allo svincolo. */
+  garanzie?: GaranziaRow[];
   deadlines: DeadlineRow[];
   items: SupplierItemRow[];
   coveredItems: { order_item_id: string; company_cost_id?: string }[];
   employees: EmployeeRow[];
   payroll: PayrollRow[];
   taxes: TaxRow[];
+  /** F24 1001, 1040 e DM10 registrati in qualunque stato: il loro mese non si stima. */
+  f24Ritenute?: { anno: number | null; mese: number | null; tributo_code: string | null; stato?: string }[];
+  loans?: MutuoCG[];
   teams: TeamRow[];
   commissions: CommissionRow[];
   notes: NoteRow[];
@@ -275,6 +372,18 @@ export interface ForecastSources {
     tributo_code: string | null;
     stato?: string;
   }[];
+}
+/** Una riga del registro delle ritenute di garanzia. */
+export interface GaranziaRow {
+  id: string;
+  direzione: "attiva" | "passiva" | string;
+  importo: Money;
+  stato: string;
+  data_svincolo_prevista: string | null;
+  controparte: string | null;
+  order_id: string | null;
+  note?: string | null;
+  fideiussione?: boolean | null;
 }
 /** Una fattura emessa o ricevuta ridotta a ciò che serve alla stima IVA. */
 export interface VatDocumentRow {
@@ -295,6 +404,8 @@ export const emptyForecastSources = (): ForecastSources => ({
   invoices: [],
   costs: [],
   supplierInstallments: [],
+  receivedInvoices: [],
+  garanzie: [],
   deadlines: [],
   items: [],
   coveredItems: [],
@@ -924,6 +1035,123 @@ export function buildForecastLedger(
       });
     }
   }
+  // Fatture ricevute non ancora registrate come costo (01/11/2026): le loro rate escono alle date
+  // scritte in fattura. Prima erano invisibili alla cassa finché qualcuno non le contabilizzava.
+  const odaConFattura = new Set<string>();
+  // L'ordine ricevuto ha già il suo costo da pagare (nasce alla ricezione): la sua fattura, finché non è
+  // registrata, è lo stesso debito.
+  const odaConCosto = new Set(s.costs.map((c) => c.purchase_order_id).filter((x): x is string => !!x));
+  // La ditta ancora da pagare in commessa e la sua fattura non ancora registrata sono lo stesso debito:
+  // la fattura resta fuori dal piano (da collegare) e conta la riga della commessa.
+  const soloCifre = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").replace(/^0+(?=\d{11}$)/, "");
+  const pivaDitteDaPagare = new Set(
+    s.teams
+      .filter((t) => !t.is_paid && !t.order?.deleted_at)
+      .map((t) => soloCifre(t.external_team?.subappaltatore?.piva))
+      .filter((p) => p.length === 11),
+  );
+  for (const f of s.receivedInvoices ?? []) {
+    if (f.company_cost_id || f.storico_esterno) continue;
+    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
+    const tipo = f.tipo_documento ?? "";
+    if (NOTE_CREDITO_RICEVUTE.includes(tipo) || AUTOFATTURE_RICEVUTE.includes(tipo)) continue;
+    // La fattura di un ordine d'acquisto prende il posto della stima dell'ordine.
+    if (f.purchase_order_id) odaConFattura.add(f.purchase_order_id);
+    const netto = toCents(f.netto_a_pagare ?? f.totale_documento ?? 0);
+    const piano = Array.isArray(f.piano_pagamento) && f.piano_pagamento.length
+      ? f.piano_pagamento
+      : [{ scadenza: null, importo: null }];
+    const quota = Math.round(netto / piano.length);
+    const fornitore = f.cedente_ragione_sociale || "Fornitore";
+    const dittaInCommessa = pivaDitteDaPagare.has(soloCifre(f.cedente_piva));
+    const ordineConCosto = !!f.purchase_order_id && odaConCosto.has(f.purchase_order_id);
+    const doppione = dittaInCommessa || ordineConCosto;
+    piano.forEach((r, i) => {
+      if ("pagata_il" in r && r.pagata_il) return;
+      const riba = "modalita" in r && r.modalita === "MP12";
+      add({
+        id: `fattura-ricevuta:${f.id}:${i + 1}`,
+        description: `${fornitore} · fattura ${f.numero_fattura ?? ""}${piano.length > 1 ? ` · ${riba ? "RiBa" : "rata"} ${i + 1} di ${piano.length}` : ""}`,
+        counterparty: fornitore,
+        category: "fornitori",
+        direction: "out",
+        cents: r.importo != null ? toCents(r.importo) : quota,
+        date: validDay(r.scadenza),
+        source: riba ? "RiBa da fattura da registrare" : "Fattura da registrare",
+        href: "/azienda/documenti/fatture-ricevute",
+        estimated: true,
+        note: ordineConCosto
+          ? "Fattura di un ordine già ricevuto, che ha il suo costo da pagare: è lo stesso debito. Registrala per collegarla."
+          : dittaInCommessa
+            ? "Fattura di una ditta ancora da pagare in commessa: probabilmente è lo stesso debito. Registrala e collegala alla commessa."
+            : "Fattura arrivata, non ancora registrata come costo: la scadenza è quella scritta in fattura.",
+        ...(doppione ? { possibleDuplicate: true } : {}),
+      });
+    });
+  }
+  // Ritenuta d'acconto dei professionisti: F24 codice 1040 il 16 del mese dopo il pagamento. Stimata
+  // dalla prima scadenza della fattura, finché non c'è l'F24 registrato di quel mese.
+  const f24Registrati = (codice: string) =>
+    new Set(
+      [...s.taxes, ...(s.f24Ritenute ?? [])]
+        .filter((t) => t.tributo_code === codice && t.anno && t.mese)
+        .map((t) => `${t.anno}-${t.mese}`),
+    );
+  const f24Ritenute = f24Registrati("1040");
+  for (const f of s.receivedInvoices ?? []) {
+    if (!(Number(f.ritenuta_importo) > 0) || f.storico_esterno) continue;
+    if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
+    if (NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")) continue;
+    const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
+    const pagata = piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
+    const base = validDay(pagata ?? piano[0]?.scadenza ?? f.data_fattura);
+    if (!base) continue;
+    const date = sediciDelMeseDopo(base);
+    // Una scadenza passata non si stima: o l'F24 è stato pagato fuori dal gestionale, o va registrato.
+    if (date < today) continue;
+    // Nell'F24 il mese delle ritenute è quello in cui sono state trattenute (il pagamento), non la scadenza.
+    const [y, m] = base.split("-").map(Number);
+    if (f24Ritenute.has(`${y}-${m}`)) continue;
+    add({
+      id: `f24-1040:${f.id}`,
+      description: `F24 1040 · ritenuta d'acconto ${f.cedente_ragione_sociale ?? ""} (fattura ${f.numero_fattura ?? ""})`,
+      counterparty: "Erario",
+      category: "fisco",
+      direction: "out",
+      cents: toCents(f.ritenuta_importo),
+      date,
+      source: "Ritenuta d'acconto da versare",
+      href: "/azienda/contabilita-fiscale",
+      estimated: true,
+      note: "La ritenuta trattenuta al professionista si versa con F24 il 16 del mese dopo il pagamento.",
+    });
+  }
+
+  // Ritenute di garanzia (01/11/2026): soldi trattenuti oggi che tornano allo svincolo. Attiva = il
+  // committente ci deve la quota trattenuta; passiva = la dobbiamo noi al subappaltatore.
+  for (const g of s.garanzie ?? []) {
+    // Sostituita da fideiussione: i soldi sono già tornati, allo svincolo non si muove denaro.
+    if (g.stato !== "trattenuta" || g.fideiussione || !(Number(g.importo) > 0)) continue;
+    const attiva = g.direzione === "attiva";
+    const chi = g.controparte || (attiva ? "Committente" : "Subappaltatore");
+    add({
+      id: `garanzia:${g.id}`,
+      description: `${chi} · svincolo ritenuta di garanzia`,
+      counterparty: chi,
+      category: attiva ? "clienti" : "squadre",
+      direction: attiva ? "in" : "out",
+      cents: toCents(g.importo),
+      date: validDay(g.data_svincolo_prevista),
+      source: attiva ? "Garanzia da svincolare (da ricevere)" : "Garanzia da svincolare (da pagare)",
+      href: "/azienda/ritenute-garanzia",
+      estimated: true,
+      orderId: g.order_id,
+      note: g.data_svincolo_prevista
+        ? "Ritenuta di garanzia trattenuta: torna alla data di svincolo prevista nel registro."
+        : "Ritenuta di garanzia senza data di svincolo: scrivila nel registro per metterla nel piano.",
+    });
+  }
+
   const costPurchases = new Set(s.costs.map((c) => c.purchase_order_id));
   const itemsById = new Map(s.items.map((i) => [i.id, i]));
   const itemsByPurchase = new Map<string, Set<string>>();
@@ -938,6 +1166,7 @@ export function buildForecastLedger(
     // (che porta la sua scadenza), l'ODA ricevuto resta un'uscita da pianificare.
     if (
       costPurchases.has(p.id) ||
+      odaConFattura.has(p.id) ||
       !["inviato", "confermato", "parziale", "ricevuto"].includes(p.status)
     )
       continue;
@@ -1107,6 +1336,72 @@ export function buildForecastLedger(
       href: "/azienda/contabilita-fiscale",
       estimated: false,
     });
+
+  // F24 dei dipendenti (01/11/2026): le ritenute IRPEF (1001) il 16 del mese dopo il PAGAMENTO dello
+  // stipendio; i contributi INPS (DM10) il 16 del mese dopo quello del CEDOLINO (competenza). Una stima per
+  // mese, finché non c'è l'F24 registrato di quel mese.
+  const f24Dipendenti = f24Registrati("1001");
+  const f24Contributi = f24Registrati("DM10");
+  const perMese = new Map<string, { irpef: number; inps: number; n: number }>();
+  for (const p of s.payroll) {
+    if (p.stato === "bozza") continue;
+    const competenza = `${p.anno}-${String(p.mese).padStart(2, "0")}`;
+    const pagamento = (validDay(p.data_pagamento) ?? `${competenza}-28`).slice(0, 7);
+    const vi = perMese.get(pagamento) ?? { irpef: 0, inps: 0, n: 0 };
+    vi.irpef += toCents(p.ritenute_irpef ?? 0);
+    vi.n += 1;
+    perMese.set(pagamento, vi);
+    const vc = perMese.get(competenza) ?? { irpef: 0, inps: 0, n: 0 };
+    vc.inps += toCents(p.contributi_dipendente ?? 0) + toCents(p.contributi_datore ?? 0);
+    perMese.set(competenza, vc);
+  }
+  for (const [key, v] of perMese) {
+    const date = sediciDelMeseDopo(`${key}-01`);
+    if (date < today) continue;
+    const [y, m] = key.split("-").map(Number);
+    const etichetta = `${String(m).padStart(2, "0")}/${y}`;
+    if (v.irpef > 0 && !f24Dipendenti.has(`${y}-${m}`))
+      add({
+        id: `f24-1001:${key}`,
+        description: `F24 1001 · ritenute IRPEF dei dipendenti (stipendi ${etichetta})`,
+        counterparty: "Erario",
+        category: "fisco",
+        direction: "out",
+        cents: v.irpef,
+        date,
+        source: "Ritenute dei dipendenti da versare",
+        href: "/azienda/contabilita-fiscale",
+        estimated: true,
+        note: `Somma delle ritenute di ${v.n} ${v.n === 1 ? "cedolino pagato" : "cedolini pagati"} nel mese: si versano il 16 del mese dopo lo stipendio. Confrontala col prospetto del consulente.`,
+      });
+    if (v.inps > 0 && !f24Contributi.has(`${y}-${m}`))
+      add({
+        id: `f24-inps:${key}`,
+        description: `F24 INPS · contributi dei dipendenti (cedolini ${etichetta})`,
+        counterparty: "INPS",
+        category: "fisco",
+        direction: "out",
+        cents: v.inps,
+        date,
+        source: "Contributi da versare",
+        href: "/azienda/contabilita-fiscale",
+        estimated: true,
+        note: "Contributi a carico del dipendente e dell'azienda letti dai cedolini del mese: si versano il 16 del mese dopo. Confrontali col prospetto del consulente.",
+      });
+  }
+
+  // Mutui e finanziamenti (01/11/2026): le rate dei prossimi 12 mesi, capitale e interessi. Prima le vedeva
+  // solo il rendiconto del Controllo di gestione, non il Previsionale né la Tesoreria.
+  {
+    const fine = calendarDate(today);
+    fine.setFullYear(fine.getFullYear() + 1);
+    const giaScritti =
+      s.costs.some((c) => !c.is_paid && /mutu|finanziament/i.test(c.name)) ||
+      s.deadlines.some((d) => !closed(d.status) && /mutu|finanziament/i.test(d.description ?? ""));
+    if ((s.loans ?? []).length && giaScritti)
+      warnings.add("Rate dei mutui del Controllo di gestione non aggiunte: tra spese e scadenze c'è già una rata di mutuo o finanziamento.");
+    else for (const m of rateMutui(s.loans ?? [], today, dayKey(fine))) add(m);
+  }
 
   // Il giorno degli stipendi non è fisso: nel gestionale non c'è un'impostazione HR che lo dica,
   // quindi si ricava dai pagamenti veri (Prima Nota «stipendi» e cedolini pagati degli ultimi

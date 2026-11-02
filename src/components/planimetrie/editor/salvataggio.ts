@@ -30,6 +30,8 @@ export interface DaSalvare {
   /** La versione aperta nell'editor. */
   versioneAttesa?: number | null;
   origine?: OrigineVersione;
+  /** Solo per creare: a cosa è collegata la pianta. */
+  collegamenti?: NuovaPlanimetria["collegamenti"];
 }
 
 export type EsitoSalvataggio =
@@ -52,6 +54,7 @@ export async function salvaPianta(archivio: ScrittureArchivio, dati: DaSalvare):
         titolo,
         documento: { ...dati.documento, titolo: dati.documento.titolo ?? titolo },
         origine: dati.origine ?? "manuale",
+        ...(dati.collegamenti ? { collegamenti: dati.collegamenti } : {}),
       });
       return { ok: true, id, versione: 1, creata: true };
     }

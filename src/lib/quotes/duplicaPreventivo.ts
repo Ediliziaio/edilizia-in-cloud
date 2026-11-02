@@ -125,6 +125,8 @@ export function costruisciPayloadRighe(
     axis_selections: r.axis_selections ?? null,
     supplier_catalog_id: r.supplier_catalog_id ?? null,
     supplier_product_line_id: r.supplier_product_line_id ?? null,
+    // la copia (e la revisione) restano legate alle stesse voci del computo
+    computo_voce_id: r.computo_voce_id ?? null,
   })) satisfies Json[];
 }
 

@@ -46,6 +46,12 @@ export function OdVSection({ orderId, companyId, context = {}, onOpenDocuments }
   const totaleApprovato = odvList
     .filter(o => o.status === "approvato")
     .reduce((sum, o) => sum + Number(o.impatto_economico || 0), 0);
+  // Riepilogo in testa: da dove si parte, cosa è approvato, cosa aspetta la firma, dove si arriva.
+  const inAttesa = odvList.filter(o => o.status === "in_attesa" || o.status === "bozza");
+  const totaleInAttesa = inAttesa.reduce((sum, o) => sum + Number(o.impatto_economico || 0), 0);
+  const giorniApprovati = odvList.filter(o => o.status === "approvato").reduce((sum, o) => sum + Number(o.impatto_giorni || 0), 0);
+  const contrattoAggiornato = typeof context.currentNet === "number" ? context.currentNet : null;
+  const contrattoIniziale = contrattoAggiornato != null ? contrattoAggiornato - totaleApprovato : null;
 
   const copyFirmaLink = async (token: string) => {
     const url = `${window.location.origin}/firma-odv/${token}`;
@@ -70,6 +76,17 @@ export function OdVSection({ orderId, companyId, context = {}, onOpenDocuments }
         </CardHeader>
 
         <CardContent className="space-y-3">
+          {!isLoading && !isError && odvList.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Riepilogo varianti">
+              <RiepilogoVoce titolo="Contratto iniziale" valore={contrattoIniziale == null ? "—" : formatCurrency(contrattoIniziale)} />
+              <RiepilogoVoce titolo={`Varianti approvate (${odvList.filter(o => o.status === "approvato").length})`}
+                valore={`${totaleApprovato > 0 ? "+" : ""}${formatCurrency(totaleApprovato)}`} tono={totaleApprovato < 0 ? "rosso" : "verde"}
+                nota={giorniApprovati > 0 ? `+${giorniApprovati} giorni di lavoro` : undefined} />
+              <RiepilogoVoce titolo={`Da approvare (${inAttesa.length})`} valore={formatCurrency(totaleInAttesa)} tono={inAttesa.length > 0 ? "ambra" : undefined}
+                nota={inAttesa.length > 0 ? "non ancora nel contratto" : "niente in sospeso"} />
+              <RiepilogoVoce titolo="Contratto aggiornato" valore={contrattoAggiornato == null ? "—" : formatCurrency(contrattoAggiornato)} forte nota="iniziale + approvate, IVA esclusa" />
+            </div>
+          )}
           {isError ? <div role="alert" className="text-sm text-destructive">Varianti non disponibili. <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button></div> : isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-16 w-full" />
@@ -191,12 +208,6 @@ export function OdVSection({ orderId, companyId, context = {}, onOpenDocuments }
                 );
               })}
 
-              {odvList.some(o => o.status === "approvato") && (
-                <div className="border-t pt-2 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Totale variazioni approvate</span>
-                  <span className="font-semibold text-green-700">{formatCurrency(totaleApprovato)}</span>
-                </div>
-              )}
             </div>
           )}
         </CardContent>
@@ -204,5 +215,16 @@ export function OdVSection({ orderId, companyId, context = {}, onOpenDocuments }
 
       {editing && <VariationLifecycleDialog key={`${companyId}:${orderId}:${editing.id}`} id={editing.id} existing={editing.existing} order={orderId} company={companyId} context={context} canEdit={permissions.canEditOrders} onClose={() => setEditing(null)} />}
     </>
+  );
+}
+
+function RiepilogoVoce({ titolo, valore, nota, tono, forte }: { titolo: string; valore: string; nota?: string; tono?: "verde" | "ambra" | "rosso"; forte?: boolean }) {
+  const colore = tono === "verde" ? "text-green-700" : tono === "ambra" ? "text-amber-700" : tono === "rosso" ? "text-red-700" : "text-foreground";
+  return (
+    <div className={`rounded-lg border p-2.5 ${forte ? "border-primary/40 bg-primary/5" : "bg-muted/20"}`}>
+      <p className="truncate text-[11px] text-muted-foreground">{titolo}</p>
+      <p className={`text-sm font-semibold tabular-nums ${colore}`}>{valore}</p>
+      {nota && <p className="text-[10px] text-muted-foreground">{nota}</p>}
+    </div>
   );
 }

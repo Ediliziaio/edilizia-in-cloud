@@ -8,6 +8,7 @@ import { calcolaIvaComputo } from "./ivaComputo";
 import { calcolaSconto, oneriSicurezza } from "./scontoComputo";
 import { testoPianoPagamenti } from "./pianoPagamentiPdf";
 import { disegnaCronoprogramma } from "./stampaCronoprogramma";
+import { segnaClausoleDelDocumento } from "@/lib/fea/clausoleDelDocumento";
 
 /** Stesso tema dei preventivi edili; dettaglio metrico mantenuto nel motore comune. */
 export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: IntestazioneComputo): jsPDF {
@@ -431,6 +432,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   // La pagina «Accettazione proposta», come negli altri preventivi (29/10/2026): il preventivo firmato è il
   // contratto. Riepilogo di ciò che si firma, dichiarazione, firme di impresa, committente e cointestatario e,
   // se il modello le elenca, l'approvazione specifica delle clausole (artt. 1341-1342 c.c.) con una seconda firma.
+  // Senza pagina di accettazione il documento non fa approvare clausole: la pagina di firma nemmeno (31/10/2026).
+  if (!(veste?.mostraFirma && i.sezioni?.firme !== false && voci.length)) segnaClausoleDelDocumento([]);
   if (veste?.mostraFirma && i.sezioni?.firme !== false && voci.length) {
     doc.addPage(); y = m + 6;
     font(8, true, t.inchiostroMarca); doc.text("PER ACCETTAZIONE", m, y, { charSpace: 1.2 }); y += 26;
@@ -473,6 +476,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     y += 70;
     if (cointestatario?.trim()) { firma("FIRMA DEL COINTESTATARIO", cointestatario.trim(), m + 2 * (terzo + 16), terzo); y += 70; }
     const clausole = (veste.clausoleDaApprovare ?? "").split("\n").map(r => r.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
+    // Le stesse clausole vanno alla pagina di firma (31/10/2026): il cliente approva quelle stampate qui.
+    segnaClausoleDelDocumento(clausole);
     if (clausole.length) {
       const h = 60 + clausole.length * 13 + 60;
       ensure(h); y += 10;

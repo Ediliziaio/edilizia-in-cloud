@@ -13,7 +13,8 @@ export function subcontractStatistics(contracts: SubcontractStatContract[], sals
   return {
     count: all.length,
     drafts: all.filter(c => c.stato === "bozza").length,
-    contracted: sumLaborAmounts(all.map(c => c.importo_contrattuale)),
+    // Un contratto risolto non è più un impegno: non entra nell'importo dei contratti.
+    contracted: sumLaborAmounts(all.filter(c => c.stato !== "risolto").map(c => c.importo_contrattuale)),
     verified: sumLaborAmounts(verified.map(s => s.importo_lordo)),
     paid: sumLaborAmounts(linked.filter(s=>s.stato!=="contestato").map(s => s.pagato_registrato ?? (s.stato === "pagato" ? s.importo_netto : 0))),
     pending: linked.filter(s => s.stato === "ricevuto").length,

@@ -735,6 +735,22 @@ async function reconcileCalendario(
   );
   let created = 0, updated = 0, removed = 0;
 
+  // Gli eventi nati nel gestionale che hanno perso il collegamento: l'appuntamento a cui rimandano si verifica
+  // in UNA lettura per tutto il calendario (1/11/2026). Prima era una lettura per evento, rifatta a ogni giro
+  // anche quando l'appuntamento non c'era più: circa 400 richieste ogni 15 minuti (19.871 in 12 ore il 31/10),
+  // e ognuna teneva occupata una connessione del database nelle ore di punta.
+  const daRicollegare = [...new Set(googleEvents
+    .filter((e) => !mappingsByGoogleId.has(e.id) && isCrmOriginated(e))
+    .map((e) => extractCrmAppointmentId(e))
+    .filter((id): id is string => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)))];
+  const appuntamentiDellAzienda = new Set<string>();
+  for (let i = 0; i < daRicollegare.length; i += 200) {
+    const { data: trovati, error: ownerError } = await admin.from("appointments").select("id")
+      .eq("company_id", companyId).in("id", daRicollegare.slice(i, i + 200));
+    if (ownerError) throw new Error("Proprietà appuntamento Google non verificabile");
+    for (const r of (trovati ?? []) as Array<{ id: string }>) appuntamentiDellAzienda.add(String(r.id));
+  }
+
   for (const gEvent of googleEvents) {
     const googleEventId = gEvent.id;
     seenGoogleIds.add(googleEventId);
@@ -776,11 +792,8 @@ async function reconcileCalendario(
       // CRM-originated but mapping lost — re-link
       const aptId = extractCrmAppointmentId(gEvent);
       if (aptId) {
-        // A copied description is not proof of tenant ownership.
-        const { data: owned, error: ownerError } = await admin.from("appointments").select("id")
-          .eq("id", aptId).eq("company_id", companyId).maybeSingle();
-        if (ownerError) throw new Error("Proprietà appuntamento Google non verificabile");
-        if (!owned) continue;
+        // A copied description is not proof of tenant ownership (verificata sopra, in una lettura sola).
+        if (!appuntamentiDellAzienda.has(String(aptId))) continue;
         // Doppione su Google: l'appuntamento è già collegato a un altro evento di
         // questo calendario. Collegarlo fallirebbe sempre (indice unico) e, fuori
         // da qualunque try/catch, interromperebbe la riconciliazione di TUTTO il

@@ -955,6 +955,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             // STEP 6 Serramenti Avanzati
             supplier_catalog_id: i.supplier_catalog_id ?? null,
             supplier_product_line_id: i.supplier_product_line_id ?? null,
+            computo_voce_id: i.computo_voce_id ?? null,
             // Sprint A §4.9 — Preventivatore Unificato (posa legata).
             // Rileggiamo `parent_item_id` persistito per riabilitare il
             // DELETE cascade + QUANTITY sync anche in modalità edit. Al
@@ -2129,6 +2130,8 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             axis_selections: it.axis_selections ?? null,
             supplier_catalog_id: it.supplier_catalog_id ?? null,
             supplier_product_line_id: it.supplier_product_line_id ?? null,
+            // senza, il salvataggio staccava la riga dalla sua voce del computo
+            computo_voce_id: it.computo_voce_id ?? null,
           }));
           const { data: rpcData, error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
             p_quote_id: idPreventivo,

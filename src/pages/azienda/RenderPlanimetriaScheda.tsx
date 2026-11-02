@@ -7,7 +7,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Box, ImageIcon, PenLine, Wand2 } from "lucide-react";
+import { Box, Building2, Download, ImageIcon, PenLine, Sparkles, Trees, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,24 +16,47 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
 import { Vista3DPigra } from "@/components/planimetrie/Vista3DPigra";
-import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
+import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialog";
+import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
+import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
+import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
+import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
+import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
+import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
+import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
+import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
+import { usePermissions } from "@/hooks/usePermissions";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
 import { riepilogoStanza, statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 
+/** Con una piscina disegnata si propone il render della piscina, con una pergola quello della pergola. */
+function moduloEsterno(p: { elementi?: Array<{ tipo: string }> }) {
+  const tipi = new Set((p.elementi ?? []).map((e) => e.tipo));
+  if (tipi.has("piscina") || tipi.has("idromassaggio")) return "piscine" as const;
+  if (tipi.has("pergola")) return "pergole" as const;
+  return "giardini" as const;
+}
+
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
 export default function RenderPlanimetriaScheda() {
   const { id = "" } = useParams();
+  const permessi = usePermissions();
   const { data, isLoading, error } = usePlanimetria(id);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
   const [livelloId, setLivelloId] = useState<string | null>(null);
   const [ambito, setAmbito] = useState("fatto");
   const [mostra3D, setMostra3D] = useState(false);
+  const [esporta, setEsporta] = useState(false);
+  const [prospetti, setProspetti] = useState(false);
+  const [esterni, setEsterni] = useState(false);
+  // Render in serie: null chiuso, "" tutte le stanze, altrimenti più stili per quella stanza.
+  const [serie, setSerie] = useState<string | null>(null);
 
   const livello = documento?.livelli.find((l) => l.id === livelloId) ?? documento?.livelli[0];
   const ambiti = useMemo(() => (documento ? ambitiDi(documento) : []), [documento]);
@@ -44,6 +67,14 @@ export default function RenderPlanimetriaScheda() {
       .map((l) => vincoliDellaStanza(documento, { livello_id: livello.id, ambito, locale_id: l.id }))
       .filter((v): v is NonNullable<typeof v> => v !== null);
   }, [documento, livello, ambito]);
+  // tutte le stanze di tutti i piani (render di tutto l'edificio): com'è oggi o la proposta, se il piano ce l'ha
+  const stanzeEdificio = useMemo(() => {
+    if (!documento) return [];
+    return [...documento.livelli].sort((a, b) => a.quota - b.quota).flatMap((l) => {
+      const st = statoPerAmbito(documento, l.id, ambito) ?? l.fatto;
+      return st.locali.map((x) => ({ id: x.id, nome: x.nome, destinazione: x.destinazione, livelloId: l.id, piano: l.nome }));
+    });
+  }, [documento, ambito]);
   const piante3D = useMemo(() => {
     if (!documento || !livello) return null;
     const propostaId = ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined;
@@ -59,6 +90,12 @@ export default function RenderPlanimetriaScheda() {
     return conta;
   }, [renders]);
   const completati = renders.filter((r) => r.status === "completed" && r.result_urls?.[0]);
+  // la sezione delle unità c'è solo con due appartamenti o più (condomini, bifamiliari)
+  const piuUnita = useMemo(() => {
+    if (!documento) return false;
+    const sigle = new Set(documento.livelli.flatMap((l) => l.fatto.locali.map((x) => x.unita?.trim()).filter((u): u is string => !!u && !/comun|condominial|androne/i.test(u))));
+    return sigle.size >= 2;
+  }, [documento]);
 
   if (isLoading) {
     return (
@@ -91,10 +128,22 @@ export default function RenderPlanimetriaScheda() {
               <Box className="mr-1.5 h-4 w-4" />
               {mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setEsterni(true)} disabled={stanze.length === 0}>
+              <Trees className="mr-1.5 h-4 w-4" />
+              Render esterni
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setProspetti(true)}>
+              <Building2 className="mr-1.5 h-4 w-4" />
+              Prospetti e sezioni
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setEsporta(true)}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Esporta
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link to={percorsiPlanimetrie.modifica(id)}>
                 <PenLine className="mr-1.5 h-4 w-4" />
-                Modifica la pianta
+                {permessi.solaLettura ? "Apri la pianta" : "Modifica la pianta"}
               </Link>
             </Button>
           </>
@@ -127,12 +176,104 @@ export default function RenderPlanimetriaScheda() {
         </div>
       )}
 
-      {mostra3D && piante3D && <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} />}
+      <EsportaPiantaDialog
+        aperto={esporta}
+        onChiudi={() => setEsporta(false)}
+        documento={documento}
+        titolo={data.riga.titolo}
+        versione={data.versione.numero}
+        livelloId={livello.id}
+        propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined}
+        haProgetto={livello.proposte.length > 0}
+        planimetriaId={id}
+      />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-          Stanze
-        </h2>
+      <RenderInSerieDialog
+        aperto={serie !== null}
+        onChiudi={() => setSerie(null)}
+        planimetriaId={id}
+        versione={data.versione.numero}
+        documento={documento}
+        livelloId={livello.id}
+        ambito={ambito}
+        stanze={stanze.map((v) => ({ id: v.locale.id, nome: v.locale.nome, destinazione: v.locale.destinazione }))}
+        stanzeEdificio={documento.livelli.length > 1 ? stanzeEdificio : undefined}
+        soloStanza={serie || null}
+      />
+
+      {piante3D && (
+        <RenderEsterniDialog
+          aperto={esterni}
+          onChiudi={() => setEsterni(false)}
+          pianta={ambito === "fatto" ? piante3D.fatto : piante3D.progetto}
+          vista={ambito === "fatto" ? "fatto" : "progetto"}
+          titolo={data.riga.titolo}
+          moduloIniziale={moduloEsterno(ambito === "fatto" ? piante3D.fatto : piante3D.progetto)}
+          piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined}
+        />
+      )}
+
+      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} tetto={livello.tetto} titolo={data.riga.titolo} />
+
+      {mostra3D && piante3D && (
+        <Vista3DPigra
+          key={`${livello.id}:${ambito}`}
+          piante={piante3D}
+          piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined}
+          nomeFile={data.riga.titolo}
+          vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"}
+        />
+      )}
+
+      {/* Scorciatoie: la scheda è lunga, si salta a quello che serve */}
+      {stanze.length > 0 && (
+        <nav aria-label="Sezioni della scheda" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm [&>a]:shrink-0">
+          {([
+            livello.proposte.length > 0 && ["prima-e-dopo", "Prima e dopo"],
+            ["stanze", "Stanze e render"],
+            ["verifiche", "Verifiche"],
+            piuUnita && ["unita", "Unità e vendite"],
+            ["abachi", "Abachi"],
+            completati.length > 0 && ["render-fatti", "Render fatti"],
+          ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
+            <a key={ancora} href={`#${ancora}`} onClick={(e) => { e.preventDefault(); document.getElementById(ancora)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              className="rounded-full border bg-background px-3 py-1 text-muted-foreground transition-colors hover:border-purple-400 hover:text-foreground">
+              {nome}
+            </a>
+          ))}
+        </nav>
+      )}
+
+      {livello.proposte.length > 0 && (
+        <div id="prima-e-dopo" className="scroll-mt-4">
+        <PrimaEDopo
+          key={`${livello.id}:${ambito}`}
+          documento={documento}
+          titolo={data.riga.titolo}
+          planimetriaId={id}
+          versione={data.versione.numero}
+          livelloId={livello.id}
+          propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : livello.proposte[0].id}
+          contactId={data.riga.contact_id}
+          sola={permessi.solaLettura}
+          prezzi={permessi.canViewPreventivi}
+          creaPreventivo={permessi.canEditPreventivi && !permessi.solaLettura}
+        />
+        </div>
+      )}
+
+      <section id="stanze" className="scroll-mt-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
+            Stanze
+          </h2>
+          {stanze.length > 1 && (
+            <Button size="sm" className="gap-1.5 bg-purple-600 hover:bg-purple-700" onClick={() => setSerie("")}>
+              <Sparkles className="h-4 w-4" />
+              Render di tutte le stanze
+            </Button>
+          )}
+        </div>
         {stanze.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -162,6 +303,10 @@ export default function RenderPlanimetriaScheda() {
                         Fai il render di questa stanza
                       </Link>
                     </Button>
+                    <Button variant="ghost" size="sm" className="w-full text-purple-700" onClick={() => setSerie(v.locale.id)}>
+                      <Sparkles className="mr-1.5 h-4 w-4" />
+                      Più stili insieme
+                    </Button>
                     {fatti > 0 && <p className="text-center text-xs text-muted-foreground">{fatti === 1 ? "1 render fatto" : `${fatti} render fatti`}</p>}
                   </CardContent>
                 </Card>
@@ -171,8 +316,20 @@ export default function RenderPlanimetriaScheda() {
         )}
       </section>
 
+      <div id="verifiche" className="scroll-mt-4">
+        <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} />
+      </div>
+
+      <div id="unita" className="scroll-mt-4">
+        <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} sola={permessi.solaLettura} prezzi={permessi.canViewPreventivi} modificaPrezzi={permessi.canEditPreventivi} />
+      </div>
+
+      <div id="abachi" className="scroll-mt-4">
+        <AbachiPianta documento={documento} livelloId={livello.id} ambito={ambito} titolo={data.riga.titolo} />
+      </div>
+
       {completati.length > 0 && (
-        <section className="space-y-3">
+        <section id="render-fatti" className="scroll-mt-4 space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
             Render di questa pianta
           </h2>

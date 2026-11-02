@@ -15,6 +15,18 @@ afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); Object.assign(permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true }); update.mockResolvedValue(undefined); remove.mockResolvedValue(undefined); });
 
 describe("Assegnazione manodopera", () => {
+  it("ditta senza costo previsto: propone in un clic quanto valgono le voci della lavorazione", async () => {
+    const ditta = assignment({ executor_type: "esterno", source: "team", employee_id: null, external_team_id: "s1", cost_preventivo: 0 } as never);
+    const { rerender } = render(<WorkAssignmentRow {...props()} assignment={ditta} previstoVoci={750} />);
+    expect(screen.getByText(/Senza costo previsto: le voci della lavorazione valgono 750,00/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Usa 750,00/ }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith({ cost_preventivo: 750, costo_origine: "preventivo" }));
+    // Con un previsto già scritto, o senza voci, nessuna proposta.
+    rerender(<WorkAssignmentRow {...props()} assignment={{ ...ditta, cost_preventivo: 500 }} previstoVoci={750} />);
+    expect(screen.queryByRole("button", { name: /Usa 750,00/ })).not.toBeInTheDocument();
+    rerender(<WorkAssignmentRow {...props()} assignment={ditta} previstoVoci={0} />);
+    expect(screen.queryByText(/Senza costo previsto/)).not.toBeInTheDocument();
+  });
   it("nella vista compatta distingue ore non rilevate da zero registrato", () => {
     const p = props(); const {rerender} = render(<WorkAssignmentRow {...p} compact assignment={assignment({hours: null})} />);
     expect(screen.getByText("Ore da rilevare")).toBeInTheDocument();
@@ -97,5 +109,24 @@ describe("Assegnazione manodopera", () => {
   it.each(["1e3","1,5abc","10.000.000.000,00"])("non salva il costo invalido %s", value => {
     render(<WorkAssignmentRow {...props()} />);edit();fireEvent.click(screen.getByText("Costi e registrazione pagamento"));fireEvent.change(screen.getByLabelText("Costo previsto €"),{target:{value}});save();
     expect(update).not.toHaveBeenCalled();expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+});
+
+describe("previsto scritto diverso dalle voci (Dimora, 31/10/2026)", () => {
+  it("resta quello scritto; un pallino rosso mostra la differenza", async () => {
+    const ditta = assignment({ executor_type: "esterno", source: "team", employee_id: null, external_team_id: "s1", cost_preventivo: 11500, costo_origine: "manuale" } as never);
+    render(<WorkAssignmentRow {...props()} assignment={ditta} previstoVoci={30234} />);
+    fireEvent.click(screen.getByRole("button", { name: "Il costo previsto è diverso dalle voci della lavorazione" }));
+    expect(await screen.findByText("Diverso dalle voci della lavorazione")).toBeInTheDocument();
+    expect(screen.getAllByText(/30\.234,00/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/18\.734,00/)).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+  });
+  it("niente pallino se il previsto viene dalle voci o la differenza è minima", () => {
+    const base = { executor_type: "esterno" as const, source: "team" as const, employee_id: null as string | null, external_team_id: "s1" };
+    const { rerender } = render(<WorkAssignmentRow {...props()} assignment={assignment({ ...base, cost_preventivo: 750, costo_origine: "preventivo" } as never)} previstoVoci={850} />);
+    expect(screen.queryByRole("button", { name: /diverso dalle voci/ })).not.toBeInTheDocument();
+    rerender(<WorkAssignmentRow {...props()} assignment={assignment({ ...base, cost_preventivo: 750, costo_origine: "manuale" } as never)} previstoVoci={752} />);
+    expect(screen.queryByRole("button", { name: /diverso dalle voci/ })).not.toBeInTheDocument();
   });
 });

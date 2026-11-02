@@ -73,7 +73,7 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
   const { data: varianti = [], isLoading } = useTariffaVarianti(tariffaId, {
     includeExpired: showExpired,
   });
-  const { setDefault, disableVariante } = useTariffaVariantiMutations();
+  const { setDefault, disableVariante, updateVariante: riattivaVariante } = useTariffaVariantiMutations();
 
   // Squadre/subappaltatori: stessa queryKey della pagina Tariffe → cache
   // condivisa, nessun fetch in più quando l'editor è dentro quel dialog.
@@ -111,6 +111,15 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
       toast.success(`"${v.nome}" impostata come variante default`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Errore impostazione default");
+    }
+  };
+
+  const handleReactivate = async (v: TariffaCostoVariante) => {
+    try {
+      await riattivaVariante.mutateAsync({ id: v.id, patch: { attivo: true } });
+      toast.success("Variante riattivata");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore riattivazione");
     }
   };
 
@@ -219,6 +228,11 @@ export function TariffaVariantiEditor({ tariffaId, costoDefault, tariffaSquadraI
                   <Button variant="ghost" size="icon" title="Modifica" onClick={() => openEdit(v)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  {!v.attivo && (
+                    <Button variant="ghost" size="sm" title="Riattiva" onClick={() => handleReactivate(v)}>
+                      Riattiva
+                    </Button>
+                  )}
                   {v.attivo && (
                     <Button
                       variant="ghost"
@@ -322,7 +336,8 @@ function VarianteDialog({
         valid_from: validFrom,
         valid_to: validTo.trim() || null,
         is_default: isDefault,
-        attivo: true,
+        // Modificare una variante disattivata non la riattiva di nascosto: per quello c'è «Riattiva».
+        attivo: editing ? editing.attivo !== false : true,
         sort_order: editing?.sort_order ?? 0,
       };
       if (editing) {

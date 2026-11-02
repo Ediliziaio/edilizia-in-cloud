@@ -7,10 +7,9 @@
  * di ogni voce, ricerca, stato (bozza → verificato → contrattuale, che blocca),
  * dati da lavoro pubblico con il quadro economico, esportazione Excel e PDF.
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Map as IconaPianta, Search, Upload, XCircle } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { CheckCircle2, FileDown, FileSpreadsheet, Loader2, Lock, Map as IconaPianta, Search, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +19,9 @@ import { Switch } from "@/components/ui/switch";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ComputoAlbero, type EvidenzaVoce, type ExtraVoci } from "./ComputoAlbero";
 import PiantaCambiata from "./pianta/PiantaCambiata";
+import VociImpiantiDallaPianta from "./pianta/VociImpiantiDallaPianta";
 import PrendiDallaPianta from "./pianta/PrendiDallaPianta";
+import { CaricaComputo as Caricamento } from "./CaricaComputo";
 import { usePianteDelComputo } from "@/hooks/useComputoPianta";
 import { ETICHETTA_ORIGINE } from "@/lib/planimetrie/computo";
 import { filtraVoci, numeroVoce, type VoceComputo } from "@/lib/computo/alberoComputo";
@@ -33,7 +34,7 @@ import { ClassificazioneQuadro, ProspettoQuadro } from "./QuadroEconomicoLavori"
 import ContabilitaLavoriPubblici from "./contabilita/ContabilitaLavoriPubblici";
 import type { SchedaContabilita } from "./contabilita/comune";
 import {
-  computoInLettura, computoLetto, useCaricaComputo, useClassificaVoci, useComputiCommessa, useModificaComputo, useSbloccaComputo, useScartaComputo, useVociComputo,
+  computoInLettura, computoLetto, useClassificaVoci, useComputiCommessa, useModificaComputo, useSbloccaComputo, useScartaComputo, useVociComputo,
   type ComputoCommessa, type ModificaComputo, type StatoComputo,
 } from "@/hooks/useComputoCommessa";
 
@@ -43,50 +44,6 @@ const COLORE_STATO: Record<StatoComputo, string> = {
   bozza: "border-slate-300 text-slate-700", verificato: "border-sky-300 text-sky-800",
   contrattuale: "border-emerald-400 bg-emerald-50 text-emerald-800", archiviato: "border-slate-200 text-slate-500",
 };
-
-function Caricamento({ orderId, companyId, sostituisce, onFatto }: { orderId: string; companyId: string; sostituisce?: ComputoCommessa | null; onFatto?: () => void }) {
-  const { user } = useAuth();
-  const carica = useCaricaComputo(orderId, companyId, user?.id);
-  const modifica = useModificaComputo(orderId, companyId);
-  const input = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [titolo, setTitolo] = useState("");
-  const avvia = async () => {
-    if (!file) return;
-    try {
-      if (sostituisce && sostituisce.stato !== "bozza") await modifica.mutateAsync({ id: sostituisce.id, modifica: { stato: "archiviato" } });
-      await carica.mutateAsync({ file, titolo });
-      setFile(null); setTitolo(""); onFatto?.();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Caricamento non riuscito.");
-    }
-  };
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        Carica il computo metrico così com'è: il <strong>PDF stampato da PriMus</strong> e l'<strong>XPWE</strong> si leggono voce per voce, con le
-        righe di misura, e i totali vengono confrontati con quelli del documento. Va bene anche l'Excel. Il file <strong>.dcf</strong> no:
-        in PriMus scegli File › Esporta › formato XPWE.
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1 space-y-1">
-          <Label htmlFor="computo-titolo">Nome del computo</Label>
-          <Input id="computo-titolo" value={titolo} onChange={e => setTitolo(e.target.value)} placeholder={file?.name.replace(/\.[^.]+$/, "") || "Es. Computo di progetto esecutivo"} />
-        </div>
-        <input ref={input} type="file" className="hidden" accept=".pdf,.xpwe,.xml,.xlsx,.xls,.dcf"
-          onChange={e => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
-        <Button type="button" variant="outline" onClick={() => input.current?.click()} disabled={carica.isPending}>
-          <Upload className="mr-2 h-4 w-4" />{file ? "Cambia file" : "Scegli il file"}
-        </Button>
-        <Button type="button" onClick={avvia} disabled={!file || carica.isPending}>
-          {carica.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Carica e leggi
-        </Button>
-      </div>
-      {file && <p className="text-xs text-slate-500">File scelto: {file.name} ({(file.size / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB)</p>}
-      {sostituisce && sostituisce.stato !== "bozza" && <p className="text-xs text-amber-700">Il computo attuale («{sostituisce.titolo || sostituisce.file_name}») verrà archiviato, non cancellato.</p>}
-    </div>
-  );
-}
 
 function EsitoControllo({ controllo, onApriVoce }: { controllo: ControlloTotali; onApriVoce: (numero: string) => void }) {
   const [tutte, setTutte] = useState(false);
@@ -208,6 +165,7 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
   }
   const filtrate = filtraVoci(voci, ricerca);
   const bloccato = !canEdit || computo?.stato === "contrattuale";
+  const [vociImpianti, setVociImpianti] = useState(false);
 
   // Le righe prese da una pianta: da dove vengono, se sono stimate, «Prendi dalla pianta».
   const stimate = voci.flatMap(v => v.misure).filter(m => piante.origineMisura(m) === "stimata").length;
@@ -388,6 +346,15 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
         <div className="flex items-center gap-2 p-4 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico le voci…</div>
       ) : (
         <section aria-label="Voci del computo" className="space-y-2">
+          {!bloccato && computo && (
+            <div className="flex justify-end">
+              <Button type="button" size="sm" variant="outline" onClick={() => setVociImpianti(true)}>Voci impianti dalla pianta</Button>
+            </div>
+          )}
+          {vociImpianti && computo && (
+            <VociImpiantiDallaPianta uploadId={computo.id} companyId={companyId} orderId={orderId} aperta={vociImpianti} onChiudi={() => setVociImpianti(false)}
+              ordineDa={Math.max(0, ...voci.map(v => v.ordine)) + 1} />
+          )}
           <PiantaCambiata cambiate={piante.cambiate} voci={voci} computo={computo} computi={computi} orderId={orderId} canEdit={canEdit}
             onApriVarianti={computo.lavoro_pubblico ? () => setScheda("varianti") : undefined} />
           {piante.errore && <p role="alert" className="text-xs text-rose-700">{piante.errore.message}</p>}

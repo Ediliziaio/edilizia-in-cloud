@@ -14,10 +14,12 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
+import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
 } from "../../../../shared/planimetrie/modello.ts";
 import { calcolaQuantita, type MappaQuantita } from "../../../../shared/planimetrie/quantita.ts";
+import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type {
   AperturaVista, ElementoVista, LocaleVista, MuroVista, OrigineMisura, Pavimento, Punto, TipoElemento, VistaPianta,
 } from "./tipi";
@@ -63,7 +65,7 @@ export function pavimentoDaFinitura(testo?: string): Pavimento | undefined {
 
 /** I nomi che l'editor e l'AI usano per gli arredi, ricondotti ai simboli che sappiamo disegnare. */
 const ALIAS_ELEMENTI: Record<string, TipoElemento> = {
-  cucina_lineare: "cucina", cucina_angolare: "cucina", piano_cottura: "cucina", angolo_cottura: "cucina",
+  cucina_lineare: "cucina", piano_cottura: "cucina", angolo_cottura: "cucina",
   frigo: "frigorifero", piatto_doccia: "doccia", box_doccia: "doccia", vasca_bagno: "vasca",
   lavandino: "lavabo", lavello: "lavabo", water: "wc", vaso: "wc",
   letto: "letto_matrimoniale", letto_doppio: "letto_matrimoniale", letto_piazza: "letto_singolo",
@@ -72,6 +74,14 @@ const ALIAS_ELEMENTI: Record<string, TipoElemento> = {
 const NOTI = new Set<string>([
   "wc", "bidet", "lavabo", "doccia", "vasca", "cucina", "frigorifero", "lavatrice", "caldaia",
   "letto_matrimoniale", "letto_singolo", "divano", "tavolo", "sedia", "armadio", "comodino", "scrivania",
+  "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie",
+  "auto", "scaffale", "banco_lavoro",
+  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split",
+  "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
+  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
+  "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
+  "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
+  "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
 ]);
 
 /** Il simbolo da disegnare per un tipo libero; «generico» è un riquadro con la diagonale. */
@@ -152,8 +162,39 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
     elementi: stato.elementi.map((e) => elementoVista(e, modo)),
     quote: stato.quote.map((x) => ({ p1: giu(x.p1), p2: giu(x.p2), scostamento: x.scostamento })),
     testi: stato.testi.map((t) => ({ posizione: giu(t.posizione), testo: t.testo, rotazione: -(t.rotazione ?? 0) })),
+    ...((stato.aree ?? livello.fatto.aree)?.length
+      ? { aree: (stato.aree ?? livello.fatto.aree ?? []).filter((a) => modo !== "progetto" || a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, nome: a.nome, contorno: a.contorno.map(giu), superficieMq: Math.round(areaPoligono(a.contorno) / 100) / 100, stato: a.stato ?? "esistente" })) }
+      : {}),
+    ...terrenoDelLivello(p, livello),
     nord: p.nord === undefined ? undefined : -p.nord,
   };
+}
+
+/**
+ * Terreno sul piano a terra (quello con la quota più vicina a zero): punti quotati del piano e
+ * rilievo del topografo, curve di livello (ogni 50 cm, più rade se il dislivello è grande).
+ * Le quote scritte sono quelle dei punti messi a mano; dei punti del rilievo, che possono
+ * essere migliaia, si scrivono solo le curve.
+ */
+function terrenoDelLivello(p: Planimetria, livello: Livello): Pick<VistaPianta, "terreno"> {
+  const aTerra = [...p.livelli].sort((a, b) => Math.abs(a.quota) - Math.abs(b.quota))[0];
+  if (aTerra?.id !== livello.id) return {};
+  const aMano = puntiTerreno({ livelli: [livello] });
+  const punti = puntiTerreno({ livelli: [livello], rilievo: p.rilievo });
+  if (!punti.length) return {};
+  const r = rettangoloPunti(punti, p.rilievo ? 0 : 300);
+  const curve = r ? curveDiLivello(punti, r, passoCurve(punti)) : [];
+  return {
+    terreno: {
+      curve: curve.map((c) => ({ a: giu(c.a), b: giu(c.b), quota: c.quota })),
+      punti: aMano.map((q) => ({ posizione: giu(q), testo: scriviQuota(q.quota) })),
+    },
+  };
+}
+
+/** Locali numerati («1. Soggiorno», «2. Cucina»…), nella pianta e nella tabella: per rimandi nei capitolati. */
+export function numeraLocali(v: VistaPianta, da = 1): VistaPianta {
+  return { ...v, locali: v.locali.map((l, i) => ({ ...l, nome: `${da + i}. ${l.nome}` })) };
 }
 
 /** Ci sono misure stimate fra quelle disegnate? Serve al PDF per la nota sotto la tabella. */

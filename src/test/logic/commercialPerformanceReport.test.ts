@@ -152,6 +152,22 @@ describe("commercial performance report", () => {
     expect(report.sync.quoteOpportunityLinkPct).toBe(100);
   });
 
+  it("perse per venditore: quante, quanto valgono e il motivo più frequente", () => {
+    const report = buildCommercialPerformanceReport({
+      now,
+      contacts: [], appointments: [], quotes: [], orders: [],
+      opportunities: [
+        { id: "o1", status: "lost", assigned_to: "u1", value: 1000, lost_reason_category: "prezzo", created_at: "2026-05-01T08:00:00.000Z", lost_at: "2026-05-02T08:00:00.000Z" },
+        { id: "o2", status: "lost", assigned_to: "u1", value: 2000, lost_reason_category: "prezzo", created_at: "2026-05-01T08:00:00.000Z", lost_at: "2026-05-02T08:00:00.000Z" },
+        { id: "o3", status: "lost", assigned_to: "u2", value: 500, lost_reason: "tempi", created_at: "2026-05-01T08:00:00.000Z", lost_at: "2026-05-02T08:00:00.000Z" },
+        { id: "o4", status: "open", assigned_to: "u2", value: 500, created_at: "2026-05-01T08:00:00.000Z" },
+      ],
+    });
+    expect(report.lossByOwner[0]).toMatchObject({ ownerId: "u1", count: 2, valueCents: 300_000 });
+    expect(report.lossByOwner[0].topReason).toMatch(/prezzo/i);
+    expect(report.lossByOwner).toHaveLength(2);
+  });
+
   it("does not fake margin or target risk when the underlying data is missing", () => {
     const report = buildCommercialPerformanceReport({
       now,

@@ -8,9 +8,17 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import { RilievoTerreno } from "./RilievoTerreno";
+import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
+import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
+import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
+import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
+import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
+import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, DoorOpen, Maximize2, Minus, MousePointer2, PenLine, Plus, Redo2, Square, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +29,18 @@ import { cn } from "@/lib/utils";
 import {
   DESTINAZIONI,
   aPlanimetria,
+  ID_PROPOSTA,
+  aggiungiLivello,
   daPlanimetria,
   datiVista,
+  duplicaProposta,
+  eliminaLivello,
+  eliminaProposta,
+  rinominaProposta,
   piantaVuota,
+  rinominaLivello,
+  impostaRicalco,
+  type BaseNuovoPiano,
   type Destinazione,
   type Pianta,
   type Planimetria,
@@ -32,12 +49,18 @@ import {
 } from "./adattatore";
 import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
+import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
 import { leggiMisura, scriviMetri } from "./misure";
 import { PannelloDettagli, type AzioniPannello } from "./PannelloDettagli";
+import { CATALOGO, GRUPPI_CATALOGO, urlImmagineSimbolo, type VoceCatalogo } from "./catalogo";
+import { SimboloArredo } from "./SimboloArredo";
+import { arredaStanza, climaStanza, impiantoElettrico, magliaPilastri, riscaldamentoStanza } from "./arreda";
+import { btuConsigliati, metriConSfrido, percorsiDaElementi } from "../../../../shared/planimetrie/impianti.ts";
+import { COLORI_LINEE } from "./TelaPlanimetria";
 import { annulla, esegui, nuovaStoria, ripeti, type Storia } from "./storia";
-import { TelaPlanimetria, type Camera, type Selezione, type Sovrapposizioni } from "./TelaPlanimetria";
+import { TelaPlanimetria, type Camera, type Selezione, type SfondoRicalco, type Sovrapposizioni } from "./TelaPlanimetria";
 
-export type Strumento = "seleziona" | "stanza" | "parete" | "porta" | "finestra";
+export type Strumento = "seleziona" | "stanza" | "poligono" | "area" | "parete" | "porta" | "finestra" | "arredo" | "quota" | "testo";
 
 interface Props {
   /** Il documento della fase 1 (`shared/planimetrie/modello.ts`); senza, una pianta vuota. */
@@ -47,16 +70,24 @@ interface Props {
   /** Forza la vista da telefono (solo guardare e correggere misure). */
   soloVista?: boolean;
   className?: string;
+  /** Dove si salva l'immagine da ricalcare; senza, resta solo finché la pagina è aperta. */
+  ricalco?: ArchivioRicalco;
 }
 
 type Gesto =
   | { tipo: "pan"; da: Punto; camera: Camera; mosso: boolean; bersaglio: Bersaglio | null }
   | { tipo: "pinch"; distanza: number; centro: Punto; camera: Camera }
   | { tipo: "rettangolo"; a: Punto }
+  | { tipo: "riquadro"; a: Punto }
+  | { tipo: "sposta-gruppo"; da: Punto; base: Pianta; gruppo: C.Gruppo; mosso: boolean }
   | { tipo: "sposta-muro"; id: string; da: Punto; base: Pianta; normale: Punto }
   | { tipo: "maniglia"; id: string; da: Punto; altro: Punto; base: Pianta }
   | { tipo: "sposta-apertura"; id: string; base: Pianta; da: Punto; mosso: boolean; eraSelezionata: boolean }
-  | { tipo: "apertura-nuova"; quale: TipoApertura; da: Punto; mosso: boolean };
+  | { tipo: "apertura-nuova"; quale: TipoApertura; da: Punto; mosso: boolean }
+  | { tipo: "sposta-elemento"; id: string; da: Punto; centro: Punto; base: Pianta; mosso: boolean }
+  | { tipo: "sposta-testo"; id: string; da: Punto; posizione: Punto; base: Pianta; mosso: boolean }
+  | { tipo: "sposta-area"; id: string; da: Punto; contorno: Punto[]; base: Pianta; mosso: boolean }
+  | { tipo: "sposta-quota"; id: string; da: Punto; base: Pianta; normale: Punto; scostamento: number; mosso: boolean };
 
 interface Bersaglio {
   tipo: string;
@@ -75,26 +106,64 @@ interface MisuraInModifica {
 }
 
 const SUGGERIMENTI: Record<Strumento, string> = {
-  seleziona: "Tocca una stanza, una parete o una porta per vederne le misure. Trascina una parete per spostarla. Clic su una misura per correggerla.",
+  seleziona: "Tocca una stanza, una parete o una porta per vederne le misure. Trascina una parete per spostarla. Clic su una misura per correggerla. Maiusc+trascina seleziona più arredi, quote e testi.",
   stanza: "Trascina per disegnare la stanza: le misure compaiono mentre la disegni. Oppure usa «Scrivi le misure».",
   parete: "Clic per l'inizio, clic per la fine: la parete va dritta da sola. Puoi anche scrivere la lunghezza e premere Invio. Esc per finire.",
   porta: "Trascina la porta su una parete (o clicca sulla parete). Poi un clic sulla porta selezionata ne gira il verso.",
   finestra: "Trascina la finestra su una parete (o clicca sulla parete).",
+  poligono: "Clic su ogni angolo della stanza; clic sul primo punto (o Invio) per chiuderla. Le pareti vanno dritte a 90° e 45° da sole. Esc per annullare.",
+  area: "Clic su ogni angolo dell'area (lotto, prato, vialetto…); clic sul primo punto o Invio per chiuderla. Esc per annullare.",
+  arredo: "Clic sul foglio per posare l'arredo scelto. Poi trascinalo per spostarlo; R lo ruota di 90°.",
+  quota: "Clic sul primo punto, clic sul secondo: la quota misura da sola. Si agganciano angoli e pareti.",
+  testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
 };
 
-export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className }: Props) {
-  const telefono = useIsMobile();
-  const sola = soloVista ?? telefono;
+/** Sul telefono: niente tastiera, niente clic e Maiusc; si tocca e si trascina col dito. */
+const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
+  seleziona: "Tocca una stanza, una parete o una porta: sotto compaiono le misure da correggere. Trascina una parete per spostarla.",
+  stanza: "Trascina col dito per disegnare la stanza, oppure usa «Scrivi le misure».",
+  parete: "Tocca l'inizio e poi la fine: la parete va dritta da sola.",
+  porta: "Tocca la parete dove va la porta. Toccala di nuovo per girarne il verso.",
+  finestra: "Tocca la parete dove va la finestra.",
+  poligono: "Tocca ogni angolo della stanza; tocca il primo punto per chiuderla.",
+  area: "Tocca ogni angolo dell'area; tocca il primo punto per chiuderla.",
+  arredo: "Tocca il foglio per posare l'arredo, poi trascinalo dove va.",
+  quota: "Tocca il primo punto e poi il secondo: la quota misura da sola.",
+  testo: "Tocca dove vuoi la scritta, poi scrivila qui sotto.",
+};
 
-  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale) : piantaVuota()));
+export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
+  const telefono = useIsMobile();
+  // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
+  // (per chi disegna in cantiere, col dito: un tocco per gli angoli, due dita per spostarsi).
+  const [modificaTelefono, setModificaTelefono] = useState(false);
+  const sola = soloVista ?? (telefono && !modificaTelefono);
+
+  // Il piano su cui si lavora (fase 5): ogni piano ha il suo annulla/ripeti.
+  const [livelloId, setLivelloId] = useState<string | undefined>(piantaIniziale?.livelli[0]?.id);
+  // L'alternativa di progetto su cui si lavora (A, B, C…).
+  const [propostaId, setPropostaId] = useState<string>(piantaIniziale?.livelli[0]?.proposte[0]?.id ?? ID_PROPOSTA);
+  const [storia, setStoria] = useState<Storia>(() => nuovaStoria(piantaIniziale ? daPlanimetria(piantaIniziale, undefined, piantaIniziale.livelli[0]?.proposte[0]?.id) : piantaVuota()));
   const [anteprima, setAnteprima] = useState<Pianta | null>(null);
   const pianta = anteprima ?? storia.presente;
   // L'ultimo documento prodotto: tiene titolo, arredi, altre proposte e gli id dei locali del progetto.
   const documentoBase = useRef<Planimetria | undefined>(piantaIniziale);
-  const documento = useMemo(() => aPlanimetria(pianta, documentoBase.current), [pianta]);
+  // Immagine da ricalcare (mappa catastale, foto aerea, rilievo del lotto), per piano: si salva
+  // nel documento (`Livello.ricalco`) se c'è un archivio, altrimenti resta finché la pagina è aperta.
+  const [ricalco, setRicalco] = useState<Ricalco | null>(() => piantaIniziale?.livelli[0]?.ricalco ?? null);
+  const documento = useMemo(() => {
+    const d = aPlanimetria(pianta, documentoBase.current, livelloId, propostaId);
+    // l'immagine locale (senza archivio) non entra nel documento
+    const lid = livelloId ?? d.livelli[0]?.id;
+    return lid ? impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null) : d;
+  }, [pianta, livelloId, propostaId, ricalco]);
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
+  // Più arredi, quote e testi insieme (Maiusc+clic o Maiusc+trascina).
+  const [gruppo, setGruppo] = useState<C.Gruppo>(C.gruppoVuoto);
+  // Linee stimate degli impianti, dal quadro / collettore / colonna / unità esterna.
+  const [mostraLinee, setMostraLinee] = useState(false);
   // La stanza appena disegnata: il suo nome è pronto da scrivere (solo per lei).
   const [stanzaNuova, setStanzaNuova] = useState<string | null>(null);
   const [camera, setCamera] = useState<Camera>({ s: 0.8, tx: 80, ty: 80 });
@@ -103,6 +172,28 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const [inizioParete, setInizioParete] = useState<Punto | null>(null);
   const [misura, setMisura] = useState<MisuraInModifica | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
+  // Arredo scelto dal catalogo, da posare col prossimo clic; primo punto della quota in corso.
+  const [arredoScelto, setArredoScelto] = useState<VoceCatalogo | null>(null);
+  const [inizioQuota, setInizioQuota] = useState<Punto | null>(null);
+  const [puntiPoligono, setPuntiPoligono] = useState<Punto[]>([]);
+  // Lotto e aree esterne: il tipo che lo strumento «area» disegna.
+  const [tipoArea, setTipoArea] = useState<TipoArea>("prato");
+  const [urlRicalco, setUrlRicalco] = useState<{ percorso: string; url: string } | null>(null);
+  useEffect(() => {
+    const p = ricalco?.percorso;
+    if (!p || p.startsWith("blob:") || !archivio || urlRicalco?.percorso === p) return;
+    let annullato = false;
+    archivio.url(p).then((url) => { if (!annullato) setUrlRicalco({ percorso: p, url }); }).catch((): void => undefined);
+    return () => { annullato = true; };
+  }, [ricalco?.percorso, archivio, urlRicalco?.percorso]);
+  // sulla tela: coordinate dell'editor (y in giù)
+  const sfondo: SfondoRicalco | null = useMemo(() => {
+    if (!ricalco) return null;
+    const url = ricalco.percorso.startsWith("blob:") ? ricalco.percorso : urlRicalco?.percorso === ricalco.percorso ? urlRicalco.url : null;
+    return url ? { url, x: ricalco.x, y: -ricalco.y, larghezzaCm: ricalco.larghezzaCm, proporzione: ricalco.proporzione, opacita: ricalco.opacita } : null;
+  }, [ricalco, urlRicalco]);
+  // Metti in scala con due punti: i punti cliccati sul foglio (null = non si sta misurando).
+  const [calibra, setCalibra] = useState<Punto[] | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const contenitoreRef = useRef<HTMLDivElement>(null);
@@ -112,15 +203,34 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const spazioPremuto = useRef(false);
 
   // Stanze, mq e problemi come li calcola il modello della fase 1.
-  const dati = useMemo(() => datiVista(pianta, documento, vista), [pianta, documento, vista]);
+  // pannelli e kWp sul tetto (solo se c'è il fotovoltaico: il calcolo delle quantità costa)
+  const fotovoltaicoInfo = useMemo(() => {
+    if (!documento.livelli.some((l) => l.tetto?.fotovoltaico)) return null;
+    const q = calcolaQuantita(documento);
+    const n = q["fatto:impianti:fotovoltaico.pannelli"]?.valore ?? 0;
+    return { pannelli: n, kwp: q["fatto:impianti:fotovoltaico.kwp"]?.valore ?? 0 };
+  }, [documento]);
+  const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId, propostaId), [pianta, documento, vista, livelloId, propostaId]);
+  // Mansarda: altezze e superficie utile di ogni stanza sotto le falde (per il pannello)
+  const sottotetto = useMemo(() => {
+    const liv = documento.livelli.find((l) => l.id === (livelloId ?? documento.livelli[0]?.id));
+    if (!liv?.tetto?.mansarda) return undefined;
+    const out = new Map<string, AltezzeSottotetto>();
+    for (const stato of [liv.fatto, ...liv.proposte]) {
+      const f = falde(liv, stato);
+      if (!f) continue;
+      for (const l of stato.locali) if (!out.has(l.id)) { const a = altezzeLocale(l, f); if (a) out.set(l.id, a); }
+    }
+    return out;
+  }, [documento, livelloId]);
   const latiModificabili = useMemo(
     () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
     [pianta, vista, dati],
   );
 
   // Riferimenti sempre aggiornati per i gestori registrati una volta sola.
-  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati });
-  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati };
+  const stato = useRef({ pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo });
+  stato.current = { pianta, camera, strumento, vista, selezione, inizioParete, storia, dati, arredoScelto, inizioQuota, puntiPoligono, gruppo };
 
   useEffect(() => {
     if (anteprima) return;
@@ -139,12 +249,24 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setStoria((s) => esegui(s, nuova));
   }, []);
 
+  // Correzione guidata: confermata una misura stimata, si passa alla prossima (o si dice che è finita)
+  const avanti = useCallback((nuova: Pianta) => {
+    const dopo = C.prossimaStimata(nuova);
+    setSelezione(dopo);
+    setAvviso(dopo ? `Ancora ${C.contaStimate(nuova)} da controllare: eccone un'altra.` : "Tutte le misure stimate sono controllate.");
+  }, []);
+
   const setStrumento = useCallback((s: Strumento) => {
     setStrumentoStato(s);
     setInizioParete(null);
+    setInizioQuota(null);
+    setPuntiPoligono([]);
     setSovrapposizioni({});
     setMisura(null);
-    if (s !== "seleziona") setSelezione(null);
+    if (s !== "seleziona") {
+      setSelezione(null);
+      setGruppo(C.gruppoVuoto());
+    }
   }, []);
 
   // ─── dimensioni e inquadratura ─────────────────────────────────────────────
@@ -165,7 +287,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const xs = ps.map((p) => p.x);
     const ys = ps.map((p) => p.y);
     // margine: le porte aperte verso fuori sporgono dalla pianta
-    const margine = 40 + Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
+    // (sullo schermo stretto se ne tiene poco più di mezza: con tutta, la pianta restava piccola)
+    const quota = dimensioniRef.current.w < 600 ? 0.6 : 1;
+    const margine = 25 + quota * Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
     const minX = Math.min(...xs) - margine;
     const maxX = Math.max(...xs) + margine;
     const minY = Math.min(...ys) - margine;
@@ -291,6 +415,28 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setSovrapposizioni({});
   };
 
+  /** Chiude la stanza libera: crea il locale e le pareti che mancano (fase 4). */
+  const chiudiPoligono = (punti: Punto[]) => {
+    setPuntiPoligono([]);
+    setSovrapposizioni({});
+    if (stato.current.strumento === "area") {
+      if (punti.length < 3) return setAvviso("Servono almeno tre angoli per fare un'area.");
+      if (contornoIncrociato(punti)) return setAvviso("Il contorno si incrocia: ridisegna l'area senza che i lati si taglino.");
+      const r = C.aggiungiArea(stato.current.storia.presente, tipoArea, punti, stato.current.vista);
+      applica(r.pianta);
+      setStrumento("seleziona");
+      setSelezione({ tipo: "area", id: r.id });
+      return;
+    }
+    if (punti.length < 3) return setAvviso("Servono almeno tre angoli per fare una stanza.");
+    if (contornoIncrociato(punti)) return setAvviso("Il contorno si incrocia: ridisegna la stanza senza che i lati si taglino.");
+    const r = C.aggiungiStanza(stato.current.storia.presente, punti, { stato: C.statoNuovo(stato.current.vista) });
+    applica(r.pianta);
+    setStrumento("seleziona");
+    setSelezione({ tipo: "locale", id: r.id });
+    setStanzaNuova(r.id);
+  };
+
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button === 2) return;
     // Il clic sul disegno chiude le caselle aperte (e ne salva il valore), ma non deve
@@ -311,10 +457,39 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
     if (sola || e.button === 1 || spazioPremuto.current) return pan();
 
+    // Metti in scala l'immagine da ricalcare: due clic, poi la distanza vera
+    if (calibra !== null && ricalco) {
+      const punti = [...calibra, p];
+      if (punti.length < 2) { setCalibra(punti); return; }
+      setCalibra(null);
+      const misurata = dist(punti[0], punti[1]);
+      const scritta = window.prompt("Quanto sono distanti davvero i due punti? (metri)", "");
+      const vera = Number((scritta ?? "").replace(",", ".")) * 100;
+      if (!(vera > 0) || misurata < 1) { setAvviso("Scala non cambiata."); return; }
+      const k = vera / misurata;
+      // il primo punto resta fermo, il resto dell'immagine si allarga o si stringe attorno a lui
+      const a = punti[0];
+      const xE = a.x - (a.x - ricalco.x) * k, yE = a.y - (a.y - -ricalco.y) * k;
+      setRicalco({ ...ricalco, larghezzaCm: Math.round(ricalco.larghezzaCm * k), x: Math.round(xE), y: Math.round(-yE) });
+      setAvviso(`Immagine in scala: larga ${(ricalco.larghezzaCm * k / 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} m.`);
+      return;
+    }
+
     if (str === "stanza") {
       const a = aggancia(pi, p, { tolleranza: tolleranza() });
       gesto.current = { tipo: "rettangolo", a: a.punto };
       setSovrapposizioni({ rettangolo: { a: a.punto, b: a.punto }, aggancio: a });
+      return;
+    }
+    if (str === "poligono" || str === "area") {
+      const pts = stato.current.puntiPoligono;
+      const ultimo = pts[pts.length - 1];
+      if (pts.length >= 3 && dist(p, pts[0]) <= tolleranza() * 1.2) return chiudiPoligono(pts);
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: ultimo });
+      if (ultimo && dist(ultimo, a.punto) < 5) return;
+      const nuovi = [...pts, a.punto];
+      setPuntiPoligono(nuovi);
+      setSovrapposizioni({ poligonoInCorso: { punti: nuovi, cursore: a.punto }, aggancio: a });
       return;
     }
     if (str === "parete") {
@@ -347,8 +522,67 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       mettiApertura(str, p);
       return;
     }
+    if (str === "arredo") {
+      const voce = stato.current.arredoScelto;
+      if (!voce) return;
+      const r = C.aggiungiElemento(stato.current.storia.presente, voce, p, { stato: C.statoNuovo(v) });
+      applica(r.pianta);
+      setSovrapposizioni({});
+      setStrumento("seleziona");
+      setSelezione({ tipo: "elemento", id: r.id });
+      return;
+    }
+    if (str === "quota") {
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: stato.current.inizioQuota ?? undefined });
+      const inizio = stato.current.inizioQuota;
+      if (!inizio) {
+        setInizioQuota(a.punto);
+        setSovrapposizioni({ quotaInCorso: { a: a.punto, b: a.punto }, aggancio: a });
+        return;
+      }
+      if (dist(inizio, a.punto) < 5) return;
+      const r = C.aggiungiQuota(stato.current.storia.presente, inizio, a.punto, 40);
+      applica(r.pianta);
+      setInizioQuota(null);
+      setSovrapposizioni({});
+      setStrumento("seleziona");
+      setSelezione({ tipo: "quota", id: r.id });
+      return;
+    }
+    if (str === "testo") {
+      const r = C.aggiungiTesto(stato.current.storia.presente, p);
+      applica(r.pianta);
+      setStrumento("seleziona");
+      setSelezione({ tipo: "testo", id: r.id });
+      return;
+    }
 
-    // seleziona
+    // seleziona — più oggetti insieme
+    const gr = stato.current.gruppo;
+    const multiplo = b && (b.tipo === "elemento" || b.tipo === "quota" || b.tipo === "testo") && b.id ? (b as { tipo: "elemento" | "quota" | "testo"; id: string }) : null;
+    if (e.shiftKey && (!b || b.tipo === "sfondo" || b.tipo === "locale")) {
+      gesto.current = { tipo: "riquadro", a: p };
+      setSovrapposizioni({ riquadro: { a: p, b: p } });
+      return;
+    }
+    if (e.shiftKey && multiplo) {
+      const base: C.Gruppo = C.quantiNelGruppo(gr) ? gr : C.gruppoVuoto();
+      if (!C.quantiNelGruppo(gr) && sel && (sel.tipo === "elemento" || sel.tipo === "quota" || sel.tipo === "testo")) {
+        base[chiaveGruppo(sel.tipo)] = [sel.id];
+      }
+      const k = chiaveGruppo(multiplo.tipo);
+      const lista = base[k].includes(multiplo.id) ? base[k].filter((x) => x !== multiplo.id) : [...base[k], multiplo.id];
+      setGruppo({ ...base, [k]: lista });
+      setSelezione(null);
+      return;
+    }
+    if (C.quantiNelGruppo(gr)) {
+      if (multiplo && gr[chiaveGruppo(multiplo.tipo)].includes(multiplo.id)) {
+        gesto.current = { tipo: "sposta-gruppo", da: p, base: stato.current.storia.presente, gruppo: C.gruppoModificabile(pi, gr, v), mosso: false };
+        return;
+      }
+      setGruppo(C.gruppoVuoto());
+    }
     if (!b || b.tipo === "sfondo") {
       setSelezione(null);
       return pan();
@@ -382,9 +616,40 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       gesto.current = { tipo: "sposta-apertura", id: a.id, base: stato.current.storia.presente, da: s, mosso: false, eraSelezionata };
       return;
     }
+    if (b.tipo === "elemento" && b.id) {
+      const el = (pi.elementi ?? []).find((x) => x.id === b.id);
+      if (!el) return;
+      setSelezione({ tipo: "elemento", id: el.id });
+      if (!C.modificabile(el.stato, v)) return;
+      gesto.current = { tipo: "sposta-elemento", id: el.id, da: p, centro: el.centro, base: stato.current.storia.presente, mosso: false };
+      return;
+    }
+    if (b.tipo === "testo" && b.id) {
+      const t = (pi.testi ?? []).find((x) => x.id === b.id);
+      if (!t) return;
+      setSelezione({ tipo: "testo", id: t.id });
+      gesto.current = { tipo: "sposta-testo", id: t.id, da: p, posizione: t.posizione, base: stato.current.storia.presente, mosso: false };
+      return;
+    }
+    if (b.tipo === "quota" && b.id) {
+      const q = (pi.quote ?? []).find((x) => x.id === b.id);
+      if (!q) return;
+      setSelezione({ tipo: "quota", id: q.id });
+      const l = dist(q.p1, q.p2) || 1;
+      gesto.current = { tipo: "sposta-quota", id: q.id, da: p, base: stato.current.storia.presente, normale: { x: -(q.p2.y - q.p1.y) / l, y: (q.p2.x - q.p1.x) / l }, scostamento: q.scostamento, mosso: false };
+      return;
+    }
     if (b.tipo === "locale" && b.id) {
       setSelezione({ tipo: "locale", id: b.id });
       return pan();
+    }
+    if (b.tipo === "area" && b.id) {
+      const ar = (pi.aree ?? []).find((x) => x.id === b.id);
+      if (!ar) return;
+      setSelezione({ tipo: "area", id: ar.id });
+      if (!C.modificabile(ar.stato, v)) return pan();
+      gesto.current = { tipo: "sposta-area", id: ar.id, da: p, contorno: ar.contorno, base: stato.current.storia.presente, mosso: false };
+      return;
     }
   };
 
@@ -437,6 +702,16 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni({ rettangolo: { a: g.a, b: a.punto }, aggancio: a });
       return;
     }
+    if (g?.tipo === "riquadro") {
+      setSovrapposizioni({ riquadro: { a: g.a, b: p } });
+      return;
+    }
+    if (g?.tipo === "sposta-gruppo") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      setAnteprima(C.spostaGruppo(g.base, g.gruppo, { x: Math.round((p.x - g.da.x) / 5) * 5, y: Math.round((p.y - g.da.y) / 5) * 5 }));
+      return;
+    }
     if (g?.tipo === "sposta-muro") {
       const d = (p.x - g.da.x) * g.normale.x + (p.y - g.da.y) * g.normale.y;
       const passo = Math.round(d / 5) * 5;
@@ -448,6 +723,33 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       const a = aggancia(senza, p, { tolleranza: tolleranza(), da: g.altro });
       setSovrapposizioni({ aggancio: a });
       setAnteprima(C.spostaAngolo(g.base, g.da, a.punto));
+      return;
+    }
+    if (g?.tipo === "sposta-elemento") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      const centro = { x: Math.round((g.centro.x + p.x - g.da.x) / 5) * 5, y: Math.round((g.centro.y + p.y - g.da.y) / 5) * 5 };
+      setAnteprima(C.modificaElemento(g.base, g.id, { centro }));
+      return;
+    }
+    if (g?.tipo === "sposta-area") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      const dx = Math.round((p.x - g.da.x) / 5) * 5, dy = Math.round((p.y - g.da.y) / 5) * 5;
+      setAnteprima(C.modificaArea(g.base, g.id, { contorno: g.contorno.map((q) => ({ x: q.x + dx, y: q.y + dy })) }));
+      return;
+    }
+    if (g?.tipo === "sposta-testo") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      setAnteprima(C.modificaTesto(g.base, g.id, { posizione: { x: Math.round(g.posizione.x + p.x - g.da.x), y: Math.round(g.posizione.y + p.y - g.da.y) } }));
+      return;
+    }
+    if (g?.tipo === "sposta-quota") {
+      if (!g.mosso && dist(p, g.da) * stato.current.camera.s < 4) return;
+      g.mosso = true;
+      const d = (p.x - g.da.x) * g.normale.x + (p.y - g.da.y) * g.normale.y;
+      setAnteprima(C.modificaQuota(g.base, g.id, { scostamento: Math.round((g.scostamento + d) / 5) * 5 }));
       return;
     }
     if (g?.tipo === "sposta-apertura") {
@@ -466,6 +768,17 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setSovrapposizioni(inizio ? { pareteInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "stanza") {
       setSovrapposizioni({ aggancio: aggancia(pi, p, { tolleranza: tolleranza() }) });
+    } else if (str === "poligono" || str === "area") {
+      const pts = stato.current.puntiPoligono;
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: pts[pts.length - 1] });
+      setSovrapposizioni(pts.length ? { poligonoInCorso: { punti: pts, cursore: a.punto }, aggancio: a } : { aggancio: a });
+    } else if (str === "arredo" && stato.current.arredoScelto) {
+      const v0 = stato.current.arredoScelto;
+      setSovrapposizioni({ arredoFantasma: { tipo: v0.tipo, centro: p, larghezza: v0.larghezza, profondita: v0.profondita } });
+    } else if (str === "quota") {
+      const inizio = stato.current.inizioQuota;
+      const a = aggancia(pi, p, { tolleranza: tolleranza(), da: inizio ?? undefined });
+      setSovrapposizioni(inizio ? { quotaInCorso: { a: inizio, b: a.punto }, aggancio: a } : { aggancio: a });
     } else if (str === "porta" || str === "finestra") {
       const v = stato.current.vista;
       const vicino = muroPiuVicino(pi, p, tolleranza() * 1.5, (m) => C.visibile(m.stato, v) && m.stato !== "da_demolire");
@@ -492,7 +805,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       if (!g.mosso && sola && g.bersaglio) {
         const b = g.bersaglio;
         if (b.tipo === "lato" || b.tipo === "quota-muro") apriMisura(b);
-        else if ((b.tipo === "muro" || b.tipo === "locale" || b.tipo === "apertura") && b.id) setSelezione({ tipo: b.tipo, id: b.id });
+        else if ((b.tipo === "muro" || b.tipo === "locale" || b.tipo === "apertura" || b.tipo === "elemento" || b.tipo === "quota" || b.tipo === "testo") && b.id) setSelezione({ tipo: b.tipo, id: b.id });
         else setSelezione(null);
       }
       return;
@@ -511,6 +824,32 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       setStanzaNuova(r.id);
       return;
     }
+    if (g.tipo === "riquadro") {
+      const fine = sovrapposizioniRef.current.riquadro?.b ?? g.a;
+      setSovrapposizioni({});
+      const trovati = C.gruppoNelRiquadro(stato.current.storia.presente, g.a, fine, stato.current.vista);
+      const gr = stato.current.gruppo;
+      // Maiusc+trascina aggiunge a quello che c'è già
+      const unione: C.Gruppo = {
+        elementi: [...new Set([...gr.elementi, ...trovati.elementi])],
+        quote: [...new Set([...gr.quote, ...trovati.quote])],
+        testi: [...new Set([...gr.testi, ...trovati.testi])],
+      };
+      if (C.quantiNelGruppo(unione) === 0) setAvviso("Nel riquadro non ci sono arredi, quote o testi. Pareti e stanze si scelgono una per volta.");
+      setGruppo(unione);
+      setSelezione(null);
+      return;
+    }
+    if (g.tipo === "sposta-gruppo") {
+      if (g.mosso && anteprimaRef.current) applica(anteprimaRef.current);
+      else setAnteprima(null);
+      return;
+    }
+    if (g.tipo === "sposta-elemento" || g.tipo === "sposta-testo" || g.tipo === "sposta-quota" || g.tipo === "sposta-area") {
+      if (g.mosso && anteprimaRef.current) applica(anteprimaRef.current);
+      else setAnteprima(null);
+      return;
+    }
     if (g.tipo === "sposta-muro" || g.tipo === "maniglia") {
       setSovrapposizioni({});
       if (anteprimaRef.current) applica(anteprimaRef.current);
@@ -526,6 +865,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     }
   };
 
+  const chiudiPoligonoRef = useRef(chiudiPoligono);
+  chiudiPoligonoRef.current = chiudiPoligono;
   const sovrapposizioniRef = useRef(sovrapposizioni);
   sovrapposizioniRef.current = sovrapposizioni;
   const anteprimaRef = useRef(anteprima);
@@ -581,11 +922,16 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       const { vista: v } = stato.current;
       const base = stato.current.storia.presente;
       const nuova =
-        sel.tipo === "muro" ? C.eliminaMuro(base, sel.id, v) : sel.tipo === "apertura" ? C.eliminaApertura(base, sel.id, v) : C.eliminaLocale(base, sel.id, v);
+        sel.tipo === "muro" ? C.eliminaMuro(base, sel.id, v)
+          : sel.tipo === "apertura" ? C.eliminaApertura(base, sel.id, v)
+          : sel.tipo === "elemento" ? C.eliminaElemento(base, sel.id, v)
+          : sel.tipo === "quota" ? C.eliminaQuota(base, sel.id)
+          : sel.tipo === "testo" ? C.eliminaTesto(base, sel.id)
+          : sel.tipo === "area" ? C.eliminaArea(base, sel.id, v)
+          : C.eliminaLocale(base, sel.id, v);
       applica(nuova);
-      if (!nuova.muri.some((m) => m.id === sel.id) && !nuova.aperture.some((a) => a.id === sel.id) && !nuova.locali.some((l) => l.id === sel.id)) {
-        setSelezione(null);
-      }
+      const ancora = [...nuova.muri, ...nuova.aperture, ...nuova.locali, ...(nuova.elementi ?? []), ...(nuova.quote ?? []), ...(nuova.testi ?? []), ...(nuova.aree ?? [])].some((x) => x.id === sel.id);
+      if (!ancora) setSelezione(null);
     },
     [applica],
   );
@@ -623,6 +969,29 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         setStoria(ripeti);
+      } else if (C.quantiNelGruppo(stato.current.gruppo) && (e.key === "Delete" || e.key === "Backspace" || e.key === "Escape" || (!mod && (e.key === "r" || e.key === "R" || e.key === "m" || e.key === "M")) || (mod && e.key.toLowerCase() === "d"))) {
+        e.preventDefault();
+        const k = e.key.toLowerCase();
+        azioneGruppoRef.current(k === "escape" ? "deseleziona" : k === "r" ? "ruota" : k === "m" ? "specchia" : k === "d" ? "copia" : "elimina");
+      } else if (!mod && (e.key === "r" || e.key === "R") && stato.current.selezione?.tipo === "elemento") {
+        e.preventDefault();
+        const sel = stato.current.selezione;
+        const el = (stato.current.storia.presente.elementi ?? []).find((x) => x.id === sel.id);
+        if (el && C.modificabile(el.stato, stato.current.vista)) applica(C.ruotaElemento(stato.current.storia.presente, sel.id, e.shiftKey ? -90 : 90));
+      } else if (mod && e.key.toLowerCase() === "d" && stato.current.selezione?.tipo === "elemento") {
+        e.preventDefault();
+        const r = C.duplicaElemento(stato.current.storia.presente, stato.current.selezione.id, stato.current.vista);
+        applica(r.pianta);
+        if (r.id) setSelezione({ tipo: "elemento", id: r.id });
+      } else if (e.key === "Enter" && (stato.current.strumento === "poligono" || stato.current.strumento === "area") && stato.current.puntiPoligono.length >= 3) {
+        e.preventDefault();
+        chiudiPoligonoRef.current(stato.current.puntiPoligono);
+      } else if (e.key === "Escape" && stato.current.puntiPoligono.length) {
+        setPuntiPoligono([]);
+        setSovrapposizioni({});
+      } else if (e.key === "Escape" && stato.current.inizioQuota) {
+        setInizioQuota(null);
+        setSovrapposizioni({});
       } else if (e.key === "Escape") {
         if (stato.current.inizioParete) {
           setInizioParete(null);
@@ -653,7 +1022,39 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
       window.removeEventListener("keydown", tasto);
       window.removeEventListener("keyup", tasto);
     };
-  }, [sola, elimina, setStrumento, pareteScritta]);
+  }, [sola, elimina, setStrumento, pareteScritta, applica]);
+
+  // ─── azioni sul gruppo ─────────────────────────────────────────────────────
+  const azioneGruppo = useCallback((azione: "ruota" | "specchia" | "copia" | "elimina" | "deseleziona") => {
+    const { storia: st, vista: v, gruppo: gr } = stato.current;
+    if (azione === "deseleziona") return setGruppo(C.gruppoVuoto());
+    const tocca = C.gruppoModificabile(st.presente, gr, v);
+    if (azione === "copia") {
+      const r = C.duplicaGruppo(st.presente, gr, v);
+      applica(r.pianta);
+      setGruppo(r.gruppo);
+      return;
+    }
+    if (!C.quantiNelGruppo(tocca)) return setAvviso("Nel progetto gli arredi di oggi non si spostano: si tolgono e se ne mettono di nuovi.");
+    if (azione === "ruota") applica(C.ruotaGruppo(st.presente, tocca, 90));
+    else if (azione === "specchia") applica(C.specchiaGruppo(st.presente, tocca));
+    else {
+      applica(C.eliminaGruppo(st.presente, gr, v));
+      setGruppo(C.gruppoVuoto());
+    }
+  }, [applica]);
+  const azioneGruppoRef = useRef(azioneGruppo);
+  azioneGruppoRef.current = azioneGruppo;
+
+  // il gruppo perde ciò che non c'è più (annulla, cambio di vista o di piano)
+  useEffect(() => {
+    if (!C.quantiNelGruppo(gruppo)) return;
+    const el = new Set((pianta.elementi ?? []).filter((x) => C.visibile(x.stato, vista)).map((x) => x.id));
+    const qu = new Set((pianta.quote ?? []).map((x) => x.id));
+    const te = new Set((pianta.testi ?? []).map((x) => x.id));
+    const resto = { elementi: gruppo.elementi.filter((x) => el.has(x)), quote: gruppo.quote.filter((x) => qu.has(x)), testi: gruppo.testi.filter((x) => te.has(x)) };
+    if (C.quantiNelGruppo(resto) !== C.quantiNelGruppo(gruppo)) setGruppo(resto);
+  }, [pianta, vista, gruppo]);
 
   // la selezione sparisce se non si vede più (annulla, cambio di vista)
   useEffect(() => {
@@ -663,7 +1064,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         ? pianta.muri.find((m) => m.id === selezione.id)
         : selezione.tipo === "apertura"
           ? pianta.aperture.find((a) => a.id === selezione.id)
-          : dati.locali.find((l) => l.id === selezione.id);
+          : selezione.tipo === "elemento"
+            ? (pianta.elementi ?? []).find((x) => x.id === selezione.id)
+            : selezione.tipo === "quota"
+              ? (pianta.quote ?? []).find((x) => x.id === selezione.id)
+              : selezione.tipo === "testo"
+                ? (pianta.testi ?? []).find((x) => x.id === selezione.id)
+                : selezione.tipo === "area"
+                  ? (pianta.aree ?? []).find((x) => x.id === selezione.id)
+                  : dati.locali.find((l) => l.id === selezione.id);
     if (!esiste || ("stato" in esiste && !C.visibile(esiste.stato, vista))) setSelezione(null);
   }, [pianta, dati, selezione, vista]);
 
@@ -709,12 +1118,166 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             }
           }
           applica(nuova);
-        } else applica(C.confermaMisura(p(), sel.tipo, sel.id));
+          avanti(nuova);
+        } else if (sel.tipo === "muro" || sel.tipo === "apertura") {
+          const nuova = C.confermaMisura(p(), sel.tipo, sel.id);
+          applica(nuova);
+          avanti(nuova);
+        }
       },
       confermaTutte: () => applica(C.confermaTutte(p())),
       seleziona: setSelezione,
+      modificaElemento: (id, campi) => applica(C.modificaElemento(p(), id, campi)),
+      ruotaElemento: (id, gradi) => applica(C.ruotaElemento(p(), id, gradi)),
+      duplicaElemento: (id) => {
+        const r = C.duplicaElemento(p(), id, stato.current.vista);
+        applica(r.pianta);
+        if (r.id) setSelezione({ tipo: "elemento", id: r.id });
+      },
+      modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
+      modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
+      riscaldamento: (id) => {
+        const r = riscaldamentoStanza(p(), id, stato.current.vista);
+        if (!r.aggiunti.length) { setAvviso(r.giaPresenti.length ? "La stanza ha già il suo termosifone." : "Non c'è una parete libera per il termosifone."); return; }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Aggiunti ${r.aggiunti.length} termosifoni.${(p().elementi ?? []).some((e) => e.tipo === "caldaia" || e.tipo === "pompa_calore") ? "" : " Metti la caldaia o la pompa di calore (Arredi → Energia): da lì partono i tubi nel computo."}`);
+      },
+      modificaArea: (id, campi) => applica(C.modificaArea(p(), id, campi)),
+      curvaParete: (id, freccia) => {
+        const r = C.curvaParete(p(), id, freccia);
+        if (!r.ok) { setAvviso(r.motivo ?? "La parete non si curva."); return; }
+        applica(r.pianta);
+        setSelezione(null);
+        setAvviso("Parete curvata: la stanza segue la curva. Ctrl+Z per tornare com'era.");
+      },
+      unitaStanza: (id, unita) => applica(C.modificaLocale(p(), id, { unita: unita || undefined })),
+      magliaPilastri: (id, passo) => {
+        const r = magliaPilastri(p(), id, stato.current.vista, passo);
+        if (!r.aggiunti.length) {
+          setAvviso("Con questo passo non ci sta nessun pilastro lontano dai muri: prova un passo più piccolo.");
+          return;
+        }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Messi ${r.aggiunti.length} pilastri: trascinane uno per spostarli tutti, Canc per toglierli.`);
+      },
+      impiantoElettrico: (id, destinazione) => {
+        const r = impiantoElettrico(p(), id, stato.current.vista, destinazione);
+        if (!r.aggiunti.length) {
+          setAvviso(r.giaPresenti.length ? "La stanza ha già la dotazione minima." : "Non c'è posto per i punti: le pareti sono occupate da porte e finestre.");
+          return;
+        }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Aggiunti ${r.aggiunti.length} punti (prese, luci, interruttori). Con «Linee impianti» vedi i percorsi dal quadro.${r.saltati.length ? ` Non ci stavano: ${r.saltati.join(", ").toLowerCase()}.` : ""}`);
+      },
+      clima: (id, destinazione) => {
+        const l = p().locali.find((x) => x.id === id);
+        if (!l) return;
+        const r = climaStanza(p(), id, stato.current.vista, destinazione, btuConsigliati(l));
+        if (!r.aggiunti.length) {
+          setAvviso(r.giaPresenti.length ? "Nella stanza c'è già lo split." : "Non c'è una parete libera per lo split.");
+          return;
+        }
+        applica(r.pianta);
+        setSelezione({ tipo: "elemento", id: r.aggiunti[0] });
+        setAvviso((p().elementi ?? []).some((e) => e.tipo === "unita_esterna") ? "Split aggiunto." : "Split aggiunto. Metti l'unità esterna (Arredi → Impianti) sul balcone o in facciata: da lì si contano rame e condensa.");
+      },
+      arreda: (id, destinazione) => {
+        const r = arredaStanza(p(), id, stato.current.vista, destinazione);
+        if (!r.aggiunti.length) {
+          setAvviso(r.giaPresenti.length ? "La stanza è già arredata: sposta o elimina i mobili a mano." : `Non c'è posto per ${r.saltati.join(", ").toLowerCase() || "gli arredi"}: la stanza è piccola o le pareti sono occupate da porte e finestre.`);
+          return;
+        }
+        applica(r.pianta);
+        setSelezione(null);
+        setGruppo({ elementi: r.aggiunti, quote: [], testi: [] });
+        setAvviso(`Aggiunti ${r.aggiunti.length} arredi: trascinane uno per spostarli tutti, oppure Esc e sistemali uno per uno.${r.saltati.length ? ` Non ci stavano: ${r.saltati.join(", ").toLowerCase()}.` : ""}`);
+      },
     };
   }, [applica, elimina]);
+
+  // ─── piani ────────────────────────────────────────────────────────────────
+  const vaiAlPiano = (id: string, doc: Planimetria = documento, proposta?: string) => {
+    documentoBase.current = doc;
+    setAnteprima(null);
+    setLivelloId(id);
+    const pid = proposta ?? doc.livelli.find((l) => l.id === id)?.proposte[0]?.id ?? ID_PROPOSTA;
+    setPropostaId(pid);
+    setStoria(nuovaStoria(daPlanimetria(doc, id, pid)));
+    setRicalco(doc.livelli.find((l) => l.id === id)?.ricalco ?? null);
+    setCalibra(null);
+    setSelezione(null);
+    setStrumento("seleziona");
+    setTimeout(adatta, 0);
+  };
+  const nuovoPiano = (o: { nome: string; quota: number; base: BaseNuovoPiano }) => {
+    const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
+    vaiAlPiano(r.id, r.documento);
+  };
+  // rilievo del topografo: è di tutta la pianta (come il terreno), si cambia come un piano
+  const [rilievoAperto, setRilievoAperto] = useState(false);
+  const cambiaRilievo = (r: Rilievo | null) => {
+    const { rilievo: _prima, ...senza } = documento;
+    vaiAlPiano(livelloId ?? documento.livelli[0].id, r ? { ...senza, rilievo: r } : senza);
+  };
+  const centroPianta = () => {
+    const ps = documento.livelli.flatMap((l) => l.fatto.muri.flatMap((m) => [m.p1, m.p2]));
+    if (!ps.length) return { x: 0, y: 0 };
+    const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y);
+    return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+  };
+  // gli spigoli esterni della casa (rettangolo dei muri con il loro spessore), y in su come il modello
+  const angoliPianta = () => {
+    const muri = documento.livelli.flatMap((l) => l.fatto.muri);
+    if (!muri.length) return [];
+    const xs = muri.flatMap((m) => [m.p1.x - m.spessore / 2, m.p1.x + m.spessore / 2, m.p2.x - m.spessore / 2, m.p2.x + m.spessore / 2]);
+    const ys = muri.flatMap((m) => [m.p1.y - m.spessore / 2, m.p1.y + m.spessore / 2, m.p2.y - m.spessore / 2, m.p2.y + m.spessore / 2]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    return [
+      { nome: "Spigolo nord-ovest", x: x0, y: y1 }, { nome: "Spigolo nord-est", x: x1, y: y1 },
+      { nome: "Spigolo sud-est", x: x1, y: y0 }, { nome: "Spigolo sud-ovest", x: x0, y: y0 },
+    ];
+  };
+  const modificaPiano = (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => {
+    if (!livelloId) return;
+    const doc = rinominaLivello(documento, livelloId, campi);
+    vaiAlPiano(livelloId, doc);
+  };
+  const togliPiano = () => {
+    if (!livelloId || documento.livelli.length <= 1) return;
+    const doc = eliminaLivello(documento, livelloId);
+    vaiAlPiano(doc.livelli[0].id, doc);
+  };
+
+  // ─── alternative di progetto ──────────────────────────────────────────────
+  const livelloCorrente = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
+  const vaiAllaProposta = (id: string, doc: Planimetria = documento) => {
+    if (!livelloCorrente) return;
+    vaiAlPiano(livelloCorrente.id, doc, id);
+    setVista("progetto");
+  };
+  const nuovaProposta = () => {
+    if (!livelloCorrente) return;
+    const r = duplicaProposta(documento, livelloCorrente.id, propostaId);
+    vaiAllaProposta(r.id, r.documento);
+  };
+  const rinominaPropostaCorrente = (nome: string) => {
+    if (!livelloCorrente) return;
+    const doc = rinominaProposta(documento, livelloCorrente.id, propostaId, nome);
+    documentoBase.current = doc;
+    vaiAllaProposta(propostaId, doc);
+  };
+  const togliPropostaCorrente = () => {
+    if (!livelloCorrente || livelloCorrente.proposte.length <= 1) return;
+    const doc = eliminaProposta(documento, livelloCorrente.id, propostaId);
+    const resta = doc.livelli.find((l) => l.id === livelloCorrente.id)?.proposte[0]?.id ?? ID_PROPOSTA;
+    vaiAllaProposta(resta, doc);
+  };
 
   const cambiaVista = (v: C.Vista) => {
     setVista(v);
@@ -731,9 +1294,23 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   const vuota = storia.presente.muri.length === 0 && storia.presente.locali.length === 0;
   const cursore =
-    strumento === "stanza" || strumento === "parete" ? "crosshair" : strumento === "porta" || strumento === "finestra" ? "copy" : "default";
+    strumento === "stanza" || strumento === "poligono" || strumento === "area" || strumento === "parete" || strumento === "quota" ? "crosshair"
+      : strumento === "porta" || strumento === "finestra" || strumento === "arredo" ? "copy"
+      : strumento === "testo" ? "text" : "default";
 
   // ─── interfaccia ──────────────────────────────────────────────────────────
+  const impianti = useMemo(() => {
+    const visibili = (pianta.elementi ?? []).filter((e) => C.visibile(e.stato, vista)).map((e) => ({ id: e.id, tipo: e.tipo, posizione: e.centro, stato: e.stato }));
+    return percorsiDaElementi(visibili, dati.locali.map((l) => l.contorno));
+  }, [pianta, vista, dati]);
+  const totaliLinee = useMemo(() => {
+    const t = new Map<string, number>();
+    for (const p of impianti.percorsi) t.set(p.linea, (t.get(p.linea) ?? 0) + p.lunghezzaCm);
+    return t;
+  }, [impianti]);
+  const NOMI_LINEE: Record<string, string> = { elettrica: "Elettrico", acqua: "Acqua", scarico: "Scarichi", frigorifera: "Rame clima", condensa: "Condensa", riscaldamento: "Riscaldamento" };
+  const NOMI_PARTENZE: Record<string, string> = { quadro_elettrico: "il quadro elettrico", collettore: "il collettore (o la caldaia)", colonna_scarico: "la colonna di scarico", unita_esterna: "l'unità esterna del clima", generatore: "la caldaia o la pompa di calore (Arredi → Energia)" };
+
   const barraVista = (
     <div className="inline-flex rounded-md border bg-background p-0.5 text-sm" role="radiogroup" aria-label="Quale pianta">
       {(
@@ -785,8 +1362,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-lg border bg-background", className)}>
       {/* barra in alto */}
       <div className="flex flex-wrap items-center gap-2 border-b p-2">
+        {telefono && soloVista === undefined && (
+          <Button size="sm" variant={modificaTelefono ? "default" : "outline"} onClick={() => { setModificaTelefono((v) => !v); setStrumento("seleziona"); }}>
+            <PenLine /> {modificaTelefono ? "Fine modifica" : "Modifica"}
+          </Button>
+        )}
         {!sola && (
-          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Cosa vuoi fare">
+          <div className={cn("flex items-center gap-1", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
             <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
             <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
             <StanzaDaMisure
@@ -798,6 +1380,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
                 setTimeout(adatta, 0);
               }}
             />
+            <BottoneStrumento attivo={strumento === "poligono"} onClick={() => setStrumento("poligono")} icona={<Hexagon />} etichetta="Stanza libera" titolo="Una stanza di qualunque forma: clic su ogni angolo" />
             <BottoneStrumento attivo={strumento === "parete"} onClick={() => setStrumento("parete")} icona={<PenLine />} etichetta="Parete" />
             <BottoneStrumento
               attivo={strumento === "porta"}
@@ -813,10 +1396,75 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               etichetta="Finestra"
               titolo="Trascinala su una parete"
             />
+            <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+            <StrumentoEsterni
+              attivo={strumento === "area"}
+              onRilievo={() => setRilievoAperto(true)}
+              conRilievo={!!documento.rilievo}
+              tipo={tipoArea}
+              onScegli={(t) => {
+                setTipoArea(t);
+                setStrumento("area");
+              }}
+            />
+            <CatalogoArredi
+              attivo={strumento === "arredo"}
+              onScegli={(voce) => {
+                setStrumento("arredo");
+                setArredoScelto(voce);
+              }}
+            />
+            <BottoneStrumento attivo={strumento === "quota"} onClick={() => setStrumento("quota")} icona={<MoveHorizontal />} etichetta="Quota" titolo="Misura fra due punti" />
+            <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
           </div>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className={cn("flex items-center gap-2", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
+          {!sola && (
+            <SfondoDaRicalcare
+              ricalco={ricalco}
+              onCambia={setRicalco}
+              onCarica={async (file) => {
+                const proporzione = await new Promise<number>((ok, ko) => {
+                  const img = new Image();
+                  const u = URL.createObjectURL(file);
+                  img.onload = () => { ok(img.naturalHeight / Math.max(1, img.naturalWidth)); URL.revokeObjectURL(u); };
+                  img.onerror = () => ko(new Error("Immagine non leggibile."));
+                  img.src = u;
+                });
+                const percorso = archivio ? await archivio.carica(file) : URL.createObjectURL(file);
+                setRicalco({ percorso, x: 0, y: 0, larghezzaCm: ricalco?.larghezzaCm ?? 3000, proporzione, opacita: 0.5 });
+              }}
+              calibrando={calibra !== null}
+              onCalibra={() => { setCalibra([]); setAvviso("Clicca due punti dell'immagine di cui conosci la distanza (per esempio i due capi di una quota o di un lato del lotto)."); }}
+            />
+          )}
+          {!sola && (
+            <BarraPiani
+              livelli={documento.livelli.map((l) => ({ id: l.id, nome: l.nome, quota: l.quota, tetto: l.tetto }))}
+              fotovoltaico={fotovoltaicoInfo}
+              livelloId={livelloId ?? documento.livelli[0]?.id}
+              onScegli={(id) => vaiAlPiano(id)}
+              onNuovo={nuovoPiano}
+              onModifica={modificaPiano}
+              onTogli={togliPiano}
+            />
+          )}
           {barraVista}
+          {!sola && vista === "progetto" && livelloCorrente && livelloCorrente.proposte.length > 0 && (
+            <BarraProposte
+              proposte={livelloCorrente.proposte.map((x) => ({ id: x.id, nome: x.nome }))}
+              propostaId={propostaId}
+              onScegli={(id) => vaiAllaProposta(id)}
+              onNuova={nuovaProposta}
+              onRinomina={rinominaPropostaCorrente}
+              onTogli={togliPropostaCorrente}
+            />
+          )}
+          {!sola && (
+            <Button size="sm" variant={mostraLinee ? "default" : "outline"} aria-pressed={mostraLinee} onClick={() => setMostraLinee((v) => !v)} title="Percorsi stimati di cavi, tubi e linee del clima">
+              Linee impianti
+            </Button>
+          )}
           {annullaRipeti}
           {!telefono && zoom}
         </div>
@@ -830,9 +1478,12 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             pianta={pianta}
             dati={dati}
             latiModificabili={latiModificabili}
-            misureSoloSelezione={sola}
+            misureSoloSelezione={sola || telefono}
             vista={vista}
             selezione={selezione}
+            gruppo={gruppo}
+            lineeImpianti={mostraLinee ? impianti.percorsi : undefined}
+            sfondo={sfondo}
             camera={camera}
             larghezza={dimensioni.w}
             altezza={dimensioni.h}
@@ -862,7 +1513,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-w-sm rounded-lg border bg-background/95 p-5 text-center shadow-sm">
                 <p className="font-semibold">Comincia dalla prima stanza</p>
-                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure scrivi le misure. Le altre stanze si attaccano da sole.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure premi «Scrivi le misure» in alto e scrivi larghezza e lunghezza. Le altre stanze si attaccano da sole.</p>
                 <div className="mt-3 flex justify-center gap-2">
                   <Button size="sm" onClick={() => setStrumento("stanza")}>
                     <Square /> Disegna una stanza
@@ -872,8 +1523,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             </div>
           )}
           {vuota && sola && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              La pianta è vuota. Si disegna dal computer.
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+              <p>La pianta è vuota.</p>
+              {/* sul telefono si comincia con un tocco, senza cercare «Modifica» in alto */}
+              {telefono && soloVista === undefined && (
+                <Button size="sm" className="pointer-events-auto" onClick={() => { setModificaTelefono(true); setStrumento("stanza"); }}>
+                  <Square /> Disegna la prima stanza
+                </Button>
+              )}
             </div>
           )}
 
@@ -883,6 +1540,17 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               misura={misura}
               onChiudi={() => setMisura(null)}
             />
+          )}
+
+          {mostraLinee && (
+            <div className="pointer-events-none absolute right-2 top-2 max-w-xs space-y-1 rounded-md bg-background/95 p-2 text-xs shadow-sm">
+              <p className="font-semibold">Linee impianti (stima, con 10% di sfrido)</p>
+              {[...totaliLinee].map(([l, cm]) => (
+                <p key={l} className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4" style={{ background: COLORI_LINEE[l] }} />{NOMI_LINEE[l] ?? l}: {metriConSfrido(cm).toLocaleString("it-IT")} m</p>
+              ))}
+              {!totaliLinee.size && !impianti.mancano.length && <p className="text-muted-foreground">Metti prese, sanitari o split (dal pannello della stanza o da Arredi → Impianti).</p>}
+              {impianti.mancano.map((m) => <p key={m} className="text-amber-700">Manca {NOMI_PARTENZE[m]} (Arredi → Impianti): senza, quella linea non si stima.</p>)}
+            </div>
           )}
 
           {avviso && (
@@ -897,7 +1565,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         {/* pannello */}
         {!telefono && (
           <aside className="w-72 shrink-0 overflow-y-auto border-l p-3 xl:w-80">
-            <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+            {C.quantiNelGruppo(gruppo) > 0 ? (
+              <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
+            ) : (
+              <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+            )}
           </aside>
         )}
       </div>
@@ -909,12 +1581,380 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               Chiudi
             </Button>
           </div>
-          <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
+          <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
         </div>
       )}
 
-      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{SUGGERIMENTI[strumento]}</div>}
+      {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} angoliPianta={angoliPianta()} onCambia={cambiaRilievo} />}
+      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
+  );
+}
+
+const chiaveGruppo = (tipo: "elemento" | "quota" | "testo"): keyof C.Gruppo => (tipo === "elemento" ? "elementi" : tipo === "quota" ? "quote" : "testi");
+
+function PannelloGruppo({ gruppo, onAzione }: { gruppo: C.Gruppo; onAzione: (a: "ruota" | "specchia" | "copia" | "elimina" | "deseleziona") => void }) {
+  const parti = [
+    gruppo.elementi.length && `${gruppo.elementi.length} ${gruppo.elementi.length === 1 ? "arredo" : "arredi"}`,
+    gruppo.quote.length && `${gruppo.quote.length} ${gruppo.quote.length === 1 ? "quota" : "quote"}`,
+    gruppo.testi.length && `${gruppo.testi.length} ${gruppo.testi.length === 1 ? "testo" : "testi"}`,
+  ].filter(Boolean);
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold">{C.quantiNelGruppo(gruppo)} oggetti selezionati</p>
+        <p className="text-xs text-muted-foreground">{parti.join(" · ")}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">Trascina uno di loro per spostarli tutti. Maiusc+clic aggiunge o toglie un oggetto.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button size="sm" variant="outline" onClick={() => onAzione("ruota")} title="R">Ruota 90°</Button>
+        <Button size="sm" variant="outline" onClick={() => onAzione("specchia")} title="M">Specchia</Button>
+        <Button size="sm" variant="outline" onClick={() => onAzione("copia")} title="Ctrl+D">Copia</Button>
+        <Button size="sm" variant="outline" className="text-destructive" onClick={() => onAzione("elimina")} title="Canc">Elimina</Button>
+      </div>
+      <Button size="sm" variant="ghost" className="w-full" onClick={() => onAzione("deseleziona")}>Deseleziona (Esc)</Button>
+    </div>
+  );
+}
+
+function BarraProposte({ proposte, propostaId, onScegli, onNuova, onRinomina, onTogli }: {
+  proposte: Array<{ id: string; nome: string }>;
+  propostaId: string;
+  onScegli: (id: string) => void;
+  onNuova: () => void;
+  onRinomina: (nome: string) => void;
+  onTogli: () => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const attuale = proposte.find((x) => x.id === propostaId) ?? proposte[0];
+  return (
+    <div className="flex items-center gap-1">
+      {proposte.length > 1 && (
+        <Select value={attuale?.id} onValueChange={onScegli}>
+          <SelectTrigger className="h-9 w-40" aria-label="Alternativa di progetto"><SelectValue /></SelectTrigger>
+          <SelectContent>{proposte.map((x) => <SelectItem key={x.id} value={x.id}>{x.nome}</SelectItem>)}</SelectContent>
+        </Select>
+      )}
+      <Popover open={aperto} onOpenChange={setAperto}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline">{proposte.length > 1 ? "Alternative" : "Altra proposta"}</Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 space-y-3" align="end">
+          {attuale && (
+            <div className="space-y-1">
+              <Label htmlFor="nome-proposta">Nome di questa proposta</Label>
+              <Input id="nome-proposta" key={attuale.id} defaultValue={attuale.nome}
+                onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== attuale.nome && onRinomina(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+            </div>
+          )}
+          <Button size="sm" className="w-full" onClick={() => { onNuova(); setAperto(false); }}>Duplica in una nuova alternativa</Button>
+          <p className="text-[11px] text-muted-foreground">Parte dalla proposta che vedi: cambi solo quello che è diverso, e il confronto lo fai nella scheda.</p>
+          {proposte.length > 1 && attuale && (
+            <Button size="sm" variant="ghost" className="w-full text-destructive" onClick={() => { if (window.confirm(`Togliere «${attuale.nome}»?`)) { onTogli(); setAperto(false); } }}>
+              Togli questa alternativa
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli, fotovoltaico }: {
+  /** Pannelli e kWp di tutto l'edificio (dal computo della pianta). */
+  fotovoltaico?: { pannelli: number; kwp: number } | null;
+  livelli: Array<{ id: string; nome: string; quota: number; tetto?: Tetto }>;
+  livelloId?: string;
+  onScegli: (id: string) => void;
+  onNuovo: (o: { nome: string; quota: number; base: BaseNuovoPiano }) => void;
+  onModifica: (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => void;
+  onTogli: () => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const attuale = livelli.find((l) => l.id === livelloId) ?? livelli[0];
+  const [nome, setNome] = useState("");
+  const [quota, setQuota] = useState("");
+  const [base, setBase] = useState<BaseNuovoPiano>("esterni");
+  const metri = (cm: number) => (cm / 100).toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  return (
+    <div className="flex items-center gap-1">
+      {livelli.length > 1 && (
+        <Select value={attuale?.id} onValueChange={onScegli}>
+          <SelectTrigger className="h-9 w-40" aria-label="Piano"><SelectValue /></SelectTrigger>
+          <SelectContent>{livelli.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}</SelectContent>
+        </Select>
+      )}
+      <Popover open={aperto} onOpenChange={setAperto}>
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline" aria-label="Piani">
+            <Layers /> <span className="hidden lg:inline">{livelli.length > 1 ? "Piani" : attuale?.nome ?? "Piano"}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 space-y-4" align="end">
+          {attuale && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Questo piano</p>
+              <div className="grid grid-cols-[1fr_6rem] gap-2">
+                <Input key={`n-${attuale.id}`} defaultValue={attuale.nome} aria-label="Nome del piano" onBlur={(e) => e.target.value.trim() !== attuale.nome && onModifica({ nome: e.target.value })} />
+                <Input key={`q-${attuale.id}`} defaultValue={metri(attuale.quota)} aria-label="Quota del pavimento in metri" inputMode="decimal"
+                  onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && Math.round(v * 100) !== attuale.quota) onModifica({ quota: Math.round(v * 100) }); }} />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Quota del pavimento in metri (0 = piano terra, −3 = interrato).</p>
+              <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Tetto sopra questo piano</Label>
+                  <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50 } })}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nessuno">Nessuno (c'è un piano sopra)</SelectItem>
+                      <SelectItem value="due_falde">A due falde (capanna)</SelectItem>
+                      <SelectItem value="padiglione">A padiglione (quattro falde)</SelectItem>
+                      <SelectItem value="una_falda">A una falda</SelectItem>
+                      <SelectItem value="shed">A shed (dente di sega, capannoni)</SelectItem>
+                      <SelectItem value="piano">Piano</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {attuale.tetto && attuale.tetto.tipo !== "piano" && (
+                  <Input key={`t-${attuale.id}-${attuale.tetto.pendenza}`} defaultValue={String(attuale.tetto.pendenza)} aria-label="Pendenza in percento" inputMode="decimal"
+                    onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (attuale.tetto && Number.isFinite(v) && v >= 0 && v <= 150 && v !== attuale.tetto.pendenza) onModifica({ tetto: { ...attuale.tetto, pendenza: v } }); }} />
+                )}
+              </div>
+              {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
+              {attuale.tetto && attuale.tetto.tipo !== "piano" && (
+                <div className="space-y-1 rounded-md border p-2">
+                  <label className="flex items-center gap-2 text-xs font-medium">
+                    <input type="checkbox" checked={!!attuale.tetto.mansarda} onChange={(e) => { if (!attuale.tetto) return; const { mansarda: _m, ...senza } = attuale.tetto; onModifica({ tetto: e.target.checked ? { ...senza, mansarda: { imposta: 140 } } : senza }); }} />
+                    Mansarda: le stanze stanno sotto le falde
+                  </label>
+                  {attuale.tetto.mansarda && (
+                    <>
+                      <Input key={`imp-${attuale.id}-${attuale.tetto.mansarda.imposta}`} defaultValue={metri(attuale.tetto.mansarda.imposta)} aria-label="Altezza d'imposta in metri" inputMode="decimal"
+                        onBlur={(e) => { const v = Math.round(Number(e.target.value.replace(",", ".")) * 100); if (attuale.tetto?.mansarda && Number.isFinite(v) && v >= 0 && v <= 500 && v !== attuale.tetto.mansarda.imposta) onModifica({ tetto: { ...attuale.tetto, mansarda: { imposta: v } } }); }} />
+                      <p className="text-[11px] text-muted-foreground">Altezza del soffitto sui muri di gronda, in metri (la più bassa). Da lì il soffitto sale con la pendenza: nella stanza vedi altezza minima, massima e media e la superficie utile (sopra 1,50 m).</p>
+                    </>
+                  )}
+                </div>
+              )}
+              {attuale.tetto && (
+                <div className="space-y-1 rounded-md border p-2">
+                  <label className="flex items-center gap-2 text-xs font-medium">
+                    <input type="checkbox" checked={!!attuale.tetto.fotovoltaico} onChange={(e) => attuale.tetto && onModifica({ tetto: e.target.checked ? { ...attuale.tetto, fotovoltaico: { potenzaPannelloW: 430 } } : { tipo: attuale.tetto.tipo, pendenza: attuale.tetto.pendenza, sporto: attuale.tetto.sporto } })} />
+                    Fotovoltaico sul tetto
+                  </label>
+                  {attuale.tetto.fotovoltaico && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input key={`fvw-${attuale.id}-${attuale.tetto.fotovoltaico.potenzaPannelloW ?? 430}`} defaultValue={String(attuale.tetto.fotovoltaico.potenzaPannelloW ?? 430)} aria-label="Watt per pannello" inputMode="numeric"
+                          onBlur={(e) => { const v = Number(e.target.value); if (attuale.tetto?.fotovoltaico && v > 0 && v !== (attuale.tetto.fotovoltaico.potenzaPannelloW ?? 430)) onModifica({ tetto: { ...attuale.tetto, fotovoltaico: { ...attuale.tetto.fotovoltaico, potenzaPannelloW: v } } }); }} />
+                        <Input key={`fvn-${attuale.id}-${attuale.tetto.fotovoltaico.pannelliMax ?? ""}`} defaultValue={attuale.tetto.fotovoltaico.pannelliMax ? String(attuale.tetto.fotovoltaico.pannelliMax) : ""} placeholder="tutti" aria-label="Pannelli al massimo" inputMode="numeric"
+                          onBlur={(e) => { const v = Number(e.target.value); if (!attuale.tetto?.fotovoltaico) return; const { pannelliMax: _m, ...resto } = attuale.tetto.fotovoltaico; onModifica({ tetto: { ...attuale.tetto, fotovoltaico: v > 0 ? { ...resto, pannelliMax: Math.round(v) } : resto } }); }} />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">W per pannello e pannelli al massimo (vuoto: quanti ne stanno). Prima la falda a sud, poi est e ovest.{fotovoltaico ? ` Sul tetto: ${fotovoltaico.pannelli} pannelli, ${fotovoltaico.kwp.toLocaleString("it-IT")} kWp.` : ""}</p>
+                    </>
+                  )}
+                </div>
+              )}
+              {livelli.length > 1 && (
+                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm(`Togliere «${attuale.nome}» con tutto quello che c'è disegnato?`)) { onTogli(); setAperto(false); } }}>
+                  Togli questo piano
+                </Button>
+              )}
+            </div>
+          )}
+          <form className="space-y-2 border-t pt-3" onSubmit={(e) => {
+            e.preventDefault();
+            const q = Number((quota || "").replace(",", "."));
+            const sopra = Math.max(...livelli.map((l) => l.quota), 0) + 300;
+            onNuovo({ nome: nome.trim() || `Piano ${livelli.length}`, quota: Number.isFinite(q) && quota.trim() ? Math.round(q * 100) : sopra, base });
+            setNome(""); setQuota(""); setAperto(false);
+          }}>
+            <p className="text-sm font-semibold">Aggiungi un piano</p>
+            <div className="flex flex-wrap gap-1">
+              {([
+                ["Primo piano", Math.max(...livelli.map((l) => l.quota), 0) + 300, "esterni"],
+                ["Interrato", Math.min(...livelli.map((l) => l.quota), 0) - 300, "esterni"],
+                ["Sottotetto", Math.max(...livelli.map((l) => l.quota), 0) + 300, "esterni"],
+                ["Piano tipo uguale", Math.max(...livelli.map((l) => l.quota), 0) + 300, "identico"],
+              ] as const).map(([n, q, b]) => (
+                <button key={n} type="button" className="rounded-full border px-2 py-0.5 text-[11px] hover:bg-muted"
+                  onClick={() => { setNome(n === "Piano tipo uguale" ? `Piano ${livelli.length}` : n); setQuota(metri(q)); setBase(b); }}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-[1fr_6rem] gap-2">
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Primo piano" aria-label="Nome del nuovo piano" />
+              <Input value={quota} onChange={(e) => setQuota(e.target.value)} placeholder="3,00" inputMode="decimal" aria-label="Quota del nuovo piano in metri" />
+            </div>
+            <div className="space-y-1" role="radiogroup" aria-label="Da dove partire">
+              {([
+                ["esterni", "Dal perimetro", "Le pareti esterne e portanti del piano attuale"],
+                ["identico", "Piano identico", "Tutto: stanze, arredi e impianti (piano tipo, appartamenti uguali)"],
+                ["tutto", "Copia le pareti", "Pareti, porte e finestre del piano attuale"],
+                ["vuoto", "Vuoto", "Si disegna da zero"],
+              ] as const).map(([v, t, d]) => (
+                <button key={v} type="button" role="radio" aria-checked={base === v} onClick={() => setBase(v)}
+                  className={cn("w-full rounded-md border p-2 text-left text-xs", base === v ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
+                  <span className="font-medium">{t}</span> <span className="text-muted-foreground">— {d}</span>
+                </button>
+              ))}
+            </div>
+            <Button type="submit" size="sm" className="w-full">Aggiungi il piano</Button>
+          </form>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+/**
+ * Immagine da ricalcare: si carica (PNG, JPG, WEBP: un PDF va salvato prima come immagine), la
+ * si mette in scala (larghezza vera, oppure due punti a distanza nota) e la si lascia sotto il
+ * disegno, semitrasparente. Si salva con il piano.
+ */
+function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra }: {
+  ricalco: Ricalco | null;
+  onCambia: (r: Ricalco | null) => void;
+  onCarica: (file: File) => Promise<void>;
+  calibrando: boolean;
+  onCalibra: () => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const [caricando, setCaricando] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const numero = (v: string) => { const n = Number(v.replace(",", ".")); return Number.isFinite(n) ? n : null; };
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={ricalco ? "default" : "outline"} title="Un'immagine sotto il disegno da ricalcare: mappa catastale, foto aerea, rilievo del lotto">
+          <ImageIcon /> <span className="hidden lg:inline">Ricalca</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 space-y-3" align="end">
+        <p className="text-sm font-semibold">Immagine da ricalcare</p>
+        <p className="text-xs text-muted-foreground">Carica la mappa del terreno, una foto aerea o un rilievo, mettila in scala e ricalca sopra lotto, casa, vialetti. Si salva con questo piano.</p>
+        <Input type="file" accept="image/png,image/jpeg,image/webp" disabled={caricando}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setCaricando(true); setErrore(null);
+            try { await onCarica(f); } catch (err) { setErrore(err instanceof Error ? err.message : "Immagine non caricata."); } finally { setCaricando(false); }
+          }} />
+        {caricando && <p className="text-xs text-muted-foreground">Carico l'immagine…</p>}
+        {errore && <p className="text-xs text-destructive">{errore}</p>}
+        {ricalco && (
+          <>
+            <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
+              <Label className="text-xs" htmlFor="sfondo-larghezza">Larghezza reale (m)</Label>
+              <Input id="sfondo-larghezza" key={`l-${ricalco.larghezzaCm}`} defaultValue={String(ricalco.larghezzaCm / 100).replace(".", ",")} inputMode="decimal"
+                onBlur={(e) => { const v = numero(e.target.value); if (v && v > 0 && Math.round(v * 100) !== ricalco.larghezzaCm) onCambia({ ...ricalco, larghezzaCm: Math.round(v * 100) }); }} />
+            </div>
+            <Button size="sm" variant="outline" className="w-full" onClick={() => { onCalibra(); setAperto(false); }} disabled={calibrando}>
+              {calibrando ? "Clicca i due punti sul foglio…" : "Metti in scala con due punti"}
+            </Button>
+            <div className="space-y-1">
+              <Label className="text-xs">Trasparenza</Label>
+              <input type="range" min={0.1} max={1} step={0.05} value={ricalco.opacita} className="w-full" onChange={(e) => onCambia({ ...ricalco, opacita: Number(e.target.value) })} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Sposta a destra (m)</Label>
+                <Input key={`x-${ricalco.x}`} defaultValue={String(ricalco.x / 100)} inputMode="decimal" onBlur={(e) => { const v = numero(e.target.value); if (v != null) onCambia({ ...ricalco, x: Math.round(v * 100) }); }} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Sposta in basso (m)</Label>
+                <Input key={`y-${ricalco.y}`} defaultValue={String(-ricalco.y / 100)} inputMode="decimal" onBlur={(e) => { const v = numero(e.target.value); if (v != null) onCambia({ ...ricalco, y: -Math.round(v * 100) }); }} />
+              </div>
+            </div>
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onCambia(null)}>Togli l'immagine</Button>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Lotto e aree esterne: si sceglie cosa disegnare, poi clic sugli angoli. */
+function StrumentoEsterni({ attivo, tipo, onScegli, onRilievo, conRilievo }: { attivo: boolean; tipo: TipoArea; onScegli: (t: TipoArea) => void; onRilievo?: () => void; conRilievo?: boolean }) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={attivo ? "default" : "outline"} aria-pressed={attivo} title="Lotto, prato, vialetti, ghiaia, parcheggio">
+          <Trees />
+          <span>Esterni</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="start">
+        <p className="px-1 pb-2 text-xs text-muted-foreground">Cosa disegni? Poi clic su ogni angolo. Comincia dal lotto (il confine del terreno), poi prato, vialetti e il resto. Piscine, alberi e pergole sono in «Arredi».</p>
+        <div className="grid grid-cols-2 gap-1">
+          {TIPI_AREA.map((t) => (
+            <button key={t} type="button" onClick={() => { onScegli(t); setAperto(false); }}
+              className={cn("flex items-center gap-2 rounded-md border p-2 text-left text-xs hover:bg-muted", attivo && tipo === t && "border-primary bg-primary/5")}>
+              <span className="inline-block h-3 w-3 shrink-0 rounded-sm border" style={{ background: t === "lotto" ? "transparent" : STILE_AREA[t].fill, borderColor: STILE_AREA[t].bordo, borderStyle: t === "lotto" ? "dashed" : "solid" }} />
+              {NOMI_AREA[t]}
+            </button>
+          ))}
+        </div>
+        {onRilievo && (
+          <button type="button" onClick={() => { onRilievo(); setAperto(false); }} className="mt-2 flex w-full items-center gap-2 rounded-md border border-dashed p-2 text-left text-xs hover:bg-muted">
+            <Mountain className="h-4 w-4 shrink-0" />
+            <span><span className="font-medium">{conRilievo ? "Rilievo del topografo (caricato)" : "Rilievo del topografo…"}</span><br /><span className="text-muted-foreground">Punti battuti da CSV, TXT o DXF: terreno e curve di livello</span></span>
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce: VoceCatalogo) => void }) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <Popover open={aperto} onOpenChange={setAperto}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant={attivo ? "default" : "outline"} aria-pressed={attivo}>
+          <Armchair />
+          Arredi
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[22rem] p-2" align="start">
+        <p className="px-1 pb-1 text-xs text-muted-foreground">Scegli e poi clicca sul foglio per posarlo.</p>
+        <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+          {GRUPPI_CATALOGO.map((g) => (
+            <div key={g}>
+              <p className="px-1 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g}</p>
+              <div className="grid grid-cols-3 gap-1">
+                {CATALOGO.filter((v) => v.gruppo === g).map((v) => {
+                  const lato = Math.max(v.larghezza, v.profondita);
+                  return (
+                    <button
+                      key={v.tipo}
+                      type="button"
+                      className="flex flex-col items-center gap-1 rounded-md border p-1.5 text-[11px] hover:border-primary hover:bg-primary/5"
+                      onClick={() => {
+                        onScegli(v);
+                        setAperto(false);
+                      }}
+                    >
+                      {urlImmagineSimbolo(v.tipo) ? (
+                        <img src={urlImmagineSimbolo(v.tipo)!} alt="" className="h-10 w-10 object-contain" loading="lazy" />
+                      ) : (
+                        <svg viewBox={`${-lato / 2 - 4} ${-lato / 2 - 4} ${lato + 8} ${lato + 8}`} className="h-10 w-10" aria-hidden="true">
+                          <SimboloArredo tipo={v.tipo} larghezza={v.larghezza} profondita={v.profondita} colore="#334155" spessore={lato / 40} />
+                        </svg>
+                      )}
+                      <span className="leading-tight">{v.nome}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

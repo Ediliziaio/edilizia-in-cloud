@@ -49,15 +49,16 @@ export function useContrattiDitte() {
           .limit(2000),
         db
           .from("sal_subappaltatori")
-          .select("contratto_id, importo_lordo")
+          .select("contratto_id, importo_lordo, stato")
           .eq("company_id", companyId)
           .limit(5000),
       ]);
       if (contratti.error) throw contratti.error;
       if (sal.error) throw sal.error;
       const salPer = new Map<string, number>();
-      for (const s of (sal.data ?? []) as Array<{ contratto_id: string | null; importo_lordo: number | string | null }>) {
-        if (!s.contratto_id) continue;
+      for (const s of (sal.data ?? []) as Array<{ contratto_id: string | null; importo_lordo: number | string | null; stato: string | null }>) {
+        // Un SAL contestato non è lavoro riconosciuto: non entra nella % SAL.
+        if (!s.contratto_id || s.stato === "contestato") continue;
         salPer.set(s.contratto_id, (salPer.get(s.contratto_id) ?? 0) + (Number(s.importo_lordo) || 0));
       }
       const righe = (contratti.data ?? []) as Array<{

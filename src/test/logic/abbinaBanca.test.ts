@@ -2,6 +2,7 @@
 // primo e come descrivere il pagamento. Solo logica, senza rete.
 import { describe, expect, it } from "vitest";
 import {
+  bonificoParlanteDelResiduo,
   causaleCitaCliente,
   causaleCitaNumero,
   descriviPagamentoBanca,
@@ -127,5 +128,25 @@ describe("descriviPagamentoBanca", () => {
   it("senza bonifico, o tolto l'abbinamento: niente", () => {
     expect(descriviPagamentoBanca("pagata", [incasso({ id: "a" })])).toBeNull();
     expect(descriviPagamentoBanca("consegnata", [])).toBeNull();
+  });
+});
+
+describe("bonifico parlante riconosciuto dalla banca (01/11/2026)", () => {
+  const fattura = { numero: "FT/67", cliente: "Mario Rossi", residuo: 20405, data_emissione: "2026-10-01" };
+  const mov = (importo: number, data = "2026-10-30") => ({ id: `m${importo}`, data, importo, descrizione: "BONIFICO DETRAZ 50%", controparte: null as string | null, riferimento: null as string | null, conto: null as string | null });
+
+  it("residuo meno l'11% (e qualche euro di commissioni): proposto come bonifico parlante", () => {
+    const [p] = ordinaMovimentiPerFattura([mov(18563.7)], fattura);
+    expect(p.parlante).toEqual({ lordo: 20405, ritenuta: 1839.8, commissioni: 1.5, aliquota: 11 });
+    expect(p.motivi[0]).toMatch(/ritenuta della banca del 11%/);
+  });
+
+  it("prima del 01/03/2024 la ritenuta era dell'8%", () => {
+    expect(bonificoParlanteDelResiduo(20405 - 1338.03, 20405, "2024-02-15")).toMatchObject({ ritenuta: 1338.03, aliquota: 8, commissioni: 0 });
+  });
+
+  it("l'importo pieno o un importo qualsiasi non sono un bonifico parlante", () => {
+    expect(ordinaMovimentiPerFattura([mov(20405)], fattura)[0].parlante).toBeNull();
+    expect(bonificoParlanteDelResiduo(15000, 20405, "2026-10-30")).toBeNull();
   });
 });

@@ -17,9 +17,11 @@
  * - Gli id stanno dentro le chiavi delle quantità (`fatto:locale:<id>.pavimento_mq`):
  *   solo lettere, cifre, `-` e `_`, unici dentro lo stesso stato su tutti i livelli.
  *
- * Nessuna dipendenza: lo importano sia il frontend (Vite) sia le edge function (Deno).
+ * Nessuna dipendenza esterna (solo i file qui accanto): lo importano sia il frontend (Vite) sia le edge function (Deno).
  * Per questo il validatore è scritto a mano e non con zod.
  */
+
+import { rilievoValido, type Rilievo } from "./rilievo.ts";
 
 export const VERSIONE_SCHEMA = 1 as const;
 
@@ -116,10 +118,11 @@ export type Destinazione =
   | "terrazzo"
   | "garage"
   | "cantina"
+  | "giardino"
   | "altro";
 export const DESTINAZIONI: readonly Destinazione[] = [
   "soggiorno", "cucina", "camera", "bagno", "ingresso", "disimpegno", "corridoio", "ripostiglio",
-  "studio", "lavanderia", "balcone", "terrazzo", "garage", "cantina", "altro",
+  "studio", "lavanderia", "balcone", "terrazzo", "garage", "cantina", "giardino", "altro",
 ];
 
 export interface Finiture {
@@ -138,6 +141,8 @@ export interface Locale extends ConOrigine {
   contorno: Punto[];
   altezza: number;
   finiture?: Finiture;
+  /** Appartamento o unità immobiliare (condominio, bifamiliare): «A», «Int. 3», «Parti comuni». */
+  unita?: string;
 }
 
 /** Simboli e arredi. `tipo` è libero (catalogo dei simboli: fase editor). */
@@ -172,6 +177,31 @@ export interface Testo {
   rotazione?: number;
 }
 
+/**
+ * Aree esterne: il lotto (il confine del terreno) e le superfici di giardino e cortile.
+ * Non hanno pareti: sono pavimenti a cielo aperto, si contano in mq (e il lotto in metri di
+ * recinzione) e nel 3D sono prato, lastre, ghiaia, asfalto.
+ */
+export type TipoArea = "lotto" | "prato" | "pavimentato" | "vialetto" | "ghiaia" | "parcheggio" | "aiuola" | "orto";
+export const TIPI_AREA: readonly TipoArea[] = ["lotto", "prato", "pavimentato", "vialetto", "ghiaia", "parcheggio", "aiuola", "orto"];
+export const NOMI_AREA: Record<TipoArea, string> = {
+  lotto: "Lotto (confine)", prato: "Prato", pavimentato: "Pavimentazione esterna", vialetto: "Vialetto", ghiaia: "Ghiaia",
+  parcheggio: "Parcheggio / passo carraio", aiuola: "Aiuola", orto: "Orto",
+};
+
+export interface AreaEsterna {
+  id: string;
+  tipo: TipoArea;
+  nome?: string;
+  /** Contorno, almeno tre punti, in senso qualunque. */
+  contorno: Punto[];
+  /** Solo per il lotto: il confine è recintato (si conta e si vede nel 3D). Predefinito: sì. */
+  recinzione?: boolean;
+  /** Quota della superficie rispetto al piano terra, in cm (terrazzamenti, rialzi, rampe). Predefinito: 0. */
+  quota?: number;
+  stato?: StatoLavori;
+}
+
 /** Il contenuto di uno stato (fatto o una proposta) su un livello. */
 export interface StatoPianta {
   muri: Muro[];
@@ -180,6 +210,8 @@ export interface StatoPianta {
   elementi: Elemento[];
   quote: Quota[];
   testi: Testo[];
+  /** Lotto e aree esterne (assenti nelle piante fatte prima). */
+  aree?: AreaEsterna[];
 }
 
 export interface Proposta extends StatoPianta {
@@ -195,6 +227,35 @@ export interface Livello {
   quota: number;
   fatto: StatoPianta;
   proposte: Proposta[];
+  /** L'immagine da ricalcare sotto il disegno di questo piano (mappa, foto aerea, rilievo). */
+  ricalco?: Ricalco;
+  /** Il tetto sopra questo piano (di solito l'ultimo): nel 3D e nei render. */
+  tetto?: Tetto;
+}
+
+export type TipoTetto = "piano" | "una_falda" | "due_falde" | "padiglione" | "shed";
+export const TIPI_TETTO: readonly TipoTetto[] = ["piano", "una_falda", "due_falde", "padiglione", "shed"];
+export interface Tetto {
+  tipo: TipoTetto;
+  /** Pendenza delle falde, in percento (30 = 30%). */
+  pendenza: number;
+  /** Sporto della gronda oltre i muri, in cm. */
+  sporto: number;
+  /** Pannelli fotovoltaici sulle falde migliori (sud; altrimenti est e ovest; sul piano a file). */
+  fotovoltaico?: { potenzaPannelloW?: number; pannelliMax?: number };
+  /** Mansarda: stanze sotto le falde; imposta = altezza del soffitto sui muri di gronda (cm). */
+  mansarda?: { imposta: number };
+}
+
+/** Immagine da ricalcare: nel bucket «planimetrie»; (x, y) è l'angolo in alto a sinistra, in cm, y in su. */
+export interface Ricalco {
+  percorso: string;
+  x: number;
+  y: number;
+  larghezzaCm: number;
+  /** Altezza / larghezza dell'immagine. */
+  proporzione: number;
+  opacita: number;
 }
 
 export interface Riferimenti {
@@ -213,6 +274,46 @@ export interface Planimetria {
   nord?: number;
   riferimenti?: Riferimenti;
   livelli: Livello[];
+  /** Listino delle unità (condomini, bifamiliari in vendita), per sigla dell'unità. */
+  vendite?: Record<string, VenditaUnita>;
+  /** Rilievo del topografo (punti con la quota): il terreno sotto e intorno alla casa. */
+  rilievo?: Rilievo;
+  /** Avanzamento: per ogni proposta, le chiavi dei lavori già fatti (vedi chiaveLavoro). */
+  lavoriFatti?: Record<string, string[]>;
+}
+
+export type StatoVendita = "libera" | "prenotata" | "venduta";
+export const STATI_VENDITA: readonly StatoVendita[] = ["libera", "prenotata", "venduta"];
+export interface VenditaUnita {
+  /** € al mq di superficie commerciale. */
+  prezzoMq?: number;
+  stato?: StatoVendita;
+  note?: string;
+  /** La trattativa, quando l'unità è prenotata o venduta. */
+  acquirente?: string;
+  /** Prezzo concordato, se diverso da prezzo al mq × superficie. */
+  prezzoPattuito?: number;
+  /** Caparra versata al preliminare. */
+  caparra?: number;
+  /** Totale incassato finora (caparra compresa). */
+  incassato?: number;
+  /** Date ISO (AAAA-MM-GG). */
+  dataPreliminare?: string;
+  dataRogito?: string;
+}
+
+const eData = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const eImporto = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+/** Il listino di un'unità ha la forma giusta? */
+export function venditaValida(v: unknown): boolean {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const x = v as Record<string, unknown>;
+  return (x.prezzoMq === undefined || eImporto(x.prezzoMq))
+    && (x.stato === undefined || (STATI_VENDITA as readonly unknown[]).includes(x.stato))
+    && (x.note === undefined || typeof x.note === "string")
+    && (x.acquirente === undefined || typeof x.acquirente === "string")
+    && [x.prezzoPattuito, x.caparra, x.incassato].every((n) => n === undefined || eImporto(n))
+    && [x.dataPreliminare, x.dataRogito].every((d) => d === undefined || eData(d));
 }
 
 /** Uno stato su cui si calcola: «fatto» o «progetto:<id proposta>». */
@@ -301,6 +402,18 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.titolo !== undefined && typeof dato.titolo !== "string") errori.push("La pianta: il titolo deve essere un testo.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");
+  if (dato.lavoriFatti !== undefined && (!eOggetto(dato.lavoriFatti) || !Object.values(dato.lavoriFatti).every((v) => Array.isArray(v) && v.every((x) => typeof x === "string")))) {
+    errori.push("La pianta: l'avanzamento dei lavori non è valido.");
+  }
+  if (dato.rilievo !== undefined && !rilievoValido(dato.rilievo)) errori.push("La pianta: il rilievo del terreno non è valido.");
+  if (dato.vendite !== undefined) {
+    if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
+    else for (const [sigla, v] of Object.entries(dato.vendite)) {
+      if (!venditaValida(v)) {
+        errori.push(`La pianta: il listino dell'unità «${sigla}» non è valido.`);
+      }
+    }
+  }
   if (dato.riferimenti !== undefined && !eOggetto(dato.riferimenti)) errori.push("La pianta: i riferimenti non sono validi.");
 
   if (!Array.isArray(dato.livelli) || dato.livelli.length === 0) {
@@ -320,6 +433,25 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
     else idLivelli.add(liv.id);
     if (typeof liv.nome !== "string" || !liv.nome.trim()) errori.push(`${nomeLiv}: manca il nome.`);
     if (!eNumero(liv.quota)) errori.push(`${nomeLiv}: la quota del pavimento deve essere un numero.`);
+    if (liv.tetto !== undefined) {
+      const t = liv.tetto;
+      if (!eOggetto(t) || !(TIPI_TETTO as readonly unknown[]).includes(t.tipo) || !eNumero(t.pendenza) || !eNumero(t.sporto) || (t.pendenza as number) < 0 || (t.pendenza as number) > 150) {
+        errori.push(`${nomeLiv}: il tetto non è valido.`);
+      } else if (t.mansarda !== undefined && !(eOggetto(t.mansarda) && eNumero(t.mansarda.imposta) && t.mansarda.imposta >= 0 && t.mansarda.imposta <= 500)) {
+        errori.push(`${nomeLiv}: l'altezza d'imposta della mansarda non è valida.`);
+      } else if (t.fotovoltaico !== undefined) {
+        const f = t.fotovoltaico;
+        if (!eOggetto(f) || (f.potenzaPannelloW !== undefined && !(eNumero(f.potenzaPannelloW) && f.potenzaPannelloW > 0)) || (f.pannelliMax !== undefined && !(eNumero(f.pannelliMax) && f.pannelliMax >= 0))) {
+          errori.push(`${nomeLiv}: il fotovoltaico del tetto non è valido.`);
+        }
+      }
+    }
+    if (liv.ricalco !== undefined) {
+      const r = liv.ricalco;
+      if (!eOggetto(r) || typeof r.percorso !== "string" || !r.percorso || ![r.x, r.y, r.larghezzaCm, r.proporzione, r.opacita].every(eNumero) || !((r.larghezzaCm as number) > 0)) {
+        errori.push(`${nomeLiv}: l'immagine da ricalcare non è valida.`);
+      }
+    }
 
     validaStato(liv.fatto, `${nomeLiv}, stato di fatto`, "fatto", true, errori, idPerAmbito);
 
@@ -423,6 +555,7 @@ function validaStato(
     if (!Array.isArray(o.contorno) || o.contorno.length < 3) errori.push(`${e}: il contorno deve avere almeno tre punti.`);
     else o.contorno.forEach((pt: unknown, k: number) => punto(pt, e, `il punto ${k + 1} del contorno`));
     positivo(o, "altezza", e, "l'altezza");
+    if (o.unita !== undefined && (typeof o.unita !== "string" || o.unita.length > 40)) errori.push(`${e}: l'unità immobiliare deve essere un testo breve.`);
     if (o.finiture !== undefined) {
       if (!eOggetto(o.finiture)) errori.push(`${e}: le finiture non sono valide.`);
       else if (o.finiture.rivestimento !== undefined && o.finiture.rivestimento !== null) {
@@ -450,6 +583,16 @@ function validaStato(
     punto(o.p2, e, "la fine");
     if (!eNumero(o.scostamento)) errori.push(`${e}: la distanza dalla parete deve essere un numero.`);
   }, nomeDi("quota"));
+
+  if (stato.aree !== undefined) elenco("aree", "delle aree esterne", (o, e) => {
+    scelta(o.tipo, TIPI_AREA, e, "il tipo");
+    if (!Array.isArray(o.contorno) || o.contorno.length < 3) errori.push(`${e}: il contorno deve avere almeno tre punti.`);
+    else o.contorno.forEach((pt: unknown, k: number) => punto(pt, e, `il punto ${k + 1} del contorno`));
+    if (o.nome !== undefined && (typeof o.nome !== "string" || o.nome.length > 80)) errori.push(`${e}: il nome deve essere un testo breve.`);
+    if (o.recinzione !== undefined && typeof o.recinzione !== "boolean") errori.push(`${e}: «recinzione» deve essere sì o no.`);
+    if (o.quota !== undefined && !eNumero(o.quota)) errori.push(`${e}: la quota deve essere un numero.`);
+    statoLavori(o, e, false);
+  }, nomeDi("area"));
 
   elenco("testi", "dei testi", (o, e) => {
     punto(o.posizione, e, "la posizione");

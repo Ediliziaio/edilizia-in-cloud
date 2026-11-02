@@ -66,3 +66,36 @@ export function canaleFermo(codice: number | null): boolean {
 export function cosaFarePerRipartire(codice: number): string {
   return COSA_FARE[codice] ?? "Controlla l'account WhatsApp Business su business.facebook.com.";
 }
+
+/** Un messaggio respinto, come lo legge il giro di controllo. */
+export interface MessaggioRespinto {
+  company_id: string | null;
+  from_phone: string | null;
+  delivery_error: string | null;
+  created_at: string;
+}
+
+/** L'ultimo guasto del canale di un numero: da lì in poi si guarda se i messaggi sono ripartiti. */
+export interface GuastoCanale {
+  companyId: string;
+  numero: string | null;
+  codice: number;
+  il: string;
+}
+
+/**
+ * Da «messaggi respinti, dal più recente» all'ultimo guasto di ogni numero di ogni azienda.
+ * I rifiuti del singolo destinatario non contano. Il controllo è per numero: un'azienda può averne più di uno, e
+ * uno che funziona non dice niente dell'altro.
+ */
+export function ultimiGuasti(respinti: MessaggioRespinto[]): GuastoCanale[] {
+  const guasti = new Map<string, GuastoCanale>();
+  for (const m of respinti) {
+    if (!m.company_id) continue;
+    const chiave = `${m.company_id}|${m.from_phone ?? ""}`;
+    if (guasti.has(chiave)) continue;
+    const codice = codiceDalMotivoSalvato(m.delivery_error);
+    if (canaleFermo(codice)) guasti.set(chiave, { companyId: m.company_id, numero: m.from_phone, codice: codice!, il: m.created_at });
+  }
+  return [...guasti.values()];
+}

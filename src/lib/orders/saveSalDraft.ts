@@ -12,6 +12,10 @@ export async function saveSalDraft(client:SupabaseClient<Database>,input:{orderI
   const id=crypto.randomUUID();
   try{
   const {data,error}=await client.from("sal_records").insert({id,company_id:input.companyId,order_id:input.orderId,numero_sal:input.number,data_emissione:input.date,stato:"bozza",importo_totale:prepared.total,note:input.note.trim()||null,installment_id:input.installmentId}).select("id,company_id,order_id,stato").single();
+  // Un rifiuto del database (ha un codice: permesso, vincolo) è certo: niente è stato salvato, si dice il motivo.
+  // Senza codice (rete) non si sa se è arrivato: resta il blocco contro il doppio invio.
+  const codice=(error as {code?:string}|null)?.code;
+  if(error && codice) throw new SalSaveError(`SAL non salvato: ${error.message||"il database l'ha rifiutato"}`);
   if(error || data?.id!==id || data.company_id!==input.companyId || data.order_id!==input.orderId || data.stato!=="bozza")
     throw new SalSaveError("Salvataggio non confermato: controlla l'elenco SAL prima di riprovare, per evitare duplicati.",true);
   const result=await client.from("sal_voci").insert(prepared.rows.map(row=>({...row,sal_id:id}))).select("id,importo_sal");

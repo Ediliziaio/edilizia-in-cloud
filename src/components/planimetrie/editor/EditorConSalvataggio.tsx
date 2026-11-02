@@ -3,7 +3,7 @@
  * versione. La pianta si crea al primo salvataggio (se non esiste ancora), poi ogni
  * salvataggio è una versione nuova; alla fine si torna alla scheda della pianta.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Info, Loader2, RotateCcw, Save } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,11 +11,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
-import { chiaviPlanimetrie, creaPlanimetria, salvaNuovaVersione, type OrigineVersione } from "@/lib/planimetrie/archivio";
+import { chiaviPlanimetrie, creaPlanimetria, salvaNuovaVersione, type CollegamentiPlanimetria, type OrigineVersione } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import EditorPlanimetria from "./EditorPlanimetria";
+import { archivioRicalco } from "@/lib/planimetrie/ricalco";
 import type { Planimetria } from "./adattatore";
 import { salvaPianta } from "./salvataggio";
+import { usePermissions } from "@/hooks/usePermissions";
+import { EffettoPrezzo } from "../EffettoPrezzo";
+import { effettoSulPrezzo, useRigheCollegate } from "@/lib/planimetrie/effettoPrezzo";
+import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 
 interface Props {
   companyId: string;
@@ -28,6 +33,8 @@ interface Props {
   versioneAttesa?: number;
   /** Per una pianta nuova: il nome proposto. */
   titoloProposto?: string;
+  /** Per una pianta nuova: a cosa è collegata (es. la commessa di un'unità). */
+  collegamenti?: CollegamentiPlanimetria;
   /** Da dove viene la pianta (per la prima versione salvata). */
   origine?: OrigineVersione;
   /** Frasi da mostrare sopra il disegno (es. «controlla le misure del bagno»). */
@@ -44,14 +51,18 @@ export function EditorConSalvataggio({
   planimetriaId,
   versioneAttesa,
   titoloProposto = "",
+  collegamenti,
   origine = "manuale",
   avvisi = [],
   sopra,
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
   const [salvando, setSalvando] = useState(false);
+  // utente in sola lettura: la pianta si guarda, non si salva (il database lo rifiuterebbe comunque)
+  const { solaLettura } = usePermissions();
   const [conflitto, setConflitto] = useState<string | null>(null);
   const documento = useRef<Planimetria | null>(null);
   const cambi = useRef(0);
@@ -59,8 +70,20 @@ export function EditorConSalvataggio({
 
   const nuova = !planimetriaId;
 
+  // Effetto sul prezzo: le quantità si ricalcolano poco dopo l'ultima modifica, non a ogni tratto.
+  const collegate = useRigheCollegate(planimetriaId);
+  const [perPrezzo, setPerPrezzo] = useState<Planimetria | null>(null);
+  const attesa = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (attesa.current) clearTimeout(attesa.current); }, []);
+  const effetti = useMemo(
+    () => (perPrezzo && collegate.data?.length ? effettoSulPrezzo(collegate.data, calcolaQuantita(perPrezzo)) : []),
+    [perPrezzo, collegate.data],
+  );
+
   const suCambio = useCallback((p: Planimetria) => {
     documento.current = p;
+    if (attesa.current) clearTimeout(attesa.current);
+    attesa.current = setTimeout(() => setPerPrezzo(p), 400);
     // il primo arriva all'apertura: non è una modifica
     cambi.current += 1;
     if (cambi.current > 1) setModificata(true);
@@ -90,6 +113,7 @@ export function EditorConSalvataggio({
         versioneAttesa,
         // la prima versione dice da dove viene la pianta (a mano, dall'AI…); le successive sono modifiche a mano
         origine: nuova ? origine : "manuale",
+        collegamenti,
       },
     );
     setSalvando(false);
@@ -99,8 +123,13 @@ export function EditorConSalvataggio({
       return;
     }
     setModificata(false);
-    await queryClient.invalidateQueries({ queryKey: chiaviPlanimetrie.tutte });
-    toast.success(esito.creata ? "Pianta salvata" : `Pianta salvata (versione ${esito.versione})`);
+    // non si aspetta il ricaricamento: si torna subito alla scheda, che rilegge da sola i dati segnati come vecchi
+    void queryClient.invalidateQueries({ queryKey: chiaviPlanimetrie.tutte });
+    const differenza = effetti.reduce((t, e) => t + e.totale, 0);
+    toast.success(esito.creata ? "Pianta salvata" : `Pianta salvata (versione ${esito.versione})`, effetti.length ? {
+      description: `${effetti.length === 1 ? "Un computo collegato cambia" : `${effetti.length} computi collegati cambiano`} di ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "exceptZero" }).format(differenza)}: aggiornalo dalla commessa («La pianta è cambiata»).`,
+      duration: 10_000,
+    } : undefined);
     navigate(percorsiPlanimetrie.pianta(esito.id));
   };
 
@@ -122,10 +151,11 @@ export function EditorConSalvataggio({
                 onChange={(e) => setTitolo(e.target.value)}
               />
             )}
-            <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-purple-600 hover:bg-purple-700">
+            <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />
+            {!solaLettura && <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-purple-600 hover:bg-purple-700">
               {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salva
-            </Button>
+            </Button>}
           </>
         }
       />
@@ -153,7 +183,7 @@ export function EditorConSalvataggio({
 
       {sopra}
 
-      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} />
+      <EditorPlanimetria className="min-h-0 flex-1" piantaIniziale={iniziale} onChange={suCambio} ricalco={ricalcoArchivio} soloVista={solaLettura || undefined} />
     </div>
   );
 }

@@ -62,7 +62,8 @@ describe("Subappalti separati dalla tariffa dipendente", () => {
   const team: ExternalLaborRow = { id: "t1", total_cost: 122, cost_preventivo: 150, vat_rate: 22, team: null };
   it("toglie l'IVA al lordo come il conto economico", () => expect(externalLaborNet(team)).toBe(100));
   it("IVA zero non si trasforma in 22%", () => expect(externalLaborNet({ ...team, vat_rate: 0 })).toBe(122));
-  it("solo IVA mancante usa il fallback storico", () => expect(externalLaborNet({ ...team, vat_rate: null })).toBe(100));
+  // Ditte in reverse charge: IVA vuota = 0, come la vista del margine (31/10/2026). Prima era il 22% storico.
+  it("IVA mancante vale 0 (reverse charge), non 22%", () => expect(externalLaborNet({ ...team, vat_rate: null })).toBe(122));
   it.each([-1, "NaN", 101])("IVA non valida %s non produce un netto falso", vat_rate => expect(externalLaborNet({ ...team, vat_rate })).toBeNull());
 });
 

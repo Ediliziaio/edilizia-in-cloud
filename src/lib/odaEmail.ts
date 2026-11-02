@@ -75,8 +75,11 @@ export function buildOdaEmailBody(d: OdaEmailDati): string {
     r.sku ? ` <span style="color:#888;font-size:11px;">(cod. ${esc(r.sku)})</span>` : ""
   }</td>
   <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${Number(r.quantity).toLocaleString("it-IT")} ${esc(r.unit_of_measure || "pz")}</td>
-  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${eur(r.unit_price)}</td>
-  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${eur(r.line_total)}</td>
+  ${Number(r.unit_price) > 0
+    ? `<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${eur(r.unit_price)}</td>
+  <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">${eur(r.line_total)}</td>`
+    // Prezzo non ancora concordato: «0,00 €» sembrava un prezzo (31/10/2026). Lo conferma il fornitore.
+    : `<td colspan="2" style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#b45309;">prezzo da confermare</td>`}
 </tr>`,
         )
         .join("")
@@ -111,6 +114,7 @@ export function buildOdaEmailBody(d: OdaEmailDati): string {
 </table>
 ${condizioni ? `<ul style="font-size:13px;">${condizioni}</ul>` : ""}
 ${d.note ? `<p style="font-size:13px;"><strong>Note:</strong> ${esc(d.note)}</p>` : ""}
+${d.righe.some((r) => !(Number(r.unit_price) > 0)) ? `<p style="font-size:13px;color:#b45309;">Per le righe con «prezzo da confermare» Vi chiediamo di indicarci il prezzo unitario (IVA esclusa) prima della consegna.</p>` : ""}
 <p>Vi preghiamo di confermare ricezione e data di consegna rispondendo a questa email. Sul documento di trasporto Vi chiediamo di riportare il numero d'ordine <strong>${esc(d.odaNumber)}</strong>.</p>
 <p>Cordiali saluti,<br>${esc(d.aziendaNome || "")}</p>`;
 }

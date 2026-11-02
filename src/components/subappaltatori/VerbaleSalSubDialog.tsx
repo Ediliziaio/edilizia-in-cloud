@@ -47,7 +47,8 @@ type Originale = {
   zip_url: string | null;
   sha256: string;
 };
-type Storico = { id: string; created_at: string; pdf_sha256: string };
+type Storico = { id: string; created_at: string; pdf_sha256: string; accettato_il?: string | null; accettato_da?: string | null; accettazione_modo?: string | null };
+const MODI_ACCETTAZIONE: Record<string, string> = { carta: "firmato su carta", email: "per email", pec: "per PEC", portale: "dal portale" };
 const euro = (v: number) =>
   Number(v).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
 async function invoca(body: Record<string, unknown>) {
@@ -178,7 +179,7 @@ export function VerbaleSalSubDialog({
     queryFn: async () => {
       const r = await supabase
         .from("sal_sub_verbali" as never)
-        .select("id,created_at,pdf_sha256")
+        .select("id,created_at,pdf_sha256,accettato_il,accettato_da,accettazione_modo")
         .eq("company_id", companyId)
         .eq("sal_id", sal.id)
         .order("created_at", { ascending: false })
@@ -490,22 +491,28 @@ export function VerbaleSalSubDialog({
                       </p>
                     ) : (
                       storico.data.map((r) => (
-                        <Button
-                          key={r.id}
-                          size="sm"
-                          variant="outline"
-                          className="mt-2 h-auto w-full justify-start whitespace-normal text-left"
-                          disabled={busy}
-                          onClick={() => void apri(r.id)}
-                        >
-                          <FileText className="mr-2 h-4 w-4 shrink-0" />
-                          <span>
-                            {new Date(r.created_at).toLocaleString("it-IT")}
-                            <span className="block text-xs text-muted-foreground">
-                              Rif. {r.id.slice(0, 8)}
+                        <div key={r.id} className="mt-2 space-y-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-auto w-full justify-start whitespace-normal text-left"
+                            disabled={busy}
+                            onClick={() => void apri(r.id)}
+                          >
+                            <FileText className="mr-2 h-4 w-4 shrink-0" />
+                            <span>
+                              {new Date(r.created_at).toLocaleString("it-IT")}
+                              <span className="block text-xs text-muted-foreground">
+                                Rif. {r.id.slice(0, 8)}
+                              </span>
                             </span>
-                          </span>
-                        </Button>
+                          </Button>
+                          <AccettazioneVerbale
+                            verbale={r}
+                            puoRegistrare={consentito && p.canEditOrders}
+                            onSalvata={() => void storico.refetch()}
+                          />
+                        </div>
                       ))
                     )}
                   </div>
@@ -661,5 +668,68 @@ function PdfVerbale({ fonte, numero }: { fonte: string; numero: number }) {
       downloadFileName={`verbale-sal-${numero}.pdf`}
       showDownloadOnMobile
     />
+  );
+}
+
+/**
+ * Il subappaltatore ha accettato il verbale: chi, quando, come. Si registra
+ * sull'originale archiviato (sal_sub_verbale_accettazione); il PDF non cambia.
+ * Dopo l'accettazione il subappaltatore emette la fattura, che si collega al
+ * SAL dalla scheda del contratto.
+ */
+function AccettazioneVerbale({ verbale, puoRegistrare, onSalvata }: { verbale: Storico; puoRegistrare: boolean; onSalvata: () => void }) {
+  const [aperto, setAperto] = useState(false);
+  const [data, setData] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }));
+  const [nome, setNome] = useState("");
+  const [modo, setModo] = useState("carta");
+  const [salvando, setSalvando] = useState(false);
+  const salva = async (togli = false) => {
+    setSalvando(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("sal_sub_verbale_accettazione", {
+        p_verbale: verbale.id, p_data: togli ? null : data, p_nome: togli ? null : nome, p_modo: togli ? null : modo,
+      });
+      if (error) throw new Error(error.message);
+      toast.success(togli ? "Accettazione tolta" : "Accettazione registrata: il subappaltatore può emettere la fattura");
+      setAperto(false);
+      onSalvata();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Accettazione non registrata");
+    } finally {
+      setSalvando(false);
+    }
+  };
+  if (verbale.accettato_il) {
+    return (
+      <p className="flex flex-wrap items-center gap-x-2 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+        Accettato da {verbale.accettato_da} il {verbale.accettato_il.split("-").reverse().join("/")}
+        {verbale.accettazione_modo ? ` · ${MODI_ACCETTAZIONE[verbale.accettazione_modo] ?? verbale.accettazione_modo}` : ""}
+        {puoRegistrare && <button type="button" className="ml-auto underline" disabled={salvando} onClick={() => void salva(true)}>Togli</button>}
+      </p>
+    );
+  }
+  if (!puoRegistrare) return <p className="text-xs text-muted-foreground">Non ancora accettato dal subappaltatore.</p>;
+  if (!aperto) {
+    return (
+      <button type="button" className="text-xs font-medium text-primary underline" onClick={() => setAperto(true)}>
+        Registra l’accettazione del subappaltatore
+      </button>
+    );
+  }
+  return (
+    <div className="space-y-1.5 rounded border p-2 text-xs">
+      <div className="grid grid-cols-2 gap-1.5">
+        <Input aria-label="Chi ha accettato" placeholder="Nome di chi firma" value={nome} onChange={(e) => setNome(e.target.value)} className="h-8 text-xs" />
+        <Input aria-label="Data dell'accettazione" type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-xs" />
+      </div>
+      <select aria-label="Come è arrivata l'accettazione" value={modo} onChange={(e) => setModo(e.target.value)} className="h-8 w-full rounded-md border bg-background px-2 text-xs">
+        {Object.entries(MODI_ACCETTAZIONE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAperto(false)}>Annulla</Button>
+        <Button size="sm" className="h-7 text-xs" disabled={salvando || nome.trim().length < 2 || !data} onClick={() => void salva()}>Registra</Button>
+      </div>
+    </div>
   );
 }

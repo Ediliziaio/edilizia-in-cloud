@@ -13,7 +13,7 @@
  * I file sono riquadri con la miniatura salvata al caricamento (o l'icona del
  * tipo); un clic scarica il file.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,9 @@ export function OrderFilesDialog({
   const totalItemFiles = itemsWithFiles.reduce((s, i) => s + (i.attachments?.length ?? 0), 0);
   const isEmpty = fatture.length === 0 && documenti.length === 0 && totalItemFiles === 0;
 
+  const [cerca, setCerca] = useState("");
+  const documentiFiltrati = cerca.trim() ? documenti.filter((d) => d.file_name.toLowerCase().includes(cerca.trim().toLowerCase())) : documenti;
+
   /** Tutti gli allegati (commessa + articoli): servono per firmare gli URL in blocco. */
   const allAttachments = useMemo(
     () => [...documenti, ...itemsWithFiles.flatMap((i) => i.attachments ?? [])],
@@ -132,7 +135,7 @@ export function OrderFilesDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* PDF riepilogo commessa — sempre disponibile, anche a commessa vuota */}
           {/* Il riepilogo è un PDF da scrivania: su telefono non compare. */}
           {!isMobile && (
@@ -140,7 +143,7 @@ export function OrderFilesDialog({
               <SectionTitle icon={FileText}>Riepilogo commessa</SectionTitle>
               <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onDownloadOrderPdf} disabled={pdfBusy}>
                 {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-blue-600" />}
-                Scarica PDF riepilogo (articoli, costi, SAL, diario…)
+                Scarica PDF riepilogo (cronoprogramma, grafici, costi, SAL…)
               </Button>
             </section>
           )}
@@ -150,8 +153,9 @@ export function OrderFilesDialog({
             <section className="space-y-2">
               <SectionTitle icon={Receipt} count={fatture.length}>Fatture e documenti fiscali</SectionTitle>
               <ul className="space-y-1.5">
-                {fatture.map((f) => (
-                  <li key={f.id} className="flex items-center justify-between gap-2 rounded-md border bg-card p-2 text-sm">
+                {/* Le annullate restano raggiungibili, ma dopo le buone e spente. */}
+                {[...fatture].sort((a, b) => Number(a.stato === "annullata") - Number(b.stato === "annullata")).map((f) => (
+                  <li key={f.id} className={`flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1 text-sm ${f.stato === "annullata" ? "opacity-55" : ""}`}>
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { onOpenChange(false); navigate(`/azienda/documenti/${f.id}`); }}>
                       <span className="font-medium truncate inline-flex items-center gap-1">{f.numero} <ExternalLink className="h-3 w-3 opacity-50" /></span>
                       <span className="block text-[11px] text-muted-foreground">{fiscalTypeLabel(f.tipo)}{f.stato ? ` · ${f.stato}` : ""}</span>
@@ -176,9 +180,31 @@ export function OrderFilesDialog({
           {documenti.length > 0 && (
             <section className="space-y-2">
               <SectionTitle icon={Paperclip} count={documenti.length}>Allegati commessa</SectionTitle>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                {documenti.map((d) => <FileTile key={d.id} d={d} />)}
-              </div>
+              {documenti.length > 8 && (
+                <input
+                  type="search" value={cerca} onChange={(e) => setCerca(e.target.value)}
+                  placeholder={`Cerca tra ${documenti.length} file…`} aria-label="Cerca tra gli allegati"
+                  className="h-8 w-full rounded-md border bg-background px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+              )}
+              {/* Righe e non riquadri: il nome intero è quello che distingue un file dall'altro. */}
+              <ul className="divide-y rounded-md border">
+                {documentiFiltrati.map((d) => {
+                  const kind = fileKind(d);
+                  const peso = fmtBytes(d.file_size);
+                  return (
+                    <li key={d.id}>
+                      <button type="button" onClick={() => void scaricaAllegato(d.file_url, d.file_name)} className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-muted/50">
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${KIND_TINT[kind]}`}>{KIND_LABEL[kind]}</span>
+                        <span className="min-w-0 flex-1 break-words text-xs">{d.file_name}</span>
+                        {peso && <span className="shrink-0 text-[11px] text-muted-foreground">{peso}</span>}
+                        <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      </button>
+                    </li>
+                  );
+                })}
+                {documentiFiltrati.length === 0 && <li className="px-2 py-3 text-center text-xs text-muted-foreground">Nessun file con questo nome.</li>}
+              </ul>
             </section>
           )}
 

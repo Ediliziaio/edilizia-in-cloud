@@ -93,3 +93,63 @@ export function periodoFasi(fasi: Array<{ id: string; start_date?: string | null
   const fini = scelte.map((f) => f.end_date).filter((d): d is string => !!d).sort();
   return { dal: inizi[0] ?? null, al: fini.at(-1) ?? null };
 }
+
+/**
+ * La stessa ditta ha due schede: quella del campo (`subappaltatori`, a cui punta la ditta della commessa) e
+ * quella della sicurezza (`subappaltatori_sicurezza`, a cui punta il contratto), legate da
+ * `campo_subappaltatore_id`. Gli id sono diversi: confrontarli direttamente non trova mai il contratto
+ * (Dimora Torino, 31/10/2026). Una ditta può avere più schede sicurezza: prima quella della commessa,
+ * poi quella generale, poi la più vecchia.
+ */
+export interface SchedaSicurezza { id: string; campo_subappaltatore_id: string | null; order_id: string | null; created_at?: string | null }
+
+export function schedeSicurezzaDitta<T extends SchedaSicurezza>(campoId: string | null, schede: T[], orderId: string): T[] {
+  if (!campoId) return [];
+  const rango = (s: T) => (s.order_id === orderId ? 0 : s.order_id == null ? 1 : 2);
+  return schede
+    .filter((s) => s.campo_subappaltatore_id === campoId && rango(s) < 2)
+    .sort((a, b) => rango(a) - rango(b) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+}
+
+/** Il contratto della ditta in questa commessa: punta a una delle sue schede sicurezza (o, in dati vecchi, alla scheda del campo). */
+export function contrattoDellaDitta<C extends { subappaltatore_id: string; stato?: string | null }>(campoId: string | null, contratti: C[], schede: SchedaSicurezza[]): C | null {
+  if (!campoId) return null;
+  const ids = new Set([campoId, ...schede.filter((s) => s.campo_subappaltatore_id === campoId).map((s) => s.id)]);
+  // Un contratto risolto è chiuso: non deve impedire di farne uno nuovo con la stessa ditta sulla commessa.
+  return contratti.find((c) => ids.has(c.subappaltatore_id) && c.stato !== "risolto") ?? null;
+}
+
+/**
+ * L'elenco dei lavori del contratto si rivede prima di firmarlo (Dimora Torino, 31/10/2026): righe da
+ * togliere o aggiungere, quantità e prezzi da correggere. Per una voce presa dal listino si propone il
+ * prezzo concordato con quella ditta (la sua variante di listino), altrimenti il costo del listino:
+ * è un suggerimento, chi scrive il contratto lo può cambiare.
+ */
+export function prezzoListinoPerDitta(
+  tariffa: { id: string; costo: number },
+  dittaId: string | null,
+  varianti: ReadonlyArray<VarianteCostoDitta>,
+): { prezzo: number; concordato: boolean } {
+  const variante = dittaId ? varianteDellaSquadra(varianti, tariffa.id, dittaId) : null;
+  return variante?.costo != null
+    ? { prezzo: Number(variante.costo) || 0, concordato: true }
+    : { prezzo: Number(tariffa.costo) || 0, concordato: false };
+}
+
+/** Una riga dell'elenco con l'importo rifatto da quantità × prezzo, al centesimo. */
+export function rigaElencoRicalcolata(r: RigaElencoLavori): RigaElencoLavori {
+  const quantita = Number(r.quantita) || 0;
+  const prezzo = Number(r.prezzo) || 0;
+  return { ...r, quantita, prezzo, importo: centesimi(quantita * prezzo) };
+}
+
+/** Le righe pronte da salvare: senza descrizione o a quantità zero non entrano nel contratto. */
+export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
+  // Solo i campi del contratto: niente chiavi o altro che la finestra di modifica attacca alle righe.
+  return righe
+    .map((r) => rigaElencoRicalcolata({
+      fase: r.fase.trim() || "Altri lavori", descrizione: r.descrizione.trim(), unita: r.unita, quantita: r.quantita, prezzo: r.prezzo, importo: r.importo,
+      ...(r.codice != null ? { codice: r.codice } : {}),
+    }))
+    .filter((r) => r.descrizione && r.quantita > 0);
+}

@@ -12,6 +12,7 @@ import { dataItalianaLunga } from "../_shared/dataItaliana.ts";
 import { congelaDocumento, DocumentoNonPronto } from "../_shared/documentoCongelato.ts";
 import { livelloFirmaAzienda } from "../_shared/firmaAvanzata.ts";
 import { brandingFirma, emailInvitoFirma, emailPreventivoPdf } from "../_shared/emailFirma.ts";
+import { clausoleFissate } from "../_shared/clausoleFirma.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -34,7 +35,11 @@ Deno.serve(async (req) => {
       // Preventivo cointestato: il secondo firmatario ({ nome, email, telefono }). Firmano
       // tutti e due; il preventivo è accettato all'ultima firma (fea-completa-firma).
       cointestatario,
+      // Le clausole da approvare a parte lette dal PDF che si manda (31/10/2026): quelle che l'azienda ha
+      // scritto, non un elenco nostro. Assenti: vale la regola di prima (configurazione o standard del settore).
+      clausole_da_approvare,
     } = await req.json();
+    let clausoleDelDocumento = clausoleFissate(clausole_da_approvare);
 
     if (!quote_id) return errorResponse("quote_id richiesto");
 
@@ -284,6 +289,8 @@ Deno.serve(async (req) => {
       }
       const pdfJson = await pdfResp.json();
       pdfPathFirma = typeof pdfJson?.pdf_path === "string" ? pdfJson.pdf_path : null;
+      // Il preventivo standard: le clausole le dice il PDF appena disegnato (quelle del modello o del preventivo).
+      clausoleDelDocumento ??= clausoleFissate(pdfJson?.clausole_da_approvare);
       if (!pdfPathFirma) return errorResponse("PDF del preventivo non disponibile", 500);
     }
     // Copia congelata per la richiesta: il PDF del preventivo può essere
@@ -320,6 +327,7 @@ Deno.serve(async (req) => {
         tipo_documento: "quote",
         tipo_firmatario: tipoFirmatario,
         documento_hash: congelato.hash,
+        ...(clausoleDelDocumento ? { clausole_da_approvare: clausoleDelDocumento } : {}),
         ...(gruppoFirma ? { gruppo_firma_id: gruppoFirma, ordine_firmatario: 1, firmatari_richiesti: 2 } : {}),
       })
       .select("id, token")
@@ -350,6 +358,7 @@ Deno.serve(async (req) => {
           tipo_documento: "quote",
           tipo_firmatario: "b2c",
           documento_hash: congelato.hash,
+          ...(clausoleDelDocumento ? { clausole_da_approvare: clausoleDelDocumento } : {}),
           gruppo_firma_id: gruppoFirma,
           ordine_firmatario: 2,
           firmatari_richiesti: 2,

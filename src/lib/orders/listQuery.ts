@@ -20,7 +20,22 @@ export interface OrdersReaderFilters {
   hasSelectedYear: boolean; selectedYear: number | null;
   contractDateRange: DateRange; warehouseDateRange: DateRange; expectedDateRange: DateRange;
   sortField: string; sortDir: "asc" | "desc";
+  /** «solo» = le generali e ciò che contengono; «senza» = le commesse fuori da ogni generale. */
+  generaliFilter?: "all" | "solo" | "senza";
 }
+
+/** Le commesse scelte per id, senza nessun altro filtro. */
+export const soloQuesteCommesse = (companyId: string, ids: string[]): OrdersReaderFilters => ({
+  companyId, periodIds: ids, focusIds: null, paymentIds: null,
+  salespersonFilter: "all", laborFilter: "all", supplierFilter: "all",
+  sidebarFilters: { dateFrom: "", dateTo: "", createdFrom: "", createdTo: "", orderSearch: "", includeStatuses: [], excludeStatuses: [], paymentStatus: "all", amountMin: "", amountMax: "", salespersonId: "", laborIds: [] },
+  customerFilter: "all", debouncedSearch: "", statusFilter: "all",
+  supportStatusId: null, lastStatusId: null, hideCompleted: false, amountMin: "", amountMax: "",
+  isYearCorrente: false, monthFilter: "all", currentYear: new Date().getFullYear(),
+  hasSelectedYear: false, selectedYear: null,
+  contractDateRange: { from: undefined, to: undefined }, warehouseDateRange: { from: undefined, to: undefined }, expectedDateRange: { from: undefined, to: undefined },
+  sortField: "created_at", sortDir: "desc",
+});
 
 /** The same scoped reader serves table, pipeline and exports. Filters precede range. */
 export async function readOrdersPage(filters: OrdersReaderFilters, from: number, to: number): Promise<{orders: OrderWithDetails[]; totalCount: number}> {
@@ -116,6 +131,8 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         .is("deleted_at", null);
 
       if (allowedOrderIds !== null && allowedOrderIds.length <= 100) query = query.in("id", allowedOrderIds);
+      if (filters.generaliFilter === "solo") query = query.or("workflow_kind.eq.generale,commessa_generale_id.not.is.null");
+      if (filters.generaliFilter === "senza") query = query.or("workflow_kind.neq.generale").or("commessa_generale_id.is.null");
       if (sf.includeStatuses.length) query = query.in("current_status_id", sf.includeStatuses);
       if (sf.excludeStatuses.length) query = query.or(`current_status_id.not.in.(${sf.excludeStatuses.join(",")}),current_status_id.is.null`);
       if (sf.orderSearch.trim()) {

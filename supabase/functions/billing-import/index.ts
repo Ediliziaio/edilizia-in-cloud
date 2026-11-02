@@ -1,4 +1,5 @@
 // Adattatori dei provider in _shared/billingAdapter.ts (anche Zucchetti Digital Hub, 23/10/2026).
+import { pagamentoRicevutaFic } from "../_shared/pagamentoRicevutaFic.ts";
 import { importItala } from "../_shared/importItala.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, arubaFindInByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
@@ -944,6 +945,11 @@ async function salvaRicevuteFic(all: any[], companyId: string, storicoFinoAl: st
       righe,
       updated_at: new Date().toISOString(),
     };
+    // Rate, scadenze, metodo e ritenuta d'acconto (01/11/2026): prima si buttavano, e ogni debito FIC
+    // nasceva senza scadenza. Il database calcola il netto da pagare (trigger su piano e ritenuta).
+    const pagamento = pagamentoRicevutaFic(doc);
+    if (pagamento.piano) row.piano_pagamento = pagamento.piano;
+    if (pagamento.ritenuta) row.ritenuta_importo = pagamento.ritenuta;
 
     // Dedup su chiave naturale (company, numero, data, cedente_piva anche null).
     const k = chiave(numero, String(dataFattura), cedentePiva);

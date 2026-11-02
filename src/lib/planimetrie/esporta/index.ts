@@ -6,7 +6,7 @@
  * al momento dell'esportazione, il PNG usa il canvas del browser.
  */
 export * from "./tipi";
-export { vistaDaPlanimetria, type ModoVista, type SceltaVista } from "./adattatore";
+export { numeraLocali, vistaDaPlanimetria, type ModoVista, type SceltaVista } from "./adattatore";
 export { PIANTA_ESEMPIO } from "./esempio";
 export { costruisciScena, type Scena, type Primitiva, type NomeLayer, type OpzioniScena } from "./scena";
 export { esportaSvg, scenaInSvg, type OpzioniSvg, type RisultatoSvg } from "./svg";

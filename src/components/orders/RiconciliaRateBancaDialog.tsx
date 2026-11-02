@@ -32,6 +32,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import {
   matchRateToBankTransactions,
   type CreditTxLite,
+  type RataBankMatch,
   type RataDaIncassare,
 } from "@/lib/rateBankMatch";
 
@@ -84,7 +85,10 @@ export function RiconciliaRateBancaDialog({
     [rateNonPagate, transactions, clienteNome, done],
   );
 
-  async function conferma(rataId: string, txId: string, importo: number, label: string, bookingDate: string) {
+  async function conferma(
+    rataId: string, txId: string, importo: number, label: string, bookingDate: string,
+    parlante: RataBankMatch["parlante"],
+  ) {
     if (confirming) return;
     setConfirming(rataId);
     try {
@@ -134,7 +138,11 @@ export function RiconciliaRateBancaDialog({
         company_id: companyId,
         direction: "entrata",
         category: "incasso",
-        description: `Incasso ${label} — ${orderCode ?? "commessa"}`,
+        // Bonifico parlante: la rata è incassata al lordo, in cassa entra il netto. La ritenuta subita
+        // si registra sulla fattura della rata (il registro delle ritenute vuole la fattura).
+        description: parlante
+          ? `Incasso ${label} — ${orderCode ?? "commessa"} · bonifico parlante: ritenuta bancaria ${parlante.aliquota}% di ${formatCurrency(parlante.ritenuta)}${parlante.commissioni > 0 ? ` e commissioni ${formatCurrency(parlante.commissioni)}` : ""} trattenute dalla banca`
+          : `Incasso ${label} — ${orderCode ?? "commessa"}`,
         amount: Math.round(importo * 100) / 100,
         entry_date: bookingDate,
         order_id: orderId,
@@ -160,7 +168,9 @@ export function RiconciliaRateBancaDialog({
 
       setDone((prev) => new Set(prev).add(rataId));
       toast.success(`${label} riconciliata`, {
-        description: `Incassata il ${format(parseISO(bookingDate), "d MMMM yyyy", { locale: it })} — registrata in Prima Nota.`,
+        description: parlante
+          ? `Incassata per intero il ${format(parseISO(bookingDate), "d MMMM yyyy", { locale: it })}: la banca ha trattenuto la ritenuta del ${parlante.aliquota}% (${formatCurrency(parlante.ritenuta)}). Registrala sulla fattura della rata quando la emetti.`
+          : `Incassata il ${format(parseISO(bookingDate), "d MMMM yyyy", { locale: it })} — registrata in Prima Nota.`,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(orderId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.detail(orderId) });
@@ -223,6 +233,12 @@ export function RiconciliaRateBancaDialog({
                     {format(parseISO(m.tx.booking_date), "d MMM yyyy", { locale: it })}
                     {(m.tx.debtor_name || m.tx.description) && <> · {m.tx.debtor_name ?? m.tx.description}</>}
                   </p>
+                  {m.parlante && (
+                    <p className="text-xs text-sky-700">
+                      Bonifico parlante: ritenuta {m.parlante.aliquota}% {formatCurrency(m.parlante.ritenuta)}
+                      {m.parlante.commissioni > 0 && <> · commissioni {formatCurrency(m.parlante.commissioni)}</>}
+                    </p>
+                  )}
                 </div>
                 <Badge
                   className={m.strength === "forte"
@@ -235,7 +251,7 @@ export function RiconciliaRateBancaDialog({
                   size="sm"
                   className="h-8 shrink-0"
                   disabled={!!confirming}
-                  onClick={() => conferma(m.rata.id, m.tx.id, Number(m.tx.amount), m.rata.label, m.tx.booking_date)}
+                  onClick={() => conferma(m.rata.id, m.tx.id, Number(m.tx.amount), m.rata.label, m.tx.booking_date, m.parlante)}
                 >
                   {confirming === m.rata.id
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />

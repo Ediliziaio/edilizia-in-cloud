@@ -3,7 +3,7 @@ import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
 import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, orderWorkflowCounts, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
-import {readOrdersPage} from "@/lib/orders/listQuery";
+import {readOrdersPage, soloQuesteCommesse} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import { matchesOrderPayment } from "@/lib/orders/listPayments";
@@ -65,8 +65,9 @@ import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
+import { RaggruppaDialog } from "@/components/orders/generali/RaggruppaDialog";
 import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
-import { leggiIdGenerali, leggiIncassiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
+import { leggiIdGenerali, leggiMovimentiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
 // MP-CAN-001 — types/constants estratti in ./OrdersList/constants.ts
@@ -88,7 +89,6 @@ function OrdersListInner() {
   // Commesse generali accese da Impostazioni: il bivio «Nuova Commessa» le offre accanto alla commessa normale.
   const { modelli: modelliGenerali, configurata: generaliConfigurate } = useImpostazioniCommesseGenerali();
   const [nuovaGenerale, setNuovaGenerale] = useState<ModelloGenerale | null>(null);
-  const conBivio = appaltatoreEnabled || modelliGenerali.length > 0;
   const mappaGenerali = useMappaGenerali();
   const queryClient = useQueryClient();
   const refreshOrderScope = useCallback(() => {
@@ -101,6 +101,7 @@ function OrdersListInner() {
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
     paymentFilter: { key: "payment", defaultValue: "all" },
+    generaliFilter: { key: "generali", defaultValue: "all" },
     viewMode: { key: "view", defaultValue: (() => { try { return localStorage.getItem("orders-view-mode") || "table"; } catch { return "table"; } })() },
     customerFilter: { key: "cliente", defaultValue: "all" },
     // Annualità corrente completa + pregresso con lavori, assistenza o saldo aperti.
@@ -125,10 +126,16 @@ function OrdersListInner() {
   const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
   const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid" | "overdue";
   const setPaymentFilter = useCallback((v: "all" | "pending" | "paid" | "overdue") => setURLParam("paymentFilter", v), [setURLParam]);
+  const generaliFilter = urlFilters.generaliFilter as "all" | "solo" | "senza";
+  const setGeneraliFilter = useCallback((v: "all" | "solo" | "senza") => setURLParam("generaliFilter", v), [setURLParam]);
   // Su mobile la pipeline (kanban drag) non è usabile e il toggle è hidden sm:flex:
   // un link condiviso ?view=pipeline (o il localStorage del desktop) lasciava il
   // telefono inchiodato sulla pipeline senza via d'uscita → forziamo la tabella.
   const isMobile = useIsMobile();
+  // Da telefono una generale si legge soltanto (piano §3.4): la scelta non si offre.
+  const modelliCreabili = isMobile ? [] : modelliGenerali;
+  const conBivio = appaltatoreEnabled || modelliCreabili.length > 0;
+  const [daRaggruppare, setDaRaggruppare] = useState<string[] | null>(null);
   const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
   const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
   const setViewMode = useCallback((v: "table" | "pipeline") => {
@@ -289,13 +296,13 @@ function OrdersListInner() {
       // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
       const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
       // Caparre, acconti e saldi delle unità in vendita contano come incassato anche nei riquadri in alto.
-      const incassiUnita = generaliConfigurate ? await leggiIncassiUnita(effectiveCompany.id) : undefined;
+      const { incassi: incassiUnita, permute: permuteUnita } = generaliConfigurate ? await leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined };
       const generali = new Set(generaliIds);
       const righeCheContano = generali.size ? rows.filter(order => !generali.has(order.id)) : rows;
       const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
       const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
-      const annual = orderEconomics(annualRows, incassiUnita);
-      const previous = orderEconomics(previousRows, incassiUnita);
+      const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
+      const previous = orderEconomics(previousRows, incassiUnita, permuteUnita);
       const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
       const reasons = {work:0,support:0,payment:0};
       Object.values(previousReasons).forEach(values => {
@@ -364,17 +371,17 @@ function OrdersListInner() {
   const focusReady = (!(isYearCorrente || statusFilter === "__assistenza__") || !!globalStats) && (controlFocus === "all" || (!isLoadingGlobalStats && !scopeMarginsPending)) && (paymentIds === null || !!globalStats);
 
   function filterReaderKey() {
-    return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, monthFilter,
+    return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter,
       amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId,
       contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds]);
   }
 
   const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+    generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
     queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
     enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
     placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
@@ -383,6 +390,45 @@ function OrdersListInner() {
   });
 
   const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
+  // La pagina taglia l'elenco: una generale può stare qui e le sue commesse in un'altra pagina.
+  // I totali della sua riga vogliono tutte le sue commesse, quindi quelle mancanti si leggono a parte.
+  const idFiglieFuoriPagina = useMemo(() => {
+    const qui = new Set(rawOrders.map((o) => o.id));
+    return [...mappaGenerali.generaleDellaFiglia.entries()]
+      .filter(([figlia, g]) => qui.has(g.id) && !qui.has(figlia))
+      .map(([figlia]) => figlia)
+      .sort();
+  }, [rawOrders, mappaGenerali]);
+  // Le commesse scelte possono stare in altre pagine: si leggono tutte, non solo quelle che si vedono ora.
+  const { data: righeDaRaggruppare } = useQuery({
+    queryKey: ["orders", "da-raggruppare", effectiveCompany?.id, daRaggruppare],
+    enabled: !!effectiveCompany?.id && !!daRaggruppare,
+    queryFn: async () => (await readOrdersPage(soloQuesteCommesse(effectiveCompany!.id, daRaggruppare!), 0, Infinity)).orders,
+  });
+  const { data: marginiFuoriPagina = [] } = useQuery({
+    queryKey: ["orders-margin-fuori-pagina", effectiveCompany?.id, idFiglieFuoriPagina],
+    enabled: !!effectiveCompany?.id && idFiglieFuoriPagina.length > 0 && (orderPerms.canViewMargins || orderPerms.canViewCosts),
+    staleTime: 2 * 60 * 1000,
+    meta: { silent: true },
+    queryFn: async () => {
+      const righe: OrderMarginRow[] = [];
+      for (let from = 0; from < idFiglieFuoriPagina.length; from += 100) {
+        const { data, error } = await supabase.from("v_ordine_marginalita")
+          .select("id, preventivo_totale, consuntivo, margine, margine_perc")
+          .eq("company_id", effectiveCompany!.id).in("id", idFiglieFuoriPagina.slice(from, from + 100));
+        if (error) throw error;
+        righe.push(...(data ?? []));
+      }
+      return righe;
+    },
+  });
+  const { data: figlieFuoriPagina = EMPTY_ORDERS } = useQuery({
+    queryKey: ["orders", "figlie-fuori-pagina", effectiveCompany?.id, idFiglieFuoriPagina],
+    enabled: !!effectiveCompany?.id && idFiglieFuoriPagina.length > 0,
+    staleTime: 60_000,
+    meta: { silent: true },
+    queryFn: async () => (await readOrdersPage(soloQuesteCommesse(effectiveCompany!.id, idFiglieFuoriPagina), 0, Infinity)).orders,
+  });
   const totalCount = ordersResult?.totalCount ?? 0;
   const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && (isLoadingOrders || !ordersResult || !focusReady);
 
@@ -663,7 +709,7 @@ function OrdersListInner() {
       marginReliable: boolean;
     }>();
 
-    for (const row of canonicalMargins) {
+    for (const row of [...canonicalMargins, ...marginiFuoriPagina]) {
       if (!row.id) continue;
       const revenue = Number(row.preventivo_totale || 0);
       const variableCosts = Number(row.consuntivo || 0);
@@ -676,7 +722,7 @@ function OrdersListInner() {
     }
 
     return map;
-  }, [canonicalMargins]);
+  }, [canonicalMargins, marginiFuoriPagina]);
 
   const { mutateAsync: updateOrderStatus } = useMutation({
     mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
@@ -798,13 +844,13 @@ function OrdersListInner() {
       } else if (ok === 0) {
         toast({
           title: "Eliminazione fallita",
-          description: `Nessuna commessa spostata nel cestino. Verifica permessi o riprova.`,
+          description: `Nessuna commessa spostata nel cestino. ${(results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? "Verifica permessi o riprova."}`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Eliminazione parziale",
-          description: `${ok} nel cestino · ${failed} non spostati. Le righe non spostate sono ancora presenti.`,
+          description: `${ok} nel cestino · ${failed} non spostati (es. ${(results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message ?? "permessi"}). Le righe non spostate sono ancora presenti.`,
           variant: "destructive",
         });
       }
@@ -822,7 +868,7 @@ function OrdersListInner() {
     expectedDateRange.from || expectedDateRange.to;
 
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
-    paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
+    paymentFilter !== "all" || generaliFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
     controlFocus !== "all" || (isYearCorrente && scopeGroup !== "all") || hideCompleted || countActiveFilters(sidebarFilters) > 0);
 
@@ -885,6 +931,7 @@ function OrdersListInner() {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
+    setGeneraliFilter("all");
     setCustomerFilter("all");
     setYearFilter("corrente");
     setAmountMin("");
@@ -913,7 +960,7 @@ function OrdersListInner() {
   };
 
   // Reset page to 1 when any filter changes
-  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${scopeGroup}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${generaliFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${scopeGroup}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
   // Il reset e' intenzionale: evita di lasciare l'utente su una pagina vuota
   // quando un filtro server-side riduce il numero totale di risultati.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1647,9 +1694,8 @@ function OrdersListInner() {
           <OrdersFilters
             trailingControls={viewMode === "table" ? (
               <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
-                <span className="col-span-2 text-xs font-medium text-muted-foreground sm:col-span-1">Ordina:</span>
                 <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger aria-label="Ordina commesse per" className="h-8 w-[126px] px-2 text-xs">
+                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1664,26 +1710,26 @@ function OrdersListInner() {
                   </SelectContent>
                 </Select>
                 <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[172px] px-2 text-xs">
+                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="desc">{
                       ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↓ Più recente / grande"
+                        ? "↓ Recenti"
                         : "↓ Z → A"
                     }</SelectItem>
                     <SelectItem value="asc">{
                       ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↑ Più vecchio / piccolo"
+                        ? "↑ Vecchi"
                         : "↑ A → Z"
                     }</SelectItem>
                   </SelectContent>
                 </Select>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                      <Columns className="h-3.5 w-3.5" /><span>Colonne</span>
+                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                      <Columns className="h-3.5 w-3.5" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-[280px] p-3">
@@ -1731,6 +1777,11 @@ function OrdersListInner() {
                 )}
               </div>
             ) : undefined}
+            summary={
+              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
+                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
+              </span>
+            }
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             statusFilter={statusFilter}
@@ -1741,6 +1792,8 @@ function OrdersListInner() {
             availableYears={availableYears}
             paymentFilter={paymentFilter}
             onPaymentFilterChange={setPaymentFilter}
+            generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
+            onGeneraliFilterChange={setGeneraliFilter}
             monthFilter={monthFilter}
             onMonthFilterChange={handleMonthChange}
             hasAnyFilter={hasAnyFilter}
@@ -1752,12 +1805,6 @@ function OrdersListInner() {
             }}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
-            <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2">
-              <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
-              {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
-            </div>
-          </div>
 
           {/* Content */}
           {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
@@ -1860,6 +1907,8 @@ function OrdersListInner() {
                 laborMap={laborMap}
                 supplierMap={supplierMap}
                 mappaGenerali={mappaGenerali}
+                figlieFuoriPagina={figlieFuoriPagina}
+                onRaggruppa={modelliCreabili.length > 0 && orderPerms.canEditOrders ? setDaRaggruppare : undefined}
               />
               {controlFocus === "all" && totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
@@ -1906,7 +1955,7 @@ function OrdersListInner() {
         open={showOrderTypeDialog}
         onOpenChange={setShowOrderTypeDialog}
         appaltatore={appaltatoreEnabled}
-        modelliGenerali={modelliGenerali}
+        modelliGenerali={modelliCreabili}
         onScegliGenerale={setNuovaGenerale}
       />
       <NuovaGeneraleDialog
@@ -1915,6 +1964,15 @@ function OrdersListInner() {
         modelli={modelliGenerali}
         iniziale={nuovaGenerale}
       />
+      {daRaggruppare && righeDaRaggruppare && (
+        <RaggruppaDialog
+          righe={righeDaRaggruppare}
+          modelli={modelliGenerali}
+          mappa={mappaGenerali}
+          mostraImporti={orderPerms.canViewOrderAmounts}
+          onClose={() => setDaRaggruppare(null)}
+        />
+      )}
     </div>
   );
 }

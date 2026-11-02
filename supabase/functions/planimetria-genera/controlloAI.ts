@@ -42,7 +42,7 @@ export function controllaGenerata(p: Planimetria): ProblemaGenerazione[] {
       }
     }
     for (const a of l.fatto.aperture) {
-      if (a.larghezza > 600) problemi.push({ codice: "apertura_larghezza", dettaglio: `L'apertura ${a.id} (${a.tipo}) risulta larga ${Math.round(a.larghezza)} cm.` });
+      if (a.larghezza > 1200) problemi.push({ codice: "apertura_larghezza", dettaglio: `L'apertura ${a.id} (${a.tipo}) risulta larga ${Math.round(a.larghezza)} cm.` });
     }
   }
   return problemi;

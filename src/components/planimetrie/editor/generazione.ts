@@ -13,7 +13,7 @@ import type { Planimetria } from "./adattatore";
 
 export type { InfoGenerazione };
 
-export type IngressoAI = "documento" | "schizzo" | "descrizione";
+export type IngressoAI = "documento" | "schizzo" | "descrizione" | "rilievo";
 
 export const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 /** Il file va alla funzione dentro la richiesta: oltre questa misura conviene una foto più leggera. */
@@ -27,6 +27,25 @@ export interface RichiestaAI {
   mime?: string;
   larghezza?: number;
   altezza?: number;
+  /** Solo «rilievo»: foto delle stanze in JPEG, base64 senza intestazione. */
+  foto_base64?: string[];
+}
+
+/** Una foto di stanza ridotta per l'AI: lato lungo 1280 px, JPEG. Basta per vedere finestre e sanitari. */
+export async function fotoPerRilievo(file: Blob): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error("Foto non leggibile.")); img.src = url; });
+    const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export type EsitoAI =
@@ -113,4 +132,117 @@ export function inBase64(file: Blob): Promise<string> {
     lettore.onerror = () => rifiuta(lettore.error);
     lettore.readAsDataURL(file);
   });
+}
+
+// ─── Preparazione dell'immagine prima della lettura ──────────────────────────
+// Schermate di AutoCAD a sfondo nero, foto da 12 megapixel: il modello legge meglio un
+// disegno scuro su fondo chiaro, a una misura ragionevole. I PDF partono come sono.
+
+/** Lato più lungo dopo la riduzione: oltre, il modello non vede di più e il file pesa. */
+export const LATO_MASSIMO = 2400;
+
+export function misuraRidotta(larghezza: number, altezza: number, massimo = LATO_MASSIMO): { larghezza: number; altezza: number } {
+  const k = Math.min(1, massimo / Math.max(larghezza, altezza, 1));
+  return { larghezza: Math.round(larghezza * k), altezza: Math.round(altezza * k) };
+}
+
+/** Fondo scuro (CAD a sfondo nero, negativo): la luminosità media dei pixel, da 0 a 1. */
+export const daInvertire = (luminanzaMedia: number) => luminanzaMedia < 0.4;
+
+export function luminanzaMedia(dati: Uint8ClampedArray, passo = 16): number {
+  let somma = 0, n = 0;
+  for (let i = 0; i < dati.length; i += 4 * passo) {
+    somma += (0.2126 * dati[i] + 0.7152 * dati[i + 1] + 0.0722 * dati[i + 2]) / 255;
+    n++;
+  }
+  return n ? somma / n : 1;
+}
+
+export interface ImmaginePreparata {
+  file: Blob;
+  mime: string;
+  larghezza: number;
+  altezza: number;
+  /** Sfondo nero portato a sfondo bianco. */
+  invertita: boolean;
+}
+
+export type Rotazione = 0 | 90 | 180 | 270;
+
+/** Misura dopo la rotazione: a 90° e 270° larghezza e altezza si scambiano. */
+export const misuraRuotata = (larghezza: number, altezza: number, r: Rotazione) =>
+  r === 90 || r === 270 ? { larghezza: altezza, altezza: larghezza } : { larghezza, altezza };
+
+/**
+ * Riduce, raddrizza (rotazione scelta da chi carica) e, se il fondo è scuro, inverte i colori.
+ * Accetta anche una pagina di PDF già disegnata (`sorgente` canvas). Se qualcosa non va: null.
+ */
+export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorgente?: HTMLCanvasElement): Promise<ImmaginePreparata | null> {
+  if (!sorgente && !file.type.startsWith("image/")) return null;
+  const url = sorgente ? null : URL.createObjectURL(file);
+  try {
+    let disegno: CanvasImageSource;
+    let w0: number, h0: number;
+    if (sorgente) {
+      disegno = sorgente; w0 = sorgente.width; h0 = sorgente.height;
+    } else {
+      const img = new Image();
+      await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error("immagine")); img.src = url!; });
+      disegno = img; w0 = img.naturalWidth; h0 = img.naturalHeight;
+    }
+    const ridotta0 = misuraRidotta(w0, h0);
+    const m = misuraRuotata(ridotta0.larghezza, ridotta0.altezza, rotazione);
+    const canvas = document.createElement("canvas");
+    canvas.width = m.larghezza;
+    canvas.height = m.altezza;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, m.larghezza, m.altezza);
+    ctx.translate(m.larghezza / 2, m.altezza / 2);
+    ctx.rotate((rotazione * Math.PI) / 180);
+    ctx.drawImage(disegno, -ridotta0.larghezza / 2, -ridotta0.altezza / 2, ridotta0.larghezza, ridotta0.altezza);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const pixel = ctx.getImageData(0, 0, m.larghezza, m.altezza);
+    const invertita = daInvertire(luminanzaMedia(pixel.data));
+    if (invertita) {
+      const d = pixel.data;
+      for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
+      ctx.putImageData(pixel, 0, 0);
+    }
+    const cambiata = !!sorgente || rotazione !== 0 || ridotta0.larghezza !== w0;
+    if (!invertita && !cambiata) return { file, mime: file.type, larghezza: w0, altezza: h0, invertita: false };
+    const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/png"));
+    if (!blob || blob.size > MASSIMO_BYTES) return null;
+    return { file: blob, mime: "image/png", larghezza: m.larghezza, altezza: m.altezza, invertita };
+  } catch {
+    return null;
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+  }
+}
+
+/** Disegna una pagina di un PDF (1, 2…) in un canvas, a circa 2400 px sul lato lungo. */
+export async function paginaPdf(file: Blob, pagina: number): Promise<{ canvas: HTMLCanvasElement; pagine: number }> {
+  const [pdfjs, worker] = await Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]);
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default as string;
+  const caricamento = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  const doc = await caricamento.promise;
+  try {
+    const n = Math.min(Math.max(1, pagina), doc.numPages);
+    const page = await doc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: LATO_MASSIMO / Math.max(base.width, base.height) });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("PDF non disegnato.");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    return { canvas, pagine: doc.numPages };
+  } finally {
+    void caricamento.destroy();
+  }
 }

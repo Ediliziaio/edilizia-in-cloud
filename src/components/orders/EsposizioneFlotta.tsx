@@ -13,6 +13,7 @@
 import { useState } from "react";
 import {readAllOrderRows} from "@/lib/orders/listScope";
 import { useQuery } from "@tanstack/react-query";
+import { leggiIdGenerali } from "@/hooks/useCommesseGenerali";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrencyCompact } from "@/lib/formatters";
@@ -47,7 +48,10 @@ export function EsposizioneFlotta({
         .eq("company_id", companyId!)
         .lt("saldo", -0.5)
         .order("saldo", { ascending: true }).order("id");
-      return readAllOrderRows<RigaEsposizione>((from, to) => query.range(from, to));
+      // Una commessa generale non è un cantiere: i suoi costi comuni (il terreno) non vanno letti come scoperto.
+      const [righe, generali] = await Promise.all([readAllOrderRows<RigaEsposizione>((from, to) => query.range(from, to)), leggiIdGenerali(companyId!)]);
+      const fuori = new Set(generali);
+      return righe.filter((r) => !fuori.has(r.id));
     },
   });
 

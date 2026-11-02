@@ -3,6 +3,8 @@ import { PianoDalPreventivo } from "@/components/orders/PianoDalPreventivo";
 import { NewPhaseMaterial } from "./NewPhaseMaterial";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   HardHat,
   Plus,
   Loader2,
@@ -211,6 +213,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     addPhase,
     applyTemplate,
     updatePhase,
+    riordinaFasi,
     deletePhase,
     addAssignment,
     updateAssignment,
@@ -236,6 +239,12 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   const { data: vociPreviste } = useVociPrevisteFasi(orderId, canViewCosts);
   // Le voci del computo per sottofase (quantità, costo, venduto) e quelle ancora senza sottofase.
   const vociSottofasi = useMemo(() => vociDelleSottofasi(vociPreviste ?? []), [vociPreviste]);
+  // Quanto valgono le voci di ogni fase: lo si propone alla ditta che non ha un costo previsto.
+  const costoVociFase = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const v of vociPreviste ?? []) m.set(v.phase_id, (m.get(v.phase_id) ?? 0) + v.quantita * v.costo_manodopera);
+    return m;
+  }, [vociPreviste]);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -645,6 +654,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 externalTeams={externalTeams}
                 materials={materialsByPhase.get(phase.id) ?? []}
                 economia={economia.perFase.get(phase.id)}
+                costoVoci={Math.round((costoVociFase.get(phase.id) ?? 0) * 100) / 100}
                 tempi={tempiFasi.get(phase.id)}
                 oggi={oggi}
                 unassignedMaterials={unassignedMaterials}
@@ -658,6 +668,15 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 }
                 onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
                 onDeletePhase={() => deletePhase.mutate(phase.id)}
+                primaFase={phases[0]?.id === phase.id}
+                ultimaFase={phases[phases.length - 1]?.id === phase.id}
+                onSposta={(verso) => {
+                  const ids = phases.map((p) => p.id);
+                  const i = ids.indexOf(phase.id), j = i + verso;
+                  if (i < 0 || j < 0 || j >= ids.length) return;
+                  [ids[i], ids[j]] = [ids[j], ids[i]];
+                  riordinaFasi.mutate(ids);
+                }}
                 onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
                 onUpdateAssignment={(id, source, patch) =>
                   saveAssignment(id, source, patch)
@@ -772,8 +791,14 @@ function GuidaCantiere({ puoFasi, puoSquadre, onFasi, onSquadra }: {
 
 interface PhaseCardProps {
   phase: WorkPhase;
+  /** Sposta la fase su (-1) o giù (+1) nell'elenco della commessa. */
+  onSposta?: (verso: -1 | 1) => void;
+  primaFase?: boolean;
+  ultimaFase?: boolean;
   /** Venduto, costo previsto e costo consuntivo della fase (economiaFasi). */
   economia?: EconomiaFase;
+  /** Quanto valgono le voci della fase (quantità × costo), per la ditta senza previsto. */
+  costoVoci?: number;
   /** Date previste e reali e ritardi della fase (cronoprogramma). */
   tempi?: FaseCrono;
   /** Oggi, «yyyy-MM-dd». */
@@ -844,7 +869,11 @@ interface PhaseCardProps {
 
 function PhaseCard({
   phase,
+  onSposta,
+  primaFase,
+  ultimaFase,
   economia,
+  costoVoci = 0,
   tempi,
   oggi,
   health,
@@ -994,6 +1023,16 @@ function PhaseCard({
         <DropdownMenuItem onSelect={() => { setNameDraft(phase.name); setEditingName(true); }}>
           <Pencil className="mr-2 h-4 w-4" />Rinomina
         </DropdownMenuItem>
+        {onSposta && (
+          <>
+            <DropdownMenuItem disabled={primaFase} onSelect={() => onSposta(-1)}>
+              <ArrowUp className="mr-2 h-4 w-4" />Sposta su
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={ultimaFase} onSelect={() => onSposta(1)}>
+              <ArrowDown className="mr-2 h-4 w-4" />Sposta giù
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onSelect={() => setEliminaAperto(true)}>
           <Trash2 className="mr-2 h-4 w-4" />Elimina fase
@@ -1190,7 +1229,7 @@ function PhaseCard({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Eliminare la fase?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Eliminare la fase «{phase.name}»? Persone, ditte e materiali restano nella commessa, senza fase; le squadre e le note di questa fase se ne vanno con lei.
+                    Eliminare la fase «{phase.name}»? Persone, ditte e materiali restano nella commessa, senza fase. Con la fase se ne vanno anche le sue sottofasi, le voci previste (e con loro il previsto della ditta calcolato dalle voci), la validazione dei materiali, le squadre e le note.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -1347,6 +1386,8 @@ function PhaseCard({
                           phases={allPhases}
                           onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
                           onDelete={() => onDeleteAssignment(a.id, a.source)}
+                          // Solo con una ditta sola: con due, chi fa cosa lo decide chi scrive.
+                          previstoVoci={phase.assignments.filter((x) => x.executor_type !== "interno").length === 1 ? costoVoci : 0}
                         />
                       ))}
                     </ElencoAssegnazioni>

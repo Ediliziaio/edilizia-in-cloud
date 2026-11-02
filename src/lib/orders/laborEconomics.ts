@@ -11,6 +11,8 @@ export interface LaborLedgerRow {
 export interface ExternalLaborRow {
   id: string; cost_preventivo: Amount; total_cost: Amount; vat_rate: Amount;
   team: { name: string; kind: string } | null;
+  /** La lavorazione: la stessa ditta su quattro fasi sono quattro righe, e senza il nome sembravano doppioni. */
+  fase?: { name: string; position: number | null } | null;
 }
 export function laborAmount(value: Amount): number | null {
   if (value == null || (typeof value !== "number" && typeof value !== "string")) return null;
@@ -69,7 +71,8 @@ export function laborEconomics(rows: LaborLedgerRow[], canReadEmployeeRates: boo
 /** Subcontract ledger stores gross amounts, unlike employee costs. Match economics.ts. */
 export function externalLaborNet(row: ExternalLaborRow): number | null {
   const gross = laborAmount(row.total_cost);
-  const vat = row.vat_rate == null ? 22 : laborAmount(row.vat_rate);
+  // IVA vuota = 0: le ditte sono in reverse charge, come v_ordine_marginalita e il conto economico.
+  const vat = row.vat_rate == null ? 0 : laborAmount(row.vat_rate);
   if (gross == null || vat == null || vat > 100) return null;
   return calculateNetFromGross(gross, vat).netAmount;
 }

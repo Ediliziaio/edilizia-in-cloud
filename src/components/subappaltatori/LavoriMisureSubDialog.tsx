@@ -32,6 +32,8 @@ import {
   importoVociSub,
   riepilogoVoceSub,
   misurePerSalSub,
+  vociDaAllegato,
+  quotaOneriSal,
 } from "@/lib/subappaltatori/lavoriMisure";
 
 type Contratto = {
@@ -42,6 +44,8 @@ type Contratto = {
   importo_contrattuale: number;
   oneri_sicurezza: number;
   ritenuta_garanzia_pct: number;
+  /** Allegato A: se c'è e torna all'importo, l'elenco lavori parte da qui. */
+  elenco_lavori?: unknown;
 };
 type Bozza = {
   id: string;
@@ -139,7 +143,7 @@ export function LavoriMisureSubDialog({
           .limit(1001),
         supabase
           .from("sal_subappaltatori")
-          .select("id,stato,importo_lordo")
+          .select("id,stato,importo_lordo,oneri_quota")
           .eq("company_id", companyId)
           .eq("contratto_id", c.id)
           .limit(1001),
@@ -151,6 +155,7 @@ export function LavoriMisureSubDialog({
         id: string;
         stato: string;
         importo_lordo: number;
+        oneri_quota: number | null;
       }[];
       if (
         (a.data?.length ?? 0) > 100 ||
@@ -243,9 +248,10 @@ export function LavoriMisureSubDialog({
   const iniziaElenco = () => {
     richiesta.current = crypto.randomUUID();
     setBozza(
-      quadro
+      // Base che non torna più con l'importo del contratto (importo corretto dopo): si riparte dall'Allegato A.
+      quadro && Math.abs(Number(quadro.importo_lavori) - Number(c.importo_contrattuale)) < 0.005
         ? quadro.voci.map(daVoce)
-        : [
+        : vociDaAllegato(c.elenco_lavori, Number(c.importo_contrattuale))?.map(daVoce) ?? (quadro ? quadro.voci.map(daVoce) : [
             daVoce({
               id: crypto.randomUUID(),
               fase_id: null,
@@ -255,7 +261,7 @@ export function LavoriMisureSubDialog({
               quantita: 1,
               prezzo: Number(c.importo_contrattuale),
             }),
-          ],
+          ]),
     );
     setMaturazione(quadro?.maturazione ?? "");
     setGiorni(
@@ -296,8 +302,11 @@ export function LavoriMisureSubDialog({
       d.tipo === "rileva"
         ? ""
         : String(
-            Number(d.misura.quantita_dichiarata) *
-              (d.voce.base === "corpo" ? 100 : 1),
+            Math.round(
+              Number(d.misura.quantita_dichiarata) *
+                (d.voce.base === "corpo" ? 100 : 1) *
+                10000,
+            ) / 10000,
           ),
     );
     setData(oggi());
@@ -351,12 +360,17 @@ export function LavoriMisureSubDialog({
     setNoteSal("");
     setDataSal(oggi());
   };
-  let totaleSal = 0;
+  let lavoriSal = 0;
   try {
-    totaleSal = misurePerSalSub(misure, selezionate).importo;
+    lavoriSal = misurePerSalSub(misure, selezionate).importo;
   } catch {
     /* Nessuna selezione pronta. */
   }
+  // Gli oneri della sicurezza maturano con i lavori: la quota la calcola il server con la stessa regola.
+  const oneriSal = lavoriSal > 0
+    ? quotaOneriSal(Number(c.oneri_sicurezza) || 0, Number(c.importo_contrattuale) || 0, q.data?.sal ?? [], lavoriSal)
+    : 0;
+  const totaleSal = Math.round((lavoriSal + oneriSal) * 100) / 100;
   const creaSal = () =>
     esegui(async () => {
       misurePerSalSub(misure, selezionate);
@@ -842,6 +856,13 @@ export function LavoriMisureSubDialog({
                             Base lavori · Rev. {quadro.revisione} ·{" "}
                             {euroSub(Number(quadro.importo_lavori))}
                           </p>
+                          {(riconosciute || storici) && (
+                            <span className="text-xs text-muted-foreground">
+                              {riconosciute
+                                ? "Elenco bloccato: ci sono misure già verificate. Per cambiare l'importo serve una variante."
+                                : "Elenco bloccato: il contratto ha SAL già registrati."}
+                            </span>
+                          )}
                           {!riconosciute && !storici && (
                             <Button
                               size="sm"
@@ -1120,6 +1141,11 @@ export function LavoriMisureSubDialog({
                                           Verifica
                                         </Button>
                                       )}
+                                      {v && m.stato === "dichiarata" && m.quadro_id !== quadro?.id && (
+                                        <span className="text-xs text-muted-foreground">
+                                          Rilevata su un elenco precedente: annullala e rilevala di nuovo.
+                                        </span>
+                                      )}
                                       {v &&
                                         m.stato !== "annullata" &&
                                         !m.sal_id && (
@@ -1263,6 +1289,11 @@ export function LavoriMisureSubDialog({
                     <p className="font-semibold">
                       Lordo del periodo: {euroSub(totaleSal)}
                     </p>
+                    {oneriSal > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Lavori {euroSub(lavoriSal)} + oneri della sicurezza {euroSub(oneriSal)} (in proporzione ai lavori; l'ultimo SAL prende il residuo)
+                      </p>
+                    )}
                     <p className="text-sm">
                       Ritenuta:{" "}
                       {euroSub(

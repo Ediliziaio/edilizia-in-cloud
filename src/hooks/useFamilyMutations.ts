@@ -24,6 +24,11 @@ import type {
   AxisValue,
 } from "@/types/articleFamily";
 
+/** L'errore del database con il suo codice (23505, 23503…): i messaggi in italiano dipendono dal codice. */
+function erroreDb(error: { message: string; code?: string; details?: string | null; hint?: string | null }): Error {
+  return Object.assign(new Error(error.message), { code: error.code, details: error.details, hint: error.hint });
+}
+
 // ── Input types ───────────────────────────────────────────────────────────────
 
 export type FamilyInsert = Omit<
@@ -115,7 +120,7 @@ export function useFamilyMutations() {
         .insert({ ...payload, company_id: companyId })
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data as unknown as ArticleFamily;
     },
     onSuccess: () => invalidate(),
@@ -134,7 +139,7 @@ export function useFamilyMutations() {
         .eq("company_id", companyId)
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data as unknown as ArticleFamily;
     },
     onSuccess: (f) => invalidate(f.id),
@@ -181,12 +186,14 @@ export function useFamilyMutations() {
   const deleteFamily = useMutation({
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
-      const { error } = await supabase
+      const { data: toccati, error } = await supabase
         .from("article_families" as never)
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", familyId)
-        .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+        .eq("company_id", companyId)
+        .select("id");
+      if (error) throw erroreDb(error);
+      if (!(toccati as unknown[] | null)?.length) throw new Error("Prodotto non spostato nel cestino: non hai il permesso o non esiste più.");
       return familyId;
     },
     onSuccess: (id) => invalidate(id),
@@ -204,12 +211,14 @@ export function useFamilyMutations() {
   const restoreFamily = useMutation({
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
-      const { error } = await supabase
+      const { data: toccati, error } = await supabase
         .from("article_families" as never)
         .update({ deleted_at: null })
         .eq("id", familyId)
-        .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+        .eq("company_id", companyId)
+        .select("id");
+      if (error) throw erroreDb(error);
+      if (!(toccati as unknown[] | null)?.length) throw new Error("Prodotto non ripristinato: non hai il permesso o non esiste più.");
       return familyId;
     },
     onSuccess: (id) => invalidate(id),
@@ -231,12 +240,14 @@ export function useFamilyMutations() {
   const hardDeleteFamily = useMutation({
     mutationFn: async (familyId: string) => {
       if (!companyId) throw new Error("Azienda non identificata");
-      const { error } = await supabase
+      const { data: toccati, error } = await supabase
         .from("article_families" as never)
         .delete()
         .eq("id", familyId)
-        .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+        .eq("company_id", companyId)
+        .select("id");
+      if (error) throw erroreDb(error);
+      if (!(toccati as unknown[] | null)?.length) throw new Error("Prodotto non eliminato: non hai il permesso o non esiste più.");
       return familyId;
     },
     onSuccess: (id) => invalidate(id),
@@ -325,6 +336,9 @@ export function useFamilyMutations() {
       if (errNew) throw new Error(errNew.message);
       const newFamilyId = (newFam as unknown as { id: string }).id;
 
+      // Se la copia si interrompe a metà, si toglie: altrimenti resta una «(copia)» incompleta e il
+      // nuovo tentativo si ferma su «nome già in uso».
+      try {
       // 3. per ogni asse, insert + insert valori
       for (const ax of source.axes ?? []) {
         const { data: newAx, error: errAx } = await supabase
@@ -404,6 +418,11 @@ export function useFamilyMutations() {
         if (errIns) throw new Error(errIns.message);
         if (page.length < PAGE) break;
       }
+      } catch (err) {
+        await supabase.from("listino_griglia" as never).delete().eq("family_id", newFamilyId).eq("company_id", companyId);
+        await supabase.from("article_families" as never).delete().eq("id", newFamilyId).eq("company_id", companyId);
+        throw err instanceof Error ? new Error(`Copia non completata, annullata: ${err.message}`) : err;
+      }
 
       return newFamilyId;
     },
@@ -422,7 +441,7 @@ export function useFamilyMutations() {
         .insert({ ...payload, company_id: companyId })
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data as unknown as FamilyAxis;
     },
     onSuccess: (ax) => invalidate(ax.family_id),
@@ -444,7 +463,7 @@ export function useFamilyMutations() {
         .eq("company_id", companyId)
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data as unknown as FamilyAxis;
     },
     onSuccess: (ax) => invalidate(ax.family_id),
@@ -460,7 +479,7 @@ export function useFamilyMutations() {
         .delete()
         .eq("id", args.id)
         .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return args;
     },
     onSuccess: (args) => invalidate(args.familyId),
@@ -482,7 +501,7 @@ export function useFamilyMutations() {
         .insert({ ...rest, company_id: companyId })
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data as unknown as AxisValue;
     },
     onSuccess: (_v, args) => invalidate(args.familyId),
@@ -504,7 +523,7 @@ export function useFamilyMutations() {
         .eq("company_id", companyId)
         .select("*")
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data as unknown as AxisValue;
     },
     onSuccess: (_v, args) => invalidate(args.familyId),
@@ -520,7 +539,7 @@ export function useFamilyMutations() {
         .delete()
         .eq("id", args.id)
         .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return args;
     },
     onSuccess: (args) => invalidate(args.familyId),
@@ -666,7 +685,7 @@ export function useFamilyMutations() {
         p_value_id: args.valueId ?? null, p_value_ids: args.valueIds ?? null,
         p_patch: args.patch,
       } as never);
-      if (error) throw new Error(error.message);
+      if (error) throw erroreDb(error);
       return data;
     },
     onSuccess: (_data, args) => invalidate(args.familyId),

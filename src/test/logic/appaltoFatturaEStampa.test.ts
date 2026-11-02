@@ -107,7 +107,7 @@ describe("prefillFatturaDaRendiconto", () => {
     committente: { business_name: "Impresa Alfa S.r.l.", vat_number: "01234567890", city: "Milano" },
     riferimentoCommittente: "ORD-2026-88",
     regimeIva: "ordinaria",
-    ritenutaPct: 4,
+    ritenutaPct: 0,
   };
 
   it("una riga per cantiere, con il periodo nella descrizione", () => {
@@ -140,12 +140,30 @@ describe("prefillFatturaDaRendiconto", () => {
     expect((f.causale as string[]).some((c) => c.includes("17 comma 6 lettera a"))).toBe(true);
   });
 
-  it("la ritenuta scende dal totale da pagare, non dall'imponibile", () => {
-    const f = prefillFatturaDaRendiconto(base);
-    expect(f.ritenuta_acconto).toBe(true);
-    expect(f.ritenuta_importo).toBe(60); // 4% di 1500
-    expect(f.imponibile_totale).toBe(1500);
-    expect(f.totale_da_pagare).toBe(1770); // 1830 − 60
+  // 01/11/2026: la «ritenuta» del contratto d'appalto è una garanzia. Prima finiva nell'XML come ritenuta
+  // d'acconto fiscale (RT02, causale A): un errore verso l'Agenzia.
+  it("la ritenuta del contratto è una trattenuta a garanzia: riga negativa, mai ritenuta d'acconto", () => {
+    const f = prefillFatturaDaRendiconto({ ...base, ritenutaPct: 5 });
+    expect(f.ritenuta_acconto).toBe(false);
+    expect(f.ritenuta_tipo).toBeUndefined();
+    expect(f.ritenuta_importo).toBeUndefined();
+    const garanzia = f.righe?.at(-1);
+    expect(garanzia?.descrizione).toMatch(/Trattenuta a garanzia del 5% .*sarà fatturata allo svincolo/);
+    expect(garanzia?.imponibile).toBe(-75); // 5% di 1500
+    expect(garanzia?.imposta).toBe(-16.5);
+    expect(f.imponibile_totale).toBe(1425);
+    expect(f.iva_totale).toBe(313.5);
+    expect(f.totale_documento).toBe(1738.5);
+    expect(f.totale_da_pagare).toBe(1738.5);
+    expect(f.righe?.every((r) => r.ritenuta === false)).toBe(true);
+  });
+
+  it("in reverse charge la trattenuta resta a IVA zero, natura N6.3", () => {
+    const f = prefillFatturaDaRendiconto({ ...base, regimeIva: "reverse_charge", ritenutaPct: 5 });
+    const garanzia = f.righe?.at(-1);
+    expect(garanzia?.natura_iva).toBe("N6_3");
+    expect(garanzia?.imposta).toBe(0);
+    expect(f.totale_documento).toBe(1425);
   });
 
   it("senza ritenuta non scrive campi di ritenuta a caso", () => {

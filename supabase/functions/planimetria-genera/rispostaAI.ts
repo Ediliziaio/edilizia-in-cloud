@@ -6,7 +6,7 @@
 // (costruisci.ts): un modello di visione legge bene i numeri scritti e la forma
 // delle stanze, molto meno bene spessori e allineamenti al centimetro.
 
-import { DESTINAZIONI, type Destinazione, type TipoApertura } from "../../../shared/planimetrie/modello.ts";
+import { DESTINAZIONI, TIPI_AREA, type Destinazione, type TipoApertura, type TipoArea } from "../../../shared/planimetrie/modello.ts";
 
 export type Coppia = [number, number];
 
@@ -18,12 +18,27 @@ export interface LocaleAI {
   altezza_scritta_m: number | null;
   /** Solo nel sistema «metri»: le misure di questo locale sono scritte sul foglio. */
   misure_lette: boolean;
+  /** Più piani sullo stesso foglio (piano terra e sottotetto): a quale appartiene. */
+  piano?: string | null;
+  /** Più appartamenti sullo stesso foglio (condominio, bifamiliare): «A», «B»… */
+  unita?: string | null;
+}
+
+/** Arredi, sanitari e pilastri disegnati: un riquadro e il lato appoggiato al muro. */
+export interface ElementoAI {
+  tipo: string;
+  /** [x0, y0, x1, y1] nello stesso sistema delle altre coordinate. */
+  riquadro: [number, number, number, number];
+  /** Da che parte sta lo schienale o l'attacco (sull'immagine). */
+  lato_muro: "alto" | "basso" | "sinistra" | "destra" | null;
+  piano?: string | null;
 }
 
 export interface AperturaAI {
   tipo: TipoApertura;
   da: Coppia;
   a: Coppia;
+  piano?: string | null;
 }
 
 export interface QuotaAI {
@@ -42,7 +57,94 @@ export interface RispostaAI {
   locali: LocaleAI[];
   aperture: AperturaAI[];
   quote: QuotaAI[];
+  /** Assente nelle risposte del prompt «p1». */
+  elementi?: ElementoAI[];
+  /** Lotto e aree esterne (planimetrie generali, descrizioni con il giardino). */
+  aree?: AreaAI[];
 }
+
+export interface AreaAI {
+  tipo: TipoArea;
+  contorno: Coppia[];
+}
+
+const SINONIMI_AREA: Array<[RegExp, TipoArea]> = [
+  [/lott|confin|particell|terreno|propriet/i, "lotto"],
+  [/vialett|percors|camminament/i, "vialetto"],
+  [/parchegg|posto auto|passo carr|carrabil|asfalt/i, "parcheggio"],
+  [/ghiai/i, "ghiaia"],
+  [/aiuol|fiori/i, "aiuola"],
+  [/orto/i, "orto"],
+  [/pavim|cortil|lastric|terrazz|solarium|bordo piscina|marciapied/i, "pavimentato"],
+  [/prat|giardin|verde|erba/i, "prato"],
+];
+export function tipoAreaDa(v: unknown): TipoArea | null {
+  const t = String(v ?? "").toLowerCase().trim();
+  if ((TIPI_AREA as readonly string[]).includes(t)) return t as TipoArea;
+  for (const [re, tipo] of SINONIMI_AREA) if (re.test(t)) return tipo;
+  return null;
+}
+
+/** Tipi di elemento che l'editor e le esportazioni sanno disegnare, più i pilastri. */
+export const TIPI_ELEMENTO_AI = [
+  "pilastro", "wc", "bidet", "lavabo", "doccia", "vasca", "lavatrice", "cucina", "frigorifero", "tavolo", "sedia",
+  "letto_matrimoniale", "letto_singolo", "comodino", "armadio", "scrivania", "divano", "caldaia",
+  "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "auto", "scala",
+  "piscina", "pergola", "albero",
+  "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
+] as const;
+
+const SINONIMI_ELEMENTO: Array<[RegExp, string]> = [
+  [/pilastr|colonn/i, "pilastro"],
+  [/padel/i, "campo_padel"],
+  [/tennis/i, "campo_tennis"],
+  [/calcio.*11|calcio a undici|stadio/i, "campo_calcio11"],
+  [/calcio.*7|calcio a sette/i, "campo_calcio7"],
+  [/calcett|calcio.*5|futsal|calcio/i, "campo_calcio5"],
+  [/basket|pallacanestro/i, "campo_basket"],
+  [/beach/i, "campo_beach_volley"],
+  [/pallavolo|volley/i, "campo_pallavolo"],
+  [/pickleball/i, "campo_pickleball"],
+  [/bocc/i, "campo_bocce"],
+  [/piscin/i, "piscina"],
+  [/pergol|gazebo/i, "pergola"],
+  [/alber|pianta/i, "albero"],
+  [/auto|macchina|vettura/i, "auto"],
+  [/scal[ae]\b|rampa/i, "scala"],
+  [/divano.*(angol|penisola|chaise)|angolare/i, "divano_angolare"],
+  [/poltron/i, "poltrona"],
+  [/mobile.*tv|porta.?tv|tv/i, "mobile_tv"],
+  [/librer/i, "libreria"],
+  [/tavol.*(tond|rotond)/i, "tavolo_rotondo"],
+  [/cucina.*(angol|a l\b)/i, "cucina_angolare"],
+  [/isola/i, "isola_cucina"],
+  [/^w\.?c|water|vaso/i, "wc"],
+  [/bidet/i, "bidet"],
+  [/lavab|lavandin/i, "lavabo"],
+  [/docc/i, "doccia"],
+  [/vasca/i, "vasca"],
+  [/lavatric/i, "lavatrice"],
+  [/frigo/i, "frigorifero"],
+  [/cucin|piano.?cottura|fornell/i, "cucina"],
+  [/tavol/i, "tavolo"],
+  [/sedi/i, "sedia"],
+  [/letto.*(singol|una piazza)|singol/i, "letto_singolo"],
+  [/letto|matrimonial/i, "letto_matrimoniale"],
+  [/comodin/i, "comodino"],
+  [/armad|guardarob/i, "armadio"],
+  [/scrivan/i, "scrivania"],
+  [/divan|sofa/i, "divano"],
+  [/caldaia/i, "caldaia"],
+];
+
+export function tipoElementoDa(v: unknown): string | null {
+  const t = String(v ?? "").trim().toLowerCase();
+  if (!t) return null;
+  if ((TIPI_ELEMENTO_AI as readonly string[]).includes(t)) return t;
+  return SINONIMI_ELEMENTO.find(([re]) => re.test(t))?.[1] ?? null;
+}
+
+const testoOpzionale = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 60) : null);
 
 /** Numero da un valore del modello: accetta "4,20", "4.20 m", 4.2. */
 export function numero(v: unknown): number | null {
@@ -83,6 +185,7 @@ const SINONIMI: Array<[RegExp, Destinazione]> = [
   [/balcon|loggia/, "balcone"],
   [/terrazz|lastrico/, "terrazzo"],
   [/garage|box|autorimessa/, "garage"],
+  [/giardin|cortil|corte\b|prato|piscin/, "giardino"],
   [/cantin|deposito|magazzino/, "cantina"],
 ];
 
@@ -143,6 +246,8 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
       superficie_scritta_mq: numero(r.superficie_scritta_mq),
       altezza_scritta_m: numero(r.altezza_scritta_m),
       misure_lette: r.misure_lette === true,
+      piano: testoOpzionale(r.piano),
+      unita: testoOpzionale(r.unita),
     });
   }
   const aperture: AperturaAI[] = [];
@@ -152,7 +257,7 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const tipo = tipoApertura(r.tipo);
     const da = coppia(r.da);
     const a = coppia(r.a);
-    if (tipo && da && a) aperture.push({ tipo, da, a });
+    if (tipo && da && a) aperture.push({ tipo, da, a, piano: testoOpzionale(r.piano) });
   }
   const quote: QuotaAI[] = [];
   for (const raw of Array.isArray(o.quote) ? o.quote : []) {
@@ -163,6 +268,26 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     const a = coppia(r.a);
     if (valore && valore > 0 && da && a) quote.push({ valore_m: valore, da, a });
   }
+  const elementi: ElementoAI[] = [];
+  for (const raw of Array.isArray(o.elementi) ? o.elementi : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const tipo = tipoElementoDa(r.tipo);
+    const q = Array.isArray(r.riquadro) ? r.riquadro.map(numero) : [];
+    if (!tipo || q.length < 4 || q.some((v) => v === null)) continue;
+    const [x0, y0, x1, y1] = q as number[];
+    if (Math.abs(x1 - x0) <= 0 || Math.abs(y1 - y0) <= 0) continue;
+    const lato = r.lato_muro === "alto" || r.lato_muro === "basso" || r.lato_muro === "sinistra" || r.lato_muro === "destra" ? r.lato_muro : null;
+    elementi.push({ tipo, riquadro: [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)], lato_muro: lato, piano: testoOpzionale(r.piano) });
+  }
+  const aree: AreaAI[] = [];
+  for (const raw of Array.isArray(o.aree) ? o.aree : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const tipo = tipoAreaDa(r.tipo);
+    const contorno = Array.isArray(r.contorno) ? r.contorno.map(coppia).filter((c): c is Coppia => c !== null) : [];
+    if (tipo && contorno.length >= 3) aree.push({ tipo, contorno });
+  }
   return {
     sistema,
     leggibile: o.leggibile !== false,
@@ -171,5 +296,7 @@ export function leggiRispostaAI(grezza: unknown, sistemaAtteso: "immagine" | "me
     locali,
     aperture,
     quote,
+    elementi,
+    aree,
   };
 }

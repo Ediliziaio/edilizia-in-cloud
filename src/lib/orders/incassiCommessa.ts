@@ -87,14 +87,21 @@ export function totaleFatturato(documenti: ReadonlyArray<DocumentoFatturato>): n
  * registrati sull'unità sono incassi veri che non passano dalle rate. Si prende il più alto tra
  * i due (sono gli stessi soldi registrati in due posti), mai la somma.
  */
-export function conIncassiUnita(i: IncassiCommessa, incassatoUnitaLordo: number, vatRate: number): IncassiCommessa {
-  if (!(incassatoUnitaLordo > i.incassatoLordo)) return i;
+/** Caparre, acconti e saldi delle unità sono al netto dell'IVA, come i loro prezzi: per il confronto col totale ivato. */
+export function nettoUnitaInLordo(netto: number, vatRate: number | null | undefined): number {
+  const iva = vatRate != null && Number.isFinite(vatRate) ? vatRate : 22;
+  return Math.round(netto * (100 + iva)) / 100;
+}
+
+export function conIncassiUnita(i: IncassiCommessa, incassatoUnitaLordo: number, vatRate: number, permuteLordo = 0): IncassiCommessa {
+  const conPermute = permuteLordo > 0 ? { ...i, daIncassareLordo: Math.max(0, i.daIncassareLordo - permuteLordo) } : i;
+  if (!(incassatoUnitaLordo > i.incassatoLordo)) return conPermute;
   const iva = Number.isFinite(vatRate) ? vatRate : 22;
   const incassatoLordo = Math.round(incassatoUnitaLordo * 100) / 100;
   return {
     ...i,
     incassatoLordo,
-    daIncassareLordo: Math.max(0, i.totaleLordo - incassatoLordo),
+    daIncassareLordo: Math.max(0, i.totaleLordo - incassatoLordo - permuteLordo),
     incassatoNetto: grossToNetAmount(incassatoLordo, iva),
   };
 }

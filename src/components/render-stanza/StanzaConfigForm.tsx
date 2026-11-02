@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { applicaIdea, ideaAttiva, ideePerStanza } from "@/modules/render-stanza/lib/ideePronte";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -173,6 +174,47 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
               <span className="truncate w-full text-center max-md:whitespace-normal max-md:text-[11px] max-md:leading-tight">{label}</span>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* ── Idee pronte e richiesta a parole ───────────────────────── */}
+      <div className="space-y-3">
+        <div>
+          <Label className="text-sm font-semibold block max-md:text-[13px]">Idee pronte</Label>
+          <p className="text-xs text-muted-foreground">Un clic imposta stile, materiali e luci. Poi puoi ritoccare tutto qui sotto.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {ideePerStanza(value.tipo_stanza).map((idea) => {
+            const attiva = ideaAttiva(value) === idea.id;
+            return (
+              <button
+                key={idea.id}
+                type="button"
+                disabled={disabled}
+                aria-pressed={attiva}
+                onClick={() => onChange(applicaIdea(value, idea))}
+                className={`rounded-lg border p-2.5 text-left transition-all ${attiva ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"}`}
+              >
+                <div className="mb-1.5 flex h-6 overflow-hidden rounded">
+                  {idea.tavolozza.map((c) => <span key={c} className="flex-1" style={{ background: c }} />)}
+                </div>
+                <p className="text-xs font-semibold">{idea.nome}</p>
+                <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">{idea.descrizione}</p>
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs max-md:text-[11px]" htmlFor="stanza-richiesta">Cosa vuoi vedere (scrivilo come lo diresti al cliente)</Label>
+          <Textarea
+            id="stanza-richiesta"
+            value={value.note_libere ?? ""}
+            onChange={(e) => set("note_libere", e.target.value)}
+            placeholder="Es. cucina con isola centrale in legno, sgabelli alti, pensili fino al soffitto; tieni la finestra libera e aggiungi piante"
+            rows={3}
+            disabled={disabled}
+            className="text-xs max-md:placeholder:text-[13px]"
+          />
         </div>
       </div>
 
@@ -1214,18 +1256,6 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
         </Accordion>
       </div>
 
-      {/* ── Note libere ────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
-        <Label className="text-xs max-md:text-[11px]">Note libere</Label>
-        <Textarea
-          value={value.note_libere ?? ""}
-          onChange={(e) => set("note_libere", e.target.value)}
-          placeholder="Istruzioni aggiuntive per l'AI (es. mantieni il divano rosso, aggiungi piante...)"
-          rows={2}
-          disabled={disabled}
-          className="text-xs max-md:placeholder:text-[13px]"
-        />
-      </div>
     </div>
   );
 }

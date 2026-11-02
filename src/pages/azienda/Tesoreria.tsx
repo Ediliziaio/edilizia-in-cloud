@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,11 @@ import BankAccountsList from "@/components/tesoreria/BankAccountsList";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
 import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
 import BankReconciliation from "@/components/tesoreria/BankReconciliation";
-import CashFlowForecast from "@/components/tesoreria/CashFlowForecast";
+import { usePermissions } from "@/hooks/usePermissions";
+// Un solo previsionale (01/11/2026): la scheda Previsioni mostra lo stesso calcolo della pagina
+// Previsionale, con fatture, RiBa, F24, stipendi e garanzie. Prima leggeva get_cash_flow_forecast,
+// che vedeva solo banca e scadenzario: due numeri diversi per la stessa domanda.
+const PrevisionaleCompleto = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 import BankAlertRules from "@/components/tesoreria/BankAlertRules";
 import CategorizationRules from "@/components/tesoreria/CategorizationRules";
 import ExpenseReports from "@/components/tesoreria/ExpenseReports";
@@ -56,6 +60,7 @@ function getErrorMessage(error: unknown) {
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -353,7 +358,13 @@ export default function Tesoreria() {
           <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="previsioni">
-          <CashFlowForecast companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
+          {permessi.canViewForecast ? (
+            <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
+              <PrevisionaleCompleto />
+            </Suspense>
+          ) : (
+            <p className="p-6 text-sm text-muted-foreground">Il previsionale non è tra i permessi del tuo ruolo.</p>
+          )}
         </TabsContent>
         <TabsContent value="note-spese">
           <ExpenseReports companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />

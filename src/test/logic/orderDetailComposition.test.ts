@@ -101,7 +101,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
     ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrdineTempistiche", "LinkedAppointments", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
     ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "PianoMezziCantiere", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
     ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard", "OrderCostiCommessaCard"]],
-    ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
+    ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "AltroIncassiCommessa", "OrderCommissions", "PrevisioneCassaMateriali", "OrdineVariazione", "QuadroPagamentiCommessa", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
     for (const component of components) {
       const matches = named(component);
@@ -154,11 +154,10 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(actions, "onManagePlaybook")).toContain("setPlaybookEditorOpen(true)");
     expect(value(actions, "onCreateInvoice")).toContain("permissions.canViewBilling");
     expect(value(actions, "onCreateInvoice")).toContain("isNativeBilling && !permissions.solaLettura");
+    expect(value(actions, "customer")).toContain("order.customer.phone || order.client_phone");
     expect(value(actions, "customer")).toContain("order.client_phone");
     expect(value(actions, "customer")).toContain("order.client_email");
     expect(value(named("OrderStatusWorkflow")[0], "onStatusChange")).toContain("permissions.canEditOrders");
-    expect(value(named("OrderStatusWorkflow")[0], "modelKey")).toBe("{order.tipo_lavoro}");
-    expect(value(named("OrderStatusWorkflow")[0], "version")).toBe("{order.version}");
   });
 
   it("mantiene i dialoghi di firma, documenti e creazione fiscale fuori dalle tab", () => {

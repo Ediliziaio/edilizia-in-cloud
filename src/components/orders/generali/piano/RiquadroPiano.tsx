@@ -2,6 +2,7 @@
 // Il riquadro del piano in Panoramica: margine previsto contro margine a finire (stima
 // finale) e capitale impegnato. Usa la versione approvata (la bozza se non ce n'è).
 import { useSearchParams } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: 
 export function RiquadroPiano({ riepilogo }: PropsScheda) {
   const n = useGeneralePianoNumeri(riepilogo);
   const [parametri, setParametri] = useSearchParams();
+  // Da telefono la scheda non c'è: il riquadro si legge e basta.
+  const telefono = useIsMobile();
   if (!riepilogo.permessi.margini || n.isError) return null;
 
   const apri = () => {
@@ -38,9 +41,11 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
         Piano economico
         {n.inVista?.stato === "bozza" && <Badge variant="outline" className="font-normal">bozza, non approvato</Badge>}
       </h2>
-      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
-        Apri il piano <ArrowRight className="ml-1 h-3.5 w-3.5" />
-      </Button>
+      {!telefono && (
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
+          Apri il piano <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      )}
     </div>
   );
 
@@ -54,6 +59,7 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   }
 
   if (n.vuoto || !n.piano) {
+    if (telefono) return null;
     return (
       <section className="rounded-lg border bg-card px-4 py-3">
         {intestazione}
@@ -69,7 +75,7 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   return (
     <section aria-label="Piano economico" className="rounded-lg border bg-card px-4 py-3">
       {intestazione}
-      <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-2 grid grid-cols-2 gap-3">
         <Numero etichetta="Margine previsto" valore={euro(t.previsto)} nota={n.inVista ? `versione ${n.inVista.numero}` : undefined} />
         <Numero
           etichetta="Margine a finire (stima)"

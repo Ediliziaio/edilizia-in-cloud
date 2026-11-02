@@ -7,6 +7,10 @@
  * guasto del CANALE (pagamento, account bloccato, numero non registrato, limite per spam) e non è stata avvisata
  * nelle ultime 24 ore, la avvisa — azienda e noi.
  *
+ * Un messaggio consegnato DOPO l'ultimo guasto vuol dire che il canale è ripartito, e non si avvisa (02/11/2026). Il
+ * Bagno Group ha sistemato il pagamento il 30/10: per i tre giorni dopo, con i messaggi che arrivavano, ha continuato
+ * a ricevere «non parte più nessun messaggio» perché il guasto vecchio restava dentro le 72 ore.
+ *
  * Pubblicata con verify_jwt = false (vedi supabase/config.toml): chi la chiama porta x-cron-secret, non un JWT.
  * Lo chiama un cron ogni ora, oppure si invoca a mano per una sola azienda (`{"company_id": "..."}`) quando si vuole
  * avvisare subito. La guardia delle 24 ore sta nel database, quindi due giri in parallelo non mandano due email.
@@ -15,7 +19,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { segnalaCanaleWhatsAppFermo } from "../_shared/allarmeWhatsApp.ts";
-import { canaleFermo, codiceDalMotivoSalvato } from "../_shared/whatsappCanaleFermo.ts";
+import { ultimiGuasti, type GuastoCanale, type MessaggioRespinto } from "../_shared/whatsappCanaleFermo.ts";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -23,6 +27,24 @@ const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE
 
 /** Quante ore indietro guardare i messaggi respinti. */
 const ORE_INDIETRO = 72;
+
+/** Dopo il guasto è stato consegnato qualcosa da quel numero? Nel dubbio no: meglio un avviso in più che uno in meno. */
+async function ripartito(g: GuastoCanale): Promise<boolean> {
+  let q = admin.from("whatsapp_messages")
+    .select("id")
+    .eq("company_id", g.companyId)
+    .eq("direction", "outbound")
+    .in("delivery_status", ["delivered", "read"])
+    .gt("created_at", g.il)
+    .limit(1);
+  if (g.numero) q = q.eq("from_phone", g.numero);
+  const { data, error } = await q;
+  if (error) {
+    console.error("[whatsapp-canale-controllo] lettura consegne:", error.message);
+    return false;
+  }
+  return (data ?? []).length > 0;
+}
 
 Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
@@ -44,13 +66,13 @@ Deno.serve(async (req) => {
   const { data: respinti, error } = await q;
   if (error) return errorResponse(`Lettura messaggi: ${error.message}`, 500, corsH);
 
-  // Una sola segnalazione per azienda: il primo messaggio buono basta a dire qual è il guasto.
-  const perAzienda = new Map<string, { codice: number; numero: string | null }>();
-  for (const m of respinti ?? []) {
-    const riga = m as { company_id: string | null; from_phone: string | null; delivery_error: string | null };
-    if (!riga.company_id || perAzienda.has(riga.company_id)) continue;
-    const codice = codiceDalMotivoSalvato(riga.delivery_error);
-    if (canaleFermo(codice)) perAzienda.set(riga.company_id, { codice: codice!, numero: riga.from_phone });
+  // Una sola segnalazione per azienda: il primo numero ancora fermo basta a dire qual è il guasto.
+  const perAzienda = new Map<string, GuastoCanale>();
+  const ripartiti: string[] = [];
+  for (const g of ultimiGuasti((respinti ?? []) as MessaggioRespinto[])) {
+    if (perAzienda.has(g.companyId)) continue;
+    if (await ripartito(g)) ripartiti.push(g.companyId);
+    else perAzienda.set(g.companyId, g);
   }
 
   const avvisate: string[] = [];
@@ -58,5 +80,5 @@ Deno.serve(async (req) => {
     await segnalaCanaleWhatsAppFermo(admin, { companyId, codice: g.codice, numero: g.numero });
     avvisate.push(companyId);
   }
-  return jsonResponse({ ok: true, guardate_ore: ore, canali_fermi: perAzienda.size, avvisate });
+  return jsonResponse({ ok: true, guardate_ore: ore, canali_fermi: perAzienda.size, avvisate, ripartiti });
 });

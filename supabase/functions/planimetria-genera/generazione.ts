@@ -9,6 +9,7 @@ export type IngressoGenerazione =
   | "schizzo"        // foto di uno schizzo a mano con misure
   | "descrizione"    // descrizione a parole
   | "sopralluogo"    // elenco stanze del sopralluogo
+  | "rilievo"        // sopralluogo: misure dettate o scritte, foto delle stanze, schizzo facoltativo
   | "dxf";           // DXF come sfondo da ricalcare
 
 /** Come è stata fissata la scala del disegno. */
@@ -52,6 +53,6 @@ export function origineVersione(ingresso: IngressoGenerazione, mime: string | nu
   if (ingresso === "documento") return mime === "application/pdf" ? "ai_pdf" : "ai_foto";
   if (ingresso === "schizzo") return "ai_schizzo";
   if (ingresso === "descrizione") return "ai_testo";
-  if (ingresso === "sopralluogo") return "sopralluogo";
+  if (ingresso === "sopralluogo" || ingresso === "rilievo") return "sopralluogo";
   return "importazione";
 }

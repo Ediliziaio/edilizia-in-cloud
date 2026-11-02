@@ -1,3 +1,4 @@
+import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -75,7 +76,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note",
+      "id, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -519,6 +520,42 @@ export function RiepilogoFatturaRicevuta({
                 <span className="tabular-nums">{formatCurrency(totale)}</span>
               </div>
             </section>
+
+            {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
+            {(() => {
+              const p = nota ? null : pagamentoDaMostrare(f as Record<string, unknown>);
+              if (!p) return null;
+              const giorno = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "senza data");
+              return (
+                <section aria-label="Pagamento" className="space-y-2 rounded-lg border p-3 text-sm">
+                  <p className="font-semibold">Pagamento{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</p>
+                  {p.rate.length > 0 && (
+                    <ul className="divide-y">
+                      {p.rate.map((r, i) => (
+                        <li key={i} className="flex flex-wrap justify-between gap-x-3 py-1">
+                          <span>{p.rate.length > 1 ? `Rata ${i + 1} · ` : ""}{giorno(r.scadenza)}{r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700"> · pagata il {giorno(r.pagataIl)}</span> : null}</span>
+                          <span className="tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {p.cassa ? <p className="flex justify-between text-muted-foreground"><span>Cassa previdenziale (nell'imponibile)</span><span className="tabular-nums">{formatCurrency(p.cassa)}</span></p> : null}
+                  {p.bollo ? <p className="flex justify-between text-muted-foreground"><span>Bollo</span><span className="tabular-nums">{formatCurrency(p.bollo)}</span></p> : null}
+                  {p.ritenuta ? (
+                    <p className="flex justify-between text-amber-800">
+                      <span>Ritenuta d'acconto{p.ritenuta.aliquota ? ` ${p.ritenuta.aliquota.toLocaleString("it-IT")}%` : ""}: la versi tu con F24 (1040) il 16 del mese dopo il pagamento</span>
+                      <span className="tabular-nums">− {formatCurrency(p.ritenuta.importo)}</span>
+                    </p>
+                  ) : null}
+                  {p.garanzia ? (
+                    <p className="flex justify-between text-amber-800"><span>Trattenuta a garanzia: si paga allo svincolo</span><span className="tabular-nums">{formatCurrency(p.garanzia)}</span></p>
+                  ) : null}
+                  {p.netto != null && (p.ritenuta || p.rate.length > 1) ? (
+                    <p className="flex justify-between border-t pt-1 font-semibold"><span>Da pagare al fornitore</span><span className="tabular-nums">{formatCurrency(p.netto)}</span></p>
+                  ) : null}
+                </section>
+              );
+            })()}
 
             {f.note ? <p className="text-sm"><span className="text-muted-foreground">Note: </span>{String(f.note)}</p> : null}
 

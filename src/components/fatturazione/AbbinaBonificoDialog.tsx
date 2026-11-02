@@ -70,7 +70,7 @@ function SceltaNativa({ doc, incassi, onOpenChange }: Omit<Props, "open">) {
       inCorso={abbina.isPending}
       onAbbina={(scelta) =>
         abbina.mutate(
-          { transactionId: scelta.transactionId, documentoId: doc.id, movimentoId: scelta.incassoId, punteggio: scelta.punteggio },
+          { transactionId: scelta.transactionId, documentoId: doc.id, movimentoId: scelta.incassoId, punteggio: scelta.punteggio, parlante: scelta.parlante },
           { onSuccess: () => onOpenChange(false) },
         )
       }
@@ -94,7 +94,7 @@ export interface SceltaBonificoProps {
   };
   inCorso: boolean;
   /** incassoId null = pagamento nuovo dal bonifico; altrimenti il legame con quell'incasso. */
-  onAbbina: (scelta: { transactionId: string; incassoId: string | null; punteggio: number }) => void;
+  onAbbina: (scelta: { transactionId: string; incassoId: string | null; punteggio: number; parlante?: boolean }) => void;
   onChiudi: () => void;
 }
 
@@ -140,6 +140,7 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
       transactionId: scelto.movimento.id,
       incassoId: destinazione === "nuovo" ? null : destinazione,
       punteggio: scelto.punteggio,
+      parlante: destinazione === "nuovo" && !!scelto.parlante,
     });
   };
 
@@ -255,6 +256,15 @@ export function SceltaBonifico({ fattura, incassi, banca, inCorso, onAbbina, onC
             </Label>
           </div>
         </RadioGroup>
+      )}
+
+      {scelto?.parlante && destinazione === "nuovo" && (
+        <p className="rounded-lg bg-sky-50 p-3 text-xs leading-snug text-sky-900">
+          Bonifico parlante: la fattura si salda per {formatCurrency(scelto.parlante.lordo)}. La banca ha trattenuto la
+          ritenuta del {scelto.parlante.aliquota}% ({formatCurrency(scelto.parlante.ritenuta)}), che diventa un credito
+          d'imposta registrato{scelto.parlante.commissioni > 0 ? `, e ${formatCurrency(scelto.parlante.commissioni)} di commissioni` : ""}.
+          In prima nota entra l'accredito vero, {formatCurrency(scelto.movimento.importo)}.
+        </p>
       )}
 
       {scelto && liberi.length === 0 && nuovoPossibile && scelto.movimento.importo > residuo + 0.01 && (

@@ -119,7 +119,7 @@ export function SchedaContratto({ riepilogo, puoModificare }: PropsScheda) {
       </Tabs>
 
       {modifiche && (
-        <DatiContrattoDialog open={modifica} onOpenChange={setModifica} generaleId={generaleId} contratto={dati.contratto} atti={dati.atti} />
+        <DatiContrattoDialog open={modifica} onOpenChange={setModifica} generaleId={generaleId} valoreGenerale={riepilogo.generale.valore} contratto={dati.contratto} atti={dati.atti} />
       )}
     </div>
   );

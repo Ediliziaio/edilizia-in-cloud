@@ -49,7 +49,7 @@ describe("testoPerPdf: quello che le aziende incollano da WhatsApp e da Word", (
     expect(leggi("src/components/serramenti/SerramentoPDF.tsx")).toMatch(/\} = testiPerPdf\(propsGrezze\);/);
     // Il preventivo generico (dal 27/10/2026) è il documento edile: costruisciDatiEdile passa dal
     // filtro, e l'adattatore generico rifiltra quello che aggiunge dopo (cliente, note, accordi).
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain('import { renderGenerico } from "../_shared/preventivoRenderer.mjs";');
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain('import { renderGenericoConClausole } from "../_shared/preventivoRenderer.mjs";');
     expect(leggi("src/components/preventivi/pdf/adattatoreGenerico.ts")).toContain("const dati = costruisciDatiEdile({");
     expect(leggi("src/components/preventivi/pdf/adattatoreGenerico.ts")).toMatch(/return testiPerPdf\(dati\);/);
   });
@@ -127,7 +127,7 @@ describe("impaginazione: i casi limite del collaudo", () => {
 
   it("preventivo generico: accanto alla firma si dice che valgono anche le condizioni", () => {
     // Il generico è il documento edile: la dichiarazione sopra le firme nomina le condizioni.
-    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("renderGenerico({");
+    expect(leggi("supabase/functions/generate-quote-pdf/index.ts")).toContain("renderGenericoConClausole({");
     expect(doc).toContain("dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano");
   });
 });
@@ -157,7 +157,8 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
   const entry = leggi("scripts/preventivi-render/entry.tsx");
 
   it("il generico passa dal documento edile", () => {
-    expect(src).toContain("const pdfDoc = await PDFDocument.load(await renderGenerico({");
+    expect(src).toContain("const disegnato = await renderGenericoConClausole({");
+    expect(src).toContain("const pdfDoc = await PDFDocument.load(disegnato.pdf);");
     expect(entry).toContain("export const renderGenerico = (input: Parameters<typeof datiGenerici>[0]) => render(datiGenerici(input));");
     expect(entry).toContain("<DocumentoEdilePDF dati={pronto} />");
   });

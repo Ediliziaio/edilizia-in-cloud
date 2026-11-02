@@ -18,6 +18,7 @@ const m = vi.hoisted(() => ({
   excel: vi.fn(),
 }));
 
+vi.mock("@/components/orders/generali/vendita/PiantaUnita", () => ({ PiantaUnita: (): null => null }));
 vi.mock("@/hooks/useGeneraleVendita", () => ({
   useFileVenditaUnita: () => ({ file: m.file, voci: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn() }),
   useAnteprimaAllegato: (a: AllegatoVendita) => ({ data: `blob:${a.id}`, isLoading: false }),

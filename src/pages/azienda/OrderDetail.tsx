@@ -14,7 +14,7 @@ import { useState, useMemo, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Wallet, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
@@ -24,7 +24,9 @@ import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
-import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
+import { AltroIncassiCommessa } from "@/components/orders/AltroIncassiCommessa";
+import { PrevisioneCassaMateriali } from "@/components/orders/PrevisioneCassaMateriali";
+import { OrderCommissions } from "@/components/orders/OrderCommissions";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,14 +50,12 @@ import { SilvioCommessa } from "@/components/orders/SilvioCommessa";
 import { SilvioAcquisti } from "@/components/orders/SilvioAcquisti";
 import { FasiUfficio, RiepilogoFasiUfficio } from "@/components/orders/FasiUfficio";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
-import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
-const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
 // Le viste di economia e cantiere si caricano quando si aprono (31/10/2026):
 // prima erano tutte nel pacchetto del dettaglio, oltre 1 MB scaricato anche
@@ -99,9 +99,10 @@ import { StrisciaSilvioCommessa } from "@/components/silvio-commessa/StrisciaSil
 import { CompletaConSilvio } from "@/components/silvio-commessa/CompletaConSilvio";
 import { PianoDiVoloCommessa } from "@/components/silvio-commessa/PianoDiVoloCommessa";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
+import { avvisoAlCliente } from "@/lib/orders/statoCommessa";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
-import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
+import { QuadroPagamentiCommessa } from "@/components/orders/QuadroPagamentiCommessa";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
@@ -112,6 +113,7 @@ import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrde
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
+import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
@@ -124,7 +126,7 @@ import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
-import { conIncassiUnita, incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
@@ -400,7 +402,8 @@ function OrderDetailInner() {
   const incassiUnita = useIncassiUnita(id);
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
 
-  const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const { getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const [riepilogoAperto, setRiepilogoAperto] = useState(false);
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
@@ -654,19 +657,21 @@ function OrderDetailInner() {
   const { data: fattureCollegate = [] } = useFattureByOrdine(schedaPronta ? id : undefined);
 
   const { data: documentiCommessa = [] } = useQuery<OrderDocumentSummary[]>({
-    queryKey: ["order-documents-summary", id],
+    queryKey: ["order-documents-summary", id, "tutti"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_attachments")
         .select("id, file_name, file_url, file_type, file_size, visible_to_customer, created_at, thumb_path")
         .eq("order_id", id!)
         .order("created_at", { ascending: false })
-        .limit(8);
+        // Era .limit(8): la finestra Documenti mostrava gli ultimi 8 file come se fossero tutti.
+        .limit(500);
       if (error) throw error;
       // thumb_path non è ancora nei tipi generati.
       return (data ?? []) as unknown as OrderDocumentSummary[];
     },
-    enabled: !!id && !!user && schedaPronta,
+    // Serve solo alla finestra Documenti: si legge quando la si apre.
+    enabled: !!id && !!user && filesOpen,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
@@ -722,7 +727,7 @@ function OrderDetailInner() {
       toast.success("Stato aggiornato");
       setStatusChangeDialog({ open: false, targetStatusId: null, targetStatusName: "" });
     },
-    onError: () => { toast.error("Errore nell'aggiornamento dello stato."); },
+    onError: (e: unknown) => { const m = (e as { message?: string } | null)?.message; toast.error(m ? `Stato non aggiornato: ${m}` : "Errore nell'aggiornamento dello stato."); },
   });
 
   // Update notes mutation
@@ -1015,6 +1020,26 @@ function OrderDetailInner() {
     },
   });
 
+  const ultimoCambioDa = statusHistory[0]?.changed_by ?? null;
+  const { data: ultimoAutoreStato = null } = useQuery({
+    queryKey: ["order-status-autore", ultimoCambioDa],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("first_name, last_name, email").eq("id", ultimoCambioDa!).maybeSingle();
+      return [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim() || data?.email || null;
+    },
+    enabled: !!ultimoCambioDa,
+    staleTime: 300_000,
+  });
+  const { data: avvisoCambioAttivo = true } = useQuery({
+    queryKey: ["avviso-cambio-fase", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("companies").select("avvisa_cliente_cambio_fase").eq("id", effectiveCompany!.id).maybeSingle();
+      return (data as { avvisa_cliente_cambio_fase?: boolean } | null)?.avvisa_cliente_cambio_fase !== false;
+    },
+    enabled: statusChangeDialog.open && !!effectiveCompany?.id,
+    staleTime: 300_000,
+  });
+
   const handleStatusChange = (statusId: string) => {
     if (statusId === order?.current_status_id) return;
     const targetStatus = statuses.find((s) => s.id === statusId);
@@ -1053,7 +1078,6 @@ function OrderDetailInner() {
     }
   };
 
-  const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({ status_id: h.status_id, changed_at: h.changed_at }));
 
   const materialItems = orderItems.filter(item => !item.natura_riga || item.natura_riga === "materiale");
   const displayItems: (OrderItem & { id: string })[] = materialItems.map(item => ({
@@ -1196,7 +1220,7 @@ function OrderDetailInner() {
 
   // Raccoglie tutti i dati "ricchi" (in parallelo) e costruisce gli opts del PDF.
   // Condiviso tra "Scarica PDF" (download) e "Invia PDF al cliente" (blob → email).
-  const gatherPdfOpts = useCallback(async (): Promise<OrdinePDFProps | null> => {
+  const gatherPdfOpts = useCallback(async ({ perCliente = false, gruppi = null }: { perCliente?: boolean; gruppi?: string[] | null } = {}): Promise<OrdinePDFProps | null> => {
     if (!order) return null;
     const [
       laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
@@ -1223,6 +1247,29 @@ function OrderDetailInner() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any).from("order_bonus_lines").select("*").eq("order_id", id!).order("position"),
     ]);
+    // Conto per voce, fasi e pagamenti con gli stessi calcoli di Economia: solo a chi vede i costi.
+    // Se non si legge il PDF esce lo stesso, senza quelle sezioni.
+    const dossier = permissions.canViewCosts && !perCliente
+      ? await import("@/lib/orders/dossierEconomico")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((m) => m.caricaDossierEconomico(supabase as any, id!))
+        .catch((e): null => { console.error("[OrderDetail] dossier economico non letto:", e); return null; })
+      : null;
+    const dati = await import("@/lib/orders/riepilogoCommessaDati")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((m) => m.caricaDatiRiepilogo(supabase as any, id!, {
+        vedeCosti: permissions.canViewCosts,
+        vedeFatture: permissions.canViewBilling,
+        vedeSubappalti: permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione,
+        vedeSicurezza: permissions.canViewSicurezzaCantiere,
+      }, { perCliente, companyId: effectiveCompany?.id ?? null }));
+    // Letture della pagina finite male: il PDF lo dice, non le fa passare per sezioni vuote.
+    const lettureFallite = ([
+      ["Dipendenti", laborEmployees], ["Subappaltatori", laborTeams], ["SAL", salList], ["Provvigioni", salespeople],
+      ["Ordini di acquisto", purchaseOrders], ["Personale di cantiere", campoAssignmentsRaw], ["Giornale lavori", giornaleLavori],
+      ["Varianti", odv], ["Varianti", vc], ["Diario", diaryEvents], ["Diario", diaryMessages], ["Bonus", bonusLinesRes],
+    ] as Array<[string, { error?: unknown } | null]>).filter(([, res]) => res?.error).map(([nome]) => nome);
+    dati.nonLette = [...new Set([...dati.nonLette, ...lettureFallite])];
     const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<Record<string, unknown>>).map((d) => ({
       ...d,
       subappaltatore: null as { nome?: string } | null,
@@ -1248,26 +1295,35 @@ function OrderDetailInner() {
       // margini/provvigioni vengono omessi a chi non è autorizzato.
       showCosts: permissions.canViewCosts,
       showMargins: permissions.canViewMargins,
+      dossier,
+      dati,
+      perCliente,
+      gruppi,
     };
   }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (!order || pdfPreparing) return;
+  const handleDownloadPDF = useCallback(() => {
+    if (!order) return;
     if (!permissions.canViewOrderAmounts) {
       toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
       return;
     }
+    setRiepilogoAperto(true);
+  }, [order, permissions.canViewOrderAmounts]);
+
+  const preparaRiepilogo = useCallback(async (scelta: SceltaRiepilogo) => {
     setPdfPreparing(true);
     try {
-      const opts = await gatherPdfOpts();
-      if (opts) await downloadPDF(opts);
+      const opts = await gatherPdfOpts(scelta);
+      return opts ? await getPDFBlob(opts) : null;
     } catch (e) {
       console.error("[OrderDetail] preparazione dati PDF fallita:", e);
       toast.error("Impossibile preparare i dati per il PDF. Riprova.");
+      return null;
     } finally {
       setPdfPreparing(false);
     }
-  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF, permissions.canViewOrderAmounts]);
+  }, [gatherPdfOpts, getPDFBlob]);
 
   // Genera il PDF come blob (per allegarlo all'email del cliente).
   const getPdfBlobForOrder = useCallback(async () => {
@@ -1276,7 +1332,8 @@ function OrderDetailInner() {
       return null;
     }
     try {
-      const opts = await gatherPdfOpts();
+      // Questo PDF parte verso il cliente: solo la versione senza dati interni.
+      const opts = await gatherPdfOpts({ perCliente: true });
       if (!opts) return null;
       return await getPDFBlob(opts);
     } catch (e) {
@@ -1340,7 +1397,7 @@ function OrderDetailInner() {
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
     varianti: variantiDatate,
-  }), incassiUnita.data ?? 0, order.vat_rate ?? 22);
+  }), nettoUnitaInLordo(incassiUnita.data?.incassi ?? 0, order.vat_rate ?? 22), order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
   const cashTotalGross = incassi.totaleLordo;
@@ -1367,11 +1424,9 @@ function OrderDetailInner() {
   // Materiali IVA inclusa, come gli incassi con cui si confrontano.
   const costoMaterialiGross = costoMaterialiIvato(displayItems);
   const saldoResiduoGross = Math.max(0, cashTotalGross - collectedGross);
-  const cassaDopoMateriali = collectedGross - costoMaterialiGross; // < 0 ⇒ anticipo
   // One data/permission boundary, placed in the active Cantiere layout only.
   // Framework contracts keep their intervention workspace, without losing figures.
   const figureResponsabilita = companyId && id ? <div id="section-figure-responsabilita" className="scroll-mt-24"><ErrorBoundary><IncarichiCantiere key={`${companyId}:${id}`} companyId={companyId} orderId={id} compact /></ErrorBoundary></div> : null;
-  const accontoCopreMateriali = costoMaterialiGross <= 0 || collectedGross >= costoMaterialiGross;
   const saldoDate =
     displayInstallments
       .filter((i) => !i.is_paid && i.expected_date)
@@ -1392,12 +1447,13 @@ function OrderDetailInner() {
               name:
                 `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
                 "Cliente",
-              phone: order.customer.phone,
-              email: order.customer.email,
+              // Il profilo può non avere il recapito scritto sulla commessa.
+              phone: order.customer.phone || order.client_phone,
+              email: order.customer.email || order.client_email,
             }
           : { name: order.client_name || "Cliente", phone: order.client_phone, email: order.client_email }
       }
-      workAddress={order.work_address}
+      workAddress={order.work_address || order.indirizzo_lavori}
       getPdfBlob={getPdfBlobForOrder}
       paymentDue={(() => {
         const unpaid = displayInstallments.filter(
@@ -1542,51 +1598,23 @@ function OrderDetailInner() {
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
           onOpenPlanning={() => navigateTo({ tab: "panoramica", section: "section-pianificazione" })}
           onOpenTasks={() => prossimaTask?.title?.startsWith("Ufficio contratto · ") ? navigateTo({tab:"cantiere",section:"section-ufficio"}) : navigate(prossimaTask?.id ? `/azienda/attivita?attivita=${prossimaTask.id}` : "/azienda/attivita")}
-        >
-          <OrderStatusWorkflow
-            key={id}
-            orderId={id!}
-            companyId={effectiveCompany?.id ?? ""}
-            modelKey={order.tipo_lavoro}
-            version={order.version}
-            canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
-            canConfigure={permissions.canViewSettingsOrders}
-            workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })}
-            statuses={statuses}
-            currentStatusId={order.current_status_id}
-            statusHistory={progressHistory}
-            onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
-          />
-          <OrderScheduleBadge orderId={id!} />
-          <QuoteCard title="Cronologia degli stati">
-            {statusHistory.length === 0 ? (
-              <p className="text-slate-500 text-sm">Nessuno storico</p>
-            ) : (
-              <div className="space-y-3">
-                {statusHistory.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: entry.status.color }}
-                      />
-                      <span className="text-sm font-medium text-slate-900">
-                        {entry.status.name}
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      {formatDateTime(entry.changed_at)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </QuoteCard>
-        </OrderCommessaSummary>
+          statoControllo={
+            <OrderStatusWorkflow
+              key={id}
+              orderId={id!}
+              canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
+              workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
+              statuses={statuses}
+              currentStatusId={order.current_status_id}
+              statusHistory={statusHistory}
+              onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
+              ultimoAutore={ultimoAutoreStato}
+              formatoData={formatDateTime}
+            />
+          }
+          // Il semaforo dei tempi non dice niente su una commessa già finita.
+          tempi={phaseProgress && phaseProgress.total > 0 && phaseProgress.done === phaseProgress.total ? null : <OrderScheduleBadge orderId={id!} />}
+        />
         {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs
@@ -1725,9 +1753,6 @@ function OrderDetailInner() {
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
-              {/* Silvio sugli acquisti (31/10/2026): cosa ordinare e cosa serve presto. */}
-              {permissions.canEditOrders && <div className="flex justify-end"><SilvioAcquisti orderId={id!} orderCode={order.order_code}
-                onAzione={(a) => navigateTo(a === "acquisti" ? { tab: "articoli", materialiView: "acquisti" } : { tab: "articoli", materialiView: "articoli" })} /></div>}
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             <OrderViewTransition viewKey={activeMaterialiView}>
@@ -1741,6 +1766,9 @@ function OrderDetailInner() {
                 <MaterialiPerFase
                   orderId={id!}
                   orderCode={order.order_code}
+                  // Silvio sugli acquisti (31/10/2026): cosa ordinare e cosa serve presto, accanto ad «Aggiungi articolo».
+                  silvio={permissions.canEditOrders ? <SilvioAcquisti className="tap-compact px-2.5 text-xs" orderId={id!} orderCode={order.order_code}
+                    onAzione={(a) => navigateTo(a === "acquisti" ? { tab: "articoli", materialiView: "acquisti" } : { tab: "articoli", materialiView: "articoli" })} /> : undefined}
                   editor={{
                     items: displayItems,
                     companyId: effectiveCompany?.id || "",
@@ -1831,11 +1859,6 @@ function OrderDetailInner() {
               </Button>
             </div>
             </>}
-            {activeMaterialiView === "computo" && id && companyId && <div id="section-computo" className="scroll-mt-24">
-              <Suspense fallback={<p className="p-4 text-sm text-slate-600">Carico il computo…</p>}>
-                <OrderComputoTab orderId={id} companyId={companyId} canEdit={permissions.canEditOrders} canViewAmounts={permissions.canViewOrderAmounts} orderLabel={order.order_code} />
-              </Suspense>
-            </div>}
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
               <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
               <OrderUsciteCard orderId={id!} canViewCosts={permissions.canViewCosts} />
@@ -1939,40 +1962,62 @@ function OrderDetailInner() {
 
             {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
             {activeEconomiaView === "pagamenti" && <>
-            <div id="section-pagamenti" className="scroll-mt-24">
-              {permissions.canViewOrderAmounts && (
-                <OrdineEconomico
-                  orderId={id!}
-                  totalAmount={agreedAmount}
-                  vatRate={order.vat_rate ?? 22}
-                  paymentType={
-                    (order.payment_type as PaymentType) || "standard"
-                  }
-                  installments={displayInstallments}
-                  hasBuildingBonus={order.has_building_bonus}
-                  financingCost={order.financing_cost ?? undefined}
-                  collectedAmount={collectedAmount}
-                  varianti={variantiDatate}
-                  onInstallmentPaidToggle={handleInstallmentPaidToggle}
-                  onInstallmentDateChange={handleInstallmentDateChange}
-                  orderCode={order.order_code}
-                  conPrimaNota={permissions.canViewPrimaNota}
-                  clienteNome={
-                    order.customer
-                      ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim()
-                      : null
-                  }
-                  customerId={order.customer_id}
-                  pivaImpresa={effectiveCompany?.vat_number ?? null}
-                />
-              )}
-            </div>
+            {/* Lo stato in una lettura (01/11/2026): i quattro numeri, poi le rate del cliente, poi i SAL
+                emessi, poi ogni uscita verso fornitori, subappalti, ditte, professionisti, noleggi ed extra.
+                IVA, ritenute, blocca prezzo e bonus in fondo; provvigioni e «Chi finanzia il cantiere» in
+                Margini e costi. */}
+            <QuadroPagamentiCommessa
+              orderId={id!}
+              mostraIncassi={permissions.canViewOrderAmounts}
+              mostraUscite={permissions.canViewCosts}
+              onApriSubappalti={() => navigateTo({ tab: "finanza", economiaView: "manodopera" })}
+              conIva={false}
+              incassi={permissions.canViewOrderAmounts ? (
+                <div id="section-pagamenti" className="scroll-mt-24">
+                  <OrdineEconomico
+                    orderId={id!}
+                    totalAmount={agreedAmount}
+                    vatRate={order.vat_rate ?? 22}
+                    paymentType={(order.payment_type as PaymentType) || "standard"}
+                    installments={displayInstallments}
+                    hasBuildingBonus={order.has_building_bonus}
+                    financingCost={order.financing_cost ?? undefined}
+                    collectedAmount={collectedAmount}
+                    varianti={variantiDatate}
+                    onInstallmentPaidToggle={handleInstallmentPaidToggle}
+                    onInstallmentDateChange={handleInstallmentDateChange}
+                    orderCode={order.order_code}
+                    conPrimaNota={permissions.canViewPrimaNota}
+                    clienteNome={order.customer ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() : null}
+                    customerId={order.customer_id}
+                    pivaImpresa={effectiveCompany?.vat_number ?? null}
+                  />
+                </div>
+              ) : undefined}
+            />
+            <AltroIncassiCommessa
+              orderId={id!}
+              vatRate={order.vat_rate ?? 22}
+              hasBuildingBonus={order.has_building_bonus}
+              customerId={order.customer_id}
+              saldoPagato={displayInstallments.some((i) => i.type === "balance" && i.is_paid)}
+              pivaImpresa={effectiveCompany?.vat_number ?? null}
+              conIva={permissions.canViewOrderAmounts && permissions.canViewCosts}
+              conImporti={permissions.canViewOrderAmounts}
+            />
+            </>}
 
-            {/* Chi finanzia il cantiere: cassa consuntiva — prima della previsione
-                qui sotto (quando ci sono movimenti, il consuntivo conta di più).
-                Vendite+costi → entrambi i permessi. L'ancora serve alla fascia
-                verdetto in Panoramica, su tutti i dispositivi. */}
-            {permissions.canViewOrderAmounts && permissions.canViewCosts && (
+            {/* Margini e costi (01/11/2026): dopo il conto economico, le provvigioni dei venditori (sono un
+                costo), chi finanzia il cantiere coi movimenti veri e la previsione sui materiali. Stavano
+                in fondo agli incassi, dove nessuno le trovava. */}
+            {activeEconomiaView === "margini" && permissions.canViewMargins && permissions.canViewOrderAmounts && (
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Provvigioni non disponibili. Ricarica la pagina per riprovare.</p>}>
+                <div className="max-sm:hidden">
+                  <OrderCommissions orderId={id!} totalAmount={agreedAmount} collectedAmount={collectedAmount} vatRate={order.vat_rate ?? 22} />
+                </div>
+              </ErrorBoundary>
+            )}
+            {activeEconomiaView === "margini" && permissions.canViewOrderAmounts && permissions.canViewCosts && (
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Movimenti di cassa non disponibili. Ricarica la pagina per riprovare.</p>}>
                 <EsposizioneCommessa
                   orderId={id!}
@@ -1985,112 +2030,11 @@ function OrderDetailInner() {
                   avanzamentoPct={avanzamentoPct}
                   anchorId="esposizione-commessa"
                 />
+                <div className="mt-4">
+                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} />
+                </div>
               </ErrorBoundary>
             )}
-
-            {/* Cassa della commessa — timeline acconto → materiali → saldo.
-                Mostra l'eventuale anticipo da sostenere (capitale circolante)
-                quando l'acconto non copre i fornitori. Additiva, non tocca il
-                Conto economico. Richiede ANCHE canViewCosts: il costo
-                materiali dei fornitori è metà del suo messaggio. */}
-            {/* Mobile no: è una stima d'ufficio (materiali contro acconto). */}
-            {permissions.canViewOrderAmounts &&
-              permissions.canViewCosts &&
-              (collectedGross > 0 || costoMaterialiGross > 0) && (
-                <details className="rounded-lg border border-slate-300 bg-white">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-blue-950">Stima di cassa sui materiali · apri dettaglio</summary>
-                <QuoteCard
-                  title={
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${accontoCopreMateriali ? "bg-emerald-500" : "bg-red-500"}`}
-                      />
-                      Cassa della commessa
-                    </span>
-                  }
-                  icon={<Wallet className="h-4 w-4" />}
-                >
-                  <div className="space-y-3">
-                    <p
-                      className={`text-[13px] leading-snug ${accontoCopreMateriali ? "text-emerald-700" : "text-red-600"}`}
-                    >
-                      {accontoCopreMateriali ? (
-                        <>
-                          L'incassato copre il costo dei materiali:
-                          nessun anticipo richiesto.
-                        </>
-                      ) : (
-                        <>
-                          L'incassato (
-                          <strong>{formatCurrency(collectedGross)}</strong>) non
-                          copre i materiali (
-                          <strong>{formatCurrency(costoMaterialiGross)}</strong>
-                          ): se paghi tutti i materiali prima dei prossimi incassi, il fabbisogno stimato è{" "}
-                          <strong>
-                            {formatCurrency(Math.abs(cassaDopoMateriali))}
-                          </strong>
-                        {saldoDate && new Date(saldoDate).getTime() >= Date.now() ? (
-                            <>
-                              {" "}
-                              fino al saldo del{" "}
-                              <strong>
-                                {format(new Date(saldoDate), "dd/MM/yyyy")}
-                              </strong>
-                            </>
-                          ) : null}
-                          .
-                        </>
-                      )}
-                    </p>
-                    <div className="rounded-lg border bg-muted/20 text-[13px]">
-                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                        <span className="text-muted-foreground">
-                          Incassato
-                        </span>
-                        <span className="font-medium text-emerald-600">
-                          + {formatCurrency(collectedGross)}
-                        </span>
-                      </div>
-                      {costoMaterialiGross > 0 && (
-                        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                          <span className="text-muted-foreground">
-                            Costo materiali (fornitori)
-                          </span>
-                          <span className="font-medium text-slate-700">
-                            − {formatCurrency(costoMaterialiGross)}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
-                        <span className="font-medium text-foreground">
-                          Punto minimo di cassa
-                        </span>
-                        <span
-                          className={`font-semibold ${cassaDopoMateriali < 0 ? "text-red-600" : "text-emerald-600"}`}
-                        >
-                          {formatCurrency(cassaDopoMateriali)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between px-3 py-2">
-                        <span className="text-muted-foreground">
-                          Saldo a fine lavori
-                          {saldoDate
-                            ? ` · ${format(new Date(saldoDate), "dd/MM/yyyy")}`
-                            : ""}
-                        </span>
-                        <span className="font-medium text-emerald-600">
-                          + {formatCurrency(saldoResiduoGross)}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Stima sui materiali · manodopera e altre spese escluse.
-                    </p>
-                  </div>
-                </QuoteCard>
-                </details>
-              )}
-            </>}
 
             {/* Errori e perdite: il riquadro parla dell'azienda (ultimi 12 mesi)
                 e si registra al computer. */}
@@ -2099,22 +2043,13 @@ function OrderDetailInner() {
               <OrderErrors orderId={id!} />
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
-            {activeEconomiaView === "pagamenti" && <div id="section-ritenute" className="scroll-mt-24">
-              <RitenuteTab orderId={id!} />
-            </div>}
             {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 
-            {/* Soldi in uscita: i pagamenti ai fornitori stavano in "Articoli e
-                lavori", lontani dagli incassi. Qui il quadro è completo. */}
-            {activeEconomiaView === "pagamenti" && permissions.canViewCosts && (
-              <SupplierPaymentsCard
-                items={materialItems}
-                companyId={effectiveCompany?.id || ""}
-                orderId={id!}
-              />
-            )}
+            {/* Le uscite ai fornitori stanno nel quadro in cima alla vista
+                (QuadroPagamentiCommessa), insieme a subappalti, ditte,
+                professionisti, noleggi e costi extra. */}
             {/* Fatture e documenti fiscali della commessa: stavano nella
                 Panoramica, lontani da incassi e scadenze a cui appartengono.
                 Il database li mostra a chi vede gli importi della commessa o
@@ -2395,6 +2330,12 @@ function OrderDetailInner() {
       )}
 
       {/* Documenti e file della commessa (popup) */}
+      <RiepilogoPdfDialog
+        open={riepilogoAperto}
+        onOpenChange={setRiepilogoAperto}
+        occupato={pdfPreparing || isGeneratingPDF}
+        onPrepara={preparaRiepilogo}
+      />
       <OrderFilesDialog
         open={filesOpen}
         onOpenChange={setFilesOpen}
@@ -2419,7 +2360,8 @@ function OrderDetailInner() {
       {/* Firma digitale (azione rapida): invio/gestione firma del cliente */}
       <Dialog open={firmaOpen} onOpenChange={setFirmaOpen}>
         <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
-          <DialogHeader>
+          {/* Il titolo lo mostra già la scheda firma qui sotto. */}
+          <DialogHeader className="sr-only">
             <DialogTitle>Firma digitale</DialogTitle>
           </DialogHeader>
           <OrdineFirma
@@ -2481,7 +2423,10 @@ function OrderDetailInner() {
           <DialogHeader>
             <DialogTitle>Conferma cambio stato</DialogTitle>
             <DialogDescription>
-              Vuoi cambiare lo stato della commessa a "{statusChangeDialog.targetStatusName}"?
+              Vuoi cambiare lo stato della commessa a "{statusChangeDialog.targetStatusName}"?{" "}
+              {avvisoAlCliente(order?.customer_id, avvisoCambioAttivo)
+                ? <strong className="font-medium text-foreground">Il cliente riceverà un avviso.</strong>
+                : "Il cliente non riceverà avvisi."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

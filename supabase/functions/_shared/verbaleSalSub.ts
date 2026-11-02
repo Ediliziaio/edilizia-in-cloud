@@ -197,3 +197,56 @@ export function verificaVerbaleSalSub(d: VerbaleSalSub) {
     bozza: !["verificato", "pagato"].includes(d.sal.stato),
   };
 }
+
+/**
+ * Benestare alla fatturazione: dice al subappaltatore se e per quanto può
+ * emettere fattura per questo SAL. Solo un SAL verificato dall'impresa lo
+ * autorizza; ricevuto o contestato no, pagato vuol dire che la fattura doveva
+ * già esserci. Si fattura il netto del SAL: la ritenuta di garanzia si fattura
+ * quando viene svincolata.
+ */
+export function benestareFatturazione(d: VerbaleSalSub, r: { lordo: number; ritenuta: number; netto: number }) {
+  // «always»: senza, in italiano 9500 resta senza punto delle migliaia.
+  const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions);
+  const rif = [
+    d.contratto.numero_contratto ? `Contratto n. ${d.contratto.numero_contratto}` : "Contratto di subappalto",
+    `SAL n. ${d.sal.numero_sal}`,
+    d.commessa.order_code ? `commessa ${d.commessa.order_code}` : null,
+  ].filter(Boolean).join(" · ");
+  if (d.sal.stato === "verificato") {
+    return {
+      autorizzato: true,
+      titolo: "Benestare alla fatturazione",
+      testo: `L'impresa affidataria ${d.impresa.ragione_sociale} ha verificato i lavori di questo SAL e autorizza ${d.sub.ragione_sociale} a emettere fattura per l'imponibile di ${euro(r.netto)}.`,
+      righe: [
+        ["Lavori del SAL (lordo)", euro(r.lordo)],
+        [`Ritenuta di garanzia ${d.sal.ritenuta_pct}% (si fattura allo svincolo)`, `− ${euro(r.ritenuta)}`],
+        ["Imponibile da fatturare", euro(r.netto)],
+      ] as Array<[string, string]>,
+      istruzioni: [
+        `Intestazione: ${d.impresa.ragione_sociale}${d.impresa.partita_iva ? `, P.IVA ${d.impresa.partita_iva}` : ""}.`,
+        `Causale da riportare in fattura: ${rif}.`,
+        "IVA: nei subappalti del settore edile si applica di norma l'inversione contabile (art. 17, c. 6, lett. a, DPR 633/72): fattura senza IVA con l'annotazione «inversione contabile», salvo diverso regime indicato nel contratto.",
+        d.contratto.modalita_pagamento ? `Pagamento: ${d.contratto.modalita_pagamento}.` : "Pagamento secondo le condizioni del contratto.",
+      ],
+    };
+  }
+  if (d.sal.stato === "pagato") {
+    return {
+      autorizzato: false,
+      titolo: "Fatturazione",
+      testo: `Il SAL risulta già pagato: la fattura per ${euro(r.netto)} doveva essere già emessa con riferimento ${rif}. Questo verbale non autorizza una seconda fattura.`,
+      righe: [] as Array<[string, string]>,
+      istruzioni: [] as string[],
+    };
+  }
+  return {
+    autorizzato: false,
+    titolo: "Fatturazione non ancora autorizzata",
+    testo: d.sal.stato === "contestato"
+      ? "Il SAL è contestato: la fattura non va emessa finché la contestazione non è risolta e il SAL verificato dall'impresa."
+      : "Il SAL è ricevuto ma non ancora verificato dall'impresa: la fattura non va emessa prima della verifica.",
+    righe: [] as Array<[string, string]>,
+    istruzioni: [] as string[],
+  };
+}

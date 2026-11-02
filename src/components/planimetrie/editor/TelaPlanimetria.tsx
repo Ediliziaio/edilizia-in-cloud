@@ -5,8 +5,10 @@
 import { forwardRef, type SVGProps } from "react";
 import type { DatiVista, Pianta, Punto, TipoApertura } from "./adattatore";
 import { visibile, type Vista } from "./comandi";
+import { NOMI_AREA } from "../../../../shared/planimetrie/modello.ts";
 import {
   COLORE_STANZA,
+  STILE_AREA,
   angoloTesto,
   baricentro,
   colorePareti,
@@ -19,6 +21,7 @@ import {
 } from "./disegno";
 import { dist, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
 import { scriviMetri, scriviMq } from "./misure";
+import { SimboloArredo } from "./SimboloArredo";
 
 export interface Camera {
   /** pixel per centimetro */
@@ -28,15 +31,34 @@ export interface Camera {
 }
 
 export interface Selezione {
-  tipo: "muro" | "apertura" | "locale";
+  tipo: "muro" | "apertura" | "locale" | "elemento" | "quota" | "testo" | "area";
   id: string;
+}
+
+/** Un'immagine da ricalcare: angolo in alto a sinistra in (x, y), larga `larghezzaCm`. */
+export interface SfondoRicalco {
+  url: string;
+  x: number;
+  y: number;
+  larghezzaCm: number;
+  /** Rapporto altezza / larghezza dell'immagine. */
+  proporzione: number;
+  opacita: number;
 }
 
 export interface Sovrapposizioni {
   rettangolo?: { a: Punto; b: Punto } | null;
+  /** Riquadro di selezione (Maiusc + trascina). */
+  riquadro?: { a: Punto; b: Punto } | null;
   pareteInCorso?: { a: Punto; b: Punto } | null;
   aggancio?: Aggancio | null;
   aperturaFantasma?: { muroId: string; t: number; tipo: TipoApertura } | null;
+  /** Stanza libera in corso: i punti messi e il cursore. */
+  poligonoInCorso?: { punti: Punto[]; cursore: Punto } | null;
+  /** Quota libera in corso: primo punto e cursore. */
+  quotaInCorso?: { a: Punto; b: Punto } | null;
+  /** Arredo che sta per essere posato. */
+  arredoFantasma?: { tipo: string; centro: Punto; larghezza: number; profondita: number } | null;
 }
 
 type Gestori = Pick<SVGProps<SVGSVGElement>, "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel">;
@@ -49,6 +71,12 @@ interface Props extends Gestori {
   latiModificabili: ReadonlySet<string>;
   vista: Vista;
   selezione: Selezione | null;
+  /** Più oggetti selezionati insieme (arredi, quote, testi). */
+  gruppo?: { elementi: string[]; quote: string[]; testi: string[] };
+  /** Linee stimate degli impianti (percorso a squadra), da mostrare tratteggiate. */
+  lineeImpianti?: Array<{ linea: string; da: Punto; a: Punto }>;
+  /** Immagine di riferimento sotto il disegno (mappa, foto aerea, rilievo), in scala. */
+  sfondo?: SfondoRicalco | null;
   camera: Camera;
   larghezza: number;
   altezza: number;
@@ -76,9 +104,11 @@ const NOMI_ELEMENTI: Record<string, string> = {
   armadio: "armadio",
 };
 const SELEZIONE = "#2563eb";
+/** Colori delle linee impianti: come negli schemi (elettrico rosso, acqua blu, scarichi marroni). */
+export const COLORI_LINEE: Record<string, string> = { elettrica: "#dc2626", acqua: "#2563eb", scarico: "#92400e", frigorifera: "#0891b2", condensa: "#65a30d", riscaldamento: "#ea580c" };
 
 export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPlanimetria(
-    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
+    { pianta, dati, latiModificabili, misureSoloSelezione, vista, selezione, gruppo, lineeImpianti, sfondo, camera, larghezza, altezza, sovrapposizioni, inModifica, className, ...gestori },
     ref,
   ) {
     const px = (n: number) => n / camera.s; // n pixel in cm
@@ -86,7 +116,9 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
     const aperture = pianta.aperture.filter((a) => visibile(a.stato, vista) && muri.some((m) => m.id === a.muroId));
     const stanzeDiLavoro = pianta.locali.filter((l) => visibile(l.stato, vista));
     const locali = dati.locali;
-    const sel = (tipo: Selezione["tipo"], id: string) => selezione?.tipo === tipo && selezione.id === id;
+    const nelGruppo = (tipo: Selezione["tipo"], id: string) =>
+      !!gruppo && (tipo === "elemento" ? gruppo.elementi : tipo === "quota" ? gruppo.quote : tipo === "testo" ? gruppo.testi : []).includes(id);
+    const sel = (tipo: Selezione["tipo"], id: string) => (selezione?.tipo === tipo && selezione.id === id) || nelGruppo(tipo, id);
     const testo = 12;
 
     // Pareti che stanno su un lato di una stanza: la loro misura la scrive la stanza.
@@ -115,6 +147,18 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
           <pattern id="pl-griglia" width={100} height={100} patternUnits="userSpaceOnUse">
             <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#e2e8f0" strokeWidth={px(1)} />
           </pattern>
+          <pattern id="pl-prato" width={30} height={30} patternUnits="userSpaceOnUse">
+            <path d="M5 20 l3 -7 l3 7 M18 10 l3 -7 l3 7" fill="none" stroke="#6a9a4f" strokeWidth={1.2} />
+          </pattern>
+          <pattern id="pl-lastre" width={60} height={40} patternUnits="userSpaceOnUse">
+            <path d="M0 0 H60 M0 20 H60 M30 0 V20 M0 20 V40" fill="none" stroke="#c9bfae" strokeWidth={1} />
+          </pattern>
+          <pattern id="pl-ghiaia" width={16} height={16} patternUnits="userSpaceOnUse">
+            <circle cx={4} cy={4} r={1.6} fill="#a3a39a" /><circle cx={12} cy={10} r={1.3} fill="#b5b5ac" />
+          </pattern>
+          <pattern id="pl-orto" width={40} height={40} patternUnits="userSpaceOnUse">
+            <path d="M0 10 H40 M0 30 H40" fill="none" stroke="#a0835a" strokeWidth={2} />
+          </pattern>
           <pattern id="pl-stimata" width={12} height={12} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width={12} height={12} fill="#ddd6fe" />
             <line x1={0} y1={0} x2={0} y2={12} stroke="#a78bfa" strokeWidth={4} />
@@ -132,6 +176,44 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             data-tipo="sfondo"
           />
 
+          {/* immagine da ricalcare: non si tocca, i clic passano al foglio */}
+          {sfondo && (
+            <image href={sfondo.url} x={sfondo.x} y={sfondo.y} width={sfondo.larghezzaCm} height={sfondo.larghezzaCm * sfondo.proporzione}
+              opacity={sfondo.opacita} preserveAspectRatio="none" pointerEvents="none" />
+          )}
+
+          {/* lotto e aree esterne: sotto le stanze */}
+          {(pianta.aree ?? []).filter((a) => visibile(a.stato, vista)).map((a) => {
+            const st = STILE_AREA[a.tipo] ?? STILE_AREA.prato;
+            const lotto = a.tipo === "lotto";
+            const demolire = a.stato === "da_demolire";
+            return (
+              <g key={a.id} opacity={demolire ? 0.45 : 1}>
+                <polygon
+                  points={punti(a.contorno)}
+                  fill={lotto ? "rgba(220,38,38,0.03)" : st.fill}
+                  stroke={sel("area", a.id) ? SELEZIONE : lotto ? "#dc2626" : st.bordo}
+                  strokeWidth={px(sel("area", a.id) ? 3 : lotto ? 2 : 1)}
+                  strokeDasharray={lotto ? `${px(10)} ${px(4)} ${px(2)} ${px(4)}` : a.stato === "nuovo" ? `${px(6)} ${px(3)}` : undefined}
+                  data-tipo="area"
+                  data-id={a.id}
+                  style={{ cursor: "pointer" }}
+                />
+                {!lotto && st.motivo && <polygon points={punti(a.contorno)} fill={`url(#${st.motivo})`} pointerEvents="none" />}
+                {(() => {
+                  const c = a.contorno.reduce((t, p) => ({ x: t.x + p.x / a.contorno.length, y: t.y + p.y / a.contorno.length }), { x: 0, y: 0 });
+                  const etichetta = a.nome || NOMI_AREA[a.tipo];
+                  const pos = lotto ? a.contorno.reduce((m, p) => (p.y < m.y || (p.y === m.y && p.x < m.x) ? p : m)) : c;
+                  return (
+                    <text x={pos.x + (lotto ? px(6) : 0)} y={pos.y + (lotto ? px(16) : 0)} textAnchor={lotto ? "start" : "middle"} fontSize={px(11)} fill={lotto ? "#dc2626" : "#3f6212"} pointerEvents="none">
+                      {etichetta}
+                    </text>
+                  );
+                })()}
+              </g>
+            );
+          })}
+
           {/* stanze */}
           {locali.map((l) => (
             <polygon
@@ -146,27 +228,40 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             />
           ))}
 
-          {/* arredi e sanitari (dal documento; si spostano in una fase successiva) */}
-          {dati.elementi.map((e) => (
-            <g key={e.id} transform={`translate(${e.centro.x} ${e.centro.y}) rotate(${e.rotazione})`} pointerEvents="none">
-              <rect
-                x={-e.larghezza / 2}
-                y={-e.profondita / 2}
-                width={e.larghezza}
-                height={e.profondita}
-                rx={2}
-                fill="#ffffff"
-                fillOpacity={0.7}
-                stroke="#94a3b8"
-                strokeWidth={px(1)}
-              />
-              {Math.min(e.larghezza, e.profondita) * camera.s > 28 && (
-                <text y={px(4)} textAnchor="middle" fontSize={px(10)} fill="#64748b">
-                  {e.etichetta ?? NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ")}
-                </text>
-              )}
-            </g>
-          ))}
+          {/* arredi e sanitari: si selezionano, si spostano e si ruotano (fase 3) */}
+          {(pianta.elementi ?? dati.elementi.map((e) => ({ ...e, stato: "esistente" as const })))
+            .filter((e) => visibile(e.stato, vista))
+            .map((e) => {
+              const selezionato = sel("elemento", e.id);
+              const colore = selezionato ? SELEZIONE : vista === "progetto" && e.stato === "nuovo" ? "#dc2626" : vista === "progetto" && e.stato === "da_demolire" ? "#ca8a04" : "#475569";
+              const etichetta = e.etichetta ?? NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
+              return (
+                <g
+                  key={e.id}
+                  transform={`translate(${e.centro.x} ${e.centro.y}) rotate(${e.rotazione})`}
+                  data-tipo="elemento"
+                  data-id={e.id}
+                  style={{ cursor: "move" }}
+                  opacity={vista === "progetto" && e.stato === "da_demolire" ? 0.55 : 1}
+                >
+                  <SimboloArredo
+                    tipo={e.tipo}
+                    larghezza={e.larghezza}
+                    profondita={e.profondita}
+                    colore={colore}
+                    spessore={px(selezionato ? 2 : 1.2)}
+                    riempimento={vista === "progetto" && e.stato === "da_demolire" ? "#fef9c3" : "#ffffff"}
+                  />
+                  {/* bersaglio pieno: si prende anche cliccando dentro il simbolo */}
+                  <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                  {Math.min(e.larghezza, e.profondita) * camera.s > 34 && (
+                    <text y={e.profondita / 2 - px(3)} textAnchor="middle" fontSize={px(9)} fill="#64748b" pointerEvents="none">
+                      {etichetta}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
 
           {/* pareti */}
           {muri.map((m) => {
@@ -232,8 +327,16 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             const misurabile = latiModificabili.has(l.id);
             const xs = interno.map((p) => p.x);
             const larghezzaPx = (Math.max(...xs) - Math.min(...xs)) * camera.s;
+            const ys = interno.map((p) => p.y);
+            const altezzaPx = (Math.max(...ys) - Math.min(...ys)) * camera.s;
             const nomeCiSta = larghezzaPx > Math.min(l.nome.length, 22) * 7.5 + 8;
-            const latiVisibili = !misureSoloSelezione || sel("locale", l.id);
+            const selezionata = sel("locale", l.id);
+            const latiVisibili = !misureSoloSelezione || selezionata;
+            // Nelle stanze piccole le misure dei lati coprirebbero nome e mq: si vedono quando la
+            // stanza è selezionata (o ingrandendo). Lati verticali: serve spazio ai lati del nome;
+            // orizzontali: sopra e sotto le due righe di nome e mq.
+            const spazioLatiVerticali = selezionata || larghezzaPx > (nomeCiSta ? Math.min(l.nome.length, 22) * 7.5 : 60) + 2 * (14 + 40) + 8;
+            const spazioLatiOrizzontali = selezionata || altezzaPx > 2 * (14 + 22) + 44;
             const coloreTesto = q.stimata ? STIMATA : "#0f172a";
             return (
               <g key={`m-${l.id}`}>
@@ -267,6 +370,8 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   const b = interno[(i + 1) % interno.length];
                   const lunghezza = q.lati[i];
                   if (lunghezza * camera.s < 46) return null;
+                  const verticale = Math.abs(b.y - a.y) > Math.abs(b.x - a.x);
+                  if (verticale ? !spazioLatiVerticali : !spazioLatiOrizzontali) return null;
                   const chiave = `lato:${l.id}:${i}`;
                   if (inModifica === chiave) return null;
                   // dentro la stanza, a 14 px dal muro
@@ -316,14 +421,47 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             );
           })}
 
-          {dati.testi.map((t) => (
+          {/* quote libere */}
+          {(pianta.quote ?? []).map((q) => {
+            const l = dist(q.p1, q.p2);
+            if (l < 1) return null;
+            const n = { x: -(q.p2.y - q.p1.y) / l, y: (q.p2.x - q.p1.x) / l };
+            const a = { x: q.p1.x + n.x * q.scostamento, y: q.p1.y + n.y * q.scostamento };
+            const b = { x: q.p2.x + n.x * q.scostamento, y: q.p2.y + n.y * q.scostamento };
+            const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const colore = sel("quota", q.id) ? SELEZIONE : "#0f766e";
+            const tick = px(5);
+            const ang = angoloTesto(a, b);
+            return (
+              <g key={q.id} data-tipo="quota" data-id={q.id} style={{ cursor: "pointer" }}>
+                <line x1={q.p1.x} y1={q.p1.y} x2={a.x} y2={a.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
+                <line x1={q.p2.x} y1={q.p2.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(0.8)} strokeDasharray={`${px(3)} ${px(3)}`} />
+                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colore} strokeWidth={px(1.4)} />
+                {[a, b].map((p, i) => (
+                  <line key={i} x1={p.x - (n.x + n.y) * tick} y1={p.y - (n.y - n.x) * tick} x2={p.x + (n.x + n.y) * tick} y2={p.y + (n.y - n.x) * tick} stroke={colore} strokeWidth={px(1.6)} />
+                ))}
+                {/* bersaglio largo per prenderla col mouse */}
+                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={px(14)} data-tipo="quota" data-id={q.id} />
+                <text transform={`translate(${m.x + n.x * px(9)} ${m.y + n.y * px(9)}) rotate(${ang})`} textAnchor="middle" dominantBaseline="middle" fontSize={px(11)} fontWeight={600} fill={colore} pointerEvents="none">
+                  {scriviMetri(l)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* testi */}
+          {(pianta.testi ?? dati.testi).map((t) => (
             <text
               key={t.id}
               transform={`translate(${t.posizione.x} ${t.posizione.y}) rotate(${t.rotazione})`}
               textAnchor="middle"
-              fontSize={px(12)}
-              fill="#334155"
-              pointerEvents="none"
+              dominantBaseline="middle"
+              fontSize={px(13)}
+              fontWeight={sel("testo", t.id) ? 700 : 500}
+              fill={sel("testo", t.id) ? SELEZIONE : "#334155"}
+              data-tipo="testo"
+              data-id={t.id}
+              style={{ cursor: "move" }}
             >
               {t.testo}
             </text>
@@ -352,8 +490,51 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             })()}
 
           {/* anteprime mentre si disegna */}
+          {lineeImpianti?.map((l, i) => (
+            <path key={i} d={`M ${l.da.x} ${l.da.y} L ${l.a.x} ${l.da.y} L ${l.a.x} ${l.a.y}`} fill="none" pointerEvents="none"
+              stroke={COLORI_LINEE[l.linea] ?? "#64748b"} strokeWidth={px(1.6)} strokeDasharray={`${px(6)} ${px(4)}`} opacity={0.85} />
+          ))}
           {sovrapposizioni.rettangolo && <AnteprimaRettangolo {...sovrapposizioni.rettangolo} px={px} />}
+          {sovrapposizioni.riquadro && (
+            <rect
+              x={Math.min(sovrapposizioni.riquadro.a.x, sovrapposizioni.riquadro.b.x)}
+              y={Math.min(sovrapposizioni.riquadro.a.y, sovrapposizioni.riquadro.b.y)}
+              width={Math.abs(sovrapposizioni.riquadro.b.x - sovrapposizioni.riquadro.a.x)}
+              height={Math.abs(sovrapposizioni.riquadro.b.y - sovrapposizioni.riquadro.a.y)}
+              fill={SELEZIONE} fillOpacity={0.08} stroke={SELEZIONE} strokeWidth={px(1)} strokeDasharray={`${px(4)} ${px(3)}`} pointerEvents="none"
+            />
+          )}
           {sovrapposizioni.pareteInCorso && <AnteprimaParete {...sovrapposizioni.pareteInCorso} px={px} />}
+          {sovrapposizioni.poligonoInCorso && (() => {
+            const { punti: pp, cursore } = sovrapposizioni.poligonoInCorso;
+            const tutti = [...pp, cursore];
+            const chiude = pp.length >= 3 && dist(cursore, pp[0]) < px(14);
+            return (
+              <g pointerEvents="none">
+                {pp.length >= 2 && <polygon points={punti(tutti)} fill={SELEZIONE} fillOpacity={0.08} stroke="none" />}
+                <polyline points={punti(tutti)} fill="none" stroke={SELEZIONE} strokeWidth={px(2)} strokeDasharray={`${px(6)} ${px(4)}`} />
+                {pp.map((q, i) => <circle key={i} cx={q.x} cy={q.y} r={px(i === 0 ? 6 : 4)} fill={i === 0 && chiude ? SELEZIONE : "#ffffff"} stroke={SELEZIONE} strokeWidth={px(2)} />)}
+                {pp.length > 0 && (
+                  <text x={(pp[pp.length - 1].x + cursore.x) / 2} y={(pp[pp.length - 1].y + cursore.y) / 2 - px(10)} textAnchor="middle" fontSize={px(12)} fontWeight={700} fill={SELEZIONE}>
+                    {scriviMetri(dist(pp[pp.length - 1], cursore))}
+                  </text>
+                )}
+              </g>
+            );
+          })()}
+          {sovrapposizioni.quotaInCorso && (
+            <g pointerEvents="none">
+              <line x1={sovrapposizioni.quotaInCorso.a.x} y1={sovrapposizioni.quotaInCorso.a.y} x2={sovrapposizioni.quotaInCorso.b.x} y2={sovrapposizioni.quotaInCorso.b.y} stroke="#0f766e" strokeWidth={px(1.5)} strokeDasharray={`${px(5)} ${px(4)}`} />
+              <text x={(sovrapposizioni.quotaInCorso.a.x + sovrapposizioni.quotaInCorso.b.x) / 2} y={(sovrapposizioni.quotaInCorso.a.y + sovrapposizioni.quotaInCorso.b.y) / 2 - px(10)} textAnchor="middle" fontSize={px(12)} fontWeight={700} fill="#0f766e">
+                {scriviMetri(dist(sovrapposizioni.quotaInCorso.a, sovrapposizioni.quotaInCorso.b))}
+              </text>
+            </g>
+          )}
+          {sovrapposizioni.arredoFantasma && (
+            <g transform={`translate(${sovrapposizioni.arredoFantasma.centro.x} ${sovrapposizioni.arredoFantasma.centro.y})`} pointerEvents="none" opacity={0.6}>
+              <SimboloArredo tipo={sovrapposizioni.arredoFantasma.tipo} larghezza={sovrapposizioni.arredoFantasma.larghezza} profondita={sovrapposizioni.arredoFantasma.profondita} colore={SELEZIONE} spessore={px(1.5)} />
+            </g>
+          )}
           {sovrapposizioni.aperturaFantasma &&
             (() => {
               const f = sovrapposizioni.aperturaFantasma;

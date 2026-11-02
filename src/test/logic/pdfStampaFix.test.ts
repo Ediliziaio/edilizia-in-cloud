@@ -110,12 +110,12 @@ describe("fix impaginazione stampa/PDF (audit)", () => {
     });
   });
 
-  describe("OrderDiaryTab (jsPDF)", () => {
-    const source = read("src/components/orders/OrderDiaryTab.tsx");
+  describe("RegistroCommessa (jsPDF)", () => {
+    const source = read("src/components/orders/RegistroCommessa.tsx");
 
     it("tronca i dettagli a 500 caratteri", () => {
       expect(source).toContain("MAX_DETTAGLI_LENGTH = 500");
-      expect(source).toContain("truncateDettagli(JSON.stringify(entry.data.payload ?? {}))");
+      expect(source).toContain("truncateDettagli(row.dettagli)");
     });
 
     it("guardia fine pagina anche dentro il loop righe del blocco", () => {

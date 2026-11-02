@@ -10,6 +10,7 @@ export { daStatoPianta, pianteDaPlanimetria, rotazione3D } from "./adattatore";
 export { BILOCALE_DA_RISTRUTTURARE } from "./esempio";
 export { costruisciScena, limitiDi, muroPresente, comeApertura } from "./scena";
 export { esportaGlb, esportaObj } from "./esporta";
+export { pianiDaPlanimetria, scenaEdificio, type OpzioniEdificio, type PianoPer3D } from "./edificio";
 export { MATERIALI } from "./materiali";
 export {
   ALTEZZA_OCCHI,
@@ -17,7 +18,9 @@ export {
   metadatiFotogramma,
   proietta,
   vistaDallAlto,
+  vistaDalGiardino,
   vistaDentroLocale,
+  type LatoEsterno,
   vistaGiroIntorno,
   type MetadatiFotogramma,
 } from "./telecamera";

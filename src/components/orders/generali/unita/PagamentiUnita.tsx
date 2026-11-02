@@ -48,6 +48,7 @@ export function PagamentiUnita({ generaleId, unita: u, gestisci }: Props) {
           <dd className="font-medium tabular-nums">{euro(pag.residuo)}</dd>
         </div>
       </dl>
+      <p className="text-xs text-muted-foreground">Prezzo e pagamenti al netto dell'IVA.</p>
 
       {u.movimenti.length > 0 ? (
         <ul className="divide-y rounded-md border text-sm">
