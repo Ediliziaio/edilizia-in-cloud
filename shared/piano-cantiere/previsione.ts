@@ -32,6 +32,9 @@ export function prevediFine(
   if (!fasi.length || !inizio) return senzaData("Le fasi non hanno date: non posso fare una previsione.");
   if (avanzamentoPct >= 100) return { dataPrevista: oggi, ritardoGiorni: 0, avanzamentoPct, affidabile: true, perche: "Le fasi sono tutte completate." };
   if (inizio >= oggi) return senzaData("Il cantiere non è ancora partito.");
+  // Fase già iniziata ferma a 0%: quasi sempre la percentuale non è scritta, non è un cantiere fermo.
+  const nonScritta = fasi.find((f) => !f.completata && !f.percentuale && f.dal && f.dal < oggi && fasi.some((x) => x.completata || x.percentuale > 0));
+  if (nonScritta) return senzaData(`La fase «${nonScritta.nome}» è iniziata ma non ha la percentuale scritta: senza, non posso prevedere la fine.`);
   const trascorsi = lavorativiTra(inizio, oggi, cal);
   if (avanzamentoPct < MINIMO_AVANZAMENTO) return senzaData(`L'avanzamento scritto è solo del ${avanzamentoPct}%: troppo poco per prevedere la fine.`);
   if (trascorsi < MINIMO_GIORNI) return senzaData("Il cantiere è partito da troppo poco per prevedere la fine.");

@@ -21,9 +21,14 @@ vi.mock("../../../shared/piano-cantiere/costruisci.ts", () => ({ costruisciPiano
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: vi.fn(async () => ({ data: 27, error: null as null })),
-    from: () => ({ insert: async (r: unknown) => { inserite.push(r); return { error: null as null }; } }),
+    from: () => ({
+      insert: async (r: unknown) => { inserite.push(r); return { error: null as null }; },
+      select: () => ({ eq: async () => ({ data: [] as unknown[], error: null as null }) }),
+    }),
   },
 }));
+vi.mock("@/hooks/useIsCompanyAdmin", () => ({ useIsCompanyAdmin: () => true }));
+vi.mock("@/lib/orders/refreshWorkQueries", () => ({ refreshWorkQueries: vi.fn() }));
 import { PianoCantiereDialog } from "@/components/orders/PianoCantiereDialog";
 
 const apri = (puoModificare = true) => render(

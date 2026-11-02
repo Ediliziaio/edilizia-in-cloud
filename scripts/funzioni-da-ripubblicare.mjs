@@ -22,6 +22,7 @@ import { dirname, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const RADICE = "supabase/functions";
+const CODICE_COMUNE = "shared/";
 
 /** Tutti i file .ts sotto una cartella. */
 function fileTs(cartella) {
@@ -49,20 +50,23 @@ function fileTs(cartella) {
 function importati(percorso) {
   let testo = "";
   try { testo = readFileSync(percorso, "utf8"); } catch { return []; }
-  const cartella = dirname(percorso).slice(RADICE.length + 1); // es. "_shared"
+  const comune = percorso.startsWith(CODICE_COMUNE);
+  // Dalla cartella shared/ i riferimenti relativi si leggono come se stesse due livelli più su.
+  const cartella = comune ? join("../..", dirname(percorso)) : dirname(percorso).slice(RADICE.length + 1); // es. "_shared"
   const nomi = new Set();
   for (const m of testo.matchAll(/["']((?:\.{1,2}\/)+[A-Za-z0-9_./-]+?)(?:\.ts)?["']/g)) {
     const riferimento = m[1];
     const risolto = normalize(join(cartella, riferimento)).replace(/\\/g, "/");
     if (risolto.startsWith("_")) nomi.add(risolto);
+    // `../../../shared/x` da una funzione: fuori da supabase/functions, si tiene dalla radice.
+    else if (risolto.startsWith("../../shared/")) nomi.add(risolto.slice("../../".length));
   }
   return [...nomi];
 }
 
 export function funzioniDaRipubblicare(fileCambiati) {
-  const dentroFunzioni = fileCambiati
-    .map((f) => f.trim())
-    .filter((f) => f.startsWith(`${RADICE}/`));
+  const puliti = fileCambiati.map((f) => f.trim());
+  const dentroFunzioni = puliti.filter((f) => f.startsWith(`${RADICE}/`));
 
   const dirette = new Set();
   const librerieCambiate = new Set();
@@ -77,6 +81,10 @@ export function funzioniDaRipubblicare(fileCambiati) {
     }
   }
 
+  // Il codice di `shared/` entra nel pacchetto delle funzioni che lo importano, anche di rimbalzo.
+  for (const f of puliti) {
+    if (f.startsWith(CODICE_COMUNE) && f.endsWith(".ts")) librerieCambiate.add(f.replace(/\.ts$/, ""));
+  }
   if (librerieCambiate.size === 0) return [...dirette].sort();
 
   // Una libreria che ne importa un'altra cambiata è cambiata anche lei.
@@ -85,11 +93,12 @@ export function funzioniDaRipubblicare(fileCambiati) {
       .filter((d) => d.startsWith("_") && d !== "_shared")
       .flatMap((d) => fileTs(join(RADICE, d))),
   );
+  const comuni = fileTs(CODICE_COMUNE);
   let cresce = true;
   while (cresce) {
     cresce = false;
-    for (const p of libFile) {
-      const nome = p.slice(RADICE.length + 1).replace(/\.ts$/, "");
+    for (const p of [...libFile, ...comuni]) {
+      const nome = (p.startsWith(CODICE_COMUNE) ? p : p.slice(RADICE.length + 1)).replace(/\.ts$/, "");
       if (librerieCambiate.has(nome)) continue;
       if (importati(p).some((dip) => librerieCambiate.has(dip))) {
         librerieCambiate.add(nome);

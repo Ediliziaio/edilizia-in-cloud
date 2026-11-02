@@ -20,7 +20,7 @@ export interface OpzioniPiano { al?: string | null; costoOrario?: number | null;
 export interface DatiPiano extends DatiVoci {
   commessa: { id: string; company_id: string; codice: string; descrizione: string | null; stato: string | null; inizio: string | null; fine: string | null; indirizzo: string | null };
   provincia: string | null;
-  fasi: (RigaFase & { id: string })[];
+  fasi: (RigaFase & { id: string; costo_registrato?: number | null })[];
   ditte: { nome: string; costo: number | null; phase_id?: string | null }[];
   economia: (CostiRegistrati & { ricavi: number }) | null;
   persone: { id: string; role_type: string | null; area: string | null; costo_orario: number | null }[];
@@ -62,7 +62,7 @@ export async function costruisciPiano(db: ClientPiano, orderId: string, op: Opzi
   const regione = regioneDaProvincia(dati.provincia);
 
   // Il prezzario, a piccoli gruppi: ogni chiamata ha pochi secondi di tempo.
-  let voci = vociDellaCommessa(dati);
+  let voci = vociDellaCommessa(dati, dati.fasi);
   const testi = testiSenzaManodopera(voci);
   const stime = new Map<string, Incidenza>();
   const avvisiLettura: string[] = [];
@@ -94,6 +94,7 @@ export async function costruisciPiano(db: ClientPiano, orderId: string, op: Opzi
         ricavi: Number(dati.economia.ricavi) || 0,
         registrati: { manodopera: Number(dati.economia.manodopera) || 0, materiali: Number(dati.economia.materiali) || 0, ditte: Number(dati.economia.ditte) || 0, altri: Number(dati.economia.altri) || 0 },
         ditte: dati.ditte,
+        manodoperaPerFase: new Map(dati.fasi.filter((f) => f.nome && Number(f.costo_registrato) > 0).map((f) => [f.nome!.trim(), Number(f.costo_registrato)])),
       })
     : null;
   // Una ditta senza fase: il suo lavoro non si può togliere da quello degli operai.
@@ -112,7 +113,7 @@ export async function costruisciPiano(db: ClientPiano, orderId: string, op: Opzi
     regione, origineVoci: voci[0]?.origine ?? null,
     voci: voci.map((v) => ({ ...v, calcolo: oreDellaVoce(v, ipotesi) })),
     piano: pianoConId, margine, risorse,
-    previsione: prevediFine(fasi, dati.ultimo_rapportino, oggi, dati.commessa.fine, calendario),
+    previsione: prevediFine(fasi, dati.ultimo_rapportino, oggi, op.al ?? dati.commessa.fine, calendario),
     avvisiLettura,
   };
 }

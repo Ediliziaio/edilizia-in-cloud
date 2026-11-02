@@ -4,7 +4,7 @@
  * stima dice da dove viene. Niente si assegna senza premere «Assegna».
  */
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useIsCompanyAdmin } from "@/hooks/useIsCompanyAdmin";
 import { formatCurrency } from "@/lib/formatters";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { chiaveLavorazione, FONTE_A_PAROLE } from "../../../shared/piano-cantiere/calcolo.ts";
 import { costruisciPiano, type ClientPiano, type OpzioniPiano } from "../../../shared/piano-cantiere/costruisci.ts";
 
@@ -28,12 +30,24 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
   const qc = useQueryClient();
   const [opzioni, setOpzioni] = useState<OpzioniPiano>({});
   const chiave = ["piano-cantiere", orderId, opzioni];
-  const { data: e, isLoading, error } = useQuery({ queryKey: chiave, enabled: open, staleTime: 60_000, queryFn: () => costruisciPiano(db, orderId, opzioni) });
-  const ricalcola = (k: keyof OpzioniPiano, v: string) => setOpzioni((o) => ({ ...o, [k]: v === "" ? null : k === "al" ? v : Number(v) }));
+  // Assegnare scrive su order_employees, che accetta solo gli amministratori.
+  const puoAssegnare = useIsCompanyAdmin();
+  const { data: e, isLoading, isFetching, error } = useQuery({
+    queryKey: chiave, enabled: open, staleTime: 60_000, placeholderData: keepPreviousData, queryFn: () => costruisciPiano(db, orderId, opzioni),
+  });
+  /** Solo se il valore cambia: passare su un campo non è una scelta. */
+  const ricalcola = (k: keyof OpzioniPiano, v: string, attuale: unknown) => {
+    if (v === "" || String(attuale ?? "") === v) return;
+    setOpzioni((o) => ({ ...o, [k]: k === "al" ? v : Number(v) }));
+  };
 
   const assegna = useMutation({
     mutationFn: async () => {
-      const nuove = e?.risorse.persone.filter((p) => !p.gia) ?? [];
+      // Si rilegge prima di scrivere: dopo un errore a metà chi è già passato non si ripete.
+      const { data: presenti, error: errPresenti } = await supabase.from("order_employees").select("employee_id, phase_id").eq("order_id", orderId);
+      if (errPresenti) throw errPresenti;
+      const gia = new Set((presenti ?? []).map((r) => `${r.employee_id}|${r.phase_id ?? ""}`));
+      const nuove = (e?.risorse.persone ?? []).filter((p) => !p.gia && !gia.has(`${p.employee_id}|${p.faseId ?? ""}`));
       for (const p of nuove) {
         const { data: costo, error: errCosto } = await supabase.rpc("costo_orario_dipendente", { p_employee_id: p.employee_id });
         if (errCosto) throw errCosto;
@@ -47,7 +61,11 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
       }
       return nuove.length;
     },
-    onSuccess: (n) => { toast.success(n === 1 ? "Una persona assegnata" : `${n} persone assegnate`); qc.invalidateQueries({ queryKey: ["piano-cantiere", orderId] }); },
+    onSuccess: async (n) => {
+      toast.success(n === 1 ? "Una persona assegnata" : `${n} assegnazioni fatte`);
+      refreshWorkQueries(qc, orderId, e?.commessa.company_id);
+      await qc.invalidateQueries({ queryKey: ["piano-cantiere", orderId] });
+    },
     onError: () => toast.error("Non sono riuscito ad assegnare tutti: controlla la commessa e riprova."),
   });
 
@@ -78,10 +96,10 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
         {e && (
           <div className="space-y-5 text-sm">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div><Label htmlFor="piano-al">Finire entro</Label><Input id="piano-al" type="date" value={opzioni.al ?? e.piano.al ?? ""} onChange={(x) => ricalcola("al", x.target.value)} /></div>
-              <div><Label htmlFor="piano-costo">Costo orario (€)</Label><Input id="piano-costo" type="number" min={1} defaultValue={e.ipotesi.costoOrario} onBlur={(x) => ricalcola("costoOrario", x.target.value)} /></div>
-              <div><Label htmlFor="piano-ore">Ore al giorno</Label><Input id="piano-ore" type="number" min={1} max={12} defaultValue={e.ipotesi.oreGiorno} onBlur={(x) => ricalcola("oreGiorno", x.target.value)} /></div>
-              <div><Label htmlFor="piano-resa">Ore produttive (%)</Label><Input id="piano-resa" type="number" min={10} max={100} defaultValue={e.ipotesi.resaPct} onBlur={(x) => ricalcola("resaPct", x.target.value)} /></div>
+              <div><Label htmlFor="piano-al">Finire entro</Label><Input id="piano-al" type="date" value={opzioni.al ?? e.piano.al ?? ""} onChange={(x) => ricalcola("al", x.target.value, e.piano.al)} /></div>
+              <div><Label htmlFor="piano-costo">Costo orario (€)</Label><Input id="piano-costo" type="number" min={1} defaultValue={e.ipotesi.costoOrario} onBlur={(x) => ricalcola("costoOrario", x.target.value, e.ipotesi.costoOrario)} /></div>
+              <div><Label htmlFor="piano-ore">Ore al giorno</Label><Input id="piano-ore" type="number" min={1} max={12} defaultValue={e.ipotesi.oreGiorno} onBlur={(x) => ricalcola("oreGiorno", x.target.value, e.ipotesi.oreGiorno)} /></div>
+              <div><Label htmlFor="piano-resa">Ore produttive (%)</Label><Input id="piano-resa" type="number" min={10} max={100} defaultValue={e.ipotesi.resaPct} onBlur={(x) => ricalcola("resaPct", x.target.value, e.ipotesi.resaPct)} /></div>
             </div>
             <p className="text-xs text-muted-foreground">Costo orario: {COSTO_DA[e.costoOrarioDa]}. Prezzario usato per le stime: {e.regione ?? "tutta Italia"}.</p>
 
@@ -116,8 +134,9 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
                   </div>
                 ))}
               </div>
-              {puoModificare && daAssegnare > 0 && (
-                <Button className="mt-3" disabled={assegna.isPending} onClick={() => assegna.mutate()}>
+              <p className="mt-2 text-xs text-muted-foreground">Le date delle fasi qui sono una proposta: «Assegna» aggiunge le persone ma non cambia le date della commessa.</p>
+              {puoModificare && puoAssegnare && daAssegnare > 0 && (
+                <Button className="mt-3" disabled={assegna.isPending || isFetching} onClick={() => assegna.mutate()}>
                   {assegna.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Assegna {daAssegnare === 1 ? "questa persona" : "le persone proposte"}
                 </Button>
               )}
@@ -139,8 +158,8 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
                         <p>{v.descrizione}</p>
                         <p className="text-xs text-muted-foreground">{v.quantita} {v.unita ?? ""} · {v.calcolo ? `${ore(v.calcolo.ore)}, ${FONTE_A_PAROLE[v.calcolo.fonte]}` : FONTE_A_PAROLE.manca}</p>
                       </div>
-                      <Input aria-label={`Ore per unità: ${v.descrizione}`} className="h-8 w-24" type="number" min={0} step="0.01" placeholder="ore/unità"
-                        onBlur={(x) => { const n = Number(x.target.value); if (x.target.value !== "" && n > 0) salvaResa.mutate({ descrizione: v.descrizione, unita: v.unita, valore: n }); }} />
+                      {v.calcolo?.fonte !== "scritte" && <Input aria-label={`Ore per unità: ${v.descrizione}`} className="h-8 w-24" type="number" min={0} step="0.01" placeholder="ore/unità"
+                        onBlur={(x) => { const n = Number(x.target.value); if (x.target.value !== "" && n > 0) salvaResa.mutate({ descrizione: v.descrizione, unita: v.unita, valore: n }); }} />}
                     </div>
                   ))}
                 </div>

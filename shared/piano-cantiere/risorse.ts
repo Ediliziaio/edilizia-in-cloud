@@ -52,7 +52,8 @@ export function risorsePerPiano(
 
   for (const f of piano.fasi) {
     if (!f.operaiNecessari) continue;
-    const libera = (id: string) => !personaOccupata(ctx, id, f.dal, f.al);
+    // Le date del piano sono una proposta: deve essere libera anche in quelle vere della commessa.
+    const libera = (id: string) => !personaOccupata(ctx, id, f.dal, f.al) && !personaOccupata(ctx, id, f.dalInCommessa, f.alInCommessa);
     // Chi è già su questa fase, o sulla commessa senza una fase, conta fra quelli che servono.
     const gia = assegnati.filter((a) => a.fase === f.nome || a.fase === null).map((a) => a.employee_id);
     const scelti: { id: string; motivo: string; gia?: boolean }[] = [...new Set(gia)].slice(0, f.operaiNecessari).map((id) => ({ id, motivo: "è già assegnato a questa commessa", gia: true }));
@@ -80,7 +81,7 @@ export function risorsePerPiano(
   const utilizzabili = ctx.mezzi.filter((m) => m.stato !== "fuori_servizio");
   const storicoMezzi = ctx.storicoMezzi.map((s) => ({ id: s.mezzo_id, nome: s.fase }));
   for (const f of piano.fasi) {
-    if (!f.dal || !f.giorni) continue;
+    if (!f.dal || !f.giorni || f.ditta) continue;
     const libero = (id: string) => !mezzoOccupato(ctx, id, f.dal, f.al);
     const dalloStorico = piuSimili(f.nome, storicoMezzi).find((c) => utilizzabili.some((m) => m.id === c.id) && libero(c.id));
     if (dalloStorico) {

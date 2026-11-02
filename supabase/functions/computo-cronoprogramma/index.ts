@@ -14,7 +14,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { chiudiBuchi, fasiDelComputo, limitaSquadre } from "../../../shared/piano-cantiere/cronoprogramma.ts";
+import { limitaSquadre, segnaFasiFuoriComputo } from "../../../shared/piano-cantiere/cronoprogramma.ts";
 
 const SYSTEM_PROMPT = `Sei il direttore tecnico di un'impresa edile italiana. Ricevi il computo metrico di un lavoro (capitoli, voci, quantità, importi) e prepari il cronoprogramma dei lavori da allegare al preventivo.
 
@@ -87,10 +87,11 @@ Deno.serve(async (req) => {
       const inizio = Math.round(numero(x.inizio) ?? 0), durata = Math.round(numero(x.durata) ?? 0);
       return { nome: testo(x.nome, 200), inizio: Math.min(2000, Math.max(1, inizio)), durata: Math.min(2000, Math.max(1, durata)), nota: testo(x.nota, 500) };
     }).filter((f) => f.nome);
-    // L'AI può sbagliare: fasi che nel computo non ci sono non passano, e le squadre si rispettano.
+    if (!fasi.length) return errorResponse("Silvio non è riuscito a preparare il cronoprogramma: riprova, oppure parti dai capitoli.", 502, cors);
+    // L'AI può sbagliare: le fasi con lavori che il computo non ha si segnalano, le squadre si rispettano.
     const testoComputo = capitoli.flatMap((c) => [c.nome, ...c.voci.map((v) => v.descrizione)]).join(" ");
-    const aderenti = limitaSquadre(chiudiBuchi(fasiDelComputo(fasi, testoComputo)), numero(body.squadre));
-    if (!aderenti.length) return errorResponse("Silvio non è riuscito a preparare il cronoprogramma: riprova, oppure parti dai capitoli.", 502, cors);
+    const { fasi: segnate } = segnaFasiFuoriComputo(fasi, testoComputo);
+    const aderenti = limitaSquadre(segnate, numero(body.squadre));
 
     return jsonResponse({
       success: true, fasi: aderenti, nota: testo(parsed.nota, 1000),

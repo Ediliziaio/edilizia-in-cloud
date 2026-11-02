@@ -36,8 +36,16 @@ function daRighe(righe: readonly RigaVoce[], origine: VoceCantiere["origine"]): 
   }));
 }
 
-export function vociDellaCommessa(dati: DatiVoci): VoceCantiere[] {
-  if (dati.voci_fase?.length) return daRighe(dati.voci_fase, "fase");
+const FASE_SENZA_VOCI = /collaud|consegn|allestiment|sicurezz|pulizi/i;
+
+export function vociDellaCommessa(dati: DatiVoci, fasi: readonly { nome?: string | null }[] = []): VoceCantiere[] {
+  if (dati.voci_fase?.length) {
+    // Le voci di fase valgono solo se coprono tutte le fasi di lavoro: se ne bastasse una,
+    // cancellerebbe il preventivo e le altre fasi resterebbero a zero ore.
+    const conVoci = new Set(dati.voci_fase.map((v) => v.fase?.trim()));
+    const scoperta = fasi.some((f) => f.nome?.trim() && !FASE_SENZA_VOCI.test(f.nome) && !conVoci.has(f.nome.trim()));
+    if (!scoperta || (!dati.voci_computo?.length && !dati.righe_preventivo?.length)) return daRighe(dati.voci_fase, "fase");
+  }
   if (dati.voci_computo?.length) return daRighe(dati.voci_computo, "computo");
   return daRighe(dati.righe_preventivo ?? [], "preventivo");
 }

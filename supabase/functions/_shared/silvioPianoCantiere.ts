@@ -7,7 +7,7 @@ import { FONTE_A_PAROLE } from "../../../shared/piano-cantiere/calcolo.ts";
 import { fasiDellaCommessa, type RigaFase } from "../../../shared/piano-cantiere/vociCommessa.ts";
 import { prevediFine } from "../../../shared/piano-cantiere/previsione.ts";
 import { calendarioAzienda } from "../../../shared/silvio-commessa/calendario.ts";
-import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { dataVera, oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 // deno-lint-ignore no-explicit-any
 type Ctx = { supabase: any; companyId: string };
 
@@ -27,6 +27,7 @@ export async function silvioCalcolaPiano(args: Record<string, unknown>, ctx: Ctx
   const codice = typeof args?.commessa_codice === "string" ? args.commessa_codice.trim() : "";
   const orderId = typeof args?.order_id === "string" ? args.order_id : "";
   if (!codice && !orderId) return { errore: "Dimmi su quale commessa fare il calcolo." };
+  if (args?.data_fine != null && !dataVera(args.data_fine)) return { errore: "Dimmi la data di fine come giorno preciso (AAAA-MM-GG)." };
   let q = ctx.supabase.from("orders").select("id").eq("company_id", ctx.companyId).is("deleted_at", null);
   q = orderId ? q.eq("id", orderId) : q.eq("order_code", codice);
   const { data: trovata, error } = await q.maybeSingle();
@@ -66,8 +67,14 @@ export async function silvioPrevediRitardi(_args: Record<string, unknown>, ctx: 
   const { data, error } = await ctx.supabase.rpc("piano_cantiere_avanzamenti", { p_company_id: ctx.companyId });
   if (error) return { errore: "Non riesco a leggere le commesse." };
   const oggi = oggiInItalia();
+  // Le chiusure dell'azienda valgono anche qui, come nel piano.
+  const [{ data: calendarioRiga }, { data: festivita }] = await Promise.all([
+    ctx.supabase.from("silvio_calendario").select("*").eq("company_id", ctx.companyId).maybeSingle(),
+    ctx.supabase.from("hr_festivita").select("data, descrizione, ricorrente").eq("company_id", ctx.companyId),
+  ]);
+  const impostazioni = { calendario: calendarioRiga ?? null, festivita: festivita ?? [] };
   const righe = ((data ?? []) as { codice: string; descrizione: string | null; fine: string | null; indirizzo: string | null; ultimo_rapportino: string | null; fasi: RigaFase[] }[])
-    .map((c) => ({ c, p: prevediFine(fasiDellaCommessa(c.fasi), c.ultimo_rapportino, oggi, c.fine, calendarioAzienda(null, c.indirizzo)) }));
+    .map((c) => ({ c, p: prevediFine(fasiDellaCommessa(c.fasi), c.ultimo_rapportino, oggi, c.fine, calendarioAzienda(impostazioni, c.indirizzo)) }));
   const inRitardo = righe.filter((r) => r.p.affidabile && (r.p.ritardoGiorni ?? 0) > 0)
     .sort((a, b) => (b.p.ritardoGiorni ?? 0) - (a.p.ritardoGiorni ?? 0));
   const nonPrevedibili = righe.filter((r) => !r.p.affidabile);

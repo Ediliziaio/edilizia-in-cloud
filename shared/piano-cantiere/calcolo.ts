@@ -12,13 +12,14 @@
 import { CALENDARIO_NAZIONALE, lavorativiTra, lavorativo, primoGiornoUtile, spostaLavorativi, type CalendarioCantiere } from "../silvio-commessa/calendario.ts";
 import { somiglianzaFasi } from "../silvio-commessa/somiglianza.ts";
 
-export type FonteOre = "scritte" | "azienda" | "costo_voce" | "prezzario" | "manca";
+export type FonteOre = "scritte" | "azienda" | "costo_voce" | "prezzario" | "storico" | "manca";
 
 export const FONTE_A_PAROLE: Record<FonteOre, string> = {
   scritte: "ore scritte sulla voce",
   azienda: "resa della tua azienda",
   costo_voce: "costo di manodopera della voce",
   prezzario: "stima dal prezzario regionale",
+  storico: "corretta con le ore vere dei tuoi cantieri",
   manca: "nessun dato",
 };
 
@@ -82,6 +83,11 @@ export interface FaseCalcolata {
   nome: string;
   dal: string | null;
   al: string | null;
+  /** Le date scritte nella commessa: quelle del piano sono solo una proposta. */
+  dalInCommessa: string | null;
+  alInCommessa: string | null;
+  /** Tutte le ore della fase, anche quelle già fatte. */
+  oreIntere: number;
   ore: number;
   oreMin: number;
   oreMax: number;
@@ -149,6 +155,10 @@ const CON_LAVORO = /demoli|scav|mur|impiant|posa|finitur|serrament|massett|inton
 /** «Allestimento e demolizioni» è lavoro vero, «Collaudo e consegna» no. */
 const faseDiLavoro = (nome: string) => !SENZA_LAVORO_DIVISO.test(nome) || CON_LAVORO.test(nome);
 
+const PAROLE_GENERICHE = new Set(["opere", "lavor", "mater", "varie", "gener"]);
+const radici = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z]+/)
+  .filter((w) => w.length >= 5).map((w) => w.slice(0, 5)).filter((w) => !PAROLE_GENERICHE.has(w));
+
 function faseDellaVoce(v: VoceCantiere, fasi: readonly FaseCantiere[]): FaseCantiere | null {
   const nome = v.fase ?? v.capitolo ?? v.descrizione;
   const esatta = fasi.find((f) => f.nome.trim().toLowerCase() === (v.fase ?? "").trim().toLowerCase());
@@ -159,7 +169,15 @@ function faseDellaVoce(v: VoceCantiere, fasi: readonly FaseCantiere[]): FaseCant
     const s = Math.max(somiglianzaFasi(nome, f.nome), v.capitolo ? somiglianzaFasi(v.capitolo, f.nome) : 0);
     if (s > punti) { punti = s; migliore = f; }
   }
-  return punti >= 0.34 ? migliore : null;
+  if (punti >= 0.34) return migliore;
+  // Nomi come «Impianti» restano senza parole per somiglianzaFasi: si guarda la radice delle parole.
+  const testo = new Set(radici(`${v.capitolo ?? ""} ${v.descrizione}`));
+  let radiciComuni = 0;
+  for (const f of fasi) {
+    const comuni = radici(f.nome).filter((r) => testo.has(r)).length;
+    if (comuni > radiciComuni) { radiciComuni = comuni; migliore = f; }
+  }
+  return radiciComuni ? migliore : null;
 }
 
 /** I giorni di ogni fase in proporzione alle ore, senza sforare la data: si toglie dalle più lunghe. */
@@ -187,6 +205,12 @@ export function calcolaPiano(
   const daDividere: OreVoce[] = [];
   const fonti: Partial<Record<FonteOre, number>> = {};
   let senzaDato = 0, importoTot = 0, importoCoperto = 0;
+  const aggiungi = (f: FaseCantiere, o: OreVoce, quota: number) => {
+    const c = conti.get(f.nome)!;
+    const correzione = ip.correzioni?.get(chiaveLavorazione(f.nome)) ?? 1;
+    c.ore += o.ore * quota * correzione; c.min += o.min * quota * correzione; c.max += o.max * quota * correzione; c.fonti.add(o.fonte);
+    if (correzione !== 1) c.fonti.add("storico");
+  };
 
   for (const v of voci) {
     const o = oreDellaVoce(v, ip);
@@ -202,25 +226,22 @@ export function calcolaPiano(
     importoCoperto += importo;
     fonti[o.fonte] = (fonti[o.fonte] ?? 0) + 1;
     if (!fase) { daDividere.push(o); continue; }
-    const c = conti.get(fase.nome)!;
-    const correzione = ip.correzioni?.get(chiaveLavorazione(fase.nome)) ?? 1;
-    c.ore += o.ore * correzione; c.min += o.min * correzione; c.max += o.max * correzione; c.fonti.add(o.fonte);
+    aggiungi(fase, o, 1);
   }
 
-  // Voci non collegate a una fase: si dividono sulle fasi di lavoro in base a quanto durano.
+  // Voci non collegate a una fase: si dividono sulle fasi di lavoro dell'azienda in base a quanto
+  // durano, comprese quelle finite (la loro quota è già fatta). Mai sulle fasi delle ditte.
   const dividere = (() => {
-    const aperte = fasi.filter((f) => !f.completata);
-    const lavoro = aperte.filter((f) => faseDiLavoro(f.nome));
-    return lavoro.length ? lavoro : aperte.length ? aperte : [...fasi];
+    const proprie = fasi.filter((f) => !f.ditta);
+    const lavoro = proprie.filter((f) => faseDiLavoro(f.nome));
+    return lavoro.length ? lavoro : proprie.length ? proprie : [...fasi];
   })();
   if (daDividere.length) {
     const peso = (f: FaseCantiere) => (f.dal && f.al ? Math.max(1, lavorativiTra(f.dal, f.al, cal) + 1) : 1);
     const pesoTot = dividere.reduce((t, f) => t + peso(f), 0);
     for (const f of dividere) {
-      const c = conti.get(f.nome)!;
-      const q = peso(f) / pesoTot;
-      for (const o of daDividere) { c.ore += o.ore * q; c.min += o.min * q; c.max += o.max * q; c.fonti.add(o.fonte); }
-      c.divise = true;
+      for (const o of daDividere) aggiungi(f, o, peso(f) / pesoTot);
+      conti.get(f.nome)!.divise = true;
     }
     avvisi.push(`${daDividere.length} ${daDividere.length === 1 ? "voce non è collegata" : "voci non sono collegate"} a una fase: le ore sono divise fra le fasi in base alla durata.`);
   }
@@ -254,7 +275,7 @@ export function calcolaPiano(
     const c = conti.get(f.nome)!;
     const ore = residuo(f, c.ore);
     const base = {
-      nome: f.nome, ore: tondo(ore), oreMin: tondo(residuo(f, c.min)), oreMax: tondo(residuo(f, c.max)), fonti: [...c.fonti],
+      nome: f.nome, dalInCommessa: f.dal, alInCommessa: f.al, oreIntere: tondo(c.ore), ore: tondo(ore), oreMin: tondo(residuo(f, c.min)), oreMax: tondo(residuo(f, c.max)), fonti: [...c.fonti],
       ditta: f.ditta, percentuale: f.percentuale, vociSenzaDato: c.senza, conOreDivise: c.divise,
     };
     if (f.completata) return { ...base, dal: f.dal, al: f.al, giorni: 0, operaiNecessari: 0 };
@@ -269,6 +290,7 @@ export function calcolaPiano(
     };
   });
   if (al && giorniDisponibili && giorniUsati > giorniDisponibili) {
+    fattibile = false;
     avvisi.push(`Le fasi una dopo l'altra chiedono ${giorniUsati} giorni e ne hai ${giorniDisponibili}: alcune vanno fatte in parallelo.`);
   }
   if (!voci.length) {
