@@ -95,3 +95,12 @@ describe("prove a parole col modello vero", () => {
     expect(leggi("Bagno.", { pagamenti: { "pagamenti.rate": [{ label: "x" }] }, fasi: { "fasi.order_work_phases": [{ giorni: 3 }] } }).avvisi ?? []).toEqual([]);
   });
 });
+
+describe("il cliente azienda", () => {
+  const nome = (valore: unknown) => frammentoDaRispostaAI({ aree: { cliente: { "cliente.nome": { valore, citazione: "Alfa Costruzioni Srl" } } } }, { fonte: { tipo: "testo", etichetta: "testo" }, testo: "Lavoro per Alfa Costruzioni Srl" } as never).aree.cliente?.["cliente.nome"]?.valore as { client_name?: string; client_company?: string } | undefined;
+
+  it("come testo: è l'azienda", () => expect(nome("Alfa Costruzioni Srl")?.client_company).toBe("Alfa Costruzioni Srl"));
+  it("sotto un'altra chiave", () => expect(nome({ ragione_sociale: "Alfa Costruzioni Srl" })?.client_company).toBe("Alfa Costruzioni Srl"));
+  it("una persona resta persona", () => expect(nome("Mario Verdi")?.client_name).toBe("Mario Verdi"));
+  it("le colonne giuste non si toccano", () => expect(nome({ client_company: "Beta Srl" })?.client_company).toBe("Beta Srl"));
+});
