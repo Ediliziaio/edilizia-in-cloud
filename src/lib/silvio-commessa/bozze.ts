@@ -1,6 +1,6 @@
 /**
  * La bozza della commessa che Silvio prepara (31/10/2026, fase 1, lotto 1.4, e fase 2,
- * lotto 2.2). Tabella `commessa_bozze` e RPC della migrazione 20281106100000. Vedi
+ * lotto 2.2). Tabella `commessa_bozze` e RPC della migrazione 20281112100000. Vedi
  * docs/piano-silvio-commessa-ai.md, 3.4 (punti 6 e 8), 3.5 e 5.2.
  *
  * - `creaBozza`, `salvaBozza`, `salvataggioConAttesa`: il popup scrive la bozza a ogni
@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { PianoCommessa } from "../../../shared/silvio-commessa/piano.ts";
 import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import { scritturaDalPiano, type ScritturaCommessa } from "./scrittura";
+import type { Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { BUCKET_DOCUMENTI_COMMESSA } from "./leggiDocumento";
 import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
 import { erroreLeggibile } from "./testoErrore";
@@ -174,7 +175,7 @@ function lancia(err: unknown): never {
 
 /** Una bozza nuova: per una commessa da creare, o (con `orderId`) da completare. */
 export async function creaBozza(
-  dati: { companyId: string; orderId?: string | null; piano: PianoCommessa; fonti?: FonteCaricata[] },
+  dati: { companyId: string; orderId?: string | null; piano: PianoCommessa; fonti?: FonteCaricata[]; autonomia?: Autonomia | null },
   db: ClientBozze = clientVero,
 ): Promise<Bozza> {
   const { data, error } = await tabella(db)
@@ -183,7 +184,7 @@ export async function creaBozza(
       modo: dati.orderId ? "completa" : "crea",
       order_id: dati.orderId ?? null,
       piano: dati.piano,
-      scrittura: scritturaDalPiano(dati.piano),
+      scrittura: scritturaDalPiano(dati.piano, dati.autonomia ?? null),
       fonti: dati.fonti ?? [],
     })
     .select()
@@ -195,13 +196,16 @@ export async function creaBozza(
 /** Il codice di un salvataggio rifiutato perché la commessa è già stata scritta: «Crea» la riprende (D9). */
 export const BOZZA_GIA_SCRITTA = "bozza_gia_scritta";
 
-/** Salva piano, fonti e storia; la scrittura si ricalcola dal piano, sempre insieme. */
+/**
+ * Salva piano, fonti e storia; la scrittura si ricalcola dal piano, sempre insieme, con la stessa
+ * autonomia del popup (quarta revisione, 1): senza, quello che Silvio fa «da solo» si perdeva.
+ */
 export async function salvaBozza(
   id: string,
-  dati: { piano: PianoCommessa; fonti?: FonteCaricata[]; storia?: unknown[] },
+  dati: { piano: PianoCommessa; fonti?: FonteCaricata[]; storia?: unknown[]; autonomia?: Autonomia | null },
   db: ClientBozze = clientVero,
 ): Promise<void> {
-  const riga: Record<string, unknown> = { piano: dati.piano, scrittura: scritturaDalPiano(dati.piano) };
+  const riga: Record<string, unknown> = { piano: dati.piano, scrittura: scritturaDalPiano(dati.piano, dati.autonomia ?? null) };
   if (dati.fonti) riga.fonti = dati.fonti;
   if (dati.storia) riga.storia = dati.storia;
   const { data, error } = await tabella(db).update(riga).eq("id", id).eq("stato", "bozza").select("id").maybeSingle();

@@ -3,7 +3,7 @@
  * completezza e cosa manca, e la sequenza «Completa le prossime 5».
  * Vedi docs/piano-silvio-commessa-ai.md, Fase 2.
  *
- * Il conto lo fa il database (`commesse_da_completare`, migrazione 20281106120000) con le
+ * Il conto lo fa il database (`commesse_da_completare`, migrazione 20281112120000) con le
  * stesse espressioni di completezza.ts: una chiamata, al massimo 200 righe, già in ordine.
  * Qui ci sono la lettura, l'ordine scritto anche in TypeScript (per i test e per rimettere in
  * fila dopo un completamento) e la sequenza, tutte funzioni pure tranne la lettura.

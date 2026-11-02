@@ -14,7 +14,7 @@
  * sono in `SEMPRE_TU`: non hanno una scelta, e il database rifiuta qualunque livello per loro.
  *
  * Lo stesso catalogo è scritto in SQL in `_silvio_azioni_autonomia()` (migrazione
- * 20281106140000): il test silvioCommessaAutonomia controlla che siano uguali.
+ * 20281112140000): il test silvioCommessaAutonomia controlla che siano uguali.
  *
  * Senza dipendenze, compatibile con Deno.
  */

@@ -1,7 +1,7 @@
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { DEMO_COMPANY_2_ID } from "@/lib/constants/demoCompany";
 
-/** La chiave dell'interruttore per azienda (migrazione 20281106110000). */
+/** La chiave dell'interruttore per azienda (migrazione 20281112110000). */
 export const FEATURE_CREA_CON_SILVIO = "silvio_crea_commessa";
 
 /**

@@ -203,7 +203,7 @@ describe("«Completa le prossime 5»: la sequenza avanza", () => {
 });
 
 describe("La funzione SQL conta come il popup", () => {
-  const migrazione = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281106120000_commesse_da_completare.sql"), "utf8");
+  const migrazione = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281112120000_commesse_da_completare.sql"), "utf8");
   const spazi = (s: string) => s.replace(/\s+/g, " ").trim();
 
   it("usa le stesse espressioni di completezza.ts per punteggio e cosa manca", () => {

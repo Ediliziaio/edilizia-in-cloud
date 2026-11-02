@@ -1,7 +1,7 @@
 /**
  * Le impostazioni di Silvio per le commesse (1/11/2026, fase 5): cosa fa da solo e il calendario
  * di cantiere. Lettura e scrittura passano dalle RPC `silvio_autonomia_leggi` e
- * `silvio_autonomia_salva` (migrazione 20281106140000): le tabelle non si toccano dal browser.
+ * `silvio_autonomia_salva` (migrazione 20281112140000): le tabelle non si toccano dal browser.
  *
  * Senza la migrazione (o senza il permesso) la lettura restituisce il predefinito: tutto
  * «chiede» e le sole feste nazionali. Il popup funziona come nelle fasi 1–4.

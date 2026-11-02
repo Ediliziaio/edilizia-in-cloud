@@ -140,9 +140,9 @@ describe("la funzione del cron e il job", () => {
     expect(config).toMatch(/\[functions\.silvio-piano-volo\]\nverify_jwt = false/);
   });
   it("il job è scritto fuori da supabase/migrations: 15 secondi e segreto dal Vault", () => {
-    const job = resolve(radice, "supabase/migrations-pending/20281106142500_silvio_piano_volo_cron.sql");
+    const job = resolve(radice, "supabase/migrations-pending/20281112142500_silvio_piano_volo_cron.sql");
     expect(existsSync(job)).toBe(true);
-    expect(existsSync(resolve(radice, "supabase/migrations/20281106142500_silvio_piano_volo_cron.sql"))).toBe(false);
+    expect(existsSync(resolve(radice, "supabase/migrations/20281112142500_silvio_piano_volo_cron.sql"))).toBe(false);
     const sql = readFileSync(job, "utf8");
     expect(sql).toMatch(/timeout_milliseconds := 15000/);
     expect(sql).toMatch(/vault\.decrypted_secrets where name = 'cron_secret'/);

@@ -9,7 +9,7 @@
 -- - Il client (useCreaConSilvioAttivo) NON si fida del passe-partout di useFeatureAccess per
 --   demo e super admin: vale solo quello che dice il database (e Demo 2 per id).
 --
--- Richiede 20281106100000 (commessa_bozze e RPC): applicarle insieme, in quest'ordine.
+-- Richiede 20281112100000 (commessa_bozze e RPC): applicarle insieme, in quest'ordine.
 -- IDEMPOTENTE. NON APPLICATA: va applicata con apply_migration e riallineata prima del push.
 
 insert into public.platform_feature_flags

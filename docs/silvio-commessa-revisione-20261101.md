@@ -11,12 +11,12 @@ data UTC della bozza ripresa.
   `requireCompanyAccess` senza ruoli lascia passare clienti del portale, segnalatori e subappaltatori (sono profiles).
   Un cliente legge, con la chiave di servizio, file caricati dallo staff (`valutaFile` accetta ogni percorso sotto
   `<azienda>/`) e consuma i crediti con `modo: "chat"`. → In ogni ramo `has_permission_for_company(uid,'can_edit_orders',company)`.
-- **S1 annulla — tabelle senza `updated_at`.** `20281106100000:837-849, 919-924`: `contratti_subappalto`,
+- **S1 annulla — tabelle senza `updated_at`.** `20281112100000:837-849, 919-924`: `contratti_subappalto`,
   `order_employees`, `order_external_teams`, `order_work_phase_voci`, `adempimenti_sicurezza`,
   `subappaltatori_sicurezza` non hanno `updated_at`. Un contratto firmato, una ditta segnata pagata, le ore dal
   rapportino spariscono con «Annulla». → Impronta `md5(to_jsonb(t)::text)` alla registrazione, ricalcolata a fine
   transazione; all'annullamento rifiutare se non corrisponde.
-- **S2 annulla — cascata su dati dell'utente.** `20281106100000:862-870, 921`: figlie di `orders` saltate dal filtro
+- **S2 annulla — cascata su dati dell'utente.** `20281112100000:862-870, 921`: figlie di `orders` saltate dal filtro
   (`mezzi_piani_cantiere` senza `created_at`, `lp_libretto_modifiche`, `lp_sal_voci`, `commesse_generali`,
   `order_variation_workspaces`, `generale_subappalto_ordini`) e figlie di righe di Silvio (`mezzi_piani_spese`,
   `mezzi_piani_costi`, `task_tag_assignments`) vanno via in cascata; FK a più colonne in NO ACTION
@@ -45,13 +45,13 @@ data UTC della bozza ripresa.
 - **E4/S8 piano di volo nelle aziende grandi.** `silvio-piano-volo/index.ts:112-131`: fasi da −120 giorni senza limite
   superiore, ordine crescente, `limit(2000)` (PostgREST ne dà 1000), sempre le stesse 30 commesse. → Finestra
   oggi−15…oggi+21, stati esclusi nel DB, rotazione col tetto (regola di CLAUDE.md).
-- **S3 promemoria vietati passano.** `20281106140000:168-182` toglie solo `pos`/`duvri`; `{"tipo":"cartello"}` passa.
+- **S3 promemoria vietati passano.** `20281112140000:168-182` toglie solo `pos`/`duvri`; `{"tipo":"cartello"}` passa.
   → Elenco consentito.
-- **S4 `silvio_volo_conferma` non ricontrolla l'autonomia.** `20281106141000:129, 159-165`. → Rifiutare se
+- **S4 `silvio_volo_conferma` non ricontrolla l'autonomia.** `20281112141000:129, 159-165`. → Rifiutare se
   `controllo_fase` / `proposta_sal` è vietata; alla nuova scelta segnare `scaduta` le proposte aperte.
-- **S5 importi dei SAL a chi non ha «Importi di vendita».** `20281106141000:70-76, 167-180`. → Lettura via RPC che
+- **S5 importi dei SAL a chi non ha «Importi di vendita».** `20281112141000:70-76, 167-180`. → Lettura via RPC che
   toglie gli importi senza `can_view_order_amounts`, stesso controllo nella conferma del SAL.
-- **S6 campanelle ripetute.** `20281106141000:237-242`, `silvio-piano-volo/index.ts:144-146, 177`. → Restituire
+- **S6 campanelle ripetute.** `20281112141000:237-242`, `silvio-piano-volo/index.ts:144-146, 177`. → Restituire
   `nuova`/«azioni cambiate» e notificare solo allora.
 - **L4 fasi sovrapposte se il documento dà i giorni solo ad alcune.** `letturaAI.ts:334` + `modelliLavoro.ts:231`. →
   Niente `giorno_inizio` se qualche fase è senza durata; sequenza da `durateDalModello`.
@@ -125,7 +125,7 @@ Fatto in locale: nessun push, nessuna migrazione applicata, nessun deploy. I fil
 - **E9 corretta.** Un `AiTurnControl` per richiesta (140 s): OCR e lettura hanno un tempo che si accorcia a ogni
   chiamata, la lettura del PDF si ferma a 20 s dalla fine; oltre, 504 «dividi il documento».
 
-**SQL dell'annullamento** (`20281106100000`)
+**SQL dell'annullamento** (`20281112100000`)
 - **S1 corretta.** Ogni riga di Silvio ha la sua `istantanea` (colonna nuova di `commessa_bozze_scritture`) presa a fine
   transazione da `_silvio_imprimi`; l'annullamento la confronta colonna per colonna (`updated_at` escluso). Una riga
   senza istantanea → rifiuto. Il messaggio dice cosa è stato toccato (`_silvio_cosa_e_cambiato`): «Il contratto di

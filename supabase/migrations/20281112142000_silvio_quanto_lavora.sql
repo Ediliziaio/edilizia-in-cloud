@@ -20,7 +20,7 @@
 -- contano solo se chi guarda le vede (can_see_order). SECURITY DEFINER coi controlli dentro:
 -- sessione, azienda in cui si lavora, can_edit_orders (come «Da completare»). Solo lettura.
 --
--- Idempotente. Richiede 20281106090000, 20281106100000 (e 20281106141000 per il piano di volo,
+-- Idempotente. Richiede 20281112090000, 20281112100000 (e 20281112141000 per il piano di volo,
 -- letto solo se c'è). NON applicata: si applica col push della fase 5, poi si riallinea.
 -- ════════════════════════════════════════════════════════════════════════════
 

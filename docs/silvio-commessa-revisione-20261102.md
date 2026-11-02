@@ -4,17 +4,17 @@ Tre revisori nuovi, sola lettura più simulazioni con le funzioni vere e dati in
 D = database ed edge, G = logica, P = popup. Stato in fondo, a lavoro finito.
 
 ## Database ed edge (D)
-- **D1 ALTA «Annulla» si rifiuta quasi sempre.** `20281106100000:1076`: il confronto esclude solo `updated_at`; `version` (trigger `versione_riga`), `work_lat`, `work_lng`, `work_geocoded_at` (cron `geocodifica-cantieri`), `distanza_sede_*` (`salva_distanza_cantiere`) lo bloccano senza che nessuno abbia lavorato.
+- **D1 ALTA «Annulla» si rifiuta quasi sempre.** `20281112100000:1076`: il confronto esclude solo `updated_at`; `version` (trigger `versione_riga`), `work_lat`, `work_lng`, `work_geocoded_at` (cron `geocodifica-cantieri`), `distanza_sede_*` (`salva_distanza_cantiere`) lo bloccano senza che nessuno abbia lavorato.
 - **D2 ALTA annullare una commessa da preventivo lascia il preventivo `convertita`.** `:898, :933, :1157`. Va registrato `quotes.status` e ripristinato; poi il flusso normale deve poterlo riusare.
 - **D3 MEDIA «Completa» non scrive mai l'importo.** `:643`: `total_amount` default 0, lo 0 conta come valore. Va trattato come vuoto per questa colonna.
-- **D4 MEDIA contratti di subappalto senza i permessi della policy.** `20281106130000:163-197`, `_silvio_scrittura_permessa`: chiedere `can_view_costs` e `can_view_subappaltatori_amministrazione`, stesso controllo per le altre risorse.
-- **D5 MEDIA `silvio_correzioni` legge oltre la visibilità.** `20281106090000:62-63`: serve `can_see_order`, area `economia` solo con `can_view_order_amounts`.
-- **D6 MEDIA il vincolo blocca la cancellazione della commessa.** `20281106100000:72,81`: con `ON DELETE SET NULL` viola `commessa_bozze_completa_con_commessa`.
-- **D7 ALTA piano di volo: una conferma fallita chiude la proposta.** `20281106141000:247-250, 297-300`: resta `aperta` se ci sono azioni saltate o non scelte; le saltate si restituiscono.
+- **D4 MEDIA contratti di subappalto senza i permessi della policy.** `20281112130000:163-197`, `_silvio_scrittura_permessa`: chiedere `can_view_costs` e `can_view_subappaltatori_amministrazione`, stesso controllo per le altre risorse.
+- **D5 MEDIA `silvio_correzioni` legge oltre la visibilità.** `20281112090000:62-63`: serve `can_see_order`, area `economia` solo con `can_view_order_amounts`.
+- **D6 MEDIA il vincolo blocca la cancellazione della commessa.** `20281112100000:72,81`: con `ON DELETE SET NULL` viola `commessa_bozze_completa_con_commessa`.
+- **D7 ALTA piano di volo: una conferma fallita chiude la proposta.** `20281112141000:247-250, 297-300`: resta `aperta` se ci sono azioni saltate o non scelte; le saltate si restituiscono.
 - **D8 ALTA SAL con importo sbagliato.** `silvio-piano-volo/index.ts:120-126,180`: `propostaSal` riceve solo le fasi della finestra (10 fasi, finita la terza: 50 % invece di 30 %).
-- **D9 MEDIA «Crea» ripetuto dopo una risposta persa.** `20281106100000:804-805`: restituire l'`order_id` già nato, così il popup riprende `allegaFonti`.
+- **D9 MEDIA «Crea» ripetuto dopo una risposta persa.** `20281112100000:804-805`: restituire l'`order_id` già nato, così il popup riprende `allegaFonti`.
 - **D10 MEDIA errori di lettura presi per dati vuoti.** `contestoRisorse.ts:41-47`: il cron deve saltare la commessa e registrarlo; il popup deve dirlo.
-- **D11 BASSA** `assigned_to`/`capomastro_user_id` solo staff (`:347-351`); `attivita` ricontrolla `promemoria` vietata (`20281106141000:210`); rotazione delle aziende nel cron (`silvio-piano-volo/index.ts:77`); niente campanella per «Tutto pronto» (`:164-170,202`); OCR non pagato due volte a «Riprova» (`silvio-commessa/index.ts:182`).
+- **D11 BASSA** `assigned_to`/`capomastro_user_id` solo staff (`:347-351`); `attivita` ricontrolla `promemoria` vietata (`20281112141000:210`); rotazione delle aziende nel cron (`silvio-piano-volo/index.ts:77`); niente campanella per «Tutto pronto» (`:164-170,202`); OCR non pagato due volte a «Riprova» (`silvio-commessa/index.ts:182`).
 - **D12 da verificare:** una `scrittura` con `stock_item_id` scala la giacenza: «Annulla» la ripristina?
 - **D13 MEDIA piano di volo:** ditta in regola segnalata «Nessuno è assegnato» (`pianoVolo.ts:107`); dipendente non attivo «Tutto pronto» (`:103`); contratto della ditta non controllato.
 

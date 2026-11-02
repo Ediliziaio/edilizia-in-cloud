@@ -1,6 +1,6 @@
 /**
  * Il registro delle correzioni di Silvio (31/10/2026, fase 0, lotto 0.3).
- * Tabella `silvio_correzioni` (migrazione 20281106090000): per ogni valore che Silvio
+ * Tabella `silvio_correzioni` (migrazione 20281112090000): per ogni valore che Silvio
  * ha proposto nel popup, quello che la persona ha tenuto. Vedi
  * docs/piano-silvio-commessa-ai.md, sezioni 4 e 6.
  *

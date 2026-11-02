@@ -3,7 +3,7 @@
 -- docs/piano-silvio-commessa-ai.md, sezione 4 e fase 5.
 -- ════════════════════════════════════════════════════════════════════════════
 -- Ogni mattina la funzione `silvio-piano-volo` (cron, NON acceso da questa migrazione:
--- vedi supabase/migrations-pending/20281106142500_silvio_piano_volo_cron.sql) guarda le commesse delle aziende
+-- vedi supabase/migrations-pending/20281112142500_silvio_piano_volo_cron.sql) guarda le commesse delle aziende
 -- con «Crea con Silvio» acceso e scrive qui:
 --   · `controllo`: 3 giorni lavorativi prima di una fase, persone, mezzi, ordini, DURC e
 --     meteo, con le azioni pronte (assegna, prenota, attività);
@@ -22,7 +22,7 @@
 -- esegue). Le scritture sono le stesse delle pagine: `order_employees`,
 -- `salva_piano_mezzo`, `tasks`, `sal` in bozza (l'emissione resta alla persona).
 --
--- Idempotente. Richiede 20281106140000 (`_silvio_livello`).
+-- Idempotente. Richiede 20281112140000 (`_silvio_livello`).
 -- NON applicata: si applica col push della fase 5, poi si riallinea la versione.
 -- ════════════════════════════════════════════════════════════════════════════
 

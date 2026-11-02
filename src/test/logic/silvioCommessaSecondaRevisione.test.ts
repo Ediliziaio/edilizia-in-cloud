@@ -17,10 +17,10 @@ import { STAFF_ROLES } from "@/hooks/useCompanyStaffUsers";
 
 const radice = resolve(__dirname, "../../..");
 const migrazione = (nome: string) => readFileSync(resolve(radice, `supabase/migrations/${nome}.sql`), "utf8");
-const BOZZE = migrazione("20281106100000_commessa_bozze_silvio");
-const AUTONOMIA = migrazione("20281106140000_silvio_autonomia");
-const VOLO = migrazione("20281106141000_silvio_piano_volo");
-const CORREZIONI = migrazione("20281106090000_silvio_correzioni");
+const BOZZE = migrazione("20281112100000_commessa_bozze_silvio");
+const AUTONOMIA = migrazione("20281112140000_silvio_autonomia");
+const VOLO = migrazione("20281112141000_silvio_piano_volo");
+const CORREZIONI = migrazione("20281112090000_silvio_correzioni");
 
 /** Il corpo di una funzione SQL, fino al suo `$$`. */
 function funzione(sql: string, nome: string): string {

@@ -17,7 +17,7 @@ import { pianoVuoto } from "../../../shared/silvio-commessa/fondi.ts";
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
 
 const radice = resolve(__dirname, "../../..");
-const migrazione = readFileSync(resolve(radice, "supabase/migrations/20281106140000_silvio_autonomia.sql"), "utf8");
+const migrazione = readFileSync(resolve(radice, "supabase/migrations/20281112140000_silvio_autonomia.sql"), "utf8");
 
 const EMP = "e0000000-0000-4000-a000-000000000001";
 const SUP = "50000000-0000-4000-a000-000000000001";
@@ -153,7 +153,7 @@ describe("il controllo nel database", () => {
   it("revisione 1/11, S4: vietare una parte del piano di volo chiude le sue proposte, e la conferma ricontrolla", () => {
     const salva = migrazione.slice(migrazione.indexOf("create or replace function public.silvio_autonomia_salva"));
     expect(salva).toMatch(/update public\.silvio_piano_volo set stato = 'scaduta'/);
-    const volo = readFileSync(resolve(radice, "supabase/migrations/20281106141000_silvio_piano_volo.sql"), "utf8");
+    const volo = readFileSync(resolve(radice, "supabase/migrations/20281112141000_silvio_piano_volo.sql"), "utf8");
     const conferma = volo.slice(volo.indexOf("create or replace function public.silvio_volo_conferma"), volo.indexOf("revoke all on function public.silvio_volo_conferma"));
     expect(conferma).toContain("case r.tipo when 'sal' then 'proposta_sal' else 'controllo_fase' end) = 'vietata'");
     // S5: chi non vede gli importi non conferma il SAL, e non legge la tabella direttamente.
@@ -165,7 +165,7 @@ describe("il controllo nel database", () => {
   });
 
   it("_silvio_bozza passa da lì: vale per «Crea», «Completa» e per chi chiama le RPC a mano", () => {
-    const bozze = readFileSync(resolve(radice, "supabase/migrations/20281106100000_commessa_bozze_silvio.sql"), "utf8");
+    const bozze = readFileSync(resolve(radice, "supabase/migrations/20281112100000_commessa_bozze_silvio.sql"), "utf8");
     const f = bozze.slice(bozze.indexOf("create or replace function public._silvio_bozza"), bozze.indexOf("revoke all on function public._silvio_bozza"));
     expect(f).toContain("public._silvio_scrittura_permessa($1, $2)");
   });
@@ -178,7 +178,7 @@ describe("il controllo nel database", () => {
 });
 
 describe("le migrazioni della fase 5 sono chiuse ad anon", () => {
-  for (const nome of ["20281106140000_silvio_autonomia", "20281106141000_silvio_piano_volo", "20281106142000_silvio_quanto_lavora"]) {
+  for (const nome of ["20281112140000_silvio_autonomia", "20281112141000_silvio_piano_volo", "20281112142000_silvio_quanto_lavora"]) {
     it(nome, () => {
       const sql = readFileSync(resolve(radice, `supabase/migrations/${nome}.sql`), "utf8");
       const funzioni = [...sql.matchAll(/create or replace function public\.(\w+)\(/g)].map((m) => m[1]);

@@ -208,6 +208,17 @@ export function giaNellaCommessa(piano: Pick<PianoCommessa, "orderId">, v: Pick<
   return !!piano.orderId && !!v && v.fonte.tipo === "persona" && v.fonte.id === piano.orderId;
 }
 
+/**
+ * La commessa che sta sotto un valore: il valore stesso, quella su cui propone, o quella coperta da
+ * una proposta della chat. Dopo il «Va bene» a una proposta le colonne che ha già restano ferme
+ * (quarta revisione, 7).
+ */
+function commessaSotto(piano: Pick<PianoCommessa, "orderId">, v: Valore | null | undefined): Valore | null {
+  if (!v) return null;
+  if (v.sopraCommessa) return v.sopraCommessa;
+  return giaNellaCommessa(piano, v) ? v : commessaSotto(piano, v.alPostoDi);
+}
+
 /** Il campo delle fasi che contiene la lista; ogni fase è un oggetto con `id?`, `name`, `start_date?`, `end_date?` (AAAA-MM-GG). */
 const CHIAVE_FASI = "fasi.order_work_phases";
 /** Le date proposte per le fasi che la commessa ha già senza date (fase 3). */
@@ -473,7 +484,7 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
         } }];
       }
       // Le colonne che mancano a una commessa: quelle che ha già restano lì sotto.
-      const commessa = attuale?.sopraCommessa ?? (giaNellaCommessa(piano, attuale) ? attuale : null);
+      const commessa = commessaSotto(piano, attuale);
       return [{
         area: modifica.area, chiave: modifica.chiave,
         valore: { ...daPersona(modifica.valore, "modificato da te", undefined, attuale), ...nota, ...(commessa ? { sopraCommessa: commessa } : {}) },
@@ -609,6 +620,39 @@ function conScartatiRientrati(piano: PianoCommessa, area: Area, chiave: string):
   return out;
 }
 
+/**
+ * I valori messi da parte tornano nella fusione anche con una proposta della chat sopra (quarta
+ * revisione, 6): la proposta resta e aspetta il sì, sotto si rifà il valore e, se serve, il conflitto.
+ */
+export function conScartatiDiNuovoInGioco(piano: PianoCommessa, area: Area, chiave: string): PianoCommessa {
+  const ora = piano.aree[area]?.[chiave];
+  if (ora?.alPostoDi === undefined) return conScartatiRientrati(piano, area, chiave);
+  const sotto = conScartatiRientrati(conValore(piano, area, chiave, ora.alPostoDi), area, chiave);
+  return conValore(sotto, area, chiave, { ...ora, alPostoDi: sotto.aree[area]?.[chiave] ?? null });
+}
+
+/**
+ * La storia dopo aver riletto la commessa (quarta revisione, 4). Quello che nel frattempo qualcuno
+ * ha scritto nella commessa non torna indietro con Cmd+Z: i passi su quelle variabili si tolgono.
+ * Dove si stanno aggiungendo colonne a una commessa, sotto ci va la commessa di adesso.
+ */
+export function storiaDopoRilettura(piano: PianoCommessa, storia: Passo[]): Passo[] {
+  const ora = (x: { area: Area; chiave: string }) => piano.aree[x.area]?.[x.chiave];
+  return storia.flatMap((p) => {
+    const aperte = p.prima.filter((x) => !giaNellaCommessa(piano, ora(x)));
+    if (!aperte.length) return [];
+    const prima = aperte.map((x) => {
+      const commessa = ora(x)?.sopraCommessa;
+      if (!commessa || !x.valore) return x;
+      if (giaNellaCommessa(piano, x.valore)) return { ...x, valore: commessa };
+      if (!x.valore.sopraCommessa) return x;
+      return { ...x, valore: { ...x.valore, sopraCommessa: commessa, valore: { ...(oggettoDi(x.valore.valore) ?? {}), ...(oggettoDi(commessa.valore) ?? {}) } } };
+    });
+    const conflittiPrima = p.conflittiPrima.filter((c) => aperte.some((x) => x.area === c.area && x.chiave === c.chiave));
+    return [{ ...p, prima, conflittiPrima }];
+  });
+}
+
 function annullaPasso(piano: PianoCommessa, passo: Passo): PianoCommessa {
   let out = piano;
   let conflitti = piano.conflitti;
@@ -672,7 +716,7 @@ function spostamentoSovrapposto(piano: PianoCommessa, m: Extract<Modifica, { tip
  */
 function toccaLaCommessa(piano: PianoCommessa, m: Extract<Modifica, { tipo: "cambia_valore" }>): boolean | null {
   const attuale = piano.aree[m.area]?.[m.chiave];
-  const commessa = attuale?.sopraCommessa ?? (giaNellaCommessa(piano, attuale) ? attuale : null);
+  const commessa = commessaSotto(piano, attuale);
   const vecchio = oggettoDi(commessa?.valore);
   const nuovo = oggettoDi(m.valore);
   if (!vecchio || !nuovo || (variabile(m.chiave)?.colonne.length ?? 0) < 2) return null;
@@ -699,7 +743,7 @@ export function modificaBloccata(piano: PianoCommessa, m: Modifica): string | nu
   if (m.tipo === "cambia_valore" && toccaLaCommessa(piano, m) === false) return null;
   const chiuse = chiavi.filter((k) => {
     const v = variabile(k);
-    return v && (giaNellaCommessa(piano, piano.aree[v.area]?.[k]) || (m.tipo === "cambia_valore" && !!piano.aree[v.area]?.[k]?.sopraCommessa));
+    return v && (giaNellaCommessa(piano, piano.aree[v.area]?.[k]) || (m.tipo === "cambia_valore" && !!commessaSotto(piano, piano.aree[v.area]?.[k])));
   });
   if (!chiuse.length) return null;
   if (m.tipo === "sposta_date") {

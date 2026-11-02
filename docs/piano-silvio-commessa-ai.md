@@ -351,7 +351,7 @@ Ogni fase ha **un numero che dice se ha funzionato**, misurato sulle aziende rea
   `pianoCommessa.ts`): tutto sta in `shared/silvio-commessa/`, niente zod per ora.
 - `shared/silvio-commessa/completezza.ts`: punteggio sulla commessa vera, sulla bozza e
   in SQL, dallo stesso registro.
-- Migrazione `20281106090000_silvio_correzioni.sql` (provata in una transazione
+- Migrazione `20281112090000_silvio_correzioni.sql` (provata in una transazione
   annullata con un utente di Demo 2: scrive sulla sua azienda; rifiuta commessa di
   un'altra azienda, scrittura a nome d'altri, chiave d'un'altra area, modifiche, anon)
   e `src/lib/silvio-commessa/correzioni.ts`. **Non applicata**: va applicata con
@@ -448,7 +448,7 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
   per un contratto di 10 pagine, 0,005 € per una foto o un testo, più circa 0,005 € per ogni pagina scansionata (OCR).
 
 **Lotti 1.4 e 2.2 fatti il 31/10/2026** (ramo `claude/scm-fase1c-672ca8`, solo in locale; migrazione **non applicata**):
-- Migrazione `20281106100000_commessa_bozze_silvio.sql` (richiede `20281106090000`): tabelle `commessa_bozze` (RLS: ognuno
+- Migrazione `20281112100000_commessa_bozze_silvio.sql` (richiede `20281112090000`): tabelle `commessa_bozze` (RLS: ognuno
   le proprie, nell'azienda dove ha `can_edit_orders`; stato, scadenza e commessa nata le scrivono solo le RPC; la scadenza
   si sposta a 30 giorni dall'ultima modifica) e `commessa_bozze_scritture` (il registro dell'annullamento, solo lettura per
   l'autore); la chiave esterna `silvio_correzioni.bozza_id`; RPC `commessa_crea_con_silvio`, `commessa_completa_con_silvio`,
@@ -506,7 +506,7 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
 - **Striscia** su OrderDetail: «Silvio ha preparato N cose» con «Annulla tutto»; i rifiuti diventano parole («un costo»).
 - **Bozza**: salvataggio automatico (si crea al primo cambiamento) e «Riprendi la commessa …» all'apertura senza fonti.
 - **Ingressi**: Nuova commessa (testata) e preventivo accettato senza commessa («Trasforma in commessa con Silvio»), dietro
-  la chiave `silvio_crea_commessa` (migrazione `20281106110000`, da applicare dopo la 1C): spenta per tutti, accesa per
+  la chiave `silvio_crea_commessa` (migrazione `20281112110000`, da applicare dopo la 1C): spenta per tutti, accesa per
   Demo 2 con un override. Il controllo non usa il passe-partout di demo e super admin.
 - Test: `src/test/ui/silvioCommessaPopup.test.tsx` (6) e `src/test/logic/silvioCommessaPresentazione.test.ts` (5).
 - Guardato a 1280 e 390 px con un'anteprima senza login: corretti un pulsante che usciva dalla colonna Fonti, la testata
@@ -540,7 +540,7 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
   Silvio]» (`CompletaConSilvio`, sotto la striscia di Silvio); nelle Commesse la scheda **«Da completare»** (`?tab=da_completare`).
   Tutto dietro `silvio_crea_commessa`, solo per chi può modificare le commesse.
 - **«Da completare»**: la funzione `commesse_da_completare(p_company_id, p_order_id, p_limite)` (migrazione
-  `20281106120000`): punteggio e cosa manca con le espressioni di `sqlPunteggio()`/`sqlMancano()` (un test controlla che
+  `20281112120000`): punteggio e cosa manca con le espressioni di `sqlPunteggio()`/`sqlMancano()` (un test controlla che
   siano identiche), ordine per data più vicina a oggi (inizio, altrimenti consegna), poi importo; al massimo 200 righe col
   totale. SECURITY DEFINER con i controlli dentro: sessione, azienda in cui si lavora, `can_edit_orders`, `can_see_order`
   per riga (chi vede solo le assegnate vede solo quelle), importo solo con `can_view_order_amounts`; chiusa ad anon.
@@ -641,7 +641,7 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
   della commessa: lo copia `silvio-commessa` (modo `allega`) e lo registra con `commessa_bozza_allega`, quindi
   l'annullamento lo toglie.
 - **Scrittura**: `scritturaDalPiano` ha `squadra`, `ditte`, `mezzi`, `oda`, `contratti`, `promemoria`; le scrive
-  `_silvio_aggiungi_risorse` (migrazione `20281106130000`), chiamata da `_silvio_aggiungi` dopo le fasi, per nome di
+  `_silvio_aggiungi_risorse` (migrazione `20281112130000`), chiamata da `_silvio_aggiungi` dopo le fasi, per nome di
   fase, solo aggiunte. Provata il 1/11 in una transazione annullata su Demo 2 insieme alle migrazioni della fase 1–3
   (compresa la modifica della fase 3 alle date proposte, mai provata prima): tutto entra, il secondo mezzo sovrapposto
   torna in `non_prenotati`, l'annullamento toglie tutto (15 righe), non resta niente.
@@ -729,13 +729,13 @@ La query si rigenera dal registro (`sqlPunteggio()`, `sqlCompilata()` di
   (4), `silvioCommessaPilota.test.tsx` (5).
 
 **Al push della fase 5** (dopo le migrazioni delle fasi 0–4, nell'ordine; riallineare ogni versione come da CLAUDE.md):
-1. `20281106100000_commessa_bozze_silvio.sql` — MODIFICATA anche qui: `_silvio_bozza` filtra la scrittura (per nome, solo se esiste).
-2. `20281106130000_silvio_risorse_commessa.sql` — MODIFICATA: gli adempimenti in `adempimenti_sicurezza`.
-3. **NUOVA** `20281106140000_silvio_autonomia.sql`: `silvio_autonomia`, `silvio_calendario`, `_silvio_azioni_autonomia`,
+1. `20281112100000_commessa_bozze_silvio.sql` — MODIFICATA anche qui: `_silvio_bozza` filtra la scrittura (per nome, solo se esiste).
+2. `20281112130000_silvio_risorse_commessa.sql` — MODIFICATA: gli adempimenti in `adempimenti_sicurezza`.
+3. **NUOVA** `20281112140000_silvio_autonomia.sql`: `silvio_autonomia`, `silvio_calendario`, `_silvio_azioni_autonomia`,
    `_silvio_livello_ammesso`, `_silvio_livello`, `_silvio_scrittura_permessa`, `silvio_autonomia_leggi`, `silvio_autonomia_salva`.
-4. **NUOVA** `20281106141000_silvio_piano_volo.sql`: `silvio_piano_volo` (RLS per commessa visibile), `_silvio_volo`,
+4. **NUOVA** `20281112141000_silvio_piano_volo.sql`: `silvio_piano_volo` (RLS per commessa visibile), `_silvio_volo`,
    `silvio_volo_conferma`, `silvio_volo_scarta`, `silvio_volo_registra` e `silvio_volo_scadute` (solo service role).
-5. **NUOVA** `20281106142000_silvio_quanto_lavora.sql`: `_silvio_punteggio`, `silvio_quanto_lavora`.
+5. **NUOVA** `20281112142000_silvio_quanto_lavora.sql`: `_silvio_punteggio`, `silvio_quanto_lavora`.
 Nessuna è una bonifica: tabelle e funzioni nuove, nessuna riga esistente toccata.
 
 **Funzioni edge da ripubblicare**: `silvio-piano-volo` (nuova, `verify_jwt = false` in config.toml) e `silvio-commessa` (importa
@@ -743,7 +743,7 @@ Nessuna è una bonifica: tabelle e funzioni nuove, nessuna riga esistente toccat
 `supabase/functions/_shared/` toccato. `_shared/silvioTools.ts` importa solo `ingressi.ts`, non cambiato.
 
 **Cron da accendere**, dopo il deploy di `silvio-piano-volo` e una prova `{"anteprima": true, "company_id": "<Demo 2>"}`:
-`supabase/migrations-pending/20281106142500_silvio_piano_volo_cron.sql` (alle 6:20 di Roma, attesa 15 secondi, segreto `cron_secret`
+`supabase/migrations-pending/20281112142500_silvio_piano_volo_cron.sql` (alle 6:20 di Roma, attesa 15 secondi, segreto `cron_secret`
 dal Vault). Va spostato in `supabase/migrations` solo allora: una migrazione nella cartella va in produzione al primo push.
 
 **Resta per la Fase 6**:

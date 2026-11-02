@@ -1,7 +1,7 @@
 /**
  * Il piano di volo sulla commessa (1/11/2026, fase 5, lotto 5.3): le proposte che la funzione
  * `silvio-piano-volo` scrive in `silvio_piano_volo`, e la conferma o lo scarto della persona
- * (`silvio_volo_conferma`, `silvio_volo_scarta`, migrazione 20281106141000).
+ * (`silvio_volo_conferma`, `silvio_volo_scarta`, migrazione 20281112141000).
  *
  * Senza la migrazione la tabella non c'è: l'elenco è vuoto e sulla commessa non compare niente.
  */

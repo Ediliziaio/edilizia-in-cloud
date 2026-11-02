@@ -1,7 +1,7 @@
 /**
  * Dal piano alla scrittura (31/10/2026, fase 1, lotto 1.4): la funzione pura che traduce
  * il `PianoCommessa` della bozza in quello che le RPC del database scrivono
- * (`commessa_crea_con_silvio`, `commessa_completa_con_silvio`, migrazione 20281106100000).
+ * (`commessa_crea_con_silvio`, `commessa_completa_con_silvio`, migrazione 20281112100000).
  * Vedi docs/piano-silvio-commessa-ai.md, 3.5 e 5.2.
  *
  * Il client la salva nella bozza (`commessa_bozze.scrittura`) insieme al piano, a ogni
@@ -26,7 +26,7 @@
  * sicurezza e messaggio d'avvio (shared/silvio-commessa/risorse.ts). Entrano solo se accettati,
  * e solo gli elementi disponibili: quelli segnati ⚠ restano fuori, col motivo. Il contratto
  * segue la sua ditta: una ditta che non entra non ha contratto. Le scrive
- * `_silvio_aggiungi_risorse` (migrazione 20281106130000), con le fasi per nome.
+ * `_silvio_aggiungi_risorse` (migrazione 20281112130000), con le fasi per nome.
  *
  * Fase 5 (1/11/2026): l'autonomia dell'azienda (shared/silvio-commessa/autonomia.ts) decide per
  * le variabili delle sue azioni, al posto del livello del registro: «vietata» resta fuori,
@@ -53,7 +53,7 @@ import { rigaConQuantitaIntera } from "@/lib/orders/quantitaIntera";
 
 /**
  * Le colonne di `orders` che Silvio può riempire. Le stesse di `_silvio_colonne_scrivibili()`
- * nella migrazione 20281106100000: un test le confronta.
+ * nella migrazione 20281112100000: un test le confronta.
  */
 export const COLONNE_SCRIVIBILI = [
   "order_code", "description", "work_description", "tipo_lavoro", "internal_notes", "sede_id",
@@ -84,6 +84,8 @@ export interface SottofaseScritta {
   importo?: number | null;
   costo?: number | null;
   codice?: string | null;
+  /** Esiste solo per portare il costo della fase: senza il permesso sui costi non nasce (quarta revisione, 8). */
+  solo_costo?: true;
 }
 
 export interface FaseScritta {
@@ -233,7 +235,7 @@ function fasiScritte(fasi: FaseDelPiano[], tipoFonte: TipoFonte, costi: CostoDel
       // Un costo della fase senza voci (costi.previsti) diventa una voce sola.
       const costo = costi?.find((c) => c.fase.trim().toLowerCase() === f.name.trim().toLowerCase());
       if (origine && costo && costo.importo > 0 && !sottofasi.some((s) => s.costo != null)) {
-        sottofasi.push({ nome: `Costo previsto ${f.name.trim()}`, quantita: 1, costo: costo.importo });
+        sottofasi.push({ nome: `Costo previsto ${f.name.trim()}`, quantita: 1, costo: costo.importo, solo_costo: true });
       }
       let inizio = dataVera(f.start_date) ? f.start_date : null;
       let fine = dataVera(f.end_date) ? f.end_date : null;

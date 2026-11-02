@@ -104,7 +104,7 @@ describe("scritturaDalPiano", () => {
         sottofasi: [{ nome: "Rimozione sanitari", quantita: 2, unita: null, importo: null, costo: 180, codice: null }] },
       // La fine prima dell'inizio non va: la fase nasce senza date.
       { nome: "Impianti", inizio: null, fine: null, origine: "preventivo",
-        sottofasi: [{ nome: "Costo previsto Impianti", quantita: 1, costo: 900 }] },
+        sottofasi: [{ nome: "Costo previsto Impianti", quantita: 1, costo: 900, solo_costo: true }] },
     ]);
   });
 
@@ -161,7 +161,7 @@ describe("scritturaDalPiano", () => {
 });
 
 describe("COLONNE_SCRIVIBILI", () => {
-  const migrazione = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281106100000_commessa_bozze_silvio.sql"), "utf8");
+  const migrazione = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281112100000_commessa_bozze_silvio.sql"), "utf8");
 
   it("sono le stesse di _silvio_colonne_scrivibili() nella migrazione", () => {
     const corpo = /function public\._silvio_colonne_scrivibili\(\)[\s\S]*?array\[([\s\S]*?)\]::text\[\]/.exec(migrazione);

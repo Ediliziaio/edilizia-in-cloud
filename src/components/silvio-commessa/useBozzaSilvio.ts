@@ -33,11 +33,12 @@
  * - gli allegati delle email letti dal popup vanno con la commessa tra i suoi documenti.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { Fonte, Frammento, Modifica, PianoCommessa, Valore } from "../../../shared/silvio-commessa/piano.ts";
+import type { Area, Conflitto, Fonte, Frammento, Modifica, PianoCommessa, Valore } from "../../../shared/silvio-commessa/piano.ts";
+import type { Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { eAnnulla, eseguiRisposta, pianoPerLaChat, STIMA_CHAT_EUR } from "../../../shared/silvio-commessa/chat.ts";
 import type { FonteDaLink, RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
-  annulla, applica, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, type Passo,
+  annulla, applica, conScartatiDiNuovoInGioco, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, storiaDopoRilettura, type Passo,
 } from "../../../shared/silvio-commessa/fondi.ts";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import {
@@ -73,21 +74,24 @@ type FonteLetta = Pick<Fonte, "etichetta"> & { id?: string | null };
  * «tolto da te» a chiudere la strada al documento giusto. Quello che la persona ha scritto o toccato
  * resta; se le fonti erano in disaccordo resta l'altra, e quello che era stato messo da parte rientra.
  */
-export function pianoSenzaFonte(piano: PianoCommessa, fonti: readonly FonteLetta[]): { piano: PianoCommessa; tolti: number } {
+export function pianoSenzaFonte(
+  piano: PianoCommessa, fonti: readonly FonteLetta[], storia: Passo[] = [],
+): { piano: PianoCommessa; tolti: number; storia: Passo[] } {
   const sua = (x: Fonte) => fonti.some((f) => (f.id && x.id ? f.id === x.id : f.etichetta === x.etichetta));
+  const daTogliere = (v: Valore) => !v.toccato && !giaNellaCommessa(piano, v) && !v.sopraCommessa && sua(v.fonte);
   const aree: PianoCommessa["aree"] = {};
   let tolti = 0;
   const svuotate = new Set<string>();
   for (const [area, valori] of Object.entries(piano.aree)) {
     aree[area as keyof PianoCommessa["aree"]] = Object.fromEntries(Object.entries(valori ?? {}).filter(([, v]) => {
-      const via = !v.toccato && !giaNellaCommessa(piano, v) && !v.sopraCommessa && sua(v.fonte);
+      const via = daTogliere(v);
       if (via) tolti += 1;
       return !via;
     }).map(([chiave, v]) => {
       // Sotto una proposta della chat c'era il valore della fonte tolta: in vigore non resta niente,
       // e «Toglilo» non deve rimetterlo.
       const sotto = v.alPostoDi;
-      if (!sotto || sotto.toccato || giaNellaCommessa(piano, sotto) || sotto.sopraCommessa || !sua(sotto.fonte)) return [chiave, v];
+      if (!sotto || !daTogliere(sotto)) return [chiave, v];
       tolti += 1;
       svuotate.add(chiave);
       return [chiave, { ...v, alPostoDi: null }];
@@ -105,25 +109,51 @@ export function pianoSenzaFonte(piano: PianoCommessa, fonti: readonly FonteLetta
       metti(c.area, c.chiave, { ...restano[0], stato: "attenzione" });
       return [{ ...c, candidati: restano, nota: null }];
     }
-    // Resta un solo candidato: è lui il valore, e il disaccordo non c'è più.
-    if (restano.length === 1) metti(c.area, c.chiave, restano[0]);
+    // Resta un solo candidato: è lui il valore, e il disaccordo non c'è più. Chi era stato messo
+    // da parte ha di nuovo diritto di parola (quarta revisione, 6).
+    if (restano.length === 1) { metti(c.area, c.chiave, restano[0]); svuotate.add(c.chiave); }
     return [];
   });
   const scartati = (piano.scartati ?? []).filter((s) => !sua(s.valore.fonte));
-  const fuori = (piano.scartati ?? []).length ? scartati.filter((s) => {
-    if (aree[s.area]?.[s.chiave] && !svuotate.has(s.chiave)) return true;
-    svuotate.delete(s.chiave);
-    metti(s.area, s.chiave, s.valore);
-    return false;
-  }) : scartati;
   const prefissi = fonti.map((f) => `${f.etichetta}: `);
-  const nuovo: PianoCommessa = {
-    ...piano, aree, conflitti, scartati: fuori,
+  let nuovo: PianoCommessa = {
+    ...piano, aree, conflitti, scartati,
     fonti: piano.fonti.filter((f) => !sua(f)),
     avvisi: (piano.avvisi ?? []).filter((a) => !prefissi.some((p) => a.startsWith(p))),
   };
-  if (!fuori.length) delete nuovo.scartati;
-  return { tolti, piano: conQuadratura(nuovo) };
+  // Fusi e non messi uno sopra l'altro: due che non sono d'accordo fanno un conflitto, non si cancellano.
+  const daRifondere = new Map(scartati.map((s) => [s.chiave, s.area] as [string, Area]));
+  for (const [chiave, area] of daRifondere) {
+    if (!aree[area]?.[chiave] || svuotate.has(chiave)) nuovo = conScartatiDiNuovoInGioco(nuovo, area, chiave);
+  }
+  if (!nuovo.scartati?.length) delete nuovo.scartati;
+  return { tolti, piano: conQuadratura(nuovo), storia: storia.map((p) => passoSenzaFonte(p, sua, daTogliere)) };
+}
+
+/**
+ * Lo stesso per la storia (quarta revisione, 2): l'annulla non deve far rientrare dalla finestra
+ * il valore di un documento tolto dalla porta. Un valore che resta senza niente diventa «non c'era».
+ */
+function passoSenzaFonte(passo: Passo, sua: (x: Fonte) => boolean, daTogliere: (v: Valore) => boolean): Passo {
+  const conflittiPrima: Conflitto[] = [];
+  const prima = passo.prima.map((voce) => {
+    const c = passo.conflittiPrima.find((x) => x.area === voce.area && x.chiave === voce.chiave);
+    const restano = c?.candidati.filter((x) => !sua(x.fonte));
+    const cambiato = !!c && !!restano && restano.length !== c.candidati.length;
+    if (c && !cambiato) conflittiPrima.push(c);
+    if (c && cambiato && restano!.length >= 2) conflittiPrima.push({ ...c, candidati: restano!, nota: null });
+    const alPosto: Valore | null = cambiato && restano!.length ? (restano!.length >= 2 ? { ...restano![0], stato: "attenzione" } : restano![0]) : null;
+    const pulito = (v: Valore | null): Valore | null => {
+      if (!v) return v;
+      if (v.alPostoDi !== undefined) return { ...v, alPostoDi: pulito(v.alPostoDi) };
+      if (daTogliere(v)) return alPosto;
+      return cambiato && restano!.length === 1 ? alPosto : v;
+    };
+    return { ...voce, valore: pulito(voce.valore) };
+  });
+  const scartatiPrima = passo.scartatiPrima?.filter((s) => !sua(s.valore.fonte));
+  const { scartatiPrima: _via, ...resto } = passo;
+  return { ...resto, prima, conflittiPrima, ...(scartatiPrima?.length ? { scartatiPrima } : {}) };
 }
 
 /**
@@ -323,10 +353,10 @@ function riduttore(s: Stato, a: Azione): Stato {
       const fonti = s.fonti.filter((x) => x.id !== a.id);
       if (!f || f.stato !== "fatta") return { ...s, fonti };
       const lette: FonteLetta[] = f.fontiLette ?? [{ id: f.idFonte ?? null, etichetta: f.etichetta }];
-      const { piano, tolti } = pianoSenzaFonte(s.piano, lette);
+      const { piano, tolti, storia } = pianoSenzaFonte(s.piano, lette, s.storia);
       const nomi = new Set(lette.map((x) => x.etichetta));
       return {
-        ...s, piano, fonti,
+        ...s, piano, fonti, storia,
         // Il file non va più con la commessa.
         caricate: s.caricate.filter((c) => !nomi.has(c.fonte ?? c.nome) && !nomi.has(c.nome)),
         versione: s.versione + 1,
@@ -352,6 +382,8 @@ function riduttore(s: Stato, a: Azione): Stato {
       return {
         ...s,
         piano,
+        // La commessa riletta vince anche sull'annulla, se arriva dopo una ripresa.
+        storia: a.base ? storiaDopoRilettura(piano, s.storia) : s.storia,
         fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, fontiLette: a.frammenti.map((x) => x.fonte), ...a.patch } : f)),
         caricate: a.caricata ? [...s.caricate.filter((c) => chiaveCaricata(c) !== chiaveCaricata(a.caricata!)), a.caricata] : s.caricate,
         evidenziate: a.base || a.muto ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
@@ -411,7 +443,7 @@ function riduttore(s: Stato, a: Azione): Stato {
       return {
         ...s,
         piano,
-        storia: (a.bozza.storia ?? []) as Passo[],
+        storia: storiaDopoRilettura(piano, (a.bozza.storia ?? []) as Passo[]),
         caricate: a.bozza.fonti ?? [],
         fonti: piano.fonti.map((f) => ({
           id: nuovoId(), tipo: "ripresa", etichetta: f.etichetta, stato: "fatta", stimaEur: 0, avvisi: [] as string[], tentativo: 0,
@@ -424,7 +456,7 @@ function riduttore(s: Stato, a: Azione): Stato {
   }
 }
 
-interface DatiBozza { piano: PianoCommessa; storia: Passo[]; caricate: FonteCaricata[] }
+interface DatiBozza { piano: PianoCommessa; storia: Passo[]; caricate: FonteCaricata[]; autonomia: Autonomia }
 
 export type StatoSalvataggio =
   | { tipo: "nuova" }
@@ -497,13 +529,13 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     async (d) => {
       setSalvataggio({ tipo: "in_corso" });
       if (!bozzaId.current) {
-        const b = await creaBozza({ companyId, orderId, piano: d.piano, fonti: d.caricate }, servizi.db);
+        const b = await creaBozza({ companyId, orderId, piano: d.piano, fonti: d.caricate, autonomia: d.autonomia }, servizi.db);
         bozzaId.current = b.id;
         setIdBozza(b.id);
-        if (d.storia.length) await salvaBozza(b.id, { piano: d.piano, fonti: d.caricate, storia: d.storia }, servizi.db);
+        if (d.storia.length) await salvaBozza(b.id, { piano: d.piano, fonti: d.caricate, storia: d.storia, autonomia: d.autonomia }, servizi.db);
         return;
       }
-      await salvaBozza(bozzaId.current, { piano: d.piano, fonti: d.caricate, storia: d.storia }, servizi.db);
+      await salvaBozza(bozzaId.current, { piano: d.piano, fonti: d.caricate, storia: d.storia, autonomia: d.autonomia }, servizi.db);
     },
     {
       attesaMs,
@@ -512,11 +544,18 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     },
   )), [companyId, orderId, servizi.db, attesaMs]);
 
+  // Cosa fa Silvio da solo: decide la scrittura che si salva, e serve anche alla chat, per non
+  // scrivere quello che l'azienda ha vietato (G19).
+  const [impostazioni, setImpostazioni] = useState<ImpostazioniSilvio>(IMPOSTAZIONI_PREDEFINITE);
+  const autonomia = impostazioni.autonomia;
+  const ultimeImpostazioni = useRef(impostazioni);
+  useLayoutEffect(() => { ultimeImpostazioni.current = impostazioni; }, [impostazioni]);
+
   // Ogni cambiamento del piano (o delle fonti caricate) va nella bozza, con l'attesa.
   useEffect(() => {
     if (s.versione === 0) return;
-    salvatore().programma({ piano: s.piano, storia: s.storia, caricate: s.caricate });
-  }, [s.versione, s.piano, s.storia, s.caricate, salvatore]);
+    salvatore().programma({ piano: s.piano, storia: s.storia, caricate: s.caricate, autonomia });
+  }, [s.versione, s.piano, s.storia, s.caricate, autonomia, salvatore]);
 
   // Alla chiusura quello che aspetta parte subito.
   useEffect(() => () => { void salvaRef.current?.subito(); }, []);
@@ -733,10 +772,6 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
 
   const indietro = useCallback(() => invia({ tipo: "annulla" }), []);
 
-  // Cosa fa Silvio da solo: serve anche alla chat, per non scrivere quello che l'azienda ha vietato (G19).
-  const [impostazioni, setImpostazioni] = useState<ImpostazioniSilvio>(IMPOSTAZIONI_PREDEFINITE);
-  const autonomia = impostazioni.autonomia;
-
   // ── La chat sulla bozza ──
   const [scrivendo, setScrivendo] = useState(false);
   const [costoChat, setCostoChat] = useState(0);
@@ -816,11 +851,28 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
 
   /** «Crea» (o «Completa»): salva quello che aspetta, scrive, registra le correzioni. */
   const crea = useCallback(async (): Promise<EsitoCommessa> => {
-    // In «completa» la sola lettura della commessa non salva: prima di scrivere la bozza deve esserci.
-    if (!bozzaId.current && !salvatore().inAttesa()) {
-      const { piano, storia, caricate } = ultimo.current;
-      salvatore().programma({ piano, storia, caricate });
+    // L'autonomia si rilegge adesso (quarta revisione, 1): il popup può essere aperto da ore. Il
+    // database toglie da solo quello che è «vietata» (`_silvio_scrittura_permessa`), ma non distingue
+    // «chiede» da «da sola»: se la scrittura cambierebbe, la persona la ricontrolla prima di scrivere.
+    let adesso = ultimeImpostazioni.current;
+    try {
+      adesso = (await servizi.impostazioni?.(companyId)) ?? adesso;
+    } catch {
+      // Non si legge: restano quelle di prima, e il database controlla comunque i divieti.
     }
+    if (!stessoValore(adesso.autonomia, ultimeImpostazioni.current.autonomia)) {
+      const cambia = !stessoValore(
+        scritturaDalPiano(ultimo.current.piano, ultimeImpostazioni.current.autonomia),
+        scritturaDalPiano(ultimo.current.piano, adesso.autonomia),
+      );
+      ultimeImpostazioni.current = adesso;
+      setImpostazioni(adesso);
+      if (cambia) throw new ErroreBozza("Nel frattempo sono cambiate le impostazioni di Silvio e quello che scriverebbe è diverso: ricontrolla e premi di nuovo.");
+    }
+    // Si salva sempre, anche una bozza ripresa senza modifiche o la sola lettura della commessa: la
+    // scrittura nel database può venire da un'autonomia di allora.
+    const dati = ultimo.current;
+    salvatore().programma({ piano: dati.piano, storia: dati.storia, caricate: dati.caricate, autonomia: adesso.autonomia });
     await salvatore().subito();
     // `subito` non lancia: un salvataggio fallito resta in coda. Scrivere adesso vorrebbe dire
     // creare la commessa dalla versione di prima (P1). Fa eccezione la bozza già scritta: la

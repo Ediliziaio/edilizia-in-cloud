@@ -256,9 +256,10 @@ const CHIAVI_IMPORTI: ReadonlySet<string> = new Set([
 const CHIAVI_COSTI: ReadonlySet<string> = new Set(["costi.previsti", "costi.margine", "ditte.ritenute"]);
 /** Gli elenchi che si vedono senza le cifre: i nomi delle ditte restano, quanto costano no. */
 const ELENCHI_CON_COSTI: Readonly<Record<string, RegExp>> = {
-  "fasi.order_work_phases": /^costo$/, "fasi.date_fasi": /^costo$/,
-  "ditte.assegnate": /^costo_previsto$/, "ditte.contratti": /^(importo|prezzo)$/, "materiali.acquisti": /^(importo|prezzo)$/,
-  "economia.order_items": /cost/,
+  "fasi.order_work_phases": /^costo/, "fasi.date_fasi": /^costo/,
+  "ditte.assegnate": /^costo/, "ditte.contratti": /importo|prezzo|totale/, "materiali.acquisti": /importo|prezzo|totale/,
+  // Le colonne vere di order_items sono `purchase_price` e `standard_cost` (quarta revisione, 5).
+  "economia.order_items": /cost|purchase|acquist|margin|markup|ricaric|sconto_forn|supplier_(price|disc)/,
 };
 /** Gli elenchi coi prezzi di vendita dentro. */
 const ELENCHI_CON_IMPORTI: Readonly<Record<string, RegExp>> = {

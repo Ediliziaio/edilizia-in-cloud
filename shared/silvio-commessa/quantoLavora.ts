@@ -1,6 +1,6 @@
 /**
  * «Quanto lavora Silvio» (1/11/2026, fase 5, lotto 5.4): i numeri della scheda, dalla RPC
- * `silvio_quanto_lavora` (migrazione 20281106142000). Vedi docs/piano-silvio-commessa-ai.md,
+ * `silvio_quanto_lavora` (migrazione 20281112142000). Vedi docs/piano-silvio-commessa-ai.md,
  * sezione 4 («Misura»).
  *
  * Solo numeri veri: quello che non c'è vale zero e la scheda dice «ancora nessun dato». L'unica

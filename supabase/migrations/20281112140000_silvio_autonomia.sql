@@ -11,7 +11,7 @@
 -- Le azioni che Silvio non fa mai (firma, fatture e SDI, pagamenti, importo del contratto,
 -- cancellazioni, fornitori nuovi) non sono nel catalogo: nessuna riga le può promuovere.
 --
--- Il controllo vero sta qui, non nel popup: `_silvio_bozza` (20281106100000) passa la
+-- Il controllo vero sta qui, non nel popup: `_silvio_bozza` (20281112100000) passa la
 -- scrittura da `_silvio_scrittura_permessa`, che toglie quello che le azioni «vietate»
 -- scriverebbero. Così una chiamata diretta alle RPC con una scrittura fatta a mano non
 -- mette la squadra, i mezzi o gli ordini che il titolare ha vietato.
@@ -21,7 +21,7 @@
 -- (`hr_festivita`); le feste nazionali, Pasqua e Pasquetta le calcola il codice.
 --
 -- Letture e scritture solo dalle RPC: le tabelle non hanno GRANT ai client.
--- Idempotente. Nessun dato esistente viene toccato. Richiede 20281106100000.
+-- Idempotente. Nessun dato esistente viene toccato. Richiede 20281112100000.
 -- NON applicata: si applica col push della fase 5, poi si riallinea la versione.
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -149,7 +149,13 @@ as $$
   select case when jsonb_typeof(p_fasi) = 'array'
               then coalesce((select jsonb_agg(
                                       case when jsonb_typeof(e.fase->'sottofasi') = 'array'
-                                           then jsonb_set(e.fase, '{sottofasi}', public._silvio_togli_chiavi(e.fase->'sottofasi', p_chiavi))
+                                           -- Senza il costo una voce che esiste solo per portarlo non deve
+                                           -- nascere vuota (quarta revisione, 8).
+                                           then jsonb_set(e.fase, '{sottofasi}', public._silvio_togli_chiavi(
+                                                  coalesce((select jsonb_agg(x.voce order by x.ord)
+                                                              from jsonb_array_elements(e.fase->'sottofasi') with ordinality x(voce, ord)
+                                                             where not ('costo' = any (p_chiavi) and x.voce->>'solo_costo' is not distinct from 'true')), '[]'::jsonb),
+                                                  p_chiavi))
                                            else e.fase end order by e.ord)
                                from jsonb_array_elements(p_fasi) with ordinality e(fase, ord)), '[]'::jsonb)
               else p_fasi end
@@ -386,7 +392,7 @@ begin
 
   -- Una parte del piano di volo appena vietata chiude le sue proposte aperte (revisione 1/11,
   -- S4): non devono restare sulla commessa con un «Conferma» che il titolare ha tolto. La
-  -- tabella nasce con la migrazione successiva (20281106141000).
+  -- tabella nasce con la migrazione successiva (20281112141000).
   if to_regclass('public.silvio_piano_volo') is not null then
     execute $q$
       update public.silvio_piano_volo set stato = 'scaduta', updated_at = now()

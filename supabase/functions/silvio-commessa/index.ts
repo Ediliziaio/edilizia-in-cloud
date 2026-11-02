@@ -2,6 +2,9 @@
  * silvio-commessa — il lettore unico di Silvio per la commessa che nasce (31/10/2026,
  * fase 1, lotto 1.2). Vedi docs/piano-silvio-commessa-ai.md, sezioni 3.3, 3.4, 5.1 e 5.3.
  *
+ * Le modifiche solo in shared/silvio-commessa non ripubblicano questa funzione: va toccato
+ * questo file (riletto il 2/11/2026 con la quarta revisione).
+ *
  * Contratti, capitolati, PDF qualsiasi, foto, piantine e testo libero: una sola chiamata
  * al modello, con lo schema di un `Frammento` e la citazione della fonte per ogni valore.
  * Preventivi, computi (XPWE, PDF di PriMus) e offerte delle ditte hanno i loro lettori:

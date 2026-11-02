@@ -2,7 +2,7 @@
  * silvio-piano-volo — il piano di volo delle commesse (1/11/2026, fase 5, lotto 5.3).
  * Vedi docs/piano-silvio-commessa-ai.md, sezione 4 e fase 5.
  *
- * Una volta al giorno (cron: supabase/migrations-pending/20281106142500_silvio_piano_volo_cron.sql, da accendere dopo
+ * Una volta al giorno (cron: supabase/migrations-pending/20281112142500_silvio_piano_volo_cron.sql, da accendere dopo
  * il deploy), per le aziende con «Crea con Silvio» acceso:
  *   · 3 giorni lavorativi prima di ogni fase, il controllo di persone, mezzi, ordini, DURC e
  *     meteo di stagione, con le azioni pronte (`controlloFase` di shared/silvio-commessa/pianoVolo.ts);

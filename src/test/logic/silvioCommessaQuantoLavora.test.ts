@@ -10,7 +10,7 @@ import {
   durataInParole, MINUTI_PER_VOCE, minutiRisparmiati, quantoLavoraDaRisposta, quotaTenuta, senzaDati,
 } from "../../../shared/silvio-commessa/quantoLavora.ts";
 
-const migrazione = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281106142000_silvio_quanto_lavora.sql"), "utf8");
+const migrazione = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281112142000_silvio_quanto_lavora.sql"), "utf8");
 const spazi = (s: string) => s.replace(/\s+/g, " ");
 
 describe("la RPC", () => {

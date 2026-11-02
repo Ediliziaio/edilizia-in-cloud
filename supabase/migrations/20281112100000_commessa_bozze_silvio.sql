@@ -57,7 +57,7 @@
 --   · cancellare una commessa completata da Silvio non si ferma sul vincolo della bozza;
 --   · «Crea» ripetuto dopo una risposta persa restituisce la commessa già nata.
 --
--- Idempotente. Nessun dato esistente viene toccato. Richiede 20281106090000.
+-- Idempotente. Nessun dato esistente viene toccato. Richiede 20281112090000.
 -- ════════════════════════════════════════════════════════════════════════════
 
 set local lock_timeout = '3s';
@@ -173,7 +173,7 @@ end
 $$;
 
 -- Una correzione legata a una bozza si scrive solo sulla propria bozza, della stessa azienda
--- (revisione 1/11, S9): la policy di 20281106090000 non poteva guardarla, perché la tabella
+-- (revisione 1/11, S9): la policy di 20281112090000 non poteva guardarla, perché la tabella
 -- delle bozze nasce qui.
 drop policy if exists silvio_correzioni_scrittura on public.silvio_correzioni;
 create policy silvio_correzioni_scrittura on public.silvio_correzioni for insert to authenticated
@@ -266,7 +266,7 @@ begin
      or public.has_permission_for_company(auth.uid(), 'can_edit_orders', b.company_id) is not true then
     raise exception 'Bozza non trovata, o non hai il permesso di modificare le commesse di questa azienda.' using errcode = '42501';
   end if;
-  -- Fase 5 (20281106140000): quello che il titolare ha vietato a Silvio esce dalla
+  -- Fase 5 (20281112140000): quello che il titolare ha vietato a Silvio esce dalla
   -- scrittura qui, per tutte le RPC. Chiamata per nome: questa migrazione vale anche senza.
   if b.scrittura is not null and to_regprocedure('public._silvio_scrittura_permessa(uuid, jsonb)') is not null then
     execute 'select public._silvio_scrittura_permessa($1, $2)' into b.scrittura using b.company_id, b.scrittura;
@@ -658,6 +658,94 @@ as $$
 $$;
 revoke all on function public._silvio_lavoro_aggiunto(text) from public, anon, authenticated;
 
+-- `commessa_pianifica_fasi` (20281105140000, già applicata), con una differenza sola: compilando
+-- inizio e fine lavori non scrive mai una fine prima dell'inizio. Una commessa con l'inizio al
+-- 01/06, scritto da altri, riceveva la fine al 03/03 dalle date di una fase (quarta revisione, 3).
+create or replace function public.commessa_pianifica_fasi(
+  p_order_id uuid,
+  p_piano jsonb,
+  p_sovrascrivi boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_azienda uuid := public.get_order_company_id(p_order_id);
+  v_voce jsonb;
+  v_nome text;
+  v_inizio date;
+  v_fine date;
+  v_fase record;
+  v_base integer;
+  v_datate integer := 0;
+  v_aggiunte integer := 0;
+  v_saltate integer := 0;
+  v_min date;
+  v_max date;
+begin
+  if auth.uid() is null or v_azienda is null
+     or not public.has_permission_for_company(auth.uid(), 'can_edit_orders', v_azienda) then
+    raise exception 'Non hai il permesso di pianificare questa commessa.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_piano) is distinct from 'array' or jsonb_array_length(p_piano) = 0 then
+    raise exception 'Il cronoprogramma non ha fasi da pianificare.' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_piano) > 60 then
+    raise exception 'Troppe fasi in una volta: al massimo 60.' using errcode = '22023';
+  end if;
+
+  select coalesce(max(position) + 1, 0) into v_base from public.order_work_phases where order_id = p_order_id;
+
+  for v_voce in select value from jsonb_array_elements(p_piano) loop
+    v_nome := left(btrim(coalesce(v_voce->>'nome', '')), 160);
+    continue when v_nome = '';
+    begin
+      v_inizio := (v_voce->>'inizio')::date;
+      v_fine := (v_voce->>'fine')::date;
+    exception when others then
+      raise exception 'Date non valide per la fase «%».', v_nome using errcode = '22023';
+    end;
+    if v_inizio is null or v_fine is null or v_fine < v_inizio then
+      raise exception 'Date non valide per la fase «%».', v_nome using errcode = '22023';
+    end if;
+    v_min := least(coalesce(v_min, v_inizio), v_inizio);
+    v_max := greatest(coalesce(v_max, v_fine), v_fine);
+
+    select id, start_date, end_date into v_fase
+      from public.order_work_phases
+     where order_id = p_order_id
+       and lower(regexp_replace(btrim(name), '\s+', ' ', 'g')) = lower(regexp_replace(v_nome, '\s+', ' ', 'g'))
+     order by position
+     limit 1;
+
+    if v_fase.id is null then
+      insert into public.order_work_phases (company_id, order_id, name, position, start_date, end_date, notes)
+      values (v_azienda, p_order_id, v_nome, v_base + v_aggiunte, v_inizio, v_fine, 'Dal cronoprogramma del preventivo');
+      v_aggiunte := v_aggiunte + 1;
+    elsif p_sovrascrivi or (v_fase.start_date is null and v_fase.end_date is null) then
+      update public.order_work_phases set start_date = v_inizio, end_date = v_fine, updated_at = now()
+       where id = v_fase.id;
+      v_datate := v_datate + 1;
+    else
+      v_saltate := v_saltate + 1;
+    end if;
+  end loop;
+
+  update public.orders
+     set work_start_date = coalesce(work_start_date, case when work_end_date is null or v_min <= work_end_date then v_min end),
+         work_end_date = coalesce(work_end_date, case when coalesce(work_start_date, v_min) <= v_max then v_max end)
+   where id = p_order_id and company_id = v_azienda;
+
+  return jsonb_build_object('datate', v_datate, 'aggiunte', v_aggiunte, 'saltate', v_saltate,
+                            'inizio', v_min, 'fine', v_max);
+end
+$fn$;
+
+revoke all on function public.commessa_pianifica_fasi(uuid, jsonb, boolean) from public, anon;
+grant execute on function public.commessa_pianifica_fasi(uuid, jsonb, boolean) to authenticated;
+
 -- Il lavoro comune a «crea» e «completa», su una commessa che c'è: colonne vuote,
 -- fasi che mancano (con sottofasi, date e voci previste), le date delle fasi che ci
 -- sono senza date (`date_fasi`, fase 3), rate se non ce ne sono,
@@ -696,6 +784,8 @@ declare
   v_rate integer := 0;
   v_contratto boolean := false;
   v_risorse jsonb;
+  v_inizio date;
+  v_fine date;
   c jsonb;
 begin
   select * into o from public.orders where id = p_order and company_id = p_bozza.company_id for update;
@@ -712,6 +802,13 @@ begin
       v_vuote := v_vuote || jsonb_build_object(k, v_colonne->k);
     end if;
   end loop;
+  -- Mai una fine prima dell'inizio (quarta revisione, 3): se l'altra data l'ha scritta qualcuno
+  -- mentre la bozza aspettava e non torna, quella di Silvio resta fuori.
+  v_inizio := coalesce(nullif(v_vuote->>'work_start_date', '')::date, o.work_start_date);
+  v_fine := coalesce(nullif(v_vuote->>'work_end_date', '')::date, o.work_end_date);
+  if v_fine < v_inizio then
+    v_vuote := v_vuote - (case when v_vuote ? 'work_end_date' then 'work_end_date' else 'work_start_date' end);
+  end if;
   if v_vuote <> '{}'::jsonb then
     select string_agg(format('%I = r.%I', k2, k2), ', ') into v_set from jsonb_object_keys(v_vuote) k2;
     execute format('update public.orders o set %s from jsonb_populate_record(null::public.orders, $1) r where o.id = $2', v_set)
@@ -788,7 +885,14 @@ begin
   end if;
 
   -- Le date: solo alle fasi che non ne hanno (sovrascrivi = false); riempie anche
-  -- inizio e fine lavori se mancano.
+  -- inizio e fine lavori se mancano. Solo alle fasi che ci sono (quarta revisione, 3):
+  -- `commessa_pianifica_fasi` ricrea quelle che non trova, e una bozza ripresa può parlare
+  -- di una fase che un altro ha cancellato.
+  select coalesce(jsonb_agg(d.voce order by d.ord), '[]'::jsonb) into v_date
+    from jsonb_array_elements(v_date) with ordinality d(voce, ord)
+   where exists (select 1 from public.order_work_phases f
+                  where f.order_id = p_order
+                    and lower(regexp_replace(btrim(f.name), '\s+', ' ', 'g')) = lower(regexp_replace(btrim(d.voce->>'nome'), '\s+', ' ', 'g')));
   if jsonb_array_length(v_date) > 0 then
     perform public.commessa_pianifica_fasi(p_order, v_date, false);
   end if;
@@ -832,7 +936,7 @@ begin
   end if;
 
   -- Fase 4: squadra, ditte, mezzi, ordini e contratti in bozza, promemoria
-  -- (20281106130000). Dopo le fasi, che ritrova per nome. Chiamata per nome: questa
+  -- (20281112130000). Dopo le fasi, che ritrova per nome. Chiamata per nome: questa
   -- migrazione vale anche senza quella.
   if to_regprocedure('public._silvio_aggiungi_risorse(public.commessa_bozze, uuid)') is not null then
     execute 'select public._silvio_aggiungi_risorse($1, $2)' into v_risorse using p_bozza, p_order;

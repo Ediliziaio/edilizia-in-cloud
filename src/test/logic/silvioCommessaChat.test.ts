@@ -288,7 +288,7 @@ describe("le fasi della commessa senza date (buco della fase 2)", () => {
   });
 
   it("la RPC passa date_fasi a commessa_pianifica_fasi, che data solo le fasi senza date", () => {
-    const sql = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281106100000_commessa_bozze_silvio.sql"), "utf8");
+    const sql = readFileSync(resolve(__dirname, "../../../supabase/migrations/20281112100000_commessa_bozze_silvio.sql"), "utf8");
     const aggiungi = sql.slice(sql.indexOf("create or replace function public._silvio_aggiungi"), sql.indexOf("revoke all on function public._silvio_aggiungi"));
     expect(aggiungi).toMatch(/jsonb_array_elements\(coalesce\(s->'date_fasi', '\[\]'::jsonb\)\)/);
     expect(aggiungi).toMatch(/perform public\.commessa_pianifica_fasi\(p_order, v_date, false\)/);

@@ -4,7 +4,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- `_silvio_aggiungi_risorse(bozza, commessa)` scrive le parti della `scrittura` che
 -- la fase 4 aggiunge (src/lib/silvio-commessa/scrittura.ts): le proposte 🟡 accettate
--- nel popup e le bozze 🔴, mai mandate. La chiama `_silvio_aggiungi` (20281106100000)
+-- nel popup e le bozze 🔴, mai mandate. La chiama `_silvio_aggiungi` (20281112100000)
 -- dopo le fasi, sia in «crea» sia in «completa», dentro la stessa transazione.
 --
 -- Una sola strada di scrittura, la stessa delle pagine:
@@ -31,7 +31,7 @@
 -- (gli accessi al cantiere, l'avviso in app alla ditta assegnata, la coda del calendario)
 -- sono le stesse che nascono assegnando dalla pagina.
 --
--- Idempotente. Nessun dato esistente viene toccato. Richiede 20281106100000.
+-- Idempotente. Nessun dato esistente viene toccato. Richiede 20281112100000.
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- La fase della commessa con quel nome (spazi e maiuscole non contano).

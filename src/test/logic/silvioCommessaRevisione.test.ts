@@ -128,7 +128,7 @@ describe("le lacune", () => {
     const s = scritturaDalPiano(conFasi([{ name: "Demolizioni", giorni: 3 }, { name: "Collaudo", start_date: "2026-12-01", end_date: "2026-12-02", giorni: 2 }]));
     expect(s.fasi[0]).toMatchObject({ nome: "Demolizioni", inizio: null, giorni: 3 });
     expect(s.fasi[1].giorni).toBeUndefined();
-    const sql = readFileSync(resolve(radice, "supabase/migrations/20281106100000_commessa_bozze_silvio.sql"), "utf8");
+    const sql = readFileSync(resolve(radice, "supabase/migrations/20281112100000_commessa_bozze_silvio.sql"), "utf8");
     expect(sql).toContain("jsonb_build_array(jsonb_build_object('nome', f->>'nome', 'giorni', f->'giorni'))");
   });
 
