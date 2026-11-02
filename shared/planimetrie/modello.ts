@@ -272,6 +272,8 @@ export interface Planimetria {
   livelli: Livello[];
   /** Listino delle unità (condomini, bifamiliari in vendita), per sigla dell'unità. */
   vendite?: Record<string, VenditaUnita>;
+  /** Avanzamento: per ogni proposta, le chiavi dei lavori già fatti (vedi chiaveLavoro). */
+  lavoriFatti?: Record<string, string[]>;
 }
 
 export type StatoVendita = "libera" | "prenotata" | "venduta";
@@ -369,6 +371,9 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
   if (dato.titolo !== undefined && typeof dato.titolo !== "string") errori.push("La pianta: il titolo deve essere un testo.");
   if (dato.scala !== undefined && !(eNumero(dato.scala) && dato.scala > 0)) errori.push("La pianta: la scala deve essere un numero maggiore di zero.");
   if (dato.nord !== undefined && !eNumero(dato.nord)) errori.push("La pianta: il nord deve essere un numero di gradi.");
+  if (dato.lavoriFatti !== undefined && (!eOggetto(dato.lavoriFatti) || !Object.values(dato.lavoriFatti).every((v) => Array.isArray(v) && v.every((x) => typeof x === "string")))) {
+    errori.push("La pianta: l'avanzamento dei lavori non è valido.");
+  }
   if (dato.vendite !== undefined) {
     if (!eOggetto(dato.vendite)) errori.push("La pianta: il listino delle unità non è valido.");
     else for (const [sigla, v] of Object.entries(dato.vendite)) {

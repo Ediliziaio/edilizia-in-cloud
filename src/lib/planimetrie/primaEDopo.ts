@@ -204,6 +204,20 @@ function confronta(doc: Planimetria, fatto: StatoPianta, progetto: StatoPianta, 
   return { stanze, totale: arrot(stanze.reduce((t, s) => t + s.totale, 0)), righe: stanze.reduce((t, s) => t + s.lavori.length, 0) };
 }
 
+/** La chiave di un lavoro, stabile fra un salvataggio e l'altro: stanza, descrizione, unità. */
+export const chiaveLavoro = (stanza: string, l: Pick<Lavoro, "descrizione" | "unita">) => `${stanza}|${l.descrizione}|${l.unita}`;
+
+/** Quanto è fatto: per stanza e in tutto, in euro e in percentuale dell'importo (i lavori senza prezzo contano 0). */
+export function avanzamento(r: RiepilogoLavori, fatti: ReadonlySet<string>) {
+  const stanze = r.stanze.map((s) => {
+    const eseguito = s.lavori.filter((l) => fatti.has(chiaveLavoro(s.stanza, l))).reduce((t, l) => t + l.importo, 0);
+    const fattiN = s.lavori.filter((l) => fatti.has(chiaveLavoro(s.stanza, l))).length;
+    return { stanza: s.stanza, eseguito, percento: s.totale > 0 ? Math.round((eseguito / s.totale) * 100) : fattiN === s.lavori.length ? 100 : 0, fatti: fattiN, totali: s.lavori.length };
+  });
+  const eseguito = stanze.reduce((t, s) => t + s.eseguito, 0);
+  return { stanze, eseguito, percento: r.totale > 0 ? Math.round((eseguito / r.totale) * 100) : 0 };
+}
+
 export const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 export const scriviQuantita = (l: Lavoro) => `${l.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${l.unita === "n" ? "n." : l.unita === "ml" ? "m" : "m²"}`;
 

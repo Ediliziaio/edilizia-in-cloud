@@ -117,7 +117,10 @@ const SUGGERIMENTI: Record<Strumento, string> = {
 
 export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
   const telefono = useIsMobile();
-  const sola = soloVista ?? telefono;
+  // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
+  // (per chi disegna in cantiere, col dito: un tocco per gli angoli, due dita per spostarsi).
+  const [modificaTelefono, setModificaTelefono] = useState(false);
+  const sola = soloVista ?? (telefono && !modificaTelefono);
 
   // Il piano su cui si lavora (fase 5): ogni piano ha il suo annulla/ripeti.
   const [livelloId, setLivelloId] = useState<string | undefined>(piantaIniziale?.livelli[0]?.id);
@@ -1292,6 +1295,11 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     <div className={cn("flex h-full min-h-[480px] flex-col overflow-hidden rounded-lg border bg-background", className)}>
       {/* barra in alto */}
       <div className="flex flex-wrap items-center gap-2 border-b p-2">
+        {telefono && soloVista === undefined && (
+          <Button size="sm" variant={modificaTelefono ? "default" : "outline"} onClick={() => { setModificaTelefono((v) => !v); setStrumento("seleziona"); }}>
+            <PenLine /> {modificaTelefono ? "Fine modifica" : "Modifica"}
+          </Button>
+        )}
         {!sola && (
           <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Cosa vuoi fare">
             <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
@@ -1447,7 +1455,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           )}
           {vuota && sola && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              La pianta è vuota. Si disegna dal computer.
+              La pianta è vuota. Tocca «Modifica» in alto per disegnarla anche da qui.
             </div>
           )}
 
