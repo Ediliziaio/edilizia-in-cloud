@@ -95,6 +95,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const [soffitto, setSoffitto] = useState(modoIniziale === "dentro");
   const [arredi, setArredi] = useState(true);
   const [impianti, setImpianti] = useState(false);
+  const [fondazioni, setFondazioni] = useState(false);
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -117,9 +118,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const scenaBase: Scena3D = useMemo(
     () =>
       tuttiIPiani
-        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, impianti, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
-        : costruisciScena(pianta, { vista, soffitto, elementi: arredi, impianti }),
-    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, impianti, esploso, finoA],
+        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, impianti, fondazioni, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
+        : costruisciScena(pianta, { vista, soffitto, elementi: arredi, impianti, fondazioni }),
+    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, impianti, fondazioni, esploso, finoA],
   );
   const scena: Scena3D = useMemo(() => (strutturaStrati ? esplodiInStrati(scenaBase, distanzaStrati) : scenaBase), [scenaBase, strutturaStrati, distanzaStrati]);
 
@@ -441,6 +442,10 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         <div className="flex items-center gap-2">
           <Switch id="vista3d-impianti" checked={impianti} onCheckedChange={setImpianti} />
           <Label htmlFor="vista3d-impianti" className="flex items-center gap-1"><Cable className="h-3.5 w-3.5" />Impianti</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="vista3d-fondazioni" checked={fondazioni} onCheckedChange={setFondazioni} />
+          <Label htmlFor="vista3d-fondazioni">Fondazioni</Label>
         </div>
         {modo === "dentro" && onFotogramma && (
           <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma()))}>

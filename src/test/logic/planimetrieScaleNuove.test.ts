@@ -38,3 +38,43 @@ describe("scale a U e a chiocciola", () => {
     expect(TIPI_SU_TUTTI_I_PIANI).toContain("scala_u");
   });
 });
+
+import { meshFondazioni } from "@/lib/planimetrie/tred/scena";
+import { scenaEdificio } from "@/lib/planimetrie/tred/edificio";
+import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
+import type { PiantaPer3D } from "@/lib/planimetrie/tred/tipi";
+
+describe("fondazioni", () => {
+  const pianta = (): PiantaPer3D => ({
+    muri: [
+      { id: "m1", a: { x: 0, y: 0 }, b: { x: 500, y: 0 }, spessore: 30, altezza: 270, stato: "esistente" },
+      { id: "m2", a: { x: 0, y: 200 }, b: { x: 500, y: 200 }, spessore: 10, altezza: 270, stato: "esistente" },
+    ] as never, aperture: [], locali: [],
+    elementi: [{ id: "p1", tipo: "pilastro", centro: { x: 250, y: 100 }, rotazione: 0 }] as never,
+  });
+  it("un cordolo sotto il muro portante, nessuno sotto il tramezzo, un plinto sotto il pilastro, tutto sottoterra", () => {
+    const f = meshFondazioni(pianta())!;
+    expect(f).not.toBeNull();
+    const ys = f.posizioni.filter((_, i) => i % 3 === 1);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(0.0001);
+    expect(Math.min(...ys)).toBeCloseTo(-0.6, 3);
+    // 2 scatole (cordolo + plinto) da 6 facce da 4 vertici
+    expect(f.posizioni.length / 3).toBe(2 * 24);
+  });
+  it("nell'edificio compaiono solo sotto il piano più basso", () => {
+    const piano = (id: string, quota: number) => ({ id, nome: id, quota, piante: { fatto: pianta(), progetto: pianta() } });
+    const s = scenaEdificio([piano("t", 0), piano("p", 300)], { vista: "fatto", fondazioni: true });
+    expect(s.mesh.filter((m) => m.id.endsWith("/fondazioni")).map((m) => m.id)).toEqual(["t/fondazioni"]);
+  });
+  it("il computo stima cordolo, calcestruzzo e scavo solo per le pareti nuove portanti", () => {
+    const vuoto = { aperture: [], locali: [], elementi: [], quote: [], testi: [] };
+    const muro = (id: string, tipo: string, stato: string) => ({ id, p1: { x: 0, y: 0 }, p2: { x: 1000, y: 0 }, spessore: 30, altezza: 270, tipo, stato, origine: "rilevata" });
+    const doc = { schemaVersione: 1, titolo: "t", livelli: [{ id: "l", nome: "Terra", quota: 0, fatto: { ...vuoto, muri: [muro("a", "portante", "esistente")] },
+      proposte: [{ id: "A", nome: "A", ...vuoto, muri: [muro("a", "portante", "esistente"), muro("b", "portante", "nuovo"), muro("c", "tramezzo", "nuovo")] }] }] } as never;
+    const q = calcolaQuantita(doc);
+    const v = (suffisso: string) => Object.entries(q).find(([k]) => k.endsWith(suffisso))?.[1].valore;
+    expect(v("fondazioni:cordolo.ml")).toBeCloseTo(10, 3);
+    expect(v("fondazioni:cordolo.cls_mc")).toBeCloseTo(10 * 0.7 * 0.5, 3);
+    expect(Object.keys(q).some((k) => k.startsWith("fatto:") && k.includes("fondazioni"))).toBe(false);
+  });
+});

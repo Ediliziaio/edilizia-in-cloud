@@ -262,6 +262,28 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
+  // Fondazioni stimate: cordolo (spessore + 40 cm, alto 50 cm) sotto le pareti nuove portanti ed esterne del piano più basso,
+  // scavo largo 20 cm in più per lato e profondo 80 cm. Le pareti esistenti hanno già le loro; i tramezzi non ne hanno.
+  {
+    const basso = [...p.livelli].sort((x, y) => x.quota - y.quota)[0];
+    const sb = basso ? statoDelLivello(basso, ambito) : null;
+    if (sb) {
+      let ml = 0, cls = 0, scavo = 0;
+      for (const m of sb.muri) {
+        if (m.stato !== "nuovo" || m.tipo === "tramezzo") continue;
+        const l = lunghezzaMuro(m) / 100;
+        ml += l;
+        cls += l * ((m.spessore + 40) / 100) * 0.5;
+        scavo += l * ((m.spessore + 80) / 100) * 0.8;
+      }
+      if (ml > 0) {
+        metti("fondazioni:cordolo", "ml", { valore: ml, origini: ["stimata"] }, "Cordolo di fondazione sotto le pareti nuove portanti (stima)");
+        metti("fondazioni:cordolo", "cls_mc", { valore: cls, origini: ["stimata"] }, "Calcestruzzo dei cordoli di fondazione (stima: spessore + 40 cm, alto 50 cm)");
+        metti("fondazioni:cordolo", "scavo_mc", { valore: scavo, origini: ["stimata"] }, "Scavo per i cordoli di fondazione (stima)");
+      }
+    }
+  }
+
   for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
   // Terreno in pendenza o rilievo: scavi e riporti sotto il piano più basso
   const punti = puntiTerreno(p);
