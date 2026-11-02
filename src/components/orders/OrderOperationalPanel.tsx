@@ -70,9 +70,6 @@ export function OrderOperationalPanel({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-[11px] text-muted-foreground">
-        Le cose da fare si pianificano con le Attività; l&apos;avanzamento del cantiere vive nelle Lavorazioni.
-      </p>
     </div>
   );
 

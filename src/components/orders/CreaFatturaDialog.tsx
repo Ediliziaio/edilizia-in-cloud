@@ -766,9 +766,8 @@ export function CreaFatturaDialog({
             <Receipt className="h-5 w-5 text-primary" />
             Crea fattura da commessa {orderCode}
           </DialogTitle>
-          <DialogDescription>
-            Scegli la rata e <strong>quanto fatturare</strong> (l'importo si cambia), il <strong>tipo di cliente</strong> con
-            le sue clausole, e guarda l'anteprima prima di creare la bozza.
+          <DialogDescription className="sr-only">
+            Scegli la rata e quanto fatturare, il tipo di cliente con le sue clausole, e guarda l'anteprima prima di creare la bozza.
           </DialogDescription>
         </DialogHeader>
 
@@ -1331,7 +1330,7 @@ export function CreaFatturaDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 sm:justify-between">
+        <DialogFooter className="sticky -bottom-6 z-10 -mx-6 -mb-6 border-t bg-background px-6 py-3 max-sm:-bottom-4 max-sm:-mx-4 max-sm:-mb-4 max-sm:px-4 gap-2 sm:gap-0 sm:justify-between">
           <Button
             variant="outline"
             onClick={() => setAnteprima(true)}

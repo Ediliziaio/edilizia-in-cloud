@@ -759,7 +759,7 @@ export function TaskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2 pr-6">
             <div>
               <DialogTitle>
                 {isEditing ? "Modifica Attività" : "Nuova Attività"}
@@ -800,34 +800,23 @@ export function TaskDialog({
           </div>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2 max-sm:gap-3 max-sm:py-0">
+        <div className="grid gap-3 py-1 max-sm:py-0">
           {!isEditing && !isMobile && (
-            <div className="rounded-lg border bg-primary/5 p-3">
-              <div className="mb-2 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <Label htmlFor="task-ai-brief" className="text-sm font-medium">
-                  Assistente AI
-                </Label>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Textarea
-                  id="task-ai-brief"
-                  value={aiBrief}
-                  onChange={(e) => setAiBrief(e.target.value)}
-                  placeholder="Es. Assegna a Luigi montaggio finestre domani, alta priorità, 4 ore"
-                  rows={2}
-                  className="min-h-[68px] bg-background text-sm"
-                  maxLength={800}
-                />
-                <Button
-                  type="button"
-                  className="h-10 gap-2 sm:self-end"
-                  onClick={applySmartDraft}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Compila
-                </Button>
-              </div>
+            <div className="flex items-start gap-2 rounded-lg bg-primary/5 p-1.5">
+              <Label htmlFor="task-ai-brief" className="sr-only">Assistente AI</Label>
+              <Textarea
+                id="task-ai-brief"
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                placeholder="A parole: «Luigi, montaggio finestre domani, 4 ore»"
+                rows={1}
+                className="min-h-9 resize-none bg-background py-2 text-sm"
+                maxLength={800}
+              />
+              <Button type="button" className="h-9 shrink-0 gap-1.5" onClick={applySmartDraft}>
+                <Sparkles className="h-4 w-4" />
+                Compila
+              </Button>
             </div>
           )}
 
@@ -855,7 +844,7 @@ export function TaskDialog({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Dettagli aggiuntivi..."
-              rows={isMobile ? 2 : 3}
+              rows={2}
               maxLength={1000}
               className="max-sm:min-h-[60px]"
             />
@@ -1354,7 +1343,7 @@ export function TaskDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="sticky -bottom-6 z-10 -mx-6 -mb-6 border-t bg-background px-6 py-3 max-sm:-bottom-4 max-sm:-mx-4 max-sm:-mb-4 max-sm:px-4 gap-2">
           {isEditing && (
             <Button
               variant="destructive"
