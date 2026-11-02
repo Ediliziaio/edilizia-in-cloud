@@ -153,7 +153,9 @@ Deno.serve(async (req) => {
 
       // c) Crea nuovo thread
       if (!threadId) {
-        const preview = row.raw_text ? row.raw_text.slice(0, 200) : null;
+        // Tagliare a 200 può spezzare un'emoji: mezzo carattere rende invalido il JSON
+        // e l'email restava senza conversazione, riprovata a ogni giro.
+        const preview = row.raw_text ? row.raw_text.slice(0, 200).toWellFormed().replace(/\u0000/g, "") : null;
         const { data: newThread, error: thErr } = await supabase
           .from("email_threads")
           .insert({

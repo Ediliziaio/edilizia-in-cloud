@@ -147,11 +147,16 @@ describe("chi usa il logo aziendale come riserva", () => {
     expect(sorgente).not.toContain('logoPath.endsWith(".png")');
   });
 
-  it.each(["generate-sal-pdf", "generate-giornale-pdf", "generate-native-pdf"])(
-    "%s: il logo dell'anagrafica, altrimenti quello aziendale",
+  it("generate-native-pdf: il logo dell'anagrafica, altrimenti quello aziendale", () => {
+    const sorgente = leggi("supabase/functions/generate-native-pdf/index.ts");
+    expect(sorgente).toContain("azienda.logo_url = logoDiRiserva(azienda.logo_url, profiloAzienda?.logo_url);");
+  });
+
+  it.each(["generate-sal-pdf", "generate-giornale-pdf"])(
+    "%s: il logo lo decide l'intestazione comune dei documenti",
     (funzione) => {
-      const sorgente = leggi(`supabase/functions/${funzione}/index.ts`);
-      expect(sorgente).toContain("azienda.logo_url = logoDiRiserva(azienda.logo_url, profiloAzienda?.logo_url);");
+      expect(leggi(`supabase/functions/${funzione}/index.ts`)).toContain("leggiAziendaDocumento(supabase, company_id)");
+      expect(leggi("supabase/functions/_shared/aziendaDocumento.ts")).toContain("logoDiRiserva(a.logo_url, c.logo_url)");
     },
   );
 
