@@ -1423,12 +1423,13 @@ function OrderDetailInner() {
               name:
                 `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
                 "Cliente",
-              phone: order.customer.phone,
-              email: order.customer.email,
+              // Il profilo può non avere il recapito scritto sulla commessa.
+              phone: order.customer.phone || order.client_phone,
+              email: order.customer.email || order.client_email,
             }
           : { name: order.client_name || "Cliente", phone: order.client_phone, email: order.client_email }
       }
-      workAddress={order.work_address}
+      workAddress={order.work_address || order.indirizzo_lavori}
       getPdfBlob={getPdfBlobForOrder}
       paymentDue={(() => {
         const unpaid = displayInstallments.filter(
