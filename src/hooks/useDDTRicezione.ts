@@ -542,6 +542,8 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     queryClient.invalidateQueries({ queryKey: ["warehouse-movements-registry"] });
     queryClient.invalidateQueries({ queryKey: ["magazzino-live"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+    // La bolla dentro la commessa: stato di verifica e materiali.
+    queryClient.invalidateQueries({ queryKey: ["commessa-bolle-ddt"] });
     if (poId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });

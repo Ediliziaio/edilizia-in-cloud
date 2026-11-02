@@ -40,7 +40,8 @@ describe("Richieste d'offerta della commessa", () => {
     mostra();
     expect(screen.getByRole("link", { name: "Infissi" })).toHaveAttribute("href", "/azienda/richieste-offerta/a");
     expect(screen.queryByText("Non mia")).toBeNull();
-    expect(screen.getByText(/3 fornitori · 1 offerta/)).toHaveTextContent("2 in attesa");
+    expect(screen.getByText(/3 fornitori · 1 offerta/)).toBeInTheDocument();
+    expect(screen.getByText("2 in attesa")).toBeInTheDocument();
     expect(screen.getByTitle("Migliore offerta")).toBeInTheDocument();
   });
   it("il prezzo non si vede senza il permesso dei costi", () => {

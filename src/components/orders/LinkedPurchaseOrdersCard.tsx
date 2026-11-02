@@ -1,8 +1,7 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Package, PackageCheck, ExternalLink, Link2, Unlink, FileCheck, Plus } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package, PackageCheck, ExternalLink, Link2, Unlink, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +20,8 @@ import { avanzamentoOrdine, type ProcurementItem } from "@/lib/orders/materialPr
 import { usePermissions } from "@/hooks/usePermissions";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { OdaDocumentiDialog, type OdaDellaFinestra } from "./OdaDocumentiDialog";
+import { dataIt } from "./OrderDocumentiFornitore";
+import { RiquadroCommessa, TabellaCommessa, type ColonnaTabella } from "./TabellaCommessa";
 
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
@@ -38,13 +39,27 @@ const OdaArrivoMerceSheet = lazy(() =>
   import("@/components/warehouse/OdaArrivoMerceSheet").then((m) => ({ default: m.OdaArrivoMerceSheet })),
 );
 
+interface OrdineCollegato {
+  id: string;
+  oda_number: string;
+  status: string;
+  total: number;
+  issue_date: string | null;
+  expected_delivery_date: string | null;
+  delivery_warehouse_id: string | null;
+  suppliers: { name: string } | null;
+  righe: Array<{ quantity: number; quantity_received: number }> | null;
+}
+
 interface LinkedPurchaseOrdersCardProps {
   orderId: string;
   orderCode?: string | null;
   items: ProcurementItem[];
+  /** I numeri dei materiali, dentro lo stesso riquadro come nelle altre viste. */
+  riepilogo?: ReactNode;
 }
 
-export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPurchaseOrdersCardProps) {
+export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo }: LinkedPurchaseOrdersCardProps) {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -98,20 +113,11 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("id, oda_number, status, total, expected_delivery_date, delivery_warehouse_id, suppliers(name), righe:purchase_order_items(quantity, quantity_received)")
+        .select("id, oda_number, status, total, issue_date, expected_delivery_date, delivery_warehouse_id, suppliers(name), righe:purchase_order_items(quantity, quantity_received)")
         .eq("order_id", orderId).eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as unknown as Array<{
-        id: string;
-        oda_number: string;
-        status: string;
-        total: number;
-        expected_delivery_date: string | null;
-        delivery_warehouse_id: string | null;
-        suppliers: { name: string } | null;
-        righe: Array<{ quantity: number; quantity_received: number }> | null;
-      }>;
+      return data as unknown as OrdineCollegato[];
     },
     enabled: !!orderId && !!companyId,
   });
@@ -119,112 +125,77 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
   // DDT aggregato per ODA — evidenzia stato ricezione nei collegamenti
   const { data: ddtCounts = {} } = useDDTCountsByPO();
 
-  return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3 max-sm:p-3 max-sm:pb-2">
-        <CardTitle className="flex items-center gap-2 text-base min-w-0">
-          <Package className="h-4 w-4 shrink-0" />
-          <span className="truncate">Ordini ai fornitori</span>
-        </CardTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
-            <Link2 className="h-4 w-4 mr-1.5" />
-            Collega OdA
-          </Button>
-          {canEditOrders && canViewCosts && (
-            <Button size="sm" className="min-h-11 font-semibold" onClick={() => setNuovoOpen(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nuovo ordine
-            </Button>
-          )}
+  const colonne: ColonnaTabella<OrdineCollegato>[] = [
+    { titolo: "Ordine", principale: true, cella: (po) => (
+      <button type="button" onClick={() => setOdaAperto({ id: po.id, oda_number: po.oda_number, status: po.status, total: po.total, fornitore: po.suppliers?.name ?? null })}
+        className="text-left font-mono font-medium underline-offset-2 hover:underline" aria-label={`Bolle e fatture dell'ordine ${po.oda_number}`}>
+        {po.oda_number}
+      </button>
+    ) },
+    { titolo: "Data", cella: (po) => <span className="whitespace-nowrap">{dataIt(po.issue_date)}</span> },
+    { titolo: "Fornitore", cella: (po) => po.suppliers?.name || "—" },
+    { titolo: "Stato", cella: (po) => <Badge className={`whitespace-nowrap border-0 text-xs ${STATUS_COLORS[po.status] || ""}`}>{STATUS_LABELS[po.status] || po.status}</Badge> },
+    { titolo: "Arrivato", cella: (po) => {
+      const a = avanzamentoOrdine(po, oggi);
+      const ddt = ddtCounts[po.id];
+      return (
+        <div className="text-xs text-muted-foreground">
+          {a.righeTotali > 0 && <p className="whitespace-nowrap">{a.righeArrivate}/{a.righeTotali} righe</p>}
+          {ddt && ddt.total > 0 && <p className={`whitespace-nowrap ${ddt.parziali > 0 || ddt.non_conformi > 0 ? "text-amber-700" : ""}`} title={ddt.non_conformi > 0 ? `${ddt.non_conformi} non conformi` : undefined}>{ddtArrivati(ddt)}/{ddt.total} DDT</p>}
         </div>
-      </CardHeader>
-      <NuovoOdaCommessaDialog open={nuovoOpen} onOpenChange={setNuovoOpen} orderId={orderId} orderCode={orderCode} items={items} />
-      <CardContent className="max-sm:p-3 max-sm:pt-0">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Caricamento...</p>
-        ) : isError ? (
-          <div role="alert" className="flex flex-wrap gap-3 items-center text-sm">Impossibile caricare gli ordini collegati.<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>Riprova</Button></div>
-        ) : linkedPOs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
-        ) : (
-          <div className="space-y-3 max-sm:space-y-2">
-            {linkedPOs.map((po) => {
-              const ddtAgg = ddtCounts[po.id];
-              const avanzamento = avanzamentoOrdine(po, oggi);
-              return (
-                <div
-                  key={po.id}
-                  className="flex items-center justify-between p-2 rounded-md border hover:bg-accent transition-colors group"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setOdaAperto({ id: po.id, oda_number: po.oda_number, status: po.status, total: po.total, fornitore: po.suppliers?.name ?? null })}
-                    className="flex-1 min-w-0 text-left"
-                    aria-label={`Bolle e fatture dell'ordine ${po.oda_number}`}
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-sm font-medium">{po.oda_number}</span>
-                        <Badge className={`text-xs border-0 ${STATUS_COLORS[po.status] || ""}`}>
-                          {STATUS_LABELS[po.status] || po.status}
-                        </Badge>
-                        {ddtAgg && ddtAgg.total > 0 && (
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] gap-1 ${
-                              ddtAgg.parziali > 0 || ddtAgg.non_conformi > 0
-                                ? "border-amber-300 text-amber-700 bg-amber-50"
-                                : ddtArrivati(ddtAgg) === ddtAgg.total
-                                ? "border-green-300 text-green-700 bg-green-50"
-                                : "border-muted-foreground/30 text-muted-foreground"
-                            }`}
-                            title={ddtAgg.non_conformi > 0 ? `${ddtAgg.non_conformi} non conformi` : undefined}
-                          >
-                            <FileCheck className="h-2.5 w-2.5" />
-                            {ddtArrivati(ddtAgg)}/{ddtAgg.total} DDT arrivati
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {po.suppliers?.name || "—"}
-                        {avanzamento.righeTotali > 0 && <> · {avanzamento.righeArrivate}/{avanzamento.righeTotali} righe arrivate</>}
-                        {avanzamento.aperto && po.expected_delivery_date && (
-                          <span className={avanzamento.inRitardo ? "font-medium text-amber-700 dark:text-amber-400" : undefined}>
-                            {" · "}{avanzamento.inRitardo ? "In ritardo, doveva arrivare il" : "Consegna prevista"} {po.expected_delivery_date.slice(0, 10).split("-").reverse().join("/")}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    {avanzamento.aperto && canEditOrders && (
-                      <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}
-                        onClick={() => setArrivoDi({ id: po.id, warehouseId: po.delivery_warehouse_id })}>
-                        <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
-                      </Button>
-                    )}
-                    <span className="text-sm font-medium">{formatCurrency(Number(po.total))}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity max-sm:hidden"
-                      disabled={!canEditOrders}
-                      onClick={(e) => { e.stopPropagation(); setUnlinkTarget({ id: po.id, oda_number: po.oda_number }); }}
-                      aria-label={`Scollega OdA ${po.oda_number}`}
-                    >
-                      <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Button>
-                    <Link to={`/azienda/ordini-acquisto/${po.id}`} className="max-sm:hidden" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      );
+    } },
+    { titolo: "Consegna", cella: (po) => {
+      const a = avanzamentoOrdine(po, oggi);
+      if (!a.aperto || !po.expected_delivery_date) return <span className="text-muted-foreground">—</span>;
+      return <span className={a.inRitardo ? "whitespace-nowrap font-medium text-amber-700 dark:text-amber-400" : "whitespace-nowrap"}>{a.inRitardo ? "In ritardo, " : ""}{dataIt(po.expected_delivery_date)}</span>;
+    } },
+    { titolo: "Importo", destra: true, cella: (po) => <span className="font-medium">{formatCurrency(Number(po.total))}</span> },
+    { titolo: "Azioni", destra: true, cella: (po) => (
+      <div className="flex items-center justify-end gap-1">
+        {avanzamentoOrdine(po, oggi).aperto && canEditOrders && (
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}
+            onClick={() => setArrivoDi({ id: po.id, warehouseId: po.delivery_warehouse_id })}>
+            <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
+          </Button>
         )}
-      </CardContent>
+        <Link to={`/azienda/ordini-acquisto/${po.id}`} className="inline-flex h-8 w-8 items-center justify-center" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
+          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+        </Link>
+        <Button variant="ghost" size="icon" className="h-8 w-8 max-sm:hidden" disabled={!canEditOrders}
+          onClick={() => setUnlinkTarget({ id: po.id, oda_number: po.oda_number })} aria-label={`Scollega OdA ${po.oda_number}`}>
+          <Unlink className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </div>
+    ) },
+  ];
+
+  return (
+    <>
+    <RiquadroCommessa
+      icona={<Package className="h-5 w-5 text-primary" aria-hidden="true" />}
+      titolo="Ordini ai fornitori" conteggio={linkedPOs.length}
+      azioni={<>
+        <Button variant="outline" size="sm" disabled={!canEditOrders} onClick={() => setLinkDialogOpen(true)}>
+          <Link2 className="mr-1.5 h-4 w-4" />Collega OdA
+        </Button>
+        {canEditOrders && canViewCosts && (
+          <Button size="sm" onClick={() => setNuovoOpen(true)}><Plus className="mr-1.5 h-4 w-4" />Nuovo ordine</Button>
+        )}
+      </>}
+      numeri={riepilogo}
+    >
+      <NuovoOdaCommessaDialog open={nuovoOpen} onOpenChange={setNuovoOpen} orderId={orderId} orderCode={orderCode} items={items} />
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Caricamento...</p>
+      ) : isError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">Impossibile caricare gli ordini collegati.<Button size="sm" variant="outline" disabled={isFetching} onClick={() => refetch()}>Riprova</Button></div>
+      ) : linkedPOs.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nessun ordine d'acquisto collegato.</p>
+      ) : (
+        <TabellaCommessa etichetta="Ordini ai fornitori" colonne={colonne} righe={linkedPOs} chiave={(po) => po.id} />
+      )}
+    </RiquadroCommessa>
 
       {/* Clic su un ordine: le sue bolle e fatture, senza lasciare la commessa. */}
       {/* Montata solo quando serve: bolle e fatture si leggono al clic, non a ogni apertura della commessa. */}
@@ -239,6 +210,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
               setArrivoDi(null);
               refreshMaterialQueries(queryClient);
               queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
+              queryClient.invalidateQueries({ queryKey: ["commessa-bolle-ddt"] });
             }}
             odaId={arrivoDi.id}
             companyId={companyId}
@@ -277,6 +249,6 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   );
 }

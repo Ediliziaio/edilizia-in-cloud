@@ -8,7 +8,6 @@ import { FileQuestion, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,12 +15,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAzioniMateriali, useMaterialiPerFase } from "@/hooks/useMaterialiPerFase";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useSupplierRfqs } from "@/hooks/useSupplierRfqs";
+import { useSupplierRfqs, type SupplierRfq } from "@/hooks/useSupplierRfqs";
 import { supabase } from "@/integrations/supabase/client";
 import { acquistabile } from "@/lib/distinta/statiFase";
 import { formatCurrency } from "@/lib/formatters";
 import { RDO_STATUS_COLORS, RDO_STATUS_LABELS } from "@/lib/rdoStatus";
 import { cn } from "@/lib/utils";
+import { ContatoriFiltro } from "./ContatoriFiltro";
+import { RiquadroCommessa, TabellaCommessa, type ColonnaTabella } from "./TabellaCommessa";
 
 const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 const conPlurale = (n: number, uno: string, tanti: string) => `${n} ${n === 1 ? uno : tanti}`;
@@ -30,23 +31,48 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
   const perm = usePermissions();
   const { rfqs, contatori, isLoading, isError } = useSupplierRfqs();
   const [nuova, setNuova] = useState(false);
+  const [filtro, setFiltro] = useState<string | null>(null);
   const puoCreare = !perm.solaLettura && (perm.canManagePurchasing || perm.canEditOrders || perm.isAdmin);
   const dellaCommessa = rfqs.filter(r => r.order_id === orderId);
 
+  const aperte = ["bozza", "inviata", "in_valutazione"];
+  const filtri: Record<string, (r: SupplierRfq) => boolean> = {
+    aperte: (r) => aperte.includes(r.status),
+    attesa: (r) => (contatori[r.id]?.inAttesa ?? 0) > 0,
+    offerte: (r) => (contatori[r.id]?.risposte ?? 0) > 0,
+    aggiudicate: (r) => r.status === "aggiudicata",
+  };
+  const conta = (chiave: string) => dellaCommessa.filter(filtri[chiave]).length;
+  const visibili = filtro && filtri[filtro] && conta(filtro) > 0 ? dellaCommessa.filter(filtri[filtro]) : dellaCommessa;
+  const colonne: ColonnaTabella<SupplierRfq>[] = [
+    { titolo: "Numero", principale: true, cella: (r) => <Link to={`/azienda/richieste-offerta/${r.id}`} className="font-mono font-medium underline-offset-2 hover:underline">{r.rfq_number}</Link> },
+    { titolo: "Data", cella: (r) => <span className="whitespace-nowrap">{dataIt(r.created_at)}</span> },
+    { titolo: "Cosa serve", cella: (r) => <Link to={`/azienda/richieste-offerta/${r.id}`} className="underline-offset-2 hover:underline">{r.titolo}</Link> },
+    { titolo: "Fornitori", cella: (r) => {
+      const c = contatori[r.id];
+      return c ? <div className="text-xs text-muted-foreground"><p className="whitespace-nowrap">{conPlurale(c.invitati, "fornitore", "fornitori")} · {conPlurale(c.risposte, "offerta", "offerte")}</p>{c.inAttesa > 0 && <p>{c.inAttesa} in attesa</p>}</div> : <span className="text-muted-foreground">—</span>;
+    } },
+    { titolo: "Stato", cella: (r) => <Badge className={cn("whitespace-nowrap border-0 text-xs", RDO_STATUS_COLORS[r.status])}>{RDO_STATUS_LABELS[r.status] ?? r.status}</Badge> },
+    { titolo: "Risposta entro", cella: (r) => <span className="whitespace-nowrap">{r.scadenza_offerte && r.status !== "aggiudicata" ? dataIt(r.scadenza_offerte) : "—"}</span> },
+    ...(perm.canViewCosts ? [{ titolo: "Migliore offerta", destra: true, cella: (r: SupplierRfq) => <span className="font-medium" title="Migliore offerta">{contatori[r.id]?.migliore != null ? formatCurrency(contatori[r.id].migliore!) : "—"}</span> }] : []),
+    { titolo: "Azioni", destra: true, cella: (r) => r.purchase_order_id ? <Link to={`/azienda/ordini-acquisto/${r.purchase_order_id}`} className="whitespace-nowrap text-xs underline underline-offset-2">Vedi l’ordine</Link> : null },
+  ];
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3 max-sm:p-3 max-sm:pb-2">
-        <CardTitle className="flex min-w-0 items-center gap-2 text-base">
-          <FileQuestion className="h-4 w-4 shrink-0" />
-          <span className="truncate">Richieste d’offerta</span>
-        </CardTitle>
-        {puoCreare && (
-          <Button size="sm" className="min-h-11 font-semibold" onClick={() => setNuova(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />Nuova richiesta
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent className="max-sm:p-3 max-sm:pt-0">
+    <>
+      <RiquadroCommessa
+        icona={<FileQuestion className="h-5 w-5 text-primary" aria-hidden="true" />}
+        titolo="Richieste d’offerta" conteggio={dellaCommessa.length}
+        azioni={puoCreare ? <Button size="sm" onClick={() => setNuova(true)}><Plus className="mr-1.5 h-4 w-4" />Nuova richiesta</Button> : undefined}
+        numeri={dellaCommessa.length > 0 ? (
+          <ContatoriFiltro etichetta="Richieste per stato" attivo={filtro} onScegli={setFiltro} voci={[
+            { chiave: "aperte", etichetta: "Aperte", valore: conta("aperte") },
+            { chiave: "attesa", etichetta: "In attesa di risposta", valore: conta("attesa"), avviso: true },
+            { chiave: "offerte", etichetta: "Con offerte", valore: conta("offerte") },
+            { chiave: "aggiudicate", etichetta: "Aggiudicate", valore: conta("aggiudicate") },
+          ]} />
+        ) : undefined}
+      >
         {isLoading ? (
           <p role="status" className="text-sm text-muted-foreground">Caricamento…</p>
         ) : isError ? (
@@ -54,34 +80,11 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
         ) : dellaCommessa.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessuna richiesta d’offerta per questa commessa.</p>
         ) : (
-          <ul className="space-y-2">
-            {dellaCommessa.map(r => {
-              const c = contatori[r.id];
-              return (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md border p-2">
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link to={`/azienda/richieste-offerta/${r.id}`} className="min-w-0 truncate text-sm font-medium underline-offset-2 hover:underline">{r.titolo}</Link>
-                      <Badge className={cn("border-0 text-xs", RDO_STATUS_COLORS[r.status])}>{RDO_STATUS_LABELS[r.status] ?? r.status}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-mono">{r.rfq_number}</span>
-                      {c && <> · {conPlurale(c.invitati, "fornitore", "fornitori")} · {conPlurale(c.risposte, "offerta", "offerte")}{c.inAttesa > 0 && <> · {c.inAttesa} in attesa</>}</>}
-                      {r.scadenza_offerte && r.status !== "aggiudicata" && <> · Risposta entro {dataIt(r.scadenza_offerte)}</>}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3 text-sm">
-                    {r.purchase_order_id && <Link to={`/azienda/ordini-acquisto/${r.purchase_order_id}`} className="text-xs underline underline-offset-2">Vedi l’ordine</Link>}
-                    {perm.canViewCosts && c?.migliore != null && <span className="font-medium tabular-nums" title="Migliore offerta">{formatCurrency(c.migliore)}</span>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <TabellaCommessa etichetta="Richieste d’offerta" colonne={colonne} righe={visibili} chiave={(r) => r.id} />
         )}
-      </CardContent>
+      </RiquadroCommessa>
       {nuova && <NuovaRichiesta orderId={orderId} orderCode={orderCode} onChiudi={() => setNuova(false)} />}
-    </Card>
+    </>
   );
 }
 

@@ -130,7 +130,7 @@ import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
 import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
-import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
+import { OrderBolleDdtCard, OrderFattureFornitoriCard, useBolleCommessa, useFattureFornitoriCommessa } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
@@ -519,6 +519,8 @@ function OrderDetailInner() {
     !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
   );
   const { data: conteggioOfferte } = useConteggioRichiesteCommessa(id, companyId, activeTab === "articoli");
+  const { data: bolleCommessa } = useBolleCommessa(id ?? "", activeTab === "articoli");
+  const { data: fattureCommessa } = useFattureFornitoriCommessa(id ?? "", activeTab === "articoli" && !!permissions.canViewCosts);
   // Keep any desktop-only view fallback; Cronoprogramma also has a mobile agenda.
   const vistaCantiere = isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
   const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
@@ -1763,7 +1765,7 @@ function OrderDetailInner() {
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
-              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto }} />
+              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length, fatture: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
             </div>
             <OrderViewTransition viewKey={activeMaterialiView}>
             {activeMaterialiView === "articoli" && <>
@@ -1889,8 +1891,9 @@ function OrderDetailInner() {
               <OrderRichiesteOfferta orderId={id!} orderCode={order.order_code} />
             </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
-              <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} ordini={permissions.canViewCosts ? (
+              <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} ordini={(riepilogo) => permissions.canViewCosts ? (
               <LinkedPurchaseOrdersCard
+                riepilogo={riepilogo}
                 orderId={id!}
                 orderCode={order.order_code}
                 items={displayItems.map((i) => ({

@@ -27,7 +27,7 @@ import {
 import { dataIt } from "./OrderDocumentiFornitore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RiquadroCommessa, StatoPill, TabellaCommessa } from "./TabellaCommessa";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,21 +178,12 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   });
 
   return (
-    <Card id="costi-commessa" className="scroll-mt-24">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-          <Wallet className="h-5 w-5 text-primary" aria-hidden="true" />Costi della commessa
-          {costi.length > 0 && <Badge variant="outline">{costi.length}</Badge>}
-          {costi.length > 0 && <span className="text-sm font-normal text-muted-foreground">· {formatCurrency(totale)} nel margine</span>}
-          {puoModificare && (
-            <Button size="sm" className="ml-auto" onClick={() => setAperto(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />Aggiungi costo
-            </Button>
-          )}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">Le spese registrate su questa commessa, anche senza fattura: tasse comunali, bolli, F24, diritti. Nel margine entra l’imponibile.</p>
-      </CardHeader>
-      <CardContent>
+    <RiquadroCommessa id="costi-commessa"
+      icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
+      titolo="Costi della commessa" conteggio={costi.length}
+      riassunto={costi.length > 0 ? `${formatCurrency(totale)} nel margine` : undefined}
+      azioni={puoModificare ? <Button size="sm" onClick={() => setAperto(true)}><Plus className="mr-1.5 h-4 w-4" />Aggiungi costo</Button> : undefined}
+    >
         <input
           ref={inputAllega}
           type="file"
@@ -213,46 +204,42 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
         ) : costi.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun costo registrato direttamente su questa commessa.</p>
         ) : (
-          <ul className="divide-y" aria-label="Costi della commessa">
-            {costi.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{c.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {dataIt(c.due_date)}{c.fase ? ` · ${c.fase}` : ""}{c.vat_rate ? ` · IVA ${c.vat_rate}%` : ""}
-                  </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{DOCUMENTO[c.documento].testo(c)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.is_paid ? "bg-green-50 text-green-800" : "bg-muted text-muted-foreground"}`}>
-                      {c.is_paid ? `Pagato${c.paid_date ? ` il ${dataIt(c.paid_date)}` : ""}` : "Da pagare"}
-                    </span>
-                    {c.allegato_path ? (
-                      <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!)}>
-                        <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? "Ricevuta"}
-                      </button>
-                    ) : puoModificare && c.documento !== "fattura" ? (
-                      <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2" disabled={allega.isPending}
-                        onClick={() => { setAllegaA(c.id); inputAllega.current?.click(); }}>
-                        <Paperclip className="h-3 w-3" aria-hidden="true" />Allega ricevuta
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <p className="text-sm font-semibold tabular-nums">{formatCurrency(c.amount)}</p>
-                  {/* Un costo pagato ha già scritto in cassa: si toglie da Economia → Costi, che storna il pagamento. */}
-                  {puoModificare && !c.is_paid && c.documento !== "fattura" && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Elimina ${c.name}`} disabled={elimina.isPending}
-                      onClick={() => { if (window.confirm(`Eliminare «${c.name}»?`)) elimina.mutate(c); }}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <TabellaCommessa etichetta="Costi della commessa" righe={costi} chiave={(c) => c.id} colonne={[
+            { titolo: "Costo", principale: true, cella: (c) => <span className="font-medium">{c.name}</span> },
+            { titolo: "Data", cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
+            { titolo: "Fase", cella: (c) => c.fase ?? "—" },
+            { titolo: "Documento", cella: (c) => (
+              <div className="space-y-0.5">
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{DOCUMENTO[c.documento].testo(c)}</span>
+                {c.allegato_path ? (
+                  <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!)}>
+                    <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? "Ricevuta"}
+                  </button>
+                ) : puoModificare && c.documento !== "fattura" ? (
+                  <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2" disabled={allega.isPending}
+                    onClick={() => { setAllegaA(c.id); inputAllega.current?.click(); }}>
+                    <Paperclip className="h-3 w-3" aria-hidden="true" />Allega ricevuta
+                  </button>
+                ) : null}
+              </div>
+            ) },
+            { titolo: "Pagamento", cella: (c) => (
+              <div className="space-y-0.5">
+                <StatoPill tono={c.is_paid ? "verde" : "ambra"}>{c.is_paid ? "Pagato" : "Da pagare"}</StatoPill>
+                {c.is_paid && c.paid_date && <p className="whitespace-nowrap text-xs text-muted-foreground">il {dataIt(c.paid_date)}</p>}
+              </div>
+            ) },
+            { titolo: "IVA", destra: true, cella: (c) => (c.vat_rate ? `${c.vat_rate}%` : "—") },
+            { titolo: "Importo", destra: true, cella: (c) => <span className="font-medium">{formatCurrency(c.amount)}</span> },
+            { titolo: "Azioni", destra: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (
+              /* Un costo pagato ha già scritto in cassa: si toglie da Economia → Costi, che storna il pagamento. */
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Elimina ${c.name}`} disabled={elimina.isPending}
+                onClick={() => { if (window.confirm(`Eliminare «${c.name}»?`)) elimina.mutate(c); }}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            ) : null },
+          ]} />
         )}
-      </CardContent>
       {aperto && companyId && (
         <NuovoCostoDialog
           orderId={orderId}
@@ -262,7 +249,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
           onSalvato={aggiorna}
         />
       )}
-    </Card>
+    </RiquadroCommessa>
   );
 }
 

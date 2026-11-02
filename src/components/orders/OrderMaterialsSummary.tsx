@@ -4,7 +4,7 @@ import { useMaterialProcurement, useUnmappedPurchaseOrders } from "@/hooks/useMa
 import { planMaterial, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { ContatoriFiltro } from "./ContatoriFiltro";
 
-export function OrderMaterialsSummary({ items, orderId }: { items: ProcurementItem[]; orderId: string }) {
+export function OrderMaterialsSummary({ items, orderId, inRiquadro = false }: { items: ProcurementItem[]; orderId: string; /** Dentro il riquadro degli ordini: senza un bordo suo. */ inRiquadro?: boolean }) {
   const coverage = useMaterialProcurement(items);
   const unmapped = useUnmappedPurchaseOrders(orderId);
   const [aperta, setAperta] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function OrderMaterialsSummary({ items, orderId }: { items: ProcurementIt
   ] as const;
   const elenco = counts.find(([label]) => label === aperta)?.[1] ?? [];
   return (
-    <section aria-label="Riepilogo materiali" className="rounded-lg border bg-background p-4 max-sm:p-3">
+    <section aria-label="Riepilogo materiali" className={inRiquadro ? undefined : "rounded-lg border bg-background p-4 max-sm:p-3"}>
       <ContatoriFiltro etichetta="Materiali per stato" attivo={aperta} onScegli={setAperta}
         voci={counts.map(([label, righe]) => ({ chiave: label, etichetta: label, valore: righe.length, avviso: label === "Da verificare" }))} />
       {elenco.length > 0 && (

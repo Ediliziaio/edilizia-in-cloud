@@ -108,11 +108,10 @@ export function useAggiungiPosaManodopera(orderId: string) {
   });
 }
 
-export function OrderProcurementTools({ orderId, orderCode, items, ordini }: { orderId: string; orderCode?: string | null; items: OrderItem[]; /** Gli ordini già fatti, subito sotto i numeri: si apre la scheda per loro. */ ordini?: ReactNode }) {
+export function OrderProcurementTools({ orderId, orderCode, items, ordini }: { orderId: string; orderCode?: string | null; items: OrderItem[]; /** Gli ordini già fatti, in cima e con i numeri dentro: si apre la scheda per loro. */ ordini?: (riepilogo: ReactNode) => ReactNode }) {
   const { canEditOrders, canViewCosts } = usePermissions();
   return <div className="space-y-4">
-    <OrderMaterialsSummary items={items} orderId={orderId} />
-    {ordini}
+    {ordini ? ordini(<OrderMaterialsSummary items={items} orderId={orderId} inRiquadro />) : <OrderMaterialsSummary items={items} orderId={orderId} />}
     <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={items} />
     {canEditOrders && canViewCosts && <PosaInLavorazioniBanner orderId={orderId} items={items} />}
   </div>;
