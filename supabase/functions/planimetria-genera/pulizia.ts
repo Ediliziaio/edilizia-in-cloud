@@ -147,3 +147,52 @@ export function controllaSuperfici(g: PiantaGenerata): PiantaGenerata {
     },
   };
 }
+
+/** Larghezze normali di una porta interna o di ingresso, in cm: fuori da qui la scala è sospetta. */
+const PORTA_MIN = 60;
+const PORTA_MAX = 115;
+/** Metrature tipiche (m²) per capire se le stanze sono grandi o piccole in modo assurdo. */
+const TIPICHE: Partial<Record<string, number>> = { camera: 13, bagno: 5 };
+
+/**
+ * La scala letta dalle quote o dalle superfici scritte si dava per buona. Ma il modello sbaglia
+ * a collegare un numero al tratto che misura, e una scala sbagliata non si vede: la pianta è
+ * pulita ma tutta troppo grande o troppo piccola. Due prove che non richiedono altro:
+ * le porte hanno una larghezza che conosciamo, le camere e i bagni una metratura tipica.
+ * Se nessuna delle due torna, la scala resta «da confermare» e si dice perché. Non si corregge
+ * da soli: senza una misura vera non sappiamo da che parte sbaglia.
+ */
+export function controllaScala(g: PiantaGenerata): PiantaGenerata {
+  const scala = g.generazione.scala;
+  if (!scala || scala.da_confermare || scala.metodo === "misura_utente" || scala.metodo === "in_metri") return g;
+  const motivi: string[] = [];
+
+  const porte = g.planimetria.livelli.flatMap((l) => l.fatto.aperture.filter((a) => a.tipo === "porta").map((a) => a.larghezza));
+  if (porte.length >= 2) {
+    const m = mediana(porte);
+    if (m < PORTA_MIN || m > PORTA_MAX) motivi.push(`le porte risultano larghe circa ${Math.round(m)} cm (normali: 70-100)`);
+  }
+
+  const rapporti: number[] = [];
+  for (const l of g.planimetria.livelli) {
+    for (const x of l.fatto.locali) {
+      const tipica = TIPICHE[x.destinazione];
+      const mq = area(x.contorno) / 10_000;
+      if (tipica && mq > 0.3) rapporti.push(mq / tipica);
+    }
+  }
+  if (rapporti.length >= 2) {
+    const r = mediana(rapporti);
+    if (r > 2.5) motivi.push("le camere e i bagni risultano molto più grandi del normale");
+    else if (r < 0.4) motivi.push("le camere e i bagni risultano molto più piccoli del normale");
+  }
+  if (!motivi.length) return g;
+  return {
+    planimetria: g.planimetria,
+    generazione: {
+      ...g.generazione,
+      scala: { ...scala, da_confermare: true },
+      avvisi: [...g.generazione.avvisi, `La scala letta dal disegno non sembra giusta: ${motivi.join("; ")}. Scrivi la misura vera di una parete per sistemarla.`],
+    },
+  };
+}

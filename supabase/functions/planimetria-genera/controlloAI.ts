@@ -12,6 +12,8 @@ export interface ProblemaGenerazione {
   codice: string;
   /** Per il secondo tentativo dell'AI: preciso, con nomi e numeri. */
   dettaglio: string;
+  /** Una sovrapposizione fra stanze diverse (un portico sopra un giardino): da mostrare e sistemare a mano, non da rifiutare. */
+  lieve?: boolean;
 }
 
 export function controllaGenerata(p: Planimetria): ProblemaGenerazione[] {
@@ -35,9 +37,12 @@ export function controllaGenerata(p: Planimetria): ProblemaGenerazione[] {
         const b = locali[j];
         if (a.contorno.length < 3 || b.contorno.length < 3) continue;
         const piccola = Math.min(area(a.contorno), area(b.contorno));
+        const grande = Math.max(area(a.contorno), area(b.contorno));
         const comune = piccola > 0 ? areaSovrapposta(a.contorno, b.contorno) : 0;
         if (comune > 0.1 * piccola) {
-          problemi.push({ codice: "locali_sovrapposti", dettaglio: `I locali «${a.nome}» e «${b.nome}» si sovrappongono per circa ${(comune / 10_000).toFixed(1)} mq.` });
+          // La stessa stanza disegnata due volte (stessa metratura, quasi tutta in comune) è un errore vero.
+          const duplicato = comune > 0.9 * piccola && piccola > 0.6 * grande;
+          problemi.push({ codice: "locali_sovrapposti", dettaglio: `I locali «${a.nome}» e «${b.nome}» si sovrappongono per circa ${(comune / 10_000).toFixed(1)} mq.`, ...(duplicato ? {} : { lieve: true }) });
         }
       }
     }

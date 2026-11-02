@@ -22,6 +22,7 @@ import {
   vistaDallAlto,
   vistaDentroLocale,
   vistaGiroIntorno,
+  localeAllaPosizione,
   type PiantaPer3D,
   type PianoPer3D,
   type Scena3D,
@@ -271,11 +272,15 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
 
   const fotogramma = useCallback(
     async (misure?: { larghezza: number; altezza: number }) => {
-      const id = locali.some((l) => l.id === localeId) ? localeId : locali[0]?.id;
+      const telecamera = telecameraAdesso();
+      // Dentro la casa il render è della stanza dove si trova la telecamera, non di quella scelta nell'elenco:
+      // si cammina da una stanza all'altra e si fa il render da dove si è.
+      const doveSono = modo === "dentro" ? localeAllaPosizione(pianta, telecamera.posizione) : null;
+      const id = doveSono ?? (locali.some((l) => l.id === localeId) ? localeId : locali[0]?.id);
       if (!id) throw new Error("La pianta non ha locali.");
-      return catturaFotogramma({ pianta, localeId: id, telecamera: telecameraAdesso(), vista, elementi: arredi, ...misure });
+      return catturaFotogramma({ pianta, localeId: id, telecamera, vista, elementi: arredi, ...misure });
     },
-    [pianta, locali, localeId, vista, arredi, telecameraAdesso],
+    [pianta, locali, localeId, vista, arredi, telecameraAdesso, modo],
   );
 
   useImperativeHandle(ref, () => ({ telecamera: telecameraAdesso, fotogramma }), [telecameraAdesso, fotogramma]);

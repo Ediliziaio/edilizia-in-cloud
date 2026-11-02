@@ -95,6 +95,27 @@ function contornoM(l: LocalePer3D): V2[] {
 }
 
 /**
+ * In quale stanza si trova la telecamera: serve a «camminare» per la casa nel 3D e fare il render
+ * da dove si è, senza dover dire a mano di quale stanza si tratta. `null` se si è fuori da ogni stanza
+ * (corridoio non disegnato, esterno, muro).
+ */
+export function localeAllaPosizione(pianta: PiantaPer3D, posizione: V3): string | null {
+  const x = posizione[0];
+  const y = posizione[2];
+  for (const l of pianta.locali) {
+    const c = contornoM(l);
+    let dentro = false;
+    for (let i = 0, j = c.length - 1; i < c.length; j = i++) {
+      const a = c[i];
+      const b = c[j];
+      if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) dentro = !dentro;
+    }
+    if (dentro) return l.id;
+  }
+  return null;
+}
+
+/**
  * «Entra nella stanza»: telecamera ad altezza d'occhi, vicino a un lato corto del
  * locale, che guarda verso il lato opposto lungo la dimensione più lunga.
  */

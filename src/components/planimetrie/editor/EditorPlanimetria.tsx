@@ -18,7 +18,7 @@ import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimet
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PanelRightClose, PanelRightOpen, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,6 +134,18 @@ const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
 
 export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
   const telefono = useIsMobile();
+  // Tablet (sotto 1280 px, iPad in orizzontale compreso): gli strumenti restano tutti, ma la barra scorre su una riga e il pannello delle stanze
+  // sta sopra al disegno solo quando serve, invece di toglierne un terzo.
+  const [compatto, setCompatto] = useState(() => typeof window !== "undefined" && window.innerWidth < 1280);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1279px)");
+    const aggiorna = () => setCompatto(mql.matches);
+    aggiorna();
+    mql.addEventListener("change", aggiorna);
+    return () => mql.removeEventListener("change", aggiorna);
+  }, []);
+  const stretto = telefono || compatto;
+  const [pannelloAperto, setPannelloAperto] = useState(false);
   // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
   // (per chi disegna in cantiere, col dito: un tocco per gli angoli, due dita per spostarsi).
   const [modificaTelefono, setModificaTelefono] = useState(false);
@@ -296,8 +308,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const maxY = Math.max(...ys) + margine;
     const { w, h } = dimensioniRef.current;
     const s = Math.max(0.05, Math.min(3, Math.min(w / (maxX - minX), h / (maxY - minY))));
-    setCamera({ s, tx: (w - (maxX - minX) * s) / 2 - minX * s, ty: (h - (maxY - minY) * s) / 2 - minY * s });
+    const inquadrata = { s, tx: (w - (maxX - minX) * s) / 2 - minX * s, ty: (h - (maxY - minY) * s) / 2 - minY * s };
+    cameraAdattata.current = inquadrata;
+    setCamera(inquadrata);
   }, []);
+  const cameraAdattata = useRef<Camera | null>(null);
+  const cameraRef = useRef(camera);
+  cameraRef.current = camera;
   const dimensioniRef = useRef(dimensioni);
   dimensioniRef.current = dimensioni;
   const giaAdattata = useRef(false);
@@ -307,10 +324,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     if (storia.presente.muri.length) adatta();
   }, [dimensioni, adatta, storia.presente.muri.length]);
 
-  // Sul telefono il pannello in basso ruba spazio: si reinquadra la pianta.
+  // Sul telefono il pannello in basso ruba spazio: si reinquadra la pianta. Altrove (tablet ruotato, schermo intero)
+  // si reinquadra solo se chi disegna non ha ancora spostato o ingrandito la vista.
   useEffect(() => {
-    if (telefono && giaAdattata.current) adatta();
-  }, [telefono, dimensioni.h, adatta]);
+    if (!giaAdattata.current) return;
+    const c = cameraAdattata.current;
+    const ora = cameraRef.current;
+    const intatta = !!c && c.s === ora.s && c.tx === ora.tx && c.ty === ora.ty;
+    if (telefono || intatta) adatta();
+  }, [telefono, dimensioni.w, dimensioni.h, adatta]);
+  // Sul tablet toccare una stanza o una parete apre il pannello con le sue misure.
+  useEffect(() => {
+    if (compatto && !telefono && selezione) setPannelloAperto(true);
+  }, [selezione, compatto, telefono]);
 
   const zoomAttorno = useCallback((fattore: number, schermo: Punto) => {
     setCamera((c) => {
@@ -1368,7 +1394,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </Button>
         )}
         {!sola && (
-          <div className={cn("flex items-center gap-1", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
+          <div className={cn("flex items-center gap-1", stretto ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
             <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
             <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
             <StanzaDaMisure
@@ -1418,7 +1444,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
           </div>
         )}
-        <div className={cn("flex items-center gap-2", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
+        <div className={cn("flex items-center gap-2", stretto ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
           {!sola && (
             <SfondoDaRicalcare
               ricalco={ricalco}
@@ -1467,10 +1493,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           )}
           {annullaRipeti}
           {!telefono && zoom}
+          {compatto && !telefono && (
+            <Button size="sm" variant={pannelloAperto ? "default" : "outline"} onClick={() => setPannelloAperto((v) => !v)} aria-pressed={pannelloAperto}>
+              {pannelloAperto ? <PanelRightClose /> : <PanelRightOpen />} Stanze
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {/* disegno */}
         <div ref={contenitoreRef} className="relative min-h-0 min-w-0 flex-1" style={{ cursor: cursore }}>
           <TelaPlanimetria
@@ -1563,8 +1594,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
 
         {/* pannello */}
-        {!telefono && (
-          <aside className="w-72 shrink-0 overflow-y-auto border-l p-3 xl:w-80">
+        {!telefono && (!compatto || pannelloAperto) && (
+          <aside className={cn("shrink-0 overflow-y-auto border-l p-3", compatto ? "absolute inset-y-0 right-0 z-10 w-72 bg-background shadow-xl" : "w-72 xl:w-80")}>
+            {compatto && (
+              <div className="mb-2 flex justify-end">
+                <Button size="sm" variant="ghost" onClick={() => setPannelloAperto(false)}>Chiudi</Button>
+              </div>
+            )}
             {C.quantiNelGruppo(gruppo) > 0 ? (
               <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
             ) : (

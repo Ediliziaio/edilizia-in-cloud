@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Info, Loader2, RotateCcw, Save } from "lucide-react";
+import { AlertTriangle, Info, Loader2, Maximize2, Minimize2, RotateCcw, Save } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,14 @@ export function EditorConSalvataggio({
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);
   const [salvando, setSalvando] = useState(false);
+  // Schermo intero: sul tablet il menu e la testata della pagina tolgono metà del disegno.
+  const [intero, setIntero] = useState(false);
+  useEffect(() => {
+    if (!intero) return;
+    const esci = (e: KeyboardEvent) => { if (e.key === "Escape") setIntero(false); };
+    window.addEventListener("keydown", esci);
+    return () => window.removeEventListener("keydown", esci);
+  }, [intero]);
   // utente in sola lettura: la pianta si guarda, non si salva (il database lo rifiuterebbe comunque)
   const { solaLettura } = usePermissions();
   const [conflitto, setConflitto] = useState<string | null>(null);
@@ -134,7 +142,7 @@ export function EditorConSalvataggio({
   };
 
   return (
-    <div className="flex h-[calc(100dvh-7rem)] min-h-[560px] flex-col gap-3 pb-2">
+    <div className={intero ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-3" : "flex h-[calc(100dvh-7rem)] min-h-[560px] flex-col gap-3 pb-2"}>
       <TestataPlanimetrie
         indietro={indietro}
         titolo={titoloPagina}
@@ -151,6 +159,9 @@ export function EditorConSalvataggio({
                 onChange={(e) => setTitolo(e.target.value)}
               />
             )}
+            <Button variant="outline" size="icon" className="max-md:hidden" aria-label={intero ? "Esci da schermo intero" : "Schermo intero"} title={intero ? "Esci da schermo intero (Esc)" : "Schermo intero"} onClick={() => setIntero((v) => !v)}>
+              {intero ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
             <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />
             {!solaLettura && <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-primary hover:bg-primary/90">
               {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}

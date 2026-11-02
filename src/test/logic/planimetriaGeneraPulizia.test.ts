@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { costruisciPiani } from "../../../supabase/functions/planimetria-genera/costruisci";
-import { controllaSuperfici, pulisciLocali } from "../../../supabase/functions/planimetria-genera/pulizia";
+import { controllaScala, controllaSuperfici, pulisciLocali } from "../../../supabase/functions/planimetria-genera/pulizia";
 import type { RispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
 import { generaPlanimetria } from "../../../supabase/functions/planimetria-genera/genera";
 
@@ -83,5 +83,54 @@ describe("la generazione usa i due controlli", () => {
       expect(esito.pianta.planimetria.livelli[0].fatto.locali.map((l) => l.nome)).toEqual(["Soggiorno"]);
       expect(esito.pianta.generazione.avvisi.some((a) => /arredo/.test(a))).toBe(true);
     }
+  });
+});
+
+describe("scala sospetta", () => {
+  const conPorte = (larghezzaPx: number, quotaM: number) => costruisciPiani(
+    risposta(
+      [stanza("Camera", 100, 100, 400, 400, { destinazione: "camera" }), stanza("Bagno", 400, 100, 600, 400, { destinazione: "bagno" })],
+      {
+        quote: [{ da: [100, 100], a: [400, 100], valore_m: quotaM }, { da: [100, 400], a: [400, 400], valore_m: quotaM }] as never,
+        aperture: [
+          { tipo: "porta", da: [400, 150], a: [400, 150 + larghezzaPx] },
+          { tipo: "porta", da: [100, 150], a: [100, 150 + larghezzaPx] },
+        ] as never,
+      },
+    ),
+    opz,
+  );
+
+  it("lascia stare una scala con porte da 80 cm e stanze normali", () => {
+    // 300 px = 4 m → 1,33 cm/px: porta da 60 px = 80 cm; camera 4 × 4 m = 16 mq, bagno 2,7 × 4 = 10,7 mq
+    const g = conPorte(60, 4);
+    expect(controllaScala(g)).toBe(g);
+  });
+
+  it("avvisa se le porte risultano larghe il doppio", () => {
+    const g = conPorte(120, 4);
+    const c = controllaScala(g);
+    expect(c.generazione.scala?.da_confermare).toBe(true);
+    expect(c.generazione.avvisi.some((a) => /porte risultano larghe/.test(a))).toBe(true);
+  });
+
+  it("avvisa se camere e bagni sono enormi", () => {
+    const g = conPorte(60, 12); // stesse stanze ma tre volte più grandi
+    const c = controllaScala(g);
+    expect(c.generazione.scala?.da_confermare).toBe(true);
+    expect(c.generazione.avvisi.some((a) => /più grandi del normale/.test(a))).toBe(true);
+  });
+});
+
+describe("stanze sovrapposte", () => {
+  it("mostra la pianta da sistemare invece di rifiutarla", async () => {
+    // Soggiorno e portico si sovrappongono per metà, a ogni tentativo
+    const json = JSON.stringify(risposta([stanza("Soggiorno", 100, 100, 600, 600, { destinazione: "soggiorno" }), stanza("Portico", 100, 300, 600, 700, { destinazione: "altro" })]));
+    const esito = await generaPlanimetria(
+      { ingresso: "documento", file: { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", larghezza: 1000, altezza: 1000 } },
+      async () => ({ testo: json, modello: "prova" }),
+    );
+    expect(esito.ok).toBe(true);
+    if (esito.ok) expect(esito.pianta.generazione.avvisi.some((a) => /si sovrappongono|si sovrappone/.test(a))).toBe(true);
   });
 });

@@ -10,7 +10,7 @@ import type { PiantaGenerata } from "./generazione.ts";
 import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
-import { controllaSuperfici, pulisciLocali } from "./pulizia.ts";
+import { controllaScala, controllaSuperfici, pulisciLocali } from "./pulizia.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
 
@@ -117,7 +117,7 @@ function leggi(testo: string, req: RichiestaGenerazione): Lettura {
       altezzaImmagine: req.file?.altezza ?? null,
       sorgentePath: req.sorgentePath ?? null,
     });
-    const g = req.ingresso === "documento" ? controllaSuperfici(costruita) : costruita;
+    const g = req.ingresso === "documento" ? controllaScala(controllaSuperfici(costruita)) : costruita;
     if (pulita.scartati.length) g.generazione.avvisi.push(`Ho tolto dalle stanze ciò che sembrava un arredo: ${pulita.scartati.slice(0, 6).join(", ")}.`);
     if (pulita.rinominati.length) g.generazione.avvisi.push(`Ho dato un nome alle sigle del disegno: ${pulita.rinominati.slice(0, 6).join(", ")}. Controlla che siano giuste.`);
     return { pianta: g, errori: controllaGenerata(g.planimetria), nonLeggibile: null };
@@ -141,6 +141,9 @@ export async function generaPlanimetria(
   const inizio = ora();
   const messaggi = messaggiIniziali(req);
 
+  // La migliore lettura con la sola colpa di avere stanze sovrapposte: meglio mostrarla da sistemare a mano
+  // che non mostrare niente (bifamiliari speculari, portici sopra i giardini: 02/11/2026).
+  let daSistemare: { pianta: PiantaGenerata; dettagli: string[] } | null = null;
   for (let n = 1; n <= 2; n++) {
     const t0 = ora();
     const r = await chiama(messaggi, n);
@@ -152,10 +155,18 @@ export async function generaPlanimetria(
     if (lettura.pianta && !lettura.errori.length) {
       return { ok: true, pianta: lettura.pianta, tentativi };
     }
+    if (lettura.pianta && lettura.errori.length > 0 && lettura.errori.length <= 8 && lettura.errori.every((e) => e.codice === "locali_sovrapposti" && e.lieve)) {
+      daSistemare = { pianta: lettura.pianta, dettagli: lettura.errori.map((e) => e.dettaglio) };
+    }
     // Il secondo tentativo solo se c'è ancora tempo: il gateway chiude a 150 s.
     if (opzioni.tempoMassimoMs && ora() - inizio > opzioni.tempoMassimoMs / 2) break;
     messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
     messaggi.push({ role: "user", content: promptCorrezione(lettura.errori.map((e) => e.dettaglio).slice(0, 15)) });
+  }
+  if (daSistemare) {
+    const { pianta, dettagli } = daSistemare;
+    pianta.generazione.avvisi.push(`${dettagli.length === 1 ? "Una stanza si sovrappone" : `${dettagli.length} coppie di stanze si sovrappongono`} a un'altra: sistemale nell'editor. ${dettagli.slice(0, 3).join(" ")}`);
+    return { ok: true, pianta, tentativi };
   }
   return { ok: false, codice: "pianta_non_valida", messaggio: MESSAGGI_UTENTE.pianta_non_valida, tentativi };
 }

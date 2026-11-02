@@ -17,7 +17,7 @@ import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 import type { Planimetria } from "../../../../shared/planimetrie/modello.ts";
 import { svgPiantaStanza } from "../../../../shared/render-planimetria/piantaStanza.ts";
 import { vincoliDellaStanza } from "../../../../shared/render-planimetria/vincoli.ts";
-import { pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "./renderDallaPianta";
+import { fraseErroreRender, pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "./renderDallaPianta";
 
 export interface LavoroRender {
   chiave: string;
@@ -115,7 +115,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
   });
   if (errFn || risposta?.error) {
     const msg = await resolveEdgeFunctionErrorMessage({ error: errFn, data: risposta, fallback: "Render non avviato" });
-    if (!/idle timeout|timeout limit|150s/i.test(msg)) throw new Error(msg.includes("insufficient_credits") ? "Crediti render finiti." : msg);
+    if (!/idle timeout|timeout limit|150s/i.test(msg)) throw new Error(fraseErroreRender(msg));
   }
   return sid;
 }
