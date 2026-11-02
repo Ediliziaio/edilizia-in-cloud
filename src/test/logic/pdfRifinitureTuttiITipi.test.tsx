@@ -307,7 +307,9 @@ describe("serramenti: le domande frequenti non lasciano un foglio quasi vuoto", 
 
 describe("serramenti: le sezioni brevi non si spezzano su pagine vuote", () => {
   it("garanzie e domande stanno sullo stesso foglio anche con un confronto vuoto in mezzo (era una pagina ciascuna)", async () => {
-    const pagine = await leggi(await datiDi({ sintesi: 200 }));
+    // Con poche domande: le otto di serie stanno insieme su un foglio loro (vedi sopra), e non salgono.
+    const faq_items = [1, 2, 3].map((n) => ({ domanda: `Domanda ${n}?`, risposta: "Una risposta di una riga." }));
+    const pagine = await leggi(await datiDi({ sintesi: 200, template: { faq_items } }));
     const dove = (occhiello: string) => pagine.filter((p) => piatto(p.testo).includes(occhiello)).map((p) => p.numero);
     const garanzie = dove("garanzieeassistenza");
     const domande = dove("primadiconfermare");

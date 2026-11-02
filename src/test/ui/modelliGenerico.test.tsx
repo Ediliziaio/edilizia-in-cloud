@@ -255,7 +255,7 @@ describe("Preventivo generico: l'editor", () => {
     apriModello("Offerta standard");
     const titoli = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent ?? "");
     expect(titoli.slice(0, -1)).toEqual([
-      "Stili pronti", "Nome e descrizione", "Componi l'offerta", "Layout", "Logo", "Palette colori", "Tipografia",
+      "Stili pronti", "Nome e descrizione", "Componi l'offerta", "Logo", "Palette colori", "Tipografia",
       "Tabella voci", "Margini del foglio", "Cosa mostrare nel PDF", "Copertina personalizzata", "Testi",
       "Condizioni standard", "Condizioni contrattuali e termini legali",
     ]);

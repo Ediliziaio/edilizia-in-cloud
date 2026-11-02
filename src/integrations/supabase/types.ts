@@ -15786,6 +15786,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "campo_rapportini_ufficio_employee_id_fkey"
+            columns: ["ufficio_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "campo_rapportini_approvato_da_fkey"
             columns: ["approvato_da"]
             isOneToOne: false
@@ -27601,6 +27608,20 @@ export type Database = {
           warehouse_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ddt_ricezione_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ddt_ricezione_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ddt_ricezione_company_id_fkey"
             columns: ["company_id"]

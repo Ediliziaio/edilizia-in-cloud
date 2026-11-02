@@ -182,11 +182,9 @@ describe("preventivo generico: l'impaginato classico parla la lingua del documen
     expect(doc).toMatch(/borderTopWidth: 0\.7, borderTopColor: tema\.inchiostro, paddingTop: 4 \}\}>\n\s+<Text[^\n]*\{etichetta\}<\/Text>\n\s+\{chi \?/);
   });
 
-  // ROSSO DI PROPOSITO (30/10/2026): l'editor dei modelli fa ancora scegliere Classic, Modern,
-  // Minimal e Bold (e l'anteprima li mostra), ma dal 27/10/2026 (2f5ea4316) il PDF esce sempre
-  // col documento edile: nessuno legge più `layout`. Va deciso se togliere la scelta dall'editor
-  // o riportare gli impaginati nel motore unico; finché no, questa promessa non è mantenuta.
-  it("gli altri impaginati (moderno, minimale, bold) restano com'erano", () => {
+  // Dal 27/10/2026 (2f5ea4316) il PDF esce sempre col documento edile e nessuno legge più `layout`.
+  // Il 2/11/2026 la scelta è uscita dall'editor: nessun modello usava un impaginato diverso da Classic.
+  it("l'editor non fa scegliere un impaginato che il PDF non legge", () => {
     const editor = leggi("src/pages/azienda/settings/SettingsQuoteTemplates.tsx");
     const adattatore = leggi("src/components/preventivi/pdf/adattatoreGenerico.ts");
     const scelta = editor.includes("onClick={() => updateForm({ layout: l.key })}");
