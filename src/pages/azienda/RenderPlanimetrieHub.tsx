@@ -28,10 +28,10 @@ const INGRESSI: { modo: ModoNuovaPianta; titolo: string; testo: string; icona: L
   { modo: "sopralluogo", titolo: "Dal sopralluogo", testo: "Detta le misure stanza per stanza, aggiungi le foto", icona: ClipboardList },
 ];
 
-const PASSI = [
-  { titolo: "Carica o disegna", testo: "PDF, foto o schizzo: l'AI legge stanze, porte e misure." },
-  { titolo: "Disegna il progetto", testo: "Demolizioni in giallo, opere nuove in rosso." },
-  { titolo: "Dalla scheda", testo: "3D, render delle stanze, prima e dopo con i costi, preventivo e PDF." },
+const PASSI: { titolo: string; testo: string; icona: LucideIcon }[] = [
+  { titolo: "Carica o disegna", testo: "PDF, foto o schizzo: l'AI legge stanze, porte e misure.", icona: FileUp },
+  { titolo: "Disegna il progetto", testo: "Demolizioni in giallo, opere nuove in rosso.", icona: PenLine },
+  { titolo: "Dalla scheda", testo: "3D, render delle stanze, prima e dopo con i costi, preventivo e PDF.", icona: LayoutPanelTop },
 ];
 
 const STATO: Record<RigaPlanimetria["stato"], string> = { bozza: "Bozza", in_uso: "In uso", archiviata: "Archiviata" };
@@ -59,7 +59,7 @@ export default function RenderPlanimetrieHub() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 pb-12 max-md:space-y-3">
+    <div className="mx-auto max-w-7xl space-y-8 pb-12 max-md:space-y-3">
       <TestataPlanimetrie
         indietro="/azienda/render"
         titolo="Planimetrie"
@@ -75,12 +75,12 @@ export default function RenderPlanimetrieHub() {
           {INGRESSI.map(({ modo, titolo, testo, icona: Icona }) => (
             <Link key={modo} to={percorsiPlanimetrie.nuova(modo)} className="group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
               <Card className="h-full transition-all group-hover:-translate-y-0.5 group-hover:border-primary/50 group-hover:shadow-md">
-                <CardContent className="flex items-start gap-3 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                    <Icona className="h-5 w-5" />
+                <CardContent className="flex items-start gap-4 p-5 max-md:gap-3 max-md:p-4">
+                  <div className="flex h-12 w-12 max-md:h-10 max-md:w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                    <Icona className="h-6 w-6 max-md:h-5 max-md:w-5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold">{titolo}</p>
+                    <p className="text-base font-semibold max-md:text-sm">{titolo}</p>
                     <p className="text-sm text-muted-foreground">{testo}</p>
                   </div>
                 </CardContent>
@@ -107,24 +107,31 @@ export default function RenderPlanimetrieHub() {
           </Card>
         ) : piante.length === 0 ? (
           <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center gap-3 p-8 text-center max-md:p-5">
-              <LayoutPanelTop className="h-8 w-8 text-primary/70" />
-              <div>
-                <p className="font-medium">Nessuna pianta ancora</p>
-                <p className="text-sm text-muted-foreground">Scegli uno dei quattro modi qui sopra, oppure guarda prima come funziona.</p>
+            <CardContent className="space-y-6 p-8 max-md:space-y-3 max-md:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 max-md:flex-col max-md:items-start max-md:gap-3">
+                <div className="flex items-center gap-4">
+                  <LayoutPanelTop className="h-10 w-10 shrink-0 text-primary/70 max-md:h-8 max-md:w-8" />
+                  <div>
+                    <p className="text-lg font-semibold max-md:text-base">Nessuna pianta ancora</p>
+                    <p className="text-sm text-muted-foreground">Scegli uno dei quattro modi qui sopra, oppure guarda prima come funziona.</p>
+                  </div>
+                </div>
+                <Button size="lg" onClick={apriEsempio} disabled={esempio} className="max-md:w-full">{esempio ? "Preparo l'esempio…" : "Apri una pianta d'esempio"}</Button>
               </div>
-              <ol className="grid w-full gap-3 text-left sm:grid-cols-3 max-md:hidden">
-                {PASSI.map(({ titolo, testo }, i) => (
-                  <li key={titolo} className="flex items-start gap-3 rounded-lg bg-muted/50 p-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{i + 1}</span>
-                    <span className="text-sm">
-                      <span className="block font-medium">{titolo}</span>
-                      <span className="text-muted-foreground">{testo}</span>
-                    </span>
+              <ol className="grid gap-4 text-left md:grid-cols-3 max-md:hidden">
+                {PASSI.map(({ titolo, testo, icona: Icona }, i) => (
+                  <li key={titolo} className="flex flex-col gap-3 rounded-xl bg-muted/50 p-5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">{i + 1}</span>
+                      <Icona className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold">{titolo}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{testo}</p>
+                    </div>
                   </li>
                 ))}
               </ol>
-              <Button onClick={apriEsempio} disabled={esempio}>{esempio ? "Preparo l'esempio…" : "Apri una pianta d'esempio"}</Button>
             </CardContent>
           </Card>
         ) : (
