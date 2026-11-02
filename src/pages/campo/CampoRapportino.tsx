@@ -533,19 +533,30 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     }));
   }, [confermaCliente, parti.fasi, daRifare, fasiCommessa, fasiDichiarate, rapportinoGiaOggi]);
   // Scritto prima di scegliere la fase: passa alla prima fase scelta, invece di restare in un campo che non si vede più.
+  // Se poi non resta nessuna fase, torna al campo sul rapportino: lo si era scritto lì, e non va perso.
+  const passatiAllaFase = useRef(new Map<string, string>());
   useEffect(() => {
-    if (!parti.fasi || fasiPerCampi.length === 0) return;
     const pieno = (v: unknown) => v !== undefined && v !== null && v !== "";
-    setCampiValori(prima => {
-      let dopo = prima;
+    let dopo = campiValori;
+    if (fasiPerCampi.length === 0) {
+      for (const [slot, chiave] of passatiAllaFase.current) {
+        if (!pieno(dopo[slot]) || pieno(dopo[chiave])) continue;
+        const { [slot]: valore, ...resto } = dopo;
+        dopo = { ...resto, [chiave]: valore };
+      }
+      passatiAllaFase.current.clear();
+    } else if (parti.fasi) {
       for (const c of campiModulo) {
         const slot = chiaveValore(c.chiave, fasiPerCampi[0].id);
-        if (c.livello !== "fase" || !pieno(prima[c.chiave]) || pieno(prima[slot])) continue;
+        if (c.livello !== "fase" || !pieno(dopo[c.chiave]) || pieno(dopo[slot])) continue;
         const { [c.chiave]: valore, ...resto } = dopo;
         dopo = { ...resto, [slot]: valore };
+        passatiAllaFase.current.set(slot, c.chiave);
       }
-      return dopo;
-    });
+    }
+    if (dopo !== campiValori) setCampiValori(dopo);
+    // Si guarda solo quando cambiano le fasi: scrivere in un campo non deve spostare nulla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parti.fasi, fasiPerCampi, campiModulo]);
   const campiSulRapportino = campiModulo.filter(c => c.livello !== "fase" || fasiPerCampi.length === 0);
   const campiDiFase = parti.fasi && fasiPerCampi.length > 0 ? campiModulo.filter(c => c.livello === "fase") : [];

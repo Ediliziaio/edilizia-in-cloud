@@ -201,6 +201,19 @@ describe("Campi per fase", () => {
     expect(inviato()!.campi_extra).toEqual([expect.objectContaining({ valore: 12, phase_id: "f1" })]);
   });
 
+  it("quello scritto prima di scegliere la fase non si perde se la fase si toglie", async () => {
+    state.schema = perFase();
+    render(<CampoRapportino />);
+    fireEvent.change(screen.getByLabelText("Pezzi posati"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Posa infissi" }));
+    await waitFor(() => expect(screen.getByLabelText("Pezzi posati")).toHaveValue(12));
+    fireEvent.click(screen.getAllByRole("button", { name: "Posa infissi" })[0]);
+    await waitFor(() => expect(screen.getByLabelText("Pezzi posati")).toHaveValue(12));
+    compilaOre(); invia();
+    await waitFor(() => expect(state.insert).toHaveBeenCalled());
+    expect(inviato()!.campi_extra).toEqual([expect.objectContaining({ valore: 12 })]);
+    expect((inviato()!.campi_extra as Array<{ phase_id?: string }>)[0].phase_id).toBeUndefined();
+  });
   it("a elenco fasi non arrivato non scrive voci di fase senza nome, e il riquadro ha un titolo", async () => {
     state.fasi = [];
     riaperto({ fasi_lavorate: [{ phase_id: "f1", percentuale: 40, nome: "Posa infissi" }, { phase_id: "f9", percentuale: 10 }] });

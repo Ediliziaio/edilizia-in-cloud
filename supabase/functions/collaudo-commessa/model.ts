@@ -98,6 +98,27 @@ export function acceptanceDaModello(date: string, modello: ModuloSchema | null, 
     ...(moduloId ? { modulo_id: moduloId } : {}),
   };
 }
+/**
+ * Il capo compila, non riscrive il modello: titolo, elenco delle voci, campi e modello restano quelli di partenza,
+ * qualunque cosa arrivi dal telefono. Da lui si prendono solo l'esito e il motivo di ogni voce, oltre al resto del verbale.
+ */
+export function verbaleDelCapo(arrivato: AcceptanceContent, base: AcceptanceContent): AcceptanceContent {
+  const scritte = Array.isArray(arrivato.checks) ? arrivato.checks : [];
+  return {
+    ...arrivato,
+    title: base.title,
+    checks: base.checks.map((voce, i) => {
+      const scritta = scritte[i];
+      return {
+        label: voce.label,
+        result: scritta && Object.hasOwn(results, scritta.result) ? scritta.result : "pending",
+        note: typeof scritta?.note === "string" ? scritta.note : "",
+      };
+    }),
+    campi: base.campi,
+    modulo_id: base.modulo_id,
+  };
+}
 const validDate = (v: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(v) &&
   !Number.isNaN(Date.parse(v)) &&

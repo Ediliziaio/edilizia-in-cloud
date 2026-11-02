@@ -5,7 +5,7 @@
  *
  * Un campo che ha già dati non cambia tipo e, eliminandolo, si archivia: i documenti scritti restano leggibili.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -187,7 +187,10 @@ const erroreSalvataggio = (e: unknown) => {
 
 interface Bozza { id: string | null; nome: string; schema: ModuloSchema; attivo: boolean }
 
-export function ModuliCantiereConfig({ tipo, evidenziate }: { tipo: TipoModulo; evidenziate?: Record<string, boolean> }) {
+/** Quello che la pagina deve sapere per salvare tutto con il suo unico bottone. */
+export interface StatoModulo { modificato: boolean; inCorso: boolean; salva: () => Promise<boolean>; annulla: () => void }
+
+export function ModuliCantiereConfig({ tipo, evidenziate, onStato }: { tipo: TipoModulo; evidenziate?: Record<string, boolean>; onStato?: (stato: StatoModulo) => void }) {
   const { effectiveCompany, role } = useAuth();
   const permessi = usePermissions();
   const mobile = useIsMobile();
@@ -199,6 +202,11 @@ export function ModuliCantiereConfig({ tipo, evidenziate }: { tipo: TipoModulo; 
   const [bozza, setBozza] = useState<Bozza | null>(null);
   const [apertoId, setApertoId] = useState<string | null>(null);
   useSettingsDraftGuard(bozza != null || salva.isPending);
+  const salvaOra = useRef<() => Promise<boolean>>(async () => true);
+  const modificato = bozza != null;
+  useEffect(() => {
+    onStato?.({ modificato, inCorso: salva.isPending, salva: () => salvaOra.current(), annulla: () => setBozza(null) });
+  }, [onStato, modificato, salva.isPending]);
 
   const salvatoRapportino = moduli[0] as ModuloAzienda | undefined;
   const aperto = tipo === "rapportino" ? salvatoRapportino : moduli.find(m => m.id === apertoId);
@@ -228,24 +236,27 @@ export function ModuliCantiereConfig({ tipo, evidenziate }: { tipo: TipoModulo; 
     setBozza({ ...corrente, schema: { ...p.schema, campi: [...p.schema.campi, ...daTenere] } });
   };
 
-  const conferma = async () => {
-    if (!corrente || bloccato) return;
+  const conferma = async (): Promise<boolean> => {
+    if (!corrente || bloccato) return false;
     const schema = fissaChiavi(corrente.schema);
     const errori = [
       ...(corrente.nome.trim() ? [] : ["Dai un nome al modello."]),
       ...validaSchema(schema),
       ...validaModifica(aperto?.schema ?? SCHEMA_COME_OGGI, schema, uso),
     ];
-    if (errori.length) { toast.error(errori[0]); return; }
+    if (errori.length) { toast.error(errori[0]); return false; }
     try {
       const id = await salva.mutateAsync({ id: corrente.id, tipo, nome: corrente.nome.trim(), schema, attivo: corrente.attivo });
       if (tipo === "verbale") setApertoId(id);
       setBozza(null);
-      toast.success("Modello salvato");
-    } catch (e) { toast.error(erroreSalvataggio(e)); }
+      if (!onStato) toast.success("Modello salvato");
+      return true;
+    } catch (e) { toast.error(erroreSalvataggio(e)); return false; }
   };
+  salvaOra.current = conferma;
 
-  const barraSalva = puoModificare && (bozza != null) && (
+  // Dentro la pagina delle regole il bottone è quello della pagina.
+  const barraSalva = !onStato && puoModificare && (bozza != null) && (
     <div className="flex items-center justify-end gap-2">
       <Button type="button" size="sm" variant="ghost" onClick={() => setBozza(null)} disabled={salva.isPending}>Annulla</Button>
       <Button type="button" size="sm" onClick={() => void conferma()} disabled={salva.isPending}><Save className="mr-1.5 h-4 w-4" />Salva</Button>

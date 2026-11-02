@@ -514,6 +514,12 @@ describe("campi propri nel PDF", () => {
       expect(pagina("Compilato da"), `${righe} righe`).toBe(pagina("timbratura"));
     }
   });
+  it("il documento per il cliente non dice «da approvare», quello interno sì", async () => {
+    const cliente = await disegna({ ...base, stato: "inviato", lavoro_completato: true });
+    expect(cliente.testi).not.toContain("DA APPROVARE");
+    const interno = await disegna({ ...base, stato: "inviato" });
+    expect(interno.testi).toContain("DA APPROVARE");
+  });
   it("un giornaliero non stampa mai una firma del cliente, nemmeno se ne ha una vecchia", async () => {
     const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
     expect(testi).not.toContain("FIRMA DEL CLIENTE");

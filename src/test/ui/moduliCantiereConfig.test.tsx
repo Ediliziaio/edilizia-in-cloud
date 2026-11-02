@@ -33,6 +33,18 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+describe("con la barra della pagina", () => {
+  it("non mostra un secondo «Salva» e salva quando glielo chiede la pagina", async () => {
+    let stato: { modificato: boolean; salva: () => Promise<boolean> } | undefined;
+    render(<ModuliCantiereConfig tipo="rapportino" onStato={s => { stato = s; }} />);
+    expect(stato?.modificato).toBe(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Parti dal modello Serramenti" }));
+    await waitFor(() => expect(stato?.modificato).toBe(true));
+    expect(screen.queryByRole("button", { name: "Salva" })).toBeNull();
+    await expect(stato!.salva()).resolves.toBe(true);
+  });
+});
+
 describe("Parti del rapportino", () => {
   it("ore e descrizione sono sempre attive, senza interruttore", () => {
     render(<ModuliCantiereConfig tipo="rapportino" />);

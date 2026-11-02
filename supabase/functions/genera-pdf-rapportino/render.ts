@@ -298,7 +298,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const colore = { rifiutato: [redPale, red], approvato: [greenPale, green] } as Record<string, [Rgb, Rgb]>;
   const [statoBg, statoFg] = colore[summary.status] ?? [amberPale, amber];
   const wStato = larghezza(summary.statusLabel, 6.8, bold) + 14;
-  pill(summary.statusLabel, M + CW - 14 - wStato, y - 12, statoBg, statoFg);
+  // «Da approvare» è un fatto interno: il cliente non deve leggerlo.
+  if (documentoPer === "interno" || summary.status !== "inviato") pill(summary.statusLabel, M + CW - 14 - wStato, y - 12, statoBg, statoFg);
   descrizioneCommessa.forEach((l, i) => T(l, M + 16, y - 44 - i * 12, 9.5, regular, muted));
   const yColonne = y - 18 - 16 - descrizioneCommessa.length * 12 - 8;
   rule(yColonne + 2, M + 16, CW - 30);

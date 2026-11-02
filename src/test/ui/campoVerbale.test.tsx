@@ -5,14 +5,14 @@ import CampoVerbale from "@/pages/campo/CampoVerbale";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
 
 const stato = vi.hoisted(() => ({
-  modelli: [] as unknown[], erroreModelli: null as unknown, invocazioni: [] as Array<Record<string, unknown>>, righe: [] as unknown[], naviga: vi.fn(), fallisceSalva: false,
+  modelli: [] as unknown[], haVerbali: false, erroreModelli: null as unknown, invocazioni: [] as Array<Record<string, unknown>>, righe: [] as unknown[], naviga: vi.fn(), fallisceSalva: false,
 }));
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "o1" }), useNavigate: () => stato.naviga }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, profile: { first_name: "Marco", last_name: "Capo" } }) }));
 vi.mock("@/components/campo/FirmaPad", () => ({ FirmaPad: ({ label, onChange }: { label: string; onChange: (v: string | null) => void }) => <button onClick={() => onChange("data:image/png;base64,AAA")}>Traccia {label}</button> }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: async () => ({ data: stato.erroreModelli ? null : stato.modelli, error: stato.erroreModelli }),
+  rpc: async (f: string) => ({ data: stato.erroreModelli ? null : f === "verbali_capo_ne_ha" ? stato.haVerbali : stato.modelli, error: stato.erroreModelli }),
   functions: { invoke: async (_n: string, o: { body: Record<string, unknown> }) => {
     stato.invocazioni.push(o.body);
     if (o.body.action === "list") return { data: { reports: stato.righe }, error: null as null };
@@ -33,7 +33,7 @@ const compila = () => {
   fireEvent.change(screen.getByLabelText("Esito"), { target: { value: "positive" } });
   fireEvent.change(screen.getByLabelText("Documenti consegnati"), { target: { value: "Istruzioni" } });
 };
-beforeEach(() => { stato.modelli = [modello("a", "Serramenti")]; stato.erroreModelli = null; stato.invocazioni = []; stato.righe = []; vi.clearAllMocks(); vi.spyOn(window, "open").mockReturnValue(null); });
+beforeEach(() => { stato.haVerbali = false; stato.modelli = [modello("a", "Serramenti")]; stato.erroreModelli = null; stato.invocazioni = []; stato.righe = []; vi.clearAllMocks(); vi.spyOn(window, "open").mockReturnValue(null); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Pulsante Collaudo", () => {
@@ -46,6 +46,12 @@ describe("Pulsante Collaudo", () => {
     const { container } = mostra(<BottoneCollaudo orderId="o1" />);
     await new Promise(r => setTimeout(r, 20));
     expect(container).toBeEmptyDOMElement();
+  });
+  it("senza modelli accesi compare se il capo ha già dei verbali", async () => {
+    stato.modelli = [];
+    stato.haVerbali = true;
+    mostra(<BottoneCollaudo orderId="o1" />);
+    expect(await screen.findByRole("button", { name: "Collaudo" })).toBeInTheDocument();
   });
   it("con il database senza la funzione non compare e non dà errori", async () => {
     stato.erroreModelli = { code: "PGRST202" };
@@ -118,6 +124,28 @@ describe("Verbale dal telefono", () => {
     await screen.findByRole("checkbox", { name: "Il cliente ha visto il documento" });
     fireEvent.change(screen.getByLabelText("Lavori verificati"), { target: { value: "Cambiato" } });
     expect(screen.queryByRole("checkbox", { name: "Il cliente ha visto il documento" })).toBeNull();
+  });
+  it("dice che l'ufficio è avvisato solo se l'avviso è partito", async () => {
+    const { toast } = await import("sonner");
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Nuovo: Serramenti" }));
+    compila();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra il PDF" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Il cliente ha visto il documento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fai firmare al cliente" }));
+    fireEvent.click(screen.getByRole("button", { name: /Traccia/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma la firma" }));
+    await waitFor(() => expect(azioni()).toContain("sign"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Avvisa tu l")));
+    expect(toast.success).not.toHaveBeenCalledWith(expect.stringContaining("è stato avvisato"));
+  });
+  it("una bozza di un modello spento si vede ma la chiude l'ufficio", async () => {
+    stato.modelli = [];
+    stato.righe = [{ id: "r9", status: "draft", version: 1, modificabile: false, content: { title: "Collaudo vecchio", checks: [], actions: [] } }];
+    mostra();
+    const riga = await screen.findByRole("button", { name: /Collaudo vecchio/ });
+    expect(riga).toBeDisabled();
+    expect(riga).toHaveTextContent("La chiude l'ufficio");
   });
   it("un verbale chiuso si apre soltanto", async () => {
     stato.righe = [{ id: "r2", status: "finalized", version: 5, pdf_path: "b.pdf", firma_cliente_nome: "Anna", created_at: "2026-11-02T10:00:00Z", content: { title: "Chiuso" } }];

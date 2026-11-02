@@ -5,6 +5,7 @@ import {
   acceptanceDaModello,
   firmaInByte,
   validaFirma,
+  verbaleDelCapo,
 } from "../../../supabase/functions/collaudo-commessa/model";
 import { SCHEMA_COME_OGGI, type ModuloSchema } from "../../../supabase/functions/_shared/moduliCantiere";
 import { readFileSync } from "node:fs";
@@ -23,6 +24,27 @@ const valid = () => ({
     },
   ],
 });
+describe("verbale del capo", () => {
+  const base = { ...emptyAcceptance("2026-11-02"), title: "Collaudo serramenti", modulo_id: "m1",
+    checks: [{ label: "Vetri integri", result: "pending" as const, note: "" }, { label: "Chiusure", result: "pending" as const, note: "" }] };
+  it("titolo e voci restano quelli del modello, anche con una richiesta manomessa", () => {
+    const arrivato = { ...base, title: "Tutto perfetto", scope: "Piano primo",
+      checks: [{ label: "Voce inventata", result: "ok" as const, note: "" }, { label: "Chiusure", result: "reserve" as const, note: "Cigola" }, { label: "Aggiunta", result: "ok" as const, note: "" }] };
+    const fuori = verbaleDelCapo(arrivato, base);
+    expect(fuori.title).toBe("Collaudo serramenti");
+    expect(fuori.scope).toBe("Piano primo");
+    expect(fuori.checks).toEqual([{ label: "Vetri integri", result: "ok", note: "" }, { label: "Chiusure", result: "reserve", note: "Cigola" }]);
+  });
+  it("una voce tolta dalla richiesta resta, da verificare", () => {
+    const fuori = verbaleDelCapo({ ...base, checks: [] }, { ...base, checks: [{ label: "Vetri integri", result: "ok", note: "x" }] });
+    expect(fuori.checks).toEqual([{ label: "Vetri integri", result: "pending", note: "" }]);
+  });
+  it("un esito non valido non passa", () => {
+    const fuori = verbaleDelCapo({ ...base, checks: [{ label: "Vetri integri", result: "boh" as never, note: 3 as never }] }, base);
+    expect(fuori.checks[0]).toEqual({ label: "Vetri integri", result: "pending", note: "" });
+  });
+});
+
 describe("Verbale di verifica e consegna", () => {
   it("parte senza controlli o accettazioni presunte", () => {
     const v = emptyAcceptance("2026-09-30");
@@ -234,7 +256,7 @@ describe("verbale dal cantiere: permessi", () => {
   it("chi ha i permessi d'ufficio continua come prima, il capo passa da una verifica sua", () => {
     const c = fonte();
     expect(c).toContain("caller.rpc('has_permission_for_company'");
-    expect(c).toContain("admin.rpc('verbale_capo_autorizzato',{p_order_id:order.id,p_user_id:userId})");
+    expect(c).toContain("admin.rpc(soloLettura?'verbale_capo_assegnato':'verbale_capo_autorizzato',{p_order_id:order.id,p_user_id:userId})");
   });
   it("il capo non può congelare senza firma", () => {
     expect(fonte()).toContain("capo&&body.action==='finalize'");
@@ -258,7 +280,7 @@ describe("verbale dal cantiere: permessi", () => {
   it("alla firma del capo l'ufficio riceve l'avviso, senza far fallire la firma", () => {
     const c = fonte();
     expect(c).toContain("if(capo){");
-    expect(c).toContain("const{error:erroreAvviso}=awaitadmin.rpc('verbale_avvisa_ufficio',{p_report_id:data.id})");
+    expect(c).toContain("const{data:avvisati,error:erroreAvviso}=awaitadmin.rpc('verbale_avvisa_ufficio',{p_report_id:data.id})");
     expect(c).toContain("if(erroreAvviso)console.error(");
     expect(sql()).toContain("con riserve");
     expect(sql()).toContain("esito negativo");
@@ -286,11 +308,30 @@ describe("correzioni dalla revisione", () => {
   it("il capo vede e tocca solo i verbali di un modello che lo permette", () => {
     const c = fonte();
     expect(c).toContain("modelliCapo.some((m)=>m.id===r.content?.modulo_id)");
-    expect(c).toContain("capo&&!daModelloCapo(report)");
+    expect(c).toContain("capo&&!(soloLettura?leggibileDalCapo(report):daModelloCapo(report))");
   });
   it("il capo non cambia i campi del modello", () => {
     const c = fonte();
-    expect(c).toContain("body.content.campi=report?report.content.campi:");
+    expect(c).toContain("body.content=verbaleDelCapo(body.content,report?report.content:acceptanceDaModello(");
     expect(c).toContain("body.content.modulo_id!==report.content?.modulo_id");
+  });
+});
+
+describe("verbali del capo con il modello spento", () => {
+  const sql = readFileSync("supabase/migrations/20281114130000_verbali_capo_lettura_avviso.sql", "utf8");
+  it("per leggere non serve un modello attivo, ma resta capocantiere interno assegnato", () => {
+    const s = sql.slice(sql.indexOf("verbale_capo_assegnato"), sql.indexOf("revoke all on function public.verbale_capo_assegnato"));
+    for (const x of ["a.user_id = p_user_id", "a.is_capocantiere", "a.role_type = 'employee'"]) expect(s).toContain(x);
+    expect(s).not.toContain("m.attivo");
+    expect(sql).toContain("revoke all on function public.verbale_capo_assegnato(uuid, uuid) from public, anon, authenticated");
+  });
+  it("l'avviso è per verbale e dice quanti l'hanno ricevuto", () => {
+    expect(sql).toContain("returns integer");
+    expect(sql).toContain("'order_acceptance_report', r.id");
+    expect(sql).toContain("revoke all on function public.verbale_avvisa_ufficio(uuid) from public, anon, authenticated");
+  });
+  it("la funzione edge dice se l'avviso è partito", () => {
+    const c = readFileSync("supabase/functions/collaudo-commessa/index.ts", "utf8");
+    expect(c).toContain("avvisato = !erroreAvviso && Number(avvisati) > 0");
   });
 });

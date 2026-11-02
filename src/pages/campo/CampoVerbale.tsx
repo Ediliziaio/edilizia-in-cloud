@@ -25,7 +25,7 @@ import { componiValori, leggiSchema, leggiValori, valoriInBozza } from "../../..
 
 interface Verbale {
   id: string; status: "draft" | "finalized"; version: number; pdf_path?: string | null; document_hash?: string | null;
-  content: AcceptanceContent; created_at?: string; firma_cliente_nome?: string | null;
+  content: AcceptanceContent; created_at?: string; firma_cliente_nome?: string | null; modificabile?: boolean;
 }
 const ETICHETTE: Array<[CheckResult, string]> = [["ok", results.ok], ["reserve", results.reserve], ["na", results.na], ["pending", results.pending]];
 
@@ -112,11 +112,11 @@ export default function CampoVerbale() {
   };
   const fattaFirma = (f: FirmaVerbale) => conErrore(async () => {
     if (!report) return;
-    const { report: r } = await chiama<{ report: Verbale }>({
+    const { report: r, avvisato } = await chiama<{ report: Verbale; avvisato?: boolean }>({
       action: "sign", order_id: orderId, id: report.id, version: report.version, document_hash: report.document_hash, reviewed: visto, firma: f,
     });
     setReport(r); setFirma(false); setFirmato(r.firma_cliente_nome ?? f.nome);
-    toast.success("Verbale firmato. L’ufficio è stato avvisato.");
+    toast.success(avvisato ? "Verbale firmato. L’ufficio è stato avvisato." : "Verbale firmato. Avvisa tu l’ufficio: l’avviso non è partito.");
     void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
   });
   const apriChiuso = (r: Verbale): void => void conErrore(async () => {
@@ -150,11 +150,11 @@ export default function CampoVerbale() {
             </Button>
           ))}
           {(elenco.data ?? []).map(r => (
-            <button key={r.id} type="button" onClick={() => r.status === "finalized" ? apriChiuso(r) : riprendi(r)}
-              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 text-left text-sm">
+            <button key={r.id} type="button" disabled={r.status !== "finalized" && r.modificabile === false} onClick={() => r.status === "finalized" ? apriChiuso(r) : riprendi(r)}
+              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 text-left text-sm disabled:opacity-60">
               <span className="min-w-0 truncate font-medium">{r.content?.title ?? "Verbale"}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
-                {r.status !== "finalized" ? "Bozza" : r.firma_cliente_nome ? `Firmato da ${r.firma_cliente_nome}` : "Non firmato"}
+                {r.status !== "finalized" ? (r.modificabile === false ? "La chiude l'ufficio" : "Bozza") : r.firma_cliente_nome ? `Firmato da ${r.firma_cliente_nome}` : "Non firmato"}
               </span>
             </button>
           ))}
