@@ -19,11 +19,11 @@ import type {
 } from "./tipi";
 
 export type NomeLayer =
-  | "ESTERNI" | "MURI" | "DEMOLIZIONI" | "NUOVO" | "APERTURE" | "LOCALI" | "PAVIMENTI" | "ARREDI" | "QUOTE" | "TESTI";
+  | "TERRENO" | "ESTERNI" | "MURI" | "DEMOLIZIONI" | "NUOVO" | "APERTURE" | "LOCALI" | "PAVIMENTI" | "ARREDI" | "QUOTE" | "TESTI";
 
 /** L'ordine in cui i livelli si disegnano: sotto i pavimenti, sopra le scritte. */
 export const ORDINE_LAYER: NomeLayer[] = [
-  "ESTERNI", "PAVIMENTI", "LOCALI", "ARREDI", "MURI", "DEMOLIZIONI", "NUOVO", "APERTURE", "QUOTE", "TESTI",
+  "TERRENO", "ESTERNI", "PAVIMENTI", "LOCALI", "ARREDI", "MURI", "DEMOLIZIONI", "NUOVO", "APERTURE", "QUOTE", "TESTI",
 ];
 
 export interface Tratto {
@@ -223,6 +223,23 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
       tipo: "testo", layer: "ESTERNI", posizione: lotto ? { x: pos.x + mm(2), y: pos.y + mm(2) } : pos, testo: etichetta, altezzaMm: 2,
       allinea: lotto ? "sinistra" : "centro", verticale: lotto ? "alto" : "centro", rotazione: 0, colore: lotto ? "#DC2626" : "#4D7C0F",
     });
+  }
+
+  // Terreno: curve di livello marroni sottili (ogni metro un po' più marcate, con la quota) e
+  // la quota dei punti misurati accanto al loro simbolo.
+  if (vista.terreno) {
+    const scritte = new Set<number>();
+    for (const c of vista.terreno.curve) {
+      const metro = Math.abs(c.quota % 100) < 1;
+      primitive.push({ tipo: "poligono", layer: "TERRENO", punti: [c.a, c.b], chiuso: false, tratto: { colore: "#92400E", spessoreMm: metro ? 0.18 : 0.09 } });
+      if (metro && !scritte.has(c.quota)) {
+        scritte.add(c.quota);
+        primitive.push({ tipo: "testo", layer: "TERRENO", posizione: { x: (c.a.x + c.b.x) / 2, y: (c.a.y + c.b.y) / 2 }, testo: `${(c.quota / 100).toLocaleString("it-IT")}`, altezzaMm: 1.8, allinea: "centro", verticale: "centro", rotazione: 0, colore: "#92400E" });
+      }
+    }
+    for (const q of vista.terreno.punti) {
+      primitive.push({ tipo: "testo", layer: "TERRENO", posizione: { x: q.posizione.x + mm(3), y: q.posizione.y - mm(3) }, testo: q.testo, altezzaMm: 2, allinea: "sinistra", verticale: "centro", rotazione: 0, colore: "#92400E" });
+    }
   }
 
   // Pavimenti (solo presentazione) e contorni dei locali

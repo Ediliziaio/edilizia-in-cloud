@@ -108,6 +108,13 @@ attico duplex con mansarda.
   (`shared/planimetrie/sottotetto.ts`); le verifiche usano l'altezza media (2,40 abitabili,
   2,20 servizi) e la superficie utile; nel 3D niente soffitto piano e muri fin sotto le falde;
   nei prospetti la falda parte dall'imposta.
+- **Lucernari** (Struttura → «Lucernario»): contano nel rapporto aeroilluminante della stanza,
+  nel 3D stanno sulla falda, nel computo e nel listino. Nelle unità in mansarda la parte sotto
+  1,50 m conta al 30% nella superficie commerciale.
+- **Terreno in pendenza**: «Quota del terreno» (Giardino e piscina) è un punto quotato; con due o
+  più punti il prato nel 3D segue la pendenza (sotto la casa resta a zero) e la pianta ha le
+  curve di livello ogni 50 cm, marcate e quotate ogni metro (layer TERRENO in PDF e DXF)
+  (`shared/planimetrie/terreno.ts`).
 
 ## Ancora aperto
 
@@ -115,11 +122,8 @@ attico duplex con mansarda.
   l'editor su un telefono vero. Non si fanno da qui (serve un utente collegato).
 - **Benchmark dell'AI sulle piante vere**: servono le immagini (caricarle nella pianta nuova).
 - **Immagini dei simboli**: aspettano le immagini (prompt qui sotto).
-- **Terreno in pendenza continua** (curve di livello): oggi solo superfici a quote diverse.
-- **Lucernari** (finestre sulla falda) per il rapporto aeroilluminante dei sottotetti: non
-  si disegnano ancora; oggi contano solo le finestre nei muri.
-- **Unità e listino nei sottotetti**: la superficie commerciale non scala ancora le parti
-  sotto 1,50 m.
+- **Terreno da rilievo topografico** (file del topografo, nuvole di punti): oggi il terreno si
+  ricava dai punti quotati messi a mano; con pochi punti le curve fanno «cerchi» attorno ai punti.
 - **Fotovoltaico → pratiche e preventivo energetico**: lasciato fuori su richiesta.
 
 ## Immagini per i simboli: come generarle

@@ -330,6 +330,8 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
     case "termostato": return [rett(-w, -h, w, h, C.ceramica, 1), cerchio(0, 0, Math.min(w, h) * 0.6)];
     // lucernario: la finestra vista da sopra, a tratto sottile, con la croce dell'anta
     case "lucernario": return [rett(-w, -h, w, h, "#e0f2fe", 1), rett(-w * 0.8, -h * 0.85, w * 0.8, h * 0.85), linea(-w * 0.8, -h * 0.85, w * 0.8, h * 0.85), linea(w * 0.8, -h * 0.85, -w * 0.8, h * 0.85)];
+    // punto quotato: cerchio con la croce (la quota la scrive la scena accanto)
+    case "quota_terreno": return [cerchio(0, 0, Math.min(w, h) * 0.9), linea(-w, 0, w, 0), linea(0, -h, 0, h)];
     case "vmc": return [rett(-w, -h, w, h, C.metallo, 2), cerchio(0, 0, Math.min(w, h) * 0.6), linea(-w, -h, w, h), linea(w, -h, -w, h)];
     case "frigorifero":
       return [rett(-w, -h, w, h, C.metallo, 2), linea(-w, h - 5, w, h - 5), rett(w - 6, -h * 0.4, w - 3, h * 0.4, C.scuro, 1)];
@@ -395,7 +397,7 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
 export const TIPI_CON_FORME = new Set([
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie", "auto", "scaffale", "banco_lavoro",
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
-  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario",
+  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
   "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",

@@ -14,6 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
+import { curveDiLivello, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
 } from "../../../../shared/planimetrie/modello.ts";
@@ -77,7 +78,7 @@ const NOTI = new Set<string>([
   "auto", "scaffale", "banco_lavoro",
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split",
   "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
-  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario",
+  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
   "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
@@ -164,7 +165,22 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
     ...((stato.aree ?? livello.fatto.aree)?.length
       ? { aree: (stato.aree ?? livello.fatto.aree ?? []).filter((a) => modo !== "progetto" || a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, nome: a.nome, contorno: a.contorno.map(giu), superficieMq: Math.round(areaPoligono(a.contorno) / 100) / 100, stato: a.stato ?? "esistente" })) }
       : {}),
+    ...terrenoDelLivello(livello.fatto),
     nord: p.nord === undefined ? undefined : -p.nord,
+  };
+}
+
+/** Punti quotati del piano (com'è oggi) e curve di livello ogni 50 cm, se i punti sono almeno due. */
+function terrenoDelLivello(fatto: StatoPianta): Pick<VistaPianta, "terreno"> {
+  const punti = puntiTerreno({ livelli: [{ fatto } as Planimetria["livelli"][number]] });
+  if (!punti.length) return {};
+  const r = rettangoloPunti(punti);
+  const curve = r ? curveDiLivello(punti, r) : [];
+  return {
+    terreno: {
+      curve: curve.map((c) => ({ a: giu(c.a), b: giu(c.b), quota: c.quota })),
+      punti: punti.map((q) => ({ posizione: giu(q), testo: scriviQuota(q.quota) })),
+    },
   };
 }
 

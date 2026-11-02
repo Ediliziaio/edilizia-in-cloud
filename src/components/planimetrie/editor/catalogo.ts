@@ -70,6 +70,9 @@ export const CATALOGO: VoceCatalogo[] = [
   { tipo: "barbecue", nome: "Barbecue in muratura", gruppo: "Giardino e piscina", larghezza: 150, profondita: 60, altezza: 0 },
   { tipo: "cancello_pedonale", nome: "Cancello pedonale", gruppo: "Giardino e piscina", larghezza: 110, profondita: 12, altezza: 150 },
   { tipo: "cancello_carrabile", nome: "Cancello carrabile", gruppo: "Giardino e piscina", larghezza: 400, profondita: 12, altezza: 150 },
+  // Punto quotato del terreno: la quota si scrive nel pannello; con due o più punti il terreno
+  // è in pendenza (nel 3D) e la pianta ha le curve di livello (shared/planimetrie/terreno.ts).
+  { tipo: "quota_terreno", nome: "Quota del terreno (punto quotato)", gruppo: "Giardino e piscina", larghezza: 40, profondita: 40, altezza: 0 },
   { tipo: "lampione", nome: "Lampione da giardino", gruppo: "Giardino e piscina", larghezza: 30, profondita: 30, altezza: 300 },
   { tipo: "faretto_giardino", nome: "Faretto / segnapasso", gruppo: "Giardino e piscina", larghezza: 15, profondita: 15, altezza: 0 },
   { tipo: "irrigatore", nome: "Irrigatore", gruppo: "Giardino e piscina", larghezza: 20, profondita: 20, altezza: 0 },

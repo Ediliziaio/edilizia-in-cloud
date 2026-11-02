@@ -6,6 +6,7 @@
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
 import { pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
+import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
 import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
@@ -245,7 +246,9 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
           l: el.larghezza !== undefined ? el.larghezza * CM : undefined,
           p: el.profondita !== undefined ? el.profondita * CM : undefined,
           // in mansarda il lucernario sta sulla falda sopra di lui
-          h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02 : el.altezza !== undefined ? el.altezza * CM : undefined,
+          h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02
+            : el.tipo === "quota_terreno" ? (pianta.terreno?.length ? quotaTerreno(pianta.terreno, el.centro.x, el.centro.y) * CM : 0)
+            : el.altezza !== undefined ? el.altezza * CM : undefined,
         },
         (materiale) => {
           if (!perMateriale.has(materiale)) perMateriale.set(materiale, new CostruttoreMesh());
@@ -297,15 +300,42 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   }
 
   const limiti = limitiDi(mesh);
-  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno));
+  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro")));
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
   return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi };
 }
 
-/** Il prato intorno, `k` metri oltre i limiti, un centimetro sotto quota zero (non si sovrappone ai pavimenti). */
-export function meshTerreno(limiti: { min: V3; max: V3 }, k: number): Mesh3D {
+/**
+ * Il prato intorno, `k` metri oltre i limiti, un centimetro sotto quota zero (non si sovrappone ai
+ * pavimenti). Con due o più punti quotati il terreno segue la loro pendenza (shared/planimetrie/
+ * terreno.ts), su una griglia; sotto l'edificio resta a quota zero (lo scavo o il riporto attorno
+ * alla casa è il gradino che si vede).
+ */
+export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: PuntoQuotato[], edificio?: { min: V3; max: V3 }): Mesh3D {
   const t = new CostruttoreMesh();
+  if (punti && punti.length >= 2) {
+    const x0 = Math.min(limiti.min[0], ...punti.map((p) => p.x * CM)) - k, x1 = Math.max(limiti.max[0], ...punti.map((p) => p.x * CM)) + k;
+    const z0 = Math.min(limiti.min[2], ...punti.map((p) => p.y * CM)) - k, z1 = Math.max(limiti.max[2], ...punti.map((p) => p.y * CM)) + k;
+    const n = 48;
+    const sotto = (x: number, z: number) => !!edificio && Number.isFinite(edificio.min[0]) && x >= edificio.min[0] - 0.05 && x <= edificio.max[0] + 0.05 && z >= edificio.min[2] - 0.05 && z <= edificio.max[2] + 0.05;
+    const h = (i: number, j: number): V3 => {
+      const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * j) / n;
+      return [x, sotto(x, z) ? -0.01 : quotaTerreno(punti, x / CM, z / CM) * CM - 0.01, z];
+    };
+    const tri = (a: V3, b: V3, c: V3) => {
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      let nn: V3 = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      if (nn[1] < 0) nn = [-nn[0], -nn[1], -nn[2]];
+      t.poligono([a, b, c], nn);
+    };
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const a = h(i, j), b = h(i + 1, j), c = h(i + 1, j + 1), d = h(i, j + 1);
+      tri(a, b, c);
+      tri(a, c, d);
+    }
+    return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
+  }
   t.orizzontale([v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -0.01, true);
   return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
 }
