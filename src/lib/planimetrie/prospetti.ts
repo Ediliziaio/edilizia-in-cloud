@@ -13,7 +13,8 @@
  * Uscita: primitive in cm (u = orizzontale da sinistra a destra di chi guarda, z = altezza dal
  * pavimento del piano), poi SVG in scala e DXF a layer.
  */
-import type { Apertura, Locale, Muro, StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import type { Apertura, Locale, Muro, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
+import { facceTetto, rettangoloTetto, type Faccia } from "../../../shared/planimetrie/tetto.ts";
 import { puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { MotoreDxfR12 } from "./esporta/dxf/r12";
 
@@ -24,7 +25,8 @@ interface P { x: number; y: number }
 export type Primitiva =
   | { tipo: "rett"; u1: number; u2: number; z1: number; z2: number; stile: "muro" | "muro_lontano" | "taglio" | "vano" | "vetro" | "porta" }
   | { tipo: "linea"; a: { u: number; z: number }; b: { u: number; z: number }; stile: "terra" | "quota" | "solaio" }
-  | { tipo: "testo"; u: number; z: number; testo: string; stile: "titolo" | "quota" };
+  | { tipo: "testo"; u: number; z: number; testo: string; stile: "titolo" | "quota" }
+  | { tipo: "poligono"; punti: Array<{ u: number; z: number }>; stile: "falda" | "timpano" | "falda_lontana" | "taglio_tetto" };
 
 export interface Disegno2D {
   titolo: string;
@@ -69,6 +71,7 @@ function estensione(titolo: string, primitive: Primitiva[]): Disegno2D {
   for (const p of primitive) {
     if (p.tipo === "rett") { us.push(p.u1, p.u2); zs.push(p.z1, p.z2); }
     else if (p.tipo === "linea") { us.push(p.a.u, p.b.u); zs.push(p.a.z, p.b.z); }
+    else if (p.tipo === "poligono") for (const q of p.punti) { us.push(q.u); zs.push(q.z); }
     else { us.push(p.u); zs.push(p.z); }
   }
   return { titolo, primitive, minU: Math.min(0, ...us), maxU: Math.max(1, ...us), minZ: Math.min(0, ...zs), maxZ: Math.max(1, ...zs) };
@@ -85,8 +88,61 @@ function vani(primitive: Primitiva[], m: Muro, aperture: Apertura[], asse: P, st
   }
 }
 
+/**
+ * Le facce del tetto nelle coordinate della pianta (y verso nord). tetto.ts lavora con y verso il
+ * basso (come il 3D): si ribalta all'andata e al ritorno. Il tetto parte dalla cima dei muri.
+ */
+function facceDelTetto(stato: StatoPianta, tetto: Tetto | null | undefined): Faccia[] {
+  const muri = stato.muri.filter((m) => m.stato !== "da_demolire");
+  if (!tetto || !muri.length) return [];
+  const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), tetto.sporto);
+  if (!r) return [];
+  const h = Math.max(...muri.map((m) => m.altezza));
+  return facceTetto(r, h, tetto).map((f) => ({ ...f, vertici: f.vertici.map((v) => ({ ...v, y: -v.y })) }));
+}
+
+/** Le facce del tetto proiettate su chi guarda, dalla più lontana (la vicina copre la lontana). */
+function tettoInAlzato(facce: Faccia[], v: P, asse: P, lontano: boolean): Primitiva[] {
+  return facce
+    .map((f) => ({ f, profondita: f.vertici.reduce((t, q) => t + dot(q, v), 0) / f.vertici.length }))
+    .sort((a, b) => b.profondita - a.profondita)
+    .map(({ f }): Primitiva => ({
+      tipo: "poligono",
+      punti: f.vertici.map((q) => ({ u: dot(q, asse), z: q.z })),
+      stile: lontano ? "falda_lontana" : f.genere === "timpano" ? "timpano" : "falda",
+    }))
+    // una falda vista di taglio è una linea: non aggiunge niente
+    .filter((p) => p.tipo !== "poligono" || areaUZ(p.punti) > 1);
+}
+
+const areaUZ = (pts: Array<{ u: number; z: number }>) => Math.abs(pts.reduce((t, a, i) => { const b = pts[(i + 1) % pts.length]; return t + a.u * b.z - b.u * a.z; }, 0)) / 2;
+
+/** Dove il piano di sezione taglia il tetto: per ogni falda un segmento, disegnato con lo spessore del pacchetto. */
+function tettoTagliato(facce: Faccia[], coord: (p: P) => number, valore: number, asse: P): Primitiva[] {
+  const out: Primitiva[] = [];
+  const SPESSORE = 25;
+  for (const f of facce) {
+    if (f.genere === "timpano") continue;
+    const tagli: Array<{ u: number; z: number }> = [];
+    f.vertici.forEach((a, i) => {
+      const b = f.vertici[(i + 1) % f.vertici.length];
+      const ca = coord(a) - valore, cb = coord(b) - valore;
+      if (ca === cb || ca * cb > 0) return;
+      const t = ca / (ca - cb);
+      const x = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      tagli.push({ u: dot(x, asse), z: a.z + (b.z - a.z) * t });
+    });
+    if (tagli.length < 2) continue;
+    tagli.sort((p, q) => p.u - q.u);
+    const [p, q] = [tagli[0], tagli[tagli.length - 1]];
+    if (Math.hypot(q.u - p.u, q.z - p.z) < 1) continue;
+    out.push({ tipo: "poligono", punti: [p, q, { u: q.u, z: q.z - SPESSORE }, { u: p.u, z: p.z - SPESSORE }], stile: "taglio_tetto" });
+  }
+  return out;
+}
+
 /** Un prospetto: le pareti esterne viste da un lato, con porte e finestre. */
-export function prospetto(stato: StatoPianta, lato: Lato): Disegno2D {
+export function prospetto(stato: StatoPianta, lato: Lato, tetto?: Tetto | null): Disegno2D {
   const v = SGUARDO[lato];
   const asse = destra(v);
   const muri = stato.muri.filter((m) => m.stato !== "da_demolire");
@@ -103,11 +159,12 @@ export function prospetto(stato: StatoPianta, lato: Lato): Disegno2D {
     primitive.push({ tipo: "rett", u1: lo, u2: hi, z1: 0, z2: m.altezza, stile: "muro" });
     vani(primitive, m, stato.aperture, asse, "muro");
   }
+  primitive.push(...tettoInAlzato(facceDelTetto(stato, tetto), v, asse, false));
   return conTerraEQuote(NOMI_LATO[lato], primitive);
 }
 
 /** Sezione verticale lungo una linea: pareti tagliate campite, quelle oltre in alzato. */
-export function sezione(stato: StatoPianta, taglio: Taglio, nome = "Sezione A-A"): Disegno2D {
+export function sezione(stato: StatoPianta, taglio: Taglio, nome = "Sezione A-A", tetto?: Tetto | null): Disegno2D {
   // Linea orizzontale (y = valore): si guarda verso nord. Verticale (x = valore): si guarda verso est.
   const v: P = taglio.asse === "orizzontale" ? { x: 0, y: 1 } : { x: 1, y: 0 };
   const asse = destra(v);
@@ -155,6 +212,13 @@ export function sezione(stato: StatoPianta, taglio: Taglio, nome = "Sezione A-A"
       primitive.push({ tipo: "rett", u1: u - meta, u2: u + meta, z1: 0, z2: m.altezza, stile: "taglio" });
     }
   }
+  // il tetto: oltre il taglio in alzato (chiaro), tagliato campito
+  const facce = facceDelTetto(stato, tetto);
+  if (facce.length) {
+    const oltreTetto = facce.filter((f) => f.vertici.some((q) => coord(q) > taglio.valore));
+    primitive.unshift(...tettoInAlzato(oltreTetto, v, asse, true));
+    primitive.push(...tettoTagliato(facce, coord, taglio.valore, asse));
+  }
   // pavimento e soffitto fra le pareti tagliate
   const us = primitive.filter((p): p is Extract<Primitiva, { tipo: "rett" }> => p.tipo === "rett").flatMap((p) => [p.u1, p.u2]);
   if (us.length) {
@@ -191,6 +255,10 @@ const STILE_SVG: Record<string, { fill: string; stroke: string; width: number; d
   terra: { fill: "none", stroke: "#0f172a", width: 0.7 },
   quota: { fill: "none", stroke: "#0f766e", width: 0.25 },
   solaio: { fill: "none", stroke: "#475569", width: 0.35, dash: "2 1.5" },
+  falda: { fill: "#e7d3c4", stroke: "#0f172a", width: 0.4 },
+  timpano: { fill: "#ffffff", stroke: "#0f172a", width: 0.5 },
+  falda_lontana: { fill: "#f8fafc", stroke: "#94a3b8", width: 0.3 },
+  taglio_tetto: { fill: "#1e293b", stroke: "#0f172a", width: 0.5 },
 };
 
 /** SVG in scala (1:scala), con larghezza e altezza in mm veri. */
@@ -208,6 +276,8 @@ export function disegnoInSvg(d: Disegno2D, scala = 50): { svg: string; larghezza
     if (p.tipo === "rett") {
       parti.push(`<rect x="${X(p.u1).toFixed(2)}" y="${Y(p.z2).toFixed(2)}" width="${((p.u2 - p.u1) * k).toFixed(2)}" height="${((p.z2 - p.z1) * k).toFixed(2)}" fill="${st.fill}" stroke="${st.stroke}" stroke-width="${st.width}"/>`);
       if (p.stile === "porta") parti.push(`<line x1="${X(p.u1)}" y1="${Y(p.z2)}" x2="${X((p.u1 + p.u2) / 2)}" y2="${Y(p.z1)}" stroke="#94a3b8" stroke-width="0.2"/>`);
+    } else if (p.tipo === "poligono") {
+      parti.push(`<polygon points="${p.punti.map((q) => `${X(q.u).toFixed(2)},${Y(q.z).toFixed(2)}`).join(" ")}" fill="${st.fill}" stroke="${st.stroke}" stroke-width="${st.width}"/>`);
     } else if (p.tipo === "linea") {
       parti.push(`<line x1="${X(p.a.u).toFixed(2)}" y1="${Y(p.a.z).toFixed(2)}" x2="${X(p.b.u).toFixed(2)}" y2="${Y(p.b.z).toFixed(2)}" stroke="${st.stroke}" stroke-width="${st.width}"${st.dash ? ` stroke-dasharray="${st.dash}"` : ""}/>`);
     } else {
@@ -223,18 +293,23 @@ export function disegnoInSvg(d: Disegno2D, scala = 50): { svg: string; larghezza
 /** DXF in centimetri, a layer (PROSPETTO, TAGLIO, APERTURE, QUOTE, TESTI). */
 export function disegnoInDxf(d: Disegno2D): Uint8Array {
   const m = new MotoreDxfR12();
-  const LAYER: Record<string, string> = { muro: "PROSPETTO", muro_lontano: "OLTRE", taglio: "TAGLIO", vano: "APERTURE", vetro: "APERTURE", porta: "APERTURE", terra: "PROSPETTO", quota: "QUOTE", solaio: "OLTRE" };
+  const LAYER: Record<string, string> = { muro: "PROSPETTO", muro_lontano: "OLTRE", taglio: "TAGLIO", vano: "APERTURE", vetro: "APERTURE", porta: "APERTURE", terra: "PROSPETTO", quota: "QUOTE", solaio: "OLTRE", falda: "TETTO", timpano: "TETTO", falda_lontana: "OLTRE", taglio_tetto: "TAGLIO" };
   m.layer({ nome: "PROSPETTO", colore: 7 });
   m.layer({ nome: "OLTRE", colore: 8 });
   m.layer({ nome: "TAGLIO", colore: 7 });
   m.layer({ nome: "APERTURE", colore: 4 });
   m.layer({ nome: "QUOTE", colore: 3 });
   m.layer({ nome: "TESTI", colore: 7 });
+  m.layer({ nome: "TETTO", colore: 1 });
   for (const p of d.primitive) {
     if (p.tipo === "rett") {
       const pts = [{ x: p.u1, y: p.z1 }, { x: p.u2, y: p.z1 }, { x: p.u2, y: p.z2 }, { x: p.u1, y: p.z2 }];
       if (p.stile === "taglio") m.pieno(LAYER.taglio, pts);
       m.polilinea(LAYER[p.stile] ?? "PROSPETTO", pts, true);
+    } else if (p.tipo === "poligono") {
+      const pts = p.punti.map((q) => ({ x: q.u, y: q.z }));
+      if (p.stile === "taglio_tetto") m.pieno(LAYER.taglio, pts);
+      m.polilinea(LAYER[p.stile] ?? "TETTO", pts, true);
     } else if (p.tipo === "linea") {
       m.linea(LAYER[p.stile] ?? "PROSPETTO", { x: p.a.u, y: p.a.z }, { x: p.b.u, y: p.b.z });
     } else {

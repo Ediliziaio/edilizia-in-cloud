@@ -27,10 +27,10 @@ import {
   aziendaDelCartiglio, caricaLogo, ErroreImpaginazione, esportaDxfMigliore, esportaPdf, esportaPng, esportaSvg,
   SCALE_STANDARD, numeraLocali, vistaDaPlanimetria, type DatiCartiglio, type FormatoFoglio, type ModoVista, type Orientamento,
 } from "@/lib/planimetrie/esporta";
-import type { Planimetria, StatoPianta } from "../../../shared/planimetrie/modello.ts";
+import type { Planimetria, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
 
 /** I disegni della tavola completa: i quattro prospetti e una sezione a metà, sulla parte lunga. */
-export function disegniDellaTavola(stato: StatoPianta | null | undefined): Disegno2D[] {
+export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?: Tetto | null): Disegno2D[] {
   if (!stato || !stato.muri.some((m) => m.stato !== "da_demolire")) return [];
   const pts = stato.muri.flatMap((m) => [m.p1, m.p2]);
   const minX = Math.min(...pts.map((p) => p.x)), maxX = Math.max(...pts.map((p) => p.x));
@@ -40,8 +40,8 @@ export function disegniDellaTavola(stato: StatoPianta | null | undefined): Diseg
     ? { asse: "verticale" as const, valore: (minX + maxX) / 2 }
     : { asse: "orizzontale" as const, valore: (minY + maxY) / 2 };
   return [
-    prospetto(stato, "sud"), prospetto(stato, "nord"), prospetto(stato, "est"), prospetto(stato, "ovest"),
-    sezione(stato, taglio, "Sezione A-A"),
+    prospetto(stato, "sud", tetto), prospetto(stato, "nord", tetto), prospetto(stato, "est", tetto), prospetto(stato, "ovest", tetto),
+    sezione(stato, taglio, "Sezione A-A", tetto),
   ].filter((d) => d.primitive.length > 0);
 }
 
@@ -237,7 +237,7 @@ export function EsportaPiantaDialog({
           }
           r = { ...r, dati: await unisciPdf(parti) };
         }
-        const disegni = conProspetti ? disegniDellaTavola(statoDisegnato) : [];
+        const disegni = conProspetti ? disegniDellaTavola(statoDisegnato, (documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0])?.tetto) : [];
         if (disegni.length) {
           const { accodaTavole, accodaFoglioImpianti } = await import("@/lib/planimetrie/tavole");
           const intestazione = [titolo, vista.livello].filter(Boolean).join(" — ");

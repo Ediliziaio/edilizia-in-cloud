@@ -205,7 +205,7 @@ export default function RenderPlanimetriaScheda() {
         />
       )}
 
-      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} titolo={data.riga.titolo} />
+      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} tetto={livello.tetto} titolo={data.riga.titolo} />
 
       {mostra3D && piante3D && (
         <Vista3DPigra

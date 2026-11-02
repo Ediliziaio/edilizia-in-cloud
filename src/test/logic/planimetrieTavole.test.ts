@@ -55,3 +55,25 @@ describe("tavole: pianta + prospetti + sezione (fase 8)", () => {
     expect(disegniDellaTavola({ ...stato, muri: [] })).toEqual([]);
   });
 });
+
+describe("prospetti e sezioni con il tetto", () => {
+  const stato = carica("trilocale.json").livelli[0].fatto;
+  const tetto = { tipo: "due_falde" as const, pendenza: 30, sporto: 50 };
+  it("il prospetto si alza della falda; la sezione taglia il tetto; il PDF si crea", async () => {
+    const senza = disegniDellaTavola(stato);
+    const con = disegniDellaTavola(stato, tetto);
+    const h = Math.max(...stato.muri.map((m) => m.altezza));
+    for (const d of con.slice(0, 4)) {
+      expect(d.primitive.some((p) => p.tipo === "poligono")).toBe(true);
+      expect(d.maxZ).toBeGreaterThan(h);
+    }
+    // almeno due prospetti mostrano il colmo sopra la gronda
+    expect(con.slice(0, 4).filter((d) => d.maxZ > h + 80).length).toBeGreaterThanOrEqual(2);
+    expect(con[4].primitive.some((p) => p.tipo === "poligono" && p.stile === "taglio_tetto")).toBe(true);
+    expect(senza.every((d) => d.primitive.every((p) => p.tipo !== "poligono"))).toBe(true);
+    const base = await PDFDocument.create();
+    base.addPage();
+    const r = await accodaTavole(await base.save(), con, { formato: "A3", intestazione: "Prova", primoNumero: 2 });
+    expect((await PDFDocument.load(r.dati)).getPageCount()).toBeGreaterThan(1);
+  });
+});
