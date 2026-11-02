@@ -53,12 +53,26 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
             </div>
 
             <TabsContent value="serramenti" className="m-0">
-              <div className="flex justify-end px-3 pt-2">
+              <div className="flex justify-end px-3 pt-2 max-md:hidden">
                 <Button size="sm" variant="outline" disabled={!serramenti.length} onClick={() => scaricaCsv(`${base}-serramenti.csv`, csvSerramenti(serramenti))}>
                   <Download className="mr-1.5 h-4 w-4" />Scarica in Excel
                 </Button>
               </div>
-              <div className="overflow-x-auto">
+              {/* telefono: una scheda per serramento, niente tabella larga */}
+              <ul className="divide-y md:hidden">
+                {serramenti.map((r) => (
+                  <li key={r.id} className="space-y-1 px-3 py-2.5 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold">{r.codice} <span className="font-normal text-muted-foreground">· {r.tipo}{r.manovra ? ` · ${r.manovra}` : ""}</span></p>
+                      <Badge variant="outline" className={COLORE_STATO[r.stato] ?? ""}>{r.stato}</Badge>
+                    </div>
+                    <p className={`text-xs tabular-nums ${r.stimata ? "italic text-primary" : "text-muted-foreground"}`}>
+                      {r.stimata && "≈ "}{r.larghezza} × {r.altezza} cm{r.davanzale ? ` · davanzale ${r.davanzale}` : ""} · {n2(r.superficieMq)} m²{r.stanze ? ` · ${r.stanze}` : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="overflow-x-auto max-md:hidden">
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-muted-foreground">
                     <tr className="border-b">
@@ -89,12 +103,28 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
             </TabsContent>
 
             <TabsContent value="stanze" className="m-0">
-              <div className="flex justify-end px-3 pt-2">
+              <div className="flex justify-end px-3 pt-2 max-md:hidden">
                 <Button size="sm" variant="outline" disabled={!stanze.length} onClick={() => scaricaCsv(`${base}-stanze.csv`, csvStanze(stanze))}>
                   <Download className="mr-1.5 h-4 w-4" />Scarica in Excel
                 </Button>
               </div>
-              <div className="overflow-x-auto">
+              <ul className="divide-y md:hidden">
+                {stanze.map((r) => (
+                  <li key={r.id} className="space-y-1.5 px-3 py-2.5 text-sm">
+                    <p className="font-medium">{r.nome}{r.stimata && <span className="ml-1 text-primary" title="Misure stimate">≈</span>}{r.finiture !== "—" && <span className="ml-1 text-xs font-normal text-muted-foreground">· {r.finiture}</span>}</p>
+                    <p className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground">
+                      <span>Pavimento {n2(r.pavimentoMq)} m²</span><span>Perimetro {n2(r.perimetroMl)} m</span>
+                      <span>Pareti nette {n2(r.paretiNetteMq)} m²</span><span>Volume {n2(r.volumeMc)} m³</span>
+                      <span>Altezza {r.altezzaCm} cm</span><span>Battiscopa {n2(r.battiscopaMl)} m</span>
+                      {r.rivestimentoMq != null && <span>Rivestimento {n2(r.rivestimentoMq)} m²</span>}
+                    </p>
+                  </li>
+                ))}
+                <li className="grid grid-cols-2 gap-x-3 bg-muted/40 px-3 py-2 text-xs font-semibold tabular-nums">
+                  <span>Totale pavimento {n2(totale("pavimentoMq"))} m²</span><span>Volume {n2(totale("volumeMc"))} m³</span>
+                </li>
+              </ul>
+              <div className="overflow-x-auto max-md:hidden">
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs text-muted-foreground">
                     <tr className="border-b">

@@ -142,7 +142,7 @@ export function EditorConSalvataggio({
   };
 
   return (
-    <div className={intero ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-3" : "flex h-[calc(100dvh-7rem)] min-h-[560px] flex-col gap-3 pb-2"}>
+    <div className={intero ? "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-3" : "flex h-[calc(100dvh-7rem)] min-h-[560px] flex-col gap-3 pb-2 max-md:h-[calc(100dvh-11.5rem)] max-md:min-h-[420px] max-md:gap-2"}>
       <TestataPlanimetrie
         indietro={indietro}
         titolo={titoloPagina}

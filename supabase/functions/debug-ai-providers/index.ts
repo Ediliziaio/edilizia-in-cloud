@@ -285,6 +285,33 @@ async function testOpenAI(): Promise<ProviderTest> {
   }
 }
 
+// Stanza finta 384×288 (pareti, finestra, mobile): una foto vera per il ripiego, che con 1×1 pixel non risponde.
+const STANZA_PROVA_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAYAAAAEgCAIAAAAyuTMGAAAFI0lEQVR42u3dMWoUARTH4cljSxELixByAEsP4EksLDyBVUghFmIhqawtUlh4CktJvVWwCCFlkBQiHsBCwQU1kuy6/5l533eAgXkz/HizDDs7p8uTO3fvDQBbtxiG4dvXL8MwyBCwNVefL38G6AcZAraWnl8b0CoZAraQnj8HSIaALaTnugDJEPBf0/PvAK1mSImATXXnBgGyEAEbT8+NAyRDwKbSc8sAyRCwfnrWCpAMAeukZwMBkiGQnnCAZAikJxwgGQLpCQdIhkB6wgGSIZCecIC8SA26Ew6QhQikJx8gGQLpCQdIhkB6wgGSIWiennyAZAjapmcsAZIhaJiecQVIhqBVesYYIBmCJukZb4BkCGafnrEHyIvUMNfuTCZAFiKYZXomFiAZgjmlZ5IBkiGYR3omHCAZgqmnZ/IBkiGkZ+qnsJjHlZAhpEeAZAikp2uAZAjpESAZAunpHSAvUqM7AmQhAulpHyAZQnoESIZAenoHaDVDu3v7bn2yLs7P2p57ufyAAAECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIECBAAAIECBCAAAECBCBAgAABCBAgQAACBAgQgAAB47UwgvE7evXSEG7n4PkLQ7ABAQgQIEAAg9+AJufh09eGcL3l8aEh2IAABAgQIAABAgQIECAjAAQIECAAAQIECECAAAECECBAgAAECBAgAAECBAhAgAABAhAgQIAAAQIQIECAAAQIECAAAQIECECAAAECECBAgAAECBAgAAECBAhAgAABAgQIQIAAAQIQIECAAAQIECAAAQIECECAAAECECBAgAAECBAgQIAABAgQIAABAgQIQIAAAQIQIECAAAQIECAAAQIECECAAAECECBAgAABAtimhRFMy/L40BCwAQEIEOARjBm6+rThA95/YKis2jldnnQ+/929fTfB3xw9e7zZAx68eW+qv7s4P/MIBiBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIEAAAgQIEIAAAQIECBCAAAECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAQgQIECAAAEIECBAAAIECBCAAAECBCBAgAABCBAgQAACBAgQgAABAgQgQIAAAR3tnC5P2p78xYe37gDGYPfRExuQ+kDG5cd3AqQ+oEECpD5okACpD2iQAKkPGiRA6gMaJEDqgwYJkPqABgmQ+qBBAqQ+oEECBAiQ9QcsQT0DpD5okACpD2hQpwCpDxokQOoDGtQpQOqDBgmQ+oAGdQqQ+qBBAqQ+oEGdAqQ+aJAAqQ9oUKcAqQ9MvUGlPqBBAqQ+0K5BpT6gQQKkPtCuQaU+oEECpD7QrkGlPqBBAqQ+0K5BpT6gQQIEDL6KYf0BS1D7AKkPzL5BpT6gQQKkPtCuQaU+oEECpD7QrkGlPqBB3QOkPtCwQaU+oEF9A6Q+0LZBpT6gQR0DpD7QvEGlPkCqQaU+QKpBpT5AqkGlPkCqQaU+QKpBpT5AqkGlPkCqQaU+QKpBpT5AqkG+igEM83wT2voDlqBMgNQHNCgTIPUBDcoESH1AgzIBUh/QoEyA1Ac0KBMg9QENygRIfUCDMgFSH9CgTIDUBzQoEyD1AQ3KBEh9gHUaVOoDpBpU6gOkGlTqA6QaVOoDpBpU6gOkGlTqA6QaVOoDpBpU6gOkGuRP6YFYg8r6Awzj/CqG+gD/bwkq9QFSDSr1AVINKvUBUg0q9QFSDSr1AVINKvUBUg0q9QFSDSr1AVIN+g6pRnTQLWC/OQAAAABJRU5ErkJggg==";
+
+/** Prova il SOLO ripiego (OpenRouter · gpt-5-image) col percorso vero di produzione: un'immagine vera in, un'immagine in uscita. */
+async function testRipiego() {
+  const binStr = atob(STANZA_PROVA_B64);
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+  try {
+    const r = await editImage({
+      prompt: "Repaint the walls of this room in a soft sage green. Keep the same camera, window, floor and furniture exactly where they are.",
+      sourceImageBlob: new Blob([bytes], { type: "image/png" }),
+      sourceMimeType: "image/png",
+      effectiveWidth: 384,
+      effectiveHeight: 288,
+      timeoutMs: 90_000,
+      soloOpenRouter: true,
+      metadata: { task_kind: "debug_fallback_test", company_id: null, session_id: "debug-fallback" },
+    } as never);
+    return { ok: true, providerUsed: r.providerUsed, modelUsed: r.modelUsed, latencyMs: r.latencyMs, imageBytes: r.imageDataUrl.length };
+  } catch (e) {
+    const err = e as { message?: string; attemptHistory?: unknown };
+    return { ok: false, error: err.message ?? String(e), attemptHistory: err.attemptHistory ?? null };
+  }
+}
+
 // Real end-to-end test: chiama editImage() come fa il preventivatore reale.
 // Restituisce providerUsed, attempts, attemptHistory completi.
 async function testFullEditImage() {
@@ -341,6 +368,9 @@ Deno.serve(async (req) => {
   }
   const url = new URL(req.url);
   // Modalità "full": testa l'editImage() reale del path produzione.
+  if (url.searchParams.get("mode") === "ripiego") {
+    return new Response(JSON.stringify(await testRipiego(), null, 2), { status: 200, headers: { ...corsHeaders, "content-type": "application/json" } });
+  }
   if (url.searchParams.get("mode") === "full") {
     const result = await testFullEditImage();
     return new Response(JSON.stringify(result, null, 2), {
