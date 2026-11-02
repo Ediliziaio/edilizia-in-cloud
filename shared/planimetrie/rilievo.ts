@@ -225,7 +225,7 @@ export function indicizza(tin: Tin): TinIndicizzato {
   const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
   const lato = Math.max(1, Math.ceil(Math.sqrt(triangoli.length / 2)));
   const cw = (x1 - x0) / lato || 1, ch = (y1 - y0) / lato || 1;
-  const celle: number[][] = Array.from({ length: lato * lato }, () => []);
+  const celle: number[][] = Array.from({ length: lato * lato }, (): number[] => []);
   const cella = (v: number, o: number, w: number) => Math.max(0, Math.min(lato - 1, Math.floor((v - o) / w)));
   triangoli.forEach(([a, b, c], k) => {
     const tx = [punti[a].x, punti[b].x, punti[c].x], ty = [punti[a].y, punti[b].y, punti[c].y];
