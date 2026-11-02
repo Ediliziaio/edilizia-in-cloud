@@ -100,7 +100,7 @@ function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuan
       <button type="button" tabIndex={-1} onClick={onCambia} className="flex min-w-0 flex-1 basis-40 items-center gap-3 text-left">
         {riga.immagine && <MiniaturaProdotto src={riga.immagine} className="h-9 w-9" />}
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium text-slate-800 line-clamp-2">{riga.descrizione}</span>
+          <span className="text-sm font-medium text-slate-800 line-clamp-2" title={riga.descrizione}>{riga.descrizione}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
             {riga.meta && <span className="truncate">{riga.meta}</span>}
             {presente && <span className="inline-flex items-center gap-0.5 font-medium text-emerald-700"><Check className="h-3 w-3" />Già nel computo</span>}
