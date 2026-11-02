@@ -39,6 +39,15 @@ export function leggiCronoprogramma(raw: unknown): FaseCrono[] | null {
   return fasi.length > 0 ? fasi : null;
 }
 
+/** Le fasi calcolate dalle voci, nella forma del preventivo: una dopo l'altra, come le stampa il PDF. */
+export function fasiDaCalcolo(fasi: readonly { nome: string; durata: number; nota: string }[]): FaseCrono[] {
+  return [...fasi].slice(0, MAX_FASI_CRONO).map((f) => ({
+    fase: f.nome.slice(0, MAX_NOME_FASE),
+    durata: `${f.durata} ${f.durata === 1 ? "giorno" : "giorni"}`,
+    descrizione: f.nota ? f.nota.slice(0, 200) : null,
+  }));
+}
+
 /** Solo le fasi che hanno un nome: una riga vuota lasciata a metà non finisce nel preventivo del cliente. */
 export function fasiDaStampare(fasi: FaseCrono[] | null | undefined): FaseCrono[] {
   return (fasi ?? []).filter((f) => f.fase.trim().length > 0);

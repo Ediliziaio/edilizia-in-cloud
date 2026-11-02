@@ -193,6 +193,7 @@ export default function StepEconomia({ form, onChange, computo, model, onVaiAlPa
               onChange={(fasi) => onChange("cronoprogramma", fasi)}
               fasiDelModello={(template as unknown as { cronoprogramma?: unknown } | undefined)?.cronoprogramma}
               modulo="termoidraulico"
+              righe={computo}
             />
             {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
             {!incentiviPropri && (

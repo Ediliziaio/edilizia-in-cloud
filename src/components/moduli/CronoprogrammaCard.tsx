@@ -5,13 +5,33 @@
  * una ristrutturazione da tre mesi raccontavano gli stessi tempi. Qui si partono da quelle del modello e si
  * cambiano per il preventivo che si sta facendo. Senza, nel PDF resta il cronoprogramma del modello, come prima.
  */
-import { CalendarRange, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { CalendarRange, Calculator, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
-  MAX_FASI_CRONO, durataComplessiva, fasiDiPartenza, leggiCronoprogramma, type FaseCrono,
+  MAX_FASI_CRONO, durataComplessiva, fasiDaCalcolo, fasiDiPartenza, leggiCronoprogramma, type FaseCrono,
 } from "@/lib/preventivi/cronoprogramma";
+import { preparaCrono, type ClientCrono, type VoceCrono } from "../../../shared/piano-cantiere/cronoCalcolato.ts";
+import { regioneDaProvincia } from "../../../shared/piano-cantiere/regioni.ts";
+
+/** Una voce del computo del modulo: i campi sono gli stessi negli otto preventivatori. */
+export interface RigaPerCrono {
+  capitolo_nome?: string | null; descrizione?: string | null; unita_misura?: string | null; quantita?: number | string | null;
+  importo?: number | string | null; costo_manodopera?: number | string | null; ore_previste?: number | string | null; opzionale?: boolean | null;
+}
+
+const numero = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+const vociDalComputo = (righe: readonly RigaPerCrono[]): VoceCrono[] => righe
+  .filter((r) => !r.opzionale && (r.descrizione ?? "").trim())
+  .map((r) => ({
+    capitolo: r.capitolo_nome ?? null, descrizione: r.descrizione!.trim().split("\n")[0], unita: r.unita_misura ?? null, quantita: numero(r.quantita),
+    importo: numero(r.importo), costo_manodopera: numero(r.costo_manodopera), ore_previste: numero(r.ore_previste),
+  }));
 
 interface Props {
   /** Le fasi salvate sul preventivo (null = quelle del modello). */
@@ -21,9 +41,36 @@ interface Props {
   fasiDelModello?: unknown;
   /** Il preventivatore: decide le fasi proposte quando il modello non ne ha. */
   modulo?: string | null;
+  /** Le voci del computo del preventivo: se ci sono, le durate si possono calcolare da lì. */
+  righe?: readonly RigaPerCrono[];
 }
 
-export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo }: Props) {
+export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo, righe }: Props) {
+  const { effectiveCompany } = useAuth();
+  const [calcolando, setCalcolando] = useState(false);
+  const [nota, setNota] = useState<string | null>(null);
+  const [confermaSostituzione, setConfermaSostituzione] = useState(false);
+  const voci = vociDalComputo(righe ?? []);
+  const puoCalcolare = voci.length > 0 && !!effectiveCompany?.id;
+  const calcola = async () => {
+    if (!effectiveCompany?.id) return;
+    setCalcolando(true);
+    try {
+      const esito = await preparaCrono(supabase as unknown as ClientCrono, effectiveCompany.id, voci, {}, regioneDaProvincia);
+      onChange(fasiDaCalcolo(esito.fasi));
+      setNota(esito.nota);
+      setConfermaSostituzione(false);
+    } catch {
+      toast.error("Non sono riuscito a calcolare i tempi: riprova tra poco, o scrivili a mano.");
+    } finally {
+      setCalcolando(false);
+    }
+  };
+  const pulsanteCalcola = puoCalcolare && (
+    <Button type="button" size="sm" variant="default" disabled={calcolando} className="gap-1" onClick={() => { void calcola(); }}>
+      {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}Calcola dalle voci del computo
+    </Button>
+  );
   const fasi = leggiCronoprogramma(raw);
   const delModello = leggiCronoprogramma(fasiDelModello);
   const durata = durataComplessiva(fasi ?? delModello ?? []);
@@ -46,12 +93,13 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
             : "Nel modello non ci sono fasi: nel PDF non compare nessun tempo. Scrivi le fasi di questo lavoro."}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
+          {pulsanteCalcola}
           {delModello && (
-            <Button type="button" size="sm" variant="default" onClick={() => onChange(delModello)}>
+            <Button type="button" size="sm" variant={puoCalcolare ? "outline" : "default"} onClick={() => onChange(delModello)}>
               Parti da quelle del modello
             </Button>
           )}
-          <Button type="button" size="sm" variant={delModello ? "outline" : "default"} onClick={() => onChange(fasiDiPartenza(modulo))}>
+          <Button type="button" size="sm" variant={delModello || puoCalcolare ? "outline" : "default"} onClick={() => onChange(fasiDiPartenza(modulo))}>
             Fasi tipiche di questo lavoro
           </Button>
         </div>
@@ -66,8 +114,20 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
           <CalendarRange className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
           Quanto dura il cantiere
         </p>
-        {durata && <span className="text-[11px] font-semibold text-sky-800">{durata} in tutto</span>}
+        <div className="flex items-center gap-2">
+          {puoCalcolare && (
+            <Button
+              type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px]" disabled={calcolando}
+              onClick={() => { if (confermaSostituzione) void calcola(); else setConfermaSostituzione(true); }}
+            >
+              {calcolando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Calculator className="h-3 w-3" />}
+              {confermaSostituzione ? "Sostituisco le fasi scritte?" : "Ricalcola dal computo"}
+            </Button>
+          )}
+          {durata && <span className="text-[11px] font-semibold text-sky-800">{durata} in tutto</span>}
+        </div>
       </div>
+      {nota && <p className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">{nota}</p>}
 
       <div className="space-y-1.5 px-3 py-2">
         {fasi.map((f, i) => (

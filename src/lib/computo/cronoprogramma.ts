@@ -6,9 +6,18 @@
  * capitoli; poi si corregge a mano. Esce nel PDF in una pagina sua.
  */
 import { arrotondaDecimale, calcolaVoce, type BozzaComputo } from "./editorNativo";
+import type { VoceCrono } from "../../../shared/piano-cantiere/cronoCalcolato.ts";
 import { cronoprogrammaSchema, type Cronoprogramma, type FaseCrono } from "./cronoprogrammaSchema";
 
 export { cronoprogrammaSchema, type Cronoprogramma, type FaseCrono };
+
+/** Le voci per il cronoprogramma calcolato. Le opzionali non si fanno, finché il cliente non le sceglie. */
+export function vociPerCrono(bozza: BozzaComputo): VoceCrono[] {
+  return bozza.voci.filter((v) => !v.opzionale && v.descrizione.trim()).map((v) => {
+    const r = calcolaVoce(v);
+    return { capitolo: v.capitolo, descrizione: v.descrizione.trim().split("\n")[0], unita: v.unita, quantita: r.quantita, importo: r.importo };
+  });
+}
 
 export const cronoprogrammaVuoto = (): Cronoprogramma => cronoprogrammaSchema.parse({});
 
