@@ -19,6 +19,7 @@ import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 
 interface Riga {
   id: string;
@@ -40,6 +41,7 @@ export function eSpesaGenerale(tipo: string | null | undefined): boolean {
 export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: string; puoModificare: boolean }) {
   const qc = useQueryClient();
   const [tutte, setTutte] = useState(false);
+  const [aperto, setAperto] = useState(false);
   const q = useQuery({
     queryKey: ["fatture-da-assegnare", companyId],
     enabled: !!companyId,
@@ -89,14 +91,17 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
   const totale = righe.reduce((t, r) => t + (Number(r.totale_documento) || 0), 0);
   const visibili = tutte ? conProposta : conProposta.slice(0, 5);
 
+  // Di norma chiuso: è un promemoria, non deve spingere la tabella fuori dallo schermo.
   return (
-    <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20" aria-label="Fatture da assegnare a una commessa">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">
+    <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+      <button type="button" aria-expanded={aperto} onClick={() => setAperto((v) => !v)} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left">
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "" : "-rotate-90"}`} aria-hidden="true" />
+        <span className="text-sm font-semibold">
           {righe.length} {righe.length === 1 ? "fattura registrata" : "fatture registrate"} senza commessa · {formatCurrency(totale)}
-        </h2>
-        <p className="text-xs text-muted-foreground">Il margine dei cantieri non le conta finché non hanno la commessa.</p>
-      </div>
+        </span>
+        <span className="text-xs text-muted-foreground">In tutti gli anni. {conProposta.length > 0 ? `${conProposta.length} con la commessa proposta. ` : ""}Il margine non le conta finché non hanno la commessa.</span>
+      </button>
+      {aperto && <>
       {conProposta.length > 0 ? (
         <>
           <ul className="divide-y rounded-lg border bg-background text-sm">
@@ -137,6 +142,7 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
           come «Spese generali» nei tipi dei fornitori.
         </p>
       )}
+      </>}
     </section>
   );
 }

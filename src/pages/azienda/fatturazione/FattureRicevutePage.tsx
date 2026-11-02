@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
@@ -62,6 +63,7 @@ import {
   Loader2,
   Link2,
   RotateCcw,
+  SlidersHorizontal,
   X,
   AlertTriangle,
   Euro,
@@ -250,7 +252,9 @@ export default function FattureRicevutePage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState("");
+  // Dai Tipi dei fornitori si arriva qui con le fatture di quel fornitore già cercate.
+  const [parametri] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => parametri.get("cerca") ?? "");
   const [statoFilter, setStatoFilter] = useState("all");
   const [tipoFilter, setTipoFilter] = useState("all");
   // «__nessuna__» = mai classificata dall'AI.
@@ -512,6 +516,8 @@ export default function FattureRicevutePage() {
     }),
     [fatture, haCollegamento, verificata, pagataIl, pagataSulCosto],
   );
+  // Quelli dentro «Altri filtri»: si contano sul bottone, altrimenti non si vedono.
+  const altriFiltriAttivi = (statoFilter !== "all" ? 1 : 0) + (tipoFilter !== "all" ? 1 : 0) + (categoriaFilter !== "all" ? 1 : 0) + (ordineFilter !== "all" ? 1 : 0);
   const filtriAttivi =
     (statoFilter !== "all" ? 1 : 0) +
     (tipoFilter !== "all" ? 1 : 0) +
@@ -519,9 +525,10 @@ export default function FattureRicevutePage() {
     (ordineFilter !== "all" ? 1 : 0) +
     (contabFilter !== "all" ? 1 : 0) +
     (pagamentoFilter !== "all" ? 1 : 0) +
-    (searchQuery.trim() ? 1 : 0);
-
+    (searchQuery.trim() ? 1 : 0) +
+    (soloDaVerificare ? 1 : 0);
   const azzeraFiltri = () => {
+    setSoloDaVerificare(false);
     setSearchQuery("");
     setStatoFilter("all");
     setTipoFilter("all");
@@ -1191,62 +1198,11 @@ export default function FattureRicevutePage() {
       {/* Filtri: chip rapidi con il conteggio, poi ricerca e tendine. */}
       <div className="space-y-3 max-sm:hidden">
         <div className="flex flex-wrap items-center gap-2">
-          <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>
-            Tutte
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={statoFilter === "non_letta"}
-            onClick={() => setStatoFilter((s) => (s === "non_letta" ? "all" : "non_letta"))}
-            conteggio={kpi.nonLette}
-          >
-            Da leggere
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={contabFilter === "da_contabilizzare"}
-            onClick={() => setContabFilter((c) => (c === "all" ? "da_contabilizzare" : "all"))}
-            conteggio={conteggi.daContabilizzare}
-          >
-            Da contabilizzare
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={pagamentoFilter === "da_pagare"}
-            onClick={() => setPagamentoFilter((p) => (p === "da_pagare" ? "all" : "da_pagare"))}
-            conteggio={conteggi.daPagare}
-          >
-            Da pagare
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={ordineFilter === "senza"}
-            onClick={() => setOrdineFilter((o) => (o === "senza" ? "all" : "senza"))}
-            conteggio={conteggi.senzaOrdine}
-          >
-            Da collegare
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={soloDaVerificare}
-            onClick={() => setSoloDaVerificare((v) => !v)}
-            conteggio={conteggi.daVerificare}
-          >
-            Da verificare
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={categoriaFilter === "__nessuna__"}
-            onClick={() => setCategoriaFilter((c) => (c === "__nessuna__" ? "all" : "__nessuna__"))}
-            conteggio={kpi.daClassificare}
-          >
-            Da classificare
-          </ChipFiltro>
-          <p className="ml-auto text-xs text-muted-foreground tabular-nums">
-            Mostrando <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Cerca per fornitore, numero fattura, P.IVA..."
-              className="border-0 bg-slate-50 pl-9 shadow-none focus-visible:ring-1"
+              className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1262,60 +1218,84 @@ export default function FattureRicevutePage() {
               <SelectItem value="all">Tutti gli anni</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={statoFilter} onValueChange={setStatoFilter}>
-            <SelectTrigger className="w-[150px]" aria-label="Stato">
-              <SelectValue placeholder="Stato" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="non_letta">Non lette</SelectItem>
-              <SelectItem value="letta">Lette</SelectItem>
-              <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
-            </SelectContent>
-          </Select>
-          {opzioniTipo.length > 0 && (
-            <Select value={tipoFilter} onValueChange={setTipoFilter}>
-              <SelectTrigger className="w-[150px]" aria-label="Tipo documento">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti i tipi</SelectItem>
-                {opzioniTipo.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {opzioniCategoria.length > 0 && (
-            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-              <SelectTrigger className="w-[170px]" aria-label="Categoria">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutte le categorie</SelectItem>
-                <SelectItem value="__nessuna__">Non classificate</SelectItem>
-                {opzioniCategoria.map((c) => (
-                  <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <Select value={ordineFilter} onValueChange={(v) => setOrdineFilter(v as "all" | "con" | "senza")}>
-            <SelectTrigger className="w-[150px]" aria-label="Ordine d'acquisto">
-              <SelectValue placeholder="Collegamento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Collegamento: tutte</SelectItem>
-              <SelectItem value="con">Collegate</SelectItem>
-              <SelectItem value="senza">Da collegare</SelectItem>
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-1.5">
+                <SlidersHorizontal className="h-4 w-4" />Altri filtri
+                {altriFiltriAttivi > 0 && <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">{altriFiltriAttivi}</Badge>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 space-y-3">
+              <label className="block space-y-1 text-sm"><span className="font-medium">Stato</span>
+                <Select value={statoFilter} onValueChange={setStatoFilter}>
+                  <SelectTrigger aria-label="Stato"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="non_letta">Non lette</SelectItem>
+                    <SelectItem value="letta">Lette</SelectItem>
+                    <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              {opzioniTipo.length > 0 && (
+                <label className="block space-y-1 text-sm"><span className="font-medium">Tipo di documento</span>
+                  <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                    <SelectTrigger aria-label="Tipo documento"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti</SelectItem>
+                      {opzioniTipo.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              {opzioniCategoria.length > 0 && (
+                <label className="block space-y-1 text-sm"><span className="font-medium">Categoria</span>
+                  <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+                    <SelectTrigger aria-label="Categoria"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutte</SelectItem>
+                      <SelectItem value="__nessuna__">Non classificate</SelectItem>
+                      {opzioniCategoria.map((c) => <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              <label className="block space-y-1 text-sm"><span className="font-medium">Collegamento</span>
+                <Select value={ordineFilter} onValueChange={(v) => setOrdineFilter(v as "all" | "con" | "senza")}>
+                  <SelectTrigger aria-label="Collegamento"><SelectValue placeholder="Collegamento" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte</SelectItem>
+                    <SelectItem value="con">Collegate</SelectItem>
+                    <SelectItem value="senza">Da collegare</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            </PopoverContent>
+          </Popover>
+        </div>
+        {/* Cosa c'è da fare: a zero non serve vederlo. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>
+            Tutte
+          </ChipFiltro>
+          {([
+            { attivo: statoFilter === "non_letta", fai: () => setStatoFilter((v) => (v === "non_letta" ? "all" : "non_letta")), n: kpi.nonLette, testo: "Da leggere" },
+            { attivo: soloDaVerificare, fai: () => setSoloDaVerificare((v) => !v), n: conteggi.daVerificare, testo: "Da verificare" },
+            { attivo: ordineFilter === "senza", fai: () => setOrdineFilter((v) => (v === "senza" ? "all" : "senza")), n: conteggi.senzaOrdine, testo: "Da collegare" },
+            { attivo: contabFilter === "da_contabilizzare", fai: () => setContabFilter((v) => (v === "all" ? "da_contabilizzare" : "all")), n: conteggi.daContabilizzare, testo: "Da contabilizzare" },
+            { attivo: pagamentoFilter === "da_pagare", fai: () => setPagamentoFilter((v) => (v === "da_pagare" ? "all" : "da_pagare")), n: conteggi.daPagare, testo: "Da pagare" },
+            { attivo: categoriaFilter === "__nessuna__", fai: () => setCategoriaFilter((v) => (v === "__nessuna__" ? "all" : "__nessuna__")), n: kpi.daClassificare, testo: "Da classificare" },
+          ]).filter((c) => c.n > 0 || c.attivo).map((c) => (
+            <ChipFiltro key={c.testo} attivo={c.attivo} onClick={c.fai} conteggio={c.n}>{c.testo}</ChipFiltro>
+          ))}
           {filtriAttivi > 0 && (
-            <Button variant="ghost" size="sm" onClick={azzeraFiltri} className="text-muted-foreground">
-              <X className="mr-1 h-3.5 w-3.5" />
-              Azzera ({filtriAttivi})
+            <Button variant="ghost" size="sm" onClick={azzeraFiltri} className="h-7 text-muted-foreground">
+              <X className="mr-1 h-3.5 w-3.5" />Azzera
             </Button>
           )}
+          <p className="ml-auto text-xs tabular-nums text-muted-foreground">
+            <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
+          </p>
         </div>
       </div>
 

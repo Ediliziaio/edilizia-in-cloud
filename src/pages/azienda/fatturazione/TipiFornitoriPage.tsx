@@ -48,6 +48,8 @@ export interface Cedente {
 
 type Vista = "da_fare" | "fatti" | "tutti";
 
+const DOVE_VA = { si: "Il costo va su una commessa", no: "Il costo va nelle spese generali", a_scelta: "Il costo si assegna fattura per fattura" } as const;
+
 export function propostaPerCedente(c: Cedente): PropostaTipo | null {
   return proponiTipo({
     nome: c.nome,
@@ -91,10 +93,15 @@ async function salvaTipo(companyId: string, c: Cedente, tipo: TipoFornitore): Pr
   }
   // Le sue fatture ancora senza fornitore si collegano alla scheda (anche quando la
   // scheda c'era già ma nessuno le aveva collegate).
-  const { data: fatture, error: e2 } = await db.from("fatture_ricevute").select("id")
-    .eq("company_id", companyId).is("fornitore_id", null)
-    .eq(c.piva ? "cedente_piva" : "cedente_cf", c.piva || c.cf).limit(500);
+  // Chi non ha codici si riconosce dal nome, come nell'elenco: solo le fatture senza codice, non un omonimo con la P.IVA.
+  const codice = c.piva || c.cf;
+  const base = db.from("fatture_ricevute").select("id, cedente_piva, cedente_cf").eq("company_id", companyId).is("fornitore_id", null);
+  const { data: trovate, error: e2 } = await (codice
+    ? base.eq(c.piva ? "cedente_piva" : "cedente_cf", codice)
+    : base.ilike("cedente_ragione_sociale", (c.nome ?? "").trim().replace(/[\\%_]/g, "\\$&"))).limit(500);
   if (e2) throw e2;
+  const fatture = ((trovate ?? []) as Array<{ id: string; cedente_piva: string | null; cedente_cf: string | null }>)
+    .filter((f) => codice || (!f.cedente_piva?.trim() && !f.cedente_cf?.trim()));
   const ids = ((fatture ?? []) as Array<{ id: string }>).map((f) => f.id);
   if (ids.length) {
     const { error: e3 } = await db.rpc("collega_fornitore_ricevute", { p_company_id: companyId, p_invoice_ids: ids, p_supplier_id: supplierId });
@@ -105,7 +112,7 @@ async function salvaTipo(companyId: string, c: Cedente, tipo: TipoFornitore): Pr
 export default function TipiFornitoriPage() {
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
-  const [vista, setVista] = useState<Vista>("da_fare");
+  const [vistaScelta, setVista] = useState<Vista | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<string>("all");
   const [cerca, setCerca] = useState("");
   // La scelta di chi guarda, prima di salvare (altrimenti vale la proposta).
@@ -139,6 +146,15 @@ export default function TipiFornitoriPage() {
     return m;
   }, [righe]);
 
+  const daFare = righe.filter((r) => !r.salvato).length;
+  // Con niente da classificare non si atterra su una pagina vuota: si vedono tutti i fornitori.
+  const vista: Vista = vistaScelta ?? (daFare > 0 ? "da_fare" : "tutti");
+  const numeroPerTipo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of righe) if (r.salvato) m.set(r.salvato, (m.get(r.salvato) ?? 0) + 1);
+    return m;
+  }, [righe]);
+
   const visibili = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     return righe.filter((r) => {
@@ -147,11 +163,11 @@ export default function TipiFornitoriPage() {
       if (filtroTipo !== "all" && r.scelto !== filtroTipo) return false;
       if (q && !`${r.c.nome ?? ""} ${r.c.piva ?? ""} ${r.c.fornitore_nome ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
-    });
+    // Prima chi pesa di più: è lì che un tipo sbagliato sposta davvero i conti.
+    }).sort((a, b) => Number(b.c.imponibile ?? 0) - Number(a.c.imponibile ?? 0));
   }, [righe, vista, filtroTipo, cerca]);
 
   const proposteSicure = righe.filter((r) => !r.salvato && r.proposta?.sicurezza === "certa");
-  const daFare = righe.filter((r) => !r.salvato).length;
 
   const salva = useMutation({
     mutationFn: async (lista: Array<{ c: Cedente; tipo: TipoFornitore }>) => {
@@ -229,34 +245,27 @@ export default function TipiFornitoriPage() {
             onClick={() => { setFiltroTipo(filtroTipo === t ? "all" : t); setVista("tutti"); }}
             className={`rounded-lg border p-2.5 text-left transition-colors hover:bg-muted/50 ${filtroTipo === t ? "border-primary bg-primary/5" : ""}`}
           >
-            <p className="text-xs text-muted-foreground">{INFO_TIPO_FORNITORE[t].etichetta}</p>
+            <p className="text-xs text-muted-foreground">{INFO_TIPO_FORNITORE[t].etichetta} · {numeroPerTipo.get(t) ?? 0}</p>
             <p className="text-sm font-semibold tabular-nums">{formatCurrency(perTipo.get(t) ?? 0)}</p>
           </button>
         ))}
-        <button
+        {daFare > 0 && <button
           type="button"
           onClick={() => { setVista("da_fare"); setFiltroTipo("all"); }}
           className={`rounded-lg border border-dashed p-2.5 text-left hover:bg-muted/50 ${vista === "da_fare" && filtroTipo === "all" ? "border-primary bg-primary/5" : ""}`}
         >
           <p className="text-xs text-muted-foreground">Da classificare · {daFare}</p>
           <p className="text-sm font-semibold tabular-nums">{formatCurrency(perTipo.get("__da_fare") ?? 0)}</p>
-        </button>
+        </button>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-md border p-0.5 text-sm">
-          {([["da_fare", `Da classificare (${daFare})`], ["fatti", "Classificati"], ["tutti", "Tutti"]] as const).map(([v, l]) => (
+          {([["tutti", `Tutti (${righe.length})`], ["fatti", `Classificati (${righe.length - daFare})`], ...(daFare > 0 ? [["da_fare", `Da classificare (${daFare})`] as const] : [])] as const).map(([v, l]) => (
             <button key={v} type="button" onClick={() => setVista(v)}
               className={`rounded px-2.5 py-1 ${vista === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>{l}</button>
           ))}
         </div>
-        <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="h-9 w-56" aria-label="Filtra per tipo"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i tipi</SelectItem>
-            {TIPI_FORNITORE.map((t) => <SelectItem key={t} value={t}>{INFO_TIPO_FORNITORE[t].etichetta}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <div className="relative min-w-48 flex-1 sm:max-w-xs">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca nome o partita IVA" className="h-9 pl-8" />
@@ -275,7 +284,7 @@ export default function TipiFornitoriPage() {
         <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
       ) : visibili.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-          {vista === "da_fare" ? "Tutti i fornitori hanno un tipo." : "Nessun fornitore con questi filtri."}
+          {righe.length === 0 ? "Nessun fornitore: arrivano con le fatture ricevute." : "Nessun fornitore con questi filtri."}
         </CardContent></Card>
       ) : (
         <div className="overflow-hidden rounded-lg border">
@@ -300,12 +309,14 @@ export default function TipiFornitoriPage() {
                   className="mt-0.5 md:mt-0"
                 />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium" title={c.nome ?? undefined}>{c.nome || "Senza nome"}</p>
+                  <Link to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(c.piva || c.cf || c.nome || "")}`} title={`Le fatture di ${c.nome ?? "questo fornitore"}`}
+                    className="block truncate text-sm font-medium underline-offset-2 hover:underline">{c.nome || "Senza nome"}</Link>
                   <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-                    {c.piva ? <span>P.IVA {c.piva}</span> : c.cf ? <span>C.F. {c.cf}</span> : null}
+                    {c.piva ? <span>P.IVA {c.piva}</span> : c.cf ? <span>C.F. {c.cf}</span> : <span className="text-amber-700 dark:text-amber-400">Senza partita IVA</span>}
                     {c.fornitore_id ? <span>In anagrafica{c.fornitore_nome && c.fornitore_nome !== c.nome ? ` come «${c.fornitore_nome}»` : ""}</span>
                       : <span className="text-amber-700 dark:text-amber-400">Non in anagrafica: si aggiunge salvando</span>}
                     {c.subappaltatore_id ? <span>Nei subappaltatori</span> : null}
+                    {scelto ? <span>{DOVE_VA[INFO_TIPO_FORNITORE[scelto].commessa]}</span> : null}
                     <span className="basis-full md:hidden">{c.fatture} fatture · {formatCurrency(Number(c.imponibile ?? 0))}</span>
                   </p>
                   {/* La proposta sta col fornitore: a destra resta una riga sola, uguale per tutti. */}

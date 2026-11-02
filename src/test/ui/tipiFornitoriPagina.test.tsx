@@ -71,6 +71,20 @@ describe("Tipi dei fornitori", () => {
     expect(finto.chiamate).toContainEqual(["rpc", "collega_fornitore_ricevute", { p_company_id: "co", p_invoice_ids: ["f1", "f2"], p_supplier_id: "nuovo" }]);
   });
 
+  it("con tutto classificato non atterra su una pagina vuota, e il più pesante sta in cima", async () => {
+    finto.cedenti = (finto.cedenti as Array<{ fornitore_tipo?: string | null }>).filter((c) => c.fornitore_tipo);
+    apri();
+    expect(await screen.findByText("Leroy Merlin Italia srl", {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByText(/Da classificare/)).toBeNull();
+    expect(screen.queryByText("Tutti i fornitori hanno un tipo.")).toBeNull();
+    expect(screen.getByRole("link", { name: "Leroy Merlin Italia srl" }).getAttribute("href")).toContain("/azienda/documenti/fatture-ricevute?cerca=");
+  });
+  it("chi non ha la partita IVA si vede, e salvando si collegano solo le sue fatture senza codice", async () => {
+    finto.cedenti = [{ ...base, chiave: "nome:edil", piva: null, cf: null, nome: "Edil 100% Srl", fatture: 2, imponibile: 50, fornitore_id: null, categorie: [] }];
+    apri();
+    expect(await screen.findByText("Senza partita IVA", {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Edil 100% Srl" }).getAttribute("href")).toContain("cerca=Edil%20100%25%20Srl");
+  });
   it("senza indizi non propone niente: decide una persona", async () => {
     apri();
     await screen.findByText("Rossi Srl", {}, { timeout: 5000 });
