@@ -113,7 +113,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
                   key={m.modulo}
                   type="button"
                   onClick={() => setModulo(m.modulo)}
-                  className={`rounded-md border p-2.5 text-left text-sm transition ${modulo === m.modulo ? "border-purple-600 bg-purple-50 dark:bg-purple-950/30" : "hover:bg-muted"}`}
+                  className={`rounded-md border p-2.5 text-left text-sm transition ${modulo === m.modulo ? "border-primary bg-primary/5 dark:bg-primary/10" : "hover:bg-muted"}`}
                 >
                   <div className="font-medium">{m.nome}</div>
                   <div className="text-xs text-muted-foreground">{m.descrizione}</div>
@@ -143,7 +143,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onChiudi}>Annulla</Button>
-          <Button onClick={continua} disabled={!anteprima || carico} className="bg-purple-600 hover:bg-purple-700">Continua col render</Button>
+          <Button onClick={continua} disabled={!anteprima || carico} className="bg-primary hover:bg-primary/90">Continua col render</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -10,6 +10,7 @@ import type { PiantaGenerata } from "./generazione.ts";
 import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
+import { controllaSuperfici, pulisciLocali } from "./pulizia.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
 
@@ -106,14 +107,19 @@ function leggi(testo: string, req: RichiestaGenerazione): Lettura {
   } catch {
     return { pianta: null, errori: [{ codice: "json", dettaglio: "La risposta non era un JSON valido." }], nonLeggibile: null };
   }
-  const risposta = leggiRispostaAI(grezza, req.ingresso === "documento" ? "immagine" : "metri");
+  const letta = leggiRispostaAI(grezza, req.ingresso === "documento" ? "immagine" : "metri");
+  const pulita = req.ingresso === "documento" || req.ingresso === "schizzo" ? pulisciLocali(letta) : { risposta: letta, scartati: [] as string[], rinominati: [] as string[] };
+  const risposta = pulita.risposta;
   try {
-    const g = costruisciPiani(risposta, {
+    const costruita = costruisciPiani(risposta, {
       ingresso: req.ingresso,
       larghezzaImmagine: req.file?.larghezza ?? null,
       altezzaImmagine: req.file?.altezza ?? null,
       sorgentePath: req.sorgentePath ?? null,
     });
+    const g = req.ingresso === "documento" ? controllaSuperfici(costruita) : costruita;
+    if (pulita.scartati.length) g.generazione.avvisi.push(`Ho tolto dalle stanze ciò che sembrava un arredo: ${pulita.scartati.slice(0, 6).join(", ")}.`);
+    if (pulita.rinominati.length) g.generazione.avvisi.push(`Ho dato un nome alle sigle del disegno: ${pulita.rinominati.slice(0, 6).join(", ")}. Controlla che siano giuste.`);
     return { pianta: g, errori: controllaGenerata(g.planimetria), nonLeggibile: null };
   } catch (e) {
     if (e instanceof ErroreCostruzione && e.codice === "non_leggibile") return { pianta: null, errori: [], nonLeggibile: e.message };
