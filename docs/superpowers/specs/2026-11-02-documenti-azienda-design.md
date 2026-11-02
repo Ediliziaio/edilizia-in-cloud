@@ -265,3 +265,25 @@ Lo scadenzario in PDF e in Excel con un bottone: è la cosa che l'ufficio gare c
 E due test che mancano, su bug già pagati una volta: la scadenza calcolata dai mesi di
 rinnovo (che cadeva un giorno prima, passando per UTC) e la cancellazione che porta via
 tutta la catena delle versioni.
+
+---
+
+## Fase 5 — fatta il 02/11/2026
+
+Provata nel browser: sui ventitré documenti veri di Impresa Vulcano l'abbinamento
+riconosce `DURC ottobre 2026.pdf`, `iso14001.pdf`, `visura-camerale-30-09-2026.pdf` e
+`RC ditta.pdf`; `ISO.pdf` davanti a tre ISO resta da scegliere, come deve. Il
+caricamento vero è stato provato su Demo Azienda 2 e poi ripulito.
+
+Tre cose decise mentre si costruiva, che il piano non diceva:
+
+- **Il punteggio guarda la quota di titolo coperta, non le parole in assoluto.** Alla
+  prima prova «DURC» (una parola) non arrivava alla soglia che «Responsabilità civile —
+  ditta» (tre parole) superava: i titoli corti perdevano sempre.
+- **Le abbreviazioni del mestiere stanno in tabella** (`rc`, `dvr`, `pos`, `cciaa`…).
+  Senza, `RC_ditta.pdf` e «Responsabilità civile — ditta» non si somigliano per niente,
+  e quello è l'abbinamento più comune dell'archivio.
+- **Due file sulla stessa carta bloccano la conferma.** Il secondo cancellerebbe il
+  primo senza dirlo.
+
+Resta fuori la fase 6: le date si continuano a battere a mano.
