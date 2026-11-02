@@ -166,10 +166,11 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
     }
     if (modo !== "testo" && file) {
       // Foto enormi e schermate CAD a sfondo nero: ridotte e portate a fondo bianco; il foglio
-      // raddrizzato come l'ha girato l'utente. Un PDF a una pagina e dritto parte così com'è.
+      // raddrizzato come l'ha girato l'utente e reso quadrato con margini bianchi (l'AI sbaglia la scala
+      // sui fogli larghi o alti). Anche i PDF si disegnano e si squadrano; se non si riesce parte il PDF così com'è.
       const pdf = file.type === "application/pdf";
       const pronta = pdf
-        ? (pagine > 1 || rotazione !== 0 ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas)).catch((): null => null) : null)
+        ? await paginaPdf(file, pagina).then((r) => preparaImmagine(file, rotazione, r.canvas)).catch((): null => null)
         : await preparaImmagine(file, rotazione);
       richiesta.mime = pronta?.mime ?? file.type;
       richiesta.file_base64 = await inBase64(pronta?.file ?? file);
