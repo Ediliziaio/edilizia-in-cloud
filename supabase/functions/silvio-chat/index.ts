@@ -464,6 +464,10 @@ serve(async (req: Request) => {
     if (channel.name !== "silvio-ai") return errorResponse("Canale non è Silvio", 400, corsHeaders);
 
     const companyId: string = channel.company_id;
+    // Cache di coda, sola lettura e tetti (02/11/2026): prima su Demo Azienda 2, dove si misura col
+    // provider vero. Per tutti: SILVIO_RISPARMIO_TOKEN_PER_TUTTI=true, senza ripubblicare.
+    const risparmioToken = companyId === "d2000000-0000-4000-a000-000000000002" ||
+      Deno.env.get("SILVIO_RISPARMIO_TOKEN_PER_TUTTI") === "true";
 
     // Sei controlli indipendenti, una sola attesa. Prima erano in fila —
     // accesso, carta, membro del canale, persona, RBAC, e il credito non
@@ -945,7 +949,7 @@ serve(async (req: Request) => {
       currentSenderId: userId,
       currentContent: userMessage,
       currentMessageId: requestMessageId,
-      vecchi: STORICO_VECCHI,
+      ...(risparmioToken ? { vecchi: STORICO_VECCHI } : {}),
     });
 
     // ── 6.5) Classificazione query (MP-09 + token-opt) ──────────────────
@@ -998,7 +1002,7 @@ serve(async (req: Request) => {
     // Domanda chiaramente di lettura: niente strumenti che scrivono, che valgono
     // un quarto dello schema. Solo col filtro attivo, perche' per riprenderli
     // serve `carica_strumenti`. Kill-switch: SILVIO_SOLA_LETTURA_DISABLED=true.
-    let soloLettura = !!toolDomains &&
+    let soloLettura = risparmioToken && !!toolDomains &&
       Deno.env.get("SILVIO_SOLA_LETTURA_DISABLED") !== "true" &&
       domandaDiSolaLettura(userMessage, attachments.length > 0);
     let allowedTools = getToolsForChannel({
@@ -1501,7 +1505,7 @@ serve(async (req: Request) => {
             tool_choice: skipToolsForModel ? undefined : ultimoPassaggio ? "none" : "auto",
             // 5 minuti: bastano ai passaggi dello stesso messaggio e ai messaggi
             // vicini. L'ora costa 2x e rendeva su 1 ripresa su 6 (02/11/2026).
-            promptCache: { ttl: "5m", coda: true },
+            ...(risparmioToken ? { promptCache: { ttl: "5m" as const, coda: true } } : {}),
           },
           // MP-04: structured output (json_schema strict) per tier balanced/premium.
           // Disabilitato durante tool calls (json_schema entra in conflitto con tool_choice=auto).
@@ -1619,7 +1623,7 @@ serve(async (req: Request) => {
           const { tc, toolName, toolArgs } = chiamate[k];
           const toolResult = risultati[k];
           if (toolName === "search_brain") registerBrainToolSources(toolResult, ragSources);
-          const resultStr = silvioToolResultForPrompt(toolResult, limiteRisultatoStrumento(charRisultati));
+          const resultStr = silvioToolResultForPrompt(toolResult, risparmioToken ? limiteRisultatoStrumento(charRisultati) : undefined);
           charRisultati += resultStr.length;
           partialToolContext ||= silvioToolContextIsPartial(resultStr);
 
