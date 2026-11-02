@@ -138,12 +138,11 @@ describe("SAL in fattura", () => {
 });
 
 describe("Da dove parte il popup", () => {
-  const nessuno = { salDaFatturare: false, fasiConQuota: false, rataDaFatturare: false, articoli: false };
-  it("SAL, poi fasi, poi rata, poi articoli, altrimenti importo", () => {
-    expect(modoSuggerito({ salDaFatturare: true, fasiConQuota: true, rataDaFatturare: true, articoli: true })).toBe("sal");
-    expect(modoSuggerito({ ...nessuno, fasiConQuota: true, rataDaFatturare: true, articoli: true })).toBe("fasi");
-    expect(modoSuggerito({ ...nessuno, rataDaFatturare: true, articoli: true })).toBe("importo");
-    expect(modoSuggerito({ ...nessuno, articoli: true })).toBe("articoli");
+  const nessuno = { salDaFatturare: false, fasiConQuota: false, rataDaFatturare: false };
+  it("SAL, poi la rata, poi le fasi; gli articoli mai da soli", () => {
+    expect(modoSuggerito({ salDaFatturare: true, fasiConQuota: true, rataDaFatturare: true })).toBe("sal");
+    expect(modoSuggerito({ ...nessuno, fasiConQuota: true, rataDaFatturare: true })).toBe("importo");
+    expect(modoSuggerito({ ...nessuno, fasiConQuota: true })).toBe("fasi");
     expect(modoSuggerito(nessuno)).toBe("importo");
   });
 });

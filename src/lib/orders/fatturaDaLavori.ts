@@ -212,15 +212,17 @@ export function righeSal(sal: SalPerFattura, tutti: ReadonlyArray<SalPerFattura>
 
 export type ModoFattura = "sal" | "fasi" | "articoli" | "importo";
 
-/** Da dove partire: il SAL pronto, poi le fasi con qualcosa di maturato, la rata da fatturare, gli articoli. */
+/**
+ * Da dove partire. Le fatture vere (4.548 di 5 aziende, 02/11/2026) sono per il 56%
+ * di una riga sola: acconto, saldo o SAL con i lavori descritti. Le fasi si propongono
+ * solo senza una rata da fatturare; gli articoli solo se li si sceglie.
+ */
 export function modoSuggerito(p: {
   salDaFatturare: boolean;
   fasiConQuota: boolean;
   rataDaFatturare: boolean;
-  articoli: boolean;
 }): ModoFattura {
   if (p.salDaFatturare) return "sal";
-  if (p.fasiConQuota) return "fasi";
   if (p.rataDaFatturare) return "importo";
-  return p.articoli ? "articoli" : "importo";
+  return p.fasiConQuota ? "fasi" : "importo";
 }

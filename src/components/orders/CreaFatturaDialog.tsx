@@ -102,6 +102,15 @@ interface VoceRow {
   importo: number | null;
 }
 
+/** I campi di una riga scritti a mano: valgono sul calcolato, come testo. */
+interface TestiRiga {
+  descrizione?: string;
+  quantita?: string;
+  unita?: string;
+  prezzo?: string;
+  aliquota?: string;
+}
+
 /** Cosa l'utente ha cambiato su una fase o una voce: il resto segue il calcolato. */
 interface SceltaRiga {
   esclusa?: boolean;
@@ -134,6 +143,8 @@ interface CreaFatturaDialogProps {
   customerId: string | null;
   customerName: string;
   installments: Installment[];
+  /** Il cantiere: nelle fatture vere sta nella descrizione. */
+  indirizzoLavori?: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -207,7 +218,7 @@ function freeLineToRiga(fl: FreeLine, defaultVat: number): RigaDocumento {
   return {
     id: fl.id,
     numero_linea: 0,
-    descrizione: fl.descrizione.trim() || "Prestazione",
+    descrizione: fl.descrizione,
     quantita: fl.quantita > 0 ? fl.quantita : 1,
     unita_misura: "pz",
     prezzo_unitario: fl.prezzo || 0,
@@ -236,11 +247,14 @@ function buildRigaImporto(descrizione: string, lordo: number, aliquota: number):
   };
 }
 
-function descrizioneRata(inst: Installment, orderCode: string | null, orderDescription: string): string {
+/** Come si scrive in fattura: la rata, poi per esteso i lavori e il cantiere, su più righe di testo. */
+function descrizioneRata(inst: Installment, orderCode: string | null, orderDescription: string, indirizzoLavori?: string | null): string {
   const tipoRata = inst.label || LABEL_MAP[inst.type] || "Pagamento";
-  const codeStr = orderCode ? ` n. ${orderCode}` : "";
-  const descShort = orderDescription.length > 80 ? orderDescription.substring(0, 77) + "..." : orderDescription;
-  return `${tipoRata} commessa${codeStr} — ${descShort}`;
+  return [
+    `${tipoRata}${orderCode ? ` — commessa n. ${orderCode}` : ""}`,
+    orderDescription.trim(),
+    indirizzoLavori?.trim() ? `Lavori presso: ${indirizzoLavori.trim()}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -256,6 +270,7 @@ export function CreaFatturaDialog({
   customerId,
   customerName,
   installments,
+  indirizzoLavori,
 }: CreaFatturaDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -287,9 +302,10 @@ export function CreaFatturaDialog({
   const [excludedItemIds, setExcludedItemIds] = useState<Set<string>>(new Set());
   // Righe descrittive LIBERE aggiunte a mano (prestazioni/servizi senza articolo).
   const [freeLines, setFreeLines] = useState<FreeLine[]>([]);
-  const [draft, setDraft] = useState<{ descrizione: string; quantita: string; prezzo: string; aliquota: string }>({
-    descrizione: "", quantita: "1", prezzo: "", aliquota: "",
-  });
+  // Ciò che l'utente ha scritto sulle righe della fattura, per id della riga.
+  const [testiRighe, setTestiRighe] = useState<Record<string, TestiRiga>>({});
+  // Il riquadro «da dove compilo»: null = aperto solo se la fattura è vuota.
+  const [fonteAperta, setFonteAperta] = useState<boolean | null>(null);
 
   // Tipo di fattura e clausole. null = segui il suggerimento (anagrafica, aliquota).
   const [profiloScelto, setProfiloScelto] = useState<ProfiloFattura | null>(null);
@@ -313,7 +329,7 @@ export function CreaFatturaDialog({
   const applicaRata = (inst: Installment | null | undefined) => {
     if (!inst) return;
     setImporto({
-      descrizione: descrizioneRata(inst, orderCode, orderDescription),
+      descrizione: descrizioneRata(inst, orderCode, orderDescription, indirizzoLavori),
       lordo: scriviImporto(inst.amount || 0),
       aliquota: String(defaultVat),
     });
@@ -337,7 +353,8 @@ export function CreaFatturaDialog({
       setScelteRighe({});
       setExcludedItemIds(new Set());
       setFreeLines([]);
-      setDraft({ descrizione: "", quantita: "1", prezzo: "", aliquota: "" });
+      setTestiRighe({});
+      setFonteAperta(null);
       setProfiloScelto(null);
       setClausoleScelte(null);
       setTestiClausole({});
@@ -482,7 +499,10 @@ export function CreaFatturaDialog({
   // ── Da fasi, voci e SAL ──────────────────────────────────────
   const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa), [documentiCommessa]);
   const scelta = (id: string): SceltaRiga => scelteRighe[id] ?? {};
-  const cambiaScelta = (id: string, patch: SceltaRiga) => setScelteRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  const cambiaScelta = (id: string, patch: SceltaRiga) => {
+    setScelteRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+    if (patch.importo !== undefined) dimenticaPrezzi((riga) => riga.includes(id));
+  };
 
   const contrattoNetto = Math.max(0, Number(totalAmount) || 0);
   // Senza contratto scritto non c'è un tetto: si propone il maturato.
@@ -530,7 +550,6 @@ export function CreaFatturaDialog({
     salDaFatturare: salDaFatturare.length > 0 && residuoContratto > 0,
     fasiConQuota: fasiVendute.some((f) => f.calcolato > 0),
     rataDaFatturare: installments.some((i) => !i.is_paid),
-    articoli: orderItems.length > 0,
   });
   const mode: ModoFattura = modoScelto ?? suggerito;
 
@@ -578,9 +597,23 @@ export function CreaFatturaDialog({
         : mode === "fasi"
           ? daFasi()
           : includedItemRighe;
-    return [...base, ...freeLines.map((fl) => freeLineToRiga(fl, defaultVat))];
+    // Una riga si scrive come in qualsiasi fattura: ciò che l'utente ha scritto vince sul calcolato.
+    return [...base, ...freeLines.map((fl) => freeLineToRiga(fl, defaultVat))]
+      .filter((r) => !scelta(r.id).esclusa)
+      .map((r): RigaDocumento => {
+        const t = testiRighe[r.id];
+        if (!t) return r;
+        return {
+          ...r,
+          ...(t.descrizione !== undefined && { descrizione: t.descrizione }),
+          ...(t.quantita !== undefined && { quantita: Math.max(0, parseImporto(t.quantita)) }),
+          ...(t.unita !== undefined && { unita_misura: t.unita }),
+          ...(t.prezzo !== undefined && { prezzo_unitario: parseImporto(t.prezzo) }),
+          ...(t.aliquota?.trim() && { aliquota_iva: String(Math.max(0, parseImporto(t.aliquota))) }),
+        };
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat, fasiVendute, voci, scelteRighe, salAttivo, salList, fatturato]);
+  }, [mode, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat, fasiVendute, voci, scelteRighe, salAttivo, salList, fatturato, testiRighe]);
 
   // ── Tipo di fattura e clausole ──────────────────────────────
   const profiloSuggerito = profiloDaCliente(
@@ -624,22 +657,33 @@ export function CreaFatturaDialog({
     [righeBase, clausoleAttive.join("|"), aziendaFiscale?.forma_giuridica, JSON.stringify(percentuali)],
   );
   const previewRighe = composta.righe;
+  const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
+  const fonteMostrata = fonteAperta ?? righeFattura.length === 0;
   const totali = composta.totali;
   const avvisi = avvisiClausole(clausoleAttive);
 
-  const addFreeLine = () => {
-    const descrizione = draft.descrizione.trim();
-    if (!descrizione) { toast.error("Scrivi una descrizione per la riga"); return; }
-    setFreeLines((prev) => [...prev, {
-      id: crypto.randomUUID(),
-      descrizione,
-      quantita: Math.max(1, parseImporto(draft.quantita) || 1),
-      prezzo: Math.max(0, parseImporto(draft.prezzo)),
-      aliquota: draft.aliquota.trim() ? Math.max(0, parseImporto(draft.aliquota)) : defaultVat,
-    }]);
-    setDraft({ descrizione: "", quantita: "1", prezzo: "", aliquota: "" });
+  const scriviRiga = (id: string, patch: TestiRiga) => setTestiRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  // Cambiare importo dal riquadro di sopra ridà la parola al calcolato per quella riga.
+  const dimenticaPrezzi = (vale: (idRiga: string) => boolean) => setTestiRighe((prev) => Object.fromEntries(
+    Object.entries(prev).map(([id, t]) => {
+      if (!vale(id)) return [id, t];
+      const { prezzo: _prezzo, quantita: _quantita, ...resto } = t;
+      return [id, resto];
+    }),
+  ));
+  const aggiungiRiga = () => setFreeLines((prev) => [...prev, {
+    id: crypto.randomUUID(), descrizione: "", quantita: 1, prezzo: 0, aliquota: defaultVat,
+  }]);
+  const togliRiga = (id: string) => {
+    if (freeLines.some((f) => f.id === id)) { setFreeLines((prev) => prev.filter((f) => f.id !== id)); return; }
+    if (id === "importo-rata") { setImporto((s) => ({ ...s, lordo: "" })); return; }
+    if (orderItems.some((i) => i.id === id)) { toggleItem(id); return; }
+    const voce = /^fase:[^:]+:voce:(.+)$/.exec(id);
+    const fase = /^fase:([^:]+)$/.exec(id);
+    if (voce) cambiaScelta(voce[1], { esclusa: true });
+    else if (fase) cambiaScelta(fase[1], { esclusa: true });
+    else cambiaScelta(id, { esclusa: true });
   };
-  const removeFreeLine = (id: string) => setFreeLines((prev) => prev.filter((f) => f.id !== id));
   const toggleItem = (id: string) => setExcludedItemIds((prev) => {
     const n = new Set(prev);
     if (n.has(id)) n.delete(id); else n.add(id);
@@ -827,6 +871,11 @@ export function CreaFatturaDialog({
               ? "Scrivi quanto fatturare di almeno una fase o aggiungi una riga."
               : "Includi almeno un articolo o aggiungi una riga descrittiva.",
       });
+      return;
+    }
+
+    if (previewRighe.some((r) => !r.descrizione.trim())) {
+      toast.error("C'è una riga senza descrizione", { description: "Scrivila o togli la riga." });
       return;
     }
 
@@ -1084,21 +1133,25 @@ export function CreaFatturaDialog({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Cosa fatturi ({previewRighe.length} {previewRighe.length === 1 ? "riga" : "righe"})
+              Righe della fattura ({righeFattura.length})
             </p>
             {/* Solo ciò che su questa commessa esiste: il SAL, le fasi vendute, gli articoli. */}
-            <div className="inline-flex flex-wrap rounded-md border p-0.5 bg-muted/40" role="group" aria-label="Da dove prendere le righe">
+            <div className="inline-flex flex-wrap rounded-md border p-0.5 bg-muted/40" role="group" aria-label="Compila le righe da">
               {([
+                { id: "importo", etichetta: "Un importo", icona: Receipt },
                 ...(salDisponibili.length > 0 ? [{ id: "sal", etichetta: "SAL", icona: ClipboardCheck }] : []),
                 ...(fasiVendute.length > 0 ? [{ id: "fasi", etichetta: "Fasi", icona: Layers }] : []),
                 ...(orderItems.length > 0 ? [{ id: "articoli", etichetta: "Articoli", icona: Package }] : []),
-                { id: "importo", etichetta: "Un importo", icona: Receipt },
               ] as Array<{ id: ModoFattura; etichetta: string; icona: typeof Receipt }>).map((o) => (
                 <button
                   key={o.id}
                   type="button"
                   aria-pressed={mode === o.id}
-                  onClick={() => setModoScelto(o.id)}
+                  onClick={() => {
+                    // Sulla scelta già attiva apre o chiude il riquadro; su un'altra compila da lì e lo apre.
+                    setFonteAperta(mode === o.id ? !fonteMostrata : true);
+                    setModoScelto(o.id);
+                  }}
                   className={`text-xs px-2.5 py-1 rounded ${mode === o.id ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
                 >
                   <o.icona className="h-3.5 w-3.5 inline mr-1 -mt-0.5" />
@@ -1114,26 +1167,31 @@ export function CreaFatturaDialog({
             </div>
           ) : (
             <>
+              {/* Fatture già fatte senza dettaglio: le quote di fasi e SAL non possono saperlo. */}
+              {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA fatturati senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
+                </p>
+              )}
+              {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  Con questa fattura il fatturato arriva a {fmt(round2(fatturato.totale + totali.imponibile_totale))}, oltre il contratto di {fmt(contrattoNetto)} senza IVA.
+                </p>
+              )}
+
+              {fonteMostrata && <>
               {/* Una riga a corpo: l'importo della rata, che si cambia in € o in %. */}
               {mode === "importo" && (
                 <div className="rounded-lg border p-3 space-y-2.5">
-                  <div className="space-y-1">
-                    <Label htmlFor="fatt-imp-desc" className="text-[11px] text-muted-foreground">Descrizione della riga</Label>
-                    <Input
-                      id="fatt-imp-desc"
-                      value={importo.descrizione}
-                      onChange={(e) => setImporto((s) => ({ ...s, descrizione: e.target.value }))}
-                      placeholder="Es. SAL n. 2 — lavori eseguiti al 15/11"
-                      className="h-8 text-xs"
-                    />
-                  </div>
                   <div className="grid grid-cols-3 gap-2 items-end">
                     <div className="space-y-1">
                       <Label htmlFor="fatt-imp-lordo" className="text-[11px] text-muted-foreground">Importo IVA inclusa</Label>
                       <Input
                         id="fatt-imp-lordo"
                         value={importo.lordo}
-                        onChange={(e) => setImporto((s) => ({ ...s, lordo: e.target.value }))}
+                        onChange={(e) => { setImporto((s) => ({ ...s, lordo: e.target.value })); dimenticaPrezzi((id) => id === "importo-rata"); }}
                         inputMode="decimal"
                         className="h-8 text-xs text-right tabular-nums"
                       />
@@ -1147,6 +1205,7 @@ export function CreaFatturaDialog({
                           setPercScritta(e.target.value);
                           const p = parseImporto(e.target.value);
                           setImporto((s) => ({ ...s, lordo: scriviImporto((contratto * p) / 100) }));
+                          dimenticaPrezzi((id) => id === "importo-rata");
                         }}
                         onBlur={() => setPercScritta(null)}
                         disabled={contratto <= 0}
@@ -1345,20 +1404,6 @@ export function CreaFatturaDialog({
                 </div>
               )}
 
-              {/* Fatture già fatte senza dettaglio: le quote di fasi e SAL non possono saperlo. */}
-              {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
-                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
-                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA fatturati senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
-                </p>
-              )}
-              {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (
-                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
-                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Con questa fattura il fatturato arriva a {fmt(round2(fatturato.totale + totali.imponibile_totale))}, oltre il contratto di {fmt(contrattoNetto)} senza IVA.
-                </p>
-              )}
-
               {/* Articoli della commessa: spunta cosa mettere in fattura e a che quota. */}
               {mode === "articoli" && orderItems.length > 0 && (
                 <div className="border rounded-lg overflow-hidden">
@@ -1371,7 +1416,7 @@ export function CreaFatturaDialog({
                         Quota
                         <Input
                           value={quotaArticoli}
-                          onChange={(e) => setQuotaArticoli(e.target.value)}
+                          onChange={(e) => { setQuotaArticoli(e.target.value); dimenticaPrezzi((id) => orderItems.some((i) => i.id === id)); }}
                           inputMode="decimal"
                           className="h-6 w-14 text-[11px] text-right tabular-nums px-1.5"
                         />
@@ -1383,26 +1428,63 @@ export function CreaFatturaDialog({
                   </div>
                   <div className="divide-y max-h-56 overflow-auto">
                     {orderItems.map((item) => {
-                      const riga = composta.righe.find((r) => r.id === item.id)
-                        ?? componiFattura([buildRigaFromItem(item, defaultVat, quota)], clausoleAttive).righe[0];
                       const included = !excludedItemIds.has(item.id);
                       return (
                         <label
                           key={item.id}
-                          className={`grid grid-cols-[22px_1fr_44px_84px_40px_84px] gap-1 px-3 py-2 text-xs items-start cursor-pointer transition-colors hover:bg-muted/30 ${included ? "" : "opacity-45"}`}
+                          className={`grid grid-cols-[22px_1fr_84px] gap-1 px-3 py-1.5 text-xs items-center cursor-pointer transition-colors hover:bg-muted/30 ${included ? "" : "opacity-45"}`}
                         >
-                          <Checkbox checked={included} onCheckedChange={() => toggleItem(item.id)} className="mt-0.5" />
-                          <span className="leading-tight line-clamp-2">{riga.descrizione}</span>
-                          <span className="text-right tabular-nums text-muted-foreground">{riga.quantita}</span>
-                          <span className="text-right tabular-nums text-muted-foreground">{fmt(riga.prezzo_unitario)}</span>
-                          <span className="text-right tabular-nums text-muted-foreground">{riga.aliquota_iva}%</span>
-                          <span className="text-right tabular-nums font-medium">{fmt(riga.totale_riga)}</span>
+                          <Checkbox checked={included} onCheckedChange={() => toggleItem(item.id)} />
+                          <span className="leading-tight line-clamp-1">{item.name}</span>
+                          <span className="text-right tabular-nums text-muted-foreground">{fmt(((item.quantity ?? 1) * (item.unit_price ?? 0) * quota) / 100)}</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
               )}
+              </>}
+
+              {/* Le righe, come in qualsiasi fattura: ognuna si scrive, si cambia, si toglie. */}
+              <div className="rounded-lg border overflow-hidden">
+                <div className="divide-y">
+                  {righeFattura.map((r) => {
+                    const t = testiRighe[r.id] ?? {};
+                    const testo = t.descrizione ?? r.descrizione;
+                    const campo = "h-7 px-1.5 text-xs tabular-nums";
+                    const etichetta = "flex items-center gap-1 text-[11px] text-muted-foreground";
+                    return (
+                      <div key={r.id} className="space-y-1.5 px-3 py-2">
+                        <Textarea
+                          value={testo}
+                          onChange={(e) => scriviRiga(r.id, { descrizione: e.target.value })}
+                          rows={Math.min(8, Math.max(2, testo.split("\n").length, Math.ceil(testo.length / 90)))}
+                          placeholder="Descrizione: acconto, saldo, lavori eseguiti, riferimento al preventivo, CIG…"
+                          aria-label="Descrizione della riga"
+                          autoFocus={!r.descrizione && t.descrizione === undefined}
+                          className="min-h-0 resize-y px-2 py-1.5 text-xs leading-snug"
+                        />
+                        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                          <label className={etichetta}>Q.tà<Input value={t.quantita ?? String(r.quantita).replace(".", ",")} onChange={(e) => scriviRiga(r.id, { quantita: e.target.value })} inputMode="decimal" aria-label="Quantità" className={`${campo} w-12 text-right`} /></label>
+                          <label className={etichetta}>U.m.<Input value={t.unita ?? r.unita_misura} onChange={(e) => scriviRiga(r.id, { unita: e.target.value })} aria-label="Unità di misura" className={`${campo} w-16`} /></label>
+                          <label className={etichetta}>Prezzo<Input value={t.prezzo ?? scriviImporto(r.prezzo_unitario)} onChange={(e) => scriviRiga(r.id, { prezzo: e.target.value })} inputMode="decimal" aria-label="Prezzo senza IVA" className={`${campo} w-24 text-right`} /></label>
+                          <label className={etichetta}>IVA %<Input value={t.aliquota ?? (r.natura_iva ? "0" : r.aliquota_iva)} onChange={(e) => scriviRiga(r.id, { aliquota: e.target.value })} disabled={!!r.natura_iva} inputMode="decimal" aria-label="Aliquota IVA" className={`${campo} w-11 text-right`} /></label>
+                          <span className="min-w-[84px] text-right text-xs font-medium tabular-nums">{fmt(r.imponibile)}</span>
+                          <button type="button" onClick={() => togliRiga(r.id)} title="Togli la riga" aria-label={`Togli la riga: ${r.descrizione || "senza descrizione"}`} className="text-muted-foreground hover:text-red-600">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="border-t px-2 py-1.5">
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={aggiungiRiga}>
+                    <Plus className="h-3.5 w-3.5" /> Aggiungi riga
+                  </Button>
+                  <span className="ml-1 text-[11px] text-muted-foreground">A prezzo 0 è una riga di solo testo (CIG, preventivo, CILA…).</span>
+                </div>
+              </div>
 
               {/* Trattenute a garanzia: righe in negativo, calcolate dalle clausole */}
               {previewRighe.some((r) => r.id.startsWith("trattenuta-")) && (
@@ -1416,48 +1498,6 @@ export function CreaFatturaDialog({
                   ))}
                 </div>
               )}
-
-              {/* Righe descrittive LIBERE (prestazioni/servizi senza articolo) */}
-              <div className="rounded-lg border overflow-hidden">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <ListPlus className="h-3 w-3" /> Righe in più (prestazioni, servizi, extra)
-                </div>
-                {freeLines.length > 0 && (
-                  <div className="divide-y">
-                    {freeLines.map((fl) => {
-                      const riga = composta.righe.find((r) => r.id === fl.id);
-                      if (!riga) return null;
-                      return (
-                        <div key={fl.id} className="grid grid-cols-[1fr_44px_84px_40px_84px_26px] gap-1 px-3 py-2 text-xs items-center">
-                          <span className="leading-tight line-clamp-2">{riga.descrizione}</span>
-                          <span className="text-right tabular-nums text-muted-foreground">{riga.quantita}</span>
-                          <span className="text-right tabular-nums text-muted-foreground">{fmt(riga.prezzo_unitario)}</span>
-                          <span className="text-right tabular-nums text-muted-foreground">{riga.aliquota_iva}%</span>
-                          <span className="text-right tabular-nums font-medium">{fmt(riga.totale_riga)}</span>
-                          <button type="button" onClick={() => removeFreeLine(fl.id)} className="justify-self-end text-muted-foreground hover:text-red-600" title="Rimuovi riga">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <div className="grid grid-cols-[1fr_1fr_1fr_auto] sm:grid-cols-[1fr_52px_80px_52px_auto] gap-1.5 border-t bg-background p-2 items-center">
-                  <Input
-                    value={draft.descrizione}
-                    onChange={(e) => setDraft((d) => ({ ...d, descrizione: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFreeLine(); } }}
-                    placeholder="Descrizione (es. Opere extra, Sopralluogo…)"
-                    className="h-8 text-xs col-span-4 sm:col-span-1"
-                  />
-                  <Input value={draft.quantita} onChange={(e) => setDraft((d) => ({ ...d, quantita: e.target.value }))} inputMode="decimal" placeholder="Qtà" className="h-8 text-xs text-right" title="Quantità" />
-                  <Input value={draft.prezzo} onChange={(e) => setDraft((d) => ({ ...d, prezzo: e.target.value }))} inputMode="decimal" placeholder="Prezzo" className="h-8 text-xs text-right" title="Prezzo unitario (netto IVA)" />
-                  <Input value={draft.aliquota} onChange={(e) => setDraft((d) => ({ ...d, aliquota: e.target.value }))} inputMode="decimal" placeholder={`${defaultVat}`} className="h-8 text-xs text-right" title="Aliquota IVA %" />
-                  <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={addFreeLine}>
-                    <Plus className="h-3.5 w-3.5" /> Aggiungi
-                  </Button>
-                </div>
-              </div>
 
               {/* Avviso fattura vuota */}
               {previewRighe.length === 0 && (
