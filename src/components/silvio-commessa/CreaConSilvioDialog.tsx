@@ -48,9 +48,9 @@ import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ColonnaFonti } from "./ColonnaFonti";
 import { ColonnaChat } from "./ColonnaChat";
-import { ColonnaCommessa } from "./ColonnaCommessa";
+import { ColonnaCommessa, NomeSede, NomeStaff } from "./ColonnaCommessa";
 import {
-  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
+  clienteDaScegliere, contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
   minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
@@ -193,8 +193,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   // Prima di caricare qualcosa non si chiede niente: la chat dice cosa fare, la commessa aspetta.
   const vuota = !completa && !b.fonti.length && !b.messaggi.length;
   const legge = b.fonti.some((f) => f.stato === "in_lettura" || f.stato === "in_coda");
+  // Un documento che aspetta il via è come uno che si legge: la risposta può arrivare da lì.
+  const leggeraPoi = legge || b.fonti.some((f) => f.stato === "da_confermare");
   // Una domanda alla volta, e non mentre legge: la risposta può arrivare dal documento.
-  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti, vedeCosti);
+  const domanda = vuota || (leggeraPoi && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti, vedeCosti, clientiDelGestionale);
   const margine = vedeImporti && canViewMargins ? margineDaMostrare(b.piano) : null;
   const fine = fineLavori(b.piano, b.scrittura);
   const inAttesa = b.fonti.filter((f) => f.stato === "da_confermare").map((f) => f.etichetta);
@@ -207,11 +209,14 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   ];
   const ultimo = b.messaggi[b.messaggi.length - 1];
   const daDecidere = useMemo(() => {
-    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto });
-    return vuota ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
-  }, [b.piano, b.scrittura, completezza, vuota, vedeImporti, vedeCosti, b.contesto]);
+    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto, clienti: clientiDelGestionale });
+    return vuota || leggeraPoi ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
+  }, [b.piano, b.scrittura, completezza, vuota, leggeraPoi, vedeImporti, vedeCosti, b.contesto, clientiDelGestionale]);
   const suggerimenti = useMemo(() => suggerimentiChat(b.piano, completezza), [b.piano, completezza]);
-  const mancano = useMemo(() => completezza.mancano.filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti)).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti, vedeCosti]);
+  const fineDalleFasi = dateDalleFasi(b.scrittura).fine;
+  const mancano = useMemo(() => completezza.mancano
+    .filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti) && !(v.chiave === "fasi.work_end_date" && fineDalleFasi))
+    .map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti, vedeCosti, fineDalleFasi]);
   const scrive = cosaScriveCrea(b.scrittura);
 
   const apri = (chiave: string | null) => {
@@ -536,7 +541,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                     {g.voci.map((v) => (
                       <li key={v.chiave} className="flex flex-wrap items-baseline gap-x-3 py-1.5 text-sm">
                         <span className="w-full text-xs text-slate-500 sm:w-44 sm:shrink-0">{v.etichetta}</span>
-                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori && !v.parziale ? "text-slate-400 line-through" : "text-slate-900")}>{v.testo}</span>
+                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori && !v.parziale ? "text-slate-400 line-through" : "text-slate-900")}>
+                          {/* Il valore è l'id: «Controlla» mostrava il codice al posto del nome. */}
+                          {v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to" ? <NomeStaff companyId={companyId} id={v.testo} /> : v.chiave === "identita.sede_id" ? <NomeSede id={v.testo} /> : v.testo}
+                        </span>
                         {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">{v.parziale ? "entra in parte, resta fuori" : "resta fuori"}: {v.fuori}</span>}
                         {v.nota && <span className="w-full text-xs text-slate-500 sm:w-auto">{v.nota}</span>}
                       </li>
@@ -565,7 +573,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Chat con Silvio</h3>
               <ColonnaChat messaggi={b.messaggi} domanda={domanda} legge={legge} onModifica={modifica} onApri={apri}
                 onScrivi={scrivi} scrivendo={b.scrivendo} onVedi={vedi}
-                annullabile={b.storia.length > 0} onAnnulla={b.indietro}
+                annullabile={b.storia.length > 0} passiStoria={b.storia.length} onAnnulla={b.indietro}
                 trascrivi={servizi.trascrivi} primaDiDettare={() => b.controllaCrediti(STIMA_DETTATURA_EUR)}
                 fonti={b.fonti} onAllega={(f) => b.aggiungi(f.map((file) => ({ tipo: "file" as const, file })))} onConferma={b.confermaLetture}
                 suggerimenti={suggerimenti} daDecidere={daDecidere} mancano={mancano} onFonti={() => setScheda("fonti")} tastiera={tastiera} />
@@ -577,7 +585,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 aperta={aperta} onApri={apri} onModifica={modifica}
                 daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
                 daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti}
-                fineDalleFasi={dateDalleFasi(b.scrittura).fine} />
+                fineDalleFasi={fineDalleFasi} clienteDaScegliere={clienteDaScegliere(b.scrittura, clientiDelGestionale)} />
             </section>
           </div>
         )}

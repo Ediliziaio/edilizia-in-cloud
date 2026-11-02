@@ -324,8 +324,11 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
     const percent = percentuale(r.percent);
     let amount = numeroDa(r.amount);
     let daPercentuale = false;
-    if ((amount == null || amount <= 0) && percent != null && totaleIvato) amount = tondo(totaleIvato * percent / 100);
-    else if ((amount == null || amount <= 0) && percent != null && percent > 0) {
+    if ((amount == null || amount <= 0) && percent != null && totaleIvato) {
+      amount = tondo(totaleIvato * percent / 100);
+      // Il documento dice la percentuale: l'importo segue il totale, se la persona lo cambia (prova cliccata del 2/11).
+      daPercentuale = true;
+    } else if ((amount == null || amount <= 0) && percent != null && percent > 0) {
       // Manca l'IVA, o il totale sta in un'altra fonte: si tiene la percentuale, e l'importo si
       // rifà quando arriva quello che manca (quadratura.ts, revisione 2/11, G9 e G20).
       amount = tondo((imponibile ?? 0) * percent / 100);

@@ -120,7 +120,7 @@ function SchedaFonte({ f, onRiprova, onTogli, collega, onComeDocumento }: {
       {f.stato === "errore" && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-red-700">{f.errore}</p>
-          {(f.tipo !== "file" || f.file) && !/formato|foglio di calcolo/.test(f.errore ?? "") && (
+          {(f.tipo !== "file" || f.file) && !/formato|foglio di calcolo|troppo grande/.test(f.errore ?? "") && (
             <Button type="button" size="sm" variant="outline" className="h-11 gap-1 lg:h-8" onClick={onRiprova}>
               <RotateCcw className="h-3.5 w-3.5" aria-hidden />Riprova
             </Button>
