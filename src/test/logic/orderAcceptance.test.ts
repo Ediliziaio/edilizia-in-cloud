@@ -318,7 +318,7 @@ describe("correzioni dalla revisione", () => {
 });
 
 describe("verbali del capo con il modello spento", () => {
-  const sql = readFileSync("supabase/migrations/20281114130000_verbali_capo_lettura_avviso.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20281114150000_verbali_capo_lettura_avviso.sql", "utf8");
   it("per leggere non serve un modello attivo, ma resta capocantiere interno assegnato", () => {
     const s = sql.slice(sql.indexOf("verbale_capo_assegnato"), sql.indexOf("revoke all on function public.verbale_capo_assegnato"));
     for (const x of ["a.user_id = p_user_id", "a.is_capocantiere", "a.role_type = 'employee'"]) expect(s).toContain(x);
