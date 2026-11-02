@@ -78,7 +78,7 @@ export function risorsePerPiano(
       giaNelCantiere.add(s.id);
       persone.push({ employee_id: s.id, nome: nome(s.id), fase: f.nome, faseId: f.id ?? null, dal: f.dal, al: f.al, motivo: s.motivo, gia: s.gia });
     }
-    if (scelti.length < f.operaiNecessari) mancano.push({ fase: f.nome, persone: f.operaiNecessari - scelti.length, specialisti });
+    if (scelti.length < f.operaiNecessari) mancano.push({ fase: f.nome, persone: f.operaiNecessari - scelti.length, specialisti: specialisti || undefined });
   }
 
   const mezzi: MezzoFase[] = [];
