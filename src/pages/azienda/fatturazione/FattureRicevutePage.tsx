@@ -61,6 +61,7 @@ import {
   Inbox,
   Loader2,
   Link2,
+  RotateCcw,
   X,
   AlertTriangle,
   Euro,
@@ -108,15 +109,13 @@ export function giorniDallaFattura(f: { data_fattura: string; data_ricezione_sdi
   return Number.isFinite(giorni) ? giorni : null;
 }
 
-function ArrivataIl({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
-  if (!f.data_ricezione_sdi) return <span className="text-muted-foreground" title="Data di arrivo non disponibile: fattura caricata a mano o importata">—</span>;
-  const giorni = giorniDallaFattura(f);
+/** La data della fattura. L'arrivo dallo SDI si legge passando il mouse; se è arrivata dopo, lo dice un piccolo «+3 gg». */
+function DataFattura({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
+  const giorni = f.data_ricezione_sdi ? giorniDallaFattura(f) : null;
   return (
-    <span title={`Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}`}>
-      {formatDateShort(f.data_ricezione_sdi)}
-      {giorni != null && giorni > 0 && (
-        <span className="block text-[11px] leading-tight text-muted-foreground">{giorni === 1 ? "1 giorno dopo" : `${giorni} giorni dopo`}</span>
-      )}
+    <span title={f.data_ricezione_sdi ? `Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}` : "Data di arrivo non disponibile"}>
+      {formatDateShort(f.data_fattura)}
+      {giorni != null && giorni > 0 && <span className="ml-1 text-[11px] text-muted-foreground">+{giorni} gg</span>}
     </span>
   );
 }
@@ -1394,48 +1393,34 @@ export default function FattureRicevutePage() {
               {filtered.map((f) => (
                 <TableRow
                   key={f.id}
-                  className={f.stato === "non_letta" ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}
+                  className={`[&>td]:py-1.5 ${f.stato === "non_letta" ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
                 >
                   <TableCell>
-                    <div>
-                      <button type="button" className="text-left font-medium hover:underline underline-offset-2" onClick={() => setRiepilogoId(f.id)}>
-                        {f.cedente_ragione_sociale}
-                      </button>
-                      {f.fornitore_id && etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) ? (
-                        <div className="text-[11px] text-muted-foreground">{etichettaTipoFornitore(tipiFornitori[f.fornitore_id])}</div>
-                      ) : null}
-                      <div className="text-xs text-muted-foreground">
-                        {f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf}
-                      </div>
-                      {f.categoria_ai && (
-                        <Badge
-                          variant="outline"
-                          className="mt-1 text-[10px] font-normal"
-                          title={
-                            f.sottocategoria_ai
-                              ? `${f.sottocategoria_ai}${f.categoria_confidenza != null ? ` · sicurezza ${Math.round(f.categoria_confidenza * 100)}%` : ""}`
-                              : undefined
-                          }
-                        >
-                          {etichettaCategoria(f.categoria_ai)}
-                        </Badge>
-                      )}
-                    </div>
+                    {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
+                    <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
+                      title={[
+                        f.cedente_ragione_sociale,
+                        f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf,
+                        f.fornitore_id ? etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) : null,
+                        f.categoria_ai ? `${etichettaCategoria(f.categoria_ai)}${f.sottocategoria_ai ? ` · ${f.sottocategoria_ai}` : ""}` : null,
+                      ].filter(Boolean).join("\n")}>
+                      {f.cedente_ragione_sociale}
+                    </button>
                   </TableCell>
                   <TableCell>
-                    <div className="font-mono text-sm">{f.numero_fattura}</div>
-                    <div className="text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="block max-w-[190px] truncate font-mono text-sm" title={f.numero_fattura}>{f.numero_fattura}</span>
+                      {etichettaTipoRicevuta(f.tipo_documento) !== "Fattura" && <span className="whitespace-nowrap text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</span>}
+                    </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <div>{formatDateShort(f.data_fattura)}</div>
-                    <div className="text-xs text-muted-foreground"><ArrivataIl f={f} /></div>
+                    <DataFattura f={f} />
                   </TableCell>
                   <TableCell className="text-right">
                     {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
-                  <TableCell className="text-right font-medium">
+                  <TableCell className="whitespace-nowrap text-right font-medium" title={f.iva_totale != null ? `IVA ${formatCurrency(f.iva_totale)}` : undefined}>
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
-                    {f.iva_totale != null && <div className="text-xs font-normal text-muted-foreground">IVA {formatCurrency(f.iva_totale)}</div>}
                   </TableCell>
                   <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} /></TableCell>
                   <TableCell>
@@ -1451,6 +1436,7 @@ export default function FattureRicevutePage() {
                     )}
                   </TableCell>
                   <TableCell>
+                    <div className="flex flex-nowrap items-center gap-1">
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
                       <div className="flex flex-wrap items-center gap-0.5">
                         {quoteOrdini[f.id].map((q) => (
@@ -1500,41 +1486,42 @@ export default function FattureRicevutePage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex flex-wrap items-center gap-1">
-                        {commesseDi(f).map((q) => (
-                          <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? `Quota ${q.pct.toLocaleString("it-IT")}%` : undefined}>
-                            <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300">
-                              {q.codice}
-                              {q.pct < 100 && <span className="ml-1 text-muted-foreground">{formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100)}</span>}
-                            </Badge>
+                      <div className="flex flex-nowrap items-center gap-1">
+                        {commesseDi(f).slice(0, 2).map((q) => (
+                          <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? `Quota ${q.pct.toLocaleString("it-IT")}%: ${formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100)}` : undefined}>
+                            <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300">{q.codice}</Badge>
                           </Link>
                         ))}
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                          title="Collega a una o più commesse, o a un ordine d'acquisto" onClick={() => setCollegaCommesse(f)}>
-                          <Link2 className="mr-1 h-3.5 w-3.5" />{commesseDi(f).length ? "Cambia" : "Collega"}
-                        </Button>
+                        {commesseDi(f).length > 2 && <span className="text-xs text-muted-foreground" title={commesseDi(f).slice(2).map((q) => q.codice).join(", ")}>+{commesseDi(f).length - 2}</span>}
+                        {commesseDi(f).length ? (
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Cambia il collegamento" aria-label={`Cambia il collegamento della fattura ${f.numero_fattura}`} onClick={() => setCollegaCommesse(f)}>
+                            <Link2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            title="Collega a una o più commesse, o a un ordine d'acquisto" onClick={() => setCollegaCommesse(f)}>
+                            <Link2 className="mr-1 h-3.5 w-3.5" />Collega
+                          </Button>
+                        )}
                       </div>
                     )}
-                    {/* Chi ha deciso l'aggancio si vede, e si può tornare
-                        indietro: senza questo, "scollegata a mano" era uno
-                        stato invisibile che spiegava perché il sistema non
-                        riagganciava più. */}
+                    {/* Chi ha deciso l'aggancio si vede, e si può tornare indietro: senza questo, "scollegata
+                        a mano" era uno stato invisibile che spiegava perché il sistema non riagganciava più. */}
                     {f.aggancio_oda_manuale && (
-                      <button
-                        type="button"
-                        className="mt-1 block text-[10px] text-muted-foreground underline-offset-2 hover:underline"
-                        title="Il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela."
-                        onClick={() => riattivaAutomaticoMutation.mutate(f.id)}
-                      >
-                        scelto a mano · riattiva automatico
-                      </button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        title="Scelto a mano: il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela." aria-label="Riattiva l'aggancio automatico"
+                        onClick={() => riattivaAutomaticoMutation.mutate(f.id)}>
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
                     )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         title="Apri la fattura: righe, totali e collegamenti" aria-label="Apri la fattura"
                         onClick={() => setRiepilogoId(f.id)}
                       >
@@ -1545,6 +1532,7 @@ export default function FattureRicevutePage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           title="Scarica il file originale" aria-label="Scarica il file originale"
                           onClick={() => void handleScaricaOriginale(f)}
                         >
@@ -1560,13 +1548,12 @@ export default function FattureRicevutePage() {
                       {f.stato !== "contabilizzata" && (
                         <Button
                           variant="ghost"
-                          size="sm"
-                          className="text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
-                          title="Contabilizza"
+                          size="icon"
+                          className="h-8 w-8 text-green-700 hover:bg-green-50 hover:text-green-800"
+                          title="Contabilizza" aria-label={`Contabilizza la fattura ${f.numero_fattura}`}
                           onClick={() => setContabilizzaFattura(f)}
                         >
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Contabilizza
+                          <CheckCircle2 className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
