@@ -109,7 +109,7 @@ function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: bo
       )}
       {fase.campi.length > 0 && (
         <div className="px-3 pb-3 pt-2">
-          <CampiModuloLettura titolo="Dati della lavorazione" valori={fase.campi.map(c => ({ ...c, fase_nome: undefined }))} />
+          <CampiModuloLettura titolo="Dati della lavorazione" valori={fase.campi.map(c => ({ ...c, fase_nome: undefined as string | undefined }))} />
         </div>
       )}
       {fase.materiali.length === 0 && fase.foto.length === 0 && fase.campi.length === 0 && (

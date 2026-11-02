@@ -17,11 +17,11 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
   return q;
 } } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/common/ImgRiservata", () => ({ ImgRiservata: () => null }));
+vi.mock("@/components/common/ImgRiservata", () => ({ ImgRiservata: (): null => null }));
 
 const campo: CampoModulo = { chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", obbligatorio: true, chi: "tutti", ditte: "tutti", quando: "sempre", livello: "rapportino", stampa: "interno" };
 const schema = { ...SCHEMA_COME_OGGI, campi: [campo] };
-const report = (p = {}) => ({ id: "r1", descrizione_lavori: "Posa", role_type: "employee", lavoro_completato: false, approvato: false, stato: "inviato", campi_extra: [], ...p });
+const report = (p = {}) => ({ id: "r1", descrizione_lavori: "Posa", role_type: "employee", lavoro_completato: false, approvato: false, stato: "inviato", campi_extra: [] as unknown[], ...p });
 const avvolgi = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
 beforeEach(() => { db.update.mockClear(); db.condizioni = []; db.risposta = { data: { id: "r1" }, error: null }; });
 afterEach(cleanup);
