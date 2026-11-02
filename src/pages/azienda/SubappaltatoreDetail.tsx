@@ -62,12 +62,15 @@ import { FascicoloDocumenti } from '@/components/sicurezza/FascicoloDocumenti';
 
 /** Con più contratti (una commessa ciascuno), su quale si guardano SAL e ritenute. */
 function SceltaContratto({ contratti, valore, onCambia }: { contratti: ContrattoCompleto[]; valore: string; onCambia: (id: string) => void }) {
+  // Con un contratto solo non c'è niente da scegliere.
+  const nome = (c: ContrattoCompleto) => [c.commessa?.order_code, c.numero_contratto, c.commessa?.description].filter(Boolean).join(' · ') || 'Contratto';
+  if (contratti.length === 1) return <p className="min-w-0 truncate text-sm"><span className="text-muted-foreground">Contratto: </span><span className="font-medium">{nome(contratti[0])}</span></p>;
   return (
     <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-3">
       <span className="text-muted-foreground">Contratto:</span>
       <select className="h-10 w-full min-w-0 max-w-xl truncate rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
         {contratti.map((c) => (
-          <option key={c.id} value={c.id}>{[c.commessa?.order_code, c.numero_contratto, c.commessa?.description].filter(Boolean).join(' · ') || 'Contratto'}</option>
+          <option key={c.id} value={c.id}>{nome(c)}</option>
         ))}
       </select>
     </div>
@@ -757,17 +760,17 @@ export default function SubappaltatoreDetail() {
     documentiCompliance.some((d) => d.tipo === 'durc');
 
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className={`${schedaCommessa ? 'space-y-3' : 'space-y-6'} max-sm:space-y-3`}>
       {/* Header. Mobile: senza riquadro e senza la seconda freccia (c'è quella
           della barra in alto); dati fiscali e app cantiere stanno in «Dati». */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <div className={`rounded-2xl border border-slate-200 bg-white px-4 shadow-sm sm:px-6 ${schedaCommessa ? 'py-3' : 'py-5'} max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none`}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between max-sm:gap-2">
           <div className="flex min-w-0 items-start gap-3">
         {!schedaCommessa && <Button variant="ghost" size="icon" className="max-sm:hidden" onClick={() => navigate('/azienda/manodopera?tab=subappaltatori')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>}
         <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold truncate max-sm:text-lg max-sm:leading-tight">{sub.ragione_sociale}</h1>
+              <h1 className={`${schedaCommessa ? 'text-lg' : 'text-xl sm:text-2xl'} font-bold truncate max-sm:text-lg max-sm:leading-tight`}>{sub.ragione_sociale}</h1>
               <p className="text-sm text-muted-foreground max-sm:text-xs">{sub.tipo_lavori ?? 'Subappaltatore'}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500 max-sm:hidden">
                 {sub.piva && <span>P.IVA {sub.piva}</span>}
@@ -1059,9 +1062,7 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 3: SAL Ricevuti ────────────────────────────────────────────── */}
         <TabsContent value="contabilita" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <div className="rounded-xl border bg-background p-4 sm:p-5"><div className="mb-4"><h2 className="text-lg font-semibold">Contabilità dell’impresa</h2><p className="mt-1 text-sm text-muted-foreground">SAL, verbali e garanzie del contratto selezionato. Apri una scheda per consultare i dettagli.</p></div>
-            {contratti.length > 0 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
-          </div>
+          {contratti.length > 0 && <SceltaContratto contratti={contratti} valore={contratto?.id ?? ''} onCambia={setContrattoSelId} />}
           <Tabs value={vistaContabilita} onValueChange={setVistaContabilita}>
             <TabsList className="h-auto flex-wrap"><TabsTrigger value="sal">SAL e verbali</TabsTrigger><TabsTrigger value="fatture">Fatture e pagamenti</TabsTrigger><TabsTrigger value="ritenute">Ritenute</TabsTrigger>{permessi.canViewSubappaltatoriAmministrazione && <TabsTrigger value="mensili">Documenti mensili</TabsTrigger>}</TabsList>
             {permessi.canViewSubappaltatoriAmministrazione && <TabsContent value="mensili" className="mt-4">{caricoContratti ? <p className="text-sm text-muted-foreground">Caricamento contratti…</p> : erroreContratti ? <p role="alert" className="text-sm text-destructive">Contratti non disponibili. <Button variant="link" onClick={()=>void ricaricaContratti()}>Riprova</Button></p> : <DocumentiMensiliSub key={`${companyId}:${id}`} companyId={companyId} subId={id!} contratti={contratti}/>}</TabsContent>}

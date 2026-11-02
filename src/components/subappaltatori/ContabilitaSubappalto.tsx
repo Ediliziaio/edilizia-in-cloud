@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { TabellaCommessa } from "@/components/orders/TabellaCommessa";
 import { euroSub } from "@/lib/subappaltatori/lavoriMisure";
 import type {
   SALSubappaltatore,
@@ -66,6 +67,15 @@ function Importo({
         {euroSub(valore)}
       </p>
       {nota && <p className="mt-1 text-xs text-muted-foreground">{nota}</p>}
+    </div>
+  );
+}
+
+function Numero({ titolo, valore, nota, evidenza }: { titolo: string; valore: number; nota?: string; evidenza?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{titolo}{nota && <span className="sr-only"> ({nota})</span>}</dt>
+      <dd className={`mt-1 text-sm font-semibold tabular-nums ${evidenza && valore > 0.005 ? "text-amber-700" : ""}`}>{euroSub(valore)}</dd>
     </div>
   );
 }
@@ -169,41 +179,23 @@ export function SALContabilita({
     );
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Importo
-          titolo="Lordo SAL"
-          valore={somma(validi, "importo_lordo")}
-          nota="Esclusi i contestati"
+      <dl className="grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
+        <Numero titolo="Lordo SAL" valore={somma(validi, "importo_lordo")} nota="Esclusi i contestati" />
+        <Numero titolo="Ritenute" valore={somma(validi, "ritenuta_importo")} />
+        <Numero titolo="Pagato" valore={validi.reduce((sum, s) => sum + pagatoSal(s), 0)} />
+        <Numero titolo="Da pagare" valore={validi.reduce((sum, s) => sum + residuoSal(s), 0)} evidenza />
+      </dl>
+      {/* Con uno o due SAL cercare non serve: si leggono a colpo d'occhio. */}
+      {sal.length > 2 && <>
+        <Filtri
+          ricerca={ricerca}
+          onRicerca={setRicerca}
+          stato={stato}
+          onStato={setStato}
+          stati={statiSAL}
         />
-        <Importo
-          titolo="Ritenute nei SAL"
-          valore={somma(validi, "ritenuta_importo")}
-          nota="Da confrontare con il registro"
-        />
-        <Importo
-          titolo="Netto SAL non pagati"
-          valore={validi.reduce((sum,s)=>sum+residuoSal(s),0)}
-          nota="Non attesta l’esigibilità"
-        />
-        <Importo
-          titolo="Netto SAL pagati"
-          valore={validi.reduce((sum,s)=>sum+pagatoSal(s),0)}
-          nota="Pagamenti registrati"
-        />
-      </div>
-      <Filtri
-        ricerca={ricerca}
-        onRicerca={setRicerca}
-        stato={stato}
-        onStato={setStato}
-        stati={statiSAL}
-      />
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>
-          {filtrati.length} di {sal.length} SAL
-        </span>
-        <span>Seleziona un SAL per dettagli e operazioni</span>
-      </div>
+        <p className="text-xs text-muted-foreground">{filtrati.length} di {sal.length} SAL</p>
+      </>}
       {filtrati.length === 0 ? (
         <NessunRisultato
           onReset={() => {
@@ -212,64 +204,35 @@ export function SALContabilita({
           }}
         />
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {filtrati.map((s) => (
+        <TabellaCommessa etichetta="SAL del contratto" righe={filtrati} chiave={(s) => s.id} colonne={[
+          { titolo: "SAL", principale: true, cella: (s) => (
             <button
-              key={s.id}
               type="button"
               aria-label={`Apri SAL ${s.numero_sal}`}
+              className="inline-flex items-center gap-1 font-semibold text-primary underline-offset-2 hover:underline"
               onClick={(event) => {
                 apertura.current = event.currentTarget;
                 setSelezionato(s.id);
               }}
-              className="rounded-xl border bg-background p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold">SAL #{s.numero_sal}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {data(s.data_emissione)}
-                  </p>
-                </div>
-                <Stato stato={s.stato}>{statiSAL[s.stato]}</Stato>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Lordo</p>
-                  <p className="mt-1 text-sm tabular-nums">
-                    {euroSub(Number(s.importo_lordo))}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Ritenuta {s.ritenuta_pct}%
-                  </p>
-                  <p className="mt-1 text-sm tabular-nums">
-                    {euroSub(Number(s.ritenuta_importo))}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Netto</p>
-                  <p className="mt-1 text-sm font-semibold tabular-nums">
-                    {euroSub(Number(s.importo_netto))}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>
-                  {s.stato === "pagato"
-                    ? `Pagato · ${data(s.data_pagamento)}`
-                    : s.stato === "ricevuto"
-                      ? "In attesa di verifica"
-                      : s.stato === "contestato"
-                        ? "Verifica la contestazione"
-                        : pagatoSal(s)>0 ? `Parziale · residuo ${euroSub(residuoSal(s))}` : "Verificato · pagamento non registrato"}
-                </span>
-                <ArrowUpRight className="h-4 w-4 shrink-0" />
-              </div>
+              SAL #{s.numero_sal}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
-          ))}
-        </div>
+          ) },
+          { titolo: "Data", cella: (s) => <span className="whitespace-nowrap">{data(s.data_emissione)}</span> },
+          { titolo: "Lordo", destra: true, cella: (s) => euroSub(Number(s.importo_lordo)) },
+          { titolo: "Ritenuta", destra: true, cella: (s) => <>{euroSub(Number(s.ritenuta_importo))}<span className="block text-xs text-muted-foreground">{s.ritenuta_pct}%</span></> },
+          { titolo: "Netto", destra: true, cella: (s) => <span className="font-medium">{euroSub(Number(s.importo_netto))}</span> },
+          { titolo: "Pagato", destra: true, cella: (s) => euroSub(pagatoSal(s)) },
+          { titolo: "Da pagare", destra: true, cella: (s) => s.stato === "contestato" ? "—" : <span className="font-medium">{euroSub(residuoSal(s))}</span> },
+          { titolo: "Stato", cella: (s) => <Stato stato={s.stato}>{statiSAL[s.stato]}</Stato> },
+          { titolo: "Azioni", destra: true, cella: (s) => (
+            <div className="flex flex-wrap justify-end gap-1">
+              <Button size="sm" variant="ghost" aria-label={`Verbale del SAL ${s.numero_sal}`} onClick={() => onVerbale(s)}><FileText className="h-4 w-4" /></Button>
+              {canWrite && s.stato === "ricevuto" && <Button size="sm" variant="outline" disabled={approvazioneInCorso} onClick={() => onApprova(s.id)}>Approva</Button>}
+              {canWrite && s.stato === "verificato" && <Button size="sm" variant="outline" onClick={() => onPagamento(s)}>Paga</Button>}
+            </div>
+          ) },
+        ]} />
       )}
       <Dialog
         open={!!corrente}

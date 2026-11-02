@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   controllaRicevuta, documentoDelCosto, formCostoVuoto, leggiImporto, percorsoRicevuta, rigaCostoCommessa,
 } from "@/lib/costi/costoCommessa";
-import { categoriaDelTipo, tipoDellaCategoria } from "@/lib/costi/costoCommessa";
+import { campiModificaCosto, categoriaDelTipo, formDaCosto, tipoDellaCategoria } from "@/lib/costi/costoCommessa";
 
 const ids = { companyId: "azienda-1", orderId: "commessa-1" };
 
@@ -85,3 +85,22 @@ describe("Il tipo del costo", () => {
   });
 });
 
+
+describe("Modificare un costo", () => {
+  const costo = { name: "Gru", category: "noleggio", supplier_id: "s1", amount: 100, vat_rate: 22, due_date: "2026-11-02", order_work_phase_id: "f1", senza_fattura: false, notes: "Nota", is_paid: false };
+  it("rimette nel modulo l'importo con l'IVA, quello che si è scritto", () => {
+    expect(formDaCosto(costo)).toMatchObject({ descrizione: "Gru", tipo: "noleggio", fornitoreId: "s1", importo: "122,00", aliquotaIva: "22", data: "2026-11-02", faseId: "f1", senzaFattura: false, note: "Nota", pagato: false });
+  });
+  it("salvando senza toccare niente l'imponibile non si sposta", () => {
+    expect(rigaCostoCommessa(formDaCosto(costo), { companyId: "c", orderId: "o" }).amount).toBe(100);
+    const scomodo = { ...costo, amount: 28.69, vat_rate: 22 };
+    expect(rigaCostoCommessa(formDaCosto(scomodo), { companyId: "c", orderId: "o" }).amount).toBe(28.69);
+  });
+  it("regge i campi vuoti", () => {
+    expect(formDaCosto({ ...costo, category: null, supplier_id: null, vat_rate: null, order_work_phase_id: null, notes: null })).toMatchObject({ tipo: "altro", fornitoreId: null, importo: "100,00", aliquotaIva: "0", faseId: "", note: "" });
+  });
+  it("aggiorna solo quello che il modulo decide", () => {
+    const campi = campiModificaCosto(formDaCosto(costo), { companyId: "c", orderId: "o" });
+    expect(Object.keys(campi).sort()).toEqual(["amount", "category", "due_date", "name", "notes", "order_work_phase_id", "senza_fattura", "supplier_id", "vat_rate"].sort());
+  });
+});
