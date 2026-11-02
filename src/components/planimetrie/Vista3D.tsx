@@ -348,6 +348,14 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             <Download className="mr-1 h-4 w-4" />
             Scarica GLB
           </Button>
+          <Button variant="outline" size="sm" disabled={occupato} title="Un file da mandare al cliente: si apre col doppio clic, anche dal telefono"
+            onClick={() => esegui(async () => {
+              const { tourHtml } = await import("@/lib/planimetrie/tred/tourHtml");
+              scarica(tourHtml(esportaGlb(scena) as Uint8Array, { titolo: nomeFile.replace(/-/g, " ") }), `${nomeFile}-tour-3d.html`, "text/html");
+            })}>
+            <Eye className="mr-1 h-4 w-4" />
+            Tour 3D da inviare
+          </Button>
           <Button variant="outline" size="sm" disabled={occupato} onClick={scaricaObj}>
             <Box className="mr-1 h-4 w-4" />
             Scarica OBJ

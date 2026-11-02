@@ -67,3 +67,15 @@ describe("OBJ", () => {
     expect(obj).toMatch(/^o Muro_m1$/m);
   });
 });
+
+describe("tour 3D in un file", () => {
+  it("HTML con il GLB dentro e il titolo protetto", async () => {
+    const { tourHtml } = await import("./tourHtml");
+    const scena = costruisciScena(pianteDaPlanimetria(BILOCALE_DA_RISTRUTTURARE).progetto!);
+    const glb = esportaGlb(scena);
+    const html = tourHtml(glb, { titolo: "Casa <Rossi>", azienda: "Impresa" });
+    expect(html).toContain("&lt;Rossi&gt;");
+    const b64 = html.match(/base64,([A-Za-z0-9+/=]+)"/)![1];
+    expect(Buffer.from(b64, "base64").subarray(0, 4).toString()).toBe("glTF");
+  });
+});
