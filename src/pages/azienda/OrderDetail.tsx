@@ -1586,22 +1586,23 @@ function OrderDetailInner() {
           onOpenWork={() => navigateTo({ tab: "cantiere", section: "section-lavorazioni" })}
           onOpenPlanning={() => navigateTo({ tab: "panoramica", section: "section-pianificazione" })}
           onOpenTasks={() => prossimaTask?.title?.startsWith("Ufficio contratto · ") ? navigateTo({tab:"cantiere",section:"section-ufficio"}) : navigate(prossimaTask?.id ? `/azienda/attivita?attivita=${prossimaTask.id}` : "/azienda/attivita")}
-        >
-          <OrderStatusWorkflow
-            key={id}
-            orderId={id!}
-            canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
-            workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
-            statuses={statuses}
-            currentStatusId={order.current_status_id}
-            statusHistory={statusHistory}
-            onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
-            ultimoAutore={ultimoAutoreStato}
-            formatoData={formatDateTime}
-            // Il semaforo dei tempi non dice niente su una commessa già finita.
-            tempi={phaseProgress && phaseProgress.total > 0 && phaseProgress.done === phaseProgress.total ? null : <OrderScheduleBadge orderId={id!} />}
-          />
-        </OrderCommessaSummary>
+          statoControllo={
+            <OrderStatusWorkflow
+              key={id}
+              orderId={id!}
+              canEdit={permissions.canEditOrders && !!effectiveCompany?.id}
+              workProgress={!phaseProgressLoading && !phaseProgressError ? phaseProgress : undefined}
+              statuses={statuses}
+              currentStatusId={order.current_status_id}
+              statusHistory={statusHistory}
+              onStatusChange={permissions.canEditOrders ? handleStatusChange : undefined}
+              ultimoAutore={ultimoAutoreStato}
+              formatoData={formatDateTime}
+            />
+          }
+          // Il semaforo dei tempi non dice niente su una commessa già finita.
+          tempi={phaseProgress && phaseProgress.total > 0 && phaseProgress.done === phaseProgress.total ? null : <OrderScheduleBadge orderId={id!} />}
+        />
         {contractLink.data?.workflow_kind === "contratto" && <ContractCosts key={id} contractId={id!} financeConfirmed={!contractFinancePending} />}
         {contractLink.data?.workflow_kind === "intervento" && <ContractInterventions key={id} orderId={id!} />}
         <Tabs

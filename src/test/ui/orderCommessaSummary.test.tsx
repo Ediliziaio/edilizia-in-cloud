@@ -2,23 +2,25 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
-import { OrdineStatusStrip } from "@/components/orders/OrdineStatusStrip";
 import type { ComponentProps } from "react";
 
 afterEach(cleanup);
 const actions = () => ({ onOpenWork: vi.fn(), onOpenPlanning: vi.fn(), onOpenTasks: vi.fn() });
 function mount(props: Partial<ComponentProps<typeof OrderCommessaSummary>> = {}) {
   const callbacks = actions();
-  render(<OrderCommessaSummary {...callbacks} {...props}><p>Storico verificato</p></OrderCommessaSummary>);
+  render(<OrderCommessaSummary {...callbacks} {...props} />);
   return callbacks;
 }
 
 describe("Riepilogo commessa condiviso", () => {
-  it("lo stato e il suo controllo sono sempre in vista", () => {
+  it("il controllo dello stato sta nel riquadro «Stato commessa»; senza, il nome in sola lettura", () => {
     mount({ statusName: "In lavorazione" });
     expect(screen.getByText("In lavorazione")).toBeVisible();
-    expect(screen.getByText("Storico verificato")).toBeVisible();
-    expect(screen.queryByText("Stato generale e cronologia")).not.toBeInTheDocument();
+    cleanup();
+    mount({ statusName: "In lavorazione", statoControllo: <button>Cambia</button>, tempi: <span>In linea</span> });
+    expect(screen.queryByText("In lavorazione")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cambia" })).toBeVisible();
+    expect(screen.getByText("In linea")).toBeVisible();
   });
   it("non inventa avanzamento o date se non ci sono dati", () => {
     mount();
@@ -72,24 +74,3 @@ describe("Riepilogo commessa condiviso", () => {
 });
 
 const statuses = [{ id: "1", name: "Aperta", color: "#64748b", position: 0 }, { id: "2", name: "In corso", color: "#123456", position: 1 }];
-describe("Stato in testata", () => {
-  it("non spunta passaggi saltati; visite e ritorni dipendono dallo storico, non dall'ordine", () => {
-    const all=[...statuses,{id:"3",name:"Consegnata",color:"#123456",position:2}];
-    render(<OrdineStatusStrip statuses={all} currentStatusId="3" statusHistory={[{status_id:"1",changed_at:"2026-01-01T12:00:00Z"}]} />);
-    expect(screen.getByRole("button",{name:'Imposta stato "Aperta"'})).toHaveAttribute("data-status-visited","true");
-    expect(screen.getByRole("button",{name:'Imposta stato "In corso"'})).toHaveAttribute("data-status-visited","false");
-    cleanup();render(<OrdineStatusStrip statuses={all} currentStatusId="1" statusHistory={[{status_id:"3",changed_at:"2026-01-01T12:00:00Z"}]} />);
-    expect(screen.getByRole("button",{name:'Imposta stato "Consegnata"'})).toHaveAttribute("data-status-visited","true");
-  });
-  it("espone pulsanti accessibili e non ripete il cambio allo stato attuale", () => {
-    const change = vi.fn();
-    render(<OrdineStatusStrip statuses={statuses} currentStatusId="1" onStatusChange={change} />);
-    expect(screen.getByRole("button", { name: "Stato attuale: Aperta" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: 'Imposta stato "In corso"' }));
-    expect(change).toHaveBeenCalledWith("2");
-  });
-  it("resta in sola lettura senza autorizzazione al cambio", () => {
-    render(<OrdineStatusStrip statuses={statuses} currentStatusId="1" />);
-    screen.getAllByRole("button").forEach(button => expect(button).toBeDisabled());
-  });
-});

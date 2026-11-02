@@ -22,7 +22,10 @@ interface Props {
   onOpenWork: () => void;
   onOpenPlanning: () => void;
   onOpenTasks: () => void;
-  children: ReactNode;
+  /** Il controllo dello stato, al posto del nome in sola lettura. */
+  statoControllo?: ReactNode;
+  /** Il semaforo dei tempi, sotto le date. */
+  tempi?: ReactNode;
 }
 
 function dateLabel(value?: string | null) {
@@ -40,7 +43,7 @@ const labelClass = "flex items-center gap-1.5 text-[11px] font-medium uppercase 
 export function OrderCommessaSummary({
   statusName, statusColor, progress, progressLoading, progressError,
   workStartDate, workEndDate, expectedDate, nextTask, taskLoading, taskError,
-  onOpenWork, onOpenPlanning, onOpenTasks, children,
+  onOpenWork, onOpenPlanning, onOpenTasks, statoControllo, tempi,
 }: Props) {
   const hasPhases = !!progress?.total;
   const percent = Math.round(Math.min(100, Math.max(0, progress?.avgPct ?? 0)));
@@ -54,13 +57,14 @@ export function OrderCommessaSummary({
   return (
     <section aria-label="Riepilogo commessa" className="overflow-hidden rounded-xl border border-slate-200 border-t-2 border-t-orange-400 bg-white shadow-sm">
       <div className="grid grid-cols-2 divide-x divide-slate-100 lg:grid-cols-4">
-        <div className={cellClass}>
+        <div id="section-stato" className={`${cellClass} scroll-mt-24`}>
           <p className={labelClass}>Stato commessa</p>
-          <p className="mt-2 flex items-start gap-2 text-sm font-semibold text-slate-900 sm:text-base">
-            <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: statusColor || "#64748b" }} />
-            <span className="min-w-0 break-words">{statusName || "Stato non impostato"}</span>
-          </p>
-          <p className="mt-1 hidden text-xs text-muted-foreground sm:block">Stato generale della commessa</p>
+          {statoControllo ?? (
+            <p className="mt-2 flex items-start gap-2 text-sm font-semibold text-slate-900 sm:text-base">
+              <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: statusColor || "#64748b" }} />
+              <span className="min-w-0 break-words">{statusName || "Stato non impostato"}</span>
+            </p>
+          )}
         </div>
         <button type="button" onClick={onOpenWork} className={linkClass} aria-label="Apri lavorazioni e squadra">
           <span className={labelClass}><HardHat className="h-3.5 w-3.5 shrink-0" /> Lavorazioni <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
@@ -74,7 +78,8 @@ export function OrderCommessaSummary({
             </span>
           </> : <span className="mt-1 hidden text-xs text-muted-foreground sm:block">Squadra e lavoro diretto</span>}
         </button>
-        <button type="button" onClick={onOpenPlanning} className={`${linkClass} border-t border-slate-100 lg:border-t-0`} aria-label="Apri date e pianificazione">
+        <div className="flex min-w-0 flex-col border-t border-slate-100 lg:border-t-0">
+        <button type="button" onClick={onOpenPlanning} className={`${linkClass} flex-1`} aria-label="Apri date e pianificazione">
           <span className={labelClass}><CalendarDays className="h-3.5 w-3.5 shrink-0" /> Date lavori <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
           <span className="mt-2 block text-sm font-semibold text-slate-900 sm:text-base">
             {end ? `Fine ${end}` : installation ? `Posa ${installation}` : start ? `Inizio ${start}` : "Da pianificare"}
@@ -83,6 +88,8 @@ export function OrderCommessaSummary({
             {end || installation ? (start ? `Inizio ${start}` : "Inizio non impostato") : start ? "Fine non impostata" : "Nessuna data impostata"}
           </span>
         </button>
+        {tempi && <div className="px-3 pb-3 sm:px-4">{tempi}</div>}
+        </div>
         <button type="button" onClick={onOpenTasks} className={`${linkClass} border-t border-slate-100 lg:border-t-0`} aria-label="Apri attività della commessa">
           <span className={labelClass}><ListChecks className="h-3.5 w-3.5 shrink-0" /> Prossima attività <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" /></span>
           <span className="mt-2 line-clamp-2 break-words text-sm font-semibold text-slate-900 sm:text-base">
@@ -93,7 +100,6 @@ export function OrderCommessaSummary({
           </span>
         </button>
       </div>
-      <div id="section-stato" className="scroll-mt-24 border-t border-slate-100 px-3 py-2.5">{children}</div>
     </section>
   );
 }
