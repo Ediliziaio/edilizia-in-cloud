@@ -81,3 +81,19 @@ describe("rilievo del topografo", () => {
     expect(vistaDaPlanimetria(doc, { modo: "fatto" }).terreno?.curve.length).toBeGreaterThan(10);
   });
 });
+
+describe("aggancio a due punti noti", () => {
+  it("rotazione e spostamento ritrovati; scarto se le distanze non tornano", async () => {
+    const { posaDaDuePunti } = await import("../../../shared/planimetrie/rilievo.ts");
+    const r = creaRilievo(leggiRilievo(csvPendio()).punti, "pendio.csv");
+    // due punti del topografo e i loro corrispondenti sulla pianta, ruotati di 90°
+    const A = { x: 1_500_000, y: 5_000_000 }, B = { x: 1_500_010, y: 5_000_000 };
+    const ris = posaDaDuePunti(r, [{ topo: A, pianta: { x: 0, y: 0 } }, { topo: B, pianta: { x: 0, y: 1000 } }]);
+    expect(ris.rotazione).toBeCloseTo(90, 3);
+    expect(ris.scarto).toBe(0);
+    const messo = puntiDelRilievo({ ...r, posa: { ...r.posa, ...ris } });
+    // il primo punto del file (est 1.500.000, nord 5.000.000) finisce sullo spigolo (0, 0)
+    expect(Math.hypot(messo[0].x, messo[0].y)).toBeLessThan(1);
+    expect(posaDaDuePunti(r, [{ topo: A, pianta: { x: 0, y: 0 } }, { topo: B, pianta: { x: 0, y: 1200 } }]).scarto).toBe(200);
+  });
+});

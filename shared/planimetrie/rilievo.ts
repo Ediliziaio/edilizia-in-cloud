@@ -155,6 +155,33 @@ export function puntiDelRilievo(r: Rilievo): Array<{ x: number; y: number; quota
   });
 }
 
+/**
+ * La posa del rilievo da due punti noti: per ognuno le coordinate del topografo (m) e il punto
+ * corrispondente sulla pianta (cm, y in su), per esempio due spigoli della casa battuti dal
+ * topografo. Ne escono spostamento e rotazione; `scarto` (cm) è quanto la distanza fra i due
+ * punti differisce nei due sistemi: oltre qualche decina di cm, i punti non corrispondono.
+ */
+export function posaDaDuePunti(
+  r: Rilievo,
+  coppie: [{ topo: { x: number; y: number }; pianta: { x: number; y: number } }, { topo: { x: number; y: number }; pianta: { x: number; y: number } }],
+): { dx: number; dy: number; rotazione: number; scarto: number } {
+  const locale = (t: { x: number; y: number }) => {
+    const x0 = (t.x - r.origine.x) * 100, y0 = (t.y - r.origine.y) * 100;
+    return r.posa.scambiaXY ? { x: y0, y: x0 } : { x: x0, y: y0 };
+  };
+  const [a, b] = coppie.map((c) => locale(c.topo));
+  const [pa, pb] = coppie.map((c) => c.pianta);
+  const ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) - Math.atan2(b.y - a.y, b.x - a.x);
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const dx = pa.x - (a.x * c - a.y * s), dy = pa.y - (a.x * s + a.y * c);
+  const rot = (((ang * 180) / Math.PI) % 360 + 360) % 360;
+  return {
+    dx: Math.round(dx), dy: Math.round(dy),
+    rotazione: Math.round(rot * 100) / 100,
+    scarto: Math.round(Math.abs(Math.hypot(pb.x - pa.x, pb.y - pa.y) - Math.hypot(b.x - a.x, b.y - a.y))),
+  };
+}
+
 export function rilievoValido(v: unknown): boolean {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;

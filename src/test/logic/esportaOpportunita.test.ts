@@ -86,3 +86,14 @@ describe("esportazione: periodo, colonne, pipeline", () => {
     expect(periodoRelativo("nessuno")).toBeNull();
   });
 });
+
+describe("guardiano: l'esportazione porta le informazioni che contano", () => {
+  // Il motivo della perdita mancava dal file per mesi e se n'è accorto un cliente (Ener
+  // Italia, novembre 2026). Se una di queste informazioni sparisce dal file, il test è rosso.
+  it("fase, stato, motivo, dettaglio, concorrente, note, date di chiusura, venditore, valore", () => {
+    const chiavi = colonneConCampi([]).map((c) => c.key);
+    for (const k of ["stage", "status", "lost_cause", "lost_detail", "competitor", "loss_notes", "closed_at", "assigned_to", "value", "contact", "phone", "email"]) expect(chiavi).toContain(k);
+    const r = rigaOpportunita(opp[2], ctx);
+    for (const k of chiavi) expect(r, k).toHaveProperty(k);
+  });
+});

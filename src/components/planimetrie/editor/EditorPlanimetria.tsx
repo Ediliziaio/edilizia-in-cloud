@@ -1231,6 +1231,18 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y);
     return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
   };
+  // gli spigoli esterni della casa (rettangolo dei muri con il loro spessore), y in su come il modello
+  const angoliPianta = () => {
+    const muri = documento.livelli.flatMap((l) => l.fatto.muri);
+    if (!muri.length) return [];
+    const xs = muri.flatMap((m) => [m.p1.x - m.spessore / 2, m.p1.x + m.spessore / 2, m.p2.x - m.spessore / 2, m.p2.x + m.spessore / 2]);
+    const ys = muri.flatMap((m) => [m.p1.y - m.spessore / 2, m.p1.y + m.spessore / 2, m.p2.y - m.spessore / 2, m.p2.y + m.spessore / 2]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    return [
+      { nome: "Spigolo nord-ovest", x: x0, y: y1 }, { nome: "Spigolo nord-est", x: x1, y: y1 },
+      { nome: "Spigolo sud-est", x: x1, y: y0 }, { nome: "Spigolo sud-ovest", x: x0, y: y0 },
+    ];
+  };
   const modificaPiano = (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => {
     if (!livelloId) return;
     const doc = rinominaLivello(documento, livelloId, campi);
@@ -1573,7 +1585,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
       )}
 
-      {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} onCambia={cambiaRilievo} />}
+      {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} angoliPianta={angoliPianta()} onCambia={cambiaRilievo} />}
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
   );

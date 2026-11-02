@@ -94,3 +94,17 @@ describe("lucernari e superficie commerciale del sottotetto", () => {
     expect(coeff).toBeGreaterThan(0.3);
   });
 });
+
+describe("lucernari nei prospetti", () => {
+  it("si vedono sulla falda che scende verso chi guarda, non dall'altra parte", () => {
+    const doc = mansarda();
+    const st = doc.livelli[0].fatto;
+    const ys = st.locali[0].contorno.map((p) => p.y), xs = st.locali[0].contorno.map((p) => p.x);
+    // a metà fra la gronda sud (y più basso) e il colmo
+    const pos = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: Math.min(...ys) + 120 };
+    const conLuc = { ...st, elementi: [...st.elementi, { id: "l1", tipo: "lucernario", posizione: pos, rotazione: 0, larghezza: 78, profondita: 118 }] } as typeof st;
+    const vetri = (lato: "sud" | "nord") => prospetto(conLuc, lato, doc.livelli[0].tetto).primitive.filter((p) => p.tipo === "rett" && p.stile === "vetro" && p.z1 > 100);
+    expect(vetri("sud")).toHaveLength(1);
+    expect(vetri("nord")).toHaveLength(0);
+  });
+});
