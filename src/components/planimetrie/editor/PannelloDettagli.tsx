@@ -20,6 +20,8 @@ import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
 import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
+import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
+import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
 
 export interface AzioniPannello {
   nomeStanza: (id: string, nome: string) => void;
@@ -67,9 +69,11 @@ interface Props {
   essenziale?: boolean;
   /** Mette il cursore nel nome appena nasce una stanza. */
   focusNome?: boolean;
+  /** Mansarda: altezze sotto le falde, per stanza. */
+  sottotetto?: ReadonlyMap<string, AltezzeSottotetto>;
 }
 
-export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezione, azioni, essenziale, focusNome }: Props) {
+export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, vista, selezione, azioni, essenziale, focusNome }: Props) {
   if (selezione?.tipo === "locale") {
     const l = dati.locali.find((x) => x.id === selezione.id);
     if (l) {
@@ -83,6 +87,7 @@ export function PannelloDettagli({ pianta, dati, latiModificabili, vista, selezi
           azioni={azioni}
           essenziale={essenziale}
           focusNome={focusNome}
+          sottotetto={sottotetto?.get(l.id)}
         />
       );
     }
@@ -192,7 +197,16 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
           <Button size="sm" variant="outline" disabled={!ok} onClick={() => azioni.ruotaElemento(e.id, 15)} aria-label="Ruota a destra di 15°">+15°</Button>
         </div>
       </div>
-      {!essenziale && (
+      {e.tipo === TIPO_PUNTO_QUOTA && (
+        <div className="space-y-1">
+          <Label htmlFor={`quota-${e.id}`}>Quota del terreno (m)</Label>
+          <Input id={`quota-${e.id}`} key={`${e.id}-${e.etichetta ?? ""}`} defaultValue={leggiQuota(e.etichetta) !== null ? String(leggiQuota(e.etichetta)! / 100).replace(".", ",") : ""} placeholder="es. 1,20 oppure -0,50" inputMode="decimal" disabled={!ok}
+            onBlur={(ev) => { const q = leggiQuota(ev.target.value); const nuova = q === null ? undefined : scriviQuota(q); if (nuova !== e.etichetta) azioni.modificaElemento(e.id, { etichetta: nuova }); }}
+            onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); }} />
+          <p className="text-[11px] text-muted-foreground">Rispetto al pavimento del piano terra (0). Con almeno due punti il terreno nel 3D è in pendenza e la pianta ha le curve di livello ogni 50 cm.</p>
+        </div>
+      )}
+      {!essenziale && e.tipo !== TIPO_PUNTO_QUOTA && (
         <div className="space-y-1">
           <Label htmlFor={`etichetta-${e.id}`}>Nome sulla pianta (facoltativo)</Label>
           <Input id={`etichetta-${e.id}`} defaultValue={e.etichetta ?? ""} placeholder={nomeDelTipo(e.tipo)} disabled={!ok}
@@ -373,7 +387,9 @@ function DettaglioStanza({
   azioni,
   essenziale,
   focusNome,
+  sottotetto,
 }: {
+  sottotetto?: AltezzeSottotetto;
   pianta: Pianta;
   vista: Vista;
   locale: LocaleVista;
@@ -423,6 +439,13 @@ function DettaglioStanza({
             onBlur={(e) => e.target.value.trim() !== (diLavoro.unita ?? "") && azioni.unitaStanza(locale.id, e.target.value.trim())}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           <p className="text-[11px] text-muted-foreground">Le stanze con la stessa sigla fanno un appartamento: nel computo trovi superfici e pareti per appartamento.</p>
+        </div>
+      )}
+      {sottotetto && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+          <p className="font-medium">Sotto le falde</p>
+          <p className="mt-0.5 tabular-nums">Altezza minima {scriviMetri(sottotetto.minima)} m · massima {scriviMetri(sottotetto.massima)} m · <strong>media {scriviMetri(sottotetto.media)} m</strong></p>
+          <p className="tabular-nums">Superficie utile (sopra 1,50 m) <strong>{scriviMq(sottotetto.superficieUtile)}</strong> su {scriviMq(sottotetto.superficie)} · volume {sottotetto.volume.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m³</p>
         </div>
       )}
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">

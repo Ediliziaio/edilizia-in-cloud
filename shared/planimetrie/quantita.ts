@@ -45,6 +45,7 @@ import {
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
 import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
+import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
 
@@ -230,7 +231,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
 
     // ─── Arredi, sanitari, punti impianto ───
     for (const e of stato.elementi) {
-      if (!/^[a-z0-9_]+$/.test(e.tipo)) continue;
+      // i punti quotati del terreno sono misure, non cose da comprare o posare
+      if (!/^[a-z0-9_]+$/.test(e.tipo) || e.tipo === "quota_terreno") continue;
       const st = e.stato ?? "esistente";
       const soggetto = `elementi:${st}:${e.tipo}`;
       const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
@@ -254,6 +256,17 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
   for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
+  // Terreno in pendenza o rilievo: scavi e riporti sotto il piano più basso
+  const punti = puntiTerreno(p);
+  if (punti.length) {
+    const basso = [...p.livelli].sort((a, b) => a.quota - b.quota)[0];
+    const stato = basso ? statoDelLivello(basso, ambito) ?? basso.fatto : null;
+    if (basso && stato?.locali.length) {
+      const sr = scaviERiporti(punti, stato.locali.map((l) => l.contorno), basso.quota);
+      if (sr.scavoMc > 0.05) metti("terreno:scavo", "volume_mc", { valore: sr.scavoMc, origini: ["stimata"] }, `Scavo sotto «${basso.nome}» fino al pavimento (stima dal terreno)`);
+      if (sr.riportoMc > 0.05) metti("terreno:riporto", "volume_mc", { valore: sr.riportoMc, origini: ["stimata"] }, `Riporto sotto «${basso.nome}» fino al pavimento (stima dal terreno)`);
+    }
+  }
   if (coperturaMq > 0) metti("tetto:copertura", "superficie_mq", { valore: coperturaMq, origini: ["stimata"] }, "Copertura: superficie delle falde (o del tetto piano)");
   if (pannelliFv > 0) {
     metti("impianti:fotovoltaico", "pannelli", { valore: pannelliFv, origini: ["stimata"] }, "Fotovoltaico: pannelli sul tetto");
@@ -295,7 +308,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   campo_calcio11: "Campi da calcio a 11", campo_basket: "Campi da basket", campo_pallavolo: "Campi da pallavolo", campo_beach_volley: "Campi da beach volley",
   campo_pickleball: "Campi da pickleball", campo_bocce: "Campi da bocce",
   pompa_calore: "Pompe di calore", bollitore: "Bollitori", inverter: "Inverter fotovoltaici", batteria_accumulo: "Batterie di accumulo",
-  wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC",
+  wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC", lucernario: "Lucernari",
   collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",
   presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
   scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",

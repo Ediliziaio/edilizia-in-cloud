@@ -23,6 +23,49 @@ export interface TettoGeom {
   pendenza: number;
   sporto: number;
   fotovoltaico?: Fotovoltaico;
+  /**
+   * Mansarda: le stanze stanno sotto le falde, senza solaio. `imposta` è l'altezza (cm) del
+   * soffitto inclinato dove incontra i muri esterni di gronda: da lì il tetto sale.
+   */
+  mansarda?: { imposta: number };
+}
+
+/**
+ * La quota (cm) da cui partono le falde, sul bordo dello sporto. Senza mansarda è la cima dei
+ * muri; con la mansarda la falda passa per l'imposta sulla linea dei muri, quindi sul bordo
+ * dello sporto sta più in basso di sporto × pendenza.
+ */
+export function baseTetto(t: TettoGeom, cimaMuri: number): number {
+  if (!t.mansarda || t.tipo === "piano") return cimaMuri;
+  return t.mansarda.imposta - (t.sporto * t.pendenza) / 100;
+}
+
+/**
+ * La quota (cm) della falda sopra il punto (x, y), o null se il punto non sta sotto il tetto.
+ * Sotto il colmo vale la falda più alta. Le coordinate sono quelle usate per le facce.
+ */
+export function quotaFalde(facce: readonly Faccia[], x: number, y: number): number | null {
+  let z: number | null = null;
+  for (const f of facce) {
+    if (f.genere !== "falda") continue;
+    const v = f.vertici;
+    // dentro la proiezione sul piano (bordi compresi, con una tolleranza di 0,5 cm)
+    let dentro = false;
+    for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+      if ((v[i].y > y) !== (v[j].y > y) && x < ((v[j].x - v[i].x) * (y - v[i].y)) / (v[j].y - v[i].y) + v[i].x) dentro = !dentro;
+    }
+    if (!dentro && !v.some((a, i) => { const b = v[(i + 1) % v.length]; const l = Math.hypot(b.x - a.x, b.y - a.y) || 1; const t = Math.max(0, Math.min(1, ((x - a.x) * (b.x - a.x) + (y - a.y) * (b.y - a.y)) / (l * l))); return Math.hypot(a.x + t * (b.x - a.x) - x, a.y + t * (b.y - a.y) - y) < 0.5; })) continue;
+    // piano della faccia: z = a + b·x + c·y dai primi tre vertici non allineati
+    const [p0, p1] = v;
+    const p2 = v.slice(2).find((q) => Math.abs((p1.x - p0.x) * (q.y - p0.y) - (p1.y - p0.y) * (q.x - p0.x)) > 1e-6);
+    if (!p2) continue;
+    const det = (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    const b = ((p1.z - p0.z) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.z - p0.z)) / det;
+    const c = ((p1.x - p0.x) * (p2.z - p0.z) - (p1.z - p0.z) * (p2.x - p0.x)) / det;
+    const q = p0.z + b * (x - p0.x) + c * (y - p0.y);
+    z = z === null ? q : Math.max(z, q);
+  }
+  return z;
 }
 
 export interface P3 { x: number; y: number; z: number }

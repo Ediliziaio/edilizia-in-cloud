@@ -14,7 +14,7 @@
  * pavimento del piano), poi SVG in scala e DXF a layer.
  */
 import type { Apertura, Locale, Muro, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
-import { facceTetto, rettangoloTetto, type Faccia } from "../../../shared/planimetrie/tetto.ts";
+import { baseTetto, facceTetto, quotaFalde, rettangoloTetto, type Faccia } from "../../../shared/planimetrie/tetto.ts";
 import { puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { MotoreDxfR12 } from "./esporta/dxf/r12";
 
@@ -97,7 +97,7 @@ function facceDelTetto(stato: StatoPianta, tetto: Tetto | null | undefined): Fac
   if (!tetto || !muri.length) return [];
   const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), tetto.sporto);
   if (!r) return [];
-  const h = Math.max(...muri.map((m) => m.altezza));
+  const h = baseTetto(tetto, Math.max(...muri.map((m) => m.altezza)));
   return facceTetto(r, h, tetto).map((f) => ({ ...f, vertici: f.vertici.map((v) => ({ ...v, y: -v.y })) }));
 }
 
@@ -141,6 +141,32 @@ function tettoTagliato(facce: Faccia[], coord: (p: P) => number, valore: number,
   return out;
 }
 
+/**
+ * I lucernari (finestre a tetto) visti nel prospetto: solo quelli sulle falde che scendono
+ * verso chi guarda (gli altri li copre il tetto). Il vetro sulla falda inclinata si vede
+ * accorciato: alto quanto la sua lunghezza per il seno della pendenza.
+ */
+function lucernariInAlzato(stato: StatoPianta, facce: Faccia[], v: P, asse: P): Primitiva[] {
+  if (!facce.length) return [];
+  const out: Primitiva[] = [];
+  for (const e of stato.elementi) {
+    if (e.tipo !== "lucernario" || e.stato === "da_demolire") continue;
+    const { x, y } = e.posizione;
+    const z = quotaFalde(facce, x, y);
+    if (z === null) continue;
+    // pendenza della falda nel punto: verso dove sale
+    const gx = ((quotaFalde(facce, x + 5, y) ?? z) - (quotaFalde(facce, x - 5, y) ?? z)) / 10;
+    const gy = ((quotaFalde(facce, x, y + 5) ?? z) - (quotaFalde(facce, x, y - 5) ?? z)) / 10;
+    const pend = Math.hypot(gx, gy);
+    if (pend < 0.01 || gx * v.x + gy * v.y <= 0) continue;
+    const largo = e.larghezza ?? 78, lungo = e.profondita ?? 118;
+    const alto = (lungo * pend) / Math.sqrt(1 + pend * pend);
+    const u = dot({ x, y }, asse);
+    out.push({ tipo: "rett", u1: u - largo / 2, u2: u + largo / 2, z1: z - alto / 2, z2: z + alto / 2, stile: "vetro" });
+  }
+  return out;
+}
+
 /** Un prospetto: le pareti esterne viste da un lato, con porte e finestre. */
 export function prospetto(stato: StatoPianta, lato: Lato, tetto?: Tetto | null): Disegno2D {
   const v = SGUARDO[lato];
@@ -159,7 +185,9 @@ export function prospetto(stato: StatoPianta, lato: Lato, tetto?: Tetto | null):
     primitive.push({ tipo: "rett", u1: lo, u2: hi, z1: 0, z2: m.altezza, stile: "muro" });
     vani(primitive, m, stato.aperture, asse, "muro");
   }
-  primitive.push(...tettoInAlzato(facceDelTetto(stato, tetto), v, asse, false));
+  const facce = facceDelTetto(stato, tetto);
+  primitive.push(...tettoInAlzato(facce, v, asse, false));
+  primitive.push(...lucernariInAlzato(stato, facce, v, asse));
   return conTerraEQuote(NOMI_LATO[lato], primitive);
 }
 

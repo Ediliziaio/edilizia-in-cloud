@@ -26,7 +26,7 @@ export interface Lavoro {
   genere: GenereLavoro;
   descrizione: string;
   quantita: number;
-  unita: "mq" | "ml" | "n";
+  unita: "mq" | "ml" | "n" | "mc";
   /** € per unità; null se non ha un prezzo (arredi, cambi d'uso). */
   prezzo: number | null;
   importo: number;
@@ -219,7 +219,7 @@ export function avanzamento(r: RiepilogoLavori, fatti: ReadonlySet<string>) {
 }
 
 export const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-export const scriviQuantita = (l: Lavoro) => `${l.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${l.unita === "n" ? "n." : l.unita === "ml" ? "m" : "m²"}`;
+export const scriviQuantita = (l: Lavoro) => `${l.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${l.unita === "n" ? "n." : l.unita === "ml" ? "m" : l.unita === "mc" ? "m³" : "m²"}`;
 
 /**
  * Le due piante sullo stesso riquadro: il viewBox dell'una e dell'altra unito, così nel

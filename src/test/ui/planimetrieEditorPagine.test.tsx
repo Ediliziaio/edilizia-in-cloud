@@ -143,6 +143,24 @@ describe("Nuova pianta", () => {
     expect(archivio.creaPlanimetria.mock.calls[0][0]).toMatchObject({ titolo: "Bilocale di esempio", origine: "ai_testo" });
   });
 
+  it("dal sopralluogo: le misure dettate vanno all'AI come «rilievo» e la pianta si apre nell'editor", async () => {
+    archivio.invoke.mockResolvedValue({
+      data: {
+        success: true,
+        planimetria: bilocale,
+        origine_versione: "sopralluogo",
+        generazione: { ingresso: "rilievo", scala: { metodo: "in_metri", cm_per_unita: 1, da_confermare: false }, avvisi: [], sorgente_path: null, sfondo_dxf: null, superfici_scritte: {} },
+      },
+      error: null,
+    });
+    monta(<RenderPlanimetriaNuova />, "/azienda/render/planimetrie/nuova?da=sopralluogo", "/azienda/render/planimetrie/nuova");
+    expect(screen.getByText("Pianta dal sopralluogo")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Le misure, stanza per stanza"), { target: { value: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ricava la pianta/ }));
+    expect(await screen.findByText("Controlla la pianta e salvala")).toBeTruthy();
+    expect(archivio.invoke).toHaveBeenCalledWith("planimetria-genera", { body: expect.objectContaining({ ingresso: "rilievo", testo: "Cucina 3,20 per 4,10\nBagno 2,10 x 2,40" }) });
+  });
+
   it("crediti finiti: frase semplice e «Disegnala a mano»", async () => {
     const risposta = new Response(JSON.stringify({ success: false, codice: "crediti", messaggio: "Crediti AI esauriti" }), { status: 402 });
     archivio.invoke.mockResolvedValue({ data: null, error: Object.assign(new Error("non-2xx"), { context: risposta }) });

@@ -31,6 +31,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdsSalesReport } from "@/hooks/useAdsSalesReport";
 import { useCommercialPerformanceReport } from "@/hooks/useCommercialPerformanceReport";
+import { useCompanyStaff } from "@/hooks/useOpportunitiesData";
 import { isOpenOpportunity, type CommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
 import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
 import {
@@ -439,7 +440,7 @@ export function CrmSalesReportPanel({
           </DetailPanel>
 
           <DetailPanel title="Motivi di perdita" icon={Trophy}>
-            <LossReasonsList rows={report.lossReasons} loading={commercial.isLoading} />
+            <LossReasonsList rows={report.lossReasons} perVenditore={report.lossByOwner ?? []} loading={commercial.isLoading} />
           </DetailPanel>
 
           <DetailPanel title="Fatturato e margine per fonte" icon={Megaphone}>
@@ -896,30 +897,58 @@ function LeadSegmentTable({
 
 function LossReasonsList({
   rows,
+  perVenditore,
   loading,
 }: {
   rows: Array<{ reason: string; count: number; valueCents: number }>;
+  perVenditore: Array<{ ownerId: string | null; count: number; valueCents: number; topReason: string }>;
   loading: boolean;
 }) {
+  const [tutti, setTutti] = useState(false);
+  const { data: staff = [] } = useCompanyStaff();
+  const nome = (id: string | null) => (id ? staff.find((s) => s.id === id)?.name || "Venditore" : "Senza venditore");
   if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
   if (!rows.length) {
     return <p className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">Nessun motivo di perdita registrato nel periodo.</p>;
   }
 
+  const totale = rows.reduce((t, r) => t + r.count, 0);
   return (
     <div className="space-y-2">
-      {rows.slice(0, 5).map((row) => (
+      {rows.slice(0, tutti ? rows.length : 5).map((row) => (
         <div key={row.reason} className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-medium capitalize text-slate-900">{row.reason}</p>
-              <p className="text-xs text-slate-500">{row.count} casi</p>
+              <p className="text-xs text-slate-500">{row.count} casi{totale ? ` · ${Math.round((row.count / totale) * 100)}%` : ""}</p>
             </div>
             <p className="font-semibold tabular-nums text-slate-950">{formatMoney(row.valueCents)}</p>
           </div>
           <TableBar value={row.valueCents} max={Math.max(...rows.map((r) => r.valueCents), 1)} tone="rose" />
         </div>
       ))}
+      {rows.length > 5 && (
+        <button type="button" className="text-xs font-medium text-slate-600 hover:underline" onClick={() => setTutti((v) => !v)}>
+          {tutti ? "Mostra i primi 5" : `Mostra tutti i ${rows.length} motivi`}
+        </button>
+      )}
+      {perVenditore.length > 0 && (
+        <div className="pt-2">
+          <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Perse per venditore</p>
+          <table className="w-full text-sm">
+            <tbody>
+              {perVenditore.slice(0, 8).map((v) => (
+                <tr key={v.ownerId ?? "nessuno"} className="border-t">
+                  <td className="py-1 pr-2">{nome(v.ownerId)}</td>
+                  <td className="py-1 pr-2 text-right tabular-nums">{v.count}</td>
+                  <td className="py-1 pr-2 text-xs capitalize text-slate-500">{v.topReason}</td>
+                  <td className="py-1 text-right tabular-nums">{formatMoney(v.valueCents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

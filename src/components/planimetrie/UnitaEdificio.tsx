@@ -195,7 +195,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione, sola
         </CardContent>
       </Card>
       <p className="text-xs text-muted-foreground">
-        Commerciale: superfici nette con balconi e terrazzi al 30%, cantine al 25%, box al 50%. Millesimi proposti in proporzione, da far verificare a un tecnico.
+        Commerciale: superfici nette con balconi e terrazzi al 30%, cantine al 25%, box al 50%; nelle mansarde la parte sotto 1,50 m al 30%. Millesimi proposti in proporzione, da far verificare a un tecnico.
       </p>
       {prezzi && rv.listino > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">

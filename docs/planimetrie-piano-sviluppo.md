@@ -100,17 +100,36 @@ attico duplex con mansarda.
   listino (il database lo rifiutava già); prezzi, costi, trattative e «Crea il preventivo»
   seguono i permessi dei preventivi.
 - **Velocità**: controllata; pagine, 3D, PDF e tour si caricano solo quando servono.
+- **Dal sopralluogo alla pianta**: misure dettate (microfono del browser) o scritte stanza per
+  stanza, fino a 6 foto delle stanze e lo schizzo se c'è; le stanze misurate nascono rilevate,
+  il resto stimato (ingresso «rilievo» di `planimetria-genera`, 1 credito).
+- **Sottotetto ad altezza variabile**: sul tetto si spunta «Mansarda» con l'altezza d'imposta;
+  per ogni stanza altezza minima, massima e media, superficie utile (sopra 1,50 m) e volume
+  (`shared/planimetrie/sottotetto.ts`); le verifiche usano l'altezza media (2,40 abitabili,
+  2,20 servizi) e la superficie utile; nel 3D niente soffitto piano e muri fin sotto le falde;
+  nei prospetti la falda parte dall'imposta.
+- **Lucernari** (Struttura → «Lucernario»): contano nel rapporto aeroilluminante della stanza,
+  nel 3D stanno sulla falda, nel computo e nel listino. Nelle unità in mansarda la parte sotto
+  1,50 m conta al 30% nella superficie commerciale.
+- **Terreno in pendenza**: «Quota del terreno» (Giardino e piscina) è un punto quotato; con due o
+  più punti il prato nel 3D segue la pendenza (sotto la casa resta a zero) e la pianta ha le
+  curve di livello ogni 50 cm, marcate e quotate ogni metro (layer TERRENO in PDF e DXF)
+  (`shared/planimetrie/terreno.ts`).
+- **Rilievo del topografo** (Esterni → «Rilievo del topografo…»): CSV, TXT o DXF (punti, polilinee
+  3D, curve di livello con la quota); si centra sulla casa, poi spostamento, rotazione, quota del
+  piano terra e «scambia X e Y». Il terreno fra i punti è una triangolazione di Delaunay (niente
+  cerchi attorno ai punti); curve più rade quando il dislivello è grande
+  (`shared/planimetrie/rilievo.ts`).
 
 ## Ancora aperto
 
 - **Prove sul campo**: render AI veri con crediti, un cliente vero dall'inizio alla fine,
   l'editor su un telefono vero. Non si fanno da qui (serve un utente collegato).
 - **Benchmark dell'AI sulle piante vere**: servono le immagini (caricarle nella pianta nuova).
-- **Da sopralluogo a pianta** (foto più misure dettate): non fatto.
 - **Immagini dei simboli**: aspettano le immagini (prompt qui sotto).
-- **Terreno in pendenza continua** (curve di livello): oggi solo superfici a quote diverse.
-- **Sottotetto con altezza variabile**: il tetto c'è, ma le stanze sotto restano alte uguali
-  e le superfici non tengono conto delle altezze minime.
+- **Rilievo georeferenziato**: il rilievo si posa a mano (spostamento, rotazione, quota zero);
+  non si aggancia ancora da solo a due punti noti né alle coordinate catastali. Le nuvole di
+  punti dei laser scanner (milioni di punti) vanno sfoltite prima (si tengono 5.000 punti).
 - **Fotovoltaico → pratiche e preventivo energetico**: lasciato fuori su richiesta.
 
 ## Immagini per i simboli: come generarle

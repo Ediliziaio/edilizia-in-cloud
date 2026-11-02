@@ -14,6 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
+import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
 } from "../../../../shared/planimetrie/modello.ts";
@@ -77,7 +78,7 @@ const NOTI = new Set<string>([
   "auto", "scaffale", "banco_lavoro",
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split",
   "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
-  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc",
+  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
   "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",
@@ -164,7 +165,30 @@ export function vistaDaPlanimetria(p: Planimetria, scelta: SceltaVista = { modo:
     ...((stato.aree ?? livello.fatto.aree)?.length
       ? { aree: (stato.aree ?? livello.fatto.aree ?? []).filter((a) => modo !== "progetto" || a.stato !== "da_demolire").map((a) => ({ id: a.id, tipo: a.tipo, nome: a.nome, contorno: a.contorno.map(giu), superficieMq: Math.round(areaPoligono(a.contorno) / 100) / 100, stato: a.stato ?? "esistente" })) }
       : {}),
+    ...terrenoDelLivello(p, livello),
     nord: p.nord === undefined ? undefined : -p.nord,
+  };
+}
+
+/**
+ * Terreno sul piano a terra (quello con la quota più vicina a zero): punti quotati del piano e
+ * rilievo del topografo, curve di livello (ogni 50 cm, più rade se il dislivello è grande).
+ * Le quote scritte sono quelle dei punti messi a mano; dei punti del rilievo, che possono
+ * essere migliaia, si scrivono solo le curve.
+ */
+function terrenoDelLivello(p: Planimetria, livello: Livello): Pick<VistaPianta, "terreno"> {
+  const aTerra = [...p.livelli].sort((a, b) => Math.abs(a.quota) - Math.abs(b.quota))[0];
+  if (aTerra?.id !== livello.id) return {};
+  const aMano = puntiTerreno({ livelli: [livello] });
+  const punti = puntiTerreno({ livelli: [livello], rilievo: p.rilievo });
+  if (!punti.length) return {};
+  const r = rettangoloPunti(punti, p.rilievo ? 0 : 300);
+  const curve = r ? curveDiLivello(punti, r, passoCurve(punti)) : [];
+  return {
+    terreno: {
+      curve: curve.map((c) => ({ a: giu(c.a), b: giu(c.b), quota: c.quota })),
+      punti: aMano.map((q) => ({ posizione: giu(q), testo: scriviQuota(q.quota) })),
+    },
   };
 }
 

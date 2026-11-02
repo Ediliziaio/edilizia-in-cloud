@@ -9,7 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import esempioTrilocale from "../../../shared/planimetrie/esempi/trilocale.json";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
-import { ChevronRight, FileUp, LayoutPanelTop, MessageSquareText, PenLine } from "lucide-react";
+import { ChevronRight, ClipboardList, FileUp, LayoutPanelTop, MessageSquareText, PenLine } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,7 @@ const INGRESSI: { modo: ModoNuovaPianta; titolo: string; testo: string; icona: L
   { modo: "disegno", titolo: "Disegna", testo: "Trascina le stanze e scrivi le misure", icona: PenLine },
   { modo: "documento", titolo: "Carica PDF o foto", testo: "Catastale, disegno del tecnico o schizzo a mano", icona: FileUp },
   { modo: "testo", titolo: "Descrivi a parole", testo: "«Bilocale di 60 mq, bagno 2 × 2,5»", icona: MessageSquareText },
+  { modo: "sopralluogo", titolo: "Dal sopralluogo", testo: "Detta le misure stanza per stanza, aggiungi le foto", icona: ClipboardList },
 ];
 
 const STATO: Record<RigaPlanimetria["stato"], string> = { bozza: "Bozza", in_uso: "In uso", archiviata: "Archiviata" };
@@ -64,7 +65,7 @@ export default function RenderPlanimetrieHub() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
           Nuova pianta
         </h2>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {INGRESSI.map(({ modo, titolo, testo, icona: Icona }) => (
             <Link key={modo} to={percorsiPlanimetrie.nuova(modo)} className="group">
               <Card className="h-full transition-colors group-hover:border-purple-400">

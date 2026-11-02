@@ -95,6 +95,8 @@ export interface PiantaPer3D {
   aree?: AreaPer3D[];
   /** Il tetto sopra il piano (Livello.tetto): si vede quando c'è il soffitto. */
   tetto?: TettoGeom;
+  /** Punti quotati del terreno (cm, y in giù): con due o più il prato intorno è in pendenza. */
+  terreno?: Array<{ x: number; y: number; quota: number }>;
 }
 
 // ─── Risultato ──────────────────────────────────────────────────────────────

@@ -80,7 +80,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
   });
   const limiti = limitiDi(mesh);
   if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) {
-    mesh.push(meshTerreno(limiti, opzioni.terreno));
+    mesh.push(meshTerreno(limiti, opzioni.terreno, piani[0]?.piante.fatto.terreno, limitiDi(mesh, (g) => g === "muro")));
     materiali.prato = MATERIALI.prato;
   }
   return { mesh, materiali, limiti, avvisi };

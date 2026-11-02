@@ -210,3 +210,41 @@ describe("planimetria-genera: sopralluogo e DXF", () => {
     expect(d.larghezza / d.altezza).toBeCloseTo(verita.larghezza_px / verita.altezza_px, 2);
   });
 });
+
+describe("planimetria-genera: rilievo (misure dettate, foto, schizzo)", () => {
+  const risposta = JSON.stringify({
+    sistema: "metri", leggibile: true, altezza_m: 2.85,
+    locali: [
+      { nome: "Cucina", destinazione: "cucina", contorno: [[0, 0], [3.2, 0], [3.2, 4.1], [0, 4.1]], misure_lette: true },
+      { nome: "Bagno", destinazione: "bagno", contorno: [[3.2, 0], [5.3, 0], [5.3, 2.4], [3.2, 2.4]], misure_lette: true },
+      { nome: "Ripostiglio", destinazione: "ripostiglio", contorno: [[3.2, 2.4], [5.3, 2.4], [5.3, 4.1], [3.2, 4.1]], misure_lette: false },
+    ],
+    aperture: [{ tipo: "porta", da: [3.2, 3], a: [3.2, 3.8] }, { tipo: "finestra", da: [1, 0], a: [2.2, 0] }],
+    quote: [], elementi: [], aree: [],
+  });
+  it("manda appunti, schizzo e foto; le stanze dettate sono rilevate, le altre stimate; scala già giusta", async () => {
+    let parti: unknown = null;
+    const esito = await generaPlanimetria(
+      { ingresso: "rilievo", testo: "cucina tre e venti per quattro e dieci, bagno 2,10 x 2,40, altezza 2,85", foto: ["data:image/jpeg;base64,AAA", "data:image/jpeg;base64,BBB"], file: { dataUrl: "data:image/jpeg;base64,CCC", mime: "image/jpeg" } },
+      async (m) => { parti = m[1].content; return { testo: risposta, modello: "finto" }; },
+    );
+    const json = JSON.stringify(parti);
+    expect(json).toContain("Appunti del sopralluogo");
+    expect(json).toContain("Schizzo fatto sul posto");
+    expect(json).toContain("Foto 2 di 2");
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) return;
+    const loc = esito.pianta.planimetria.livelli[0].fatto.locali;
+    const cucina = loc.find((l) => l.nome === "Cucina")!;
+    expect(origineMisura(cucina, "contorno")).toBe("rilevata");
+    expect(origineMisura(loc.find((l) => l.nome === "Ripostiglio")!, "contorno")).toBe("stimata");
+    expect(esito.pianta.generazione.scala?.da_confermare).toBe(false);
+    expect(esito.pianta.generazione.avvisi.join(" ")).toMatch(/Ripostiglio/);
+  });
+  it("senza appunti non chiama l'AI", async () => {
+    let chiamate = 0;
+    const esito = await generaPlanimetria({ ingresso: "rilievo", testo: "  ", foto: ["data:image/jpeg;base64,AAA"] }, async () => { chiamate++; return { testo: risposta, modello: "finto" }; });
+    expect(esito).toMatchObject({ ok: false, codice: "ingresso_mancante" });
+    expect(chiamate).toBe(0);
+  });
+});

@@ -5,7 +5,7 @@
  * (fase 2, `RenderPlanimetriaNuova` e `RenderPlanimetriaModifica`), «Carica PDF o foto» e
  * «Descrivi a parole» la generazione con l'AI (fase 3) e poi l'editor.
  */
-export type ModoNuovaPianta = "disegno" | "documento" | "testo";
+export type ModoNuovaPianta = "disegno" | "documento" | "testo" | "sopralluogo";
 
 const BASE = "/azienda/render/planimetrie";
 

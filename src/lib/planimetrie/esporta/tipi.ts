@@ -84,7 +84,7 @@ export type TipoElemento =
   | "auto" | "scaffale" | "banco_lavoro"
   | "presa" | "interruttore" | "punto_luce" | "punto_acqua" | "scarico" | "quadro_elettrico" | "termosifone" | "split"
   | "unita_esterna" | "collettore" | "colonna_scarico" | "pilastro" | "scala" | "ascensore"
-  | "pompa_calore" | "bollitore" | "inverter" | "batteria_accumulo" | "wallbox" | "termostato" | "vmc"
+  | "pompa_calore" | "bollitore" | "inverter" | "batteria_accumulo" | "wallbox" | "termostato" | "vmc" | "lucernario" | "quota_terreno"
   | "piscina" | "idromassaggio" | "pergola" | "albero" | "siepe" | "aiuola" | "ombrellone" | "lettino" | "tavolo_esterno" | "barbecue"
   | "cancello_pedonale" | "cancello_carrabile" | "lampione" | "faretto_giardino" | "irrigatore" | "pozzetto"
   | "campo_tennis" | "campo_padel" | "campo_calcio5" | "campo_calcio7" | "campo_calcio11" | "campo_basket" | "campo_pallavolo" | "campo_beach_volley" | "campo_pickleball" | "campo_bocce"
@@ -143,6 +143,8 @@ export interface VistaPianta {
   testi: TestoVista[];
   /** Lotto e aree esterne (sotto tutto). */
   aree?: AreaVista[];
+  /** Terreno in pendenza: curve di livello e quote dei punti misurati (y in giù). */
+  terreno?: { curve: Array<{ a: Punto; b: Punto; quota: number }>; punti: Array<{ posizione: Punto; testo: string }> };
   /** Gradi del nord rispetto all'alto del foglio, se noto. */
   nord?: number;
 }

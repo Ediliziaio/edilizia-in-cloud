@@ -123,7 +123,8 @@ export function EditorConSalvataggio({
       return;
     }
     setModificata(false);
-    await queryClient.invalidateQueries({ queryKey: chiaviPlanimetrie.tutte });
+    // non si aspetta il ricaricamento: si torna subito alla scheda, che rilegge da sola i dati segnati come vecchi
+    void queryClient.invalidateQueries({ queryKey: chiaviPlanimetrie.tutte });
     const differenza = effetti.reduce((t, e) => t + e.totale, 0);
     toast.success(esito.creata ? "Pianta salvata" : `Pianta salvata (versione ${esito.versione})`, effetti.length ? {
       description: `${effetti.length === 1 ? "Un computo collegato cambia" : `${effetti.length} computi collegati cambiano`} di ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "exceptZero" }).format(differenza)}: aggiornalo dalla commessa («La pianta è cambiata»).`,

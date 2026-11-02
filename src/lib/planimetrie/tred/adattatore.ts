@@ -14,6 +14,7 @@
  *
  * Il livello si disegna alla sua quota zero: un livello per volta.
  */
+import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
 import type { Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
 
@@ -69,7 +70,8 @@ export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string
   const proposta = (scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : undefined) ?? livello.proposte[0];
   // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
   const progetto = proposta ? daStatoPianta(proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : fatto;
-  // il tetto è del piano, uguale oggi e nel progetto
-  if (livello.tetto) return { fatto: { ...fatto, tetto: livello.tetto }, progetto: { ...progetto, tetto: livello.tetto }, livello };
-  return { fatto, progetto, livello };
+  // il tetto è del piano, uguale oggi e nel progetto; il terreno è di tutta la pianta
+  const punti = puntiTerreno(p).map((q) => ({ x: q.x, y: -q.y, quota: q.quota }));
+  const extra = { ...(livello.tetto ? { tetto: livello.tetto } : {}), ...(punti.length ? { terreno: punti } : {}) };
+  return { fatto: { ...fatto, ...extra }, progetto: { ...progetto, ...extra }, livello };
 }

@@ -8,6 +8,9 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import { RilievoTerreno } from "./RilievoTerreno";
+import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
+import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
 import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
@@ -15,7 +18,7 @@ import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimet
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,6 +118,20 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
 };
 
+/** Sul telefono: niente tastiera, niente clic e Maiusc; si tocca e si trascina col dito. */
+const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
+  seleziona: "Tocca una stanza, una parete o una porta: sotto compaiono le misure da correggere. Trascina una parete per spostarla.",
+  stanza: "Trascina col dito per disegnare la stanza, oppure usa «Scrivi le misure».",
+  parete: "Tocca l'inizio e poi la fine: la parete va dritta da sola.",
+  porta: "Tocca la parete dove va la porta. Toccala di nuovo per girarne il verso.",
+  finestra: "Tocca la parete dove va la finestra.",
+  poligono: "Tocca ogni angolo della stanza; tocca il primo punto per chiuderla.",
+  area: "Tocca ogni angolo dell'area; tocca il primo punto per chiuderla.",
+  arredo: "Tocca il foglio per posare l'arredo, poi trascinalo dove va.",
+  quota: "Tocca il primo punto e poi il secondo: la quota misura da sola.",
+  testo: "Tocca dove vuoi la scritta, poi scrivila qui sotto.",
+};
+
 export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
   const telefono = useIsMobile();
   // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
@@ -194,6 +211,18 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     return { pannelli: n, kwp: q["fatto:impianti:fotovoltaico.kwp"]?.valore ?? 0 };
   }, [documento]);
   const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId, propostaId), [pianta, documento, vista, livelloId, propostaId]);
+  // Mansarda: altezze e superficie utile di ogni stanza sotto le falde (per il pannello)
+  const sottotetto = useMemo(() => {
+    const liv = documento.livelli.find((l) => l.id === (livelloId ?? documento.livelli[0]?.id));
+    if (!liv?.tetto?.mansarda) return undefined;
+    const out = new Map<string, AltezzeSottotetto>();
+    for (const stato of [liv.fatto, ...liv.proposte]) {
+      const f = falde(liv, stato);
+      if (!f) continue;
+      for (const l of stato.locali) if (!out.has(l.id)) { const a = altezzeLocale(l, f); if (a) out.set(l.id, a); }
+    }
+    return out;
+  }, [documento, livelloId]);
   const latiModificabili = useMemo(
     () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
     [pianta, vista, dati],
@@ -258,7 +287,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const xs = ps.map((p) => p.x);
     const ys = ps.map((p) => p.y);
     // margine: le porte aperte verso fuori sporgono dalla pianta
-    const margine = 40 + Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
+    // (sullo schermo stretto se ne tiene poco più di mezza: con tutta, la pianta restava piccola)
+    const quota = dimensioniRef.current.w < 600 ? 0.6 : 1;
+    const margine = 25 + quota * Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
     const minX = Math.min(...xs) - margine;
     const maxX = Math.max(...xs) + margine;
     const minY = Math.min(...ys) - margine;
@@ -1188,6 +1219,30 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
     vaiAlPiano(r.id, r.documento);
   };
+  // rilievo del topografo: è di tutta la pianta (come il terreno), si cambia come un piano
+  const [rilievoAperto, setRilievoAperto] = useState(false);
+  const cambiaRilievo = (r: Rilievo | null) => {
+    const { rilievo: _prima, ...senza } = documento;
+    vaiAlPiano(livelloId ?? documento.livelli[0].id, r ? { ...senza, rilievo: r } : senza);
+  };
+  const centroPianta = () => {
+    const ps = documento.livelli.flatMap((l) => l.fatto.muri.flatMap((m) => [m.p1, m.p2]));
+    if (!ps.length) return { x: 0, y: 0 };
+    const xs = ps.map((p) => p.x), ys = ps.map((p) => p.y);
+    return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+  };
+  // gli spigoli esterni della casa (rettangolo dei muri con il loro spessore), y in su come il modello
+  const angoliPianta = () => {
+    const muri = documento.livelli.flatMap((l) => l.fatto.muri);
+    if (!muri.length) return [];
+    const xs = muri.flatMap((m) => [m.p1.x - m.spessore / 2, m.p1.x + m.spessore / 2, m.p2.x - m.spessore / 2, m.p2.x + m.spessore / 2]);
+    const ys = muri.flatMap((m) => [m.p1.y - m.spessore / 2, m.p1.y + m.spessore / 2, m.p2.y - m.spessore / 2, m.p2.y + m.spessore / 2]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    return [
+      { nome: "Spigolo nord-ovest", x: x0, y: y1 }, { nome: "Spigolo nord-est", x: x1, y: y1 },
+      { nome: "Spigolo sud-est", x: x1, y: y0 }, { nome: "Spigolo sud-ovest", x: x0, y: y0 },
+    ];
+  };
   const modificaPiano = (campi: { nome?: string; quota?: number; tetto?: Tetto | null }) => {
     if (!livelloId) return;
     const doc = rinominaLivello(documento, livelloId, campi);
@@ -1313,7 +1368,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </Button>
         )}
         {!sola && (
-          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Cosa vuoi fare">
+          <div className={cn("flex items-center gap-1", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
             <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
             <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
             <StanzaDaMisure
@@ -1344,6 +1399,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
             <StrumentoEsterni
               attivo={strumento === "area"}
+              onRilievo={() => setRilievoAperto(true)}
+              conRilievo={!!documento.rilievo}
               tipo={tipoArea}
               onScegli={(t) => {
                 setTipoArea(t);
@@ -1361,7 +1418,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
           </div>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className={cn("flex items-center gap-2", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
           {!sola && (
             <SfondoDaRicalcare
               ricalco={ricalco}
@@ -1421,7 +1478,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             pianta={pianta}
             dati={dati}
             latiModificabili={latiModificabili}
-            misureSoloSelezione={sola}
+            misureSoloSelezione={sola || telefono}
             vista={vista}
             selezione={selezione}
             gruppo={gruppo}
@@ -1456,7 +1513,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-w-sm rounded-lg border bg-background/95 p-5 text-center shadow-sm">
                 <p className="font-semibold">Comincia dalla prima stanza</p>
-                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure scrivi le misure. Le altre stanze si attaccano da sole.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure premi «Scrivi le misure» in alto e scrivi larghezza e lunghezza. Le altre stanze si attaccano da sole.</p>
                 <div className="mt-3 flex justify-center gap-2">
                   <Button size="sm" onClick={() => setStrumento("stanza")}>
                     <Square /> Disegna una stanza
@@ -1466,8 +1523,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             </div>
           )}
           {vuota && sola && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              La pianta è vuota. Tocca «Modifica» in alto per disegnarla anche da qui.
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+              <p>La pianta è vuota.</p>
+              {/* sul telefono si comincia con un tocco, senza cercare «Modifica» in alto */}
+              {telefono && soloVista === undefined && (
+                <Button size="sm" className="pointer-events-auto" onClick={() => { setModificaTelefono(true); setStrumento("stanza"); }}>
+                  <Square /> Disegna la prima stanza
+                </Button>
+              )}
             </div>
           )}
 
@@ -1505,7 +1568,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             {C.quantiNelGruppo(gruppo) > 0 ? (
               <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
             ) : (
-              <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+              <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
             )}
           </aside>
         )}
@@ -1518,11 +1581,12 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               Chiudi
             </Button>
           </div>
-          <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
+          <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
         </div>
       )}
 
-      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{SUGGERIMENTI[strumento]}</div>}
+      {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} angoliPianta={angoliPianta()} onCambia={cambiaRilievo} />}
+      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
   );
 }
@@ -1658,6 +1722,21 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                 )}
               </div>
               {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
+              {attuale.tetto && attuale.tetto.tipo !== "piano" && (
+                <div className="space-y-1 rounded-md border p-2">
+                  <label className="flex items-center gap-2 text-xs font-medium">
+                    <input type="checkbox" checked={!!attuale.tetto.mansarda} onChange={(e) => { if (!attuale.tetto) return; const { mansarda: _m, ...senza } = attuale.tetto; onModifica({ tetto: e.target.checked ? { ...senza, mansarda: { imposta: 140 } } : senza }); }} />
+                    Mansarda: le stanze stanno sotto le falde
+                  </label>
+                  {attuale.tetto.mansarda && (
+                    <>
+                      <Input key={`imp-${attuale.id}-${attuale.tetto.mansarda.imposta}`} defaultValue={metri(attuale.tetto.mansarda.imposta)} aria-label="Altezza d'imposta in metri" inputMode="decimal"
+                        onBlur={(e) => { const v = Math.round(Number(e.target.value.replace(",", ".")) * 100); if (attuale.tetto?.mansarda && Number.isFinite(v) && v >= 0 && v <= 500 && v !== attuale.tetto.mansarda.imposta) onModifica({ tetto: { ...attuale.tetto, mansarda: { imposta: v } } }); }} />
+                      <p className="text-[11px] text-muted-foreground">Altezza del soffitto sui muri di gronda, in metri (la più bassa). Da lì il soffitto sale con la pendenza: nella stanza vedi altezza minima, massima e media e la superficie utile (sopra 1,50 m).</p>
+                    </>
+                  )}
+                </div>
+              )}
               {attuale.tetto && (
                 <div className="space-y-1 rounded-md border p-2">
                   <label className="flex items-center gap-2 text-xs font-medium">
@@ -1798,14 +1877,14 @@ function SfondoDaRicalcare({ ricalco, onCambia, onCarica, calibrando, onCalibra 
 }
 
 /** Lotto e aree esterne: si sceglie cosa disegnare, poi clic sugli angoli. */
-function StrumentoEsterni({ attivo, tipo, onScegli }: { attivo: boolean; tipo: TipoArea; onScegli: (t: TipoArea) => void }) {
+function StrumentoEsterni({ attivo, tipo, onScegli, onRilievo, conRilievo }: { attivo: boolean; tipo: TipoArea; onScegli: (t: TipoArea) => void; onRilievo?: () => void; conRilievo?: boolean }) {
   const [aperto, setAperto] = useState(false);
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
       <PopoverTrigger asChild>
         <Button size="sm" variant={attivo ? "default" : "outline"} aria-pressed={attivo} title="Lotto, prato, vialetti, ghiaia, parcheggio">
           <Trees />
-          <span className="hidden lg:inline">Esterni</span>
+          <span>Esterni</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">
@@ -1819,6 +1898,12 @@ function StrumentoEsterni({ attivo, tipo, onScegli }: { attivo: boolean; tipo: T
             </button>
           ))}
         </div>
+        {onRilievo && (
+          <button type="button" onClick={() => { onRilievo(); setAperto(false); }} className="mt-2 flex w-full items-center gap-2 rounded-md border border-dashed p-2 text-left text-xs hover:bg-muted">
+            <Mountain className="h-4 w-4 shrink-0" />
+            <span><span className="font-medium">{conRilievo ? "Rilievo del topografo (caricato)" : "Rilievo del topografo…"}</span><br /><span className="text-muted-foreground">Punti battuti da CSV, TXT o DXF: terreno e curve di livello</span></span>
+          </button>
+        )}
       </PopoverContent>
     </Popover>
   );

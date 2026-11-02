@@ -8,12 +8,19 @@
  * terrazzi 0,30, cantine e ripostigli esterni 0,25, garage e box 0,50. I muri non si contano (la
  * pianta misura al filo interno): è una superficie netta ragguagliata, non quella catastale.
  *
+ * Mansarde (tetto con «Mansarda»): la parte della stanza sotto 1,50 m d'altezza conta al 30%,
+ * come un accessorio; il resto con il coefficiente della destinazione.
+ *
  * Millesimi: in proporzione alla superficie commerciale, arrotondati a due decimali, con la
  * somma che fa 1000 esatti. Sono una proposta: la tabella vera la firma un tecnico.
  */
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
 import type { Planimetria, StatoVendita, VenditaUnita } from "../../../shared/planimetrie/modello.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
+import { altezzeLocale, falde } from "../../../shared/planimetrie/sottotetto.ts";
+
+/** Coefficiente della parte di sottotetto sotto 1,50 m. */
+export const COEFFICIENTE_SOTTO_150 = 0.3;
 
 export const COEFFICIENTI_UNITA: Record<string, number> = { balcone: 0.3, terrazzo: 0.3, cantina: 0.25, garage: 0.5 };
 const comune = (s: string) => /comun|condominial|androne/i.test(s);
@@ -39,11 +46,18 @@ export function unitaDellEdificio(doc: Planimetria, ambito = "fatto"): Unita[] {
   const per = new Map<string, LocaleUnita[]>();
   for (const l of [...doc.livelli].sort((a, b) => a.quota - b.quota)) {
     const stato = statoPerAmbito(doc, l.id, ambito) ?? l.fatto;
+    const sottoFalde = falde(l, stato);
     for (const loc of stato.locali) {
       if (!loc.unita?.trim() || comune(loc.unita)) continue;
       const mq = areaPoligono(loc.contorno) / 10_000;
+      const base = COEFFICIENTI_UNITA[loc.destinazione] ?? 1;
+      const sotto = sottoFalde ? altezzeLocale(loc, sottoFalde) : null;
+      // in mansarda: la parte bassa vale meno
+      const coefficiente = sotto && sotto.superficie > 0
+        ? Math.round(((sotto.superficieUtile * base + (sotto.superficie - sotto.superficieUtile) * Math.min(base, COEFFICIENTE_SOTTO_150)) / sotto.superficie) * 1000) / 1000
+        : base;
       const lista = per.get(loc.unita.trim()) ?? [];
-      lista.push({ id: loc.id, livelloId: l.id, livello: l.nome, nome: loc.nome, destinazione: loc.destinazione, mq: arr2(mq), coefficiente: COEFFICIENTI_UNITA[loc.destinazione] ?? 1 });
+      lista.push({ id: loc.id, livelloId: l.id, livello: l.nome, nome: loc.nome, destinazione: loc.destinazione, mq: arr2(mq), coefficiente });
       per.set(loc.unita.trim(), lista);
     }
   }

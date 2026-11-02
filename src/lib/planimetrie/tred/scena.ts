@@ -6,7 +6,8 @@
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
 import { pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
-import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, type P3 } from "../../../../shared/planimetrie/tetto.ts";
+import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
+import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciMuro, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
@@ -76,7 +77,7 @@ function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
   if (!t || !muri.length) return [];
   const r = rettangoloTetto(pianta.muri, t.sporto);
   if (!r) return [];
-  const h = Math.max(...muri.map((m) => m.altezza)) / CM;
+  const h = baseTetto(t, Math.max(...muri.map((m) => m.altezza)) / CM);
   const facce = facceTetto(r, h, t);
   const v3 = (p: P3): V3 => [p.x * CM, p.z * CM, p.y * CM];
   const normale = (a: V3, b: V3, c: V3): V3 => {
@@ -104,6 +105,45 @@ function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
   return out;
 }
 
+/** Le falde di una mansarda in cm, y verso il basso come la pianta 3D; null se non è una mansarda. */
+function faldeMansarda(pianta: PiantaPer3D): Faccia[] | null {
+  const t = pianta.tetto;
+  if (!t?.mansarda || t.tipo === "piano" || !pianta.muri.length) return null;
+  const r = rettangoloTetto(pianta.muri, t.sporto);
+  if (!r) return null;
+  return facceTetto(r, baseTetto(t, Math.max(...pianta.muri.map((m) => m.altezza))), t);
+}
+
+const quotaIn = (falde: Faccia[], x: number, y: number) => (quotaFalde(falde, x / CM, y / CM) ?? 0) * CM;
+const PASSI_MURO = 24;
+
+/** La quota più bassa del tetto lungo l'asse del muro (m): fin lì il muro è un parallelepipedo. */
+function quotaMinimaLungo(falde: Faccia[], m: MuroCalc): number {
+  let z = Infinity;
+  for (let i = 0; i <= PASSI_MURO; i++) {
+    const t = i / PASSI_MURO;
+    z = Math.min(z, quotaIn(falde, m.a.x + (m.b.x - m.a.x) * t, m.a.y + (m.b.y - m.a.y) * t));
+  }
+  return Number.isFinite(z) && z > 0.3 ? z : m.altezza;
+}
+
+/** Sopra il parallelepipedo, il pezzo di muro che segue la falda (i due lati), fino al tetto. */
+function sottoFalde(falde: Faccia[], m: MuroCalc, c: CostruttoreMesh) {
+  const quote = Array.from({ length: PASSI_MURO + 1 }, (_, i) => {
+    const t = i / PASSI_MURO;
+    return { t, z: quotaIn(falde, m.a.x + (m.b.x - m.a.x) * t, m.a.y + (m.b.y - m.a.y) * t) };
+  });
+  if (Math.max(...quote.map((q) => q.z)) - m.altezza < 0.01) return;
+  for (const lato of [1, -1]) {
+    const o = { x: m.n.x * lato * m.spessore / 2, y: m.n.y * lato * m.spessore / 2 };
+    const punto = (t: number, z: number): V3 => [m.a.x + (m.b.x - m.a.x) * t + o.x, z, m.a.y + (m.b.y - m.a.y) * t + o.y];
+    const sopra = quote.map((q) => punto(q.t, Math.max(q.z, m.altezza)));
+    const poligono = [punto(1, m.altezza), punto(0, m.altezza), ...sopra];
+    const normale: V3 = [m.n.x * lato, 0, m.n.y * lato];
+    c.poligono(lato > 0 ? poligono : [...poligono].reverse(), normale);
+  }
+}
+
 export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {}): Scena3D {
   const vista = opzioni.vista ?? "progetto";
   const colori = vista === "confronto";
@@ -112,7 +152,9 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   const mesh: Mesh3D[] = [];
   const avvisi: string[] = [];
 
-  const muri = muriCalcolati(pianta, vista);
+  // Mansarda: le falde sono il soffitto; i muri salgono fin sotto il tetto (vedi sottoFalde)
+  const falde = faldeMansarda(pianta);
+  const muri = falde ? muriCalcolati(pianta, vista).map((m) => ({ ...m, altezza: quotaMinimaLungo(falde, m) })) : muriCalcolati(pianta, vista);
   const scartati = pianta.muri.filter((m) => muroPresente(m.stato, vista)).length - muri.length;
   if (scartati > 0) avvisi.push(`${scartati} muri senza lunghezza, spessore o altezza: non disegnati.`);
   const { estremi, nodi } = calcolaIncroci(muri);
@@ -144,6 +186,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       if (!spallette.has(v.id)) spallette.set(v.id, new CostruttoreMesh());
       return spallette.get(v.id)!;
     });
+    if (falde) sottoFalde(falde, m, corpo);
     mesh.push(corpo.mesh({ id: `muro:${m.id}`, nome: `Muro ${m.id}`, genere: "muro", materiale: materialeMuro(m.stato, colori), riferimento: m.id }));
     for (const [id, c] of spallette) {
       mesh.push(c.mesh({ id: `vano:${id}`, nome: `Vano da aprire ${id}`, genere: "vano", materiale: "muro_demolire", riferimento: id }));
@@ -185,7 +228,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialePavimento(l.destinazione), riferimento: l.id }));
     }
     // all'aperto non c'è soffitto
-    if (conSoffitto && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
+    if (conSoffitto && !falde && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
       const sof = new CostruttoreMesh();
       sof.orizzontale(contorno, l.altezza * CM, false);
       mesh.push(sof.mesh({ id: `soffitto:${l.id}`, nome: `Soffitto ${l.nome}`, genere: "soffitto", materiale: "soffitto", riferimento: l.id }));
@@ -199,7 +242,14 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
         el.tipo,
         { x: el.centro.x * CM, z: el.centro.y * CM },
         (el.rotazione * Math.PI) / 180,
-        { l: el.larghezza !== undefined ? el.larghezza * CM : undefined, p: el.profondita !== undefined ? el.profondita * CM : undefined, h: el.altezza !== undefined ? el.altezza * CM : undefined },
+        {
+          l: el.larghezza !== undefined ? el.larghezza * CM : undefined,
+          p: el.profondita !== undefined ? el.profondita * CM : undefined,
+          // in mansarda il lucernario sta sulla falda sopra di lui
+          h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02
+            : el.tipo === "quota_terreno" ? (pianta.terreno?.length ? quotaTerreno(pianta.terreno, el.centro.x, el.centro.y) * CM : 0)
+            : el.altezza !== undefined ? el.altezza * CM : undefined,
+        },
         (materiale) => {
           if (!perMateriale.has(materiale)) perMateriale.set(materiale, new CostruttoreMesh());
           return perMateriale.get(materiale)!;
@@ -250,15 +300,42 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   }
 
   const limiti = limitiDi(mesh);
-  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno));
+  if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro")));
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
   return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi };
 }
 
-/** Il prato intorno, `k` metri oltre i limiti, un centimetro sotto quota zero (non si sovrappone ai pavimenti). */
-export function meshTerreno(limiti: { min: V3; max: V3 }, k: number): Mesh3D {
+/**
+ * Il prato intorno, `k` metri oltre i limiti, un centimetro sotto quota zero (non si sovrappone ai
+ * pavimenti). Con due o più punti quotati il terreno segue la loro pendenza (shared/planimetrie/
+ * terreno.ts), su una griglia; sotto l'edificio resta a quota zero (lo scavo o il riporto attorno
+ * alla casa è il gradino che si vede).
+ */
+export function meshTerreno(limiti: { min: V3; max: V3 }, k: number, punti?: PuntoQuotato[], edificio?: { min: V3; max: V3 }): Mesh3D {
   const t = new CostruttoreMesh();
+  if (punti && punti.length >= 2) {
+    const x0 = Math.min(limiti.min[0], ...punti.map((p) => p.x * CM)) - k, x1 = Math.max(limiti.max[0], ...punti.map((p) => p.x * CM)) + k;
+    const z0 = Math.min(limiti.min[2], ...punti.map((p) => p.y * CM)) - k, z1 = Math.max(limiti.max[2], ...punti.map((p) => p.y * CM)) + k;
+    const n = 48;
+    const sotto = (x: number, z: number) => !!edificio && Number.isFinite(edificio.min[0]) && x >= edificio.min[0] - 0.05 && x <= edificio.max[0] + 0.05 && z >= edificio.min[2] - 0.05 && z <= edificio.max[2] + 0.05;
+    const h = (i: number, j: number): V3 => {
+      const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * j) / n;
+      return [x, sotto(x, z) ? -0.01 : quotaTerreno(punti, x / CM, z / CM) * CM - 0.01, z];
+    };
+    const tri = (a: V3, b: V3, c: V3) => {
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      let nn: V3 = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      if (nn[1] < 0) nn = [-nn[0], -nn[1], -nn[2]];
+      t.poligono([a, b, c], nn);
+    };
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const a = h(i, j), b = h(i + 1, j), c = h(i + 1, j + 1), d = h(i, j + 1);
+      tri(a, b, c);
+      tri(a, c, d);
+    }
+    return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
+  }
   t.orizzontale([v2(limiti.min[0] - k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.min[2] - k), v2(limiti.max[0] + k, limiti.max[2] + k), v2(limiti.min[0] - k, limiti.max[2] + k)], -0.01, true);
   return t.mesh({ id: "terreno", nome: "Terreno", genere: "pavimento", materiale: "prato", riferimento: "terreno" });
 }
