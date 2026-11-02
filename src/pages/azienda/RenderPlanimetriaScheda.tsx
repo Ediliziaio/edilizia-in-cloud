@@ -237,7 +237,7 @@ export default function RenderPlanimetriaScheda() {
             completati.length > 0 && ["render-fatti", "Render fatti"],
           ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
             <a key={ancora} href={`#${ancora}`} onClick={(e) => { e.preventDefault(); document.getElementById(ancora)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-              className="rounded-full border bg-background px-3 py-1 text-muted-foreground transition-colors hover:border-purple-400 hover:text-foreground">
+              className="rounded-full border bg-background px-3 py-1 text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground">
               {nome}
             </a>
           ))}
@@ -268,7 +268,7 @@ export default function RenderPlanimetriaScheda() {
             Stanze
           </h2>
           {stanze.length > 1 && (
-            <Button size="sm" className="gap-1.5 bg-purple-600 hover:bg-purple-700" onClick={() => setSerie("")}>
+            <Button size="sm" className="gap-1.5 bg-primary hover:bg-primary/90" onClick={() => setSerie("")}>
               <Sparkles className="h-4 w-4" />
               Render di tutte le stanze
             </Button>
@@ -291,19 +291,19 @@ export default function RenderPlanimetriaScheda() {
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold leading-tight">{v.locale.nome}</p>
                       {(v.locale.stimata || v.aperture.some((a) => a.stimata)) && (
-                        <Badge variant="outline" className="shrink-0 border-violet-300 text-violet-700" title="Misure dedotte dall'AI: da controllare">
+                        <Badge variant="outline" className="shrink-0 border-primary/40 text-primary" title="Misure dedotte dall'AI: da controllare">
                           Misure stimate
                         </Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">{riepilogoStanza(v)}</p>
-                    <Button asChild className="w-full bg-purple-600 hover:bg-purple-700" size="sm">
+                    <Button asChild className="w-full bg-primary hover:bg-primary/90" size="sm">
                       <Link to={percorsiPlanimetrie.renderStanza(id, v.locale.id, { livelloId: livello.id, ambito })}>
                         <Wand2 className="mr-1.5 h-4 w-4" />
                         Fai il render di questa stanza
                       </Link>
                     </Button>
-                    <Button variant="ghost" size="sm" className="w-full text-purple-700" onClick={() => setSerie(v.locale.id)}>
+                    <Button variant="ghost" size="sm" className="w-full text-primary" onClick={() => setSerie(v.locale.id)}>
                       <Sparkles className="mr-1.5 h-4 w-4" />
                       Più stili insieme
                     </Button>

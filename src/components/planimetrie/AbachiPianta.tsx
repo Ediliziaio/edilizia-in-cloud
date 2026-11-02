@@ -74,7 +74,7 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
                         <td className="px-3 py-2 font-semibold tabular-nums">{r.codice}</td>
                         <td className="px-3 py-2">{r.tipo}</td>
                         <td className="px-3 py-2 text-muted-foreground">{r.manovra}</td>
-                        <td className={`px-3 py-2 text-right tabular-nums ${r.stimata ? "italic text-violet-700" : ""}`} title={r.stimata ? "Misure stimate: da controllare" : undefined}>
+                        <td className={`px-3 py-2 text-right tabular-nums ${r.stimata ? "italic text-primary" : ""}`} title={r.stimata ? "Misure stimate: da controllare" : undefined}>
                           {r.stimata && "≈ "}{r.larghezza} × {r.altezza}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{r.davanzale || "—"}</td>
@@ -108,7 +108,7 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
                     {stanze.map((r) => (
                       <tr key={r.id} className="border-b last:border-0">
                         <td className="px-3 py-2">
-                          <p className="font-medium">{r.nome}{r.stimata && <span className="ml-1 text-violet-700" title="Misure stimate">≈</span>}</p>
+                          <p className="font-medium">{r.nome}{r.stimata && <span className="ml-1 text-primary" title="Misure stimate">≈</span>}</p>
                           {r.finiture !== "—" && <p className="text-xs text-muted-foreground">{r.finiture}</p>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{n2(r.pavimentoMq)}</td>

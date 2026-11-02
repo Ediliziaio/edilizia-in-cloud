@@ -269,7 +269,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
                       aria-pressed={tipo === valore}
                       className={cn(
                         "rounded-md border p-3 text-left text-sm transition-colors",
-                        tipo === valore ? "border-purple-600 bg-purple-50 ring-1 ring-purple-600" : "hover:bg-muted",
+                        tipo === valore ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted",
                       )}
                     >
                       <div className="font-medium">{titolo}</div>
@@ -329,7 +329,7 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
             </div>
           )}
 
-          <Button className="w-full bg-purple-600 hover:bg-purple-700" disabled={!pronto || inCorso} onClick={avvia}>
+          <Button className="w-full bg-primary hover:bg-primary/90" disabled={!pronto || inCorso} onClick={avvia}>
             {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : modo === "testo" ? <Wand2 className="mr-2 h-4 w-4" /> : modo === "sopralluogo" ? <ClipboardList className="mr-2 h-4 w-4" /> : <FileUp className="mr-2 h-4 w-4" />}
             {inCorso ? "Sto ricavando la pianta… di solito meno di un minuto" : "Ricava la pianta"}
           </Button>
@@ -386,8 +386,8 @@ function ConfermaScala({ generata, onConferma }: { generata: Generata; onConferm
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-sm">
-      <div className="w-full flex items-center gap-2 font-medium text-violet-900">
+    <div className="flex flex-wrap items-end gap-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+      <div className="w-full flex items-center gap-2 font-medium text-foreground">
         <Ruler className="h-4 w-4" /> Metti la pianta in scala: scrivi una misura vera di una stanza, tutto il resto si adegua.
       </div>
       <div className="space-y-1">

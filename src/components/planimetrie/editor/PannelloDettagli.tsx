@@ -292,7 +292,7 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
                   {l.nome}
                   <span className="ml-1 text-xs text-muted-foreground">{etichettaDestinazione(l.destinazione, l.nome)}</span>
                 </span>
-                <span className={cn("shrink-0 whitespace-nowrap pl-2 tabular-nums", q.stimata && "italic text-violet-700")}>
+                <span className={cn("shrink-0 whitespace-nowrap pl-2 tabular-nums", q.stimata && "italic text-primary")}>
                   {q.stimata ? "≈ " : ""}
                   {scriviMq(q.mq)}
                 </span>
@@ -313,8 +313,8 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
         </p>
       )}
       {stimate > 0 && (
-        <div className="rounded-md border border-violet-200 bg-violet-50 p-3 text-sm">
-          <p className="text-violet-900">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+          <p className="text-foreground">
             <strong>{stimate}</strong> {stimate === 1 ? "misura è stimata" : "misure sono stimate"}: si vedono a righe viola e con «≈».
             Controllale sul posto, poi confermale.
           </p>
@@ -326,7 +326,7 @@ function ElencoStanze({ pianta, dati, vista, azioni }: { pianta: Pianta; dati: D
               <Check /> Le ho controllate tutte
             </Button>
           </div>
-          <p className="mt-1.5 text-xs text-violet-900/80">Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima.</p>
+          <p className="mt-1.5 text-xs text-foreground/80">Una alla volta: si parte dalla stanza più grande; correggi la misura se serve e premi «Misura controllata», si passa da sola alla prossima.</p>
         </div>
       )}
       <DaSistemare pianta={pianta} dati={dati} azioni={azioni} />
@@ -451,14 +451,14 @@ function DettaglioStanza({
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">
         <div>
           <div className="text-xs text-muted-foreground">Pavimento</div>
-          <div className={`text-base font-semibold ${q.stimata ? "italic text-violet-700" : ""}`}>
+          <div className={`text-base font-semibold ${q.stimata ? "italic text-primary" : ""}`}>
             {q.stimata ? "≈ " : ""}
             {scriviMq(q.mq)}
           </div>
         </div>
         <div>
           <div className="text-xs text-muted-foreground">Perimetro</div>
-          <div className={`text-base font-semibold ${q.stimata ? "italic text-violet-700" : ""}`}>
+          <div className={`text-base font-semibold ${q.stimata ? "italic text-primary" : ""}`}>
             {q.stimata ? "≈ " : ""}
             {scriviMetri(q.perimetro * 100)} m
           </div>
@@ -745,7 +745,7 @@ export function CampoMisura({
         disabled={disabled}
         aria-label={etichetta}
         aria-invalid={errore}
-        className={`h-9 tabular-nums ${stimata ? "border-dashed border-violet-400 italic text-violet-800" : ""} ${errore ? "border-destructive" : ""}`}
+        className={`h-9 tabular-nums ${stimata ? "border-dashed border-primary/40 italic text-primary" : ""} ${errore ? "border-destructive" : ""}`}
         onChange={(e) => setTesto(e.target.value)}
         onBlur={applica}
         onKeyDown={(e) => {

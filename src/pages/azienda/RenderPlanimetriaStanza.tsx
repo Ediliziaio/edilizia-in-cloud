@@ -334,7 +334,7 @@ export default function RenderPlanimetriaStanza() {
         badgeLabel="Render AI — Planimetrie"
         stepLabels={["Da dove parti", "Stile", "Elaborazione", "Risultato"]}
         currentStep={passo}
-        accent="violet"
+        accent="blue"
       />
 
       {/* La stanza come la vede il render: misure e aperture con i loro nomi. */}
@@ -345,7 +345,7 @@ export default function RenderPlanimetriaStanza() {
             <div className="min-w-0 space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{vincoli.locale.nome}</p>
-                {misureStimate && <Badge variant="outline" className="border-violet-300 text-violet-700">Misure stimate</Badge>}
+                {misureStimate && <Badge variant="outline" className="border-primary/40 text-primary">Misure stimate</Badge>}
               </div>
               <p className="text-muted-foreground">{riepilogoStanza(vincoli)}</p>
               {vincoli.aperture.length > 0 && (
@@ -360,7 +360,7 @@ export default function RenderPlanimetriaStanza() {
                 </ul>
               )}
               {misureStimate && (
-                <p className="text-xs text-violet-700">
+                <p className="text-xs text-primary">
                   Alcune misure sono state dedotte dall'AI e nessuno le ha ancora controllate: il render le usa come indicative. Confermale nella pianta per un risultato più fedele.
                 </p>
               )}
@@ -424,10 +424,10 @@ export default function RenderPlanimetriaStanza() {
                 ) : (
                   <button
                     type="button"
-                    className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/30 p-10 transition-colors hover:border-purple-500/50"
+                    className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/30 p-10 transition-colors hover:border-primary/50"
                     onClick={() => fileRef.current?.click()}
                   >
-                    <Upload className="h-8 w-8 text-purple-500/70" />
+                    <Upload className="h-8 w-8 text-primary/70" />
                     <span className="font-semibold">Carica una foto di questa stanza</span>
                     <span className="text-sm text-muted-foreground">JPG, PNG o WEBP fino a 20 MB. Meglio frontale e luminosa.</span>
                   </button>
@@ -437,7 +437,7 @@ export default function RenderPlanimetriaStanza() {
             </Card>
           )}
 
-          <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" size="lg" disabled={!pronto} onClick={() => setPasso(2)}>
+          <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={!pronto} onClick={() => setPasso(2)}>
             <Wand2 className="h-4 w-4" />
             Avanti: scegli lo stile
           </Button>
@@ -466,7 +466,7 @@ export default function RenderPlanimetriaStanza() {
           </Card>
           {/* Senza crediti avvisa e blocca, come negli altri render. */}
           <RenderCreditGate hardBlock>
-            <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" size="lg" disabled={inCorso} onClick={genera}>
+            <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={inCorso} onClick={genera}>
               {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
               {preparo ? "Preparo il render…" : "Genera il render"}
             </Button>
@@ -475,7 +475,7 @@ export default function RenderPlanimetriaStanza() {
       )}
 
       {passo === 3 && (
-        <RenderProcessingCard photoPreview={anteprima} elapsedSec={trascorsi} dots={puntini} accent="violet" subjectLabel={`L'AI sta facendo il render di «${vincoli.locale.nome}»`} />
+        <RenderProcessingCard photoPreview={anteprima} elapsedSec={trascorsi} dots={puntini} accent="blue" subjectLabel={`L'AI sta facendo il render di «${vincoli.locale.nome}»`} />
       )}
 
       {passo === 4 && risultato && (
