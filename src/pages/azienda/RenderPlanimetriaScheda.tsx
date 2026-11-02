@@ -23,6 +23,7 @@ import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialo
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
 import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
 import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
+import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -215,6 +216,8 @@ export default function RenderPlanimetriaScheda() {
           vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"}
         />
       )}
+
+      <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} />
 
       <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} />
 
