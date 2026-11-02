@@ -1,6 +1,6 @@
-import { valoreInTesto, valoriDaStampare } from "../_shared/moduliCantiere.ts";
+import { valoreInTesto, valoriDaStampare, type ValoreCampo } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
-import { bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
+import { compilatoDa, bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
 
 /** Keep paragraph breaks; replace unsupported glyphs explicitly instead of crashing. */
 export function printable(value: string): string {
@@ -64,6 +64,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const fineLavori = r.lavoro_completato === true;
   const title = fineLavori ? "Rapporto di fine lavori" : "Rapportino giornaliero";
   const codiceCommessa = text(order.order_code);
+  // Un rapportino di fine lavori o firmato è un documento per il cliente: i valori interni restano nell'app.
+  const documentoPer = fineLavori || !!text(r.firma_cliente_url) ? "cliente" as const : "interno" as const;
 
   const T = (value: string, x: number, yy: number, size = 9, font: PDFFont = regular, color: Rgb = ink, opacity = 1) =>
     page.drawText(printable(value), { x, y: yy, size, font, color, ...(opacity < 1 ? { opacity } : {}) });
@@ -121,10 +123,10 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const ensure = (needed: number) => { if (y - needed < bottom) { nextPage(); return true; } return false; };
   const sezione = (label: string, riserva = 60) => {
     ensure(riserva);
-    y -= 8;
+    y -= 2;
     box(M, y, 3.5, 12, accent);
     T(label.toUpperCase(), M + 10, y - 9.5, 9.5, bold, ink);
-    y -= 24;
+    y -= 19;
   };
   const paragraph = (value: string, size = 9.5, color: Rgb = ink, width = CW, x = M) => {
     for (const l of wrap(value, regular, size, width)) { ensure(size + 5); T(l, x, y - size, size, regular, color); y -= size + 4; }
@@ -146,7 +148,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
       let yy = y - 15;
       if (testa) { T(titolo!.toUpperCase(), M + 15, yy, 7.4, bold, tono.titolo); yy -= 17; }
       righe.slice(i, i + quante).forEach(l => { T(l, M + 15, yy, size, regular, ink); yy -= lead; });
-      y -= altezza + 8;
+      y -= altezza + 6;
       i += quante;
     } while (i < righe.length);
   };
@@ -191,32 +193,93 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     y -= 8;
   };
 
+  /** I campi propri: nome sopra, valore sotto, due per riga; un testo lungo prende tutta la riga e può cambiare pagina. */
+  const griglia = (valori: ValoreCampo[], x0 = M, largh = CW) => {
+    const wCol = (largh - 6) / 2, pad = 10, lead = 12;
+    const nome = (v: ValoreCampo) => `${v.etichetta}${v.fase_nome ? ` (${v.fase_nome})` : ""}`;
+    const cella = (v: ValoreCampo, x: number, w: number, yTop: number, righe: string[]) => {
+      const nomi = wrap(nome(v), bold, 6.8, w - pad * 2).slice(0, 2);
+      nomi.forEach((l, i) => T(l, x + pad, yTop - 12 - i * 9, 6.8, bold, muted));
+      righe.forEach((l, i) => T(l, x + pad, yTop - 13 - nomi.length * 9 - 3 - i * lead, 9.2, regular, ink));
+    };
+    const altezzaNome = (v: ValoreCampo, w: number) => wrap(nome(v), bold, 6.8, w - pad * 2).slice(0, 2).length * 9;
+    for (let i = 0; i < valori.length;) {
+      const a = valori[i], righeA = wrap(valoreInTesto(a), regular, 9.2, wCol - pad * 2);
+      if (righeA.length > 2) {
+        const tutte = wrap(valoreInTesto(a), regular, 9.2, largh - pad * 2);
+        let fatte = 0, prima = true;
+        while (fatte < tutte.length) {
+          ensure(50);
+          const testa = prima ? altezzaNome(a, largh) + 3 : 0;
+          const quante = Math.min(tutte.length - fatte, Math.max(1, Math.floor((y - bottom - 12 - testa) / lead)));
+          const h = testa + quante * lead + 12;
+          box(x0, y, largh, h, pale);
+          if (prima) cella(a, x0, largh, y, tutte.slice(0, quante));
+          else tutte.slice(fatte, fatte + quante).forEach((l, k) => T(l, x0 + pad, y - 13 - k * lead, 9.2, regular, ink));
+          y -= h + 4; fatte += quante; prima = false;
+        }
+        i += 1;
+        continue;
+      }
+      const b = valori[i + 1];
+      const righeB = b ? wrap(valoreInTesto(b), regular, 9.2, wCol - pad * 2) : [];
+      const insieme = !!b && righeB.length <= 2;
+      const h = Math.max(altezzaNome(a, wCol) + righeA.length * lead, insieme ? altezzaNome(b, wCol) + righeB.length * lead : 0) + 15;
+      ensure(h + 4);
+      box(x0, y, wCol, h, pale); cella(a, x0, wCol, y, righeA);
+      if (insieme) { box(x0 + wCol + 6, y, wCol, h, pale); cella(b, x0 + wCol + 6, wCol, y, righeB); }
+      y -= h + 4; i += insieme ? 2 : 1;
+    }
+    y -= 4;
+  };
+  /** I campi di una fase: etichette nella scheda, accanto all'avanzamento. Un testo lungo va in griglia. */
+  const etichetteFase = (valori: ValoreCampo[], x0: number, largh: number) => {
+    const corti = valori.filter(v => larghezza(`${v.etichetta}  ${valoreInTesto(v)}`, 8.2) + 18 <= largh);
+    const lunghi = valori.filter(v => !corti.includes(v));
+    if (corti.length) {
+      ensure(26);
+      y -= 6;
+      let x = x0;
+      for (const v of corti) {
+        const testo = valoreInTesto(v);
+        const w = larghezza(`${v.etichetta}  `, 8.2) + larghezza(testo, 8.2, bold) + 18;
+        if (x + w > x0 + largh) { x = x0; y -= 22; ensure(22); }
+        rbox(x, y, w, 18, 9, white, line);
+        T(`${v.etichetta}  `, x + 9, y - 12.5, 8.2, regular, muted);
+        T(testo, x + 9 + larghezza(`${v.etichetta}  `, 8.2), y - 12.5, 8.2, bold, ink);
+        x += w + 6;
+      }
+      y -= 22;
+    }
+    if (lunghi.length) { y -= 4; griglia(lunghi.map(v => ({ ...v, fase_nome: undefined })), x0, largh); }
+  };
+
   // ═════════ Fascia di intestazione ═════════
-  const fasciaH = 96;
+  const fasciaH = 68;
   box(0, H, W, fasciaH, accent);
   const logo = ctx.branding.logoUrl ? await embed(ctx.branding.logoUrl, "logo") : null;
   const companyName = text(ctx.company.name) || "Impresa";
   const logoW = 66;
   if (logo) {
-    rbox(M, H - 22, logoW, 52, 8, white);
-    const d = logo.scaleToFit(logoW - 12, 40);
-    page.drawImage(logo, { x: M + (logoW - d.width) / 2, y: H - 22 - 26 - d.height / 2, ...d });
+    rbox(M, H - 12, logoW, 44, 7, white);
+    const d = logo.scaleToFit(logoW - 10, 36);
+    page.drawImage(logo, { x: M + (logoW - d.width) / 2, y: H - 12 - 22 - d.height / 2, ...d });
   }
   const xNome = M + (logo ? logoW + 14 : 0);
   const larghezzaNome = 300 - (logo ? logoW + 14 : 0);
-  const righeNome = wrap(companyName, bold, 14, larghezzaNome).slice(0, 2);
-  let yNome = H - 38;
-  righeNome.forEach(l => { T(l, xNome, yNome, 14, bold, onAccent); yNome -= 17; });
+  const righeNome = wrap(companyName, bold, 13, larghezzaNome).slice(0, 2);
+  let yNome = H - 26;
+  righeNome.forEach(l => { T(l, xNome, yNome, 13, bold, onAccent); yNome -= 15; });
   const contatti = [text(ctx.company.legal_address), text(ctx.company.legal_city), text(ctx.company.phone), text(ctx.company.email), ctx.company.vat_number ? `P.IVA ${text(ctx.company.vat_number)}` : ""].filter(Boolean).join("  |  ");
-  wrap(contatti, regular, 7.4, larghezzaNome).slice(0, 2).forEach(l => { T(l, xNome, yNome - 2, 7.4, regular, onAccent, .85); yNome -= 10; });
+  wrap(contatti, regular, 7, larghezzaNome).slice(0, righeNome.length > 1 ? 1 : 2).forEach(l => { T(l, xNome, yNome - 1, 7, regular, onAccent, .85); yNome -= 9; });
   const xDestra = W - M;
   const etichetta = title.toUpperCase();
-  T(etichetta, xDestra - larghezza(etichetta, 8, bold), H - 32, 8, bold, onAccent, .9);
+  T(etichetta, xDestra - larghezza(etichetta, 8, bold), H - 22, 8, bold, onAccent, .9);
   const dataGrande = dayLabel(r.data_lavoro);
-  T(dataGrande, xDestra - larghezza(dataGrande, 19, bold), H - 55, 19, bold, onAccent);
+  T(dataGrande, xDestra - larghezza(dataGrande, 16, bold), H - 41, 16, bold, onAccent);
   const rifTesto = `Rif. ${shortId}${r.meteo ? `  |  Meteo: ${text(r.meteo)}` : ""}`;
-  T(rifTesto, xDestra - larghezza(rifTesto, 8), H - 72, 8, regular, onAccent, .9);
-  y = H - fasciaH - 16;
+  T(rifTesto, xDestra - larghezza(rifTesto, 7.4), H - 55, 7.4, regular, onAccent, .9);
+  y = H - fasciaH - 12;
 
   // ═════════ Scheda commessa ═════════
   const colonne: [string, string, number][] = [
@@ -252,6 +315,15 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     riquadro("Rapportino rifiutato dall'ufficio", text(r.motivo_rifiuto) || "Motivazione non registrata.", { bg: redPale, barra: red, titolo: red });
   }
 
+  // ═════════ Fine lavori: l'esito si legge subito ═════════
+  if (fineLavori) {
+    const firmaCliente = text(r.firma_cliente_url);
+    const chi = text(r.firma_cliente_nome);
+    riquadro(firmaCliente ? "Lavori confermati dal cliente" : "Conferma del cliente non acquisita",
+      firmaCliente ? `${chi || "Il cliente"} ha confermato i lavori descritti in questo rapporto${r.firma_cliente_at ? ` il ${timestamp(r.firma_cliente_at)}` : ""}.` : "Questo rapporto non porta ancora la firma del cliente.",
+      firmaCliente ? { bg: greenPale, barra: green, titolo: green } : { bg: amberPale, barra: amber, titolo: amber });
+  }
+
   // ═════════ Contatori ═════════
   const fasiCompletate = blocchi.fasi.filter(f => f.percentuale === 100).length;
   const contatori: [string, string, string][] = [
@@ -260,17 +332,21 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     ["MATERIALI", String(blocchi.totaleMateriali), ""],
     ["FOTO", String(blocchi.totaleFoto), ""],
   ];
-  ensure(70);
-  const wTessera = (CW - 3 * 8) / 4;
-  contatori.forEach(([etich, valore, sotto], i) => {
-    const x = M + i * (wTessera + 8);
-    box(x, y, wTessera, 56, pale);
-    box(x, y, wTessera, 3, accent);
-    T(etich, x + 11, y - 18, 6.6, bold, muted);
-    T(valore, x + 11, y - 40, 19, bold, valore === "0" || valore === "0 h" || valore === "-" ? faint : ink);
-    if (sotto) T(sotto, x + 11 + larghezza(valore, 19, bold) + 6, y - 40, 7.2, regular, muted);
-  });
-  y -= 56 + 10;
+  // Una conferma del cliente non ha ore né materiali: quattro zeri non dicono nulla.
+  const vuoti = (v: string) => v === "0" || v === "0 h" || v === "-";
+  if (!fineLavori || contatori.some(([, v]) => !vuoti(v))) {
+    ensure(60);
+    const wTessera = (CW - 3 * 8) / 4;
+    contatori.forEach(([etich, valore, sotto], i) => {
+      const x = M + i * (wTessera + 8);
+      box(x, y, wTessera, 36, pale);
+      box(x, y, wTessera, 2.5, accent);
+      T(etich, x + 10, y - 12, 6.4, bold, muted);
+      T(valore, x + 10, y - 28, 13, bold, vuoti(valore) ? faint : ink);
+      if (sotto) T(sotto, x + 10 + larghezza(valore, 13, bold) + 5, y - 28, 6.8, regular, muted);
+    });
+    y -= 36 + 8;
+  }
 
   // ═════════ Cosa è stato fatto ═════════
   sezione("Cosa è stato fatto", 100);
@@ -287,8 +363,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     rbox(x + 6, yTop - 6, 26, 13, 6.5, ink);
     T(String(n), x + 6 + (26 - larghezza(String(n), 7, bold)) / 2, yTop - 15, 7, bold, white);
   };
-  /** Con poche foto si fanno grandi (due per riga), con molte piccole (tre). */
-  const impaginaFoto = (n: number) => { const colonne = n <= 2 ? 2 : 3; return { colonne, w: (interno - gapFoto * (colonne - 1)) / colonne, h: colonne === 2 ? 148 : 104 }; };
+  /** Tre per riga anche quando sono poche: si vedono bene e il rapportino resta compatto. */
+  const impaginaFoto = (_n: number) => { const colonne = 3; return { colonne, w: (interno - gapFoto * (colonne - 1)) / colonne, h: 62 }; };
   const misureScheda = (f: FaseBlocco) => {
     const nomeRighe = wrap(f.nome, bold, 11, CW - 24 - 150).slice(0, 2);
     const testaH = 14 + nomeRighe.length * 14 + (f.percentuale !== null ? 16 : 6) + (f.ore !== null ? 11 : 0);
@@ -299,8 +375,6 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     const minimo = testaH + Math.min(materialiH || (f.foto.length ? foto.h + 34 : 0), 140);
     return { nomeRighe, testaH, minimo, foto };
   };
-  // Un rapportino di fine lavori o firmato è un documento per il cliente: i valori interni restano nell'app.
-  const documentoPer = r.lavoro_completato === true || !!text(r.firma_cliente_url) ? "cliente" as const : "interno" as const;
   const scheda = async (f: FaseBlocco, titolo?: string) => {
     const { nomeRighe, testaH, minimo, foto } = misureScheda(f);
     const { colonne: colonneFoto, w: wFoto, h: hFoto } = foto;
@@ -325,7 +399,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     // Barra colorata a sinistra del corpo della scheda: solo se il pezzo sta tutto su una pagina.
     const barraLato = (inizio: number, paginaInizio: number) => { if (pdf.getPageCount() === paginaInizio) box(M, inizio, 2.5, inizio - y, accent); };
     // materiali della fase
-    for (const v of valoriDaStampare(f.campi, documentoPer)) paragraph(`${v.etichetta}: ${valoreInTesto(v)}`, 9, ink, interno, M + 16);
+    etichetteFase(valoriDaStampare(f.campi, documentoPer), M + 12, interno);
     if (f.materiali.length) {
       ensure(18 + 30);
       const inizio = y, paginaInizio = pdf.getPageCount();
@@ -346,7 +420,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
         barraLato(top, paginaInizio);
       }
     }
-    y -= 12;
+    y -= 8;
   };
   for (const [i, f] of blocchi.fasi.entries()) await scheda(f, i === 0 ? (blocchi.fasi.length === 1 ? "Lavorazione" : "Lavorazioni") : undefined);
 
@@ -385,9 +459,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   // ═════════ Campi propri dell'azienda ═════════
   const valoriPropri = valoriDaStampare(blocchi.altriCampi, documentoPer);
   if (valoriPropri.length) {
-    sezione("Altre informazioni", 60);
-    for (const v of valoriPropri) paragraph(`${v.etichetta}${v.fase_nome ? ` (${v.fase_nome})` : ""}: ${valoreInTesto(v)}`);
-    y -= 8;
+    sezione("Altre informazioni", 70);
+    griglia(valoriPropri);
   }
 
   // ═════════ Segnalazioni ═════════
@@ -398,8 +471,8 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
 
   // ═════════ Foto del cantiere ═════════
   if (blocchi.altreFoto.length) {
-    const colonneGenerali = blocchi.altreFoto.length > 4 ? 3 : 2;
-    const wG = (CW - gapFoto * (colonneGenerali - 1)) / colonneGenerali, hG = colonneGenerali === 3 ? 118 : 172;
+    const colonneGenerali = blocchi.altreFoto.length > 2 ? 3 : 2;
+    const wG = (CW - gapFoto * (colonneGenerali - 1)) / colonneGenerali, hG = colonneGenerali === 3 ? 112 : 140;
     sezione(blocchi.fasi.some(f => f.foto.length) ? "Altre foto del cantiere" : "Documentazione fotografica", hG + 22 + 36);
     for (let i = 0; i < blocchi.altreFoto.length; i += colonneGenerali) {
       ensure(hG + 22);
@@ -416,11 +489,44 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   }
 
   // ═════════ Firme ═════════
+  // La firma del cliente è solo del collaudo (rapporto di fine lavori). Il giornaliero lo firma chi lo compila.
   const firme = [
     { etichetta: "Firma del compilatore", ref: text(r.firma_operaio_url), nome: summary.author, data: "" },
-    { etichetta: "Firma del cliente", ref: text(r.firma_cliente_url), nome: text(r.firma_cliente_nome), data: r.firma_cliente_at ? timestamp(r.firma_cliente_at) : "" },
+    ...(fineLavori ? [{ etichetta: "Firma del cliente", ref: text(r.firma_cliente_url), nome: text(r.firma_cliente_nome), data: r.firma_cliente_at ? timestamp(r.firma_cliente_at) : "" }] : []),
   ].filter(s => s.ref || fineLavori);
-  if (firme.length) {
+  const chiEQuando = compilatoDa(r);
+  const note: string[] = [];
+  if (blocchi.fasi.length) note.push("Le ore di fase non si sommano alle presenze della squadra e non sostituiscono la verifica dell'ufficio.");
+  if (summary.crew.length) note.push("Il totale usa solo le presenze elencate: le ore personali del compilatore non vengono sommate di nuovo. Le presenze esterne non determinano automaticamente un costo orario.");
+  if (blocchi.totaleMateriali) note.push("Le quantità dichiarate non attestano uno scarico di magazzino.");
+  note.push(ctx.punches.length
+    ? "Eventi di chi compila, per questo cantiere e questa data: non sono un totale ore validato. Per turni oltre mezzanotte consultare anche la giornata adiacente nell'app."
+    : "Nessuna timbratura di chi compila in questa giornata: le ore sono dichiarate.");
+  // Le precisazioni non restano mai da sole su una pagina: si tengono insieme a chi ha compilato.
+  const altezzaNote = documentoPer === "interno" ? 12 + wrap(note.join(" "), regular, 6.8, CW).length * 10.8 : 0;
+  if (!fineLavori && (chiEQuando || firme.length)) {
+    const firma = firme[0];
+    const alto = firma ? 38 : 22;
+    ensure(alto + 8 + altezzaNote);
+    box(M, y, CW, alto, firma ? white : pale, firma ? line : undefined);
+    box(M, y, 3.5, alto, accent);
+    T(chiEQuando || summary.author, M + 14, y - alto / 2 - 3, 8.8, bold, ink);
+    if (firma) {
+      const wFirma = 150, xFirma = M + CW - wFirma - 10;
+      T(firma.etichetta.toUpperCase(), xFirma, y - 10, 5.8, bold, muted);
+      const img = await embed(firma.ref, "signature");
+      if (img) { const d = img.scaleToFit(wFirma, 24); page.drawImage(img, { x: xFirma, y: y - 36, ...d }); }
+      else { T("Firma registrata, immagine non disponibile", xFirma, y - 28, 7.4, regular, faint); warnings.push(`${firma.etichetta}: immagine non inclusa.`); }
+    }
+    y -= alto + 8;
+  } else if (chiEQuando) {
+    ensure(30);
+    box(M, y, CW, 22, pale);
+    box(M, y, 3.5, 22, accent);
+    T(chiEQuando, M + 14, y - 14.5, 8.8, bold, ink);
+    y -= 30;
+  }
+  if (fineLavori && firme.length) {
     sezione("Firme", 150);
     const wF = (CW - 12) / 2;
     ensure(112);
@@ -436,20 +542,20 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
       if (s.data) T(`Data registrata: ${s.data}`, x + 12, y - 99, 7, regular, muted);
     }
     y -= 112;
-    paragraph("La firma si riferisce a questo rapportino: non approva costi extra e non sostituisce un verbale di collaudo con verifiche ed eventuali riserve.", 7.4, muted);
+    if (fineLavori) paragraph("La firma si riferisce a questo rapportino: non approva costi extra e non sostituisce un verbale di collaudo con verifiche ed eventuali riserve.", 7.4, muted);
   }
 
   // ═════════ Note del documento ═════════
-  const note: string[] = [];
-  if (blocchi.fasi.length) note.push("Ore e avanzamenti riferiti alle singole lavorazioni: le ore di fase non si sommano di nuovo alle presenze della squadra. La dichiarazione non sostituisce la verifica dell'ufficio.");
-  if (summary.crew.length) note.push("Il totale usa solo le presenze elencate: le ore personali del compilatore non vengono sommate di nuovo. Le presenze esterne non determinano automaticamente un costo orario.");
-  if (blocchi.totaleMateriali) note.push("Quantità dichiarate nel rapportino: non attestano da sole uno scarico di magazzino.");
-  note.push(ctx.punches.length
-    ? "Eventi di chi compila, per questo cantiere e questa data: non sono un totale ore validato. Per turni oltre mezzanotte consultare anche la giornata adiacente nell'app."
-    : "Nessuna timbratura disponibile per chi compila su questo cantiere nella giornata: le ore sono dichiarate, non verificate automaticamente.");
-  if (!blocchi.fasi.length && (number0(r.percentuale_avanzamento) ?? 0) > 0) note.push(`Avanzamento generale dichiarato della commessa: ${Number(r.percentuale_avanzamento).toLocaleString("it-IT")}%.`);
-  sezione("Note del documento", 80);
-  for (const n of note) paragraph(n, 7.4, muted);
+  // Questo è un dato, non una precisazione: resta visibile anche nel documento per il cliente.
+  if (!blocchi.fasi.length && (number0(r.percentuale_avanzamento) ?? 0) > 0) paragraph(`Avanzamento generale dichiarato della commessa: ${Number(r.percentuale_avanzamento).toLocaleString("it-IT")}%.`, 8.6, ink);
+  // Precisazioni per l'ufficio: una riga piccola in fondo, e nel documento per il cliente non servono.
+  if (documentoPer === "interno") {
+    ensure(altezzaNote);
+    y -= 6;
+    rule(y);
+    y -= 5;
+    paragraph(note.join(" "), 6.8, muted);
+  }
   if (warnings.length) {
     sezione("Avvertenze del documento", 70);
     for (const warning of [...new Set(warnings)]) paragraph(`- ${warning}`, 7.8, muted);

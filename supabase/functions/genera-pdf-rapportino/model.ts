@@ -73,6 +73,23 @@ export function reportSummary(report: RecordData) {
     authorRole: report.role_type === "subcontractor" ? "Subappaltatore" : report.role_type === "employee" ? "Personale interno" : "Ruolo non disponibile",
   };
 }
+/**
+ * Chi ha fatto il rapportino e a che ora: è la firma del giornaliero, la registra l'app all'invio.
+ * La firma del cliente sta solo nel rapporto di fine lavori (il collaudo).
+ */
+export function compilatoDa(report: RecordData): string {
+  const quando = new Date(text(report.created_at));
+  if (!text(report.created_at) || Number.isNaN(quando.getTime())) return "";
+  const data = quando.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "2-digit" });
+  const ora = quando.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+  const autore = record(report.autore);
+  const nome = [text(autore.first_name), text(autore.last_name)].filter(Boolean).join(" ") || "persona non indicata";
+  const inserito = text(report.inserito_da);
+  const chi = !text(report.ufficio_created_by) ? `Compilato da ${nome}`
+    : inserito ? `Inserito da ${inserito} (ufficio) per ${nome}` : `Inserito dall'ufficio per ${nome}`;
+  return `${chi} il ${data} alle ${ora}`;
+}
+
 /** Recognize only this tenant's storage assets, not arbitrary network URLs. */
 export function reportAsset(value: string, companyId: string, supabaseUrl: string): { bucket: string; path: string } | null {
   try {

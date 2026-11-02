@@ -146,3 +146,14 @@ describe("Campi propri nella scheda", () => {
   });
 });
 
+describe("Chi l'ha compilato", () => {
+  it("nella scheda si legge l'ora di invio", () => {
+    disegna({ created_at: "2026-10-05T15:30:00Z", autore: { first_name: "Marco", last_name: "Ferrari" } });
+    expect(screen.getByText("Compilato da Marco Ferrari il 05/10/26 alle 17:30")).toBeInTheDocument();
+  });
+  it("senza dati non inventa nulla", () => {
+    disegna({});
+    expect(screen.queryByText(/Compilato da/)).toBeNull();
+  });
+});
+

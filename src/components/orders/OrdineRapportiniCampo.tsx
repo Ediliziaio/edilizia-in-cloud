@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { CampiDaCompletare } from "@/components/orders/CampiDaCompletare";
+import { compilatoDa } from "../../../supabase/functions/genera-pdf-rapportino/model";
 import { TotaliCampiCommessa } from "@/components/orders/TotaliCampiCommessa";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
@@ -503,6 +504,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             })()}
 
                             {/* Lavorazioni con i loro materiali e le loro foto, poi quello che non è legato a una fase */}
+                            {compilatoDa(r as unknown as Record<string, unknown>) && <p className="text-xs text-muted-foreground">{compilatoDa(r as unknown as Record<string, unknown>)}</p>}
                             <CampiDaCompletare report={r} schema={moduloCantiere} puoModificare={canEditOrders}
                               onSalvato={() => void qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] })} />
                             <RapportinoBlocchi report={r} nomiFasi={nomiFasi} onFoto={(url) => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }} />
