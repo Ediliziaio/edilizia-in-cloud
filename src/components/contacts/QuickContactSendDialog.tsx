@@ -389,7 +389,7 @@ export function QuickContactSendDialog({
       <DialogContent className="flex max-h-[92vh] w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
         <Tabs value={channel} onValueChange={(v) => setChannel(v as QuickSendChannel)} className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="flex-row flex-wrap items-center gap-x-3 gap-y-1 space-y-0 border-b py-2 pl-4 pr-11 text-left">
-            <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold">{fullName || "Nuovo messaggio"}</DialogTitle>
+            <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold max-sm:basis-full">{fullName || "Nuovo messaggio"}</DialogTitle>
             <DialogDescription className="sr-only">Scrivi e invia un messaggio al contatto.</DialogDescription>
             <TabsList className="h-8 shrink-0">
               <TabsTrigger value="sms" disabled={!hasPhone} title={hasPhone ? "SMS" : "Telefono mancante"} className="h-6 gap-1 px-2 text-xs"><Smartphone className="h-3.5 w-3.5" /> SMS</TabsTrigger>
