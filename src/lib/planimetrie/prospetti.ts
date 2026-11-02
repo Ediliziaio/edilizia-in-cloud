@@ -14,7 +14,7 @@
  * pavimento del piano), poi SVG in scala e DXF a layer.
  */
 import type { Apertura, Locale, Muro, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
-import { facceTetto, rettangoloTetto, type Faccia } from "../../../shared/planimetrie/tetto.ts";
+import { baseTetto, facceTetto, rettangoloTetto, type Faccia } from "../../../shared/planimetrie/tetto.ts";
 import { puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { MotoreDxfR12 } from "./esporta/dxf/r12";
 
@@ -97,7 +97,7 @@ function facceDelTetto(stato: StatoPianta, tetto: Tetto | null | undefined): Fac
   if (!tetto || !muri.length) return [];
   const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), tetto.sporto);
   if (!r) return [];
-  const h = Math.max(...muri.map((m) => m.altezza));
+  const h = baseTetto(tetto, Math.max(...muri.map((m) => m.altezza)));
   return facceTetto(r, h, tetto).map((f) => ({ ...f, vertici: f.vertici.map((v) => ({ ...v, y: -v.y })) }));
 }
 

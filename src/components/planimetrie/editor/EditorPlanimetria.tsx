@@ -8,6 +8,7 @@
  * Disegno in SVG (vedi README.md in questa cartella per il perché), logica nei
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
+import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
 import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
@@ -194,6 +195,18 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     return { pannelli: n, kwp: q["fatto:impianti:fotovoltaico.kwp"]?.valore ?? 0 };
   }, [documento]);
   const dati = useMemo(() => datiVista(pianta, documento, vista, livelloId, propostaId), [pianta, documento, vista, livelloId, propostaId]);
+  // Mansarda: altezze e superficie utile di ogni stanza sotto le falde (per il pannello)
+  const sottotetto = useMemo(() => {
+    const liv = documento.livelli.find((l) => l.id === (livelloId ?? documento.livelli[0]?.id));
+    if (!liv?.tetto?.mansarda) return undefined;
+    const out = new Map<string, AltezzeSottotetto>();
+    for (const stato of [liv.fatto, ...liv.proposte]) {
+      const f = falde(liv, stato);
+      if (!f) continue;
+      for (const l of stato.locali) if (!out.has(l.id)) { const a = altezzeLocale(l, f); if (a) out.set(l.id, a); }
+    }
+    return out;
+  }, [documento, livelloId]);
   const latiModificabili = useMemo(
     () => new Set(pianta.locali.filter((l) => C.modificabile(l.stato, vista) && dati.locali.some((x) => x.id === l.id)).map((l) => l.id)),
     [pianta, vista, dati],
@@ -1505,7 +1518,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             {C.quantiNelGruppo(gruppo) > 0 ? (
               <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
             ) : (
-              <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+              <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
             )}
           </aside>
         )}
@@ -1518,7 +1531,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               Chiudi
             </Button>
           </div>
-          <PannelloDettagli pianta={pianta} dati={dati} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
+          <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
         </div>
       )}
 
@@ -1658,6 +1671,21 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                 )}
               </div>
               {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
+              {attuale.tetto && attuale.tetto.tipo !== "piano" && (
+                <div className="space-y-1 rounded-md border p-2">
+                  <label className="flex items-center gap-2 text-xs font-medium">
+                    <input type="checkbox" checked={!!attuale.tetto.mansarda} onChange={(e) => { if (!attuale.tetto) return; const { mansarda: _m, ...senza } = attuale.tetto; onModifica({ tetto: e.target.checked ? { ...senza, mansarda: { imposta: 140 } } : senza }); }} />
+                    Mansarda: le stanze stanno sotto le falde
+                  </label>
+                  {attuale.tetto.mansarda && (
+                    <>
+                      <Input key={`imp-${attuale.id}-${attuale.tetto.mansarda.imposta}`} defaultValue={metri(attuale.tetto.mansarda.imposta)} aria-label="Altezza d'imposta in metri" inputMode="decimal"
+                        onBlur={(e) => { const v = Math.round(Number(e.target.value.replace(",", ".")) * 100); if (attuale.tetto?.mansarda && Number.isFinite(v) && v >= 0 && v <= 500 && v !== attuale.tetto.mansarda.imposta) onModifica({ tetto: { ...attuale.tetto, mansarda: { imposta: v } } }); }} />
+                      <p className="text-[11px] text-muted-foreground">Altezza del soffitto sui muri di gronda, in metri (la più bassa). Da lì il soffitto sale con la pendenza: nella stanza vedi altezza minima, massima e media e la superficie utile (sopra 1,50 m).</p>
+                    </>
+                  )}
+                </div>
+              )}
               {attuale.tetto && (
                 <div className="space-y-1 rounded-md border p-2">
                   <label className="flex items-center gap-2 text-xs font-medium">

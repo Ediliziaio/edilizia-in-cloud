@@ -241,6 +241,8 @@ export interface Tetto {
   sporto: number;
   /** Pannelli fotovoltaici sulle falde migliori (sud; altrimenti est e ovest; sul piano a file). */
   fotovoltaico?: { potenzaPannelloW?: number; pannelliMax?: number };
+  /** Mansarda: stanze sotto le falde; imposta = altezza del soffitto sui muri di gronda (cm). */
+  mansarda?: { imposta: number };
 }
 
 /** Immagine da ricalcare: nel bucket «planimetrie»; (x, y) è l'angolo in alto a sinistra, in cm, y in su. */
@@ -430,6 +432,8 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       const t = liv.tetto;
       if (!eOggetto(t) || !(TIPI_TETTO as readonly unknown[]).includes(t.tipo) || !eNumero(t.pendenza) || !eNumero(t.sporto) || (t.pendenza as number) < 0 || (t.pendenza as number) > 150) {
         errori.push(`${nomeLiv}: il tetto non è valido.`);
+      } else if (t.mansarda !== undefined && !(eOggetto(t.mansarda) && eNumero(t.mansarda.imposta) && t.mansarda.imposta >= 0 && t.mansarda.imposta <= 500)) {
+        errori.push(`${nomeLiv}: l'altezza d'imposta della mansarda non è valida.`);
       } else if (t.fotovoltaico !== undefined) {
         const f = t.fotovoltaico;
         if (!eOggetto(f) || (f.potenzaPannelloW !== undefined && !(eNumero(f.potenzaPannelloW) && f.potenzaPannelloW > 0)) || (f.pannelliMax !== undefined && !(eNumero(f.pannelliMax) && f.pannelliMax >= 0))) {

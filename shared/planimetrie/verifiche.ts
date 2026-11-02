@@ -16,6 +16,7 @@
  * larghezza × altezza del vano), non le porte né i varchi.
  */
 import { apertureDelLocale, areaPoligono } from "./geometria.ts";
+import { ALTEZZA_MEDIA_ABITABILI, ALTEZZA_MEDIA_SERVIZI, ALTEZZA_UTILE_MINIMA, altezzeLocale, falde } from "./sottotetto.ts";
 import { ambitiDi, statoDelLivello, type Destinazione, type Locale, type Planimetria, type StatoPianta } from "./modello.ts";
 
 export type EsitoVerifica = "ok" | "attenzione" | "non_conforme";
@@ -54,9 +55,13 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
   const alloggi = new Map<string, { mq: number; bagni: Array<{ nome: string; tipi: Set<string> }>; livello: string }>();
   for (const livello of doc.livelli) {
     const stato = statoDelLivello(livello, ambito) ?? livello.fatto;
+    const sottoFalde = falde(livello, stato);
     for (const l of stato.locali) {
       if (ESCLUSI.has(l.destinazione) || /comun|androne/i.test(l.unita ?? "")) continue;
-      const area = areaPoligono(l.contorno) / 10_000;
+      const areaLorda = areaPoligono(l.contorno) / 10_000;
+      // in mansarda contano l'altezza media e la superficie dove si sta in piedi (≥ 1,50 m)
+      const sotto = sottoFalde ? altezzeLocale(l, sottoFalde) : null;
+      const area = sotto ? sotto.superficieUtile : areaLorda;
       const chiave = l.unita?.trim() || "Alloggio";
       const a = alloggi.get(chiave) ?? { mq: 0, bagni: [], livello: livello.nome };
       if (ABITABILI.has(l.destinazione) || SERVIZI.has(l.destinazione) || l.destinazione === "altro") a.mq += area;
@@ -65,7 +70,13 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
         out.push({ codice, esito, livello: livello.nome, oggetto: l.nome, messaggio, valore, richiesto });
 
       // altezza
-      if (ABITABILI.has(l.destinazione)) {
+      if (sotto && (ABITABILI.has(l.destinazione) || SERVIZI.has(l.destinazione))) {
+        const minimo = ABITABILI.has(l.destinazione) ? ALTEZZA_MEDIA_ABITABILI : ALTEZZA_MEDIA_SERVIZI;
+        const dettaglio = `media ${m(sotto.media)} (min ${m(sotto.minima)}, max ${m(sotto.massima)})`;
+        if (sotto.media < minimo) v("altezza", "non_conforme", "Sottotetto: l'altezza media è troppo bassa per questo uso.", dettaglio, `media ${m(minimo)}`);
+        else if (sotto.minima < ALTEZZA_UTILE_MINIMA && ABITABILI.has(l.destinazione)) v("altezza", "attenzione", `Sottotetto: ${mq(sotto.superficie - sotto.superficieUtile)} sotto 1,50 m non contano nella superficie (vanno chiusi con armadi o ripostigli).`, dettaglio, `media ${m(minimo)}, min 1,50 m`);
+        else v("altezza", "ok", "Sottotetto: altezza media regolare.", dettaglio, `media ${m(minimo)}`);
+      } else if (ABITABILI.has(l.destinazione)) {
         if (l.altezza < 270) v("altezza", l.altezza >= 240 ? "attenzione" : "non_conforme", l.altezza >= 240 ? "Sotto i 2,70 m: ammesso solo con deroga (montagna, sottotetto recuperato, centro storico)." : "Troppo basso per un locale abitabile.", m(l.altezza), "2,70 m");
         else v("altezza", "ok", "Altezza regolare.", m(l.altezza), "2,70 m");
       } else if (SERVIZI.has(l.destinazione) && l.altezza < 240) {
@@ -73,10 +84,10 @@ export function verificaPianta(doc: Planimetria, ambitoChiave = "fatto"): Verifi
       }
 
       // rapporto aeroilluminante
-      if (ABITABILI.has(l.destinazione) && area > 0) {
+      if (ABITABILI.has(l.destinazione) && areaLorda > 0) {
         const fin = superficieFinestrata(l, stato);
-        const serve = area / 8;
-        const rapporto = fin > 0 ? `1/${(area / fin).toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "nessuna finestra";
+        const serve = areaLorda / 8;
+        const rapporto = fin > 0 ? `1/${(areaLorda / fin).toLocaleString("it-IT", { maximumFractionDigits: 1 })}` : "nessuna finestra";
         if (fin >= serve) v("rai", "ok", "Finestre sufficienti.", `${mq(fin)} (${rapporto})`, `${mq(serve)} (1/8)`);
         else v("rai", fin >= serve * 0.85 ? "attenzione" : "non_conforme", fin > 0 ? `Mancano ${mq(serve - fin)} di finestre.` : "Il locale non ha finestre.", `${mq(fin)} (${rapporto})`, `${mq(serve)} (1/8)`);
       }
