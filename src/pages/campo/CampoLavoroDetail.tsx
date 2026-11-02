@@ -920,7 +920,7 @@ export default function CampoLavoroDetail() {
               Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
           <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/merce?order=${orderId}`)} />
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
-          <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          <QuickAction icon={AlertCircle} label="Segnala" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
           {orderId && <BottoneCollaudo orderId={orderId} />}
         </div>
         </>}

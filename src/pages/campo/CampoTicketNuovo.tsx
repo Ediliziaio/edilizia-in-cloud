@@ -1,49 +1,41 @@
 /**
- * Apertura rapida ticket dal campo.
- * fonte='campo', pre-seleziona ordine se arrivato da /campo/ticket/nuovo/:orderId
+ * Segnalare un problema dal cantiere (02/11/2026): una frase, scritta o detta, e una foto.
+ * All'ufficio arriva come ticket con fonte='campo': il titolo sono le prime parole.
+ * Il cantiere è già scelto se si arriva da /campo/ticket/nuovo/:orderId.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, AlertCircle, Loader2, CheckCircle } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle, Loader2, Mic, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-const PRIORITA = [
-  { value: "bassa", label: "Bassa", color: "bg-muted text-foreground" },
-  { value: "media", label: "Media", color: "bg-primary/10 text-primary border-primary/30" },
-  { value: "alta", label: "Alta", color: "bg-red-500/20 text-red-600 border-red-500/30" },
-];
-
-/**
- * `tickets` ha DUE colonne priorità: `priorita` (text, legacy) e `priority`
- * (enum ticket_priority, NOT NULL DEFAULT 'normale') — ed è `priority` la
- * fonte di verità dell'ufficio (ordinamento, KPI "urgenti", badge in
- * TicketsList/TicketDetail). Scrivendo solo `priorita`, un ticket segnalato
- * "Alta" dal campo arrivava all'ufficio come "Normale" (il default), fuori
- * dal conteggio urgenti. Mappiamo — non copiamo: "media" non esiste nell'enum.
- */
-const PRIORITA_TO_ENUM: Record<string, "bassa" | "normale" | "alta"> = {
-  bassa: "bassa",
-  media: "normale",
-  alta: "alta",
-};
+import CampoAudioRecorder from "@/components/campo/CampoAudioRecorder";
+import { useRapportinoVocale } from "@/hooks/campo/useRapportinoVocale";
+import { senzaRete } from "@/lib/campo/timbra";
+import { MASSIMO_FOTO_SEGNALAZIONE, segnalazioneDaTesto } from "@/lib/campo/segnalazione";
 
 export default function CampoTicketNuovo() {
   const { orderId } = useParams<{ orderId?: string }>();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const companyId = (profile as any)?.company_id ?? null;
+  const companyId = profile?.company_id ?? null;
 
-  const [titolo, setTitolo] = useState("");
-  const [descrizione, setDescrizione] = useState("");
-  const [priorita, setPriorita] = useState("media");
+  const [testo, setTesto] = useState("");
+  const [urgente, setUrgente] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(orderId ?? "");
+  const [foto, setFoto] = useState<File[]>([]);
+  const [anteprime, setAnteprime] = useState<string[]>([]);
+  const [voceAperta, setVoceAperta] = useState(false);
   const [done, setDone] = useState(false);
+  const { processAudio, uploading, transcribing, error: erroreVoce } = useRapportinoVocale();
 
-  // Cantieri assegnati
+  useEffect(() => {
+    const urls = foto.map((f) => URL.createObjectURL(f));
+    setAnteprime(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [foto]);
+
   const { data: cantieri = [] } = useQuery({
     queryKey: ["campo-cantieri-ticket", user?.id],
     queryFn: async () => {
@@ -51,18 +43,23 @@ export default function CampoTicketNuovo() {
         .from("order_campo_assignments")
         .select("order_id, order:orders(id, order_code, description)")
         .eq("user_id", user!.id);
-      return (data ?? []).map((a: any) => a.order).filter(Boolean);
+      return (data ?? []).map((a) => a.order as unknown as { id: string; order_code: string | null; description: string | null }).filter(Boolean);
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !orderId,
   });
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      if (!titolo.trim()) throw new Error("Inserisci un titolo");
+      if (senzaRete()) throw new Error("Sei senza rete: il testo resta qui. Mandalo appena torna il campo.");
       // company_id è NOT NULL: senza guardia un profilo non ancora caricato
       // produceva un errore criptico invece di un messaggio chiaro.
       if (!companyId) throw new Error("Azienda non disponibile, riprova tra un istante");
+      const s = segnalazioneDaTesto(testo, urgente);
+      if (!s) throw new Error("Scrivi cosa succede");
+      // L'id nasce qui: l'operaio non può rileggere i ticket, e la foto si attacca a questo.
+      const ticketId = crypto.randomUUID();
       const { error } = await supabase.from("tickets").insert({
+        id: ticketId,
         company_id: companyId,
         order_id: selectedOrderId || null,
         created_by: user!.id,
@@ -70,142 +67,172 @@ export default function CampoTicketNuovo() {
         // (la colonna è stata resa nullable proprio per questo); metterci
         // l'operaio lo faceva comparire come "cliente" in ufficio.
         customer_id: null,
-        subject: titolo.trim(),
-        titolo: titolo.trim(),
-        descrizione: descrizione.trim() || null,
-        priorita,
-        priority: PRIORITA_TO_ENUM[priorita] ?? "normale",
+        subject: s.titolo,
+        titolo: s.titolo,
+        descrizione: s.descrizione,
+        priorita: s.priorita,
+        // `priority` è la colonna che l'ufficio legge: `priorita` è quella vecchia.
+        priority: s.priority,
         status: "aperto",
         fonte: "campo",
       });
       if (error) throw error;
+
+      let fotoPerse = 0;
+      for (const file of foto) {
+        try {
+          const path = `${ticketId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const { error: upErr } = await supabase.storage.from("ticket-attachments").upload(path, file, { contentType: file.type });
+          if (upErr) throw upErr;
+          const { data: firmato } = await supabase.storage.from("ticket-attachments").createSignedUrl(path, 60 * 60 * 24);
+          const { error: msgErr } = await supabase.from("ticket_messages").insert({
+            ticket_id: ticketId,
+            sender_id: user!.id,
+            message: `📎 ${file.name}`,
+            attachment_url: firmato?.signedUrl || path,
+          });
+          if (msgErr) throw msgErr;
+        } catch (e) {
+          console.warn("[CampoTicketNuovo] foto non allegata:", e);
+          fotoPerse += 1;
+        }
+      }
+      return { fotoPerse };
     },
-    onSuccess: () => {
+    onSuccess: ({ fotoPerse }) => {
+      if (fotoPerse > 0) toast.warning("Segnalazione inviata, ma una foto non è partita: mandala in chat.");
       setDone(true);
       // Da link diretto/notifica la history è vuota: -1 uscirebbe dall'app.
       setTimeout(() => {
         if (window.history.length > 2) navigate(-1);
         else navigate("/campo", { replace: true });
-      }, 2000);
+      }, 1500);
     },
-    onError: (err: any) => toast.error(err.message ?? "Errore nell'invio del ticket"),
+    onError: (err: unknown) => toast.error(err instanceof Error && err.message ? err.message : "Non sono riuscito a inviare. Riprova."),
   });
 
   if (done) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <CheckCircle className="w-16 h-16 text-green-600" />
-        <p className="text-foreground font-bold text-xl">Ticket inviato!</p>
-        <p className="text-muted-foreground text-sm">L'ufficio è stato notificato</p>
+      <div className="flex h-full flex-col items-center justify-center gap-3 py-16">
+        <CheckCircle className="h-14 w-14 text-green-600" aria-hidden="true" />
+        <p className="text-lg font-bold text-foreground">Inviata all'ufficio</p>
       </div>
     );
   }
 
-  // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
-  // mobile. Gli sticky compensano il padding del main (-top-3 / -bottom-28).
+  const cantiereVoce = selectedOrderId || cantieri[0]?.id || null;
+
+  // Niente h-full + scroll interno: il <main> della shell è l'unico scroller mobile.
   return (
-    <div className="mx-auto w-full max-w-3xl flex flex-col">
-      {/* Header */}
-      <div className="sticky -top-3 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3 md:top-14">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      <div className="flex items-center gap-3">
         <button
+          type="button"
+          aria-label="Indietro"
           onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0 max-md:hidden"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
-        <div>
-          <p className="font-bold text-foreground">Nuovo ticket</p>
-          <p className="text-xs text-muted-foreground">Segnala un problema al cantiere</p>
-        </div>
+        <h1 className="text-lg font-bold">Segnala un problema</h1>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
-
-        {/* Cantiere (opzionale) */}
-        {cantieri.length > 0 && (
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1.5">Cantiere (opzionale)</label>
-            <select
-              value={selectedOrderId}
-              onChange={e => setSelectedOrderId(e.target.value)}
-              className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary"
-            >
-              <option value="">— Nessun cantiere specifico —</option>
-              {cantieri.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.order_code} — {c.description?.slice(0, 40)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Titolo */}
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1.5">Titolo *</label>
-          <input
-            value={titolo}
-            onChange={e => setTitolo(e.target.value)}
-            placeholder="Es: Mancano i tasselli Fischer"
-            className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-primary"
-          />
-        </div>
-
-        {/* Priorità */}
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1.5">Priorità</label>
-          <div className="flex gap-2">
-            {PRIORITA.map(p => (
-              <button
-                key={p.value}
-                onClick={() => setPriorita(p.value)}
-                className={cn(
-                  "flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors",
-                  priorita === p.value
-                    ? p.color + " border-current"
-                    : "bg-muted border-border text-muted-foreground"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Descrizione */}
-        <div>
-          <label className="block text-xs text-muted-foreground mb-1.5">Descrizione (opzionale)</label>
-          <textarea
-            value={descrizione}
-            onChange={e => setDescrizione(e.target.value)}
-            placeholder="Descrivi il problema in dettaglio..."
-            rows={4}
-            className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-primary resize-none"
-          />
-        </div>
-
-        {/* Info */}
-        <div className="flex items-start gap-2 p-3 bg-muted border border-border rounded-xl">
-          <AlertCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-          <p className="text-xs text-muted-foreground">
-            Il ticket verrà inviato all'ufficio con priorità selezionata. Riceverai una notifica quando viene gestito.
-          </p>
-        </div>
-      </div>
-
-      {/* Submit */}
-      <div
-        className="sticky -bottom-28 z-20 border-t border-border bg-background px-4 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-0 md:pb-3"
-      >
-        <button
-          onClick={() => submitMutation.mutate()}
-          disabled={!titolo.trim() || submitMutation.isPending}
-          className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl text-base disabled:opacity-40 flex items-center justify-center gap-2"
+      {!orderId && cantieri.length > 0 && (
+        <select
+          aria-label="Cantiere"
+          value={selectedOrderId}
+          onChange={(e) => setSelectedOrderId(e.target.value)}
+          className="h-11 w-full rounded-xl border bg-background px-3 text-sm"
         >
-          {submitMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-          INVIA TICKET
+          <option value="">Nessun cantiere specifico</option>
+          {cantieri.map((c) => (
+            <option key={c.id} value={c.id}>{c.order_code} — {c.description?.slice(0, 40)}</option>
+          ))}
+        </select>
+      )}
+
+      <textarea
+        aria-label="Cosa succede"
+        value={testo}
+        onChange={(e) => setTesto(e.target.value)}
+        placeholder="Cosa succede? Es: mancano i tasselli per il secondo piano"
+        rows={4}
+        className="w-full resize-none rounded-2xl border bg-muted/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+      />
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-semibold">
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            aria-label="Scatta una foto del problema"
+            className="sr-only"
+            disabled={foto.length >= MASSIMO_FOTO_SEGNALAZIONE}
+            onChange={(e) => {
+              const scelta = e.target.files?.[0];
+              if (scelta) setFoto((prima) => [...prima, scelta].slice(0, MASSIMO_FOTO_SEGNALAZIONE));
+              e.target.value = "";
+            }}
+          />
+          <Camera className="h-4 w-4" aria-hidden="true" />Foto
+        </label>
+        <button
+          type="button"
+          disabled={!cantiereVoce || uploading || transcribing}
+          onClick={() => setVoceAperta((v) => !v)}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border text-sm font-semibold disabled:opacity-50"
+        >
+          {uploading || transcribing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}Parla
         </button>
       </div>
+
+      {voceAperta && cantiereVoce && (
+        <CampoAudioRecorder
+          disabled={uploading || transcribing}
+          onConfirm={async (blob, durata, mime) => {
+            const proposta = await processAudio(blob, durata, mime, cantiereVoce);
+            if (proposta?.trascrizione) {
+              setTesto((t) => [t.trim(), proposta.trascrizione.trim()].filter(Boolean).join(" "));
+              setVoceAperta(false);
+            }
+          }}
+        />
+      )}
+      {erroreVoce && <p role="alert" className="text-sm text-destructive">{erroreVoce}</p>}
+
+      {anteprime.length > 0 && (
+        <div className="grid grid-cols-4 gap-2">
+          {anteprime.map((u, i) => (
+            <div key={u} className="relative">
+              <img src={u} alt={`Foto ${i + 1}`} className="aspect-square w-full rounded-xl object-cover" />
+              <button
+                type="button"
+                aria-label={`Togli la foto ${i + 1}`}
+                onClick={() => setFoto((prima) => prima.filter((_, idx) => idx !== i))}
+                className="tap-compact absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
+        <input type="checkbox" checked={urgente} onChange={(e) => setUrgente(e.target.checked)} className="h-5 w-5" />
+        È urgente
+      </label>
+
+      <button
+        type="button"
+        onClick={() => submitMutation.mutate()}
+        disabled={!testo.trim() || submitMutation.isPending}
+        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground disabled:opacity-50"
+      >
+        {submitMutation.isPending && <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />}
+        Invia all'ufficio
+      </button>
     </div>
   );
 }

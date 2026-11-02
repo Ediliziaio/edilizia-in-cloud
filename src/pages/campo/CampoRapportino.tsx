@@ -28,6 +28,8 @@ import { notifyRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { refreshCommessaCampoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
 import { scriviTimbratura, senzaRete } from "@/lib/campo/timbra";
+import { campoDayWindow } from "@/lib/campo/timeSummary";
+import { riferimentoFile } from "@/lib/storage/fileRiservati";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -613,6 +615,31 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       return next;
     });
   };
+
+  // Le foto scattate durante il lavoro: si ritrovano qui, senza ricaricarle. Si possono togliere una a una.
+  const { data: fotoDelGiorno } = useQuery({
+    queryKey: ["campo-foto-del-giorno", companyId, orderId, user?.id, workDay],
+    enabled: !!companyId && !!orderId && !!user?.id && tipo === "daily" && validWorkDay(workDay),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { start, end } = campoDayWindow(workDay);
+      const { data, error } = await supabase.from("foto_cantiere")
+        .select("storage_path")
+        .eq("company_id", companyId!).eq("order_id", orderId!).eq("uploaded_by", user!.id)
+        .gte("taken_at", start.toISOString()).lt("taken_at", end.toISOString())
+        .order("taken_at", { ascending: true });
+      if (error) return [];
+      return (data ?? []).map((f) => riferimentoFile("foto-cantiere", f.storage_path));
+    },
+  });
+  const fotoDelGiornoPrese = useRef(false);
+  useEffect(() => {
+    if (fotoDelGiornoPrese.current || !fotoDelGiorno || !ripresaDecisa || daRifare || !parti.foto || soloOreAllOperaio || rapportinoGiaOggi) return;
+    fotoDelGiornoPrese.current = true;
+    if (fotoDelGiorno.length === 0) return;
+    setFotoUrls((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u))]);
+    setFotoPreviews((prima) => [...prima, ...fotoDelGiorno.filter((u) => !prima.includes(u))]);
+  }, [fotoDelGiorno, ripresaDecisa, daRifare, parti.foto, soloOreAllOperaio, rapportinoGiaOggi]);
 
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

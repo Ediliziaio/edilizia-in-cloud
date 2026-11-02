@@ -65,7 +65,7 @@ export default function CampoMenu() {
       title: "Documenti e assistenza",
       items: [
         { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
-        { icon: Ticket, label: "Apri Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
+        { icon: Ticket, label: "Segnala", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
       ],
     },
   ];
@@ -83,7 +83,7 @@ export default function CampoMenu() {
       title: "Documenti e assistenza",
       items: [
         { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
-        { icon: Ticket, label: "Apri Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
+        { icon: Ticket, label: "Segnala", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
       ],
     },
   ];

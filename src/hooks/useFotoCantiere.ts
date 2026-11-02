@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { erroreDiRete, senzaRete } from '@/lib/campo/timbra';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -65,7 +66,7 @@ export async function getGeoPosition(): Promise<GeolocationPosition | null> {
   });
 }
 
-export function useFotoCantiere(orderId?: string) {
+export function useFotoCantiere(orderId?: string, opzioni?: { soloInvio?: boolean }) {
   const { effectiveCompany, user, profile } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
@@ -77,7 +78,7 @@ export function useFotoCantiere(orderId?: string) {
 
   const fotoQuery = useQuery({
     queryKey,
-    enabled: !!companyId,
+    enabled: !!companyId && !opzioni?.soloInvio,
     staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       let q = supabase
@@ -160,7 +161,7 @@ export function useFotoCantiere(orderId?: string) {
 
         // Senza rete la foto non si perde: va in coda su IndexedDB e parte da
         // sola al ritorno del campo. È il caso normale in cantiere, non l'eccezione.
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const mettiInCoda = async () => {
           await enqueue('foto', {
             bucket: 'foto-cantiere',
             path,
@@ -169,11 +170,14 @@ export function useFotoCantiere(orderId?: string) {
             riga,
           });
           return { path, inCoda: true };
-        }
+        };
+        if (senzaRete()) return mettiInCoda();
 
         const { error: upErr } = await supabase.storage
           .from('foto-cantiere')
           .upload(path, blob, { contentType: blob.type || file.type });
+        // Con una tacca il telefono crede di essere in linea: la foto non si perde lo stesso.
+        if (upErr && erroreDiRete({ message: upErr.message })) return mettiInCoda();
         if (upErr) throw new Error(upErr.message);
 
         const { error: dbErr } = await supabase.from('foto_cantiere').insert({ ...riga, storage_path: path });
