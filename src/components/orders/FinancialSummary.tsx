@@ -357,6 +357,8 @@ interface FinancialSummaryProps {
   datiCausale?: DatiCausale;
   /** Commessa in creazione: una rata che cade oggi (per esempio «alla firma») non è ancora «scaduta». */
   nuova?: boolean;
+  /** Da dove viene l'aliquota proposta, sotto il campo. */
+  notaIva?: string;
 }
 
 export function FinancialSummary({
@@ -368,7 +370,7 @@ export function FinancialSummary({
   hasBuildingBonus, onHasBuildingBonusChange,
   financingCost, onFinancingCostChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
-  datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false,}: FinancialSummaryProps) {
+  datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false, notaIva,}: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
@@ -663,6 +665,7 @@ export function FinancialSummary({
               <SelectItem value="22">22%</SelectItem>
             </SelectContent>
           </Select>
+          {notaIva && <p className="text-xs text-muted-foreground">{notaIva}</p>}
         </div>
 
         {/* Building Bonus Toggle */}

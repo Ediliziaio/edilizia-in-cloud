@@ -17,15 +17,20 @@ function Panel({ initial = [], disabled = false }: { initial?: PendingFile[]; di
   const [files, setFiles] = useState(initial);
   return <MemoryRouter><PendingFilesUpload files={files} disabled={disabled} onFilesChange={(next) => { setFiles(next); mocks.changed(next); }} /></MemoryRouter>;
 }
-const folderButton = (name: string) => within(screen.getByRole("navigation", { name: "Cartelle documenti" })).getByRole("button", { name: new RegExp(`^${name}:`) });
+const folderButton = (name: string) => {
+  const mostra = screen.queryByRole("button", { name: "Mostra cartelle" });
+  if (mostra) fireEvent.click(mostra);
+  return within(screen.getByRole("navigation", { name: "Cartelle documenti" })).getByRole("button", { name: new RegExp(`^${name}:`) });
+};
 const lastFiles = (): PendingFile[] => mocks.changed.mock.calls.at(-1)?.[0] ?? [];
 const add = (container: HTMLElement, files: File[]) => fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files } });
 beforeEach(() => { mocks.loading = false; mocks.error = null; mocks.admin = true; mocks.changed.mockClear(); mocks.cartelle = [folder("contratti", "Contratti"), folder("foto", "Foto", true), folder("custom", "Progetti esecutivi"), folder("varie", "Varie")]; });
 afterEach(cleanup);
 
 describe("cartelle nella nuova commessa", () => {
-  it("mostra da subito le cartelle aziendali, anche vuote, e il collegamento alla loro gestione", () => {
+  it("a pagina vuota le cartelle restano chiuse e si aprono a richiesta, col collegamento alla loro gestione", () => {
     render(<Panel />);
+    expect(screen.queryByRole("navigation", { name: "Cartelle documenti" })).not.toBeInTheDocument();
     expect(folderButton("Contratti")).toHaveTextContent("0");
     expect(folderButton("Progetti esecutivi")).toHaveTextContent("0");
     expect(screen.getByRole("link", { name: "Gestisci cartelle" })).toHaveAttribute("href", "/azienda/impostazioni/cartelle-documenti");

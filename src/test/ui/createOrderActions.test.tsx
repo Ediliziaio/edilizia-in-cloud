@@ -25,12 +25,11 @@ describe("azioni della nuova commessa, compatte sul telefono", () => {
     expect(submit).toHaveBeenCalledOnce();
   });
 
-  it("non usa sticky o fixed a nessun breakpoint: niente sovrapposizioni con campi e navigazione", () => {
+  it("dal telefono resta nel flusso, dal computer resta in vista in fondo allo schermo", () => {
     setup();
     const footer = screen.getByTestId("create-order-actions");
-    expect(footer).toHaveClass("static", "w-full", "min-w-0");
+    expect(footer).toHaveClass("static", "w-full", "min-w-0", "md:fixed", "md:bottom-4");
     expect(footer).not.toHaveClass("fixed", "sticky", "bottom-0", "-mx-4");
-    expect(footer).not.toHaveClass("md:sticky", "md:fixed", "md:bottom-0");
     expect(screen.getByRole("button", { name: "Crea commessa" })).toHaveClass("flex-1", "min-w-0", "justify-center", "h-11");
     expect(screen.getByRole("button", { name: "Annulla" })).toHaveClass("shrink-0", "h-11");
   });
