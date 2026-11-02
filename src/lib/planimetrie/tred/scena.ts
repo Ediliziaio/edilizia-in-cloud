@@ -262,6 +262,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
           p: el.profondita !== undefined ? el.profondita * CM : undefined,
           // in mansarda il lucernario sta sulla falda sopra di lui
           senzaCabina: el.senzaCabina,
+          interpiano: el.interpiano !== undefined ? el.interpiano * CM : undefined,
           h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02
             : el.tipo === "quota_terreno" ? (pianta.terreno?.length ? quotaTerreno(pianta.terreno, el.centro.x, el.centro.y) * CM : 0)
             : el.altezza !== undefined ? el.altezza * CM : undefined,

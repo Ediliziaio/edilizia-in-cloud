@@ -176,6 +176,10 @@ export function SimboloArredo({ tipo, larghezza: w, profondita: d, colore, spess
         </g>
       );
     }
+    case "trave":
+      return (<g><rect x={x0} y={y0} width={w} height={d} fill="none" stroke={colore} strokeWidth={spessore} strokeDasharray={`${Math.max(8, d)} ${Math.max(6, d * 0.6)}`} /><line x1={x0} y1={0} x2={-x0} y2={0} stroke={colore} strokeWidth={spessore * 0.6} strokeDasharray={`${Math.max(10, d)} ${Math.max(10, d)}`} /></g>);
+    case "solaio":
+      return (<g><rect x={x0} y={y0} width={w} height={d} fill="none" stroke={colore} strokeWidth={spessore} strokeDasharray={`${Math.min(w, d) * 0.04} ${Math.min(w, d) * 0.03}`} /></g>);
     case "scala_u": {
       // due rampe affiancate, pianerottolo in cima (in alto sul disegno), freccia sulla rampa di sinistra
       const pian = Math.min(100, d * 0.35), lungo = d - pian, n = Math.max(3, Math.round(lungo / 25));

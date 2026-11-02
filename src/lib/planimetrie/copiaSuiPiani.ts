@@ -6,7 +6,7 @@
 import type { Elemento, Livello, Planimetria, StatoPianta } from "../../../shared/planimetrie/modello.ts";
 
 /** Gli elementi che hanno senso su tutti i piani. */
-export const TIPI_SU_TUTTI_I_PIANI: readonly string[] = ["ascensore", "scala", "scala_u", "scala_chiocciola", "pilastro"];
+export const TIPI_SU_TUTTI_I_PIANI: readonly string[] = ["ascensore", "scala", "scala_u", "scala_chiocciola", "pilastro", "trave", "solaio"];
 
 const VICINO_CM = 40;
 
@@ -47,4 +47,17 @@ export function copiaSuTuttiIPiani(doc: Planimetria, livelloId: string, elemento
     return { ...l, proposte: l.proposte.map((p, i) => (i === k ? { ...p, elementi: [...p.elementi, copia] } : p)) };
   });
   return { documento: { ...doc, livelli }, aggiunti, giaPresenti };
+}
+
+/** Più elementi insieme (il telaio strutturale): ognuno su tutti gli altri piani, nello stesso punto. */
+export function copiaGruppoSuTuttiIPiani(doc: Planimetria, livelloId: string, elementiId: string[], nuovoId: () => string): EsitoCopia {
+  let documento = doc, aggiunti = 0, giaPresenti = 0;
+  for (const id of elementiId) {
+    const r = copiaSuTuttiIPiani(documento, livelloId, id, nuovoId);
+    if (!r) continue;
+    documento = r.documento;
+    aggiunti += r.aggiunti;
+    giaPresenti += r.giaPresenti;
+  }
+  return { documento, aggiunti, giaPresenti };
 }

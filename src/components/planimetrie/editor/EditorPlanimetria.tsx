@@ -9,6 +9,8 @@
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
 import { RilievoTerreno } from "./RilievoTerreno";
+import { TelaioStrutturale } from "./TelaioStrutturale";
+import { generaTelaio, type ParametriTelaio } from "./telaio";
 import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
 import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
@@ -18,7 +20,7 @@ import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimet
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PanelRightClose, PanelRightOpen, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PanelRightClose, PanelRightOpen, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +49,7 @@ import {
   type Punto,
   type TipoApertura,
 } from "./adattatore";
-import { copiaSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
+import { copiaGruppoSuTuttiIPiani, copiaSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
 import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
 import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
@@ -1262,6 +1264,25 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setTimeout(adatta, 0);
   };
   vaiAlPianoRef.current = vaiAlPiano;
+  const [telaioAperto, setTelaioAperto] = useState(false);
+  const creaTelaio = (par: Omit<ParametriTelaio, "origine" | "stato">, suTuttiIPiani: boolean) => {
+    const muri = stato.current.storia.presente.muri;
+    // la griglia parte dall'angolo in alto a sinistra della casa (o da zero su un foglio vuoto)
+    const origine = muri.length
+      ? { x: Math.min(...muri.flatMap((m) => [m.p1.x, m.p2.x])), y: Math.min(...muri.flatMap((m) => [m.p1.y, m.p2.y])) }
+      : { x: 0, y: 0 };
+    const r = generaTelaio(stato.current.storia.presente, { ...par, origine, stato: C.statoNuovo(stato.current.vista) });
+    if (!suTuttiIPiani) {
+      applica(r.pianta);
+      setAvviso("Telaio creato: ogni pilastro, trave o solaio si sposta e si cambia come un arredo.");
+      return;
+    }
+    const lid = livelloId ?? documento.livelli[0].id;
+    const d = aPlanimetria(r.pianta, documentoBase.current, livelloId, propostaId);
+    const copiato = copiaGruppoSuTuttiIPiani(d, lid, r.elementi, () => C.nuovoId("arredo"));
+    vaiAlPiano(lid, copiato.documento, propostaId);
+    setAvviso(`Telaio creato su ${copiato.documento.livelli.length} piani, nello stesso punto.`);
+  };
   const nuovoPiano = (o: { nome: string; quota: number; base: BaseNuovoPiano }) => {
     const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
     vaiAlPiano(r.id, r.documento);
@@ -1460,6 +1481,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
                 setStrumento("arredo");
                 setArredoScelto(voce);
               }}
+              onTelaio={() => setTelaioAperto(true)}
             />
             <BottoneStrumento attivo={strumento === "quota"} onClick={() => setStrumento("quota")} icona={<MoveHorizontal />} etichetta="Quota" titolo="Misura fra due punti" />
             <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
@@ -1642,6 +1664,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
       )}
 
+      {telaioAperto && <TelaioStrutturale aperto onChiudi={() => setTelaioAperto(false)} piani={documento.livelli.length} onCrea={creaTelaio} />}
       {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} angoliPianta={angoliPianta()} onCambia={cambiaRilievo} />}
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
@@ -1966,7 +1989,7 @@ function StrumentoEsterni({ attivo, tipo, onScegli, onRilievo, conRilievo }: { a
   );
 }
 
-function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce: VoceCatalogo) => void }) {
+function CatalogoArredi({ attivo, onScegli, onTelaio }: { attivo: boolean; onScegli: (voce: VoceCatalogo) => void; onTelaio?: () => void }) {
   const [aperto, setAperto] = useState(false);
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
@@ -1978,6 +2001,12 @@ function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce
       </PopoverTrigger>
       <PopoverContent className="w-[22rem] p-2" align="start">
         <p className="px-1 pb-1 text-xs text-muted-foreground">Scegli e poi clicca sul foglio per posarlo.</p>
+        {onTelaio && (
+          <button type="button" onClick={() => { onTelaio(); setAperto(false); }} className="mb-2 flex w-full items-center gap-2 rounded-md border border-dashed p-2 text-left text-xs hover:bg-muted">
+            <Grid3x3 className="h-4 w-4 shrink-0" />
+            <span><span className="font-medium">Telaio strutturale…</span><br /><span className="text-muted-foreground">Griglia di pilastri, travi e solaio dalle campate</span></span>
+          </button>
+        )}
         <div className="max-h-[60vh] space-y-2 overflow-y-auto">
           {GRUPPI_CATALOGO.map((g) => (
             <div key={g}>

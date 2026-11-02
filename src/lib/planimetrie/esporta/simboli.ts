@@ -255,6 +255,9 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
       const n = Math.max(3, Math.floor(P / 28));
       return [rett(-w, -h, w, h, C.legnoChiaro), ...Array.from({ length: n - 1 }, (_, i) => linea(-w, -h + ((i + 1) * P) / n, w, -h + ((i + 1) * P) / n)), linea(0, h - P * 0.08, 0, -h + P * 0.1), { punti: [{ x: -L * 0.12, y: -h + P * 0.18 }, { x: 0, y: -h + P * 0.08 }, { x: L * 0.12, y: -h + P * 0.18 }], chiuso: false }];
     }
+    // trave: lati tratteggiati (è sopra di noi); solaio: solo il perimetro, per non coprire il resto
+    case "trave": return [{ ...rett(-w, -h, w, h), sottile: true }, linea(-w, 0, w, 0)];
+    case "solaio": return [{ ...rett(-w, -h, w, h), sottile: true }, linea(-w, -h, w, h), linea(w, -h, -w, h)];
     case "scala_u": {
       // due rampe affiancate (si sale dal basso), pianerottolo in cima, freccia lungo la rampa di sinistra
       const pian = Math.min(100, P * 0.35), lungo = P - pian, n = Math.max(3, Math.round(lungo / 25));
@@ -410,7 +413,7 @@ export function formeSimbolo(tipo: string, L: number, P: number): Forma[] {
 /** I tipi che hanno un disegno qui (gli altri, come i punti impianto, li disegna l'editor). */
 export const TIPI_CON_FORME = new Set([
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie", "auto", "scaffale", "banco_lavoro",
-  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "scala_u", "scala_chiocciola", "ascensore",
+  "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split", "unita_esterna", "collettore", "colonna_scarico", "pilastro", "trave", "solaio", "scala", "scala_u", "scala_chiocciola", "ascensore",
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",

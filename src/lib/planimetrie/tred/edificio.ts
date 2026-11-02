@@ -72,7 +72,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     const fino = sopra ? sopra.quota - piano.quota : 0;
     // pareti fino al piano sopra; la scala e il vano ascensore salgono fino al pavimento del piano sopra (non 2,80 fissi)
     const pianta = fino > 0
-      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (PASSANTI.includes(e.tipo) ? { ...e, altezza: fino } : e)) }
+      ? { ...base, muri: base.muri.map((m) => ({ ...m, altezza: Math.max(m.altezza, fino) })), elementi: base.elementi.map((e) => (PASSANTI.includes(e.tipo) || e.tipo === "pilastro" ? { ...e, altezza: fino } : e.tipo === "trave" || e.tipo === "solaio" ? { ...e, interpiano: fino } : e)) }
       : base;
     // il tetto solo sull'ultimo piano mostrato (con «fino a» si scoperchia)
     const conTetto = i === scelti.length - 1 ? pianta : { ...pianta, tetto: undefined };

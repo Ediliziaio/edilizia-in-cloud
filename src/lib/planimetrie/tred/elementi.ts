@@ -24,7 +24,7 @@ export interface Blocco {
 interface ModelloElemento {
   nome: string;
   misure: { l: number; p: number; h: number };
-  blocchi: (l: number, p: number, h: number, opz?: { senzaCabina?: boolean }) => Blocco[];
+  blocchi: (l: number, p: number, h: number, opz?: { senzaCabina?: boolean; interpiano?: number }) => Blocco[];
 }
 
 const b = (materiale: string, x: number, z: number, y: number, l: number, p: number, h: number): Blocco => ({ materiale, x, z, y, l, p, h });
@@ -172,7 +172,10 @@ export const MODELLI: Record<string, ModelloElemento> = {
   scaffale: { nome: "Scaffalatura", misure: { l: 3.0, p: 1.0, h: 4.0 }, blocchi: (l, p, h) => [0, 1, 2, 3].map((k) => b("metallo", 0, 0, (h / 4) * k + 0.1, l, p, 0.06)).concat([-1, 1].map((sx) => b("metallo", sx * (l / 2 - 0.04), 0, 0, 0.08, p, h))) },
   banco_lavoro: { nome: "Banco da lavoro", misure: { l: 2.0, p: 0.8, h: 0.9 }, blocchi: (l, p, h) => [b("legno", 0, 0, h - 0.06, l, p, 0.06), b("metallo", 0, 0, 0, l - 0.1, p - 0.1, h - 0.06)] },
   // ─── struttura ───
-  pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("muro", 0, 0, 0, l, p, h)] },
+  pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("calcestruzzo", 0, 0, 0, l, p, h)] },
+  // Trave e solaio in c.a.: stanno sotto il pavimento del piano sopra (h = altezza della trave o spessore del solaio).
+  trave: { nome: "Trave", misure: { l: 4.0, p: 0.3, h: 0.5 }, blocchi: (l, p, h, opz) => [b("calcestruzzo", 0, 0, (opz?.interpiano ?? 3.0) - h, l, p, h)] },
+  solaio: { nome: "Solaio", misure: { l: 8.0, p: 6.0, h: 0.25 }, blocchi: (l, p, h, opz) => [b("calcestruzzo", 0, 0, (opz?.interpiano ?? 3.0) - h, l, p, h)] },
   // Vano ascensore: quattro pareti piene fino al piano sopra (l'altezza la decide l'edificio) e, sul davanti
   // (+p/2), l'apertura con la porta di piano in metallo. Su ogni piano ce n'è uno, uno sopra l'altro: fanno un vano unico.
   // Scala a U: due rampe affiancate e un pianerottolo in fondo. Alzata ≈ 17,5 cm, pedata dalla lunghezza che resta (≈ 25 cm).
@@ -389,7 +392,7 @@ export function costruisciElemento(
   tipo: string,
   centro: { x: number; z: number },
   rotazione: number,
-  misure: { l?: number; p?: number; h?: number; senzaCabina?: boolean },
+  misure: { l?: number; p?: number; h?: number; senzaCabina?: boolean; interpiano?: number },
   costruttore: (materiale: string) => CostruttoreMesh,
 ): void {
   const modello = modelloElemento(tipo);
@@ -397,7 +400,7 @@ export function costruisciElemento(
   const l = misure.l ?? modello.misure.l;
   const p = misure.p ?? modello.misure.p;
   const h = misure.h ?? modello.misure.h;
-  for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina })) {
+  for (const bl of modello.blocchi(l, p, h, { senzaCabina: misure.senzaCabina, interpiano: misure.interpiano })) {
     costruttore(bl.materiale).scatola(centro.x, centro.z, bl.y, bl.l, bl.p, bl.h, rotazione, bl.x, bl.z, bl.girata ?? 0);
   }
 }
