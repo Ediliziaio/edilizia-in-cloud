@@ -493,11 +493,17 @@ describe("Contatti: «Esporta» segue «Esporta Clienti»", () => {
   });
 });
 
-describe("Opportunità: «Esporta CSV» segue «Esporta Clienti»", () => {
+describe("Opportunità: «Esporta» segue «Esporta Clienti»", () => {
   /** Apre «Altre azioni» quando i permessi sono letti (c'è «Cestino»). */
   const apriAltreAzioni = async () => {
     apriMenu(await screen.findByRole("button", { name: "Altre azioni" }));
     await screen.findByRole("menuitem", { name: /Cestino/ });
+  };
+  /** Dalla voce del menu alla finestra: formato CSV, tutte le fasi, «Esporta». */
+  const esportaCsv = async () => {
+    fireEvent.click(screen.getByRole("menuitem", { name: /Esporta \(Excel o CSV\)/ }));
+    fireEvent.click(await screen.findByRole("radio", { name: /CSV/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Esporta$/ }));
   };
 
   it("staff senza il permesso: la voce non c'è", async () => {
@@ -513,7 +519,7 @@ describe("Opportunità: «Esporta CSV» segue «Esporta Clienti»", () => {
     monta(<MarketingOpportunities />, "/azienda/marketing/opportunita");
     await waitFor(() => abilitato(screen.getByRole("button", { name: "Aggiungi opportunità" })));
     await apriAltreAzioni();
-    fireEvent.click(screen.getByRole("menuitem", { name: /Esporta CSV/ }));
+    await esportaCsv();
 
     await waitFor(() => expect(file.csv).toHaveBeenCalledTimes(1));
     expect(stato.sequenza).toEqual(["registro", "file"]);
@@ -530,7 +536,7 @@ describe("Opportunità: «Esporta CSV» segue «Esporta Clienti»", () => {
     stato.ruolo = "company_admin";
     monta(<MarketingOpportunities />, "/azienda/marketing/opportunita");
     await apriAltreAzioni();
-    expect(screen.getByRole("menuitem", { name: /Esporta CSV/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Esporta \(Excel o CSV\)/ })).toBeTruthy();
   });
 
   it("se il database rifiuta, il file non parte", async () => {
@@ -539,7 +545,7 @@ describe("Opportunità: «Esporta CSV» segue «Esporta Clienti»", () => {
     monta(<MarketingOpportunities />, "/azienda/marketing/opportunita");
     await waitFor(() => abilitato(screen.getByRole("button", { name: "Aggiungi opportunità" })));
     await apriAltreAzioni();
-    fireEvent.click(screen.getByRole("menuitem", { name: /Esporta CSV/ }));
+    await esportaCsv();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Non hai il permesso «Esporta Clienti»: chiedilo a un amministratore."));
     expect(file.csv).not.toHaveBeenCalled();
