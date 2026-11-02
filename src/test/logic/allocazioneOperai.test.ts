@@ -53,6 +53,10 @@ describe("le proposte del modello", () => {
   });
 
   it("toglie i motivi che non vengono dai dati: esperienza e nome", () => {
+    for (const motivazione of ["Operaio esperto", "Bravo e affidabile", "Molto competente"]) {
+      const { suggerimenti: [s] } = suggerimentiVerificati([{ employee_id: "a", motivazione }], disponibili);
+      expect(s.motivazione).toContain("Ruolo");
+    }
     const { suggerimenti } = suggerimentiVerificati([
       { employee_id: "a", ruolo_proposto: "operaio_principale", motivazione: "Nome indica esperienza, area cantiere match", score: 95 },
     ], [riga({ employee_id: "a", role_type: "operaio", stato_carico: "leggero", ore_30gg: 40 })]);
@@ -62,12 +66,13 @@ describe("le proposte del modello", () => {
 
 describe("il periodo da controllare", () => {
   it("dall'inizio lavori, o da oggi se è già passato, fino alla fine prevista", () => {
-    expect(periodoDaControllare({ work_start_date: "2026-10-19", expected_date: "2026-12-14" }, "2026-11-02")).toEqual({ dal: "2026-11-02", al: "2026-12-14" });
-    expect(periodoDaControllare({ work_start_date: "2027-01-10", expected_date: "2027-02-01" }, "2026-11-02")).toEqual({ dal: "2027-01-10", al: "2027-02-01" });
+    expect(periodoDaControllare({ work_start_date: "2026-10-19", expected_date: "2026-12-14" }, "2026-11-02")).toEqual({ dal: "2026-11-02", al: "2026-12-14", senzaFine: false });
+    expect(periodoDaControllare({ work_start_date: "2026-10-19", work_end_date: "2027-01-10", expected_date: "2026-12-14" }, "2026-11-02").al).toBe("2027-01-10");
+    expect(periodoDaControllare({ work_start_date: "2027-01-10", expected_date: "2027-02-01" }, "2026-11-02")).toEqual({ dal: "2027-01-10", al: "2027-02-01", senzaFine: false });
   });
   it("senza date, o con la fine già passata, guarda oggi", () => {
-    expect(periodoDaControllare({ work_start_date: null, expected_date: null }, "2026-11-02")).toEqual({ dal: "2026-11-02", al: "2026-11-02" });
-    expect(periodoDaControllare({ work_start_date: "2024-01-01", expected_date: "2024-02-01" }, "2026-11-02")).toEqual({ dal: "2026-11-02", al: "2026-11-02" });
+    expect(periodoDaControllare({ work_start_date: null, expected_date: null }, "2026-11-02")).toEqual({ dal: "2026-11-02", al: "2026-11-02", senzaFine: true });
+    expect(periodoDaControllare({ work_start_date: "2024-01-01", expected_date: "2024-02-01" }, "2026-11-02")).toEqual({ dal: "2026-11-02", al: "2026-11-02", senzaFine: true });
   });
 });
 

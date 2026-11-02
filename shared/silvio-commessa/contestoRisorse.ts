@@ -105,9 +105,9 @@ export async function leggiContestoRisorse(
     }
   };
   const [
-    dipendenti, aperti, storicoLavori, assenze, capomastri, ditte, storicoDitte, documenti, schede, mezzi, piani, allocazioni, fornitori, acquisti,
+    dipendenti, aperti, storicoLavori, assenze, richieste, capomastri, ditte, storicoDitte, documenti, schede, mezzi, piani, allocazioni, fornitori, acquisti,
   ] = await Promise.all([
-    leggi("le persone", db.from("employees").select("id, first_name, last_name, is_active").eq("company_id", companyId).limit(LIMITE)),
+    leggi("le persone", db.from("employees").select("id, user_id, first_name, last_name, is_active").eq("company_id", companyId).limit(LIMITE)),
     // Gli impegni: le assegnazioni delle commesse aperte, le più recenti prima (revisione 1/11,
     // L11). Prima una lettura sola, senza ordine e senza filtro: PostgREST ne dà 1000, e in
     // un'azienda con molte commesse chiuse una persona già occupata risultava libera.
@@ -123,6 +123,9 @@ export async function leggiContestoRisorse(
       .order("created_at", { ascending: false }).limit(PAGINA)),
     leggi("le assenze", db.from("hr_assenze").select("employee_id, data_inizio, data_fine, tipo_assenza, status")
       .eq("company_id", companyId).gte("data_fine", oggi).limit(LIMITE)),
+    // Ferie e permessi chiesti dall'app stanno in hr_richieste, non in hr_assenze.
+    leggi("le ferie approvate", db.from("hr_richieste").select("user_id, data_inizio, data_fine, tipo, ore_richieste, profilo:hr_profili(employee_id)")
+      .eq("company_id", companyId).in("stato", ["approvata", "approvato"]).gte("data_fine", oggi).limit(LIMITE)),
     leggi("i capomastri", db.from("orders").select("id, capomastro_user_id").eq("company_id", companyId).is("deleted_at", null)
       .not("capomastro_user_id", "is", null).limit(LIMITE)),
     leggi("le ditte", db.from("external_teams").select("id, name, subappaltatore_id, kind, is_active").eq("company_id", companyId).eq("is_active", true)),
@@ -169,9 +172,17 @@ export async function leggiContestoRisorse(
       const al = data(fase?.end_date) ?? data(ordine?.work_end_date) ?? dal;
       return dal && futuro(al, dal) ? [{ employee_id: l.employee_id as string, commessa: codice(l), dal, al }] : [];
     }),
-    assenze: assenze
+    assenze: [...assenze
       .filter((a) => !/rifiut|annull|reject|cancel/i.test(testo(a.status)) && data(a.data_inizio))
       .map((a) => ({ employee_id: a.employee_id as string, dal: data(a.data_inizio)!, al: data(a.data_fine) ?? data(a.data_inizio)!, tipo: testo(a.tipo_assenza) })),
+      ...richieste
+        // Un permesso di poche ore non toglie la giornata.
+        .filter((q) => data(q.data_inizio) && (q.tipo !== "permesso" || (Number(q.ore_richieste) || 8) >= 8))
+        .flatMap((q) => {
+          const profilo = uno(q.profilo as Riga | Riga[] | null);
+          const id = (profilo?.employee_id as string | null) ?? (dipendenti.find((d) => q.user_id && d.user_id === q.user_id)?.id as string | undefined);
+          return id ? [{ employee_id: id, dal: data(q.data_inizio)!, al: data(q.data_fine) ?? data(q.data_inizio)!, tipo: testo(q.tipo) }] : [];
+        })],
     staff,
     capomastri: capomastri.filter((o) => !orderId || o.id !== orderId).map((o) => o.capomastro_user_id as string),
     ditte: ditte.filter((d) => d.kind !== "interna")

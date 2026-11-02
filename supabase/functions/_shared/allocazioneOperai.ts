@@ -11,7 +11,7 @@ type Riga = Record<string, any>;
 const STATI_NON_PROPONIBILI = new Set(["overload", "impegnato", "assente"]);
 const RUOLI_FUORI_CANTIERE = new Set(["staff_interno", "impiegato", "subappaltatore"]);
 /** Parole che dicono cose che i dati non contengono. */
-const MOTIVO_SENZA_DATI = /esperien|bravur|capac|nome|area|zona|vicin/i;
+const MOTIVO_SENZA_DATI = /esperien|espert|brav|capac|competen|affidabil|nome|area|zona|vicin/i;
 
 export function operaiDaProporre(righe: readonly Riga[]): Riga[] {
   return righe.filter((r) =>
@@ -52,9 +52,10 @@ export function suggerimentiVerificati(proposte: readonly Riga[], disponibili: r
   return { suggerimenti, avvisi };
 }
 
-/** Il periodo in cui la persona dev'essere libera: mai prima di oggi. */
-export function periodoDaControllare(ordine: { work_start_date?: string | null; expected_date?: string | null }, oggi: string) {
+/** Il periodo in cui la persona dev'essere libera: mai prima di oggi. `senzaFine`: si può guardare un giorno solo. */
+export function periodoDaControllare(ordine: { work_start_date?: string | null; work_end_date?: string | null; expected_date?: string | null }, oggi: string) {
   const dal = ordine.work_start_date && ordine.work_start_date > oggi ? ordine.work_start_date : oggi;
-  const al = ordine.expected_date && ordine.expected_date >= dal ? ordine.expected_date : dal;
-  return { dal, al };
+  const fine = ordine.work_end_date ?? ordine.expected_date ?? null;
+  const al = fine && fine >= dal ? fine : dal;
+  return { dal, al, senzaFine: !fine || fine < dal };
 }

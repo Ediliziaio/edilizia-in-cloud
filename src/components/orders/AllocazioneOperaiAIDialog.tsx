@@ -113,8 +113,8 @@ export function AllocazioneOperaiAIDialog({ orderId, companyId, open: openFuori,
             </Badge>
           </DialogTitle>
           <DialogDescription>
-            L'AI analizza carico operai, area geografica, ruoli e suggerisce il team
-            ottimale per questo cantiere.
+            Silvio guarda chi è libero nelle date del cantiere, il ruolo e le ore dell'ultimo mese,
+            e ti propone chi assegnare.
           </DialogDescription>
         </DialogHeader>
 

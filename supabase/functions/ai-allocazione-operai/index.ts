@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
     // Fetch order
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
-      .select("id, description, work_start_date, expected_date")
+      .select("id, description, work_start_date, work_end_date, expected_date")
       .eq("id", order_id)
       .eq("company_id", company_id)
       .single();
@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
       cantiere: {
         descrizione: order.description,
         data_inizio: order.work_start_date,
-        data_fine_prevista: order.expected_date,
+        data_fine_prevista: order.work_end_date ?? order.expected_date,
       },
       operai_disponibili: operaiPerIlModello(availabili),
       num_richiesti: Math.max(1, Math.min(10, Number(num_richiesti ?? 3))),
@@ -155,7 +155,11 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({
       success: true,
       suggerimenti,
-      warning: [...(Array.isArray(parsed.warning) ? parsed.warning : []), ...avvisi],
+      warning: [
+        ...(Array.isArray(parsed.warning) ? parsed.warning : []),
+        ...avvisi,
+        ...(periodo.senzaFine ? ["La commessa non ha una data di fine: ho controllato chi è libero solo il primo giorno."] : []),
+      ],
       alternative: parsed.alternative ?? null,
       ai_meta: {
         operai_disponibili_count: availabili.length,
