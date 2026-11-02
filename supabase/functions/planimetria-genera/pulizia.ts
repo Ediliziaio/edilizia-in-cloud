@@ -44,14 +44,15 @@ export function pulisciLocali(r: RispostaAI): EsitoPulizia {
   const tenuti: LocaleAI[] = [];
   for (const l of r.locali) {
     const nome = l.nome.trim();
-    if (ARREDO.test(nome) && l.destinazione === "altro") {
+    // il modello dà all'arredo una destinazione qualsiasi («mobili cucina» → cucina, «armadio» → disimpegno): conta il nome
+    if (ARREDO.test(nome)) {
       scartati.push(nome);
       continue;
     }
     const sigla = SIGLE[nome.toLowerCase().replace(/\.$/, "")];
     if (sigla && (nome.length <= 3)) {
       rinominati.push(`${nome} → ${sigla.nome}`);
-      tenuti.push({ ...l, nome: sigla.nome, destinazione: l.destinazione === "altro" ? sigla.destinazione : l.destinazione });
+      tenuti.push({ ...l, nome: sigla.nome, destinazione: sigla.destinazione });
       continue;
     }
     tenuti.push(l);

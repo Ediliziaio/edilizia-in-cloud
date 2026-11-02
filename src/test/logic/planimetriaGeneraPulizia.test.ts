@@ -15,7 +15,7 @@ const risposta = (locali: RispostaAI["locali"], extra: Partial<RispostaAI> = {})
 
 describe("pulizia dei locali letti dall'AI", () => {
   it("toglie gli arredi letti come stanze e tiene le stanze vere", () => {
-    const r = risposta([stanza("soggiorno", 0, 0, 500, 500), stanza("mobili cucina", 0, 0, 100, 50), stanza("armadio", 0, 0, 40, 40), stanza("Bagno", 500, 0, 800, 300)]);
+    const r = risposta([stanza("soggiorno", 0, 0, 500, 500), stanza("mobili cucina", 0, 0, 100, 50, { destinazione: "cucina" }), stanza("armadio", 0, 0, 40, 40, { destinazione: "disimpegno" }), stanza("Bagno", 500, 0, 800, 300)]);
     const p = pulisciLocali(r);
     expect(p.risposta.locali.map((l) => l.nome)).toEqual(["soggiorno", "Bagno"]);
     expect(p.scartati).toEqual(["mobili cucina", "armadio"]);
@@ -27,10 +27,11 @@ describe("pulizia dei locali letti dall'AI", () => {
   });
 
   it("dà un nome alle sigle delle piante a quadretti, senza toccare i nomi veri", () => {
-    const r = risposta([stanza("S", 0, 0, 500, 500), stanza("W", 500, 0, 700, 300), stanza("L", 0, 500, 400, 900), stanza("Cucina", 500, 300, 900, 700), stanza("C", 700, 0, 900, 300)]);
+    const r = risposta([stanza("S", 0, 0, 500, 500), stanza("W", 500, 0, 700, 300), stanza("L", 0, 500, 400, 900), stanza("Cucina", 500, 300, 900, 700), stanza("C", 700, 0, 900, 300, { destinazione: "camera" })]);
     const p = pulisciLocali(r);
     expect(p.risposta.locali.map((l) => l.nome)).toEqual(["Soggiorno", "Bagno", "Camera", "Cucina", "Cucina"]);
     expect(p.risposta.locali[0].destinazione).toBe("soggiorno");
+    expect(p.risposta.locali[4].destinazione).toBe("cucina");
     expect(p.rinominati).toHaveLength(4);
   });
 });
