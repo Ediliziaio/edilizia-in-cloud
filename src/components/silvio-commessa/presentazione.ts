@@ -159,8 +159,11 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true, o
   switch (chiave) {
     // Questi arrivano dalla commessa come codici («appaltatore_lavoro», «in_corso»).
     case "identita.order_type":
-    case "identita.stato":
-      return typeof valore === "string" ? minuscola(valore).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : String(valore);
+    case "identita.stato": {
+      // Lo stato è un oggetto con le colonne { status, current_status_id }.
+      const codice = typeof valore === "string" ? valore : (valore as { status?: unknown }).status;
+      return typeof codice === "string" && codice ? minuscola(codice).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "—";
+    }
     case "fasi.order_work_phases": {
       const fasi = valore as FaseDelPiano[];
       const { inizio, fine } = arcoDelleFasi(fasi);
