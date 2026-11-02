@@ -1552,7 +1552,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             {!confermaCliente && registraSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
             {!confermaCliente && registraSquadra && bloccoSquadra}
             <div className="flex items-center justify-between gap-2">
-              <h2 className="min-w-0 text-lg font-black text-foreground md:text-xl">
+              <h2 className="min-w-0 text-base font-black text-foreground md:text-xl">
                 {lavoro_completato ? "Quali lavori conferma il cliente?" : soloOreAllOperaio
                   ? (workDay === today ? "Le tue ore di oggi" : "Le tue ore di questa giornata")
                   : (workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?")}
