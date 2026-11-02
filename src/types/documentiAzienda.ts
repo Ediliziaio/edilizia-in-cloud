@@ -95,6 +95,27 @@ export interface DatiDocumento {
 }
 
 /**
+ * Una carta su cui si può ancora leggere la scadenza dal file appena caricato.
+ *
+ * Porta con sé quello che la carta ha GIÀ: la lettura propone solo per i campi
+ * vuoti, perché quello che ha scritto una persona vale più di quello che deduce
+ * un modello.
+ */
+export interface CartaDaLeggere {
+  documentoId: string;
+  nomeFile: string;
+  path: string;
+  mime: string | null;
+  titolo: string;
+  ente: string | null;
+  numero: string | null;
+  data_documento: string | null;
+  categoria: CategoriaDocumento;
+  /** Il titolo viene dal nome del file: uno letto dal documento è meglio. */
+  titoloDalNome: boolean;
+}
+
+/**
  * L'elenco di partenza: le carte che ha quasi ogni impresa edile. Si spunta
  * quello che si ha, il resto sparisce e non torna più. Nessun obbligo: chi non
  * ha la SOA la toglie e non la rivede.

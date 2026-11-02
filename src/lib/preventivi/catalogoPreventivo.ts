@@ -5,6 +5,10 @@ import { chiaveTesto } from "@/lib/listino/areeStandard";
 import type { MacroListino } from '@/lib/listino/lineeListino';
 import { lineaBestInfissi } from '@/lib/listino/bestInfissiLinee';
 
+/** Il nome di comodo dei cataloghi di partenza: nel preventivo non dice niente a chi lo legge. */
+const segnapostoCategoria = (nome: string | null | undefined) =>
+  /^base da personalizzare$/i.test((nome ?? "").trim());
+
 export function categoriaProdottoCatalogo(
   item: CatalogItem,
   categorie: CatalogCategory[],
@@ -12,6 +16,7 @@ export function categoriaProdottoCatalogo(
 ) {
   const categoria = categorie.find((c) => c.id === item.categoria_id);
   const macro = macros.find(m => m.id === categoria?.macrocategoria_id);
+  if (categoria && macro && segnapostoCategoria(categoria.nome)) return { id: categoria.id, nome: macro.nome };
   if (categoria) return { id: categoria.id, nome: macro && macro.nome !== categoria.nome ? `${macro.nome} · ${categoria.nome}` : categoria.nome };
   const modello = item.source === 'family' ? lineaBestInfissi(item.family) : null;
   if (modello) return {id:`linea:${modello}`, nome:modello};
@@ -27,9 +32,11 @@ export function dettagliProdottoCatalogo(
   categorie: CatalogCategory[],
   macros: readonly MacroListino[] = [],
 ) {
-  const categoria =
-    categorie.find((c) => c.id === item.categoria_id)?.nome ??
-    (item.source === "article" ? (item.article?.category ?? "") : "");
+  const trovata = categorie.find((c) => c.id === item.categoria_id);
+  const categoria = segnapostoCategoria(trovata?.nome)
+    ? (macros.find((m) => m.id === trovata?.macrocategoria_id)?.nome ?? "")
+    : (trovata?.nome ??
+      (item.source === "article" ? (item.article?.category ?? "") : ""));
   const codice = item.source === "family" ? item.family?.codice : item.sku;
   const linee =
     item.source === "family"

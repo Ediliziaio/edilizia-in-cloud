@@ -4,7 +4,7 @@ import { useEffectiveCompanyId } from '@/hooks/useEffectiveCompanyId';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type {
-  DatiDocumento, DocumentoAzienda, VersioneDocumento,
+  CartaDaLeggere, DatiDocumento, DocumentoAzienda, VersioneDocumento,
 } from '@/types/documentiAzienda';
 
 const BUCKET = 'azienda-documenti';
@@ -186,6 +186,8 @@ export function useAllegaFileDocumento() {
         throw error;
       }
       if (documento.file_path) await rimuoviFileDocumento(documento.file_path);
+      // Chi chiama ne ha bisogno per far leggere la scadenza dal file appena entrato.
+      return caricato;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
@@ -199,7 +201,7 @@ export function useAllegaFileDocumento() {
 export interface FileDaCaricare {
   file: File;
   /** Il documento a cui attaccarlo. */
-  documento?: Pick<DocumentoAzienda, 'id' | 'file_path'>;
+  documento?: DocumentoAzienda;
   /** Oppure: un documento nuovo, da creare con questo titolo. */
   titoloNuovo?: string;
 }
@@ -208,6 +210,11 @@ export interface EsitoCaricamento {
   caricati: number;
   creati: number;
   errori: Array<{ nome: string; motivo: string }>;
+  /**
+   * Le carte dove la scadenza manca ancora: su quelle si può leggere dal file.
+   * Chi ha già una data non entra qui — quella l'ha scritta una persona.
+   */
+  daLeggere: CartaDaLeggere[];
 }
 
 /**
@@ -228,7 +235,7 @@ export function useAllegaFileInBlocco() {
       onProgresso?: (fatti: number, totale: number) => void;
     }): Promise<EsitoCaricamento> => {
       if (!companyId) throw new Error('Azienda non trovata');
-      const esito: EsitoCaricamento = { caricati: 0, creati: 0, errori: [] };
+      const esito: EsitoCaricamento = { caricati: 0, creati: 0, errori: [], daLeggere: [] };
 
       for (let i = 0; i < righe.length; i++) {
         const riga = righe[i];
@@ -242,17 +249,45 @@ export function useAllegaFileInBlocco() {
               .eq('id', riga.documento.id);
             if (error) throw error;
             if (riga.documento.file_path) await rimuoviFileDocumento(riga.documento.file_path);
+            if (!riga.documento.data_scadenza) {
+              esito.daLeggere.push({
+                documentoId: riga.documento.id,
+                nomeFile: caricato.name,
+                path: caricato.path,
+                mime: riga.file.type || null,
+                titolo: riga.documento.titolo,
+                ente: riga.documento.ente,
+                numero: riga.documento.numero,
+                data_documento: riga.documento.data_documento,
+                categoria: riga.documento.categoria,
+                titoloDalNome: false,
+              });
+            }
           } else {
-            const { error } = await db.from('azienda_documenti').insert({
+            const titolo = riga.titoloNuovo || riga.file.name;
+            const { data, error } = await db.from('azienda_documenti').insert({
               company_id: companyId,
               created_by: user?.id ?? null,
               categoria: 'altro',
-              titolo: riga.titoloNuovo || riga.file.name,
+              titolo,
               file_path: caricato.path,
               file_name: caricato.name,
-            });
+            }).select('id').single();
             if (error) throw error;
             esito.creati++;
+            esito.daLeggere.push({
+              documentoId: (data as { id: string }).id,
+              nomeFile: caricato.name,
+              path: caricato.path,
+              mime: riga.file.type || null,
+              titolo,
+              ente: null,
+              numero: null,
+              data_documento: null,
+              categoria: 'altro',
+              // Il titolo è il nome del file: quello scritto sul documento è meglio.
+              titoloDalNome: true,
+            });
           }
           esito.caricati++;
         } catch (e) {
@@ -280,6 +315,46 @@ export function useAllegaFileInBlocco() {
       }
     },
     onError: (e) => toast.error(messaggio(e, 'Non è riuscito a caricare i file')),
+  });
+}
+
+/** Una carta e i campi che la lettura del file le mette dentro, già confermati. */
+export interface LetturaConfermata {
+  documentoId: string;
+  dati: Partial<DatiDocumento>;
+}
+
+/**
+ * Scrive le date (e i dati) lette dai file, dopo che qualcuno le ha viste.
+ *
+ * Arriva qui solo quello che è stato confermato: la lettura da sola non scrive
+ * niente. Una carta che va male non ferma le altre — chi ha confermato dieci
+ * date non vuole ricominciare per una.
+ */
+export function useApplicaLettureDocumenti() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (righe: LetturaConfermata[]): Promise<{ messe: number; errori: number }> => {
+      let messe = 0;
+      let errori = 0;
+      for (const riga of righe) {
+        if (Object.keys(riga.dati).length === 0) continue;
+        const { error } = await db
+          .from('azienda_documenti')
+          .update(pulisci(riga.dati as DatiDocumento))
+          .eq('id', riga.documentoId);
+        if (error) errori++;
+        else messe++;
+      }
+      return { messe, errori };
+    },
+    onSuccess: ({ messe, errori }) => {
+      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      if (messe > 0) toast.success(messe === 1 ? 'Scadenza messa' : `${messe} carte aggiornate`);
+      if (errori > 0) toast.error(errori === 1 ? 'Una carta non si è aggiornata' : `${errori} carte non si sono aggiornate`);
+    },
+    onError: (e) => toast.error(messaggio(e, 'Non è riuscito a salvare le date')),
   });
 }
 

@@ -30,6 +30,12 @@ function areaDaCategoria(nome: string | null | undefined): string | null {
   return corrispondenze.length === 1 ? corrispondenze[0].chiave : null;
 }
 
+/** Il tipo di lavoro del preventivo porta all'area giusta, se è una categoria riconosciuta. */
+export function areaDaTipoLavoro(tipo: string | null | undefined): string | null {
+  const area = areaDaCategoria(tipo);
+  return area ? `area:${area}` : null;
+}
+
 export function classificaProdottiPerArea(
   prodotti: CatalogItem[],
   categorie: CatalogCategory[],

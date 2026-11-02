@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import { avvisiDoppieVoci } from "@/lib/preventivi/avvisiInserimento";
 import { unitaTariffa } from "@/lib/listino/costoTariffa";
@@ -16,6 +16,9 @@ import { ProductPicker } from "./ProductPicker";
 import { TariffePicker } from "./TariffePickerDialog";
 import { ProductConfigurator } from "./configurators/ProductConfigurator";
 import { BatchProductConfigurator } from "./configurators/BatchProductConfigurator";
+import type { DopoAggiunta } from "./configurators/LayoutConfigurazione";
+import { formatCurrency } from "@/lib/formatters";
+import { voceDaProdotto, type VoceAggiunta } from "@/lib/preventivi/riepilogoAggiunte";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { CatalogItem, ConfiguredItem } from "@/types/catalogItem";
 import { useCatalogItems } from "@/hooks/useCatalogItems";
@@ -54,10 +57,35 @@ export interface AddItemDialogProps {
   onAddFreeLine?: () => void;
   onAddDiscount?: () => void;
   onAddSubtotal?: () => void;
+  /** L'area del tipo di lavoro del preventivo, se si riconosce. */
+  areaSuggerita?: string | null;
+}
+
+const CHIAVE_ULTIMA_AREA = "eic.preventivo.ultimaArea";
+
+function ultimaAreaUsata(): string | null {
+  try {
+    return localStorage.getItem(CHIAVE_ULTIMA_AREA);
+  } catch {
+    return null;
+  }
 }
 
 export function AddItemDialog(props: AddItemDialogProps) {
-  const [area, setArea] = useState(TUTTE_LE_AREE);
+  // Si apre sull'area del lavoro; se non è indicata, sull'ultima usata. La scelta a mano vince.
+  const [sceltaArea, setSceltaArea] = useState<string | null>(null);
+  const [ultimaArea] = useState(ultimaAreaUsata);
+  useEffect(() => setSceltaArea(null), [props.areaSuggerita]);
+  const area =
+    sceltaArea ?? props.areaSuggerita ?? ultimaArea ?? TUTTE_LE_AREE;
+  function setArea(nuova: string) {
+    setSceltaArea(nuova);
+    try {
+      localStorage.setItem(CHIAVE_ULTIMA_AREA, nuova);
+    } catch {
+      // Senza memoria del browser si riparte semplicemente da tutte le aree.
+    }
+  }
   const [includiComuni, setIncludiComuni] = useState(true);
   return (
     <AddItemContent
@@ -99,9 +127,9 @@ function AddItemContent({
   const [item, setItem] = useState<CatalogItem | null>(null);
   const [contestoProdotto, setContestoProdotto] = useState("");
   const [tab, setTab] = useState(initialTab);
-  const [keepAdding, setKeepAdding] = useState(true);
-  const [addedCount, setAddedCount] = useState(0);
+  const [aggiunte, setAggiunte] = useState<VoceAggiunta[]>([]);
   const [lastAdded, setLastAdded] = useState("");
+  const [duplicazioni, setDuplicazioni] = useState(0);
   const [selezionati, setSelezionati] = useState<CatalogItem[]>([]);
   const [modificaMultipla, setModificaMultipla] = useState(false);
   const [inserimentoDaConfermare, setInserimentoDaConfermare] = useState<{
@@ -109,8 +137,17 @@ function AddItemContent({
     righe: QuoteItemPro[];
     conferma: () => void;
   } | null>(null);
+  // La manodopera dei pezzi appena aggiunti di questo prodotto: ogni pezzo ha la sua, non è una doppia voce.
+  const manodoperaPezziPrecedenti = useRef(new Set<string>());
   function verificaInserimento(righe: QuoteItemPro[], conferma: () => void) {
-    const avvisi = avvisiDoppieVoci(righe, existingItems);
+    const avvisi = avvisiDoppieVoci(
+      righe,
+      existingItems.filter(
+        (r) =>
+          !r.client_temp_id ||
+          !manodoperaPezziPrecedenti.current.has(r.client_temp_id),
+      ),
+    );
     if (avvisi.length) setInserimentoDaConfermare({ avvisi, righe, conferma });
     else conferma();
   }
@@ -180,21 +217,26 @@ function AddItemContent({
   function chiudi() {
     onClose();
   }
-  function conferma(nome: string) {
-    if (!keepAdding) {
-      chiudi();
-      return;
-    }
-    setLastAdded(nome);
-    setAddedCount((c) => c + 1);
-    setItem(null);
+  function registra(voci: VoceAggiunta[], messaggio: string) {
+    setLastAdded(messaggio);
+    setAggiunte((prima) => [...prima, ...voci]);
   }
-  function aggiungi(configured: ConfiguredItem[], next: number) {
+  function aggiungi(
+    configured: ConfiguredItem[],
+    next: number,
+    dopo: DopoAggiunta = "altro",
+  ) {
     verificaInserimento(
       configured.map((c) => c.quote_item),
       () => {
         onAddItems(configured, next);
-        conferma(item?.nome ?? "Prodotto");
+        for (const { quote_item: riga } of configured)
+          if (riga.item_type === "service" && riga.client_temp_id)
+            manodoperaPezziPrecedenti.current.add(riga.client_temp_id);
+        registra([voceDaProdotto(configured)], `${item?.nome ?? "Prodotto"} aggiunto`);
+        if (dopo === "chiudi") chiudi();
+        else if (dopo === "duplica") setDuplicazioni((n) => n + 1);
+        else setItem(null);
       },
     );
   }
@@ -231,99 +273,7 @@ function AddItemContent({
           </DialogDescription>
         </DialogHeader>
         {!item && !modificaMultipla && !inserimentoDaConfermare && (
-          <div className="shrink-0 border-b bg-muted/20 px-4 py-2 sm:px-6">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Area di lavoro
-              </p>
-              {areaEffettiva !== TUTTE_LE_AREE &&
-                areaEffettiva !== VOCI_COMUNI &&
-                comuni && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={includiComuni}
-                      onChange={(e) => setIncludiComuni(e.target.checked)}
-                      className="h-4 w-4 accent-primary"
-                    />
-                    Includi voci comuni
-                  </label>
-                )}
-            </div>
-            <nav
-              aria-label="Aree di lavoro"
-              className="hidden max-h-28 flex-wrap gap-2 overflow-y-auto sm:flex"
-            >
-              {scelteArea.map((a) => (
-                <button
-                  type="button"
-                  key={a.id}
-                  aria-pressed={areaEffettiva === a.id}
-                  aria-label={`${a.nome}: ${conteggiArea(a)}`}
-                  disabled={
-                    !organizzazioneDisponibile && a.id !== TUTTE_LE_AREE
-                  }
-                  onClick={() => setArea(a.id)}
-                  className={cn(
-                    "rounded-lg border bg-background px-3 py-1.5 text-left text-xs transition hover:border-primary/50 disabled:opacity-50",
-                    areaEffettiva === a.id &&
-                      "border-primary bg-primary/10 text-primary",
-                  )}
-                >
-                  <span className="block font-semibold leading-4">
-                    {a.nome}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] leading-4 opacity-75">
-                    {conteggiArea(a)}
-                  </span>
-                </button>
-              ))}
-            </nav>
-            <select
-              aria-label="Area di lavoro"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:hidden"
-              value={areaEffettiva}
-              onChange={(e) => setArea(e.target.value)}
-            >
-              {scelteArea.map((a) => (
-                <option
-                  key={a.id}
-                  value={a.id}
-                  disabled={
-                    !organizzazioneDisponibile && a.id !== TUTTE_LE_AREE
-                  }
-                >
-                  {a.nome} ({conteggiArea(a)})
-                </option>
-              ))}
-            </select>
-            {categorie.isError || macros.isError ? (
-              <p role="alert" className="mt-2 text-xs text-amber-800">
-                Organizzazione per area non disponibile. Il catalogo completo
-                resta consultabile.{" "}
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => {
-                    void categorie.refetch();
-                    void macros.refetch();
-                  }}
-                >
-                  Riprova aree
-                </button>
-              </p>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {areaEffettiva === VOCI_COMUNI
-                  ? "Voci generiche o con area ancora da assegnare nel listino."
-                  : areaEffettiva !== TUTTE_LE_AREE && includiComuni && comuni
-                    ? `${titoloArea} + ${comuni.prodotti} prodotti e ${comuni.servizi} servizi comuni / senza area.`
-                    : "Scegli un’area, poi una categoria prodotto o una lavorazione."}
-              </p>
-            )}
-          </div>
-        )}
-        {!item && !modificaMultipla && !inserimentoDaConfermare && (
+          <div className="flex shrink-0 flex-wrap items-end justify-between gap-x-4 border-b bg-muted/20 px-4 pt-2">
           <div
             role="tablist"
             aria-label="Catalogo del preventivo"
@@ -352,7 +302,7 @@ function AddItemContent({
               const pulsante = pulsanti.item(tabs.indexOf(prossimo));
               pulsante?.focus();
             }}
-            className="flex shrink-0 gap-1 border-b bg-muted/20 px-4 pt-2"
+            className="flex gap-1"
           >
             <button
               type="button"
@@ -361,7 +311,7 @@ function AddItemContent({
               tabIndex={tab === "prodotti" ? 0 : -1}
               onClick={() => setTab("prodotti")}
               className={cn(
-                "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium max-sm:gap-1 max-sm:px-2 max-sm:text-xs",
+                "flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium max-sm:gap-1 max-sm:px-2 max-sm:text-xs",
                 tab === "prodotti"
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground",
@@ -386,7 +336,7 @@ function AddItemContent({
                   tabIndex={tab === tipoTab ? 0 : -1}
                   onClick={() => setTab(tipoTab)}
                   className={cn(
-                    "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium max-sm:gap-1 max-sm:px-2 max-sm:text-xs",
+                    "flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium max-sm:gap-1 max-sm:px-2 max-sm:text-xs",
                     tab === tipoTab
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground",
@@ -404,21 +354,91 @@ function AddItemContent({
                 </button>
               ))}
           </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-2 max-sm:w-full">
+              <select
+                aria-label="Area di lavoro"
+                className="h-9 w-96 max-w-full rounded-md border bg-background px-3 text-sm max-sm:w-full"
+                value={areaEffettiva}
+                onChange={(e) => setArea(e.target.value)}
+              >
+                {scelteArea.map((a) => (
+                  <option
+                    key={a.id}
+                    value={a.id}
+                    disabled={
+                      !organizzazioneDisponibile && a.id !== TUTTE_LE_AREE
+                    }
+                  >
+                    {a.nome} ({conteggiArea(a)})
+                  </option>
+                ))}
+              </select>
+              {areaEffettiva !== TUTTE_LE_AREE &&
+                areaEffettiva !== VOCI_COMUNI &&
+                comuni && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={includiComuni}
+                      onChange={(e) => setIncludiComuni(e.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    Includi voci comuni
+                  </label>
+                )}
+            </div>
+            {(categorie.isError || macros.isError) && (
+              <p role="alert" className="w-full pb-2 text-xs text-amber-800">
+                Organizzazione per area non disponibile. Il catalogo completo
+                resta consultabile.{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => {
+                    void categorie.refetch();
+                    void macros.refetch();
+                  }}
+                >
+                  Riprova aree
+                </button>
+              </p>
+            )}
+          </div>
         )}
         {lastAdded && !inserimentoDaConfermare && (
-          <p
-            role="status"
-            className="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-          >
-            <Check className="h-4 w-4 shrink-0" />
-            {lastAdded} aggiunto · {addedCount}{" "}
-            {addedCount === 1 ? "voce inserita" : "voci inserite"}
-          </p>
+          <div className="mx-4 mt-3 shrink-0 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <p role="status" className="flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0" />
+              {lastAdded} · {aggiunte.length}{" "}
+              {aggiunte.length === 1 ? "voce inserita" : "voci inserite"}
+            </p>
+            <details className="mt-1 pl-6 text-xs">
+              <summary className="cursor-pointer font-medium">
+                Vedi cosa hai aggiunto
+                {aggiunte.every((v) => v.importo > 0) &&
+                  ` · ${formatCurrency(aggiunte.reduce((t, v) => t + v.importo, 0))} IVA esclusa`}
+              </summary>
+              <ul className="mt-1 max-h-28 space-y-0.5 overflow-y-auto">
+                {aggiunte.map((voce, indice) => (
+                  <li key={indice} className="flex justify-between gap-3">
+                    <span className="min-w-0">
+                      {voce.nome} · {voce.dettaglio}
+                    </span>
+                    <span className="shrink-0 tabular-nums">
+                      {voce.importo > 0
+                        ? formatCurrency(voce.importo)
+                        : "Prezzo da completare"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
         )}
         <div
           className={cn(
             "min-h-0 flex-1 p-4",
-            item ? "overflow-y-auto" : "overflow-hidden",
+            item ? "overflow-y-auto md:overflow-hidden" : "overflow-hidden",
           )}
         >
           {inserimentoDaConfermare && (
@@ -479,8 +499,15 @@ function AddItemContent({
                   nomeArea={titoloArea}
                   selectedIds={selectedIds}
                   onToggleItem={seleziona}
+                  onTutteLeAree={
+                    areaEffettiva === TUTTE_LE_AREE
+                      ? undefined
+                      : () => setArea(TUTTE_LE_AREE)
+                  }
                   onSelectItem={(prodotto, contesto) => {
                     setItem(prodotto);
+                    setDuplicazioni(0);
+                    manodoperaPezziPrecedenti.current.clear();
                     setContestoProdotto(contesto ?? "");
                   }}
                   attivo={!item && !modificaMultipla && tab === "prodotti"}
@@ -497,6 +524,11 @@ function AddItemContent({
                   tariffe={tab === "manodopera" ? lavorazioni : servizi}
                   ambito={`${ambito}:${tab}`}
                   nomeArea={titoloArea}
+                  onTutteLeAree={
+                    areaEffettiva === TUTTE_LE_AREE
+                      ? undefined
+                      : () => setArea(TUTTE_LE_AREE)
+                  }
                   quantitaIniziale={quantitaInizialeTariffa}
                   prezzoUnitario={prezzoUnitarioTariffa}
                   onPick={(t, q, prezzo) => {
@@ -514,7 +546,21 @@ function AddItemContent({
                       () => {
                         if (prezzo !== undefined) onAddTariffa(t, q, prezzo);
                         else onAddTariffa(t, q);
-                        conferma(t.nome);
+                        registra(
+                          [
+                            {
+                              nome: t.nome,
+                              dettaglio: `${q} ${unitaTariffa(t)}`,
+                              importo:
+                                q *
+                                (prezzo ??
+                                  prezzoUnitarioTariffa?.(t) ??
+                                  t.prezzo_vendita ??
+                                  0),
+                            },
+                          ],
+                          `${t.nome} aggiunto`,
+                        );
                       },
                     );
                   }}
@@ -538,8 +584,12 @@ function AddItemContent({
                         onAddItems(configurate, next);
                         setSelezionati([]);
                         setModificaMultipla(false);
-                        setLastAdded(`${configurate.length} prodotti`);
-                        setAddedCount((c) => c + configurate.length);
+                        registra(
+                          configurate.map((c) => voceDaProdotto([c])),
+                          configurate.length === 1
+                            ? "1 prodotto aggiunto"
+                            : `${configurate.length} prodotti aggiunti`,
+                        );
                       },
                     );
                   }}
@@ -547,60 +597,16 @@ function AddItemContent({
               </div>
             )}
             {item && !modificaMultipla && (
-              <div
-                className={cn(
-                  "mx-auto",
-                  prodottoSemplice(item) &&
-                    "grid max-w-4xl gap-6 md:grid-cols-[minmax(0,1fr)_240px]",
-                )}
-              >
-                <div>
-                  <ProductConfigurator
-                    key={`${item.source}-${item.id}`}
-                    item={item}
-                    tariffe={tariffe}
-                    currentSortOrder={currentSortOrder}
-                    onBack={() => setItem(null)}
-                    onAddItems={aggiungi}
-                    confirmLabel={
-                      keepAdding
-                        ? "Aggiungi e scegli un altro"
-                        : "Aggiungi al preventivo"
-                    }
-                  />
-                  <label className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={keepAdding}
-                      onChange={(e) => setKeepAdding(e.target.checked)}
-                      className="accent-orange-500"
-                    />
-                    Aggiungi altri prodotti dopo questo
-                  </label>
-                </div>
-                {prodottoSemplice(item) && (
-                  <aside className="hidden rounded-xl border bg-muted/20 p-5 md:block">
-                    <h3 className="text-sm font-semibold">
-                      Vuoi inserire più prodotti?
-                    </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      Torna al catalogo, spunta i prodotti e modifica quantità e
-                      prezzi in un’unica tabella.
-                    </p>
-                    <Button
-                      variant="outline"
-                      className="mt-4 w-full"
-                      onClick={() => {
-                        if (!selectedIds.has(`${item.source}:${item.id}`))
-                          seleziona(item);
-                        setItem(null);
-                      }}
-                    >
-                      Seleziona questo e altri
-                    </Button>
-                  </aside>
-                )}
-              </div>
+              <ProductConfigurator
+                key={`${item.source}-${item.id}`}
+                item={item}
+                tariffe={tariffe}
+                currentSortOrder={currentSortOrder}
+                onBack={() => setItem(null)}
+                onAddItems={aggiungi}
+                inserimentoContinuo
+                nuovaMisura={duplicazioni}
+              />
             )}
           </div>
         </div>
@@ -666,11 +672,11 @@ function AddItemContent({
               </Button>
             )}
             <Button
-              variant={addedCount ? "default" : "outline"}
+              variant={aggiunte.length ? "default" : "outline"}
               className="ml-auto"
               onClick={chiudi}
             >
-              {addedCount
+              {aggiunte.length
                 ? "Fatto, torna al preventivo"
                 : "Torna al preventivo"}
             </Button>

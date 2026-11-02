@@ -94,14 +94,15 @@ export const BUCKET_ANALISI_DOCUMENTI: readonly BucketAmmesso[] = [
 ];
 
 /**
- * generic-doc-ai-extract: le analisi di sopra più i due chiamanti diretti
- * (import contratti di commessa e libretti dei mezzi). Fuori da qui scarica con
- * i diritti di chi chiama.
+ * generic-doc-ai-extract: le analisi di sopra più i chiamanti diretti (import
+ * contratti di commessa, libretti dei mezzi, carte della ditta). Fuori da qui
+ * scarica con i diritti di chi chiama.
  */
 export const BUCKET_LETTURA_GENERICA: readonly BucketAmmesso[] = [
   ...BUCKET_ANALISI_DOCUMENTI,
   { bucket: "order-attachments", cartelle: ["azienda"] },
   { bucket: "mezzi-documenti", cartelle: ["azienda"] },
+  { bucket: "azienda-documenti", cartelle: ["azienda"] },
 ];
 
 /**
