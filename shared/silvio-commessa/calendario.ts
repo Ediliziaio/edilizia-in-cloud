@@ -201,7 +201,8 @@ export function cittaDaIndirizzo(indirizzo: string | null | undefined): string |
   if (!indirizzo || typeof indirizzo !== "string") return null;
   const dopoCap = /\b\d{5}\s+([^,(\d]+)/.exec(indirizzo);
   const pezzo = dopoCap?.[1] ?? (indirizzo.includes(",") ? indirizzo.split(",").at(-1)!.replace(/\([A-Za-z]{2}\)/, "") : null);
-  const citta = pezzo ? normale(pezzo) : "";
+  // La sigla della provincia anche senza parentesi: «20121 Milano MI» è Milano (revisione 1/11, L14).
+  const citta = pezzo ? normale(pezzo.replace(/\s+[A-Z]{2}\s*$/, "")) : "";
   return citta || null;
 }
 

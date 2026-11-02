@@ -245,6 +245,25 @@ export function numeroDa(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Un numero per una colonna di `orders`, coi suoi limiti (revisione 1/11, L2): l'importo è
+ * maggiore di zero, l'IVA è un'aliquota vera, latitudine e longitudine stanno sul globo. Il
+ * numero si legge con `numeroDa`: «1250.50» è milleduecentocinquanta e cinquanta, non
+ * centoventicinquemila (prima il punto si toglieva sempre, come separatore delle migliaia).
+ */
+export function numeroDellaColonna(colonna: string, v: unknown): { ok: boolean; valore?: number; motivo?: string } {
+  const n = numeroDa(v);
+  if (n == null) return { ok: false, motivo: "serve un numero" };
+  const no = (motivo: string) => ({ ok: false, motivo });
+  switch (colonna) {
+    case "total_amount": return n > 0 ? { ok: true, valore: tondo(n) } : no("l'importo deve essere maggiore di zero");
+    case "vat_rate": return ALIQUOTE_IVA.has(n) ? { ok: true, valore: n } : no("l'IVA è 0, 4, 5, 10 o 22 %");
+    case "work_lat": return n >= -90 && n <= 90 ? { ok: true, valore: n } : no("la latitudine va da -90 a 90");
+    case "work_lng": return n >= -180 && n <= 180 ? { ok: true, valore: n } : no("la longitudine va da -180 a 180");
+    default: return { ok: true, valore: n };
+  }
+}
+
 const dataValida = (v: unknown): string | null => {
   const s = typeof v === "string" ? v.trim().slice(0, 10) : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
@@ -279,16 +298,26 @@ function pulisciTipoLavoro(v: unknown): Esito<string> {
   return s ? { ok: true, valore: "generico", nota: `Tipo «${s}» non fra i modelli: messo «generico».` } : { ok: false, motivo: "tipo di lavoro vuoto" };
 }
 
-function pulisciRate(v: unknown, totaleIvato: number | null): Esito<RataDelPiano[]> {
+/**
+ * Le rate. Una rata data solo in percentuale vale sul totale IVATO; se l'IVA non si conosce
+ * (revisione 1/11, L3) si calcola sull'imponibile, ma tutte le rate restano una proposta con
+ * «manca l'IVA»: prima 30 % di 100.000 imponibile diventava 30.000 «fatto» invece di 33.000.
+ */
+function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number | null = null): Esito<RataDelPiano[]> & { senzaIva?: boolean } {
   if (!Array.isArray(v)) return { ok: false, motivo: "le rate non sono un elenco" };
   const rate: RataDelPiano[] = [];
   const scartate: string[] = [];
+  let senzaIva = false;
   v.slice(0, 24).forEach((r, i) => {
     if (!oggetto(r)) { scartate.push(`rata ${i + 1}`); return; }
     const label = testoDa(r.label, 120) ?? `Rata ${i + 1}`;
     const percent = percentuale(r.percent);
     let amount = numeroDa(r.amount);
     if ((amount == null || amount <= 0) && percent != null && totaleIvato) amount = tondo(totaleIvato * percent / 100);
+    else if ((amount == null || amount <= 0) && percent != null && imponibile) {
+      amount = tondo(imponibile * percent / 100);
+      senzaIva = true;
+    }
     if (amount == null || amount <= 0 || amount > 1e9) { scartate.push(label); return; }
     const type = r.type === "balance" || r.type === "financing" ? r.type : "deposit";
     const evento = typeof r.trigger_evento === "string" && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : null;
@@ -305,7 +334,8 @@ function pulisciRate(v: unknown, totaleIvato: number | null): Esito<RataDelPiano
   if (scartate.length) note.push(`Rate senza importo leggibile, lasciate fuori: ${scartate.join(", ")}.`);
   const somma = rate.reduce((s, r) => s + (r.percent ?? 0), 0);
   if (somma > 100.5) note.push(`Le percentuali sommano ${tondo(somma)} %: controlla.`);
-  return { ok: true, valore: rate, nota: note.join(" ") || undefined };
+  if (senzaIva) note.push("Manca l'IVA: le rate in percentuale sono calcolate sull'imponibile, da rifare quando c'è l'IVA.");
+  return { ok: true, valore: rate, nota: note.join(" ") || undefined, ...(senzaIva ? { senzaIva } : {}) };
 }
 
 function pulisciFasi(v: unknown): Esito<FaseDelPiano[]> {
@@ -328,8 +358,12 @@ function pulisciFasi(v: unknown): Esito<FaseDelPiano[]> {
     fasi.push(fase);
   }
   if (!fasi.length) return { ok: false, motivo: "nessuna fase col nome" };
-  // Senza giorni d'inizio scritti, le fasi con la durata vengono una dopo l'altra.
-  if (!fasi.some((f) => f.giorno_inizio)) {
+  // Senza giorni d'inizio scritti, le fasi con la durata vengono una dopo l'altra. Solo se
+  // tutte hanno la durata (revisione 1/11, L4): con un buco in mezzo la sequenza la fa
+  // `durateDalModello`, dopo aver dato la durata anche a quelle che non l'hanno. Prima le
+  // fasi dopo il buco partivano da dove finiva la precedente con la durata, e la fase senza
+  // durata finiva sopra di loro.
+  if (!fasi.some((f) => f.giorno_inizio) && fasi.every((f) => f.giorni)) {
     let giorno = 1;
     for (const f of fasi) if (f.giorni) { f.giorno_inizio = giorno; giorno += f.giorni; }
   }
@@ -500,7 +534,9 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const ivaGrezza = grezzi.find(([k]) => k === "economia.vat_rate")?.[1];
   const totale = numeroDa(totaleGrezzo?.valore);
   const iva = numeroDa(ivaGrezza?.valore);
-  const totaleIvato = totale && totale > 0 ? tondo(totale * (1 + (iva != null && ALIQUOTE_IVA.has(iva) ? iva : 0) / 100)) : null;
+  const ivaNota = iva != null && ALIQUOTE_IVA.has(iva);
+  const totaleIvato = totale && totale > 0 && ivaNota ? tondo(totale * (1 + (iva as number) / 100)) : null;
+  const imponibile = totale && totale > 0 ? tondo(totale) : null;
 
   for (const [chiave, grezzo] of grezzi) {
     const definita = variabile(chiave);
@@ -508,7 +544,7 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
     if (!definita) { avvisi.push(`«${chiave}» non è una variabile della commessa, ignorata`); continue; }
     if (!lettura) { avvisi.push(`«${chiave}» non si ricava da un documento con l'AI, ignorata`); continue; }
     if (letti.has(chiave)) { avvisi.push(`«${chiave}» scritta due volte: tenuta la prima`); continue; }
-    const esito = pulisci(lettura.forma, grezzo, { pagine, ctx, totaleIvato });
+    const esito = pulisci(lettura.forma, grezzo, { pagine, ctx, totaleIvato, imponibile });
     if ("motivo" in esito) { avvisi.push(`«${definita.etichetta}»: ${esito.motivo}`); continue; }
     letti.set(chiave, { valore: esito.valore, prov: { ...esito.prov, nota: [esito.prov.nota, esito.nota].filter(Boolean).join(" ") || null } });
   }
@@ -551,7 +587,7 @@ function tipoDelLavoro(letti: Map<string, { valore: unknown }>, ctx: ContestoLet
   return candidati.length === 1 ? candidati[0] : null;
 }
 
-interface Ambiente { pagine: PaginaLetta[] | null; ctx: ContestoLettura; totaleIvato: number | null }
+interface Ambiente { pagine: PaginaLetta[] | null; ctx: ContestoLettura; totaleIvato: number | null; imponibile: number | null }
 type Pulito = { ok: true; valore: unknown; prov: Provenienza; nota?: string } | { ok: false; motivo: string };
 
 /** Forma del valore e prova della citazione, per ogni forma. */
@@ -612,7 +648,14 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
       const s = testoDa(oggetto(v) ? v.indirizzo_lavori : v, 300);
       return s ? semplice({ ok: true, valore: { indirizzo_lavori: s } }) : { ok: false, motivo: "indirizzo vuoto" };
     }
-    case "rate": return semplice(pulisciRate(v, amb.totaleIvato));
+    case "rate": {
+      const e = pulisciRate(v, amb.totaleIvato, amb.imponibile);
+      const p = semplice(e);
+      // Calcolate senza l'IVA: mai «fatto», anche con la citazione giusta.
+      return p.ok && e.ok && e.senzaIva
+        ? { ...p, prov: { ...p.prov, stato: "proposta", fiducia: Math.min(p.prov.fiducia, FIDUCIA_FATTO - 0.1) } }
+        : p;
+    }
     case "fasi": return semplice(pulisciFasi(v));
     case "sal": return semplice(pulisciSal(v));
     case "condizioni": return pulisciCondizioni(v, grezzo, amb);

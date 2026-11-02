@@ -227,8 +227,12 @@ export function durateDalModello(
   }
   const completate: string[] = [];
   let giorno = 1;
+  // Se il documento non dice quando parte nessuna fase, la sequenza vale per tutte, anche per
+  // quelle che la durata ce l'hanno (revisione 1/11, L4).
+  const inSequenza = !fasi.some((x) => x.giorno_inizio);
   const out = fasi.map((x, i) => {
-    const fase: FaseDelPiano = senza(x) ? { ...x, giorni: giorni[i]!, giorno_inizio: x.giorno_inizio ?? giorno } : { ...x };
+    const fase: FaseDelPiano = senza(x) ? { ...x, giorni: giorni[i]!, giorno_inizio: x.giorno_inizio ?? giorno }
+      : inSequenza ? { ...x, giorno_inizio: giorno } : { ...x };
     if (senza(x)) completate.push(x.name);
     giorno = Math.max(giorno, (fase.giorno_inizio ?? giorno) + (fase.giorni ?? 1));
     return fase;
@@ -277,6 +281,8 @@ export interface OpzioniModello {
   misura?: number | null;
   /** Inizio lavori AAAA-MM-GG: se c'è, le fasi hanno le date e c'è la fine prevista. */
   inizio?: string | null;
+  /** Il calendario dell'azienda (revisione 1/11, L10): senza, le sole feste nazionali. */
+  calendario?: CalendarioCantiere;
 }
 
 /**
@@ -291,7 +297,7 @@ export function frammentoDalModello(tipo: TipoLavoro, opzioni: OpzioniModello = 
   const etichetta = `modello «${m.etichetta}»${misura ? ` (${String(misura).replace(".", ",")} ${unita})` : ""}`;
   const base = fasiDelModello(tipo, misura);
   const inizio = opzioni.inizio && /^\d{4}-\d{2}-\d{2}$/.test(opzioni.inizio) ? opzioni.inizio : null;
-  const fasi = inizio ? dateDelleFasi(base, inizio) : base;
+  const fasi = inizio ? dateDelleFasi(base, inizio, opzioni.calendario) : base;
   const nota = misura
     ? `Stima dal modello del ${m.etichetta}: durate tipiche, da correggere con i tempi delle tue squadre.`
     : `Stima dal modello del ${m.etichetta} senza misura (vale per circa ${m.riferimento} ${unita}): da correggere.`;
@@ -317,8 +323,8 @@ export function frammentoDalModello(tipo: TipoLavoro, opzioni: OpzioniModello = 
 }
 
 /** Comodo per il testo libero: riconosce tipo e misura, null se il tipo non si capisce. */
-export function frammentoDalTesto(testo: string, inizio?: string | null): Frammento | null {
+export function frammentoDalTesto(testo: string, inizio?: string | null, calendario?: CalendarioCantiere): Frammento | null {
   const tipo = riconosciTipoLavoro(testo);
   if (!tipo) return null;
-  return frammentoDalModello(tipo, { misura: misuraDalTesto(testo, MODELLI_LAVORO[tipo].unita), inizio });
+  return frammentoDalModello(tipo, { misura: misuraDalTesto(testo, MODELLI_LAVORO[tipo].unita), inizio, calendario });
 }

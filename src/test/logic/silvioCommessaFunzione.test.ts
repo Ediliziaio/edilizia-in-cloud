@@ -20,7 +20,7 @@ const AZIENDA = "d2000000-0000-4000-a000-000000000002";
 const ALTRA_AZIENDA = "e7bc8fd0-fcab-4c02-bcfe-98a1488c3e7e";
 const UTENTE = "1dbe6ceb-6b04-4d43-a617-8a709cb22f07";
 
-interface ChiamataAI { taskKey: string; messages: Array<{ role: string; content: unknown }>; idempotencyKey?: string }
+interface ChiamataAI { taskKey: string; messages: Array<{ role: string; content: unknown }>; idempotencyKey?: string; turnControl?: { remainingMs: () => number } }
 
 const runtime = vi.hoisted(() => ({
   db: null as unknown as DbFinto,
@@ -79,8 +79,12 @@ vi.mock("../../../supabase/functions/_shared/pdfExtraction.ts", async () => {
   };
   return {
     ...vero,
-    extractPdfWithCoverage: async (bytes: ArrayBuffer, opzioni: { maxChars: number; maxOcrPages?: number; deadlineMs?: number }) =>
-      vero.readPdfPages(documento(bytes), { ...opzioni, imageOps: [] }),
+    // L'OCR riceve la pagina come la riceverebbe dal vero estrattore (un PDF di una pagina).
+    extractPdfWithCoverage: async (bytes: ArrayBuffer, opzioni: { maxChars: number; maxOcrPages?: number; deadlineMs?: number; ocrPage?: (n: number, b: Uint8Array) => Promise<{ text: string }> }) =>
+      vero.readPdfPages(documento(bytes), {
+        ...opzioni, imageOps: [],
+        ocrPage: opzioni.ocrPage ? (n: number) => opzioni.ocrPage!(n, new Uint8Array([0x25, 0x50, 0x44, 0x46])) : undefined,
+      }),
   };
 });
 
@@ -88,6 +92,7 @@ let gestore: ((req: Request) => Promise<Response>) | null = null;
 
 beforeEach(() => {
   runtime.db = new DbFinto();
+  runtime.db.rispostaRpc.has_permission_for_company = true;
   runtime.pagamento = null;
   runtime.chiamate = [];
   runtime.risposte = new Map();
@@ -330,6 +335,26 @@ describe("silvio-commessa: le porte", () => {
     runtime.db.file.set(`silvio-uploads/${percorso}`, { bytes: new Uint8Array([0x50, 0x4b, 0x03, 0x04]), contentType: null });
     expect((await chiama({ company_id: AZIENDA, file_path: percorso })).status).toBe(415);
     expect((await chiama({ company_id: AZIENDA, file_path: `${AZIENDA}/${UTENTE}/manca.pdf` })).status).toBe(404);
+  });
+
+  it("E8: PDF scansionato con i crediti finiti durante l'OCR: 402 col messaggio del router, non «carica una foto nitida»", async () => {
+    const { AiCompanyCreditError } = await import("../../../supabase/functions/_shared/aiRouter.ts");
+    runtime.errore = new AiCompanyCreditError("Credito insufficiente o bloccato: ricarica", "pdf_vision_extract");
+    const scansionato: DocumentoDiProva = { ...CONTRATTO_PUBBLICO, nome: "Scansione.pdf", pagine: [[""], [""]] } as DocumentoDiProva;
+    const r = await leggi(scansionato);
+    expect(r.status).toBe(402);
+    expect(r.data.error).toMatch(/Credito insufficiente/);
+    // Alla prima pagina rifiutata ci si ferma: non si riprova pagina per pagina.
+    expect(runtime.chiamate).toHaveLength(1);
+  });
+
+  it("E9: OCR e lettura hanno un tempo che si accorcia, sotto i 150 secondi del gateway", async () => {
+    const r = await leggi(CONTRATTO_PUBBLICO);
+    expect(r.status).toBe(200);
+    const turno = runtime.chiamate.at(-1)!.turnControl!;
+    expect(turno).toBeTruthy();
+    expect(turno.remainingMs()).toBeLessThanOrEqual(140_000);
+    expect(turno.remainingMs()).toBeGreaterThan(100_000);
   });
 
   it("«Riprova» è una lettura nuova: la chiave d'idempotenza cambia col tentativo", async () => {

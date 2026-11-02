@@ -19,7 +19,8 @@ import {
 } from "./piano.ts";
 import { REGISTRO, variabile } from "./registro.ts";
 import { applica, giaNellaCommessa, modificaBloccata, spostaGiorniLavorativi } from "./fondi.ts";
-import type { CalendarioCantiere } from "./calendario.ts";
+import { lavorativiTra, type CalendarioCantiere } from "./calendario.ts";
+import { numeroDellaColonna } from "./letturaAI.ts";
 
 export const NOMI_STRUMENTI_CHAT = ["cambia_valore", "sposta_date", "aggiungi_fase", "togli", "scegli_fonte", "spiega"] as const;
 export type NomeStrumentoChat = (typeof NOMI_STRUMENTI_CHAT)[number];
@@ -223,10 +224,7 @@ function valoreDellaVariabile(chiave: string, valore: unknown): { ok: boolean; v
   if (/_date$/.test(colonna)) {
     return typeof valore === "string" && DATA.test(valore) ? { ok: true, valore } : { ok: false, motivo: "la data va scritta come AAAA-MM-GG" };
   }
-  if (["total_amount", "vat_rate", "work_lat", "work_lng"].includes(colonna)) {
-    const n = typeof valore === "number" ? valore : Number(String(valore).replace(/\./g, "").replace(",", "."));
-    return Number.isFinite(n) ? { ok: true, valore: n } : { ok: false, motivo: "serve un numero" };
-  }
+  if (["total_amount", "vat_rate", "work_lat", "work_lng"].includes(colonna)) return numeroDellaColonna(colonna, valore);
   if (typeof valore === "string") return { ok: true, valore: valore.trim() };
   return { ok: true, valore };
 }
@@ -262,6 +260,21 @@ function faseNuova(fasi: FaseDelPiano[], dopo: number, a: Record<string, unknown
     if (!fasi.length) fase.giorno_inizio = 1;
   }
   return fase;
+}
+
+/** Una fase dopo quella nuova: se parte prima che la nuova finisca, slitta della sua durata. */
+function faseSpinta(f: FaseDelPiano, nuova: FaseDelPiano, durata: number, cal?: CalendarioCantiere): FaseDelPiano {
+  if (!(durata > 0)) return f;
+  if (nuova.end_date && f.start_date && f.start_date <= nuova.end_date) {
+    return {
+      ...f, start_date: spostaGiorniLavorativi(f.start_date, durata, cal),
+      ...(f.end_date ? { end_date: spostaGiorniLavorativi(f.end_date, durata, cal) } : {}),
+    };
+  }
+  if (nuova.giorno_inizio && nuova.giorni && f.giorno_inizio && f.giorno_inizio < nuova.giorno_inizio + nuova.giorni) {
+    return { ...f, giorno_inizio: f.giorno_inizio + durata };
+  }
+  return f;
 }
 
 /**
@@ -316,10 +329,28 @@ export function eseguiStrumento(
         : fasi.length - 1;
       if (typeof a.dopo_fase === "string" && a.dopo_fase.trim() && dopo < 0) return rifiuto(`Non trovo la fase «${a.dopo_fase}».`);
       const nuova = faseNuova(fasi, dopo, a, piano.calendario);
-      const lista = [...fasi.slice(0, dopo + 1), nuova, ...fasi.slice(dopo + 1)];
+      // Una fase in mezzo spinge avanti quelle dopo, e con loro la fine dei lavori (revisione
+      // 1/11, L7): prima la fase nuova finiva sopra la successiva.
+      const durata = nuova.start_date && nuova.end_date ? lavorativiTra(nuova.start_date, nuova.end_date, piano.calendario) + 1 : nuova.giorni ?? 0;
+      const seguenti = fasi.slice(dopo + 1).map((f) => faseSpinta(f, nuova, durata, piano.calendario));
+      const lista = [...fasi.slice(0, dopo + 1), nuova, ...seguenti];
+      const spinte = seguenti.some((f, i) => f !== fasi[dopo + 1 + i]);
+      const modifiche: Modifica[] = [{ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: lista }];
+      // La fine dei lavori (e la consegna prevista) arriva almeno alla fine dell'ultima fase.
+      const fine = lista.map((f) => f.end_date).filter((d): d is string => !!d).sort().pop();
+      const fineLavori = piano.aree.fasi?.["fasi.work_end_date"];
+      const ritardo = fine && typeof fineLavori?.valore === "string" && fineLavori.valore < fine
+        ? lavorativiTra(fineLavori.valore, fine, piano.calendario) : 0;
+      for (const chiave of ["fasi.work_end_date", "fasi.expected_date"]) {
+        const attuale = piano.aree.fasi?.[chiave];
+        if (!fine || typeof attuale?.valore !== "string" || attuale.valore >= fine || giaNellaCommessa(piano, attuale)) continue;
+        const valore = chiave === "fasi.work_end_date" || !ritardo ? fine : spostaGiorniLavorativi(attuale.valore, ritardo, piano.calendario);
+        modifiche.push({ tipo: "cambia_valore", area: "fasi", chiave, valore: valore < fine ? fine : valore });
+      }
       const date = nuova.start_date ? ` dal ${nuova.start_date.split("-").reverse().join("/")}` : nuova.giorni ? `, ${nuova.giorni} ${nuova.giorni === 1 ? "giorno" : "giorni"}` : "";
-      return conBlocco([{ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: lista }],
-        `Ho aggiunto la fase «${nuova.name}»${dopo >= 0 && dopo < fasi.length - 1 ? ` dopo «${fasi[dopo].name}»` : ""}${date}.`);
+      return conBlocco(modifiche,
+        `Ho aggiunto la fase «${nuova.name}»${dopo >= 0 && dopo < fasi.length - 1 ? ` dopo «${fasi[dopo].name}»` : ""}${date}`
+        + `${spinte ? `; le fasi dopo slittano di ${giorniInParole(durata)}` : ""}${modifiche.length > 1 ? ", e la fine dei lavori con loro" : ""}.`);
     }
 
     case "togli": {

@@ -10,6 +10,7 @@ import {
 } from "../../../shared/silvio-commessa/letturaAI.ts";
 import { REGISTRO, variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { fondi, pianoVuoto } from "../../../shared/silvio-commessa/fondi.ts";
+import { durateDalModello } from "../../../shared/silvio-commessa/modelliLavoro.ts";
 import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../shared/silvio-commessa/piano.ts";
 
 const TESTO = [
@@ -175,13 +176,45 @@ describe("i valori: si tengono quelli provati, gli altri restano proposte", () =
 
   it("fasi: un elenco di nomi va bene; le durate in fila; date sbagliate tolte", () => {
     const fr = leggi(con({ fasi: { "fasi.order_work_phases": { valore: [
-      "Allestimento", { name: "Scavi", giorni: 3, start_date: "2027-04-01", end_date: "2027-03-01" }, { name: "Getti", giorni: "4" }, { giorni: 2 }, null,
+      { name: "Allestimento", giorni: 1 }, { name: "Scavi", giorni: 3, start_date: "2027-04-01", end_date: "2027-03-01" }, { name: "Getti", giorni: "4" }, { giorni: 2 }, null,
     ], citazione: "Contratto d'appalto" } } }));
     expect(val(fr, "fasi.order_work_phases")!.valore).toEqual([
-      { name: "Allestimento" },
-      { name: "Scavi", giorni: 3, giorno_inizio: 1, start_date: "2027-04-01" },
-      { name: "Getti", giorni: 4, giorno_inizio: 4 },
+      { name: "Allestimento", giorni: 1, giorno_inizio: 1 },
+      { name: "Scavi", giorni: 3, giorno_inizio: 2, start_date: "2027-04-01" },
+      { name: "Getti", giorni: 4, giorno_inizio: 5 },
     ] satisfies FaseDelPiano[]);
+  });
+
+  it("revisione 1/11, L3: senza IVA le rate in percentuale sono sull'imponibile, ma restano una proposta con «manca l'IVA»", () => {
+    const testo = "Importo: € 100.000,00. Pagamenti: 30% alla firma, 70% a fine lavori.";
+    const fr = leggi(con({
+      economia: { "economia.total_amount": { valore: 100000, citazione: "Importo: € 100.000,00" } },
+      pagamenti: { "pagamenti.rate": { valore: [{ label: "Firma", percent: 30 }, { label: "Fine lavori", type: "balance", percent: 70 }], citazione: "30% alla firma" } },
+    }), { ...CTX, testo });
+    const rate = val(fr, "pagamenti.rate")!;
+    expect((rate.valore as RataDelPiano[]).map((r) => r.amount)).toEqual([30000, 70000]);
+    expect(rate.stato).toBe("proposta");
+    expect(rate.nota).toMatch(/Manca l'IVA/);
+    // Con l'IVA, le stesse rate sono sul totale ivato e possono essere «fatto».
+    const conIva = leggi(con({
+      economia: { "economia.total_amount": { valore: 100000, citazione: "Importo: € 100.000,00" }, "economia.vat_rate": { valore: 10, citazione: "Importo" } },
+      pagamenti: { "pagamenti.rate": { valore: [{ label: "Firma", percent: 30 }], citazione: "30% alla firma" } },
+    }), { ...CTX, testo });
+    expect((val(conIva, "pagamenti.rate")!.valore as RataDelPiano[])[0].amount).toBe(33000);
+    expect(val(conIva, "pagamenti.rate")!.nota ?? "").not.toMatch(/Manca l'IVA/);
+  });
+
+  it("revisione 1/11, L4: se una fase non ha la durata, nessuna parte da un giorno inventato (prima si sovrapponevano)", () => {
+    const fr = leggi(con({ fasi: { "fasi.order_work_phases": { valore: [
+      "Allestimento", { name: "Scavi", giorni: 3 }, { name: "Getti", giorni: "4" },
+    ], citazione: "Contratto d'appalto" } } }));
+    const fasi = val(fr, "fasi.order_work_phases")!.valore as FaseDelPiano[];
+    expect(fasi.map((f) => f.giorno_inizio)).toEqual([undefined, undefined, undefined]);
+    // La sequenza la fa il modello, dopo aver dato la durata anche ad «Allestimento»: una dopo l'altra.
+    const conModello = durateDalModello(fasi, "ristrutturazione").fasi;
+    for (let i = 1; i < conModello.length; i++) {
+      expect(conModello[i].giorno_inizio).toBe(conModello[i - 1].giorno_inizio! + conModello[i - 1].giorni!);
+    }
   });
 
   it("condizioni: CIG e CUP con la forma giusta, campi sconosciuti fuori, la provenienza di ogni campo", () => {

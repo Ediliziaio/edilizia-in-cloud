@@ -24,6 +24,7 @@
  * I servizi (storage, edge function, PDF) si passano da fuori: i test li sostituiscono.
  */
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
+import type { CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
 import { riconosciDocumento, type Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import type { FonteLetturaAI } from "../../../shared/silvio-commessa/letturaAI.ts";
 import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
@@ -48,6 +49,8 @@ export interface OpzioniLettura {
   userId: string;
   /** Inizio lavori AAAA-MM-GG, se già deciso: le fasi dei modelli e dei computi prendono le date. */
   inizio?: string | null;
+  /** Il calendario dell'azienda per quelle date (revisione 1/11, L10): senza, le sole feste nazionali. */
+  calendario?: CalendarioCantiere;
   /** Per «Riprova»: una lettura nuova, non quella già pagata. */
   tentativo?: number;
   /** L'offerta di una ditta si legge dentro la sua richiesta d'offerta. */
@@ -88,20 +91,20 @@ export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userI
  * propone. Il tipo di lavoro lo dice già il documento: il modello non lo ripete, così non
  * nasce un conflitto per niente.
  */
-export function conModelloSeMancanoLeFasi(fr: Frammento, inizio?: string | null): Frammento[] {
+export function conModelloSeMancanoLeFasi(fr: Frammento, inizio?: string | null, calendario?: CalendarioCantiere): Frammento[] {
   if (fr.aree.fasi?.["fasi.order_work_phases"]) return [fr];
   const testi = [fr.aree.identita?.["identita.description"]?.valore, fr.aree.identita?.["identita.work_description"]?.valore]
     .filter((x): x is string => typeof x === "string").join(" ");
   const tipo = riconosciTipoLavoro(testi);
   if (!tipo) return [fr];
-  const modello = frammentoDalModello(tipo, { misura: misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita), inizio });
+  const modello = frammentoDalModello(tipo, { misura: misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita), inizio, calendario });
   if (fr.aree.identita?.["identita.tipo_lavoro"]) delete modello.aree.identita;
   return [fr, modello];
 }
 
 async function leggiConSilvio(
   servizi: ServiziLettura, opz: OpzioniLettura,
-  corpo: { fonte: { tipo: FonteLetturaAI; etichetta: string }; file_path?: string; documento?: RifDocumento; testo?: string },
+  corpo: { fonte: { tipo: FonteLetturaAI; etichetta: string; id?: string }; file_path?: string; documento?: RifDocumento; testo?: string },
 ): Promise<Frammento> {
   const risposta = await servizi.invoca("silvio-commessa", { company_id: opz.companyId, tentativo: opz.tentativo ?? 0, ...corpo });
   const frammento = (risposta as { frammento?: Frammento } | null)?.frammento;
@@ -119,7 +122,7 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
       throw new Error(riconosciuto.motivo);
 
     case "computo_xpwe":
-      return { riconosciuto, frammenti: [frammentoDaFileComputo(await servizi.leggiComputo(file), file.name, { inizio: opz.inizio })] };
+      return { riconosciuto, frammenti: [frammentoDaFileComputo(await servizi.leggiComputo(file), file.name, { inizio: opz.inizio, calendario: opz.calendario })] };
 
     case "computo_primus": {
       let computo: ComputoStrutturato;
@@ -132,7 +135,7 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
           motivo: "PDF con un computo non di PriMus: lettore unico di Silvio",
         });
       }
-      return { riconosciuto, frammenti: [frammentoDaFileComputo(computo, file.name, { inizio: opz.inizio })] };
+      return { riconosciuto, frammenti: [frammentoDaFileComputo(computo, file.name, { inizio: opz.inizio, calendario: opz.calendario })] };
     }
 
     case "offerta_ditta": {
@@ -170,7 +173,7 @@ async function leggiConAI(
   const dove = documento ? { documento } : { file_path: o && "percorso" in o ? o.percorso : percorso! };
   const frammento = await leggiConSilvio(servizi, opz, { fonte: { tipo: fonte, etichetta: nome }, ...dove });
   return {
-    riconosciuto, frammenti: conModelloSeMancanoLeFasi(frammento, opz.inizio),
+    riconosciuto, frammenti: conModelloSeMancanoLeFasi(frammento, opz.inizio, opz.calendario),
     ...(percorso ? { percorso } : {}),
     ...(frammento.fonte.id ? { idFonte: frammento.fonte.id } : {}),
   };
@@ -196,16 +199,27 @@ export async function leggiDocumentoRemoto(
 }
 
 /**
+ * Un id stabile per un testo letto (revisione 1/11, L1): due testi diversi sono due fonti, e
+ * rileggere lo stesso testo sostituisce la lettura di prima. I file e i documenti l'id ce
+ * l'hanno già: è il percorso, che la funzione mette nel frammento (e la ⓘ usa per riaprirli).
+ */
+export function idDelTesto(testo: string): string {
+  let h = 5381;
+  for (let i = 0; i < testo.length; i++) h = ((h << 5) + h + testo.charCodeAt(i)) >>> 0;
+  return `testo:${h.toString(36)}:${testo.length}`;
+}
+
+/**
  * Il testo libero o dettato («rifare bagno 6 mq a Monza, 12k»). Se la lettura AI non riesce,
  * resta il modello per tipo di lavoro, che non costa niente: la commessa va avanti lo stesso.
  */
 export async function leggiTesto(testo: string, opz: OpzioniLettura, servizi: ServiziLettura = serviziVeri): Promise<EsitoLettura> {
   const riconosciuto: Riconosciuto = { lettore: "silvio_commessa", fonte: "testo", ai: true, immagine: false, motivo: "testo: lettore unico di Silvio" };
   try {
-    const frammento = await leggiConSilvio(servizi, opz, { fonte: { tipo: "testo", etichetta: "testo scritto" }, testo });
-    return { riconosciuto, frammenti: conModelloSeMancanoLeFasi(frammento, opz.inizio) };
+    const frammento = await leggiConSilvio(servizi, opz, { fonte: { tipo: "testo", etichetta: "testo scritto", id: idDelTesto(testo) }, testo });
+    return { riconosciuto, frammenti: conModelloSeMancanoLeFasi(frammento, opz.inizio, opz.calendario) };
   } catch (e) {
-    const modello = frammentoDalTesto(testo, opz.inizio);
+    const modello = frammentoDalTesto(testo, opz.inizio, opz.calendario);
     if (!modello) throw e;
     modello.avvisi = [...(modello.avvisi ?? []), `lettura AI non riuscita (${e instanceof Error ? e.message : String(e)}): solo il modello del lavoro`];
     return { riconosciuto: { ...riconosciuto, ai: false, motivo: "testo: modello del lavoro, senza AI" }, frammenti: [modello] };

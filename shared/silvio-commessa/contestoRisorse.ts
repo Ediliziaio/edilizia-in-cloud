@@ -22,6 +22,8 @@ interface Query extends PromiseLike<Risposta> {
   is: (c: string, v: null) => Query;
   not: (c: string, op: string, v: unknown) => Query;
   gte: (c: string, v: unknown) => Query;
+  lte: (c: string, v: unknown) => Query;
+  or: (filtri: string) => Query;
   in: (c: string, v: unknown[]) => Query;
   order: (c: string, o?: { ascending?: boolean }) => Query;
   limit: (n: number) => Query;
@@ -30,6 +32,9 @@ interface Query extends PromiseLike<Risposta> {
 export type ClientRisorse = { from: (t: string) => Query };
 
 const LIMITE = 3000;
+/** Il tetto vero di PostgREST: oltre, le righe non arrivano, e conviene sapere quali. */
+const PAGINA = 1000;
+const STATI_CHIUSI = ["completato", "completata", "annullato", "annullata", "chiuso", "chiusa"];
 export const testo = (v: unknown) => (typeof v === "string" ? v : "");
 export const data = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 
@@ -55,12 +60,22 @@ export async function leggiContestoRisorse(
 ): Promise<ContestoRisorse> {
   const oggi = oggiInItalia();
   const [
-    dipendenti, lavori, assenze, capomastri, ditte, storicoDitte, documenti, schede, mezzi, piani, allocazioni, fornitori, acquisti,
+    dipendenti, aperti, storicoLavori, assenze, capomastri, ditte, storicoDitte, documenti, schede, mezzi, piani, allocazioni, fornitori, acquisti,
   ] = await Promise.all([
     righe(db.from("employees").select("id, first_name, last_name, is_active").eq("company_id", companyId).limit(LIMITE)),
+    // Gli impegni: le assegnazioni delle commesse aperte, le più recenti prima (revisione 1/11,
+    // L11). Prima una lettura sola, senza ordine e senza filtro: PostgREST ne dà 1000, e in
+    // un'azienda con molte commesse chiuse una persona già occupata risultava libera.
     righe(db.from("order_employees")
-      .select("employee_id, order_id, fase:order_work_phases(name, start_date, end_date), ordine:orders!inner(order_code, company_id, deleted_at, work_start_date, work_end_date)")
-      .eq("ordine.company_id", companyId).is("ordine.deleted_at", null).limit(LIMITE)),
+      .select("employee_id, order_id, fase:order_work_phases(name, start_date, end_date), ordine:orders!inner(order_code, company_id, deleted_at, status, work_start_date, work_end_date)")
+      .eq("ordine.company_id", companyId).is("ordine.deleted_at", null)
+      .not("ordine.status", "in", `(${STATI_CHIUSI.join(",")})`)
+      .order("created_at", { ascending: false }).limit(PAGINA)),
+    // Lo storico («di solito fa le demolizioni»): anche le commesse chiuse, le più recenti.
+    righe(db.from("order_employees")
+      .select("employee_id, order_id, fase:order_work_phases(name), ordine:orders!inner(company_id, deleted_at)")
+      .eq("ordine.company_id", companyId).is("ordine.deleted_at", null).not("phase_id", "is", null)
+      .order("created_at", { ascending: false }).limit(PAGINA)),
     righe(db.from("hr_assenze").select("employee_id, data_inizio, data_fine, tipo_assenza, status")
       .eq("company_id", companyId).gte("data_fine", oggi).limit(LIMITE)),
     righe(db.from("orders").select("id, capomastro_user_id").eq("company_id", companyId).is("deleted_at", null)
@@ -96,11 +111,11 @@ export async function leggiContestoRisorse(
   return {
     oggi,
     dipendenti: dipendenti.map((d) => ({ id: d.id as string, nome: nomePersona(d), attivo: d.is_active !== false })),
-    storicoDipendenti: lavori.filter(altra).flatMap((l) => {
+    storicoDipendenti: storicoLavori.filter(altra).flatMap((l) => {
       const fase = uno(l.fase as Riga | Riga[] | null);
       return fase && testo(fase.name) ? [{ employee_id: l.employee_id as string, fase: testo(fase.name) }] : [];
     }),
-    impegniDipendenti: lavori.filter(altra).flatMap((l) => {
+    impegniDipendenti: aperti.filter(altra).flatMap((l) => {
       const fase = uno(l.fase as Riga | Riga[] | null);
       const ordine = uno(l.ordine as Riga | Riga[] | null);
       // Le date della fase; senza fase, quelle della commessa.

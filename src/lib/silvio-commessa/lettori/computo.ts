@@ -15,6 +15,7 @@
  */
 import type { FaseDelPiano, Fonte, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
 import { dateDelleFasi } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
+import type { CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
 import { calcolaVoce, numeroEditor, bozzaVuota, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { analizzaEconomia, type MomentoRata } from "@/lib/computo/economiaComputo";
 import { calcolaIvaComputo } from "@/lib/computo/ivaComputo";
@@ -38,6 +39,8 @@ export interface DatiComputo {
   listino?: readonly CostoListino[];
   /** Inizio dei lavori deciso altrove (AAAA-MM-GG); senza, vale quello del cronoprogramma. */
   inizio?: string | null;
+  /** Il calendario dell'azienda per le date (revisione 1/11, L10): senza, le sole feste nazionali. */
+  calendario?: CalendarioCantiere;
 }
 
 /** Il momento della rata del computo come evento della rata di commessa. */
@@ -132,7 +135,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   const voci = vociDellaBozza(bozza);
   const { fasi, stimate } = fasiDaCapitoli(voci, crono.piano, giorniDalValore);
   const inizio = dati.inizio || crono.inizioSuggerito;
-  const conDate: FaseDelPiano[] = inizio ? dateDelleFasi(fasi, inizio) : fasi;
+  const conDate: FaseDelPiano[] = inizio ? dateDelleFasi(fasi, inizio, dati.calendario) : fasi;
   if (conDate.length) {
     metti(fr, "fasi.order_work_phases", conDate, stimate.length
       ? {
@@ -162,7 +165,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
 
 /** Un file di PriMus (XPWE o PDF) già letto da `leggiFileComputo`, come frammento. */
 export function frammentoDaFileComputo(
-  computo: ComputoStrutturato, nomeFile: string, opzioni: Pick<DatiComputo, "listino" | "inizio"> = {},
+  computo: ComputoStrutturato, nomeFile: string, opzioni: Pick<DatiComputo, "listino" | "inizio" | "calendario"> = {},
 ): Frammento {
   const esito = bozzaDaComputoStrutturato(computo);
   const bozza = applicaImportComputo(bozzaVuota(), esito);

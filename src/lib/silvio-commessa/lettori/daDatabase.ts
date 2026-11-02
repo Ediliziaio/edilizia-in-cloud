@@ -18,6 +18,8 @@ import { frammentoDaComputo } from "./computo";
 import { frammentiPerCompletare, type DatiCommessaEsistente } from "./commessa";
 import { COLONNE_CONTRATTO, frammentoDaContratto } from "./contratto";
 import { attachmentStorage } from "@/components/orders/filePreviewUtils";
+import { calendarioAzienda, type CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
+import { leggiImpostazioniSilvio, type ImpostazioniSilvio } from "../autonomia";
 
 // Tabelle che i tipi generati non conoscono tutte (i preventivatori, le sottofasi).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +30,21 @@ async function una(tabella: string, colonne: string, id: string): Promise<Riga |
   const { data, error } = await db.from(tabella).select(colonne).eq("id", id).maybeSingle();
   if (error) throw new Error(`Non riesco a leggere ${tabella}: ${error.message}`);
   return (data as Riga | null) ?? null;
+}
+
+/**
+ * Il calendario dell'azienda per le date dei lettori (revisione 1/11, L10): chiusura estiva,
+ * patrono, festività di Personale. Prima i lettori datavano con le sole feste nazionali e
+ * mettevano fasi in agosto. Le impostazioni si leggono una volta per azienda; il patrono
+ * dipende dalla città del cantiere. Se non si leggono, valgono le feste nazionali.
+ */
+const impostazioniLette = new Map<string, Promise<ImpostazioniSilvio>>();
+async function calendarioPer(companyId: string | null | undefined, indirizzo: unknown): Promise<CalendarioCantiere | undefined> {
+  if (!companyId) return undefined;
+  let p = impostazioniLette.get(companyId);
+  if (!p) { p = leggiImpostazioniSilvio(companyId); impostazioniLette.set(companyId, p); }
+  const imp = await p;
+  return calendarioAzienda(imp.calendario, typeof indirizzo === "string" ? indirizzo : null);
 }
 
 /** I costi del listino aziendale per i codici delle voci che non ne hanno. */
@@ -41,11 +58,13 @@ async function listinoPerBozza(companyId: string, bozza: BozzaComputo): Promise<
 }
 
 /** Il computo nativo (`computo_preventivo_drafts`) come frammento, con i costi mancanti dal listino. */
-export async function leggiFrammentoComputo(companyId: string, draftId: string, inizio?: string | null): Promise<Frammento | null> {
+export async function leggiFrammentoComputo(
+  companyId: string, draftId: string, inizio?: string | null, calendario?: CalendarioCantiere,
+): Promise<Frammento | null> {
   const computo = await leggiComputoCloud(companyId, draftId);
   if (!computo) return null;
-  const listino = await listinoPerBozza(companyId, computo.bozza);
-  return frammentoDaComputo({ bozza: computo.bozza, id: draftId, listino, inizio });
+  const [listino, cal] = await Promise.all([listinoPerBozza(companyId, computo.bozza), calendario ?? calendarioPer(companyId, null)]);
+  return frammentoDaComputo({ bozza: computo.bozza, id: draftId, listino, inizio, calendario: cal });
 }
 
 /**
@@ -59,13 +78,14 @@ export async function leggiFrammentiPreventivo(quoteId: string, inizio?: string 
   const { data: righe, error } = await db.from("quote_items").select("*").eq("quote_id", quoteId).order("sort_order", { ascending: true });
   if (error) throw new Error(`Non riesco a leggere le righe del preventivo: ${error.message}`);
 
+  const calendario = await calendarioPer(quote.company_id as string | null, quote.indirizzo_lavori ?? null);
   const sorgente = moduloDelPreventivo(quote.source);
   const frammenti: Frammento[] = [];
   let modulo: Parameters<typeof frammentoDaPreventivo>[0]["modulo"] = null;
   let cronoprogrammaModello: unknown = null;
 
   if (sorgente?.chiave === "computo") {
-    const computo = await leggiFrammentoComputo(String(quote.company_id), sorgente.progettoId, inizio);
+    const computo = await leggiFrammentoComputo(String(quote.company_id), sorgente.progettoId, inizio, calendario);
     if (computo) frammenti.push(computo);
   } else if (sorgente && MODULI_EDILI[sorgente.chiave]) {
     const { prefisso } = MODULI_EDILI[sorgente.chiave];
@@ -81,11 +101,11 @@ export async function leggiFrammentiPreventivo(quoteId: string, inizio?: string 
     }
   }
 
-  const preventivo = frammentoDaPreventivo({ quote, righe: (righe ?? []) as Riga[], modulo, cronoprogrammaModello, inizio });
+  const preventivo = frammentoDaPreventivo({ quote, righe: (righe ?? []) as Riga[], modulo, cronoprogrammaModello, inizio, calendario });
   frammenti.unshift(preventivo);
   const conFasi = frammenti.some((f) => f.aree.fasi?.["fasi.order_work_phases"]);
   const tipo = modelloDelPreventivo({ quote, modulo });
-  if (!conFasi && tipo) frammenti.push(frammentoDalModello(tipo, { inizio }));
+  if (!conFasi && tipo) frammenti.push(frammentoDalModello(tipo, { inizio, calendario }));
   return frammenti;
 }
 
@@ -115,6 +135,7 @@ async function leggiDatiCommessa(orderId: string): Promise<DatiCommessaEsistente
   }));
   return {
     order,
+    calendario: await calendarioPer(order.company_id as string | null, order.indirizzo_lavori ?? order.work_address ?? null),
     fasi: ((fasi.data ?? []) as Riga[]).map((f) => ({ ...f, sottofasi: ((sotto ?? []) as Riga[]).filter((s) => s.phase_id === f.id) })),
     rate: (rate.data ?? []) as Riga[],
     righe: (righe.data ?? []) as Riga[],

@@ -21,6 +21,7 @@
  * pagina della commessa nuova.
  */
 import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
+import type { CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
 import {
   dateDelleFasi, durateDalModello, misuraDalTesto, MODELLI_LAVORO, riconosciTipoLavoro, type TipoLavoro,
 } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
@@ -65,6 +66,8 @@ export interface DatiPreventivo {
   cronoprogrammaModello?: unknown;
   /** Inizio dei lavori, se già deciso (AAAA-MM-GG): con questo le fasi hanno le date. */
   inizio?: string | null;
+  /** Il calendario dell'azienda per le date (revisione 1/11, L10): senza, le sole feste nazionali. */
+  calendario?: CalendarioCantiere;
 }
 
 const STATI_FIRMATI = new Set(["accettato", "accepted", "firmato", "signed", "approvato", "vinto"]);
@@ -279,7 +282,7 @@ export function frammentoDaPreventivo(dati: DatiPreventivo): Frammento {
   }
   if (crono?.senzaDurata.length) avvisa(fr, `fasi senza durata leggibile, contate un giorno: ${crono.senzaDurata.join(", ")}`);
   if (fasi.length) {
-    const conDate = dati.inizio ? dateDelleFasi(fasi, dati.inizio) : fasi;
+    const conDate = dati.inizio ? dateDelleFasi(fasi, dati.inizio, dati.calendario) : fasi;
     metti(fr, "fasi.order_work_phases", conDate, durateModello?.completate.length
       ? {
         fiducia: Math.min(fiducia, 0.5), stato: "proposta", dove: doveFasi,

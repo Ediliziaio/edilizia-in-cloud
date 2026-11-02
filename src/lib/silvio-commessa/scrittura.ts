@@ -39,6 +39,7 @@ import type {
 } from "../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { giaNellaCommessa } from "../../../shared/silvio-commessa/fondi.ts";
+import { numeroDellaColonna } from "../../../shared/silvio-commessa/letturaAI.ts";
 import type {
   ContrattoDelPiano, DittaDelPiano, MezzoDelPiano, OdaDelPiano, PersonaDelPiano, PromemoriaDelPiano,
 } from "../../../shared/silvio-commessa/risorse.ts";
@@ -88,6 +89,12 @@ export interface FaseScritta {
   /** Da dove vengono voci e costi: `order_work_phase_voci.origine`. Null = niente voci previste. */
   origine: "preventivo" | "computo" | null;
   sottofasi: SottofaseScritta[];
+  /**
+   * La durata in giorni lavorativi, per le fasi che non hanno ancora le date (l'inizio lavori
+   * manca): `order_work_phases` non ha una colonna per la durata, quindi la RPC la mette su
+   * una sottofase col nome della fase, come fa il cronoprogramma. Revisione 1/11: prima si perdeva.
+   */
+  giorni?: number | null;
 }
 
 export interface DataFaseScritta {
@@ -171,7 +178,7 @@ export { giaNellaCommessa };
 
 /** Il valore entra? Null se sì, altrimenti il motivo. */
 function motivoFuori(v: Valore, variabile: Variabile, autonomia: Autonomia | null): string | null {
-  if (v.stato === "attenzione") return "due fonti dicono cose diverse: scegli quale tenere";
+  if (v.stato === "attenzione") return v.quadratura && v.nota ? v.nota : "due fonti dicono cose diverse: scegli quale tenere";
   if (v.stato === "manca" || vuoto(v.valore)) return "manca";
   const azione = azioneDellaVariabile(variabile.chiave);
   // Vietata vale anche per quello che la persona ha accettato: Silvio non lo scrive.
@@ -189,10 +196,8 @@ const daSola = (v: Valore) => v.stato !== "fatto" && v.fonte.tipo !== "persona";
 function colonna(nome: string, valore: unknown): string | number | boolean | undefined {
   if (vuoto(valore)) return undefined;
   if (DATE.has(nome)) return typeof valore === "string" && DATA.test(valore) ? valore : undefined;
-  if (NUMERI.has(nome)) {
-    const n = typeof valore === "number" ? valore : Number(String(valore).replace(",", "."));
-    return Number.isFinite(n) ? n : undefined;
-  }
+  // Coi limiti della colonna (revisione 1/11, L2): un importo negativo o un'IVA al 23 % non entrano.
+  if (NUMERI.has(nome)) return numeroDellaColonna(nome, valore).valore;
   if (SI_NO.has(nome)) return typeof valore === "boolean" ? valore : undefined;
   if (ID.has(nome)) return typeof valore === "string" && UUID.test(valore) ? valore : undefined;
   return typeof valore === "string" ? valore.trim() : typeof valore === "number" ? String(valore) : undefined;
@@ -221,12 +226,15 @@ function fasiScritte(fasi: FaseDelPiano[], tipoFonte: TipoFonte, costi: CostoDel
       }
       const inizio = f.start_date && DATA.test(f.start_date) ? f.start_date : null;
       const fine = f.end_date && DATA.test(f.end_date) ? f.end_date : null;
+      const datata = !!(inizio && fine && fine >= inizio);
+      const giorni = !datata && Number.isInteger(f.giorni) && f.giorni! >= 1 && f.giorni! <= 3650 ? f.giorni! : null;
       return {
         nome: f.name.trim(),
-        inizio: inizio && fine && fine >= inizio ? inizio : null,
-        fine: inizio && fine && fine >= inizio ? fine : null,
+        inizio: datata ? inizio : null,
+        fine: datata ? fine : null,
         origine,
         sottofasi,
+        ...(giorni ? { giorni } : {}),
       };
     });
 }

@@ -144,7 +144,24 @@ describe("il controllo nel database", () => {
       expect(corpo, campo).toContain(`'{${campo}}'`);
     }
     expect(corpo).toContain("#- '{ordine,capomastro_user_id}'");
-    expect(corpo).toMatch(/v_tipi := v_tipi \|\| array\['pos', 'duvri'\]/);
+    // Revisione 1/11, S3: un elenco dei tipi ammessi, non dei vietati: «cartello» non entra mai.
+    expect(corpo).toContain("v_ammessi text[] := array['pos', 'duvri', 'avvio_cliente']");
+    expect(corpo).toContain("array_remove(array_remove(v_ammessi, 'pos'), 'duvri')");
+    expect(corpo).toContain("not (coalesce(p->>'tipo', '') = any (v_ammessi))");
+  });
+
+  it("revisione 1/11, S4: vietare una parte del piano di volo chiude le sue proposte, e la conferma ricontrolla", () => {
+    const salva = migrazione.slice(migrazione.indexOf("create or replace function public.silvio_autonomia_salva"));
+    expect(salva).toMatch(/update public\.silvio_piano_volo set stato = 'scaduta'/);
+    const volo = readFileSync(resolve(radice, "supabase/migrations/20281106141000_silvio_piano_volo.sql"), "utf8");
+    const conferma = volo.slice(volo.indexOf("create or replace function public.silvio_volo_conferma"), volo.indexOf("revoke all on function public.silvio_volo_conferma"));
+    expect(conferma).toContain("case r.tipo when 'sal' then 'proposta_sal' else 'controllo_fase' end) = 'vietata'");
+    // S5: chi non vede gli importi non conferma il SAL, e non legge la tabella direttamente.
+    expect(conferma).toContain("'can_view_order_amounts'");
+    expect(volo).not.toMatch(/grant select on public\.silvio_piano_volo to authenticated/);
+    expect(volo).toContain("create or replace function public.silvio_volo_della_commessa(p_order_id uuid)");
+    // S6: la registrazione dice se la proposta è nuova o cambiata.
+    expect(volo).toMatch(/'nuova', v_id is not null and v_prima\.id is null/);
   });
 
   it("_silvio_bozza passa da lì: vale per «Crea», «Completa» e per chi chiama le RPC a mano", () => {

@@ -35,6 +35,19 @@
 -- (rapportino, fattura, costo, allegato…), una colonna che non ha più il valore di
 -- Silvio. Il registro non lo scrive nessun client: solo le RPC.
 --
+-- Revisione dell'1/11/2026 (S1, S2, S11, docs/silvio-commessa-revisione-20261101.md):
+--   · ogni riga di Silvio ha la sua `istantanea` a fine transazione, e l'annullamento la
+--     confronta colonna per colonna: prima si guardava `updated_at`, che `contratti_subappalto`,
+--     `order_employees`, `order_external_teams` e altre non hanno (un contratto firmato, le
+--     ore del rapportino, una ditta segnata pagata sparivano con «Annulla»);
+--   · si rifiuta se una riga QUALUNQUE punta a una riga di Silvio senza essere sua, chiavi a
+--     più colonne comprese, anche nelle tabelle senza `created_at` (le spese di un mezzo, le
+--     etichette di un'attività): prima quelle andavano via in cascata;
+--   · le figlie di una riga nata nella stessa transazione si registrano tutte (sono nuove per
+--     forza), anche senza `created_at`;
+--   · il messaggio dice cosa è stato toccato e cosa fare;
+--   · gli eventi delle automazioni non ancora elaborati sulle righe tolte spariscono con loro.
+--
 -- Idempotente. Nessun dato esistente viene toccato. Richiede 20281106090000.
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -147,6 +160,22 @@ begin
 end
 $$;
 
+-- Una correzione legata a una bozza si scrive solo sulla propria bozza, della stessa azienda
+-- (revisione 1/11, S9): la policy di 20281106090000 non poteva guardarla, perché la tabella
+-- delle bozze nasce qui.
+drop policy if exists silvio_correzioni_scrittura on public.silvio_correzioni;
+create policy silvio_correzioni_scrittura on public.silvio_correzioni for insert to authenticated
+  with check (
+    public.has_permission_for_company((select auth.uid()), 'can_edit_orders', company_id)
+    and user_id = (select auth.uid())
+    and (order_id is null or exists (
+      select 1 from public.orders o where o.id = silvio_correzioni.order_id and o.company_id = silvio_correzioni.company_id))
+    and (bozza_id is null or exists (
+      select 1 from public.commessa_bozze b
+       where b.id = silvio_correzioni.bozza_id and b.company_id = silvio_correzioni.company_id
+         and b.created_by = (select auth.uid())))
+  );
+
 -- ── Il registro di quello che Silvio ha scritto ─────────────────────────────
 create table if not exists public.commessa_bozze_scritture (
   id bigint generated always as identity primary key,
@@ -162,6 +191,10 @@ create table if not exists public.commessa_bozze_scritture (
   constraint commessa_bozze_scritture_azione check (azione in ('creata', 'aggiornata')),
   constraint commessa_bozze_scritture_colonne check ((azione = 'aggiornata') = (colonne is not null))
 );
+
+-- La riga com'era alla fine della transazione di Silvio (`_silvio_imprimi`): l'annullamento
+-- la confronta con quella di adesso.
+alter table public.commessa_bozze_scritture add column if not exists istantanea jsonb;
 
 create index if not exists commessa_bozze_scritture_bozza_idx on public.commessa_bozze_scritture (bozza_id, tabella);
 
@@ -199,6 +232,8 @@ as $$
     'dl_notification_email', 'dl_notification_phone'
   ]::text[]
 $$;
+-- Serve solo alle RPC di Silvio (revisione 1/11, S10).
+revoke all on function public._silvio_colonne_scrivibili() from public, anon, authenticated;
 
 -- La bozza da scrivere, bloccata, dopo i controlli comuni: chi chiama, azienda,
 -- permesso, scadenza.
@@ -341,10 +376,82 @@ as $$
 $$;
 revoke all on function public._silvio_colonna_nascita(oid) from public, anon, authenticated;
 
--- Registra le righe nate in questa transazione (created_at = now()) che puntano alla
--- commessa, e poi quelle che puntano a loro, fino a tre livelli: fasi → sottofasi →
--- voci. Trova le tabelle dalle chiavi esterne, così una tabella nuova (o un trigger
--- nuovo che crea righe) non sfugge all'annullamento.
+-- Tutte le chiavi esterne fra tabelle di public, a una o più colonne. `unione` è la
+-- condizione che lega la figlia `t` alla madre `m`; `con_id` dice se la figlia ha un `id`
+-- uuid (solo allora una sua riga si registra). Le tabelle di Silvio stesso non contano:
+-- cadono con la bozza o con la commessa.
+create or replace function public._silvio_chiavi()
+returns table (figlia text, madre text, unione text, con_id boolean, nascita text)
+language sql
+stable
+set search_path = ''
+as $$
+  select figlia.relname::text, madre.relname::text,
+         (select string_agg(format('t.%I = m.%I', fa.attname, ma.attname), ' and ' order by k.ord)
+            from unnest(c.conkey, c.confkey) with ordinality k(fk, pk, ord)
+            join pg_attribute fa on fa.attrelid = c.conrelid and fa.attnum = k.fk
+            join pg_attribute ma on ma.attrelid = c.confrelid and ma.attnum = k.pk),
+         exists (select 1 from pg_attribute x where x.attrelid = figlia.oid and x.attname = 'id'
+                   and x.atttypid = 'uuid'::regtype and not x.attisdropped),
+         public._silvio_colonna_nascita(figlia.oid)
+    from pg_constraint c
+    join pg_class figlia on figlia.oid = c.conrelid
+    join pg_namespace nf on nf.oid = figlia.relnamespace and nf.nspname = 'public'
+    join pg_class madre on madre.oid = c.confrelid
+    join pg_namespace nm on nm.oid = madre.relnamespace and nm.nspname = 'public'
+   where c.contype = 'f'
+     and figlia.relkind in ('r', 'p')
+     and figlia.relname not in ('commessa_bozze', 'commessa_bozze_scritture', 'silvio_correzioni', 'silvio_piano_volo')
+$$;
+revoke all on function public._silvio_chiavi() from public, anon, authenticated;
+
+-- Le chiavi verso le tabelle che hanno righe nate da Silvio in questa bozza, e verso `orders`.
+create or replace function public._silvio_chiavi_figlie(p_bozza uuid)
+returns table (figlia text, madre text, unione text, con_id boolean, nascita text)
+language sql
+stable
+set search_path = ''
+as $$
+  select k.* from public._silvio_chiavi() k
+   where k.madre = 'orders'
+      or k.madre in (select s.tabella from public.commessa_bozze_scritture s where s.bozza_id = p_bozza and s.azione = 'creata')
+$$;
+revoke all on function public._silvio_chiavi_figlie(uuid) from public, anon, authenticated;
+
+-- Com'è adesso una riga di Silvio: la riga, più le sue figlie che non hanno un `id` e
+-- quindi non si possono registrare una per una (il costo di un mezzo prenotato, per
+-- esempio): per quelle conta l'insieme. Null se la riga non c'è più.
+create or replace function public._silvio_stato_riga(p_tabella text, p_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v jsonb;
+  k record;
+  v_figlie jsonb;
+begin
+  execute format('select to_jsonb(t) from public.%I t where t.id = $1', p_tabella) into v using p_id;
+  if v is null then return null; end if;
+  for k in select * from public._silvio_chiavi() c where c.madre = p_tabella and not c.con_id order by c.figlia loop
+    execute format('select coalesce(jsonb_agg(to_jsonb(t) - ''updated_at'' order by to_jsonb(t)::text), ''[]''::jsonb)
+                      from public.%I t join public.%I m on %s where m.id = $1', k.figlia, p_tabella, k.unione)
+      into v_figlie using p_id;
+    v := v || jsonb_build_object('__figlie:' || k.figlia, v_figlie);
+  end loop;
+  return v;
+end
+$$;
+revoke all on function public._silvio_stato_riga(text, uuid) from public, anon, authenticated;
+
+-- Registra le righe nate in questa transazione che puntano alla commessa, e poi quelle che
+-- puntano a loro, fino a quattro livelli: fasi → sottofasi → voci. Trova le tabelle dalle
+-- chiavi esterne, così una tabella nuova (o un trigger nuovo che crea righe) non sfugge
+-- all'annullamento. Una riga è nuova se `created_at = now()`, o se la sua madre è una riga
+-- di Silvio nata in questa stessa transazione (allora è nuova per forza, anche in una
+-- tabella senza `created_at`). Le righe che la commessa aveva già non si toccano mai.
 create or replace function public._silvio_registra_nuove(p_bozza uuid, p_company uuid, p_order uuid)
 returns integer
 language plpgsql
@@ -360,46 +467,132 @@ declare
 begin
   loop
     v_nuove := 0;
-    for v_fk in
-      select distinct figlia.relname as figlia, a.attname as colonna, madre.relname as madre,
-             public._silvio_colonna_nascita(figlia.oid) as nascita
-        from pg_constraint c
-        join pg_class figlia on figlia.oid = c.conrelid
-        join pg_namespace nf on nf.oid = figlia.relnamespace and nf.nspname = 'public'
-        join pg_class madre on madre.oid = c.confrelid
-        join pg_namespace nm on nm.oid = madre.relnamespace and nm.nspname = 'public'
-        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
-       where c.contype = 'f' and cardinality(c.conkey) = 1
-         and figlia.relname <> 'commessa_bozze_scritture' and figlia.relname <> 'commessa_bozze'
-         and (madre.relname = 'orders'
-              or madre.relname in (select s.tabella from public.commessa_bozze_scritture s where s.bozza_id = p_bozza))
-         and exists (select 1 from pg_attribute x where x.attrelid = figlia.oid and x.attname = 'id'
-                       and x.atttypid = 'uuid'::regtype and not x.attisdropped)
-         and public._silvio_colonna_nascita(figlia.oid) is not null
-    loop
+    for v_fk in select * from public._silvio_chiavi_figlie(p_bozza) k where k.con_id loop
       execute format(
         'insert into public.commessa_bozze_scritture (bozza_id, company_id, tabella, riga_id, azione)
-         select $1, $2, %L, t.id, ''creata'' from public.%I t
-          where t.%I = now()
-            and t.%I in (select $3 where %L = ''orders''
-                         union all
-                         select s.riga_id from public.commessa_bozze_scritture s
-                          where s.bozza_id = $1 and s.tabella = %L and s.azione = ''creata'')
+         select distinct $1, $2, %1$L, t.id, ''creata''
+           from public.%1$I t join public.%2$I m on %3$s
+          where (%4$s
+                 or exists (select 1 from public.commessa_bozze_scritture s
+                             where s.bozza_id = $1 and s.tabella = %2$L and s.riga_id = m.id
+                               and s.azione = ''creata'' and s.scritta_il = now()))
+            and (m.id in (select $3 where %2$L = ''orders'')
+                 or m.id in (select s.riga_id from public.commessa_bozze_scritture s
+                              where s.bozza_id = $1 and s.tabella = %2$L and s.azione = ''creata''))
             and not exists (select 1 from public.commessa_bozze_scritture s
-                             where s.bozza_id = $1 and s.tabella = %L and s.riga_id = t.id)',
-        v_fk.figlia, v_fk.figlia, v_fk.nascita, v_fk.colonna, v_fk.madre, v_fk.madre, v_fk.figlia)
+                             where s.bozza_id = $1 and s.tabella = %1$L and s.riga_id = t.id)',
+        v_fk.figlia, v_fk.madre, v_fk.unione,
+        case when v_fk.nascita is null then 'false' else format('t.%I = now()', v_fk.nascita) end)
       using p_bozza, p_company, p_order;
       get diagnostics v_n = row_count;
       v_nuove := v_nuove + v_n;
     end loop;
     v_tot := v_tot + v_nuove;
     v_giro := v_giro + 1;
-    exit when v_nuove = 0 or v_giro >= 4;
+    exit when v_nuove = 0 or v_giro >= 5;
   end loop;
   return v_tot;
 end
 $$;
 revoke all on function public._silvio_registra_nuove(uuid, uuid, uuid) from public, anon, authenticated;
+
+-- L'istantanea delle righe di Silvio, alla fine della transazione che le ha scritte. Solo
+-- quelle che non l'hanno ancora: in «allega», più tardi, le righe di prima tengono la loro,
+-- e quello che la persona ha cambiato nel frattempo resta visibile all'annullamento.
+create or replace function public._silvio_imprimi(p_bozza uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.commessa_bozze_scritture s
+     set istantanea = public._silvio_stato_riga(s.tabella, s.riga_id)
+   where s.bozza_id = p_bozza and s.azione = 'creata' and s.istantanea is null
+$$;
+revoke all on function public._silvio_imprimi(uuid) from public, anon, authenticated;
+
+-- Come si chiama, per una persona, la riga di Silvio che qualcuno ha cambiato.
+create or replace function public._silvio_cosa_e_cambiato(p_tabella text, p_riga jsonb, p_colonna text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_nome text;
+begin
+  if p_colonna like '\_\_figlie:%' then
+    return format('dopo Silvio si è aggiunto o cambiato lavoro, %s', public._silvio_lavoro_aggiunto(substr(p_colonna, 10)));
+  end if;
+  case p_tabella
+    when 'contratti_subappalto' then
+      select coalesce(nullif(btrim(ss.ragione_sociale), ''), 'una ditta') into v_nome
+        from public.subappaltatori_sicurezza ss where ss.id = nullif(p_riga->>'subappaltatore_id', '')::uuid;
+      return format('Il contratto di %s è stato %s', coalesce(v_nome, 'una ditta'),
+                    case when p_colonna in ('firmato_il', 'firmato_da', 'firma_richiesta_id')
+                           or (p_colonna = 'stato' and p_riga->>'stato' <> 'bozza') then 'firmato o avviato'
+                         else format('modificato («%s»)', p_colonna) end);
+    when 'order_employees' then
+      select nullif(btrim(concat_ws(' ', e.first_name, e.last_name)), '') into v_nome
+        from public.employees e where e.id = nullif(p_riga->>'employee_id', '')::uuid;
+      return case when p_colonna in ('hours_worked', 'total_cost')
+                  then format('Sono state scritte ore per %s', coalesce(v_nome, 'una persona della squadra'))
+                  else format('%s nella squadra è stato modificato («%s»)', coalesce(v_nome, 'Una persona'), p_colonna) end;
+    when 'order_external_teams' then
+      select nullif(btrim(t.name), '') into v_nome from public.external_teams t where t.id = nullif(p_riga->>'external_team_id', '')::uuid;
+      return case when p_colonna = 'is_paid' then format('La ditta %s è stata segnata pagata', coalesce(v_nome, 'assegnata'))
+                  else format('La ditta %s è stata modificata («%s»)', coalesce(v_nome, 'assegnata'), p_colonna) end;
+    when 'mezzi_piani_cantiere' then
+      select nullif(btrim(m.nome), '') into v_nome from public.mezzi m where m.id = nullif(p_riga->>'mezzo_id', '')::uuid;
+      return format('La prenotazione del mezzo %s è stata cambiata («%s»)', coalesce(v_nome, ''), p_colonna);
+    when 'purchase_orders' then
+      return format('L''ordine al fornitore %s è stato modificato («%s»)', coalesce(p_riga->>'oda_number', ''), p_colonna);
+    when 'tasks' then
+      return format('L''attività «%s» è stata cambiata («%s»)', left(coalesce(p_riga->>'title', ''), 80), p_colonna);
+    when 'order_work_phases' then
+      return format('La fase «%s» è stata cambiata («%s»)', left(coalesce(p_riga->>'name', ''), 80), p_colonna);
+    when 'orders' then
+      return format('La commessa %s è stata modificata dopo Silvio («%s»)', coalesce(p_riga->>'order_code', ''), p_colonna);
+    else
+      return format('Una riga di «%s» creata da Silvio è stata cambiata («%s»)', replace(p_tabella, '_', ' '), p_colonna);
+  end case;
+end
+$$;
+revoke all on function public._silvio_cosa_e_cambiato(text, jsonb, text) from public, anon, authenticated;
+
+-- Come si chiama, per una persona, il lavoro aggiunto sopra una riga di Silvio.
+create or replace function public._silvio_lavoro_aggiunto(p_tabella text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case p_tabella
+    when 'mezzi_piani_spese' then 'una spesa del mezzo'
+    when 'mezzi_piani_costi' then 'un costo del mezzo'
+    when 'task_tag_assignments' then 'un''etichetta su un''attività'
+    when 'order_attachments' then 'un documento'
+    when 'invoices' then 'una fattura'
+    when 'invoice_items' then 'una riga di fattura'
+    when 'sal' then 'un SAL'
+    when 'order_costs' then 'un costo'
+    when 'expenses' then 'una spesa'
+    when 'rapportini' then 'un rapportino'
+    when 'campo_rapportini' then 'un rapportino'
+    when 'order_variations' then 'una variante'
+    when 'sicurezza_fascicolo' then 'un documento del fascicolo di sicurezza'
+    when 'sicurezza_incarichi' then 'un incarico di sicurezza'
+    when 'subappaltatori_operai' then 'un operaio della ditta'
+    when 'lp_libretto_modifiche' then 'una modifica al libretto delle misure'
+    when 'lp_sal_voci' then 'una voce di SAL'
+    when 'commesse_generali' then 'un collegamento a una commessa generale'
+    when 'order_variation_workspaces' then 'una variante in preparazione'
+    when 'generale_subappalto_ordini' then 'un subappalto della commessa generale'
+    else format('righe in «%s»', replace(p_tabella, '_', ' '))
+  end
+$$;
+revoke all on function public._silvio_lavoro_aggiunto(text) from public, anon, authenticated;
 
 -- Il lavoro comune a «crea» e «completa», su una commessa che c'è: colonne vuote,
 -- fasi che mancano (con sottofasi, date e voci previste), le date delle fasi che ci
@@ -484,9 +677,14 @@ begin
     perform public.aggiungi_fasi_commessa(p_order, (
       select jsonb_agg(jsonb_build_object(
                'nome', f->>'nome',
+               -- Una fase senza date né sottofasi ma con la durata: la durata va su una
+               -- sottofase col nome della fase (revisione 1/11), se no si perde.
                'sottofasi', coalesce((select jsonb_agg(jsonb_build_object('nome', x->>'nome', 'giorni', x->'giorni'))
                                         from jsonb_array_elements(coalesce(f->'sottofasi', '[]'::jsonb)) x
-                                       where btrim(coalesce(x->>'nome', '')) <> ''), '[]'::jsonb)))
+                                       where btrim(coalesce(x->>'nome', '')) <> ''),
+                                     case when nullif(f->>'giorni', '') is not null
+                                          then jsonb_build_array(jsonb_build_object('nome', f->>'nome', 'giorni', f->'giorni')) end,
+                                     '[]'::jsonb)))
         from jsonb_array_elements(v_fasi) f));
 
     -- Le voci previste: una per sottofase con quantità, venduto o costo. I costi sono
@@ -621,6 +819,24 @@ end
 $$;
 revoke all on function public._silvio_pronta(public.commessa_bozze) from public, anon, authenticated;
 
+-- «Crea con Silvio» acceso per l'azienda (revisione 1/11, E2): prima lo guardava solo il
+-- browser. Demo Azienda 2 sempre, come nel client (useCreaConSilvioAttivo).
+create or replace function public._silvio_acceso(p_company uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if p_company = 'd2000000-0000-4000-a000-000000000002'::uuid then return true; end if;
+  return coalesce((select f.is_enabled from public.resolve_company_feature(p_company, 'silvio_crea_commessa') f limit 1), false);
+exception when others then
+  return false;
+end
+$$;
+revoke all on function public._silvio_acceso(uuid) from public, anon, authenticated;
+
 -- ── Crea ────────────────────────────────────────────────────────────────────
 create or replace function public.commessa_crea_con_silvio(p_bozza_id uuid)
 returns jsonb
@@ -645,6 +861,9 @@ declare
   v_registrate integer;
 begin
   perform public._silvio_pronta(b);
+  if not public._silvio_acceso(b.company_id) then
+    raise exception '«Crea con Silvio» non è attivo per questa azienda.' using errcode = '42501';
+  end if;
   if b.modo <> 'crea' then
     raise exception 'Questa bozza completa una commessa che c''è già: usa «Completa».' using errcode = '22023';
   end if;
@@ -713,6 +932,7 @@ begin
   -- Su una commessa nata qui le colonne «aggiornate» non servono: si toglie tutta.
   delete from public.commessa_bozze_scritture where bozza_id = b.id and azione = 'aggiornata';
   v_registrate := public._silvio_registra_nuove(b.id, b.company_id, v_order);
+  perform public._silvio_imprimi(b.id);
 
   return jsonb_build_object('order_id', v_order, 'customer_id', v_cliente, 'righe_registrate', v_registrate + 1)
          || v_aggiunte;
@@ -735,6 +955,9 @@ declare
   v_registrate integer;
 begin
   perform public._silvio_pronta(b);
+  if not public._silvio_acceso(b.company_id) then
+    raise exception '«Crea con Silvio» non è attivo per questa azienda.' using errcode = '42501';
+  end if;
   if b.modo <> 'completa' or b.order_id is null then
     raise exception 'Questa bozza crea una commessa nuova: usa «Crea».' using errcode = '22023';
   end if;
@@ -761,6 +984,7 @@ begin
 
   v_aggiunte := public._silvio_aggiungi(b, o.id);
   v_registrate := public._silvio_registra_nuove(b.id, b.company_id, o.id);
+  perform public._silvio_imprimi(b.id);
   return jsonb_build_object('order_id', o.id, 'righe_registrate', v_registrate) || v_aggiunte;
 end
 $$;
@@ -797,6 +1021,7 @@ begin
     v_n := v_n + 1;
   end loop;
   perform public._silvio_registra_nuove(b.id, b.company_id, b.order_id);
+  perform public._silvio_imprimi(b.id);
   return v_n;
 end
 $$;
@@ -833,52 +1058,50 @@ begin
   end if;
   v_creata := b.stato = 'creata';
 
-  -- 1. Una riga di Silvio modificata dopo.
-  for r in select s.tabella, min(s.scritta_il) as quando, array_agg(s.riga_id) as ids
-             from public.commessa_bozze_scritture s
-            where s.bozza_id = b.id and s.azione = 'creata'
-              and exists (select 1 from pg_attribute x join pg_class t on t.oid = x.attrelid
-                            join pg_namespace n on n.oid = t.relnamespace and n.nspname = 'public'
-                           where t.relname = s.tabella and x.attname = 'updated_at' and not x.attisdropped)
-            group by s.tabella loop
-    execute format('select exists (select 1 from public.%I where id = any ($1) and updated_at > $2)', r.tabella)
-      into v_trovata using r.ids, r.quando;
-    if v_trovata then
-      raise exception 'Non si può annullare: qualcuno ha già modificato % creati da Silvio.', r.tabella using errcode = '55000';
+  -- 1. Una riga di Silvio cambiata dopo: si confronta con la sua istantanea, colonna per
+  --    colonna (`updated_at` da solo non dice niente, e molte tabelle non ce l'hanno). Una
+  --    riga che la persona ha già tolto non conta. Nel dubbio (riga senza istantanea) si rifiuta.
+  --    Prima le righe più in fondo (ore, contratti, ditte), la commessa per ultima: il
+  --    messaggio dice il lavoro vero, non il riflesso che ha lasciato sulla commessa.
+  for r in select s.tabella, s.riga_id, s.istantanea from public.commessa_bozze_scritture s
+            where s.bozza_id = b.id and s.azione = 'creata' order by s.tabella = 'orders', s.id desc loop
+    v_attuale := public._silvio_stato_riga(r.tabella, r.riga_id);
+    continue when v_attuale is null;
+    if r.istantanea is null then
+      raise exception 'Non si può annullare: non so com''erano le righe di Silvio in «%». Annulla a mano o tieni la commessa.',
+        replace(r.tabella, '_', ' ') using errcode = '55000';
+    end if;
+    select k into v_colonna
+      from jsonb_object_keys(v_attuale || r.istantanea) k
+     where k <> 'updated_at' and (v_attuale->k) is distinct from (r.istantanea->k)
+     order by k like '\_\_figlie:%', k limit 1;
+    if v_colonna is not null then
+      raise exception 'Non si può annullare: %. Annulla a mano o tieni la commessa.',
+        public._silvio_cosa_e_cambiato(r.tabella, v_attuale, v_colonna) using errcode = '55000';
     end if;
   end loop;
 
-  -- 2. Una riga nuova che punta a una riga di Silvio (rapportino, fattura, costo,
-  --    allegato…). Su una commessa che Silvio ha solo completato, quelle che puntano
-  --    alla commessa sono di chi ci lavora, e non contano.
-  for v_fk in
-    select distinct figlia.relname as figlia, a.attname as colonna, madre.relname as madre
-      from pg_constraint c2
-      join pg_class figlia on figlia.oid = c2.conrelid
-      join pg_namespace nf on nf.oid = figlia.relnamespace and nf.nspname = 'public'
-      join pg_class madre on madre.oid = c2.confrelid
-      join pg_namespace nm on nm.oid = madre.relnamespace and nm.nspname = 'public'
-      join pg_attribute a on a.attrelid = c2.conrelid and a.attnum = c2.conkey[1]
-     where c2.contype = 'f' and cardinality(c2.conkey) = 1
-       and figlia.relname not in ('commessa_bozze', 'commessa_bozze_scritture', 'silvio_correzioni')
-       and madre.relname in (select s.tabella from public.commessa_bozze_scritture s
-                              where s.bozza_id = b.id and s.azione = 'creata')
-       and exists (select 1 from pg_attribute x where x.attrelid = figlia.oid and x.attname = 'id'
-                     and x.atttypid = 'uuid'::regtype and not x.attisdropped)
-       -- Le stesse tabelle che _silvio_registra_nuove sa registrare: per le altre non si
-       -- distingue una riga nata con Silvio da una aggiunta dopo.
-       and public._silvio_colonna_nascita(figlia.oid) is not null
-  loop
+  -- 2. Una riga che punta a una riga di Silvio senza essere sua (rapportino, fattura, costo,
+  --    allegato, spesa del mezzo, etichetta…), in qualunque tabella, a una o più colonne:
+  --    cancellando la madre andrebbe via in cascata, o fermerebbe tutto con un errore grezzo.
+  --    Su una commessa che Silvio ha solo completato, quelle che puntano alla commessa sono
+  --    di chi ci lavora, e non contano.
+  --    Le figlie senza `id` stanno nell'istantanea della madre: le ha già guardate il punto 1.
+  for v_fk in select * from public._silvio_chiavi_figlie(b.id) k
+               where k.con_id
+                 and k.madre in (select s.tabella from public.commessa_bozze_scritture s
+                                  where s.bozza_id = b.id and s.azione = 'creata') loop
     execute format(
-      'select exists (select 1 from public.%I t
-                       where t.%I in (select s.riga_id from public.commessa_bozze_scritture s
-                                       where s.bozza_id = $1 and s.tabella = %L and s.azione = ''creata'')
-                         and not exists (select 1 from public.commessa_bozze_scritture s
-                                          where s.bozza_id = $1 and s.tabella = %L and s.riga_id = t.id))',
-      v_fk.figlia, v_fk.colonna, v_fk.madre, v_fk.figlia)
+      'select exists (select 1 from public.%1$I t join public.%2$I m on %3$s
+                       where m.id in (select s.riga_id from public.commessa_bozze_scritture s
+                                       where s.bozza_id = $1 and s.tabella = %2$L and s.azione = ''creata'')
+                         and %4$s)',
+      v_fk.figlia, v_fk.madre, v_fk.unione,
+      format('not exists (select 1 from public.commessa_bozze_scritture s where s.bozza_id = $1 and s.tabella = %L and s.riga_id = t.id)', v_fk.figlia))
       into v_trovata using b.id;
     if v_trovata then
-      raise exception 'Non si può annullare: qualcuno ci ha già lavorato sopra (%).', v_fk.figlia using errcode = '55000';
+      raise exception 'Non si può annullare: dopo Silvio si è aggiunto lavoro, % (%). Annulla a mano o tieni la commessa.',
+        public._silvio_lavoro_aggiunto(v_fk.figlia), replace(v_fk.figlia, '_', ' ') using errcode = '55000';
     end if;
   end loop;
 
@@ -888,7 +1111,7 @@ begin
     execute format('select to_jsonb(t) from public.%I t where t.id = $1', r.tabella) into v_attuale using r.riga_id;
     for v_colonna in select jsonb_object_keys(r.colonne) loop
       if v_attuale is not null and (v_attuale->v_colonna) is distinct from (r.colonne->v_colonna->'dopo') then
-        raise exception 'Non si può annullare: «%» è stato cambiato dopo Silvio.', v_colonna using errcode = '55000';
+        raise exception 'Non si può annullare: «%» è stato cambiato dopo Silvio. Annulla a mano o tieni la commessa.', v_colonna using errcode = '55000';
       end if;
     end loop;
   end loop;
@@ -922,6 +1145,14 @@ begin
     get diagnostics v_n = row_count;
     v_tolte := v_tolte + v_n;
   end loop;
+
+  -- Gli eventi delle automazioni non ancora elaborati sulle righe tolte (l'attività creata,
+  -- la commessa nata): elaborati dopo, farebbero partire un'automazione su qualcosa che non
+  -- c'è più (revisione 1/11, S11). Quelli già elaborati restano: sono la storia.
+  delete from public.automation_trigger_events e
+   where e.company_id = b.company_id and e.processed is not true
+     and e.entity_id in (select s.riga_id::text from public.commessa_bozze_scritture s
+                          where s.bozza_id = b.id and s.azione = 'creata');
 
   delete from public.commessa_bozze_scritture where bozza_id = b.id;
   update public.commessa_bozze

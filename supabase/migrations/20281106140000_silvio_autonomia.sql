@@ -139,7 +139,7 @@ declare
   s jsonb := coalesce(p_scrittura, '{}'::jsonb);
   v_tolte text[] := '{}';
   v_vietata boolean;
-  v_tipi text[] := '{}';
+  v_ammessi text[] := array['pos', 'duvri', 'avvio_cliente'];
 begin
   if public._silvio_livello(p_company, 'squadra') = 'vietata' then
     if jsonb_array_length(coalesce(nullif(s->'squadra', 'null'::jsonb), '[]')) > 0 or s->'ordine' ? 'capomastro_user_id' then
@@ -166,20 +166,23 @@ begin
     s := jsonb_set(s, '{contratti}', '[]'::jsonb);
   end if;
   if public._silvio_livello(p_company, 'promemoria') = 'vietata' then
-    v_tipi := v_tipi || array['pos', 'duvri'];
+    v_ammessi := array_remove(array_remove(v_ammessi, 'pos'), 'duvri');
     if jsonb_array_length(coalesce(nullif(s->'adempimenti', 'null'::jsonb), '[]')) > 0 then v_tolte := v_tolte || 'promemoria'::text; end if;
     s := jsonb_set(s, '{adempimenti}', '[]'::jsonb);
   end if;
   if public._silvio_livello(p_company, 'avvio_cliente') = 'vietata' then
-    v_tipi := v_tipi || 'avvio_cliente'::text;
+    v_ammessi := array_remove(v_ammessi, 'avvio_cliente');
   end if;
-  if cardinality(v_tipi) > 0 and jsonb_typeof(s->'promemoria') = 'array' then
-    if exists (select 1 from jsonb_array_elements(s->'promemoria') p where p->>'tipo' = any (v_tipi)) then
+  -- Un elenco di tipi ammessi, non di vietati (revisione 1/11, S3): prima si toglievano solo
+  -- «pos» e «duvri», e un `{"tipo":"cartello"}` scritto a mano passava anche coi promemoria
+  -- vietati. Un tipo che Silvio non conosce non entra mai.
+  if jsonb_typeof(s->'promemoria') = 'array' then
+    if exists (select 1 from jsonb_array_elements(s->'promemoria') p where not (coalesce(p->>'tipo', '') = any (v_ammessi))) then
       v_tolte := v_tolte || (select array_agg(distinct case when p->>'tipo' = 'avvio_cliente' then 'avvio_cliente' else 'promemoria' end)
-                               from jsonb_array_elements(s->'promemoria') p where p->>'tipo' = any (v_tipi));
+                               from jsonb_array_elements(s->'promemoria') p where not (coalesce(p->>'tipo', '') = any (v_ammessi)));
     end if;
     s := jsonb_set(s, '{promemoria}', coalesce(
-      (select jsonb_agg(p) from jsonb_array_elements(s->'promemoria') p where not (p->>'tipo' = any (v_tipi))), '[]'::jsonb));
+      (select jsonb_agg(p) from jsonb_array_elements(s->'promemoria') p where coalesce(p->>'tipo', '') = any (v_ammessi)), '[]'::jsonb));
   end if;
   if cardinality(v_tolte) > 0 then
     s := s || jsonb_build_object('tolte_autonomia', to_jsonb((select array_agg(distinct t) from unnest(v_tolte) t)));
@@ -284,6 +287,18 @@ begin
     on conflict (company_id) do update
       set chiusura_dal = excluded.chiusura_dal, chiusura_al = excluded.chiusura_al, patrono = excluded.patrono,
           patrono_nome = excluded.patrono_nome, sabato_lavorativo = excluded.sabato_lavorativo, updated_by = v_uid, updated_at = now();
+  end if;
+
+  -- Una parte del piano di volo appena vietata chiude le sue proposte aperte (revisione 1/11,
+  -- S4): non devono restare sulla commessa con un «Conferma» che il titolare ha tolto. La
+  -- tabella nasce con la migrazione successiva (20281106141000).
+  if to_regclass('public.silvio_piano_volo') is not null then
+    execute $q$
+      update public.silvio_piano_volo set stato = 'scaduta', updated_at = now()
+       where company_id = $1 and stato = 'aperta'
+         and ((tipo = 'controllo' and public._silvio_livello($1, 'controllo_fase') = 'vietata')
+           or (tipo = 'sal' and public._silvio_livello($1, 'proposta_sal') = 'vietata'))
+    $q$ using p_company_id;
   end if;
 
   return jsonb_build_object('azioni', v_n);

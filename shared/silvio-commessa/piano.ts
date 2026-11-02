@@ -58,6 +58,8 @@ export interface Valore<T = unknown> {
   stato: Stato;
   /** Perché è in attenzione o in proposta, in italiano semplice. */
   nota?: string | null;
+  /** In ⚠ perché i conti non tornano (quadratura.ts): lo stato e la nota di prima. */
+  quadratura?: { stato: Stato; nota: string | null };
 }
 
 /** Due fonti che dicono cose diverse sulla stessa variabile: decide l'utente. */
@@ -90,6 +92,12 @@ export type PianoCommessa = {
    * il popup lo rimette a ogni apertura dalle impostazioni.
    */
   calendario?: CalendarioCantiere;
+  /**
+   * I valori arrivati da un documento mentre la variabile era scritta da una persona
+   * (revisione 1/11, L5): non entrano, ma si tengono. Se la persona annulla la sua modifica,
+   * tornano nella fusione, e un disaccordo fra le fonti torna un conflitto invece di sparire.
+   */
+  scartati?: { area: Area; chiave: string; valore: Valore }[];
 };
 
 /** Quello che un lettore restituisce: pezzi di aree, mai un piano intero. */
@@ -108,7 +116,11 @@ export type Modifica =
   | { tipo: "togli"; area: Area; chiave: string; indice?: number }
   | { tipo: "aggiungi"; area: Area; chiave: string; valore: unknown }
   | { tipo: "sposta_date"; giorniLavorativi: number; daFase?: string | null }
-  | { tipo: "scegli_fonte"; area: Area; chiave: string; fonte: TipoFonte; idFonte?: string | null };
+  | {
+    tipo: "scegli_fonte"; area: Area; chiave: string; fonte: TipoFonte; idFonte?: string | null;
+    /** Senza id, quale documento di quel tipo (revisione 1/11, L1): due capitolati senza id sono due fonti. */
+    etichettaFonte?: string | null;
+  };
 
 // ── Forma degli elenchi (fase 1, lotto 1.1) ─────────────────────────────────
 // I lettori mettono gli elenchi in queste forme; la RPC di creazione (lotto 1.4) le

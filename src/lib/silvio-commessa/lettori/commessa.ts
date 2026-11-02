@@ -14,6 +14,7 @@
  * legge dall'elenco delle fasi.
  */
 import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
+import type { CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
 import { REGISTRO } from "../../../../shared/silvio-commessa/registro.ts";
 import { compilata } from "../../../../shared/silvio-commessa/completezza.ts";
 import {
@@ -33,6 +34,8 @@ export interface DatiCommessaEsistente {
   righe?: ReadonlyArray<Record<string, unknown>>;
   /** Per le altre tabelle collegate: quante righe ha la commessa. */
   conteggi?: Readonly<Record<string, number>>;
+  /** Il calendario dell'azienda per le date (revisione 1/11, L10): senza, le sole feste nazionali. */
+  calendario?: CalendarioCantiere;
 }
 
 const perPosizione = <T extends Record<string, unknown>>(xs: ReadonlyArray<T>) =>
@@ -104,6 +107,7 @@ const parole = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-
  */
 export function fasiDellaCommessaColModello(
   fasi: readonly FaseDelPiano[], tipo: TipoLavoro, misura: number | null, inizio: string | null,
+  calendario?: CalendarioCantiere,
 ): FaseDelPiano[] {
   const modello = fasiDelModello(tipo, misura);
   const media = Math.max(1, Math.round(modello.reduce((t, f) => t + (f.giorni ?? 0), 0) / Math.max(1, modello.length)));
@@ -116,7 +120,7 @@ export function fasiDellaCommessaColModello(
     giorno += giorni;
     return fase;
   });
-  return inizio ? dateDelleFasi(durate, inizio) : durate;
+  return inizio ? dateDelleFasi(durate, inizio, calendario) : durate;
 }
 
 /**
@@ -138,9 +142,9 @@ export function frammentiPerCompletare(dati: DatiCommessaEsistente): Frammento[]
   if (!tipo) return [commessa];
   const inizio = testo(o.work_start_date).slice(0, 10) || null;
   const misura = misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita);
-  const modello = frammentoDalModello(tipo, { misura, inizio });
+  const modello = frammentoDalModello(tipo, { misura, inizio, calendario: dati.calendario });
   if (fasi.length) {
-    modello.aree.fasi!["fasi.order_work_phases"].valore = fasiDellaCommessaColModello(fasi, tipo, misura, inizio);
+    modello.aree.fasi!["fasi.order_work_phases"].valore = fasiDellaCommessaColModello(fasi, tipo, misura, inizio, dati.calendario);
   }
   return [commessa, modello];
 }

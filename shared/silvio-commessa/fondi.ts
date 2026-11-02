@@ -22,6 +22,7 @@ import {
 } from "./piano.ts";
 import { variabile } from "./registro.ts";
 import { CALENDARIO_NAZIONALE, spostaLavorativi, type CalendarioCantiere } from "./calendario.ts";
+import { conQuadratura } from "./quadratura.ts";
 
 /** Un piano vuoto, da cui parte la bozza. */
 export function pianoVuoto(companyId: string, orderId: string | null = null): PianoCommessa {
@@ -43,7 +44,7 @@ export function stessaFonte(a: Fonte, b: Fonte): boolean {
 
 /**
  * Due valori dicono la stessa cosa? Confronto profondo; gli importi si confrontano
- * al centesimo, i testi senza spazi ai bordi.
+ * al centesimo, i testi senza spazi ai bordi, un campo null come un campo assente.
  */
 export function stessoValore(a: unknown, b: unknown): boolean {
   if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) < 0.005;
@@ -54,8 +55,10 @@ export function stessoValore(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((x, i) => stessoValore(x, b[i]));
   }
-  const ka = Object.keys(a as object).filter((k) => (a as Record<string, unknown>)[k] !== undefined);
-  const kb = Object.keys(b as object).filter((k) => (b as Record<string, unknown>)[k] !== undefined);
+  // Un campo a null vale come un campo che manca (revisione 1/11, L13): una rata con
+  // `trigger_numero: null` e una senza il campo sono la stessa rata, non un conflitto.
+  const ka = Object.keys(a as object).filter((k) => (a as Record<string, unknown>)[k] != null);
+  const kb = Object.keys(b as object).filter((k) => (b as Record<string, unknown>)[k] != null);
   return ka.length === kb.length
     && ka.every((k) => stessoValore((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
@@ -136,6 +139,12 @@ export function dateProposteAlleFasi(esistenti: unknown, nuove: unknown): FaseDe
   return out.length ? out : null;
 }
 
+/** Un valore che non entra perché la variabile l'ha scritta una persona: si tiene da parte (L5). */
+function conScartato(piano: PianoCommessa, area: Area, chiave: string, nuovo: Valore): PianoCommessa {
+  const altri = (piano.scartati ?? []).filter((s) => !(s.area === area && s.chiave === chiave && stessaFonte(s.valore.fonte, nuovo.fonte)));
+  return { ...piano, scartati: [...altri, { area, chiave, valore: nuovo }] };
+}
+
 function fondiValore(piano: PianoCommessa, area: Area, chiave: string, nuovo: Valore): PianoCommessa {
   const esistente = piano.aree[area]?.[chiave];
   const aperto = piano.conflitti.find((c) => c.area === area && c.chiave === chiave);
@@ -148,7 +157,7 @@ function fondiValore(piano: PianoCommessa, area: Area, chiave: string, nuovo: Va
     // Le fasi della commessa senza date: le date che dice un'altra fonte diventano una proposta.
     const date = chiave === CHIAVE_FASI && giaNellaCommessa(piano, esistente)
       ? dateProposteAlleFasi(esistente.valore, nuovo.valore) : null;
-    if (!date) return piano;
+    if (!date) return giaNellaCommessa(piano, esistente) ? piano : conScartato(piano, area, chiave, nuovo);
     return fondiValore(piano, "fasi", CHIAVE_DATE_FASI, {
       ...nuovo, valore: date, stato: "proposta",
       nota: `Le fasi della commessa non hanno date: te le propongo dal ${nuovo.fonte.etichetta}. Le fasi restano come sono.`,
@@ -190,7 +199,7 @@ export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa
   }
 
   const fonti = out.fonti.some((f) => stessaFonte(f, frammento.fonte)) ? out.fonti : [...out.fonti, frammento.fonte];
-  return { ...out, fonti, avvisi };
+  return conQuadratura({ ...out, fonti, avvisi });
 }
 
 // ── Modifiche e annulla ─────────────────────────────────────────────────────
@@ -301,7 +310,8 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
       }
       if (conData(elenco)) sposta(chiaveElenco, (elenco as unknown[]).map((f, i) => (i >= da ? spostaFase(f, n, cal) : f)));
 
-      const date = modifica.daFase ? [...DATE_FINALI] : ["fasi.work_start_date", ...DATE_FINALI];
+      // Da una fase in poi: l'inizio lavori si sposta se la fase è la prima (revisione 1/11, L8).
+      const date = modifica.daFase && da > 0 ? [...DATE_FINALI] : ["fasi.work_start_date", ...DATE_FINALI];
       for (const chiave of date) {
         const v = fasi[chiave]?.valore;
         if (typeof v === "string" && libera(chiave)) sposta(chiave, spostaGiorniLavorativi(v, n, cal));
@@ -312,8 +322,11 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
     case "scegli_fonte": {
       const conflitto = piano.conflitti.find((c) => c.area === modifica.area && c.chiave === modifica.chiave);
       if (!conflitto) throw new Error(`Su «${modifica.chiave}» non c'è niente da scegliere`);
-      const scelto = conflitto.candidati.find((c) =>
-        c.fonte.tipo === modifica.fonte && (modifica.idFonte == null || c.fonte.id === modifica.idFonte));
+      // L'id dice quale documento; senza, l'etichetta (revisione 1/11, L1). Prima, senza id, si
+      // prendeva il primo candidato di quel tipo: «tieni l'offerta» teneva il capitolato.
+      const scelto = conflitto.candidati.find((c) => c.fonte.tipo === modifica.fonte && (modifica.idFonte != null
+        ? c.fonte.id === modifica.idFonte
+        : modifica.etichettaFonte == null || c.fonte.etichetta === modifica.etichettaFonte));
       if (!scelto) throw new Error(`«${modifica.chiave}»: nessun valore dalla fonte ${modifica.fonte}`);
       // Scelto dall'utente: vale come scritto da una persona, ma la ⓘ porta ancora al documento.
       return [{ area: modifica.area, chiave: modifica.chiave, valore: daPersona(scelto.valore, "scelto da te", scelto.fonte) }];
@@ -339,7 +352,7 @@ export function applica(piano: PianoCommessa, modifica: Modifica, storia: Passo[
   for (const { area, chiave, valore } of cambi) {
     out = { ...conValore(out, area, chiave, valore), conflitti: senzaConflitto(out.conflitti, area, chiave) };
   }
-  return { piano: out, storia: [...storia, passo] };
+  return { piano: conQuadratura(out), storia: [...storia, passo] };
 }
 
 function annullaPasso(piano: PianoCommessa, passo: Passo): PianoCommessa {
@@ -349,7 +362,18 @@ function annullaPasso(piano: PianoCommessa, passo: Passo): PianoCommessa {
     out = conValore(out, area, chiave, valore);
     conflitti = senzaConflitto(conflitti, area, chiave);
   }
-  return { ...out, conflitti: [...conflitti, ...passo.conflittiPrima] };
+  out = { ...out, conflitti: [...conflitti, ...passo.conflittiPrima] };
+  // I valori arrivati mentre la persona aveva scritto la sua: tornano nella fusione, dove
+  // una fonte in disaccordo riapre il conflitto (revisione 1/11, L5).
+  for (const { area, chiave, valore } of passo.prima) {
+    if (valore?.fonte.tipo === "persona") continue;
+    const rientrano = (out.scartati ?? []).filter((s) => s.area === area && s.chiave === chiave);
+    if (!rientrano.length) continue;
+    out = { ...out, scartati: (out.scartati ?? []).filter((s) => !(s.area === area && s.chiave === chiave)) };
+    for (const s of rientrano) out = fondiValore(out, area, chiave, s.valore);
+  }
+  if (out.scartati && !out.scartati.length) delete out.scartati;
+  return out;
 }
 
 /**
@@ -366,10 +390,29 @@ export function annulla(piano: PianoCommessa, storia: Passo[]): Bozza {
     out = annullaPasso(out, resto[resto.length - 1]);
     resto = resto.slice(0, -1);
   } while (ultimo.gruppo && resto.length && resto[resto.length - 1].gruppo === ultimo.gruppo);
-  return { piano: out, storia: resto };
+  return { piano: conQuadratura(out), storia: resto };
 }
 
 // ── Valori chiusi ───────────────────────────────────────────────────────────
+
+/**
+ * Spostare indietro da una fase in poi non deve farla partire prima che finisca quella
+ * precedente (revisione 1/11, L8): il motivo, o null se le fasi restano una dopo l'altra.
+ */
+function spostamentoSovrapposto(piano: PianoCommessa, m: Extract<Modifica, { tipo: "sposta_date" }>): string | null {
+  if (!m.daFase || m.giorniLavorativi >= 0) return null;
+  const fasi = piano.aree.fasi ?? {};
+  const chiave = giaNellaCommessa(piano, fasi[CHIAVE_FASI]) ? CHIAVE_DATE_FASI : CHIAVE_FASI;
+  const elenco = fasi[chiave]?.valore;
+  if (!Array.isArray(elenco)) return null;
+  const lista = elenco as FaseDelPiano[];
+  const i = lista.findIndex((f) => f?.id === m.daFase || f?.name === m.daFase);
+  if (i <= 0 || !lista[i].start_date) return null;
+  const nuovoInizio = spostaGiorniLavorativi(lista[i].start_date!, m.giorniLavorativi, piano.calendario ?? CALENDARIO_NAZIONALE);
+  const prima = lista.slice(0, i).map((f) => f.end_date ?? f.start_date).filter((d): d is string => !!d).sort().pop();
+  if (!prima || nuovoInizio > prima) return null;
+  return `«${lista[i].name}» partirebbe prima che finisca la fase precedente: sposta di meno, o sposta anche le fasi prima.`;
+}
 
 /** Le variabili che una modifica toccherebbe. */
 function chiaviDellaModifica(piano: PianoCommessa, m: Modifica): string[] {
@@ -382,6 +425,8 @@ function chiaviDellaModifica(piano: PianoCommessa, m: Modifica): string[] {
  * Uno spostamento delle date è fermo solo se non c'è niente di libero da spostare.
  */
 export function modificaBloccata(piano: PianoCommessa, m: Modifica): string | null {
+  const sovrapposta = m.tipo === "sposta_date" ? spostamentoSovrapposto(piano, m) : null;
+  if (sovrapposta) return sovrapposta;
   const chiavi = chiaviDellaModifica(piano, m);
   const chiuse = chiavi.filter((k) => {
     const v = variabile(k);

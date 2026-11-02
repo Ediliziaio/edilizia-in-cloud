@@ -41,6 +41,11 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FEATURE = "silvio_crea_commessa";
 const MAX_AZIENDE = 25;
 const MAX_COMMESSE = 30;
+const MAX_FASI = 1000;
+/** La finestra delle fasi: finite da poco (per il SAL) o in partenza (per il controllo). */
+const GIORNI_INDIETRO = 15;
+const GIORNI_AVANTI = 21;
+const STATI_CHIUSI = ["completato", "completata", "annullato", "annullata", "chiuso", "chiusa"];
 
 interface EsitoGiro {
   oggi: string;
@@ -108,22 +113,39 @@ async function giroAzienda(admin: Admin, db: ClientRisorse, companyId: string, o
     festivita: festivita as unknown as ImpostazioniCalendario["festivita"],
   };
 
-  // Le fasi vicine: quelle che partono nelle prossime due settimane e quelle finite da poco.
+  // Le fasi vicine (revisione 1/11, E4): quelle che partono entro tre settimane e quelle
+  // finite da poco, delle sole commesse aperte, filtrate nel database. Prima era «da 120 giorni
+  // fa in poi», senza fine e con un tetto che PostgREST taglia a 1000 righe.
+  const dal = aggiungiGiorni(oggi, -GIORNI_INDIETRO);
   const fasi = await righe(db.from("order_work_phases")
     .select("id, name, start_date, end_date, position, order_id, ordine:orders!inner(id, order_code, company_id, deleted_at, status, assigned_to, capomastro_user_id, indirizzo_lavori, work_address, total_amount, vat_rate)")
     .eq("ordine.company_id", companyId).is("ordine.deleted_at", null)
-    .gte("start_date", aggiungiGiorni(oggi, -120)).order("start_date").limit(2000));
+    .not("ordine.status", "in", `(${STATI_CHIUSI.join(",")})`)
+    .lte("start_date", aggiungiGiorni(oggi, GIORNI_AVANTI))
+    .or(`end_date.gte.${dal},and(end_date.is.null,start_date.gte.${dal})`)
+    .order("start_date").limit(MAX_FASI));
+  if (fasi.length >= MAX_FASI) esito.errori.push(`${companyId}: più di ${MAX_FASI} fasi vicine, lette le prime`);
   const perCommessa = new Map<string, { ordine: Riga; fasi: (FaseInVolo & { position: number })[] }>();
   for (const f of fasi) {
     const ordine = uno(f.ordine as Riga | Riga[] | null);
-    if (!ordine || /complet|annull/i.test(testo(ordine.status))) continue;
+    if (!ordine || /complet|annull|chius/i.test(testo(ordine.status))) continue;
     const g = perCommessa.get(f.order_id as string) ?? { ordine, fasi: [] };
     g.fasi.push({ id: f.id as string, nome: testo(f.name), dal: (f.start_date as string | null) ?? null, al: (f.end_date as string | null) ?? null, position: Number(f.position) || 0 });
     perCommessa.set(f.order_id as string, g);
   }
 
+  // A rotazione, col tetto per giro (CLAUDE.md, «il lavoro che cresce coi dati»): prima le
+  // commesse che il piano di volo non guarda da più tempo, così oltre le 30 non restano
+  // sempre fuori le stesse.
+  const visteIl = new Map<string, string>();
+  for (const v of await righe(db.from("silvio_piano_volo").select("order_id, updated_at").eq("company_id", companyId)
+    .gte("updated_at", `${aggiungiGiorni(oggi, -GIORNI_AVANTI)}T00:00:00Z`).order("updated_at", { ascending: false }).limit(1000))) {
+    if (!visteIl.has(v.order_id as string)) visteIl.set(v.order_id as string, String(v.updated_at ?? ""));
+  }
+  const inOrdine = [...perCommessa.entries()].sort(([a], [b]) => (visteIl.get(a) ?? "").localeCompare(visteIl.get(b) ?? ""));
+
   let commesse = 0;
-  for (const [orderId, { ordine, fasi: fasiOrdine }] of perCommessa) {
+  for (const [orderId, { ordine, fasi: fasiOrdine }] of inOrdine) {
     const cal = calendarioAzienda(impostazioni, testo(ordine.indirizzo_lavori) || testo(ordine.work_address) || null);
     const daControllare = controlli ? fasiDaControllare(fasiOrdine, oggi, cal) : [];
     const finite = sal ? fasiAppenaFinite(fasiOrdine, oggi, cal) : [];
@@ -139,13 +161,13 @@ async function giroAzienda(admin: Admin, db: ClientRisorse, companyId: string, o
       for (const fase of daControllare) {
         const c = controlloFase(fase, await statoDellaFase(db, orderId, fase), ctx, autonomia);
         if (anteprima) { esito.anteprima!.push({ commessa: codice, tipo: "controllo", ...c }); continue; }
-        const { data: id, error } = await admin.rpc("silvio_volo_registra", {
+        const { data: reg, error } = await admin.rpc("silvio_volo_registra", {
           p_company: companyId, p_order: orderId, p_fase: fase.id, p_tipo: "controllo", p_giorno: oggi,
           p_riassunto: c.riassunto, p_problemi: c.problemi, p_azioni: c.azioni,
         });
         if (error) { esito.errori.push(`${codice}: ${error.message}`); continue; }
         esito.controlli += 1;
-        if (id) nuove.push(c.riassunto);
+        if (daNotificare(reg)) nuove.push(c.riassunto);
       }
     }
 
@@ -156,19 +178,20 @@ async function giroAzienda(admin: Admin, db: ClientRisorse, companyId: string, o
       ]);
       const proposta = propostaSal({
         fasi: fasiOrdine, finita: fase, totale: Number(ordine.total_amount) || 0,
+        iva: ordine.vat_rate == null ? null : Number(ordine.vat_rate),
         salFatti: salFatti.filter((s) => s.status !== "annullato").map((s) => ({ numero: Number(s.numero_progressivo) || 0, importo: Number(s.importo) || 0 })),
         rate: rate.map((r) => ({ trigger_evento: (r.trigger_evento as string | null) ?? null, trigger_numero: r.trigger_numero == null ? null : Number(r.trigger_numero), amount: Number(r.amount) || 0, label: testo(r.label) })),
       }, cal);
       if (!proposta) continue;
       const riassunto = `SAL n. ${proposta.numero} pronto in bozza: ${proposta.motivo}`;
       if (anteprima) { esito.anteprima!.push({ commessa: codice, tipo: "sal", fase, proposta }); continue; }
-      const { data: id, error } = await admin.rpc("silvio_volo_registra", {
+      const { data: reg, error } = await admin.rpc("silvio_volo_registra", {
         p_company: companyId, p_order: orderId, p_fase: fase.id, p_tipo: "sal", p_giorno: oggi,
         p_riassunto: riassunto, p_problemi: [], p_azioni: [proposta],
       });
       if (error) { esito.errori.push(`${codice}: ${error.message}`); continue; }
       esito.sal += 1;
-      if (id) nuove.push(riassunto);
+      if (daNotificare(reg)) nuove.push(riassunto);
     }
 
     // Una campanella per commessa al responsabile e al capomastro: in app, mai email o WhatsApp.
@@ -182,6 +205,16 @@ async function giroAzienda(admin: Admin, db: ClientRisorse, companyId: string, o
       if (!error) esito.notifiche += destinatari.length;
     }
   }
+}
+
+/**
+ * La campanella suona solo per una proposta nuova o con azioni diverse da ieri (revisione 1/11,
+ * S6): `silvio_volo_registra` aggiorna la riga aperta ogni giorno, e prima ogni giorno era
+ * «una cosa da guardare» anche se non era cambiato niente.
+ */
+function daNotificare(reg: unknown): boolean {
+  const r = (reg ?? {}) as { nuova?: unknown; cambiata?: unknown };
+  return r.nuova === true || r.cambiata === true;
 }
 
 /** Quello che la commessa ha già per la fase: persone, mezzi, ditte, ordini da consegnare. */

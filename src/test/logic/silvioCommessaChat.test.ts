@@ -83,12 +83,33 @@ describe("gli strumenti della chat", () => {
     expect(eseguiStrumento(piano, { nome: "cambia_valore", argomenti: { chiave: "orders.drop_table", valore: 1 } }).testo).toMatch(/Non so cosa sia/);
   });
 
+  it("revisione 1/11, L2: il punto decimale non moltiplica per cento; importi negativi e IVA inventate no", () => {
+    const valore = (chiave: string, v: unknown) => {
+      const e = eseguiStrumento(piano, { nome: "cambia_valore", argomenti: { chiave, valore: v } });
+      return e.tipo === "modifica" ? (e.modifiche[0] as { valore: unknown }).valore : e.testo;
+    };
+    expect(valore("economia.total_amount", "1250.50")).toBe(1250.5);
+    expect(valore("economia.total_amount", "1.250,50")).toBe(1250.5);
+    expect(valore("economia.total_amount", "12.500")).toBe(12500);
+    expect(valore("economia.total_amount", -500)).toMatch(/maggiore di zero/);
+    expect(valore("economia.vat_rate", 23)).toMatch(/0, 4, 5, 10 o 22/);
+    expect(valore("economia.vat_rate", "10%")).toBe(10);
+  });
+
   it("sposta_date: in giorni lavorativi o settimane, tutto o da una fase; senza date da spostare lo dice", () => {
     const tutto = eseguiStrumento(piano, { nome: "sposta_date", argomenti: { settimane: 1 } });
     expect(tutto).toMatchObject({ tipo: "modifica", modifiche: [{ tipo: "sposta_date", giorniLavorativi: 5, daFase: null }] });
     expect(tutto.testo).toBe("Ho spostato le date avanti di 5 giorni lavorativi (1 settimana).");
-    const daImpianti = eseguiStrumento(piano, { nome: "sposta_date", argomenti: { giorni_lavorativi: -2, da_fase: "impianti" } });
-    expect(daImpianti).toMatchObject({ modifiche: [{ giorniLavorativi: -2, daFase: "Impianti" }] });
+    const daImpianti = eseguiStrumento(piano, { nome: "sposta_date", argomenti: { giorni_lavorativi: 2, da_fase: "impianti" } });
+    expect(daImpianti).toMatchObject({ modifiche: [{ giorniLavorativi: 2, daFase: "Impianti" }] });
+    // Revisione 1/11, L8: indietro fin sopra la fase precedente no (Demolizioni finisce l'11/11).
+    const sopra = eseguiStrumento(piano, { nome: "sposta_date", argomenti: { giorni_lavorativi: -2, da_fase: "impianti" } });
+    expect(sopra.tipo).toBe("rifiuto");
+    expect(sopra.testo).toMatch(/partirebbe prima che finisca la fase precedente/);
+    // Dalla prima fase si sposta anche l'inizio lavori.
+    const daPrima = eseguiStrumento(piano, { nome: "sposta_date", argomenti: { giorni_lavorativi: 1, da_fase: "demolizioni" } }) as Extract<ReturnType<typeof eseguiStrumento>, { tipo: "modifica" }>;
+    const spostato = applica(piano, daPrima.modifiche[0]).piano;
+    expect(spostato.aree.fasi!["fasi.work_start_date"].valore).toBe("2026-11-10");
     expect(eseguiStrumento(piano, { nome: "sposta_date", argomenti: { da_fase: "Tetto", giorni_lavorativi: 1 } }).tipo).toBe("rifiuto");
     expect(eseguiStrumento(pianoVuoto(AZIENDA), { nome: "sposta_date", argomenti: { giorni_lavorativi: 3 } }).testo).toMatch(/non ci sono ancora date/);
   });
@@ -100,7 +121,11 @@ describe("gli strumenti della chat", () => {
     const fasi = dopo.aree.fasi!["fasi.order_work_phases"].valore as { name: string; start_date?: string; end_date?: string }[];
     expect(fasi.map((f) => f.name)).toEqual(["Demolizioni", "Massetti", "Impianti"]);
     expect(fasi[1]).toMatchObject({ start_date: "2026-11-12", end_date: "2026-11-13" });
-    expect(e.testo).toBe("Ho aggiunto la fase «Massetti» dopo «Demolizioni» dal 12/11/2026.");
+    // Revisione 1/11, L7: «Impianti» slitta di due giorni lavorativi, e la fine dei lavori con lei.
+    expect(fasi[2]).toMatchObject({ start_date: "2026-11-16", end_date: "2026-11-20" });
+    const fine = (e as Extract<typeof e, { tipo: "modifica" }>).modifiche.find((m) => m.tipo === "cambia_valore" && m.chiave === "fasi.work_end_date");
+    expect(fine).toMatchObject({ valore: "2026-11-20" });
+    expect(e.testo).toBe("Ho aggiunto la fase «Massetti» dopo «Demolizioni» dal 12/11/2026; le fasi dopo slittano di 2 giorni lavorativi, e la fine dei lavori con loro.");
   });
 
   it("togli: una variabile intera, o un elemento di un elenco per nome", () => {
@@ -344,7 +369,8 @@ describe("le porte (lotto 3.3)", () => {
     vi.stubGlobal("Deno", { env: { get: (k: string) => (k === "SITE_URL" ? "https://app.esempio.it/" : undefined) } });
     const t = SILVIO_TOOLS.commessa_da_documento;
     expect(t.riskLevel).toBe("safe");
-    expect(t.allowedChannels).toContain("whatsapp");
+    // Revisione 1/11, E5: WhatsApp allo strumento non passa gli allegati, il link aprirebbe un popup vuoto.
+    expect(t.allowedChannels).not.toContain("whatsapp");
     const ctx = {
       companyId: AZIENDA, userId: "u1", primaryRole: "company_admin", supabase: {} as never,
       attachments: [
@@ -359,6 +385,15 @@ describe("le porte (lotto 3.3)", () => {
     expect(fonti).toEqual([{ tipo: "caricato", path: `${AZIENDA}/u1/1-Contratto.pdf`, nome: "Contratto.pdf", mime: "application/pdf" }]);
     const senza = await t.executor({ descrizione: "bagno 6 mq" }, { ...ctx, attachments: [] } as never) as { link: string };
     expect(fontiDalLink(new URLSearchParams(senza.link.split("?")[1]))).toEqual([{ tipo: "testo", testo: "bagno 6 mq" }]);
+
+    // Revisione 1/11, E2: in un'azienda con «Crea con Silvio» spento niente link al popup.
+    const { DbFinto } = await import("../helpers/dbFinto");
+    const spenta = await t.executor({ descrizione: "bagno" }, {
+      ...ctx, companyId: "0d000000-0000-4000-a000-000000000001",
+      supabase: new DbFinto({ companies: [{ id: "0d000000-0000-4000-a000-000000000001", subscription_plan_id: null }] }).client,
+    } as never) as { error?: string; link?: string };
+    expect(spenta.link).toBeUndefined();
+    expect(spenta.error).toMatch(/non è attivo/);
     vi.unstubAllGlobals();
   });
 });

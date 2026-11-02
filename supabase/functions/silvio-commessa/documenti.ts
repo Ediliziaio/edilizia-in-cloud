@@ -44,6 +44,17 @@ function storageDellAllegato(fileUrl: string): { bucket: string; path: string } 
   return { bucket: "order-attachments", path: fileUrl.includes(marker) ? fileUrl.split(marker)[1].split("?")[0] : fileUrl };
 }
 
+/**
+ * `file_url` lo scrive l'utente: da solo non dice che il file sia di quella commessa (revisione
+ * 1/11, E3). Si accetta solo la cartella della commessa: `orders/<commessa>/` (l'app) o
+ * `<azienda>/<commessa>/` (contratti importati e documenti delle varianti).
+ */
+export function percorsoDellaCommessa(bucket: string, path: string, orderId: string, companyId: string): boolean {
+  const dellAzienda = path.startsWith(`${companyId}/${orderId}/`);
+  if (bucket === "order-variation-documents") return dellAzienda;
+  return path.startsWith(`orders/${orderId}/`) || dellAzienda;
+}
+
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
@@ -59,7 +70,7 @@ export async function trovaDocumento(rif: RifDocumento, companyId: string, utent
     const { data: o } = await admin.from("orders").select("id").eq("id", a.order_id).eq("company_id", companyId).maybeSingle();
     if (!o) return null;
     const { bucket, path } = storageDellAllegato(String(a.file_url));
-    if (!percorsoStorageSicuro(path)) return null;
+    if (!percorsoStorageSicuro(path) || !percorsoDellaCommessa(bucket, path, String(a.order_id), companyId)) return null;
     return { bucket, path, nome: String(a.file_name ?? path.split("/").pop() ?? "documento") };
   }
   const { data: e } = await utente.from("email_inbox").select("id, company_id, attachments").eq("id", rif.email_id).maybeSingle();

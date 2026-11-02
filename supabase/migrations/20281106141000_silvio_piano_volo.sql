@@ -60,12 +60,12 @@ comment on table public.silvio_piano_volo is
   'Il piano di volo di Silvio sulle commesse: il controllo 3 giorni prima di ogni fase e la proposta del SAL a fine fase, con le azioni pronte da confermare. La scrive la funzione silvio-piano-volo; la conferma silvio_volo_conferma. Vedi docs/piano-silvio-commessa-ai.md, lotto 5.3.';
 
 alter table public.silvio_piano_volo enable row level security;
+-- Niente lettura diretta (revisione 1/11, S5): le azioni del SAL portano l'importo, e chi non
+-- ha «Importi di vendita» non lo deve vedere. Si legge con `silvio_volo_della_commessa`.
 revoke all on public.silvio_piano_volo from public, anon, authenticated;
-grant select on public.silvio_piano_volo to authenticated;
 grant all on public.silvio_piano_volo to service_role;
 
--- Si vede dove si vede la commessa: azienda, «Vedi commesse» e la commessa stessa
--- (chi vede solo le assegnate vede solo le loro).
+-- La policy resta come seconda serratura, se un giorno qualcuno ridesse il GRANT.
 drop policy if exists silvio_piano_volo_lettura on public.silvio_piano_volo;
 create policy silvio_piano_volo_lettura on public.silvio_piano_volo for select to authenticated
   using (
@@ -74,6 +74,49 @@ create policy silvio_piano_volo_lettura on public.silvio_piano_volo for select t
                  where o.id = silvio_piano_volo.order_id and o.company_id = silvio_piano_volo.company_id and o.deleted_at is null
                    and public.can_see_order(o.id, o.assigned_to, o.destination_warehouse_id))
   );
+
+-- ── Le proposte aperte di una commessa ───────────────────────────────────────
+-- Si vedono dove si vede la commessa: azienda, «Vedi commesse» e la commessa stessa (chi
+-- vede solo le assegnate vede solo le loro). Senza «Importi di vendita» l'importo del SAL
+-- torna null.
+create or replace function public.silvio_volo_della_commessa(p_order_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  o public.orders;
+  v_importi boolean;
+begin
+  if v_uid is null then
+    raise exception 'Sessione scaduta. Accedi di nuovo.' using errcode = '42501';
+  end if;
+  select * into o from public.orders where id = p_order_id and deleted_at is null;
+  if o.id is null
+     or o.company_id is distinct from public.get_effective_company_id()
+     or public.has_permission_for_company(v_uid, 'can_view_orders', o.company_id) is not true
+     or not public.can_see_order(o.id, o.assigned_to, o.destination_warehouse_id) then
+    return '[]'::jsonb;
+  end if;
+  v_importi := public.has_permission_for_company(v_uid, 'can_view_order_amounts', o.company_id) is true;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'id', v.id, 'tipo', v.tipo, 'giorno', v.giorno, 'riassunto', v.riassunto, 'problemi', v.problemi,
+             'azioni', case when v_importi then v.azioni else coalesce((
+               select jsonb_agg(case when a->>'tipo' = 'sal_bozza' then jsonb_set(a, '{importo}', 'null'::jsonb) else a end)
+                 from jsonb_array_elements(v.azioni) a), '[]'::jsonb) end,
+             'fase', f.name) order by v.giorno, v.created_at)
+      from (select * from public.silvio_piano_volo
+             where order_id = o.id and company_id = o.company_id and stato = 'aperta'
+             order by giorno limit 20) v
+      left join public.order_work_phases f on f.id = v.fase_id), '[]'::jsonb);
+end
+$$;
+revoke all on function public.silvio_volo_della_commessa(uuid) from public, anon;
+grant execute on function public.silvio_volo_della_commessa(uuid) to authenticated;
 
 -- ── La proposta, letta e bloccata dopo i controlli comuni ─────────────────────
 create or replace function public._silvio_volo(p_id uuid)
@@ -126,6 +169,14 @@ declare
   v_oggi date := (now() at time zone 'Europe/Rome')::date;
   v_fase public.order_work_phases;
 begin
+  -- L'autonomia si ricontrolla alla conferma (revisione 1/11, S4): se il titolare ha vietato
+  -- questa parte del piano di volo dopo la proposta, non si esegue niente.
+  if public._silvio_livello(r.company_id, case r.tipo when 'sal' then 'proposta_sal' else 'controllo_fase' end) = 'vietata' then
+    update public.silvio_piano_volo set stato = 'scaduta', updated_at = now() where id = r.id;
+    raise exception '%', case r.tipo when 'sal' then 'Nelle impostazioni Silvio non propone più i SAL: la proposta è chiusa.'
+                         else 'Nelle impostazioni Silvio non controlla più le fasi: la proposta è chiusa.' end
+      using errcode = '42501';
+  end if;
   for x in select value from jsonb_array_elements(r.azioni) loop
     i := i + 1;
     continue when p_indici is not null and not (i = any (p_indici));
@@ -167,6 +218,10 @@ begin
         when 'sal_bozza' then
           if public._silvio_livello(r.company_id, 'proposta_sal') = 'vietata' then
             raise exception 'nelle impostazioni Silvio non propone i SAL';
+          end if;
+          -- Chi non vede gli importi non li conferma (revisione 1/11, S5).
+          if public.has_permission_for_company(auth.uid(), 'can_view_order_amounts', r.company_id) is not true then
+            raise exception 'serve il permesso «Importi di vendita» per preparare il SAL';
           end if;
           if exists (select 1 from public.sal s where s.order_id = r.order_id and s.status <> 'annullato'
                       and s.numero_progressivo = nullif(x->>'numero', '')::integer) then
@@ -217,21 +272,26 @@ revoke all on function public.silvio_volo_scarta(uuid) from public, anon;
 grant execute on function public.silvio_volo_scarta(uuid) to authenticated;
 
 -- ── Scrittura dal cron: una riga per fase e tipo; si aggiorna solo se è ancora aperta ──
+-- Restituisce { id, nuova, cambiata } (revisione 1/11, S6): la campanella suona solo per una
+-- proposta nuova o con azioni diverse, non a ogni giro su una riga che non è cambiata.
+drop function if exists public.silvio_volo_registra(uuid, uuid, uuid, text, date, text, jsonb, jsonb);
 create or replace function public.silvio_volo_registra(
   p_company uuid, p_order uuid, p_fase uuid, p_tipo text, p_giorno date, p_riassunto text, p_problemi jsonb, p_azioni jsonb
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
+  v_prima public.silvio_piano_volo;
   v_id uuid;
 begin
   if not exists (select 1 from public.order_work_phases f join public.orders o on o.id = f.order_id
                   where f.id = p_fase and o.id = p_order and o.company_id = p_company) then
     raise exception 'fase % non della commessa %', p_fase, p_order;
   end if;
+  select * into v_prima from public.silvio_piano_volo where fase_id = p_fase and tipo = p_tipo for update;
   insert into public.silvio_piano_volo (company_id, order_id, fase_id, tipo, giorno, riassunto, problemi, azioni)
   values (p_company, p_order, p_fase, p_tipo, p_giorno, left(p_riassunto, 500), coalesce(p_problemi, '[]'), coalesce(p_azioni, '[]'))
   on conflict (fase_id, tipo) do update
@@ -239,7 +299,12 @@ begin
         azioni = excluded.azioni, updated_at = now()
     where silvio_piano_volo.stato = 'aperta'
   returning id into v_id;
-  return v_id;
+  return jsonb_build_object(
+    'id', v_id,
+    'nuova', v_id is not null and v_prima.id is null,
+    'cambiata', v_id is not null and v_prima.id is not null
+                and (v_prima.azioni is distinct from coalesce(p_azioni, '[]'::jsonb)
+                     or v_prima.problemi is distinct from coalesce(p_problemi, '[]'::jsonb)));
 end
 $$;
 revoke all on function public.silvio_volo_registra(uuid, uuid, uuid, text, date, text, jsonb, jsonb) from public, anon, authenticated;

@@ -29,6 +29,7 @@ import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
 import { isCalendarDate, legacyQuoteDraftInput, quoteDraftIssue, workHoursIssue } from "./operationalDraftValidation.ts";
 import { giornalieroDelGiorno } from "./rapportoGiornaliero.ts";
 import { linkCreaCommessa, type FonteDaLink } from "../../../shared/silvio-commessa/ingressi.ts";
+import { creaConSilvioAcceso } from "./creaConSilvio.ts";
 
 /**
  * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
@@ -6650,9 +6651,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "warehouse",
   },
 
-  // Silvio crea la commessa (fase 3, lotto 3.3): dalla chat e da WhatsApp non si apre il
-  // popup, si risponde col link che lo apre con il documento (shared/silvio-commessa/ingressi.ts).
-  // Non scrive niente: la commessa la crea chi apre il link, dal popup.
+  // Silvio crea la commessa (fase 3, lotto 3.3): dalla chat non si apre il popup, si risponde
+  // col link che lo apre con il documento (shared/silvio-commessa/ingressi.ts). Non scrive
+  // niente: la commessa la crea chi apre il link, dal popup. Revisione 1/11: solo dove
+  // «Crea con Silvio» è acceso (E2), e non su WhatsApp, che allo strumento non passa gli
+  // allegati (E5): lì il link aprirebbe sempre un popup vuoto.
   commessa_da_documento: {
     schema: {
       type: "function",
@@ -6673,6 +6676,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       },
     },
     executor: async (args, ctx) => {
+      if (!(await creaConSilvioAcceso(ctx.supabase, ctx.companyId))) {
+        return { error: "«Crea con Silvio» non è attivo per questa azienda: la commessa si crea dal modulo Commesse. Per una commessa semplice di un cliente esistente c'è crea_commessa_bozza." };
+      }
       const allegati = (ctx.attachments ?? []).filter((a) => typeof a.storage_path === "string" && a.storage_path.startsWith(`${ctx.companyId}/`));
       const nomeQ = String(args?.nome_file ?? "").trim().toLowerCase();
       const scelti = nomeQ ? allegati.filter((a) => a.file_name.toLowerCase().includes(nomeQ)) : allegati;
@@ -6695,7 +6701,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
-    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
     riskLevel: "safe",
     domain: "cantiere",
   },

@@ -243,7 +243,7 @@ const NOMI_DOCUMENTI: Record<string, string> = {
 /**
  * Cosa non va nei documenti di una ditta per lavorare fino al `finoAl`: senza subappaltatore
  * collegato non c'è DURC da controllare; il DURC deve coprire tutta la fase e non essere
- * irregolare; nessun documento scaduto. Null se è tutto a posto.
+ * irregolare; nessun documento scaduto, né in scadenza prima della fine. Null se è tutto a posto.
  */
 export function documentiDitta(ctx: ContestoRisorse, ditta: ContestoRisorse["ditte"][number], finoAl: string | null): string | null {
   if (!ditta.subappaltatore_id) return "non è collegata a un subappaltatore: non ha un DURC da controllare";
@@ -255,10 +255,13 @@ export function documentiDitta(ctx: ContestoRisorse, ditta: ContestoRisorse["dit
   if (/irregolar/i.test(durc.esito ?? "")) return "il DURC risulta irregolare";
   if (durc.scadenza! < ctx.oggi) return `il DURC è scaduto il ${dataCorta(durc.scadenza!)}`;
   if (durc.scadenza! < serveFino) return `il DURC scade il ${dataCorta(durc.scadenza!)}, prima della fine della fase`;
-  const scaduti = docs.filter((d) => d.tipo !== "durc" && eData(d.scadenza) && d.scadenza! < ctx.oggi);
-  if (scaduti.length) {
-    return `ha documenti scaduti: ${[...new Set(scaduti.map((d) => NOMI_DOCUMENTI[d.tipo] ?? d.tipo))].join(", ")}`;
-  }
+  const nomi = (xs: typeof docs) => [...new Set(xs.map((d) => NOMI_DOCUMENTI[d.tipo] ?? d.tipo))].join(", ");
+  const altri = docs.filter((d) => d.tipo !== "durc" && eData(d.scadenza));
+  const scaduti = altri.filter((d) => d.scadenza! < ctx.oggi);
+  if (scaduti.length) return `ha documenti scaduti: ${nomi(scaduti)}`;
+  // Come il DURC, gli altri documenti devono coprire tutta la fase, non solo oggi (revisione 1/11, L14).
+  const inScadenza = altri.filter((d) => d.scadenza! < serveFino);
+  if (inScadenza.length) return `ha documenti che scadono prima della fine della fase: ${nomi(inScadenza)}`;
   return null;
 }
 
@@ -431,8 +434,16 @@ function acquisti(fasi: FaseDiLavoro[], ctx: ContestoRisorse): OdaDelPiano[] {
 
 const tondo = (n: number) => Math.round(n * 100) / 100;
 
-/** Il contratto di ogni ditta proposta: le voci delle sue fasi, al costo previsto. */
-export function contrattiDelleDitte(ditteProposte: readonly DittaDelPiano[], fasi: readonly FaseDiLavoro[]): ContrattoDelPiano[] {
+/**
+ * Il contratto di ogni ditta proposta: le voci delle sue fasi, al costo previsto. Le voci già in
+ * un ordine al fornitore della stessa fase restano fuori (revisione 1/11): il materiale comprato
+ * dall'impresa non si paga anche alla ditta, e il costo non si conta due volte.
+ */
+export function contrattiDelleDitte(
+  ditteProposte: readonly DittaDelPiano[], fasi: readonly FaseDiLavoro[], ordini: readonly OdaDelPiano[] = [],
+): ContrattoDelPiano[] {
+  const ordinata = (fase: string, voce: string) => ordini.some((o) => o.stato !== "attenzione" && o.fase === fase
+    && o.righe.some((r) => r.descrizione.trim().toLowerCase() === voce.trim().toLowerCase()));
   const perDitta = new Map<string, DittaDelPiano[]>();
   for (const d of ditteProposte) {
     if (d.stato === "attenzione") continue;
@@ -442,7 +453,7 @@ export function contrattiDelleDitte(ditteProposte: readonly DittaDelPiano[], fas
     const prima = righe[0];
     const sue = fasi.filter((f) => righe.some((r) => r.fase === f.nome));
     const elenco: VoceContratto[] = sue.flatMap((f) => f.sottofasi
-      .filter((s) => typeof s?.name === "string" && s.name.trim())
+      .filter((s) => typeof s?.name === "string" && s.name.trim() && !ordinata(f.nome, s.name))
       .map((s) => {
         const quantita = Number(s.quantita) > 0 ? Number(s.quantita) : 1;
         const importo = tondo(Number(s.costo) || 0);
@@ -551,7 +562,8 @@ export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse, auto
   // Le bozze 🔴 seguono le proposte: il contratto c'è per le ditte che entrano.
   const ditteDelPiano = (aree.ditte?.["ditte.assegnate"]?.valore ?? piano.aree.ditte?.["ditte.assegnate"]?.valore) as DittaDelPiano[] | undefined;
   if (Array.isArray(ditteDelPiano)) {
-    const contratti = contrattiDelleDitte(ditteDelPiano, fasi);
+    const odaDelPiano = (aree.materiali?.["materiali.acquisti"]?.valore ?? piano.aree.materiali?.["materiali.acquisti"]?.valore) as OdaDelPiano[] | undefined;
+    const contratti = contrattiDelleDitte(ditteDelPiano, fasi, Array.isArray(odaDelPiano) ? odaDelPiano : []);
     metti("ditte", "ditte.contratti", contratti,
       "Il contratto di subappalto di ogni ditta, in bozza con l'elenco dei lavori. Si firma dalla pagina della commessa: Silvio non lo manda.", 0.5);
   }

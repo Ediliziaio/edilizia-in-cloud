@@ -13,6 +13,8 @@ const UTENTE = "1dbe6ceb-6b04-4d43-a617-8a709cb22f07";
 const COMMESSA = "0a000000-0000-4000-a000-000000000034";
 const ALLEGATO = "0b000000-0000-4000-a000-000000000001";
 const EMAIL = "0c000000-0000-4000-a000-000000000001";
+/** Un'azienda vera (non Demo 2): «Crea con Silvio» lo decide il database. */
+const AZIENDA_VERA = "0d000000-0000-4000-a000-000000000001";
 
 interface ChiamataAI { taskKey: string; messages: Array<{ role: string; content: unknown }>; params?: { tools?: unknown[] }; estimatedCostEur?: number }
 
@@ -31,7 +33,7 @@ vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({
 vi.mock("../../../supabase/functions/_shared/auth.ts", () => ({
   requireAuth: async () => ({ userId: UTENTE, supabaseAdmin: runtime.db.client }),
   requireCompanyAccess: async (_db: unknown, _u: string, companyId: string) => {
-    if (companyId !== AZIENDA) throw new Response(JSON.stringify({ error: "Accesso negato" }), { status: 403 });
+    if (companyId !== AZIENDA && companyId !== AZIENDA_VERA) throw new Response(JSON.stringify({ error: "Accesso negato" }), { status: 403 });
   },
 }));
 vi.mock("../../../supabase/functions/_shared/requirePaymentMethod.ts", () => ({ gateAiPayment: async (): Promise<null> => null }));
@@ -59,6 +61,7 @@ let deno: ReturnType<typeof denoFinto> | null = null;
 
 beforeEach(() => {
   runtime.db = new DbFinto({ orders: [{ id: COMMESSA, company_id: AZIENDA }] });
+  runtime.db.rispostaRpc.has_permission_for_company = true;
   runtime.utente = new DbFinto();
   runtime.chiamate = [];
   runtime.messaggio = null;
@@ -149,6 +152,7 @@ describe("silvio-commessa, documenti letti dove stanno", () => {
     expect(nascosto.status).toBe(404);
 
     runtime.db = new DbFinto({ orders: [{ id: COMMESSA, company_id: ALTRA_AZIENDA }] });
+    runtime.db.rispostaRpc.has_permission_for_company = true;
     runtime.utente.righe("order_attachments").push({ id: ALLEGATO, order_id: COMMESSA, file_name: "x.txt", file_url: `orders/${COMMESSA}/1-capitolato.txt` });
     const altra = await chiama({ company_id: AZIENDA, fonte: { tipo: "documento", etichetta: "x" }, documento: { tipo: "allegato_commessa", id: ALLEGATO } });
     expect(altra.status).toBe(404);
@@ -184,5 +188,60 @@ describe("silvio-commessa, documenti letti dove stanno", () => {
     expect(r.data.nome).toBe("Contratto.pdf");
     expect((await chiama({ modo: "apri", company_id: AZIENDA, documento: { tipo: "allegato_email", email_id: EMAIL, indice: 3 } })).status).toBe(404);
     expect(runtime.chiamate).toHaveLength(0);
+  });
+});
+
+describe("silvio-commessa, revisione dell'1/11: chi entra e da dove", () => {
+  const rispostaLettura = { content: JSON.stringify({ aree: {} }) };
+
+  it("E1: chi non ha «Modifica commesse» (cliente del portale, segnalatore, subappaltatore) non entra in nessuno dei quattro modi", async () => {
+    runtime.db.rispostaRpc.has_permission_for_company = false;
+    const lettura = await chiama({ company_id: AZIENDA, testo: "rifare bagno" });
+    const chat = await chiama({ modo: "chat", company_id: AZIENDA, messaggio: "ciao", contesto });
+    const apri = await chiama({ modo: "apri", company_id: AZIENDA, documento: { tipo: "allegato_email", email_id: EMAIL, indice: 0 } });
+    const allega = await chiama({ modo: "allega", company_id: AZIENDA, bozza_id: COMMESSA, documenti: [{ documento: { tipo: "allegato_email", email_id: EMAIL, indice: 0 } }] });
+    for (const r of [lettura, chat, apri, allega]) {
+      expect(r.status).toBe(403);
+      expect(String(r.data.error)).toMatch(/permesso di modificare le commesse/);
+    }
+    expect(runtime.chiamate).toHaveLength(0);
+    const permessi = runtime.db.chiamateRpc.filter((c) => c.nome === "has_permission_for_company");
+    expect(permessi).toHaveLength(4);
+    expect(permessi[0].args).toEqual({ _user_id: UTENTE, _permission: "can_edit_orders", _company_id: AZIENDA });
+  });
+
+  it("E2: in un'azienda con «Crea con Silvio» spento la edge risponde 403; acceso da un override, entra", async () => {
+    const spenta = await chiama({ company_id: AZIENDA_VERA, testo: "rifare bagno" });
+    expect(spenta.status).toBe(403);
+    expect(String(spenta.data.error)).toMatch(/non è attivo/);
+    expect(runtime.chiamate).toHaveLength(0);
+
+    runtime.db.righe("company_feature_overrides").push({ company_id: AZIENDA_VERA, feature_key: "silvio_crea_commessa", access_level: "enabled", is_enabled: true, expires_at: null });
+    runtime.db.righe("companies").push({ id: AZIENDA_VERA, subscription_plan_id: null });
+    runtime.messaggio = rispostaLettura;
+    expect((await chiama({ company_id: AZIENDA_VERA, testo: "rifare bagno" })).status).toBe(200);
+  });
+
+  it("E3: un allegato della commessa con un percorso fuori dalla sua cartella non si legge", async () => {
+    runtime.utente.righe("order_attachments").push({ id: ALLEGATO, order_id: COMMESSA, file_name: "x.txt", file_url: `orders/${ALTRA_AZIENDA}/segreto.txt` });
+    runtime.db.file.set(`order-attachments/orders/${ALTRA_AZIENDA}/segreto.txt`, { bytes: new TextEncoder().encode("segreto"), contentType: null });
+    const r = await chiama({ company_id: AZIENDA, fonte: { tipo: "documento", etichetta: "x" }, documento: { tipo: "allegato_commessa", id: ALLEGATO } });
+    expect(r.status).toBe(404);
+    // E nemmeno un documento di variante di un'altra commessa.
+    runtime.utente.righe("order_attachments")[0].file_url = `order-variation-documents/${AZIENDA}/${ALTRA_AZIENDA}/v/p.pdf`;
+    expect((await chiama({ company_id: AZIENDA, fonte: { tipo: "documento", etichetta: "x" }, documento: { tipo: "allegato_commessa", id: ALLEGATO } })).status).toBe(404);
+    expect(runtime.chiamate).toHaveLength(0);
+  });
+
+  it("E7: senza «oggi» dalla bozza la chat usa il giorno italiano, non quello UTC", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-30T23:30:00Z"));
+    try {
+      runtime.messaggio = { content: "ok" };
+      await chiama({ modo: "chat", company_id: AZIENDA, messaggio: "ciao", contesto: { ...contesto, oggi: undefined } });
+      expect(JSON.stringify(runtime.chiamate[0].messages[0].content)).toContain("2026-12-01");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

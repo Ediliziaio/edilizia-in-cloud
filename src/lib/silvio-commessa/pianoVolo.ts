@@ -32,20 +32,20 @@ export interface PropostaVolo {
   fase: string | null;
 }
 
+/**
+ * Le proposte aperte della commessa, dalla RPC `silvio_volo_della_commessa` (revisione 1/11,
+ * S5): la tabella non si legge più direttamente, perché chi non ha «Importi di vendita» non
+ * deve vedere l'importo del SAL (torna null).
+ */
 export async function proposteDelVolo(orderId: string, db: ClientVolo = dbVero): Promise<PropostaVolo[]> {
-  const { data, error } = await db.from("silvio_piano_volo")
-    .select("id, tipo, giorno, riassunto, problemi, azioni, fase:order_work_phases(name)")
-    .eq("order_id", orderId).eq("stato", "aperta").order("giorno", { ascending: true }).limit(20);
+  const { data, error } = await db.rpc("silvio_volo_della_commessa", { p_order_id: orderId });
   if (error || !Array.isArray(data)) return [];
-  return (data as Record<string, unknown>[]).map((r) => {
-    const fase = Array.isArray(r.fase) ? r.fase[0] : r.fase;
-    return {
-      id: r.id as string, tipo: r.tipo === "sal" ? "sal" : "controllo", giorno: String(r.giorno ?? ""), riassunto: String(r.riassunto ?? ""),
-      problemi: Array.isArray(r.problemi) ? (r.problemi as ProblemaVolo[]) : [],
-      azioni: Array.isArray(r.azioni) ? (r.azioni as AzioneVolo[]) : [],
-      fase: (fase as { name?: string } | null)?.name ?? null,
-    };
-  });
+  return (data as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string, tipo: r.tipo === "sal" ? "sal" : "controllo", giorno: String(r.giorno ?? ""), riassunto: String(r.riassunto ?? ""),
+    problemi: Array.isArray(r.problemi) ? (r.problemi as ProblemaVolo[]) : [],
+    azioni: Array.isArray(r.azioni) ? (r.azioni as AzioneVolo[]) : [],
+    fase: typeof r.fase === "string" ? r.fase : null,
+  }));
 }
 
 export interface EsitoConferma {
@@ -71,6 +71,11 @@ export function azioneInParole(a: AzioneVolo): string {
     case "assegna_persona": return `Assegna ${a.nome}: ${a.motivo}`;
     case "prenota_mezzo": return `Prenota ${a.nome}: ${a.motivo}`;
     case "attivita": return a.titolo;
-    case "sal_bozza": return `SAL n. ${a.numero} in bozza, ${a.importo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`;
+    case "sal_bozza": {
+      const importo = a.importo as number | null;
+      return typeof importo === "number"
+        ? `SAL n. ${a.numero} in bozza, ${importo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`
+        : `SAL n. ${a.numero} in bozza (l'importo lo vede chi ha «Importi di vendita»)`;
+    }
   }
 }

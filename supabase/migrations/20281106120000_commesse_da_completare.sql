@@ -20,6 +20,14 @@
 -- Richiede: nulla oltre lo schema attuale. NON applicata: si applica col push della fase 2,
 -- poi si riallinea la versione (CLAUDE.md).
 
+set local lock_timeout = '3s';
+set local statement_timeout = '60s';
+
+-- La completezza guarda le scadenze di ogni commessa (`exists … where x.order_id = o.id`):
+-- senza indice era una lettura intera di `scadenze` per commessa (revisione 1/11, S7).
+-- Seimila righe: l'indice si fa in un attimo.
+create index if not exists scadenze_order_id_idx on public.scadenze (order_id) where order_id is not null;
+
 create or replace function public.commesse_da_completare(
   p_company_id uuid,
   p_order_id uuid default null,

@@ -184,6 +184,8 @@ export interface DatiSal {
   finita: FaseInVolo;
   /** Imponibile della commessa. */
   totale: number;
+  /** L'IVA della commessa, in %: le rate sono ivate, il SAL si propone sull'imponibile. */
+  iva?: number | null;
   /** I SAL già fatti (non annullati). */
   salFatti: readonly { numero: number; importo: number }[];
   /** Le rate della commessa: quelle a SAL dicono l'importo del SAL. */
@@ -200,9 +202,9 @@ function durata(f: DatiSal["fasi"][number], cal: CalendarioCantiere): number {
 
 /**
  * La proposta del SAL dopo una fase, o null se la commessa non lavora a SAL (nessuna rata a SAL)
- * o se non resta niente da fatturare. Il numero è il prossimo; l'importo è quello della rata di
- * quel SAL se c'è, altrimenti l'avanzamento (giorni delle fasi finite sul totale) per l'imponibile,
- * meno i SAL già fatti.
+ * o se non resta niente da fatturare. Il numero è il prossimo; l'importo, sempre imponibile, è
+ * quello della rata di quel SAL senza l'IVA se c'è, altrimenti l'avanzamento (giorni delle fasi
+ * finite sul totale) per l'imponibile, meno i SAL già fatti.
  */
 export function propostaSal(d: DatiSal, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): Extract<AzioneVolo, { tipo: "sal_bozza" }> | null {
   const aSal = d.rate.filter((r) => r.trigger_evento === "sal_numero");
@@ -214,7 +216,10 @@ export function propostaSal(d: DatiSal, cal: CalendarioCantiere = CALENDARIO_NAZ
   const pct = tot > 0 ? Math.min(100, Math.round((fatte / tot) * 1000) / 10) : 0;
   const giaFatto = d.salFatti.reduce((t, s) => t + (Number(s.importo) || 0), 0);
   const rata = aSal.find((r) => r.trigger_numero === numero);
-  const importo = rata ? tondo(rata.amount) : tondo(d.totale * (pct / 100) - giaFatto);
+  // Una base sola, l'imponibile (revisione 1/11, L6): la rata è ivata e va scorporata, come
+  // l'avanzamento è sul totale senza IVA. Prima la rata entrava ivata e il resto no.
+  const iva = typeof d.iva === "number" && d.iva >= 0 ? d.iva : 0;
+  const importo = rata ? tondo(rata.amount / (1 + iva / 100)) : tondo(d.totale * (pct / 100) - giaFatto);
   if (!(importo > 0)) return null;
   return {
     tipo: "sal_bozza", numero, importo, pct_avanzamento_totale: pct,
