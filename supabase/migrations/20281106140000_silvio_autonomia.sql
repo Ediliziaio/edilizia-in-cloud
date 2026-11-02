@@ -125,9 +125,53 @@ $$;
 revoke all on function public._silvio_livello(uuid, text) from public, anon, authenticated;
 grant execute on function public._silvio_livello(uuid, text) to service_role;
 
+-- Un elenco senza certe chiavi, elemento per elemento (l'ordine resta: le fasi si ritrovano per posizione).
+create or replace function public._silvio_togli_chiavi(p_elenco jsonb, p_chiavi text[])
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when jsonb_typeof(p_elenco) = 'array'
+              then coalesce((select jsonb_agg(e.valore - p_chiavi order by e.ord)
+                               from jsonb_array_elements(p_elenco) with ordinality e(valore, ord)), '[]'::jsonb)
+              else p_elenco end
+$$;
+revoke all on function public._silvio_togli_chiavi(jsonb, text[]) from public, anon, authenticated;
+
+-- Lo stesso, dentro le sottofasi di ogni fase.
+create or replace function public._silvio_togli_dalle_sottofasi(p_fasi jsonb, p_chiavi text[])
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when jsonb_typeof(p_fasi) = 'array'
+              then coalesce((select jsonb_agg(
+                                      case when jsonb_typeof(e.fase->'sottofasi') = 'array'
+                                           then jsonb_set(e.fase, '{sottofasi}', public._silvio_togli_chiavi(e.fase->'sottofasi', p_chiavi))
+                                           else e.fase end order by e.ord)
+                               from jsonb_array_elements(p_fasi) with ordinality e(fase, ord)), '[]'::jsonb)
+              else p_fasi end
+$$;
+revoke all on function public._silvio_togli_dalle_sottofasi(jsonb, text[]) from public, anon, authenticated;
+
 -- ── La scrittura senza quello che il titolare ha vietato ──────────────────────
 -- La chiama `_silvio_bozza`, quindi vale per «Crea», «Completa» e per chi chiama le RPC
 -- a mano. Quello che toglie lo scrive in `tolte_autonomia`, per dirlo.
+--
+-- Le RPC sono SECURITY DEFINER e non passano dalla RLS: qui sotto le stesse regole delle
+-- policy, per chi sta scrivendo (D4 e P2, revisione 2/11). Quello che toglie va in
+-- `tolte_permessi`, e le RPC lo restituiscono: il popup lo dice.
+--   contratti   → policy ufficio_scrivi di contratti_subappalto: costi e amministrazione subappaltatori
+--   squadra     → le policy di order_employees: solo amministratori
+--   condizioni  → contratti_insert_admin di contratti_documents: solo amministratori
+--   adempimenti → adempimenti_company_access: sicurezza di cantiere
+--   oda         → «Costi»: un ordine porta i prezzi d'acquisto (po_tenant_insert guarda solo l'azienda)
+--   importi     → «Importi di vendita»: total_amount, vat_rate, rate, prezzi di riga, venduto
+--   costi       → «Costi»: costo della ditta, costo delle voci, prezzi d'acquisto
+-- Le ditte restano: commessa_assegna_subappaltatore le assegna con can_edit_orders, che
+-- `_silvio_bozza` ha già controllato. I mezzi li controlla salva_piano_mezzo.
 create or replace function public._silvio_scrittura_permessa(p_company uuid, p_scrittura jsonb)
 returns jsonb
 language plpgsql
@@ -140,7 +184,58 @@ declare
   v_tolte text[] := '{}';
   v_vietata boolean;
   v_ammessi text[] := array['pos', 'duvri', 'avvio_cliente'];
+  v_senza text[] := '{}';
+  v_uid uuid := auth.uid();
+  v_admin boolean := public.has_role(auth.uid(), 'super_admin'::public.app_role) or public.e_amministratore_di(p_company);
+  v_pieno boolean;
 begin
+  v_pieno := coalesce(jsonb_array_length(case when jsonb_typeof(s->'contratti') = 'array' then s->'contratti' end), 0) > 0;
+  if v_pieno and not (public.has_permission_for_company(v_uid, 'can_view_costs', p_company) is true
+                      and public.has_permission_for_company(v_uid, 'can_view_subappaltatori_amministrazione', p_company) is true) then
+    v_senza := v_senza || 'contratti_ditte'::text;
+    s := jsonb_set(s, '{contratti}', '[]'::jsonb);
+  end if;
+  if not v_admin then
+    if coalesce(jsonb_array_length(case when jsonb_typeof(s->'squadra') = 'array' then s->'squadra' end), 0) > 0 then
+      v_senza := v_senza || 'squadra'::text;
+      s := jsonb_set(s, '{squadra}', '[]'::jsonb);
+    end if;
+    if jsonb_typeof(s->'condizioni') = 'object' and s->'condizioni' <> '{}'::jsonb then
+      v_senza := v_senza || 'condizioni'::text;
+      s := s - 'condizioni';
+    end if;
+  end if;
+  if coalesce(jsonb_array_length(case when jsonb_typeof(s->'adempimenti') = 'array' then s->'adempimenti' end), 0) > 0
+     and public.has_permission_for_company(v_uid, 'can_view_sicurezza_cantiere', p_company) is not true then
+    v_senza := v_senza || 'adempimenti'::text;
+    s := jsonb_set(s, '{adempimenti}', '[]'::jsonb);
+  end if;
+  if coalesce(jsonb_array_length(case when jsonb_typeof(s->'oda') = 'array' then s->'oda' end), 0) > 0
+     and public.has_permission_for_company(v_uid, 'can_view_costs', p_company) is not true then
+    v_senza := v_senza || 'ordini'::text;
+    s := jsonb_set(s, '{oda}', '[]'::jsonb);
+  end if;
+  -- Chi non vede gli importi non li scrive (P2): con «Completa» sovrascriverebbe uno 0 che non
+  -- vede, con «Crea» da preventivo quello che il preventivo ha copiato.
+  if public.has_permission_for_company(v_uid, 'can_view_order_amounts', p_company) is not true then
+    if s->'ordine' ?| array['total_amount', 'vat_rate']
+       or coalesce(jsonb_array_length(case when jsonb_typeof(s->'rate') = 'array' then s->'rate' end), 0) > 0 then
+      v_senza := v_senza || 'importi'::text;
+    end if;
+    s := s #- '{ordine,total_amount}' #- '{ordine,vat_rate}';
+    if s ? 'rate' then s := jsonb_set(s, '{rate}', '[]'::jsonb); end if;
+    if s ? 'righe' then s := jsonb_set(s, '{righe}', public._silvio_togli_chiavi(s->'righe', array['unit_price', 'discount_percent'])); end if;
+    if s ? 'fasi' then s := jsonb_set(s, '{fasi}', public._silvio_togli_dalle_sottofasi(s->'fasi', array['importo'])); end if;
+  end if;
+  if public.has_permission_for_company(v_uid, 'can_view_costs', p_company) is not true then
+    if s ? 'ditte' then s := jsonb_set(s, '{ditte}', public._silvio_togli_chiavi(s->'ditte', array['costo_previsto'])); end if;
+    if s ? 'righe' then s := jsonb_set(s, '{righe}', public._silvio_togli_chiavi(s->'righe', array['purchase_price', 'standard_cost'])); end if;
+    if s ? 'fasi' then s := jsonb_set(s, '{fasi}', public._silvio_togli_dalle_sottofasi(s->'fasi', array['costo'])); end if;
+  end if;
+  if cardinality(v_senza) > 0 then
+    s := s || jsonb_build_object('tolte_permessi', to_jsonb(v_senza));
+  end if;
+
   if public._silvio_livello(p_company, 'squadra') = 'vietata' then
     if jsonb_array_length(coalesce(nullif(s->'squadra', 'null'::jsonb), '[]')) > 0 or s->'ordine' ? 'capomastro_user_id' then
       v_tolte := v_tolte || 'squadra'::text;

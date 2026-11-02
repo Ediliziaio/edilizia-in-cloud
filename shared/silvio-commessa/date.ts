@@ -22,6 +22,13 @@ function giorno(data: string): number {
 
 export const eData = (s: unknown): s is string => typeof s === "string" && DATA.test(s);
 
+/** Una data che esiste sul calendario: il 31 febbraio ha la forma giusta, ma non c'è. */
+export function dataVera(s: unknown): s is string {
+  if (!eData(s)) return false;
+  const g = giorno(s);
+  return !Number.isNaN(g) && new Date(g).toISOString().slice(0, 10) === s;
+}
+
 /** `data` più `n` giorni di calendario (anche negativi). */
 export function aggiungiGiorni(data: string, n: number): string {
   const g = giorno(data);

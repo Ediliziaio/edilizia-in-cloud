@@ -14,11 +14,11 @@
  * legge dall'elenco delle fasi.
  */
 import type { FaseDelPiano, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
-import type { CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
+import { primoGiornoUtile, spostaLavorativi, type CalendarioCantiere } from "../../../../shared/silvio-commessa/calendario.ts";
 import { REGISTRO } from "../../../../shared/silvio-commessa/registro.ts";
 import { compilata } from "../../../../shared/silvio-commessa/completezza.ts";
 import {
-  dateDelleFasi, fasiDelModello, frammentoDalModello, MODELLI_LAVORO, misuraDalTesto, riconosciTipoLavoro,
+  fasiDelModello, frammentoDalModello, MODELLI_LAVORO, misuraDalTesto, riconosciTipoLavoro,
   type TipoLavoro,
 } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
 import { colonne, metti, nuovoFrammento, numero, testo } from "./comuni";
@@ -120,7 +120,35 @@ export function fasiDellaCommessaColModello(
     giorno += giorni;
     return fase;
   });
-  return inizio ? dateDelleFasi(durate, inizio, calendario) : durate;
+  return inizio ? dateAttornoAlleVere(durate, inizio, calendario) : durate;
+}
+
+/**
+ * Le date proposte alle fasi che non ne hanno, attorno a quelle vere (revisione 2/11, G14):
+ * prima si contavano dal primo giorno dei lavori, e la fase proposta cadeva dentro una fase
+ * che la commessa ha già. Una fase vera non si sposta: quella proposta va dopo.
+ */
+function dateAttornoAlleVere(fasi: readonly FaseDelPiano[], inizio: string, cal?: CalendarioCantiere): FaseDelPiano[] {
+  const vere = fasi.filter((f) => f.start_date);
+  let dal = primoGiornoUtile(inizio, cal);
+  return fasi.map((f) => {
+    if (f.start_date) {
+      const fine = f.end_date ?? f.start_date;
+      if (fine >= dal) dal = spostaLavorativi(fine, 1, cal);
+      return f;
+    }
+    const durata = f.giorni ?? 1;
+    let fine = spostaLavorativi(dal, durata - 1, cal);
+    for (let giri = 0; giri <= vere.length; giri++) {
+      const sopra = vere.find((v) => v.start_date! <= fine && (v.end_date ?? v.start_date!) >= dal);
+      if (!sopra) break;
+      dal = spostaLavorativi(sopra.end_date ?? sopra.start_date!, 1, cal);
+      fine = spostaLavorativi(dal, durata - 1, cal);
+    }
+    const fase: FaseDelPiano = { ...f, start_date: dal, end_date: fine };
+    dal = spostaLavorativi(fine, 1, cal);
+    return fase;
+  });
 }
 
 /**
@@ -144,7 +172,14 @@ export function frammentiPerCompletare(dati: DatiCommessaEsistente): Frammento[]
   const misura = misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita);
   const modello = frammentoDalModello(tipo, { misura, inizio, calendario: dati.calendario });
   if (fasi.length) {
-    modello.aree.fasi!["fasi.order_work_phases"].valore = fasiDellaCommessaColModello(fasi, tipo, misura, inizio, dati.calendario);
+    const conDate = fasiDellaCommessaColModello(fasi, tipo, misura, inizio, dati.calendario);
+    modello.aree.fasi!["fasi.order_work_phases"].valore = conDate;
+    // La fine proposta è quella delle fasi di questa commessa, non quella del modello da solo.
+    const fine = conDate.map((f) => f.end_date ?? f.start_date).filter((d): d is string => !!d).sort().pop();
+    for (const k of ["fasi.work_end_date", "fasi.expected_date"]) {
+      const v = modello.aree.fasi![k];
+      if (v && fine) v.valore = fine;
+    }
   }
   return [commessa, modello];
 }

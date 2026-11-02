@@ -23,13 +23,13 @@
  *
  * Funzioni pure, senza dipendenze, compatibili con Deno.
  */
-import { rangoFonte, spostaGiorniLavorativi, giaNellaCommessa } from "./fondi.ts";
+import { rangoFonte, spostaGiorniLavorativi, stessoValore, giaNellaCommessa } from "./fondi.ts";
 import type { Area, CostoDelPiano, FaseDelPiano, Fonte, Frammento, PianoCommessa, SottofaseDelPiano, Valore } from "./piano.ts";
 import { piuSimili, somiglianzaFasi, type FaseStorica } from "./somiglianza.ts";
 import { aggiungiGiorni, dataCorta, eData, siSovrappongono } from "./date.ts";
 import { livelloDellaVariabile, type Autonomia } from "./autonomia.ts";
 import { CALENDARIO_NAZIONALE, type CalendarioCantiere } from "./calendario.ts";
-import { adempimentiPrimaDiPartire, avvisiMeteo, avvisoMeteoInParole } from "./partenza.ts";
+import { adempimentiPrimaDiPartire, avvisiMeteo, avvisoMeteoInParole, avvisoScadenza, type AdempimentoDelPiano } from "./partenza.ts";
 
 // ── Le forme degli elenchi ──────────────────────────────────────────────────
 
@@ -42,6 +42,8 @@ interface Risorsa {
   stato: StatoRisorsa;
   /** Cosa non va (⚠), o un avvertimento che non la ferma («andava ordinato ieri»). */
   avviso?: string | null;
+  /** Il ⚠ l'ha messo il ricontrollo dopo uno spostamento: se torna libera, torna a posto (G6). */
+  daRicontrollo?: boolean;
 }
 
 /** Una persona in `persone.squadra` → `order_employees`. */
@@ -129,6 +131,8 @@ export interface PromemoriaDelPiano {
   /** Per il messaggio d'avvio: dove andrebbe, quando la persona lo manda. */
   canale?: "email" | "whatsapp" | null;
   destinatario?: string | null;
+  /** La scadenza è già passata (revisione 2/11, G17). */
+  avviso?: string | null;
 }
 
 // ── Il contesto: i dati veri dell'azienda ───────────────────────────────────
@@ -192,10 +196,23 @@ export function fasiDiLavoro(piano: PianoCommessa): FaseDiLavoro[] {
     });
 }
 
-/** Il costo previsto di una fase, senza IVA: le sue voci, o il costo della fase in `costi.previsti`. */
-export function costoDellaFase(piano: PianoCommessa, fase: FaseDiLavoro): number {
+const stessoNome = (a: unknown, b: unknown) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+
+/** La voce è già in un ordine al fornitore della stessa fase: il materiale lo compra l'impresa. */
+const voceOrdinata = (ordini: readonly OdaDelPiano[], fase: string, voce: string) => ordini.some((o) => o.stato !== "attenzione" && o.fase === fase
+  && Array.isArray(o.righe) && o.righe.some((r) => stessoNome(r.descrizione, voce)));
+
+/**
+ * Il costo previsto di una fase, senza IVA: le sue voci, o il costo della fase in `costi.previsti`.
+ * Le voci già ordinate non si contano (revisione 2/11, G7): il contratto della ditta le toglieva,
+ * il suo costo previsto no, e lo stesso materiale pesava due volte sul margine.
+ */
+export function costoDellaFase(piano: PianoCommessa, fase: FaseDiLavoro, ordini: readonly OdaDelPiano[] = []): number {
   const voci = fase.sottofasi.reduce((t, s) => t + (Number(s.costo) || 0), 0);
-  if (voci > 0) return Math.round(voci * 100) / 100;
+  if (voci > 0) {
+    const daPagare = fase.sottofasi.filter((s) => !voceOrdinata(ordini, fase.nome, s.name)).reduce((t, s) => t + (Number(s.costo) || 0), 0);
+    return Math.round(daPagare * 100) / 100;
+  }
   const costi = piano.aree.costi?.["costi.previsti"]?.valore;
   const c = Array.isArray(costi)
     ? (costi as CostoDelPiano[]).find((x) => x.fase?.trim().toLowerCase() === fase.nome.toLowerCase()) : undefined;
@@ -271,7 +288,7 @@ export function documentiDitta(ctx: ContestoRisorse, ditta: ContestoRisorse["dit
 function libera(piano: PianoCommessa, area: Area, chiave: string): boolean {
   const v = piano.aree[area]?.[chiave];
   if (!v) return true;
-  if (giaNellaCommessa(piano, v) || v.fonte.tipo === "persona") return false;
+  if (giaNellaCommessa(piano, v) || v.fonte.tipo === "persona" || v.toccato) return false;
   if (v.fonte.id === FONTE_RISORSE.id) return true;
   return rangoFonte(v.fonte) > rangoFonte(FONTE_RISORSE);
 }
@@ -314,14 +331,14 @@ function capomastro(ctx: ContestoRisorse): { id: string; nome: string; volte: nu
   return primo ? { id: primo[0], nome: staff.get(primo[0])!, volte: primo[1] } : null;
 }
 
-function ditte(fasi: FaseDiLavoro[], ctx: ContestoRisorse, piano: PianoCommessa): DittaDelPiano[] {
+function ditte(fasi: FaseDiLavoro[], ctx: ContestoRisorse, piano: PianoCommessa, ordini: readonly OdaDelPiano[]): DittaDelPiano[] {
   const perId = new Map(ctx.ditte.map((d) => [d.id, d]));
   const storico = ctx.storicoDitte.filter((s) => perId.has(s.external_team_id)).map((s) => ({ id: s.external_team_id, nome: s.fase }));
   const out: DittaDelPiano[] = [];
   for (const f of fasi) {
     const candidati = piuSimili(f.nome, storico);
     if (!candidati.length) continue;
-    const costo = costoDellaFase(piano, f);
+    const costo = costoDellaFase(piano, f, ordini);
     const riga = (c: (typeof candidati)[number], avviso: string | null): DittaDelPiano => {
       const d = perId.get(c.id)!;
       return {
@@ -345,6 +362,23 @@ function ditte(fasi: FaseDiLavoro[], ctx: ContestoRisorse, piano: PianoCommessa)
     }
   }
   return out;
+}
+
+/**
+ * I periodi in cui prenotare un mezzo per quelle fasi. Una prenotazione sola se è libero per
+ * tutto il tempo; se qualcuno lo ha prenotato nel buco fra due fasi, una per fase (revisione 2/11,
+ * G16): prima risultava occupato, e prenotarlo di fila sarebbe finito sopra l'altra commessa.
+ */
+function periodiDelMezzo(ctx: ContestoRisorse, id: string, fasi: readonly FaseDiLavoro[], quantita = 1): { fasi: FaseDiLavoro[]; dal: string | null; al: string | null; occupato: string | null }[] {
+  const periodo = (gruppo: FaseDiLavoro[]) => {
+    const dal = gruppo.map((f) => f.dal).filter((d): d is string => !!d).sort()[0] ?? null;
+    const al = gruppo.map((f) => f.al ?? f.dal).filter((d): d is string => !!d).sort().at(-1) ?? null;
+    return { fasi: gruppo, dal, al, occupato: mezzoOccupato(ctx, id, dal, al, quantita) };
+  };
+  const unico = periodo([...fasi]);
+  if (!unico.occupato || fasi.length < 2) return [unico];
+  const singoli = fasi.map((f) => periodo([f]));
+  return singoli.some((p) => p.occupato) ? [unico] : singoli;
 }
 
 function mezzi(fasi: FaseDiLavoro[], ctx: ContestoRisorse): MezzoDelPiano[] {
@@ -374,18 +408,15 @@ function mezzi(fasi: FaseDiLavoro[], ctx: ContestoRisorse): MezzoDelPiano[] {
   const out: MezzoDelPiano[] = [];
   for (const [id, g] of perMezzo) {
     const m = ctx.mezzi.find((x) => x.id === id)!;
-    const inizi = g.fasi.map((f) => f.dal).filter((d): d is string => !!d).sort();
-    const fini = g.fasi.map((f) => f.al ?? f.dal).filter((d): d is string => !!d).sort();
-    const dal = inizi[0] ?? null;
-    const al = fini.at(-1) ?? null;
     // Sulle fasi unite il periodo è più lungo: si ricontrolla.
-    const occupato = mezzoOccupato(ctx, id, dal, al);
-    out.push({
-      mezzo_id: id, nome: m.nome, fasi: g.fasi.map((f) => f.nome), dal, al, quantita: 1,
-      motivo: `si usa di solito in «${g.come}»`,
-      stato: occupato ? "attenzione" : "proposta",
-      avviso: occupato ? `${m.nome} ${occupato}` : dal ? null : senzaDate,
-    });
+    for (const { fasi: gruppo, dal, al, occupato } of periodiDelMezzo(ctx, id, g.fasi)) {
+      out.push({
+        mezzo_id: id, nome: m.nome, fasi: gruppo.map((f) => f.nome), dal, al, quantita: 1,
+        motivo: `si usa di solito in «${g.come}»`,
+        stato: occupato ? "attenzione" : "proposta",
+        avviso: occupato ? `${m.nome} ${occupato}` : dal ? null : senzaDate,
+      });
+    }
   }
   return [...out, ...occupati];
 }
@@ -442,8 +473,7 @@ const tondo = (n: number) => Math.round(n * 100) / 100;
 export function contrattiDelleDitte(
   ditteProposte: readonly DittaDelPiano[], fasi: readonly FaseDiLavoro[], ordini: readonly OdaDelPiano[] = [],
 ): ContrattoDelPiano[] {
-  const ordinata = (fase: string, voce: string) => ordini.some((o) => o.stato !== "attenzione" && o.fase === fase
-    && o.righe.some((r) => r.descrizione.trim().toLowerCase() === voce.trim().toLowerCase()));
+  const ordinata = (fase: string, voce: string) => voceOrdinata(ordini, fase, voce);
   const perDitta = new Map<string, DittaDelPiano[]>();
   for (const d of ditteProposte) {
     if (d.stato === "attenzione") continue;
@@ -499,7 +529,20 @@ function testoCliente(piano: PianoCommessa, inizio: string | null): { testo: str
   return { testo, canale: email ? "email" : telefono ? "whatsapp" : null, destinatario: email ?? telefono };
 }
 
-function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDitte: boolean, cal: CalendarioCantiere): PromemoriaDelPiano[] {
+/**
+ * Il contratto di una ditta tolta da una fase e rimasta sulle altre (revisione 2/11, G16): resta,
+ * senza quella fase, con l'importo e le date delle altre. Prima spariva intero.
+ */
+export function contrattoSenzaFase(c: ContrattoDelPiano, fase: string, fasi: readonly FaseDiLavoro[]): ContrattoDelPiano {
+  const restano = (c.fasi ?? []).filter((f) => f !== fase);
+  const elenco = (c.elenco ?? []).filter((v) => v.fase !== fase);
+  const sue = fasi.filter((f) => restano.includes(f.nome));
+  const inizi = sue.map((f) => f.dal).filter((d): d is string => !!d).sort();
+  const fini = sue.map((f) => f.al ?? f.dal).filter((d): d is string => !!d).sort();
+  return { ...c, fasi: restano, elenco, importo: tondo(elenco.reduce((t, v) => t + (Number(v.importo) || 0), 0)), dal: inizi[0] ?? c.dal, al: fini.at(-1) ?? c.al };
+}
+
+function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDitte: boolean, cal: CalendarioCantiere, oggi: string): PromemoriaDelPiano[] {
   const primo = inizio ?? fasi.map((f) => f.dal).filter((d): d is string => !!d).sort()[0] ?? null;
   const entro = primo ? spostaGiorniLavorativi(primo, -ANTICIPO_POS, cal) : null;
   const out: PromemoriaDelPiano[] = [{
@@ -512,7 +555,92 @@ function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDit
       testo: "Con ditte in cantiere servono il DUVRI (o il PSC, se c'è il coordinatore) e il POS di ogni ditta prima che entri. Si preparano da Sicurezza della commessa.",
     });
   }
-  return out;
+  return out.map((p) => ({ ...p, avviso: avvisoScadenza(p.scadenza, oggi) }));
+}
+
+/** «⚠ Già passate: …», da mettere nella nota: la scadenza nel passato si deve vedere (G17). */
+function notaScadenzePassate(elenco: readonly { titolo: string; avviso?: string | null }[]): string {
+  const passate = elenco.filter((x) => x.avviso);
+  return passate.length ? ` ⚠ ${passate.length === 1 ? "Una scadenza è già passata" : `${passate.length} scadenze sono già passate`}: ${passate.map((x) => x.titolo).join("; ")}.` : "";
+}
+
+// ── Il ricontrollo di quello che è già stato accettato (revisione 2/11, G6) ──────
+
+/** Da ⚠ a posto, o da a posto a ⚠: solo il ricontrollo disfa quello che ha fatto il ricontrollo. */
+function ricontrollata<T extends Risorsa>(x: T, problema: string | null): T {
+  if (problema) return { ...x, stato: "attenzione", avviso: problema, daRicontrollo: true };
+  if (!x.daRicontrollo) return x;
+  const { daRicontrollo: _d, ...resto } = x;
+  return { ...resto, stato: "proposta", avviso: null } as unknown as T;
+}
+
+const faseSparita = (nome: string) => `la fase «${nome}» non c'è più: scegli dove metterla, o toglila`;
+
+/**
+ * Le risorse accettate con le date di adesso. `proposteRisorse` non le rifà, perché le ha decise
+ * una persona: ma le date e le disponibilità le dicono le fasi e l'azienda. Le date si
+ * riallineano; chi non è più libero o non ha più la fase diventa ⚠ col motivo, e la scrittura lo
+ * lascia fuori. Niente sparisce e niente si sostituisce: decide la persona.
+ */
+function riallineaSquadra(lista: PersonaDelPiano[], fasi: readonly FaseDiLavoro[], ctx: ContestoRisorse): PersonaDelPiano[] {
+  return lista.map((p) => {
+    if (!p?.fase) return p;
+    const f = fasi.find((x) => stessoNome(x.nome, p.fase));
+    if (!f) return ricontrollata(p, faseSparita(p.fase));
+    const occupata = personaOccupata(ctx, p.employee_id, f.dal, f.al);
+    return ricontrollata({ ...p, dal: f.dal, al: f.al }, occupata ? `${p.nome} ${occupata}: scegli un'altra persona` : null);
+  });
+}
+
+function riallineaDitte(lista: DittaDelPiano[], fasi: readonly FaseDiLavoro[], ctx: ContestoRisorse): DittaDelPiano[] {
+  return lista.map((d) => {
+    const f = fasi.find((x) => stessoNome(x.nome, d?.fase));
+    if (!f) return ricontrollata(d, faseSparita(d?.fase));
+    const ditta = ctx.ditte.find((x) => x.id === d.external_team_id);
+    const documenti = ditta ? documentiDitta(ctx, ditta, f.al) : null;
+    return ricontrollata(d, documenti ? `${d.nome} ${documenti}` : null);
+  });
+}
+
+function riallineaMezzi(lista: MezzoDelPiano[], fasi: readonly FaseDiLavoro[], ctx: ContestoRisorse): MezzoDelPiano[] {
+  return lista.flatMap((m) => {
+    if (!Array.isArray(m?.fasi) || !m.fasi.length) return [m];
+    const sue = fasi.filter((f) => m.fasi.some((n) => stessoNome(n, f.nome)));
+    if (!sue.length) return [ricontrollata(m, faseSparita(m.fasi.join(", ")))];
+    return periodiDelMezzo(ctx, m.mezzo_id, sue, m.quantita).map(({ fasi: gruppo, dal, al, occupato }) => ricontrollata(
+      { ...m, fasi: gruppo.map((f) => f.nome), dal, al }, occupato ? `${m.nome} ${occupato}` : null,
+    ));
+  });
+}
+
+function riallineaOrdini(lista: OdaDelPiano[], fasi: readonly FaseDiLavoro[], oggi: string): OdaDelPiano[] {
+  return lista.map((o) => {
+    if (!o?.fase) return o;
+    const f = fasi.find((x) => stessoNome(x.nome, o.fase));
+    if (!f) return ricontrollata(o, faseSparita(o.fase));
+    const a_posto = ricontrollata(o, null);
+    if (a_posto.data_consegna === f.dal) return a_posto;
+    const ordine = dataOrdine(f.dal, o.giorni_consegna);
+    return { ...a_posto, data_consegna: f.dal, data_ordine: ordine, avviso: avvisoOrdine(oggi, ordine, o.giorni_consegna) };
+  });
+}
+
+function riallineaContratti(lista: ContrattoDelPiano[], fasi: readonly FaseDiLavoro[]): ContrattoDelPiano[] {
+  return lista.map((c) => {
+    const sue = fasi.filter((f) => (c?.fasi ?? []).some((n) => stessoNome(n, f.nome)));
+    if (!sue.length) return c;
+    const inizi = sue.map((f) => f.dal).filter((d): d is string => !!d).sort();
+    const fini = sue.map((f) => f.al ?? f.dal).filter((d): d is string => !!d).sort();
+    return { ...c, dal: inizi[0] ?? null, al: fini.at(-1) ?? null };
+  });
+}
+
+/** Scadenze e testi dei promemoria accettati, da quelli che Silvio scriverebbe adesso, per tipo. */
+function riallineaPerTipo<T extends { tipo: string; scadenza: string | null }>(lista: T[], nuovi: readonly T[]): T[] {
+  return lista.map((x) => {
+    const n = nuovi.find((y) => y.tipo === x?.tipo);
+    return n ? { ...x, scadenza: n.scadenza, ...("testo" in n ? { testo: n.testo } : {}), avviso: (n as { avviso?: string | null }).avviso ?? null } as T : x;
+  });
 }
 
 /**
@@ -543,33 +671,37 @@ export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse, auto
       + " Entra nella commessa se la confermi.";
   };
 
+  const oggi = ctx.oggi;
   const persone = squadra(fasi, ctx);
   metti("persone", "persone.squadra", persone, notaElenco(persone, "Chi ha fatto più spesso fasi simili, libero nelle date delle fasi"));
 
   const capo = capomastro(ctx);
   if (capo) metti("persone", "persone.capomastro", capo.id, `${capo.nome}: capomastro di ${capo.volte === 1 ? "un'altra commessa" : `${capo.volte} commesse`}. Entra se lo confermi.`, 0.5);
 
-  const proposteDitte = ditte(fasi, ctx, piano);
+  // Prima gli ordini: il costo di una ditta non conta le voci che compra l'impresa (G7).
+  const oda = acquisti(fasi, ctx);
+  metti("materiali", "materiali.acquisti", oda,
+    "Ordini in bozza al fornitore abituale, con la data d'ordine dai suoi tempi di consegna. Non parte niente: si mandano dalla pagina dell'ordine.");
+  const odaDelPiano = (aree.materiali?.["materiali.acquisti"]?.valore ?? piano.aree.materiali?.["materiali.acquisti"]?.valore) as OdaDelPiano[] | undefined;
+  const ordiniDelPiano = Array.isArray(odaDelPiano) ? odaDelPiano : [];
+
+  const proposteDitte = ditte(fasi, ctx, piano, ordiniDelPiano);
   metti("ditte", "ditte.assegnate", proposteDitte, notaElenco(proposteDitte, "La ditta che fa di solito quel lavoro, con un DURC che copre la fase"));
 
   const proposteMezzi = mezzi(fasi, ctx);
   metti("mezzi", "mezzi.allocazioni", proposteMezzi, notaElenco(proposteMezzi, "I mezzi usati di solito in queste fasi, liberi in quei giorni"));
 
-  const oda = acquisti(fasi, ctx);
-  metti("materiali", "materiali.acquisti", oda,
-    "Ordini in bozza al fornitore abituale, con la data d'ordine dai suoi tempi di consegna. Non parte niente: si mandano dalla pagina dell'ordine.");
-
   // Le bozze 🔴 seguono le proposte: il contratto c'è per le ditte che entrano.
   const ditteDelPiano = (aree.ditte?.["ditte.assegnate"]?.valore ?? piano.aree.ditte?.["ditte.assegnate"]?.valore) as DittaDelPiano[] | undefined;
   if (Array.isArray(ditteDelPiano)) {
-    const odaDelPiano = (aree.materiali?.["materiali.acquisti"]?.valore ?? piano.aree.materiali?.["materiali.acquisti"]?.valore) as OdaDelPiano[] | undefined;
-    const contratti = contrattiDelleDitte(ditteDelPiano, fasi, Array.isArray(odaDelPiano) ? odaDelPiano : []);
+    const contratti = contrattiDelleDitte(ditteDelPiano, fasi, ordiniDelPiano);
     metti("ditte", "ditte.contratti", contratti,
       "Il contratto di subappalto di ogni ditta, in bozza con l'elenco dei lavori. Si firma dalla pagina della commessa: Silvio non lo manda.", 0.5);
   }
   const conDitte = Array.isArray(ditteDelPiano) && ditteDelPiano.some((d) => d.stato !== "attenzione");
-  metti("sicurezza", "sicurezza.pos_duvri", promemoriaSicurezza(fasi, dataInizio, conDitte, cal),
-    "Promemoria nelle attività della commessa, con la scadenza prima dell'inizio. I documenti si preparano e si firmano da Sicurezza.", 0.8);
+  const promemoria = promemoriaSicurezza(fasi, dataInizio, conDitte, cal, oggi);
+  metti("sicurezza", "sicurezza.pos_duvri", promemoria,
+    `Promemoria nelle attività della commessa, con la scadenza prima dell'inizio. I documenti si preparano e si firmano da Sicurezza.${notaScadenzePassate(promemoria)}`, 0.8);
 
   const cliente = testoCliente(piano, dataInizio);
   const avvio: PromemoriaDelPiano = {
@@ -577,6 +709,7 @@ export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse, auto
     scadenza: dataInizio ? spostaGiorniLavorativi(dataInizio, -ANTICIPO_AVVIO, cal) : null,
     canale: cliente.canale, destinatario: cliente.destinatario,
   };
+  avvio.avviso = avvisoScadenza(avvio.scadenza, oggi);
   metti("comunicazione", "comunicazione.avvio_cliente", avvio,
     "Il testo resta in bozza in un'attività della commessa: lo mandi tu, quando vuoi. Silvio non lo invia.", 0.8);
 
@@ -585,12 +718,18 @@ export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse, auto
   if (meteo.length) {
     metti("fasi", "fasi.avvisi_meteo", meteo,
       `Fasi all'aperto in mesi a rischio: ${meteo.map(avvisoMeteoInParole).join(" ")} È una regola di stagione, non una previsione.`, 0.7, "fatto");
+  } else {
+    // Spostate le fasi fuori dai mesi a rischio, l'avviso di prima non vale più (G19).
+    const vecchio = piano.aree.fasi?.["fasi.avvisi_meteo"];
+    if (Array.isArray(vecchio?.valore) && vecchio!.valore.length && libera(piano, "fasi", "fasi.avvisi_meteo")) {
+      aree.fasi = { ...(aree.fasi ?? {}), "fasi.avvisi_meteo": { valore: [], fiducia: 0.7, stato: "manca", nota: null } };
+    }
   }
   const squadraFasi = (aree.persone?.["persone.squadra"]?.valore ?? piano.aree.persone?.["persone.squadra"]?.valore) as PersonaDelPiano[] | undefined;
   const lavoro = [piano.aree.identita?.["identita.tipo_lavoro"]?.valore, piano.aree.identita?.["identita.description"]?.valore,
     piano.aree.identita?.["identita.work_description"]?.valore].filter((x): x is string => typeof x === "string").join(" · ");
   const adempimenti = adempimentiPrimaDiPartire({
-    lavoro, inizio: dataInizio,
+    lavoro, inizio: dataInizio, oggi,
     ditte: Array.isArray(ditteDelPiano) ? new Set(ditteDelPiano.filter((d) => d.stato !== "attenzione").map((d) => d.external_team_id)).size : 0,
     fasi: fasi.map((f) => ({
       nome: f.nome, dal: f.dal, al: f.al,
@@ -598,7 +737,31 @@ export function proposteRisorse(piano: PianoCommessa, ctx: ContestoRisorse, auto
     })),
   }, cal);
   metti("sicurezza", "sicurezza.adempimenti", adempimenti,
-    "Scadenze della commessa prima di aprire il cantiere. Silvio non sa se il tecnico le ha già fatte: si spuntano dalla Sicurezza della commessa.", 0.7);
+    `Scadenze della commessa prima di aprire il cantiere. Silvio non sa se il tecnico le ha già fatte: si spuntano dalla Sicurezza della commessa.${notaScadenzePassate(adempimenti)}`, 0.7);
+
+  // Quello che una persona ha già accettato: si riallinea, e torna al popup solo se cambia (G6).
+  const riallinea = <T>(area: Area, chiave: string, rifai: (lista: T[]) => T[]) => {
+    const v = piano.aree[area]?.[chiave];
+    if (!v || !Array.isArray(v.valore) || giaNellaCommessa(piano, v) || libera(piano, area, chiave)) return;
+    if (piano.conflitti.some((c) => c.chiave === chiave)) return;
+    const valore = rifai(v.valore as T[]);
+    if (!stessoValore(valore, v.valore)) aree[area] = { ...(aree[area] ?? {}), [chiave]: { ...v, valore } };
+  };
+  riallinea<PersonaDelPiano>("persone", "persone.squadra", (l) => riallineaSquadra(l, fasi, ctx));
+  riallinea<DittaDelPiano>("ditte", "ditte.assegnate", (l) => riallineaDitte(l, fasi, ctx));
+  riallinea<MezzoDelPiano>("mezzi", "mezzi.allocazioni", (l) => riallineaMezzi(l, fasi, ctx));
+  riallinea<OdaDelPiano>("materiali", "materiali.acquisti", (l) => riallineaOrdini(l, fasi, oggi));
+  riallinea<ContrattoDelPiano>("ditte", "ditte.contratti", (l) => riallineaContratti(l, fasi));
+  riallinea<PromemoriaDelPiano>("sicurezza", "sicurezza.pos_duvri", (l) => riallineaPerTipo(l, promemoria));
+  riallinea<AdempimentoDelPiano>("sicurezza", "sicurezza.adempimenti", (l) => riallineaPerTipo(l, adempimenti));
+  const avvioAccettato = piano.aree.comunicazione?.["comunicazione.avvio_cliente"];
+  if (avvioAccettato && !libera(piano, "comunicazione", "comunicazione.avvio_cliente") && !giaNellaCommessa(piano, avvioAccettato)) {
+    const a = avvioAccettato.valore as PromemoriaDelPiano | null;
+    if (a && typeof a === "object" && a.scadenza !== avvio.scadenza) {
+      const testo = dataInizio ? String(a.testo ?? "").replace(/ dal \d{2}\/\d{2}\./, ` dal ${dataCorta(dataInizio)}.`) : a.testo;
+      aree.comunicazione = { ...(aree.comunicazione ?? {}), "comunicazione.avvio_cliente": { ...avvioAccettato, valore: { ...a, scadenza: avvio.scadenza, avviso: avvio.avviso, testo } } };
+    }
+  }
 
   if (!Object.keys(aree).length) return null;
   return { fonte: FONTE_RISORSE, aree, costoEur: 0 };
@@ -662,10 +825,14 @@ export function frammentoDaOfferta(
 ): Frammento {
   const fasi = fasiDiLavoro(piano);
   const titolo = richiesta.titolo ?? "";
+  const vociOfferta = (offerta.righe ?? []).map((r) => r.voce_richiesta || r.voce_documento).filter(Boolean);
+  // Il titolo di una richiesta può non dire la fase («RDO materiali 2026»): la dicono le voci (G12).
   const fase = fasi
     .map((f) => ({ f, s: somiglianzaFasi(titolo, f.nome) }))
     .filter((x) => x.s >= 0.5)
-    .sort((a, b) => b.s - a.s)[0]?.f ?? null;
+    .sort((a, b) => b.s - a.s)[0]?.f
+    ?? fasi.find((f) => f.sottofasi.some((s) => vociOfferta.some((v) => stessoNome(v, s.name))))
+    ?? null;
   const consegna = fase?.dal ?? (eData(richiesta.data_fabbisogno) ? richiesta.data_fabbisogno! : null);
   const giorni = offerta.giorni_consegna == null ? null : Math.max(0, Math.round(Number(offerta.giorni_consegna)));
   const righe: RigaOda[] = (offerta.righe ?? [])
@@ -690,8 +857,15 @@ export function frammentoDaOfferta(
   // Gli altri ordini che il piano ha già (proposti da Silvio o da altre offerte) restano:
   // tenere l'offerta non deve far sparire gli ordini agli altri fornitori.
   const prima = piano.aree.materiali?.["materiali.acquisti"];
+  // La voce che l'offerta copre esce dagli altri ordini: la stessa voce non si ordina due volte
+  // (revisione 2/11, G12). Se l'altro ordine viene da un'altra offerta, `fondi` apre un conflitto vero.
   const altri = prima && !giaNellaCommessa(piano, prima) && prima.fonte.tipo !== "persona" && Array.isArray(prima.valore)
-    ? (prima.valore as OdaDelPiano[]).filter((o) => o.supplier_id !== richiesta.supplier_id) : [];
+    ? (prima.valore as OdaDelPiano[]).filter((o) => o.supplier_id !== richiesta.supplier_id).flatMap((o) => {
+      if (fase && o.fase && o.fase !== fase.nome) return [o];
+      const resto = (o.righe ?? []).filter((r) => !righe.some((x) => stessoNome(x.descrizione, r.descrizione)));
+      // Sparisce solo l'ordine rimasto senza righe per colpa dell'offerta.
+      return resto.length || !o.righe?.length ? [{ ...o, righe: resto }] : [];
+    }) : [];
   const valore: Omit<Valore, "fonte"> = {
     valore: [oda, ...altri], fiducia: 0.9, stato: "proposta",
     nota: "L'ordine in bozza dall'offerta letta: entra se lo confermi, e lo mandi tu dalla pagina dell'ordine.",

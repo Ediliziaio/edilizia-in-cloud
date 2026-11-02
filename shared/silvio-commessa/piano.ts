@@ -60,6 +60,21 @@ export interface Valore<T = unknown> {
   nota?: string | null;
   /** In ⚠ perché i conti non tornano (quadratura.ts): lo stato e la nota di prima. */
   quadratura?: { stato: Stato; nota: string | null };
+  /**
+   * Non entra finché una persona non lo conferma, qualunque sia il livello della variabile
+   * (revisione 2/11, G18): un importo scritto dalla chat, un elenco su cui le fonti litigavano.
+   */
+  daConfermare?: boolean;
+  /**
+   * La persona ci ha messo mano senza confermarlo (revisione 2/11, G5): ha tolto un elemento da
+   * una proposta. Resta una proposta, ma nessuna fonte le passa più sopra, e Silvio non la rifà.
+   */
+  toccato?: boolean;
+  /**
+   * In «Completa»: il valore che la commessa ha già, quando questo gli aggiunge le colonne che
+   * mancano (revisione 2/11, G8). Quelle colonne non si cambiano e non si riscrivono.
+   */
+  sopraCommessa?: Valore;
 }
 
 /** Due fonti che dicono cose diverse sulla stessa variabile: decide l'utente. */
@@ -68,6 +83,8 @@ export interface Conflitto {
   /** Chiave della variabile nel registro, es. "economia.total_amount". */
   chiave: string;
   candidati: Valore[];
+  /** Quello che Silvio ha capito del disaccordo (l'imponibile contro l'ivato): decide comunque la persona. */
+  nota?: string | null;
 }
 
 /**
@@ -112,7 +129,15 @@ export interface Frammento {
 
 /** Una modifica alla bozza: dal popup a mano o dagli strumenti della chat. */
 export type Modifica =
-  | { tipo: "cambia_valore"; area: Area; chiave: string; valore: unknown }
+  | {
+    tipo: "cambia_valore"; area: Area; chiave: string; valore: unknown;
+    /** Da mostrare accanto al valore (l'inizio che cadeva di sabato). */
+    nota?: string | null;
+    /** Dalla chat, sui campi che contano: resta una proposta da confermare (revisione 2/11, G18). */
+    proposta?: boolean;
+    /** Una conseguenza di un'altra modifica: il valore cambia, conferma e fonte restano com'erano. */
+    conservaStato?: boolean;
+  }
   | { tipo: "togli"; area: Area; chiave: string; indice?: number }
   | { tipo: "aggiungi"; area: Area; chiave: string; valore: unknown }
   | { tipo: "sposta_date"; giorniLavorativi: number; daFase?: string | null }
@@ -166,6 +191,11 @@ export interface RataDelPiano {
   /** Evento del cantiere che la rende esigibile (vedi src/lib/orders/rateEventi). */
   trigger_evento?: string | null;
   trigger_numero?: number | null;
+  /**
+   * L'importo viene da `percent` e il documento non diceva tutto (manca l'IVA o il totale):
+   * si rifà quando arriva quello che manca (quadratura.ts). Revisione 2/11, G9 e G20.
+   */
+  daPercentuale?: boolean;
 }
 
 /** Il costo previsto di una fase, in `costi.previsti`. */

@@ -17,6 +17,8 @@ const data = (v: unknown) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 };
 
+const SOCIETA = /\b(s\.?r\.?l|s\.?p\.?a|s\.?n\.?c|s\.?a\.?s|s\.?c\.?a\.?r\.?l|cooperativa|condominio|comune|azienda|impresa|societ[aà]|consorzio|fondazione|associazione|parrocchia|ente)\b/i;
+
 export function frammentoDaContratto(c: Record<string, unknown>): Frammento {
   const numeroContratto = testo(c.numero_contratto);
   const fr = nuovoFrammento({
@@ -28,7 +30,10 @@ export function frammentoDaContratto(c: Record<string, unknown>): Frammento {
   const opz = (dove: string) => (firmato ? { dove } : { dove, stato: "proposta" as const, fiducia: 0.85, nota: "Dal contratto non ancora firmato." });
 
   metti(fr, "identita.description", testo(c.oggetto_lavori).slice(0, 200), opz("oggetto dei lavori"));
-  metti(fr, "cliente.nome", colonne({ client_company: testo(c.committente_nome) }), opz("committente"));
+  // Il committente è una persona, salvo che abbia la partita IVA o il nome da società (revisione 2/11, G13).
+  const committente = testo(c.committente_nome);
+  const societa = !!testo(c.committente_pi) || SOCIETA.test(committente);
+  metti(fr, "cliente.nome", colonne(societa ? { client_company: committente } : { client_name: committente }), opz("committente"));
   metti(fr, "cliente.client_address", testo(c.committente_indirizzo), opz("committente"));
   metti(fr, "cantiere.indirizzo", colonne({ indirizzo_lavori: testo(c.ubicazione_cantiere) }), opz("ubicazione del cantiere"));
   const importo = numero(c.importo_totale_eur);

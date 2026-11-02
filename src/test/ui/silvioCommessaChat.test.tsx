@@ -197,7 +197,7 @@ describe("La chat sulla bozza", () => {
     apri(s);
     await within(commessa()).findByRole("region", { name: "Economia" });
     scrivi("IVA al 10");
-    await within(chat()).findByText("«IVA» ora è 10 %.");
+    await within(chat()).findByText("Ti propongo 10 % per «IVA»: entra nella commessa se lo confermi nella bozza.");
     expect(riga("economia.vat_rate")).not.toBeNull();
 
     scrivi("annulla");
@@ -231,7 +231,7 @@ describe("La chat sulla bozza", () => {
     apri(s, { orderId: COMMESSA, etichettaCommessa: "ORD-2026-034", iniziale: null });
     await within(chat()).findByText(/ci sono già/);
     scrivi("importo 32.000 e IVA al 10");
-    expect(await within(chat()).findByText(/«Importo» è già nella commessa: Silvio non lo cambia\..*«IVA» ora è 10 %\./)).toBeInTheDocument();
+    expect(await within(chat()).findByText(/«Importo» è già nella commessa: Silvio non lo cambia\..*Ti propongo 10 % per «IVA»/)).toBeInTheDocument();
     expect(riga("economia.total_amount")!.textContent).toMatch(/30\.000/);
     expect(riga("economia.vat_rate")!.textContent).toMatch(/10/);
   });
@@ -307,7 +307,7 @@ describe("Difetti trovati in revisione (01/11/2026)", () => {
     expect(within(chat()).getByText("IVA al 10")).toBeInTheDocument();
     expect(screen.getByText(/Silvio sta cambiando la bozza/)).toBeInTheDocument();
     await act(async () => { paga({ saldoEur: 5, bloccato: false }); });
-    await within(chat()).findByText("«IVA» ora è 10 %.");
+    await within(chat()).findByText("Ti propongo 10 % per «IVA»: entra nella commessa se lo confermi nella bozza.");
     expect(s.chat).toHaveBeenCalledTimes(1);
   });
 

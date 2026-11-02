@@ -124,11 +124,11 @@ export function autonomiaDaRighe(righe: readonly SceltaAutonomia[] | null | unde
   return out;
 }
 
-/** Il totale di un ordine coi prezzi; null se anche una riga non ha il prezzo. */
+/** Il totale di un ordine coi prezzi; null se anche una riga non ha il prezzo (0 non è un prezzo). */
 export function totaleOrdine(righe: readonly { quantita?: number | null; prezzo?: number | null; iva?: number | null }[]): number | null {
   let tot = 0;
   for (const r of righe) {
-    if (r?.prezzo == null || !Number.isFinite(Number(r.prezzo))) return null;
+    if (r?.prezzo == null || !Number.isFinite(Number(r.prezzo)) || Number(r.prezzo) <= 0) return null;
     const q = Number(r.quantita) > 0 ? Number(r.quantita) : 1;
     tot += q * Number(r.prezzo);
   }

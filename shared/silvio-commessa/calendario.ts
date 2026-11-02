@@ -127,6 +127,23 @@ export function primoGiornoUtile(data: string, cal: CalendarioCantiere = CALENDA
   return spostaLavorativi(data, 1, cal);
 }
 
+const dataEstesa = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+
+/**
+ * L'inizio dei lavori che una persona chiede (revisione 2/11, G3): se quel giorno è chiuso va
+ * al primo giorno utile, e l'avviso lo dice. Con `oggi`, dice anche se la data è già passata
+ * (G20). Da mostrare accanto al valore e nella risposta della chat.
+ */
+export function inizioUtile(
+  data: string, cal: CalendarioCantiere = CALENDARIO_NAZIONALE, oggi?: string | null,
+): { data: string; avviso: string | null } {
+  const utile = primoGiornoUtile(data, cal);
+  const parti: string[] = [];
+  if (utile !== data) parti.push(`Il ${dataEstesa(data)} è ${motivoChiuso(data, cal)}: i lavori partono il primo giorno utile, il ${dataEstesa(utile)}.`);
+  if (oggi && utile < oggi) parti.push(`Il ${dataEstesa(utile)} è già passato: controlla la data.`);
+  return { data: utile, avviso: parti.join(" ") || null };
+}
+
 /** Giorni lavorativi da `da` (escluso) ad `a` (incluso); negativo se `a` è prima. */
 export function lavorativiTra(da: string, a: string, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): number {
   if (!DATA.test(da) || !DATA.test(a) || da === a) return 0;

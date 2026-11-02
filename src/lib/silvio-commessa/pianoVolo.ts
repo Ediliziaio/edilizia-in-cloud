@@ -23,6 +23,10 @@ export interface PropostaVolo {
   problemi: ProblemaVolo[];
   azioni: AzioneVolo[];
   fase: string | null;
+  /** Indici di `azioni` che una conferma di prima ha già fatto: non si rifanno (D7). */
+  giaFatte: number[];
+  /** Quello che la conferma di prima ha saltato, col motivo: per queste la proposta è ancora aperta. */
+  saltate: { indice: number; tipo: string; motivo: string }[];
 }
 
 /**
@@ -38,19 +42,30 @@ export async function proposteDelVolo(orderId: string, db: ClientVolo = dbVero):
     problemi: Array.isArray(r.problemi) ? (r.problemi as ProblemaVolo[]) : [],
     azioni: Array.isArray(r.azioni) ? (r.azioni as AzioneVolo[]) : [],
     fase: typeof r.fase === "string" ? r.fase : null,
+    giaFatte: Array.isArray(r.gia_fatte) ? (r.gia_fatte as number[]) : [],
+    saltate: Array.isArray(r.saltate) ? (r.saltate as PropostaVolo["saltate"]) : [],
   }));
 }
 
 export interface EsitoConferma {
   fatte: { indice: number; tipo: string }[];
   saltate: { indice: number; tipo: string; motivo: string }[];
+  /** Indici fatti da una conferma di prima, che questa non ha rieseguito. */
+  giaFatte: number[];
+  /** Indici che la persona non ha scelto: restano da fare. */
+  nonScelte: number[];
+  /** «aperta» se c'è ancora qualcosa da fare (saltate o non scelte): la riga non va tolta. */
+  stato: "aperta" | "confermata";
 }
 
 export async function confermaVolo(id: string, indici: number[] | null, db: ClientVolo = dbVero): Promise<EsitoConferma> {
   const { data, error } = await db.rpc("silvio_volo_conferma", { p_id: id, p_indici: indici });
   if (error) throw new Error(error.message);
-  const d = (data ?? {}) as Partial<EsitoConferma>;
-  return { fatte: d.fatte ?? [], saltate: d.saltate ?? [] };
+  const d = (data ?? {}) as { fatte?: EsitoConferma["fatte"]; saltate?: EsitoConferma["saltate"]; gia_fatte?: number[]; non_scelte?: number[]; stato?: string };
+  return {
+    fatte: d.fatte ?? [], saltate: d.saltate ?? [], giaFatte: d.gia_fatte ?? [], nonScelte: d.non_scelte ?? [],
+    stato: d.stato === "aperta" ? "aperta" : "confermata",
+  };
 }
 
 export async function scartaVolo(id: string, db: ClientVolo = dbVero): Promise<void> {

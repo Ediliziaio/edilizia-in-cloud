@@ -183,7 +183,7 @@ describe("le lacune", () => {
 });
 
 describe("la funzione del piano di volo (E4, S6)", () => {
-  const funzione = readFileSync(resolve(radice, "supabase/functions/silvio-piano-volo/index.ts"), "utf8");
+  const funzione = readFileSync(resolve(radice, "supabase/functions/silvio-piano-volo/index.ts"), "utf8") + readFileSync(resolve(radice, "supabase/functions/silvio-piano-volo/giro.ts"), "utf8");
   it("legge le fasi in una finestra, dalle commesse aperte, a rotazione dalla meno vista", () => {
     expect(funzione).toMatch(/\.lte\("start_date", aggiungiGiorni\(oggi, GIORNI_AVANTI\)\)/);
     expect(funzione).toMatch(/\.not\("ordine\.status", "in"/);
@@ -192,7 +192,7 @@ describe("la funzione del piano di volo (E4, S6)", () => {
     expect(funzione).toMatch(/visteIl\.get\(a\) \?\? ""\)\.localeCompare/);
   });
   it("la campanella suona solo per una proposta nuova o cambiata", () => {
-    expect(funzione).toContain("if (daNotificare(reg)) nuove.push(c.riassunto)");
+    expect(funzione).toContain("if (daNotificare(reg) && controlloDaSegnalare(c)) nuove.push(c.riassunto)");
     expect(funzione).toMatch(/r\.nuova === true \|\| r\.cambiata === true/);
   });
 });

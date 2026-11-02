@@ -39,7 +39,7 @@ function pianoConFasi(fasi: unknown[], extra: Frammento["aree"] = {}): PianoComm
 
 const FASI = [
   { name: "Demolizioni", start_date: "2026-12-01", end_date: "2026-12-03", sottofasi: [{ name: "Demolizione pavimento", quantita: 20, unita: "mq", costo: 400 }] },
-  { name: "Impianto idraulico", start_date: "2026-12-07", end_date: "2026-12-11", sottofasi: [{ name: "Tubazioni multistrato", quantita: 30, unita: "m", costo: 900 }] },
+  { name: "Impianto idraulico", start_date: "2026-12-07", end_date: "2026-12-11", sottofasi: [{ name: "Tubazioni multistrato", quantita: 30, unita: "m", costo: 500 }, { name: "Manodopera impianto", quantita: 1, unita: "a corpo", costo: 900 }] },
   { name: "Impianto elettrico", start_date: "2026-12-14", end_date: "2026-12-16", sottofasi: [] },
 ];
 
@@ -280,8 +280,11 @@ describe("4.3 Bozze rosse, mai inviate", () => {
     ], fasi);
     expect(contratti).toHaveLength(2);
     expect(contratti[0]).toMatchObject({
-      external_team_id: IDRAULICA, importo: 900, dal: "2026-12-07", al: "2026-12-11", stato: "proposta",
-      elenco: [{ fase: "Impianto idraulico", descrizione: "Tubazioni multistrato", unita: "m", quantita: 30, prezzo: 30, importo: 900, codice: null }],
+      external_team_id: IDRAULICA, importo: 1400, dal: "2026-12-07", al: "2026-12-11", stato: "proposta",
+      elenco: [
+        { fase: "Impianto idraulico", descrizione: "Tubazioni multistrato", unita: "m", quantita: 30, prezzo: 16.67, importo: 500, codice: null },
+        { fase: "Impianto idraulico", descrizione: "Manodopera impianto", unita: "a corpo", quantita: 1, prezzo: 900, importo: 900, codice: null },
+      ],
     });
     // Fase senza voci: entra a corpo col suo costo previsto.
     expect(contratti[1]).toMatchObject({ stato: "attenzione", importo: 300, elenco: [expect.objectContaining({ unita: "a corpo", importo: 300 })] });
@@ -320,11 +323,10 @@ describe("4.3 Bozze rosse, mai inviate", () => {
       righe: [{ descrizione: "Tubazioni multistrato", quantita: 30, prezzo: 9, iva: 22 }], offerta_id: id(61), avviso: null,
     });
     expect(oda.map((o) => o.supplier_id)).toEqual([FORNITORE, altro]);
-    // Offerta e proposta di Silvio non sono d'accordo: si sceglie, e tenendo l'offerta l'altro ordine resta.
+    // L'offerta vince sulla proposta di Silvio senza chiedere (revisione 2/11, G12), e l'altro ordine resta.
     const dopo = fondi(piano, fr);
-    expect(dopo.conflitti.map((c) => c.chiave)).toEqual(["materiali.acquisti"]);
-    const scelto = applica(dopo, { tipo: "scegli_fonte", area: "materiali", chiave: "materiali.acquisti", fonte: "offerta", idFonte: id(61) }).piano;
-    expect((scelto.aree.materiali!["materiali.acquisti"].valore as OdaDelPiano[]).map((o) => o.supplier_id)).toEqual([FORNITORE, altro]);
+    expect(dopo.conflitti).toEqual([]);
+    expect((dopo.aree.materiali!["materiali.acquisti"].valore as OdaDelPiano[]).map((o) => o.supplier_id)).toEqual([FORNITORE, altro]);
   });
 });
 

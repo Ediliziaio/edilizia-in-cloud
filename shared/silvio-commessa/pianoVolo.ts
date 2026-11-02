@@ -40,7 +40,13 @@ export interface FaseInVolo {
 export interface StatoDellaFase {
   persone: { employee_id: string; nome: string }[];
   mezzi: { mezzo_id: string; nome: string }[];
-  ditte: { external_team_id: string; nome: string; subappaltatore_id: string | null }[];
+  ditte: {
+    external_team_id: string; nome: string; subappaltatore_id: string | null;
+    /** Una squadra interna dell'azienda: niente DURC né contratto. */
+    interna?: boolean;
+    /** Lo stato del contratto della ditta sulla commessa, null se non c'è. Assente: non guardato. */
+    contratto?: string | null;
+  }[];
   /** Gli ordini della commessa che servono entro la fine della fase. */
   ordini: { id: string; numero: string | null; fornitore: string; stato: string; consegna: string | null }[];
 }
@@ -87,6 +93,15 @@ export function fasiAppenaFinite(fasi: readonly FaseInVolo[], oggi: string, cal:
 
 const ARRIVATI = new Set(["ricevuto", "annullato"]);
 
+/** Cosa non va nel contratto della ditta, dagli stati di `contratti_subappalto`. */
+function problemaContratto(stato: string | null): string | null {
+  if (stato === "attivo" || stato === "completato") return null;
+  if (stato === "bozza") return "ha il contratto ancora in bozza, non firmato";
+  if (stato === "sospeso") return "ha il contratto sospeso";
+  if (stato === "risolto") return "ha il contratto risolto";
+  return "non ha un contratto per questa commessa";
+}
+
 /** Il controllo di una fase, coi dati di adesso. */
 export function controlloFase(
   fase: FaseInVolo, stato: StatoDellaFase, ctx: ContestoRisorse, autonomia: Autonomia | null = null,
@@ -100,10 +115,17 @@ export function controlloFase(
   // ── Persone ──
   const attivi = new Set(ctx.dipendenti.filter((d) => d.attivo).map((d) => d.id));
   const nome = (id: string) => ctx.dipendenti.find((d) => d.id === id)?.nome ?? "Dipendente";
-  const occupati = stato.persone.map((p) => ({ p, motivo: personaOccupata(ctx, p.employee_id, dal, al) })).filter((x) => x.motivo);
+  // Chi non è più attivo non lavora, anche se è libero (D13: prima era «Tutto pronto»).
+  const fuori = (id: string) => ctx.dipendenti.find((d) => d.id === id)?.attivo === false;
+  const occupati = stato.persone
+    .map((p) => ({ p, motivo: fuori(p.employee_id) ? "non è più tra i dipendenti attivi" : personaOccupata(ctx, p.employee_id, dal, al) }))
+    .filter((x) => x.motivo);
   for (const { p, motivo } of occupati) problemi.push({ area: "persone", testo: `${p.nome} ${motivo}.` });
   const liberi = stato.persone.length - occupati.length;
-  if (liberi === 0) {
+  // La fase la fa una ditta: nessun dipendente assegnato non è un problema (D13). Se la ditta non
+  // è in regola lo dice la sezione delle ditte, con le parole giuste.
+  const laFaUnaDitta = !stato.persone.length && stato.ditte.length > 0;
+  if (liberi === 0 && !laFaUnaDitta) {
     if (!stato.persone.length) problemi.push({ area: "persone", testo: `Nessuno è assegnato a «${fase.nome}», che parte ${quando}.` });
     if (puo("squadra")) {
       const gia = new Set(stato.persone.map((p) => p.employee_id));
@@ -138,31 +160,44 @@ export function controlloFase(
   }
 
   // ── Materiali: gli ordini della commessa ──
+  // Le attività sono promemoria: se il titolare li ha vietati, il problema si dice ma non si propone (D11).
+  const attivita = (a: Omit<Extract<AzioneVolo, { tipo: "attivita" }>, "tipo">) => {
+    if (puo("promemoria")) azioni.push({ tipo: "attivita", ...a });
+  };
   for (const o of stato.ordini) {
     if (ARRIVATI.has(o.stato)) continue;
     const chi = `L'ordine ${o.numero ?? ""} a ${o.fornitore}`.replace(/\s+/g, " ");
     if (o.stato === "bozza") {
       problemi.push({ area: "materiali", testo: `${chi} è ancora in bozza: non è partito.` });
-      azioni.push({ tipo: "attivita", titolo: `Manda l'ordine ${o.numero ?? ""} a ${o.fornitore}`.replace(/\s+/g, " "), scadenza: null,
+      attivita({ titolo: `Manda l'ordine ${o.numero ?? ""} a ${o.fornitore}`.replace(/\s+/g, " "), scadenza: null,
         testo: `Serve per «${fase.nome}», che parte ${quando}. È in bozza: controllalo e mandalo dalla pagina dell'ordine.` });
     } else if (!o.consegna) {
       problemi.push({ area: "materiali", testo: `${chi} non ha la data di consegna.` });
-      azioni.push({ tipo: "attivita", titolo: `Chiedi a ${o.fornitore} quando consegna`, scadenza: null,
+      attivita({ titolo: `Chiedi a ${o.fornitore} quando consegna`, scadenza: null,
         testo: `L'ordine ${o.numero ?? ""} serve per «${fase.nome}», che parte ${quando}, e non ha la data di consegna.` });
     } else if (dal && o.consegna > dal) {
       problemi.push({ area: "materiali", testo: `${chi} arriva il ${dataCorta(o.consegna)}, dopo l'inizio della fase.` });
-      azioni.push({ tipo: "attivita", titolo: `Sollecita ${o.fornitore}: consegna prima del ${dataCorta(dal)}`, scadenza: null,
+      attivita({ titolo: `Sollecita ${o.fornitore}: consegna prima del ${dataCorta(dal)}`, scadenza: null,
         testo: `L'ordine ${o.numero ?? ""} arriva il ${dataCorta(o.consegna)}, ma «${fase.nome}» parte ${quando}.` });
     }
   }
 
   // ── Ditte: DURC e documenti per tutta la fase ──
   for (const d of stato.ditte) {
+    if (d.interna) continue;
     const motivo = documentiDitta(ctx, { id: d.external_team_id, nome: d.nome, subappaltatore_id: d.subappaltatore_id }, al);
-    if (!motivo) continue;
-    problemi.push({ area: "ditte", testo: `${d.nome} ${motivo}.` });
-    azioni.push({ tipo: "attivita", titolo: `Chiedi a ${d.nome} il DURC e i documenti aggiornati`, scadenza: null,
-      testo: `${d.nome} ${motivo}. Senza documenti in regola la ditta non entra in cantiere (${fase.nome}, ${quando}).` });
+    if (motivo) {
+      problemi.push({ area: "ditte", testo: `${d.nome} ${motivo}.` });
+      attivita({ titolo: `Chiedi a ${d.nome} il DURC e i documenti aggiornati`, scadenza: null,
+        testo: `${d.nome} ${motivo}. Senza documenti in regola la ditta non entra in cantiere (${fase.nome}, ${quando}).` });
+    }
+    // Il contratto (D13). Senza subappaltatore collegato non ce ne può essere uno: l'ha già detto il DURC.
+    if (d.contratto === undefined || !d.subappaltatore_id) continue;
+    const contratto = problemaContratto(d.contratto);
+    if (!contratto) continue;
+    problemi.push({ area: "ditte", testo: `${d.nome} ${contratto}.` });
+    attivita({ titolo: `Sistema il contratto di ${d.nome}`, scadenza: null,
+      testo: `${d.nome} ${contratto}: va sistemato prima che entri in cantiere (${fase.nome}, ${quando}).` });
   }
 
   // ── Meteo di stagione ──
@@ -175,10 +210,18 @@ export function controlloFase(
   return { fase, problemi, azioni, riassunto };
 }
 
+/** La campanella: «Tutto pronto» non è una cosa da guardare (D11), si legge sulla commessa. */
+export function controlloDaSegnalare(c: ControlloFase): boolean {
+  return c.azioni.length > 0 || c.problemi.some((p) => p.area !== "meteo");
+}
+
 // ── Il SAL a fine fase ──────────────────────────────────────────────────────
 
 export interface DatiSal {
-  /** Le fasi della commessa, con le durate in giorni lavorativi (o le date). */
+  /**
+   * TUTTE le fasi della commessa (D8), con le durate in giorni lavorativi (o le date): con le sole
+   * fasi vicine, finita la terza di dieci, l'avanzamento veniva 50 % invece di 30 %.
+   */
   fasi: readonly (FaseInVolo & { giorni?: number | null })[];
   /** La fase appena finita. */
   finita: FaseInVolo;

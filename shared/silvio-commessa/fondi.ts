@@ -65,6 +65,75 @@ export function stessoValore(a: unknown, b: unknown): boolean {
 
 const NOTA_CONFLITTO = "Le fonti non sono d'accordo: scegli tu quale tenere.";
 
+// ── Quando due fonti dicono la stessa cosa (revisione 2/11, G13) ─────────────
+// Solo i testi si leggono con larghezza: un numero diverso resta un numero diverso.
+
+const senzaAccenti = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const testoPiano = (s: string) => senzaAccenti(s).toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Come `stessoValore`, ma i testi senza maiuscole, accenti e spazi doppi. */
+function stessoTesto(a: unknown, b: unknown): boolean {
+  if (typeof a === "string" && typeof b === "string") return testoPiano(a) === testoPiano(b);
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((x, i) => stessoTesto(x, b[i]));
+  if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) {
+    const pieni = (o: object) => Object.entries(o).filter(([, x]) => x != null);
+    const pa = pieni(a);
+    return pa.length === pieni(b).length && pa.every(([k, x]) => stessoTesto(x, (b as Record<string, unknown>)[k]));
+  }
+  return stessoValore(a, b);
+}
+
+/** Le parole di un indirizzo, senza punteggiatura né sigla della provincia. */
+const paroleIndirizzo = (s: string) => new Set(testoPiano(s).split(/[^a-z0-9]+/).filter((p) => p && !/^[a-z]{2}$/.test(p)));
+
+/** «Via Roma 1 - Milano» e «Via Roma 1, 20121 Milano (MI)»: una dice tutte le parole dell'altra. */
+function stessoIndirizzo(a: string, b: string): boolean {
+  const [corto, lungo] = [paroleIndirizzo(a), paroleIndirizzo(b)].sort((x, y) => x.size - y.size);
+  return corto.size >= 2 && [...corto].every((p) => lungo.has(p));
+}
+
+const oggettoDi = (v: unknown): Record<string, unknown> | null =>
+  (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
+const pieneDi = (o: Record<string, unknown>) => Object.entries(o).filter(([, x]) => x != null && x !== "");
+const soloCifre = (s: unknown) => String(s ?? "").replace(/\D/g, "").replace(/^(00)?39(?=\d{9,})/, "");
+
+/** Lo stesso dato di una colonna: il telefono per le sue cifre. */
+function stessaColonna(colonna: string, a: unknown, b: unknown): boolean {
+  if (/phone/.test(colonna)) return soloCifre(a) === soloCifre(b);
+  return stessoTesto(a, b);
+}
+
+/** I due valori dicono la stessa cosa, anche se uno dice di meno? */
+function stessoSenso(chiave: string, a: unknown, b: unknown): boolean {
+  if (stessoTesto(a, b)) return true;
+  const oa = oggettoDi(a);
+  const ob = oggettoDi(b);
+  if (!oa || !ob || (variabile(chiave)?.colonne.length ?? 0) < 2) return false;
+  if (chiave === "cantiere.indirizzo") {
+    const ia = pieneDi(oa)[0]?.[1];
+    const ib = pieneDi(ob)[0]?.[1];
+    return typeof ia === "string" && typeof ib === "string" && stessoIndirizzo(ia, ib);
+  }
+  if (chiave === "cliente.nome") {
+    // Persona o ditta è una scelta del lettore: conta il nome, in qualunque colonna stia.
+    const nomi = (o: Record<string, unknown>) => pieneDi(o).map(([, x]) => testoPiano(String(x)));
+    const [corti, lunghi] = [nomi(oa), nomi(ob)].sort((x, y) => x.length - y.length);
+    return corti.length > 0 && corti.every((n) => lunghi.includes(n));
+  }
+  const comuni = pieneDi(oa).filter(([k]) => ob[k] != null && ob[k] !== "");
+  return comuni.every(([k, x]) => stessaColonna(k, x, ob[k]));
+}
+
+/** Il valore più fidato, con le colonne che dice solo l'altro. */
+function valoreUnito(chiave: string, fidato: unknown, altro: unknown): unknown {
+  const of = oggettoDi(fidato);
+  const oa = oggettoDi(altro);
+  if (!of || !oa || chiave === "cantiere.indirizzo" || chiave === "cliente.nome") return fidato;
+  return { ...Object.fromEntries(pieneDi(oa)), ...Object.fromEntries(pieneDi(of)) };
+}
+
+const FONTI_DEBOLI: readonly string[] = ["modello", "stima"];
+
 function conValore(piano: PianoCommessa, area: Area, chiave: string, valore: Valore | null): PianoCommessa {
   const dellArea = { ...(piano.aree[area] ?? {}) };
   if (valore) dellArea[chiave] = valore;
@@ -81,18 +150,30 @@ function senzaConflitto(conflitti: Conflitto[], area: Area, chiave: string): Con
  * fonte sostituisce la lettura vecchia; a parità di valore resta la fonte più fidata;
  * l'ordine finale è quello di fiducia (a parità, chi c'era prima).
  */
-function candidati(prima: Valore[], nuovo: Valore): Valore[] {
+function candidati(chiave: string, prima: Valore[], nuovo: Valore): Valore[] {
   const tutti = [...prima.filter((c) => !stessaFonte(c.fonte, nuovo.fonte)), nuovo];
   const unici: Valore[] = [];
   for (const c of tutti) {
-    const i = unici.findIndex((u) => stessoValore(u.valore, c.valore));
+    const i = unici.findIndex((u) => stessoSenso(chiave, u.valore, c.valore));
     if (i < 0) unici.push(c);
-    else if (rangoFonte(c.fonte) < rangoFonte(unici[i].fonte)) unici[i] = c;
+    else if (rangoFonte(c.fonte) < rangoFonte(unici[i].fonte)) unici[i] = { ...c, valore: valoreUnito(chiave, c.valore, unici[i].valore) };
+    else unici[i] = { ...unici[i], valore: valoreUnito(chiave, unici[i].valore, c.valore) };
   }
-  return unici
+  // Un modello o una stima riempiono un vuoto: davanti a una fonte vera non si litiga (G13).
+  const vere = unici.filter((c) => !FONTI_DEBOLI.includes(c.fonte.tipo));
+  // Un ordine cumulativo contiene quelli di prima: la seconda offerta non contraddice la prima (G12).
+  const scelte = chiave === "materiali.acquisti" ? senzaContenuti(vere.length ? vere : unici) : vere.length ? vere : unici;
+  return scelte
     .map((c, i) => ({ c, i }))
     .sort((x, y) => rangoFonte(x.c.fonte) - rangoFonte(y.c.fonte) || x.i - y.i)
     .map((x) => x.c);
+}
+
+/** Toglie gli elenchi che stanno interi dentro un altro candidato. */
+function senzaContenuti(lista: Valore[]): Valore[] {
+  const dentro = (a: Valore, b: Valore) => Array.isArray(a.valore) && Array.isArray(b.valore)
+    && a.valore.every((x) => (b.valore as unknown[]).some((y) => stessoValore(x, y)));
+  return lista.filter((c) => !lista.some((d) => d !== c && dentro(c, d)));
 }
 
 /**
@@ -145,26 +226,82 @@ function conScartato(piano: PianoCommessa, area: Area, chiave: string, nuovo: Va
   return { ...piano, scartati: [...altri, { area, chiave, valore: nuovo }] };
 }
 
-function fondiValore(piano: PianoCommessa, area: Area, chiave: string, nuovo: Valore): PianoCommessa {
+const conAvviso = (piano: PianoCommessa, testo: string): PianoCommessa =>
+  ((piano.avvisi ?? []).includes(testo) ? piano : { ...piano, avvisi: [...(piano.avvisi ?? []), testo] });
+
+const inParole = (v: unknown): string => {
+  if (typeof v === "number") return v.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  const o = oggettoDi(v);
+  return o ? pieneDi(o).map(([, x]) => String(x)).join(", ") : String(v);
+};
+const NOMI_COLONNE: Readonly<Record<string, string>> = {
+  client_email: "l'email", client_phone: "il telefono", client_name: "il nome", client_company: "la ragione sociale",
+  dl_notification_email: "l'email del direttore dei lavori", dl_notification_phone: "il telefono del direttore dei lavori",
+};
+
+/**
+ * Un documento su una colonna che la commessa ha già (revisione 2/11, G8). Il valore della
+ * commessa resta, e se è diverso lo si dice; le colonne che le mancano diventano una proposta.
+ */
+function confrontoConCommessa(piano: PianoCommessa, area: Area, chiave: string, esistente: Valore, nuovo: Valore): PianoCommessa {
+  const def = variabile(chiave);
+  if (!def?.colonne.length || FONTI_DEBOLI.includes(nuovo.fonte.tipo) || nuovo.valore == null) return piano;
+  const dice = `${nuovo.fonte.etichetta} dice ${inParole(nuovo.valore)} per «${def.etichetta}», la commessa ha ${inParole(esistente.valore)}: resta quello della commessa.`;
+  const inCommessa = oggettoDi(esistente.valore);
+  const arrivato = oggettoDi(nuovo.valore);
+  if (!inCommessa || !arrivato) return stessoSenso(chiave, esistente.valore, nuovo.valore) ? piano : conAvviso(piano, dice);
+
+  if (chiave === "cantiere.indirizzo") return stessoSenso(chiave, esistente.valore, nuovo.valore) ? piano : conAvviso(piano, dice);
+  const piena = (k: string) => inCommessa[k] != null && inCommessa[k] !== "";
+  const base = pieneDi(arrivato).some(([k, x]) => piena(k) && !stessaColonna(k, x, inCommessa[k])) ? conAvviso(piano, dice) : piano;
+  // Il nome scritto in un'altra colonna non è una colonna che manca, è lo stesso dato.
+  const giaDetti = pieneDi(inCommessa).map(([, x]) => testoPiano(String(x)));
+  const mancanti = pieneDi(arrivato).filter(([k, x]) => !piena(k) && !(chiave === "cliente.nome" && giaDetti.includes(testoPiano(String(x)))));
+  if (!mancanti.length) return base;
+  const nomi = mancanti.map(([k]) => NOMI_COLONNE[k] ?? "il dato che manca");
+  return conValore(base, area, chiave, {
+    ...nuovo, valore: { ...inCommessa, ...Object.fromEntries(mancanti) }, stato: "proposta", sopraCommessa: esistente,
+    nota: `La commessa non ha ${nomi.join(" né ")}: te lo propongo dal ${nuovo.fonte.etichetta}. Il resto resta com'è.`,
+  });
+}
+
+function fondiValore(piano: PianoCommessa, area: Area, chiave: string, arrivato: Valore): PianoCommessa {
   const esistente = piano.aree[area]?.[chiave];
   const aperto = piano.conflitti.find((c) => c.area === area && c.chiave === chiave);
+  let nuovo = arrivato;
 
+  // La commessa riletta (una bozza ripresa) non si porta via le colonne che le si stanno aggiungendo.
+  if (giaNellaCommessa(piano, nuovo) && esistente?.sopraCommessa && !giaNellaCommessa(piano, esistente)) {
+    return conValore(piano, area, chiave, {
+      ...esistente, sopraCommessa: nuovo,
+      valore: { ...(oggettoDi(esistente.valore) ?? {}), ...(oggettoDi(nuovo.valore) ?? {}) },
+    });
+  }
   // Quello che scrive una persona vince sempre, e non si rimette in discussione.
-  if (nuovo.fonte.tipo === "persona") {
+  if (nuovo.fonte.tipo === "persona" || nuovo.toccato) {
     return { ...conValore(piano, area, chiave, nuovo), conflitti: senzaConflitto(piano.conflitti, area, chiave) };
   }
-  if (esistente?.fonte.tipo === "persona") {
+  if (esistente?.fonte.tipo === "persona" || esistente?.toccato) {
     // Le fasi della commessa senza date: le date che dice un'altra fonte diventano una proposta.
     const date = chiave === CHIAVE_FASI && giaNellaCommessa(piano, esistente)
       ? dateProposteAlleFasi(esistente.valore, nuovo.valore) : null;
-    if (!date) return giaNellaCommessa(piano, esistente) ? piano : conScartato(piano, area, chiave, nuovo);
+    if (!date) {
+      return giaNellaCommessa(piano, esistente)
+        ? confrontoConCommessa(piano, area, chiave, esistente!, nuovo)
+        : conScartato(piano, area, chiave, nuovo);
+    }
     return fondiValore(piano, "fasi", CHIAVE_DATE_FASI, {
       ...nuovo, valore: date, stato: "proposta",
       nota: `Le fasi della commessa non hanno date: te le propongo dal ${nuovo.fonte.etichetta}. Le fasi restano come sono.`,
     });
   }
 
-  const lista = candidati(aperto ? aperto.candidati : esistente ? [esistente] : [], nuovo);
+  // Sopra una commessa: le colonne che ha già non cambiano, qualunque cosa dica il documento.
+  const sopra = esistente?.sopraCommessa;
+  if (sopra && oggettoDi(nuovo.valore)) {
+    nuovo = { ...nuovo, sopraCommessa: sopra, valore: { ...oggettoDi(nuovo.valore), ...oggettoDi(sopra.valore) } };
+  }
+  const lista = candidati(chiave, aperto ? aperto.candidati : esistente ? [esistente] : [], nuovo);
   const altri = senzaConflitto(piano.conflitti, area, chiave);
   if (lista.length === 1) return { ...conValore(piano, area, chiave, lista[0]), conflitti: altri };
 
@@ -181,17 +318,17 @@ function fondiValore(piano: PianoCommessa, area: Area, chiave: string, nuovo: Va
 export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa {
   const etichetta = frammento.fonte.etichetta;
   const avvisi = [...(piano.avvisi ?? []), ...(frammento.avvisi ?? []).map((a) => `${etichetta}: ${a}`)];
-  let out: PianoCommessa = { ...piano };
+  let out: PianoCommessa = { ...piano, avvisi };
 
   for (const [nomeArea, valori] of Object.entries(frammento.aree)) {
     if (!(AREE as readonly string[]).includes(nomeArea)) {
-      avvisi.push(`${etichetta}: l'area «${nomeArea}» non esiste, ignorata`);
+      out = { ...out, avvisi: [...(out.avvisi ?? []), `${etichetta}: l'area «${nomeArea}» non esiste, ignorata`] };
       continue;
     }
     const area = nomeArea as Area;
     for (const [chiave, v] of Object.entries(valori ?? {})) {
       if (variabile(chiave)?.area !== area) {
-        avvisi.push(`${etichetta}: «${chiave}» non è una variabile dell'area ${area}, ignorata`);
+        out = { ...out, avvisi: [...(out.avvisi ?? []), `${etichetta}: «${chiave}» non è una variabile dell'area ${area}, ignorata`] };
         continue;
       }
       out = fondiValore(out, area, chiave, { ...v, fonte: v.fonte ?? frammento.fonte });
@@ -199,7 +336,25 @@ export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa
   }
 
   const fonti = out.fonti.some((f) => stessaFonte(f, frammento.fonte)) ? out.fonti : [...out.fonti, frammento.fonte];
-  return conQuadratura({ ...out, fonti, avvisi });
+  return conQuadratura(conNotaImponibile({ ...out, fonti }));
+}
+
+/**
+ * Due importi che differiscono esattamente per l'IVA (revisione 2/11, G20): probabilmente sono
+ * l'imponibile e l'ivato. Resta un conflitto, ma Silvio dice cosa ha capito.
+ */
+function conNotaImponibile(piano: PianoCommessa): PianoCommessa {
+  const iva = piano.aree.economia?.["economia.vat_rate"]?.valore;
+  const conflitto = piano.conflitti.find((c) => c.chiave === "economia.total_amount");
+  if (!conflitto || typeof iva !== "number" || iva <= 0) return piano;
+  const importi = conflitto.candidati.map((c) => c.valore).filter((v): v is number => typeof v === "number");
+  const netto = importi.find((a) => importi.some((b) => Math.abs(a * (1 + iva / 100) - b) <= 1));
+  if (netto == null) return piano;
+  const nota = `${inParole(Math.round(netto * (1 + iva / 100) * 100) / 100)} € è ${inParole(netto)} € più l'IVA al ${iva} %: sembra lo stesso importo. Nella commessa va quello senza IVA, ${inParole(netto)} €, se è così.`;
+  if (conflitto.nota === nota) return piano;
+  const mostrato = piano.aree.economia?.["economia.total_amount"];
+  const conN = mostrato ? conValore(piano, "economia", "economia.total_amount", { ...mostrato, nota }) : piano;
+  return { ...conN, conflitti: conN.conflitti.map((c) => (c === conflitto ? { ...c, nota } : c)) };
 }
 
 // ── Modifiche e annulla ─────────────────────────────────────────────────────
@@ -230,6 +385,19 @@ function daPersona(valore: unknown, etichetta: string, base?: Fonte): Valore {
   return { valore, fonte, fiducia: 1, stato: "fatto", nota: null };
 }
 
+/**
+ * Un elenco a cui la persona ha tolto o aggiunto un elemento (revisione 2/11, G5): quello che
+ * era confermato resta confermato, quello che era una proposta resta una proposta. Prima
+ * togliere una persona confermava tutte le altre.
+ */
+function elencoToccato(attuale: Valore, lista: unknown[]): Valore {
+  const stato = attuale.quadratura?.stato ?? attuale.stato;
+  if (attuale.fonte.tipo === "persona" || stato === "fatto") return daPersona(lista, "modificato da te");
+  const { quadratura, ...resto } = attuale;
+  if (stato === "attenzione") return { ...resto, valore: lista, stato: "proposta", nota: null, toccato: true, daConfermare: true };
+  return { ...resto, valore: lista, stato, ...(quadratura ? { nota: quadratura.nota } : {}), toccato: true };
+}
+
 /** Le date singole che seguono la fine dei lavori. */
 const DATE_FINALI = ["fasi.work_end_date", "fasi.expected_date"] as const;
 
@@ -254,14 +422,35 @@ function spostaFase(fase: unknown, n: number, cal: CalendarioCantiere): unknown 
 /** Le variabili toccate da una modifica, coi loro valori nuovi (null = tolta). */
 function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave: string; valore: Valore | null }[] {
   switch (modifica.tipo) {
-    case "cambia_valore":
+    case "cambia_valore": {
       controllaChiave(modifica.area, modifica.chiave);
-      return [{ area: modifica.area, chiave: modifica.chiave, valore: daPersona(modifica.valore, "modificato da te") }];
+      const attuale = piano.aree[modifica.area]?.[modifica.chiave];
+      const nota = modifica.nota !== undefined ? { nota: modifica.nota } : {};
+      if (modifica.conservaStato && attuale) {
+        const { quadratura, ...resto } = attuale;
+        return [{ area: modifica.area, chiave: modifica.chiave, valore: { ...resto, valore: modifica.valore, stato: quadratura?.stato ?? resto.stato, ...(quadratura ? { nota: quadratura.nota } : {}), ...nota } }];
+      }
+      if (modifica.proposta) {
+        return [{ area: modifica.area, chiave: modifica.chiave, valore: {
+          valore: modifica.valore, fonte: { tipo: "testo", etichetta: "scritto in chat" }, fiducia: 0.5, stato: "proposta",
+          nota: modifica.nota ?? "Scritto in chat: entra nella commessa solo se lo confermi.", daConfermare: true, toccato: true,
+        } }];
+      }
+      // Le colonne che mancano a una commessa: quelle che ha già restano lì sotto.
+      const commessa = attuale?.sopraCommessa ?? (giaNellaCommessa(piano, attuale) ? attuale : null);
+      return [{
+        area: modifica.area, chiave: modifica.chiave,
+        valore: { ...daPersona(modifica.valore, "modificato da te"), ...nota, ...(commessa ? { sopraCommessa: commessa } : {}) },
+      }];
+    }
 
     case "togli": {
       controllaChiave(modifica.area, modifica.chiave);
       const attuale = piano.aree[modifica.area]?.[modifica.chiave]?.valore;
       if (modifica.indice == null) {
+        // Togliere la proposta fatta sopra una commessa rimette la commessa com'è.
+        const sotto = piano.aree[modifica.area]?.[modifica.chiave]?.sopraCommessa;
+        if (sotto) return [{ area: modifica.area, chiave: modifica.chiave, valore: sotto }];
         // Resta come «tolto da te» (null scritto da una persona): un frammento che arriva
         // dopo non lo rimette.
         return [{ area: modifica.area, chiave: modifica.chiave, valore: daPersona(null, "tolto da te") }];
@@ -270,7 +459,7 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
         throw new Error(`«${modifica.chiave}» non ha un elemento ${modifica.indice}`);
       }
       const lista = attuale.filter((_, i) => i !== modifica.indice);
-      return [{ area: modifica.area, chiave: modifica.chiave, valore: daPersona(lista, "modificato da te") }];
+      return [{ area: modifica.area, chiave: modifica.chiave, valore: elencoToccato(piano.aree[modifica.area]![modifica.chiave], lista) }];
     }
 
     case "aggiungi": {
@@ -278,7 +467,8 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
       const attuale = piano.aree[modifica.area]?.[modifica.chiave]?.valore;
       if (attuale != null && !Array.isArray(attuale)) throw new Error(`«${modifica.chiave}» non è un elenco`);
       const lista = [...((attuale as unknown[] | null | undefined) ?? []), modifica.valore];
-      return [{ area: modifica.area, chiave: modifica.chiave, valore: daPersona(lista, "modificato da te") }];
+      const v = piano.aree[modifica.area]?.[modifica.chiave];
+      return [{ area: modifica.area, chiave: modifica.chiave, valore: v ? elencoToccato(v, lista) : daPersona(lista, "modificato da te") }];
     }
 
     case "sposta_date": {
@@ -329,7 +519,10 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
         : modifica.etichettaFonte == null || c.fonte.etichetta === modifica.etichettaFonte));
       if (!scelto) throw new Error(`«${modifica.chiave}»: nessun valore dalla fonte ${modifica.fonte}`);
       // Scelto dall'utente: vale come scritto da una persona, ma la ⓘ porta ancora al documento.
-      return [{ area: modifica.area, chiave: modifica.chiave, valore: daPersona(scelto.valore, "scelto da te", scelto.fonte) }];
+      return [{
+        area: modifica.area, chiave: modifica.chiave,
+        valore: { ...daPersona(scelto.valore, "scelto da te", scelto.fonte), ...(scelto.sopraCommessa ? { sopraCommessa: scelto.sopraCommessa } : {}) },
+      }];
     }
   }
 }
@@ -414,6 +607,22 @@ function spostamentoSovrapposto(piano: PianoCommessa, m: Extract<Modifica, { tip
   return `«${lista[i].name}» partirebbe prima che finisca la fase precedente: sposta di meno, o sposta anche le fasi prima.`;
 }
 
+/**
+ * Per una variabile a più colonne già nella commessa: il valore nuovo cambia una colonna che ha
+ * già? False se aggiunge soltanto quelle che mancano (revisione 2/11, G8). Null se non c'entra.
+ */
+function toccaLaCommessa(piano: PianoCommessa, m: Extract<Modifica, { tipo: "cambia_valore" }>): boolean | null {
+  const attuale = piano.aree[m.area]?.[m.chiave];
+  const commessa = attuale?.sopraCommessa ?? (giaNellaCommessa(piano, attuale) ? attuale : null);
+  const vecchio = oggettoDi(commessa?.valore);
+  const nuovo = oggettoDi(m.valore);
+  if (!vecchio || !nuovo || (variabile(m.chiave)?.colonne.length ?? 0) < 2) return null;
+  if (m.chiave === "cantiere.indirizzo" || m.chiave === "cliente.nome") return null;
+  const cambia = pieneDi(vecchio).some(([k, x]) => !stessaColonna(k, x, nuovo[k]));
+  const aggiunge = pieneDi(nuovo).some(([k]) => vecchio[k] == null || vecchio[k] === "");
+  return cambia || !aggiunge;
+}
+
 /** Le variabili che una modifica toccherebbe. */
 function chiaviDellaModifica(piano: PianoCommessa, m: Modifica): string[] {
   if (m.tipo !== "sposta_date") return [m.chiave];
@@ -428,9 +637,10 @@ export function modificaBloccata(piano: PianoCommessa, m: Modifica): string | nu
   const sovrapposta = m.tipo === "sposta_date" ? spostamentoSovrapposto(piano, m) : null;
   if (sovrapposta) return sovrapposta;
   const chiavi = chiaviDellaModifica(piano, m);
+  if (m.tipo === "cambia_valore" && toccaLaCommessa(piano, m) === false) return null;
   const chiuse = chiavi.filter((k) => {
     const v = variabile(k);
-    return v && giaNellaCommessa(piano, piano.aree[v.area]?.[k]);
+    return v && (giaNellaCommessa(piano, piano.aree[v.area]?.[k]) || (m.tipo === "cambia_valore" && !!piano.aree[v.area]?.[k]?.sopraCommessa));
   });
   if (!chiuse.length) return null;
   if (m.tipo === "sposta_date") {

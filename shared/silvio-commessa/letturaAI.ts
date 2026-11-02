@@ -193,15 +193,19 @@ export function trovaCitazione(citazione: string, pagine: readonly PaginaLetta[]
  */
 export function numeriNelTesto(testo: string): number[] {
   const out: number[] = [];
-  const re = /(\d{1,3}(?:[.\s']\d{3})+|\d+)(?:,(\d+))?(?:\.(\d{1,2})(?!\d))?\s*(k\b|mila\b|milioni?\b)?/gi;
+  const re = /(\d{1,3}(?:[.,\s']\d{3})+|\d+)(?:,(\d+))?(?:\.(\d{1,2})(?!\d))?\s*(k\b|mila\b|milioni?\b)?/gi;
   for (const m of testo.matchAll(re)) {
-    const intero = m[1].replace(/[.\s']/g, "");
+    const intero = m[1].replace(/[.,\s']/g, "");
     const decimali = m[2] ?? m[3] ?? "";
     let n = Number(decimali ? `${intero}.${decimali}` : intero);
     const mult = (m[4] ?? "").toLowerCase();
     if (mult === "k" || mult === "mila") n *= 1000;
     else if (mult.startsWith("milion")) n *= 1_000_000;
     if (Number.isFinite(n)) out.push(n);
+    // Serve a confermare una cifra, quindi vale anche l'altra lettura possibile:
+    // «1,250» può essere 1,25; «art. 3 100» sono due numeri, non tremilacento.
+    if (!mult && !decimali && /^\d{1,3},\d{3}$/.test(m[1])) out.push(Number(m[1].replace(",", ".")));
+    if (/\s/.test(m[1])) for (const pezzo of m[1].split(/\s+/)) out.push(Number(pezzo));
   }
   return out;
 }
@@ -238,7 +242,13 @@ const testoDa = (v: unknown, max = 500): string | null => {
 export function numeroDa(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   if (typeof v !== "string" || !v.trim()) return null;
-  const s = v.replace(/[€%‰\s]/g, "").replace(/eur(o)?$/i, "");
+  const s = v.replace(/[€%‰\s']/g, "").replace(/eur(o)?$/i, "");
+  // Il formato inglese (revisione 2/11, G10): «125,000» e «1,250.50». Tre cifre dopo la virgola
+  // sono migliaia, come «1.250»; «0,125» resta un decimale.
+  if (/^[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(s)) {
+    const inglese = Number(s.replace(/,/g, ""));
+    return Number.isFinite(inglese) ? inglese : null;
+  }
   const n = /,\d{1,2}$/.test(s) || /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)
     ? Number(s.replace(/\./g, "").replace(",", "."))
     : Number(s.replace(",", "."));
@@ -313,18 +323,23 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
     const label = testoDa(r.label, 120) ?? `Rata ${i + 1}`;
     const percent = percentuale(r.percent);
     let amount = numeroDa(r.amount);
+    let daPercentuale = false;
     if ((amount == null || amount <= 0) && percent != null && totaleIvato) amount = tondo(totaleIvato * percent / 100);
-    else if ((amount == null || amount <= 0) && percent != null && imponibile) {
-      amount = tondo(imponibile * percent / 100);
+    else if ((amount == null || amount <= 0) && percent != null && percent > 0) {
+      // Manca l'IVA, o il totale sta in un'altra fonte: si tiene la percentuale, e l'importo si
+      // rifà quando arriva quello che manca (quadratura.ts, revisione 2/11, G9 e G20).
+      amount = tondo((imponibile ?? 0) * percent / 100);
+      daPercentuale = true;
       senzaIva = true;
     }
-    if (amount == null || amount <= 0 || amount > 1e9) { scartate.push(label); return; }
+    if (amount == null || (amount <= 0 && !daPercentuale) || amount > 1e9) { scartate.push(label); return; }
     const type = r.type === "balance" || r.type === "financing" ? r.type : "deposit";
     const evento = typeof r.trigger_evento === "string" && EVENTI_RATA.has(r.trigger_evento) ? r.trigger_evento : null;
     const numeroSal = numeroDa(r.trigger_numero);
     rate.push({
       label, type, amount: tondo(amount),
       ...(percent != null ? { percent } : {}),
+      ...(daPercentuale ? { daPercentuale } : {}),
       trigger_evento: evento,
       ...(evento === "sal_numero" && numeroSal != null && numeroSal >= 1 ? { trigger_numero: Math.round(numeroSal) } : {}),
     });
@@ -334,7 +349,8 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
   if (scartate.length) note.push(`Rate senza importo leggibile, lasciate fuori: ${scartate.join(", ")}.`);
   const somma = rate.reduce((s, r) => s + (r.percent ?? 0), 0);
   if (somma > 100.5) note.push(`Le percentuali sommano ${tondo(somma)} %: controlla.`);
-  if (senzaIva) note.push("Manca l'IVA: le rate in percentuale sono calcolate sull'imponibile, da rifare quando c'è l'IVA.");
+  if (somma > 0 && somma < 99.5 && rate.every((r) => r.percent != null)) note.push(`Le percentuali sommano ${tondo(somma)} %: manca il ${tondo(100 - somma)} %.`);
+  if (senzaIva) note.push(imponibile ? "Manca l'IVA: le rate in percentuale sono calcolate sull'imponibile, da rifare quando c'è l'IVA." : "Manca il totale: gli importi delle rate si calcolano dalle percentuali quando arriva.");
   return { ok: true, valore: rate, nota: note.join(" ") || undefined, ...(senzaIva ? { senzaIva } : {}) };
 }
 
@@ -541,9 +557,10 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   for (const [chiave, grezzo] of grezzi) {
     const definita = variabile(chiave);
     const lettura = PER_CHIAVE.get(chiave);
-    if (!definita) { avvisi.push(`«${chiave}» non è una variabile della commessa, ignorata`); continue; }
-    if (!lettura) { avvisi.push(`«${chiave}» non si ricava da un documento con l'AI, ignorata`); continue; }
-    if (letti.has(chiave)) { avvisi.push(`«${chiave}» scritta due volte: tenuta la prima`); continue; }
+    // Mai la chiave tecnica: l'avviso lo legge chi lavora in cantiere (revisione 2/11, G19).
+    if (!definita) { avvisi.push(`Il documento dice «${chiave.split(".").pop()!.replace(/_/g, " ")}», che la commessa non ha: l'ho lasciato fuori.`); continue; }
+    if (!lettura) { avvisi.push(`«${definita.etichetta}» non si legge da un documento: l'ho lasciato fuori.`); continue; }
+    if (letti.has(chiave)) { avvisi.push(`«${definita.etichetta}» è scritto due volte: ho tenuto il primo.`); continue; }
     const esito = pulisci(lettura.forma, grezzo, { pagine, ctx, totaleIvato, imponibile });
     if ("motivo" in esito) { avvisi.push(`«${definita.etichetta}»: ${esito.motivo}`); continue; }
     letti.set(chiave, { valore: esito.valore, prov: { ...esito.prov, nota: [esito.prov.nota, esito.nota].filter(Boolean).join(" ") || null } });
@@ -563,6 +580,10 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
         ...fasi.prov, stato: "proposta", fiducia: Math.min(fasi.prov.fiducia, 0.5),
         nota: [fasi.prov.nota, `Durate dal modello del ${MODELLI_LAVORO[tipo].etichetta} per ${completate.join(", ")}: il documento non le dice.`].filter(Boolean).join(" "),
       };
+    } else if (!tipo && elenco.some((f) => f.giorni) && elenco.some((f) => !f.giorni)) {
+      // Durate solo per alcune e nessun modello a cui chiederle: una domanda, non una stima (G20).
+      const senza = elenco.filter((f) => !f.giorni).map((f) => `«${f.name}»`);
+      fasi.prov = { ...fasi.prov, nota: [fasi.prov.nota, `Quanti giorni servono per ${senza.join(", ")}? Il documento non lo dice, e senza le fasi non hanno le date.`].filter(Boolean).join(" ") };
     }
   }
 

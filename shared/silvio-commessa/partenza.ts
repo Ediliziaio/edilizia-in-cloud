@@ -34,6 +34,12 @@ interface RegolaMeteo {
 const FREDDO = "sotto i 5 °C malte, collanti e guaine non fanno presa, e il gelo di notte rovina il lavoro del giorno";
 const PIOGGIA = "è un mese piovoso: mettere in conto giorni fermi";
 
+/**
+ * Quello che sta al coperto anche se ha una parola da esterno (revisione 2/11, G19): la doccia
+ * si impermeabilizza dentro, i mobili si coprono dentro, il massetto si getta dentro.
+ */
+const AL_COPERTO = /\b(docc|bagn|mobil|arred|massett|intern[oiae]\b|cantin|sottotett)/i;
+
 const REGOLE_METEO: readonly RegolaMeteo[] = [
   { tipo: "copertura", parole: /\b(tett|copertur|coppi|tegol|guain|lattoner|gronda|falde?|lucernar|fotovoltaic|pannell[io] solar)/i,
     mesi: { 11: FREDDO, 12: FREDDO, 1: FREDDO, 2: FREDDO, 3: PIOGGIA, 10: PIOGGIA,
@@ -60,6 +66,7 @@ export interface AvvisoMeteo {
 
 /** La fase si fa all'aperto? Il tipo di lavoro, o null. */
 export function faseAllAperto(nome: string): RegolaMeteo["tipo"] | null {
+  if (AL_COPERTO.test(nome)) return null;
   return REGOLE_METEO.find((r) => r.parole.test(nome))?.tipo ?? null;
 }
 
@@ -82,7 +89,7 @@ function mesiDelPeriodo(dal: string, al: string): number[] {
 export function avvisiMeteo(fasi: readonly { nome: string; dal: string | null; al: string | null }[]): AvvisoMeteo[] {
   const out: AvvisoMeteo[] = [];
   for (const f of fasi) {
-    if (!f.dal) continue;
+    if (!f.dal || AL_COPERTO.test(f.nome)) continue;
     const regola = REGOLE_METEO.find((r) => r.parole.test(f.nome));
     if (!regola) continue;
     const mesi = mesiDelPeriodo(f.dal, f.al && f.al >= f.dal ? f.al : f.dal).filter((m) => regola.mesi[m]);
@@ -109,6 +116,8 @@ export interface AdempimentoDelPiano {
   /** Il perché e cosa fare, per le note della scadenza. */
   testo: string;
   scadenza: string | null;
+  /** La scadenza è già passata (revisione 2/11, G17): la persona lo deve leggere. */
+  avviso?: string | null;
 }
 
 /** I lavori che di regola vogliono un titolo edilizio (CILA o SCIA). */
@@ -129,6 +138,8 @@ export interface DatiPartenza {
   inizio: string | null;
   /** Quante ditte esterne lavorano in cantiere oltre all'azienda. */
   ditte: number;
+  /** AAAA-MM-GG a Roma: per dire quali scadenze sono già passate. */
+  oggi?: string | null;
 }
 
 /** Uomini-giorno stimati: giorni lavorativi della fase × persone (2 se la squadra non c'è). */
@@ -183,5 +194,10 @@ export function adempimentiPrimaDiPartire(d: DatiPartenza, cal: CalendarioCantie
       testo: "Se ponteggio, cassone delle macerie o mezzi occupano marciapiede o strada serve l'autorizzazione del Comune (di solito da chiedere almeno 10–15 giorni prima). Se il cantiere sta tutto nel privato, spunta e basta.",
     });
   }
-  return out;
+  return out.map((a) => ({ ...a, avviso: avvisoScadenza(a.scadenza, d.oggi) }));
+}
+
+/** «Andava fatto entro il 28/10: è già passato.», o null. */
+export function avvisoScadenza(scadenza: string | null, oggi: string | null | undefined): string | null {
+  return scadenza && oggi && scadenza < oggi ? `Andava fatto entro il ${dataCorta(scadenza)}: la data è già passata, fallo subito.` : null;
 }

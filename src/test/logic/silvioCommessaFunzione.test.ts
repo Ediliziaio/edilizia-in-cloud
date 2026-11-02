@@ -222,8 +222,8 @@ describe("silvio-commessa: otto documenti inventati", () => {
     expect(fr.aree.persone).toBeUndefined();
     expect(fr.avvisi).toEqual(expect.arrayContaining([
       "la relazione non dice l'importo",
-      expect.stringMatching(/cantiere\.accesso.*non è una variabile/),
-      expect.stringMatching(/persone\.assigned_to.*non si ricava/),
+      expect.stringMatching(/accesso.*che la commessa non ha/),
+      expect.stringMatching(/Responsabile.*non si legge da un documento/),
     ]));
   });
 
@@ -266,7 +266,8 @@ describe("silvio-commessa: otto documenti inventati", () => {
     // La via non c'è nel testo (e il modello l'ha messa nell'area sbagliata: va nella sua).
     expect(valore(fr, "cantiere.indirizzo")).toMatchObject({ stato: "proposta", fiducia: 0.3 });
     expect(valore(fr, "fasi.work_start_date")).toMatchObject({ stato: "proposta", fiducia: 0.3, nota: expect.stringMatching(/Senza citazione/) });
-    expect(fr.avvisi?.join(" ")).toMatch(/economia\.margine_previsto/);
+    expect(fr.avvisi?.join(" ")).toMatch(/margine previsto/);
+    expect(fr.avvisi?.join(" ")).not.toMatch(/economia\./);
   });
 
   it("su tutti e otto: una sola chiamata al modello ciascuno, solo chiavi del registro, nessuna scrittura nel database", async () => {
@@ -355,6 +356,20 @@ describe("silvio-commessa: le porte", () => {
     expect(turno).toBeTruthy();
     expect(turno.remainingMs()).toBeLessThanOrEqual(140_000);
     expect(turno.remainingMs()).toBeGreaterThan(100_000);
+  });
+
+  it("D11: a «Riprova» l'OCR non si ripaga: la chiave delle pagine non cambia col tentativo, quella della lettura sì", async () => {
+    const scansionato: DocumentoDiProva = { ...CONTRATTO_PUBBLICO, nome: "Scansione.pdf", pagine: [[""], [""]] } as DocumentoDiProva;
+    await leggi(scansionato, { tentativo: 0 });
+    const prima = runtime.chiamate.map((c) => ({ task: c.taskKey, chiave: c.idempotencyKey }));
+    runtime.chiamate.length = 0;
+    await leggi(scansionato, { tentativo: 1 });
+    const dopo = runtime.chiamate.map((c) => ({ task: c.taskKey, chiave: c.idempotencyKey }));
+    const ocr = (l: typeof prima) => l.filter((c) => c.task === "pdf_vision_extract").map((c) => c.chiave);
+    const lettura = (l: typeof prima) => l.filter((c) => c.task !== "pdf_vision_extract").map((c) => c.chiave);
+    expect(ocr(prima).length).toBeGreaterThan(0);
+    expect(ocr(dopo)).toEqual(ocr(prima));
+    expect(lettura(dopo)).not.toEqual(lettura(prima));
   });
 
   it("«Riprova» è una lettura nuova: la chiave d'idempotenza cambia col tentativo", async () => {

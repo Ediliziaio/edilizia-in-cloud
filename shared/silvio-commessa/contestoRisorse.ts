@@ -3,7 +3,9 @@
  * `shared/` dalla fase 5, perché li legge anche il piano di volo nella edge function). Solo
  * letture, col client che riceve: nel browser quello di chi apre il popup (la RLS decide cosa
  * vede), nella funzione del cron quello di servizio, sempre filtrato per azienda. Una lettura
- * che non riesce lascia vuota la sua parte (niente proposta), non ferma niente.
+ * che non riesce lascia vuota la sua parte e non ferma niente, ma non è un dato vuoto (D10,
+ * revisione 2/11): finisce in `lettureFallite`, così il cron salta la commessa invece di dire
+ * «nessuno è assegnato», e il popup lo dice (`avvisoLettureFallite`).
  *
  * Lo staff arriva da fuori (useCompanyStaffUsers nel browser): i clienti sono profili anche
  * loro, e un capomastro si sceglie solo fra lo staff.
@@ -47,6 +49,40 @@ export async function righe(q: PromiseLike<Risposta>): Promise<Riga[]> {
   }
 }
 
+/** Una lettura che non è riuscita: da usare dove un elenco vuoto farebbe dire una cosa falsa. */
+export class LetturaFallita extends Error {
+  constructor(public readonly cosa: string, motivo: string) {
+    super(`lettura non riuscita (${cosa}): ${motivo}`);
+    this.name = "LetturaFallita";
+  }
+}
+
+/** Come `righe`, ma un errore si alza invece di diventare un elenco vuoto. */
+export async function righeCerte(cosa: string, q: PromiseLike<Risposta>): Promise<Riga[]> {
+  let risposta: Risposta;
+  try {
+    risposta = await q;
+  } catch (e) {
+    throw new LetturaFallita(cosa, e instanceof Error ? e.message : String(e));
+  }
+  if (risposta.error) throw new LetturaFallita(cosa, risposta.error.message);
+  if (!Array.isArray(risposta.data)) throw new LetturaFallita(cosa, "risposta senza righe");
+  return risposta.data as Riga[];
+}
+
+/** Il contesto, più quello che non si è riusciti a leggere (nomi in italiano, per le persone). */
+export type ContestoLetto = ContestoRisorse & { lettureFallite: string[] };
+
+/**
+ * Cosa dire alla persona se qualche lettura non è riuscita, o null. Prende un ContestoRisorse
+ * perché il popup riceve quel tipo: il campo in più c'è, a runtime.
+ */
+export function avvisoLettureFallite(ctx: ContestoRisorse): string | null {
+  const fallite = (ctx as Partial<ContestoLetto>).lettureFallite ?? [];
+  if (!fallite.length) return null;
+  return `Silvio non è riuscito a leggere: ${fallite.join(", ")}. Le proposte su queste parti possono mancare o essere sbagliate: riprova tra poco.`;
+}
+
 const nomePersona = (r: Riga) => `${testo(r.first_name)} ${testo(r.last_name)}`.trim() || "Dipendente";
 export const uno = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null);
 
@@ -57,43 +93,52 @@ export const uno = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArr
 export async function leggiContestoRisorse(
   companyId: string, staff: ContestoRisorse["staff"], orderId: string | null = null,
   db: ClientRisorse,
-): Promise<ContestoRisorse> {
+): Promise<ContestoLetto> {
   const oggi = oggiInItalia();
+  const lettureFallite: string[] = [];
+  const leggi = async (cosa: string, q: PromiseLike<Risposta>): Promise<Riga[]> => {
+    try {
+      return await righeCerte(cosa, q);
+    } catch {
+      lettureFallite.push(cosa);
+      return [];
+    }
+  };
   const [
     dipendenti, aperti, storicoLavori, assenze, capomastri, ditte, storicoDitte, documenti, schede, mezzi, piani, allocazioni, fornitori, acquisti,
   ] = await Promise.all([
-    righe(db.from("employees").select("id, first_name, last_name, is_active").eq("company_id", companyId).limit(LIMITE)),
+    leggi("le persone", db.from("employees").select("id, first_name, last_name, is_active").eq("company_id", companyId).limit(LIMITE)),
     // Gli impegni: le assegnazioni delle commesse aperte, le più recenti prima (revisione 1/11,
     // L11). Prima una lettura sola, senza ordine e senza filtro: PostgREST ne dà 1000, e in
     // un'azienda con molte commesse chiuse una persona già occupata risultava libera.
-    righe(db.from("order_employees")
+    leggi("gli impegni delle persone", db.from("order_employees")
       .select("employee_id, order_id, fase:order_work_phases(name, start_date, end_date), ordine:orders!inner(order_code, company_id, deleted_at, status, work_start_date, work_end_date)")
       .eq("ordine.company_id", companyId).is("ordine.deleted_at", null)
       .not("ordine.status", "in", `(${STATI_CHIUSI.join(",")})`)
       .order("created_at", { ascending: false }).limit(PAGINA)),
     // Lo storico («di solito fa le demolizioni»): anche le commesse chiuse, le più recenti.
-    righe(db.from("order_employees")
+    leggi("lo storico delle persone", db.from("order_employees")
       .select("employee_id, order_id, fase:order_work_phases(name), ordine:orders!inner(company_id, deleted_at)")
       .eq("ordine.company_id", companyId).is("ordine.deleted_at", null).not("phase_id", "is", null)
       .order("created_at", { ascending: false }).limit(PAGINA)),
-    righe(db.from("hr_assenze").select("employee_id, data_inizio, data_fine, tipo_assenza, status")
+    leggi("le assenze", db.from("hr_assenze").select("employee_id, data_inizio, data_fine, tipo_assenza, status")
       .eq("company_id", companyId).gte("data_fine", oggi).limit(LIMITE)),
-    righe(db.from("orders").select("id, capomastro_user_id").eq("company_id", companyId).is("deleted_at", null)
+    leggi("i capomastri", db.from("orders").select("id, capomastro_user_id").eq("company_id", companyId).is("deleted_at", null)
       .not("capomastro_user_id", "is", null).limit(LIMITE)),
-    righe(db.from("external_teams").select("id, name, subappaltatore_id, kind, is_active").eq("company_id", companyId).eq("is_active", true)),
-    righe(db.from("order_external_teams").select("external_team_id, order_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
+    leggi("le ditte", db.from("external_teams").select("id, name, subappaltatore_id, kind, is_active").eq("company_id", companyId).eq("is_active", true)),
+    leggi("lo storico delle ditte", db.from("order_external_teams").select("external_team_id, order_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
       .eq("ordine.company_id", companyId).not("phase_id", "is", null).limit(LIMITE)),
-    righe(db.from("subappaltatori_documenti").select("subappaltatore_id, tipo, scadenza, esito, status")
+    leggi("i documenti delle ditte", db.from("subappaltatori_documenti").select("subappaltatore_id, tipo, scadenza, esito, status")
       .eq("company_id", companyId).eq("status", "active").limit(LIMITE)),
-    righe(db.from("subappaltatori_sicurezza").select("campo_subappaltatore_id, durc_scadenza")
+    leggi("il DURC delle ditte", db.from("subappaltatori_sicurezza").select("campo_subappaltatore_id, durc_scadenza")
       .eq("company_id", companyId).not("campo_subappaltatore_id", "is", null).not("durc_scadenza", "is", null).limit(LIMITE)),
-    righe(db.from("mezzi").select("id, nome, stato, gestione, quantita_totale").eq("company_id", companyId).is("deleted_at", null).limit(LIMITE)),
-    righe(db.from("mezzi_piani_cantiere").select("mezzo_id, order_id, fase_ids, dal, al, quantita, ordine:orders(order_code)")
+    leggi("i mezzi", db.from("mezzi").select("id, nome, stato, gestione, quantita_totale").eq("company_id", companyId).is("deleted_at", null).limit(LIMITE)),
+    leggi("le prenotazioni dei mezzi", db.from("mezzi_piani_cantiere").select("mezzo_id, order_id, fase_ids, dal, al, quantita, ordine:orders(order_code)")
       .eq("company_id", companyId).eq("annullato", false).limit(LIMITE)),
-    righe(db.from("mezzi_allocazioni").select("mezzo_id, order_id, dal, al, quantita, ordine:orders(order_code)")
+    leggi("le assegnazioni dei mezzi", db.from("mezzi_allocazioni").select("mezzo_id, order_id, dal, al, quantita, ordine:orders(order_code)")
       .eq("company_id", companyId).limit(LIMITE)),
-    righe(db.from("suppliers").select("id, name, lead_time_days, is_active").eq("company_id", companyId).eq("is_active", true).limit(LIMITE)),
-    righe(db.from("purchase_order_items").select("description, ordine:purchase_orders!inner(supplier_id, company_id)")
+    leggi("i fornitori", db.from("suppliers").select("id, name, lead_time_days, is_active").eq("company_id", companyId).eq("is_active", true).limit(LIMITE)),
+    leggi("gli acquisti", db.from("purchase_order_items").select("description, ordine:purchase_orders!inner(supplier_id, company_id)")
       .eq("ordine.company_id", companyId).limit(LIMITE)),
   ]);
 
@@ -104,11 +149,12 @@ export async function leggiContestoRisorse(
   // Le fasi dei piani dei mezzi, per sapere in che lavori si usano.
   const idFasi = [...new Set(piani.flatMap((p) => (Array.isArray(p.fase_ids) ? (p.fase_ids as string[]) : [])))].slice(0, 300);
   const fasiMezzi = idFasi.length
-    ? await righe(db.from("order_work_phases").select("id, name").in("id", idFasi))
+    ? await leggi("le fasi dei mezzi", db.from("order_work_phases").select("id, name").in("id", idFasi))
     : [];
   const nomeFase = new Map(fasiMezzi.map((f) => [f.id as string, testo(f.name)]));
 
   return {
+    lettureFallite,
     oggi,
     dipendenti: dipendenti.map((d) => ({ id: d.id as string, nome: nomePersona(d), attivo: d.is_active !== false })),
     storicoDipendenti: storicoLavori.filter(altra).flatMap((l) => {

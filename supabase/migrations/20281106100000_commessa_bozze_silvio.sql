@@ -48,6 +48,15 @@
 --   · il messaggio dice cosa è stato toccato e cosa fare;
 --   · gli eventi delle automazioni non ancora elaborati sulle righe tolte spariscono con loro.
 --
+-- Revisione del 2/11/2026 (D1, D2, D3, D6, D9, D11, D12, docs/silvio-commessa-revisione-20261102.md):
+--   · l'annullamento non si rifiuta per quello che scrivono le macchine (`_silvio_colonna_di_macchina`,
+--     `_silvio_tabelle_di_macchina`, con le prove scritte accanto): resta il rifiuto per il lavoro vero;
+--   · il preventivo d'origine torna allo stato di prima, e si può riusare;
+--   · la giacenza scaricata da una riga con `stock_item_id` torna in magazzino;
+--   · «Completa» scrive l'importo quando la commessa ha 0, il valore predefinito;
+--   · cancellare una commessa completata da Silvio non si ferma sul vincolo della bozza;
+--   · «Crea» ripetuto dopo una risposta persa restituisce la commessa già nata.
+--
 -- Idempotente. Nessun dato esistente viene toccato. Richiede 20281106090000.
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -78,7 +87,10 @@ create table if not exists public.commessa_bozze (
   updated_at timestamptz not null default now(),
   constraint commessa_bozze_modo check (modo in ('crea', 'completa')),
   constraint commessa_bozze_stato check (stato in ('bozza', 'creata', 'completata')),
-  constraint commessa_bozze_completa_con_commessa check (modo = 'crea' or order_id is not null or stato = 'bozza'),
+  -- Quale stato finale per quale modo. Non guarda `order_id` (D6): la chiave è ON DELETE SET NULL,
+  -- e cancellare una commessa completata da Silvio finiva contro il vincolo. Che una bozza
+  -- «completa» nasca con la sua commessa lo dicono la policy d'inserimento e la RPC.
+  constraint commessa_bozze_stato_del_modo check (stato = 'bozza' or (modo = 'crea') = (stato = 'creata')),
   constraint commessa_bozze_scritta_quando check ((stato = 'bozza') = (eseguita_il is null))
 );
 
@@ -345,8 +357,13 @@ begin
     raise exception 'La sede indicata non è di questa azienda.' using errcode = '42501';
   end if;
   for k in select unnest(array['assigned_to', 'capomastro_user_id']) loop
-    if v ? k and not exists (select 1 from public.profiles p where p.id = (v->>k)::uuid and p.company_id = p_company) then
-      raise exception 'La persona indicata come % non è di questa azienda.',
+    -- Solo staff (D11): i clienti sono profili anche loro. I ruoli sono STAFF_ROLES di
+    -- src/hooks/useCompanyStaffUsers.ts; il test silvioCommessaSecondaRevisione li confronta.
+    if v ? k and not exists (
+         select 1 from public.profiles p join public.user_roles r on r.user_id = p.id
+          where p.id = (v->>k)::uuid and p.company_id = p_company
+            and r.role::text in ('super_admin', 'company_admin', 'company_staff', 'employee', 'worker', 'subcontractor', 'salesperson', 'call_center')) then
+      raise exception 'La persona indicata come % non è dello staff di questa azienda.',
         case k when 'assigned_to' then 'responsabile' else 'capomastro' end using errcode = '42501';
     end if;
   end loop;
@@ -375,6 +392,51 @@ as $$
    limit 1
 $$;
 revoke all on function public._silvio_colonna_nascita(oid) from public, anon, authenticated;
+
+-- Quello che scrivono le macchine su una riga di Silvio non è lavoro di nessuno, e non deve
+-- fermare l'annullamento (D1). L'elenco viene dai cataloghi e dal codice, il 2/11/2026, e
+-- resta stretto apposta: ogni voce ha chi la scrive.
+--   updated_at, version       → update_updated_at_column e versione_riga, a ogni UPDATE
+--   orders.work_geocoded_at   → la funzione geocodifica-cantieri (cron campo-geocodifica-cantieri)
+--   orders.distanza_sede_*    → salva_distanza_cantiere (chiunque apra la commessa) e azzera_distanza_cantiere
+--   order_work_subphases.ritardo_avvisato_il → il controllo dei ritardi
+-- orders.work_lat e work_lng si guardano a parte: il cron riempie solo quelle vuote, quindi una
+-- coordinata che Silvio aveva lasciato vuota è sua, una che aveva scritto e che cambia è di una persona.
+-- NON ci sono percentuale_avanzamento, deposit_*, balance_*: li ricalcolano i trigger, ma solo
+-- quando una persona tocca fasi o rate (e allora la riga di Silvio cambiata c'è, e si dice quella).
+create or replace function public._silvio_colonna_di_macchina(p_tabella text, p_colonna text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select p_colonna in ('updated_at', 'version')
+      or (p_tabella = 'orders' and p_colonna in ('work_geocoded_at', 'distanza_sede_km', 'distanza_sede_minuti', 'distanza_sede_il'))
+      or (p_tabella = 'order_work_subphases' and p_colonna = 'ritardo_avvisato_il')
+$$;
+revoke all on function public._silvio_colonna_di_macchina(text, text) from public, anon, authenticated;
+
+-- Le tabelle che puntano alla commessa e che scrivono solo le macchine: non sono lavoro aggiunto.
+-- Vanno via con la commessa (in cascata) o restano col puntatore vuoto (SET NULL); nessuna ha
+-- ON DELETE NO ACTION. Fuori restano quelle con lavoro vero, anche se generate da un cron
+-- (customer_weekly_reports è partito verso il cliente, giornale_lavori si legge in cantiere).
+--   ordine_margine_stato         → tg_ordine_margine / ordine_margine_valuta
+--   commessa_campo_sync          → commessa_campo_segnala_modifica
+--   google_calendar_order_events → google-calendar-sync
+--   wa_operational_reminder_log  → whatsapp-operational-reminders, bot-routine-dispatch
+--   email_inbox                  → email-ai-l4-draft, l'abbinamento della posta alla commessa
+--   fatture_ricevute             → ai-fattura-classify, order_id_suggerito è una proposta
+--   whatsapp_sessions            → il cantiere corrente della sessione del bot, un segnalibro
+create or replace function public._silvio_tabelle_di_macchina()
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select array['ordine_margine_stato', 'commessa_campo_sync', 'google_calendar_order_events',
+               'wa_operational_reminder_log', 'email_inbox', 'fatture_ricevute', 'whatsapp_sessions']::text[]
+$$;
+revoke all on function public._silvio_tabelle_di_macchina() from public, anon, authenticated;
 
 -- Tutte le chiavi esterne fra tabelle di public, a una o più colonne. `unione` è la
 -- condizione che lega la figlia `t` alla madre `m`; `con_id` dice se la figlia ha un `id`
@@ -435,7 +497,9 @@ declare
 begin
   execute format('select to_jsonb(t) from public.%I t where t.id = $1', p_tabella) into v using p_id;
   if v is null then return null; end if;
-  for k in select * from public._silvio_chiavi() c where c.madre = p_tabella and not c.con_id order by c.figlia loop
+  for k in select * from public._silvio_chiavi() c
+            where c.madre = p_tabella and not c.con_id and not (c.figlia = any (public._silvio_tabelle_di_macchina()))
+            order by c.figlia loop
     execute format('select coalesce(jsonb_agg(to_jsonb(t) - ''updated_at'' order by to_jsonb(t)::text), ''[]''::jsonb)
                       from public.%I t join public.%I m on %s where m.id = $1', k.figlia, p_tabella, k.unione)
       into v_figlie using p_id;
@@ -637,10 +701,14 @@ begin
   select * into o from public.orders where id = p_order and company_id = p_bozza.company_id for update;
   v_prima := to_jsonb(o);
 
-  -- Colonne: solo quelle vuote (null o testo vuoto). Uno 0 scritto è un valore: resta.
+  -- Colonne: solo quelle vuote (null o testo vuoto). Uno 0 scritto è un valore e resta, tranne
+  -- l'importo (D3): `total_amount` ha default 0 e la creazione lo mette anche quando nessuno l'ha
+  -- scritto, quindi lì 0 vuol dire «manca». Chi non vede gli importi non arriva qui con un importo:
+  -- lo toglie `_silvio_scrittura_permessa`.
   v_colonne := public._silvio_colonne(p_bozza.company_id, s->'ordine');
   for k in select jsonb_object_keys(v_colonne) loop
-    if v_prima->k is null or jsonb_typeof(v_prima->k) = 'null' or v_prima->>k = '' then
+    if v_prima->k is null or jsonb_typeof(v_prima->k) = 'null' or v_prima->>k = ''
+       or (k = 'total_amount' and (v_prima->>k)::numeric = 0) then
       v_vuote := v_vuote || jsonb_build_object(k, v_colonne->k);
     end if;
   end loop;
@@ -773,7 +841,7 @@ begin
   -- Le colonne della commessa riempite qui (anche dai trigger e da pianifica_fasi).
   select to_jsonb(x) into v_dopo from public.orders x where x.id = p_order;
   for k in select jsonb_object_keys(v_dopo) loop
-    continue when k in ('updated_at', 'version');
+    continue when public._silvio_colonna_di_macchina('orders', k);
     if (v_prima->k) is distinct from (v_dopo->k) then
       v_diff := v_diff || jsonb_build_object(k, jsonb_build_object('prima', v_prima->k, 'dopo', v_dopo->k));
     end if;
@@ -859,7 +927,17 @@ declare
   v_set text;
   v_aggiunte jsonb;
   v_registrate integer;
+  v_quote_stato text;
 begin
+  -- La risposta di prima si è persa (D9): la commessa c'è già, si restituisce quella, così il
+  -- popup riprende da dove era (gli allegati) invece di fermarsi su «bozza già usata».
+  if b.stato = 'creata' and b.order_id is not null then
+    select jsonb_build_object('order_id', o.id, 'customer_id', o.customer_id, 'gia_creata', true,
+                              'righe_registrate', (select count(*) from public.commessa_bozze_scritture s where s.bozza_id = b.id))
+      into v_aggiunte
+      from public.orders o where o.id = b.order_id and o.company_id = b.company_id and o.deleted_at is null;
+    if v_aggiunte is not null then return v_aggiunte; end if;
+  end if;
   perform public._silvio_pronta(b);
   if not public._silvio_acceso(b.company_id) then
     raise exception '«Crea con Silvio» non è attivo per questa azienda.' using errcode = '42501';
@@ -870,8 +948,11 @@ begin
   s := b.scrittura;
   v_colonne := public._silvio_colonne(b.company_id, s->'ordine');
   v_quote := nullif(s->>'preventivo_id', '')::uuid;
-  if v_quote is not null and not exists (select 1 from public.quotes where id = v_quote and company_id = b.company_id) then
-    raise exception 'Il preventivo d''origine non è di questa azienda.' using errcode = '42501';
+  if v_quote is not null then
+    select q.status into v_quote_stato from public.quotes q where q.id = v_quote and q.company_id = b.company_id;
+    if not found then
+      raise exception 'Il preventivo d''origine non è di questa azienda.' using errcode = '42501';
+    end if;
   end if;
 
   v_cliente := public._silvio_cliente(b.company_id, coalesce(s->'cliente', '{}'::jsonb), v_quote);
@@ -931,10 +1012,20 @@ begin
   v_aggiunte := public._silvio_aggiungi(b, v_order);
   -- Su una commessa nata qui le colonne «aggiornate» non servono: si toglie tutta.
   delete from public.commessa_bozze_scritture where bozza_id = b.id and azione = 'aggiornata';
+  -- Il preventivo invece resta (D2): la creazione lo segna «convertita», e l'annullamento lo
+  -- deve rimettere com'era. Solo lo stato: `version` la tiene il suo trigger.
+  if v_quote is not null then
+    insert into public.commessa_bozze_scritture (bozza_id, company_id, tabella, riga_id, azione, colonne)
+    select b.id, b.company_id, 'quotes', v_quote, 'aggiornata',
+           jsonb_build_object('status', jsonb_build_object('prima', v_quote_stato, 'dopo', q.status))
+      from public.quotes q where q.id = v_quote and q.status is distinct from v_quote_stato;
+  end if;
   v_registrate := public._silvio_registra_nuove(b.id, b.company_id, v_order);
   perform public._silvio_imprimi(b.id);
 
-  return jsonb_build_object('order_id', v_order, 'customer_id', v_cliente, 'righe_registrate', v_registrate + 1)
+  return jsonb_build_object('order_id', v_order, 'customer_id', v_cliente, 'righe_registrate', v_registrate + 1,
+                            'tolte_permessi', coalesce(s->'tolte_permessi', '[]'::jsonb),
+                            'tolte_autonomia', coalesce(s->'tolte_autonomia', '[]'::jsonb))
          || v_aggiunte;
 end
 $$;
@@ -954,12 +1045,21 @@ declare
   v_aggiunte jsonb;
   v_registrate integer;
 begin
+  -- Come «Crea» (D9): se la risposta di prima si è persa, non è un errore.
+  if b.stato = 'completata' and b.order_id is not null then
+    return jsonb_build_object('order_id', b.order_id, 'gia_completata', true,
+                              'righe_registrate', (select count(*) from public.commessa_bozze_scritture s where s.bozza_id = b.id));
+  end if;
   perform public._silvio_pronta(b);
   if not public._silvio_acceso(b.company_id) then
     raise exception '«Crea con Silvio» non è attivo per questa azienda.' using errcode = '42501';
   end if;
-  if b.modo <> 'completa' or b.order_id is null then
+  if b.modo <> 'completa' then
     raise exception 'Questa bozza crea una commessa nuova: usa «Crea».' using errcode = '22023';
+  end if;
+  -- ON DELETE SET NULL: la commessa da completare è stata cancellata (D6).
+  if b.order_id is null then
+    raise exception 'La commessa di questa bozza non c''è più.' using errcode = '22023';
   end if;
   select * into o from public.orders where id = b.order_id and company_id = b.company_id and deleted_at is null;
   if not found or public.can_see_order(o.id, o.assigned_to, o.destination_warehouse_id) is not true then
@@ -985,7 +1085,9 @@ begin
   v_aggiunte := public._silvio_aggiungi(b, o.id);
   v_registrate := public._silvio_registra_nuove(b.id, b.company_id, o.id);
   perform public._silvio_imprimi(b.id);
-  return jsonb_build_object('order_id', o.id, 'righe_registrate', v_registrate) || v_aggiunte;
+  return jsonb_build_object('order_id', o.id, 'righe_registrate', v_registrate,
+                            'tolte_permessi', coalesce(b.scrittura->'tolte_permessi', '[]'::jsonb),
+                            'tolte_autonomia', coalesce(b.scrittura->'tolte_autonomia', '[]'::jsonb)) || v_aggiunte;
 end
 $$;
 
@@ -1067,13 +1169,16 @@ begin
             where s.bozza_id = b.id and s.azione = 'creata' order by s.tabella = 'orders', s.id desc loop
     v_attuale := public._silvio_stato_riga(r.tabella, r.riga_id);
     continue when v_attuale is null;
+    continue when r.tabella = any (public._silvio_tabelle_di_macchina());
     if r.istantanea is null then
       raise exception 'Non si può annullare: non so com''erano le righe di Silvio in «%». Annulla a mano o tieni la commessa.',
         replace(r.tabella, '_', ' ') using errcode = '55000';
     end if;
     select k into v_colonna
       from jsonb_object_keys(v_attuale || r.istantanea) k
-     where k <> 'updated_at' and (v_attuale->k) is distinct from (r.istantanea->k)
+     where not public._silvio_colonna_di_macchina(r.tabella, k)
+       and not (r.tabella = 'orders' and k in ('work_lat', 'work_lng') and r.istantanea->>k is null)
+       and (v_attuale->k) is distinct from (r.istantanea->k)
      order by k like '\_\_figlie:%', k limit 1;
     if v_colonna is not null then
       raise exception 'Non si può annullare: %. Annulla a mano o tieni la commessa.',
@@ -1088,7 +1193,7 @@ begin
   --    di chi ci lavora, e non contano.
   --    Le figlie senza `id` stanno nell'istantanea della madre: le ha già guardate il punto 1.
   for v_fk in select * from public._silvio_chiavi_figlie(b.id) k
-               where k.con_id
+               where k.con_id and not (k.figlia = any (public._silvio_tabelle_di_macchina()))
                  and k.madre in (select s.tabella from public.commessa_bozze_scritture s
                                   where s.bozza_id = b.id and s.azione = 'creata') loop
     execute format(
@@ -1137,6 +1242,20 @@ begin
       using c, r.riga_id;
   end loop;
 
+  -- La giacenza (D12): una riga con `stock_item_id` scarica il magazzino nella creazione
+  -- (magazzino_movimento_riga), e cancellare riga e movimento non la rimetteva. Si rimette quello
+  -- che dicono i movimenti di Silvio, che subito sotto spariscono: nel registro di magazzino
+  -- non resta né lo scarico né un carico.
+  for r in select m.stock_item_id, sum(case m.movement_type when 'scarico' then m.quantity else -m.quantity end) as quanto
+             from public.warehouse_movements m
+            where m.company_id = b.company_id and m.movement_type in ('scarico', 'carico') and m.stock_item_id is not null
+              and m.id in (select s.riga_id from public.commessa_bozze_scritture s
+                            where s.bozza_id = b.id and s.tabella = 'warehouse_movements' and s.azione = 'creata')
+            group by m.stock_item_id loop
+    update public.warehouse_stock set quantity = quantity + r.quanto, updated_at = now()
+     where id = r.stock_item_id and company_id = b.company_id;
+  end loop;
+
   -- Le righe di Silvio, dall'ultima alla prima: i figli prima dei padri. La commessa
   -- nata da Silvio è la prima registrata, quindi l'ultima a sparire.
   for r in select s.tabella, s.riga_id from public.commessa_bozze_scritture s
@@ -1151,8 +1270,12 @@ begin
   -- c'è più (revisione 1/11, S11). Quelli già elaborati restano: sono la storia.
   delete from public.automation_trigger_events e
    where e.company_id = b.company_id and e.processed is not true
-     and e.entity_id in (select s.riga_id::text from public.commessa_bozze_scritture s
-                          where s.bozza_id = b.id and s.azione = 'creata');
+     and (e.entity_id in (select s.riga_id::text from public.commessa_bozze_scritture s
+                           where s.bozza_id = b.id and s.azione = 'creata')
+          -- Il preventivo (D2): gli eventi di «convertita» e del ritorno a com'era.
+          or (e.created_at >= b.eseguita_il
+              and e.entity_id in (select s.riga_id::text from public.commessa_bozze_scritture s
+                                   where s.bozza_id = b.id and s.tabella = 'quotes')));
 
   delete from public.commessa_bozze_scritture where bozza_id = b.id;
   update public.commessa_bozze

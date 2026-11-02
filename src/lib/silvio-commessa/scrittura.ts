@@ -40,6 +40,9 @@ import type {
 import { REGISTRO, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { giaNellaCommessa } from "../../../shared/silvio-commessa/fondi.ts";
 import { numeroDellaColonna } from "../../../shared/silvio-commessa/letturaAI.ts";
+import { rateInAttesa } from "../../../shared/silvio-commessa/quadratura.ts";
+import { spostaLavorativi, type CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
+import { dataVera } from "../../../shared/silvio-commessa/date.ts";
 import type {
   ContrattoDelPiano, DittaDelPiano, MezzoDelPiano, OdaDelPiano, PersonaDelPiano, PromemoriaDelPiano,
 } from "../../../shared/silvio-commessa/risorse.ts";
@@ -183,6 +186,7 @@ function motivoFuori(v: Valore, variabile: Variabile, autonomia: Autonomia | nul
   const azione = azioneDellaVariabile(variabile.chiave);
   // Vietata vale anche per quello che la persona ha accettato: Silvio non lo scrive.
   if (azione && livelloDi(autonomia, azione.azione) === "vietata") return "nelle impostazioni Silvio non lo fa: si fa dalla pagina della commessa";
+  if (v.daConfermare) return "proposta da confermare";
   if (v.stato === "fatto" || v.fonte.tipo === "persona") return null;
   if (azione) return livelloDi(autonomia, azione.azione) === "da_sola" ? null : "proposta da confermare";
   if (variabile.livello === "da_solo" || variabile.livello === "chiede") return null;
@@ -195,7 +199,7 @@ const daSola = (v: Valore) => v.stato !== "fatto" && v.fonte.tipo !== "persona";
 /** Una colonna col tipo giusto, o undefined se il valore non va bene. */
 function colonna(nome: string, valore: unknown): string | number | boolean | undefined {
   if (vuoto(valore)) return undefined;
-  if (DATE.has(nome)) return typeof valore === "string" && DATA.test(valore) ? valore : undefined;
+  if (DATE.has(nome)) return dataVera(valore) ? valore : undefined;
   // Coi limiti della colonna (revisione 1/11, L2): un importo negativo o un'IVA al 23 % non entrano.
   if (NUMERI.has(nome)) return numeroDellaColonna(nome, valore).valore;
   if (SI_NO.has(nome)) return typeof valore === "boolean" ? valore : undefined;
@@ -208,7 +212,7 @@ const numero = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-function fasiScritte(fasi: FaseDelPiano[], tipoFonte: TipoFonte, costi: CostoDelPiano[] | null): FaseScritta[] {
+function fasiScritte(fasi: FaseDelPiano[], tipoFonte: TipoFonte, costi: CostoDelPiano[] | null, cal?: CalendarioCantiere): FaseScritta[] {
   const origine = tipoFonte === "preventivo" || tipoFonte === "computo" ? tipoFonte : null;
   return fasi
     .filter((f) => typeof f?.name === "string" && f.name.trim())
@@ -224,10 +228,15 @@ function fasiScritte(fasi: FaseDelPiano[], tipoFonte: TipoFonte, costi: CostoDel
       if (origine && costo && costo.importo > 0 && !sottofasi.some((s) => s.costo != null)) {
         sottofasi.push({ nome: `Costo previsto ${f.name.trim()}`, quantita: 1, costo: costo.importo });
       }
-      const inizio = f.start_date && DATA.test(f.start_date) ? f.start_date : null;
-      const fine = f.end_date && DATA.test(f.end_date) ? f.end_date : null;
+      let inizio = dataVera(f.start_date) ? f.start_date : null;
+      let fine = dataVera(f.end_date) ? f.end_date : null;
+      const durata = Number.isInteger(f.giorni) && f.giorni! >= 1 && f.giorni! <= 3650 ? f.giorni! : null;
+      // Una sola delle due date non si perde (revisione 2/11, G14): con la durata si calcola
+      // l'altra, senza la fase è di un giorno.
+      if (inizio && !fine) fine = durata ? spostaLavorativi(inizio, durata - 1, cal) : inizio;
+      else if (fine && !inizio) inizio = durata ? spostaLavorativi(fine, -(durata - 1), cal) : fine;
       const datata = !!(inizio && fine && fine >= inizio);
-      const giorni = !datata && Number.isInteger(f.giorni) && f.giorni! >= 1 && f.giorni! <= 3650 ? f.giorni! : null;
+      const giorni = !datata ? durata : null;
       return {
         nome: f.name.trim(),
         inizio: datata ? inizio : null,
@@ -338,10 +347,13 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
         else if (Array.isArray(v.valore)) s.righe = righeScritte(v.valore);
         continue;
       case "pagamenti.rate":
+        // Le rate in percentuale senza l'IVA o il totale restano fuori, salvo che una persona le confermi (G9).
+        if (rateInAttesa(piano)) { fuori(variabile, rateInAttesa(piano)!); continue; }
         if (Array.isArray(v.valore)) s.rate = rateScritte(v.valore as RataDelPiano[]);
+        if (!s.rate.length && Array.isArray(v.valore) && v.valore.length) fuori(variabile, "le rate non hanno un importo: manca il totale");
         continue;
       case "fasi.order_work_phases":
-        if (Array.isArray(v.valore)) s.fasi = fasiScritte(v.valore as FaseDelPiano[], v.fonte.tipo, costi);
+        if (Array.isArray(v.valore)) s.fasi = fasiScritte(v.valore as FaseDelPiano[], v.fonte.tipo, costi, piano.calendario);
         continue;
       case "fasi.date_fasi":
         // In «crea» le date stanno dentro le fasi; in «completa» sono per le fasi che ci sono.
@@ -449,9 +461,11 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
       continue;
     }
     // Una colonna: il valore. Più colonne: un oggetto con le colonne trovate.
+    // Sopra una commessa si scrivono solo le colonne che le mancano (revisione 2/11, G8).
+    const inCommessa = (v.sopraCommessa?.valore ?? {}) as Record<string, unknown>;
     const coppie: [string, unknown][] = variabile.colonne.length === 1
       ? [[variabile.colonne[0], v.valore]]
-      : Object.entries((v.valore ?? {}) as Record<string, unknown>).filter(([c]) => variabile.colonne.includes(c));
+      : Object.entries((v.valore ?? {}) as Record<string, unknown>).filter(([c]) => variabile.colonne.includes(c) && inCommessa[c] == null);
     let scritte = 0;
     for (const [nome, valore] of coppie) {
       if (!(COLONNE_SCRIVIBILI as readonly string[]).includes(nome)) continue;
@@ -463,6 +477,16 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
     if (!scritte) fuori(variabile, coppie.some(([n]) => (COLONNE_SCRIVIBILI as readonly string[]).includes(n))
       ? "il valore non è nel formato giusto"
       : "Silvio non la scrive: la calcola il gestionale o la decide una persona");
+  }
+
+  // I costi previsti stanno nelle voci delle fasi: se la fase non si scrive (la commessa ce l'ha già,
+  // o la fonte non è un computo) non arrivano da nessuna parte, e lo si dice (revisione 2/11, G14).
+  const regCosti = REGISTRO.find((x) => x.chiave === "costi.previsti");
+  const voceCosti = valoreDi("costi.previsti");
+  if (regCosti && costi && voceCosti && !giaNellaCommessa(piano, voceCosti)) {
+    const persi = costi.filter((c) => Number(c?.importo) > 0 && !s.fasi.some((f) => f.nome.trim().toLowerCase() === c.fase?.trim().toLowerCase()
+      && f.sottofasi.some((x) => x.costo != null)));
+    if (persi.length) fuori(regCosti, `i costi di ${persi.map((c) => `«${c.fase}»`).join(", ")} non si scrivono da qui: si mettono sulle fasi dalla pagina della commessa`);
   }
 
   // Un contratto solo per una ditta che entra nella commessa (o che c'è già, in «completa»).

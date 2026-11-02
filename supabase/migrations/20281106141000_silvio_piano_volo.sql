@@ -75,6 +75,24 @@ create policy silvio_piano_volo_lettura on public.silvio_piano_volo for select t
                    and public.can_see_order(o.id, o.assigned_to, o.destination_warehouse_id))
   );
 
+-- Quale azione è, al di là di motivo e testo (D7): la riga la riscrive il cron ogni giorno, con
+-- gli indici che cambiano, quindi quello che è già fatto si riconosce da qui e non dall'indice.
+create or replace function public._silvio_volo_chiave(p_azione jsonb)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case p_azione->>'tipo'
+    when 'assegna_persona' then concat_ws('|', 'assegna_persona', p_azione->>'employee_id', p_azione->>'fase_id')
+    when 'prenota_mezzo' then concat_ws('|', 'prenota_mezzo', p_azione->>'mezzo_id', p_azione->>'fase_id')
+    when 'attivita' then concat_ws('|', 'attivita', lower(btrim(p_azione->>'titolo')))
+    when 'sal_bozza' then concat_ws('|', 'sal_bozza', p_azione->>'numero')
+    else md5(p_azione::text)
+  end
+$$;
+revoke all on function public._silvio_volo_chiave(jsonb) from public, anon, authenticated;
+
 -- ── Le proposte aperte di una commessa ───────────────────────────────────────
 -- Si vedono dove si vede la commessa: azienda, «Vedi commesse» e la commessa stessa (chi
 -- vede solo le assegnate vede solo le loro). Senza «Importi di vendita» l'importo del SAL
@@ -108,7 +126,13 @@ begin
              'azioni', case when v_importi then v.azioni else coalesce((
                select jsonb_agg(case when a->>'tipo' = 'sal_bozza' then jsonb_set(a, '{importo}', 'null'::jsonb) else a end)
                  from jsonb_array_elements(v.azioni) a), '[]'::jsonb) end,
-             'fase', f.name) order by v.giorno, v.created_at)
+             'fase', f.name,
+             -- D7: quello che una conferma di prima ha già fatto (indici di `azioni`) e quello
+             -- che ha saltato, col motivo: la proposta resta aperta per queste.
+             'gia_fatte', coalesce((
+               select jsonb_agg(e.ord - 1 order by e.ord) from jsonb_array_elements(v.azioni) with ordinality e(a, ord)
+                where public._silvio_volo_chiave(e.a) in (select d->>'chiave' from jsonb_array_elements(coalesce(v.esito->'fatte', '[]'::jsonb)) d)), '[]'::jsonb),
+             'saltate', coalesce(v.esito->'saltate', '[]'::jsonb)) order by v.giorno, v.created_at)
       from (select * from public.silvio_piano_volo
              where order_id = o.id and company_id = o.company_id and stato = 'aperta'
              order by giorno limit 20) v
@@ -152,6 +176,9 @@ $$;
 revoke all on function public._silvio_volo(uuid) from public, anon, authenticated;
 
 -- ── Conferma: esegue le azioni scelte (tutte se p_indici è null) ──────────────
+-- Chiude la proposta solo se non resta niente da fare (D7): un'azione saltata o non scelta la
+-- lascia aperta, e quello che è già stato fatto non si esegue una seconda volta (un mezzo
+-- prenotato due volte, un SAL che risponde «c'è già»).
 create or replace function public.silvio_volo_conferma(p_id uuid, p_indici integer[] default null)
 returns jsonb
 language plpgsql
@@ -165,6 +192,11 @@ declare
   i integer := -1;
   v_fatte jsonb := '[]'::jsonb;
   v_saltate jsonb := '[]'::jsonb;
+  v_gia jsonb := '[]'::jsonb;
+  v_non_scelte jsonb := '[]'::jsonb;
+  v_prima jsonb := coalesce(r.esito->'fatte', '[]'::jsonb);
+  v_stato text;
+  v_chiave text;
   v_id uuid;
   v_oggi date := (now() at time zone 'Europe/Rome')::date;
   v_fase public.order_work_phases;
@@ -179,7 +211,15 @@ begin
   end if;
   for x in select value from jsonb_array_elements(r.azioni) loop
     i := i + 1;
-    continue when p_indici is not null and not (i = any (p_indici));
+    v_chiave := public._silvio_volo_chiave(x);
+    if exists (select 1 from jsonb_array_elements(v_prima) d where d->>'chiave' = v_chiave) then
+      v_gia := v_gia || to_jsonb(i);
+      continue;
+    end if;
+    if p_indici is not null and not (i = any (p_indici)) then
+      v_non_scelte := v_non_scelte || to_jsonb(i);
+      continue;
+    end if;
     begin
       case x->>'tipo'
         when 'assegna_persona' then
@@ -191,6 +231,10 @@ begin
           if not exists (select 1 from public.employees e where e.id = nullif(x->>'employee_id', '')::uuid
                           and e.company_id = r.company_id and e.is_active is not false) then
             raise exception 'la persona non è più tra i dipendenti attivi';
+          end if;
+          -- Le policy di order_employees: solo amministratori (D4).
+          if not (public.has_role(auth.uid(), 'super_admin'::public.app_role) or public.e_amministratore_di(r.company_id)) then
+            raise exception 'la squadra la cambia solo un amministratore';
           end if;
           if not exists (select 1 from public.order_employees oe where oe.order_id = r.order_id
                           and oe.employee_id = (x->>'employee_id')::uuid and oe.phase_id = v_fase.id) then
@@ -208,6 +252,9 @@ begin
             'dal', x->>'dal', 'al', nullif(x->>'al', ''), 'quantita', 1, 'note', 'Prenotato dal piano di volo di Silvio'));
 
         when 'attivita' then
+          if public._silvio_livello(r.company_id, 'promemoria') = 'vietata' then
+            raise exception 'nelle impostazioni Silvio non prepara promemoria';
+          end if;
           if not exists (select 1 from public.tasks t where t.order_id = r.order_id and t.title = left(btrim(x->>'titolo'), 300)
                           and t.status <> 'completata') then
             insert into public.tasks (company_id, title, notes, status, priority, due_date, order_id, created_by)
@@ -237,18 +284,22 @@ begin
         else
           raise exception 'azione sconosciuta';
       end case;
-      v_fatte := v_fatte || jsonb_build_array(jsonb_build_object('indice', i, 'tipo', x->>'tipo'));
+      v_fatte := v_fatte || jsonb_build_array(jsonb_build_object('indice', i, 'tipo', x->>'tipo', 'chiave', v_chiave));
     exception when others then
       -- Un'azione che non va (permesso, mezzo preso nel frattempo) non ferma le altre.
       v_saltate := v_saltate || jsonb_build_array(jsonb_build_object('indice', i, 'tipo', x->>'tipo', 'motivo', sqlerrm));
     end;
   end loop;
 
+  v_stato := case when jsonb_array_length(v_saltate) + jsonb_array_length(v_non_scelte) = 0 then 'confermata' else 'aperta' end;
   update public.silvio_piano_volo
-     set stato = 'confermata', risolta_da = auth.uid(), risolta_il = now(), updated_at = now(),
-         esito = jsonb_build_object('fatte', v_fatte, 'saltate', v_saltate)
+     set stato = v_stato, updated_at = now(),
+         risolta_da = case when v_stato = 'confermata' then auth.uid() end,
+         risolta_il = case when v_stato = 'confermata' then now() end,
+         esito = jsonb_build_object('fatte', v_prima || v_fatte, 'saltate', v_saltate)
    where id = r.id;
-  return jsonb_build_object('fatte', v_fatte, 'saltate', v_saltate);
+  return jsonb_build_object('fatte', v_fatte, 'saltate', v_saltate, 'gia_fatte', v_gia, 'non_scelte', v_non_scelte,
+                            'stato', v_stato);
 end
 $$;
 revoke all on function public.silvio_volo_conferma(uuid, integer[]) from public, anon;
@@ -286,14 +337,20 @@ as $$
 declare
   v_prima public.silvio_piano_volo;
   v_id uuid;
+  v_azioni jsonb;
 begin
   if not exists (select 1 from public.order_work_phases f join public.orders o on o.id = f.order_id
                   where f.id = p_fase and o.id = p_order and o.company_id = p_company) then
     raise exception 'fase % non della commessa %', p_fase, p_order;
   end if;
   select * into v_prima from public.silvio_piano_volo where fase_id = p_fase and tipo = p_tipo for update;
+  -- Quello che una conferma ha già fatto non si ripropone il giorno dopo (D7).
+  select coalesce(jsonb_agg(e.a order by e.ord), '[]'::jsonb) into v_azioni
+    from jsonb_array_elements(coalesce(p_azioni, '[]'::jsonb)) with ordinality e(a, ord)
+   where public._silvio_volo_chiave(e.a) not in (
+           select d->>'chiave' from jsonb_array_elements(coalesce(v_prima.esito->'fatte', '[]'::jsonb)) d);
   insert into public.silvio_piano_volo (company_id, order_id, fase_id, tipo, giorno, riassunto, problemi, azioni)
-  values (p_company, p_order, p_fase, p_tipo, p_giorno, left(p_riassunto, 500), coalesce(p_problemi, '[]'), coalesce(p_azioni, '[]'))
+  values (p_company, p_order, p_fase, p_tipo, p_giorno, left(p_riassunto, 500), coalesce(p_problemi, '[]'), v_azioni)
   on conflict (fase_id, tipo) do update
     set giorno = excluded.giorno, riassunto = excluded.riassunto, problemi = excluded.problemi,
         azioni = excluded.azioni, updated_at = now()
@@ -303,7 +360,7 @@ begin
     'id', v_id,
     'nuova', v_id is not null and v_prima.id is null,
     'cambiata', v_id is not null and v_prima.id is not null
-                and (v_prima.azioni is distinct from coalesce(p_azioni, '[]'::jsonb)
+                and (v_prima.azioni is distinct from v_azioni
                      or v_prima.problemi is distinct from coalesce(p_problemi, '[]'::jsonb)));
 end
 $$;

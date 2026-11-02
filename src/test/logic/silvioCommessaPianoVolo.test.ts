@@ -126,7 +126,7 @@ describe("la proposta del SAL", () => {
 });
 
 describe("la funzione del cron e il job", () => {
-  const funzione = readFileSync(resolve(radice, "supabase/functions/silvio-piano-volo/index.ts"), "utf8");
+  const funzione = readFileSync(resolve(radice, "supabase/functions/silvio-piano-volo/index.ts"), "utf8") + readFileSync(resolve(radice, "supabase/functions/silvio-piano-volo/giro.ts"), "utf8");
   it("risponde rapida a pg_net, controlla il segreto, non manda messaggi né chiama l'AI", () => {
     expect(funzione).toMatch(/serveConMetricheRapida\("silvio-piano-volo"/);
     expect(funzione).toMatch(/cronSecretValido\(req\)/);

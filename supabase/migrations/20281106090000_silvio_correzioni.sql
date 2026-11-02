@@ -60,7 +60,20 @@ grant all on public.silvio_correzioni to service_role;
 
 drop policy if exists silvio_correzioni_lettura on public.silvio_correzioni;
 create policy silvio_correzioni_lettura on public.silvio_correzioni for select to authenticated
-  using (public.has_permission_for_company((select auth.uid()), 'can_view_orders', company_id));
+  using (
+    public.has_permission_for_company((select auth.uid()), 'can_view_orders', company_id)
+    -- D5 (revisione 2/11): la riga racconta i valori di una commessa, quindi si vede dove si vede
+    -- quella commessa; senza commessa (bozza non ancora nata) la vede solo chi l'ha scritta.
+    and (case when order_id is null then user_id = (select auth.uid())
+              else exists (select 1 from public.orders o
+                            where o.id = silvio_correzioni.order_id and o.company_id = silvio_correzioni.company_id
+                              and public.can_see_order(o.id, o.assigned_to, o.destination_warehouse_id)) end)
+    -- Le aree che portano importi seguono i permessi delle pagine.
+    and (area not in ('economia', 'pagamenti')
+         or public.has_permission_for_company((select auth.uid()), 'can_view_order_amounts', company_id))
+    and (area <> 'costi'
+         or public.has_permission_for_company((select auth.uid()), 'can_view_costs', company_id))
+  );
 
 -- Scrive solo chi può modificare le commesse, a proprio nome, su una commessa della
 -- stessa azienda.

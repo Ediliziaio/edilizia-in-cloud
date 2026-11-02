@@ -11,7 +11,7 @@
  *
  * Funzioni pure, senza dipendenze, compatibili con Deno.
  */
-import type { Area, PianoCommessa, Valore } from "./piano.ts";
+import type { Area, PianoCommessa, RataDelPiano, Valore } from "./piano.ts";
 
 export interface ProblemaQuadratura {
   area: Area;
@@ -58,6 +58,45 @@ export function controlliQuadratura(piano: PianoCommessa): ProblemaQuadratura[] 
   return out;
 }
 
+// ── Le rate in percentuale che aspettano l'IVA o il totale (revisione 2/11, G9 e G20) ──
+
+const NOTA_SENZA_IVA = "Manca l'IVA: le rate in percentuale sono calcolate sull'imponibile, da rifare quando c'è l'IVA.";
+const NOTA_SENZA_TOTALE = "Manca il totale: gli importi delle rate si calcolano dalle percentuali quando arriva.";
+const senzaNotaRate = (nota: string | null | undefined) =>
+  (nota ?? "").replace(NOTA_SENZA_IVA, "").replace(NOTA_SENZA_TOTALE, "").replace(/\s+/g, " ").trim();
+
+const rateDaPercentuale = (v: Valore | undefined): RataDelPiano[] | null =>
+  (v && v.fonte.tipo !== "persona" && Array.isArray(v.valore) && (v.valore as RataDelPiano[]).some((r) => r?.daPercentuale)
+    ? v.valore as RataDelPiano[] : null);
+
+/** Le rate non si scrivono ancora: i loro importi aspettano l'IVA o il totale. Il motivo, o null. */
+export function rateInAttesa(piano: PianoCommessa): string | null {
+  if (!rateDaPercentuale(piano.aree.pagamenti?.["pagamenti.rate"])) return null;
+  const imponibile = numero(piano.aree.economia?.["economia.total_amount"]?.valore);
+  if (!imponibile || imponibile <= 0) return "le rate in percentuale aspettano il totale: si calcolano quando c'è";
+  if (numero(piano.aree.economia?.["economia.vat_rate"]?.valore) == null) return "le rate in percentuale aspettano l'IVA: si calcolano quando c'è, oppure confermale così";
+  return null;
+}
+
+/** Rifà gli importi dalle percentuali con il totale e l'IVA di adesso: annullare l'IVA li riporta indietro. */
+function conRatePercentuali(piano: PianoCommessa): PianoCommessa {
+  const v = piano.aree.pagamenti?.["pagamenti.rate"];
+  const rate = rateDaPercentuale(v);
+  if (!v || !rate || piano.conflitti.some((c) => c.chiave === "pagamenti.rate")) return piano;
+  const imponibile = numero(piano.aree.economia?.["economia.total_amount"]?.valore);
+  const iva = numero(piano.aree.economia?.["economia.vat_rate"]?.valore);
+  const base = imponibile && imponibile > 0 ? imponibile * (1 + (iva ?? 0) / 100) : 0;
+  const nuove = rate.map((r) => (r.daPercentuale && r.percent != null
+    ? { ...r, amount: Math.round((base * r.percent) / 100 * 100) / 100 } : r));
+  const attesa = !imponibile || imponibile <= 0 ? NOTA_SENZA_TOTALE : iva == null ? NOTA_SENZA_IVA : "";
+  const nota = [senzaNotaRate(v.quadratura ? v.quadratura.nota : v.nota), attesa].filter(Boolean).join(" ") || null;
+  const stesseRate = nuove.every((r, i) => r.amount === rate[i].amount);
+  const notaPrima = (v.quadratura ? v.quadratura.nota : v.nota) ?? null;
+  if (stesseRate && nota === notaPrima) return piano;
+  const nuovo: Valore = v.quadratura ? { ...v, valore: nuove, quadratura: { ...v.quadratura, nota } } : { ...v, valore: nuove, nota };
+  return { ...piano, aree: { ...piano.aree, pagamenti: { ...(piano.aree.pagamenti ?? {}), "pagamenti.rate": nuovo } } };
+}
+
 const CONTROLLATE: readonly { area: Area; chiave: string }[] = [
   { area: "pagamenti", chiave: "pagamenti.rate" },
   { area: "ditte", chiave: "ditte.contratti" },
@@ -65,7 +104,8 @@ const CONTROLLATE: readonly { area: Area; chiave: string }[] = [
 ];
 
 /** Il piano con i ⚠ della quadratura messi o tolti. Lo stesso oggetto se non cambia niente. */
-export function conQuadratura(piano: PianoCommessa): PianoCommessa {
+export function conQuadratura(pianoPrima: PianoCommessa): PianoCommessa {
+  const piano = conRatePercentuali(pianoPrima);
   const problemi = controlliQuadratura(piano);
   let out = piano;
   for (const { area, chiave } of CONTROLLATE) {

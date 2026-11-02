@@ -41,7 +41,8 @@ import {
 } from "../../../shared/silvio-commessa/fondi.ts";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import {
-  frammentoDaOfferta, proposteRisorse, riassuntoRisorse, type ContestoRisorse, type RichiestaOfferta,
+  contrattoSenzaFase, fasiDiLavoro, frammentoDaOfferta, proposteRisorse, riassuntoRisorse,
+  type ContestoRisorse, type ContrattoDelPiano, type RichiestaOfferta,
 } from "../../../shared/silvio-commessa/risorse.ts";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
@@ -49,7 +50,7 @@ import { dateDelleFasi } from "../../../shared/silvio-commessa/modelliLavoro.ts"
 import type { FaseDelPiano } from "../../../shared/silvio-commessa/piano.ts";
 import { scritturaDalPiano } from "@/lib/silvio-commessa/scrittura";
 import { IMPOSTAZIONI_PREDEFINITE, type ImpostazioniSilvio } from "@/lib/silvio-commessa/autonomia";
-import { calendarioAzienda, lavorativiTra, type CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
+import { calendarioAzienda, inizioUtile, lavorativiTra, type CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
@@ -63,33 +64,66 @@ import type { ServiziSilvioCommessa } from "./servizi";
 export const LETTURE_INSIEME = 3;
 
 /**
- * Quello che una modifica si porta dietro, come se lo aspetta chi la fa (01/11/2026):
- * - la data d'inizio nuova sposta anche le fasi che hanno già le date (dello stesso numero di
- *   giorni lavorativi), prima di scriversi;
- * - togliere una ditta toglie anche il suo contratto in bozza.
+ * Quello che una modifica si porta dietro, come se lo aspetta chi la fa (01/11/2026; revisione
+ * 2/11, G2, G3, G16). Vale per le modifiche a mano e per quelle della chat:
+ * - la data d'inizio su un giorno chiuso va al primo giorno utile, con l'avviso nella nota;
+ * - le fasi che hanno già le date si spostano perché la prima parta lì: lo scarto si misura
+ *   dalla prima fase, non dall'inizio che c'era, che può essere un giorno chiuso;
+ * - le fasi che hanno i giorni ma non le date le prendono (e la fine lavori, se manca);
+ * - togliere una ditta toglie il suo contratto; da una sola fase, lo toglie solo per quella.
  * Tutte insieme: un annulla le toglie tutte.
  */
-export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[]): Modifica[] {
+export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi: string = oggiInItalia()): Modifica[] {
   const out: Modifica[] = [];
+  let ora = piano;
+  const metti = (m: Modifica) => {
+    out.push(m);
+    // Una modifica che non si può fare la ferma il riduttore, col suo messaggio.
+    try { ora = applica(ora, m).piano; } catch { /* resta com'è */ }
+  };
   for (const m of modifiche) {
     if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
-      const prima = piano.aree.fasi?.["fasi.work_start_date"]?.valore;
-      const fasi = piano.aree.fasi?.["fasi.order_work_phases"];
-      const datate = Array.isArray(fasi?.valore) && (fasi!.valore as FaseDelPiano[]).some((f) => f.start_date);
-      const inizio = typeof prima === "string" ? prima
-        : datate ? (fasi!.valore as FaseDelPiano[]).map((f) => f.start_date).filter((d): d is string => !!d).sort()[0] : null;
-      const n = inizio && datate && !giaNellaCommessa(piano, fasi) ? lavorativiTra(inizio, m.valore, piano.calendario) : 0;
-      if (n) out.push({ tipo: "sposta_date", giorniLavorativi: n, daFase: null });
+      const { data, avviso } = inizioUtile(m.valore, ora.calendario, oggi);
+      const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
+      const bloccate = giaNellaCommessa(ora, fasi);
+      const elenco = Array.isArray(fasi?.valore) ? (fasi!.valore as FaseDelPiano[]) : [];
+      const prima = elenco.map((f) => f.start_date).filter((d): d is string => !!d).sort()[0];
+      const n = prima && !bloccate ? lavorativiTra(prima, data, ora.calendario) : 0;
+      if (n) metti({ tipo: "sposta_date", giorniLavorativi: n, daFase: null });
+      metti({ ...m, valore: data, ...(avviso ? { nota: avviso } : {}) });
+      // Quelle che la commessa ha già non si ridatano: le date le mette chi le ha scritte. Quelle
+      // che ha senza date le prendono nella proposta (`fasi.date_fasi`), che resta una proposta.
+      const chiave = bloccate ? "fasi.date_fasi" : "fasi.order_work_phases";
+      const daDatare = ora.aree.fasi?.[chiave]?.valore;
+      if (Array.isArray(daDatare) && (daDatare as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
+        const datate = dateDelleFasi(daDatare as FaseDelPiano[], data, ora.calendario);
+        metti({ tipo: "cambia_valore", area: "fasi", chiave, valore: datate, conservaStato: true });
+        const fine = datate.map((f) => f.end_date).filter((d): d is string => !!d).sort().pop();
+        if (fine && !ora.aree.fasi?.["fasi.work_end_date"]) {
+          metti({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.work_end_date", valore: fine });
+        }
+      }
+      continue;
     }
-    out.push(m);
     if (m.tipo === "togli" && m.chiave === "ditte.assegnate") {
-      const contratti = piano.aree.ditte?.["ditte.contratti"]?.valore;
+      const contratti = ora.aree.ditte?.["ditte.contratti"]?.valore;
+      const ditte = ora.aree.ditte?.["ditte.assegnate"]?.valore as { nome?: string; external_team_id?: string; fase?: string }[] | undefined;
+      const ditta = m.indice != null ? ditte?.[m.indice] : null;
+      metti(m);
       if (!Array.isArray(contratti) || !contratti.length) continue;
-      if (m.indice == null) { out.push({ tipo: "togli", area: "ditte", chiave: "ditte.contratti" }); continue; }
-      const ditta = (piano.aree.ditte?.["ditte.assegnate"]?.valore as { nome?: string }[] | undefined)?.[m.indice]?.nome;
-      const i = ditta ? (contratti as { nome?: string }[]).findIndex((c) => c?.nome === ditta) : -1;
-      if (i >= 0) out.push({ tipo: "togli", area: "ditte", chiave: "ditte.contratti", indice: i });
+      if (m.indice == null) { metti({ tipo: "togli", area: "ditte", chiave: "ditte.contratti" }); continue; }
+      const stessa = (x: { nome?: string; external_team_id?: string }) => (ditta?.external_team_id ? x?.external_team_id === ditta.external_team_id : x?.nome === ditta?.nome);
+      const i = ditta ? (contratti as { nome?: string; external_team_id?: string }[]).findIndex(stessa) : -1;
+      if (i < 0) continue;
+      const restano = (ora.aree.ditte?.["ditte.assegnate"]?.valore as { nome?: string; external_team_id?: string; fase?: string }[]).filter(stessa);
+      if (!restano.length) { metti({ tipo: "togli", area: "ditte", chiave: "ditte.contratti", indice: i }); continue; }
+      if (ditta?.fase && !restano.some((r) => r.fase === ditta.fase)) {
+        const nuovi = (contratti as ContrattoDelPiano[]).map((c, k) => (k === i ? contrattoSenzaFase(c, ditta.fase!, fasiDiLavoro(ora)) : c));
+        metti({ tipo: "cambia_valore", area: "ditte", chiave: "ditte.contratti", valore: nuovi, conservaStato: true });
+      }
+      continue;
     }
+    metti(m);
   }
   return out;
 }
@@ -596,30 +630,9 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
 
   const togliFonte = useCallback((id: string) => invia({ tipo: "togli_fonte", id }), []);
 
-  /**
-   * Le modifiche a mano. Con la data d'inizio, le fasi che hanno i giorni ma non le date
-   * le prendono (e la fine lavori, se manca): un passo per volta, ognuno si annulla.
-   */
+  /** Le modifiche a mano: quello che si portano dietro lo dice `conConseguenze`, come per la chat. */
   const modifica = useCallback((voluta: Modifica | Modifica[]) => {
-    const modifiche = conConseguenze(ultimo.current.piano, Array.isArray(voluta) ? [...voluta] : [voluta]);
-    const m = modifiche[modifiche.length - 1];
-    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
-      const pianoOra = ultimo.current.piano;
-      const elenco = pianoOra.aree.fasi?.["fasi.order_work_phases"];
-      // Le fasi che la commessa ha già non si ridatano: le date le mette chi le ha scritte.
-      // Quelle che ha senza date le prendono nella proposta (`fasi.date_fasi`).
-      const chiave = giaNellaCommessa(pianoOra, elenco) ? "fasi.date_fasi" : "fasi.order_work_phases";
-      const fasi = pianoOra.aree.fasi?.[chiave]?.valore;
-      if (Array.isArray(fasi) && (fasi as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
-        const datate = dateDelleFasi(fasi as FaseDelPiano[], m.valore, pianoOra.calendario);
-        modifiche.push({ tipo: "cambia_valore", area: "fasi", chiave, valore: datate });
-        const fine = datate.map((f) => f.end_date).filter(Boolean).sort().pop();
-        if (fine && !ultimo.current.piano.aree.fasi?.["fasi.work_end_date"]) {
-          modifiche.push({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.work_end_date", valore: fine });
-        }
-      }
-    }
-    invia({ tipo: "modifiche", modifiche });
+    invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, Array.isArray(voluta) ? [...voluta] : [voluta]) });
   }, []);
 
   const indietro = useCallback(() => invia({ tipo: "annulla" }), []);
