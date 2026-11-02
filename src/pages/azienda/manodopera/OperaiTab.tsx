@@ -31,6 +31,7 @@ import {
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { KpiMobili, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
+import { LinkAccessoDialog } from "@/components/manodopera/LinkAccessoDialog";
 import { OperaioDialog } from "@/components/manodopera/OperaioDialog";
 import { SquadraDialog } from "@/components/manodopera/SquadraDialog";
 import { SquadraCommessaDialog } from "@/components/manodopera/SquadraCommessaDialog";
@@ -66,7 +67,14 @@ export default function OperaiTab() {
   const vista: Vista = richiesta === "elenco" || richiesta === "squadre" ? richiesta : "oggi";
   const [nuovoAperto, setNuovoAperto] = useState(false);
   const [nuovaSquadra, setNuovaSquadra] = useState(false);
+  const [linkAperto, setLinkAperto] = useState(false);
   const navigate = useNavigate();
+  const { data: operai } = useOperai();
+  const senzaApp = useMemo(
+    () => (operai ?? []).filter((o) => o.attivo && !o.ha_accesso_app && !!o.employee_id),
+    [operai],
+  );
+  const idsSenzaApp = useMemo(() => senzaApp.map((o) => o.employee_id as string), [senzaApp]);
 
   const cambiaVista = (v: Vista) => {
     const next = new URLSearchParams(searchParams);
@@ -97,6 +105,11 @@ export default function OperaiTab() {
         {puoModificare && (
           <>
             <div className="hidden items-center gap-2 sm:flex">
+              {senzaApp.length > 0 && perms.isAdmin && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setLinkAperto(true)}>
+                  <Smartphone className="h-4 w-4" aria-hidden="true" />Dai l'app ({senzaApp.length})
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNuovaSquadra(true)}>
                 <UsersRound className="h-4 w-4" aria-hidden="true" />Nuova squadra
               </Button>
@@ -122,6 +135,9 @@ export default function OperaiTab() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setNuovoAperto(true)}>Nuovo operaio</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setNuovaSquadra(true)}>Nuova squadra</DropdownMenuItem>
+                {senzaApp.length > 0 && perms.isAdmin && (
+                  <DropdownMenuItem onSelect={() => setLinkAperto(true)}>Dai l'app ({senzaApp.length})</DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>
@@ -132,6 +148,7 @@ export default function OperaiTab() {
       {vista === "squadre" && <SquadreOperai puoModificare={puoModificare} onNuova={() => setNuovaSquadra(true)} />}
       {vista === "elenco" && <ElencoOperai onNuovo={puoModificare ? () => setNuovoAperto(true) : undefined} />}
 
+      <LinkAccessoDialog aperto={linkAperto} onAperto={setLinkAperto} employeeIds={idsSenzaApp} />
       <OperaioDialog
         aperto={nuovoAperto}
         onAperto={setNuovoAperto}

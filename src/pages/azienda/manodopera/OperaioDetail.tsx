@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
 import { CalendarioPresenze } from "@/components/manodopera/CalendarioPresenze";
+import { LinkAccessoDialog } from "@/components/manodopera/LinkAccessoDialog";
 import { OperaioDialog, type ValoriOperaio } from "@/components/manodopera/OperaioDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -100,6 +101,7 @@ function Scheda({ s }: { s: SchedaOperaio }) {
   const [modificaAperta, setModificaAperta] = useState(false);
   const [togliAperto, setTogliAperto] = useState(false);
   const [appAperta, setAppAperta] = useState(false);
+  const [linkAperto, setLinkAperto] = useState(false);
   const p = s.scheda;
 
   const iniziali: Partial<ValoriOperaio> = useMemo(() => ({
@@ -154,7 +156,7 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         {puoModificare && (
           <div className="flex shrink-0 items-center gap-2">
             {!p.ha_accesso_app && perms.isAdmin && p.employee_id && (
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAppAperta(true)}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setLinkAperto(true)}>
                 <Smartphone className="h-4 w-4" aria-hidden="true" />Dagli l'app
               </Button>
             )}
@@ -168,6 +170,9 @@ function Scheda({ s }: { s: SchedaOperaio }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {p.ha_accesso_app && perms.isAdmin && p.employee_id && (
+                  <DropdownMenuItem onSelect={() => setLinkAperto(true)}>Manda di nuovo il link</DropdownMenuItem>
+                )}
                 {p.attivo ? (
                   <DropdownMenuItem onSelect={() => cambia({ attivo: false }, `${p.nome} non è più attivo`)}>
                     Non lavora più con noi
@@ -274,6 +279,14 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {p.employee_id && (
+        <LinkAccessoDialog
+          aperto={linkAperto}
+          onAperto={setLinkAperto}
+          employeeIds={[p.employee_id]}
+          onUsaEmail={p.ha_accesso_app ? undefined : () => { setLinkAperto(false); setAppAperta(true); }}
+        />
+      )}
       {p.employee_id && (
         <DialogApp
           aperto={appAperta}
