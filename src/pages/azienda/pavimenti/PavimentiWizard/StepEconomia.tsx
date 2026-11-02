@@ -182,6 +182,7 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               onChange={(fasi) => onChange("cronoprogramma", fasi)}
               fasiDelModello={(template as unknown as { cronoprogramma?: unknown } | undefined)?.cronoprogramma}
               modulo="pavimenti"
+              righe={computo}
             />
             {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">

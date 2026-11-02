@@ -145,7 +145,7 @@ subappalto_massimo_pct, garanzia_anni, cig (10 caratteri), cup (15 caratteri).
 RATE ("pagamenti.rate"): elenco di { "label", "type": "deposit"|"balance"|"financing", "amount" (euro IVA inclusa, SOLO se scritto nel documento: non calcolarlo),
 "percent" (se scritta), "trigger_evento": firma_contratto|inizio_lavori|sal_numero|fine_lavori|consegna_cantiere|data_fissa, "trigger_numero" (numero del SAL) }.
 
-FASI ("fasi.order_work_phases"): elenco di { "name", "giorni" (giorni lavorativi, se il documento li dice), "start_date", "end_date" }, nell'ordine dei lavori.
+FASI ("fasi.order_work_phases"), solo se il documento elenca le lavorazioni (mai «inizio lavori» o «fine lavori»): elenco di { "name", "giorni" (giorni lavorativi, solo se il documento li dice), "start_date", "end_date" }, nell'ordine dei lavori.
 
 FORMATO (solo JSON, nessun altro testo)
 {
@@ -375,6 +375,9 @@ function pulisciFasi(v: unknown): Esito<FaseDelPiano[]> {
   for (const f of v.slice(0, 60)) {
     const name = oggetto(f) ? testoDa(f.name, 160) : testoDa(f, 160);
     if (!name) continue;
+    // «Inizio lavori» è una data, non una lavorazione: dal testo «si parte il 9» il modello ne faceva una
+    // fase, e così non partiva il modello del bagno con le fasi vere.
+    if (/^(inizio|fine|avvio|termine|consegna)( dei)?( lavori)?$/i.test(name.trim())) continue;
     const fase: FaseDelPiano = { name };
     if (oggetto(f)) {
       const giorni = numeroDa(f.giorni);
@@ -533,12 +536,10 @@ function coppie(json: Grezzo, avvisi: string[]): Array<[string, Grezzo]> {
     if (oggetto(v) && "valore" in v) { if (v.valore != null && v.valore !== "") out.push([chiave, v]); return; }
     if (!oggetto(v)) { out.push([chiave, { valore: v }]); return; }
     const { citazione, dove, fiducia, nota, ...resto } = v;
+    // Le variabili a più colonne (nome e telefono del cliente, condizioni) arrivano come oggetto nudo.
     const campi = Object.values(resto);
-    if (campi.length === 1) {
-      out.push([chiave, { valore: campi[0], citazione, dove, fiducia, nota }]);
-      return;
-    }
-    avvisi.push(`Ho saltato un dato che non sono riuscito a leggere (${etichettaAvviso(chiave)}).`);
+    const unElenco = campi.length === 1 && Array.isArray(campi[0]);
+    if (campi.length) out.push([chiave, { valore: unElenco ? campi[0] : resto, citazione, dove, fiducia, nota }]);
   };
   if (oggetto(json.aree)) {
     for (const [area, valori] of Object.entries(json.aree)) {

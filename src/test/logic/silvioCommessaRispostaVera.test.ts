@@ -71,4 +71,15 @@ describe("la risposta del modello vero", () => {
     expect(v.durata_giorni).toBeUndefined();
     expect(v.penale_giorno_eur).toBeUndefined();
   });
+
+  it("il cliente come oggetto nudo: il nome resta", () => {
+    const f = leggi({ cliente: { "cliente.nome": { client_name: "Mario Verdi", client_company: null as string | null }, "cliente.contatto": { client_phone: "333 000 1122", client_email: "m@esempio.it" } } });
+    expect((f.aree.cliente?.["cliente.nome"]?.valore as { client_name?: string }).client_name).toBe("Mario Verdi");
+    expect(f.avvisi ?? []).toEqual([]);
+  });
+
+  it("«Inizio lavori» non è una fase", () => {
+    const f = leggi({ fasi: { "fasi.order_work_phases": [{ name: "Inizio lavori", giorni: 14 }] } });
+    expect(f.aree.fasi?.["fasi.order_work_phases"]).toBeUndefined();
+  });
 });
