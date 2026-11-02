@@ -93,7 +93,11 @@ const apriSelettore = async () => {
   fireEvent.click(screen.getByRole("button", { name: /Cerca voce/ }));
   return screen.findByRole("dialog");
 };
-const riga = (dialogo: HTMLElement, nome: string) => within(dialogo).getByText(nome).closest("[cmdk-item]") as HTMLElement;
+const riga = (dialogo: HTMLElement, nome: string) => within(dialogo).getByText(nome).closest("li") as HTMLElement;
+const spunta = (dialogo: HTMLElement, nome: string) => fireEvent.click(within(dialogo).getByRole("checkbox", { name: `Scegli: ${nome}` }));
+const aggiungi = (dialogo: HTMLElement) => fireEvent.click(within(dialogo).getByRole("button", { name: "Aggiungi al computo" }));
+/** Spunta la voce e la aggiunge: il popup resta aperto finché non si conferma. */
+const scegli = (dialogo: HTMLElement, nome: string) => { spunta(dialogo, nome); aggiungi(dialogo); };
 const fotoNellaPagina = () => Array.from(document.querySelectorAll("img")).map((i) => i.getAttribute("src"));
 
 describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ slug, verticale }) => {
@@ -104,17 +108,15 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     ];
     await monta(slug);
     const dialogo = await apriSelettore();
-    expect(within(dialogo).getByText("Prodotti (2)")).toBeInTheDocument();
+    expect(within(within(dialogo).getByRole("navigation", { name: "Gruppi del listino" })).getByText("Prodotti")).toBeInTheDocument();
 
     const conFoto = riga(dialogo, "Piatto doccia in resina 120x80");
     expect(conFoto.querySelector(`img[src="${FOTO}"]`)).not.toBeNull();
     expect(within(conFoto).getByText("PD-12080")).toBeInTheDocument();
     expect(within(conFoto).getByText(/235/)).toBeInTheDocument();
 
-    // Senza foto non c'è nessuna immagine, né segnaposto: resta l'icona del tipo di voce.
-    const senzaFoto = riga(dialogo, "Rubinetto monocomando");
-    expect(senzaFoto.querySelector("img")).toBeNull();
-    expect(senzaFoto.querySelector("svg")).not.toBeNull();
+    // Senza foto non c'è nessuna immagine, né segnaposto.
+    expect(riga(dialogo, "Rubinetto monocomando").querySelector("img")).toBeNull();
   });
 
   it("un prodotto di un'altra area dice di quale area è", async () => {
@@ -128,7 +130,7 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     stato.prodotti = [prodotto({ vertical: verticale })];
     const m = await monta(slug);
     const dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Piatto doccia in resina 120x80"));
+    scegli(dialogo, "Piatto doccia in resina 120x80");
 
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     expect(m.voci()[0]).toMatchObject({
@@ -146,13 +148,13 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     ];
     const m = await monta(slug);
     let dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Piatto doccia in resina 120x80"));
+    scegli(dialogo, "Piatto doccia in resina 120x80");
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(fotoNellaPagina()).toEqual([FOTO]);
 
     dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Rubinetto monocomando"));
+    scegli(dialogo, "Rubinetto monocomando");
     await waitFor(() => expect(m.voci()).toHaveLength(2));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(m.voci()[1]).toMatchObject({ famiglia_id: "f-senza", immagine_url: null, descrizione_estesa: null });
@@ -163,28 +165,36 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     stato.prodotti = [prodotto({ vertical: verticale, nome: "Gres porcellanato 60x60", modo: "mq", unita: "mq", prezzo_vendita: 48, prezzo_acquisto: 26 })];
     const m = await monta(slug);
     const dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Gres porcellanato 60x60"));
+    spunta(dialogo, "Gres porcellanato 60x60");
     // Nessuna riga finché non si scrive la superficie.
-    const campo = await within(dialogo).findByLabelText("Superficie (mq)");
+    const campo = within(dialogo).getByLabelText("Quantità: Gres porcellanato 60x60");
     expect(m.cambi).toHaveLength(0);
-    const aggiungi = within(dialogo).getByRole("button", { name: "Aggiungi al computo" });
-    expect(aggiungi).toBeDisabled();
+    const conferma = within(dialogo).getByRole("button", { name: "Aggiungi al computo" });
+    expect(conferma).toBeDisabled();
     fireEvent.change(campo, { target: { value: "24.5" } });
     expect(within(dialogo).getByText(/1\.176/)).toBeInTheDocument(); // 24,5 mq × 48 €
-    fireEvent.click(aggiungi);
+    fireEvent.click(conferma);
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     expect(m.voci()[0]).toMatchObject({ unita_misura: "mq", quantita: 24.5, prezzo_unitario: 48, costo_materiali: 26, costo_manodopera: 0 });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("al metro quadro, «Indietro» torna all'elenco senza aggiungere niente", async () => {
-    stato.prodotti = [prodotto({ vertical: verticale, nome: "Gres porcellanato 60x60", modo: "mq", unita: "mq", prezzo_vendita: 48, prezzo_acquisto: 26 })];
+  it("togliendo la spunta non si aggiunge niente, e si possono aggiungere più voci insieme", async () => {
+    stato.prodotti = [
+      prodotto({ vertical: verticale }),
+      prodotto({ id: "f-senza", nome: "Rubinetto monocomando", descrizione: null, immagine_url: null, vertical: verticale }),
+    ];
     const m = await monta(slug);
     const dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Gres porcellanato 60x60"));
-    fireEvent.click(await within(dialogo).findByRole("button", { name: /Indietro/ }));
-    expect(riga(dialogo, "Gres porcellanato 60x60")).toBeTruthy();
-    expect(m.cambi).toHaveLength(0);
+    spunta(dialogo, "Rubinetto monocomando");
+    spunta(dialogo, "Rubinetto monocomando");
+    expect(within(dialogo).getByRole("button", { name: "Aggiungi al computo" })).toBeDisabled();
+    spunta(dialogo, "Piatto doccia in resina 120x80");
+    spunta(dialogo, "Rubinetto monocomando");
+    aggiungi(dialogo);
+    await waitFor(() => expect(m.voci()).toHaveLength(2));
+    expect(m.cambi).toHaveLength(1);
+    expect(m.voci().map((v) => v.ordine)).toEqual([0, 1]);
   });
 
   it("la posa del listino entra nella stessa riga come manodopera, e il selettore lo dice", async () => {
@@ -194,7 +204,7 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     const voce = riga(dialogo, "Piatto doccia in resina 120x80");
     expect(within(voce).getByText("PD-12080 · posa compresa")).toBeInTheDocument();
     expect(within(voce).getByText(/275/)).toBeInTheDocument();
-    fireEvent.click(voce);
+    scegli(dialogo, "Piatto doccia in resina 120x80");
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     expect(m.voci()[0]).toMatchObject({ quantita: 1, prezzo_unitario: 275, costo_materiali: 130, costo_manodopera: 25 });
   });
@@ -203,7 +213,7 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     stato.prodotti = [prodotto({ vertical: verticale })];
     const m = await monta(slug);
     const dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Piatto doccia in resina 120x80"));
+    scegli(dialogo, "Piatto doccia in resina 120x80");
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
@@ -219,7 +229,7 @@ describe.each(MODULI)("computo di $slug: i prodotti del listino prodotti", ({ sl
     stato.prodotti = [prodotto({ vertical: verticale })];
     const m = await monta(slug);
     const dialogo = await apriSelettore();
-    fireEvent.click(riga(dialogo, "Piatto doccia in resina 120x80"));
+    scegli(dialogo, "Piatto doccia in resina 120x80");
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     const img = document.querySelector("img") as HTMLImageElement;
@@ -245,13 +255,14 @@ describe("ogni modulo a computo, anche uno futuro, usa il listino prodotti", () 
   it.each(cartelle)("%s: il selettore ha il listino prodotti e porta foto e descrizione nella riga", (cartella) => {
     const picker = leggi(cartella, "AddVocePicker.tsx");
     const verticale = MODULI.find((m) => m.slug === cartella)!.verticale;
-    expect(picker).toContain("useProdottiListino(debounced, VERTICALE_LISTINO, altreSorgenti)");
-    expect(picker).toContain("...prodottoInRiga(p),");
-    expect(picker).toMatch(/useListinoVociSearch\(azOn \? debounced : "", capitolo\?\.id \?\? null(?:, azOn)?\)/);
-    expect(picker).toContain(`const VERTICALE_LISTINO: VerticaleModulo = "${verticale}";`);
-    expect(picker).toContain("famiglia_id: p.id,");
-    expect(picker).toContain("immagine_url: p.immagine_url,");
-    expect(picker).toContain("descrizione_estesa: p.descrizione,");
+    expect(picker).toContain("<ScegliVociListino");
+    expect(picker).toContain(`verticale: "${verticale}",`);
+    const comune = readFileSync(join(COMPONENTI, "moduli", "ScegliVociListino.tsx"), "utf8");
+    expect(comune).toContain("useProdottiListino(cercato, fonti.verticale");
+    expect(comune).toContain("...inRiga,");
+    expect(comune).toContain("famiglia_id: p.id,");
+    expect(comune).toContain("immagine_url: p.immagine_url,");
+    expect(comune).toContain("descrizione_estesa: p.descrizione }");
     const tipi = leggi(cartella, "types.ts");
     expect(tipi).toContain("descrizione_estesa: picked.descrizione_estesa ?? null,");
     expect(tipi).toContain("quantita: picked.quantita ?? 1,");
