@@ -32,9 +32,12 @@ import {
   useStoricoDocumento, type FileDaCaricare,
 } from '@/hooks/useDocumentiAzienda';
 import { abbinaFile, titoloDaNomeFile } from '@/lib/documentiAzienda/abbinaFile';
+import ConfermaDateLette from '@/components/documentiAzienda/ConfermaDateLette';
+import { daFarLeggere } from '@/lib/documentiAzienda/letturaAI';
 import {
   CATEGORIE_DOCUMENTO, ELENCO_DI_PARTENZA, ETICHETTA_CATEGORIA, PREAVVISO_PREDEFINITO,
-  type CategoriaDocumento, type DatiDocumento, type DocumentoAzienda, type StatoDocumento,
+  type CartaDaLeggere, type CategoriaDocumento, type DatiDocumento, type DocumentoAzienda,
+  type StatoDocumento,
 } from '@/types/documentiAzienda';
 
 import { Button } from '@/components/ui/button';
@@ -42,7 +45,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
@@ -722,6 +724,26 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
   );
 }
 
+/** La carta da far leggere: quello che ha già, così la lettura propone solo sui campi vuoti. */
+function cartaDaLeggere(
+  documento: DocumentoAzienda,
+  caricato: { path: string; name: string },
+  mime: string | null,
+): CartaDaLeggere {
+  return {
+    documentoId: documento.id,
+    nomeFile: caricato.name,
+    path: caricato.path,
+    mime,
+    titolo: documento.titolo,
+    ente: documento.ente,
+    numero: documento.numero,
+    data_documento: documento.data_documento,
+    categoria: documento.categoria,
+    titoloDalNome: false,
+  };
+}
+
 /**
  * «Carica il file» dentro la riga aperta.
  *
@@ -733,9 +755,14 @@ function CaricaQui({ documento, ha }: { documento: DocumentoAzienda; ha: boolean
   const campo = useRef<HTMLInputElement>(null);
   const allega = useAllegaFileDocumento();
   const id = `carica-${documento.id}`;
+  // Il file è entrato e la carta non ha una scadenza: sul documento c'è scritta.
+  const [daLeggere, setDaLeggere] = useState<CartaDaLeggere[]>([]);
 
   return (
     <>
+      {daLeggere.length > 0 && (
+        <ConfermaDateLette carte={daLeggere} onChiudi={() => setDaLeggere([])} />
+      )}
       <input
         ref={campo}
         id={id}
@@ -745,7 +772,12 @@ function CaricaQui({ documento, ha }: { documento: DocumentoAzienda; ha: boolean
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          allega.mutate({ documento, file });
+          allega.mutate({ documento, file }, {
+            onSuccess: (caricato) => {
+              if (documento.data_scadenza || !caricato) return;
+              setDaLeggere(daFarLeggere([cartaDaLeggere(documento, caricato, file.type)]));
+            },
+          });
           // Così lo stesso file si può riscegliere subito, se il caricamento va storto.
           if (campo.current) campo.current.value = '';
         }}
@@ -790,6 +822,7 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
 }) {
   const carica = useAllegaFileInBlocco();
   const [fatti, setFatti] = useState(0);
+  const [daLeggere, setDaLeggere] = useState<CartaDaLeggere[]>([]);
 
   const troppoGrandi = useMemo(() => file.filter((f) => f.size > MASSIMO_MB * 1024 * 1024), [file]);
   const buoni = useMemo(() => file.filter((f) => f.size <= MASSIMO_MB * 1024 * 1024), [file]);
@@ -839,12 +872,24 @@ function CaricaInBlocco({ file, documenti, onChiudi }: {
         return;
       }
       const documento = documenti.find((d) => d.id === scelta);
-      if (documento) righe.push({ file: f, documento: { id: documento.id, file_path: documento.file_path } });
+      if (documento) righe.push({ file: f, documento });
     });
     if (righe.length === 0) return;
     setFatti(0);
-    carica.mutate({ righe, onProgresso: (n) => setFatti(n) }, { onSuccess: () => onChiudi() });
+    carica.mutate({ righe, onProgresso: (n) => setFatti(n) }, {
+      onSuccess: (esito) => {
+        // I file sono dentro. Le date mancanti stanno scritte sui documenti: le
+        // si legge adesso, finché chi ha caricato è ancora qui a confermarle.
+        const leggibili = daFarLeggere(esito.daLeggere);
+        if (leggibili.length > 0) setDaLeggere(leggibili);
+        else onChiudi();
+      },
+    });
   };
+
+  if (daLeggere.length > 0) {
+    return <ConfermaDateLette carte={daLeggere} onChiudi={onChiudi} />;
+  }
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v && !carica.isPending) onChiudi(); }}>
@@ -1138,6 +1183,8 @@ function ModuloDocumento({ documento, onChiudi }: {
   const [note, setNote] = useState(documento?.note ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [inCorso, setInCorso] = useState(false);
+  // Salvato con un file e senza scadenza: la scadenza sta scritta sul documento.
+  const [daLeggere, setDaLeggere] = useState<CartaDaLeggere[]>([]);
 
   const { data: persone = [] } = useCompanyStaffUsers(companyId);
 
@@ -1161,7 +1208,7 @@ function ModuloDocumento({ documento, onChiudi }: {
     let caricato: { path: string; name: string } | null = null;
     try {
       if (file && companyId) caricato = await caricaFileDocumento(companyId, file);
-      await salva.mutateAsync({
+      const salvato = await salva.mutateAsync({
         id: documento?.id,
         dati: {
           categoria,
@@ -1178,6 +1225,26 @@ function ModuloDocumento({ documento, onChiudi }: {
           ...(caricato ? { file_path: caricato.path, file_name: caricato.name } : {}),
         },
       });
+      // Il file c'è, la scadenza no: invece di farla battere a mano, si legge dal
+      // documento e si propone. La finestra prende il posto di questa.
+      if (caricato && !dataScadenza && salvato) {
+        const carte = daFarLeggere([{
+          documentoId: salvato,
+          nomeFile: caricato.name,
+          path: caricato.path,
+          mime: file?.type ?? null,
+          titolo: titolo.trim(),
+          ente: ente.trim() || null,
+          numero: numero.trim() || null,
+          data_documento: dataDocumento || null,
+          categoria,
+          titoloDalNome: false,
+        }]);
+        if (carte.length > 0) {
+          setDaLeggere(carte);
+          return;
+        }
+      }
       onChiudi();
     } catch {
       // Il file caricato senza la riga salvata resterebbe orfano nel bucket.
@@ -1186,6 +1253,10 @@ function ModuloDocumento({ documento, onChiudi }: {
       setInCorso(false);
     }
   };
+
+  if (daLeggere.length > 0) {
+    return <ConfermaDateLette carte={daLeggere} onChiudi={onChiudi} />;
+  }
 
   return (
     <Dialog open onOpenChange={(v) => !v && onChiudi()}>
