@@ -106562,7 +106562,7 @@ export type Database = {
         Returns: Json
       }
       silvio_employees_workload: {
-        Args: { p_company_id: string }
+        Args: { p_al?: string; p_company_id: string; p_dal?: string; p_escludi_order_id?: string }
         Returns: Json
       }
       silvio_executive_report: { Args: { p_company_id: string }; Returns: Json }

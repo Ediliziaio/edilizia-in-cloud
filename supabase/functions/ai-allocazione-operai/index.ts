@@ -2,10 +2,9 @@
  * ai-allocazione-operai — FASE F.1
  *
  * Suggerisce quali operai assegnare a un nuovo ordine basandosi su:
- *   - workload corrente di ogni operaio
- *   - area geografica (match con indirizzo cantiere)
- *   - role_type (capocantiere/operaio/specialista)
- *   - carico simile passato per stesso tipo lavoro
+ *   - impegni e assenze nel periodo della commessa (silvio_employees_workload)
+ *   - ruolo in scheda e ore dell'ultimo mese
+ * Il modello non vede i nomi: vedi _shared/allocazioneOperai.ts.
  *
  * Input: { order_id: uuid, company_id: uuid, num_richiesti?: number }
  * Output: { success, suggerimenti: [{employee_id, nome, motivazione, score}], ai_meta }
@@ -16,33 +15,34 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { operaiDaProporre, operaiPerIlModello, periodoDaControllare, suggerimentiVerificati } from "../_shared/allocazioneOperai.ts";
+import { oggiRoma } from "../_shared/condizioniData.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
 
-const SYSTEM_PROMPT = `Sei un foreman (capocantiere) esperto in allocazione team edili italiani.
-Suggerisci quali operai assegnare al nuovo cantiere.
+const SYSTEM_PROMPT = `Sei un capocantiere esperto. Suggerisci chi assegnare al nuovo cantiere tra le persone dell'elenco.
 
-REGOLE PRIORITARIE:
-1. Capocantiere: 1 obbligatorio, scegli con role_type='capocantiere' o esperienza
-2. Bilancia carico: preferisci operai con stato_carico=libero o leggero
-3. Area: preferisci match geografico (operaio.area ~ cantiere.indirizzo)
-4. Mai overload: NON suggerire operai con stato='overload'. Con stato='ore_mancanti' il carico non è misurabile (scheda senza ore contrattuali): se li suggerisci, dillo nella motivazione
-5. Specializzazioni: rispetta role_type quando il tipo lavoro lo richiede
+Di ogni persona conosci SOLO ruolo in scheda, carico e ore dell'ultimo mese. Nell'elenco ci sono solo persone libere nel periodo del cantiere.
+
+REGOLE
+1. Capocantiere: proponilo solo se ruolo_in_scheda lo indica (capocantiere, capoposa, caposquadra). Se non c'è, scrivilo in warning.
+2. Bilancia il carico: prima chi ha stato_carico libero o leggero. Con stato_carico ore_mancanti il carico non è misurabile: se proponi quella persona, dillo nella motivazione.
+3. Rispetta il ruolo quando il lavoro lo richiede (un posatore per la posa).
+4. La motivazione cita solo ruolo, carico e ore. Non parlare di esperienza, capacità o vicinanza: non hai questi dati.
 
 OUTPUT JSON ESATTO (no markdown):
 {
   "suggerimenti": [
     {
       "employee_id": "uuid (deve essere uno degli ID forniti)",
-      "nome": "string",
       "ruolo_proposto": "capocantiere|operaio_principale|operaio_supporto|specialista",
       "motivazione": "string max 150 char",
       "score": 0-100
     }
   ],
   "warning": ["string — es. 'Nessun capocantiere libero'"],
-  "alternative": "string opzionale — es. 'Considera assumere temporaneo'"
+  "alternative": "string opzionale — es. 'Valuta una ditta esterna'"
 }`;
 
 Deno.serve(async (req: Request) => {
@@ -77,7 +77,7 @@ Deno.serve(async (req: Request) => {
     // Fetch order
     const { data: order, error: orderErr } = await supabaseAdmin
       .from("orders")
-      .select("id, description, work_address, client_address, indirizzo_lavori, work_start_date, expected_date, total_amount")
+      .select("id, description, work_start_date, expected_date")
       .eq("id", order_id)
       .eq("company_id", company_id)
       .single();
@@ -85,19 +85,23 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Ordine non trovato", 404, cors);
     }
 
-    // Fetch workload
-    const { data: workload } = await supabaseAdmin.rpc("silvio_employees_workload", {
+    // Chi è libero nel periodo della commessa, non oggi in generale.
+    const periodo = periodoDaControllare(order, oggiRoma());
+    const { data: workload, error: workloadErr } = await supabaseAdmin.rpc("silvio_employees_workload", {
       p_company_id: company_id,
+      p_dal: periodo.dal,
+      p_al: periodo.al,
+      p_escludi_order_id: order_id,
     });
+    if (workloadErr) return errorResponse("Non riesco a leggere gli impegni delle persone: riprova tra poco.", 502, cors);
 
-    // Filter out overload
-    const availabili = (workload as AnyObj[] ?? []).filter((e) => e.stato_carico !== "overload");
+    const availabili = operaiDaProporre((workload as AnyObj[] | null) ?? []);
 
     if (availabili.length === 0) {
       return jsonResponse({
         success: true,
         suggerimenti: [],
-        warning: ["Nessun operaio disponibile (tutti in overload)"],
+        warning: ["Nessuna persona di cantiere è libera nel periodo della commessa."],
         ai_meta: { skipped: true },
       }, 200, cors);
     }
@@ -105,12 +109,10 @@ Deno.serve(async (req: Request) => {
     const payload = {
       cantiere: {
         descrizione: order.description,
-        indirizzo: order.work_address ?? order.client_address ?? order.indirizzo_lavori ?? null,
         data_inizio: order.work_start_date,
         data_fine_prevista: order.expected_date,
-        importo_totale_eur: order.total_amount,
       },
-      operai_disponibili: availabili,
+      operai_disponibili: operaiPerIlModello(availabili),
       num_richiesti: Math.max(1, Math.min(10, Number(num_richiesti ?? 3))),
     };
 
@@ -148,16 +150,12 @@ Deno.serve(async (req: Request) => {
       return errorResponse("AI ha restituito JSON non valido", 502, cors);
     }
 
-    // Validate suggestions exist in availabili
-    const validIds = new Set(availabili.map((e: AnyObj) => e.employee_id));
-    const validSuggerimenti = ((parsed.suggerimenti ?? []) as AnyObj[]).filter(
-      (s) => validIds.has(s.employee_id),
-    );
+    const { suggerimenti, avvisi } = suggerimentiVerificati((parsed.suggerimenti ?? []) as AnyObj[], availabili);
 
     return jsonResponse({
       success: true,
-      suggerimenti: validSuggerimenti,
-      warning: parsed.warning ?? [],
+      suggerimenti,
+      warning: [...(Array.isArray(parsed.warning) ? parsed.warning : []), ...avvisi],
       alternative: parsed.alternative ?? null,
       ai_meta: {
         operai_disponibili_count: availabili.length,

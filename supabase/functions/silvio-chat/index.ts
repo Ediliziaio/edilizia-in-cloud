@@ -28,6 +28,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { CHART_RULES, FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shared/chartRules.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { oggiInParole } from "../_shared/oraItaliana.ts";
 import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
@@ -732,9 +733,10 @@ serve(async (req: Request) => {
     // Data corrente esplicita: senza questo l'AI usa la data del training
     // cut-off e mappa male "mese scorso" → year/month sbagliati nei tool
     // periodici (get_monthly_performance, ecc.).
-    const _now = new Date();
+    const _oggi = oggiInParole();
+    // Il server è in UTC: fra mezzanotte e le due il giorno italiano è già un altro.
+    const _now = new Date(`${_oggi.iso}T12:00:00Z`);
     const _months = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
-    const _todayIt = `${_now.getDate().toString().padStart(2, "0")}/${(_now.getMonth() + 1).toString().padStart(2, "0")}/${_now.getFullYear()}`;
     const _lastMonth = _now.getMonth() === 0
       ? { y: _now.getFullYear() - 1, m: 12 }
       : { y: _now.getFullYear(), m: _now.getMonth() };
@@ -759,7 +761,7 @@ serve(async (req: Request) => {
       "",
       ...(conversation.hint ? [conversation.hint, ""] : []),
       "# CONTESTO TEMPORALE",
-      `- Oggi è ${_todayIt} (${_months[_now.getMonth()]} ${_now.getFullYear()}).`,
+      `- Oggi è ${_oggi.testo} (${_months[_now.getMonth()]} ${_now.getFullYear()}).`,
       `- "Mese corrente" = ${_months[_now.getMonth()]} ${_now.getFullYear()} (year=${_now.getFullYear()}, month=${_now.getMonth() + 1}).`,
       `- "Mese scorso" = ${_months[_lastMonth.m - 1]} ${_lastMonth.y} (year=${_lastMonth.y}, month=${_lastMonth.m}).`,
       "",
