@@ -31,6 +31,7 @@ import { leggiImpostazioniSilvio, type ImpostazioniSilvio } from "@/lib/silvio-c
 import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 import { elencaComputiCloud, type RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import { supabase } from "@/integrations/supabase/client";
+import type { StatoDellAzienda } from "./presentazione";
 import { readInvokeError } from "@/lib/readInvokeError";
 
 /** Un preventivo nell'elenco da scegliere. */
@@ -97,6 +98,8 @@ export interface ServiziSilvioCommessa {
   leggiOfferta(rfqSupplierId: string, file: File): Promise<{ offerta: OffertaLetta; quantita: Record<string, number> }>;
   /** Fase 5: autonomia e calendario dell'azienda. */
   impostazioni?(companyId: string): Promise<ImpostazioniSilvio>;
+  /** Le fasi dell'azienda: per dire in quale nasce la commessa. */
+  statiCommessa?(companyId: string): Promise<StatoDellAzienda[]>;
   /** Il client delle bozze e delle RPC (`bozze.ts`). */
   db: ClientBozze;
 }
@@ -176,6 +179,11 @@ export const serviziVeri: ServiziSilvioCommessa = {
     return { offerta: offerta ?? {}, quantita };
   },
   impostazioni: (companyId) => leggiImpostazioniSilvio(companyId),
+  statiCommessa: async (companyId) => {
+    const { data, error } = await supabase.from("order_statuses").select("name, position, is_default, is_support_phase").eq("company_id", companyId);
+    if (error) throw error;
+    return (data ?? []) as StatoDellAzienda[];
+  },
   // Le tabelle nuove non sono ancora nei tipi generati: si passa da un client senza tipi.
   db: supabase as unknown as ClientBozze,
 };

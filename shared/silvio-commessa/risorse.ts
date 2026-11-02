@@ -26,10 +26,10 @@
 import { rangoFonte, spostaGiorniLavorativi, stessoValore, giaNellaCommessa } from "./fondi.ts";
 import type { Area, CostoDelPiano, FaseDelPiano, Fonte, Frammento, PianoCommessa, SottofaseDelPiano, Valore } from "./piano.ts";
 import { piuSimili, somiglianzaFasi, type FaseStorica } from "./somiglianza.ts";
-import { aggiungiGiorni, dataCorta, eData, siSovrappongono } from "./date.ts";
+import { dataConMese, aggiungiGiorni, dataCorta, eData, siSovrappongono } from "./date.ts";
 import { livelloDellaVariabile, type Autonomia } from "./autonomia.ts";
 import { CALENDARIO_NAZIONALE, type CalendarioCantiere } from "./calendario.ts";
-import { adempimentiPrimaDiPartire, avvisiMeteo, avvisoMeteoInParole, avvisoScadenza, type AdempimentoDelPiano } from "./partenza.ts";
+import { adempimentiPrimaDiPartire, avvisiMeteo, avvisoMeteoInParole, avvisoScadenza, daFareSubito, type AdempimentoDelPiano } from "./partenza.ts";
 
 // ── Le forme degli elenchi ──────────────────────────────────────────────────
 
@@ -430,7 +430,7 @@ export function dataOrdine(consegna: string | null, giorniConsegna: number | nul
 function avvisoOrdine(oggi: string, ordine: string | null, giorni: number | null): string | null {
   if (!ordine) return "la fase non ha ancora la data: la data d'ordine arriva con le date";
   if (giorni == null) return "il fornitore non ha i tempi di consegna in anagrafica: ordine alla data della consegna";
-  if (ordine < oggi) return `andava ordinato il ${dataCorta(ordine)}: chiedi al fornitore se ce la fa`;
+  if (ordine < oggi) return `da ordinare subito, andava ordinato entro il ${dataConMese(ordine)}: chiedi al fornitore se ce la fa`;
   return null;
 }
 
@@ -559,9 +559,9 @@ function promemoriaSicurezza(fasi: FaseDiLavoro[], inizio: string | null, conDit
 }
 
 /** «⚠ Già passate: …», da mettere nella nota: la scadenza nel passato si deve vedere (G17). */
-function notaScadenzePassate(elenco: readonly { titolo: string; avviso?: string | null }[]): string {
+function notaScadenzePassate(elenco: readonly { titolo: string; scadenza?: string | null; avviso?: string | null }[]): string {
   const passate = elenco.filter((x) => x.avviso);
-  return passate.length ? ` ⚠ ${passate.length === 1 ? "Una scadenza è già passata" : `${passate.length} scadenze sono già passate`}: ${passate.map((x) => x.titolo).join("; ")}.` : "";
+  return passate.length ? ` ⚠ ${passate.map((x) => (x.scadenza ? daFareSubito(x.titolo, x.scadenza) : `Da fare subito: ${x.titolo}`)).join("; ")}.` : "";
 }
 
 // ── Il ricontrollo di quello che è già stato accettato (revisione 2/11, G6) ──────

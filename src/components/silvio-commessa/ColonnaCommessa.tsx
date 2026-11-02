@@ -21,7 +21,7 @@
  */
 import type { Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, FileSearch, Info, Lock, MessageSquare, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronRight, FileSearch, Info, Lock, MessageSquare, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,8 +46,10 @@ import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
   comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoConferma, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea, accettaProposte, minuscola, type DaDecidere, alternativePersona, sostituisciPersona,
-  importoNascosto, importoRata, parlaDiCosti, quantitaMezzo, TESTO_IMPORTO_NASCOSTO,
+  importoNascosto, importoRata, parlaDiCosti, quantitaMezzo, TESTO_IMPORTO_NASCOSTO, divisioneDaDecidere, titoloAltre, type NumeroDaControllare,
 } from "./presentazione";
+import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { daFareSubito, eraDaFare, scadenzaPassata } from "../../../shared/silvio-commessa/partenza.ts";
 
 const COLORI_STATO: Record<Stato, string> = {
   fatto: "text-emerald-700 bg-emerald-50 border-emerald-200",
@@ -320,7 +322,8 @@ function rigaRisorsa(chiave: string, x: ElementoRisorsa, vedeCosti: boolean): { 
     case "mezzi.allocazioni": return { titolo: x.nome ?? "Mezzo", dettaglio: [(x.fasi ?? []).join(", "), periodo, quantitaMezzo(x)].filter(Boolean).join(" · ") };
     case "materiali.acquisti": return {
       titolo: x.fornitore ?? "Fornitore",
-      dettaglio: [x.fase, `${x.righe?.length ?? 0} voci`, x.data_ordine ? `ordinare entro ${dataBreve(x.data_ordine, false)}` : ""].filter(Boolean).join(" · "),
+      dettaglio: [x.fase, `${x.righe?.length ?? 0} voci`, !x.data_ordine ? ""
+        : scadenzaPassata(x.data_ordine, oggiInItalia()) ? `da ordinare subito: ${eraDaFare(x.data_ordine)}` : `ordinare entro ${dataBreve(x.data_ordine, false)}`].filter(Boolean).join(" · "),
     };
     default: return { titolo: x.nome ?? "Contratto", dettaglio: [(x.fasi ?? []).join(", "), vedeCosti && x.importo ? euro(x.importo) : "", periodo].filter(Boolean).join(" · ") };
   }
@@ -372,25 +375,31 @@ function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; val
   if ((chiave === "sicurezza.pos_duvri" || chiave === "sicurezza.adempimenti") && Array.isArray(valore)) {
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
-        {(valore as { titolo?: string; scadenza?: string | null; avviso?: string | null }[]).map((p, i) => (
-          <li key={i}>
-            <p className="flex justify-between gap-2">
-              <span className="min-w-0 break-words">• {p.titolo}</span>
-              {p.scadenza && <span className="shrink-0">entro {dataBreve(p.scadenza, false)}</span>}
-            </p>
-            {p.avviso && <p className="font-medium text-amber-800">⚠ {p.avviso}</p>}
-          </li>
-        ))}
+        {(valore as { titolo?: string; scadenza?: string | null; avviso?: string | null }[]).map((p, i) => {
+          // Si guarda oggi, non il giorno in cui Silvio l'ha proposta: la bozza può restare aperta.
+          if (p.scadenza && scadenzaPassata(p.scadenza, oggiInItalia())) {
+            return <li key={i} className="break-words font-medium text-amber-800">⚠ {daFareSubito(p.titolo ?? "questo", p.scadenza)}</li>;
+          }
+          return (
+            <li key={i}>
+              <p className="flex justify-between gap-2">
+                <span className="min-w-0 break-words">• {p.titolo}</span>
+                {p.scadenza && <span className="shrink-0">entro {dataBreve(p.scadenza, false)}</span>}
+              </p>
+              {p.avviso && <p className="font-medium text-amber-800">⚠ {p.avviso}</p>}
+            </li>
+          );
+        })}
       </ul>
     );
   }
   if (chiave === "comunicazione.avvio_cliente" && valore && typeof valore === "object") {
-    const m = valore as { testo?: string; destinatario?: string | null; avviso?: string | null };
+    const m = valore as { testo?: string; destinatario?: string | null; avviso?: string | null; scadenza?: string | null };
     return (
       <div className="mt-1 rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-xs lg:text-[11px] text-slate-700">
         {m.destinatario && <p className="mb-1 text-slate-500">A: {m.destinatario}</p>}
         <p className="whitespace-pre-line">{m.testo}</p>
-        {m.avviso && <p className="mt-1 font-medium text-amber-800">⚠ {m.avviso}</p>}
+        {m.avviso && !(m.scadenza && scadenzaPassata(m.scadenza, oggiInItalia())) && <p className="mt-1 font-medium text-amber-800">⚠ {m.avviso}</p>}
         <p className="mt-1 font-medium text-slate-500">Bozza: Silvio non la manda. La trovi nelle attività della commessa.</p>
       </div>
     );
@@ -631,98 +640,151 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
   );
 }
 
+// ── Da controllare ──────────────────────────────────────────────────────────
+
+/** Importo, IVA, rate, inizio e fine in una riga, col segno di quanto fidarsi: un tocco porta al dato. */
+export function RiepilogoNumeri({ numeri, onTocca }: { numeri: readonly NumeroDaControllare[]; onTocca: (n: NumeroDaControllare) => void }) {
+  if (!numeri.length) return null;
+  return (
+    <section aria-label="Da controllare" className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <h3 className="text-xs font-semibold text-slate-900 lg:text-[11px]">Da controllare</h3>
+      <ul className="mt-1 flex flex-wrap gap-1.5">
+        {numeri.map((n) => (
+          <li key={n.chiave}>
+            <button type="button" aria-label={`${n.testo}: ${n.come}`} onClick={() => onTocca(n)}
+              className={cn("inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 text-sm font-medium lg:min-h-7 lg:text-xs", COLORI_STATO[n.stato], n.stato === "manca" && "border-dashed")}>
+              <span aria-hidden>{SEGNI[n.stato]}</span>{n.testo}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-xs text-slate-500 lg:text-[11px]">✓ letto dal documento con la prova · ✋ proposto: guardalo</p>
+    </section>
+  );
+}
+
 // ── Da decidere ─────────────────────────────────────────────────────────────
 
-/** In cima alla colonna: quello che aspetta la persona, con l'azione accanto. Prima le cose che fermano «Crea». */
+/**
+ * In cima alla colonna: in evidenza solo quello che ferma «Crea» o cambia i soldi (cliente, importo,
+ * conflitti, conti che non tornano, proposte su importo, IVA e rate). Il resto sta sotto, chiuso:
+ * una ditta non libera non è come un cliente che manca. Un `<details>`: niente pannelli nuovi.
+ */
 function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeImporti, vedeCosti }: {
   d: DaDecidere; piano: PianoCommessa; onModifica: (m: Modifica | Modifica[]) => void;
   onApri: (chiave: string) => void; onVai: (chiave: string) => void; contesto: ContestoRisorse | null; vedeImporti: boolean; vedeCosti: boolean;
 }) {
-  const [tuttiAvvisi, setTuttiAvvisi] = useState(false);
   if (!d.totale && !d.avvisi.length) return null;
-  const avvisi = tuttiAvvisi ? d.avvisi : d.avvisi.slice(0, 3);
-  const tutte = accettaProposte(piano, d.proposte.map((p) => p.chiave));
+  const div = divisioneDaDecidere(d);
+  const tutte = accettaProposte(piano, div.altreProposte.map((p) => p.chiave));
   return (
-    <section aria-labelledby="silvio-da-decidere" data-chiave="silvio-da-decidere" className="rounded-xl border border-amber-300 bg-amber-50/70 p-2.5 shadow-sm">
+    <section aria-labelledby="silvio-da-decidere" data-chiave="silvio-da-decidere"
+      className={cn("rounded-xl border p-2.5 shadow-sm", div.subito ? "border-amber-300 bg-amber-50/70" : "border-slate-200 bg-white")}>
       <h3 id="silvio-da-decidere" className="flex items-center gap-2 text-sm lg:text-[13px] font-semibold text-slate-900">
-        <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />{d.totale ? "Da decidere" : "Da sapere"}
-        {d.totale > 0 && <span className="rounded-full bg-amber-200 px-2 text-xs lg:text-[11px] font-semibold text-amber-900">{d.totale}</span>}
+        {div.subito > 0 && <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />}{div.subito ? "Da decidere" : d.totale ? "Niente di urgente" : "Da sapere"}
+        {div.subito > 0 && <span className="rounded-full bg-amber-200 px-2 text-xs lg:text-[11px] font-semibold text-amber-900">{div.subito}</span>}
       </h3>
-      <ul className="mt-2 space-y-1.5">
-        {d.conflitti.map((c) => {
-          const v = REGISTRO_ETICHETTA(c.chiave);
-          const nascosto = importoNascosto(c.chiave, vedeImporti, vedeCosti);
-          return (
-            <li key={`c-${c.chiave}`} className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-              <p className="text-slate-800"><strong>{v}</strong>: i documenti non sono d'accordo. Quale tengo?</p>
-              {c.nota && !nascosto && !parlaDiCosti(c.chiave, vedeCosti) && <p className="mt-1 text-xs lg:text-[11px] font-medium text-amber-800">{c.nota}</p>}
-              <div className="mt-2 flex flex-wrap gap-2">
-                {c.candidati.map((x, i) => (
-                  <Button key={i} type="button" size="sm" variant="outline" className="h-auto min-h-11 whitespace-normal text-left lg:min-h-8"
-                    onClick={() => onModifica({ tipo: "scegli_fonte", area: c.area, chiave: c.chiave, fonte: x.fonte.tipo, idFonte: x.fonte.id ?? null })}>
-                    {nascosto
-                      ? <span>{x.fonte.etichetta}</span>
-                      : <span><strong>{testoValore(c.chiave, x.valore, vedeCosti)}</strong> <span className="font-normal text-slate-500">· {x.fonte.etichetta}</span></span>}
-                  </Button>
-                ))}
-              </div>
+      {div.subito > 0 && (
+        <ul className="mt-2 space-y-1.5">
+          {d.conflitti.map((c) => {
+            const v = REGISTRO_ETICHETTA(c.chiave);
+            const nascosto = importoNascosto(c.chiave, vedeImporti, vedeCosti);
+            return (
+              <li key={`c-${c.chiave}`} className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
+                <p className="text-slate-800"><strong>{v}</strong>: i documenti non sono d'accordo. Quale tengo?</p>
+                {c.nota && !nascosto && !parlaDiCosti(c.chiave, vedeCosti) && <p className="mt-1 text-xs lg:text-[11px] font-medium text-amber-800">{c.nota}</p>}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {c.candidati.map((x, i) => (
+                    <Button key={i} type="button" size="sm" variant="outline" className="h-auto min-h-11 whitespace-normal text-left lg:min-h-8"
+                      onClick={() => onModifica({ tipo: "scegli_fonte", area: c.area, chiave: c.chiave, fonte: x.fonte.tipo, idFonte: x.fonte.id ?? null })}>
+                      {nascosto
+                        ? <span>{x.fonte.etichetta}</span>
+                        : <span><strong>{testoValore(c.chiave, x.valore, vedeCosti)}</strong> <span className="font-normal text-slate-500">· {x.fonte.etichetta}</span></span>}
+                    </Button>
+                  ))}
+                </div>
+              </li>
+            );
+          })}
+          {d.nonTornano.map((n) => (
+            <li key={`t-${n.chiave}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
+              <p className="min-w-0 flex-1 basis-full text-red-800"><span aria-hidden>⚠ </span>{n.testo} <strong>{n.etichetta}</strong> resta fuori finché non torna.</p>
+              <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(n.chiave)}>Sistema</Button>
             </li>
-          );
-        })}
-        {d.nonDisponibili.map((n) => (
-          <li key={`n-${n.chiave}-${n.indice}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-            <p className="min-w-0 flex-1 text-red-800 basis-full">
-              <span aria-hidden>⚠ </span><strong>{n.nome}</strong>{n.avviso.startsWith(n.nome) ? n.avviso.slice(n.nome.length) : `: ${n.avviso}`}
-            </p>
-            {alternativePersona(piano, n, contesto).map((a) => (
-              <Button key={a.id} type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8"
-                onClick={() => onModifica(sostituisciPersona(piano, n, a))}>Metti {a.nome}</Button>
+          ))}
+          {div.domande.map((v) => <RigaDomanda key={`q-${v.chiave}`} v={v} onApri={onApri} />)}
+          {div.proposte.map((p) => {
+            const v = variabileDi(p.chiave);
+            const x = v ? piano.aree[v.area]?.[p.chiave] : undefined;
+            const conferma = accettaProposte(piano, [p.chiave]);
+            return (
+              <li key={`s-${p.chiave}`} className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
+                <p className="text-slate-800"><strong>{p.etichetta}</strong>{x ? <>: {testoValore(p.chiave, x.valore, vedeCosti)}</> : null}</p>
+                {x?.nota && <p className="mt-0.5 text-xs lg:text-[11px] text-amber-800">{x.nota}</p>}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {conferma.length > 0 && <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8" onClick={() => onModifica(conferma)}>Va bene</Button>}
+                  <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(p.chiave)}>Vedi<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {div.altre > 0 && (
+        <details data-silvio-altre className="group mt-1.5">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-lg px-1 text-sm font-medium text-slate-700 hover:bg-slate-50 lg:min-h-8 lg:text-[13px] [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden />{titoloAltre(div.altre)}
+          </summary>
+          <ul className="mt-1 space-y-1.5">
+            {d.nonDisponibili.map((n) => (
+              <li key={`n-${n.chiave}-${n.indice}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-sm lg:text-[13px]">
+                <p className="min-w-0 flex-1 basis-full text-slate-800">
+                  <strong>{n.nome}</strong>{n.avviso.startsWith(n.nome) ? n.avviso.slice(n.nome.length) : `: ${n.avviso}`}
+                </p>
+                {alternativePersona(piano, n, contesto).map((a) => (
+                  <Button key={a.id} type="button" size="sm" variant="outline" className="h-11 lg:h-8"
+                    onClick={() => onModifica(sostituisciPersona(piano, n, a))}>Metti {a.nome}</Button>
+                ))}
+                <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8"
+                  onClick={() => onModifica({ tipo: "togli", area: n.area, chiave: n.chiave, indice: n.indice })}>Toglilo</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(n.chiave)}>Vedi<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
+              </li>
             ))}
-            <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8"
-              onClick={() => onModifica({ tipo: "togli", area: n.area, chiave: n.chiave, indice: n.indice })}>Toglilo</Button>
-            <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(n.chiave)}>Vedi<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
-          </li>
-        ))}
-        {d.nonTornano.map((n) => (
-          <li key={`t-${n.chiave}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-            <p className="min-w-0 flex-1 basis-full text-red-800"><span aria-hidden>⚠ </span>{n.testo} <strong>{n.etichetta}</strong> resta fuori finché non torna.</p>
-            <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(n.chiave)}>Sistema</Button>
-          </li>
-        ))}
-        {d.domande.map((v) => (
-          <li key={`q-${v.chiave}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-            <p className="min-w-0 flex-1 text-slate-800">Manca <strong>{minuscola(v.etichetta)}</strong>.</p>
-            <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(v.chiave)}>Aggiungi</Button>
-          </li>
-        ))}
-        {d.proposte.length > 0 && (
-          <li className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
-            <p className="text-slate-800">
-              {d.proposte.length === 1 ? "Una mia proposta aspetta un sì" : `${d.proposte.length} mie proposte aspettano un sì`}:
-              {" "}<span className="text-slate-600">{d.proposte.map((p) => minuscola(p.etichetta)).join(", ")}</span>.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {tutte.length > 0 && (
-                <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8" onClick={() => onModifica(tutte)}>
-                  {d.proposte.length === 1 ? "Va bene" : `Va bene a tutte e ${d.proposte.length}`}
-                </Button>
-              )}
-              <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(d.proposte[0].chiave)}>
-                Guardale prima<ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </Button>
-            </div>
-          </li>
-        )}
-        {avvisi.map((a) => (
-          <li key={`a-${a}`} className="break-words rounded-lg bg-white px-2.5 py-2 text-xs lg:text-[11px] text-amber-900"><span aria-hidden>⚠ </span>{a}</li>
-        ))}
-        {d.avvisi.length > 3 && !tuttiAvvisi && (
-          <li>
-            <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-8" onClick={() => setTuttiAvvisi(true)}>{d.avvisi.length === 4 ? "Un altro avviso" : `Altri ${d.avvisi.length - 3} avvisi`}</Button>
-          </li>
-        )}
-      </ul>
+            {div.altreDomande.map((v) => <RigaDomanda key={`q-${v.chiave}`} v={v} onApri={onApri} />)}
+            {div.altreProposte.length > 0 && (
+              <li className="rounded-lg bg-slate-50 px-2.5 py-2 text-sm lg:text-[13px]">
+                <p className="text-slate-800">
+                  {div.altreProposte.length === 1 ? "Una mia proposta aspetta un sì" : `${div.altreProposte.length} mie proposte aspettano un sì`}:
+                  {" "}<span className="text-slate-600">{div.altreProposte.map((p) => minuscola(p.etichetta)).join(", ")}</span>.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {tutte.length > 0 && (
+                    <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onModifica(tutte)}>
+                      {div.altreProposte.length === 1 ? "Va bene" : `Va bene a tutte e ${div.altreProposte.length}`}
+                    </Button>
+                  )}
+                  <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(div.altreProposte[0].chiave)}>
+                    Guardale prima<ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </div>
+              </li>
+            )}
+            {d.avvisi.map((a) => (
+              <li key={`a-${a}`} className="break-words rounded-lg bg-slate-50 px-2.5 py-2 text-xs lg:text-[11px] text-slate-700">{a}</li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
+  );
+}
+
+function RigaDomanda({ v, onApri }: { v: Variabile; onApri: (chiave: string) => void }) {
+  return (
+    <li className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
+      <p className="min-w-0 flex-1 text-slate-800">Manca <strong>{v.chiave === "cliente.customer_id" ? "il cliente" : minuscola(v.etichetta)}</strong>.</p>
+      <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(v.chiave)}>Aggiungi</Button>
+    </li>
   );
 }
 
@@ -759,11 +821,13 @@ export interface ColonnaCommessaProps {
   /** La fine che la commessa prende dalle fasi, se la proposta non si conferma. */
   fineDalleFasi?: string | null;
   clienteDaScegliere?: boolean;
+  /** Importo, IVA, rate, inizio e fine: il riepilogo in testa. */
+  numeri?: readonly NumeroDaControllare[];
 }
 
 export function ColonnaCommessa({
   companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte, autonomia = null,
-  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null, clienteDaScegliere = false,
+  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null, clienteDaScegliere = false, numeri = [],
 }: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
     // Un importo che chi guarda non vede non si può nemmeno chiedere.
@@ -787,6 +851,7 @@ export function ColonnaCommessa({
   }
   return (
     <div className="space-y-2">
+      <RiepilogoNumeri numeri={numeri} onTocca={(n) => (n.stato === "manca" ? onApri(n.chiave) : (onVai ?? onApri)(n.chiave))} />
       {daDecidere && (
         <DaDecidereInCima d={daDecidere} piano={piano} onModifica={onModifica} contesto={contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti} onApri={(c) => onApri(c)} onVai={(c) => (onVai ?? onApri)(c)} />
       )}

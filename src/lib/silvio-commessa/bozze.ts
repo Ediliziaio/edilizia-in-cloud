@@ -118,6 +118,7 @@ interface Query {
   update: (r: Record<string, unknown>) => Query;
   delete: () => Query;
   eq: (c: string, v: unknown) => Query;
+  neq: (c: string, v: unknown) => Query;
   gt: (c: string, v: unknown) => Query;
   order: (c: string, o?: { ascending?: boolean }) => Query;
   limit: (n: number) => Query;
@@ -305,6 +306,22 @@ export async function bozzeDaRiprendere(
 export async function scartaBozza(id: string, db: ClientBozze = clientVero): Promise<void> {
   const { error } = await tabella(db).delete().eq("id", id).eq("stato", "bozza");
   if (error) lancia(error);
+}
+
+/**
+ * Una sola bozza «crea» aperta per utente e azienda (2/11): ne parte una nuova, o si ricomincia, e le
+ * altre si scartano. Solo le righe `stato='bozza'` di quell'utente, con le regole che ci sono già: una
+ * bozza «creata» serve all'annullamento, e una «completa» è di una commessa. Quante ne ha tolte.
+ */
+export async function scartaAltreBozzeCrea(
+  dati: { companyId: string; userId: string; tieni?: string | null }, db: ClientBozze = clientVero,
+): Promise<number> {
+  let q = tabella(db).delete()
+    .eq("company_id", dati.companyId).eq("created_by", dati.userId).eq("modo", "crea").eq("stato", "bozza");
+  if (dati.tieni) q = q.neq("id", dati.tieni);
+  const { data, error } = await q.select("id");
+  if (error) lancia(error);
+  return Array.isArray(data) ? data.length : 0;
 }
 
 export async function leggiBozza(id: string, db: ClientBozze = clientVero): Promise<Bozza> {

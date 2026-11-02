@@ -237,6 +237,23 @@ export function dateNelTesto(testo: string): string[] {
   return out;
 }
 
+const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+
+/**
+ * La data compare nel testo? Anche senza anno («il 9 novembre», «il 9/11»): l'anno lo mette chi la
+ * interpreta. Con un anno scritto vale solo quello: «9/11/2027» non è il 9 novembre 2026.
+ */
+export function dataNelTesto(testo: string, data: string): boolean {
+  if (dateNelTesto(testo).includes(data)) return true;
+  const mese = Number(data.slice(5, 7));
+  const giorno = Number(data.slice(8, 10));
+  const s = normalizzaPerCitazione(testo);
+  for (const m of s.matchAll(/\b(\d{1,2})[/.-](\d{1,2})\b(?![/.-]\d)/g)) if (+m[1] === giorno && +m[2] === mese) return true;
+  const parole = `${MESI[mese - 1]}|${MESI_BREVI[mese - 1]}`;
+  for (const m of s.matchAll(new RegExp(`\\b(\\d{1,2})\\s*(?:°|o)?\\s*(?:${parole})\\b(?!\\s+\\d{4})`, "g"))) if (+m[1] === giorno) return true;
+  return false;
+}
+
 // ── Pulizia dei valori ──────────────────────────────────────────────────────
 
 type Grezzo = Record<string, unknown>;
@@ -456,7 +473,19 @@ export interface ContestoLettura {
   avvisi?: string[];
 }
 
-interface Provenienza { dove: string | null; citazione: string | null; fiducia: number; stato: Stato; nota: string | null }
+interface Provenienza {
+  dove: string | null; citazione: string | null; fiducia: number; stato: Stato; nota: string | null;
+  /** Letto da una foto, o senza una citazione che lo provi nel documento. */
+  senzaProva?: boolean;
+}
+
+/**
+ * I numeri che valgono soldi (revisione 2/11, foto). Senza prova restano fuori dalla scrittura finché
+ * una persona non preme «Va bene», qualunque sia il livello della variabile: da una foto un 8 può
+ * essere un 3, e l'importo entrava senza chiedere niente perché il registro lo chiede solo se manca.
+ */
+const CHIAVI_CON_PROVA: ReadonlySet<string> = new Set(["economia.total_amount", "economia.vat_rate", "pagamenti.rate"]);
+const NOTA_SENZA_PROVA = "Entra nella commessa solo se premi «Va bene».";
 
 const FIDUCIA_MASSIMA = 0.95;
 const FIDUCIA_SENZA_PROVA = 0.3;
@@ -478,7 +507,7 @@ function giudica(
   const notaModello = testoDa(grezzo.nota, 300);
   const conNota = (nota: string) => [nota, notaModello].filter(Boolean).join(" ");
   if (!citazione) {
-    return { dove: doveModello, citazione: null, fiducia: Math.min(base, FIDUCIA_SENZA_PROVA), stato: "proposta", nota: conNota("Senza citazione dal documento: da controllare.") };
+    return { dove: doveModello, citazione: null, fiducia: Math.min(base, FIDUCIA_SENZA_PROVA), stato: "proposta", nota: conNota("Senza citazione dal documento: da controllare."), senzaProva: true };
   }
   if (ctx.immagine || !pagine) {
     const ok = !conferma || conferma(citazione);
@@ -486,15 +515,16 @@ function giudica(
       dove: doveModello ?? (ctx.immagine ? "immagine" : null), citazione,
       fiducia: Math.min(base, ok ? FIDUCIA_IMMAGINE : FIDUCIA_SENZA_PROVA), stato: "proposta",
       nota: conNota(ok ? "Letto da un'immagine: controlla." : "Il valore non compare nella citazione: da controllare."),
+      senzaProva: true,
     };
   }
   const trovata = trovaCitazione(citazione, pagine);
   if (!trovata) {
-    return { dove: doveModello, citazione, fiducia: Math.min(base, FIDUCIA_SENZA_PROVA), stato: "proposta", nota: conNota("La citazione non si trova nel documento: da controllare.") };
+    return { dove: doveModello, citazione, fiducia: Math.min(base, FIDUCIA_SENZA_PROVA), stato: "proposta", nota: conNota("La citazione non si trova nel documento: da controllare."), senzaProva: true };
   }
   const dove = trovata.pagina != null ? `pagina ${trovata.pagina}` : (ctx.fonte.tipo === "testo" ? "testo" : doveModello);
   if (conferma && !conferma(citazione)) {
-    return { dove, citazione, fiducia: Math.min(base, 0.4), stato: "proposta", nota: conNota("Il valore non compare nella citazione: è un calcolo o una deduzione, controlla.") };
+    return { dove, citazione, fiducia: Math.min(base, 0.4), stato: "proposta", nota: conNota("Il valore non compare nella citazione: è un calcolo o una deduzione, controlla."), senzaProva: true };
   }
   return { dove, citazione, fiducia: base, stato: base >= FIDUCIA_FATTO ? "fatto" : "proposta", nota: notaModello };
 }
@@ -526,12 +556,12 @@ export function jsonDallaRisposta(risposta: unknown): unknown {
  * Il documento scrive la cifra «più IVA», e il modello ne ha tolto l'IVA: la cifra vera, altrimenti null.
  * Solo se nel testo quella cifra è seguita da «più IVA» e simili, e non da «IVA inclusa».
  */
-function cifraGiaSenzaIva(valore: number | null, iva: number, testo: string | null | undefined): number | null {
+function cifraGiaSenzaIva(valore: number | null, iva: number, testo: string | null | undefined): { cifra: number; frase: string } | null {
   if (!valore || !iva || !testo) return null;
   const lordo = valore * (1 + iva / 100);
   for (const m of testo.matchAll(/(\d[\d.,\s']*\d|\d)\s*(?:k\b|mila\b)?[^\d\n]{0,24}?(?:(?:più|piu|oltre|\+|escluso|esclusa|escl\.?)\s*(?:l'|la\s+)?iva|iva\s+(?:esclusa|escl))/gi)) {
     for (const n of numeriNelTesto(m[0])) {
-      if (n > 100 && Math.abs(n - lordo) <= Math.max(1, lordo * 0.0005)) return n;
+      if (n > 100 && Math.abs(n - lordo) <= Math.max(1, lordo * 0.0005)) return { cifra: n, frase: m[0].trim().slice(0, 200) };
     }
   }
   return null;
@@ -599,9 +629,12 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   // la stessa frase, una volta sì e una no. Si controlla sul testo, non ci si fida.
   const scorporato = totaleGrezzo && iva != null ? cifraGiaSenzaIva(numeroDa(totaleGrezzo.valore), iva, ctx.testo) : null;
   if (totaleGrezzo && scorporato != null) {
-    totaleGrezzo.valore = scorporato;
-    totaleGrezzo.citazione = null;
-    totaleGrezzo.nota = `Il documento dice ${scorporato} più IVA: l'importo è questo, senza togliere l'IVA. Controlla.`;
+    totaleGrezzo.valore = scorporato.cifra;
+    // La frase del testo che la dice è la prova: quella del modello parlava della cifra sbagliata.
+    totaleGrezzo.citazione = scorporato.frase;
+    // Provata, ma l'ha corretta il codice e non il modello: resta da guardare (✋), senza fermare «Crea».
+    totaleGrezzo.fiducia = Math.min(numeroDa(totaleGrezzo.fiducia) ?? 0.6, 0.6);
+    totaleGrezzo.nota = `Il documento dice ${scorporato.cifra} più IVA: l'importo è questo, senza togliere l'IVA. Controlla.`;
   }
   const totale = numeroDa(totaleGrezzo?.valore);
   const ivaNota = iva != null && ALIQUOTE_IVA.has(iva);
@@ -646,6 +679,7 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
     (frammento.aree[area] ??= {})[chiave] = {
       valore, fiducia: Math.round(prov.fiducia * 100) / 100, stato: prov.stato, nota: prov.nota,
       fonte: { ...ctx.fonte, dove: prov.dove, citazione: prov.citazione },
+      ...(prov.senzaProva && CHIAVI_CON_PROVA.has(chiave) ? { daConfermare: true, nota: [prov.nota, NOTA_SENZA_PROVA].filter(Boolean).join(" ") } : {}),
     };
   }
   return frammento;

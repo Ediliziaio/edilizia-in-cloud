@@ -49,6 +49,14 @@ export function siSovrappongono(a: { dal: string | null; al: string | null }, b:
   return a.dal <= fineB && b.dal <= fineA;
 }
 
+const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+
+/** «26 ott»: come si dice una scadenza a chi legge in cantiere. */
+export function dataConMese(data: string): string {
+  const m = DATA.exec(data);
+  return m ? `${Number(m[3])} ${MESI_BREVI[Number(m[2]) - 1]}` : data;
+}
+
 /** «12/11»: la data breve dei testi di Silvio. */
 export function dataCorta(data: string): string {
   const m = DATA.exec(data);

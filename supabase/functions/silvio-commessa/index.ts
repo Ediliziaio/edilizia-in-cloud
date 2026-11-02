@@ -2,7 +2,7 @@
  * silvio-commessa — il lettore unico di Silvio per la commessa che nasce (31/10/2026,
  * fase 1, lotto 1.2). Vedi docs/piano-silvio-commessa-ai.md, sezioni 3.3, 3.4, 5.1 e 5.3.
  *
- * Lettura col modello vero (2/11/2026): valori nudi, null e vuoti si leggono; rate sul totale con IVA, anche se cambia; colonne nude del cliente; «più IVA» non si scorpora.
+ * Lettura col modello vero (2/11/2026): valori nudi, null e vuoti si leggono; rate sul totale con IVA, anche se cambia; colonne nude del cliente; «più IVA» non si scorpora; da una foto o senza citazione importo, IVA e rate aspettano «Va bene».
  * Le modifiche solo in shared/silvio-commessa non ripubblicano questa funzione: va toccato
  * questo file (riletto il 2/11/2026 con la quarta revisione).
  *

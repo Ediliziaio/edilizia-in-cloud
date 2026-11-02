@@ -43,15 +43,15 @@ import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts
 import type { Fonte, Modifica } from "../../../shared/silvio-commessa/piano.ts";
 import { prontaPerScrivere } from "@/lib/silvio-commessa/scrittura";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
-import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
+import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaAltreBozzeCrea, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ColonnaFonti } from "./ColonnaFonti";
 import { ColonnaChat } from "./ColonnaChat";
-import { ColonnaCommessa, NomeSede, NomeStaff } from "./ColonnaCommessa";
+import { ColonnaCommessa, NomeSede, NomeStaff, RiepilogoNumeri } from "./ColonnaCommessa";
 import {
-  clienteDaScegliere, contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
-  minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
+  avvisoStatoIniziale, clienteDaScegliere, contiDellaBarra, divisioneDaDecidere, numeriDaControllare, testoDecisioniSubito, titoloAltre, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
+  minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
@@ -208,10 +208,20 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     ...(inAttesa.length ? [`Leggi o togli ${inAttesa.join(", ")}`] : []),
   ];
   const ultimo = b.messaggi[b.messaggi.length - 1];
+  const statiAzienda = useQuery({
+    queryKey: ["silvio-commessa", "stati", companyId],
+    enabled: open && !completa && !!servizi.statiCommessa,
+    retry: false,
+    queryFn: () => servizi.statiCommessa!(companyId),
+  });
+  const avvisoStato = vuota ? null : avvisoStatoIniziale(b.piano, b.scrittura, statiAzienda.data);
   const daDecidere = useMemo(() => {
-    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto, clienti: clientiDelGestionale });
+    const trovato = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto, clienti: clientiDelGestionale });
+    const d = avvisoStato ? { ...trovato, avvisi: [...trovato.avvisi, avvisoStato] } : trovato;
     return vuota || leggeraPoi ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
-  }, [b.piano, b.scrittura, completezza, vuota, leggeraPoi, vedeImporti, vedeCosti, b.contesto, clientiDelGestionale]);
+  }, [b.piano, b.scrittura, completezza, vuota, leggeraPoi, vedeImporti, vedeCosti, b.contesto, clientiDelGestionale, avvisoStato]);
+  const diviso = divisioneDaDecidere(daDecidere);
+  const numeri = useMemo(() => (vuota ? [] : numeriDaControllare(b.piano, b.scrittura, vedeImporti)), [vuota, b.piano, b.scrittura, vedeImporti]);
   const suggerimenti = useMemo(() => suggerimentiChat(b.piano, completezza), [b.piano, completezza]);
   const fineDalleFasi = dateDalleFasi(b.scrittura).fine;
   const mancano = useMemo(() => completezza.mancano
@@ -339,7 +349,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     setScartare(false);
     if (!via) return;
     try {
-      await scartaBozza(via.id, servizi.db);
+      // Nuova commessa: tutte quelle lasciate a metà, altrimenti al prossimo giro ricompare la più vecchia.
+      if (completa) await scartaBozza(via.id, servizi.db);
+      else await scartaAltreBozzeCrea({ companyId, userId }, servizi.db);
       setRifiutoRipresa(true);
       void daRiprendere.refetch();
     } catch (e) {
@@ -350,8 +362,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const schede: { id: Scheda; nome: string; conta?: string; avviso?: boolean; etichetta?: string }[] = [
     { id: "chat", nome: "Chat", conta: b.scrivendo || legge ? "…" : undefined },
     {
-      id: "commessa", nome: "Commessa", conta: daDecidere.totale ? String(daDecidere.totale) : undefined, avviso: daDecidere.totale > 0,
-      etichetta: daDecidere.totale ? `Commessa, ${daDecidere.totale} da decidere` : undefined,
+      id: "commessa", nome: "Commessa", conta: diviso.subito ? String(diviso.subito) : undefined, avviso: diviso.subito > 0,
+      etichetta: diviso.subito ? `Commessa, ${diviso.subito} da decidere` : undefined,
     },
     { id: "fonti", nome: "Fonti", conta: b.fonti.length ? String(b.fonti.length) : undefined },
   ];
@@ -534,6 +546,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </Button>
                 <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? "Cosa si aggiunge" : "Cosa nascerà"}</h3>
               </div>
+              <RiepilogoNumeri numeri={numeri} onTocca={(n) => (n.stato === "manca" ? apri(n.chiave) : vedi([n.chiave]))} />
+              {avvisoStato && <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{avvisoStato}</p>}
               {elencoControlla(b.piano, b.scrittura, vedeImporti, vedeCosti).map((g) => (
                 <section key={g.area} className="rounded-xl border bg-white p-3 shadow-sm" aria-label={NOMI_AREE[g.area]}>
                   <h4 className="text-sm font-semibold text-slate-900">{NOMI_AREE[g.area]}</h4>
@@ -585,7 +599,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 aperta={aperta} onApri={apri} onModifica={modifica}
                 daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
                 daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti}
-                fineDalleFasi={fineDalleFasi} clienteDaScegliere={clienteDaScegliere(b.scrittura, clientiDelGestionale)} />
+                fineDalleFasi={fineDalleFasi} clienteDaScegliere={clienteDaScegliere(b.scrittura, clientiDelGestionale)} numeri={numeri} />
             </section>
           </div>
         )}
@@ -603,8 +617,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </p>
                 <p className="text-xs text-slate-500">
                   {daDecidere.totale > 0
-                    ? <button type="button" className="min-h-11 text-left font-medium text-amber-700 underline-offset-2 hover:underline max-lg:-my-2.5 lg:min-h-0" onClick={() => vedi(["silvio-da-decidere"])}>
-                      Da decidere: {testoDaDecidere(daDecidere)}
+                    ? <button type="button" className={cn("min-h-11 text-left underline-offset-2 hover:underline max-lg:-my-2.5 lg:min-h-0", diviso.subito ? "font-medium text-amber-700" : "text-slate-600")} onClick={() => vedi(["silvio-da-decidere"])}>
+                      {diviso.subito
+                        ? <>Da decidere: {testoDecisioniSubito(daDecidere)}{diviso.altre > 0 ? ` · altre ${diviso.altre}` : ""}</>
+                        : `Niente di urgente. ${titoloAltre(diviso.altre)}.`}
                     </button>
                     : vuota ? "Carica un documento o scrivi il lavoro nella chat." : "Niente da decidere."}
                   <span className="max-sm:hidden">{" · "}costo AI {euroAI(conti.costoEur)}</span>
@@ -636,6 +652,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 {completa ? "Per completare" : "Per creare"}: {motivi.map(minuscola).join("; ")}.
               </p>
             )}
+            {/* Sul telefono la barra deve restare bassa: lì si legge in «Controlla» e tra le altre cose della colonna. */}
+            {avvisoStato && !controlla && <p className="mt-1 text-xs text-amber-800 max-lg:hidden">{avvisoStato}</p>}
             {nonLetti.length > 0 && (
               <p className="mt-1 break-words text-xs text-amber-800">Non letti, restano fuori: {nonLetti.join(", ")}.</p>
             )}

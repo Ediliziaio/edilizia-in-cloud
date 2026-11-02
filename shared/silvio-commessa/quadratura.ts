@@ -84,9 +84,14 @@ const NOTA_SENZA_TOTALE = "Manca il totale: gli importi delle rate si calcolano 
 const senzaNotaRate = (nota: string | null | undefined) =>
   (nota ?? "").replace(NOTA_SENZA_IVA, "").replace(NOTA_SENZA_TOTALE, "").replace(/\s+/g, " ").trim();
 
-const rateDaPercentuale = (v: Valore | undefined): RataDelPiano[] | null =>
-  (v && v.fonte.tipo !== "persona" && Array.isArray(v.valore) && (v.valore as RataDelPiano[]).some((r) => r?.daPercentuale)
-    ? v.valore as RataDelPiano[] : null);
+const rateDaPercentuale = (v: Valore | undefined): RataDelPiano[] | null => {
+  if (!v || !Array.isArray(v.valore)) return null;
+  const rate = v.valore as RataDelPiano[];
+  if (!rate.some((r) => r?.daPercentuale)) return null;
+  // Confermate da una persona restano sue, salvo che gli importi non ci siano ancora: «Va bene» a
+  // «30 % e 70 %» prima del totale non può voler dire zero euro.
+  return v.fonte.tipo !== "persona" || rate.every((r) => !r?.daPercentuale || !(Number(r.amount) > 0)) ? rate : null;
+};
 
 /** Le rate non si scrivono ancora: i loro importi aspettano l'IVA o il totale. Il motivo, o null. */
 export function rateInAttesa(piano: PianoCommessa): string | null {
