@@ -57,6 +57,8 @@ interface QuickContactSendDialogProps {
   initialAttachments?: Array<{ name: string; size: number; mime: string; storage_path: string }>;
   /** ID commessa per mostrare i documenti allegabili. */
   orderId?: string | null;
+  /** Comandi accanto ai canali (dalla commessa: Chiama e Invia PDF). */
+  azioniExtra?: ReactNode;
 }
 
 interface EmailAccount {
@@ -97,7 +99,7 @@ function parseEmails(raw: string): string[] {
 
 export function QuickContactSendDialog({
   open, onOpenChange, contactId, name, phone, email, context, defaultChannel = "sms", onSent,
-  prefill, initialAttachments, orderId,
+  prefill, initialAttachments, orderId, azioniExtra,
 }: QuickContactSendDialogProps) {
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
@@ -391,6 +393,7 @@ export function QuickContactSendDialog({
           <DialogHeader className="flex-row flex-wrap items-center gap-x-3 gap-y-1 space-y-0 border-b py-2 pl-4 pr-11 text-left">
             <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold max-sm:basis-full">{fullName || "Nuovo messaggio"}</DialogTitle>
             <DialogDescription className="sr-only">Scrivi e invia un messaggio al contatto.</DialogDescription>
+            {azioniExtra && <div className="flex shrink-0 items-center gap-1.5">{azioniExtra}</div>}
             <TabsList className="h-8 shrink-0">
               <TabsTrigger value="sms" disabled={!hasPhone} title={hasPhone ? "SMS" : "Telefono mancante"} className="h-6 gap-1 px-2 text-xs"><Smartphone className="h-3.5 w-3.5" /> SMS</TabsTrigger>
               <TabsTrigger value="whatsapp" disabled={!hasPhone} title={hasPhone ? "WhatsApp" : "Telefono mancante"} className="h-6 gap-1 px-2 text-xs"><MessageSquare className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>

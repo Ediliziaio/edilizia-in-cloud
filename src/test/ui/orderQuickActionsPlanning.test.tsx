@@ -8,7 +8,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from,
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "user" } }) }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/components/telephony/SoftphoneProvider", () => ({ useSoftphoneOptional: () : null => null }));
-vi.mock("@/components/contacts/QuickContactSendDialog", () => ({ QuickContactSendDialog: ({ defaultChannel, onOpenChange }: { defaultChannel: string; onOpenChange: (open: boolean) => void }) => <div role="dialog">Canale {defaultChannel}<button onClick={() => onOpenChange(false)}>Chiudi</button></div> }));
+vi.mock("@/components/contacts/QuickContactSendDialog", () => ({ QuickContactSendDialog: ({ defaultChannel, onOpenChange, azioniExtra }: { defaultChannel: string; onOpenChange: (open: boolean) => void; azioniExtra?: React.ReactNode }) => <div role="dialog">Canale {defaultChannel}{azioniExtra}<button onClick={() => onOpenChange(false)}>Chiudi</button></div> }));
 vi.mock("@/components/appointments/AppointmentDialog", () => ({ AppointmentDialog: () : null => null }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); mocks.mobile = false; });
 const base = { orderId: "order", orderCode: "ORD-001", companyId: "company", customer: null as null, getPdfBlob: async (): Promise<null> => null };
@@ -25,7 +25,7 @@ describe("Pianificazione nelle azioni rapide", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nuova attività" }));
     expect(task).toHaveBeenCalledOnce();
     fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
-    for (const name of ["Email", "WhatsApp", "SMS", "Appuntamento", "Crea fattura"]) expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
+    for (const name of ["Contatta", "Appuntamento", "Crea fattura"]) expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Documenti" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "Crea fattura" }));
     expect(invoice).toHaveBeenCalledOnce();
@@ -36,28 +36,34 @@ describe("Pianificazione nelle azioni rapide", () => {
     const invoice = vi.fn();
     render(<OrderQuickActions {...base} onCreateInvoice={invoice} invoiceDisabled invoiceHint="Fatturazione non attiva" />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
-    expect(await screen.findByRole("menuitem", { name: "SMS" })).toHaveAttribute("aria-disabled", "true");
+    expect(await screen.findByRole("menuitem", { name: "Contatta" })).toHaveAttribute("aria-disabled", "true");
     const item = screen.getByRole("menuitem", { name: "Crea fattura" });
     expect(item).toHaveTextContent("Fatturazione non attiva");
     expect(item).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(item);
     expect(invoice).not.toHaveBeenCalled();
   });
-  it("espone email, WhatsApp e SMS separati senza inviare al click", () => {
+  it("un solo «Contatta»: apre il popup senza inviare, con Chiama e Invia PDF dentro", () => {
     render(<OrderQuickActions {...base} customer={{ name: "Cliente test", email: "test@example.invalid", phone: "+390000000000" }} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    for (const [label, channel] of [["Email", "email"], ["WhatsApp", "whatsapp"], ["SMS", "sms"]]) {
-      fireEvent.click(screen.getByRole("button", { name: label }));
-      expect(screen.getByRole("dialog")).toHaveTextContent(`Canale ${channel}`);
-      fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
-    }
+    for (const name of ["Email", "WhatsApp", "SMS", "Chiama", "Invia PDF"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Contatta" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Canale email");
+    for (const name of ["Chiama", "Invia PDF"]) expect(screen.getByRole("button", { name })).toBeInTheDocument();
     expect(mocks.from).not.toHaveBeenCalled();
     expect(mocks.upload).not.toHaveBeenCalled();
+  });
+  it("senza email «Contatta» parte da WhatsApp e non offre il PDF", () => {
+    render(<OrderQuickActions {...base} customer={{ name: "Cliente test", email: null, phone: "+390000000000" }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Contatta" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Canale whatsapp");
+    expect(screen.getByRole("button", { name: "Chiama" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Invia PDF" })).not.toBeInTheDocument();
   });
   it("disabilita i canali senza recapiti e rispetta la disponibilità delle fatture", () => {
     const invoice = vi.fn();
     const view = render(<OrderQuickActions {...base} onCreateInvoice={invoice} invoiceDisabled invoiceHint="Fatturazione non attiva" />);
-    for (const name of ["Email", "WhatsApp", "SMS", "Crea fattura"]) expect(screen.getByRole("button", { name })).toBeDisabled();
+    for (const name of ["Contatta", "Crea fattura"]) expect(screen.getByRole("button", { name })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Crea fattura" }));
     expect(invoice).not.toHaveBeenCalled();
     view.rerender(<OrderQuickActions {...base} onCreateInvoice={invoice} />);
@@ -94,7 +100,25 @@ describe("Pianificazione nelle azioni rapide", () => {
     render(<OrderQuickActions {...base} customer={{ name: "Mario", email: "m@x.it", phone: null }} onOpenFirma={vi.fn()} onOpenNotes={vi.fn()} onOpenOps={vi.fn()} />);
     fireEvent.keyDown(screen.getByRole("button", { name: /Altre azioni/ }), { key: "Enter" });
     const voci = (await screen.findAllByRole("menuitem")).map((v) => v.textContent);
-    expect(voci).toEqual(["Invia PDF", "Firma", "Note interne", "Responsabile"]);
+    expect(voci).toEqual(["Firma", "Note interne", "Responsabile"]);
     expect(screen.queryByText("Flusso di lavoro")).not.toBeInTheDocument();
+  });
+  it("«Altre azioni» è l'unico menu: registro, PDF, duplica ed elimina in fondo", async () => {
+    const elimina = vi.fn();
+    render(<OrderQuickActions {...base} onOpenRegistro={vi.fn()} onScaricaPdf={vi.fn()} onDuplica={vi.fn()} onElimina={elimina} onModifica={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
+    const voci = (await screen.findAllByRole("menuitem")).map((v) => v.textContent);
+    expect(voci).toEqual(["Registro attività", "Scarica PDF", "Duplica", "Elimina"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Elimina" }));
+    expect(elimina).toHaveBeenCalledOnce();
+  });
+  it("da telefono il menu ha anche Modifica e non lo Scarica PDF", async () => {
+    mocks.mobile = true;
+    const modifica = vi.fn();
+    render(<OrderQuickActions {...base} onScaricaPdf={vi.fn()} onModifica={modifica} />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Modifica commessa" }));
+    expect(modifica).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menuitem", { name: "Scarica PDF" })).not.toBeInTheDocument();
   });
 });

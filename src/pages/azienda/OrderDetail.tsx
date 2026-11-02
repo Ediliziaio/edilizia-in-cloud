@@ -1062,7 +1062,8 @@ function OrderDetailInner() {
         companyId,
         orderId: id!,
         vertical,
-        baseDate: order.created_at ? new Date(order.created_at) : new Date(),
+        // Da oggi: su una commessa vecchia le scadenze sarebbero già tutte passate.
+        baseDate: new Date(),
         assignedTo: ((order as { assigned_to?: string | null }).assigned_to) ?? null,
       });
       if (created === 0) {
@@ -1489,6 +1490,12 @@ function OrderDetailInner() {
       onOpenFiles={() => setFilesOpen(true)}
       onOpenNotes={() => setNotesOpen(true)}
       onOpenFirma={() => setFirmaOpen(true)}
+      onModifica={permissions.canEditOrders && !operationalIntervention ? () => navigate(`/azienda/ordini/${id}/modifica`) : undefined}
+      onOpenRegistro={() => navigate(`/azienda/ordini/${id}/diario`)}
+      onScaricaPdf={handleDownloadPDF}
+      scaricaPdfBusy={pdfPreparing || isGeneratingPDF}
+      onDuplica={permissions.canEditOrders && !operationalIntervention ? () => setDuplicateDialogOpen(true) : undefined}
+      onElimina={permissions.isAdmin || permissions.canDeleteOrders ? () => setDeleteConfirmOpen(true) : undefined}
       onCreateInvoice={permissions.canViewBilling ? () => {
         if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
       } : undefined}
@@ -1517,7 +1524,6 @@ function OrderDetailInner() {
 
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
-        ordineId={id!}
         orderCode={order.order_code || "—"}
         descrizione={order.description}
         dataCreazione={order.created_at}
@@ -1527,14 +1533,9 @@ function OrderDetailInner() {
             : order.client_name || "Cliente non disponibile"
         }
         orderType={order.order_type}
-        onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
         onRegistraIncasso={() => vaiAllaFinanza("section-pagamenti")}
-        onElimina={() => setDeleteConfirmOpen(true)}
-        onDownloadPDF={handleDownloadPDF}
-        isGeneratingPDF={pdfPreparing || isGeneratingPDF}
         canEdit={permissions.canEditOrders && !operationalIntervention}
-        canDelete={permissions.isAdmin || permissions.canDeleteOrders}
         azioniTelefono={isMobile ? azioniRapide : undefined}
       />
 

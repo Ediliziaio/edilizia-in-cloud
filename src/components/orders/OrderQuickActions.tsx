@@ -1,7 +1,7 @@
 /**
  * OrderQuickActions — barra azioni rapide della commessa (OrderDetail).
- * Riduce l'attrito operativo: contatta il cliente (chiama/WhatsApp/email),
- * invia il PDF della commessa, fissa un appuntamento — senza uscire dalla pagina.
+ * Riduce l'attrito operativo: contatta il cliente (un solo popup per email,
+ * WhatsApp, SMS, chiamata e PDF), fissa un appuntamento — senza uscire dalla pagina.
  *
  * Le azioni frequenti hanno etichette visibili su tutti gli schermi.
  * Le altre sono raccolte nel menu, senza duplicare le scorciatoie.
@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Phone, MessageSquare, Smartphone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, MoreHorizontal, type LucideIcon } from "lucide-react";
+import { Phone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, MoreHorizontal, BookOpen, FileDown, Copy, Trash2, Pencil, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,6 +65,13 @@ interface Props {
   onOpenNotes?: () => void;
   /** Apre il popup "Firma digitale" (invio/gestione firma cliente). */
   onOpenFirma?: () => void;
+  /** Da telefono «Modifica» sta nel menu: dal computer è un bottone in testata. */
+  onModifica?: () => void;
+  onOpenRegistro?: () => void;
+  onScaricaPdf?: () => void;
+  scaricaPdfBusy?: boolean;
+  onDuplica?: () => void;
+  onElimina?: () => void;
   onCreateInvoice?: () => void;
   invoiceDisabled?: boolean;
   invoiceHint?: string;
@@ -85,22 +92,21 @@ type QuickAction = {
   icon: LucideIcon;
   iconClass: string;
   onClick: () => void;
-  group: "comunica" | "gestisci" | "pianifica";
+  group: "comunica" | "gestisci" | "pianifica" | "elimina";
   disabled?: boolean;
   /** Motivo dell'indisponibilità o suggerimento (title/tooltip). */
   hint?: string;
-  /** Mostrata inline (fuori dal dropdown) sui breakpoint larghi. */
-  primary?: boolean;
   /** Spinner al posto dell'icona (azioni async). */
   busy?: boolean;
-  /** Tinta d'accento per azioni "attenzione" (es. sollecito). */
-  tone?: "default" | "warning";
+  /** Tinta d'accento: "warning" per il sollecito, "danger" per l'eliminazione. */
+  tone?: "default" | "warning" | "danger";
 };
 
 export function OrderQuickActions({
   orderId, orderCode, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
   onCreateTask, onApplyPlaybook, applyingPlaybook = false, playbookLabel,
   onCreateInvoice, invoiceDisabled = false, invoiceHint, inline = false,
+  onModifica, onOpenRegistro, onScaricaPdf, scaricaPdfBusy = false, onDuplica, onElimina,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -120,8 +126,8 @@ export function OrderQuickActions({
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfDaInviare, setPdfDaInviare] = useState<{ blob: Blob; filename: string } | null>(null);
 
-  const openContact = (channel: QuickSendChannel) =>
-    setQuickSend({ open: true, channel, prefill: undefined, attachments: undefined });
+  const openContact = () =>
+    setQuickSend({ open: true, channel: hasEmail ? "email" : "whatsapp", prefill: undefined, attachments: undefined });
 
   const openSollecito = () => {
     if (!paymentDue || paymentDue.amount <= 0) return;
@@ -146,6 +152,7 @@ export function OrderQuickActions({
 
   const handleCall = () => {
     if (!customer?.phone) return;
+    setQuickSend((s) => ({ ...s, open: false }));
     if (softphone) softphone.startCall(customer.phone, { name: customer.name, contactId: customer.id ?? undefined });
     else window.open(`tel:${customer.phone}`, "_self");
   };
@@ -156,7 +163,10 @@ export function OrderQuickActions({
     setPdfBusy(true);
     try {
       const res = await getPdfBlob();
-      if (res) setPdfDaInviare(res); // altrimenti il toast l'ha già mostrato l'hook PDF
+      if (!res) return; // il toast l'ha già mostrato l'hook PDF
+      // Il popup si riapre da solo: col PDF allegato, o come stava se si annulla.
+      setQuickSend((s) => ({ ...s, open: false }));
+      setPdfDaInviare(res);
     } finally {
       setPdfBusy(false);
     }
@@ -191,39 +201,39 @@ export function OrderQuickActions({
   // ── Catalogo azioni (l'ordine è quello mostrato nel menu) ──────────────
   const actions: QuickAction[] = [
     // Stessi callback e dialoghi della commessa, accessibili da tutte le tab.
-    ...(onCreateTask ? [{ id: "task", label: "Nuova attività", icon: ListPlus, iconClass: "text-primary", onClick: onCreateTask, group: "pianifica" as const, primary: true }] : []),
-    ...(onApplyPlaybook ? [{ id: "playbook", label: applyingPlaybook ? "Applico…" : "Applica flusso", icon: Sparkles, iconClass: "text-primary", onClick: onApplyPlaybook, group: "pianifica" as const, primary: true, disabled: applyingPlaybook, busy: applyingPlaybook, hint: `Crea le attività del flusso ${playbookLabel ?? "della commessa"}` }] : []),
-    // Comunica col cliente
-    // Senza telefono niente voce spenta: nel menu occuperebbe due righe per dirlo.
-    ...(hasPhone ? [{ id: "call", label: "Chiama", icon: Phone, iconClass: "text-emerald-600", onClick: handleCall, group: "comunica" as const, hint: `Chiama ${customer?.phone}` }] : []),
-    { id: "whatsapp", label: "WhatsApp", icon: MessageSquare, iconClass: "text-emerald-700", onClick: () => openContact("whatsapp"), group: "comunica", disabled: !hasPhone, hint: hasPhone ? "Scrivi un WhatsApp al cliente" : "Telefono cliente mancante" },
-    { id: "sms", label: "SMS", icon: Smartphone, iconClass: "text-blue-700", onClick: () => openContact("sms"), group: "comunica", disabled: !hasPhone, hint: hasPhone ? "Scrivi un SMS al cliente" : "Telefono cliente mancante" },
-    { id: "email", label: "Email", icon: Mail, iconClass: "text-violet-600", onClick: () => openContact("email"), group: "comunica", primary: true, disabled: !hasEmail, hint: hasEmail ? "Invia email" : "Email cliente mancante" },
-    { id: "pdf", label: "Invia PDF", icon: FileText, iconClass: "text-blue-600", onClick: () => { void handleSendPdf(); }, group: "comunica", disabled: !hasEmail || pdfBusy, busy: pdfBusy, hint: hasEmail ? "Genera e invia il PDF al cliente via email" : "Email cliente mancante" },
+    ...(onCreateTask ? [{ id: "task", label: "Nuova attività", icon: ListPlus, iconClass: "text-primary", onClick: onCreateTask, group: "pianifica" as const }] : []),
+    ...(onApplyPlaybook ? [{ id: "playbook", label: applyingPlaybook ? "Applico…" : "Applica flusso", icon: Sparkles, iconClass: "text-primary", onClick: onApplyPlaybook, group: "pianifica" as const, disabled: applyingPlaybook, busy: applyingPlaybook, hint: `Crea le attività del flusso ${playbookLabel ?? "della commessa"}` }] : []),
+    // Comunica col cliente: email, WhatsApp, SMS, chiamata e PDF stanno nel popup.
+    { id: "contatta", label: "Contatta", icon: Mail, iconClass: "text-violet-600", onClick: openContact, group: "comunica", disabled: !hasPhone && !hasEmail, hint: hasPhone || hasEmail ? "Email, WhatsApp, SMS, chiamata o invio del PDF" : "Telefono ed email del cliente mancanti" },
     ...(paymentDue && paymentDue.amount > 0 && (hasPhone || hasEmail)
       ? [{ id: "sollecito", label: "Sollecita pagamento", icon: BellRing, iconClass: "text-amber-600", onClick: openSollecito, group: "comunica" as const, tone: "warning" as const, hint: `Sollecita il pagamento di ${fmtEur(paymentDue.amount)}` }]
       : []),
     // Gestisci commessa
-    ...(onOpenFiles ? [{ id: "files", label: "Documenti", icon: FolderOpen, iconClass: "text-amber-600", onClick: onOpenFiles, group: "gestisci" as const, primary: true, hint: "Tutti i file: PDF, fatture, allegati commessa e schede articoli" }] : []),
+    ...(isMobile && onModifica ? [{ id: "modifica", label: "Modifica commessa", icon: Pencil, iconClass: "text-blue-950", onClick: onModifica, group: "gestisci" as const }] : []),
+    ...(onOpenFiles ? [{ id: "files", label: "Documenti", icon: FolderOpen, iconClass: "text-amber-600", onClick: onOpenFiles, group: "gestisci" as const, hint: "Tutti i file: PDF, fatture, allegati commessa e schede articoli" }] : []),
     ...(onOpenFirma ? [{ id: "firma", label: "Firma", icon: PenLine, iconClass: "text-blue-600", onClick: onOpenFirma, group: "gestisci" as const, hint: "Firma digitale: invia il documento al cliente e gestisci la firma" }] : []),
     ...(onOpenNotes ? [{ id: "notes", label: "Note interne", icon: StickyNote, iconClass: "text-violet-600", onClick: onOpenNotes, group: "gestisci" as const, hint: "Note interne e chat di team sulla commessa (@menziona i colleghi)" }] : []),
     ...(onOpenOps ? [{ id: "ops", label: "Responsabile", icon: UserCog, iconClass: "text-primary", onClick: onOpenOps, group: "gestisci" as const, hint: "Assegna chi segue questa commessa" }] : []),
-    { id: "appt", label: "Appuntamento", icon: CalendarPlus, iconClass: "text-indigo-600", onClick: () => setApptOpen(true), group: "gestisci", primary: true, hint: "Fissa un appuntamento/sopralluogo/posa per questa commessa" },
+    { id: "appt", label: "Appuntamento", icon: CalendarPlus, iconClass: "text-indigo-600", onClick: () => setApptOpen(true), group: "gestisci", hint: "Fissa un appuntamento/sopralluogo/posa per questa commessa" },
     ...(onCreateInvoice ? [{ id: "invoice", label: "Crea fattura", icon: Receipt, iconClass: "text-orange-700", onClick: onCreateInvoice, group: "gestisci" as const, disabled: invoiceDisabled, hint: invoiceHint ?? "Prepara una fattura collegata alla commessa" }] : []),
+    ...(onOpenRegistro ? [{ id: "registro", label: "Registro attività", icon: BookOpen, iconClass: "text-orange-600", onClick: onOpenRegistro, group: "gestisci" as const, hint: "Chi ha fatto cosa su questa commessa" }] : []),
+    // Niente export su telefono.
+    ...(!isMobile && onScaricaPdf ? [{ id: "scarica", label: "Scarica PDF", icon: FileDown, iconClass: "text-blue-950", onClick: onScaricaPdf, group: "gestisci" as const, disabled: scaricaPdfBusy, busy: scaricaPdfBusy }] : []),
+    ...(onDuplica ? [{ id: "duplica", label: "Duplica", icon: Copy, iconClass: "text-blue-950", onClick: onDuplica, group: "gestisci" as const }] : []),
+    ...(onElimina ? [{ id: "elimina", label: "Elimina", icon: Trash2, iconClass: "text-red-600", onClick: onElimina, group: "elimina" as const, tone: "danger" as const }] : []),
   ];
 
   // Sul telefono una sola riga: attività, documenti, menu. Stessi callback,
   // nessuna funzione rimossa: contatti, fattura e appuntamento stanno nel menu.
-  const primaryActions = actions.filter((a) => (isMobile ? ["task", "files"] : ["task", "files", "appt"]).includes(a.id));
-  const shortcuts = isMobile ? [] : ["email", "whatsapp", "sms", "invoice"].flatMap(id => actions.filter(a => a.id === id));
+  const primaryActions = (isMobile ? ["task", "files"] : ["task", "files", "appt", "contatta", "invoice"]).flatMap((id) => actions.filter((a) => a.id === id));
   // Nel menu solo ciò che non è già sulla barra: un gruppo vuoto non mostra il titolo.
-  const nelMenu = (gruppo: QuickAction["group"]) => actions.filter((a) => a.group === gruppo && ![...primaryActions, ...shortcuts].some((p) => p.id === a.id));
+  const nelMenu = (gruppo: QuickAction["group"]) => actions.filter((a) => a.group === gruppo && !primaryActions.some((p) => p.id === a.id));
   const comunica = nelMenu("comunica");
   const gestisci = nelMenu("gestisci");
   const pianifica = nelMenu("pianifica");
+  const distruttive = nelMenu("elimina");
 
   const renderMenuItem = (a: QuickAction) => {
-    if ([...primaryActions, ...shortcuts].some(primary => primary.id === a.id)) return null;
     const Icon = a.icon;
     return (
       <DropdownMenuItem
@@ -232,7 +242,7 @@ export function OrderQuickActions({
         aria-label={a.label}
         aria-description={a.disabled ? a.hint : undefined}
         onSelect={a.onClick}
-        className={cn("min-h-11 gap-2.5 cursor-pointer", a.tone === "warning" && "text-amber-700 focus:text-amber-700")}
+        className={cn("min-h-11 gap-2.5 cursor-pointer", a.tone === "warning" && "text-amber-700 focus:text-amber-700", a.tone === "danger" && "text-red-600 focus:text-red-700")}
       >
         {a.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className={cn("h-4 w-4", a.iconClass)} />}
         <span className="min-w-0"><span className="block">{a.label}</span>{a.disabled && a.hint && <span className="block text-[11px] font-normal">{a.hint}</span>}</span>
@@ -251,12 +261,13 @@ export function OrderQuickActions({
             className={cn("tap-compact h-9 w-9 shrink-0 border-slate-300 bg-white hover:bg-blue-50", a.id === "task" ? "text-orange-700" : "text-blue-950")}>
             <Icon className="h-4 w-4" aria-hidden="true" />
           </Button>;
-          return <Button key={a.id} variant="outline" onClick={a.onClick} disabled={a.disabled}
-            title={a.hint ?? a.label} aria-label={a.label}
-            className={cn("h-11 min-h-11 min-w-0 flex-1 gap-1.5 whitespace-nowrap rounded-lg border-slate-300 px-2 text-xs font-semibold md:h-auto md:flex-none md:gap-2 md:px-3 md:py-2 md:text-sm",
+          // Lo span tiene il suggerimento anche a bottone spento.
+          return <span key={a.id} title={a.hint ?? a.label} className="flex min-w-0 flex-1 md:flex-none">
+            <Button variant="outline" onClick={a.onClick} disabled={a.disabled} aria-label={a.label}
+            className={cn("h-11 min-h-11 w-full min-w-0 gap-1.5 whitespace-nowrap rounded-lg border-slate-300 px-2 text-xs font-semibold md:h-auto md:flex-none md:gap-2 md:px-3 md:py-2 md:text-sm",
               a.id === "task" ? "border-orange-700 bg-orange-700 text-white hover:bg-orange-800 hover:text-white" : "bg-white text-blue-950 hover:bg-blue-50")}>
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /><span>{isMobile && a.id === "task" ? "Attività" : a.label}</span>
-          </Button>;
+          </Button></span>;
         })}
 
         {/* Azioni secondarie raggruppate, uguali su desktop e mobile. */}
@@ -300,21 +311,12 @@ export function OrderQuickActions({
               Gestisci commessa
             </DropdownMenuLabel>
             {gestisci.map(renderMenuItem)}
+            {distruttive.length > 0 && <>
+              <DropdownMenuSeparator />
+              {distruttive.map(renderMenuItem)}
+            </>}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {!isMobile && <div role="group" aria-label="Contatta il cliente e fattura" className="flex flex-wrap gap-2 border-l border-slate-200 pl-2">
-          {shortcuts.map(action => {
-            const Icon = action.icon;
-            return <span key={action.id} title={action.hint} className="flex min-w-0 flex-1 sm:flex-none">
-              <Button variant="outline" disabled={action.disabled} onClick={action.onClick} aria-label={action.label}
-                className="h-auto min-h-14 w-full flex-col gap-1 whitespace-normal rounded-lg border-slate-300 bg-white px-2 py-2 text-[11px] font-semibold text-blue-950 shadow-sm hover:bg-blue-50 sm:min-h-11 sm:flex-row sm:gap-2 sm:text-xs">
-                <Icon className={cn("h-4 w-4 shrink-0", action.iconClass)} aria-hidden="true" />
-                <span>{action.label}</span>
-              </Button>
-            </span>;
-          })}
-        </div>}
 
         {/* Silvio: CTA AI distinta, spinta a destra su desktop */}
         {/* Mobile no: c'è già il bottone Silvio al centro della barra in basso. */}
@@ -328,7 +330,7 @@ export function OrderQuickActions({
         azione="Allega all'email"
         inCorso={pdfBusy}
         onConferma={() => { void allegaPdf(); }}
-        onChiudi={() => setPdfDaInviare(null)}
+        onChiudi={() => { setPdfDaInviare(null); setQuickSend((s) => ({ ...s, open: true })); }}
       />
       {quickSend.open && (hasPhone || hasEmail) && customer && (
         <QuickContactSendDialog
@@ -343,6 +345,10 @@ export function OrderQuickActions({
           prefill={quickSend.prefill}
           initialAttachments={quickSend.attachments}
           orderId={orderId}
+          azioniExtra={<>
+            {hasPhone && <Button variant="outline" size="sm" onClick={handleCall} className="h-8 gap-1.5 px-2 text-xs" title={`Chiama ${customer.phone}`}><Phone className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> Chiama</Button>}
+            {hasEmail && <Button variant="outline" size="sm" disabled={pdfBusy} onClick={() => { void handleSendPdf(); }} className="h-8 gap-1.5 px-2 text-xs" title="Guarda il PDF per il cliente e allegalo all'email">{pdfBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileText className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" />} Invia PDF</Button>}
+          </>}
           onSent={() => {
             queryClient.invalidateQueries({ queryKey: ["order-messages", orderId] });
             queryClient.invalidateQueries({ queryKey: ["reg-sms"] });
