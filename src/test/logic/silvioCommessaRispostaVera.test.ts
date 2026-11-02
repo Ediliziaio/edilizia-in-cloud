@@ -111,4 +111,13 @@ describe("la risposta del modello vero", () => {
     const f = leggi({ cliente: { "cliente.contatto": { client_phone: null as string | null, client_email: null as string | null } } });
     expect(f.avvisi ?? []).toEqual([]);
   });
+
+  it("le rate sommano al totale al centesimo: l'ultima prende il resto", () => {
+    const f = frammentoDaRispostaAI({ aree: {
+      economia: { "economia.total_amount": { valore: 15000.5, citazione: "15.000,50" }, "economia.vat_rate": { valore: 10, citazione: "IVA 10%" } },
+      pagamenti: { "pagamenti.rate": [{ label: "Firma", percent: 30 }, { label: "Saldo", percent: 70 }] },
+    } }, { fonte: { tipo: "testo" as const, etichetta: "testo" }, testo: "15.000,50 piu IVA 10%" } as never);
+    const rate = f.aree.pagamenti?.["pagamenti.rate"]?.valore as { amount: number }[];
+    expect(rate.map((r) => r.amount)).toEqual([4950.17, 11550.38]);
+  });
 });

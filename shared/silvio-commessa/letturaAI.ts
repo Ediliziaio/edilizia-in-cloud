@@ -18,6 +18,7 @@
  *
  * Senza dipendenze, compatibile con Deno: la usano la edge function e i test.
  */
+import { chiudiCentesimi } from "./quadratura.ts";
 import {
   type Area, type CondizioniContratto, type FaseDelPiano, type Fonte, type Frammento,
   type PianoSal, type RataDelPiano, type Stato, type TipoFonte,
@@ -383,7 +384,7 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
   if (somma > 100.5) note.push(`Le percentuali sommano ${tondo(somma)} %: controlla.`);
   if (somma > 0 && somma < 99.5 && rate.every((r) => r.percent != null)) note.push(`Le percentuali sommano ${tondo(somma)} %: manca il ${tondo(100 - somma)} %.`);
   if (senzaIva) note.push(imponibile ? "Manca l'IVA: le rate in percentuale sono calcolate sull'imponibile, da rifare quando c'è l'IVA." : "Manca il totale: gli importi delle rate si calcolano dalle percentuali quando arriva.");
-  return { ok: true, valore: rate, nota: note.join(" ") || undefined, ...(senzaIva ? { senzaIva } : {}) };
+  return { ok: true, valore: totaleIvato ? chiudiCentesimi(rate, totaleIvato) : rate, nota: note.join(" ") || undefined, ...(senzaIva ? { senzaIva } : {}) };
 }
 
 function pulisciFasi(v: unknown): Esito<FaseDelPiano[]> {

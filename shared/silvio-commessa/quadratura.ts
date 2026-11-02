@@ -31,6 +31,22 @@ function numeroInVigore(piano: PianoCommessa, chiave: "economia.total_amount" | 
 }
 
 /** Cosa non torna nella bozza, una riga per variabile coinvolta. */
+/**
+ * Le rate in percentuale che fanno il 100 % sommano al totale al centesimo: l'ultima prende il resto.
+ * 15.000,50 + IVA 10 %, 30/70: 4.950,17 + 11.550,39 faceva 16.500,56 invece di 16.500,55.
+ */
+export function chiudiCentesimi<T extends { amount: number; percent?: number | null }>(rate: T[], totale: number): T[] {
+  if (rate.length < 2 || !(totale > 0) || rate.some((r) => r.percent == null)) return rate;
+  const percento = rate.reduce((s, r) => s + (r.percent as number), 0);
+  if (Math.abs(percento - 100) > 0.001) return rate;
+  const inCentesimi = Math.round(totale * 100);
+  const altre = rate.slice(0, -1).reduce((s, r) => s + Math.round(r.amount * 100), 0);
+  const ultima = inCentesimi - altre;
+  // Solo l'arrotondamento: uno scarto più grande vuol dire importi scritti a mano, e resta visibile.
+  if (Math.abs(ultima - Math.round(rate[rate.length - 1].amount * 100)) > rate.length) return rate;
+  return rate.map((r, i) => (i === rate.length - 1 ? { ...r, amount: ultima / 100 } : r));
+}
+
 export function controlliQuadratura(piano: PianoCommessa): ProblemaQuadratura[] {
   const out: ProblemaQuadratura[] = [];
   const imponibile = numeroInVigore(piano, "economia.total_amount");
@@ -113,8 +129,8 @@ function conRatePercentuali(piano: PianoCommessa): PianoCommessa {
   const rifai = (x: Valore): Valore => {
     const rate = rateDaPercentuale(x);
     if (!rate) return x;
-    const nuove = rate.map((r) => (r.daPercentuale && r.percent != null
-      ? { ...r, amount: Math.round((base * r.percent) / 100 * 100) / 100 } : r));
+    const nuove = chiudiCentesimi(rate.map((r) => (r.daPercentuale && r.percent != null
+      ? { ...r, amount: Math.round((base * r.percent) / 100 * 100) / 100 } : r)), base);
     const nota = [senzaNotaRate(x.quadratura ? x.quadratura.nota : x.nota), attesa].filter(Boolean).join(" ") || null;
     const stesseRate = nuove.every((r, i) => r.amount === rate[i].amount);
     const notaPrima = (x.quadratura ? x.quadratura.nota : x.nota) ?? null;
