@@ -23,6 +23,7 @@ import {
   vistaDentroLocale,
   vistaGiroIntorno,
   localeAllaPosizione,
+  passoLibero,
   type PiantaPer3D,
   type PianoPer3D,
   type Scena3D,
@@ -227,12 +228,22 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (dir.lengthSq() < 1e-6) return;
     dir.normalize();
     const destra = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
-    const passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    let passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    // i muri bloccano: se il passo li attraversa si prova a scivolare lungo il muro, altrimenti ci si ferma
+    const da = m.camera.position;
+    const verso = (v: THREE.Vector3) => passoLibero(pianta, vista, [da.x, da.y, da.z], [da.x + v.x, da.y, da.z + v.z]);
+    if (!verso(passo)) {
+      const soloX = new THREE.Vector3(passo.x, 0, 0);
+      const soloZ = new THREE.Vector3(0, 0, passo.z);
+      if (verso(soloX)) passo = soloX;
+      else if (verso(soloZ)) passo = soloZ;
+      else return;
+    }
     m.camera.position.add(passo);
     m.controlli.target.add(passo);
     m.controlli.update();
     m.disegna();
-  }, []);
+  }, [pianta, vista]);
 
   useEffect(() => {
     const m = motore.current;
@@ -320,18 +331,18 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare">
+        <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare" className="[&>*]:whitespace-nowrap">
           <ToggleGroupItem value="alto" aria-label="Vista dall'alto">
             <MappaIcona className="mr-1 h-4 w-4" />
             Dall'alto
           </ToggleGroupItem>
           <ToggleGroupItem value="giro" aria-label="Gira intorno">
             <Rotate3d className="mr-1 h-4 w-4" />
-            Gira intorno
+            <span className="max-sm:hidden">Gira intorno</span><span className="sm:hidden">Gira</span>
           </ToggleGroupItem>
           <ToggleGroupItem value="dentro" aria-label="Entra nella stanza" disabled={tuttiIPiani}>
             <Eye className="mr-1 h-4 w-4" />
-            Entra nella stanza
+            <span className="max-sm:hidden">Entra nella stanza</span><span className="sm:hidden">Dentro</span>
           </ToggleGroupItem>
         </ToggleGroup>
         {modo === "dentro" && locali.length > 0 && (
@@ -348,7 +359,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             </SelectContent>
           </Select>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2 max-md:hidden">
           <Button variant="outline" size="sm" disabled={occupato} onClick={() => esegui(() => scarica(esportaGlb(scena) as Uint8Array<ArrayBuffer>, `${nomeFile}.glb`, "model/gltf-binary"))}>
             <Download className="mr-1 h-4 w-4" />
             Scarica GLB

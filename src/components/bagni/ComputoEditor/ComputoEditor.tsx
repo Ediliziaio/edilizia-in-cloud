@@ -169,16 +169,20 @@ export default function ComputoEditor({
 
   // Picker globale: aggiunge la voce nel suo capitolo suggerito (o "Generale").
   const handleGlobalPick = useCallback(
-    (picked: PickedVoce) => {
-      const cap = picked.capitolo_nome?.trim() || DEFAULT_CAPITOLO;
-      const voce = pickedToComputoVoce(picked, {
-        progetto_id: progettoId,
-        company_id: companyId,
-        capitolo_nome: cap,
-        ordine: value.length,
+    (scelte: PickedVoce[]) => {
+      const capitoliUsati = new Set<string>();
+      const nuove = scelte.map((picked, n) => {
+        const cap = picked.capitolo_nome?.trim() || DEFAULT_CAPITOLO;
+        capitoliUsati.add(cap);
+        return pickedToComputoVoce(picked, {
+          progetto_id: progettoId,
+          company_id: companyId,
+          capitolo_nome: cap,
+          ordine: value.length + n,
+        });
       });
-      setEmptyCapitoli((prev) => prev.filter((n) => n !== cap));
-      onChange([...value, voce].map((v, i) => ({ ...v, ordine: i })));
+      setEmptyCapitoli((prev) => prev.filter((n) => !capitoliUsati.has(n)));
+      onChange([...value, ...nuove].map((v, i) => ({ ...v, ordine: i })));
     },
     [value, onChange, progettoId, companyId],
   );
@@ -268,6 +272,7 @@ export default function ComputoEditor({
         open={globalPickerOpen}
         onOpenChange={setGlobalPickerOpen}
         onPick={handleGlobalPick}
+      vociPresenti={value.map((v) => v.descrizione)}
       />
     </div>
   );

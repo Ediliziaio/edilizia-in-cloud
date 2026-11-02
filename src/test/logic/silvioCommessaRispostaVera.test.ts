@@ -126,4 +126,9 @@ describe("la risposta del modello vero", () => {
     const f = leggi({ cliente: { "cliente.nome": { valore: { client_name: vuoto, client_company: vuoto } }, "cliente.contatto": { valore: { client_phone: "", client_email: vuoto } } } });
     expect(f.avvisi ?? []).toEqual([]);
   });
+
+  it("condizioni e SAL vuoti: nessun avviso, il documento non ne parla", () => {
+    const f = leggi({ economia: { "economia.condizioni_contratto": { valore: { durata_giorni: 0, anticipo_pct: 0 } } } });
+    expect(f.avvisi ?? []).toEqual([]);
+  });
 });

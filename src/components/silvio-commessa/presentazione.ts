@@ -159,9 +159,11 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true, o
   switch (chiave) {
     // Questi arrivano dalla commessa come codici («appaltatore_lavoro», «in_corso»).
     case "identita.order_type":
-    case "identita.stato":
-    case "identita.origine":
-      return typeof valore === "string" ? minuscola(valore).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : String(valore);
+    case "identita.stato": {
+      // Lo stato è un oggetto con le colonne { status, current_status_id }.
+      const codice = typeof valore === "string" ? valore : (valore as { status?: unknown }).status;
+      return typeof codice === "string" && codice ? minuscola(codice).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "—";
+    }
     case "fasi.order_work_phases": {
       const fasi = valore as FaseDelPiano[];
       const { inizio, fine } = arcoDelleFasi(fasi);
@@ -1047,6 +1049,9 @@ const CHIAVI_SOLDI: ReadonlySet<string> = new Set(["economia.total_amount", "eco
 const DOMANDE_CHE_FERMANO: ReadonlySet<string> = new Set(["cliente.customer_id", "economia.total_amount"]);
 
 export interface DaDecidereDiviso {
+  /** Un documento dice un altro importo, un'altra IVA o altre rate: in evidenza. */
+  avvisiSoldi: string[];
+  altriAvvisi: string[];
   /** In evidenza, e mai nascosti: conflitti e conti che non tornano stanno sempre qui. */
   domande: Variabile[];
   proposte: { chiave: string; etichetta: string }[];
@@ -1063,10 +1068,14 @@ export function divisioneDaDecidere(d: DaDecidere): DaDecidereDiviso {
   const altreDomande = d.domande.filter((v) => !DOMANDE_CHE_FERMANO.has(v.chiave));
   const proposte = d.proposte.filter((p) => CHIAVI_SOLDI.has(p.chiave));
   const altreProposte = d.proposte.filter((p) => !CHIAVI_SOLDI.has(p.chiave));
+  // «Il documento dice 20.000, la commessa ha 18.000»: chiuso sotto «Altre» non lo vede nessuno.
+  const avvisiSoldi = d.avvisi.filter((a) => /«(Importo|IVA|Rate)»/.test(a));
+  const altriAvvisi = d.avvisi.filter((a) => !/«(Importo|IVA|Rate)»/.test(a));
   return {
     domande, proposte, altreDomande, altreProposte,
-    subito: d.conflitti.length + d.nonTornano.length + domande.length + proposte.length,
-    altre: d.nonDisponibili.length + altreDomande.length + altreProposte.length + d.avvisi.length,
+    avvisiSoldi, altriAvvisi,
+    subito: d.conflitti.length + d.nonTornano.length + domande.length + proposte.length + avvisiSoldi.length,
+    altre: d.nonDisponibili.length + altreDomande.length + altreProposte.length + altriAvvisi.length,
   };
 }
 

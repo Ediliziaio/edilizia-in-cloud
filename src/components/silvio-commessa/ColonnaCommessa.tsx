@@ -712,6 +712,9 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
               <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(n.chiave)}>Sistema</Button>
             </li>
           ))}
+          {div.avvisiSoldi.map((a) => (
+            <li key={`as-${a}`} className="break-words rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px] text-red-800"><span aria-hidden>⚠ </span>{a}</li>
+          ))}
           {div.domande.map((v) => <RigaDomanda key={`q-${v.chiave}`} v={v} onApri={onApri} />)}
           {div.proposte.map((p) => {
             const v = variabileDi(p.chiave);
@@ -769,7 +772,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
                 </div>
               </li>
             )}
-            {d.avvisi.map((a) => (
+            {div.altriAvvisi.map((a) => (
               <li key={`a-${a}`} className="break-words rounded-lg bg-slate-50 px-2.5 py-2 text-xs lg:text-[11px] text-slate-700">{a}</li>
             ))}
           </ul>

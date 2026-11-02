@@ -8,6 +8,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { editImage } from "../_shared/ai-provider/image.ts";
+import { requireAuth, requireRole } from "../_shared/auth.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -328,6 +329,15 @@ async function testFullEditImage() {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+  // Solo il super admin (02/11/2026): prima bastava un account qualsiasi e `?mode=full` non aveva altri controlli,
+  // quindi chiunque poteva far partire generazioni d'immagine a pagamento con le nostre chiavi.
+  try {
+    const auth = await requireAuth(req, corsHeaders);
+    await requireRole(auth.supabaseAdmin, auth.userId, ["super_admin"], corsHeaders);
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
   }
   const url = new URL(req.url);
   // Modalità "full": testa l'editImage() reale del path produzione.

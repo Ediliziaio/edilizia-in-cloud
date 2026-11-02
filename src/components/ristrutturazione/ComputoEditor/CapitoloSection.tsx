@@ -144,14 +144,14 @@ export default function CapitoloSection({
     onChange(next.map((v, i) => ({ ...v, ordine: i })));
   };
 
-  const handlePick = (picked: PickedVoce) => {
-    const voce = pickedToComputoVoce(picked, {
+  const handlePick = (scelte: PickedVoce[]) => {
+    const nuove = scelte.map((picked, n) => pickedToComputoVoce(picked, {
       progetto_id: progettoId,
       company_id: companyId,
       capitolo_nome: nome, // resta in QUESTO capitolo a prescindere dalla sorgente
-      ordine: voci.length,
-    });
-    onChange([...voci, voce]);
+      ordine: voci.length + n,
+    }));
+    onChange([...voci, ...nuove]);
   };
 
   return (
@@ -286,6 +286,7 @@ export default function CapitoloSection({
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onPick={handlePick}
+        vociPresenti={voci.map((v) => v.descrizione)}
         targetCapitolo={nome || "Generale"}
       />
     </Collapsible>

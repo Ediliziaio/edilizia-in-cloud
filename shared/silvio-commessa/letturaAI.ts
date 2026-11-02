@@ -568,6 +568,9 @@ function cifraGiaSenzaIva(valore: number | null, iva: number, testo: string | nu
   return null;
 }
 
+/** Il documento non ne parla: non è un problema da dire a chi legge. */
+const MOTIVI_DI_NIENTE = new Set(["piano dei SAL vuoto", "nessuna condizione leggibile"]);
+
 /** Il nome che legge chi lavora in cantiere, mai la chiave tecnica. */
 const etichettaAvviso = (chiave: string): string => variabile(chiave)?.etichetta ?? "un campo del documento";
 
@@ -628,6 +631,18 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const letti = new Map<string, { valore: unknown; prov: Provenienza }>();
 
   const grezzi = coppie(json, avvisi);
+  // Il modello a volte perde il telefono scritto da chi apre la commessa («telefono 333 000 7788»).
+  // Solo dal testo della persona: in un documento il primo numero può essere quello dell'impresa.
+  if (ctx.fonte.tipo === "testo" && ctx.testo) {
+    const contatto = grezzi.find(([k]) => k === "cliente.contatto");
+    const dentro = contatto && oggetto(contatto[1].valore) ? contatto[1].valore : null;
+    const trovato = /\b(?:tel(?:efono)?|cell(?:ulare)?)\b\.?[^\d+\n]{0,20}(\+?\d[\d\s./-]{7,16}\d)/i.exec(ctx.testo)?.[1];
+    if (trovato && !dentro?.client_phone) {
+      const valore = { ...(dentro ?? {}), client_phone: trovato };
+      if (contatto) contatto[1] = { ...contatto[1], valore };
+      else grezzi.push(["cliente.contatto", { valore, citazione: trovato, fiducia: 0.9 }]);
+    }
+  }
   const totaleGrezzo = grezzi.find(([k]) => k === "economia.total_amount")?.[1];
   const ivaGrezza = grezzi.find(([k]) => k === "economia.vat_rate")?.[1];
   const iva = numeroDa(ivaGrezza?.valore);
@@ -655,7 +670,7 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
     if (!lettura) { avvisi.push(`«${definita.etichetta}» non si legge da un documento: l'ho lasciato fuori.`); continue; }
     if (letti.has(chiave)) { avvisi.push(`«${definita.etichetta}» è scritto due volte: ho tenuto il primo.`); continue; }
     const esito = pulisci(lettura.forma, grezzo, { pagine, ctx, totaleIvato, imponibile });
-    if ("motivo" in esito) { avvisi.push(`«${definita.etichetta}»: ${esito.motivo}`); continue; }
+    if ("motivo" in esito) { if (!MOTIVI_DI_NIENTE.has(esito.motivo)) avvisi.push(`«${definita.etichetta}»: ${esito.motivo}`); continue; }
     letti.set(chiave, { valore: esito.valore, prov: { ...esito.prov, nota: [esito.prov.nota, esito.nota].filter(Boolean).join(" ") || null } });
   }
 

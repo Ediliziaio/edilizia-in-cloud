@@ -331,15 +331,18 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     const nuova = { ...voceVuota(), capitolo: capitolo || v?.capitolo || "Opere edili" };
     cambia({ ...bozza, voci: [...bozza.voci, nuova] }); apriVoce(nuova.id);
   };
-  const daListino = (picked: PickedVoce) => {
-    if (bozza.voci.length >= 5000) { setPicker(null); return; }
-    const unita = picked.unita_originale?.trim() || picked.unita_misura;
-    const nuova = { ...voceVuota(), capitolo: picker?.capitolo || picked.capitolo_nome || "Opere edili",
-      descrizione: [picked.descrizione, picked.descrizione_estesa].filter((s, n, all) => !!s && all.indexOf(s) === n).join("\n"),
-      unita, quantita: String(picked.quantita ?? 1), prezzo: String(picked.prezzo_unitario),
-      tariffa: picked.codice_tariffa || "", fonte: picked.fonte || "", corpo: unita === "corpo" || unita === "a corpo",
-      costo: costoDaListino(picked) };
-    cambia({ ...bozza, voci: [...bozza.voci, nuova] }); apriVoce(nuova.id); setPicker(null);
+  const daListino = (scelte: PickedVoce[]): void | false => {
+    if (bozza.voci.length + scelte.length > 5000) { toast.error("Il computo supererebbe le 5000 lavorazioni: togli qualche voce."); return false; }
+    const nuove = scelte.map(picked => {
+      const unita = picked.unita_originale?.trim() || picked.unita_misura;
+      return { ...voceVuota(), capitolo: picker?.capitolo || picked.capitolo_nome || "Opere edili",
+        descrizione: [picked.descrizione, picked.descrizione_estesa].filter((s, n, all) => !!s && all.indexOf(s) === n).join("\n"),
+        unita, quantita: String(picked.quantita ?? 1), prezzo: String(picked.prezzo_unitario),
+        tariffa: picked.codice_tariffa || "", fonte: picked.fonte || "", corpo: unita === "corpo" || unita === "a corpo",
+        costo: costoDaListino(picked) };
+    });
+    if (!nuove.length) { setPicker(null); return; }
+    cambia({ ...bozza, voci: [...bozza.voci, ...nuove] }); apriVoce(nuove[nuove.length - 1].id); setPicker(null);
   };
   const daAi = (estratte: ComputoVoceLocal[]) => {
     setAiAperta(null);
@@ -542,7 +545,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
             const titoloNuovo = titolo && (!bozza.titolo.trim() || bozza.titolo === bozzaVuota().titolo) ? { titolo } : {};
             setAiAperta(null); cambia({ ...bozza, ...titoloNuovo, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />}
     </Suspense>}
-    {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} /></Suspense>}
+    {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
       <DialogContent className="flex h-[90dvh] max-w-5xl flex-col">
         <DialogHeader><DialogTitle>{anteprimaParziale ? "Anteprima bozza parziale" : "Anteprima preventivo"}</DialogTitle><DialogDescription>{anteprimaParziale ? "Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione." : "PDF della bozza, non ancora inviata."}</DialogDescription></DialogHeader>
