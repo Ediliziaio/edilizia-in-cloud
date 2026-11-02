@@ -7,7 +7,7 @@
 export interface FaseCrono { nome: string; inizio: number; durata: number; nota: string }
 
 const SOLO_ATTESA = /stagionat|asciugat|attesa/i;
-const LAVORI_SPECIFICI = ["scav", "sbanc", "fondaz", "ponteg", "copertur", "tett", "demoli", "cappott", "fotovolt", "ascensor", "piscin"];
+const LAVORI_SPECIFICI = ["scav", "sbanc", "fondaz", "ponteg", "demoli", "cappott", "fotovolt", "ascensor", "piscin"];
 
 const senzaAccenti = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -40,4 +40,18 @@ export function limitaSquadre(fasi: readonly FaseCrono[], squadre: number | null
     piazzate.push({ ...f, inizio });
   }
   return piazzate;
+}
+
+/** Persone di una squadra e ore utili al giorno: per dire al modello quanto dura un lavoro. */
+const PERSONE_SQUADRA = 3;
+const ORE_UTILI_GIORNO = 6.8;
+
+/** Le ore di manodopera per capitolo in una riga per il prompt. Così le durate partono da un conto, non da un'impressione. */
+export function righeOreCapitoli(capitoli: readonly { nome: string; importo: number | null }[], stime: ReadonlyMap<string, number>, costoOrario: number): string[] {
+  return capitoli.flatMap((c) => {
+    const f = stime.get(c.nome.trim().slice(0, 120).toLowerCase());
+    if (!f || !c.importo) return [];
+    const ore = c.importo * f / costoOrario;
+    return [`- ${c.nome}: circa ${Math.round(ore)} ore di lavoro, cioè ${Math.max(1, Math.round(ore / (PERSONE_SQUADRA * ORE_UTILI_GIORNO)))} giorni per una squadra di ${PERSONE_SQUADRA} persone`];
+  });
 }

@@ -128,7 +128,7 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
                     <p>{ore(f.ore)}{f.ditta ? ` · lavoro della ditta ${f.ditta}` : f.operaiNecessari ? ` · ${f.operaiNecessari} ${f.operaiNecessari === 1 ? "operaio" : "operai"}` : ""}</p>
                     {!!f.fonti.length && <p className="text-xs text-muted-foreground">Da: {f.fonti.map((x) => FONTE_A_PAROLE[x]).join(", ")}</p>}
                     {e.risorse.persone.filter((p) => p.fase === f.nome).map((p) => <p key={p.employee_id} className="text-xs">{p.nome}: {p.motivo}</p>)}
-                    {e.risorse.mancano.filter((m) => m.fase === f.nome).map((m) => <p key={m.fase} className="text-xs text-amber-700">Mancano {m.persone} {m.persone === 1 ? "persona" : "persone"} libere: valuta una ditta o sposta la data.</p>)}
+                    {e.risorse.mancano.filter((m) => m.fase === f.nome).map((m) => <p key={m.fase} className="text-xs text-amber-700">{m.specialisti ? `Servono ${m.persone} impiantisti: non vedo nessuno libero con questo mestiere, valuta una ditta.` : `Mancano ${m.persone} ${m.persone === 1 ? "persona" : "persone"} libere: valuta una ditta o sposta la data.`}</p>)}
                     {e.risorse.mezzi.filter((m) => m.fase === f.nome).map((m) => <p key={m.mezzo_id} className="text-xs">Mezzo: {m.nome} ({m.motivo})</p>)}
                     {e.risorse.mezziMancanti.filter((m) => m.fase === f.nome).map((m) => <p key={m.cosa} className="text-xs text-amber-700">Di solito serve {m.cosa}: non ne vedo liberi.</p>)}
                   </div>
