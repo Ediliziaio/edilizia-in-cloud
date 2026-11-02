@@ -241,7 +241,12 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
         el.tipo,
         { x: el.centro.x * CM, z: el.centro.y * CM },
         (el.rotazione * Math.PI) / 180,
-        { l: el.larghezza !== undefined ? el.larghezza * CM : undefined, p: el.profondita !== undefined ? el.profondita * CM : undefined, h: el.altezza !== undefined ? el.altezza * CM : undefined },
+        {
+          l: el.larghezza !== undefined ? el.larghezza * CM : undefined,
+          p: el.profondita !== undefined ? el.profondita * CM : undefined,
+          // in mansarda il lucernario sta sulla falda sopra di lui
+          h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02 : el.altezza !== undefined ? el.altezza * CM : undefined,
+        },
         (materiale) => {
           if (!perMateriale.has(materiale)) perMateriale.set(materiale, new CostruttoreMesh());
           return perMateriale.get(materiale)!;

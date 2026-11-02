@@ -68,3 +68,29 @@ describe("sottotetto ad altezza variabile", () => {
     expect(zMin(con)).toBeLessThan(zMin(senza));
   });
 });
+
+describe("lucernari e superficie commerciale del sottotetto", () => {
+  it("un lucernario conta come superficie finestrata della stanza", async () => {
+    const { superficieFinestrata } = await import("../../../shared/planimetrie/verifiche.ts");
+    const { CATALOGO } = await import("@/components/planimetrie/editor/catalogo");
+    const doc = mansarda();
+    const st = doc.livelli[0].fatto;
+    const prima = superficieFinestrata(st.locali[0], st);
+    const c = st.locali[0].contorno;
+    const centro = { x: c.reduce((t, p) => t + p.x, 0) / c.length, y: c.reduce((t, p) => t + p.y, 0) / c.length };
+    const voce = CATALOGO.find((v) => v.tipo === "lucernario")!;
+    const conLucernario = { ...st, elementi: [...st.elementi, { id: "luc1", tipo: "lucernario", posizione: centro, rotazione: 0, larghezza: voce.larghezza, profondita: voce.profondita }] };
+    expect(superficieFinestrata(st.locali[0], conLucernario as typeof st) - prima).toBeCloseTo(0.78 * 1.18, 3);
+  });
+  it("unità in mansarda: la parte sotto 1,50 m conta al 30%", async () => {
+    const { unitaDellEdificio } = await import("@/lib/planimetrie/unita");
+    const doc = mansarda();
+    const liv = doc.livelli[0];
+    const conUnita = { ...doc, livelli: [{ ...liv, fatto: { ...liv.fatto, locali: [{ ...liv.fatto.locali[0], unita: "A" }, ...liv.fatto.locali.slice(1)] } }] };
+    const due = { ...conUnita, livelli: [{ ...conUnita.livelli[0], fatto: { ...conUnita.livelli[0].fatto, locali: [...conUnita.livelli[0].fatto.locali, { ...conUnita.livelli[0].fatto.locali[0], id: "copia", unita: "B" }] } }] };
+    const [a] = unitaDellEdificio(due);
+    const coeff = a.locali[0].coefficiente;
+    expect(coeff).toBeLessThan(1);
+    expect(coeff).toBeGreaterThan(0.3);
+  });
+});

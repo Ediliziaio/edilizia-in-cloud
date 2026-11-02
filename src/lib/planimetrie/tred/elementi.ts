@@ -229,6 +229,8 @@ export const MODELLI: Record<string, ModelloElemento> = {
   batteria_accumulo: { nome: "Batteria", misure: { l: 0.6, p: 0.25, h: 0 }, blocchi: (l, p) => [b("ceramica", 0, 0, 0, l, p, 1.1)] },
   wallbox: { nome: "Wallbox", misure: { l: 0.3, p: 0.15, h: 1.2 }, blocchi: (l, p, h) => [b("piano_cucina", 0, -p / 2 + 0.06, Math.max(h - 0.2, 0.8), l, 0.12, 0.4)] },
   termostato: { nome: "Termostato", misure: { l: 0.12, p: 0.03, h: 1.5 }, blocchi: (_l, p, h) => [b("ceramica", 0, -p / 2, h - 0.05, 0.12, 0.02, 0.1)] },
+  // lucernario: il vetro sulla falda (in mansarda la scena lo porta alla quota del tetto)
+  lucernario: { nome: "Lucernario", misure: { l: 0.78, p: 1.18, h: 2.2 }, blocchi: (l, p, h) => [b("vetro", 0, 0, Math.max(h - 0.04, 0.5), l, p, 0.04), b("metallo", 0, -p / 2 + 0.03, Math.max(h - 0.07, 0.5), l, 0.06, 0.07)] },
   vmc: { nome: "VMC", misure: { l: 0.6, p: 0.45, h: 2.6 }, blocchi: (l, p, h) => [b("metallo", 0, 0, Math.max(h - 0.3, 2.0), l, p, 0.3)] },
   // a filo pavimento o nel muro: nel 3D non si vedono
   punto_acqua: { nome: "Punto acqua", misure: { l: 0.05, p: 0.05, h: 0.5 }, blocchi: () => [] },

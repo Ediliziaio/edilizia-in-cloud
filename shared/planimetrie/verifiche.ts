@@ -40,11 +40,18 @@ const ESCLUSI = new Set<Destinazione>(["balcone", "terrazzo", "garage", "cantina
 const mq = (v: number) => `${v.toLocaleString("it-IT", { maximumFractionDigits: 2 })} m²`;
 const m = (cm: number) => `${(cm / 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })} m`;
 
-/** Superficie finestrata del locale (m²): finestre e portafinestre che lo toccano. */
+/**
+ * Superficie finestrata del locale (m²): finestre e portafinestre che lo toccano, più i
+ * lucernari (finestre a tetto) dentro la stanza, con la loro luce intera.
+ */
 export function superficieFinestrata(locale: Locale, stato: StatoPianta): number {
-  return apertureDelLocale(locale, stato)
+  const pareti = apertureDelLocale(locale, stato)
     .filter((a) => a.tipo === "finestra" || a.tipo === "portafinestra")
     .reduce((t, a) => t + (a.larghezza * a.altezza) / 10_000, 0);
+  const tetto = stato.elementi
+    .filter((e) => e.tipo === "lucernario" && e.stato !== "da_demolire" && insideLocale(e.posizione, locale))
+    .reduce((t, e) => t + ((e.larghezza ?? 78) * (e.profondita ?? 118)) / 10_000, 0);
+  return pareti + tetto;
 }
 
 /** Le verifiche di uno stato (com'è oggi o una proposta) su tutti i piani. */

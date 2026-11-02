@@ -45,6 +45,7 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "elementi:inverter.numero", descrizione: "Inverter per impianto fotovoltaico, posa e collegamento", unita: "n", prezzo: 1900, capitolo: "Energia" },
   { id: "elementi:batteria_accumulo.numero", descrizione: "Batteria di accumulo 10 kWh", unita: "n", prezzo: 5200, capitolo: "Energia" },
   { id: "elementi:wallbox.numero", descrizione: "Wallbox per ricarica auto 7,4 kW, posa e linea dedicata", unita: "n", prezzo: 1100, capitolo: "Energia" },
+  { id: "elementi:lucernario.numero", descrizione: "Finestra per tetti 78 × 118 cm con raccordo, fornitura e posa", unita: "n", prezzo: 1350, capitolo: "Copertura" },
   { id: "elementi:vmc.numero", descrizione: "Ventilazione meccanica controllata con recupero di calore", unita: "n", prezzo: 3800, capitolo: "Energia" },
   { id: "elementi:piscina.numero", descrizione: "Piscina interrata con vasca, impianto di filtrazione, bordo e scavo (a corpo, da adeguare alla misura)", unita: "n", prezzo: 38000, capitolo: "Esterni" },
   { id: "elementi:idromassaggio.numero", descrizione: "Minipiscina idromassaggio da esterno, fornitura e posa", unita: "n", prezzo: 9500, capitolo: "Esterni" },

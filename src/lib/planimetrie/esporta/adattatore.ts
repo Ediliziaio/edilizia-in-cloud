@@ -77,7 +77,7 @@ const NOTI = new Set<string>([
   "auto", "scaffale", "banco_lavoro",
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split",
   "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
-  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc",
+  "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
   "campo_tennis", "campo_padel", "campo_calcio5", "campo_calcio7", "campo_calcio11", "campo_basket", "campo_pallavolo", "campo_beach_volley", "campo_pickleball", "campo_bocce",

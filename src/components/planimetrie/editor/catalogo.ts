@@ -83,6 +83,8 @@ export const CATALOGO: VoceCatalogo[] = [
   // Struttura: pilastri di capannoni, garage, piani pilotis.
   { tipo: "pilastro", nome: "Pilastro", gruppo: "Struttura", larghezza: 30, profondita: 30, altezza: 300 },
   // Rampa dritta: 16 alzate da 17,5 cm, pedata 28 cm; la freccia indica dove si sale.
+  // Finestra sulla falda (tipo Velux): conta nel rapporto aeroilluminante dei sottotetti.
+  { tipo: "lucernario", nome: "Lucernario (finestra a tetto)", gruppo: "Struttura", larghezza: 78, profondita: 118, altezza: 220 },
   { tipo: "scala", nome: "Scala (rampa)", gruppo: "Struttura", larghezza: 100, profondita: 450, altezza: 280 },
   { tipo: "ascensore", nome: "Ascensore", gruppo: "Struttura", larghezza: 150, profondita: 150, altezza: 280 },
   // Sport: campi con le misure regolamentari (src/lib/planimetrie/campiSport.ts), ingombro con le fasce di rispetto

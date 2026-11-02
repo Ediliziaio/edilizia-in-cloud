@@ -295,7 +295,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   campo_calcio11: "Campi da calcio a 11", campo_basket: "Campi da basket", campo_pallavolo: "Campi da pallavolo", campo_beach_volley: "Campi da beach volley",
   campo_pickleball: "Campi da pickleball", campo_bocce: "Campi da bocce",
   pompa_calore: "Pompe di calore", bollitore: "Bollitori", inverter: "Inverter fotovoltaici", batteria_accumulo: "Batterie di accumulo",
-  wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC",
+  wallbox: "Wallbox", termostato: "Termostati", vmc: "Macchine VMC", lucernario: "Lucernari",
   collettore: "Collettori", colonna_scarico: "Colonne di scarico", unita_esterna: "Unità esterne clima",
   presa: "Prese", interruttore: "Interruttori", punto_luce: "Punti luce", punto_acqua: "Punti acqua",
   scarico: "Scarichi", split: "Split clima", termosifone: "Termosifoni", quadro_elettrico: "Quadri elettrici",
