@@ -132,12 +132,24 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       const gruppo = (gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [])
         .filter((i) => selezione[i.id!] !== false);
       if (gruppo.length === 0) throw new Error("Nessun articolo selezionato");
-      const user = (await supabase.auth.getUser()).data.user;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
+      const titoloRdo = `Preventivo ${supplierName(supplierId)} — ${orderCode || "commessa"}`;
+      // Senza distinte le voci restano legate agli articoli: l'ordine che nascerà dall'aggiudica li copre,
+      // e non tornano «da acquistare». Le distinte si dividono per posizione, quindi seguono la via di prima.
+      if (!gruppo.some((i) => i.posizioni?.length)) {
+        const { data: idRdo, error: rpcErr } = await db.rpc("acquisti_richiedi_offerta", { p_items: gruppo.map((i) => i.id), p_titolo: titoloRdo, p_fornitori: [supplierId] });
+        if (rpcErr) throw rpcErr;
+        toast.success(`Richiesta d'offerta creata per ${supplierName(supplierId)}`);
+        setSceltaPer(null);
+        queryClient.invalidateQueries({ queryKey: ["supplier-rfqs"] });
+        navigate(`/azienda/richieste-offerta/${idRdo}`);
+        return;
+      }
+      const user = (await supabase.auth.getUser()).data.user;
       const { data: rfq, error: rfqErr } = await db.from("supplier_rfqs").insert({
         company_id: effectiveCompany.id,
-        titolo: `Preventivo ${supplierName(supplierId)} — ${orderCode || "commessa"}`,
+        titolo: titoloRdo,
         order_id: orderId,
         created_by: user?.id,
       }).select().single();

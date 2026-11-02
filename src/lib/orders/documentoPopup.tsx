@@ -5,10 +5,13 @@
 import { createContext, useCallback, useContext } from "react";
 import { useNavigate, type NavigateOptions, type To } from "react-router-dom";
 
-export type DocumentoPopup = { tipo: "ddt" | "oda" | "rdo"; id: string; percorso: string };
+export type DocumentoPopup = { tipo: "ddt" | "oda" | "rdo" | "documento"; id: string; percorso: string };
 
 /** Il documento di un indirizzo, se è uno di quelli che si aprono in popup. */
 export function documentoDaPercorso(percorso: string): DocumentoPopup | null {
+  // Un documento emesso, per esempio il DDT al cliente: solo con un id vero, «documenti/fatture-ricevute» è una pagina.
+  const emesso = /^\/azienda\/documenti\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?(?:[?#].*)?$/i.exec(percorso);
+  if (emesso) return { tipo: "documento", id: emesso[1], percorso: `/azienda/documenti/${emesso[1]}/dettaglio` };
   const m = /^\/azienda\/(ddt|ordini-acquisto|richieste-offerta)\/([^/?#]+)\/?(?:[?#].*)?$/.exec(percorso);
   if (!m) return null;
   const tipo = ({ ddt: "ddt", "ordini-acquisto": "oda", "richieste-offerta": "rdo" } as const)[m[1] as "ddt" | "ordini-acquisto" | "richieste-offerta"];

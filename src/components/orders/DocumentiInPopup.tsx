@@ -10,8 +10,9 @@ import { ContestoDocumentoPopup, chiudeIlPopup, documentoDaPercorso, type Docume
 const DDTRicezioneDetail = lazy(() => import("@/pages/azienda/DDTRicezioneDetail"));
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
 const SupplierRfqDetail = lazy(() => import("@/pages/azienda/SupplierRfqDetail"));
+const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
 
-const TITOLI: Record<DocumentoPopup["tipo"], string> = { ddt: "Bolla", oda: "Ordine d’acquisto", rdo: "Richiesta d’offerta" };
+const TITOLI: Record<DocumentoPopup["tipo"], string> = { ddt: "Bolla", oda: "Ordine d’acquisto", rdo: "Richiesta d’offerta", documento: "Documento" };
 
 export function DocumentiInPopup({ orderId, children }: { orderId: string; children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -64,6 +65,7 @@ export function DocumentiInPopup({ orderId, children }: { orderId: string; child
                     {documento.tipo === "ddt" && <DDTRicezioneDetail key={documento.id} />}
                     {documento.tipo === "oda" && <PurchaseOrderDetail key={documento.id} />}
                     {documento.tipo === "rdo" && <SupplierRfqDetail key={documento.id} />}
+                    {documento.tipo === "documento" && <DocumentoDetail key={documento.id} />}
                   </Suspense>
                 </ErrorBoundary>
               </ContestoDocumentoPopup>

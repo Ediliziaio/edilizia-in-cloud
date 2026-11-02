@@ -9,6 +9,7 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
@@ -186,6 +187,9 @@ export function RiepilogoFatturaRicevuta({
   azioni?: AzioniRiepilogo;
 }) {
   const isMobile = useIsMobile();
+  // In mezzo allo schermo come gli altri documenti; da telefono resta il foglio dal basso.
+  const Radice = isMobile ? Sheet : Dialog;
+  const Contenuto = (isMobile ? SheetContent : DialogContent) as typeof DialogContent;
   const { data: d, isLoading, error } = useQuery({
     queryKey: riepilogoQueryKey(fatturaId),
     enabled: !!fatturaId && !!companyId,
@@ -282,10 +286,10 @@ export function RiepilogoFatturaRicevuta({
   return (
     <>
     {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
-    <Sheet open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent
-        side={isMobile ? "bottom" : "right"}
-        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "w-full sm:max-w-2xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
+    <Radice open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Contenuto
+        {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
+        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "block max-h-[92dvh] max-w-3xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
@@ -414,14 +418,11 @@ export function RiepilogoFatturaRicevuta({
                               <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
                             )) : <span className="text-muted-foreground">Nessuna</span>}
                           {sceglibile && !scegliCommessa ? (
-                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
+                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => (azioni.onCollegaCommesse ? azioni.onCollegaCommesse() : setScegliCommessa(true))}>
                               {uniche.length ? "Cambia" : "Scegli commessa"}
                             </Button>
                           ) : null}
                         </div>
-                        {sceglibile && azioni.onCollegaCommesse && !scegliCommessa ? (
-                          <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaCommesse}>Dividi su più commesse</Button>
-                        ) : null}
                         {sceglibile && !uniche.length && d.suggerita && !scegliCommessa ? (
                           <div className="flex flex-wrap items-center gap-1.5 text-xs">
                             <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -436,6 +437,7 @@ export function RiepilogoFatturaRicevuta({
                           <div className="flex items-center gap-2">
                             <div className="min-w-0 flex-1">
                               <OrderSelectCombobox
+                                filtroIniziale="all"
                                 companyId={companyId ?? undefined}
                                 value={undefined}
                                 disabled={occupato}
@@ -617,8 +619,8 @@ export function RiepilogoFatturaRicevuta({
             </div>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </Contenuto>
+    </Radice>
     </>
   );
 }

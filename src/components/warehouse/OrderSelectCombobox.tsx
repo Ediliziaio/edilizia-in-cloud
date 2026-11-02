@@ -10,7 +10,7 @@
  */
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Search, CalendarClock, MapPin, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, CalendarClock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -44,6 +44,10 @@ interface Props {
   onChange: (orderId: string, order: OrderOption) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** Da dove partire: una fattura può essere di un lavoro già finito, non solo dei prossimi. */
+  filtroIniziale?: Filter;
+  /** Già scelte altrove nella stessa finestra: non si ripropongono. */
+  esclusi?: string[];
 }
 
 type Filter = "soon" | "in_corso" | "all";
@@ -89,9 +93,9 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
   return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
 }
 
-export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder }: Props) {
+export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder, filtroIniziale, esclusi }: Props) {
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<Filter>("soon");
+  const [filter, setFilter] = useState<Filter>(filtroIniziale ?? "soon");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -115,7 +119,8 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
           indirizzo_lavori, work_address, status,
           order_items ( destination_warehouse_id )
         `)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .is("deleted_at", null);
 
       if (filter === "soon") {
         const today = new Date();
@@ -138,8 +143,8 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         );
       }
 
-      // Ordering: work_start_date ASC NULLS LAST, then expected_date ASC
-      q = q.order("work_start_date", { ascending: true, nullsFirst: false }).limit(200);
+      // Tra i prossimi lavori prima il più vicino; altrimenti prima la commessa più recente, non quelle di anni fa.
+      q = q.order("work_start_date", { ascending: filter === "soon", nullsFirst: false }).limit(200);
 
       const { data, error } = await q;
       if (error) throw error;
@@ -231,6 +236,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
     const thisMonth: OrderOption[] = [];
     const other: OrderOption[] = [];
     for (const o of orders) {
+      if (esclusi?.includes(o.id)) continue;
       const ref = o.work_start_date ?? o.expected_date;
       if (!ref) {
         other.push(o);
@@ -247,7 +253,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
       }
     }
     return { today, thisWeek, thisMonth, other };
-  }, [orders]);
+  }, [orders, esclusi]);
 
   const totalCount = orders.length;
 
@@ -280,18 +286,10 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-0" align="start">
         <Command shouldFilter={false}>
           {/* Search input */}
-          <div className="flex items-center border-b px-3">
-            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-            <CommandInput
-              placeholder="Cerca per codice, cliente o indirizzo…"
-              value={search}
-              onValueChange={setSearch}
-              className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 border-0 focus:ring-0"
-            />
-          </div>
+          <CommandInput placeholder="Cerca per codice, cliente o indirizzo…" value={search} onValueChange={setSearch} />
 
           {/* Filter chips */}
           <div className="flex items-center gap-1 px-2 py-2 border-b bg-muted/30">
@@ -317,7 +315,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
           </div>
 
           <CommandList
-            className="max-h-[400px] overscroll-contain"
+            className="max-h-[320px] overscroll-contain"
             onWheel={(e) => {
               e.currentTarget.scrollTop += e.deltaY;
             }}
@@ -337,10 +335,17 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
               </CommandEmpty>
             ) : (
               <>
-                <OrderGroup heading="📅 Oggi" orders={groups.today} value={value} onSelect={handleSelect} />
-                <OrderGroup heading="📅 Prossimi 7 giorni" orders={groups.thisWeek} value={value} onSelect={handleSelect} />
-                <OrderGroup heading="📅 Prossimi 30 giorni" orders={groups.thisMonth} value={value} onSelect={handleSelect} />
-                <OrderGroup heading="📋 Altri" orders={groups.other} value={value} onSelect={handleSelect} />
+                {/* Scadenze solo per i prossimi lavori: su tutte le commesse «Altri» non vuol dire niente. */}
+                {filter === "soon" && !debouncedSearch ? (
+                  <>
+                    <OrderGroup heading="Oggi" orders={groups.today} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading="Prossimi 7 giorni" orders={groups.thisWeek} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading="Prossimi 30 giorni" orders={groups.thisMonth} value={value} onSelect={handleSelect} />
+                    <OrderGroup heading="Altri" orders={groups.other} value={value} onSelect={handleSelect} />
+                  </>
+                ) : (
+                  <OrderGroup orders={[...groups.today, ...groups.thisWeek, ...groups.thisMonth, ...groups.other].sort(piuRecente)} value={value} onSelect={handleSelect} />
+                )}
               </>
             )}
           </CommandList>
@@ -350,13 +355,16 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
   );
 }
 
+const piuRecente = (a: OrderOption, b: OrderOption) =>
+  String(b.work_start_date ?? b.expected_date ?? "").localeCompare(String(a.work_start_date ?? a.expected_date ?? ""));
+
 function OrderGroup({
   heading,
   orders,
   value,
   onSelect,
 }: {
-  heading: string;
+  heading?: string;
   orders: OrderOption[];
   value: string | undefined;
   onSelect: (o: OrderOption) => void;
@@ -372,26 +380,20 @@ function OrderGroup({
             key={o.id}
             value={o.id}
             onSelect={() => onSelect(o)}
-            className="flex flex-col items-start gap-1 py-2 cursor-pointer"
+            className="flex cursor-pointer items-center gap-2 py-1.5"
           >
-            <div className="flex items-center gap-2 w-full">
-              <Check className={cn("h-3.5 w-3.5 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
-              <span className="font-medium text-sm truncate">{o.order_code}</span>
-              {o.customer_name && (
-                <span className="text-xs text-muted-foreground truncate">· {o.customer_name}</span>
-              )}
-              {badge && (
-                <span className={cn("ml-auto inline-flex items-center gap-1 rounded-full px-2 h-5 text-[10px] font-medium shrink-0", badge.cls)}>
-                  <CalendarClock className="h-2.5 w-2.5" />
-                  {badge.label}
-                </span>
-              )}
+            <Check className={cn("h-3.5 w-3.5 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium" title={o.order_code}>{o.order_code}</p>
+              <p className="truncate text-xs text-muted-foreground" title={[o.customer_name, o.indirizzo_lavori].filter(Boolean).join(" · ")}>
+                {[o.customer_name, o.indirizzo_lavori].filter(Boolean).join(" · ") || "—"}
+              </p>
             </div>
-            {o.indirizzo_lavori && (
-              <div className="flex items-center gap-1 pl-5 text-[11px] text-muted-foreground truncate w-full">
-                <MapPin className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate">{o.indirizzo_lavori}</span>
-              </div>
+            {badge && (
+              <span className={cn("inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[10px] font-medium", badge.cls)}>
+                <CalendarClock className="h-2.5 w-2.5" />
+                {badge.label}
+              </span>
             )}
           </CommandItem>
         );

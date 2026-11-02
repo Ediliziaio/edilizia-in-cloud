@@ -1,4 +1,5 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
@@ -65,8 +66,10 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export default function DocumentoDetail() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const { id: idIndirizzo } = useParams();
+  const id = useIdDocumento(idIndirizzo);
+  const inPopup = useDentroPopupDocumento();
+  const navigate = useNavigaDocumento();
   const { data: doc, isLoading, refetch } = useDocumentoFiscale(id);
   const { data: rataCommessa } = useRataDellaFattura(id);
   const { data: azienda } = useAnagraficaAzienda();
@@ -184,9 +187,9 @@ export default function DocumentoDetail() {
 
       {/* Titolo e ritorno ai documenti. */}
       <div className="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
-        <Button variant="outline" size="sm" className="w-fit gap-1.5 max-sm:hidden" onClick={() => navigate("/azienda/documenti")}>
+        {!inPopup && <Button variant="outline" size="sm" className="w-fit gap-1.5 max-sm:hidden" onClick={() => navigate("/azienda/documenti")}>
           <ArrowLeft className="h-4 w-4" /> Torna ai documenti
-        </Button>
+        </Button>}
         <div className="sm:text-right">
           <div className="flex items-center gap-2 sm:justify-end max-sm:flex-wrap max-sm:gap-1.5">
             <h1 className="text-xl font-semibold max-sm:text-lg max-sm:leading-tight">{tipoLabel} numero {doc.numero}</h1>
