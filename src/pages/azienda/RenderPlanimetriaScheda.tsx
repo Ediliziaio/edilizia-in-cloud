@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Box, Building2, Download, ImageIcon, PenLine, Sparkles, Trees, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,7 +31,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
 import { useRenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 import { ambitiDi } from "../../../shared/planimetrie/modello.ts";
-import { riepilogoStanza, statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
+import { statoPerAmbito, vincoliDellaStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 
 /** Con una piscina disegnata si propone il render della piscina, con una pergola quello della pergola. */
@@ -90,6 +91,15 @@ export default function RenderPlanimetriaScheda() {
     return conta;
   }, [renders]);
   const completati = renders.filter((r) => r.status === "completed" && r.result_urls?.[0]);
+  // l'ultimo render fatto per ogni stanza: la scheda mostra quello, invece dello schema, appena c'è
+  const ultimoPerLocale = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of [...completati].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))) {
+      const k = r.planimetria?.locale_id;
+      if (k && !m.has(k)) m.set(k, r.result_urls![0]);
+    }
+    return m;
+  }, [completati]);
   // la sezione delle unità c'è solo con due appartamenti o più (condomini, bifamiliari)
   const piuUnita = useMemo(() => {
     if (!documento) return false;
@@ -117,45 +127,46 @@ export default function RenderPlanimetriaScheda() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-12 max-md:space-y-3">
+    <div className="mx-auto max-w-6xl space-y-6 pb-12 max-md:space-y-3">
       <TestataPlanimetrie
         indietro={percorsiPlanimetrie.elenco}
         titolo={data.riga.titolo}
         sottotitolo={`Versione ${data.versione.numero}`}
-        azioni={
-          <>
-            <Button variant="outline" size="sm" onClick={() => setMostra3D((v) => !v)} disabled={stanze.length === 0}>
-              <Box className="mr-1.5 h-4 w-4" />
-              {mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setEsterni(true)} disabled={stanze.length === 0}>
-              <Trees className="mr-1.5 h-4 w-4" />
-              Render esterni
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setProspetti(true)}>
-              <Building2 className="mr-1.5 h-4 w-4" />
-              Prospetti e sezioni
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setEsporta(true)}>
-              <Download className="mr-1.5 h-4 w-4" />
-              Esporta
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link to={percorsiPlanimetrie.modifica(id)}>
-                <PenLine className="mr-1.5 h-4 w-4" />
-                {permessi.solaLettura ? "Apri la pianta" : "Modifica la pianta"}
-              </Link>
-            </Button>
-          </>
-        }
       />
+
+      {/* Azioni: una sola in evidenza (modificare), le altre sullo stesso piano e leggibili; sul telefono solo le icone. */}
+      <div className="flex flex-wrap items-center gap-2 max-md:flex-nowrap" role="toolbar" aria-label="Azioni sulla pianta">
+        <Button asChild size="sm" className="gap-2 max-md:flex-1">
+          <Link to={percorsiPlanimetrie.modifica(id)}>
+            <PenLine className="h-4 w-4" />
+            {permessi.solaLettura ? "Apri la pianta" : "Modifica la pianta"}
+          </Link>
+        </Button>
+        <span className="mx-1 h-6 w-px bg-border max-md:hidden" aria-hidden="true" />
+        <Button variant={mostra3D ? "secondary" : "outline"} size="sm" className="gap-2" onClick={() => setMostra3D((v) => !v)} disabled={stanze.length === 0} aria-pressed={mostra3D} aria-label={mostra3D ? "Chiudi il 3D" : "Guarda in 3D"} title={mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}>
+          <Box className="h-4 w-4" />
+          <span className="max-md:hidden">{mostra3D ? "Chiudi il 3D" : "Guarda in 3D"}</span>
+        </Button>
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setEsterni(true)} disabled={stanze.length === 0} aria-label="Render esterni" title="Render esterni">
+          <Trees className="h-4 w-4" />
+          <span className="max-md:hidden">Render esterni</span>
+        </Button>
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setProspetti(true)} aria-label="Prospetti e sezioni" title="Prospetti e sezioni">
+          <Building2 className="h-4 w-4" />
+          <span className="max-md:hidden">Prospetti e sezioni</span>
+        </Button>
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setEsporta(true)} aria-label="Esporta" title="Esporta">
+          <Download className="h-4 w-4" />
+          <span className="max-md:hidden">Esporta</span>
+        </Button>
+      </div>
 
       {(ambiti.length > 1 || documento.livelli.length > 1) && (
         <div className="flex flex-wrap items-center gap-3">
           {ambiti.length > 1 && (
-            <ToggleGroup type="single" value={ambito} onValueChange={(v) => v && setAmbito(v)} variant="outline" size="sm" aria-label="Quale pianta">
+            <ToggleGroup type="single" value={ambito} onValueChange={(v) => v && setAmbito(v)} variant="outline" size="sm" aria-label="Quale pianta" className="max-w-full justify-start overflow-x-auto">
               {ambiti.map((a) => (
-                <ToggleGroupItem key={a.chiave} value={a.chiave}>
+                <ToggleGroupItem key={a.chiave} value={a.chiave} className="shrink-0 whitespace-nowrap">
                   {a.propostaId === null ? "Com'è oggi" : a.nome || "Progetto"}
                 </ToggleGroupItem>
               ))}
@@ -227,20 +238,23 @@ export default function RenderPlanimetriaScheda() {
 
       {/* Scorciatoie: la scheda è lunga, si salta a quello che serve */}
       {stanze.length > 0 && (
-        <nav aria-label="Sezioni della scheda" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm [&>a]:shrink-0">
-          {([
-            livello.proposte.length > 0 && ["prima-e-dopo", "Prima e dopo"],
-            ["stanze", "Stanze e render"],
-            ["verifiche", "Verifiche"],
-            piuUnita && ["unita", "Unità e vendite"],
-            ["abachi", "Abachi"],
-            completati.length > 0 && ["render-fatti", "Render fatti"],
-          ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
-            <a key={ancora} href={`#${ancora}`} onClick={(e) => { e.preventDefault(); document.getElementById(ancora)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-              className="rounded-full border bg-background px-3 py-1 text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground">
-              {nome}
-            </a>
-          ))}
+        <nav aria-label="Sezioni della scheda" className="-mx-1 overflow-x-auto px-1 max-md:hidden">
+          <div className="inline-flex gap-1 rounded-lg bg-muted p-1 text-sm">
+            {([
+              livello.proposte.length > 0 && ["prima-e-dopo", "Prima e dopo"],
+              ["stanze", "Stanze e render"],
+              ["verifiche", "Verifiche"],
+              piuUnita && ["unita", "Unità e vendite"],
+              ["abachi", "Abachi"],
+              completati.length > 0 && ["render-fatti", "Render fatti"],
+            ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
+              <a key={ancora} href={`#${ancora}`}
+                onClick={(e) => { e.preventDefault(); document.getElementById(ancora)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                className="shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground hover:shadow-sm">
+                {nome}
+              </a>
+            ))}
+          </div>
         </nav>
       )}
 
@@ -262,13 +276,19 @@ export default function RenderPlanimetriaScheda() {
         </div>
       )}
 
-      <section id="stanze" className="scroll-mt-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
-            Stanze
-          </h2>
+      <section id="stanze" className="scroll-mt-4 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
+              Render delle stanze
+            </h2>
+            <p className="max-w-2xl text-sm text-muted-foreground max-md:hidden">
+              L'AI parte dalla stanza com'è nella pianta (vista 3D o una tua foto), ne rispetta misure, porte e finestre, e la veste con lo stile che scegli.
+              In circa 1–2 minuti hai il risultato.
+            </p>
+          </div>
           {stanze.length > 1 && (
-            <Button size="sm" className="gap-1.5 bg-primary hover:bg-primary/90" onClick={() => setSerie("")}>
+            <Button size="sm" className="gap-1.5 max-md:w-full" onClick={() => setSerie("")}>
               <Sparkles className="h-4 w-4" />
               Render di tutte le stanze
             </Button>
@@ -281,33 +301,59 @@ export default function RenderPlanimetriaScheda() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 max-md:gap-2.5">
             {stanze.map((v) => {
               const fatti = renderPerLocale.get(v.locale.id) ?? 0;
+              const ultimo = ultimoPerLocale.get(v.locale.id);
+              const porte = v.aperture.filter((a) => a.tipo === "porta").length;
+              const finestre = v.aperture.filter((a) => a.tipo === "finestra" || a.tipo === "portafinestra").length;
+              const stimata = v.locale.stimata || v.aperture.some((a) => a.stimata);
+              const chip = [
+                `${v.locale.superficie_mq.toFixed(1).replace(".", ",")} m²`,
+                `h ${(v.locale.altezza_cm / 100).toFixed(2).replace(".", ",")} m`,
+                porte ? `${porte} ${porte === 1 ? "porta" : "porte"}` : null,
+                finestre ? `${finestre} ${finestre === 1 ? "finestra" : "finestre"}` : null,
+              ].filter(Boolean) as string[];
               return (
-                <Card key={v.locale.id} className="overflow-hidden">
-                  <img src={svgUrl(svgPiantaStanza(v, { lato: 480 }))} alt={`Pianta di ${v.locale.nome}`} className="aspect-square w-full border-b bg-white object-contain" />
-                  <CardContent className="space-y-2 p-4">
+                <Card key={v.locale.id} className="overflow-hidden transition-shadow hover:shadow-md max-sm:grid max-sm:grid-cols-[116px_1fr]">
+                  <div className="relative border-b bg-white max-sm:border-b-0 max-sm:border-r">
+                    <img
+                      loading="lazy"
+                      src={ultimo ?? svgUrl(svgPiantaStanza(v, { lato: 480 }))}
+                      alt={ultimo ? `Ultimo render di ${v.locale.nome}` : `Pianta di ${v.locale.nome}`}
+                      className={cn("w-full bg-white", ultimo ? "aspect-[4/3] object-cover max-sm:aspect-square" : "aspect-[4/3] object-contain p-2 max-sm:aspect-square")}
+                    />
+                    <span className="absolute left-2 top-2 rounded-full bg-background/90 px-2 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm max-sm:hidden">
+                      {ultimo ? "Ultimo render" : "Pianta della stanza"}
+                    </span>
+                  </div>
+                  <CardContent className="flex min-w-0 flex-col gap-2.5 p-4 max-sm:p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold leading-tight">{v.locale.nome}</p>
-                      {(v.locale.stimata || v.aperture.some((a) => a.stimata)) && (
+                      {stimata && (
                         <Badge variant="outline" className="shrink-0 border-primary/40 text-primary" title="Misure dedotte dall'AI: da controllare">
-                          Misure stimate
+                          Stimate
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">{riepilogoStanza(v)}</p>
-                    <Button asChild className="w-full bg-primary hover:bg-primary/90" size="sm">
-                      <Link to={percorsiPlanimetrie.renderStanza(id, v.locale.id, { livelloId: livello.id, ambito })}>
-                        <Wand2 className="mr-1.5 h-4 w-4" />
-                        Fai il render di questa stanza
-                      </Link>
-                    </Button>
-                    <Button variant="ghost" size="sm" className="w-full text-primary" onClick={() => setSerie(v.locale.id)}>
-                      <Sparkles className="mr-1.5 h-4 w-4" />
-                      Più stili insieme
-                    </Button>
-                    {fatti > 0 && <p className="text-center text-xs text-muted-foreground">{fatti === 1 ? "1 render fatto" : `${fatti} render fatti`}</p>}
+                    <div className="flex flex-wrap gap-1.5">
+                      {chip.map((c) => (
+                        <span key={c} className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{c}</span>
+                      ))}
+                    </div>
+                    <div className="mt-auto flex items-center gap-2 pt-1">
+                      <Button asChild size="sm" className="flex-1 gap-1.5">
+                        <Link to={percorsiPlanimetrie.renderStanza(id, v.locale.id, { livelloId: livello.id, ambito })}>
+                          <Wand2 className="h-4 w-4" />
+                          {fatti > 0 ? "Nuovo render" : "Fai il render"}
+                        </Link>
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setSerie(v.locale.id)} aria-label="Più stili insieme" title="Più stili insieme">
+                        <Sparkles className="h-4 w-4" />
+                        <span className="max-xl:hidden">Più stili</span>
+                      </Button>
+                    </div>
+                    {fatti > 0 && <p className="text-xs text-muted-foreground">{fatti === 1 ? "1 render fatto" : `${fatti} render fatti`}</p>}
                   </CardContent>
                 </Card>
               );
