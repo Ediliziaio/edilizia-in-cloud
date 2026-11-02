@@ -1,20 +1,55 @@
-import type { ComponentProps } from "react";
-import { OrdineStatusStrip } from "./OrdineStatusStrip";
-import { OrderWorkflowControl } from "./OrderWorkflowControl";
-import { resolveWorkflowStatuses, suggestWorkflowStatus, type WorkflowProgress } from "@/lib/orders/workflowModels";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { statoProposto, type AvanzamentoLavorazioni } from "@/lib/orders/statoCommessa";
+import type { OrderStatus } from "@/lib/orderUtils";
+import { OrdineStatusStrip } from "./OrdineStatusStrip";
 
-type Props = ComponentProps<typeof OrdineStatusStrip> & {orderId: string; companyId: string; modelKey?: string | null; version?: number; canEdit: boolean; canConfigure?: boolean; workProgress?: WorkflowProgress; onRefresh: () => Promise<unknown>};
-export function OrderStatusWorkflow({orderId, companyId, modelKey, version, canEdit, canConfigure, workProgress, onRefresh, ...strip}: Props) {
-  const resolved = resolveWorkflowStatuses(strip.statuses, modelKey);
-  const suggestion = suggestWorkflowStatus(resolved, strip.currentStatusId, workProgress);
-  const guardedStrip = {...strip, onStatusChange: canEdit ? strip.onStatusChange : undefined};
-  return <div className="space-y-3">
-    <OrderWorkflowControl orderId={orderId} companyId={companyId} modelKey={modelKey} version={version} statuses={strip.statuses} canEdit={canEdit} canConfigure={canConfigure} onRefresh={onRefresh} />
-    <p className="text-xs text-muted-foreground">Le spunte indicano passaggi registrati nello storico, non lavori completati o pagamenti incassati.</p>
-    <OrdineStatusStrip {...guardedStrip} statuses={resolved.complete ? resolved.path : strip.statuses} />
-    {suggestion && canEdit && strip.onStatusChange && <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs"><p>{suggestion.reason}</p><Button variant="outline" size="sm" onClick={() => strip.onStatusChange?.(suggestion.status.id)}>Valuta «{suggestion.status.name}»</Button><span className="text-muted-foreground">Richiede conferma. Non registra consegna, firma o incassi.</span></div>}
-    {resolved.complete && strip.currentStatusId && !resolved.path.some(s => s.id === strip.currentStatusId) && <p className="text-xs text-amber-800">Lo stato attuale è negli stati aggiuntivi: scegliere il percorso non lo cambia.</p>}
-    {resolved.complete && resolved.additional.length > 0 && <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer">Altri stati aziendali e assistenza ({resolved.additional.length})</summary><div className="mt-2"><p className="text-xs text-muted-foreground">Restano disponibili con i loro collegamenti. Non appartengono al percorso selezionato.</p><OrdineStatusStrip {...guardedStrip} statuses={resolved.additional} /></div></details>}
-  </div>;
+interface VoceStorico { id: string; status_id: string; changed_at: string; status?: { name?: string | null } | null }
+
+interface Props {
+  orderId: string;
+  statuses: OrderStatus[];
+  currentStatusId: string | null;
+  statusHistory?: VoceStorico[];
+  canEdit: boolean;
+  onStatusChange?: (statusId: string) => void;
+  workProgress?: AvanzamentoLavorazioni;
+  /** Chi ha fatto l'ultimo cambio, se si è potuto leggere. */
+  ultimoAutore?: string | null;
+  formatoData: (iso: string) => string;
+  /** Il semaforo dei tempi, quando ha ancora senso mostrarlo. */
+  tempi?: React.ReactNode;
+}
+
+/** Lo stato della commessa: si vede e si cambia da qui, tutto il resto sta nel Registro. */
+export function OrderStatusWorkflow({ orderId, statuses, currentStatusId, statusHistory = [], canEdit, onStatusChange, workProgress, ultimoAutore, formatoData, tempi }: Props) {
+  const cambia = canEdit ? onStatusChange : undefined;
+  const proposto = cambia ? statoProposto(statuses, currentStatusId, workProgress) : null;
+  const ultimo = statusHistory[0];
+  return (
+    <div className="space-y-2">
+      <OrdineStatusStrip statuses={statuses} currentStatusId={currentStatusId} statusHistory={statusHistory} onStatusChange={cambia} />
+      {proposto && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-2.5 py-1.5 text-xs">
+          <span>Le lavorazioni sono tutte finite.</span>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => cambia?.(proposto.id)}>Passa a «{proposto.name}»</Button>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <span>
+          {ultimo ? `Ultimo cambio: ${formatoData(ultimo.changed_at)}${ultimoAutore ? `, ${ultimoAutore}` : ""}` : "Nessun cambio di stato registrato"}
+        </span>
+        {statusHistory.length > 1 && (
+          <details className="group/storico">
+            <summary className="cursor-pointer list-none underline-offset-2 hover:underline">Tutti i cambi ({statusHistory.length})</summary>
+            <ul className="mt-1 space-y-0.5">
+              {statusHistory.map((v) => <li key={v.id} className="tabular-nums">{formatoData(v.changed_at)} · {v.status?.name ?? "Stato eliminato"}</li>)}
+            </ul>
+          </details>
+        )}
+        <Link to={`/azienda/ordini/${orderId}/diario`} className="font-medium text-primary underline-offset-2 hover:underline">Registro attività</Link>
+        {tempi}
+      </div>
+    </div>
+  );
 }

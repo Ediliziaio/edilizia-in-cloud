@@ -10,116 +10,46 @@ interface OrdineStatusStripProps {
   onStatusChange?: (statusId: string) => void;
 }
 
-/** Converts a hex color to an rgba string with the given opacity */
-function hexToRgba(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-export function OrdineStatusStrip({
-  statuses,
-  currentStatusId,
-  statusHistory = [],
-  onStatusChange,
-}: OrdineStatusStripProps) {
+/**
+ * Tutti gli stati in vista, col nome intero e quello attuale pieno: va a capo invece
+ * di scorrere, così lo stato attuale non resta mai fuori schermo. Clic = cambio stato,
+ * con la conferma di chi chiama. La spunta dice che ci è passata, non che è finito.
+ */
+export function OrdineStatusStrip({ statuses, currentStatusId, statusHistory = [], onStatusChange }: OrdineStatusStripProps) {
   const sorted = [...statuses].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const visits = statusVisits(statusHistory);
 
-  const getDate = (statusId: string): string | null => {
-    const changedAt = visits.get(statusId);
-    if (!changedAt) return null;
-    return changedAt.toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "short",
-    });
-  };
-
   return (
-    <div className="w-full overflow-x-auto scrollbar-hide">
-      <div className="flex items-center min-w-max px-1 py-2 gap-0">
-        {sorted.map((status, index) => {
-          const isCurrent = status.id === currentStatusId;
-          const isCompleted = !isCurrent && visits.has(status.id);
-          const date = getDate(status.id);
-          const color = status.color || "#64748b";
-
-          // Circle styles driven by the status's own color
-          const circleStyle: React.CSSProperties = isCompleted
-            ? { backgroundColor: color, borderColor: color, color: "#fff" }
-            : isCurrent
-            ? {
-                backgroundColor: hexToRgba(color, 0.12),
-                borderColor: color,
-                color,
-                boxShadow: `0 4px 12px ${hexToRgba(color, 0.3)}`,
-              }
-            : { backgroundColor: "#fff", borderColor: "#e2e8f0", color: "#94a3b8" };
-
-          // Label color
-          const labelStyle: React.CSSProperties = isCompleted
-            ? { color: "#64748b" }
-            : isCurrent
-            ? { color, fontWeight: 700 }
-            : { color: "#94a3b8" };
-
-          // Connector color
-          const connectorStyle: React.CSSProperties = {
-            backgroundColor: (visits.has(status.id) || isCurrent) && (visits.has(sorted[index + 1]?.id) || sorted[index + 1]?.id === currentStatusId) ? color : "#e2e8f0",
-          };
-
-          return (
-            <div key={status.id} className="flex items-center">
-              {/* Step — title + hover ring: era cliccabile ma non lo sembrava
-                  (nessuna affordance), gli utenti non sapevano di poter
-                  avanzare lo stato da qui */}
-              <button
-                type="button"
-                disabled={!onStatusChange || isCurrent}
-                aria-current={isCurrent ? "step" : undefined}
-                data-status-visited={visits.has(status.id) ? "true" : "false"}
-                aria-label={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
-                className="group flex flex-col items-center gap-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
-                onClick={() => onStatusChange?.(status.id)}
-                title={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
-              >
-                {isCompleted && <span className="sr-only">Passaggio registrato nello storico</span>}
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium group-hover:scale-110 group-hover:shadow-md"
-                  style={circleStyle}
-                >
-                  {isCompleted ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <span>{index + 1}</span>
-                  )}
-                </div>
-                <span
-                  className="text-xs whitespace-nowrap max-w-[90px] overflow-hidden text-ellipsis text-center leading-tight transition-colors"
-                  style={labelStyle}
-                >
-                  {status.name}
-                </span>
-                {date && (
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium">
-                    {date}
-                  </span>
-                )}
-              </button>
-
-              {/* Connector */}
-              {index < sorted.length - 1 && (
-                <div
-                  className="h-0.5 w-8 mx-1 mb-5 flex-shrink-0 transition-colors"
-                  style={connectorStyle}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <ol className="flex flex-wrap gap-1.5" aria-label="Stati della commessa">
+      {sorted.map((status) => {
+        const isCurrent = status.id === currentStatusId;
+        const visited = visits.get(status.id);
+        const color = status.color || "#64748b";
+        const label = isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`;
+        return (
+          <li key={status.id}>
+            <button
+              type="button"
+              disabled={!onStatusChange || isCurrent}
+              aria-current={isCurrent ? "step" : undefined}
+              data-status-visited={visited ? "true" : "false"}
+              aria-label={label}
+              title={visited ? `${label} · ultimo passaggio ${visited.toLocaleDateString("it-IT")}` : label}
+              onClick={() => onStatusChange?.(status.id)}
+              style={isCurrent ? { backgroundColor: color, borderColor: color, color: "#fff" } : undefined}
+              className={[
+                "inline-flex min-h-7 items-center gap-1 rounded-md border px-2 py-0.5 text-xs transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default",
+                isCurrent ? "font-semibold" : visited ? "border-slate-300 bg-white text-slate-700" : "border-slate-200 bg-white text-slate-500",
+                !isCurrent && onStatusChange ? "hover:border-slate-400 hover:bg-slate-50" : "",
+              ].join(" ")}
+            >
+              {visited && !isCurrent && <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" />}
+              {status.name}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

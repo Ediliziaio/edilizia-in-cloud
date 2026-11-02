@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, HardHat, ListChecks } from "lucide-react";
+import { CalendarDays, ChevronRight, HardHat, ListChecks } from "lucide-react";
 import { format, isBefore, parseISO, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -93,13 +93,7 @@ export function OrderCommessaSummary({
           </span>
         </button>
       </div>
-      <details className="group/status border-t border-slate-100">
-        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:min-h-8 sm:px-4 [&::-webkit-details-marker]:hidden">
-          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/status:rotate-180" />
-          Stato generale e cronologia
-        </summary>
-        <div id="section-stato" className="scroll-mt-24 space-y-4 border-t border-slate-100 p-3 sm:p-4">{children}</div>
-      </details>
+      <div id="section-stato" className="scroll-mt-24 border-t border-slate-100 px-3 py-2.5">{children}</div>
     </section>
   );
 }

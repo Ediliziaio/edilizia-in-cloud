@@ -14,12 +14,11 @@ function mount(props: Partial<ComponentProps<typeof OrderCommessaSummary>> = {})
 }
 
 describe("Riepilogo commessa condiviso", () => {
-  it("mostra lo stato senza aprire lo storico", () => {
+  it("lo stato e il suo controllo sono sempre in vista", () => {
     mount({ statusName: "In lavorazione" });
     expect(screen.getByText("In lavorazione")).toBeVisible();
-    expect(screen.getByText("Storico verificato")).not.toBeVisible();
-    fireEvent.click(screen.getByText("Stato generale e cronologia"));
     expect(screen.getByText("Storico verificato")).toBeVisible();
+    expect(screen.queryByText("Stato generale e cronologia")).not.toBeInTheDocument();
   });
   it("non inventa avanzamento o date se non ci sono dati", () => {
     mount();
