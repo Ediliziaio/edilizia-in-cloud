@@ -47,6 +47,8 @@ interface Props {
   attivo?: boolean;
   ambito?: string;
   nomeArea?: string;
+  /** Se l'elenco è limitato a un'area: la toglie, tenendo la ricerca scritta. */
+  onTutteLeAree?: () => void;
 }
 const unitaLeggibile = (t: TariffaPro) =>
   ({ mq: "m²", mc: "m³", a_corpo: "a corpo", h: "ore", gg: "giorni", mese: "mesi" })[
@@ -63,6 +65,7 @@ export function TariffePicker({
   attivo = true,
   ambito = "all",
   nomeArea,
+  onTutteLeAree,
 }: Props) {
   const isMobile = useIsMobile();
   const dettagliRef = useRef<HTMLElement>(null);
@@ -310,6 +313,11 @@ export function TariffePicker({
                 >
                   Azzera i filtri
                 </Button>
+              {onTutteLeAree && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={onTutteLeAree}>
+                  Cerca in tutte le aree
+                </Button>
+              )}
                 <LinkImpostazione
                   to="/azienda/impostazioni/tariffe"
                   className="block text-sm text-primary"

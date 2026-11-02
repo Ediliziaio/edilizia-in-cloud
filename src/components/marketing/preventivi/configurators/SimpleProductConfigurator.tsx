@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ArrowLeft, Plus, LockKeyhole } from "lucide-react";
+import { ArrowLeft, LockKeyhole } from "lucide-react";
+import { AzioniProdotto, LayoutConfigurazione, type DopoAggiunta } from "./LayoutConfigurazione";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,12 +23,14 @@ export function SimpleProductConfigurator({
   onBack,
   onAddItems,
   confirmLabel,
+  inserimentoContinuo,
 }: {
   item: CatalogItem;
   currentSortOrder: number;
   onBack: () => void;
-  onAddItems: (items: ConfiguredItem[], next: number) => void;
+  onAddItems: (items: ConfiguredItem[], next: number, dopo?: DopoAggiunta) => void;
   confirmLabel?: string;
+  inserimentoContinuo?: boolean;
 }) {
   const [quantita, setQuantita] = useState("1");
   const [prezzo, setPrezzo] = useState(
@@ -42,20 +45,23 @@ export function SimpleProductConfigurator({
   const valido = qty > 0 && vendita > 0 && Number.isFinite(qty * vendita);
   const descrizione = descrizioneCommerciale(item.descrizione);
   const codice = item.source === "article" ? item.sku : item.family.codice;
-  function aggiungi() {
+  function aggiungi(dopo?: DopoAggiunta) {
     if (!valido) return;
     onAddItems(
       [configuraProdottoSemplice(item, qty, vendita, currentSortOrder)],
       currentSortOrder + 1,
+      dopo,
     );
   }
   return (
-    <div className="space-y-5">
+    <LayoutConfigurazione
+      scelte={
+        <>
       <Button
         variant="ghost"
         size="sm"
         onClick={onBack}
-        className="-ml-2 text-muted-foreground"
+        className="-ml-2 text-muted-foreground max-sm:h-8"
       >
         <ArrowLeft className="mr-2 h-4 w-4" /> Cambia prodotto
       </Button>
@@ -97,11 +103,17 @@ export function SimpleProductConfigurator({
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        </>
+      }
+      riepilogo=
+        <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         <LockKeyhole className="h-3.5 w-3.5 shrink-0" />
         Costo d’acquisto · solo interno:{" "}
         {costo != null ? euro(costo) : "non disponibile"}
       </div>
+      
+      azioni={
+        <>
       {!prezzo.trim() && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Il listino contiene i costi, non i prezzi cliente. Inserisci il prezzo
@@ -113,7 +125,7 @@ export function SimpleProductConfigurator({
           Quantità e prezzo devono essere numeri maggiori di zero.
         </p>
       )}
-      <div className="flex items-center justify-between border-t pt-4">
+      <div className="flex items-center justify-between border-t pt-3">
         <span className="text-sm text-muted-foreground">
           Totale vendita <span className="block text-xs">IVA esclusa</span>
         </span>
@@ -121,15 +133,14 @@ export function SimpleProductConfigurator({
           {valido ? euro(qty * vendita) : "—"}
         </strong>
       </div>
-      <Button
-        variant="brand"
-        className="w-full"
+      <AzioniProdotto
         disabled={!valido}
-        onClick={aggiungi}
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        {confirmLabel ?? "Aggiungi al preventivo"}
-      </Button>
-    </div>
+        confirmLabel={confirmLabel ?? "Aggiungi al preventivo"}
+        inserimentoContinuo={inserimentoContinuo}
+        onConferma={aggiungi}
+      />
+        </>
+      }
+    />
   );
 }

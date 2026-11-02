@@ -134,3 +134,37 @@ describe("stanze sovrapposte", () => {
     if (esito.ok) expect(esito.pianta.generazione.avvisi.some((a) => /si sovrappongono|si sovrappone/.test(a))).toBe(true);
   });
 });
+
+describe("seconda lettura se la scala è sospetta", () => {
+  const lettura = (quotaM: number) => JSON.stringify(risposta(
+    [stanza("Camera", 100, 100, 400, 400, { destinazione: "camera" }), stanza("Bagno", 400, 100, 600, 400, { destinazione: "bagno" })],
+    {
+      quote: [{ da: [100, 100], a: [400, 100], valore_m: quotaM }, { da: [100, 400], a: [400, 400], valore_m: quotaM }] as never,
+      aperture: [{ tipo: "porta", da: [400, 150], a: [400, 210] }, { tipo: "porta", da: [100, 150], a: [100, 210] }] as never,
+    },
+  ));
+  const req = { ingresso: "documento" as const, file: { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", larghezza: 1000, altezza: 1000 } };
+
+  it("rilegge una volta e tiene la lettura con la scala credibile", async () => {
+    const risposte = [lettura(12), lettura(4)];
+    let n = 0;
+    const esito = await generaPlanimetria(req, async () => ({ testo: risposte[n++], modello: "prova" }));
+    expect(n).toBe(2);
+    expect(esito.ok).toBe(true);
+    if (esito.ok) expect(esito.pianta.generazione.scala?.da_confermare).toBeFalsy();
+  });
+
+  it("se la seconda è ancora sospetta tiene la prima, da confermare", async () => {
+    let n = 0;
+    const esito = await generaPlanimetria(req, async () => { n++; return { testo: lettura(12), modello: "prova" }; });
+    expect(n).toBe(2);
+    expect(esito.ok).toBe(true);
+    if (esito.ok) expect(esito.pianta.generazione.scala?.da_confermare).toBe(true);
+  });
+
+  it("non rilegge se la scala è buona", async () => {
+    let n = 0;
+    await generaPlanimetria(req, async () => { n++; return { testo: lettura(4), modello: "prova" }; });
+    expect(n).toBe(1);
+  });
+});

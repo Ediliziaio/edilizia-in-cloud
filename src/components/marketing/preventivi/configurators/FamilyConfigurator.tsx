@@ -14,8 +14,8 @@
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
 import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
-import { useMemo, useState } from "react";
-import { ArrowLeft, Check } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import { CampoQuantita } from "./CampoQuantita";
+import { AzioniProdotto, LayoutConfigurazione, type DopoAggiunta } from "./LayoutConfigurazione";
 import { AnteprimaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { disegnoDaFamiglia, haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import {
@@ -59,7 +60,19 @@ interface FamilyConfiguratorProps {
   tariffe: TariffaPro[];
   currentSortOrder: number;
   onBack: () => void;
-  onAddItems: (items: ConfiguredItem[], nextSortOrder: number) => void;
+  onAddItems: (items: ConfiguredItem[], nextSortOrder: number, dopo?: DopoAggiunta) => void;
+  /** Popup del preventivo: mostra i pulsanti per continuare a inserire. */
+  inserimentoContinuo?: boolean;
+  /** Sale a ogni «duplica»: si riparte dalle stesse scelte, con le misure da riscrivere. */
+  nuovaMisura?: number;
+}
+
+/** Misure, poi apertura, colori e vetro: l'ordine in cui si ragiona davanti al cliente. */
+function ordineAsse(codice: string): number {
+  if (codice === "apertura") return 0;
+  if (codice.startsWith("colore")) return 1;
+  if (codice.includes("vetro")) return 2;
+  return 3;
 }
 
 function defaultSelections(family: FamilyWithAxes): AxisSelection {
@@ -101,6 +114,8 @@ export function FamilyConfigurator({
   currentSortOrder,
   onBack,
   onAddItems,
+  inserimentoContinuo,
+  nuovaMisura = 0,
 }: FamilyConfiguratorProps) {
   const famigliaCompleta = item.family;
   const modello = modelloBestInfissi(famigliaCompleta);
@@ -108,6 +123,13 @@ export function FamilyConfigurator({
   const [larghezza, setLarghezza] = useState<string>("1200");
   const [altezza, setAltezza] = useState<string>("1400");
   const [quantita, setQuantita] = useState<string>("1");
+  const campoLarghezza = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!nuovaMisura) return;
+    setQuantita("1");
+    campoLarghezza.current?.focus();
+    campoLarghezza.current?.select();
+  }, [nuovaMisura]);
   const [selection, setSelection] = useState<AxisSelection>(() =>
     normalizzaSelezione(famigliaCompleta.axes, defaultSelections(famigliaCompleta)).valori,
   );
@@ -216,11 +238,11 @@ export function FamilyConfigurator({
     ...(!pricing.fuori_listino && misureValide && pricing.unit_price_vendita <= 0
       ? [family.modalita_prezzo_base === 'griglia'
           ? 'Griglia prezzo da completare: questo prodotto non può essere aggiunto finché il listino non contiene il prezzo per la configurazione scelta.'
-          : "Il prezzo di questo prodotto non è impostato nel listino: scrivilo nella riga del preventivo."]
+          : "Prezzo non impostato nel listino: scrivilo nella riga del preventivo."]
       : []),
   ];
 
-  function handleConfirm(): void {
+  function handleConfirm(dopo?: DopoAggiunta): void {
     if (!canConfirm) return;
     const prodottoTempId = uuid();
     const baseSort = currentSortOrder;
@@ -308,21 +330,23 @@ export function FamilyConfigurator({
       });
     }
 
-    onAddItems(configured, baseSort + configured.length);
+    onAddItems(configured, baseSort + configured.length, dopo);
   }
 
   return (
-    <div className="space-y-4">
+    <LayoutConfigurazione
+      scelte={
+        <>
       <SchedaModelloBestInfissi famiglia={famigliaCompleta} />
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack} className="max-sm:-ml-2 max-sm:h-8">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Prodotti
-        </Button>
-        {/* Telefono: il nome è già il titolo del foglio. */}
-        <span className="text-sm text-muted-foreground max-sm:hidden">›</span>
-        <span className="text-sm font-medium max-sm:hidden">{family.nome}</span>
-      </div>
+      <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-muted-foreground max-sm:h-8">
+        <ArrowLeft className="mr-1 h-4 w-4" /> Cambia prodotto
+      </Button>
 
+      {chiedeMisure(family) && nuovaMisura > 0 && (
+        <p className="text-sm font-medium text-primary">
+          Stesse scelte di prima: scrivi le misure del prossimo pezzo.
+        </p>
+      )}
       {chiedeMisure(family) && (
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -331,6 +355,7 @@ export function FamilyConfigurator({
             </Label>
             <Input
               id="larghezza"
+              ref={campoLarghezza}
               type="number"
               inputMode="numeric"
               value={larghezza}
@@ -357,8 +382,7 @@ export function FamilyConfigurator({
       {family.axes.length > 0 && (
         // Telefono: varianti a due per riga, sono tendine corte.
         <div className="grid gap-3 md:grid-cols-2 max-sm:grid-cols-2">
-          {/* Prima l'apertura (misure → apertura → colore → vetro…). */}
-          {[...family.axes].sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura")).map((axis) => {
+          {[...family.axes].sort((a, b) => ordineAsse(a.codice) - ordineAsse(b.codice)).map((axis) => {
             if (axis.codice === "colore" && colori.asse && colori.colori) return <SceltaColoriDentroFuori key={axis.id} asse={colori.asse} colori={colori.colori} catalogo={colori.catalogo} guidaId={colori.guida?.valueId} piuCaraId={colori.guida?.valueId} formato="listino" onChange={colori.cambia} onScrivi={colori.scrivi} onElenco={colori.elenco} />;
             const values = axis.values.filter((v) => v.attivo);
             return (
@@ -394,10 +418,6 @@ export function FamilyConfigurator({
 
       <VariantiTecnicheProdotto famiglia={famigliaCompleta} selezione={selezioneEffettiva} varianti={variantiTecniche} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />
 
-      {disegno && <AnteprimaDisegnoFamiglia disegno={disegno} />}
-
-      <CampoQuantita value={quantita} onChange={setQuantita} />
-
       {haManodoperaConfigurata(item) && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
           <Checkbox
@@ -423,6 +443,13 @@ export function FamilyConfigurator({
         </div>
       )}
 
+        </>
+      }
+      riepilogo={disegno && <AnteprimaDisegnoFamiglia disegno={disegno} compatto altezza="h-32" />}
+      azioni={
+        <>
+      <CampoQuantita value={quantita} onChange={setQuantita} />
+
       {/* Telefono: solo l'avviso che blocca (misura fuori listino). */}
       {avvisi.length > 0 && (
         <ul
@@ -439,18 +466,11 @@ export function FamilyConfigurator({
       )}
 
       <Card>
-        <CardContent className="space-y-2 pt-4 max-sm:space-y-1.5 max-sm:p-3">
+        <CardContent className="space-y-1.5 p-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Prezzo unitario</span>
             <span className="font-medium">
-              {formatCurrency(pricing.unit_price_vendita)}
-            </span>
-          </div>
-          {/* Telefono: prezzo unitario e totale bastano. */}
-          <div className="flex justify-between text-sm max-sm:hidden">
-            <span className="text-muted-foreground">Quantità × prezzo</span>
-            <span className="font-medium">
-              {formatCurrency(pricing.totale_vendita)}
+              {pricing.unit_price_vendita > 0 ? formatCurrency(pricing.unit_price_vendita) : "Da completare"}
             </span>
           </div>
           {includePosa && posaDisponibile && (
@@ -461,22 +481,21 @@ export function FamilyConfigurator({
           )}
           <div className="flex justify-between border-t pt-2 text-base font-semibold">
             <span>Totale</span>
-            <span>{formatCurrency(totaleCompleto)}</span>
+            <span>{pricing.unit_price_vendita > 0 ? formatCurrency(totaleCompleto) : "Da completare"}</span>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
-        {/* Telefono no: «← Prodotti» in alto e la X fanno già da Annulla. */}
-        <Button variant="outline" onClick={onBack} className="max-sm:hidden">
-          Annulla
-        </Button>
-        <Button variant="brand" disabled={!canConfirm} onClick={handleConfirm} className="max-sm:w-full">
-          <Check className="mr-1 h-4 w-4" />
-          {confirmLabel}
-        </Button>
-      </div>
-    </div>
+      <AzioniProdotto
+        disabled={!canConfirm}
+        confirmLabel={confirmLabel}
+        inserimentoContinuo={inserimentoContinuo}
+        puoDuplicare={chiedeMisure(family)}
+        onConferma={handleConfirm}
+      />
+        </>
+      }
+    />
   );
 }
 
