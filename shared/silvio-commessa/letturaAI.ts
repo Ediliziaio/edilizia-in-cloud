@@ -142,7 +142,7 @@ numero_contratto, durata_giorni (giorni naturali e consecutivi), penale_giorno_e
 ritenuta_garanzia_pct, anticipo_pct, anticipo_eur, pagamento_giorni (giorni dalla fattura o dal SAL), subappalto_ammesso (true/false),
 subappalto_massimo_pct, garanzia_anni, cig (10 caratteri), cup (15 caratteri).
 
-RATE ("pagamenti.rate"): elenco di { "label", "type": "deposit"|"balance"|"financing", "amount" (euro IVA inclusa, se scritto),
+RATE ("pagamenti.rate"): elenco di { "label", "type": "deposit"|"balance"|"financing", "amount" (euro IVA inclusa, SOLO se scritto nel documento: non calcolarlo),
 "percent" (se scritta), "trigger_evento": firma_contratto|inizio_lavori|sal_numero|fine_lavori|consegna_cantiere|data_fissa, "trigger_numero" (numero del SAL) }.
 
 FASI ("fasi.order_work_phases"): elenco di { "name", "giorni" (giorni lavorativi, se il documento li dice), "start_date", "end_date" }, nell'ordine dei lavori.
@@ -333,6 +333,9 @@ function pulisciRate(v: unknown, totaleIvato: number | null, imponibile: number 
     const percent = percentuale(r.percent);
     let amount = numeroDa(r.amount);
     let daPercentuale = false;
+    // Il modello calcola spesso la rata sull'imponibile (48.000 €, 30 %: 14.400 invece di 15.840):
+    // se l'importo è proprio quello, vale la percentuale sul totale con l'IVA.
+    if (amount != null && percent != null && totaleIvato && imponibile && Math.abs(amount - imponibile * percent / 100) <= 1) amount = null;
     if ((amount == null || amount <= 0) && percent != null && totaleIvato) amount = tondo(totaleIvato * percent / 100);
     else if ((amount == null || amount <= 0) && percent != null && percent > 0) {
       // Manca l'IVA, o il totale sta in un'altra fonte: si tiene la percentuale, e l'importo si
@@ -524,7 +527,7 @@ function coppie(json: Grezzo, avvisi: string[]): Array<[string, Grezzo]> {
     // c'è e spesso mette elenchi e date nudi, senza l'involucro: rate e fasi del contratto andavano
     // perse e al loro posto entravano quelle del modello generico. Nudo vale come senza citazione.
     if (v == null || v === "" || (Array.isArray(v) && !v.length)) return;
-    if (oggetto(v) && "valore" in v) { if (v.valore != null) out.push([chiave, v]); return; }
+    if (oggetto(v) && "valore" in v) { if (v.valore != null && v.valore !== "") out.push([chiave, v]); return; }
     if (!oggetto(v)) { out.push([chiave, { valore: v }]); return; }
     const { citazione, dove, fiducia, nota, ...resto } = v;
     const campi = Object.values(resto);
@@ -726,6 +729,10 @@ function pulisciCondizioni(v: unknown, grezzo: Grezzo, amb: Ambiente): Pulito {
     const sotto: Grezzo = oggetto(crudo) && "valore" in crudo ? { fiducia: grezzo.fiducia, ...crudo } : { ...grezzo, valore: crudo };
     // `null` vuol dire che il documento non ne parla: non è un campo «non valido».
     if (sotto.valore == null || sotto.valore === "") continue;
+    // Il modello riempie con 0 e false quello che il documento non dice: senza una sua citazione non
+    // è un dato. Su un contratto muto usciva «subappalto non ammesso».
+    const citazioneSua = oggetto(crudo) && typeof crudo.citazione === "string" && crudo.citazione.trim() !== "";
+    if (!citazioneSua && (sotto.valore === 0 || sotto.valore === false)) continue;
     const pulito = campoCondizione(k, sotto.valore);
     if (pulito == null) { scartati.push(NOMI_CONDIZIONI[k] ?? campo); continue; }
     const conferma = typeof pulito === "number" ? contieneNumero(pulito)

@@ -39,4 +39,36 @@ describe("la risposta del modello vero", () => {
     expect(nota).toContain("numero del contratto");
     expect(nota).toContain("CIG");
   });
+
+  it("rate calcolate dal modello sull'imponibile: valgono sul totale con l'IVA", () => {
+    const f = leggi({
+      economia: { "economia.total_amount": { valore: 48000, citazione: "euro 48.000,00" }, "economia.vat_rate": { valore: 10, citazione: "IVA 10%" } },
+      pagamenti: { "pagamenti.rate": [{ label: "Firma", percent: 30, amount: 14400 }, { label: "Saldo", percent: 70, amount: 33600 }] },
+    });
+    const rate = f.aree.pagamenti?.["pagamenti.rate"]?.valore as { amount: number }[];
+    expect(rate.map((r) => r.amount)).toEqual([15840, 36960]);
+  });
+
+  it("un importo scritto nel documento, diverso, resta", () => {
+    const f = leggi({
+      economia: { "economia.total_amount": { valore: 48000, citazione: "euro 48.000,00" }, "economia.vat_rate": { valore: 10, citazione: "IVA 10%" } },
+      pagamenti: { "pagamenti.rate": [{ label: "Firma", percent: 30, amount: 16000 }] },
+    });
+    expect((f.aree.pagamenti?.["pagamenti.rate"]?.valore as { amount: number }[])[0].amount).toBe(16000);
+  });
+
+  it("date vuote: nessun avviso «data non valida»", () => {
+    const f = leggi({ fasi: { "fasi.work_end_date": { valore: "", citazione: "" } } });
+    expect(f.avvisi ?? []).toEqual([]);
+  });
+
+  it("0 e false senza citazione: il documento non ne parla, niente «subappalto non ammesso»", () => {
+    const f = leggi({ economia: { "economia.condizioni_contratto": { valore: {
+      numero_contratto: { valore: "PROVA-1", citazione: "PROVA-1" }, subappalto_ammesso: { valore: false, citazione: "" }, durata_giorni: 0, penale_giorno_eur: { valore: 0 },
+    } } } });
+    const v = f.aree.economia?.["economia.condizioni_contratto"]?.valore as Record<string, unknown>;
+    expect(v.subappalto_ammesso).toBeUndefined();
+    expect(v.durata_giorni).toBeUndefined();
+    expect(v.penale_giorno_eur).toBeUndefined();
+  });
 });
