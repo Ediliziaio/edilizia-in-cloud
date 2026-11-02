@@ -1,3 +1,5 @@
+import { INFO_TIPO_FORNITORE, isTipoFornitore, type TipoFornitore } from "@/lib/fornitori/tipiFornitore";
+import { Link } from "react-router-dom";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
@@ -367,6 +369,7 @@ function SupplierTable({
               Sul telefono restano tutte (la tabella scorre come prima). */}
           <TableHead>Nome del fornitore</TableHead>
           <TableHead>Categoria</TableHead>
+          <TableHead>Tipo</TableHead>
           <TableHead className="max-2xl:hidden">Pagamento</TableHead>
           <TableHead>Città</TableHead>
           <TableHead>Stato</TableHead>
@@ -403,6 +406,14 @@ function SupplierTable({
                 </span>
               ) : (
                 "—"
+              )}
+            </TableCell>
+            <TableCell>
+              {/* Lo stesso tipo di «Tipi dei fornitori»: decide dove vanno i costi delle sue fatture. */}
+              {isTipoFornitore((supplier as { tipo?: string | null }).tipo) ? (
+                <span className="whitespace-nowrap text-xs">{INFO_TIPO_FORNITORE[(supplier as unknown as { tipo: TipoFornitore }).tipo].etichetta}</span>
+              ) : (
+                <Link to="/azienda/documenti/tipi-fornitori" className="whitespace-nowrap text-xs text-amber-700 underline-offset-2 hover:underline dark:text-amber-400">Da scegliere</Link>
               )}
             </TableCell>
             <TableCell className="max-2xl:hidden">
@@ -1067,6 +1078,9 @@ export function SuppliersConfig({
               >
                 <Merge className="h-4 w-4 mr-2" />
                 Unisci doppioni
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1 sm:flex-none" asChild>
+                <Link to="/azienda/documenti/tipi-fornitori">Tipi dei fornitori</Link>
               </Button>
               <Button
                 size="sm"

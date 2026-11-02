@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 
 export interface ColonnaTabella<T> {
   titolo: string;
+  /** Al posto del titolo, in testata: per una casella «seleziona tutti». */
+  intestazione?: ReactNode;
   cella: (riga: T) => ReactNode;
   destra?: boolean;
   /** Da telefono è il titolo della scheda: senza etichetta, a tutta larghezza. */
@@ -24,7 +26,7 @@ export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
         <thead className="max-sm:hidden">
           <tr className="border-b">
             {colonne.map(c => (
-              <th key={c.titolo} scope="col" className={cn("whitespace-nowrap px-2 pb-2 text-left text-xs font-medium text-muted-foreground", c.destra && "text-right")}>{c.titolo}</th>
+              <th key={c.titolo} scope="col" className={cn("whitespace-nowrap px-2 pb-2 text-left text-xs font-medium text-muted-foreground", c.destra && "text-right")}>{c.intestazione ?? c.titolo}</th>
             ))}
           </tr>
         </thead>

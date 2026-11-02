@@ -330,7 +330,7 @@ function montaPagina() {
 function montaAnagrafica(puoModificare = true) {
   return render(
     <QueryClientProvider client={client()}>
-      <SuppliersConfig puoModificare={puoModificare} />
+      <MemoryRouter><SuppliersConfig puoModificare={puoModificare} /></MemoryRouter>
     </QueryClientProvider>,
   );
 }

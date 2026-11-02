@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCheck, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Loader2, Search, Sparkles, Users } from "lucide-react";
+import { TabellaCommessa } from "@/components/orders/TabellaCommessa";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,7 +49,7 @@ export interface Cedente {
 
 type Vista = "da_fare" | "fatti" | "tutti";
 
-const DOVE_VA = { si: "Il costo va su una commessa", no: "Il costo va nelle spese generali", a_scelta: "Il costo si assegna fattura per fattura" } as const;
+const DOVE_VA = { si: "Su una commessa", no: "Spese generali", a_scelta: "Fattura per fattura" } as const;
 
 export function propostaPerCedente(c: Cedente): PropostaTipo | null {
   return proponiTipo({
@@ -71,6 +72,13 @@ async function salvaTipo(companyId: string, c: Cedente, tipo: TipoFornitore): Pr
   const db = supabase as any;
   const subappaltatore = tipo === "subappalto" ? c.subappaltatore_id : null;
   let supplierId = c.fornitore_id;
+  // Senza codici l'anagrafica si riconosce dal nome: un fornitore che c'è già non si crea due volte.
+  if (!supplierId && !c.piva && !c.cf && c.nome?.trim()) {
+    const { data: omonimi, error } = await db.from("suppliers").select("id").eq("company_id", companyId).ilike("name", c.nome.trim().replace(/[\\%_]/g, "\\$&")).limit(2);
+    if (error) throw error;
+    if ((omonimi ?? []).length === 1) supplierId = String(omonimi[0].id);
+    else if ((omonimi ?? []).length > 1) throw new Error(`Ci sono più fornitori chiamati «${c.nome.trim()}»: uniscili prima da Anagrafica fornitori.`);
+  }
   if (supplierId) {
     const { error } = await db.from("suppliers")
       .update({ tipo, ...(subappaltatore ? { subappaltatore_id: subappaltatore } : {}) })
@@ -111,6 +119,7 @@ async function salvaTipo(companyId: string, c: Cedente, tipo: TipoFornitore): Pr
 
 export default function TipiFornitoriPage() {
   const companyId = useEffectiveCompanyId();
+  const permessi = usePermissions();
   const queryClient = useQueryClient();
   const [vistaScelta, setVista] = useState<Vista | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<string>("all");
@@ -224,6 +233,12 @@ export default function TipiFornitoriPage() {
             telefonia, luce, affitto o banca nelle spese generali.
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        {permessi.canViewSettingsSuppliers && (
+          <Button variant="outline" asChild>
+            <Link to="/azienda/impostazioni/fornitori"><Users className="mr-2 h-4 w-4" />Anagrafica fornitori</Link>
+          </Button>
+        )}
         {proposteSicure.length > 0 && (
           <Button
             onClick={() => salva.mutate(proposteSicure.map((r) => ({ c: r.c, tipo: r.proposta!.tipo })))}
@@ -234,6 +249,7 @@ export default function TipiFornitoriPage() {
             Conferma le proposte sicure ({proposteSicure.length})
           </Button>
         )}
+        </div>
       </div>
 
       {/* Spesa per tipo: si vede subito quanto pesa ogni famiglia. */}
@@ -287,78 +303,55 @@ export default function TipiFornitoriPage() {
           {righe.length === 0 ? "Nessun fornitore: arrivano con le fatture ricevute." : "Nessun fornitore con questi filtri."}
         </CardContent></Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <div className="hidden grid-cols-[2rem_minmax(0,1fr)_7.5rem_8rem_18rem] items-center gap-3 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground md:grid">
-            <Checkbox
-              aria-label="Seleziona tutti quelli visibili"
-              checked={tutteSelezionate}
-              onCheckedChange={(v) => setSelezionati(v ? new Set(visibili.map((r) => r.c.chiave)) : new Set())}
-            />
-            <span>Fornitore</span>
-            <span className="text-right">Fatture</span>
-            <span className="text-right">Imponibile</span>
-            <span>Tipo</span>
-          </div>
-          <ul className="divide-y">
-            {visibili.slice(0, 300).map(({ c, proposta, salvato, scelto }) => (
-              <li key={c.chiave} className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-3 px-3 py-2.5 md:grid-cols-[2rem_minmax(0,1fr)_7.5rem_8rem_18rem] md:items-center">
-                <Checkbox
-                  aria-label={`Seleziona ${c.nome ?? c.piva}`}
-                  checked={selezionati.has(c.chiave)}
-                  onCheckedChange={(v) => setSelezionati((s) => { const n = new Set(s); if (v) n.add(c.chiave); else n.delete(c.chiave); return n; })}
-                  className="mt-0.5 md:mt-0"
-                />
-                <div className="min-w-0">
-                  <Link to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(c.piva || c.cf || c.nome || "")}`} title={`Le fatture di ${c.nome ?? "questo fornitore"}`}
-                    className="block truncate text-sm font-medium underline-offset-2 hover:underline">{c.nome || "Senza nome"}</Link>
-                  <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-                    {c.piva ? <span>P.IVA {c.piva}</span> : c.cf ? <span>C.F. {c.cf}</span> : <span className="text-amber-700 dark:text-amber-400">Senza partita IVA</span>}
-                    {c.fornitore_id ? <span>In anagrafica{c.fornitore_nome && c.fornitore_nome !== c.nome ? ` come «${c.fornitore_nome}»` : ""}</span>
-                      : <span className="text-amber-700 dark:text-amber-400">Non in anagrafica: si aggiunge salvando</span>}
-                    {c.subappaltatore_id ? <span>Nei subappaltatori</span> : null}
-                    {scelto ? <span>{DOVE_VA[INFO_TIPO_FORNITORE[scelto].commessa]}</span> : null}
-                    <span className="basis-full md:hidden">{c.fatture} fatture · {formatCurrency(Number(c.imponibile ?? 0))}</span>
-                  </p>
-                  {/* La proposta sta col fornitore: a destra resta una riga sola, uguale per tutti. */}
-                  {!salvato && proposta && scelto === proposta.tipo ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      {proposta.sicurezza === "certa" ? "Proposta sicura" : "Proposta"}: {proposta.motivo.toLowerCase()}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="hidden text-right text-sm tabular-nums md:block">
-                  {c.fatture}
-                  {c.ultima ? <span className="block whitespace-nowrap text-[11px] text-muted-foreground">ultima {formatDateShort(c.ultima)}</span> : null}
-                </div>
-                <div className="hidden text-right text-sm tabular-nums md:block">{formatCurrency(Number(c.imponibile ?? 0))}</div>
-                <div className="col-span-2 md:col-span-1">
-                  <div className="flex items-center gap-1.5">
-                    <Select
-                      value={scelto ?? "none"}
-                      onValueChange={(v) => isTipoFornitore(v) && setScelte((s) => ({ ...s, [c.chiave]: v }))}
-                    >
-                      <SelectTrigger className="h-8 min-w-0 flex-1 text-xs" aria-label={`Tipo di ${c.nome ?? c.piva}`}>
-                        <SelectValue placeholder="Scegli il tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" disabled>Scegli il tipo</SelectItem>
-                        {TIPI_FORNITORE.map((t) => <SelectItem key={t} value={t}>{INFO_TIPO_FORNITORE[t].etichetta}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    {/* Spazio fisso: con o senza «Salva» la tendina ha la stessa larghezza in ogni riga. */}
-                    <div className="flex w-16 shrink-0 justify-end">
-                      {scelto && scelto !== salvato ? (
-                        <Button size="sm" variant="outline" className="h-8 w-full px-2 text-xs" disabled={salva.isPending}
-                          onClick={() => salva.mutate([{ c, tipo: scelto }])}>
-                          Salva
-                        </Button>
-                      ) : salvato ? <Badge variant="secondary" className="h-6 text-[11px]">Salvato</Badge> : null}
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+        <div className="rounded-lg border bg-background p-2">
+          <TabellaCommessa etichetta="Fornitori" righe={visibili.slice(0, 300)} chiave={(r) => r.c.chiave} colonne={[
+            { titolo: "Seleziona", intestazione: (
+              <Checkbox aria-label="Seleziona tutti quelli visibili" checked={tutteSelezionate}
+                onCheckedChange={(v) => setSelezionati(v ? new Set(visibili.map((r) => r.c.chiave)) : new Set())} />
+            ), cella: ({ c }) => (
+              <Checkbox aria-label={`Seleziona ${c.nome ?? c.piva}`} checked={selezionati.has(c.chiave)}
+                onCheckedChange={(v) => setSelezionati((p) => { const n = new Set(p); if (v) n.add(c.chiave); else n.delete(c.chiave); return n; })} />
+            ) },
+            { titolo: "Fornitore", principale: true, cella: ({ c }) => (
+              <Link to={`/azienda/documenti/fatture-ricevute?cerca=${encodeURIComponent(c.piva || c.cf || c.nome || "")}`} title={`Le fatture di ${c.nome ?? "questo fornitore"}`}
+                className="block max-w-[320px] truncate font-medium underline-offset-2 hover:underline">{c.nome || "Senza nome"}</Link>
+            ) },
+            { titolo: "P.IVA", cella: ({ c }) => (c.piva || c.cf
+              ? <span className="whitespace-nowrap text-xs">{c.piva || c.cf}</span>
+              : <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">Senza partita IVA</span>) },
+            { titolo: "Anagrafica", cella: ({ c }) => (c.fornitore_id ? (
+              permessi.canViewSettingsSuppliers
+                ? <Link to={`/azienda/impostazioni/fornitori?tab=operativo&fornitore=${c.fornitore_id}`} title={c.fornitore_nome ?? undefined} className="whitespace-nowrap text-xs underline-offset-2 hover:underline">In anagrafica</Link>
+                : <span className="whitespace-nowrap text-xs" title={c.fornitore_nome ?? undefined}>In anagrafica</span>
+            ) : <span className="whitespace-nowrap text-xs text-amber-700 dark:text-amber-400" title="Si aggiunge salvando il tipo">Da aggiungere</span>) },
+            { titolo: "Fatture", destra: true, cella: ({ c }) => <span title={c.ultima ? `Ultima ${formatDateShort(c.ultima)}` : undefined}>{c.fatture}</span> },
+            { titolo: "Imponibile", destra: true, cella: ({ c }) => <span className="whitespace-nowrap">{formatCurrency(Number(c.imponibile ?? 0))}</span> },
+            { titolo: "Il costo va", cella: ({ scelto }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{scelto ? DOVE_VA[INFO_TIPO_FORNITORE[scelto].commessa] : "—"}</span> },
+            { titolo: "Tipo", cella: ({ c, proposta, salvato, scelto }) => (
+              <div className="flex items-center gap-1.5">
+                <Select value={scelto ?? "none"} onValueChange={(v) => isTipoFornitore(v) && setScelte((p) => ({ ...p, [c.chiave]: v }))}>
+                  <SelectTrigger className="h-8 w-52 text-left text-xs" aria-label={`Tipo di ${c.nome ?? c.piva}`}><SelectValue placeholder="Scegli il tipo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" disabled>Scegli il tipo</SelectItem>
+                    {TIPI_FORNITORE.map((t) => <SelectItem key={t} value={t}>{INFO_TIPO_FORNITORE[t].etichetta}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {/* La proposta si legge passando il mouse: la riga resta una sola. */}
+                <span className="flex h-8 w-4 shrink-0 items-center justify-center">
+                  {!salvato && proposta && scelto === proposta.tipo && (
+                    <span title={`${proposta.sicurezza === "certa" ? "Proposta sicura" : "Proposta"}: ${proposta.motivo.toLowerCase()}`}>
+                      <Sparkles className={`h-3.5 w-3.5 ${proposta.sicurezza === "certa" ? "text-emerald-600" : "text-muted-foreground"}`} aria-hidden="true" />
+                    </span>
+                  )}
+                </span>
+                <span className="flex w-14 shrink-0 justify-end">
+                  {scelto && scelto !== salvato ? (
+                    <Button size="sm" variant="outline" className="h-8 w-full px-2 text-xs" disabled={salva.isPending} onClick={() => salva.mutate([{ c, tipo: scelto }])}>Salva</Button>
+                  ) : salvato ? <Check className="h-4 w-4 text-emerald-600" aria-label="Salvato" /> : null}
+                </span>
+              </div>
+            ) },
+          ]} />
           {visibili.length > 300 && (
             <p className="border-t px-3 py-2 text-xs text-muted-foreground">
               Ne vedi 300 su {visibili.length}: cerca o filtra per tipo per trovare gli altri.
