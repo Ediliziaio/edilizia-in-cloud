@@ -12,7 +12,7 @@ import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
 import { controllaScala, controllaSuperfici, pulisciLocali } from "./pulizia.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
-import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
+import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione, promptScalaSospetta } from "./prompt.ts";
 
 export type ParteContenuto =
   | { type: "text"; text: string }
@@ -143,6 +143,7 @@ export async function generaPlanimetria(
 
   // La migliore lettura con la sola colpa di avere stanze sovrapposte: meglio mostrarla da sistemare a mano
   // che non mostrare niente (bifamiliari speculari, portici sopra i giardini: 02/11/2026).
+  let primaSospetta: PiantaGenerata | null = null;
   let daSistemare: { pianta: PiantaGenerata; dettagli: string[] } | null = null;
   for (let n = 1; n <= 2; n++) {
     const t0 = ora();
@@ -153,8 +154,19 @@ export async function generaPlanimetria(
       return { ok: false, codice: "non_leggibile", messaggio: MESSAGGI_UTENTE.non_leggibile, tentativi };
     }
     if (lettura.pianta && !lettura.errori.length) {
+      // Pianta valida ma scala sospetta: una seconda lettura, se c'è tempo, con l'invito a cercare una misura scritta.
+      const sospetta = lettura.pianta.generazione.avvisi.find((a) => a.startsWith("La scala letta dal disegno non sembra giusta"));
+      const tempoPerRileggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs / 2;
+      if (sospetta && n === 1 && tempoPerRileggere) {
+        primaSospetta = lettura.pianta;
+        messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
+        messaggi.push({ role: "user", content: promptScalaSospetta(sospetta.replace(/^La scala letta dal disegno non sembra giusta: /, "").replace(/\. Scrivi la misura.*$/, "")) });
+        continue;
+      }
+      if (primaSospetta && lettura.pianta.generazione.scala?.da_confermare) return { ok: true, pianta: primaSospetta, tentativi };
       return { ok: true, pianta: lettura.pianta, tentativi };
     }
+    if (primaSospetta && n === 2) return { ok: true, pianta: primaSospetta, tentativi };
     if (lettura.pianta && lettura.errori.length > 0 && lettura.errori.length <= 8 && lettura.errori.every((e) => e.codice === "locali_sovrapposti" && e.lieve)) {
       daSistemare = { pianta: lettura.pianta, dettagli: lettura.errori.map((e) => e.dettaglio) };
     }

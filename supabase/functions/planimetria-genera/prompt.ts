@@ -141,3 +141,9 @@ ${errori.map((e) => `- ${e}`).join("\n")}
 
 Correggi questi problemi e rispondi di nuovo con il JSON COMPLETO, nello stesso formato, senza testo prima o dopo. Ricontrolla in particolare che i contorni non si incrocino, che le stanze non si sovrappongano e che ogni porta o finestra stia sul lato di una stanza.`;
 }
+
+/** Seconda lettura quando la scala sembra sbagliata: si chiede di cercare una misura scritta sul disegno. */
+export function promptScalaSospetta(motivo: string): string {
+  return `La scala che hai usato non sembra giusta: ${motivo}.
+Rileggi il disegno cercando prima di tutto una misura SCRITTA (quote in metri o centimetri sui muri, superfici in m² dentro le stanze, una scala grafica o «1:100»). Se non ne trovi, usa la larghezza di una porta interna (circa 80 cm) e gli arredi noti (letto matrimoniale ~160x200, vasca ~170x70). Rispondi di nuovo con il JSON COMPLETO, nello stesso formato, senza testo prima o dopo, con la scala corretta.`;
+}
