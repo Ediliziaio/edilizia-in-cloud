@@ -32,6 +32,11 @@ interface Props {
   propostaId: string;
   /** Il cliente della pianta: il preventivo creato da qui nasce già suo. */
   contactId?: string | null;
+  /** Utente in sola lettura: niente avanzamento da salvare. */
+  sola?: boolean;
+  /** Chi non vede i preventivi non vede neanche i costi di massima. */
+  prezzi?: boolean;
+  creaPreventivo?: boolean;
 }
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -51,7 +56,7 @@ async function pngDaSvg(svg: string, larghezza = 1800): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livelloId, propostaId, contactId }: Props) {
+export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livelloId, propostaId, contactId, sola = false, prezzi = true, creaPreventivo = true }: Props) {
   const [preventivo, setPreventivo] = useState(false);
   // Avanzamento: i lavori spuntati come fatti (bozza finché non si salva)
   const salva = useSalvaVersionePlanimetria();
@@ -153,6 +158,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
 
   const apri = (s: string) => setAperte((v) => { const n = new Set(v); if (n.has(s)) n.delete(s); else n.add(s); return n; });
 
+  const eur = (v: number) => (prezzi ? euro(v) : "");
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -162,14 +168,14 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
             <ToggleGroupItem value="cursore">Cursore</ToggleGroupItem>
             <ToggleGroupItem value="affiancate">Affiancate</ToggleGroupItem>
           </ToggleGroup>
-          <Button size="sm" variant="outline" onClick={scaricaPdf} disabled={pdfInCorso}>
+          {prezzi && <Button size="sm" variant="outline" onClick={scaricaPdf} disabled={pdfInCorso}>
             {pdfInCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
             PDF prima e dopo
-          </Button>
-          <Button size="sm" onClick={() => setPreventivo(true)} disabled={!lavori || lavori.totale <= 0}>
+          </Button>}
+          {creaPreventivo && prezzi && <Button size="sm" onClick={() => setPreventivo(true)} disabled={!lavori || lavori.totale <= 0}>
             <FileText className="mr-1.5 h-4 w-4" />
             Crea il preventivo
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -211,13 +217,13 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
         <CardContent className="space-y-2 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-sm font-semibold">Lavori stanza per stanza</p>
-            <p className="text-sm">Totale di massima <span className="font-semibold">{euro(lavori.totale)}</span> <span className="text-xs text-muted-foreground">IVA esclusa</span></p>
+            {prezzi && <p className="text-sm">Totale di massima <span className="font-semibold">{eur(lavori.totale)}</span> <span className="text-xs text-muted-foreground">IVA esclusa</span></p>}
           </div>
           {lavori.stanze.length > 0 && (
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span>Lavori fatti: <span className="font-semibold">{av.percento}%</span> ({euro(av.eseguito)} di {euro(lavori.totale)})</span>
-                {fattiBozza && (
+                <span>Lavori fatti: <span className="font-semibold">{av.percento}%</span>{prezzi && <> ({eur(av.eseguito)} di {eur(lavori.totale)})</>}</span>
+                {fattiBozza && !sola && (
                   <Button size="sm" variant="outline" className="h-7" onClick={salvaAvanzamento} disabled={salva.isPending}>
                     {salva.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Salva l'avanzamento
                   </Button>
@@ -234,17 +240,17 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
                 <li key={s.stanza}>
                   <button type="button" className="flex w-full items-center justify-between gap-2 py-2 text-left text-sm" onClick={() => apri(s.stanza)} aria-expanded={aperte.has(s.stanza)}>
                     <span className="font-medium">{s.stanza} <span className="text-xs font-normal text-muted-foreground">· {s.lavori.length} {s.lavori.length === 1 ? "lavoro" : "lavori"}</span></span>
-                    <span className="flex items-center gap-2 tabular-nums">{(() => { const a = av.stanze.find((x) => x.stanza === s.stanza); return a && a.fatti > 0 ? <span className="text-xs text-emerald-700">{a.percento}% fatto</span> : null; })()}{euro(s.totale)}<ChevronDown className={`h-4 w-4 transition-transform ${aperte.has(s.stanza) ? "rotate-180" : ""}`} /></span>
+                    <span className="flex items-center gap-2 tabular-nums">{(() => { const a = av.stanze.find((x) => x.stanza === s.stanza); return a && a.fatti > 0 ? <span className="text-xs text-emerald-700">{a.percento}% fatto</span> : null; })()}{eur(s.totale)}<ChevronDown className={`h-4 w-4 transition-transform ${aperte.has(s.stanza) ? "rotate-180" : ""}`} /></span>
                   </button>
                   {aperte.has(s.stanza) && (
                     <table className="mb-2 w-full text-xs">
                       <tbody>
                         {s.lavori.map((l, i) => (
                           <tr key={i} className="border-t">
-                            <td className="w-6 py-1"><Checkbox checked={fatti.has(chiaveLavoro(s.stanza, l))} onCheckedChange={(v) => spunta(chiaveLavoro(s.stanza, l), !!v)} aria-label="Fatto" /></td>
+                            <td className="w-6 py-1"><Checkbox disabled={sola} checked={fatti.has(chiaveLavoro(s.stanza, l))} onCheckedChange={(v) => spunta(chiaveLavoro(s.stanza, l), !!v)} aria-label="Fatto" /></td>
                             <td className={`py-1 pr-2 ${fatti.has(chiaveLavoro(s.stanza, l)) ? "text-muted-foreground line-through" : ""}`}>{l.descrizione}<span className="ml-1 text-muted-foreground">({nomeGenere(l.genere)})</span></td>
                             <td className="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{scriviQuantita(l)}</td>
-                            <td className="whitespace-nowrap py-1 text-right tabular-nums">{l.prezzo == null ? "a parte" : euro(l.importo)}</td>
+                            <td className="whitespace-nowrap py-1 text-right tabular-nums">{!prezzi ? "" : l.prezzo == null ? "a parte" : eur(l.importo)}</td>
                           </tr>
                         ))}
                       </tbody>

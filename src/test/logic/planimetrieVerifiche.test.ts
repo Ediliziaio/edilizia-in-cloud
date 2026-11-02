@@ -25,7 +25,8 @@ function casa(opz: { finestraCamera?: number; bidet?: boolean; altezzaCamera?: n
     p = C.modificaApertura(p, p.aperture[p.aperture.length - 1].id, { larghezza: opz.finestraCamera });
   }
   p = C.aggiungiElemento(p, voce("letto_matrimoniale"), { x: 650, y: 250 }).pianta;
-  for (const [t, x] of [["wc", 830], ["lavabo", 900], ["doccia", 960], ...(opz.bidet ? [["bidet", 870]] : [])] as const) p = C.aggiungiElemento(p, voce(t), { x, y: 360 }).pianta;
+  const sanitari: Array<[string, number]> = [["wc", 830], ["lavabo", 900], ["doccia", 960], ...(opz.bidet ? [["bidet", 870] as [string, number]] : [])];
+  for (const [t, x] of sanitari) p = C.aggiungiElemento(p, voce(t), { x, y: 360 }).pianta;
   return aPlanimetria(p, nuovaPlanimetria("Casa"));
 }
 

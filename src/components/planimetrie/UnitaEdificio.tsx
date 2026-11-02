@@ -22,6 +22,12 @@ interface Props {
   titolo: string;
   planimetriaId: string;
   versione: number;
+  /** Utente in sola lettura: il listino si guarda e basta. */
+  sola?: boolean;
+  /** Prezzi, trattative e incassi: solo a chi vede i preventivi. */
+  prezzi?: boolean;
+  /** Cambiare prezzi e vendite: solo a chi modifica i preventivi. */
+  modificaPrezzi?: boolean;
 }
 
 const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -42,7 +48,8 @@ async function pngDaSvg(svg: string, larghezza = 1600): Promise<Uint8Array> {
   return new Uint8Array(await b.arrayBuffer());
 }
 
-export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Props) {
+export function UnitaEdificio({ documento, titolo, planimetriaId, versione, sola = false, prezzi = true, modificaPrezzi = true }: Props) {
+  const scrive = !sola && modificaPrezzi;
   const { effectiveCompany } = useAuth();
   const salva = useSalvaVersionePlanimetria();
   const [bozza, setBozza] = useState<Record<string, VenditaUnita>>({});
@@ -92,7 +99,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
         piante.push({ piano: u.locali.find((l) => l.livelloId === livelloId)!.livello, png: await pngDaSvg(svg) });
       }
       const { pdfSchedaUnita } = await import("@/lib/planimetrie/unitaPdf");
-      const dati = await pdfSchedaUnita({ titolo, azienda: effectiveCompany?.name ?? undefined, unita: u, piante });
+      const dati = await pdfSchedaUnita({ titolo, azienda: effectiveCompany?.name ?? undefined, unita: prezzi ? u : { ...u, prezzo: null, residuo: null, vendita: { stato: u.vendita.stato } }, piante });
       const url = URL.createObjectURL(new Blob([new Uint8Array(dati).buffer as ArrayBuffer], { type: "application/pdf" }));
       const a = document.createElement("a");
       a.href = url;
@@ -110,7 +117,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Unità, millesimi e listino</h2>
-        {Object.keys(bozza).length > 0 && (
+        {scrive && Object.keys(bozza).length > 0 && (
           <Button size="sm" onClick={salvaListino} disabled={salva.isPending}>
             {salva.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             Salva il listino
@@ -127,8 +134,8 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
                 <th className="p-2 text-right">Netta</th>
                 <th className="p-2 text-right">Commerciale</th>
                 <th className="p-2 text-right">Millesimi</th>
-                <th className="p-2 text-right">€/m²</th>
-                <th className="p-2 text-right">Prezzo</th>
+                {prezzi && <th className="p-2 text-right">€/m²</th>}
+                {prezzi && <th className="p-2 text-right">Prezzo</th>}
                 <th className="p-2 text-left">Stato</th>
                 <th className="p-2" />
               </tr>
@@ -136,20 +143,20 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
             <tbody>
               {unita.map((u) => (
                 <Fragment key={u.sigla}>
-                <tr className={u.vendita.stato && u.vendita.stato !== "libera" ? "" : "border-b"}>
+                <tr className={prezzi && u.vendita.stato && u.vendita.stato !== "libera" ? "" : "border-b"}>
                   <td className="p-2 font-medium">{u.sigla}</td>
                   <td className="p-2 text-xs text-muted-foreground">{u.piani.join(", ")}</td>
                   <td className="p-2 text-right tabular-nums">{mq(u.mqNetti)}</td>
                   <td className="p-2 text-right tabular-nums">{mq(u.mqCommerciali)}</td>
                   <td className="p-2 text-right tabular-nums">{u.millesimi.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</td>
-                  <td className="p-2 text-right">
-                    <Input className="ml-auto h-8 w-24 text-right" inputMode="decimal" key={`${u.sigla}-${u.vendita.prezzoMq ?? ""}`} defaultValue={u.vendita.prezzoMq ? String(u.vendita.prezzoMq) : ""} placeholder="—"
+                  {prezzi && <td className="p-2 text-right">
+                    <Input disabled={!scrive} className="ml-auto h-8 w-24 text-right" inputMode="decimal" key={`${u.sigla}-${u.vendita.prezzoMq ?? ""}`} defaultValue={u.vendita.prezzoMq ? String(u.vendita.prezzoMq) : ""} placeholder="—"
                       aria-label={`Prezzo al metro quadro di ${u.sigla}`}
                       onBlur={(e) => { const v = Number(e.target.value.replace(/\./g, "").replace(",", ".")); const nuovo = Number.isFinite(v) && v > 0 ? Math.round(v) : undefined; if (nuovo !== u.vendita.prezzoMq) cambia(u, { prezzoMq: nuovo }); }} />
-                  </td>
-                  <td className="p-2 text-right tabular-nums">{u.prezzo ? euro(u.prezzo) : "—"}</td>
+                  </td>}
+                  {prezzi && <td className="p-2 text-right tabular-nums">{u.prezzo ? euro(u.prezzo) : "—"}</td>}
                   <td className="p-2">
-                    <Select value={u.vendita.stato ?? "libera"} onValueChange={(v) => cambia(u, { stato: v as StatoVendita })}>
+                    <Select disabled={!scrive} value={u.vendita.stato ?? "libera"} onValueChange={(v) => cambia(u, { stato: v as StatoVendita })}>
                       <SelectTrigger className="h-8 w-32" aria-label={`Stato di ${u.sigla}`}>
                         <Badge variant="outline" className={COLORE_STATO[u.vendita.stato ?? "libera"]}>{NOMI_STATO_VENDITA[u.vendita.stato ?? "libera"]}</Badge>
                       </SelectTrigger>
@@ -162,10 +169,10 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
                     </Button>
                   </td>
                 </tr>
-                {u.vendita.stato && u.vendita.stato !== "libera" && (
+                {prezzi && u.vendita.stato && u.vendita.stato !== "libera" && (
                   <tr className="border-b bg-muted/20">
                     <td colSpan={9} className="px-2 pb-2">
-                      <div className="flex flex-wrap items-end gap-2">
+                      <fieldset disabled={!scrive} className="flex flex-wrap items-end gap-2">
                         <label className="space-y-0.5">
                           <span className="block text-[11px] text-muted-foreground">Acquirente</span>
                           <Input className="h-8 w-44" key={`${u.sigla}-acq-${u.vendita.acquirente ?? ""}`} defaultValue={u.vendita.acquirente ?? ""} placeholder="Nome e cognome"
@@ -177,7 +184,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
                         {campoData(u, "dataPreliminare", "Preliminare")}
                         {campoData(u, "dataRogito", "Rogito")}
                         {u.residuo != null && <span className="pb-1.5 text-xs">Da incassare <span className="font-semibold tabular-nums">{euro(u.residuo)}</span></span>}
-                      </div>
+                      </fieldset>
                     </td>
                   </tr>
                 )}
@@ -190,7 +197,7 @@ export function UnitaEdificio({ documento, titolo, planimetriaId, versione }: Pr
       <p className="text-xs text-muted-foreground">
         Commerciale: superfici nette con balconi e terrazzi al 30%, cantine al 25%, box al 50%. Millesimi proposti in proporzione, da far verificare a un tecnico.
       </p>
-      {rv.listino > 0 && (
+      {prezzi && rv.listino > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {([["Listino", rv.listino], ["Venduto", rv.venduto], ["Prenotato", rv.prenotato], ["Incassato", rv.incassato], ["Da incassare", rv.daIncassare]] as const).map(([n, v]) => (
             <div key={n} className="rounded-md border p-2"><p className="text-[11px] text-muted-foreground">{n}</p><p className="font-semibold tabular-nums">{euro(v)}</p></div>
