@@ -1169,7 +1169,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                       </div>
                       <input
                         type="range"
-                        min={0}
+                        // L'avanzamento non scende da qui: chi deve correggerlo lo fa dalle fasi della commessa.
+                        min={fase.percentuale}
                         max={100}
                         step={5}
                         value={fasiDichiarate[fase.id]}

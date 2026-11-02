@@ -214,5 +214,16 @@ describe("Campi per fase", () => {
     const u = state.update.mock.calls[0][0] as { fasi_lavorate: Array<{ phase_id: string; nome?: string }> };
     expect(u.fasi_lavorate.find(f => f.phase_id === "f1")?.nome).toBe("Posa infissi");
   });
+
+  it("il capo non può portare una fase sotto l'avanzamento che ha già", async () => {
+    state.fasi = [{ id: "f1", name: "Posa infissi", status: "in_corso", percentuale: 40 }];
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    fireEvent.click(screen.getByRole("button", { name: "Posa infissi" }));
+    const barra = await screen.findByRole("slider");
+    expect(barra).toHaveAttribute("min", "40");
+    expect(screen.getByText("Avanzamento attuale: 40%")).toBeInTheDocument();
+  });
 });
 

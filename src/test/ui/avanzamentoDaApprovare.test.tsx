@@ -71,3 +71,27 @@ describe("AvanzamentoDaApprovare", () => {
     expect(await screen.findByText("Il rapportino dice 30%: l'avanzamento non scende.")).toBeInTheDocument();
   });
 });
+
+describe("Casi nuovi dell'approvazione", () => {
+  it("una fase mai iniziata dice che inizia", async () => {
+    dati.rapportino = { fasi_lavorate: [{ phase_id: "a", percentuale: 0 }] };
+    dati.fasi = [fase("a", { status: "da_iniziare", percentuale: 0 })];
+    disegna();
+    expect(await screen.findByText("Inizia")).toBeInTheDocument();
+  });
+  it("un fine lavori dice quali fasi restano aperte", async () => {
+    dati.rapportino = { fasi_lavorate: [], lavoro_completato: true };
+    dati.fasi = [fase("a"), fase("b", { status: "completata" })];
+    disegna();
+    expect(await screen.findByText(/Fine lavori: restano aperte Fase a\./)).toBeInTheDocument();
+  });
+  it("un fine lavori con tutto chiuso non dice nulla", async () => {
+    dati.rapportino = { fasi_lavorate: [], firma_cliente_url: "x" };
+    dati.fasi = [fase("b", { status: "completata" })];
+    const { container } = disegna();
+    await waitFor(() => expect(dati.chiamate).toBeGreaterThanOrEqual(2));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+

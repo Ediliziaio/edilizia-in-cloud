@@ -1,35 +1,48 @@
 // src/components/orders/AvanzamentoDaApprovare.tsx
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { anteprimaAvanzamento, type RigaAnteprima } from "@/lib/orders/anteprimaAvanzamento";
+import { anteprimaAvanzamento, fasiAperte, type RigaAnteprima } from "@/lib/orders/anteprimaAvanzamento";
 import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi } from "@/lib/orders/sottofasi";
 
 // Le sottofasi non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+interface Anteprima { righe: RigaAnteprima[]; aperte: string[] }
+const NIENTE: Anteprima = { righe: [], aperte: [] };
+
 /** Nell'approvazione di un rapportino: cosa cambia alle fasi della commessa se si approva. */
 export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string; reportId: string }) {
-  const { data: righe = [] } = useQuery({
+  const { data: { righe, aperte } = NIENTE } = useQuery({
     queryKey: ["avanzamento-da-approvare", orderId, reportId],
     staleTime: 0,
     retry: false,
     refetchOnWindowFocus: false,
-    queryFn: async (): Promise<RigaAnteprima[]> => {
+    queryFn: async (): Promise<Anteprima> => {
       // Un'anteprima: se qualcosa non si legge, non si mostra niente (l'approvazione non cambia).
       try {
         // Le fasi della commessa con le loro sottofasi, in una lettura sola.
         const [rapp, fasi] = await Promise.all([
-          db.from("campo_rapportini").select("fasi_lavorate").eq("id", reportId).eq("order_id", orderId).maybeSingle(),
+          db.from("campo_rapportini").select("fasi_lavorate, lavoro_completato, firma_cliente_url").eq("id", reportId).eq("order_id", orderId).maybeSingle(),
           db.from("order_work_phases").select(`id, name, status, percentuale, ${SOTTOFASI_NELLA_FASE}`).eq("order_id", orderId),
         ]);
-        if (rapp.error || fasi.error || !Array.isArray(rapp.data?.fasi_lavorate)) return [];
-        return anteprimaAvanzamento(fasi.data ?? [], sottofasiDalleFasi(fasi.data), rapp.data.fasi_lavorate);
+        if (rapp.error || fasi.error) return NIENTE;
+        // Un rapporto di fine lavori non muove l'avanzamento (trigger): si dice solo cosa resta aperto.
+        if (rapp.data?.lavoro_completato || rapp.data?.firma_cliente_url) return { righe: [], aperte: fasiAperte(fasi.data ?? []) };
+        if (!Array.isArray(rapp.data?.fasi_lavorate)) return NIENTE;
+        return { righe: anteprimaAvanzamento(fasi.data ?? [], sottofasiDalleFasi(fasi.data), rapp.data.fasi_lavorate), aperte: [] };
       } catch {
-        return [];
+        return NIENTE;
       }
     },
   });
+  if (aperte.length > 0) {
+    return (
+      <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        Fine lavori: restano aperte {aperte.join(", ")}. Questo rapportino non le chiude: si chiudono dalle fasi della commessa.
+      </p>
+    );
+  }
   if (righe.length === 0) return null;
 
   return (
@@ -41,7 +54,7 @@ export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string;
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate font-medium">{r.nome}</span>
               <span className="shrink-0 tabular-nums">
-                <span>{r.prima}% → {r.dopo}%</span>
+                {r.inizia ? <span>Inizia</span> : <span>{r.prima}% → {r.dopo}%</span>}
                 {r.chiude && <span className="ml-2 rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-700">si chiude</span>}
               </span>
             </div>
