@@ -472,6 +472,10 @@ export function eseguiStrumento(
 
     case "aggiungi_fase": {
       if (typeof a.nome !== "string" || !a.nome.trim()) return rifiuto("Come si chiama la fase da aggiungere?");
+      // Visto col modello vero: «40% alla firma» diventava la fase «Pagamento 40% alla firma».
+      if (/\b(pagament[oi]|acconto|saldo|rat[ae])\b|\d\s*%/i.test(a.nome)) {
+        return rifiuto(`«${a.nome.trim()}» è un pagamento, non una lavorazione: le rate si aggiungono nella commessa, sotto Pagamenti.`);
+      }
       const fasi = fasiDi(piano);
       for (const d of [a.inizio, a.fine]) if (d != null && !dataVera(d)) return rifiuto(`«${String(d)}» non è una data: scrivila come AAAA-MM-GG.`);
       if (dataVera(a.inizio) && dataVera(a.fine) && a.fine < a.inizio) return rifiuto("La fine della fase viene prima del suo inizio.");

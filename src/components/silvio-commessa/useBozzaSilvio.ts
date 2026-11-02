@@ -66,6 +66,11 @@ import type { ServiziSilvioCommessa } from "./servizi";
 
 export const LETTURE_INSIEME = 3;
 
+/** Un messaggio che dice più cose, da leggere come un documento e non come una correzione della chat. */
+export function messaggioDaLeggere(testo: string): boolean {
+  return testo.trim().length >= 120;
+}
+
 type FonteLetta = Pick<Fonte, "etichetta"> & { id?: string | null };
 
 /**

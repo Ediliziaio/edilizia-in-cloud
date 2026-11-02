@@ -53,7 +53,7 @@ import {
   avvisoStatoIniziale, clienteDaScegliere, contiDellaBarra, divisioneDaDecidere, numeriDaControllare, testoDecisioniSubito, titoloAltre, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
   minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat,
 } from "./presentazione";
-import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
+import { messaggioDaLeggere, useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
 import { VisoreFonte, type DocumentoDelVisore } from "./VisoreFonte";
 import { comeSiApre, paginaCitata, tipoDelDocumento } from "./documentoCitato";
@@ -241,7 +241,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
    */
   const scrivi = useCallback(async (t: string) => {
     setErrore(null);
-    if (!completa && !b.fonti.length) { b.aggiungi([{ tipo: "testo", testo: t }]); return true; }
+    // Un messaggio lungo dice più cose (importo, pagamenti, fasi): si legge come un documento. Alla
+    // chat, che fa una correzione alla volta, i pagamenti diventavano fasi (prova online del 2/11).
+    if ((!completa && !b.fonti.length) || messaggioDaLeggere(t)) { b.aggiungi([{ tipo: "testo", testo: t }]); return true; }
     return b.scrivi(t);
   }, [b, completa]);
 
