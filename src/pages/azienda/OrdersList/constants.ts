@@ -15,6 +15,7 @@ export const ORDER_IMPORT_FIELDS: ImportField[] = [
   { key: "customer_email", label: "Email Cliente", required: true, type: "email" },
   { key: "description", label: "Descrizione", required: true },
   { key: "total_amount", label: "Importo Totale", required: true, type: "number" },
+  { key: "vat_rate", label: "IVA", required: true, type: "number" },
   { key: "deposit_amount", label: "Acconto 1", required: false, type: "number" },
   { key: "deposit_2_amount", label: "Acconto 2", required: false, type: "number" },
   { key: "balance_amount", label: "Saldo", required: false, type: "number" },
@@ -22,7 +23,6 @@ export const ORDER_IMPORT_FIELDS: ImportField[] = [
   { key: "warehouse_arrival_date", label: "Data Magazzino", required: false, type: "date" },
   { key: "work_start_date", label: "Data Inizio Lavori", required: false, type: "date" },
   { key: "internal_notes", label: "Note Interne", required: false },
-  { key: "payment_type", label: "Tipo Pagamento", required: false },
 ];
 
 /**

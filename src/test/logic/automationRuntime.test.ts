@@ -528,6 +528,15 @@ describe("automation runtime regressions (isolated)", () => {
     expect(eq(mock.calls[0], "id")).toBe(chosen);
     expect(mock.calls.find(q => q.table === "orders")!.steps.find(s => s[0] === "insert")![1].customer_id).toBe("selected-profile");
   });
+  it("la bozza d'ordine nasce con stato, autore, IVA e rata con l'IVA", async () => {
+    const mock = db(q => ({ data: q.table === "marketing_contacts" ? { id: eq(q,"id"), customer_profile_id: "selected-profile", first_name: "Selected" }
+      : q.table === "order_statuses" ? { id: "stato-1" }
+      : q.table === "automation_flows" ? { created_by: "autore-1" }
+      : { id: "ordine-1" } }));
+    expect((await action(mock, { item_id: "crea_bozza_ordine", cliente_id: chosen, importo: 1000, iva: 10 }, id, "company", {})).success).toBe(true);
+    expect(mock.calls.find(q => q.table === "orders")!.steps.find(s => s[0] === "insert")![1]).toMatchObject({ current_status_id: "stato-1", created_by: "autore-1", vat_rate: 10, total_amount: 1000 });
+    expect(mock.calls.find(q => q.table === "order_installments")!.steps.find(s => s[0] === "insert")![1]).toMatchObject({ order_id: "ordine-1", type: "balance", amount: 1100 });
+  });
   it("cross-tenant source never falls back to another contact", async () => {
     const mock = db(() => ({ data: null }));
     expect(await resolveAutomationRecord(mock, "contact", id, "company", { entity_type: "invoice" })).toBeNull();

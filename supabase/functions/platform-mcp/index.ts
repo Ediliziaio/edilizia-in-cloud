@@ -495,6 +495,8 @@ const TOOLS_MANUALI: ToolDef[] = [
       if (error) throw new ToolError(error.message);
       const id = (esito as { id?: string } | null)?.id;
       if (!id) throw new ToolError("La commessa non è stata creata");
+      // Col service role la RPC non conosce l'utente: l'autore si scrive qui.
+      if (ctx.created_by) await admin.from("orders").update({ created_by: ctx.created_by }).eq("id", id).is("created_by", null);
       const { data: commessa } = await admin.from("orders")
         .select("id, order_code, description, total_amount, vat_rate, status").eq("id", id).maybeSingle();
       return { creata: true, azienda: company.name, commessa };

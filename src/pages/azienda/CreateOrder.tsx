@@ -19,7 +19,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
-import { useOrderDraft, type OrderDraftData } from "@/hooks/useOrderDraft";
+import { useOrderDraft, bozzaHaContenuto, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -320,7 +320,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     lastCantiereCustomerRef.current = null;
     // Un ordine creato da una commessa generale parte pulito: la bozza è di un'altra commessa nuova.
     const draft = searchParams.get("generale") ? null : loadDraft();
-    if (!draft) return;
+    if (!draft || !bozzaHaContenuto(draft)) return;
     reset({
       customer_id: draft.customerId || "",
       order_code: draft.orderCode || "",

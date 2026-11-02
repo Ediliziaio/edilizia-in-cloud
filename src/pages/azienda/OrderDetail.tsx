@@ -2524,6 +2524,17 @@ function OrderDetailInner() {
 }
 
 export default function OrderDetail() {
+  const { id } = useParams<{ id: string }>();
+  // Un indirizzo che non è una commessa (/ordini/nuova): il database rispondeva
+  // 400 a ogni lettura e la pagina restava sui riquadri grigi per sempre.
+  if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Commessa non trovata</p>
+        <Button asChild className="mt-4"><Link to="/azienda/ordini">Torna alle commesse</Link></Button>
+      </div>
+    );
+  }
   return (
     <ErrorBoundary title="Errore nel dettaglio commessa">
       <OrderDetailInner />
