@@ -2,16 +2,16 @@ import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { CheckCircle2, FileUp, Loader2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatEuro } from "@/lib/computo/computoStrutturato";
+import { formatEuro, type ComputoStrutturato } from "@/lib/computo/computoStrutturato";
 import { applicaImportComputo, bozzaDaComputoStrutturato, type EsitoImportComputo } from "@/lib/computo/importaComputo";
 import type { BozzaComputo } from "@/lib/computo/editorNativo";
 
 export interface ComputoImportPrimusHandle { scegliFile: () => void }
 
-type Letto = { esito: EsitoImportComputo; formato: "primus_pdf" | "xpwe"; nomeFile: string };
+type Letto = { esito: EsitoImportComputo; formato: ComputoStrutturato["formato"]; nomeFile: string };
 
 /**
- * «Importa da PriMus»: il PDF stampato o l'XPWE del progettista diventa la
+ * «Importa da PriMus»: il PDF stampato, l'XPWE del progettista o un foglio Excel diventa la
  * bozza, con le righe di misura.
  *
  * Prima di toccare la bozza fa vedere cosa entra e, soprattutto, se il totale
@@ -50,7 +50,7 @@ const ComputoImportPrimus = forwardRef<ComputoImportPrimusHandle, {
   const torna = e && e.totaleDocumento !== null && Math.abs(e.totaleDocumento - e.totaleRicalcolato) < 0.005;
 
   return <>
-    <input ref={input} type="file" hidden aria-label="File del computo da importare" accept=".pdf,.xpwe,.dcf"
+    <input ref={input} type="file" hidden aria-label="File del computo da importare" accept=".pdf,.xpwe,.dcf,.xlsx,.xlsm,.xls"
       onChange={ev => { const f = ev.target.files?.[0]; ev.target.value = ""; if (f) void leggi(f); }} />
     {leggendo && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Lettura del computo…</p>}
     {errore && <div role="alert" className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">

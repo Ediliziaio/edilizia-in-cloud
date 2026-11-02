@@ -8,7 +8,7 @@
  *
  * Contratti, capitolati, PDF qualsiasi, foto, piantine e testo libero: una sola chiamata
  * al modello, con lo schema di un `Frammento` e la citazione della fonte per ogni valore.
- * Preventivi, computi (XPWE, PDF di PriMus) e offerte delle ditte hanno i loro lettori:
+ * Preventivi, computi (XPWE, PDF di PriMus, Excel) e offerte delle ditte hanno i loro lettori:
  * li sceglie il riconoscitore nel browser (shared/silvio-commessa/riconoscitore.ts).
  *
  * Input:  { company_id, fonte: { tipo, etichetta, id? }, file_path? | documento? | testo?, tentativo? }
