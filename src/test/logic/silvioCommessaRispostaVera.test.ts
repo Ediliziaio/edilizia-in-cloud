@@ -120,4 +120,10 @@ describe("la risposta del modello vero", () => {
     const rate = f.aree.pagamenti?.["pagamenti.rate"]?.valore as { amount: number }[];
     expect(rate.map((r) => r.amount)).toEqual([4950.17, 11550.38]);
   });
+
+  it("un valore coi campi tutti vuoti non è un errore", () => {
+    const vuoto = null as string | null;
+    const f = leggi({ cliente: { "cliente.nome": { valore: { client_name: vuoto, client_company: vuoto } }, "cliente.contatto": { valore: { client_phone: "", client_email: vuoto } } } });
+    expect(f.avvisi ?? []).toEqual([]);
+  });
 });
