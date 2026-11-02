@@ -270,6 +270,20 @@ describe("l'elenco coincide con quello che l'app manda davvero", () => {
     expect(ha(BUCKET_LETTURA_GENERICA, "mezzi-documenti", "azienda")).toBe(true);
   });
 
+  it("carte della ditta: azienda-documenti, cartella dell'azienda", () => {
+    const s = leggi("src/hooks/useDocumentiAzienda.ts");
+    expect(s).toContain("const BUCKET = 'azienda-documenti';");
+    expect(s).toContain("const path = `${companyId}/${crypto.randomUUID()}-${sicuro}`;");
+    expect(leggi("src/lib/documentiAzienda/letturaAI.ts")).toContain("storage_bucket: 'azienda-documenti',");
+    expect(ha(BUCKET_LETTURA_GENERICA, "azienda-documenti", "azienda")).toBe(true);
+    // e solo lì: il bucket è privato, un percorso di un'altra azienda non passa
+    const dentro = `${AZIENDA}/0f5e0f0a-0000-4000-a000-00000000000a-DURC.pdf`;
+    expect(valutaFile({ bucket: "azienda-documenti", path: dentro }, BUCKET_LETTURA_GENERICA, CHI))
+      .toEqual({ ok: true, conChiaveDiServizio: true });
+    expect(valutaFile({ bucket: "azienda-documenti", path: `${ALTRA_AZIENDA}/x-DURC.pdf` }, BUCKET_LETTURA_GENERICA, CHI))
+      .toEqual({ ok: true, conChiaveDiServizio: false });
+  });
+
   it("OCR fattura dalla chat interna: silvio-uploads, cartella dell'utente", () => {
     const s = leggi("src/pages/azienda/InternalChat.tsx");
     expect(s).toContain("const path = `${userId}/silvio_");

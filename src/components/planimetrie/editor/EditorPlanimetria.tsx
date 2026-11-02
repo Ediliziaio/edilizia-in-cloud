@@ -47,6 +47,7 @@ import {
   type Punto,
   type TipoApertura,
 } from "./adattatore";
+import { copiaSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
 import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
 import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
@@ -169,6 +170,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const lid = livelloId ?? d.livelli[0]?.id;
     return lid ? impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null) : d;
   }, [pianta, livelloId, propostaId, ricalco]);
+  // l'ultimo stato del documento, per le azioni del pannello che lavorano su tutti i piani
+  const pianiRef = useRef({ documento, livelloId, propostaId });
+  pianiRef.current = { documento, livelloId, propostaId };
+  const vaiAlPianoRef = useRef<(id: string, doc: Planimetria, proposta?: string) => void>(() => {});
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
@@ -1167,6 +1172,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         applica(r.pianta);
         if (r.id) setSelezione({ tipo: "elemento", id: r.id });
       },
+      copiaSuiPiani: (id) => {
+        const { documento: d, livelloId: lid, propostaId: pid } = pianiRef.current;
+        const r = copiaSuTuttiIPiani(d, lid ?? d.livelli[0].id, id, () => C.nuovoId("arredo"));
+        if (!r) return;
+        if (!r.aggiunti) { setAvviso(r.giaPresenti ? "È già su tutti i piani." : "Non ci sono altri piani: aggiungine uno dal menu dei piani."); return; }
+        vaiAlPianoRef.current(lid ?? d.livelli[0].id, r.documento, pid);
+        setAvviso(`Messo anche su ${r.aggiunti} ${r.aggiunti === 1 ? "altro piano" : "altri piani"}, nello stesso punto.`);
+      },
       modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
       modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
       riscaldamento: (id) => {
@@ -1248,6 +1261,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setStrumento("seleziona");
     setTimeout(adatta, 0);
   };
+  vaiAlPianoRef.current = vaiAlPiano;
   const nuovoPiano = (o: { nome: string; quota: number; base: BaseNuovoPiano }) => {
     const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
     vaiAlPiano(r.id, r.documento);
