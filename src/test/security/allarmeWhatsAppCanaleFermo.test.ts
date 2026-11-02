@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CODICI_CANALE_FERMO, MOTIVO_SALVATO, canaleFermo, codiceDalMotivoSalvato, cosaFarePerRipartire } from "../../../supabase/functions/_shared/whatsappCanaleFermo.ts";
+import { CODICI_CANALE_FERMO, MOTIVO_SALVATO, canaleFermo, codiceDalMotivoSalvato, cosaFarePerRipartire, ultimiGuasti } from "../../../supabase/functions/_shared/whatsappCanaleFermo.ts";
 import { codiceMancataConsegna, motivoMancataConsegna } from "../../../supabase/functions/whatsapp-webhook/esitoConsegna.ts";
 
 const leggi = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
@@ -108,13 +108,46 @@ describe("il giro che cerca i canali fermi", () => {
   const fn = leggi("supabase/functions/whatsapp-canale-controllo/index.ts");
   it("guarda solo i messaggi in uscita respinti, e una volta sola per azienda", () => {
     expect(fn).toContain('.eq("direction", "outbound").eq("delivery_status", "failed")');
-    expect(fn).toContain("if (!riga.company_id || perAzienda.has(riga.company_id)) continue;");
-    expect(fn).toContain("if (canaleFermo(codice))");
+    expect(fn).toContain("if (perAzienda.has(g.companyId)) continue;");
+    expect(fn).toContain("ultimiGuasti(");
   });
   it("si apre solo col segreto dei cron", () => {
     expect(fn).toContain("if (!cronSecretValido(req)) return errorResponse(\"Non autorizzato\", 401, corsH);");
   });
   it("si può puntare su una sola azienda, per avvisarla subito", () => {
     expect(fn).toContain('if (corpo.company_id) q = q.eq("company_id", corpo.company_id);');
+  });
+});
+
+describe("canale ripartito: niente allarme (Il Bagno Group, 30/10-01/11/2026)", () => {
+  const pagamento = MOTIVO_SALVATO[131042];
+  const riga = (company_id: string | null, from_phone: string | null, delivery_error: string, created_at: string) => ({ company_id, from_phone, delivery_error, created_at });
+
+  it("per ogni numero tiene il guasto più recente, non il primo mai visto", () => {
+    expect(ultimiGuasti([
+      riga("a", "+39 1", pagamento, "2026-10-30T13:48:00Z"),
+      riga("a", "+39 1", pagamento, "2026-10-28T09:00:00Z"),
+    ])).toEqual([{ companyId: "a", numero: "+39 1", codice: 131042, il: "2026-10-30T13:48:00Z" }]);
+  });
+  it("i rifiuti del singolo destinatario non sono un guasto, anche se più recenti", () => {
+    const guasti = ultimiGuasti([
+      riga("a", "+39 1", "il numero non è su WhatsApp o non può ricevere il messaggio", "2026-11-01T08:00:00Z"),
+      riga("a", "+39 1", pagamento, "2026-10-30T13:48:00Z"),
+    ]);
+    expect(guasti.map((g) => g.il)).toEqual(["2026-10-30T13:48:00Z"]);
+    expect(ultimiGuasti([riga("a", "+39 1", "Meta limita i messaggi di marketing verso questo numero", "2026-10-31T14:00:00Z")])).toEqual([]);
+  });
+  it("due numeri della stessa azienda si guardano separati", () => {
+    expect(ultimiGuasti([
+      riga("a", "+39 1", pagamento, "2026-10-30T13:48:00Z"),
+      riga("a", "+39 2", pagamento, "2026-10-29T13:48:00Z"),
+    ])).toHaveLength(2);
+  });
+  it("il giro controlla le consegne DOPO il guasto, sullo stesso numero, prima di avvisare", () => {
+    const giro = leggi("supabase/functions/whatsapp-canale-controllo/index.ts");
+    expect(giro).toContain('.in("delivery_status", ["delivered", "read"])');
+    expect(giro).toContain('.gt("created_at", g.il)');
+    expect(giro).toContain('q.eq("from_phone", g.numero)');
+    expect(giro.indexOf("await ripartito(g)")).toBeLessThan(giro.indexOf("await segnalaCanaleWhatsAppFermo"));
   });
 });

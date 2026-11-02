@@ -110,6 +110,7 @@ import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrde
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
+import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
@@ -398,7 +399,8 @@ function OrderDetailInner() {
   const incassiUnita = useIncassiUnita(id);
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
 
-  const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const { getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const [riepilogoAperto, setRiepilogoAperto] = useState(false);
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
@@ -1194,7 +1196,7 @@ function OrderDetailInner() {
 
   // Raccoglie tutti i dati "ricchi" (in parallelo) e costruisce gli opts del PDF.
   // Condiviso tra "Scarica PDF" (download) e "Invia PDF al cliente" (blob → email).
-  const gatherPdfOpts = useCallback(async (): Promise<OrdinePDFProps | null> => {
+  const gatherPdfOpts = useCallback(async ({ perCliente = false, gruppi = null }: { perCliente?: boolean; gruppi?: string[] | null } = {}): Promise<OrdinePDFProps | null> => {
     if (!order) return null;
     const [
       laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
@@ -1223,12 +1225,27 @@ function OrderDetailInner() {
     ]);
     // Conto per voce, fasi e pagamenti con gli stessi calcoli di Economia: solo a chi vede i costi.
     // Se non si legge il PDF esce lo stesso, senza quelle sezioni.
-    const dossier = permissions.canViewCosts
+    const dossier = permissions.canViewCosts && !perCliente
       ? await import("@/lib/orders/dossierEconomico")
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then((m) => m.caricaDossierEconomico(supabase as any, id!))
         .catch((e): null => { console.error("[OrderDetail] dossier economico non letto:", e); return null; })
       : null;
+    const dati = await import("@/lib/orders/riepilogoCommessaDati")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((m) => m.caricaDatiRiepilogo(supabase as any, id!, {
+        vedeCosti: permissions.canViewCosts,
+        vedeFatture: permissions.canViewBilling,
+        vedeSubappalti: permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione,
+        vedeSicurezza: permissions.canViewSicurezzaCantiere,
+      }, { perCliente, companyId: effectiveCompany?.id ?? null }));
+    // Letture della pagina finite male: il PDF lo dice, non le fa passare per sezioni vuote.
+    const lettureFallite = ([
+      ["Dipendenti", laborEmployees], ["Subappaltatori", laborTeams], ["SAL", salList], ["Provvigioni", salespeople],
+      ["Ordini di acquisto", purchaseOrders], ["Personale di cantiere", campoAssignmentsRaw], ["Giornale lavori", giornaleLavori],
+      ["Varianti", odv], ["Varianti", vc], ["Diario", diaryEvents], ["Diario", diaryMessages], ["Bonus", bonusLinesRes],
+    ] as Array<[string, { error?: unknown } | null]>).filter(([, res]) => res?.error).map(([nome]) => nome);
+    dati.nonLette = [...new Set([...dati.nonLette, ...lettureFallite])];
     const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<Record<string, unknown>>).map((d) => ({
       ...d,
       subappaltatore: null as { nome?: string } | null,
@@ -1255,26 +1272,34 @@ function OrderDetailInner() {
       showCosts: permissions.canViewCosts,
       showMargins: permissions.canViewMargins,
       dossier,
+      dati,
+      perCliente,
+      gruppi,
     };
   }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (!order || pdfPreparing) return;
+  const handleDownloadPDF = useCallback(() => {
+    if (!order) return;
     if (!permissions.canViewOrderAmounts) {
       toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
       return;
     }
+    setRiepilogoAperto(true);
+  }, [order, permissions.canViewOrderAmounts]);
+
+  const preparaRiepilogo = useCallback(async (scelta: SceltaRiepilogo) => {
     setPdfPreparing(true);
     try {
-      const opts = await gatherPdfOpts();
-      if (opts) await downloadPDF(opts);
+      const opts = await gatherPdfOpts(scelta);
+      return opts ? await getPDFBlob(opts) : null;
     } catch (e) {
       console.error("[OrderDetail] preparazione dati PDF fallita:", e);
       toast.error("Impossibile preparare i dati per il PDF. Riprova.");
+      return null;
     } finally {
       setPdfPreparing(false);
     }
-  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF, permissions.canViewOrderAmounts]);
+  }, [gatherPdfOpts, getPDFBlob]);
 
   // Genera il PDF come blob (per allegarlo all'email del cliente).
   const getPdfBlobForOrder = useCallback(async () => {
@@ -1283,7 +1308,8 @@ function OrderDetailInner() {
       return null;
     }
     try {
-      const opts = await gatherPdfOpts();
+      // Questo PDF parte verso il cliente: solo la versione senza dati interni.
+      const opts = await gatherPdfOpts({ perCliente: true });
       if (!opts) return null;
       return await getPDFBlob(opts);
     } catch (e) {
@@ -1397,12 +1423,13 @@ function OrderDetailInner() {
               name:
                 `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
                 "Cliente",
-              phone: order.customer.phone,
-              email: order.customer.email,
+              // Il profilo può non avere il recapito scritto sulla commessa.
+              phone: order.customer.phone || order.client_phone,
+              email: order.customer.email || order.client_email,
             }
           : { name: order.client_name || "Cliente", phone: order.client_phone, email: order.client_email }
       }
-      workAddress={order.work_address}
+      workAddress={order.work_address || order.indirizzo_lavori}
       getPdfBlob={getPdfBlobForOrder}
       paymentDue={(() => {
         const unpaid = displayInstallments.filter(
@@ -2300,6 +2327,12 @@ function OrderDetailInner() {
       )}
 
       {/* Documenti e file della commessa (popup) */}
+      <RiepilogoPdfDialog
+        open={riepilogoAperto}
+        onOpenChange={setRiepilogoAperto}
+        occupato={pdfPreparing || isGeneratingPDF}
+        onPrepara={preparaRiepilogo}
+      />
       <OrderFilesDialog
         open={filesOpen}
         onOpenChange={setFilesOpen}

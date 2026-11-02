@@ -154,6 +154,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(actions, "onManagePlaybook")).toContain("setPlaybookEditorOpen(true)");
     expect(value(actions, "onCreateInvoice")).toContain("permissions.canViewBilling");
     expect(value(actions, "onCreateInvoice")).toContain("isNativeBilling && !permissions.solaLettura");
+    expect(value(actions, "customer")).toContain("order.customer.phone || order.client_phone");
     expect(value(actions, "customer")).toContain("order.client_phone");
     expect(value(actions, "customer")).toContain("order.client_email");
     expect(value(named("OrderStatusWorkflow")[0], "onStatusChange")).toContain("permissions.canEditOrders");

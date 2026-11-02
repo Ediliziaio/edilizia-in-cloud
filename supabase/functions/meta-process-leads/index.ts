@@ -492,7 +492,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     .eq("company_id", company_id)
     .eq("integration_id", integration_id)
     .eq("form_id", actualFormId)
-    .single();
+    .maybeSingle();
 
   const fieldData: Record<string, string> = {};
   for (const field of lead.field_data || []) {

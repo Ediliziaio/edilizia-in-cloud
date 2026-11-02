@@ -537,13 +537,13 @@ serveConMetriche("check-api-health", async (req) => {
         countStatus("suppressed"),
         admin
           .from("email_outbox")
-          .select("scheduled_at, created_at")
+          .select("scheduled_for, created_at")
           .in("status", ["queued", "failed"])
-          .order("scheduled_at", { ascending: true })
+          .order("scheduled_for", { ascending: true })
           .limit(1)
           .maybeSingle(),
       ]);
-      const oldestAt = oldestReady.data?.scheduled_at ?? oldestReady.data?.created_at ?? null;
+      const oldestAt = oldestReady.data?.scheduled_for ?? oldestReady.data?.created_at ?? null;
       const oldestAgeMinutes = oldestAt
         ? Math.max(0, Math.round((Date.now() - new Date(oldestAt).getTime()) / 60000))
         : 0;

@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
+import { AnteprimaPdfDialog } from "@/components/orders/AnteprimaPdfDialog";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -118,6 +119,7 @@ export function OrderQuickActions({
   }>({ open: false, channel: "whatsapp" });
   const [apptOpen, setApptOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfDaInviare, setPdfDaInviare] = useState<{ blob: Blob; filename: string } | null>(null);
 
   const openContact = (channel: QuickSendChannel) =>
     setQuickSend({ open: true, channel, prefill: undefined, attachments: undefined });
@@ -149,18 +151,30 @@ export function OrderQuickActions({
     else window.open(`tel:${customer.phone}`, "_self");
   };
 
+  // Il PDF per il cliente si guarda prima: parte solo dopo l'anteprima.
   const handleSendPdf = async () => {
     if (!user?.id) { toast.error("Sessione non valida"); return; }
     setPdfBusy(true);
     try {
       const res = await getPdfBlob();
-      if (!res) return; // toast già mostrato dall'hook PDF
+      if (res) setPdfDaInviare(res); // altrimenti il toast l'ha già mostrato l'hook PDF
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  const allegaPdf = async () => {
+    if (!user?.id || !pdfDaInviare) return;
+    setPdfBusy(true);
+    try {
+      const res = pdfDaInviare;
       const safe = res.filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
       const storagePath = `${user.id}/ordini/${crypto.randomUUID()}-${safe}`;
       const { error } = await supabase.storage
         .from("email-attachments")
         .upload(storagePath, res.blob, { contentType: "application/pdf", upsert: false });
       if (error) { toast.error("Caricamento del PDF fallito"); return; }
+      setPdfDaInviare(null);
       setQuickSend({
         open: true,
         channel: "email",
@@ -304,6 +318,15 @@ export function OrderQuickActions({
         {!isMobile && askSilvio && <div className="xl:ml-auto">{askSilvio}</div>}
       </div>
 
+      <AnteprimaPdfDialog
+        file={pdfDaInviare}
+        titolo="PDF per il cliente"
+        descrizione="Questo è il documento che riceverà: senza costi, margini, fornitori e dati interni. Lo allego all'email solo se confermi."
+        azione="Allega all'email"
+        inCorso={pdfBusy}
+        onConferma={() => { void allegaPdf(); }}
+        onChiudi={() => setPdfDaInviare(null)}
+      />
       {quickSend.open && (hasPhone || hasEmail) && customer && (
         <QuickContactSendDialog
           open={quickSend.open}

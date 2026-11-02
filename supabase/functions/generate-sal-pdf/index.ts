@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { logoDiRiserva } from "../_shared/logoAzienda.ts";
+import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
 
 import {buildSalHtml,chiaveVoce,type ContrattoSal,type SalExtra,type SalRecord} from "./render.ts";
 import {maturatoPrecedente} from "../_shared/salNetto.ts";
@@ -105,26 +105,14 @@ Deno.serve(async (req) => {
     const contratto=(contrattoSal ?? null) as ContrattoSal|null;
 
     // Fetch azienda
-    const { data: azienda } = await supabase
-      .from("anagrafica_azienda")
-      .select("ragione_sociale, partita_iva, colore_primario, logo_url, indirizzo, citta, cap, telefono, email")
-      .eq("company_id", company_id)
-      .single();
+    const azienda = await leggiAziendaDocumento(supabase, company_id);
 
     if (!azienda) {
-      return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), {
+      return new Response(JSON.stringify({ error: "Dati dell'azienda non trovati" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
-
-    // Il logo dell'anagrafica vince; vuoto vale quello aziendale (_shared/logoAzienda.ts).
-    const { data: profiloAzienda } = await supabase
-      .from("companies")
-      .select("logo_url")
-      .eq("id", company_id)
-      .maybeSingle();
-    azienda.logo_url = logoDiRiserva(azienda.logo_url, profiloAzienda?.logo_url);
 
     const salWithVoci: SalRecord = {
       ...sal,
