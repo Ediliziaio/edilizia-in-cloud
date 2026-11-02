@@ -138,10 +138,11 @@ describe.each(MODULI)("$slug: dal selettore al salvataggio", ({ slug, p, wizard 
 
     fireEvent.click(await screen.findByRole("button", { name: /Cerca voce/ }, { timeout: 10_000 }));
     const dialogo = await screen.findByRole("dialog");
-    const riga = (await within(dialogo).findByText("Piatto doccia in resina 120x80 cm", undefined, { timeout: 10_000 })).closest("[cmdk-item]") as HTMLElement;
+    const riga = (await within(dialogo).findByText("Piatto doccia in resina 120x80 cm", undefined, { timeout: 10_000 })).closest("li") as HTMLElement;
     // Nel selettore ha la sua foto.
     expect(riga.querySelector('img[src="/templates/bagno/products/piatto-doccia.webp"]')).not.toBeNull();
-    fireEvent.click(riga);
+    fireEvent.click(within(dialogo).getByRole("checkbox", { name: "Scegli: Piatto doccia in resina 120x80 cm" }));
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Aggiungi al computo" }));
 
     // A destra, nell'anteprima, il prodotto compare con foto e descrizione.
     const anteprima = await screen.findByRole("complementary", { name: "Anteprima del preventivo", hidden: true });
