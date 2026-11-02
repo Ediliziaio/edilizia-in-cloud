@@ -545,7 +545,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
             const titoloNuovo = titolo && (!bozza.titolo.trim() || bozza.titolo === bozzaVuota().titolo) ? { titolo } : {};
             setAiAperta(null); cambia({ ...bozza, ...titoloNuovo, voci }); setScelta(""); toast.success("Modifiche di Silvio applicate al computo", { description: "Con «Annulla» si torna indietro." }); }} />}
     </Suspense>}
-    {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} /></Suspense>}
+    {picker && consentiListini && <Suspense fallback={<p role="status">Apertura listini…</p>}><AddVocePicker open onOpenChange={open => { if (!open) setPicker(null); }} onPick={daListino} targetCapitolo={picker.capitolo} vociPresenti={bozza.voci.map(v => v.descrizione)} capitoliComputo={bozza.voci.map(v => v.capitolo)} /></Suspense>}
     <Dialog open={!!anteprima} onOpenChange={open => { if (!open) setAnteprima(null); }}>
       <DialogContent className="flex h-[90dvh] max-w-5xl flex-col">
         <DialogHeader><DialogTitle>{anteprimaParziale ? "Anteprima bozza parziale" : "Anteprima preventivo"}</DialogTitle><DialogDescription>{anteprimaParziale ? "Contiene lavorazioni da completare. Il documento definitivo resta bloccato fino alla correzione." : "PDF della bozza, non ancora inviata."}</DialogDescription></DialogHeader>

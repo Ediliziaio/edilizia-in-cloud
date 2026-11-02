@@ -20,6 +20,7 @@ interface Props {
   targetCapitolo?: string;
   /** Le voci già nel computo, per dirlo sulla riga. */
   vociPresenti?: readonly string[];
+  capitoliComputo?: readonly string[];
 }
 
 const FONTI = {

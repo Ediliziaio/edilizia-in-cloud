@@ -29,10 +29,10 @@ import {
 const sb = () => supabase as any;
 
 /** `attivo` falso (selettore chiuso, o un'altra sorgente di ricerca): niente richieste. */
-export function useProdottiListino(term: string, verticale: VerticaleModulo, attivo = true) {
+export function useProdottiListino(term: string, verticale: VerticaleModulo, attivo = true, limite = 40) {
   const companyId = useEffectiveCompanyId();
   return useQuery<ProdottoListino[]>({
-    queryKey: ["prodotti-listino-computo", companyId, verticale, term],
+    queryKey: ["prodotti-listino-computo", companyId, verticale, term, limite],
     enabled: !!companyId && attivo,
     staleTime: 60_000,
     queryFn: async () => {
@@ -51,7 +51,7 @@ export function useProdottiListino(term: string, verticale: VerticaleModulo, att
         return q;
       };
       const [propri, altri] = await Promise.all([
-        base().eq("vertical", verticale).order("nome").limit(40),
+        base().eq("vertical", verticale).order("nome").limit(limite),
         // Le altre aree solo se si sta cercando qualcosa: senza testo l'elenco sarebbe tutto il listino.
         t.length >= 2
           ? base().neq("vertical", verticale).not("vertical", "in", `(${VERTICALI_ESCLUSI.join(",")})`).order("nome").limit(15)

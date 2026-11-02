@@ -270,6 +270,7 @@ export default function ComputoEditor({
         onOpenChange={setGlobalPickerOpen}
         onPick={handleGlobalPick}
       vociPresenti={value.map((v) => v.descrizione)}
+        capitoliComputo={capitoli.map((c) => c.nome)}
       />
     </div>
   );
