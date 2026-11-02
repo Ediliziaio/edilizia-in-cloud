@@ -47,12 +47,16 @@ export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[])
   const covered = roundQty(active.reduce((n, r) => n + Number(r.quantity), 0));
   const required = Number(item.quantity);
   const remaining = positive(required) ? roundQty(Math.max(0, required - covered)) : 0;
+  const unitaScritta = (item.unita_misura ?? "").trim().toLowerCase();
+  const unitaOrdine = active.map(r => (r.unit_of_measure ?? "").trim().toLowerCase()).find(u => u && u !== unitaMateriale(item));
+  const ordini = [...new Map(active.map(r => [r.purchase_orders.id, { id: r.purchase_orders.id, oda_number: r.purchase_orders.oda_number }])).values()];
   let review: string | null = null;
   if (!positive(required)) review = "Quantità prevista non valida";
-  else if (active.some(r => r.unit_of_measure && r.unit_of_measure.trim().toLowerCase() !== unitaMateriale(item))) {
+  else if (unitaOrdine && (unitaScritta || remaining > 0)) {
     // Never compare boxes/kg/m² with a quantity in another unit, or generate
-    // a residual by guessing a ratio.
-    review = "Unità di misura dell’OdA da verificare prima di calcolare il residuo";
+    // a residual by guessing a ratio. Un articolo senza unità già tutto coperto non ha residuo
+    // da calcolare: «1 a corpo» su «1» non è una differenza, è un'unità mai scritta.
+    review = `Unità di misura diversa: ordine in «${unitaOrdine}», articolo in «${unitaScritta || "pz"}»`;
   }
   else if (item.posizioni?.length && (item.posizioni.some(p => !positive(p.quantita)) || Math.abs(item.posizioni.reduce((n, p) => n + Number(p.quantita), 0) - required) > 0.000001)) {
     review = "La distinta non coincide con la quantità prevista";
@@ -62,9 +66,25 @@ export function planMaterial(item: ProcurementItem, rows: ProcurementCoverage[])
   } else if (!item.stock_item_id && remaining > 0 && item.status && item.status !== "da_ordinare" && covered === 0) {
     review = "Stato avanzato senza OdA collegato: verifica prima di riordinare";
   }
-  return { item, drafted, issued, received, covered, remaining, review,
+  return { item, drafted, issued, received, covered, remaining, review, ordini,
+    ricevuto: positive(required) && received >= required,
     overOrdered: positive(required) && covered > required,
     canOrder: !!item.id && !item.stock_item_id && remaining > 0 && !review,
+  };
+}
+
+/** La riga di un ordine nella commessa: quante righe sono arrivate e se la consegna è in ritardo. */
+export function avanzamentoOrdine(
+  ordine: { status: string; expected_delivery_date?: string | null; righe?: Array<{ quantity: number; quantity_received: number }> | null },
+  oggi: string,
+) {
+  const righe = ordine.righe ?? [];
+  const aperto = ["inviato", "confermato", "parziale"].includes(ordine.status);
+  return {
+    righeTotali: righe.length,
+    righeArrivate: righe.filter(r => positive(r.quantity) && Number(r.quantity_received) >= Number(r.quantity)).length,
+    aperto,
+    inRitardo: aperto && !!ordine.expected_delivery_date && ordine.expected_delivery_date.slice(0, 10) < oggi,
   };
 }
 

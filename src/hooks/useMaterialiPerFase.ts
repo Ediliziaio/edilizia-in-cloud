@@ -224,8 +224,8 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
   });
 
   const richiediOfferta = useMutation({
-    mutationFn: async (p: { ids: string[]; titolo: string; fornitori: string[] }) => {
-      const { data, error } = await supabase.rpc("acquisti_richiedi_offerta", { p_items: p.ids, p_titolo: p.titolo, p_fornitori: p.fornitori });
+    mutationFn: async (p: { ids: string[]; titolo: string; fornitori: string[]; scadenza?: string | null }) => {
+      const { data, error } = await supabase.rpc("acquisti_richiedi_offerta", { p_items: p.ids, p_titolo: p.titolo, p_fornitori: p.fornitori, ...(p.scadenza ? { p_scadenza: p.scadenza } : {}) });
       if (error) throw error;
       return data as string;
     },

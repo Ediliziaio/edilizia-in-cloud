@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Package, ExternalLink, Link2, Unlink, FileCheck, Plus } from "lucide-react";
+import { Package, PackageCheck, ExternalLink, Link2, Unlink, FileCheck, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { logger } from "@/utils/logger";
 import { NuovoOdaCommessaDialog } from "./NuovoOdaCommessaDialog";
 import { LinkExistingPurchaseOrderDialog } from "./LinkExistingPurchaseOrderDialog";
 import { useDDTCountsByPO } from "@/hooks/useDDTRicezione";
-import type { ProcurementItem } from "@/lib/orders/materialProcurement";
+import { avanzamentoOrdine, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { usePermissions } from "@/hooks/usePermissions";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { OdaDocumentiDialog, type OdaDellaFinestra } from "./OdaDocumentiDialog";
@@ -34,6 +34,10 @@ import {
 const ddtArrivati = (a: { ricevuti: number; verificati: number; non_conformi: number; parziali?: number }) =>
   a.ricevuti + a.verificati + a.non_conformi + (a.parziali ?? 0);
 
+const OdaArrivoMerceSheet = lazy(() =>
+  import("@/components/warehouse/OdaArrivoMerceSheet").then((m) => ({ default: m.OdaArrivoMerceSheet })),
+);
+
 interface LinkedPurchaseOrdersCardProps {
   orderId: string;
   orderCode?: string | null;
@@ -46,6 +50,8 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
   const [odaAperto, setOdaAperto] = useState<OdaDellaFinestra | null>(null);
+  const [arrivoDi, setArrivoDi] = useState<{ id: string; warehouseId: string | null } | null>(null);
+  const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [nuovoOpen, setNuovoOpen] = useState(false);
@@ -92,7 +98,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("id, oda_number, status, total, suppliers(name)")
+        .select("id, oda_number, status, total, expected_delivery_date, delivery_warehouse_id, suppliers(name), righe:purchase_order_items(quantity, quantity_received)")
         .eq("order_id", orderId).eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -101,7 +107,10 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
         oda_number: string;
         status: string;
         total: number;
+        expected_delivery_date: string | null;
+        delivery_warehouse_id: string | null;
         suppliers: { name: string } | null;
+        righe: Array<{ quantity: number; quantity_received: number }> | null;
       }>;
     },
     enabled: !!orderId && !!companyId,
@@ -142,6 +151,7 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
           <div className="space-y-3 max-sm:space-y-2">
             {linkedPOs.map((po) => {
               const ddtAgg = ddtCounts[po.id];
+              const avanzamento = avanzamentoOrdine(po, oggi);
               return (
                 <div
                   key={po.id}
@@ -176,10 +186,24 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{po.suppliers?.name || "—"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {po.suppliers?.name || "—"}
+                        {avanzamento.righeTotali > 0 && <> · {avanzamento.righeArrivate}/{avanzamento.righeTotali} righe arrivate</>}
+                        {avanzamento.aperto && po.expected_delivery_date && (
+                          <span className={avanzamento.inRitardo ? "font-medium text-amber-700 dark:text-amber-400" : undefined}>
+                            {" · "}{avanzamento.inRitardo ? "In ritardo, doveva arrivare il" : "Consegna prevista"} {po.expected_delivery_date.slice(0, 10).split("-").reverse().join("/")}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   </button>
                   <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {avanzamento.aperto && canEditOrders && (
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2 text-xs" aria-label={`Merce arrivata per l'ordine ${po.oda_number}`}
+                        onClick={() => setArrivoDi({ id: po.id, warehouseId: po.delivery_warehouse_id })}>
+                        <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
+                      </Button>
+                    )}
                     <span className="text-sm font-medium">{formatCurrency(Number(po.total))}</span>
                     <Button
                       variant="ghost"
@@ -205,6 +229,23 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items }: LinkedPu
       {/* Clic su un ordine: le sue bolle e fatture, senza lasciare la commessa. */}
       {/* Montata solo quando serve: bolle e fatture si leggono al clic, non a ogni apertura della commessa. */}
       {odaAperto && <OdaDocumentiDialog orderId={orderId} oda={odaAperto} onClose={() => setOdaAperto(null)} mostraImporti={!!canViewCosts} />}
+
+      {arrivoDi && companyId && (
+        <Suspense fallback={null}>
+          <OdaArrivoMerceSheet
+            open
+            onOpenChange={(aperto) => {
+              if (aperto) return;
+              setArrivoDi(null);
+              refreshMaterialQueries(queryClient);
+              queryClient.invalidateQueries({ queryKey: ["linked-purchase-orders", orderId] });
+            }}
+            odaId={arrivoDi.id}
+            companyId={companyId}
+            warehouseId={arrivoDi.warehouseId}
+          />
+        </Suspense>
+      )}
 
       {/* Link existing PO dialog */}
       <LinkExistingPurchaseOrderDialog

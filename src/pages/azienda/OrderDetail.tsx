@@ -110,6 +110,8 @@ import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltato
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
+import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta";
+import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
@@ -516,6 +518,7 @@ function OrderDetailInner() {
   const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, navigateTo } = useOrderDetailNavigation(
     !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
   );
+  const { data: conteggioOfferte } = useConteggioRichiesteCommessa(id, companyId, activeTab === "articoli");
   // Keep any desktop-only view fallback; Cronoprogramma also has a mobile agenda.
   const vistaCantiere = isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
   const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
@@ -1760,7 +1763,7 @@ function OrderDetailInner() {
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
-              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, acquisti: conteggiViste?.ordiniAcquisto }} />
+              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto }} />
             </div>
             <OrderViewTransition viewKey={activeMaterialiView}>
             {activeMaterialiView === "articoli" && <>
@@ -1882,9 +1885,11 @@ function OrderDetailInner() {
                 </>
                 : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare le fatture dei fornitori di questa commessa.</p>}
             </div>}
+            {activeMaterialiView === "offerte" && <div id="section-offerte" className="scroll-mt-24">
+              <OrderRichiesteOfferta orderId={id!} orderCode={order.order_code} />
+            </div>}
             {activeMaterialiView === "acquisti" && <div id="section-acquisti" className="space-y-4 scroll-mt-24">
-              <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} />
-            {permissions.canViewCosts ? (
+              <OrderProcurementTools orderId={id!} orderCode={order.order_code} items={displayItems} ordini={permissions.canViewCosts ? (
               <LinkedPurchaseOrdersCard
                 orderId={id!}
                 orderCode={order.order_code}
@@ -1895,6 +1900,7 @@ function OrderDetailInner() {
                   id: i.id,
                   name: i.name,
                   quantity: i.quantity,
+                  unita_misura: i.unita_misura,
                   purchase_price: i.purchase_price,
                   supplier_id: i.supplier_id,
                   vat_rate: i.vat_rate,
@@ -1903,7 +1909,7 @@ function OrderDetailInner() {
                   stock_item_id: i.stock_item_id,
                 }))}
               />
-            ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>}
+            ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>} />
             </div>}
             </OrderViewTransition>
           </TabsContent>

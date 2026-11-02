@@ -26,6 +26,7 @@ export const ECONOMIA_VIEWS = [
 export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
 export const MATERIALI_VIEWS = [
   { value: "articoli", label: "Articoli e misure", description: "Materiali divisi per fase, validazione del tecnico, acquisti e verifica delle misure." },
+  { value: "offerte", label: "Richieste d’offerta", description: "Prezzi chiesti ai fornitori per questa commessa, prima dell’ordine." },
   { value: "acquisti", label: "Ordini d’acquisto", description: "Ordini ai fornitori collegati a questa commessa." },
   { value: "bolle", label: "Bolle e DDT", description: "Bolle dei fornitori, foto dal cantiere e DDT fatti al cliente." },
   { value: "fatture", label: "Fatture e costi", description: "Fatture dei fornitori e costi senza fattura (tasse, bolli, F24) della commessa." },
@@ -46,6 +47,7 @@ export function resolveEconomiaView(search: string, section?: string): EconomiaV
 }
 export function resolveMaterialiView(search: string, section?: string): MaterialiView {
   if (section === "section-acquisti") return "acquisti";
+  if (section === "section-offerte") return "offerte";
   if (section === "section-bolle") return "bolle";
   if (section === "section-fatture-fornitori") return "fatture";
   if (section === "section-magazzino") return "magazzino";
@@ -109,6 +111,7 @@ const SECTION_TABS = {
   "section-bolle": "articoli",
   "section-fatture-fornitori": "articoli",
   "section-acquisti": "articoli",
+  "section-offerte": "articoli",
   "section-magazzino": "articoli",
   "section-varianti": "finanza",
   "section-fatturazione": "finanza",

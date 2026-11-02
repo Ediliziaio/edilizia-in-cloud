@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planMaterial, pendingMaterials, procurementLines, type ProcurementCoverage, type ProcurementItem } from "@/lib/orders/materialProcurement";
+import { planMaterial, avanzamentoOrdine, pendingMaterials, procurementLines, type ProcurementCoverage, type ProcurementItem } from "@/lib/orders/materialProcurement";
 
 const item: ProcurementItem = { id: "a", name: "Materiale", supplier_id: "s", quantity: 10, purchase_price: 12, vat_rate: 0, status: "da_ordinare" };
 const row = (status: string, quantity = 4, received = 0): ProcurementCoverage => ({ id: status, order_item_id: "a", quantity, quantity_received: received, purchase_orders: { id: status, oda_number: status, status } });
@@ -40,4 +40,31 @@ describe("Materiali: quantità preventivate, bozze, ordini e ricezioni", () => {
     expect(lines[0]).toMatchObject({ quantity: 2, vat_rate: 0, order_item_id: "a", description: "Materiale — Finestra A 100x200" });
   });
   it.each([-1, NaN, Infinity])("non crea costi non validi %s", purchase_price => expect(() => procurementLines([{ ...item, purchase_price }])).toThrow());
+});
+
+describe("unità di misura: niente falsi allarmi", () => {
+  const corpo = { ...row("ricevuto", 1, 1), unit_of_measure: "corpo" };
+  const voce = { ...item, quantity: 1 };
+  it("articolo senza unità già tutto coperto: nessun avviso", () => {
+    expect(planMaterial(voce, [corpo])).toMatchObject({ review: null, ricevuto: true, remaining: 0 });
+  });
+  it("articolo senza unità con un residuo: l'avviso resta, perché il residuo non si può calcolare", () => {
+    expect(planMaterial(item, [{ ...row("inviato", 2), unit_of_measure: "scatole" }]).review).toBe("Unità di misura diversa: ordine in «scatole», articolo in «pz»");
+  });
+  it("unità scritte e diverse: dice quali, anche se la quantità torna", () => {
+    expect(planMaterial({ ...voce, unita_misura: "m" }, [corpo]).review).toBe("Unità di misura diversa: ordine in «corpo», articolo in «m»");
+  });
+  it("il piano elenca gli ordini senza doppioni", () => {
+    expect(planMaterial(item, [row("inviato", 1), row("inviato", 2)]).ordini).toHaveLength(1);
+  });
+});
+
+describe("avanzamento di un ordine", () => {
+  const righe = [{ quantity: 2, quantity_received: 2 }, { quantity: 3, quantity_received: 1 }];
+  it("conta le righe arrivate e il ritardo solo se è ancora aperto", () => {
+    expect(avanzamentoOrdine({ status: "inviato", expected_delivery_date: "2026-11-01", righe }, "2026-11-02")).toEqual({ righeTotali: 2, righeArrivate: 1, aperto: true, inRitardo: true });
+    expect(avanzamentoOrdine({ status: "ricevuto", expected_delivery_date: "2026-11-01", righe }, "2026-11-02")).toMatchObject({ aperto: false, inRitardo: false });
+    expect(avanzamentoOrdine({ status: "inviato", expected_delivery_date: "2026-11-02", righe }, "2026-11-02").inRitardo).toBe(false);
+    expect(avanzamentoOrdine({ status: "bozza", righe: null }, "2026-11-02")).toMatchObject({ righeTotali: 0, aperto: false });
+  });
 });

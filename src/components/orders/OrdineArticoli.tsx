@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -107,10 +108,11 @@ export function useAggiungiPosaManodopera(orderId: string) {
   });
 }
 
-export function OrderProcurementTools({ orderId, orderCode, items }: { orderId: string; orderCode?: string | null; items: OrderItem[] }) {
+export function OrderProcurementTools({ orderId, orderCode, items, ordini }: { orderId: string; orderCode?: string | null; items: OrderItem[]; /** Gli ordini già fatti, subito sotto i numeri: si apre la scheda per loro. */ ordini?: ReactNode }) {
   const { canEditOrders, canViewCosts } = usePermissions();
   return <div className="space-y-4">
     <OrderMaterialsSummary items={items} orderId={orderId} />
+    {ordini}
     <OrdinaPerFornitorePanel orderId={orderId} orderCode={orderCode} items={items} />
     {canEditOrders && canViewCosts && <PosaInLavorazioniBanner orderId={orderId} items={items} />}
   </div>;
