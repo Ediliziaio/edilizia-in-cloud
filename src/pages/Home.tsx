@@ -17,7 +17,7 @@ const StatsSection = lazy(() => import("@/components/landing/StatsSection"));
 // Below-the-fold: lazy-loaded
 const AISystemShowcaseSection = lazy(() => import("@/components/landing/AISystemShowcaseSection"));
 const PainPointsSection = lazy(() => import("@/components/landing/PainPointsSection"));
-const ConstructionVideoLesson = lazy(() => import("@/components/marketing/ConstructionVideoLesson"));
+const HomeVideoGallery = lazy(() => import("@/components/marketing/HomeVideoGallery"));
 const SolutionSection = lazy(() => import("@/components/landing/SolutionSection"));
 const ModulesSection = lazy(() => import("@/components/landing/ModulesSection"));
 const TestimonialsSection = lazy(() => import("@/components/landing/TestimonialsSection"));
@@ -195,7 +195,7 @@ export default function Home() {
           <SolutionSection />
         </div>
         <div className="cv-auto-tall">
-          <ConstructionVideoLesson />
+          <HomeVideoGallery />
         </div>
         <div className="cv-auto">
           <TestimonialsSection />

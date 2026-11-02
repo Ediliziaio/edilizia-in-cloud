@@ -579,7 +579,12 @@ function coppie(json: Grezzo, avvisi: string[]): Array<[string, Grezzo]> {
     // c'è e spesso mette elenchi e date nudi, senza l'involucro: rate e fasi del contratto andavano
     // perse e al loro posto entravano quelle del modello generico. Nudo vale come senza citazione.
     if (v == null || v === "" || (Array.isArray(v) && !v.length)) return;
-    if (oggetto(v) && "valore" in v) { if (v.valore != null && v.valore !== "") out.push([chiave, v]); return; }
+    if (oggetto(v) && "valore" in v) {
+      // Anche un oggetto coi campi tutti vuoti vuol dire che il documento non ne parla.
+      const dentro = oggetto(v.valore) ? Object.values(v.valore) : [v.valore];
+      if (!dentro.every((c) => c == null || c === "")) out.push([chiave, v]);
+      return;
+    }
     if (!oggetto(v)) { out.push([chiave, { valore: v }]); return; }
     const { citazione, dove, fiducia, nota, ...resto } = v;
     // Le variabili a più colonne (nome e telefono del cliente, condizioni) arrivano come oggetto nudo.
