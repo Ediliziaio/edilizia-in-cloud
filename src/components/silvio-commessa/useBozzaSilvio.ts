@@ -33,7 +33,7 @@
  * - gli allegati delle email letti dal popup vanno con la commessa tra i suoi documenti.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { Fonte, Frammento, Modifica, PianoCommessa } from "../../../shared/silvio-commessa/piano.ts";
+import type { Fonte, Frammento, Modifica, PianoCommessa, Valore } from "../../../shared/silvio-commessa/piano.ts";
 import { eAnnulla, eseguiRisposta, pianoPerLaChat, STIMA_CHAT_EUR } from "../../../shared/silvio-commessa/chat.ts";
 import type { FonteDaLink, RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
@@ -54,14 +54,65 @@ import { calendarioAzienda, inizioUtile, lavorativiTra, type CalendarioCantiere 
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
-  completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
+  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
   type Bozza, type EsitoCommessa, type FonteCaricata, type SalvataggioConAttesa,
 } from "@/lib/silvio-commessa/bozze";
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
-import { euroAI, pianoProposto, riassuntoFrammento, stimaLettura, testoValore } from "./presentazione";
+import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
+import { conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
+import { euroAI, pianoProposto, riassuntoFrammento, senzaImporti, stimaLettura, testoValore } from "./presentazione";
 import type { ServiziSilvioCommessa } from "./servizi";
 
 export const LETTURE_INSIEME = 3;
+
+type FonteLetta = Pick<Fonte, "etichetta"> & { id?: string | null };
+
+/**
+ * Il piano senza quello che ha portato una fonte (revisione 2/11, P9): chi ha caricato il documento
+ * sbagliato lo toglie e carica quello giusto. Non passa da una modifica «togli», che lascerebbe un
+ * «tolto da te» a chiudere la strada al documento giusto. Quello che la persona ha scritto o toccato
+ * resta; se le fonti erano in disaccordo resta l'altra, e quello che era stato messo da parte rientra.
+ */
+export function pianoSenzaFonte(piano: PianoCommessa, fonti: readonly FonteLetta[]): { piano: PianoCommessa; tolti: number } {
+  const sua = (x: Fonte) => fonti.some((f) => (f.id && x.id ? f.id === x.id : f.etichetta === x.etichetta));
+  const aree: PianoCommessa["aree"] = {};
+  let tolti = 0;
+  for (const [area, valori] of Object.entries(piano.aree)) {
+    aree[area as keyof PianoCommessa["aree"]] = Object.fromEntries(Object.entries(valori ?? {}).filter(([, v]) => {
+      const via = !v.toccato && !giaNellaCommessa(piano, v) && !v.sopraCommessa && sua(v.fonte);
+      if (via) tolti += 1;
+      return !via;
+    }));
+  }
+  const metti = (area: keyof PianoCommessa["aree"], chiave: string, v: Valore) => {
+    aree[area] = { ...(aree[area] ?? {}), [chiave]: v };
+  };
+  const conflitti = piano.conflitti.flatMap((c) => {
+    const restano = c.candidati.filter((x) => !sua(x.fonte));
+    if (restano.length === c.candidati.length) return [c];
+    if (restano.length >= 2) {
+      metti(c.area, c.chiave, { ...restano[0], stato: "attenzione" });
+      return [{ ...c, candidati: restano, nota: null }];
+    }
+    // Resta un solo candidato: è lui il valore, e il disaccordo non c'è più.
+    if (restano.length === 1) metti(c.area, c.chiave, restano[0]);
+    return [];
+  });
+  const scartati = (piano.scartati ?? []).filter((s) => !sua(s.valore.fonte));
+  const fuori = (piano.scartati ?? []).length ? scartati.filter((s) => {
+    if (aree[s.area]?.[s.chiave]) return true;
+    metti(s.area, s.chiave, s.valore);
+    return false;
+  }) : scartati;
+  const prefissi = fonti.map((f) => `${f.etichetta}: `);
+  const nuovo: PianoCommessa = {
+    ...piano, aree, conflitti, scartati: fuori,
+    fonti: piano.fonti.filter((f) => !sua(f)),
+    avvisi: (piano.avvisi ?? []).filter((a) => !prefissi.some((p) => a.startsWith(p))),
+  };
+  if (!fuori.length) delete nuovo.scartati;
+  return { tolti, piano: conQuadratura(nuovo) };
+}
 
 /**
  * Quello che una modifica si porta dietro, come se lo aspetta chi la fa (01/11/2026; revisione
@@ -159,6 +210,10 @@ export interface FonteNelPopup {
   tentativo: number;
   /** Quante variabili ha portato. */
   valori?: number;
+  /** Le fonti che la lettura ha messo nel piano (un preventivo può portarsi dietro il modello): per toglierle. */
+  fontiLette?: FonteLetta[];
+  /** Sembrava un'offerta, ma la persona ha chiesto di leggerlo come un documento qualsiasi. */
+  comeDocumento?: boolean;
 }
 
 export interface Messaggio {
@@ -251,8 +306,23 @@ function riduttore(s: Stato, a: Azione): Stato {
       return { ...s, fonti: [...s.fonti, ...a.fonti] };
     case "aggiorna_fonte":
       return { ...s, fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, ...a.patch } : f)) };
-    case "togli_fonte":
-      return { ...s, fonti: s.fonti.filter((f) => f.id !== a.id) };
+    case "togli_fonte": {
+      const f = s.fonti.find((x) => x.id === a.id);
+      const fonti = s.fonti.filter((x) => x.id !== a.id);
+      if (!f || f.stato !== "fatta") return { ...s, fonti };
+      const lette: FonteLetta[] = f.fontiLette ?? [{ id: f.idFonte ?? null, etichetta: f.etichetta }];
+      const { piano, tolti } = pianoSenzaFonte(s.piano, lette);
+      const nomi = new Set(lette.map((x) => x.etichetta));
+      return {
+        ...s, piano, fonti,
+        // Il file non va più con la commessa.
+        caricate: s.caricate.filter((c) => !nomi.has(c.fonte ?? c.nome) && !nomi.has(c.nome)),
+        versione: s.versione + 1,
+        messaggi: messaggio(s, tolti
+          ? `Ho tolto «${f.etichetta}» e ${tolti === 1 ? "il dato che aveva portato" : `i ${tolti} dati che aveva portato`}.`
+          : `Ho tolto «${f.etichetta}»: non aveva portato dati che ci sono ancora.`),
+      };
+    }
     case "frammenti": {
       const piano = a.frammenti.reduce((p, fr) => fondi(p, fr), s.piano);
       const cambiate = chiaviCambiate(s.piano, piano);
@@ -270,7 +340,7 @@ function riduttore(s: Stato, a: Azione): Stato {
       return {
         ...s,
         piano,
-        fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, ...a.patch } : f)),
+        fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, fontiLette: a.frammenti.map((x) => x.fonte), ...a.patch } : f)),
         caricate: a.caricata ? [...s.caricate.filter((c) => chiaveCaricata(c) !== chiaveCaricata(a.caricata!)), a.caricata] : s.caricate,
         evidenziate: a.base || a.muto ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
         messaggi,
@@ -290,7 +360,7 @@ function riduttore(s: Stato, a: Azione): Stato {
       try {
         for (const m of a.modifiche) bozza = applica(bozza.piano, m, bozza.storia, gruppo);
       } catch (e) {
-        return { ...s, messaggi: messaggio(s, e instanceof Error ? e.message : String(e), "errore") };
+        return { ...s, messaggi: messaggio(s, erroreLeggibile(e, "Questa modifica non si può fare."), "errore") };
       }
       const cambiate = chiaviCambiate(s.piano, bozza.piano);
       return {
@@ -335,7 +405,7 @@ function riduttore(s: Stato, a: Azione): Stato {
           id: nuovoId(), tipo: "ripresa", etichetta: f.etichetta, stato: "fatta", stimaEur: 0, avvisi: [] as string[], tentativo: 0,
           ...(f.id ? { idFonte: f.id } : {}),
         })),
-        messaggi: messaggio(s, "Ho ripreso la bozza com'era: puoi continuare da dove eri rimasto."),
+        messaggi: messaggio(s, "Ho ripreso la bozza com'era: puoi continuare da dove eri rimasto. I documenti che non avevo ancora letto non si salvano: se ne manca uno, ricaricalo."),
         versione: s.versione,
       };
     }
@@ -389,9 +459,11 @@ export interface OpzioniBozza {
   orderId?: string | null;
   /** Attesa del salvataggio automatico. */
   attesaMs?: number;
+  /** Il permesso «Importi di vendita»: senza, la chat non riceve gli importi. */
+  vedeImporti?: boolean;
 }
 
-export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, attesaMs = 800 }: OpzioniBozza) {
+export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, attesaMs = 800, vedeImporti = true }: OpzioniBozza) {
   const [s, invia] = useReducer(riduttore, undefined, (): Stato => ({
     piano: pianoVuoto(companyId, orderId), storia: [], fonti: [], caricate: [], evidenziate: [], messaggi: [], versione: 0, base: [],
     daGuardare: [],
@@ -402,6 +474,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   const [idBozza, setIdBozza] = useState<string | null>(null);
   const [salvataggio, setSalvataggio] = useState<StatoSalvataggio>({ tipo: "nuova" });
   const avviate = useRef(new Set<string>());
+  /** L'ultimo salvataggio non riuscito: «Crea» non parte da una bozza vecchia (P1). */
+  const erroreSalvataggio = useRef<ErroreBozza | null>(null);
 
   // Uno per popup, nato al primo uso (mai durante il render): azienda e client non cambiano.
   const salvaRef = useRef<SalvataggioConAttesa<DatiBozza> | null>(null);
@@ -419,8 +493,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     },
     {
       attesaMs,
-      quandoSalvato: () => setSalvataggio({ tipo: "salvata" }),
-      quandoSbaglia: (e) => setSalvataggio({ tipo: "errore", messaggio: e.message }),
+      quandoSalvato: () => { erroreSalvataggio.current = null; setSalvataggio({ tipo: "salvata" }); },
+      quandoSbaglia: (e) => { erroreSalvataggio.current = e; setSalvataggio({ tipo: "errore", messaggio: e.message }); },
     },
   )), [companyId, orderId, servizi.db, attesaMs]);
 
@@ -471,7 +545,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
 
   const leggi = useCallback(async (f: FonteNelPopup) => {
     invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "in_lettura", errore: undefined } });
-    const opz = { companyId, userId, inizio: inizioLavori(), calendario: ultimo.current.piano.calendario, tentativo: f.tentativo };
+    const opz = {
+      companyId, userId, inizio: inizioLavori(), calendario: ultimo.current.piano.calendario, tentativo: f.tentativo,
+      ...(f.comeDocumento ? { comeDocumento: true } : {}),
+    };
     try {
       // Le letture a regole partono subito: il saldo si guarda solo per quelle che costano.
       const crediti = f.stimaEur > 0 ? await controllaCrediti(f.stimaEur) : null;
@@ -527,7 +604,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
         invia({
           tipo: "messaggio", tono: "avviso",
           testo: `«${f.etichetta}» sembra l'offerta di una ditta: il suo totale è un costo, non l'importo della commessa. `
-            + "Si collega a una richiesta d'offerta: arriva con ditte e costi.",
+            + "Si collega a una richiesta d'offerta e arriva con ditte e costi; se non è un'offerta, dalle Fonti si legge come un documento normale.",
         });
         return;
       }
@@ -546,7 +623,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
         patch: { costoEur: costo, ...(esito.idFonte ? { idFonte: esito.idFonte } : {}) },
       });
     } catch (e) {
-      const testo = e instanceof ErroreBozza ? e.message : e instanceof Error ? e.message : messaggioErrore(e);
+      const testo = erroreLeggibile(e, "il servizio non ha risposto.");
       invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "errore", errore: testo } });
       invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere «${f.etichetta}»: ${testo} Il resto va avanti; puoi riprovare.` });
     } finally {
@@ -630,12 +707,21 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
 
   const togliFonte = useCallback((id: string) => invia({ tipo: "togli_fonte", id }), []);
 
+  /** «Leggilo come documento normale»: un'offerta da collegare che non è un'offerta (P6). */
+  const leggiComeDocumento = useCallback((id: string) => {
+    invia({ tipo: "aggiorna_fonte", id, patch: { stato: "in_coda", comeDocumento: true, errore: undefined } });
+  }, []);
+
   /** Le modifiche a mano: quello che si portano dietro lo dice `conConseguenze`, come per la chat. */
   const modifica = useCallback((voluta: Modifica | Modifica[]) => {
     invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, Array.isArray(voluta) ? [...voluta] : [voluta]) });
   }, []);
 
   const indietro = useCallback(() => invia({ tipo: "annulla" }), []);
+
+  // Cosa fa Silvio da solo: serve anche alla chat, per non scrivere quello che l'azienda ha vietato (G19).
+  const [impostazioni, setImpostazioni] = useState<ImpostazioniSilvio>(IMPOSTAZIONI_PREDEFINITE);
+  const autonomia = impostazioni.autonomia;
 
   // ── La chat sulla bozza ──
   const [scrivendo, setScrivendo] = useState(false);
@@ -668,7 +754,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       }
       const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       const risposta = await servizi.chat({
-        companyId, messaggio: t, contesto: pianoPerLaChat(ultimo.current.piano, oggi),
+        companyId, messaggio: t, contesto: pianoPerLaChat(vedeImporti ? ultimo.current.piano : senzaImporti(ultimo.current.piano), oggi),
         storia: precedenti.filter((m) => m.tono === "persona" || m.tono === "silvio").slice(-6)
           .map((m) => ({ ruolo: m.tono === "persona" ? "persona" as const : "silvio" as const, testo: m.testo })),
         richiestaId: `${idBozza ?? "nuova"}-${Date.now().toString(36)}-${inviate.current++}`,
@@ -676,19 +762,21 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       speso();
       setCostoChat((c) => c + risposta.costoEur);
       // Sulla bozza di adesso: nel frattempo può essere arrivata una lettura.
-      const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, testoValore);
+      const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, testoValore, { autonomia });
       const righe = esito.righe.length ? esito.righe : [risposta.testo || "Non ho capito cosa cambiare: prova a dirlo in un altro modo."];
       invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, esito.modifiche), dallaChat: { righe } });
       return true;
     } catch (e) {
       const m = e instanceof Error ? e.message : messaggioErrore(e);
-      invia({ tipo: "messaggio", tono: "errore", testo: /credit|ricaric|402/i.test(m) ? `I crediti AI sono finiti: ${m}` : `Non riesco a rispondere: ${m}` });
+      invia({ tipo: "messaggio", tono: "errore", testo: /credit|ricaric|402/i.test(m)
+        ? `I crediti AI sono finiti: ${erroreLeggibile(m, "ricarica e riprova.")}`
+        : `Non riesco a rispondere: ${erroreLeggibile(m, "il servizio non ha risposto, riprova tra poco.")}` });
       return false;
     } finally {
       inCorso.current = false;
       setScrivendo(false);
     }
-  }, [controllaCrediti, servizi, companyId, idBozza]);
+  }, [controllaCrediti, servizi, companyId, idBozza, autonomia, vedeImporti]);
 
   /** Le variabili cambiate dalla chat che l'utente ha guardato. */
   const visto = useCallback((chiavi: string | string[]) => {
@@ -718,10 +806,19 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       salvatore().programma({ piano, storia, caricate });
     }
     await salvatore().subito();
+    // `subito` non lancia: un salvataggio fallito resta in coda. Scrivere adesso vorrebbe dire
+    // creare la commessa dalla versione di prima (P1). Fa eccezione la bozza già scritta: la
+    // risposta di prima si è persa, e la RPC restituisce la commessa che c'è (D9).
+    if (salvatore().inAttesa()) {
+      if (erroreSalvataggio.current?.codice === BOZZA_GIA_SCRITTA) salvatore().annulla();
+      else throw new ErroreBozza(`L'ultima modifica non si è salvata, e non creo una commessa da una bozza vecchia. ${erroreSalvataggio.current?.message ?? "Riprova tra poco."}`);
+    }
     const id = bozzaId.current;
     if (!id) throw new ErroreBozza("La bozza non è ancora salvata: controlla la connessione e riprova.");
     const { piano, storia, caricate } = ultimo.current;
     const esito = await (orderId ? completaCommessa : creaCommessa)({ id, fonti: caricate, company_id: companyId }, servizi.db);
+    // Una commessa già scritta ha già registrato le sue correzioni.
+    if (esito.gia_creata || esito.gia_completata) return esito;
     try {
       await servizi.registraCorrezioni(correzioniDalPiano(pianoProposto(piano, storia), piano, { bozzaId: id, orderId: esito.order_id }));
     } catch {
@@ -752,7 +849,6 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     });
   }, [ciSonoFasi, staffUtenti, servizi, companyId, orderId]);
   // ── Fase 5: cosa fa Silvio da solo, e il calendario del cantiere ──
-  const [impostazioni, setImpostazioni] = useState<ImpostazioniSilvio>(IMPOSTAZIONI_PREDEFINITE);
   useEffect(() => {
     let vivo = true;
     servizi.impostazioni?.(companyId).then((i) => { if (vivo) setImpostazioni(i); }, () => { /* resta il predefinito: tutto «chiede» */ });
@@ -767,7 +863,6 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     // Il patrono dipende dalla città del cantiere: si rimette solo se cambia davvero.
     if (JSON.stringify(cal) !== JSON.stringify(ultimo.current.piano.calendario ?? null)) invia({ tipo: "calendario", calendario: cal });
   }, [impostazioni.calendario, indirizzoCantiere]);
-  const autonomia = impostazioni.autonomia;
 
   // Le proposte si rifanno quando cambia quello da cui dipendono; se non cambia niente, niente.
   const primaVolta = useRef(true);
@@ -804,7 +899,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
         messaggio: `Ho letto l'${fr.fonte.etichetta}: ne ho fatto l'ordine in bozza a ${richiesta.fornitore}, coi suoi prezzi. Lo confermi tu, e lo mandi dalla pagina dell'ordine.`,
       });
     } catch (e) {
-      const testo = e instanceof Error ? e.message : messaggioErrore(e);
+      const testo = erroreLeggibile(e, "il servizio non ha risposto.");
       invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "da_collegare", errore: testo } });
       invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere l'offerta: ${testo}` });
     }
@@ -815,7 +910,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   return {
     piano: s.piano, storia: s.storia, fonti: s.fonti, caricate: s.caricate, evidenziate: s.evidenziate,
     messaggi: s.messaggi, scrittura, salvataggio, idBozza, daGuardare: s.daGuardare, scrivendo, costoChat,
-    aggiungi, confermaLetture, riprova, togliFonte, modifica, indietro, riprendi, crea, riallega,
+    aggiungi, confermaLetture, riprova, togliFonte, leggiComeDocumento, modifica, indietro, riprendi, crea, riallega,
     scrivi, visto, fonteDelPopup, controllaCrediti, collegaOfferta, contesto, autonomia,
   };
 }

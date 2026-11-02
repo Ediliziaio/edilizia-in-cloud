@@ -21,6 +21,7 @@ import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import { scritturaDalPiano, type ScritturaCommessa } from "./scrittura";
 import { BUCKET_DOCUMENTI_COMMESSA } from "./leggiDocumento";
 import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
+import { erroreLeggibile } from "./testoErrore";
 
 export const BUCKET_ALLEGATI_COMMESSA = "order-attachments";
 
@@ -69,6 +70,12 @@ export interface EsitoScrittura {
     non_prenotati: { mezzo_id: string; motivo: string }[];
     saltati: { contratto: string; motivo: string }[];
   };
+  /** Quello che la RPC ha tolto perché la persona non ha il permesso, o perché l'azienda l'ha vietato a Silvio. */
+  tolte_permessi?: string[];
+  tolte_autonomia?: string[];
+  /** La risposta di prima si era persa: la commessa c'era già (D9). */
+  gia_creata?: boolean;
+  gia_completata?: boolean;
 }
 
 export interface EsitoCommessa extends EsitoScrittura {
@@ -108,6 +115,7 @@ interface Query {
   select: (c?: string) => Query;
   insert: (r: Record<string, unknown>) => Query;
   update: (r: Record<string, unknown>) => Query;
+  delete: () => Query;
   eq: (c: string, v: unknown) => Query;
   gt: (c: string, v: unknown) => Query;
   order: (c: string, o?: { ascending?: boolean }) => Query;
@@ -134,7 +142,8 @@ export function messaggioErrore(err: unknown): string {
   const msg = typeof e.message === "string" ? e.message : "";
   const codice = typeof e.code === "string" ? e.code : "";
   if (/failed to fetch|network|load failed|fetch failed/i.test(msg)) {
-    return "Connessione assente: la bozza è salva, riprova appena torna la rete.";
+    // Non «la bozza è salva»: lo stesso messaggio arriva quando è proprio il salvataggio a non partire.
+    return "Connessione assente: riprova appena torna la rete.";
   }
   if (codice === "PGRST202" || /could not find the function/i.test(msg)) {
     return "Questa funzione di Silvio non è ancora attiva su questo gestionale.";
@@ -183,6 +192,9 @@ export async function creaBozza(
   return data as Bozza;
 }
 
+/** Il codice di un salvataggio rifiutato perché la commessa è già stata scritta: «Crea» la riprende (D9). */
+export const BOZZA_GIA_SCRITTA = "bozza_gia_scritta";
+
 /** Salva piano, fonti e storia; la scrittura si ricalcola dal piano, sempre insieme. */
 export async function salvaBozza(
   id: string,
@@ -194,7 +206,7 @@ export async function salvaBozza(
   if (dati.storia) riga.storia = dati.storia;
   const { data, error } = await tabella(db).update(riga).eq("id", id).eq("stato", "bozza").select("id").maybeSingle();
   if (error) lancia(error);
-  if (!data) throw new ErroreBozza("Questa bozza non si può più modificare: la commessa è già stata scritta.");
+  if (!data) throw new ErroreBozza("Questa bozza non si può più modificare: la commessa è già stata scritta.", BOZZA_GIA_SCRITTA);
 }
 
 export interface SalvataggioConAttesa<T> {
@@ -281,6 +293,16 @@ export async function bozzeDaRiprendere(
   return (data ?? []) as Bozza[];
 }
 
+/**
+ * «Ricomincia»: la bozza si butta via davvero (revisione 2/11, P9), altrimenti torna la volta dopo.
+ * Solo una bozza ancora aperta: quella che ha già scritto una commessa serve all'annullamento.
+ * I file caricati restano nel loro spazio: lo stesso file può servire a un'altra bozza.
+ */
+export async function scartaBozza(id: string, db: ClientBozze = clientVero): Promise<void> {
+  const { error } = await tabella(db).delete().eq("id", id).eq("stato", "bozza");
+  if (error) lancia(error);
+}
+
 export async function leggiBozza(id: string, db: ClientBozze = clientVero): Promise<Bozza> {
   const { data, error } = await tabella(db).select("*").eq("id", id).single();
   if (error || !data) lancia(error ?? { code: "PGRST116" });
@@ -359,7 +381,7 @@ async function allegaDocumentiRemoti(
     const { data, error } = await db.functions.invoke("silvio-commessa", {
       body: { modo: "allega", company_id: bozza.company_id, bozza_id: bozza.id, documenti: fonti.map((f) => ({ documento: f.documento, nome: f.nome })) },
     });
-    if (error) return tutti(error.message || "non si è potuto copiare tra i documenti della commessa");
+    if (error) return tutti(erroreLeggibile(error, "non si è potuto copiare tra i documenti della commessa"));
     const r = (data ?? {}) as { allegati?: number; non_riusciti?: { nome: string; motivo: string }[] };
     return { allegati: Number(r.allegati) || 0, nonRiusciti: Array.isArray(r.non_riusciti) ? r.non_riusciti : [] };
   } catch (e) {

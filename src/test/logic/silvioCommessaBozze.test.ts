@@ -109,7 +109,7 @@ describe("salvataggioConAttesa", () => {
     }, { quandoSbaglia: (e) => errori.push(e.message) });
     s.programma("x");
     await s.subito();
-    expect(errori).toEqual(["Connessione assente: la bozza è salva, riprova appena torna la rete."]);
+    expect(errori).toEqual(["Connessione assente: riprova appena torna la rete."]);
     expect(s.inAttesa()).toBe(true);
     await s.subito();
     expect(volte).toBe(2);
@@ -218,6 +218,6 @@ describe("messaggioErrore", () => {
     expect(messaggioErrore({ code: "23502", message: "null value in column \"x\"" }))
       .toBe("Non è andata: riprova. Se succede ancora, scrivi all'assistenza.");
     expect(messaggioErrore(new TypeError("Failed to fetch")))
-      .toBe("Connessione assente: la bozza è salva, riprova appena torna la rete.");
+      .toBe("Connessione assente: riprova appena torna la rete.");
   });
 });

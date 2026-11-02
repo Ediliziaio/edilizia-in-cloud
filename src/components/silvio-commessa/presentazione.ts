@@ -17,6 +17,9 @@ import type { Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore
 import { personaOccupata, type ContestoRisorse, type PersonaDelPiano } from "../../../shared/silvio-commessa/risorse.ts";
 import { annulla, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
 import { COLONNE_SCRIVIBILI, giaNellaCommessa, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
+import { avvisoLettureFallite } from "../../../shared/silvio-commessa/contestoRisorse.ts";
+import type { EsitoCommessa } from "@/lib/silvio-commessa/bozze";
+import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 
 export const NOMI_AREE: Record<Area, string> = {
   identita: "Identità",
@@ -153,7 +156,9 @@ export function testoValore(chiave: string, valore: unknown): string {
     case "pagamenti.rate": {
       const rate = valore as RataDelPiano[];
       const totale = rate.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      return `${rate.length} ${rate.length === 1 ? "rata" : "rate"} · ${euro(totale)}`;
+      // Senza il totale gli importi non ci sono ancora: «0 €» sarebbe falso.
+      const quanto = totale > 0 || !rate.some((r) => r.percent != null) ? euro(totale) : "in percentuale";
+      return `${rate.length} ${rate.length === 1 ? "rata" : "rate"} · ${quanto}`;
     }
     case "economia.order_items": {
       const n = (valore as unknown[]).length;
@@ -225,6 +230,49 @@ export function testoValore(chiave: string, valore: unknown): string {
       .join(" · ") || "—";
   }
   return scalare(chiave, null, valore);
+}
+
+/** L'importo di una rata: quello vero; la percentuale finché il totale non c'è (revisione 2/11, G20). */
+export function importoRata(r: Pick<RataDelPiano, "amount" | "percent" | "daPercentuale">): string {
+  const importo = Number(r.amount) || 0;
+  if (importo > 0) return r.daPercentuale && r.percent != null ? `${euro(importo)} (${r.percent.toLocaleString("it-IT")} %)` : euro(importo);
+  return r.percent != null ? `${r.percent.toLocaleString("it-IT")} %` : euro(0);
+}
+
+// ── Gli importi di vendita (permesso «Importi di vendita», revisione 2/11, P2) ──
+
+/**
+ * Le variabili che dicono quanto vale il lavoro. Chi non ha il permesso non le vede e non le
+ * cambia, qui come nel resto del gestionale; la RPC comunque non scrive gli importi di chi non li vede.
+ */
+const CHIAVI_IMPORTI: ReadonlySet<string> = new Set([
+  "economia.total_amount", "economia.vat_rate", "economia.order_bonus_lines", "economia.condizioni_contratto",
+  "pagamenti.rate", "pagamenti.acconto", "pagamenti.secondo_acconto", "pagamenti.saldo", "pagamenti.finanziamento", "costi.margine",
+]);
+export const importoNascosto = (chiave: string, vedeImporti: boolean) => !vedeImporti && CHIAVI_IMPORTI.has(chiave);
+export const TESTO_IMPORTO_NASCOSTO = "non visibile col tuo profilo";
+
+/** Il piano senza gli importi: quello che può leggere la chat per chi non li vede. */
+export function senzaImporti(piano: PianoCommessa): PianoCommessa {
+  const aree: PianoCommessa["aree"] = {};
+  for (const area of AREE) {
+    const valori = piano.aree[area];
+    if (valori) aree[area] = Object.fromEntries(Object.entries(valori).filter(([k]) => !CHIAVI_IMPORTI.has(k)));
+  }
+  return { ...piano, aree, conflitti: piano.conflitti.filter((c) => !CHIAVI_IMPORTI.has(c.chiave)), avvisi: avvisiVisibili(piano.avvisi ?? [], false) };
+}
+
+/** I nomi delle variabili nascoste, come li citano gli avvisi: «Importo», «IVA»… */
+const NOMI_IMPORTI = () => REGISTRO.filter((v) => CHIAVI_IMPORTI.has(v.chiave)).map((v) => `«${v.etichetta}»`);
+
+/**
+ * Gli avvisi del piano da far leggere (G8): una volta sola, senza quelli che parlano ai
+ * programmatori (una chiave fuori registro, un'area che non esiste) e, per chi non vede gli
+ * importi, senza quelli che li citano.
+ */
+function avvisiVisibili(avvisi: readonly string[], vedeImporti: boolean): string[] {
+  const tecnico = /ignorat[ao]$|risposta senza "valore"|non è una variabile dell'area/;
+  return [...new Set(avvisi)].filter((a) => !tecnico.test(a) && (vedeImporti || (!a.includes("€") && !NOMI_IMPORTI().some((n) => a.includes(n)))));
 }
 
 /** Il tipo di campo per modificare una colonna a mano. */
@@ -312,6 +360,8 @@ export function statoArea(righe: RigaArea[]): Stato | null {
  * chiedono ancora se uno solo è senza prezzi o sopra la soglia).
  */
 export function daConfermare(r: RigaArea, autonomia: Autonomia | null = null): boolean {
+  // Un importo scritto dalla chat, un elenco toccato: entra solo con un sì, qualunque sia il livello (G18).
+  if (r.valore?.daConfermare) return true;
   if (r.stato !== "proposta" || !r.valore) return false;
   const azione = azioneDellaVariabile(r.variabile.chiave);
   if (!azione) return r.variabile.livello === "propone" || r.variabile.livello === "mai_da_solo";
@@ -434,16 +484,19 @@ function etichettaFonte(v: Valore): string {
  * La domanda del momento, una sola (3.4, punto 4): prima i conflitti, poi i ❓ veri
  * (cliente, inizio, importo, cantiere), poi le proposte da guardare.
  */
-export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommessa, oggi = new Date()): Domanda | null {
+export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommessa, oggi = new Date(), vedeImporti = true): Domanda | null {
   const conflitto = piano.conflitti[0];
   if (conflitto) {
     const v = variabile(conflitto.chiave);
     const [a, b] = conflitto.candidati;
+    const nascosto = importoNascosto(conflitto.chiave, vedeImporti);
     return {
-      testo: `«${v?.etichetta ?? conflitto.chiave}»: ${etichettaFonte(a)} dice ${testoValore(conflitto.chiave, a.valore)}, `
-        + `${etichettaFonte(b)} dice ${testoValore(conflitto.chiave, b.valore)}. Quale tengo?`,
+      testo: nascosto
+        ? `«${v?.etichetta ?? "Un valore"}»: ${etichettaFonte(a)} e ${etichettaFonte(b)} non sono d'accordo. Quale tengo?`
+        : `«${v?.etichetta ?? "Un valore"}»: ${etichettaFonte(a)} dice ${testoValore(conflitto.chiave, a.valore)}, `
+          + `${etichettaFonte(b)} dice ${testoValore(conflitto.chiave, b.valore)}. ${conflitto.nota ? `${conflitto.nota} ` : ""}Quale tengo?`,
       risposte: conflitto.candidati.map((c) => ({
-        etichetta: `${testoValore(conflitto.chiave, c.valore)} (${etichettaFonte(c)})`,
+        etichetta: nascosto ? etichettaFonte(c) : `${testoValore(conflitto.chiave, c.valore)} (${etichettaFonte(c)})`,
         modifica: { tipo: "scegli_fonte", area: conflitto.area, chiave: conflitto.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null, etichettaFonte: c.fonte.etichetta },
       })),
     };
@@ -466,7 +519,7 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
       ],
     };
   }
-  if (!valore("economia.total_amount")) {
+  if (vedeImporti && !valore("economia.total_amount")) {
     return { testo: "Qual è l'importo dei lavori, senza IVA?", risposte: [{ etichetta: "Scrivi l'importo", apri: "economia.total_amount" }] };
   }
   if (!valore("cantiere.indirizzo")) {
@@ -481,7 +534,7 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
       ],
     };
   }
-  const daVedere = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare");
+  const daVedere = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare" && !importoNascosto(e.chiave, vedeImporti));
   if (daVedere.length) {
     const tutte = accettaProposte(piano, daVedere.map((e) => e.chiave));
     return {
@@ -519,7 +572,7 @@ export interface VoceControlla {
 }
 
 /** Cosa nascerà, raggruppato per area nell'ordine del registro; poi cosa resta fuori. */
-export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommessa): { area: Area; voci: VoceControlla[] }[] {
+export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommessa, vedeImporti = true): { area: Area; voci: VoceControlla[] }[] {
   const escluse = new Map(scrittura.escluse.map((e) => [e.chiave, e.motivo]));
   return AREE.map((area) => ({
     area,
@@ -529,7 +582,8 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
         const motivo = escluse.get(v.chiave) ?? null;
         if (giaNellaCommessa(piano, x)) return null;
         if (!motivo && (!x || x.stato === "manca" || vuoto(x.valore))) return null;
-        return { chiave: v.chiave, etichetta: v.etichetta, testo: x ? testoValore(v.chiave, x.valore) : "—", fuori: motivo };
+        const testo = !x ? "—" : importoNascosto(v.chiave, vedeImporti) ? TESTO_IMPORTO_NASCOSTO : testoValore(v.chiave, x.valore);
+        return { chiave: v.chiave, etichetta: v.etichetta, testo, fuori: motivo };
       })
       .filter((x): x is VoceControlla => x !== null),
   })).filter((g) => g.voci.length > 0);
@@ -656,14 +710,23 @@ export interface DaDecidere {
   /** Le proposte che entrano solo con un sì. */
   proposte: { chiave: string; etichetta: string }[];
   totale: number;
+  /** Quello che la persona deve sapere ma non deve decidere: non conta nel totale (D10, G8). */
+  avvisi: string[];
 }
 
-export function cosaDecidere(piano: PianoCommessa, scrittura: ScritturaCommessa, c: Completezza = completezzaPiano(piano)): DaDecidere {
-  const domande = c.mancano.filter((v) => v.livello === "chiede" && siRiempieOra(v)
+export function cosaDecidere(
+  piano: PianoCommessa, scrittura: ScritturaCommessa, c: Completezza = completezzaPiano(piano),
+  opz: { vedeImporti?: boolean; contesto?: ContestoRisorse | null } = {},
+): DaDecidere {
+  const vedeImporti = opz.vedeImporti ?? true;
+  const domande = c.mancano.filter((v) => v.livello === "chiede" && siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti)
     && !(v.chiave === "cliente.customer_id" && (scrittura.cliente.nome || scrittura.cliente.email || scrittura.preventivo_id)));
-  const proposte = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare").map(({ chiave, etichetta }) => ({ chiave, etichetta }));
+  const proposte = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare" && !importoNascosto(e.chiave, vedeImporti))
+    .map(({ chiave, etichetta }) => ({ chiave, etichetta }));
   const nd = nonDisponibili(piano);
-  return { conflitti: piano.conflitti, nonDisponibili: nd, domande, proposte, totale: piano.conflitti.length + nd.length + domande.length + proposte.length };
+  const letture = opz.contesto ? avvisoLettureFallite(opz.contesto) : null;
+  const avvisi = [...(letture ? [letture] : []), ...avvisiVisibili(piano.avvisi ?? [], vedeImporti)];
+  return { conflitti: piano.conflitti, nonDisponibili: nd, domande, proposte, totale: piano.conflitti.length + nd.length + domande.length + proposte.length, avvisi };
 }
 
 /** «1 conflitto, 1 persona non disponibile e 6 proposte»: per la barra e la scheda del telefono. */
@@ -694,6 +757,38 @@ export function cosaScriveCrea(s: ScritturaCommessa): string {
     s.promemoria.length + s.adempimenti.length ? conta(s.promemoria.length + s.adempimenti.length, "promemoria", "promemoria") : "",
   ].filter(Boolean);
   return parti.length <= 1 ? parti.join("") : `${parti.slice(0, -1).join(", ")} e ${parti[parti.length - 1]}`;
+}
+
+// ── Com'è andata la scrittura, in parole (revisione 2/11, P2 e P7) ──
+
+const TOLTE_PERMESSI: Readonly<Record<string, string>> = {
+  importi: "gli importi (serve il permesso «Importi di vendita»)",
+  contratti_ditte: "i contratti delle ditte (servono i permessi su costi e subappaltatori)",
+  squadra: "la squadra (la cambia solo un amministratore)",
+  condizioni: "le condizioni del contratto (le cambia solo un amministratore)",
+  adempimenti: "i promemoria di sicurezza (serve il permesso sulla sicurezza di cantiere)",
+  ordini: "gli ordini ai fornitori (serve il permesso sui costi)",
+};
+const TOLTE_AUTONOMIA: Readonly<Record<string, string>> = {
+  squadra: "la squadra", mezzi: "i mezzi", ordini: "gli ordini ai fornitori", ditte: "le ditte",
+  contratti_ditte: "i contratti delle ditte", promemoria: "i promemoria", avvio_cliente: "il messaggio d'avvio al cliente",
+};
+
+/** Quello che doveva entrare ed è rimasto fuori: una riga per motivo, mai una chiave tecnica. */
+export function restatoFuori(esito: Pick<EsitoCommessa, "tolte_permessi" | "tolte_autonomia" | "risorse">, piano: PianoCommessa): string[] {
+  const out: string[] = [];
+  const parole = (codici: string[] | undefined, nomi: Readonly<Record<string, string>>) =>
+    [...new Set((codici ?? []).map((c) => nomi[c] ?? "altri dati"))].join(", ");
+  const permessi = parole(esito.tolte_permessi, TOLTE_PERMESSI);
+  if (permessi) out.push(`Non sono entrati, per i tuoi permessi: ${permessi}.`);
+  const autonomia = parole(esito.tolte_autonomia, TOLTE_AUTONOMIA);
+  if (autonomia) out.push(`Non sono entrati, perché nelle impostazioni Silvio non lo fa: ${autonomia}.`);
+  const contratti = piano.aree.ditte?.["ditte.contratti"]?.valore;
+  for (const s of esito.risorse?.saltati ?? []) {
+    const nome = Array.isArray(contratti) ? (contratti as { external_team_id?: string; nome?: string }[]).find((c) => c?.external_team_id === s.contratto)?.nome : null;
+    out.push(`Contratto non preparato, ${nome ?? "una ditta"}: ${erroreLeggibile(s.motivo, "non si è potuto fare")}.`);
+  }
+  return out;
 }
 
 /** Un suggerimento della chat: o un messaggio da mandare a Silvio, o una risposta che il popup dà da sé. */

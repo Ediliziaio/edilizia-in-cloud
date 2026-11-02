@@ -7,6 +7,7 @@
  * secondi, poi si ferma da sola.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 
 export const DETTATURA_MAX_SECONDI = 90;
 
@@ -72,7 +73,7 @@ export function useDettatura(
         const testo = await trascrivi(audio);
         if (vivo.current) onTesto(testo);
       } catch (e) {
-        if (vivo.current) setErrore(e instanceof Error ? e.message : "Trascrizione non riuscita: scrivi.");
+        if (vivo.current) setErrore(erroreLeggibile(e, "Trascrizione non riuscita: scrivi."));
       } finally {
         if (vivo.current) setTrascrive(false);
       }

@@ -23,6 +23,7 @@
  *
  * I servizi (storage, edge function, PDF) si passano da fuori: i test li sostituiscono.
  */
+import { erroreLeggibile } from "./testoErrore";
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
 import { riconosciDocumento, type Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
@@ -53,6 +54,8 @@ export interface OpzioniLettura {
   calendario?: CalendarioCantiere;
   /** Per «Riprova»: una lettura nuova, non quella già pagata. */
   tentativo?: number;
+  /** Scelto dalla persona: sembrava un'offerta, ma va letto come un documento qualsiasi (revisione 2/11, P6). */
+  comeDocumento?: boolean;
   /** L'offerta di una ditta si legge dentro la sua richiesta d'offerta. */
   rfqSupplierId?: string | null;
   /** Dove sta già il documento: si legge lì, senza caricarlo di nuovo. */
@@ -139,6 +142,7 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
     }
 
     case "offerta_ditta": {
+      if (opz.comeDocumento) return await leggiFile(file, opz, servizi, { ...riconosciuto, lettore: "silvio_commessa", fonte: "documento" });
       // Il totale di un'offerta è un costo, non l'importo della commessa: senza la richiesta
       // d'offerta a cui risponde non si legge (lo collegano le ditte e i costi, fase 4).
       if (!opz.rfqSupplierId) return { riconosciuto, frammenti: [], daCollegare: "richiesta_offerta" };
@@ -189,7 +193,7 @@ export async function leggiDocumentoRemoto(
 ): Promise<EsitoLettura> {
   const riconosciuto = riconosciDocumento({ nome: meta.nome, mime: meta.mime ?? "" });
   if (riconosciuto.lettore === "non_letto") throw new Error(riconosciuto.motivo);
-  if (riconosciuto.lettore === "offerta_ditta") return { riconosciuto, frammenti: [], daCollegare: "richiesta_offerta" };
+  if (riconosciuto.lettore === "offerta_ditta" && !opz.comeDocumento) return { riconosciuto, frammenti: [], daCollegare: "richiesta_offerta" };
   if (riconosciuto.lettore === "computo_xpwe") {
     throw new Error("È un computo: scaricalo e trascinalo tra le fonti, lo leggo senza AI.");
   }
@@ -221,7 +225,7 @@ export async function leggiTesto(testo: string, opz: OpzioniLettura, servizi: Se
   } catch (e) {
     const modello = frammentoDalTesto(testo, opz.inizio, opz.calendario);
     if (!modello) throw e;
-    modello.avvisi = [...(modello.avvisi ?? []), `lettura AI non riuscita (${e instanceof Error ? e.message : String(e)}): solo il modello del lavoro`];
+    modello.avvisi = [...(modello.avvisi ?? []), `lettura con l'AI non riuscita (${erroreLeggibile(e, "il servizio non ha risposto")}): ho usato solo il modello del lavoro`];
     return { riconosciuto: { ...riconosciuto, ai: false, motivo: "testo: modello del lavoro, senza AI" }, frammenti: [modello] };
   }
 }

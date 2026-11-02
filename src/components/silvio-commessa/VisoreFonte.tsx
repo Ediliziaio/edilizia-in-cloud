@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { trovaCitazione } from "./documentoCitato";
+import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 
 export interface DocumentoDelVisore {
   titolo: string;
@@ -84,7 +85,7 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         setPagina(Math.min(Math.max(1, documento.pagina ?? 1), aperto.numPages));
         setPdf(aperto);
       } catch (e) {
-        if (!annullato) setErrore(e instanceof Error ? e.message : "Non riesco ad aprire il documento.");
+        if (!annullato) setErrore(erroreLeggibile(e, "Non riesco ad aprire il documento."));
       } finally {
         if (!annullato) setCarico(false);
       }
@@ -123,7 +124,7 @@ export function VisoreFonte({ documento, onChiudi }: { documento: DocumentoDelVi
         setRiquadri(indici.map((i) => riquadroDi(testo.items[i], vista, scala)).filter((x): x is Riquadro => !!x));
         setTrovata(documento.citazione ? indici.length > 0 : null);
       } catch (e) {
-        if (!annullato) setErrore(e instanceof Error ? e.message : "Non riesco a disegnare la pagina.");
+        if (!annullato) setErrore(erroreLeggibile(e, "Non riesco a disegnare la pagina."));
       }
     })();
     return () => { annullato = true; compito?.cancel?.(); };

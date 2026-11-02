@@ -7,6 +7,7 @@
  */
 import type { AzioneVolo, ProblemaVolo } from "../../../shared/silvio-commessa/pianoVolo.ts";
 import { supabase } from "@/integrations/supabase/client";
+import { messaggioErrore } from "./bozze";
 
 interface Risposta { data: unknown; error: { message: string; code?: string } | null }
 export type ClientVolo = {
@@ -60,7 +61,7 @@ export interface EsitoConferma {
 
 export async function confermaVolo(id: string, indici: number[] | null, db: ClientVolo = dbVero): Promise<EsitoConferma> {
   const { data, error } = await db.rpc("silvio_volo_conferma", { p_id: id, p_indici: indici });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(messaggioErrore(error));
   const d = (data ?? {}) as { fatte?: EsitoConferma["fatte"]; saltate?: EsitoConferma["saltate"]; gia_fatte?: number[]; non_scelte?: number[]; stato?: string };
   return {
     fatte: d.fatte ?? [], saltate: d.saltate ?? [], giaFatte: d.gia_fatte ?? [], nonScelte: d.non_scelte ?? [],
@@ -70,7 +71,7 @@ export async function confermaVolo(id: string, indici: number[] | null, db: Clie
 
 export async function scartaVolo(id: string, db: ClientVolo = dbVero): Promise<void> {
   const { error } = await db.rpc("silvio_volo_scarta", { p_id: id });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(messaggioErrore(error));
 }
 
 /** Come si legge un'azione pronta, in una riga. */

@@ -45,6 +45,7 @@ import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
   comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoConferma, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea, accettaProposte, minuscola, type DaDecidere, alternativePersona, sostituisciPersona,
+  importoNascosto, importoRata, TESTO_IMPORTO_NASCOSTO,
 } from "./presentazione";
 
 const COLORI_STATO: Record<Stato, string> = {
@@ -69,7 +70,7 @@ function ApriDocumento({ fonte, onApri }: { fonte: Fonte; onApri?: (() => void) 
   if (!onApri) return null;
   const pagina = paginaCitata(fonte.dove);
   return (
-    <Button type="button" size="sm" variant="outline" className="mt-2 h-7 gap-1 bg-white text-xs lg:text-[11px]" onClick={onApri}>
+    <Button type="button" size="sm" variant="outline" className="mt-2 h-11 gap-1 bg-white text-xs lg:h-7 lg:text-[11px]" onClick={onApri}>
       <FileSearch className="h-3.5 w-3.5" aria-hidden />{pagina ? `Apri il documento a pagina ${pagina}` : "Apri il documento"}
     </Button>
   );
@@ -133,7 +134,7 @@ function ModificaCampi({ v, attuale, onSalva, onAnnulla }: {
             <div key={c} className="space-y-1">
               <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">{etichetta}</label>
               <select id={id} autoFocus={i === 0} value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })}
-                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm lg:text-[13px]">
+                className="h-11 w-full rounded-md border border-input bg-background px-2 text-sm lg:h-9 lg:text-[13px]">
                 <option value="">Scegli…</option>
                 {SCELTE[c].map((o) => <option key={o.valore} value={o.valore}>{o.nome}</option>)}
               </select>
@@ -154,13 +155,13 @@ function ModificaCampi({ v, attuale, onSalva, onAnnulla }: {
             {tipo === "testo_lungo"
               ? <Textarea id={id} autoFocus={i === 0} rows={3} value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })} />
               : <Input id={id} autoFocus={i === 0} type={tipo === "data" ? "date" : "text"} inputMode={tipo === "numero" ? "decimal" : undefined}
-                value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })} className="h-9" />}
+                value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })} className="h-11 lg:h-9" />}
           </div>
         );
       })}
       <div className="flex gap-2">
-        <Button type="submit" size="sm">Salva</Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onAnnulla}>Lascia com'era</Button>
+        <Button type="submit" size="sm" className="h-11 lg:h-9">Salva</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>Lascia com'era</Button>
       </div>
     </form>
   );
@@ -174,52 +175,54 @@ function ModificaFasi({ fasi, onSalva, onAnnulla }: { fasi: FaseDelPiano[]; onSa
       <ol className="space-y-2">
         {righe.map((r, i) => (
           <li key={i} className="grid grid-cols-[1fr_auto] gap-2 rounded-md border bg-white p-2 sm:grid-cols-[1fr_8.5rem_8.5rem_auto]">
-            <Input aria-label={`Nome della fase ${i + 1}`} value={r.name} onChange={(e) => cambia(i, { name: e.target.value })} className="h-9" />
-            <Button type="button" size="icon" variant="ghost" className="h-9 w-9 sm:order-last" aria-label={`Togli la fase ${i + 1}`}
+            <Input aria-label={`Nome della fase ${i + 1}`} value={r.name} onChange={(e) => cambia(i, { name: e.target.value })} className="h-11 lg:h-9" />
+            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 sm:order-last lg:h-9 lg:w-9" aria-label={`Togli la fase ${i + 1}`}
               onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
-            <Input aria-label={`Inizio della fase ${i + 1}`} type="date" value={r.start_date ?? ""} className="h-9"
+            <Input aria-label={`Inizio della fase ${i + 1}`} type="date" value={r.start_date ?? ""} className="h-11 lg:h-9"
               onChange={(e) => cambia(i, { start_date: e.target.value || null })} />
-            <Input aria-label={`Fine della fase ${i + 1}`} type="date" value={r.end_date ?? ""} className="h-9"
+            <Input aria-label={`Fine della fase ${i + 1}`} type="date" value={r.end_date ?? ""} className="h-11 lg:h-9"
               onChange={(e) => cambia(i, { end_date: e.target.value || null })} />
           </li>
         ))}
       </ol>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="outline" className="gap-1" onClick={() => setRighe([...righe, { name: "" }])}>
+        <Button type="button" size="sm" variant="outline" className="h-11 gap-1 lg:h-9" onClick={() => setRighe([...righe, { name: "" }])}>
           <Plus className="h-4 w-4" aria-hidden />Aggiungi una fase
         </Button>
-        <Button type="submit" size="sm">Salva</Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onAnnulla}>Lascia com'era</Button>
+        <Button type="submit" size="sm" className="h-11 lg:h-9">Salva</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>Lascia com'era</Button>
       </div>
     </form>
   );
 }
 
 function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSalva: (r: RataDelPiano[]) => void; onAnnulla: () => void }) {
-  const [righe, setRighe] = useState(() => rate.map((r) => ({ ...r, testo: r.amount.toLocaleString("it-IT", { useGrouping: false }) })));
+  const [righe, setRighe] = useState(() => rate.map((r) => ({ ...r, testo: r.amount ? r.amount.toLocaleString("it-IT", { useGrouping: false }) : "" })));
   const cambia = (i: number, p: Partial<(typeof righe)[number]>) => setRighe(righe.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const salva = () => onSalva(righe
     .map(({ testo, ...r }) => ({ ...r, amount: parseDecimalIT(testo) }))
-    .filter((r) => r.label.trim() && r.amount > 0));
+    // Una rata in percentuale senza importo non si perde: l'importo arriva col totale.
+    .filter((r) => r.label.trim() && (r.amount > 0 || r.percent != null)));
   return (
     <form className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); salva(); }}>
       <ol className="space-y-2">
         {righe.map((r, i) => (
           <li key={i} className="grid grid-cols-[1fr_7rem_auto] gap-2">
-            <Input aria-label={`Nome della rata ${i + 1}`} value={r.label} onChange={(e) => cambia(i, { label: e.target.value })} className="h-9" />
-            <Input aria-label={`Importo della rata ${i + 1}`} inputMode="decimal" value={r.testo} onChange={(e) => cambia(i, { testo: e.target.value })} className="h-9" />
-            <Button type="button" size="icon" variant="ghost" className="h-9 w-9" aria-label={`Togli la rata ${i + 1}`}
+            <Input aria-label={`Nome della rata ${i + 1}`} value={r.label} onChange={(e) => cambia(i, { label: e.target.value })} className="h-11 lg:h-9" />
+            <Input aria-label={`Importo della rata ${i + 1}`} inputMode="decimal" value={r.testo} placeholder={r.percent != null ? `${r.percent} %` : undefined}
+              onChange={(e) => cambia(i, { testo: e.target.value })} className="h-11 lg:h-9" />
+            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 lg:h-9 lg:w-9" aria-label={`Togli la rata ${i + 1}`}
               onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
           </li>
         ))}
       </ol>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="outline" className="gap-1"
+        <Button type="button" size="sm" variant="outline" className="h-11 gap-1 lg:h-9"
           onClick={() => setRighe([...righe, { label: `Rata ${righe.length + 1}`, type: "deposit", amount: 0, testo: "" }])}>
           <Plus className="h-4 w-4" aria-hidden />Aggiungi una rata
         </Button>
-        <Button type="submit" size="sm">Salva</Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onAnnulla}>Lascia com'era</Button>
+        <Button type="submit" size="sm" className="h-11 lg:h-9">Salva</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={onAnnulla}>Lascia com'era</Button>
       </div>
     </form>
   );
@@ -244,14 +247,14 @@ export function SceltaCliente({ companyId, piano, onScegli }: {
           const c = clienti.find((x) => x.id === v);
           onScegli(v, c ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : "");
         }}>
-          <SelectTrigger id={id} className="h-9 flex-1"><SelectValue placeholder="Scegli un cliente" /></SelectTrigger>
+          <SelectTrigger id={id} className="h-11 flex-1 lg:h-9"><SelectValue placeholder="Scegli un cliente" /></SelectTrigger>
           <SelectContent>
             {clienti.map((c) => (
               <SelectItem key={c.id} value={c.id}>{`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()}{c.email ? ` (${c.email})` : ""}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" variant="outline" size="sm" className="h-9 gap-1" onClick={() => setNuovo(true)}>
+        <Button type="button" variant="outline" size="sm" className="h-11 gap-1 lg:h-9" onClick={() => setNuovo(true)}>
           <UserPlus className="h-4 w-4" aria-hidden />Nuovo
         </Button>
       </div>
@@ -353,21 +356,25 @@ function Dettaglio({ chiave, valore, onTogli }: { chiave: string; valore: unknow
   if ((chiave === "sicurezza.pos_duvri" || chiave === "sicurezza.adempimenti") && Array.isArray(valore)) {
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
-        {(valore as { titolo?: string; scadenza?: string | null }[]).map((p, i) => (
-          <li key={i} className="flex justify-between gap-2">
-            <span className="truncate">• {p.titolo}</span>
-            {p.scadenza && <span className="shrink-0">entro {dataBreve(p.scadenza, false)}</span>}
+        {(valore as { titolo?: string; scadenza?: string | null; avviso?: string | null }[]).map((p, i) => (
+          <li key={i}>
+            <p className="flex justify-between gap-2">
+              <span className="min-w-0 break-words">• {p.titolo}</span>
+              {p.scadenza && <span className="shrink-0">entro {dataBreve(p.scadenza, false)}</span>}
+            </p>
+            {p.avviso && <p className="font-medium text-amber-800">⚠ {p.avviso}</p>}
           </li>
         ))}
       </ul>
     );
   }
   if (chiave === "comunicazione.avvio_cliente" && valore && typeof valore === "object") {
-    const m = valore as { testo?: string; destinatario?: string | null };
+    const m = valore as { testo?: string; destinatario?: string | null; avviso?: string | null };
     return (
       <div className="mt-1 rounded-md border border-dashed border-slate-300 bg-slate-50 p-2 text-xs lg:text-[11px] text-slate-700">
         {m.destinatario && <p className="mb-1 text-slate-500">A: {m.destinatario}</p>}
         <p className="whitespace-pre-line">{m.testo}</p>
+        {m.avviso && <p className="mt-1 font-medium text-amber-800">⚠ {m.avviso}</p>}
         <p className="mt-1 font-medium text-slate-500">Bozza: Silvio non la manda. La trovi nelle attività della commessa.</p>
       </div>
     );
@@ -388,7 +395,7 @@ function Dettaglio({ chiave, valore, onTogli }: { chiave: string; valore: unknow
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {(valore as RataDelPiano[]).map((r, i) => (
-          <li key={i} className="flex justify-between gap-2"><span className="truncate">{r.label}</span><span className="shrink-0">{euro(Number(r.amount) || 0)}</span></li>
+          <li key={i} className="flex justify-between gap-2"><span className="truncate">{r.label}</span><span className="shrink-0">{importoRata(r)}</span></li>
         ))}
       </ul>
     );
@@ -420,14 +427,20 @@ interface RigaProps {
   apriFonte?: (f: Fonte) => (() => void) | null;
   /** Fase 5: cosa fa Silvio da solo, per l'azienda. */
   autonomia?: Autonomia | null;
+  /** Il permesso «Importi di vendita». */
+  vedeImporti?: boolean;
 }
 
-function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null }: RigaProps) {
+/** La nota che si legge sulla riga anche a valore confermato: l'inizio spostato su un giorno utile, le rate che aspettano (G3, G9, G20). */
+const NOTE_SEMPRE_IN_VISTA: ReadonlySet<string> = new Set(["fasi.work_start_date", "pagamenti.rate"]);
+
+function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null, vedeImporti = true }: RigaProps) {
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
   const bloccata = giaNellaCommessa(piano, valore);
-  const modo = bloccata ? "no" : comeSiModifica(v);
+  const nascosto = importoNascosto(v.chiave, vedeImporti);
+  const modo = bloccata || nascosto ? "no" : comeSiModifica(v);
   const idInfo = useId();
   useEffect(() => {
     if (aperta) rif.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
@@ -436,7 +449,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
     onModifica(x == null ? { tipo: "togli", area: v.area, chiave: v.chiave } : { tipo: "cambia_valore", area: v.area, chiave: v.chiave, valore: x });
     onApri(null);
   };
-  const testo = valore && stato !== "manca"
+  const testo = nascosto && stato !== "manca" ? TESTO_IMPORTO_NASCOSTO : valore && stato !== "manca"
     ? (v.chiave === "cliente.customer_id" && typeof valore.valore === "string"
       ? <NomeCliente companyId={companyId} id={valore.valore} />
       : (v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to") && typeof valore.valore === "string"
@@ -472,13 +485,16 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
             )}
           </p>
           <p className={cn("break-words text-sm lg:text-[13px]", stato === "manca" ? "italic text-slate-400" : "font-medium text-slate-900")}>{testo}</p>
-          {valore && stato !== "manca" && !aperta && (
+          {valore && stato !== "manca" && !aperta && !nascosto && (
             <Dettaglio chiave={v.chiave} valore={valore.valore}
               onTogli={bloccata ? undefined : (indice) => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice })} />
           )}
+          {valore?.nota && NOTE_SEMPRE_IN_VISTA.has(v.chiave) && !nascosto && !aperta && !daConfermare(riga, autonomia) && (
+            <p className="mt-0.5 text-xs lg:text-[11px] font-medium text-amber-800">⚠ {valore.nota}</p>
+          )}
         </div>
         <div className="flex shrink-0 items-center">
-          {valore && stato !== "manca" && (
+          {valore && stato !== "manca" && !nascosto && (
             <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
               aria-expanded={info} aria-controls={idInfo} aria-label={`Da dove viene «${v.etichetta}»`} onClick={() => setInfo(!info)}>
               <Info className="h-4 w-4" />
@@ -496,14 +512,15 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 
       {conflitto && (
         <div className="mt-2 space-y-2" role="group" aria-label={`Scegli quale «${v.etichetta}» tenere`}>
+          {conflitto.nota && !nascosto && <p className="text-xs lg:text-[11px] font-medium text-amber-800">{conflitto.nota}</p>}
           {conflitto.candidati.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-white p-2">
               <div className="min-w-0 flex-1">
-                <p className="text-sm lg:text-[13px] font-semibold text-slate-900">{testoValore(v.chiave, c.valore)}</p>
+                {!nascosto && <p className="text-sm lg:text-[13px] font-semibold text-slate-900">{testoValore(v.chiave, c.valore)}</p>}
                 <p className="text-xs lg:text-[11px] text-slate-500">{c.fonte.etichetta}{c.fonte.dove ? `, ${c.fonte.dove}` : ""}</p>
-                {c.fonte.citazione && <p className="text-xs lg:text-[11px] italic text-slate-500">«{c.fonte.citazione}»</p>}
-                {apriDi(c.fonte) && (
-                  <button type="button" className="mt-0.5 inline-flex items-center gap-1 text-xs lg:text-[11px] font-medium text-orange-700 underline-offset-2 hover:underline"
+                {c.fonte.citazione && !nascosto && <p className="text-xs lg:text-[11px] italic text-slate-500">«{c.fonte.citazione}»</p>}
+                {apriDi(c.fonte) && !nascosto && (
+                  <button type="button" className="mt-0.5 inline-flex min-h-11 items-center gap-1 text-xs lg:min-h-0 lg:text-[11px] font-medium text-orange-700 underline-offset-2 hover:underline"
                     onClick={() => apriDi(c.fonte)?.()}>
                     <FileSearch className="h-3 w-3" aria-hidden />
                     {paginaCitata(c.fonte.dove) ? `Vedi a pagina ${paginaCitata(c.fonte.dove)}` : "Vedi nel documento"}
@@ -525,7 +542,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
         </p>
       )}
 
-      {daConfermare(riga, autonomia) && !aperta && (
+      {daConfermare(riga, autonomia) && !aperta && !nascosto && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5">
           <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{testoConferma(riga, autonomia)}</p>
           <Button type="button" size="sm" className="h-11 bg-amber-600 text-white hover:bg-amber-700 lg:h-8"
@@ -567,14 +584,14 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
                           const nome = e.name ?? e.label ?? e.nome ?? e.fornitore ?? e.titolo;
                           return nome ? `${nome}${e.fase && nome !== e.fase ? ` · ${e.fase}` : ""}` : e.fase ?? `Elemento ${i + 1}`;
                         })()}</span>
-                        <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice: i })}>Togli</Button>
+                        <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-7" onClick={() => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice: i })}>Togli</Button>
                       </li>
                     ))}
                   </ul>
                 )}
                 <div className="flex gap-2">
-                  {attuale != null && <Button type="button" size="sm" variant="outline" onClick={() => cambia(null)}>Togli tutto</Button>}
-                  <Button type="button" size="sm" variant="ghost" onClick={chiudi}>Chiudi</Button>
+                  {attuale != null && <Button type="button" size="sm" variant="outline" className="h-11 lg:h-9" onClick={() => cambia(null)}>Togli tutto</Button>}
+                  <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={chiudi}>Chiudi</Button>
                 </div>
               </div>
             );
@@ -588,29 +605,35 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 // ── Da decidere ─────────────────────────────────────────────────────────────
 
 /** In cima alla colonna: quello che aspetta la persona, con l'azione accanto. Prima le cose che fermano «Crea». */
-function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto }: {
+function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeImporti }: {
   d: DaDecidere; piano: PianoCommessa; onModifica: (m: Modifica | Modifica[]) => void;
-  onApri: (chiave: string) => void; onVai: (chiave: string) => void; contesto: ContestoRisorse | null;
+  onApri: (chiave: string) => void; onVai: (chiave: string) => void; contesto: ContestoRisorse | null; vedeImporti: boolean;
 }) {
-  if (!d.totale) return null;
+  const [tuttiAvvisi, setTuttiAvvisi] = useState(false);
+  if (!d.totale && !d.avvisi.length) return null;
+  const avvisi = tuttiAvvisi ? d.avvisi : d.avvisi.slice(0, 3);
   const tutte = accettaProposte(piano, d.proposte.map((p) => p.chiave));
   return (
     <section aria-labelledby="silvio-da-decidere" data-chiave="silvio-da-decidere" className="rounded-xl border border-amber-300 bg-amber-50/70 p-2.5 shadow-sm">
       <h3 id="silvio-da-decidere" className="flex items-center gap-2 text-sm lg:text-[13px] font-semibold text-slate-900">
-        <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />Da decidere
-        <span className="rounded-full bg-amber-200 px-2 text-xs lg:text-[11px] font-semibold text-amber-900">{d.totale}</span>
+        <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />{d.totale ? "Da decidere" : "Da sapere"}
+        {d.totale > 0 && <span className="rounded-full bg-amber-200 px-2 text-xs lg:text-[11px] font-semibold text-amber-900">{d.totale}</span>}
       </h3>
       <ul className="mt-2 space-y-1.5">
         {d.conflitti.map((c) => {
           const v = REGISTRO_ETICHETTA(c.chiave);
+          const nascosto = importoNascosto(c.chiave, vedeImporti);
           return (
             <li key={`c-${c.chiave}`} className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
               <p className="text-slate-800"><strong>{v}</strong>: i documenti non sono d'accordo. Quale tengo?</p>
+              {c.nota && !nascosto && <p className="mt-1 text-xs lg:text-[11px] font-medium text-amber-800">{c.nota}</p>}
               <div className="mt-2 flex flex-wrap gap-2">
                 {c.candidati.map((x, i) => (
                   <Button key={i} type="button" size="sm" variant="outline" className="h-auto min-h-11 whitespace-normal text-left lg:min-h-8"
                     onClick={() => onModifica({ tipo: "scegli_fonte", area: c.area, chiave: c.chiave, fonte: x.fonte.tipo, idFonte: x.fonte.id ?? null })}>
-                    <span><strong>{testoValore(c.chiave, x.valore)}</strong> <span className="font-normal text-slate-500">· {x.fonte.etichetta}</span></span>
+                    {nascosto
+                      ? <span>{x.fonte.etichetta}</span>
+                      : <span><strong>{testoValore(c.chiave, x.valore)}</strong> <span className="font-normal text-slate-500">· {x.fonte.etichetta}</span></span>}
                   </Button>
                 ))}
               </div>
@@ -655,12 +678,20 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto }: {
             </div>
           </li>
         )}
+        {avvisi.map((a) => (
+          <li key={`a-${a}`} className="break-words rounded-lg bg-white px-2.5 py-2 text-xs lg:text-[11px] text-amber-900"><span aria-hidden>⚠ </span>{a}</li>
+        ))}
+        {d.avvisi.length > 3 && !tuttiAvvisi && (
+          <li>
+            <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-8" onClick={() => setTuttiAvvisi(true)}>Altri {d.avvisi.length - 3} avvisi</Button>
+          </li>
+        )}
       </ul>
     </section>
   );
 }
 
-const REGISTRO_ETICHETTA = (chiave: string) => variabileDi(chiave)?.etichetta ?? chiave;
+const REGISTRO_ETICHETTA = (chiave: string) => variabileDi(chiave)?.etichetta ?? "Un valore";
 
 // ── La colonna ──────────────────────────────────────────────────────────────
 
@@ -686,18 +717,21 @@ export interface ColonnaCommessaProps {
   vuota?: boolean;
   /** I dati dell'azienda (dipendenti, impegni): per proporre chi prende il posto di chi non è libero. */
   contesto?: ContestoRisorse | null;
+  /** Il permesso «Importi di vendita»: senza, gli importi non si vedono e non si cambiano. */
+  vedeImporti?: boolean;
 }
 
 export function ColonnaCommessa({
   companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte, autonomia = null,
-  daDecidere = null, onVai, vuota = false, contesto = null,
+  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true,
 }: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
-    const righe = righeDellArea(piano, area, completezza);
+    // Un importo che chi guarda non vede non si può nemmeno chiedere.
+    const righe = righeDellArea(piano, area, completezza).filter((r) => r.stato !== "manca" || !importoNascosto(r.variabile.chiave, vedeImporti));
     // In «Completa» un'area che la commessa ha già tutta si raccoglie in una riga: si guarda quello che manca.
     const chiusa = righe.length > 0 && righe.every((r) => giaNellaCommessa(piano, r.valore)) && !righe.some((r) => daGuardare.includes(r.variabile.chiave));
     return { area, righe, stato: statoArea(righe), chiusa };
-  }), [piano, completezza, daGuardare]);
+  }), [piano, completezza, daGuardare, vedeImporti]);
   const accese = new Set(evidenziate);
   const segnate = new Set(daGuardare);
   const vuote = aree.filter((a) => !a.righe.length);
@@ -714,7 +748,7 @@ export function ColonnaCommessa({
   return (
     <div className="space-y-2">
       {daDecidere && (
-        <DaDecidereInCima d={daDecidere} piano={piano} onModifica={onModifica} contesto={contesto} onApri={(c) => onApri(c)} onVai={(c) => (onVai ?? onApri)(c)} />
+        <DaDecidereInCima d={daDecidere} piano={piano} onModifica={onModifica} contesto={contesto} vedeImporti={vedeImporti} onApri={(c) => onApri(c)} onVai={(c) => (onVai ?? onApri)(c)} />
       )}
       {aree.filter((a) => a.righe.length).map(({ area, righe, stato, chiusa }) => chiusa && !mostrate.has(area) ? (
         <section key={area} aria-label={NOMI_AREE[area as Area]} className="flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-sm lg:text-[13px] shadow-sm">
@@ -722,7 +756,7 @@ export function ColonnaCommessa({
           <span className="font-semibold text-slate-900">{NOMI_AREE[area as Area]}</span>
           <span className="min-w-0 flex-1 truncate text-xs lg:text-[11px] text-slate-500">già nella commessa</span>
           <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />
-          <button type="button" className="shrink-0 rounded px-1.5 py-1 text-xs lg:text-[11px] font-medium text-slate-600 hover:bg-slate-100"
+          <button type="button" className="min-h-11 shrink-0 rounded px-1.5 py-1 text-xs lg:min-h-0 lg:text-[11px] font-medium text-slate-600 hover:bg-slate-100"
             aria-label={`Mostra ${NOMI_AREE[area as Area].toLowerCase()}`}
             onClick={() => setMostrate(new Set([...mostrate, area]))}>Mostra</button>
         </section>
@@ -753,7 +787,7 @@ export function ColonnaCommessa({
               <RigaVariabile key={r.variabile.chiave} riga={r} companyId={companyId} piano={piano}
                 evidenziata={accese.has(r.variabile.chiave)} aperta={aperta === r.variabile.chiave}
                 onApri={onApri} onModifica={onModifica}
-                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} />
+                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} vedeImporti={vedeImporti} />
             ))}
           </ul>
           )}

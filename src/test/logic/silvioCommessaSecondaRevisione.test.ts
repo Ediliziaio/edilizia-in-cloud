@@ -44,25 +44,25 @@ function clientFinto(tabelle: Record<string, Rispondi>) {
     q.eq = (c: string, v: unknown) => { filtri[c] = v; return q; };
     q.then = (fatto: (r: unknown) => unknown, errore?: (e: unknown) => unknown) => {
       const r = (tabelle[tabella] ?? (() => []))(filtri);
-      const risposta = Array.isArray(r) ? { data: r, error: null } : { data: null, error: { message: r.errore } };
+      const risposta = Array.isArray(r) ? { data: r, error: null as null } : { data: null as null, error: { message: r.errore } };
       return Promise.resolve(risposta).then(fatto, errore);
     };
     return q;
   };
   const client = {
     from: (tabella: string) => (tabella === "notifications"
-      ? { insert: async (righeNuove: Record<string, unknown>[]) => { notifiche.push(...righeNuove); return { error: null }; } }
+      ? { insert: async (righeNuove: Record<string, unknown>[]) => { notifiche.push(...righeNuove); return { error: null as null }; } }
       : domanda(tabella)),
     rpc: async (nome: string, argomenti: Record<string, unknown>) => {
       chiamateRpc.push({ nome, argomenti });
-      return { data: { nuova: true, cambiata: false }, error: null };
+      return { data: { nuova: true, cambiata: false }, error: null as null };
     },
   };
   return { admin: client as unknown as ClientGiro, db: client as unknown as ClientRisorse, chiamateRpc, notifiche };
 }
 
 const esitoVuoto = (): EsitoGiro => ({ oggi: "2026-11-16", aziende: 0, commesse: 0, controlli: 0, sal: 0, notifiche: 0, scadute: 0, errori: [] });
-const ORDINE = { id: "o1", order_code: "C-1", company_id: "az", deleted_at: null, status: "in_corso", assigned_to: "u1", capomastro_user_id: null, indirizzo_lavori: null, work_address: null, total_amount: 100000, vat_rate: 10 };
+const ORDINE = { id: "o1", order_code: "C-1", company_id: "az", deleted_at: null as string | null, status: "in_corso", assigned_to: "u1", capomastro_user_id: null as string | null, indirizzo_lavori: null as string | null, work_address: null as string | null, total_amount: 100000, vat_rate: 10 };
 const faseData = (id: string, dal: string, al: string) => ({ id, name: id, start_date: dal, end_date: al, position: Number(id.slice(1)), order_id: "o1", ordine: ORDINE });
 
 describe("D1: l'annullamento non si ferma per quello che scrivono le macchine", () => {
@@ -146,9 +146,9 @@ describe("D7: la conferma del piano di volo", () => {
     expect(funzione(VOLO, "silvio_volo_registra")).toContain("public._silvio_volo_chiave(e.a) not in");
   });
   it("il client riporta lo stato, e cosa è già fatto", async () => {
-    const db = { rpc: async () => ({ data: { fatte: [{ indice: 1, tipo: "attivita" }], saltate: [{ indice: 2, tipo: "prenota_mezzo", motivo: "preso" }], gia_fatte: [0], non_scelte: [], stato: "aperta" }, error: null }) };
+    const db = { rpc: async () => ({ data: { fatte: [{ indice: 1, tipo: "attivita" }], saltate: [{ indice: 2, tipo: "prenota_mezzo", motivo: "preso" }], gia_fatte: [0], non_scelte: [] as number[], stato: "aperta" }, error: null as null }) };
     await expect(confermaVolo("p", null, db)).resolves.toMatchObject({ stato: "aperta", giaFatte: [0], saltate: [{ indice: 2, motivo: "preso" }] });
-    const lista = { rpc: async () => ({ data: [{ id: "p", tipo: "controllo", gia_fatte: [0], saltate: [{ indice: 2, tipo: "prenota_mezzo", motivo: "preso" }] }], error: null }) };
+    const lista = { rpc: async () => ({ data: [{ id: "p", tipo: "controllo", gia_fatte: [0], saltate: [{ indice: 2, tipo: "prenota_mezzo", motivo: "preso" }] }], error: null as null }) };
     await expect(proposteDelVolo("o", lista)).resolves.toMatchObject([{ giaFatte: [0], saltate: [{ motivo: "preso" }] }]);
   });
 });
@@ -157,7 +157,7 @@ describe("D8: il SAL conta tutte le fasi della commessa", () => {
   const settimane = [["f1", "2026-10-26", "2026-10-30"], ["f2", "2026-11-02", "2026-11-06"], ["f3", "2026-11-09", "2026-11-13"], ["f4", "2026-11-16", "2026-11-20"]];
   it("dieci fasi, finita la terza: 30 %, anche se la finestra del giro ne vede quattro", async () => {
     const vicine = settimane.map(([id, dal, al]) => faseData(id, dal, al));
-    const altre = ["f5", "f6", "f7", "f8", "f9", "f10"].map((id, i) => ({ id, name: id, start_date: null, end_date: null, position: 5 + i, sottofasi: [{ giorni: 5 }] }));
+    const altre = ["f5", "f6", "f7", "f8", "f9", "f10"].map((id, i) => ({ id, name: id, start_date: null as string | null, end_date: null as string | null, position: 5 + i, sottofasi: [{ giorni: 5 }] }));
     const { admin, db, chiamateRpc } = clientFinto({
       order_work_phases: (filtri) => (filtri.order_id ? [...vicine, ...altre] : vicine),
       order_installments: () => [{ trigger_evento: "sal_numero", trigger_numero: 2, amount: 11000, label: "SAL 2" }],
@@ -288,7 +288,7 @@ describe("D13: il controllo della fase dice la cosa giusta", () => {
     expect(c.azioni).toMatchObject([{ tipo: "attivita", titolo: "Sistema il contratto di Rossi srl" }]);
   });
   it("una squadra interna non ha né DURC né contratto", () => {
-    const interna = { external_team_id: "t2", nome: "Squadra nostra", subappaltatore_id: null, interna: true, contratto: null };
+    const interna = { external_team_id: "t2", nome: "Squadra nostra", subappaltatore_id: null as null, interna: true, contratto: null as null };
     expect(controlloFase(TETTO, { ...vuoto, ditte: [interna] }, ctxBase()).problemi).toEqual([]);
   });
 });

@@ -37,13 +37,15 @@ import { cn } from "@/lib/utils";
 import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Fonte, Modifica } from "../../../shared/silvio-commessa/piano.ts";
 import { prontaPerScrivere } from "@/lib/silvio-commessa/scrittura";
-import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
+import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
+import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
+import { usePermissions } from "@/hooks/usePermissions";
 import { ColonnaFonti } from "./ColonnaFonti";
 import { ColonnaChat } from "./ColonnaChat";
 import { ColonnaCommessa } from "./ColonnaCommessa";
 import {
-  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, marginePrevisto,
-  minuscola, NOMI_AREE, pianoDellaCommessa, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
+  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, importoNascosto, marginePrevisto,
+  minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
@@ -113,7 +115,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   }, [orderId, etichettaCommessa, daFuori]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const b = useBozzaSilvio({ companyId, userId, servizi, orderId });
+  // «Importi di vendita» decide anche qui; il margine ha il suo permesso, e dagli importi si ricava.
+  const { canViewOrderAmounts: vedeImporti, canViewMargins } = usePermissions();
+  const b = useBozzaSilvio({ companyId, userId, servizi, orderId, vedeImporti });
   // La chat è la scheda principale del telefono: lì Silvio dice cosa legge e cosa chiede.
   const [scheda, setScheda] = useState<Scheda>("chat");
   const [tastiera, setTastiera] = useState(false);
@@ -125,6 +129,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const [esito, setEsito] = useState<EsitoCommessa | null>(null);
   const [riallegando, setRiallegando] = useState(false);
   const [rifiutoRipresa, setRifiutoRipresa] = useState(false);
+  const [scartare, setScartare] = useState(false);
   const partito = useRef(false);
 
   useEffect(() => {
@@ -157,22 +162,29 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const vuota = !completa && !b.fonti.length && !b.messaggi.length;
   const legge = b.fonti.some((f) => f.stato === "in_lettura" || f.stato === "in_coda");
   // Una domanda alla volta, e non mentre legge: la risposta può arrivare dal documento.
-  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura);
-  const margine = marginePrevisto(b.piano);
+  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti);
+  const margine = vedeImporti && canViewMargins ? marginePrevisto(b.piano) : null;
   const fine = fineLavori(b.piano);
   const costiParziali = useMemo(() => {
     const fasi = b.piano.aree.fasi?.["fasi.order_work_phases"]?.valore;
     return !b.piano.aree.costi?.["costi.previsti"] && Array.isArray(fasi)
       && (fasi as { sottofasi?: { costo?: number }[] }[]).some((f) => !(f.sottofasi ?? []).some((x) => Number(x.costo) > 0));
   }, [b.piano]);
-  const motivi = [...prontaPerScrivere(b.scrittura), ...(legge ? ["Aspetta che finiscano le letture"] : [])];
+  const inAttesa = b.fonti.filter((f) => f.stato === "da_confermare").map((f) => f.etichetta);
+  const nonLetti = b.fonti.filter((f) => f.stato === "errore" || f.stato === "da_collegare").map((f) => f.etichetta);
+  const motivi = [
+    ...prontaPerScrivere(b.scrittura),
+    ...(legge ? ["Aspetta che finiscano le letture"] : []),
+    ...(b.scrivendo ? ["Aspetta la risposta di Silvio"] : []),
+    ...(inAttesa.length ? [`Leggi o togli ${inAttesa.join(", ")}`] : []),
+  ];
   const ultimo = b.messaggi[b.messaggi.length - 1];
   const daDecidere = useMemo(() => {
-    const d = cosaDecidere(b.piano, b.scrittura, completezza);
+    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, contesto: b.contesto });
     return vuota ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
-  }, [b.piano, b.scrittura, completezza, vuota]);
+  }, [b.piano, b.scrittura, completezza, vuota, vedeImporti, b.contesto]);
   const suggerimenti = useMemo(() => suggerimentiChat(b.piano, completezza), [b.piano, completezza]);
-  const mancano = useMemo(() => completezza.mancano.filter(siRiempieOra).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza]);
+  const mancano = useMemo(() => completezza.mancano.filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti)).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti]);
   const scrive = cosaScriveCrea(b.scrittura);
 
   const apri = (chiave: string | null) => {
@@ -238,8 +250,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     setErrore(null);
     try {
       const fatto = await b.crea();
-      // Un file non copiato o un mezzo non prenotato (prenotato da altri nel frattempo) si dice prima di uscire.
-      if (fatto.allegatiNonRiusciti.length || fatto.risorse?.non_prenotati?.length) setEsito(fatto);
+      // Un file non copiato, un mezzo non prenotato (prenotato da altri nel frattempo), un contratto saltato
+      // o quello che i permessi hanno tolto si dicono prima di uscire.
+      if (fatto.allegatiNonRiusciti.length || fatto.risorse?.non_prenotati?.length || restatoFuori(fatto, b.piano).length) setEsito(fatto);
       else dopo(fatto.order_id);
     } catch (e) {
       const testo = e instanceof ErroreBozza ? e.message : messaggioErrore(e);
@@ -282,9 +295,23 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
       const r = await b.riallega(esito.order_id, esito.allegatiNonRiusciti.map((x) => x.nome));
       setEsito({ ...esito, allegati: esito.allegati + r.allegati, allegatiNonRiusciti: r.nonRiusciti });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : messaggioErrore(e));
+      setErrore(erroreLeggibile(e));
     } finally {
       setRiallegando(false);
+    }
+  };
+
+  /** «Ricomincia»: la bozza si butta via davvero, non si nasconde soltanto (P9). */
+  const ricomincia = async () => {
+    const via = ripresa;
+    setScartare(false);
+    if (!via) return;
+    try {
+      await scartaBozza(via.id, servizi.db);
+      setRifiutoRipresa(true);
+      void daRiprendere.refetch();
+    } catch (e) {
+      setErrore(e instanceof ErroreBozza ? e.message : messaggioErrore(e));
     }
   };
 
@@ -304,6 +331,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         onKeyDown={tasti}
         style={altezza ? { height: altezza, maxHeight: altezza } : undefined}
         className={cn(
+          // La X del popup: 44 px sotto lg, come ogni altro tocco.
+          "max-lg:[&>button:last-child]:right-1 max-lg:[&>button:last-child]:top-1 max-lg:[&>button:last-child]:flex max-lg:[&>button:last-child]:h-11 max-lg:[&>button:last-child]:w-11 max-lg:[&>button:last-child]:items-center max-lg:[&>button:last-child]:justify-center",
           "inset-0 left-0 top-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-slate-50 p-0",
           "lg:left-[50%] lg:top-[50%] lg:h-[calc(100dvh-48px)] lg:w-[calc(100vw-48px)] lg:max-w-[1500px] lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-2xl lg:border",
         )}
@@ -335,17 +364,13 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 : "Carica quello che hai: Silvio compone la commessa, tu controlli e crei."}
             </DialogDescription>
           </div>
-          <p className="text-xs text-slate-500 max-sm:hidden" role="status">
-            {b.salvataggio.tipo === "in_corso" ? "salvo la bozza…"
-              : b.salvataggio.tipo === "salvata" ? "bozza salvata ✓"
-                : b.salvataggio.tipo === "errore" ? <span className="text-red-700" title={b.salvataggio.messaggio}>bozza non salvata: {b.salvataggio.messaggio}</span>
-                  : null}
-          </p>
-          <Button type="button" variant="outline" size="sm" className="h-8 gap-1" disabled={!b.storia.length}
+          <Button type="button" variant="outline" size="sm" className="h-11 w-11 gap-1 max-sm:px-0 sm:w-auto lg:h-8" disabled={!b.storia.length}
             onClick={b.indietro} aria-keyshortcuts="Meta+Z Control+Z" title="Annulla l'ultima modifica (Cmd+Z)">
             <Undo2 className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Annulla</span>
           </Button>
-          <dl className={cn("flex w-full flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600 lg:w-auto", tastiera && "max-lg:hidden")}>
+          {/* Sul telefono percentuale e salvataggio stanno sulla stessa riga, sotto il titolo; su schermo largo seguono la testata. */}
+          <div className={cn("flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 lg:contents", tastiera && "max-lg:hidden")}>
+          <dl className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <dt>{completa ? "Completa al" : "Pronta al"}</dt>
               <dd className="flex items-center gap-2 font-semibold text-slate-900">
@@ -364,6 +389,13 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             )}
             {fine && <div className="flex gap-1 max-sm:hidden"><dt>Fine lavori</dt><dd className="font-semibold text-slate-900">{dataBreve(fine)}</dd></div>}
           </dl>
+          <p className="min-w-0 text-xs text-slate-500" role="status">
+            {b.salvataggio.tipo === "in_corso" ? "salvo la bozza…"
+              : b.salvataggio.tipo === "salvata" ? "bozza salvata ✓"
+                : b.salvataggio.tipo === "errore" ? <span className="text-red-700" title={b.salvataggio.messaggio}>bozza non salvata: {b.salvataggio.messaggio}</span>
+                  : null}
+          </p>
+          </div>
         </header>
 
         {ripresa && (
@@ -373,10 +405,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 ? <>Avevi già cominciato a completarla il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>
                 : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
             </p>
-            <Button type="button" size="sm" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
+            <Button type="button" size="sm" className="h-11 lg:h-9" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
               {completa ? "Riprendi da lì" : "Riprendi la commessa"}
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setRifiutoRipresa(true)}>Ricomincia</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-9" onClick={() => setScartare(true)}>Ricomincia</Button>
           </div>
         )}
 
@@ -400,6 +432,11 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <p className="flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden />{completa ? "La commessa è completata" : "La commessa è nata"}
               </p>
+              {restatoFuori(esito, b.piano).length > 0 && (
+                <ul className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+                  {restatoFuori(esito, b.piano).map((r) => <li key={r}>{r}</li>)}
+                </ul>
+              )}
               {esito.allegatiNonRiusciti.length > 0 && (
                 <>
                   <p className="text-sm text-slate-600">
@@ -425,11 +462,11 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               )}
               <div className="flex flex-wrap gap-2">
                 {esito.allegatiNonRiusciti.length > 0 && (
-                  <Button type="button" variant="outline" className="gap-1" disabled={riallegando} onClick={() => void riallega()}>
+                  <Button type="button" variant="outline" className="h-11 gap-1 lg:h-10" disabled={riallegando} onClick={() => void riallega()}>
                     {riallegando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}Riprova
                   </Button>
                 )}
-                <Button type="button" onClick={() => dopo(esito.order_id)}>
+                <Button type="button" className="h-11 lg:h-10" onClick={() => dopo(esito.order_id)}>
                   {completa ? (avanti ? "Vai alla prossima" : "Chiudi") : "Apri la commessa"}
                 </Button>
               </div>
@@ -439,12 +476,12 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
           <section className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6" aria-labelledby="titolo-controlla">
             <div className="mx-auto max-w-3xl space-y-4">
               <div className="flex items-center gap-2">
-                <Button type="button" variant="ghost" size="sm" className="gap-1" onClick={() => setControlla(false)}>
+                <Button type="button" variant="ghost" size="sm" className="h-11 gap-1 lg:h-9" onClick={() => setControlla(false)}>
                   <ArrowLeft className="h-4 w-4" aria-hidden />Torna alla commessa
                 </Button>
                 <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? "Cosa si aggiunge" : "Cosa nascerà"}</h3>
               </div>
-              {elencoControlla(b.piano, b.scrittura).map((g) => (
+              {elencoControlla(b.piano, b.scrittura, vedeImporti).map((g) => (
                 <section key={g.area} className="rounded-xl border bg-white p-3 shadow-sm" aria-label={NOMI_AREE[g.area]}>
                   <h4 className="text-sm font-semibold text-slate-900">{NOMI_AREE[g.area]}</h4>
                   <ul className="mt-1 divide-y divide-slate-100">
@@ -472,7 +509,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Fonti</h3>
               <ColonnaFonti companyId={companyId} orderId={orderId} fonti={b.fonti} servizi={servizi} onAggiungi={b.aggiungi}
                 onConferma={b.confermaLetture} onRiprova={b.riprova} onTogli={b.togliFonte}
-                onCollegaOfferta={(id, r) => void b.collegaOfferta(id, r)} />
+                onCollegaOfferta={(id, r) => void b.collegaOfferta(id, r)} onComeDocumento={b.leggiComeDocumento} />
             </section>
             <section id="pannello-chat" role="tabpanel" aria-label="Chat con Silvio"
               className={cn("flex min-h-0 flex-col p-3", scheda !== "chat" && "max-lg:hidden")}>
@@ -490,7 +527,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <ColonnaCommessa companyId={companyId} piano={b.piano} completezza={completezza} evidenziate={b.evidenziate}
                 aperta={aperta} onApri={apri} onModifica={modifica}
                 daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
-                daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} />
+                daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} vedeImporti={vedeImporti} />
             </section>
           </div>
         )}
@@ -508,7 +545,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </p>
                 <p className="text-xs text-slate-500">
                   {daDecidere.totale > 0
-                    ? <button type="button" className="text-left font-medium text-amber-700 underline-offset-2 hover:underline" onClick={() => vedi(["silvio-da-decidere"])}>
+                    ? <button type="button" className="min-h-11 text-left font-medium text-amber-700 underline-offset-2 hover:underline lg:min-h-0" onClick={() => vedi(["silvio-da-decidere"])}>
                       Da decidere: {testoDaDecidere(daDecidere)}
                     </button>
                     : vuota ? "Carica un documento o scrivi il lavoro nella chat." : "Niente da decidere."}
@@ -517,15 +554,15 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               </div>
               <div className="flex gap-2 max-sm:w-full">
                 {sequenza && (
-                  <Button type="button" variant="ghost" className="gap-1 max-sm:flex-1" disabled={creando} onClick={() => chiudiSeSicuro(sequenza.onSalta)}>
+                  <Button type="button" variant="ghost" className="h-11 gap-1 max-sm:flex-1 lg:h-10" disabled={creando} onClick={() => chiudiSeSicuro(sequenza.onSalta)}>
                     <SkipForward className="h-4 w-4" aria-hidden />Salta
                   </Button>
                 )}
-                <Button type="button" variant="outline" className="gap-1 max-sm:flex-1" aria-pressed={controlla}
+                <Button type="button" variant="outline" className="h-11 gap-1 max-sm:flex-1 lg:h-10" aria-pressed={controlla}
                   onClick={() => setControlla(!controlla)}>
                   <ClipboardCheck className="h-4 w-4" aria-hidden />Controlla
                 </Button>
-                <Button type="button" className="gap-1 bg-orange-600 hover:bg-orange-700 max-sm:flex-1"
+                <Button type="button" className="h-11 gap-1 bg-orange-600 hover:bg-orange-700 max-sm:flex-1 lg:h-10"
                   disabled={creando || motivi.length > 0} aria-describedby={motivi.length ? "silvio-crea-motivi" : undefined}
                   aria-label={completa && avanti && !creando ? "Completa e vai alla prossima" : undefined}
                   onClick={() => void crea()}>
@@ -541,9 +578,27 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 {completa ? "Per completare" : "Per creare"}: {motivi.map(minuscola).join("; ")}.
               </p>
             )}
+            {nonLetti.length > 0 && (
+              <p className="mt-1 break-words text-xs text-amber-800">Non letti, restano fuori: {nonLetti.join(", ")}.</p>
+            )}
           </footer>
         )}
         <VisoreFonte documento={visore} onChiudi={() => setVisore(null)} />
+        <AlertDialog open={scartare} onOpenChange={setScartare}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Butto via la commessa a metà?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {ripresa && !completa ? <>«{nomeBozza(ripresa)}» sparisce e non torna più. </> : "La bozza sparisce e non torna più. "}
+                Si riparte da zero.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Tienila</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void ricomincia()}>Sì, buttala via</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <AlertDialog open={!!chiudere} onOpenChange={(o) => { if (!o) setChiudere(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
