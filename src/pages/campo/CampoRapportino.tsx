@@ -481,7 +481,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const oreLasciateAlCapo = flusso.soloTimbratura;
   const oreNonMie = !faSquadra && !oreMieForzate && (oreRegistrateDalCapo || oreLasciateAlCapo);
   // Chi manda il rapportino è ancora timbrato qui: l'invio chiude anche la giornata.
-  const chiudeGiornata = sessioneDaChiudere && !oreNonMie && !confermaCliente;
+  // Rimandare un rapportino respinto non è la fine della giornata.
+  const chiudeGiornata = sessioneDaChiudere && !oreNonMie && !confermaCliente && !daRifare;
   useEffect(() => {
     if (oreModificate.current || rapportinoGiaOggi || !dayTime.isSuccess || oreRilevate == null || anomalieTimbrature) return;
     let cancelled = false;

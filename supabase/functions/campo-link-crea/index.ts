@@ -8,7 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { amministraAzienda } from "../_shared/amministraAzienda.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
-import { GIORNI_VALIDITA_LINK, eEmailDaLink, generaTokenLink, impronta } from "../_shared/accessoConLink.ts";
+import { GIORNI_VALIDITA_LINK, accountDaLinkValido, generaTokenLink, impronta } from "../_shared/accessoConLink.ts";
 
 interface Risultato {
   employee_id: string;
@@ -69,8 +69,16 @@ Deno.serve(async (req) => {
       if (d.is_active === false) { r.errore = "Non è più attivo"; continue; }
 
       if (d.user_id) {
-        const { data: profilo } = await admin.from("profiles").select("email").eq("id", d.user_id).maybeSingle();
-        if (!eEmailDaLink(profilo?.email)) { r.errore = "Entra già con la sua email"; continue; }
+        const [{ data: account }, { data: profilo }, { data: ruoli }] = await Promise.all([
+          admin.auth.admin.getUserById(d.user_id),
+          admin.from("profiles").select("company_id, is_blocked").eq("id", d.user_id).maybeSingle(),
+          admin.from("user_roles").select("role").eq("user_id", d.user_id),
+        ]);
+        const valido = accountDaLinkValido({
+          email: account?.user?.email, employeeId: d.id, aziendaProfilo: profilo?.company_id, aziendaDipendente: d.company_id,
+          ruoli: (ruoli ?? []).map((x: { role: string }) => x.role), bloccato: profilo?.is_blocked,
+        });
+        if (!valido) { r.errore = "Entra già con un altro accesso"; continue; }
       }
 
       if (!siti.has(d.company_id)) {

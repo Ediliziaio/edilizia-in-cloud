@@ -3,6 +3,7 @@
  * col tocco su «Entra», così l'anteprima di WhatsApp non lo brucia.
  */
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { HardHat, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,8 @@ type Stato = "pronto" | "entro" | "non_valido" | "errore";
 export default function EntraConLink() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
+  const qc = useQueryClient();
   const [stato, setStato] = useState<Stato>("pronto");
 
   const entra = async () => {
@@ -26,6 +28,11 @@ export default function EntraConLink() {
         setStato(risposta instanceof Response && risposta.status === 410 ? "non_valido" : "errore");
         return;
       }
+      // Telefono già usato da un altro: prima si chiude la sua sessione e si puliscono i suoi dati in memoria.
+      if (user) {
+        await supabase.auth.signOut({ scope: "local" });
+        qc.clear();
+      }
       const { error: otpErr } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: "magiclink" });
       if (otpErr) { setStato("errore"); return; }
       navigate("/campo", { replace: true });
@@ -35,6 +42,7 @@ export default function EntraConLink() {
   };
 
   const giaDentro = !isLoading && !!user && stato !== "entro";
+  const nomeDentro = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "l'utente attuale";
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
@@ -50,10 +58,10 @@ export default function EntraConLink() {
         ) : null}
         {stato !== "non_valido" && (
           <Button className="h-12 w-full text-base font-bold" disabled={stato === "entro"} onClick={() => void entra()}>
-            {stato === "entro" && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}Entra
+            {stato === "entro" && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}{giaDentro ? `Non sono ${nomeDentro}: entra` : "Entra"}
           </Button>
         )}
-        {giaDentro && <Link to="/campo" className="block text-sm text-primary underline">Sei già dentro: apri l'app</Link>}
+        {giaDentro && <Link to="/campo" className="block text-sm text-primary underline">Continua come {nomeDentro}</Link>}
       </div>
     </main>
   );

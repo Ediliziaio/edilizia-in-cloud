@@ -62,7 +62,7 @@ const PAGINE_SERVIZIO = [
   "/produttore-login", "/referral-login",
   // pagine raggiunte da un link personale, non dal sito
   "/firma", "/firma-fea", "/firma-odv", "/firma-sal", "/preventivo", "/accetta-preventivo",
-  "/stima", "/candidatura", "/talent-profile", "/qr", "/review", "/feedback",
+  "/entra", "/stima", "/candidatura", "/talent-profile", "/qr", "/review", "/feedback",
   // rientri da accessi esterni
   "/oauth-done", "/meta-oauth-done",
 ];

@@ -9,7 +9,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
-import { eEmailDaLink, emailDaLink, generaTokenLink, impronta, tokenValido } from "../_shared/accessoConLink.ts";
+import { accountDaLinkValido, emailDaLink, generaTokenLink, impronta, tokenValido } from "../_shared/accessoConLink.ts";
 
 interface Dipendente {
   id: string;
@@ -19,6 +19,21 @@ interface Dipendente {
   phone: string | null;
   is_active: boolean | null;
   user_id: string | null;
+}
+
+/** L'email dell'account, se è davvero quello fatto per questo dipendente; altrimenti null. */
+async function emailDellAccountDaLink(admin: SupabaseClient, d: Dipendente, userId: string): Promise<string | null> {
+  const [{ data: account }, { data: profilo }, { data: ruoli }] = await Promise.all([
+    admin.auth.admin.getUserById(userId),
+    admin.from("profiles").select("company_id, is_blocked").eq("id", userId).maybeSingle(),
+    admin.from("user_roles").select("role").eq("user_id", userId),
+  ]);
+  const email = account?.user?.email ?? null;
+  const valido = accountDaLinkValido({
+    email, employeeId: d.id, aziendaProfilo: profilo?.company_id, aziendaDipendente: d.company_id,
+    ruoli: (ruoli ?? []).map((r: { role: string }) => r.role), bloccato: profilo?.is_blocked,
+  });
+  return valido ? email : null;
 }
 
 async function creaAccount(admin: SupabaseClient, d: Dipendente): Promise<string> {
@@ -35,7 +50,8 @@ async function creaAccount(admin: SupabaseClient, d: Dipendente): Promise<string
     const passi = [
       admin.from("profiles").insert({ id, email, first_name: d.first_name, last_name: d.last_name, company_id: d.company_id, phone: d.phone }),
       admin.from("user_roles").insert([{ user_id: id, role: "employee" }, { user_id: id, role: "company_staff" }]),
-      admin.from("staff_permissions").insert(buildStaffPermissionsRecord(id, d.company_id, undefined)),
+      // Non ha una password da cambiare: entra sempre con il link.
+      admin.from("staff_permissions").insert({ ...buildStaffPermissionsRecord(id, d.company_id, undefined), must_change_password: false }),
     ];
     for (const passo of passi) {
       const { error: errore } = await passo;
@@ -94,10 +110,10 @@ Deno.serve(async (req) => {
 
     let email: string;
     if (d.user_id) {
-      const { data: profilo } = await admin.from("profiles").select("email").eq("id", d.user_id).maybeSingle();
-      // Nel frattempo ha avuto un accesso con email sua: il link non deve aprirlo.
-      if (!eEmailDaLink(profilo?.email)) { presoId = null; return nonValido(); }
-      email = profilo!.email!;
+      const verificato = await emailDellAccountDaLink(admin, d as Dipendente, d.user_id);
+      // Nel frattempo ha avuto un accesso con email sua, o l'account non è di questo dipendente: il link non deve aprirlo.
+      if (!verificato) { presoId = null; return nonValido(); }
+      email = verificato;
     } else {
       email = await creaAccount(admin, d as Dipendente);
     }

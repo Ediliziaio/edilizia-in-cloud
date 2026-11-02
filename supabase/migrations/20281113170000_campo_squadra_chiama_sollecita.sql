@@ -18,7 +18,10 @@ declare
 begin
   select o.company_id into v_company from public.orders o where o.id = p_order_id;
   if v_company is null then return; end if;
-  v_tutto := public.campo_e_ufficio(v_company)
+  -- Gli operai hanno anche il ruolo company_staff: «ufficio» è solo chi non è operaio né ditta, oppure l'amministratore.
+  v_tutto := public.e_amministratore_di(v_company)
+             or (public.campo_e_ufficio(v_company)
+                 and not exists (select 1 from public.user_roles ur where ur.user_id = v_me and ur.role in ('employee', 'subcontractor')))
              or exists (select 1 from public.order_campo_assignments a
                          where a.order_id = p_order_id and a.user_id = v_me and a.is_capocantiere);
   v_mie := array(select sc.squadra_id from public.squadre_commesse sc

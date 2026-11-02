@@ -15,6 +15,23 @@ export function eEmailDaLink(email: string | null | undefined): boolean {
   return (email ?? "").trim().toLowerCase().endsWith(`@${DOMINIO_ACCESSO_CON_LINK}`);
 }
 
+/**
+ * Il link apre solo l'account fatto per quel dipendente. Dipendente e profilo si possono modificare dall'azienda, l'email
+ * dell'account no: un amministratore non può puntare un suo dipendente sull'account del link di un'altra azienda.
+ */
+export function accountDaLinkValido(a: {
+  email: string | null | undefined;
+  employeeId: string;
+  aziendaProfilo: string | null | undefined;
+  aziendaDipendente: string;
+  ruoli: ReadonlyArray<string>;
+  bloccato: boolean | null | undefined;
+}): boolean {
+  if ((a.email ?? "").trim().toLowerCase() !== emailDaLink(a.employeeId)) return false;
+  if (a.aziendaProfilo !== a.aziendaDipendente || a.bloccato === true) return false;
+  return a.ruoli.every((r) => r === "employee" || r === "company_staff");
+}
+
 function esadecimale(byte: Uint8Array): string {
   return Array.from(byte, (b) => b.toString(16).padStart(2, "0")).join("");
 }
