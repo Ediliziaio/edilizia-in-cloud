@@ -781,7 +781,12 @@ function pulisci(forma: Forma, grezzo: Grezzo, amb: Ambiente): Pulito {
     case "tipo_pagamento":
       return v === "financing" || v === "standard" ? semplice({ ok: true, valore: v }) : { ok: false, motivo: "modalità di pagamento non valida" };
     case "cliente_nome": {
-      const o = oggetto(v) ? v : { client_name: v };
+      // Un nome con forma di azienda messo come testo, o sotto un'altra chiave («ragione_sociale»).
+      const nudo = typeof v === "string" ? testoDa(v, 160)
+        : oggetto(v) && !testoDa(v.client_name, 160) && !testoDa(v.client_company, 160)
+          ? Object.values(v).map((x) => testoDa(x, 160)).find(Boolean) ?? null : null;
+      const azienda = nudo != null && /\b(s\.?r\.?l|s\.?p\.?a|s\.?n\.?c|s\.?a\.?s|condominio|ditta|impresa|costruzioni|edil)\b/i.test(nudo);
+      const o: Grezzo = nudo != null ? (azienda ? { client_company: nudo } : { client_name: nudo }) : oggetto(v) ? v : { client_name: v };
       const c = conColonne({ client_name: testoDa(o.client_name, 160), client_company: testoDa(o.client_company, 160) });
       return c ? semplice({ ok: true, valore: c }) : { ok: false, motivo: "nome del cliente vuoto" };
     }
