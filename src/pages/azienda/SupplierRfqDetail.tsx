@@ -13,7 +13,8 @@
  * in poi si lavora sull'ordine d'acquisto, non piu' qui.
  */
 import { useMemo, useRef, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,8 +56,10 @@ const dataIt = (iso?: string | null) =>
   iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—";
 
 export default function SupplierRfqDetail() {
-  const { rfqId } = useParams();
-  const navigate = useNavigate();
+  const { rfqId: rfqIdIndirizzo } = useParams();
+  const rfqId = useIdDocumento(rfqIdIndirizzo);
+  const navigate = useNavigaDocumento();
+  const inPopup = useDentroPopupDocumento();
   const { effectiveCompany } = useAuth();
   const {
     rfq, items, fornitori, quotes, isLoading,
@@ -192,13 +195,13 @@ export default function SupplierRfqDetail() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center gap-3">
+      {!inPopup && <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/ordini?tab=offerte")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           <span className="hidden sm:inline">Richieste d'offerta</span>
           <span className="sm:hidden">Indietro</span>
         </Button>
-      </div>
+      </div>}
 
       <QuotePageHeader
         numero={rfq.rfq_number}

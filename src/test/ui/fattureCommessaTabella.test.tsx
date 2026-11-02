@@ -37,7 +37,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "co" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ solaLettura: false, canEditOrders: true }) }));
 vi.mock("@/components/orders/CaricaFatturaCommessa", () => ({ CaricaFatturaCommessaButton: (): null => null, collegaFatturaACommessa: vi.fn() }));
-vi.mock("@/components/orders/ExpensePaymentDialog", () => ({ ExpensePaymentDialog: (): null => null }));
+vi.mock("@/components/orders/ExpensePaymentDialog", () => ({ ExpensePaymentDialog: ({ costId }: { costId: string }) => <p>pagamenti del costo {costId}</p> }));
+vi.mock("@/components/fatturazione/RiepilogoFatturaRicevuta", () => ({ RiepilogoFatturaRicevuta: ({ fatturaId }: { fatturaId: string }) => <p>riepilogo di {fatturaId}</p> }));
 import { OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
 
 const base = { numero_fattura: "F1", data_fattura: "2026-10-01", cedente_ragione_sociale: "Aluplast", totale_documento: 100, tipo_documento: "TD01", stato: "letta", purchase_order_id: null as string | null, company_cost_id: null as string | null, pagata_il: null as string | null, order_match_confidenza: null as number | null, anomalie_rilevate: null as unknown, ai_riassunto: "Serramenti", righe: null as unknown };
@@ -58,21 +59,21 @@ describe("Fatture della commessa in tabella", () => {
     expect(r.getByText(/30,00/)).toBeInTheDocument();
     expect(r.getByText(/70,00/)).toBeInTheDocument();
     expect(r.getByText("Serramenti")).toBeInTheDocument();
-    expect(r.queryByRole("button", { name: "Verifica" })).toBeNull();
+    expect(r.queryByRole("button", { name: /Verifica la fattura/ })).toBeNull();
   });
   it("una fattura non contabilizzata è da verificare, e «Verifica» usa la stessa azione di Fatture ricevute", async () => {
     stato.fatture = [{ ...base, id: "f1", purchase_order_id: "po1" }];
     mostra();
     const r = within(await riga(/N\. F1/));
     expect(r.getByText("Da verificare")).toBeInTheDocument();
-    fireEvent.click(r.getByRole("button", { name: "Verifica" }));
+    fireEvent.click(r.getByRole("button", { name: /Verifica la fattura/ }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("contabilizza_fattura_ricevuta", { p_fattura_id: "f1" }));
   });
   it("se chi guarda non conferma, la fattura non si contabilizza", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     stato.fatture = [{ ...base, id: "f1", purchase_order_id: "po1" }];
     mostra();
-    fireEvent.click(within(await riga(/N\. F1/)).getByRole("button", { name: "Verifica" }));
+    fireEvent.click(within(await riga(/N\. F1/)).getByRole("button", { name: /Verifica la fattura/ }));
     expect(stato.rpc).not.toHaveBeenCalledWith("contabilizza_fattura_ricevuta", expect.anything());
   });
   it("fatturato oltre l'ordine: è da verificare e dice quanto", async () => {
@@ -91,6 +92,21 @@ describe("Fatture della commessa in tabella", () => {
     expect(screen.queryByText(/IVA inclusa/)).toBeNull();
     fireEvent.click(r.getByRole("button", { name: "Non è di questa commessa" }));
     await waitFor(() => expect(stato.update).toHaveBeenCalledWith({ order_id_suggerito: null, order_match_confidenza: null }));
+  });
+  it("con un costo collegato il pagamento apre «Pagamenti e residuo»; senza, segna la fattura pagata", async () => {
+    stato.fatture = [{ ...base, id: "f1", company_cost_id: "c1", numero_fattura: "CC", stato: "contabilizzata" }, { ...base, id: "f2", purchase_order_id: "po1", numero_fattura: "SS", totale_documento: 10 }];
+    stato.costi = [{ id: "c1", is_paid: false, paid_date: null }];
+    mostra();
+    fireEvent.click(within(await riga(/N\. CC/)).getByRole("button", { name: /Pagamento della fattura/ }));
+    expect(await screen.findByText("pagamenti del costo c1")).toBeInTheDocument();
+    fireEvent.click(within(await riga(/N\. SS/)).getByRole("button", { name: /Pagamento della fattura/ }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("segna_fattura_ricevuta_pagata", expect.objectContaining({ p_id: "f2", p_pagata: true })));
+  });
+  it("la fattura si apre in un popup, senza uscire", async () => {
+    stato.fatture = [{ ...base, id: "f1", purchase_order_id: "po1" }];
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: /N\. F1/ }));
+    expect(await screen.findByText("riepilogo di f1")).toBeInTheDocument();
   });
   it("un numero filtra la tabella", async () => {
     stato.fatture = [{ ...base, id: "f1", numero_fattura: "A", purchase_order_id: "po1", totale_documento: 50 }, { ...base, id: "f3", numero_fattura: "B", purchase_order_id: "po1", stato: "contabilizzata", totale_documento: 10 }];

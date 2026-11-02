@@ -12,7 +12,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Paperclip, Plus, Loader2, Wallet, Trash2 } from "lucide-react";
+import { ChevronDown, Paperclip, Plus, Loader2, Wallet, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
@@ -28,6 +28,7 @@ import { dataIt } from "./OrderDocumentiFornitore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RiquadroCommessa, StatoPill, TabellaCommessa } from "./TabellaCommessa";
+import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,6 +146,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useCostiCommessa(orderId);
   const [aperto, setAperto] = useState(false);
+  const [pagamentiDi, setPagamentiDi] = useState<string | null>(null);
   const [allegaA, setAllegaA] = useState<string | null>(null);
   const inputAllega = useRef<HTMLInputElement>(null);
   const costi = data?.costi ?? [];
@@ -178,6 +180,8 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   });
 
   return (
+    <>
+    {pagamentiDi && <ExpensePaymentDialog key={pagamentiDi} costId={pagamentiDi} onClose={() => { setPagamentiDi(null); aggiorna(); }} />}
     <RiquadroCommessa id="costi-commessa"
       icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
       titolo="Costi della commessa" conteggio={costi.length}
@@ -225,7 +229,9 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
             ) },
             { titolo: "Pagamento", cella: (c) => (
               <div className="space-y-0.5">
-                <StatoPill tono={c.is_paid ? "verde" : "ambra"}>{c.is_paid ? "Pagato" : "Da pagare"}</StatoPill>
+                <button type="button" title="Pagamenti e residuo" aria-label={`Pagamenti di ${c.name}`} onClick={() => setPagamentiDi(c.id)}>
+                  <StatoPill tono={c.is_paid ? "verde" : "ambra"}>{c.is_paid ? "Pagato" : "Da pagare"}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
+                </button>
                 {c.is_paid && c.paid_date && <p className="whitespace-nowrap text-xs text-muted-foreground">il {dataIt(c.paid_date)}</p>}
               </div>
             ) },
@@ -250,6 +256,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
         />
       )}
     </RiquadroCommessa>
+    </>
   );
 }
 

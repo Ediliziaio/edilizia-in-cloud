@@ -24,7 +24,8 @@
 // ============================================================================
 
 import { useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,8 +90,10 @@ const QUALITY_COLORS: Record<string, string> = {
 };
 
 export default function DDTRicezioneDetail() {
-  const { ddtId } = useParams();
-  const navigate = useNavigate();
+  const { ddtId: ddtIdIndirizzo } = useParams();
+  const ddtId = useIdDocumento(ddtIdIndirizzo);
+  const navigate = useNavigaDocumento();
+  const inPopup = useDentroPopupDocumento();
   const { ddt, isLoading, receipts, isReceiptsLoading } = useDDTRicezioneDetail(ddtId);
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
     useDDTRicezioneMutations(ddt?.purchase_order_id ?? null);
@@ -479,14 +482,14 @@ export default function DDTRicezioneDetail() {
           ═══════════════════════════════════════════════════════════ */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Button
+          {!inPopup && <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate("/azienda/ordini?tab=ddt")}
             className="shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
-          </Button>
+          </Button>}
           <div
             className={cn(
               "h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0",

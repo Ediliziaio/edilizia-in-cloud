@@ -3,8 +3,9 @@
  * /azienda/richieste-offerta: qui si vedono solo quelle della commessa e se ne crea una nuova già collegata.
  */
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { FileQuestion, Loader2, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useNavigaDocumento } from "@/lib/orders/documentoPopup";
+import { ChevronDown, FileQuestion, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,11 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
       const c = contatori[r.id];
       return c ? <div className="text-xs text-muted-foreground"><p className="whitespace-nowrap">{conPlurale(c.invitati, "fornitore", "fornitori")} · {conPlurale(c.risposte, "offerta", "offerte")}</p>{c.inAttesa > 0 && <p>{c.inAttesa} in attesa</p>}</div> : <span className="text-muted-foreground">—</span>;
     } },
-    { titolo: "Stato", cella: (r) => <Badge className={cn("whitespace-nowrap border-0 text-xs", RDO_STATUS_COLORS[r.status])}>{RDO_STATUS_LABELS[r.status] ?? r.status}</Badge> },
+    { titolo: "Stato", cella: (r) => (
+      <Link to={`/azienda/richieste-offerta/${r.id}`} title="Apri per gestirla" aria-label={`Gestisci la richiesta ${r.rfq_number}`}>
+        <Badge className={cn("whitespace-nowrap border-0 text-xs", RDO_STATUS_COLORS[r.status])}>{RDO_STATUS_LABELS[r.status] ?? r.status}<ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" /></Badge>
+      </Link>
+    ) },
     { titolo: "Risposta entro", cella: (r) => <span className="whitespace-nowrap">{r.scadenza_offerte && r.status !== "aggiudicata" ? dataIt(r.scadenza_offerte) : "—"}</span> },
     ...(perm.canViewCosts ? [{ titolo: "Migliore offerta", destra: true, cella: (r: SupplierRfq) => <span className="font-medium" title="Migliore offerta">{contatori[r.id]?.migliore != null ? formatCurrency(contatori[r.id].migliore!) : "—"}</span> }] : []),
     { titolo: "Azioni", destra: true, cella: (r) => r.purchase_order_id ? <Link to={`/azienda/ordini-acquisto/${r.purchase_order_id}`} className="whitespace-nowrap text-xs underline underline-offset-2">Vedi l’ordine</Link> : null },
@@ -89,7 +94,7 @@ export function OrderRichiesteOfferta({ orderId, orderCode }: { orderId: string;
 }
 
 function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; orderCode?: string | null; onChiudi: () => void }) {
-  const navigate = useNavigate();
+  const navigate = useNavigaDocumento();
   const { effectiveCompany } = useAuth();
   const { create } = useSupplierRfqs();
   const { suppliers } = useOperationalSuppliers();

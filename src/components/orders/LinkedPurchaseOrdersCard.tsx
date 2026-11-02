@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Package, PackageCheck, ExternalLink, Link2, Unlink, Plus } from "lucide-react";
+import { ChevronDown, Package, PackageCheck, Link2, Unlink, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,22 +127,26 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
 
   const colonne: ColonnaTabella<OrdineCollegato>[] = [
     { titolo: "Ordine", principale: true, cella: (po) => (
-      <button type="button" onClick={() => setOdaAperto({ id: po.id, oda_number: po.oda_number, status: po.status, total: po.total, fornitore: po.suppliers?.name ?? null })}
-        className="text-left font-mono font-medium underline-offset-2 hover:underline" aria-label={`Bolle e fatture dell'ordine ${po.oda_number}`}>
+      <Link to={`/azienda/ordini-acquisto/${po.id}`} className="font-mono font-medium underline-offset-2 hover:underline" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
         {po.oda_number}
-      </button>
+      </Link>
     ) },
     { titolo: "Data", cella: (po) => <span className="whitespace-nowrap">{dataIt(po.issue_date)}</span> },
     { titolo: "Fornitore", cella: (po) => po.suppliers?.name || "—" },
-    { titolo: "Stato", cella: (po) => <Badge className={`whitespace-nowrap border-0 text-xs ${STATUS_COLORS[po.status] || ""}`}>{STATUS_LABELS[po.status] || po.status}</Badge> },
+    { titolo: "Stato", cella: (po) => (
+      <Link to={`/azienda/ordini-acquisto/${po.id}`} title="Apri per cambiare lo stato" aria-label={`Cambia lo stato dell'ordine ${po.oda_number}`}>
+        <Badge className={`whitespace-nowrap border-0 text-xs ${STATUS_COLORS[po.status] || ""}`}>{STATUS_LABELS[po.status] || po.status}<ChevronDown className="ml-1 h-3 w-3" aria-hidden="true" /></Badge>
+      </Link>
+    ) },
     { titolo: "Arrivato", cella: (po) => {
       const a = avanzamentoOrdine(po, oggi);
       const ddt = ddtCounts[po.id];
       return (
-        <div className="text-xs text-muted-foreground">
+        <button type="button" className="text-left text-xs text-muted-foreground underline-offset-2 hover:underline" aria-label={`Bolle e fatture dell'ordine ${po.oda_number}`}
+          onClick={() => setOdaAperto({ id: po.id, oda_number: po.oda_number, status: po.status, total: po.total, fornitore: po.suppliers?.name ?? null })}>
           {a.righeTotali > 0 && <p className="whitespace-nowrap">{a.righeArrivate}/{a.righeTotali} righe</p>}
           {ddt && ddt.total > 0 && <p className={`whitespace-nowrap ${ddt.parziali > 0 || ddt.non_conformi > 0 ? "text-amber-700" : ""}`} title={ddt.non_conformi > 0 ? `${ddt.non_conformi} non conformi` : undefined}>{ddtArrivati(ddt)}/{ddt.total} DDT</p>}
-        </div>
+        </button>
       );
     } },
     { titolo: "Consegna", cella: (po) => {
@@ -159,9 +163,6 @@ export function LinkedPurchaseOrdersCard({ orderId, orderCode, items, riepilogo 
             <PackageCheck className="h-3.5 w-3.5" /><span className="max-sm:hidden">Merce arrivata</span>
           </Button>
         )}
-        <Link to={`/azienda/ordini-acquisto/${po.id}`} className="inline-flex h-8 w-8 items-center justify-center" aria-label={`Apri l'ordine d'acquisto ${po.oda_number}`}>
-          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-        </Link>
         <Button variant="ghost" size="icon" className="h-8 w-8 max-sm:hidden" disabled={!canEditOrders}
           onClick={() => setUnlinkTarget({ id: po.id, oda_number: po.oda_number })} aria-label={`Scollega OdA ${po.oda_number}`}>
           <Unlink className="h-3.5 w-3.5 text-muted-foreground" />

@@ -17,7 +17,8 @@
  *    costi manodopera" mentre i soldi c'erano — nel posto sbagliato.
  */
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,7 +46,7 @@ interface PanelProps {
 }
 
 export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProps) {
-  const navigate = useNavigate();
+  const navigate = useNavigaDocumento();
   const queryClient = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const { suppliers } = useOperationalSuppliers();

@@ -3,7 +3,8 @@ import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
 } from "@/lib/odaStatus";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { useVociListinoFornitore } from "@/hooks/useListinoFornitore";
 import { trovaVoce, prezzoNetto, type VoceListinoFornitore } from "@/lib/listino/listinoFornitore";
 import { format } from "date-fns";
@@ -71,8 +72,10 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function PurchaseOrderDetail() {
-  const { odaId } = useParams();
-  const navigate = useNavigate();
+  const { odaId: odaIdIndirizzo } = useParams();
+  const odaId = useIdDocumento(odaIdIndirizzo);
+  const navigate = useNavigaDocumento();
+  const inPopup = useDentroPopupDocumento();
   const { effectiveCompany } = useAuth();
   const { order, isLoading, items, isItemsLoading, addItem, updateItem, deleteItem } = usePurchaseOrderDetail(odaId || null);
   // Prezzi d'acquisto del fornitore: alimentano il suggerimento sulle righe.
@@ -207,7 +210,7 @@ export default function PurchaseOrderDetail() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Back link — visible on all viewports */}
-      <div className="flex items-center gap-3">
+      {!inPopup && <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="sm"
@@ -218,7 +221,7 @@ export default function PurchaseOrderDetail() {
           <span className="hidden sm:inline">Ordini Acquisto</span>
           <span className="sm:hidden">Indietro</span>
         </Button>
-      </div>
+      </div>}
 
       <QuotePageHeader
         numero={order.oda_number}

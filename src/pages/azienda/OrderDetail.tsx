@@ -111,6 +111,7 @@ import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
 import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta";
+import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 
@@ -1767,6 +1768,7 @@ function OrderDetailInner() {
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
               <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length, fatture: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
             </div>
+            <DocumentiInPopup orderId={id!}>
             <OrderViewTransition viewKey={activeMaterialiView}>
             {activeMaterialiView === "articoli" && <>
             {/* Un solo elenco degli articoli, diviso per fase (23/10/2026): materiali,
@@ -1915,6 +1917,7 @@ function OrderDetailInner() {
             ) : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare gli ordini d’acquisto di questa commessa.</p>} />
             </div>}
             </OrderViewTransition>
+            </DocumentiInPopup>
           </TabsContent>
 
           {/* Tab: Finanza */}

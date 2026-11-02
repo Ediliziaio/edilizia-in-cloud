@@ -17,7 +17,11 @@ import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { FileText, Plus, Receipt, Truck } from "lucide-react";
+import { ChevronDown, FileText, Plus, Receipt, Truck } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useDDTRicezioneMutations, type DDTStato } from "@/hooks/useDDTRicezione";
+import { useSegnaRicevutaPagata } from "@/components/fatturazione/PagamentoRicevuta";
+import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -244,6 +248,31 @@ function CellaMateriali({ materiali = [] }: { materiali?: MaterialeBolla[] }) {
   );
 }
 
+/**
+ * Lo stato si cambia da qui, con le stesse scritture della pagina della bolla. «Attesa» no: la merce arrivata si
+ * registra sull'ordine. Le bolle dal cantiere si verificano dove si scrive anche l'importo.
+ */
+function StatoBolla({ riga, orderId, puoCambiare, onCambia }: {
+  riga: RigaBolla; orderId: string; puoCambiare: boolean; onCambia: (updates: { stato: DDTStato; has_damages?: boolean }) => void;
+}) {
+  const v = VERIFICA[riga.verifica!];
+  const freccia = <ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" />;
+  if (riga.origine === "cantiere" && riga.verifica === "da_verificare") {
+    return <Link to={`/azienda/ordini/${orderId}?tab=cantiere&vista_cantiere=diario`} title="Verificala nel Diario"><StatoPill tono={v.tono}>{v.testo}{freccia}</StatoPill></Link>;
+  }
+  if (riga.origine !== "fornitore" || riga.verifica === "attesa" || !puoCambiare) return <StatoPill tono={v.tono}>{v.testo}</StatoPill>;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger aria-label={`Cambia lo stato della bolla ${riga.numero ?? ""}`}><StatoPill tono={v.tono}>{v.testo}{freccia}</StatoPill></DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem disabled={riga.verifica === "verificata"} onSelect={() => onCambia({ stato: "verificato", has_damages: false })}>Verificata: merce conforme</DropdownMenuItem>
+        <DropdownMenuItem disabled={riga.verifica === "da_verificare"} onSelect={() => onCambia({ stato: "ricevuto", has_damages: false })}>Da verificare</DropdownMenuItem>
+        <DropdownMenuItem disabled={riga.verifica === "non_conforme"} onSelect={() => onCambia({ stato: "non_conforme", has_damages: true })}>Non conforme</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orderId: string; puoAprireDocumenti?: boolean }) {
   const { data = [], isLoading, isError, refetch } = useBolleCommessa(orderId);
   const [filtro, setFiltro] = useState<string | null>(null);
@@ -262,6 +291,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
   const puoCaricare = !permessi.solaLettura
     && (permessi.canEditWarehouse || permessi.canManagePurchasing || permessi.canEditOrders || permessi.isAdmin);
   const [carica, setCarica] = useState(false);
+  const { updateDDT } = useDDTRicezioneMutations(null);
   const linkDi = (r: RigaBolla) => (r.origine === "cliente" && !puoAprireDocumenti ? undefined : r.link);
   const colonne: ColonnaTabella<RigaBolla>[] = [
     { titolo: "Numero", principale: true, cella: (r) => {
@@ -273,9 +303,12 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
     { titolo: "Fornitore o cliente", cella: (r) => r.controparte ?? "—" },
     { titolo: "Provenienza", cella: (r) => <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${ORIGINE[r.origine].classe}`}>{ORIGINE[r.origine].testo}</span> },
     { titolo: "Materiali", cella: (r) => <CellaMateriali materiali={r.materiali} /> },
-    { titolo: "Stato", cella: (r) => r.verifica
-      ? <div className="space-y-0.5"><StatoPill tono={VERIFICA[r.verifica].tono}>{VERIFICA[r.verifica].testo}</StatoPill>{r.motivo && <p className="text-xs text-muted-foreground">{r.motivo}</p>}</div>
-      : <StatoPill tono="grigio">{r.stato}</StatoPill> },
+    { titolo: "Stato", cella: (r) => r.verifica ? (
+      <div className="space-y-0.5">
+        <StatoBolla riga={r} orderId={orderId} puoCambiare={puoCaricare} onCambia={(updates) => updateDDT.mutate({ id: r.id, updates })} />
+        {r.motivo && <p className="text-xs text-muted-foreground">{r.motivo}</p>}
+      </div>
+    ) : <StatoPill tono="grigio">{r.stato}</StatoPill> },
   ];
   return (
     <>
@@ -504,6 +537,9 @@ const PAGAMENTO: Record<StatoPagamento, { testo: string; tono: TonoStato }> = {
 
 export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true, puoModificare = false }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean; puoModificare?: boolean }) {
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
+  const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
+  const { effectiveCompany } = useAuth();
+  const segnaPagata = useSegnaRicevutaPagata();
   const [occupata, setOccupata] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -553,7 +589,12 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
   const visibili = filtro && filtri[filtro] && conta(filtro) > 0 ? data.filter(filtri[filtro]) : data;
   const importo = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(n));
   const colonne: ColonnaTabella<RigaFattura>[] = [
-    { titolo: "Fattura", principale: true, cella: (f) => <span className="font-medium">{f.notaCredito ? "Nota di credito" : "N."} {f.numero ?? "—"}</span> },
+    { titolo: "Fattura", principale: true, cella: (f) => {
+      const testo = `${f.notaCredito ? "Nota di credito" : "N."} ${f.numero ?? "—"}`;
+      return puoAprireFatture
+        ? <button type="button" className="text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}>{testo}</button>
+        : <span className="font-medium">{testo}</span>;
+    } },
     { titolo: "Data", cella: (f) => <span className="whitespace-nowrap">{dataIt(f.data)}</span> },
     { titolo: "Fornitore", cella: (f) => (
       <div className="min-w-0 max-sm:text-right">
@@ -570,13 +611,27 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     ) },
     { titolo: "Verifica", cella: (f) => f.legame === "suggerita" ? <StatoPill tono="ambra">Da collegare</StatoPill> : (
       <div className="space-y-0.5">
-        <StatoPill tono={f.verificata && !f.daControllare ? "verde" : "ambra"}>{f.verificata && !f.daControllare ? "Verificata" : "Da verificare"}</StatoPill>
+        {puoModificare && !f.verificata ? (
+          <button type="button" title="Segna verificata" aria-label={`Verifica la fattura ${f.numero ?? ""}`} disabled={occupata !== null} onClick={() => verifica(f)}>
+            <StatoPill tono="ambra">Da verificare<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
+          </button>
+        ) : <StatoPill tono={f.verificata && !f.daControllare ? "verde" : "ambra"}>{f.verificata && !f.daControllare ? "Verificata" : "Da verificare"}</StatoPill>}
         {f.daControllare && <p className="text-xs text-muted-foreground">{f.daControllare}</p>}
       </div>
     ) },
     { titolo: "Pagamento", cella: (f) => f.legame === "suggerita" || f.notaCredito ? <span className="text-muted-foreground">—</span> : (
       <div className="space-y-0.5">
-        <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{PAGAMENTO[f.pagamento].testo}</StatoPill>
+        {puoModificare || f.costId ? (
+          <button type="button" title={f.costId ? "Pagamenti e residuo" : f.pagamento === "pagata" ? "Rimetti da pagare" : "Segna pagata"} aria-label={`Pagamento della fattura ${f.numero ?? ""}`} disabled={segnaPagata.isPending}
+            onClick={() => {
+              if (f.costId) { setPaymentCostId(f.costId); return; }
+              segnaPagata.mutate({ id: f.id, pagata: f.pagamento !== "pagata", numero: f.numero ?? undefined }, {
+                onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }),
+              });
+            }}>
+            <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{PAGAMENTO[f.pagamento].testo}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
+          </button>
+        ) : <StatoPill tono={PAGAMENTO[f.pagamento].tono}>{PAGAMENTO[f.pagamento].testo}</StatoPill>}
         {f.pagataIl && <p className="whitespace-nowrap text-xs text-muted-foreground">il {dataIt(f.pagataIl)}</p>}
       </div>
     ) },
@@ -591,16 +646,19 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
           <Button size="sm" variant="outline" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void collega(f)}>{occupata === f.id ? "Collego…" : "Collega a questa commessa"}</Button>
           <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => void nonDiQuesta(f)}>Non è di questa commessa</Button>
         </>}
-        {puoModificare && f.legame !== "suggerita" && !f.verificata && (
-          <Button size="sm" variant="outline" className="h-8 px-2 text-xs" disabled={occupata !== null} onClick={() => verifica(f)}>Verifica</Button>
-        )}
-        {mostraImporti && f.costId && <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => setPaymentCostId(f.costId)}>Pagamenti e residuo</Button>}
       </div>
     ) },
   ];
   return (
     <>
-    {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={() => setPaymentCostId(null)} />}
+    {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={() => { setPaymentCostId(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }} />}
+    {riepilogoId && (
+      <RiepilogoFatturaRicevuta fatturaId={riepilogoId} companyId={effectiveCompany?.id} onClose={() => { setRiepilogoId(null); void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] }); }}
+        azioni={(() => {
+          const f = data.find((x) => x.id === riepilogoId);
+          return puoModificare && f && f.legame !== "suggerita" && !f.verificata ? { onContabilizza: () => verifica(f) } : {};
+        })()} />
+    )}
     <RiquadroCommessa
       icona={<Receipt className="h-5 w-5 text-primary" aria-hidden="true" />}
       titolo="Fatture dei fornitori" conteggio={collegate.length}
