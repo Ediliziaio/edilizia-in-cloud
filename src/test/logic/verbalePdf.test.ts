@@ -50,4 +50,22 @@ describe("PDF del verbale", () => {
     expect(testo).toContain("Pezzi controllati: 9");
     expect(testo).not.toContain("riservato");
   });
+  it("il titolo della firma sta sempre sulla stessa pagina della firma", async () => {
+    for (let righe = 0; righe < 60; righe += 2) {
+      vi.restoreAllMocks();
+      let paginaTitolo = -1, paginaFirma = -1;
+      vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, t: string, o?: PDFPageDrawTextOptions) {
+        if (t === "Firma del cliente") paginaTitolo = this.doc.getPages().indexOf(this);
+        vero.call(this, t, o);
+      });
+      const immagineVera = PDFPage.prototype.drawImage;
+      vi.spyOn(PDFPage.prototype, "drawImage").mockImplementation(function (this: PDFPage, i, o) {
+        paginaFirma = this.doc.getPages().indexOf(this);
+        immagineVera.call(this, i, o);
+      });
+      await renderAcceptance({ ...emptyAcceptance("2026-11-02"), notes: "riga\n".repeat(righe) + "x ".repeat(righe * 40) }, contesto, { immagine: FIRMA, nome: "M", quando: "oggi" });
+      expect(paginaFirma, `con ${righe} righe`).toBe(paginaTitolo);
+    }
+  });
 });
+

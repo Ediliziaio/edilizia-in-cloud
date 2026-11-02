@@ -132,10 +132,11 @@ export async function renderAcceptance(
     paragraph(c.notes);
   }
   if (firma) {
-    section("Firma del cliente");
     const immagine = await pdf.embedPng(firma.immagine);
     const d = immagine.scaleToFit(220, 80);
-    ensure(d.height + 30);
+    // Titolo, firma e nome stanno sulla stessa pagina.
+    ensure(d.height + 90);
+    section("Firma del cliente");
     page.drawImage(immagine, { x: 42, y: y - d.height, width: d.width, height: d.height });
     y -= d.height + 14;
     paragraph(`Firmato su schermo da ${firma.nome} il ${firma.quando}.`, 10, ink, true);
