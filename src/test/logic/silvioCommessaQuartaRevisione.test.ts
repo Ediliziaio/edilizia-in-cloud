@@ -38,7 +38,8 @@ describe("1. Il salvataggio usa l'autonomia del popup", () => {
     const prendi = (r: { scrittura: ScritturaCommessa }) => { scritta = r.scrittura; return q; };
     Object.assign(q, {
       insert: prendi, update: prendi, eq: () => q, select: () => q,
-      single: async () => ({ data: { id: "b1" }, error: null }), maybeSingle: async () => ({ data: { id: "b1" }, error: null }),
+      single: async (): Promise<unknown> => ({ data: { id: "b1" }, error: null }),
+      maybeSingle: async (): Promise<unknown> => ({ data: { id: "b1" }, error: null }),
     });
     return { db: { from: () => q } as unknown as ClientBozze, letta: () => scritta! };
   };
