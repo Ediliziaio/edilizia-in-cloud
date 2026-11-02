@@ -189,8 +189,6 @@ function tipoHint(tipo: string): string {
   return TIPO_DEFS.find((t) => t.value === tipo)?.hint ?? "";
 }
 
-// NOTE: categoria_prodotto and descrizione sono NOT in the tariffe_aziendali schema.
-// attiva is NOT in the schema either — rimosso da tutti i payload.
 
 
 /**
@@ -2551,7 +2549,8 @@ export default function SettingsTariffe() {
           </Select>
           <select aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px] max-md:h-11">
             <option value="all">Tutte le lavorazioni</option>
-            {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+            {/* Solo i gruppi che l'azienda usa: a un serramentista non servono le strutture. */}
+            {GRUPPI_LAVORAZIONE.filter(g => g.id === lavorazioneFilter || tariffe.some(t => gruppoLavorazione(t) === g.id)).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
           </select>
           {tariffe.some(t => categoriaPrezzarioTariffa(t)) && <select aria-label="Filtra per categoria regionale" value={categoriaRegionaleFilter} onChange={e => { setCategoriaRegionaleFilter(e.target.value); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[250px] max-md:h-11">
             <option value="all">Tutte le categorie regionali</option>
