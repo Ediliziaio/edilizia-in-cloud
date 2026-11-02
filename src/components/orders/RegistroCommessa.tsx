@@ -3,7 +3,6 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Download, FilePlus2, History, Pencil, Search, Trash2, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,37 +36,32 @@ const truncateDettagli = (t: string) => (t.length > MAX_DETTAGLI_LENGTH ? `${t.s
 function IconaTipo({ tipo }: { tipo: TipoVoce }) {
   const Icona = tipo === "creato" ? FilePlus2 : tipo === "eliminato" ? Trash2 : tipo === "modificato" ? Pencil : History;
   return (
-    <span className={cn("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-      tipo === "creato" && "bg-emerald-50 text-emerald-700",
-      tipo === "eliminato" && "bg-red-50 text-red-700",
-      tipo === "modificato" && "bg-blue-50 text-blue-700",
-      (tipo === "evento" || tipo === "messaggio") && "bg-slate-100 text-slate-600")}>
-      <Icona className="h-3.5 w-3.5" />
-    </span>
+    <Icona aria-hidden className={cn("mt-0.5 h-3.5 w-3.5 shrink-0",
+      tipo === "creato" && "text-emerald-600",
+      tipo === "eliminato" && "text-red-600",
+      tipo === "modificato" && "text-blue-600",
+      (tipo === "evento" || tipo === "messaggio") && "text-slate-400")} />
   );
 }
 
+/** Una riga sola quando basta: ora, chi, cosa, su cosa. Le modifiche vanno sotto. */
 function RigaVoce({ voce }: { voce: VoceRegistro }) {
   return (
-    <li className="flex items-start gap-2.5 py-2">
-      <IconaTipo tipo={voce.tipo} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm leading-snug">
-          <span className={cn("font-semibold", voce.senzaPersona && "font-normal italic text-muted-foreground")}>{voce.chi}</span>{voce.senzaPersona ? " — " : " "}
-          <span className={cn(voce.tipo === "eliminato" && "font-medium text-red-700")}>{voce.titolo}</span>
-          {voce.volte > 1 && <span className="text-xs text-muted-foreground"> ({voce.volte} volte)</span>}
-        </p>
-        {voce.oggetto && <p className="truncate text-xs text-muted-foreground" title={voce.oggetto}>{voce.oggetto}</p>}
-        {voce.dettagli.length > 0 && (
-          <ul className="mt-0.5 space-y-0.5">
-            {voce.dettagli.map((d) => <li key={d} className="break-words text-xs text-foreground/80">{d}</li>)}
-          </ul>
-        )}
+    <li className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 px-3 py-1 text-xs hover:bg-muted/40 sm:grid-cols-[2.5rem_9.5rem_minmax(0,1fr)_auto]">
+      <span className="tabular-nums leading-5 text-muted-foreground">{format(parseISO(voce.quando), "HH:mm")}</span>
+      <span className={cn("truncate font-medium leading-5", voce.senzaPersona && "font-normal italic text-muted-foreground")} title={voce.chi}>{voce.chi}</span>
+      <div className="col-start-2 flex min-w-0 gap-1.5 sm:col-start-3">
+        <IconaTipo tipo={voce.tipo} />
+        <div className="min-w-0 leading-5">
+          <p className="truncate" title={voce.oggetto ? `${voce.titolo} · ${voce.oggetto}` : voce.titolo}>
+            <span className={cn(voce.tipo === "eliminato" && "font-medium text-red-700")}>{voce.titolo}</span>
+            {voce.volte > 1 && <span className="text-muted-foreground"> ({voce.volte} volte)</span>}
+            {voce.oggetto && <span className="text-muted-foreground"> · {voce.oggetto}</span>}
+          </p>
+          {voce.dettagli.length > 0 && <p className="break-words text-foreground/80">{voce.dettagli.join(" · ")}</p>}
+        </div>
       </div>
-      <div className="shrink-0 text-right">
-        <p className="text-xs tabular-nums text-muted-foreground">{format(parseISO(voce.quando), "HH:mm")}</p>
-        <Badge variant="outline" className="mt-0.5 hidden whitespace-nowrap px-1.5 py-0 text-[10px] font-normal sm:inline-flex">{voce.area}</Badge>
-      </div>
+      <span className="hidden whitespace-nowrap leading-5 text-[10px] text-muted-foreground sm:block">{voce.area}</span>
     </li>
   );
 }
@@ -228,7 +222,7 @@ export function RegistroCommessa({ voci, nomeFile, titoloCommessa }: Props) {
                 {format(parseISO(g.giorno), "EEEE d MMMM yyyy", { locale: it })}
                 <span className="ml-1.5 font-normal text-muted-foreground">{g.voci.length}</span>
               </h3>
-              <ul className="divide-y px-3">
+              <ul className="divide-y divide-border/50">
                 {g.voci.map((v) => <RigaVoce key={v.id} voce={v} />)}
               </ul>
             </section>

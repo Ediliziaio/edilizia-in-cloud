@@ -103,7 +103,7 @@ const CAMPI: Record<string, string> = {
 };
 
 /** Campi che cambiano da soli o non dicono niente a chi legge. */
-const CAMPI_TECNICI = /^(version|updated_|last_|work_lat|work_lng|work_geocoded|distanza_sede|embedding|ai_|sync|external_|search_|reminder_|google_|meta_|fbc|fbp|gclid|legacy_)/;
+const CAMPI_TECNICI = /^(version|updated_|last_|work_lat|work_lng|work_geocoded|distanza_sede|embedding|ai_|sync|external_|search_|reminder_|google_|meta_|fbc|fbp|gclid|legacy_|pdf_)/;
 const CAMPI_SOLDI = /(amount|importo|total|price|prezzo|cost|deposit|balance|imponibile)/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

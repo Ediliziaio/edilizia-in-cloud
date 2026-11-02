@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
-    marginBottom: 6,
-    marginTop: 14,
+    marginBottom: 4,
+    marginTop: 10,
   },
-  sectionLine: { height: 1, backgroundColor: C.gray200, marginBottom: 8 },
+  sectionLine: { height: 1, backgroundColor: C.gray200, marginBottom: 6 },
 
   // Grid
   row2: { flexDirection: "row" as const, gap: 10, marginBottom: 10 },
@@ -92,10 +92,10 @@ const styles = StyleSheet.create({
     padding: "5 8",
   },
   tableHeaderText: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.white },
-  tableRow: { flexDirection: "row" as const, padding: "5 8", borderTop: `0.5pt solid ${C.gray200}` },
+  tableRow: { flexDirection: "row" as const, padding: "3 8", borderTop: `0.5pt solid ${C.gray200}` },
   tableRowAlt: {
     flexDirection: "row" as const,
-    padding: "5 8",
+    padding: "3 8",
     borderTop: `0.5pt solid ${C.gray200}`,
     backgroundColor: C.gray50,
   },
@@ -626,7 +626,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
         {/* ─── ARTICOLI ─── */}
         {mostra("articoli") && items.length > 0 && (
-          <View wrap={items.length > 12}>
+          <View wrap={items.length > 5}>
             <Text id={ancoraDi("Articoli della Commessa")} style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
@@ -1142,7 +1142,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
         {/* ─── SAL ─── */}
         {mostra("sal") && salList.length > 0 && (
-          <View wrap={salList.length > 6}>
+          <View wrap={salList.length > 3}>
             <Text id={ancoraDi("SAL — Avanzamento Lavori")} style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
             <View style={styles.sectionLine} />
             {graficoSal(kit, salList, imponibile)}
@@ -1233,7 +1233,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── GIORNALE LAVORI ─── */}
         {mostra("giornale") && giornaleLavori.length > 0 && (
           <>
-            <Text id={ancoraDi("Giornale Lavori")} style={styles.sectionTitle} break>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
+            <Text id={ancoraDi("Giornale Lavori")} style={styles.sectionTitle}>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
             <View style={styles.sectionLine} />
             {giornaleLavori.map((g: any, idx: number) => (
               <View key={idx} style={[styles.infoBox, { marginBottom: 6 }]} wrap={false}>
@@ -1332,7 +1332,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         {/* ─── DIARIO COMMESSA (Eventi + Comunicazioni) ─── */}
         {mostra("diario") && (diaryEvents.length > 0 || diaryMessages.length > 0) && (
           <>
-            <Text style={styles.sectionTitle} break>
+            <Text style={styles.sectionTitle}>
               Diario Commessa ({diaryEvents.length + diaryMessages.length} registrazioni)
             </Text>
             <View style={styles.sectionLine} />
