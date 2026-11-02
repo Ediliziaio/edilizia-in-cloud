@@ -331,3 +331,33 @@ Le regole stanno in un posto solo, `src/lib/documentiAzienda/letturaAI.ts`
 test guarda cosa NON si propone, perché è lì che sta il valore. Una scadenza
 sbagliata su un DURC è peggio di una mancante — la mancante si vede vuota, la
 sbagliata fa credere di essere a posto fino al giorno della gara.
+
+---
+
+## Fase 7 — fatta il 02/11/2026: la riga in Attività
+
+Una riga sola sopra alle attività del giorno: **«Carte della ditta — 6 carte scadute ·
+1 in scadenza»**, che apre la pagina. Senza niente di scaduto o in scadenza non occupa
+posto, e chi non può aprire le impostazioni dell'azienda non la vede affatto (la riga
+porterebbe su una porta chiusa).
+
+Sta subito sotto «Documenti da confermare», nel gruppo delle righe che compaiono solo
+quando c'è qualcosa da fare — non in cima: il primo colpo d'occhio resta sulle attività
+di oggi, che è il motivo per cui la pagina si apre.
+
+**Una deviazione dal piano, detta chiaramente.** Il piano diceva di usare
+`azienda_scadenze_tutte`, che unisce carte della ditta e scadenze dei mezzi. La riga
+conta **solo le carte della ditta**: i mezzi hanno un permesso proprio
+(`can_view_mezzi`) e una pagina propria, e una riga che somma le due cose porterebbe
+chi la tocca su una pagina dove metà dei numeri non c'è — oppure obbligherebbe a
+sommare cose che chi guarda non può aprire. Una riga, un conto, un posto dove finisce.
+Se i mezzi devono comparire, è una seconda riga con il suo permesso e la sua pagina.
+
+«In scadenza» è lo stato che decide il database, cioè il preavviso scelto su quella
+carta (sessanta giorni su un DURC, trenta su un contatore): la stessa soglia
+dell'elenco e dell'email. Un conto «entro trenta giorni» avrebbe detto un numero
+diverso da quello che si legge nella pagina.
+
+Il conto legge **solo la colonna dello stato** e solo le righe che contano
+(`in ('scaduto','in_scadenza')`), con una chiave di cache sua: quella query parte a
+ogni apertura di Attività, per ogni persona dell'azienda.

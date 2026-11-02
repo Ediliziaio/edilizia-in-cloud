@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type {
   CartaDaLeggere, DatiDocumento, DocumentoAzienda, VersioneDocumento,
 } from '@/types/documentiAzienda';
+import { contaScadenze, type ConteggioScadenze } from '@/lib/documentiAzienda/rigaScadenze';
 
 const BUCKET = 'azienda-documenti';
 
@@ -14,6 +15,9 @@ const chiavi = {
   elenco: (companyId: string | null) => ['documenti-azienda', 'elenco', companyId] as const,
   storico: (documentoId: string | undefined) => ['documenti-azienda', 'storico', documentoId] as const,
   avvio: (companyId: string | null) => ['documenti-azienda', 'avvio', companyId] as const,
+  // Chiave sua: la stessa chiave dell'elenco con un select più corto
+  // avvelenerebbe la cache dell'altra schermata.
+  conteggio: (companyId: string | null | undefined) => ['documenti-azienda', 'conteggio', companyId ?? null] as const,
 };
 
 // Il client tipizzato su tabelle con molte relazioni manda TypeScript in
@@ -58,6 +62,31 @@ export function useDocumentiAzienda() {
       return (data ?? []) as DocumentoAzienda[];
     },
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Quante carte sono scadute e quante stanno per scadere: il conto della riga in
+ * Attività.
+ *
+ * Legge solo la colonna dello stato, non tutto l'elenco: questa query parte a
+ * ogni apertura di Attività, per ogni persona dell'azienda, mentre l'elenco
+ * intero serve a chi apre la pagina.
+ */
+export function useConteggioScadenzeAzienda(companyId: string | null | undefined, abilitata = true) {
+  return useQuery({
+    queryKey: chiavi.conteggio(companyId),
+    enabled: !!companyId && abilitata,
+    queryFn: async (): Promise<ConteggioScadenze> => {
+      const { data, error } = await db
+        .from('azienda_documenti_stato')
+        .select('stato')
+        .eq('company_id', companyId)
+        .in('stato', ['scaduto', 'in_scadenza']);
+      if (error) throw error;
+      return contaScadenze((data ?? []) as Array<{ stato: DocumentoAzienda['stato'] }>);
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
 
