@@ -56,5 +56,8 @@
 - **Migrazione (serve il tuo sì):** `commessa_quadro_pagamenti` oggi guarda solo `suppliers.tipo`. Un costo a mano senza fornitore finisce sempre in «Costi extra», e i 133 costi su commessa con `category = 'trasporti_noleggi'` non contano come noleggi. Va aggiunto il ramo su `category`. Cambia la categoria mostrata, non i totali.
 - Test: `costoCommessa` e prova SQL con rollback sui totali prima e dopo.
 
+## Variante decisa dopo (02/11/2026)
+La vista «Noleggi e mezzi» è stata tolta: era un doppione. I mezzi si gestiscono in Cantiere → Lavorazioni e il riepilogo economico sta in Economia → Margini e costi (`CostiMezziRiepilogo`). Lo stato del costo e «Registra costo» sono entrati lì; i pagamenti dei noleggi si leggono in Fatture e costi → Tutte.
+
 ## Collaudo sulla Demo
 Stessa commessa, prima e dopo: margine, totale uscite, pagato e residuo identici. Vecchi link dalle notifiche. Telefono a 375 px. Ruolo senza `canViewCosts`: scheda assente. Poi `node scripts/typecheck-ratchet.mjs`, `bun run test:critical`, build completa.

@@ -36,8 +36,7 @@ export const COSTI_VIEWS = [
   { value: "tutte", label: "Tutte", description: "Ogni uscita della commessa: quanto è pagato, quanto resta e quando scade." },
   { value: "fornitori", label: "Fornitori", description: "Fatture dei fornitori: verifica, commesse e pagamento." },
   { value: "subappaltatori", label: "Subappaltatori", description: "Ditte e contratti: SAL, ritenute, fatture e pagamenti." },
-  { value: "noleggi", label: "Noleggi e mezzi", description: "Il costo previsto di ogni mezzo, quello registrato e quello pagato." },
-  { value: "manodopera", label: "Manodopera", description: "Ore, tariffe, budget e costi registrati dei dipendenti." },
+  { value: "manodopera", label: "Manodopera", description: "Ore, tariffe, budget e costi dei dipendenti." },
   { value: "altri", label: "Altri costi", description: "Comune, bolli, F24, polizze: i costi senza una fattura." },
 ] as const;
 export type CostiView = typeof COSTI_VIEWS[number]["value"];
@@ -66,7 +65,6 @@ const COSTI_SECTIONS: Partial<Record<string, CostiView>> = {
   "section-uscite": "tutte",
   "section-fatture-fornitori": "fornitori",
   "section-subappaltatori": "subappaltatori",
-  "section-noleggi": "noleggi",
   "section-manodopera-costi": "manodopera",
   "section-altri-costi": "altri",
 };
@@ -131,7 +129,6 @@ const SECTION_TABS = {
   "section-uscite": "costi",
   "section-fatture-fornitori": "costi",
   "section-subappaltatori": "costi",
-  "section-noleggi": "costi",
   "section-altri-costi": "costi",
   "section-acquisti": "articoli",
   "section-offerte": "articoli",
@@ -191,6 +188,8 @@ export function resolveOrderDetailDestination(
   // Viste spostate in Fatture e costi (02/11/2026): notifiche e segnalibri vecchi arrivano lì.
   if (tab === "articoli" && params.get("vista_materiali") === "fatture") return { tab: "costi", section: "section-fatture-fornitori" };
   if (tab === "finanza" && params.get("vista_economia") === "manodopera") return { tab: "costi", section: "section-manodopera-costi" };
+  // I mezzi si gestiscono in Cantiere → Lavorazioni e si leggono in Margini e costi: una vista in più era un doppione.
+  if (tab === "costi" && params.get("vista_costi") === "noleggi") return { tab: "cantiere", section: "section-mezzi" };
   if (isOrderDetailTab(tab)) return { tab };
   return Object.hasOwn(LEGACY_TABS, tab)
     ? LEGACY_TABS[tab]
@@ -207,6 +206,7 @@ export function orderDetailLocation(
   // Senza, tornando su Economia o Materiali il vecchio indirizzo riporterebbe a Fatture e costi.
   if (params.get("vista_materiali") === "fatture") params.delete("vista_materiali");
   if (params.get("vista_economia") === "manodopera") params.delete("vista_economia");
+  if (params.get("vista_costi") === "noleggi") params.delete("vista_costi");
   params.set(
     "tab",
     destination.section ? SECTION_TABS[destination.section] : destination.tab,

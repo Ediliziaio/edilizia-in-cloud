@@ -1,7 +1,12 @@
 import { PurchasePaymentsDialog } from "@/components/orders/PurchasePaymentsDialog";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 import { useState } from "react";
-import { Link2, Unlink } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link2, Plus, Unlink } from "lucide-react";
+import { toast } from "sonner";
+import { NuovoCostoDialog, useCostiCommessa } from "@/components/orders/OrderCostiCommessa";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,14 +14,38 @@ import { useMezziPianoEconomia } from "@/hooks/useMezziPianoEconomia";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatCurrency } from "@/lib/formatters";
 import { ViaggioSelect } from "./ViaggioSelect";
+/** Montato solo a modulo aperto: fasi e azienda servono solo lì. */
+function RegistraCostoMezzo({ orderId, supplierId, nomeMezzo, onChiudi, onCreato }: {
+  orderId: string; supplierId?: string | null; nomeMezzo?: string; onChiudi: () => void;
+  onCreato: (costo: { id: string; imponibile: number }) => void;
+}) {
+  const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
+  const { data: costi } = useCostiCommessa(orderId);
+  if (!companyId) return null;
+  return (
+    <NuovoCostoDialog
+      orderId={orderId}
+      companyId={companyId}
+      fasi={costi?.fasi ?? []}
+      iniziale={{ descrizione: nomeMezzo ? `Noleggio ${nomeMezzo}` : "Noleggio", tipo: "noleggio", fornitoreId: supplierId ?? null, aliquotaIva: "22", senzaFattura: false, pagato: false }}
+      onClose={onChiudi}
+      onSalvato={() => refreshFinancialQueries(queryClient)}
+      onCreato={onCreato}
+    />
+  );
+}
+
 export function SpesePianoMezzo({
   orderId,
   pianoId,
   supplierId,
+  nomeMezzo,
 }: {
   orderId: string;
   pianoId: string;
   supplierId?: string | null;
+  nomeMezzo?: string;
 }) {
   const p = usePermissions();
   const enabled = p.canViewCosts && (p.canViewMezzi || p.isAdmin);
@@ -26,6 +55,7 @@ export function SpesePianoMezzo({
     (p.canEditOrders || p.isAdmin) &&
     !p.solaLettura;
   const { fonti, collega } = useMezziPianoEconomia(orderId, enabled);
+  const [nuovoCosto, setNuovoCosto] = useState(false);
   const [aperto, setAperto] = useState(false);
   const [paymentCostId,setPaymentCostId] = useState<string|null>(null);
   const [paymentOrderId,setPaymentOrderId] = useState<string|null>(null);
@@ -57,6 +87,13 @@ export function SpesePianoMezzo({
   };
   return (
     <>
+    {nuovoCosto && (
+      <RegistraCostoMezzo orderId={orderId} supplierId={supplierId} nomeMezzo={nomeMezzo} onChiudi={() => setNuovoCosto(false)}
+        onCreato={({ id, imponibile }) => collega.mutate(
+          { pianoId, tipo: "costo", fonteId: id, importo: imponibile },
+          { onError: () => toast.warning("Costo salvato, ma non collegato al mezzo: collegalo da «Collega costo o OdA».") },
+        )} />
+    )}
     {paymentOrderId && <PurchasePaymentsDialog orderId={paymentOrderId} onClose={()=>setPaymentOrderId(null)}/>}
     {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={()=>setPaymentCostId(null)}/>}
     <section
@@ -68,16 +105,23 @@ export function SpesePianoMezzo({
           Costi e fatture già registrati
         </h4>
         {edit && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setAperto((v) => !v)}
-            disabled={fonti.isError || fonti.isLoading}
-          >
-            <Link2 className="mr-1 h-3.5 w-3.5" />
-            {aperto ? "Chiudi collegamento" : "Collega costo o OdA"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* Il noleggio che non ha ancora una fattura: il costo nasce qui, già collegato al mezzo. */}
+            <Button type="button" variant="outline" size="sm" onClick={() => setNuovoCosto(true)}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Registra costo
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAperto((v) => !v)}
+              disabled={fonti.isError || fonti.isLoading}
+            >
+              <Link2 className="mr-1 h-3.5 w-3.5" />
+              {aperto ? "Chiudi collegamento" : "Collega costo o OdA"}
+            </Button>
+          </div>
         )}
       </div>
       <p className="text-xs text-muted-foreground">

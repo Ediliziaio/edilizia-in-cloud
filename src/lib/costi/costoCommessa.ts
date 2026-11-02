@@ -91,6 +91,36 @@ export function rigaCostoCommessa(form: FormCostoCommessa, ids: { companyId: str
   };
 }
 
+/** Il costo salvato rimesso nel modulo: l'importo torna con l'IVA, com'è scritto sulla ricevuta. */
+export function formDaCosto(c: {
+  name: string; category: string | null; supplier_id: string | null; amount: number; vat_rate: number | null;
+  due_date: string; order_work_phase_id: string | null; senza_fattura: boolean; notes: string | null; is_paid: boolean;
+}): FormCostoCommessa {
+  const iva = Number(c.vat_rate ?? 0);
+  const lordo = Math.round(Number(c.amount) * (1 + iva / 100) * 100) / 100;
+  return {
+    descrizione: c.name,
+    tipo: tipoDellaCategoria(c.category),
+    fornitoreId: c.supplier_id,
+    importo: lordo.toFixed(2).replace(".", ","),
+    aliquotaIva: String(iva),
+    data: c.due_date,
+    faseId: c.order_work_phase_id ?? "",
+    senzaFattura: c.senza_fattura,
+    pagato: c.is_paid,
+    note: c.notes ?? "",
+  };
+}
+
+/** I campi che una modifica può cambiare: ripartizioni, pagamento e ricorrenza restano dove sono. */
+export function campiModificaCosto(form: FormCostoCommessa, ids: { companyId: string; orderId: string }) {
+  const r = rigaCostoCommessa(form, ids);
+  return {
+    name: r.name, category: r.category, supplier_id: r.supplier_id, amount: r.amount, vat_rate: r.vat_rate,
+    due_date: r.due_date, order_work_phase_id: r.order_work_phase_id, senza_fattura: r.senza_fattura, notes: r.notes,
+  };
+}
+
 /** Percorso della ricevuta nel bucket order-attachments: le policy lo riconoscono dal prefisso orders/<commessa>/. */
 export function percorsoRicevuta(orderId: string, nomeFile: string, casuale: string): string {
   const pulito = nomeFile.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/-+/g, "-").slice(-80) || "ricevuta";

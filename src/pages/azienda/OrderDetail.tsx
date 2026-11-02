@@ -66,7 +66,6 @@ const OrdineSAL = lazy(() => import("@/components/orders/OrdineSAL").then((m) =>
 const OrderErrors = lazy(() => import("@/components/orders/OrderErrors").then((m) => ({ default: m.OrderErrors })));
 const RendicontoAppalto = lazy(() => import("@/components/orders/RendicontoAppalto").then((m) => ({ default: m.RendicontoAppalto })));
 const SicurezzaCommessa = lazy(() => import("@/components/sicurezza/SicurezzaCommessa").then((m) => ({ default: m.SicurezzaCommessa })));
-const NoleggiCommessa = lazy(() => import("@/components/mezzi/NoleggiCommessa").then((m) => ({ default: m.NoleggiCommessa })));
 const PianoMezziCantiere = lazy(() => import("@/components/mezzi/PianoMezziCantiere").then((m) => ({ default: m.PianoMezziCantiere })));
 const OrderEconomicsSummary = lazy(() => import("@/components/orders/OrderEconomicsSummary").then((m) => ({ default: m.OrderEconomicsSummary })));
 const RapportiniUfficio = lazy(() => import("@/components/orders/RapportiniUfficio").then((m) => ({ default: m.RapportiniUfficio })));
@@ -1931,7 +1930,7 @@ function OrderDetailInner() {
             <OrderViewTransition viewKey={vistaCosti}>
             <Suspense fallback={vistaInCaricamento}>
             {vistaCosti === "tutte" && <div id="section-uscite" className="scroll-mt-24">
-              <UsciteCommessa orderId={id!} onApriSubappalti={() => navigateTo({ tab: "costi", costiView: "subappaltatori" })} />
+              <UsciteCommessa orderId={id!} onApriSubappalti={() => navigateTo({ tab: "costi", costiView: "subappaltatori" })} onApriMezzi={() => navigateTo({ tab: "cantiere", section: "section-mezzi" })} />
             </div>}
             {vistaCosti === "fornitori" && <div id="section-fatture-fornitori" className="space-y-4 scroll-mt-24">
               <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} puoModificare={permissions.canEditOrders} onApriCosti={() => navigateTo({ tab: "costi", costiView: "altri" })} />
@@ -1939,10 +1938,6 @@ function OrderDetailInner() {
             {vistaCosti === "subappaltatori" && <div id="section-subappaltatori" className="space-y-4 scroll-mt-24">
               <SubappaltatoriCommessa orderId={id!} onApriCantiere={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
               <OrderDitteEconomics orderId={id!} />
-            </div>}
-            {vistaCosti === "noleggi" && <div id="section-noleggi" className="space-y-4 scroll-mt-24">
-              <NoleggiCommessa orderId={id!} puoModificare={permissions.canEditOrders} />
-              <UsciteCommessa orderId={id!} categoria="noleggi" nascondiSeVuota />
             </div>}
             {vistaCosti === "manodopera" && <OrderLaborEconomics orderId={id!} />}
             {vistaCosti === "altri" && <div id="section-altri-costi" className="space-y-4 scroll-mt-24">
