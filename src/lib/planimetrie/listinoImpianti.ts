@@ -14,9 +14,9 @@ export interface VoceListino {
   /** Soggetto e misura della chiave, senza ambito né stato: «elementi:presa.numero», «impianti:elettrico.cavo_ml». */
   id: string;
   descrizione: string;
-  unita: "n" | "ml" | "mq";
+  unita: "n" | "ml" | "mq" | "mc";
   prezzo: number;
-  capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni" | "Copertura" | "Sport";
+  capitolo: "Impianto elettrico" | "Impianto idrico e scarichi" | "Climatizzazione e riscaldamento" | "Energia" | "Esterni" | "Copertura" | "Sport" | "Scavi e terreno";
 }
 
 export const LISTINO_IMPIANTI: readonly VoceListino[] = [
@@ -40,6 +40,8 @@ export const LISTINO_IMPIANTI: readonly VoceListino[] = [
   { id: "elementi:termostato.numero", descrizione: "Termostato ambiente programmabile, posa e collegamento", unita: "n", prezzo: 140, capitolo: "Climatizzazione e riscaldamento" },
   { id: "impianti:fotovoltaico.kwp", descrizione: "Impianto fotovoltaico su tetto: moduli da 430 Wp, strutture, cavi e quadro di campo (inverter e accumulo a parte), per kWp", unita: "n", prezzo: 1450, capitolo: "Energia" },
   { id: "tetto:copertura.superficie_mq", descrizione: "Copertura: manto in tegole (o guaina sul piano) con impermeabilizzazione e isolamento", unita: "mq", prezzo: 135, capitolo: "Copertura" },
+  { id: "terreno:scavo.volume_mc", descrizione: "Scavo di sbancamento con mezzo meccanico, carico e trasporto a discarica", unita: "mc", prezzo: 28, capitolo: "Scavi e terreno" },
+  { id: "terreno:riporto.volume_mc", descrizione: "Riporto con materiale arido stabilizzato, steso e compattato a strati", unita: "mc", prezzo: 32, capitolo: "Scavi e terreno" },
   { id: "elementi:pompa_calore.numero", descrizione: "Pompa di calore aria-acqua monoblocco, fornitura e posa", unita: "n", prezzo: 7800, capitolo: "Energia" },
   { id: "elementi:bollitore.numero", descrizione: "Bollitore per acqua calda sanitaria 200 l", unita: "n", prezzo: 1500, capitolo: "Energia" },
   { id: "elementi:inverter.numero", descrizione: "Inverter per impianto fotovoltaico, posa e collegamento", unita: "n", prezzo: 1900, capitolo: "Energia" },

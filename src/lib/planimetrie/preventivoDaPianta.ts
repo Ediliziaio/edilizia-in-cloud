@@ -11,7 +11,7 @@ export interface RigaProposta {
   genere: GenereLavoro;
   nome: string;
   quantita: number;
-  unita: "mq" | "ml" | "pz";
+  unita: "mq" | "ml" | "pz" | "mc";
   prezzo: number;
   /** Arredi e cambi d'uso non hanno un prezzo: di serie restano fuori. */
   inclusa: boolean;

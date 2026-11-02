@@ -45,6 +45,7 @@ import {
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
 import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
+import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
 
@@ -255,6 +256,17 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
   for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
+  // Terreno in pendenza o rilievo: scavi e riporti sotto il piano più basso
+  const punti = puntiTerreno(p);
+  if (punti.length) {
+    const basso = [...p.livelli].sort((a, b) => a.quota - b.quota)[0];
+    const stato = basso ? statoDelLivello(basso, ambito) ?? basso.fatto : null;
+    if (basso && stato?.locali.length) {
+      const sr = scaviERiporti(punti, stato.locali.map((l) => l.contorno), basso.quota);
+      if (sr.scavoMc > 0.05) metti("terreno:scavo", "volume_mc", { valore: sr.scavoMc, origini: ["stimata"] }, `Scavo sotto «${basso.nome}» fino al pavimento (stima dal terreno)`);
+      if (sr.riportoMc > 0.05) metti("terreno:riporto", "volume_mc", { valore: sr.riportoMc, origini: ["stimata"] }, `Riporto sotto «${basso.nome}» fino al pavimento (stima dal terreno)`);
+    }
+  }
   if (coperturaMq > 0) metti("tetto:copertura", "superficie_mq", { valore: coperturaMq, origini: ["stimata"] }, "Copertura: superficie delle falde (o del tetto piano)");
   if (pannelliFv > 0) {
     metti("impianti:fotovoltaico", "pannelli", { valore: pannelliFv, origini: ["stimata"] }, "Fotovoltaico: pannelli sul tetto");

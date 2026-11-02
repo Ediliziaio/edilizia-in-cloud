@@ -67,3 +67,20 @@ describe("terreno in pendenza", () => {
     expect(Math.max(...sotto)).toBeCloseTo(-0.01, 3);
   });
 });
+
+describe("scavi e riporti", () => {
+  it("terreno sopra il pavimento: scavo; sotto: riporto; nel computo e nel listino", async () => {
+    const { calcolaQuantita } = await import("../../../shared/planimetrie/quantita.ts");
+    const { scaviERiporti } = await import("../../../shared/planimetrie/terreno.ts");
+    const { LISTINO_IMPIANTI } = await import("@/lib/planimetrie/listinoImpianti");
+    // casa 4 × 3 m; terreno piano a +50 cm: 6 m³ di scavo
+    const quadrato = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 300 }, { x: 0, y: 300 }];
+    expect(scaviERiporti([{ x: 200, y: 150, quota: 50 }], [quadrato], 0).scavoMc).toBeCloseTo(6, 1);
+    expect(scaviERiporti([{ x: 200, y: 150, quota: -30 }], [quadrato], 0)).toMatchObject({ scavoMc: 0 });
+    expect(scaviERiporti([{ x: 200, y: 150, quota: -30 }], [quadrato], 0).riportoMc).toBeCloseTo(3.6, 1);
+    const q = calcolaQuantita(casaInPendenza());
+    expect(q["fatto:terreno:scavo.volume_mc"]?.valore).toBeGreaterThan(1);
+    expect(q["fatto:terreno:scavo.volume_mc"]?.unita).toBe("mc");
+    expect(LISTINO_IMPIANTI.some((v) => v.id === "terreno:scavo.volume_mc")).toBe(true);
+  });
+});

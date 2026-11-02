@@ -85,6 +85,37 @@ export function passoCurve(punti: readonly PuntoQuotato[]): number {
   return [50, 100, 200, 500, 1000, 2000, 5000].find((p) => dislivello / p <= 40) ?? 10_000;
 }
 
+/**
+ * Scavi e riporti sotto l'edificio: dove il terreno sta sopra il pavimento più basso si scava,
+ * dove sta sotto si riempie (m³). Si campiona l'impronta ogni `passo` cm. È il volume fino al
+ * pavimento finito, senza fondazioni, vespaio e scarpate: una stima per il computo.
+ */
+export function scaviERiporti(punti: readonly PuntoQuotato[], impronta: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>, quotaPavimento: number, passo = 25): { scavoMc: number; riportoMc: number } {
+  if (!punti.length) return { scavoMc: 0, riportoMc: 0 };
+  let scavo = 0, riporto = 0;
+  const cella = (passo * passo) / 10_000;
+  for (const c of impronta) {
+    if (c.length < 3) continue;
+    const xs = c.map((p) => p.x), ys = c.map((p) => p.y);
+    for (let x = Math.min(...xs) + passo / 2; x < Math.max(...xs); x += passo) {
+      for (let y = Math.min(...ys) + passo / 2; y < Math.max(...ys); y += passo) {
+        if (!dentro(x, y, c)) continue;
+        const dz = (quotaTerreno(punti, x, y) - quotaPavimento) / 100;
+        if (dz > 0) scavo += dz * cella; else riporto -= dz * cella;
+      }
+    }
+  }
+  return { scavoMc: Math.round(scavo * 100) / 100, riportoMc: Math.round(riporto * 100) / 100 };
+}
+
+function dentro(x: number, y: number, c: ReadonlyArray<{ x: number; y: number }>) {
+  let s = false;
+  for (let i = 0, j = c.length - 1; i < c.length; j = i++) {
+    if ((c[i].y > y) !== (c[j].y > y) && x < ((c[j].x - c[i].x) * (y - c[i].y)) / (c[j].y - c[i].y) + c[i].x) s = !s;
+  }
+  return s;
+}
+
 export interface Rettangolo { x0: number; y0: number; x1: number; y1: number }
 export interface TrattoCurva { a: { x: number; y: number }; b: { x: number; y: number }; quota: number }
 
