@@ -52,9 +52,9 @@ vi.mock("@tanstack/react-query", () => ({
     isLoading: queryKey[0] === "campo-ruolo" && state.verificaCaricamento,
     refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: () => void; onError?: (e: unknown) => void }) => ({
+  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: (esito?: unknown) => void; onError?: (e: unknown) => void }) => ({
     isPending: false,
-    mutate: async () => { try { await config.mutationFn(); config.onSuccess?.(); } catch (e) { config.onError?.(e); } },
+    mutate: async () => { try { config.onSuccess?.(await config.mutationFn()); } catch (e) { config.onError?.(e); } },
   }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {

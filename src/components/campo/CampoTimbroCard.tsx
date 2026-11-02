@@ -26,13 +26,14 @@ import { campoPunchOrderId, campoReportHours, canRecordCampoPunch } from "@/lib/
 import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
 import { campoWorkDay } from "@/lib/campo/workDay";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
+import { scriviTimbratura, type TipoTimbratura } from "@/lib/campo/timbra";
 import {
   LUOGO_NESSUNO, chiaveLuogoCorrente, costruisciLuoghi, nomeLuogo, partenzaPredefinita, trovaLuogo,
   type Luogo,
 } from "@/lib/campo/luoghi";
 import { cn } from "@/lib/utils";
 
-type Tipo = "entrata" | "uscita" | "pausa_inizio" | "pausa_fine";
+type Tipo = TipoTimbratura;
 
 export interface TimbroEsito {
   tipo: Tipo | "cambio";
@@ -136,21 +137,18 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       const adesso = new Date().toISOString();
       const orderId = campoPunchOrderId(tipo, summary.activeOrderId, partenza?.orderId ?? null);
       const inizio = tipo === "entrata" ? partenza : corrente;
-      const { error } = await supabase.from("campo_timbrature").insert({
-        company_id: companyId,
-        user_id: user.id,
-        order_id: orderId,
-        sede_id: tipo === "entrata" && partenza?.tipo === "sede" ? partenza.sedeId : null,
-        in_sede: tipo === "entrata" && partenza?.tipo === "sede",
+      await scriviTimbratura({
+        companyId,
+        userId: user.id,
         tipo,
-        timestamp_evento: adesso,
-        gps_lat: gps.lat,
-        gps_lng: gps.lng,
-        gps_accuracy: gps.accuracy,
+        orderId,
+        sedeId: tipo === "entrata" && partenza?.tipo === "sede" ? partenza.sedeId : null,
+        quando: adesso,
+        lat: gps.lat,
+        lng: gps.lng,
+        accuracy: gps.accuracy,
         note: notaPer(inizio),
-        fonte: "app",
       });
-      if (error) throw error;
       if (tipo === "entrata" && partenzaKey) ricordaPartenza(user.id, partenzaKey);
       // La copia sul registro del Personale la fa il trigger del database, nella stessa transazione.
       return { tipo, orderId, day: campoWorkDay(new Date(adesso)) };
@@ -252,7 +250,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             value={partenzaKey ?? ""}
             onChange={e => setScelta(e.target.value)}
             disabled={timbra.isPending}
-            className="h-12 w-full min-w-0 rounded-xl border bg-background px-3 text-base"
+            className="h-12 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
           >
             {!partenzaKey && <option value="" disabled>Scegli da dove parti</option>}
             {sediLuoghi.length > 0 && <optgroup label="In sede">{sediLuoghi.map(opzione)}</optgroup>}

@@ -119,6 +119,7 @@ export default function CampoHome() {
 
   const ora = new Date().getHours();
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
+  const sera = ora >= 15;
   // Banner push: se lo chiude, torna dopo 14 giorni.
   const [pushBannerNascosto, setPushBannerNascosto] = useState<boolean>(() => {
     try {
@@ -162,6 +163,9 @@ export default function CampoHome() {
       {/* Timbratura: l'azione di ogni mattina, in cima. Un tocco per iniziare, un tocco per ogni posto. */}
       {isOperaio && <CampoTimbroCard />}
 
+      {/* A fine giornata il rapportino è la cosa che aspetta: sta sopra, non in fondo alla pagina. */}
+      {isOperaio && sera && <RapportiniDaCompilareOggi />}
+
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
       {(isOperaio || isSubappaltatore) && <CampoOggi />}
 
@@ -169,7 +173,7 @@ export default function CampoHome() {
 
       {/* Da fare: prima le cose che aspettano te */}
       <div className="space-y-3 md:space-y-6">
-        {isOperaio && <RapportiniDaCompilareOggi />}
+        {isOperaio && !sera && <RapportiniDaCompilareOggi />}
         {isOperaio && <RapportiniSospesi />}
         {(isOperaio || isSubappaltatore) && <InterventiCampo />}
         {isOperaio && <MioMezzoCampoCard />}

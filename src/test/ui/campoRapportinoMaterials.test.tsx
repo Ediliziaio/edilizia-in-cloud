@@ -5,7 +5,7 @@ import { summarizeCampoTime, type CampoPunch } from "@/lib/campo/timeSummary";
 import type { RapportinoArticle } from "@/lib/campo/rapportinoMaterials";
 
 const state = vi.hoisted(() => ({
-  insert: vi.fn(), error: vi.fn(), allowed: true,
+  insert: vi.fn(), timbrature: vi.fn(), error: vi.fn(), allowed: true,
   role: { isCapocantiere: false, esisteCapo: false } as { isCapocantiere: boolean; esisteCapo: boolean } | undefined,
   phases: [] as Array<{ id: string; name: string; status: string; percentuale: number }>,
   punches: [] as CampoPunch[], timeError: false, orderId: "order",
@@ -40,21 +40,21 @@ vi.mock("@tanstack/react-query", () => ({
     queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
     isError: (queryKey[0] === "campo-articoli-commessa-rapportino" && state.articlesError) || (queryKey[0] === "campo-materiali-consegnati-rapportino" && state.deliveriesError), refetch: state.articlesRefetch }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: () => void; onError?: (e: unknown) => void }) => ({
+  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: (esito?: unknown) => void; onError?: (e: unknown) => void }) => ({
     isPending: false,
-    mutate: async () => { try { await config.mutationFn(); config.onSuccess?.(); } catch (e) { config.onError?.(e); } },
+    mutate: async () => { try { config.onSuccess?.(await config.mutationFn()); } catch (e) { config.onError?.(e); } },
   }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {
     const result = { data: table === "campo_rapportini" ? { id: "report" } : {}, error: null as Error | null };
-    const query = { insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); return query; },
+    const query = { insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); if (table === "campo_timbrature") state.timbrature(value); return query; },
       select: () => query, eq: () => query, single: async () => result, maybeSingle: async () => result,
       then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
     return query;
   }, functions: { invoke: async () => ({ data: { pdf_url: "https://local.invalid/rapportino-v2-test.pdf" }, error: null as null }) },
 } }));
-beforeEach(() => { vi.clearAllMocks(); state.allowed = true; state.role = { isCapocantiere: false, esisteCapo: false }; state.phases = []; state.punches = []; state.timeError = false; state.crew = []; state.orderId = "order"; state.weather = undefined; state.articles = [{ id: "article", name: "Malta", categoria: "Materiali" }]; state.articlesError = false; });
+beforeEach(() => { vi.clearAllMocks(); state.allowed = true; state.role = { isCapocantiere: true, esisteCapo: true }; state.phases = []; state.punches = []; state.timeError = false; state.crew = []; state.orderId = "order"; state.weather = undefined; state.articles = [{ id: "article", name: "Malta", categoria: "Materiali" }]; state.articlesError = false; });
 beforeEach(() => { localStorage.clear(); state.reportDate = null; state.existing = null; vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00")); });
 beforeEach(() => { state.deliveries = []; state.deliveriesError = false; });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -115,12 +115,14 @@ describe("Giornata e invio entro il giorno successivo", () => {
     expect(screen.getByText(/Esiste già un rapportino/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
   });
-  it("chiede l'uscita prima dell'invio se questo cantiere è ancora aperto", async () => {
+  it("con questo cantiere ancora aperto l'invio chiude anche la giornata: prima l'uscita, poi il rapportino", async () => {
     state.punches = [punch("entrata", "08:00")]; render(<CampoRapportino />);
-    expect(screen.getByRole("button", { name: "Vai a timbrare l’uscita" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(10));
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
-    expect(screen.getByRole("button", { name: "Invia rapportino" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Invia e chiudi la giornata" }));
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 10 })));
+    expect(state.timbrature).toHaveBeenCalledWith(expect.objectContaining({ tipo: "uscita", order_id: "order" }));
+    expect(state.timbrature.mock.invocationCallOrder[0]).toBeLessThan(state.insert.mock.invocationCallOrder[0]);
   });
   it("ieri non eredita il meteo di oggi", async () => {
     state.reportDate = "2026-09-23"; state.weather = new Map([["2026-09-24", { code: 0 }]]);
