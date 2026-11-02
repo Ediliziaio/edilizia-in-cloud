@@ -59,6 +59,28 @@ export function bloccoPartenza3D(): string {
   ].join("\n");
 }
 
+/** Testo libero dell'utente nel prompt: una riga, corto, senza virgolette che rompano la frase. */
+const pulisci = (s: string | undefined) => (s ?? "").replace(/[\r\n"`]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+
+/**
+ * Le finiture scelte nella pianta: sono del cliente, quindi valgono più dello stile generico.
+ * Una riga sola, o stringa vuota se la stanza non ne ha.
+ */
+export function righeFiniture(f: VincoliStanza["locale"]["finiture"]): string {
+  if (!f) return "";
+  const parti: string[] = [];
+  const pav = pulisci(f.pavimento), par = pulisci(f.pareti), sof = pulisci(f.soffitto);
+  if (pav) parti.push(`floor: "${pav}"`);
+  if (par) parti.push(`walls: "${par}"`);
+  if (sof) parti.push(`ceiling: "${sof}"`);
+  if (f.rivestimento && f.rivestimento.altezza > 0) {
+    const mat = pulisci(f.rivestimento.materiale);
+    parti.push(`wall tiles${mat ? ` "${mat}"` : ""} up to ${m(f.rivestimento.altezza)} from the floor`);
+  }
+  if (!parti.length) return "";
+  return `Finishes chosen on the plan by the client (Italian descriptions; they take priority over the generic style): ${parti.join("; ")}.`;
+}
+
 /**
  * Misure e aperture della stanza, con la pianta allegata come immagine `immaginePianta`
  * (null se non c'è spazio per allegarla: restano le parole).
@@ -74,6 +96,8 @@ export function bloccoPianta(
     "FLOOR PLAN CONSTRAINTS — this room exists on a real floor plan; the render must respect it.",
     `Room: ${l.destinazione}. Internal size ${ca}${m(l.larghezza_cm)} × ${m(l.profondita_cm)}${l.rettangolare ? "" : " (overall footprint; the room is not a plain rectangle)"}, floor area ${ca}${l.superficie_mq.toFixed(1)} m², ceiling height ${ca}${m(l.altezza_cm)}. Furniture and fixtures must be at a realistic scale for these measurements.`,
   ];
+  const fin = righeFiniture(l.finiture);
+  if (fin) righe.push(fin);
   if (opz.immaginePianta) {
     righe.push(`Image ${opz.immaginePianta} is the floor plan of THIS room seen from above (invisible input, never show it in the result): walls are numbered 1–${v.pareti.length} going counter-clockwise; doors are drawn in blue, windows in orange, each with its name. Use it only to know where every opening is.`);
   }

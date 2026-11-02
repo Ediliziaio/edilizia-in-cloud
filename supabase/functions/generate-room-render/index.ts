@@ -1,6 +1,7 @@
 // generate-room-render — Edge Function EiC
 // Render Stanza (Room/Interiors) AI — Provider unificato OpenRouter + fallback
 // Prompt Engine stanza-v1.0.0
+// Dalla pianta arrivano anche le finiture della stanza (pavimento, pareti, rivestimento): vedi righeFiniture.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
