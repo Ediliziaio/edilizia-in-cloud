@@ -246,7 +246,7 @@ export function OrderEconomicsSummary({
       taskLabel: "Completa i costi previsti della manodopera",
       done: !quality.issues.some(issue => issue.code === "labor_without_budget"),
       priority: "alta",
-      fixTo: `/azienda/ordini/${orderId}?tab=finanza&vista_economia=manodopera`,
+      fixTo: `/azienda/ordini/${orderId}?tab=costi&vista_costi=manodopera`,
     },
     {
       key: "vehicles",

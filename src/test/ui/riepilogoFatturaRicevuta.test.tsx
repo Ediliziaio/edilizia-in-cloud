@@ -18,6 +18,7 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: catena, rpc: (...a: unknown[]) => finto.rpc(...a) } };
 });
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true, solaLettura: false }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 

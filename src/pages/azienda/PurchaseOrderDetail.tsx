@@ -519,7 +519,7 @@ export default function PurchaseOrderDetail() {
                     list="termini-pagamento-preset"
                     defaultValue={order.payment_terms ?? ""}
                     placeholder="Es. 30 gg fine mese"
-                    className="h-7 w-40 text-right text-sm"
+                    className="h-7 w-52 text-right text-sm"
                     onBlur={(e) => {
                       const v = e.target.value.trim() || null;
                       if (v !== order.payment_terms) {
@@ -532,8 +532,9 @@ export default function PurchaseOrderDetail() {
                   </datalist>
                 </div>
                 {(() => {
+                  // Solo finché la merce non è arrivata: dopo, una scadenza calcolata su oggi è sbagliata.
                   const anteprima = calcolaScadenza(order.payment_terms) ?? calcolaScadenza(supplier?.payment_method);
-                  if (!anteprima) return null;
+                  if (!anteprima || order.actual_delivery_date || ["ricevuto", "annullato"].includes(order.status)) return null;
                   return (
                     <p className="text-[11px] text-slate-400 text-right">
                       Se ricevi oggi, il pagamento scade il {anteprima.split("-").reverse().join("/")}

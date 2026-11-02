@@ -7,6 +7,10 @@ import {
   resolveCantiereView,
   resolveEconomiaView,
   resolveMaterialiView,
+  resolveCostiView,
+  COSTI_VIEWS,
+  ECONOMIA_VIEWS,
+  MATERIALI_VIEWS,
 } from "@/lib/orders/detailNavigation";
 
 describe("Navigazione unica della commessa", () => {
@@ -30,7 +34,7 @@ describe("Navigazione unica della commessa", () => {
   });
   it.each([
     ["section-pagamenti", "pagamenti"], ["section-ritenute", "pagamenti"], ["esposizione-commessa", "margini"],
-    ["section-sal", "sal"], ["section-varianti", "varianti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"], ["section-manodopera-costi", "manodopera"],
+    ["section-sal", "sal"], ["section-varianti", "varianti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"],
   ])("l'ancora economica %s monta la vista corretta", (section, view) => {
     expect(resolveEconomiaView("?vista_economia=altra", section)).toBe(view);
     expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("finanza");
@@ -38,6 +42,44 @@ describe("Navigazione unica della commessa", () => {
   it.each([["section-materiali", "articoli"], ["section-acquisti", "acquisti"], ["section-magazzino", "magazzino"]])("l'ancora materiali %s monta la vista corretta", (section, view) => {
     expect(resolveMaterialiView("?vista_materiali=altra", section)).toBe(view);
     expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("articoli");
+  });
+  describe("Fatture e costi: tutto quello che esce, in un posto solo", () => {
+    it("sta fra Materiali ed Economia", () => {
+      expect(ORDER_DETAIL_TABS.map((t) => t.value)).toEqual(["panoramica", "cantiere", "articoli", "costi", "finanza"]);
+      expect(COSTI_VIEWS.map((v) => v.value)).toEqual(["tutte", "fornitori", "subappaltatori", "noleggi", "manodopera", "altri"]);
+    });
+    it("toglie le fatture da Materiali e la manodopera da Economia", () => {
+      expect(MATERIALI_VIEWS.map((v) => v.value)).not.toContain("fatture");
+      expect(ECONOMIA_VIEWS.map((v) => v.value)).not.toContain("manodopera");
+    });
+    it("distingue i SAL e le fatture del cliente da quelli dei subappaltatori", () => {
+      const etichetta = (valore: string) => ECONOMIA_VIEWS.find((v) => v.value === valore)?.label;
+      expect(etichetta("sal")).toBe("SAL al cliente");
+      expect(etichetta("documenti")).toBe("Fatture al cliente");
+      expect(etichetta("pagamenti")).toBe("Incassi");
+    });
+    it.each([
+      ["section-uscite", "tutte"], ["section-fatture-fornitori", "fornitori"], ["section-subappaltatori", "subappaltatori"],
+      ["section-noleggi", "noleggi"], ["section-manodopera-costi", "manodopera"], ["section-altri-costi", "altri"],
+    ])("l'ancora %s monta la vista %s", (section, view) => {
+      expect(resolveCostiView("?vista_costi=altra", section)).toBe(view);
+      expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("costi");
+    });
+    it("i vecchi indirizzi arrivano alla vista nuova", () => {
+      expect(resolveOrderDetailDestination("?tab=articoli&vista_materiali=fatture")).toEqual({ tab: "costi", section: "section-fatture-fornitori" });
+      expect(resolveOrderDetailDestination("?tab=finanza&vista_economia=manodopera")).toEqual({ tab: "costi", section: "section-manodopera-costi" });
+    });
+    it("dal vecchio indirizzo si può tornare su Economia e Materiali", () => {
+      const economia = orderDetailLocation("?tab=finanza&vista_economia=manodopera", { tab: "finanza" });
+      expect(resolveOrderDetailDestination(economia.search, economia.hash)).toEqual({ tab: "finanza" });
+      const materiali = orderDetailLocation("?tab=articoli&vista_materiali=fatture", { tab: "articoli" });
+      expect(resolveOrderDetailDestination(materiali.search, materiali.hash)).toEqual({ tab: "articoli" });
+    });
+    it("ricorda la vista e parte da Tutte", () => {
+      expect(orderDetailLocation("?source=agenda", { tab: "costi", costiView: "noleggi" })).toEqual({ search: "?source=agenda&tab=costi&vista_costi=noleggi", hash: "" });
+      expect(resolveCostiView("")).toBe("tutte");
+      expect(resolveCostiView("?vista_costi=__proto__")).toBe("tutte");
+    });
   });
   it("conserva le viste in URL senza perdere i parametri estranei", () => {
     expect(orderDetailLocation("?source=agenda", { tab: "finanza", economiaView: "pagamenti" })).toEqual({ search: "?source=agenda&tab=finanza&vista_economia=pagamenti", hash: "" });

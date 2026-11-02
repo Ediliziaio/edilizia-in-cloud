@@ -139,7 +139,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                     <span className="min-w-0">{v.descrizione}</span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{formatCurrency(v.imponibile * (imponibile ? totale / imponibile : 1))}</span>
                   </div>
-                  <OrderSelectCombobox companyId={companyId} value={scelte[v.numero]} placeholder="Commessa…" onChange={(id: string) => setScelte({ ...scelte, [v.numero]: id })} />
+                  <OrderSelectCombobox filtroIniziale="all" companyId={companyId} value={scelte[v.numero]} placeholder="Commessa…" onChange={(id: string) => setScelte({ ...scelte, [v.numero]: id })} />
                 </li>
               ))}
             </ul>
@@ -150,7 +150,8 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
             {righe.map((r, i) => (
               <div key={r.chiave} className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <OrderSelectCombobox companyId={companyId} value={r.order_id || undefined} placeholder="Cerca la commessa…"
+                  <OrderSelectCombobox filtroIniziale="all" companyId={companyId} value={r.order_id || undefined} placeholder="Cerca la commessa…"
+                    esclusi={righe.filter((x) => x.chiave !== r.chiave).map((x) => x.order_id).filter(Boolean)}
                     onChange={(id: string) => setRighe(righe.map((x) => (x.chiave === r.chiave ? { ...x, order_id: id } : x)))} />
                 </div>
                 {mostraImporti && (

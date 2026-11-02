@@ -1,5 +1,5 @@
 /**
- * Quadro incassi e pagamenti della commessa (Economia → Incassi e pagamenti).
+ * Quadro incassi e pagamenti della commessa (Economia → Incassi e Fatture e costi).
  * I dati li calcola commessa_quadro_pagamenti() nel database; qui solo totali,
  * etichette e filtri, senza regole nuove sui soldi.
  */

@@ -78,14 +78,14 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(area(named("EsposizioneCommessa")[0])).toBe("finanza");
   });
 
-  it("ha quattro pannelli senza implementazioni separate mobile/desktop", () => {
-    expect(named("TabsContent").map(tag => value(tag, "value")).sort()).toEqual(['"articoli"', '"cantiere"', '"finanza"', '"panoramica"']);
+  it("ha cinque pannelli senza implementazioni separate mobile/desktop", () => {
+    expect(named("TabsContent").map(tag => value(tag, "value")).sort()).toEqual(['"articoli"', '"cantiere"', '"costi"', '"finanza"', '"panoramica"']);
     expect(named("OrderDetailNavigation")).toHaveLength(1);
   });
 
   it("usa lo stesso effetto in ogni scheda e vista, senza animare intestazione e navigazione", () => {
     expect(named("OrderViewTransition").map(tag => value(tag, "viewKey"))).toEqual([
-      '"panoramica"', "{activeMaterialiView}", "{activeEconomiaView}", "{vistaCantiere}",
+      '"panoramica"', "{activeMaterialiView}", "{vistaCosti}", "{activeEconomiaView}", "{vistaCantiere}",
     ]);
     for (const panel of named("TabsContent")) expect(value(panel, "className")).toContain("order-detail-tab-panel");
     for (const name of ["OrderFinancialOverview", "OrderCommessaSummary", "OrderDetailNavigation", "OrderWorkspaceNav", "CantiereViewNav"]) {
@@ -100,7 +100,8 @@ describe("contratto di composizione del dettaglio commessa", () => {
   it.each([
     ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrdineTempistiche", "LinkedAppointments", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "ContrattoAIDialog"]],
     ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "PianoMezziCantiere", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav", "OreEPersone", "OrderResourceStatistics", "DaApprovareCommessa", "CollaudiDalCantiere"]],
-    ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard", "OrderFattureFornitoriCard", "OrderCostiCommessaCard"]],
+    ["articoli", ["OrderMeasureControl", "MaterialiPerFase", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard", "OrderBolleDdtCard"]],
+    ["costi", ["OrderFattureFornitoriCard", "OrderCostiCommessaCard", "OrderLaborEconomics"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "AltroIncassiCommessa", "OrderCommissions", "PrevisioneCassaMateriali", "OrdineVariazione", "QuadroPagamentiCommessa", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
     for (const component of components) {
@@ -133,7 +134,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
     // Un solo elenco degli articoli: la vista per fase, con la finestra per aggiungere e modificare.
     expect(named("OrdineArticoli")).toHaveLength(0);
     expect(value(named("MaterialiPerFase")[0], "editor")).toContain("addItemMutation.mutate");
-    expect(named("OrderWorkspaceNav")).toHaveLength(2);
+    expect(named("OrderWorkspaceNav")).toHaveLength(3);
   });
 
   it("riepilogo, stato e azioni sono unici e precedono tutte le tab", () => {

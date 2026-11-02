@@ -1,7 +1,9 @@
 /**
- * Economia → Incassi e pagamenti: in cima, lo stato della commessa in una
- * lettura. Quanto è entrato e quanto deve entrare (rate e SAL del cliente),
- * quanto è uscito e quanto deve uscire, a chi, con quale fattura e per quando:
+ * Economia → Incassi: in cima, lo stato della commessa in una lettura. Quanto è
+ * entrato e quanto deve entrare (rate e SAL del cliente), quanto è uscito e
+ * quanto deve uscire.
+ *
+ * Fatture e costi (UsciteCommessa): a chi, con quale fattura e per quando:
  * fornitori e ordini d'acquisto, subappaltatori e ditte, professionisti,
  * noleggi, costi extra anche senza fattura.
  *
@@ -15,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import {
   CATEGORIE, STATO_USCITA, documentoUscita, filtraUscite, normalizzaQuadro, riepilogoCategorie, totaliQuadro,
-  type FiltroUscite, type Uscita,
+  type CategoriaUscita, type FiltroUscite, type Uscita,
 } from "@/lib/orders/quadroPagamenti";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { IvaCommessa } from "./IvaCommessa";
@@ -50,8 +52,8 @@ interface Props {
   mostraIncassi: boolean;
   /** Vede i costi: uscite verso fornitori, subappalti, professionisti… */
   mostraUscite: boolean;
-  /** Apre la vista dei subappalti (contratti e SAL passivi). */
-  onApriSubappalti?: () => void;
+  /** Porta all'elenco delle uscite, in Fatture e costi. */
+  onApriUscite?: () => void;
   /**
    * Le rate del cliente, subito sotto i quattro numeri (01/11/2026): la prima cosa da leggere è
    * lo stato degli incassi, poi i fornitori. L'IVA della commessa sta in fondo alla pagina.
@@ -61,34 +63,18 @@ interface Props {
   conIva?: boolean;
 }
 
-export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriSubappalti, incassi, conIva = true }: Props) {
+export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriUscite, incassi, conIva = true }: Props) {
   const { data, isLoading, isError, refetch } = useQuadroPagamenti(orderId);
-  const [filtro, setFiltro] = useState<FiltroUscite>("aperte");
-  const [costoAperto, setCostoAperto] = useState<string | null>(null);
-  const [odaAperto, setOdaAperto] = useState<string | null>(null);
-
   const totali = useMemo(() => totaliQuadro({ rate: data?.rate ?? [], uscite: data?.uscite ?? [] }), [data]);
-  const categorie = useMemo(() => riepilogoCategorie(data?.uscite ?? []), [data]);
-  const righe = useMemo(() => filtraUscite(data?.uscite ?? [], filtro), [data, filtro]);
 
   if (!mostraIncassi && !mostraUscite) return null;
-  if (isError) {
-    return (
-      <p role="alert" className="rounded-lg border border-amber-300 bg-white p-4 text-sm">
-        Non riesco a leggere incassi e pagamenti della commessa. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
-      </p>
-    );
-  }
+  if (isError) return <ErroreLettura onRiprova={() => void refetch()} />;
   if (isLoading || !data) return <Skeleton className="h-48 w-full" />;
 
-  const scaduteUscite = (data.uscite ?? []).filter((u) => u.stato === "scaduto").length;
   const rateAperte = data.rate.filter((r) => !r.is_paid);
 
   return (
     <div className="space-y-4">
-      {costoAperto && <ExpensePaymentDialog key={costoAperto} costId={costoAperto} onClose={() => setCostoAperto(null)} />}
-      {odaAperto && <PurchasePaymentsDialog orderId={odaAperto} onClose={() => setOdaAperto(null)} />}
-
       {/* ── Lo stato in quattro numeri ── */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {mostraIncassi && <>
@@ -96,17 +82,13 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
           <Kpi icona={<ArrowDownLeft className="h-4 w-4 text-amber-700" />} titolo="Da incassare" valore={totali.daIncassare} tono={totali.incassoScaduto > 0 ? "rosso" : "ambra"}
             nota={totali.incassoScaduto > 0 ? `${formatCurrency(totali.incassoScaduto)} scaduti` : rateAperte[0]?.expected_date ? `prossima il ${dataIt(rateAperte[0].expected_date)}` : undefined} />
         </>}
-        {mostraUscite && <>
-          <Kpi icona={<ArrowUpRight className="h-4 w-4 text-slate-700" />} titolo="Pagato" valore={totali.pagato} />
-          <Kpi icona={<ArrowUpRight className="h-4 w-4 text-amber-700" />} titolo="Da pagare" valore={totali.daPagare} tono={totali.pagamentoScaduto > 0 ? "rosso" : "ambra"}
-            nota={[totali.pagamentoScaduto > 0 ? `${formatCurrency(totali.pagamentoScaduto)} scaduti` : null,
-              totali.impegnato > 0 ? `+ ${formatCurrency(totali.impegnato)} ordinati senza fattura` : null].filter(Boolean).join(" · ") || undefined} />
-        </>}
+        {mostraUscite && <KpiUscite totali={totali} />}
       </div>
       {mostraIncassi && mostraUscite && (
         <p className="text-sm text-slate-600">
           <Wallet className="mr-1 inline h-4 w-4" aria-hidden="true" />
           Finora la commessa {totali.cassa >= 0 ? "ha portato in cassa" : "ha anticipato"} <strong className={totali.cassa >= 0 ? "text-green-700" : "text-red-700"}>{formatCurrency(Math.abs(totali.cassa))}</strong> (incassato meno pagato, IVA inclusa).
+          {mostraUscite && onApriUscite && <>{" "}<button type="button" className="font-medium text-primary underline underline-offset-2" onClick={onApriUscite}>Vedi le uscite</button></>}
         </p>
       )}
 
@@ -116,56 +98,110 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
       {/* ── SAL emessi al cliente ── */}
       {mostraIncassi && data.sal_cliente.length > 0 && <SalCliente sal={data.sal_cliente} />}
 
-      {/* ── Da pagare ── */}
-      {mostraUscite && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />Pagamenti della commessa
-              {scaduteUscite > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{scaduteUscite} scaduti</span>}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">Ogni impegno verso fornitori, subappaltatori, ditte, professionisti e noleggi, e i costi extra: con la fattura collegata, quanto è pagato, quanto resta e quando scade. Importi IVA inclusa, tranne i subappalti in reverse charge: lì alla ditta va l'imponibile (l'IVA integrata è indicata a parte).</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {data.uscite.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nessun costo, ordine d’acquisto, subappalto o ditta su questa commessa. I costi si aggiungono da Materiali e acquisti → Fatture e costi.</p>
-            ) : <>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtra i pagamenti">
-                <Filtro attivo={filtro === "aperte"} onClick={() => setFiltro("aperte")}>Da pagare</Filtro>
-                {scaduteUscite > 0 && <Filtro attivo={filtro === "scadute"} onClick={() => setFiltro("scadute")}>Scaduti ({scaduteUscite})</Filtro>}
-                {categorie.map((c) => (
-                  <Filtro key={c.value} attivo={filtro === c.value} onClick={() => setFiltro(c.value)}>
-                    {c.label} · {c.residuo > 0 ? formatCurrency(c.residuo) : c.voci}
-                  </Filtro>
-                ))}
-                <Filtro attivo={filtro === "tutte"} onClick={() => setFiltro("tutte")}>Tutti ({data.uscite.length})</Filtro>
-              </div>
-              {righe.length === 0 ? (
-                <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Niente da pagare qui: tutto saldato.</p>
-              ) : (
-                <ul className="divide-y rounded-md border" aria-label="Pagamenti della commessa">
-                  {righe.map((u) => (
-                    <RigaUscita key={u.chiave} u={u} oggi={data.oggi}
-                      onPagamenti={u.origine_tipo === "costo" ? () => setCostoAperto(u.origine_id)
-                        : u.origine_tipo === "oda" ? () => setOdaAperto(u.origine_id)
-                        : u.origine_tipo === "subappalto" ? onApriSubappalti : undefined} />
-                  ))}
-                </ul>
-              )}
-              {data.mezzi_stimati?.costo ? (
-                <p className="text-xs text-muted-foreground">
-                  Mezzi dell’azienda usati in cantiere: costo stimato {formatCurrency(Number(data.mezzi_stimati.costo))} ({data.mezzi_stimati.giorni ?? 0} giorni-mezzo). È un costo interno, non un pagamento.
-                </p>
-              ) : null}
-            </>}
-          </CardContent>
-        </Card>
-      )}
-
       {/* ── IVA della commessa: a debito, a credito, saldo ── */}
       {conIva && mostraIncassi && mostraUscite && <IvaCommessa orderId={orderId} />}
     </div>
   );
+}
+
+const TITOLO_USCITE: Partial<Record<CategoriaUscita, string>> = {
+  subappalti: "Pagamenti a subappaltatori e ditte",
+  noleggi: "Pagamenti di noleggi e mezzi",
+};
+
+/**
+ * Fatture e costi: ogni uscita della commessa. Con `categoria` solo quelle di un tipo,
+ * e i numeri in cima contano solo quelle.
+ */
+export function UsciteCommessa({ orderId, categoria, nascondiSeVuota, onApriSubappalti }: {
+  orderId: string;
+  categoria?: CategoriaUscita;
+  /** Sotto un altro riquadro: niente numeri a zero né riquadro vuoto. */
+  nascondiSeVuota?: boolean;
+  /** Apre la vista dei subappalti (contratti e SAL passivi). */
+  onApriSubappalti?: () => void;
+}) {
+  const { data, isLoading, isError, refetch } = useQuadroPagamenti(orderId);
+  const [filtro, setFiltro] = useState<FiltroUscite>("aperte");
+  const [costoAperto, setCostoAperto] = useState<string | null>(null);
+  const [odaAperto, setOdaAperto] = useState<string | null>(null);
+  const uscite = useMemo(() => (data?.uscite ?? []).filter((u) => !categoria || u.categoria === categoria), [data, categoria]);
+  const totali = useMemo(() => totaliQuadro({ rate: [], uscite }), [uscite]);
+  const categorie = useMemo(() => riepilogoCategorie(uscite), [uscite]);
+  const righe = useMemo(() => filtraUscite(uscite, filtro), [uscite, filtro]);
+
+  if (isError) return <ErroreLettura onRiprova={() => void refetch()} />;
+  if (isLoading || !data) return <Skeleton className="h-48 w-full" />;
+
+  const scaduteUscite = uscite.filter((u) => u.stato === "scaduto").length;
+  if (nascondiSeVuota && uscite.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      {costoAperto && <ExpensePaymentDialog key={costoAperto} costId={costoAperto} onClose={() => setCostoAperto(null)} />}
+      {odaAperto && <PurchasePaymentsDialog orderId={odaAperto} onClose={() => setOdaAperto(null)} />}
+      <div className="grid grid-cols-2 gap-2 lg:max-w-xl"><KpiUscite totali={totali} /></div>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <Receipt className="h-5 w-5 text-primary" aria-hidden="true" />{(categoria && TITOLO_USCITE[categoria]) ?? "Pagamenti della commessa"}
+            {scaduteUscite > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{scaduteUscite} scaduti</span>}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Importi IVA inclusa, tranne i subappalti in reverse charge: lì alla ditta va l'imponibile (l'IVA integrata è indicata a parte).</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {uscite.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{categoria ? "Nessun pagamento di questo tipo sulla commessa." : "Nessun costo, ordine d’acquisto, subappalto o ditta su questa commessa."}</p>
+          ) : <>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtra i pagamenti">
+              <Filtro attivo={filtro === "aperte"} onClick={() => setFiltro("aperte")}>Da pagare</Filtro>
+              {scaduteUscite > 0 && <Filtro attivo={filtro === "scadute"} onClick={() => setFiltro("scadute")}>Scaduti ({scaduteUscite})</Filtro>}
+              {!categoria && categorie.map((c) => (
+                <Filtro key={c.value} attivo={filtro === c.value} onClick={() => setFiltro(c.value)}>
+                  {c.label} · {c.residuo > 0 ? formatCurrency(c.residuo) : c.voci}
+                </Filtro>
+              ))}
+              <Filtro attivo={filtro === "tutte"} onClick={() => setFiltro("tutte")}>Tutti ({uscite.length})</Filtro>
+            </div>
+            {righe.length === 0 ? (
+              <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Niente da pagare qui: tutto saldato.</p>
+            ) : (
+              <ul className="divide-y rounded-md border" aria-label="Pagamenti della commessa">
+                {righe.map((u) => (
+                  <RigaUscita key={u.chiave} u={u} oggi={data.oggi}
+                    onPagamenti={u.origine_tipo === "costo" ? () => setCostoAperto(u.origine_id)
+                      : u.origine_tipo === "oda" ? () => setOdaAperto(u.origine_id)
+                      : u.origine_tipo === "subappalto" ? onApriSubappalti : undefined} />
+                ))}
+              </ul>
+            )}
+          </>}
+          {(!categoria || categoria === "noleggi") && data.mezzi_stimati?.costo ? (
+            <p className="text-xs text-muted-foreground">
+              Mezzi dell’azienda usati in cantiere: costo stimato {formatCurrency(Number(data.mezzi_stimati.costo))} ({data.mezzi_stimati.giorni ?? 0} giorni-mezzo). È un costo interno, non un pagamento.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ErroreLettura({ onRiprova }: { onRiprova: () => void }) {
+  return (
+    <p role="alert" className="rounded-lg border border-amber-300 bg-white p-4 text-sm">
+      Non riesco a leggere incassi e pagamenti della commessa. <button type="button" className="underline" onClick={onRiprova}>Riprova</button>
+    </p>
+  );
+}
+
+function KpiUscite({ totali }: { totali: ReturnType<typeof totaliQuadro> }) {
+  return <>
+    <Kpi icona={<ArrowUpRight className="h-4 w-4 text-slate-700" />} titolo="Pagato" valore={totali.pagato} />
+    <Kpi icona={<ArrowUpRight className="h-4 w-4 text-amber-700" />} titolo="Da pagare" valore={totali.daPagare} tono={totali.pagamentoScaduto > 0 ? "rosso" : "ambra"}
+      nota={[totali.pagamentoScaduto > 0 ? `${formatCurrency(totali.pagamentoScaduto)} scaduti` : null,
+        totali.impegnato > 0 ? `+ ${formatCurrency(totali.impegnato)} ordinati senza fattura` : null].filter(Boolean).join(" · ") || undefined} />
+  </>;
 }
 
 /** I SAL emessi al cliente e la rata che li incassa: le rate si gestiscono nella scheda degli incassi. */

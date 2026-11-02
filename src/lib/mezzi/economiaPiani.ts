@@ -72,3 +72,23 @@ export function economiaPianiMezzi(
     invalidi: righe.reduce((t, r) => t + r.invalidi, 0),
   };
 }
+
+export type StatoCostoMezzo = "verifica" | "oltre" | "registrato" | "daRegistrare" | "programmato" | "senzaPrevisto";
+
+/** A che punto è il costo: il previsto non entra nel margine, finché non c'è un costo registrato la commessa non lo vede. */
+export function statoCostoMezzo(
+  r: { piano: Pick<PianoMezzo, "dal">; previsto: number | null; registrato: number; invalidi: number; scostamento: number | null },
+  oggi: string,
+): { chiave: StatoCostoMezzo; testo: string } {
+  if (r.invalidi > 0) return { chiave: "verifica", testo: "Collegamento da verificare" };
+  if (r.registrato !== 0) {
+    return r.scostamento != null && r.scostamento > 0.005
+      ? { chiave: "oltre", testo: "Oltre il previsto" }
+      : { chiave: "registrato", testo: "Registrato" };
+  }
+  if (r.previsto === null) return { chiave: "senzaPrevisto", testo: "Senza importo" };
+  return r.piano.dal > oggi
+    ? { chiave: "programmato", testo: "Programmato" }
+    : { chiave: "daRegistrare", testo: "Costo da registrare" };
+}
+

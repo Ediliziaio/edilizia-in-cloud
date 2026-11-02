@@ -6,6 +6,7 @@ import {
   resolveCantiereView,
   resolveEconomiaView,
   resolveMaterialiView,
+  resolveCostiView,
   type OrderDetailDestination,
 } from "@/lib/orders/detailNavigation";
 
@@ -23,6 +24,7 @@ export function useOrderDetailNavigation(ready: boolean) {
   const activeCantiereView = resolveCantiereView(location.search, section);
   const activeEconomiaView = resolveEconomiaView(location.search, section);
   const activeMaterialiView = resolveMaterialiView(location.search, section);
+  const activeCostiView = resolveCostiView(location.search, section);
   const previousTab = useRef(tab);
 
   const navigateTo = useCallback(
@@ -70,6 +72,8 @@ export function useOrderDetailNavigation(ready: boolean) {
         ? document.getElementById("economia-workspace")
         : !changedArea && tab === "articoli" && new URLSearchParams(location.search).has("vista_materiali")
         ? document.getElementById("materiali-workspace")
+        : !changedArea && tab === "costi" && new URLSearchParams(location.search).has("vista_costi")
+        ? document.getElementById("costi-workspace")
         : document.getElementById("order-detail-overview") ?? document.getElementById("order-detail-sections");
       // Legacy deep links can point inside a collapsed details element.
       if (target instanceof HTMLDetailsElement) target.open = true;
@@ -84,5 +88,5 @@ export function useOrderDetailNavigation(ready: boolean) {
     return () => cancelAnimationFrame(frame);
   }, [ready, tab, section, location.key, location.search]);
 
-  return { activeTab: tab, activeCantiereView, activeEconomiaView, activeMaterialiView, navigateTo };
+  return { activeTab: tab, activeCantiereView, activeEconomiaView, activeMaterialiView, activeCostiView, navigateTo };
 }
