@@ -152,7 +152,7 @@ export function EditorConSalvataggio({
               />
             )}
             <EffettoPrezzo effetti={effetti} collegati={collegate.data?.length ?? 0} />
-            {!solaLettura && <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-purple-600 hover:bg-purple-700">
+            {!solaLettura && <Button onClick={salva} disabled={salvando || (!modificata && !nuova) || (nuova && !titolo.trim())} className="bg-primary hover:bg-primary/90">
               {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salva
             </Button>}

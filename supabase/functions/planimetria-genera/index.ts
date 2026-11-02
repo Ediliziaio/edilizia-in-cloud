@@ -49,8 +49,13 @@ import { origineVersione, type PiantaGenerata } from "./generazione.ts";
 const NOME = "planimetria-genera";
 const BUCKET = "planimetrie";
 /** Scelti col banco di prova (docs/planimetrie/fase3-esito.md). */
-const MODELLI = (Deno.env.get("PLANIMETRIA_MODELLI") ?? "google/gemini-2.5-pro,anthropic/claude-sonnet-4.5")
+// Claude per primo: Gemini 2.5 Pro non finiva mai nei 30 s del router (02/11/2026, prova su 15 piante reali)
+// e bruciava mezzo minuto prima del ripiego. Ora ogni chiamata ha 100 s (`timeoutMs`).
+const MODELLI = (Deno.env.get("PLANIMETRIA_MODELLI") ?? "anthropic/claude-sonnet-4.5,google/gemini-2.5-pro")
   .split(",").map((m) => m.trim()).filter(Boolean);
+/** Il gateway chiude a 150 s: 140 s per leggere la pianta, di cui al massimo 110 s per un modello solo. */
+const TEMPO_TOTALE_MS = 140_000;
+const TEMPO_PER_MODELLO_MS = 110_000;
 const MAX_BYTES = 15 * 1024 * 1024;
 const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 const INGRESSI = ["documento", "schizzo", "descrizione", "sopralluogo", "dxf", "rilievo"] as const;
@@ -188,11 +193,14 @@ serveConMetricheRapida(NOME, async (req: Request) => {
     addebito = { companyId, sessionId, userId };
 
     const chiaveBase = await buildStableAiIdempotencyKey("planimetria_genera", [companyId, userId, ingresso, impronta, VERSIONE_PROMPT]);
+    const inizioChiamate = Date.now();
     const chiama: ChiamaModello = async (messaggi: Messaggio[], tentativo: number) => {
-      // Il primo modello; se il provider non risponde, il secondo. Nessun ripiego
-      // automatico del router: la catena di default ha modelli che non vedono immagini.
+      // Il primo modello; se il provider non risponde, il secondo con il tempo che resta (il gateway chiude
+      // a 150 s). Nessun ripiego automatico del router: la catena di default ha modelli che non vedono immagini.
       let ultimoErrore: unknown = null;
       for (const modello of MODELLI) {
+        const resto = TEMPO_TOTALE_MS - (Date.now() - inizioChiamate);
+        if (resto < 20_000) break;
         try {
           const r = await aiRouterComplete({
             supabase,
@@ -201,7 +209,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
             disableModelFallback: true,
             skipCharge: true,
             messages: messaggi,
-            params: { temperature: 0.1, max_tokens: 12000 },
+            params: { temperature: 0.1, max_tokens: 12000, timeoutMs: Math.min(TEMPO_PER_MODELLO_MS, resto) },
             responseFormat: { type: "json_object" },
             companyId,
             userId,
@@ -217,7 +225,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       throw ultimoErrore ?? new Error("Nessun modello disponibile");
     };
 
-    const esito = await generaPlanimetria(richiesta, chiama, { tempoMassimoMs: 120_000 });
+    const esito = await generaPlanimetria(richiesta, chiama, { tempoMassimoMs: TEMPO_TOTALE_MS });
     const tentativi = esito.tentativi.map((t) => ({ modello: t.modello, durata_ms: t.durataMs, problemi: t.errori }));
     if (!esito.ok) {
       await refundRenderCreditSafe(supabase, { ...addebito, reasonMeta: { motivo: esito.codice, edge_fn: NOME }, logTag: NOME });

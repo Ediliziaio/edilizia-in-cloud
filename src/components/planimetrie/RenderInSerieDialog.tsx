@@ -135,7 +135,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
     <Dialog open={aperto} onOpenChange={(v) => { if (!v) onChiudi(); }}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-purple-600" />{soloStanza ? "Più stili per questa stanza" : "Render di tutte le stanze"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" />{soloStanza ? "Più stili per questa stanza" : "Render di tutte le stanze"}</DialogTitle>
           <DialogDescription>
             Si parte dalla vista 3D dentro ogni stanza: misure, porte, finestre e arredi della pianta restano dove sono. Un render costa un credito; se non riesce il credito torna.
           </DialogDescription>
@@ -212,7 +212,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
 
         <DialogFooter>
           {!righe ? (
-            <Button className="gap-2 bg-purple-600 hover:bg-purple-700" disabled={!lavori.length || !bastano || !companyId} onClick={() => void parti()}>
+            <Button className="gap-2 bg-primary hover:bg-primary/90" disabled={!lavori.length || !bastano || !companyId} onClick={() => void parti()}>
               <Sparkles className="h-4 w-4" />Fai {costo} render
             </Button>
           ) : (

@@ -63,6 +63,11 @@ export interface AiRouterParams {
   top_p?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
+  /**
+   * Tempo massimo per ogni chiamata al modello, in ms (tetto 140 s). Senza, valgono i 30 s dei modelli
+   * veloci: troppo pochi per chi risponde con un JSON lungo, come la pianta letta da un disegno.
+   */
+  timeoutMs?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tools?: Array<any>;
   tool_choice?: "auto" | "none" | { type: "function"; function: { name: string } };
@@ -763,13 +768,16 @@ async function callOpenRouter(
   // timeout corto da 30s e i 16 "Signal timed out" a registro erano tutti suoi.
   const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai", "moonshotai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
-  const FETCH_TIMEOUT_MS = isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
+  const FETCH_TIMEOUT_MS = params.timeoutMs && params.timeoutMs > 0
+    ? Math.min(params.timeoutMs, 140_000)
+    : isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
   // Retry su errori TRANSITORI (timeout / 429 / 5xx) prima di passare al modello
   // di fallback. I reasoning model hanno già budget 120s → 1 solo tentativo;
   // i modelli veloci ne fanno fino a 2 con
   // backoff breve. Gli errori 4xx (≠429) NON si ritentano (config/input errati).
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const MAX_ATTEMPTS = isReasoningModel ? 1 : 2;
+  // Con un tempo scelto da chi chiama (`timeoutMs`) un solo tentativo: il tempo totale lo decide lui.
+  const MAX_ATTEMPTS = isReasoningModel || params.timeoutMs ? 1 : 2;
   let lastErr: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
