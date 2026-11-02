@@ -166,7 +166,7 @@ const computoGrande = (capitoli: number, importoVoce: number): BozzaComputo => b
   versione: 1, titolo: "Palazzina", committente: "", oggetto: "", mostraMisurePdf: false, mostraCodiciPdf: false, mostraFontiPdf: false, ivaModalita: "applicata", ivaAliquota: "10",
   voci: Array.from({ length: capitoli }, (_, i) => ({
     id: `v${i}`, capitolo: `Capitolo ${i + 1}`, categoria: "", sottocategoria: "", tariffa: "", descrizione: `Voce ${i + 1}`,
-    unita: "cad", quantita: "1", prezzo: String(importoVoce), costo: "", sicurezza: false, detrazione: false, corpo: false, misure: [],
+    unita: "cad", quantita: "1", prezzo: String(importoVoce), costo: "", sicurezza: false, detrazione: false, corpo: false, misure: [] as never[],
   })),
 });
 
