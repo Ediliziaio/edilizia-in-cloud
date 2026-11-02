@@ -23,6 +23,7 @@ import {
   vistaDentroLocale,
   vistaGiroIntorno,
   localeAllaPosizione,
+  passoLibero,
   type PiantaPer3D,
   type PianoPer3D,
   type Scena3D,
@@ -227,12 +228,22 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (dir.lengthSq() < 1e-6) return;
     dir.normalize();
     const destra = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
-    const passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    let passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    // i muri bloccano: se il passo li attraversa si prova a scivolare lungo il muro, altrimenti ci si ferma
+    const da = m.camera.position;
+    const verso = (v: THREE.Vector3) => passoLibero(pianta, vista, [da.x, da.y, da.z], [da.x + v.x, da.y, da.z + v.z]);
+    if (!verso(passo)) {
+      const soloX = new THREE.Vector3(passo.x, 0, 0);
+      const soloZ = new THREE.Vector3(0, 0, passo.z);
+      if (verso(soloX)) passo = soloX;
+      else if (verso(soloZ)) passo = soloZ;
+      else return;
+    }
     m.camera.position.add(passo);
     m.controlli.target.add(passo);
     m.controlli.update();
     m.disegna();
-  }, []);
+  }, [pianta, vista]);
 
   useEffect(() => {
     const m = motore.current;

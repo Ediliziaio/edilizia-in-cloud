@@ -17,6 +17,7 @@ export {
   apertureDelLocale,
   localeAllaPosizione,
   metadatiFotogramma,
+  passoLibero,
   proietta,
   vistaDallAlto,
   vistaDalGiardino,

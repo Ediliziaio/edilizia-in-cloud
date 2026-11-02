@@ -95,6 +95,44 @@ function contornoM(l: LocalePer3D): V2[] {
 }
 
 /**
+ * Si può fare questo passo? Camminando nel 3D i muri bloccano e si passa solo da porte, varchi e portefinestre
+ * (le finestre no). Prima la telecamera attraversava i muri e dopo 30 passi era fuori dalla casa, nel vuoto.
+ * `da` e `a` sono posizioni della telecamera ([x, altezza, y] in metri): conta il piano.
+ */
+export function passoLibero(pianta: PiantaPer3D, vista: Vista3D, da: V3, a: V3): boolean {
+  const p0 = { x: da[0] * 100, y: da[2] * 100 };
+  const p1 = { x: a[0] * 100, y: a[2] * 100 };
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  // dalla soglia di una porta d'ingresso non si esce dalla casa: i muri si vedono solo da dentro, fuori resterebbe il vuoto
+  if (pianta.muri.length) {
+    const xs = pianta.muri.flatMap((m) => [m.a.x, m.b.x]);
+    const ys = pianta.muri.flatMap((m) => [m.a.y, m.b.y]);
+    const margine = 0;
+    if (p1.x < Math.min(...xs) - margine || p1.x > Math.max(...xs) + margine || p1.y < Math.min(...ys) - margine || p1.y > Math.max(...ys) + margine) return false;
+  }
+  for (const m of pianta.muri) {
+    // nello stato di fatto contano i muri da demolire, nel progetto quelli nuovi; nel confronto entrambi
+    if (vista === "fatto" && m.stato === "nuovo") continue;
+    if (vista === "progetto" && m.stato === "demolire") continue;
+    const ex = m.b.x - m.a.x;
+    const ey = m.b.y - m.a.y;
+    const lung = Math.hypot(ex, ey);
+    if (lung < 1) continue;
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-9) continue; // parallelo
+    const t = ((m.a.x - p0.x) * ey - (m.a.y - p0.y) * ex) / den; // lungo il passo
+    const u = ((m.a.x - p0.x) * dy - (m.a.y - p0.y) * dx) / den; // lungo il muro
+    if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+    const alMuro = u * lung;
+    const varco = pianta.aperture.some((ap) =>
+      ap.muroId === m.id && ap.tipo !== "finestra" && ap.stato !== "demolire" && Math.abs(ap.posizione - alMuro) <= ap.larghezza / 2);
+    if (!varco) return false;
+  }
+  return true;
+}
+
+/**
  * In quale stanza si trova la telecamera: serve a «camminare» per la casa nel 3D e fare il render
  * da dove si è, senza dover dire a mano di quale stanza si tratta. `null` se si è fuori da ogni stanza
  * (corridoio non disegnato, esterno, muro).
