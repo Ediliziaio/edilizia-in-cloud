@@ -47,12 +47,12 @@ function titolo(kit: KitPdf, testo: string) {
   );
 }
 
-/** Una tabella corta non si spezza e resta col suo titolo; una lunga va a capo ripetendo l'intestazione. */
+/** Una tabella piccola non si spezza; le altre vanno a capo ripetendo l'intestazione, senza lasciare mezza pagina vuota. */
 function tabella(kit: KitPdf, nome: string | null, colonne: Colonna[], righe: Cella[][], chiusura?: Cella[]) {
   const { styles } = kit;
   const cella = (c: Colonna) => ({ flex: c.flex, paddingRight: 6, textAlign: (c.destra ? "right" : "left") as "right" | "left" });
   return (
-    <View wrap={righe.length > 12}>
+    <View wrap={righe.length > 5}>
       {nome && titolo(kit, nome)}
       <View style={styles.table}>
         <View style={styles.tableHeader} fixed>
@@ -267,7 +267,7 @@ export function sezioneCronoprogramma(kit: KitPdf, dati: DatiRiepilogo, ordine: 
   );
   const righeTotali = conDate.reduce((s, f) => s + 1 + (f.sottofasi ?? []).filter((x: any) => x.data_inizio).length, 0);
   return (
-    <View wrap={righeTotali > 22}>
+    <View wrap={righeTotali > 12}>
       {titolo(kit, "Cronoprogramma")}
       {tempo != null && (
         <View style={[styles.row2, { marginBottom: 6 }]}>
@@ -370,7 +370,7 @@ export function sezioneProgramma(kit: KitPdf, dati: DatiRiepilogo, persone: Reco
   const conti = economia.size > 0;
   const soldi = (v: number | null | undefined) => (v ? fmt(v) : "—");
   return (
-    <View wrap={dati.fasi.length > 12}>
+    <View wrap={dati.fasi.length > 5}>
       {titolo(kit, `Fasi di lavorazione (${dati.fasi.length} · media ${Math.round(media)}%)`)}
       <View style={styles.table}>
         <View style={styles.tableHeader} fixed>

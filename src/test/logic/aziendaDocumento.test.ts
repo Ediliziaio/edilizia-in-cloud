@@ -43,12 +43,24 @@ describe("errori di produzione del 02/11", () => {
   it("il percorso di un allegato IMAP non contiene l'ID grezzo del messaggio", () => {
     const t = leggi("email-poll-inbox/index.ts");
     expect(t).not.toMatch(/`\$\{companyId\}\/\$\{providerMessageId\}/);
-    expect(t).toContain("percorsoAllegato(companyId, providerMessageId, a.filename)");
+    expect(t).toContain("percorsoAllegato(companyId, providerMessageId, a.filename, bytes.byteLength)");
+    expect(t).toContain("percorsoAllegato(companyId, providerMessageId, meta.filename, bytes.byteLength)");
+    expect(t).not.toMatch(/\/\$\{Date\.now\(\)\}-\$\{sanitizeFilename/);
     expect(t).toContain("getBucket(ATTACH_BUCKET)");
   });
 
   it("l'anteprima della conversazione non spezza un'emoji", () => {
     expect(leggi("email-thread-resolver/index.ts")).toContain(".slice(0, 200).toWellFormed()");
+  });
+
+  it("il recupero degli allegati tocca solo righe senza allegati e chiede il cron", () => {
+    const t = leggi("email-poll-inbox/index.ts");
+    expect(t.match(/\.or\("attachments\.is\.null,attachments\.eq\.\[\]"\)/g)).toHaveLength(2);
+    expect(t).toContain('const ammesso = isAuthorizedCron || isServiceRole;');
+  });
+
+  it("un giro senza run_id non chiama complete_workflow_run", () => {
+    expect(leggi("_customer_os_shared/index.ts")).toMatch(/if \(!runId\) return;\s+await supabase\.rpc\("complete_workflow_run"/);
   });
 
   it("il controllo della coda email legge la colonna vera", () => {

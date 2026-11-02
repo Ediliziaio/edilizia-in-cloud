@@ -1,33 +1,22 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, BookOpen, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { AlertTriangle, ArrowLeft, History } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
-import { OrderDiaryTab } from "@/components/orders/OrderDiaryTab";
-import { DiaryEmptyState } from "@/components/orders/DiaryEmptyState";
-import { DiaryComposer, type DiaryComposerPayload } from "@/components/orders/DiaryComposer";
-import { toast } from "sonner";
-
-type Channel = "email" | "sms" | "whatsapp" | "nota_interna";
-
-interface OrderDiaryCustomer {
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-}
+import { descrizioneEvento, etichettaEvento } from "@/lib/orders/eventiCommessa";
+import { RegistroCommessa } from "@/components/orders/RegistroCommessa";
+import { componiRegistro, type AzioneRegistro } from "@/lib/orders/registroCommessa";
 
 interface OrderDiaryOrder {
   id: string;
   order_code: string | null;
   description: string | null;
-  current_status_id: string | null;
-  customer: OrderDiaryCustomer | null;
+  created_by: string | null;
 }
 
 export default function OrderDiaryPage() {
@@ -35,17 +24,12 @@ export default function OrderDiaryPage() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
 
-  const [composerChannel, setComposerChannel] = useState<Channel | null>(null);
-
-  // ── Carica dati ordine ────────────────────────────────────────────────────
   const { data: order, isLoading } = useQuery({
     queryKey: queryKeys.orders.diaryHeader(id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select(
-          "id, order_code, description, current_status_id, customer:profiles!orders_customer_id_fkey(id, first_name, last_name, email, phone)"
-        )
+        .select("id, order_code, description, created_by")
         .eq("id", id!)
         .eq("company_id", effectiveCompany!.id)
         .single();
@@ -55,156 +39,99 @@ export default function OrderDiaryPage() {
     enabled: !!id && !!user && !!effectiveCompany,
   });
 
-  // ── Hook diario (timeline + mutations) ───────────────────────────────────
-  const {
-    timeline,
-    templates,
-    sendMutation,
-    addNoteMutation,
-    isLoading: diaryLoading,
-    isError: diaryError,
-  } = useOrderDiary(id);
+  const { events, messages, auditEntries, isLoading: diaryLoading, isError: diaryError } = useOrderDiary(id);
 
-  const customerName = order?.customer
-    ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
-    : "";
-  const customerEmail = order?.customer?.email ?? undefined;
-  const customerPhone = order?.customer?.phone ?? undefined;
+  // Le azioni di tutti sulla commessa, con i valori prima e dopo.
+  const { data: azioni = [], isLoading: azioniLoading, isError: azioniError } = useQuery({
+    queryKey: ["registro-commessa", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("registro_commessa" as never, { p_order_id: id } as never);
+      if (error) throw error;
+      return (data ?? []) as unknown as AzioneRegistro[];
+    },
+    enabled: !!id && !!user,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
 
-  const isEmpty = !diaryLoading && timeline.length === 0;
+  // Gli stati si leggono per nome: nel registro c'è il loro identificativo.
+  const { data: stati = {} } = useQuery({
+    queryKey: ["registro-commessa-stati", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("order_statuses").select("id, name").eq("company_id", effectiveCompany!.id);
+      return Object.fromEntries((data ?? []).map((s) => [s.id, s.name])) as Record<string, string>;
+    },
+    enabled: !!effectiveCompany?.id,
+    staleTime: 300_000,
+  });
 
-  // ── Invio messaggio ───────────────────────────────────────────────────────
-  const handleSend = async (payload: DiaryComposerPayload) => {
-    try {
-      if (payload.channel === "nota_interna") {
-        await addNoteMutation.mutateAsync(payload.body);
-      } else {
-        await sendMutation.mutateAsync({
-          channel: payload.channel,
-          to_name: payload.to_name,
-          to_email: payload.to_email,
-          to_phone: payload.to_phone,
-          subject: payload.subject,
-          body: payload.body,
-        });
-      }
-      setComposerChannel(null);
-      toast.success(
-        payload.channel === "nota_interna" ? "Nota salvata" : "Messaggio inviato"
-      );
-    } catch {
-      toast.error("Errore durante l'invio. Riprova.");
-      throw new Error("Errore durante l'invio");
-    }
-  };
+  const { data: creatoDa = null } = useQuery({
+    queryKey: ["registro-commessa-autore", order?.created_by],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("first_name, last_name, email").eq("id", order!.created_by!).maybeSingle();
+      return [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim() || data?.email || null;
+    },
+    enabled: !!order?.created_by,
+    staleTime: 300_000,
+  });
+
+  const voci = useMemo(() => componiRegistro({
+    azioni,
+    eventi: events.map((e) => ({
+      id: e.id, event_type: e.event_type, actor_name: e.actor_name, created_at: e.created_at,
+      etichetta: etichettaEvento(e.event_type), descrizione: descrizioneEvento(e),
+    })),
+    audit: auditEntries,
+    messaggi: messages,
+    stati,
+    creatoDa,
+  }), [azioni, events, auditEntries, messages, stati, creatoDa]);
+
+  const caricamento = isLoading || diaryLoading || azioniLoading;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ── Header fisso ─────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
+      <div className="sticky top-0 z-10 border-b border-gray-100 bg-white">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
+          <button
             onClick={() => navigate(`/azienda/ordini/${id}`)}
-            className="text-gray-500 hover:text-gray-800 shrink-0"
+            className="flex shrink-0 items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
           >
-            <ArrowLeft className="h-4 w-4 mr-1.5" />
-            Torna alla commessa
-          </Button>
-          <div className="h-4 w-px bg-gray-200 shrink-0" />
-          <div className="flex items-center gap-2 min-w-0">
-            <BookOpen className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-sm font-medium text-gray-900 shrink-0">
-              Diario della Commessa
-            </span>
-            {order && (
-              <span className="text-sm text-gray-400 truncate hidden sm:block">
-                — {order.order_code} · {order.description}
-              </span>
-            )}
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Torna alla commessa</span>
+          </button>
+          <div className="mx-1 h-5 w-px bg-gray-200" />
+          <History className="h-4 w-4 shrink-0 text-blue-600" />
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold text-gray-800">Registro attività</h1>
+            {order && <p className="truncate text-xs text-gray-400">{order.order_code} · {order.description}</p>}
           </div>
-          {/* Bottone scrivi nuovo messaggio (quando ci sono già messaggi) */}
-          {!isEmpty && !composerChannel && (
-            <Button
-              size="sm"
-              onClick={() => setComposerChannel("email")}
-              className="ml-auto shrink-0 bg-orange-500 hover:bg-orange-600 text-white text-xs"
-            >
-              <Pencil className="h-3.5 w-3.5 mr-1.5" />
-              Nuovo messaggio
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* ── Contenuto ────────────────────────────────────────────────────── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {isLoading ? (
+      <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6">
+        {caricamento ? (
           <div className="space-y-3">
-            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-8 w-full" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-24 w-full" />
           </div>
         ) : !order ? (
-          <div className="text-center py-16 text-gray-400 text-sm">
-            Commessa non trovata.
-          </div>
+          <div className="py-16 text-center text-sm text-gray-400">Commessa non trovata.</div>
         ) : (
-          <>
-            {/* Composer (aperto) */}
-            {composerChannel && (
-              <DiaryComposer
-                channel={composerChannel}
-                toName={customerName}
-                toEmail={customerEmail}
-                toPhone={customerPhone}
-                onSend={handleSend}
-                onCancel={() => setComposerChannel(null)}
-                onChangeChannel={setComposerChannel}
-              />
-            )}
-
-            {/* Empty state (nessun messaggio + composer chiuso) */}
-            {diaryLoading && (
-              <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-4">
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            )}
-
-            {diaryError && (
-              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="space-y-3">
+            {(diaryError || azioniError) && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <div>
-                  <p className="font-semibold">Diario non aggiornato in tempo reale</p>
-                  <p className="mt-0.5 text-amber-700">
-                    Alcune voci potrebbero non essere state caricate. Riprova o aggiorna la pagina.
-                  </p>
-                </div>
+                <p>Una parte del registro non si è caricata: qui sotto potrebbero mancare delle azioni. Aggiorna la pagina.</p>
               </div>
             )}
-
-            {isEmpty && !composerChannel && (
-              <DiaryEmptyState onSelectChannel={setComposerChannel} />
-            )}
-
-            {/* Timeline diario (sempre visibile se ci sono voci) */}
-            {!diaryLoading && !isEmpty && (
-              <OrderDiaryTab
-                orderId={id!}
-                customerName={customerName}
-                customerEmail={customerEmail}
-                customerPhone={customerPhone}
-                timeline={timeline}
-                templates={templates}
-                onSend={sendMutation.mutate}
-                onAddNote={addNoteMutation.mutate}
-                isSending={sendMutation.isPending || addNoteMutation.isPending}
-              />
-            )}
-          </>
+            <RegistroCommessa
+              voci={voci}
+              nomeFile={`registro-commessa-${order.order_code ?? id}-${format(new Date(), "yyyy-MM-dd")}`}
+              titoloCommessa={`${order.order_code ?? ""} · ${order.description ?? ""}`}
+            />
+          </div>
         )}
       </div>
     </div>

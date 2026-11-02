@@ -1,4 +1,6 @@
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { OrderStatus } from "@/lib/orderUtils";
 import type { StatusHistoryItem } from "./OrderProgressTracker";
 import { statusVisits } from "@/lib/orders/statusHistory";
@@ -10,116 +12,72 @@ interface OrdineStatusStripProps {
   onStatusChange?: (statusId: string) => void;
 }
 
-/** Converts a hex color to an rgba string with the given opacity */
-function hexToRgba(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-export function OrdineStatusStrip({
-  statuses,
-  currentStatusId,
-  statusHistory = [],
-  onStatusChange,
-}: OrdineStatusStripProps) {
+/**
+ * Una riga sola, anche con dodici stati: la barra dice a che punto è la commessa, il
+ * menu ha i nomi interi. Il tratto chiaro segue l'ordine degli stati e non afferma che
+ * un passaggio è avvenuto: quello lo dice la spunta nel menu, che viene dallo storico.
+ */
+export function OrdineStatusStrip({ statuses, currentStatusId, statusHistory = [], onStatusChange }: OrdineStatusStripProps) {
   const sorted = [...statuses].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const visits = statusVisits(statusHistory);
-
-  const getDate = (statusId: string): string | null => {
-    const changedAt = visits.get(statusId);
-    if (!changedAt) return null;
-    return changedAt.toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "short",
-    });
-  };
+  const percorso = sorted.filter((s) => !s.is_support_phase);
+  const posizione = percorso.findIndex((s) => s.id === currentStatusId);
+  const dataVisita = (id: string) => visits.get(id)?.toLocaleDateString("it-IT");
+  // Un colore solo sulla barra: dieci colori diversi non dicono a che punto siamo.
+  const coloreAttuale = sorted.find((s) => s.id === currentStatusId)?.color || "#64748b";
 
   return (
-    <div className="w-full overflow-x-auto scrollbar-hide">
-      <div className="flex items-center min-w-max px-1 py-2 gap-0">
-        {sorted.map((status, index) => {
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <ol className="flex min-w-[120px] flex-1 items-center gap-0.5" aria-label="Stati della commessa">
+        {sorted.map((status) => {
           const isCurrent = status.id === currentStatusId;
-          const isCompleted = !isCurrent && visits.has(status.id);
-          const date = getDate(status.id);
-          const color = status.color || "#64748b";
-
-          // Circle styles driven by the status's own color
-          const circleStyle: React.CSSProperties = isCompleted
-            ? { backgroundColor: color, borderColor: color, color: "#fff" }
-            : isCurrent
-            ? {
-                backgroundColor: hexToRgba(color, 0.12),
-                borderColor: color,
-                color,
-                boxShadow: `0 4px 12px ${hexToRgba(color, 0.3)}`,
-              }
-            : { backgroundColor: "#fff", borderColor: "#e2e8f0", color: "#94a3b8" };
-
-          // Label color
-          const labelStyle: React.CSSProperties = isCompleted
-            ? { color: "#64748b" }
-            : isCurrent
-            ? { color, fontWeight: 700 }
-            : { color: "#94a3b8" };
-
-          // Connector color
-          const connectorStyle: React.CSSProperties = {
-            backgroundColor: (visits.has(status.id) || isCurrent) && (visits.has(sorted[index + 1]?.id) || sorted[index + 1]?.id === currentStatusId) ? color : "#e2e8f0",
-          };
-
+          const passato = !status.is_support_phase && posizione >= 0 && percorso.indexOf(status) < posizione;
+          const label = isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`;
+          const data = dataVisita(status.id);
           return (
-            <div key={status.id} className="flex items-center">
-              {/* Step — title + hover ring: era cliccabile ma non lo sembrava
-                  (nessuna affordance), gli utenti non sapevano di poter
-                  avanzare lo stato da qui */}
+            <li key={status.id} className={status.is_support_phase ? "ml-1.5 w-5 shrink-0" : "min-w-0 flex-1"}>
               <button
                 type="button"
                 disabled={!onStatusChange || isCurrent}
                 aria-current={isCurrent ? "step" : undefined}
-                data-status-visited={visits.has(status.id) ? "true" : "false"}
-                aria-label={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
-                className="group flex flex-col items-center gap-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
+                data-status-visited={data ? "true" : "false"}
+                aria-label={label}
+                title={data ? `${status.name} · ultimo passaggio ${data}` : status.name}
                 onClick={() => onStatusChange?.(status.id)}
-                title={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
+                className="group flex h-6 w-full items-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
               >
-                {isCompleted && <span className="sr-only">Passaggio registrato nello storico</span>}
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium group-hover:scale-110 group-hover:shadow-md"
-                  style={circleStyle}
-                >
-                  {isCompleted ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <span>{index + 1}</span>
-                  )}
-                </div>
                 <span
-                  className="text-xs whitespace-nowrap max-w-[90px] overflow-hidden text-ellipsis text-center leading-tight transition-colors"
-                  style={labelStyle}
-                >
-                  {status.name}
-                </span>
-                {date && (
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium">
-                    {date}
-                  </span>
-                )}
-              </button>
-
-              {/* Connector */}
-              {index < sorted.length - 1 && (
-                <div
-                  className="h-0.5 w-8 mx-1 mb-5 flex-shrink-0 transition-colors"
-                  style={connectorStyle}
+                  className="h-2 w-full rounded-sm transition-all group-enabled:group-hover:h-3"
+                  style={{ backgroundColor: isCurrent ? coloreAttuale : passato ? `${coloreAttuale}55` : "#e2e8f0" }}
                 />
-              )}
-            </div>
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ol>
+      {onStatusChange && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 shrink-0 gap-1 px-2 text-xs">
+              Cambia stato
+              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-[min(60vh,26rem)] w-64 overflow-y-auto">
+            {sorted.map((status) => {
+              const data = dataVisita(status.id);
+              const isCurrent = status.id === currentStatusId;
+              return (
+                <DropdownMenuItem key={status.id} disabled={isCurrent} onSelect={() => onStatusChange(status.id)} className="gap-2 text-xs">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: status.color || "#64748b" }} aria-hidden="true" />
+                  <span className={isCurrent ? "min-w-0 flex-1 font-semibold" : "min-w-0 flex-1"}>{status.name}{isCurrent ? " (attuale)" : ""}</span>
+                  {data && <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground"><Check className="h-3 w-3 text-emerald-600" aria-hidden="true" />{data}</span>}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }

@@ -87,7 +87,7 @@ export function OrdineDetailHeader({
         )}
         <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${ordineId}/diario`)}>
           <BookOpen className="h-4 w-4 mr-2 text-orange-600" />
-          Diario Commessa
+          Registro attività
         </DropdownMenuItem>
         {/* Niente export su telefono. */}
         {/* Niente export su telefono. */}
