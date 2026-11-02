@@ -354,7 +354,8 @@ export function OrderQuickActions({
           onOpenChange={setApptOpen}
           defaultOrderId={orderId}
           showOrderSelect={false}
-          defaultTitle={`Sopralluogo/Posa — ${orderCode ?? "Commessa"}`}
+          defaultAppointmentType="sopralluogo"
+          riferimentoTitolo={orderCode ?? "Commessa"}
           defaultAddress={workAddress ?? null}
           defaultCity={workCity ?? null}
           defaultProvince={workProvince ?? null}
