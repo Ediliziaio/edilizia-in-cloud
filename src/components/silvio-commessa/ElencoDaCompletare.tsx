@@ -4,7 +4,8 @@
  * punteggio e cosa manca. «Completa» apre il popup di Silvio su una; «Completa le prossime 5»
  * le apre una dopo l'altra: dopo «Completa» (o «Salta») arriva la prossima, senza tornare qui.
  */
-import { lazy, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Loader2, Sparkles, X } from "lucide-react";

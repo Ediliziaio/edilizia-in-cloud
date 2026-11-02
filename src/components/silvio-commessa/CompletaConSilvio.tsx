@@ -4,7 +4,8 @@
  * questa commessa); se la funzione non c'è ancora resta il pulsante, senza il numero.
  * Non si vede a commessa completa, chiusa, senza permesso o con l'interruttore spento.
  */
-import { lazy, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
