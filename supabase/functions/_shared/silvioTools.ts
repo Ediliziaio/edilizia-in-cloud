@@ -24,6 +24,7 @@ import { normalizzaStatoPreventivo } from "./statoPreventivo.ts";
 import { buildDdtCarico } from "./ddtCarico.ts";
 import { silvioOrderReport } from "./silvioOrderReport.ts";
 import { silvioCalcolaPiano, silvioPrevediRitardi } from "./silvioPianoCantiere.ts";
+import { compattaCarico } from "./allocazioneOperai.ts";
 import { silvioQuadroCommessa } from "./silvioQuadroCommessa.ts";
 import { silvioSiteHealth } from "./silvioSiteHealth.ts";
 import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
@@ -955,11 +956,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         parameters: { type: "object", properties: { dal: { type: "string", format: "date", description: "Primo giorno del periodo" }, al: { type: "string", format: "date", description: "Ultimo giorno del periodo" } }, required: [] },
       },
     },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_employees_workload", {
+    executor: async (args, ctx) => compattaCarico(await callRpc(ctx.supabase, "silvio_employees_workload", {
       p_company_id: ctx.companyId,
       p_dal: args?.dal ?? null,
       p_al: args?.al ?? null,
-    }),
+    })),
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "hr", "assistente_imprenditore"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
