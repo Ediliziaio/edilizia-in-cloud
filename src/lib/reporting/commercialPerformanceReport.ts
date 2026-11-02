@@ -173,6 +173,13 @@ export interface CommercialPerformanceReport {
     count: number;
     valueCents: number;
   }>;
+  /** Opportunità perse per venditore, con il motivo più frequente. */
+  lossByOwner: Array<{
+    ownerId: string | null;
+    count: number;
+    valueCents: number;
+    topReason: string;
+  }>;
 }
 
 const ACCEPTED_QUOTE_STATUSES = new Set(["accettata", "accepted", "firmata", "signed", "won", "vinta"]);
@@ -211,6 +218,7 @@ export function buildCommercialPerformanceReport(input: CommercialPerformanceRep
   const leadQuality = buildLeadQuality(input.contacts);
   const margin = buildMargin(quotes);
   const lossReasons = buildLossReasons(input.opportunities, rejectedQuotes);
+  const lossByOwner = buildLossByOwner(input.opportunities);
   const sync = buildSyncHealth({
     contacts: input.contacts,
     appointments: marketingAppointments,
@@ -242,6 +250,7 @@ export function buildCommercialPerformanceReport(input: CommercialPerformanceRep
     leadQuality,
     margin,
     lossReasons,
+    lossByOwner,
   };
 }
 
@@ -598,7 +607,24 @@ function buildLossReasons(
   return Array.from(grouped.entries())
     .map(([reason, item]) => ({ reason, count: item.count, valueCents: item.valueCents }))
     .sort((a, b) => b.valueCents - a.valueCents || b.count - a.count)
-    .slice(0, 8);
+    .slice(0, 12);
+}
+
+function buildLossByOwner(opportunities: CommercialOpportunityRow[]): CommercialPerformanceReport["lossByOwner"] {
+  const per = new Map<string, { count: number; valueCents: number; motivi: Map<string, number> }>();
+  for (const o of opportunities) {
+    if (!isLostStatus(o.status)) continue;
+    const k = o.assigned_to ?? "";
+    const g = per.get(k) ?? { count: 0, valueCents: 0, motivi: new Map() };
+    g.count += 1;
+    g.valueCents += opportunityValueCents(o);
+    const m = normalizeLossReason(o.lost_reason_category || o.lost_reason || o.loss_reason || o.competitor_won);
+    g.motivi.set(m, (g.motivi.get(m) ?? 0) + 1);
+    per.set(k, g);
+  }
+  return [...per.entries()]
+    .map(([k, g]) => ({ ownerId: k || null, count: g.count, valueCents: g.valueCents, topReason: [...g.motivi].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "" }))
+    .sort((a, b) => b.count - a.count || b.valueCents - a.valueCents);
 }
 
 function addLoss(grouped: Map<string, { count: number; valueCents: number }>, reason: string, valueCents: number) {
