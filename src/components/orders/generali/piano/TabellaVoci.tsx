@@ -283,7 +283,7 @@ function RigaVoce({ r, conFiglie, onAggancia, onNuovaDaFuori, ...p }: PropsTabel
         {p.modificabile ? (
           <CellaMese valore={v.mese} partenza={p.piano.oggi} etichetta={`Mese di ${nome}`} onSalva={(mese) => salva({ mese })} />
         ) : (
-          <span className={cn("px-1.5", !v.mese && "text-amber-700 dark:text-amber-400")}>{v.mese ? nomeMese(v.mese) : "manca"}</span>
+          <span className={cn("whitespace-nowrap px-1.5", !v.mese && "text-amber-700 dark:text-amber-400")}>{v.mese ? nomeMese(v.mese) : "manca"}</span>
         )}
       </td>
       <td className="px-1 py-1">

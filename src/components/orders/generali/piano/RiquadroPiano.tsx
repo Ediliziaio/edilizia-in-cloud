@@ -75,7 +75,7 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
   return (
     <section aria-label="Piano economico" className="rounded-lg border bg-card px-4 py-3">
       {intestazione}
-      <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-2 grid grid-cols-2 gap-3">
         <Numero etichetta="Margine previsto" valore={euro(t.previsto)} nota={n.inVista ? `versione ${n.inVista.numero}` : undefined} />
         <Numero
           etichetta="Margine a finire (stima)"

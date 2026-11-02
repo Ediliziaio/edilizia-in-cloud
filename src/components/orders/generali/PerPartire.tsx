@@ -3,7 +3,7 @@
 // resta qualcosa da fare; si può nascondere (vale per chi guarda, su questo dispositivo).
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, Circle, X } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { useFontiGenerale } from "@/hooks/useGeneraleInvestitori";
@@ -11,7 +11,6 @@ import { useVersioniPiano, useVociPiano } from "@/hooks/useGeneralePiano";
 import { DEFINIZIONI_MODELLI, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { valoreContratto } from "@/lib/orders/generali/contratto";
 import { passiPerPartire, perPartireServe, type IdPasso } from "@/lib/orders/generali/perPartire";
-import { cn } from "@/lib/utils";
 
 const chiaveNascosta = (id: string) => `generale-per-partire-nascosta:${id}`;
 const leggiNascosta = (id: string) => {
@@ -60,33 +59,31 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
     setNascosta(true);
   };
 
+  const prossimo = passi.find((p) => !p.fatto)?.id;
   return (
-    <section aria-labelledby="per-partire-titolo" className="rounded-lg border border-dashed bg-muted/30 px-4 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="per-partire-titolo" className="text-sm font-semibold">
-          Per partire <span className="font-normal text-muted-foreground">{passi.filter((p) => p.fatto).length} di {passi.length}</span>
-        </h2>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={nascondi} aria-label="Nascondi «Per partire»">
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      <ul className="mt-1.5 space-y-0.5">
+    <section aria-labelledby="per-partire-titolo" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+      <h2 id="per-partire-titolo" className="text-sm font-semibold">
+        Per partire <span className="font-normal text-muted-foreground">{passi.filter((p) => p.fatto).length} di {passi.length}</span>
+      </h2>
+      <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         {passi.map((p) => (
           <li key={p.id}>
             {p.fatto ? (
-              <span className={cn("flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground line-through")}>
+              <span className="inline-flex items-center gap-1 px-1 text-xs text-muted-foreground">
                 <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" /> {testi[p.id].titolo}
               </span>
             ) : (
-              <button type="button" onClick={testi[p.id].azione} className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-sm hover:bg-muted">
-                <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="flex-1">{testi[p.id].titolo}</span>
-                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </button>
+              <Button type="button" size="sm" variant={p.id === prossimo ? "default" : "ghost"} className="h-7 px-2 text-xs" onClick={testi[p.id].azione}>
+                {testi[p.id].titolo}
+                {p.id === prossimo && <ArrowRight className="ml-1 h-3 w-3" aria-hidden="true" />}
+              </Button>
             )}
           </li>
         ))}
       </ul>
+      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={nascondi} aria-label="Nascondi «Per partire»">
+        <X className="h-3.5 w-3.5" />
+      </Button>
     </section>
   );
 }

@@ -59,7 +59,7 @@ function Casella({ u, vedeImporti, telefono, onApri }: { u: UnitaGenerale; vedeI
       className={cn(
         "tap-compact flex w-full flex-col items-start rounded-md border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         STILE_STATO[u.stato].casella,
-        telefono ? "min-h-[3rem] px-2 py-1.5" : "h-[4.25rem] w-32 px-2.5 py-1.5",
+        telefono ? "min-h-[3rem] px-2 py-1.5" : "h-[4.25rem] w-40 px-2.5 py-1.5",
       )}
     >
       <span className="w-full truncate text-sm font-semibold leading-tight">{u.sigla}</span>

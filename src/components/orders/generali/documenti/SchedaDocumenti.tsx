@@ -122,7 +122,7 @@ function DocumentiComputer({ r, dati, checklist, puoModificare }: {
                       <Popover>
                         <PopoverTrigger asChild>
                           {puoModificare && c.stato === "mancante" ? (
-                            <Button size="sm" variant="outline" className="h-8"><Upload className="mr-1.5 h-3.5 w-3.5" /> Carica</Button>
+                            <Button size="sm" variant="ghost" className="h-8 text-primary"><Upload className="mr-1.5 h-3.5 w-3.5" /> Carica</Button>
                           ) : (
                             <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Dettagli di ${c.voce.nome}`}><MoreHorizontal className="h-4 w-4" /></Button>
                           )}

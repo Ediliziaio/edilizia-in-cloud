@@ -59,7 +59,7 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
           </Link>
         )}
       </header>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 text-sm md:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 text-sm">
         <div>
           <dt className="text-xs text-muted-foreground">A SAL</dt>
           <dd className="tabular-nums">{euro(t.aSal)} <span className="text-xs text-muted-foreground">su {euro(valore.aggiornato)}</span></dd>
