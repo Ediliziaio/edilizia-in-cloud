@@ -211,6 +211,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const contenitoreRef = useRef<HTMLDivElement>(null);
   const gesto = useRef<Gesto | null>(null);
   const puntatori = useRef(new Map<number, Punto>());
+  /** Pennino (Apple Pencil) appoggiato: il palmo della mano, che arriva come tocco, va ignorato. */
+  const penne = useRef(new Set<number>());
   const ultimoCursore = useRef<Punto | null>(null);
   const spazioPremuto = useRef(false);
 
@@ -465,6 +467,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button === 2) return;
+    if (e.pointerType === "pen") penne.current.add(e.pointerId);
+    else if (e.pointerType === "touch" && penne.current.size > 0) return;
     // Il clic sul disegno chiude le caselle aperte (e ne salva il valore), ma non deve
     // spostare il fuoco dopo: la casella della misura che si apre adesso lo tiene.
     e.preventDefault();
@@ -699,6 +703,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   };
 
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "touch" && penne.current.size > 0) return;
     const s = schermo(e);
     if (puntatori.current.has(e.pointerId)) puntatori.current.set(e.pointerId, s);
     const g = gesto.current;
@@ -813,6 +818,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   };
 
   const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    penne.current.delete(e.pointerId);
+    if (e.pointerType === "touch" && !puntatori.current.has(e.pointerId)) return;
     puntatori.current.delete(e.pointerId);
     const g = gesto.current;
     if (g?.tipo === "pinch") {
