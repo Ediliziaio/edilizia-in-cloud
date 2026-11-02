@@ -101,7 +101,7 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
               <div><Label htmlFor="piano-ore">Ore al giorno</Label><Input id="piano-ore" type="number" min={1} max={12} defaultValue={e.ipotesi.oreGiorno} onBlur={(x) => ricalcola("oreGiorno", x.target.value, e.ipotesi.oreGiorno)} /></div>
               <div><Label htmlFor="piano-resa">Ore produttive (%)</Label><Input id="piano-resa" type="number" min={10} max={100} defaultValue={e.ipotesi.resaPct} onBlur={(x) => ricalcola("resaPct", x.target.value, e.ipotesi.resaPct)} /></div>
             </div>
-            <p className="text-xs text-muted-foreground">Costo orario: {COSTO_DA[e.costoOrarioDa]}. Prezzario usato per le stime: {e.regione ?? "tutta Italia"}.</p>
+            <p className="text-xs text-muted-foreground">Costo orario: {COSTO_DA[e.costoOrarioDa]}. Prezzario usato per le stime: {e.regione ?? "Lombardia, perché manca la provincia dell'azienda"}.</p>
 
             {[...e.piano.avvisi, ...e.avvisiLettura].map((a) => (
               <Alert key={a}><AlertTriangle className="h-4 w-4" /><AlertDescription>{a}</AlertDescription></Alert>

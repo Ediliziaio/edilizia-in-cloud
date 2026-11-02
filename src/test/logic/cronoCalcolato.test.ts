@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { calcolaCrono, lavorazioneDellaVoce, preparaCrono, type VoceCrono } from "../../../shared/piano-cantiere/cronoCalcolato.ts";
-import { fasiDaCalcolo } from "@/lib/preventivi/cronoprogramma";
+import { durataComplessiva, fasiDaCalcolo } from "@/lib/preventivi/cronoprogramma";
 
 const ore = (descrizione: string, ore_previste: number, capitolo: string | null = null): VoceCrono => ({ descrizione, ore_previste, capitolo, quantita: 1 });
 const ip = { costoOrario: 30, oreGiorno: 8, resaPct: 85 };
@@ -12,9 +12,18 @@ describe("le voci vanno nella loro lavorazione", () => {
     ["Massetto sabbia e cemento", "Massetti e sottofondi"], ["Posa gres", "Pavimenti e rivestimenti"],
     ["Impianto elettrico completo", "Impianti"], ["Punti luce e quadro", "Impianti"], ["Tramezzi in laterizio", "Murature e tramezzi"],
     ["Posa serramenti", "Serramenti e porte"], ["Porte interne", "Serramenti e porte"], ["Tinteggiatura", "Tinteggiature"],
+    ["Cappotto termico EPS", "Cappotto"], ["Finestra in PVC a taglio termico", "Serramenti e porte"], ["Intonaco a calce idraulica", "Intonaci e rasature"],
+    ["Intonaco civile su muratura", "Intonaci e rasature"], ["Massetto su solaio", "Massetti e sottofondi"], ["Massetto in calcestruzzo alleggerito", "Massetti e sottofondi"],
+    ["Posa pavimento su massetto esistente", "Pavimenti e rivestimenti"], ["Tinteggiatura pareti in cartongesso", "Tinteggiature"],
+    ["Lavabo con piletta di scarico", "Sanitari e rubinetterie"], ["Vaso wc con cassetta di scarico", "Sanitari e rubinetterie"], ["Trasporto a discarica macerie", "Demolizioni e rimozioni"],
+    ["Porta interna tamburata", "Serramenti e porte"], ["Opere murarie", "Murature e tramezzi"], ["Caldaia a condensazione", "Impianti"], ["Climatizzatore dual split", "Impianti"], ["Travi in legno", "Strutture"],
     ["Cappotto EPS 12 cm", "Cappotto"], ["Lattonerie", "Copertura"], ["Montaggio sanitari", "Sanitari e rubinetterie"],
   ])("%s → %s", (descrizione, atteso) => {
     expect(lavorazioneDellaVoce({ descrizione })?.nome).toBe(atteso);
+  });
+  it("non si lascia ingannare: manto erboso, impermeabilizzazione del bagno", () => {
+    expect(lavorazioneDellaVoce({ descrizione: "Manto erboso sintetico" })).toBeNull();
+    expect(lavorazioneDellaVoce({ descrizione: "Impermeabilizzazione box doccia" })?.nome).toBe("Sanitari e rubinetterie");
   });
   it("una voce generica prende il capitolo", () => {
     expect(lavorazioneDellaVoce({ descrizione: "Voce numero 12", capitolo: "Impianti" })?.nome).toBe("Impianti");
@@ -35,7 +44,7 @@ describe("il cronoprogramma calcolato", () => {
     ]);
   });
   it("durata = ore ÷ (persone × ore utili): 60 ore, 3 persone, 6,8 ore = 3 giorni", () => {
-    expect(fase(calcolaCrono(appartamento, ip), "Demolizioni e rimozioni").durata).toBe(3);
+    expect(fase(calcolaCrono(appartamento, ip, { personePerSquadra: 3 }), "Demolizioni e rimozioni").durata).toBe(3);
     expect(fase(calcolaCrono(appartamento, ip, { personePerSquadra: 1 }), "Demolizioni e rimozioni").durata).toBe(9);
   });
   it("la stagionatura è un'attesa: i pavimenti partono dopo", () => {
@@ -76,7 +85,8 @@ describe("il cronoprogramma calcolato", () => {
   it("una voce senza dati non vale zero in silenzio", () => {
     const r = calcolaCrono([{ descrizione: "Posa gres", importo: 100 }], ip);
     expect(r.vociSenzaDati).toBe(1);
-    expect(fase(r, "Pavimenti e rivestimenti")).toMatchObject({ durata: 1, dettaglio: expect.stringContaining("da controllare") });
+    expect(fase(r, "Pavimenti e rivestimenti").durata).toBe(1);
+    expect(r.avvisoInterno).toContain("Da controllare");
     expect(r.avvisoInterno).toContain("non ha");
   });
   it("una voce non riconosciuta resta col suo capitolo e lo dice", () => {
@@ -90,6 +100,27 @@ describe("il cronoprogramma calcolato", () => {
     expect(perCliente).not.toMatch(/ore|prezzario|dati|controllare/i);
     expect(r.fasi.find((f) => f.attesa)?.nota).toBe("Tempo tecnico di attesa.");
     expect(fasiDaCalcolo(r.fasi).map((f) => f.descrizione).join(" ")).not.toMatch(/prezzario|ore di/i);
+  });
+  it("oneri, percentuali e detrazioni non sono giorni di cantiere", () => {
+    const r = calcolaCrono([
+      { descrizione: "Oneri della sicurezza", importo: 1000, unita: "corpo", incidenza: { frazione: 0.5 } },
+      { descrizione: "Spese generali", importo: 1000, unita: "%", incidenza: { frazione: 0.5 } },
+      { descrizione: "A detrarre: rimozione ponteggio", importo: -500, incidenza: { frazione: 0.5 } },
+      { descrizione: "Ponteggio", importo: 1000, sicurezza: true, incidenza: { frazione: 0.5 } },
+      ore("Tinteggiatura", 10),
+    ], ip);
+    expect(r.voci).toBe(1);
+    expect(r.fasi.some((f) => /ponteg|oneri/i.test(f.nome))).toBe(false);
+  });
+  it("la sola fornitura non ha ore; fornitura e posa sì", () => {
+    const r = calcolaCrono([
+      { descrizione: "Fornitura di serramenti", importo: 5000, incidenza: { frazione: 0.5 } },
+      { descrizione: "Sanitari", quantita: 2, costo_manodopera: 0, costo_materiali: 300 },
+      { descrizione: "Fornitura e posa di gres", importo: 3000, incidenza: { frazione: 0.5 } },
+    ], ip);
+    expect(r.vociSoloFornitura).toBe(2);
+    expect(r.ore).toBe(50);
+    expect(r.fasi.map((f) => f.nome)).toEqual(["Allestimento cantiere", "Pavimenti e rivestimenti", "Pulizia e consegna"]);
   });
   it("computo vuoto: nessuna fase", () => {
     expect(calcolaCrono([], ip)).toMatchObject({ fasi: [], giorni: 0 });
@@ -135,9 +166,26 @@ describe("preparaCrono", () => {
 });
 
 describe("nel preventivo dei moduli", () => {
+  const appartamento = [ore("Demolizioni", 60), ore("Tramezzi", 40), ore("Massetto", 60), ore("Intonaco", 90), ore("Posa gres", 40), ore("Tinteggiatura", 40)];
+  it("la somma delle fasi è la durata vera, anche con le attese che corrono insieme al lavoro", () => {
+    const r = calcolaCrono(appartamento, ip);
+    const somma = fasiDaCalcolo(r.fasi).reduce((t, f) => t + Number.parseInt(f.durata!, 10), 0);
+    expect(somma).toBe(r.giorni);
+  });
+  it("le settimane contano 5 giorni lavorativi: 30 giorni sono 6 settimane", () => {
+    expect(durataComplessiva([{ fase: "A", durata: "30 giorni lavorativi", descrizione: null }])).toBe("circa 6 settimane");
+    expect(durataComplessiva([{ fase: "A", durata: "30 giorni", descrizione: null }])).toBe("circa 4 settimane");
+  });
+  it("oltre 20 fasi accorpa le centrali e tiene la fase finale", () => {
+    const tante = Array.from({ length: 25 }, (_, i) => ({ nome: `F${i}`, inizio: i + 1, durata: 1, nota: "", attesa: false }));
+    const f = fasiDaCalcolo(tante);
+    expect(f).toHaveLength(20);
+    expect(f.at(-1)?.fase).toBe("F24");
+    expect(f.at(-2)).toMatchObject({ fase: "Altre lavorazioni", durata: "6 giorni lavorativi" });
+  });
   it("prende la forma che il PDF sa stampare", () => {
-    expect(fasiDaCalcolo([{ nome: "Posa", durata: 1, nota: "" }, { nome: "Tinte", durata: 3, nota: "Circa 60 ore." }])).toEqual([
-      { fase: "Posa", durata: "1 giorno", descrizione: null }, { fase: "Tinte", durata: "3 giorni", descrizione: "Circa 60 ore." },
+    expect(fasiDaCalcolo([{ nome: "Posa", inizio: 1, durata: 1, nota: "", attesa: false }, { nome: "Tinte", inizio: 2, durata: 3, nota: "Tempo tecnico di attesa.", attesa: true }])).toEqual([
+      { fase: "Posa", durata: "1 giorno lavorativo", descrizione: null }, { fase: "Tinte", durata: "3 giorni lavorativi", descrizione: "Tempo tecnico di attesa." },
     ]);
   });
 });

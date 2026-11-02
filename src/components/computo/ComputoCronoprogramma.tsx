@@ -17,6 +17,7 @@ import { preparaCrono, type ClientCrono } from "../../../shared/piano-cantiere/c
 import { regioneDaProvincia } from "../../../shared/piano-cantiere/regioni.ts";
 import { cronoDaCapitoli, dataBreve, dataDelGiorno, durataTotale, leggiData, normalizzaFasi, richiestaCrono, vociPerCrono, type Cronoprogramma, type FaseCrono } from "@/lib/computo/cronoprogramma";
 
+const entro = (s: string, massimo: number) => { const n = Number.parseInt(s, 10); return Number.isFinite(n) && n > 0 ? Math.min(massimo, n) : 1; };
 const intero = (s: string) => { const n = Number.parseInt(s, 10); return Number.isFinite(n) && n > 0 ? Math.min(2000, n) : 1; };
 
 export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
@@ -28,8 +29,9 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
   const [indicazioni, setIndicazioni] = useState("");
   const [calcolando, setCalcolando] = useState(false);
   const [squadre, setSquadre] = useState(1);
-  const [persone, setPersone] = useState(3);
+  const [persone, setPersone] = useState(2);
   const [avviso, setAvviso] = useState<string | null>(null);
+  const [conferma, setConferma] = useState(false);
   const cambia = (patch: Partial<Cronoprogramma>) => onChange({ cronoprogramma: { ...crono, ...patch } });
   const cambiaFase = (id: string, patch: Partial<FaseCrono>) => cambia({ fasi: crono.fasi.map(f => f.id === id ? { ...f, ...patch } : f) });
   const totale = durataTotale(crono);
@@ -39,12 +41,16 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
   /** Stesse voci, stesse durate: il conto lo fa il codice, senza credito AI. */
   const calcola = async () => {
     if (!companyId) return;
+    // Sostituisce le fasi scritte: si chiede prima.
+    if (crono.fasi.length && !conferma) { setConferma(true); return; }
+    setConferma(false);
     setCalcolando(true);
     try {
       const esito = await preparaCrono(supabase as unknown as ClientCrono, companyId, vociPerCrono(bozza), { squadre, personePerSquadra: persone }, regioneDaProvincia);
       const fasi = normalizzaFasi(esito.fasi.map(f => ({ id: crypto.randomUUID(), nome: f.nome, inizio: f.inizio, durata: f.durata, nota: f.nota })));
       if (!fasi.length) throw new Error("Il computo non ha ancora lavorazioni: aggiungile prima.");
-      onChange({ cronoprogramma: { ...crono, fasi, nota: "" }, mostraCronoprogrammaPdf: true });
+      if (!(esito.ore > 0)) throw new Error("Mancano i dati per calcolare i tempi: aggiungi i prezzi alle voci, o parti dai capitoli.");
+      onChange({ cronoprogramma: { ...crono, fasi }, mostraCronoprogrammaPdf: crono.fasi.length ? bozza.mostraCronoprogrammaPdf : true });
       setAvviso(esito.avvisoInterno);
       toast.success("Cronoprogramma calcolato", { description: `${fasi.length} fasi, ${durataTotale({ fasi })} giorni lavorativi. Correggile dove serve.` });
     } catch (e) { toast.error((e as Error).message); }
@@ -53,6 +59,7 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
 
   const chiediASilvio = async () => {
     if (!companyId) return;
+    setAvviso(null);
     setChiedendo(true);
     try {
       const { data, error } = await supabase.functions.invoke("computo-cronoprogramma", {
@@ -80,18 +87,18 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
     </div>
     {companyId && <div className="flex flex-wrap items-end gap-2">
       <div className="w-20 space-y-1"><Label htmlFor="crono-squadre" className="text-xs">Squadre</Label>
-        <Input id="crono-squadre" className="h-9" type="number" min={1} max={10} value={squadre} onChange={e => setSquadre(intero(e.target.value))} /></div>
+        <Input id="crono-squadre" className="h-9" type="number" min={1} max={10} value={squadre} onChange={e => setSquadre(entro(e.target.value, 10))} /></div>
       <div className="w-28 space-y-1"><Label htmlFor="crono-persone" className="text-xs">Persone a squadra</Label>
-        <Input id="crono-persone" className="h-9" type="number" min={1} max={30} value={persone} onChange={e => setPersone(intero(e.target.value))} /></div>
+        <Input id="crono-persone" className="h-9" type="number" min={1} max={30} value={persone} onChange={e => setPersone(entro(e.target.value, 30))} /></div>
       <Button size="sm" className="bg-blue-950 text-white hover:bg-blue-900" disabled={calcolando || chiedendo || !bozza.voci.length} onClick={() => { void calcola(); }}>
-        {calcolando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Calculator className="mr-1 h-4 w-4 text-orange-300" />}{crono.fasi.length ? "Ricalcola i tempi" : "Calcola i tempi"}</Button>
+        {calcolando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Calculator className="mr-1 h-4 w-4 text-orange-300" />}{conferma ? "Sostituisco le fasi scritte?" : crono.fasi.length ? "Ricalcola i tempi" : "Calcola i tempi"}</Button>
     </div>}
     <div className="flex flex-wrap items-end gap-2">
       {companyId && <div className="min-w-[14rem] flex-1 space-y-1"><Label htmlFor="crono-indicazioni" className="text-xs">Indicazioni per Silvio (facoltative)</Label>
         <Input id="crono-indicazioni" className="h-9" maxLength={1000} placeholder="Es. inizio a marzo, il cliente vuole giocare entro giugno" value={indicazioni} onChange={e => setIndicazioni(e.target.value)} /></div>}
       {companyId && <Button size="sm" variant="outline" disabled={chiedendo || calcolando || !bozza.voci.length} onClick={() => { void chiediASilvio(); }}>
         {chiedendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}{crono.fasi.length ? "Rifallo con Silvio" : "Proposta di Silvio"}</Button>}
-      <Button size="sm" variant="outline" disabled={chiedendo || calcolando || !bozza.voci.length} onClick={() => onChange({ cronoprogramma: cronoDaCapitoli(bozza, crono.dataInizio), mostraCronoprogrammaPdf: true })}>Parti dai capitoli</Button>
+      <Button size="sm" variant="outline" disabled={chiedendo || calcolando || !bozza.voci.length} onClick={() => { setAvviso(null); onChange({ cronoprogramma: cronoDaCapitoli(bozza, crono.dataInizio), mostraCronoprogrammaPdf: true }); }}>Parti dai capitoli</Button>
     </div>
     {avviso && !!crono.fasi.length && <p className="rounded bg-slate-50 px-2 py-1.5 text-xs text-muted-foreground">{avviso} Questa nota la vedi solo tu, nel PDF non esce.</p>}
     {!!crono.fasi.length && <>

@@ -39,13 +39,30 @@ export function leggiCronoprogramma(raw: unknown): FaseCrono[] | null {
   return fasi.length > 0 ? fasi : null;
 }
 
-/** Le fasi calcolate dalle voci, nella forma del preventivo: una dopo l'altra, come le stampa il PDF. */
-export function fasiDaCalcolo(fasi: readonly { nome: string; durata: number; nota: string }[]): FaseCrono[] {
-  return [...fasi].slice(0, MAX_FASI_CRONO).map((f) => ({
-    fase: f.nome.slice(0, MAX_NOME_FASE),
-    durata: `${f.durata} ${f.durata === 1 ? "giorno" : "giorni"}`,
-    descrizione: f.nota ? f.nota.slice(0, 200) : null,
-  }));
+/**
+ * Le fasi calcolate nella forma del preventivo: un elenco che si somma. Un'attesa che corre insieme
+ * al lavoro conta solo per i giorni che avanzano, così la somma è la durata vera del cantiere.
+ * Oltre il tetto si accorpano le centrali: la fase finale non si perde mai.
+ */
+export function fasiDaCalcolo(fasi: readonly { nome: string; inizio: number; durata: number; nota: string; attesa: boolean }[]): FaseCrono[] {
+  const ordinate = [...fasi].sort((a, b) => a.inizio - b.inizio || Number(a.attesa) - Number(b.attesa));
+  let fatto = 1;
+  const righe: { nome: string; giorni: number; nota: string }[] = [];
+  for (const f of ordinate) {
+    const fine = f.inizio + f.durata;
+    const giorni = f.attesa ? fine - Math.max(fatto, f.inizio) : f.durata;
+    fatto = Math.max(fatto, fine);
+    if (giorni > 0) righe.push({ nome: f.nome, giorni, nota: f.nota });
+  }
+  const scrivi = (r: { nome: string; giorni: number; nota: string }): FaseCrono => ({
+    fase: r.nome.slice(0, MAX_NOME_FASE),
+    durata: `${r.giorni} ${r.giorni === 1 ? "giorno lavorativo" : "giorni lavorativi"}`,
+    descrizione: r.nota ? r.nota.slice(0, 200) : null,
+  });
+  if (righe.length <= MAX_FASI_CRONO) return righe.map(scrivi);
+  const prime = righe.slice(0, MAX_FASI_CRONO - 2);
+  const centrali = righe.slice(MAX_FASI_CRONO - 2, -1);
+  return [...prime, { nome: "Altre lavorazioni", giorni: centrali.reduce((t, r) => t + r.giorni, 0), nota: "" }, righe[righe.length - 1]].map(scrivi);
 }
 
 /** Solo le fasi che hanno un nome: una riga vuota lasciata a metà non finisce nel preventivo del cliente. */

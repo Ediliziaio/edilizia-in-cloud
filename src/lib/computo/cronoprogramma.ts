@@ -11,11 +11,11 @@ import { cronoprogrammaSchema, type Cronoprogramma, type FaseCrono } from "./cro
 
 export { cronoprogrammaSchema, type Cronoprogramma, type FaseCrono };
 
-/** Le voci per il cronoprogramma calcolato. Le opzionali non si fanno, finché il cliente non le sceglie. */
+/** Le voci per il cronoprogramma calcolato. Le opzionali non si fanno, finché il cliente non le sceglie; le detrazioni e gli oneri li toglie il calcolo. */
 export function vociPerCrono(bozza: BozzaComputo): VoceCrono[] {
   return bozza.voci.filter((v) => !v.opzionale && v.descrizione.trim()).map((v) => {
     const r = calcolaVoce(v);
-    return { capitolo: v.capitolo, descrizione: v.descrizione.trim().split("\n")[0], unita: v.unita, quantita: r.quantita, importo: r.importo };
+    return { capitolo: v.capitolo, descrizione: v.descrizione.trim().split("\n")[0], unita: v.unita, quantita: r.quantita, importo: r.importo, sicurezza: v.sicurezza };
   });
 }
 

@@ -5,10 +5,10 @@
  * una ristrutturazione da tre mesi raccontavano gli stessi tempi. Qui si partono da quelle del modello e si
  * cambiano per il preventivo che si sta facendo. Senza, nel PDF resta il cronoprogramma del modello, come prima.
  */
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { CalendarRange, Calculator, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+import { AuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ import { regioneDaProvincia } from "../../../shared/piano-cantiere/regioni.ts";
 /** Una voce del computo del modulo: i campi sono gli stessi negli otto preventivatori. */
 export interface RigaPerCrono {
   capitolo_nome?: string | null; descrizione?: string | null; unita_misura?: string | null; quantita?: number | string | null;
-  importo?: number | string | null; costo_manodopera?: number | string | null; ore_previste?: number | string | null; opzionale?: boolean | null;
+  importo?: number | string | null; costo_manodopera?: number | string | null; costo_materiali?: number | string | null; ore_previste?: number | string | null; opzionale?: boolean | null;
 }
 
 const numero = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -30,7 +30,7 @@ const vociDalComputo = (righe: readonly RigaPerCrono[]): VoceCrono[] => righe
   .filter((r) => !r.opzionale && (r.descrizione ?? "").trim())
   .map((r) => ({
     capitolo: r.capitolo_nome ?? null, descrizione: r.descrizione!.trim().split("\n")[0], unita: r.unita_misura ?? null, quantita: numero(r.quantita),
-    importo: numero(r.importo), costo_manodopera: numero(r.costo_manodopera), ore_previste: numero(r.ore_previste),
+    importo: numero(r.importo), costo_manodopera: numero(r.costo_manodopera), costo_materiali: numero(r.costo_materiali), ore_previste: numero(r.ore_previste),
   }));
 
 interface Props {
@@ -46,7 +46,8 @@ interface Props {
 }
 
 export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo, righe }: Props) {
-  const { effectiveCompany } = useAuth();
+  // Il contesto, non useAuth: senza azienda la scheda funziona come prima, solo senza il calcolo.
+  const effectiveCompany = useContext(AuthContext)?.effectiveCompany;
   const [calcolando, setCalcolando] = useState(false);
   const [nota, setNota] = useState<string | null>(null);
   const [confermaSostituzione, setConfermaSostituzione] = useState(false);
@@ -57,6 +58,10 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
     setCalcolando(true);
     try {
       const esito = await preparaCrono(supabase as unknown as ClientCrono, effectiveCompany.id, voci, {}, regioneDaProvincia);
+      if (!(esito.ore > 0)) {
+        toast.error("Mancano i dati per calcolare i tempi: aggiungi importi o manodopera alle voci, o scrivi le fasi a mano.");
+        return;
+      }
       onChange(fasiDaCalcolo(esito.fasi));
       setNota(esito.avvisoInterno);
       setConfermaSostituzione(false);
