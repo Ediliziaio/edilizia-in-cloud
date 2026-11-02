@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 export function CampoQuantita({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const n = Math.max(1, Number(value) || 1);
   return (
-    <div>
+    <div className="md:flex md:items-center md:justify-between md:gap-3">
       <Label htmlFor="quantita">Quantità</Label>
       <div className="flex items-center gap-2">
         <Button

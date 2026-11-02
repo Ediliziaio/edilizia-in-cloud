@@ -15,10 +15,10 @@
  * `parent_temp_id` (UUID client-side) → il layer di persistenza farà il mapping
  * `parent_temp_id → quote_items.parent_item_id` al SAVE.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
 import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatCurrency } from "@/lib/formatters";
 import { CampoQuantita } from "./CampoQuantita";
+import { AzioniProdotto, LayoutConfigurazione, type DopoAggiunta } from "./LayoutConfigurazione";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type {
@@ -41,7 +42,11 @@ interface ArticleConfiguratorProps {
   tariffe: TariffaPro[];
   currentSortOrder: number;
   onBack: () => void;
-  onAddItems: (items: ConfiguredItem[], nextSortOrder: number) => void;
+  onAddItems: (items: ConfiguredItem[], nextSortOrder: number, dopo?: DopoAggiunta) => void;
+  /** Popup del preventivo: mostra i pulsanti per continuare a inserire. */
+  inserimentoContinuo?: boolean;
+  /** Sale a ogni «duplica»: si riparte dalle stesse scelte, con le misure da riscrivere. */
+  nuovaMisura?: number;
 }
 
 /** Genera un UUID v4 cross-browser (crypto.randomUUID dove disponibile). */
@@ -63,6 +68,8 @@ export function ArticleConfigurator({
   currentSortOrder,
   onBack,
   onAddItems,
+  inserimentoContinuo,
+  nuovaMisura = 0,
 }: ArticleConfiguratorProps) {
   const article = item.article;
   const modalita = item.modalita_prezzo;
@@ -71,6 +78,13 @@ export function ArticleConfigurator({
   const [larghezza, setLarghezza] = useState<string>("1000");
   const [altezza, setAltezza] = useState<string>("1000");
   const [quantita, setQuantita] = useState<string>("1");
+  const campoLarghezza = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!nuovaMisura) return;
+    setQuantita("1");
+    campoLarghezza.current?.focus();
+    campoLarghezza.current?.select();
+  }, [nuovaMisura]);
   const [includePosa, setIncludePosa] = useState<boolean>(
     haManodoperaConfigurata(item),
   );
@@ -131,7 +145,7 @@ export function ArticleConfigurator({
   const totaleCompleto = totaleVendita + posaTotale;
   const canConfirm = misureValide && qty > 0 && (!includePosa || !!tariffaPosa);
 
-  function handleConfirm(): void {
+  function handleConfirm(dopo?: DopoAggiunta): void {
     if (!canConfirm) return;
     const prodottoTempId = uuid();
     const baseSort = currentSortOrder;
@@ -140,7 +154,7 @@ export function ArticleConfigurator({
     const descrParts: string[] = [];
     if (article.description) descrParts.push(descrizioneCommerciale(article.description));
     if (showMisure) descrParts.push(`${lMm}×${hMm}mm`);
-    const descrizione = descrParts.join(" — ");
+    const descrizione = descrParts.filter(Boolean).join(" — ");
 
     const prodotto: QuoteItemPro = {
       item_type: "product",
@@ -212,36 +226,41 @@ export function ArticleConfigurator({
       });
     }
 
-    onAddItems(configured, baseSort + configured.length);
+    onAddItems(configured, baseSort + configured.length, dopo);
   }
 
   return (
-    <div className="space-y-4">
+    <LayoutConfigurazione
+      scelte={
+        <>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack} className="max-sm:-ml-2 max-sm:h-8">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Prodotti
+        <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 text-muted-foreground max-sm:h-8">
+          <ArrowLeft className="mr-1 h-4 w-4" /> Cambia prodotto
         </Button>
-        {/* Telefono: il nome è già il titolo del foglio. */}
-        <span className="text-sm text-muted-foreground max-sm:hidden">›</span>
-        <span className="text-sm font-medium max-sm:hidden">{article.name}</span>
         {article.sku && (
           <span className="text-xs text-muted-foreground max-sm:hidden">
-            ({article.sku})
+            Codice {article.sku}
           </span>
         )}
       </div>
 
-      {article.description && (
+      {descrizioneCommerciale(article.description) && (
         // Telefono no: la descrizione del listino si legge dal computer.
-        <p className="text-sm text-muted-foreground max-sm:hidden">{article.description}</p>
+        <p className="text-sm text-muted-foreground max-sm:hidden">{descrizioneCommerciale(article.description)}</p>
       )}
 
+      {showMisure && nuovaMisura > 0 && (
+        <p className="text-sm font-medium text-primary">
+          Stesse scelte di prima: scrivi le misure del prossimo pezzo.
+        </p>
+      )}
       {showMisure && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="larghezza">Larghezza (mm)</Label>
             <Input
               id="larghezza"
+              ref={campoLarghezza}
               type="number"
               inputMode="numeric"
               value={larghezza}
@@ -262,8 +281,6 @@ export function ArticleConfigurator({
           </div>
         </div>
       )}
-
-      <CampoQuantita value={quantita} onChange={setQuantita} />
 
       {haManodoperaConfigurata(item) && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
@@ -286,18 +303,25 @@ export function ArticleConfigurator({
         </div>
       )}
 
+        </>
+      }
+      azioni={
+        <>
+      <CampoQuantita value={quantita} onChange={setQuantita} />
+
+      {unitPriceVendita <= 0 && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Prezzo non impostato nel listino: scrivilo nella riga del preventivo.
+        </p>
+      )}
+
       <Card>
-        <CardContent className="space-y-2 pt-4 max-sm:space-y-1.5 max-sm:p-3">
+        <CardContent className="space-y-1.5 p-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Prezzo unitario</span>
             <span className="font-medium">
-              {formatCurrency(unitPriceVendita)}
+              {unitPriceVendita > 0 ? formatCurrency(unitPriceVendita) : "Da completare"}
             </span>
-          </div>
-          {/* Telefono: prezzo unitario e totale bastano. */}
-          <div className="flex justify-between text-sm max-sm:hidden">
-            <span className="text-muted-foreground">Quantità × prezzo</span>
-            <span className="font-medium">{formatCurrency(totaleVendita)}</span>
           </div>
           {includePosa && tariffaPosa && (
             <div className="flex justify-between text-sm">
@@ -307,22 +331,21 @@ export function ArticleConfigurator({
           )}
           <div className="flex justify-between border-t pt-2 text-base font-semibold">
             <span>Totale</span>
-            <span>{formatCurrency(totaleCompleto)}</span>
+            <span>{unitPriceVendita > 0 ? formatCurrency(totaleCompleto) : "Da completare"}</span>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
-        {/* Telefono no: «← Prodotti» in alto e la X fanno già da Annulla. */}
-        <Button variant="outline" onClick={onBack} className="max-sm:hidden">
-          Annulla
-        </Button>
-        <Button disabled={!canConfirm} onClick={handleConfirm} className="max-sm:w-full">
-          <Check className="mr-1 h-4 w-4" />
-          {confirmLabel}
-        </Button>
-      </div>
-    </div>
+      <AzioniProdotto
+        disabled={!canConfirm}
+        confirmLabel={confirmLabel}
+        inserimentoContinuo={inserimentoContinuo}
+        puoDuplicare={showMisure}
+        onConferma={handleConfirm}
+      />
+        </>
+      }
+    />
   );
 }
 

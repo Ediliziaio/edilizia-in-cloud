@@ -35,6 +35,8 @@ export function descrizioneCommerciale(
   descrizione: string | null | undefined,
 ): string {
   return (descrizione ?? "")
+    // Nota dei prodotti di partenza: al cliente non deve arrivare.
+    .replace(/\s*Base da personalizzare, non offerta commerciale\.?/gi, "")
     .split(/\r?\n/)
     .filter(
       (riga) =>

@@ -62,6 +62,7 @@ import { allineaRigheAlKm, quantitaInizialeTariffa } from "@/lib/listino/tariffa
 import { conAssiVisibili } from "@/lib/serramenti/assiCondizionati";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
+import { areaDaTipoLavoro } from "@/lib/preventivi/areeCatalogoPreventivo";
 import { RilievoPosizioniDialog } from "@/components/marketing/preventivi/RilievoPosizioniDialog";
 import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
 import { CronoprogrammaCard } from "@/components/moduli/CronoprogrammaCard";
@@ -4174,6 +4175,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         <AddItemDialog
           open={addItemOpen}
           initialTab={addItemTab}
+          areaSuggerita={areaDaTipoLavoro(tipoLavoro)}
           existingItems={items}
           onClose={() => setAddItemOpen(false)}
           tariffe={tariffe}
