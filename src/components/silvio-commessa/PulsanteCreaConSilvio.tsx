@@ -8,7 +8,8 @@
  * è già di una commessa), il link della chat e di WhatsApp (`apriSubito`: il popup si apre
  * da solo con le fonti del link).
  */
-import { lazy, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Sparkles } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
