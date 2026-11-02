@@ -195,6 +195,94 @@ export function useAllegaFileDocumento() {
   });
 }
 
+/** Un file trascinato e la carta a cui va: una delle due, non entrambe. */
+export interface FileDaCaricare {
+  file: File;
+  /** Il documento a cui attaccarlo. */
+  documento?: Pick<DocumentoAzienda, 'id' | 'file_path'>;
+  /** Oppure: un documento nuovo, da creare con questo titolo. */
+  titoloNuovo?: string;
+}
+
+export interface EsitoCaricamento {
+  caricati: number;
+  creati: number;
+  errori: Array<{ nome: string; motivo: string }>;
+}
+
+/**
+ * Carica una pila di file in un colpo: l'archivio della ditta che entra tutto insieme.
+ *
+ * Uno per volta, non tutti in parallelo: venti caricamenti insieme da un cantiere con
+ * mezza tacca di rete si strozzano a vicenda, e la barra di avanzamento mentirebbe.
+ * Un file che va male **non ferma gli altri**: viene segnato e si va avanti, perché chi
+ * ha trascinato venti PDF non vuole ricominciare da capo per uno.
+ */
+export function useAllegaFileInBlocco() {
+  const companyId = useEffectiveCompanyId();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ righe, onProgresso }: {
+      righe: FileDaCaricare[];
+      onProgresso?: (fatti: number, totale: number) => void;
+    }): Promise<EsitoCaricamento> => {
+      if (!companyId) throw new Error('Azienda non trovata');
+      const esito: EsitoCaricamento = { caricati: 0, creati: 0, errori: [] };
+
+      for (let i = 0; i < righe.length; i++) {
+        const riga = righe[i];
+        let caricato: { path: string; name: string } | null = null;
+        try {
+          caricato = await caricaFileDocumento(companyId, riga.file);
+          if (riga.documento) {
+            const { error } = await db
+              .from('azienda_documenti')
+              .update({ file_path: caricato.path, file_name: caricato.name })
+              .eq('id', riga.documento.id);
+            if (error) throw error;
+            if (riga.documento.file_path) await rimuoviFileDocumento(riga.documento.file_path);
+          } else {
+            const { error } = await db.from('azienda_documenti').insert({
+              company_id: companyId,
+              created_by: user?.id ?? null,
+              categoria: 'altro',
+              titolo: riga.titoloNuovo || riga.file.name,
+              file_path: caricato.path,
+              file_name: caricato.name,
+            });
+            if (error) throw error;
+            esito.creati++;
+          }
+          esito.caricati++;
+        } catch (e) {
+          // Il file è nell'archivio ma nessuna riga lo punta: resterebbe lì invisibile.
+          if (caricato) await rimuoviFileDocumento(caricato.path).catch(() => {});
+          esito.errori.push({ nome: riga.file.name, motivo: messaggio(e, 'non caricato') });
+        }
+        onProgresso?.(i + 1, righe.length);
+      }
+
+      return esito;
+    },
+    onSuccess: (esito) => {
+      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      if (esito.caricati > 0) {
+        const quanti = esito.caricati === 1 ? '1 file caricato' : `${esito.caricati} file caricati`;
+        const nuovi = esito.creati === 1 ? '1 documento nuovo' : `${esito.creati} documenti nuovi`;
+        toast.success(esito.creati > 0 ? `${quanti}, ${nuovi}` : quanti);
+      }
+      if (esito.errori.length > 0) {
+        toast.error(
+          esito.errori.length === 1 ? 'Un file non è andato' : `${esito.errori.length} file non sono andati`,
+          { description: esito.errori.slice(0, 3).map((e) => `${e.nome}: ${e.motivo}`).join(' · ') },
+        );
+      }
+    },
+    onError: (e) => toast.error(messaggio(e, 'Non è riuscito a caricare i file')),
+  });
+}
+
 export function useEliminaDocumentoAzienda() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
