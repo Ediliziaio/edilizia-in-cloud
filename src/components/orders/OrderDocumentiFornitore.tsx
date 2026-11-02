@@ -28,6 +28,8 @@ import { eNotaDiCredito } from "@/lib/fatturazione/noteDiCredito";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ContatoriFiltro } from "./ContatoriFiltro";
+import { useCostiCommessa } from "./OrderCostiCommessa";
 
 // Alcune tabelle non sono ancora nei tipi generati: contratto locale.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,7 +37,7 @@ const db = supabase as any;
 
 export const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
 
-interface OdaCommessa { id: string; oda_number: string | null; fornitore: string | null }
+interface OdaCommessa { id: string; oda_number: string | null; fornitore: string | null; totale: number | null }
 
 /** Liste di id spezzate a 50: liste lunghe nell'indirizzo della richiesta non passano. */
 const aLotti = (ids: string[]) => Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) => ids.slice(i * 50, (i + 1) * 50));
@@ -44,13 +46,13 @@ const senzaDoppi = <T extends { id: string }>(righe: T[]) => [...new Map(righe.m
 async function odaDellaCommessa(companyId: string, orderId: string): Promise<OdaCommessa[]> {
   const data = await allPaymentRows((da, a) => db
     .from("purchase_orders")
-    .select("id, oda_number, suppliers(name)")
+    .select("id, oda_number, total, suppliers(name)")
     .eq("company_id", companyId)
     .eq("order_id", orderId)
     .order("id")
     .range(da, a));
-  return ((data ?? []) as Array<{ id: string; oda_number: string | null; suppliers: { name: string | null } | null }>)
-    .map((o) => ({ id: o.id, oda_number: o.oda_number, fornitore: o.suppliers?.name ?? null }));
+  return ((data ?? []) as Array<{ id: string; oda_number: string | null; total: number | null; suppliers: { name: string | null } | null }>)
+    .map((o) => ({ id: o.id, oda_number: o.oda_number, fornitore: o.suppliers?.name ?? null, totale: o.total == null ? null : Number(o.total) }));
 }
 
 // ── Bolle e DDT ─────────────────────────────────────────────────────────────
@@ -66,6 +68,32 @@ export interface RigaBolla {
   link?: string;
   /** Ordine d'acquisto a cui la bolla appartiene, quando c'è. */
   purchaseOrderId?: string | null;
+  /** Cosa manca: confermare a cosa appartiene, oppure controllare la merce. */
+  daFare?: "conferma" | "controllo" | null;
+  /** Perché, in parole: compare sulla riga. */
+  motivo?: string | null;
+}
+
+/**
+ * Una bolla è confermata quando è sull'ordine giusto e qualcuno l'ha controllata. Dal cantiere la conferma l'ufficio;
+ * caricata sulla commessa senza ordine resta da confermare finché nessuno l'ha controllata.
+ */
+export function cosaManca(
+  origine: "fornitore" | "cantiere",
+  d: { stato: string | null; purchase_order_id?: string | null; has_damages?: boolean | null; ai_avvisi?: unknown },
+): Pick<RigaBolla, "daFare" | "motivo"> {
+  const avvisiAI = Array.isArray(d.ai_avvisi) ? d.ai_avvisi.length : 0;
+  if (origine === "cantiere") {
+    if (d.stato !== "da_verificare") return { daFare: null, motivo: null };
+    return { daFare: "conferma", motivo: d.purchase_order_id ? "Foto dal cantiere: conferma che sia di questo ordine" : "Foto dal cantiere: conferma a cosa appartiene" };
+  }
+  if (d.stato === "non_conforme" || d.has_damages) return { daFare: "controllo", motivo: "Merce non conforme o danneggiata" };
+  if (d.stato === "ricevuto" || d.stato === "parziale") {
+    if (!d.purchase_order_id) return { daFare: "conferma", motivo: "Senza ordine d’acquisto: conferma a cosa appartiene" };
+    if (avvisiAI > 0) return { daFare: "conferma", motivo: "Letta dall’AI con dei dubbi: controlla l’abbinamento all’ordine" };
+    return { daFare: "controllo", motivo: "Arrivata, merce da controllare" };
+  }
+  return { daFare: null, motivo: null };
 }
 
 const STATI_DDT: Record<string, string> = {
@@ -87,11 +115,11 @@ export function useBolleCommessa(orderId: string) {
       const perOda = new Map(oda.map((o) => [o.id, o]));
       const [ddtLotti, ddtDiretti, campo, emessi] = await Promise.all([
         Promise.all(aLotti(oda.map((o) => o.id)).map((ids) => allPaymentRows((da, a) => db.from("ddt_ricezione")
-          .select("id, purchase_order_id, numero_ddt, data_ricezione, stato, has_damages, non_conformita")
+          .select("id, purchase_order_id, numero_ddt, data_ricezione, stato, has_damages, non_conformita, ai_avvisi")
           .eq("company_id", companyId).in("purchase_order_id", ids).order("id").range(da, a)))),
         // Dal 29/10/2026 una bolla può stare sulla commessa senza ordine d'acquisto (caricata dall'ufficio).
         allPaymentRows((da, a) => db.from("ddt_ricezione")
-          .select("id, purchase_order_id, numero_ddt, data_ricezione, stato, has_damages, non_conformita, suppliers(name)")
+          .select("id, purchase_order_id, numero_ddt, data_ricezione, stato, has_damages, non_conformita, ai_avvisi, suppliers(name)")
           .eq("company_id", companyId).eq("order_id", orderId).order("id").range(da, a)),
         // Solo le bolle: scontrini e fatture fotografati in cantiere non sono documenti di trasporto.
         allPaymentRows((da, a) => db.from("campo_acquisti").select("id, fornitore, numero_documento, data_documento, created_at, stato, purchase_order_id")
@@ -117,11 +145,13 @@ export function useBolleCommessa(orderId: string) {
           attenzione: d.stato === "non_conforme" || !!d.has_damages || d.stato === "ricevuto",
           link: `/azienda/ddt/${d.id}`,
           purchaseOrderId: d.purchase_order_id,
+          ...cosaManca("fornitore", d),
         })),
         ...campoUniche.map((c) => ({
           id: c.id, origine: "cantiere" as const, numero: c.numero_documento, data: c.data_documento ?? c.created_at,
           controparte: c.fornitore, stato: STATI_DDT[c.stato] ?? c.stato, attenzione: c.stato === "da_verificare",
           purchaseOrderId: c.purchase_order_id,
+          ...cosaManca("cantiere", c),
         })),
         ...emessi.map((e: { id: string; numero: string | null; data_emissione: string | null; stato: string | null; cliente_snapshot: { ragione_sociale?: string; nome?: string; cognome?: string } | null }) => ({
           id: e.id, origine: "cliente" as const, numero: e.numero, data: e.data_emissione,
@@ -142,7 +172,16 @@ export const ORIGINE: Record<RigaBolla["origine"], { testo: string; classe: stri
 
 export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orderId: string; puoAprireDocumenti?: boolean }) {
   const { data = [], isLoading, isError, refetch } = useBolleCommessa(orderId);
-  const daGuardare = data.filter((r) => r.attenzione).length;
+  const [filtro, setFiltro] = useState<string | null>(null);
+  const filtri: Record<string, (r: RigaBolla) => boolean> = {
+    fornitore: (r) => r.origine === "fornitore",
+    cantiere: (r) => r.origine === "cantiere",
+    cliente: (r) => r.origine === "cliente",
+    conferma: (r) => r.daFare === "conferma",
+    controllo: (r) => r.daFare === "controllo",
+  };
+  const conta = (chiave: string) => data.filter(filtri[chiave]).length;
+  const visibili = filtro && filtri[filtro] && conta(filtro) > 0 ? data.filter(filtri[filtro]) : data;
   const qc = useQueryClient();
   const permessi = usePermissions();
   // Stessa regola della pagina Bolle: magazzino, acquisti, commesse o amministratore, mai in sola lettura.
@@ -157,7 +196,6 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
           <CardTitle className="flex flex-wrap items-center gap-2 text-base">
             <Truck className="h-5 w-5 text-primary" aria-hidden="true" />Bolle e DDT
             {data.length > 0 && <Badge variant="outline">{data.length}</Badge>}
-            {daGuardare > 0 && <Badge className="bg-amber-100 text-amber-800">{daGuardare} da controllare</Badge>}
           </CardTitle>
           {puoCaricare && (
             <Button size="sm" onClick={() => setCarica(true)}>
@@ -165,7 +203,15 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
             </Button>
           )}
         </div>
-        <p className="text-sm text-muted-foreground">Le bolle dei fornitori arrivate sugli ordini d’acquisto, quelle fotografate in cantiere e i DDT fatti al cliente.</p>
+        {data.length > 0 ? (
+          <ContatoriFiltro className="mt-1" etichetta="Bolle per tipo e stato" attivo={filtro} onScegli={setFiltro} voci={[
+            { chiave: "conferma", etichetta: "Da confermare", valore: conta("conferma"), avviso: true },
+            { chiave: "controllo", etichetta: "Da controllare", valore: conta("controllo"), avviso: true },
+            { chiave: "fornitore", etichetta: "Dal fornitore", valore: conta("fornitore") },
+            { chiave: "cantiere", etichetta: "Dal cantiere", valore: conta("cantiere") },
+            { chiave: "cliente", etichetta: "DDT al cliente", valore: conta("cliente") },
+          ]} />
+        ) : <p className="text-sm text-muted-foreground">Le bolle dei fornitori arrivate sugli ordini d’acquisto, quelle fotografate in cantiere e i DDT fatti al cliente.</p>}
       </CardHeader>
       <CardContent>
         {isError ? (
@@ -176,12 +222,13 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
           <p className="text-sm text-muted-foreground">Nessuna bolla su questa commessa. Caricala da «Carica bolla» (foto o PDF, l’AI legge le righe), oppure arriva quando si registra un DDT su un ordine d’acquisto o l’operaio la fotografa dal cantiere.</p>
         ) : (
           <ul className="divide-y" aria-label="Bolle e DDT della commessa">
-            {data.map((r) => {
+            {visibili.map((r) => {
               const corpo = (
                 <div className="flex flex-wrap items-start justify-between gap-2 py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{r.numero ? `N° ${r.numero}` : "Senza numero"} · {dataIt(r.data)}</p>
                     <p className="truncate text-sm text-muted-foreground">{r.controparte ?? "—"}</p>
+                    {r.motivo && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{r.motivo}</p>}
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ORIGINE[r.origine].classe}`}>{ORIGINE[r.origine].testo}</span>
@@ -233,6 +280,16 @@ export interface RigaFattura {
   quota: number | null;
   /** Totale intero del documento, quando conta solo una quota. */
   totaleDocumento: number | null;
+  pagataIl: string | null;
+  /** Quanto l'AI è sicura che sia di questa commessa, da 0 a 1 (solo le suggerite). */
+  confidenza: number | null;
+  /** Cosa guardare prima di fidarsi: anomalie dell'AI, importo oltre l'ordine, fattura mai aperta. */
+  daControllare: string | null;
+}
+
+/** Fatturato oltre l'ordine: meno è normale (acconti, consegne a parti), di più va guardato. Un euro di tolleranza per gli arrotondamenti. */
+export function fatturatoOltreOrdine(fatturato: number, totaleOrdine: number | null): boolean {
+  return totaleOrdine != null && totaleOrdine > 0 && fatturato > totaleOrdine + 1;
 }
 
 /**
@@ -274,9 +331,10 @@ export function useFattureFornitoriCommessa(orderId: string) {
       const odaIds = oda.map((o) => o.id);
       const costoIds = senzaDoppi([...(costiDiretti as { id: string }[]), ...(costiRipartiti as { id: string }[])]).map((c) => c.id);
       const perOda = new Map(oda.map((o) => [o.id, o.oda_number]));
+      const totaleOda = new Map(oda.map((o) => [o.id, o.totale]));
       // Quota di questa commessa sui costi ripartiti (come in Economia → esposizione di cassa).
       const quotaCosto = quoteDeiCostiRipartiti(costiRipartiti as { id: string; order_id: string | null; allocations: unknown }[], orderId);
-      const campi = "id, numero_fattura, data_fattura, cedente_ragione_sociale, totale_documento, tipo_documento, stato, purchase_order_id, company_cost_id";
+      const campi = "id, numero_fattura, data_fattura, cedente_ragione_sociale, totale_documento, tipo_documento, stato, purchase_order_id, company_cost_id, pagata_il, order_match_confidenza, anomalie_rilevate";
       const [daOda, daCosto, suggerite] = await Promise.all([
         Promise.all(aLotti(odaIds).map((ids) => allPaymentRows((da, a) => db.from("fatture_ricevute").select(campi)
           .eq("company_id", companyId).in("purchase_order_id", ids).order("id").range(da, a)))),
@@ -285,7 +343,7 @@ export function useFattureFornitoriCommessa(orderId: string) {
         allPaymentRows((da, a) => db.from("fatture_ricevute").select(campi)
           .eq("company_id", companyId).eq("order_id_suggerito", orderId).order("id").range(da, a)),
       ]);
-      type Grezza = { id: string; numero_fattura: string | null; data_fattura: string | null; cedente_ragione_sociale: string | null; totale_documento: number | null; tipo_documento: string | null; stato: string | null; purchase_order_id: string | null; company_cost_id: string | null };
+      type Grezza = { id: string; numero_fattura: string | null; data_fattura: string | null; cedente_ragione_sociale: string | null; totale_documento: number | null; tipo_documento: string | null; stato: string | null; purchase_order_id: string | null; company_cost_id: string | null; pagata_il: string | null; order_match_confidenza: number | null; anomalie_rilevate: unknown };
       const viste = new Map<string, RigaFattura>();
       const aggiungi = (f: Grezza, legame: RigaFattura["legame"]) => {
         // Una fattura rifiutata non è un costo della commessa.
@@ -301,12 +359,25 @@ export function useFattureFornitoriCommessa(orderId: string) {
           stato: f.stato, legame, oda: f.purchase_order_id ? perOda.get(f.purchase_order_id) ?? null : null,
           purchaseOrderId: f.purchase_order_id, costId:f.company_cost_id,
           notaCredito: segno < 0, quota,
+          pagataIl: f.pagata_il,
+          confidenza: legame === "suggerita" && f.order_match_confidenza != null ? Number(f.order_match_confidenza) : null,
+          daControllare: Array.isArray(f.anomalie_rilevate) && f.anomalie_rilevate.length > 0 ? "L’AI ha segnalato un’anomalia"
+            : f.stato === "non_letta" && legame !== "suggerita" ? "Non ancora aperta da nessuno" : null,
         });
       };
       (daOda.flat() as Grezza[]).forEach((f) => aggiungi(f, "oda"));
       (daCosto.flat() as Grezza[]).forEach((f) => aggiungi(f, "costo"));
       // Suggerita = l'AI pensa che sia di questa commessa, ma nessun ordine o costo la lega ancora.
       (suggerite as Grezza[]).filter((f) => !f.purchase_order_id && !f.company_cost_id).forEach((f) => aggiungi(f, "suggerita"));
+      const fatturatoPerOda = new Map<string, number>();
+      for (const f of viste.values()) {
+        if (f.legame === "oda" && f.purchaseOrderId) fatturatoPerOda.set(f.purchaseOrderId, (fatturatoPerOda.get(f.purchaseOrderId) ?? 0) + (f.totale ?? 0));
+      }
+      for (const f of viste.values()) {
+        if (f.legame !== "oda" || !f.purchaseOrderId) continue;
+        const fatturato = fatturatoPerOda.get(f.purchaseOrderId) ?? 0, ordine = totaleOda.get(f.purchaseOrderId) ?? null;
+        if (fatturatoOltreOrdine(fatturato, ordine)) f.daControllare = `Fatturato ${formatCurrency(fatturato)} su un ordine di ${formatCurrency(ordine!)}`;
+      }
       return [...viste.values()].sort((a, b) => String(b.data ?? "").localeCompare(String(a.data ?? "")));
     },
   });
@@ -337,14 +408,42 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
     }
   };
   const { data = [], isLoading, isError, refetch } = useFattureFornitoriCommessa(orderId);
+  const [filtro, setFiltro] = useState<string | null>(null);
+  const { data: costi } = useCostiCommessa(orderId);
+  const costiSenzaFattura = (costi?.costi ?? []).filter((c) => c.senza_fattura).length;
   const collegate = data.filter((f) => f.legame !== "suggerita");
   const suggerite = data.filter((f) => f.legame === "suggerita");
   const totale = collegate.reduce((s, f) => s + (f.totale ?? 0), 0);
+  const filtri: Record<string, (f: RigaFattura) => boolean> = {
+    controllare: (f) => !!f.daControllare,
+    pagare: (f) => !f.pagataIl && !f.notaCredito,
+    pagate: (f) => !!f.pagataIl,
+  };
+  const conta = (chiave: string) => collegate.filter(filtri[chiave]).length;
+  const soloSuggerite = filtro === "collegare" && suggerite.length > 0;
+  const collegateVisibili = filtro && filtri[filtro] && conta(filtro) > 0 ? collegate.filter(filtri[filtro]) : collegate;
+  // Un suggerimento sbagliato dell'AI: la fattura resta nelle ricevute, solo non è più proposta qui.
+  const nonDiQuesta = async (f: RigaFattura) => {
+    setCollegando(f.id);
+    try {
+      const { error } = await db.from("fatture_ricevute").update({ order_id_suggerito: null, order_match_confidenza: null }).eq("id", f.id).eq("order_id_suggerito", orderId);
+      if (error) throw error;
+      toast.success(`Fattura ${f.numero ?? ""} tolta dai suggerimenti`);
+      void queryClient.invalidateQueries({ queryKey: ["commessa-fatture-fornitori"] });
+    } catch (e) {
+      toast.error("Suggerimento non tolto", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCollegando(null);
+    }
+  };
   const riga = (f: RigaFattura) => (
     <li key={f.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
       <div className="min-w-0">
         <p className="text-sm font-semibold">{f.fornitore ?? "Fornitore"} · {f.notaCredito ? "nota di credito" : "n."} {f.numero ?? "—"}</p>
         <p className="text-sm text-muted-foreground">{dataIt(f.data)}{f.oda ? ` · ${f.oda}` : ""} · {LEGAME[f.legame]}</p>
+        {f.daControllare && <p className="text-xs font-medium text-amber-700 dark:text-amber-400">{f.daControllare}</p>}
+        {f.confidenza != null && <p className="text-xs text-muted-foreground">L’AI è sicura al {Math.round(f.confidenza * 100)}%</p>}
+        {f.legame !== "suggerita" && !f.notaCredito && <p className="text-xs text-muted-foreground">{f.pagataIl ? `Pagata il ${dataIt(f.pagataIl)}` : "Da pagare"}</p>}
         {mostraImporti && f.quota != null && f.totaleDocumento != null && (
           <p className="text-xs text-muted-foreground">Ripartita: {f.quota.toLocaleString("it-IT")}% di {formatCurrency(f.totaleDocumento)}</p>
         )}
@@ -353,6 +452,11 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       {puoModificare && f.legame === "suggerita" && (
         <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={collegando !== null} onClick={() => void collega(f)}>
           {collegando === f.id ? "Collego…" : "Collega a questa commessa"}
+        </Button>
+      )}
+      {puoModificare && f.legame === "suggerita" && (
+        <Button size="sm" variant="ghost" className="w-full sm:w-auto" disabled={collegando !== null} onClick={() => void nonDiQuesta(f)}>
+          Non è di questa commessa
         </Button>
       )}
     </li>
@@ -368,6 +472,18 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
           {mostraImporti && collegate.length > 0 && <span className="text-sm font-normal text-muted-foreground">· {formatCurrency(totale)} IVA inclusa</span>}
           {puoModificare && <span className="ml-auto"><CaricaFatturaCommessaButton orderId={orderId} /></span>}
         </CardTitle>
+        {!isLoading && !isError && (data.length > 0 || costiSenzaFattura > 0) && (
+          <ContatoriFiltro className="mt-1" etichetta="Fatture per stato" attivo={filtro} onScegli={(c) => {
+            if (c === "costi") { document.getElementById("costi-commessa")?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+            setFiltro(c);
+          }} voci={[
+            { chiave: "collegare", etichetta: "Da collegare", valore: suggerite.length, avviso: true },
+            { chiave: "controllare", etichetta: "Da controllare", valore: conta("controllare"), avviso: true },
+            { chiave: "pagare", etichetta: "Da pagare", valore: conta("pagare") },
+            { chiave: "pagate", etichetta: "Pagate", valore: conta("pagate") },
+            { chiave: "costi", etichetta: "Costi senza fattura", valore: costiSenzaFattura },
+          ]} />
+        )}
         <p className="text-sm text-muted-foreground">Le fatture arrivate per questa commessa, collegate all’ordine d’acquisto o al costo registrato.{puoModificare ? " Da qui puoi caricarne una (XML dallo SDI, PDF o foto): diventa un costo della commessa." : ""}</p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -377,9 +493,9 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
           <Skeleton className="h-24 w-full" />
         ) : (
           <>
-            {collegate.length === 0 ? (
+            {soloSuggerite ? null : collegate.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nessuna fattura collegata. Caricala da qui, oppure collegala dalla fattura ricevuta scegliendo l’ordine d’acquisto o la commessa.</p>
-            ) : <ul className="divide-y" aria-label="Fatture collegate">{collegate.map(riga)}</ul>}
+            ) : <ul className="divide-y" aria-label="Fatture collegate">{collegateVisibili.map(riga)}</ul>}
             {suggerite.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
                 <p className="text-sm font-semibold text-amber-900">Probabilmente di questa commessa: {suggerite.length}</p>

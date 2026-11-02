@@ -178,7 +178,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   });
 
   return (
-    <Card>
+    <Card id="costi-commessa" className="scroll-mt-24">
       <CardHeader className="pb-3">
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           <Wallet className="h-5 w-5 text-primary" aria-hidden="true" />Costi della commessa

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMaterialProcurement, useUnmappedPurchaseOrders } from "@/hooks/useMaterialProcurement";
 import { planMaterial, type ProcurementItem } from "@/lib/orders/materialProcurement";
-import { cn } from "@/lib/utils";
+import { ContatoriFiltro } from "./ContatoriFiltro";
 
 export function OrderMaterialsSummary({ items, orderId }: { items: ProcurementItem[]; orderId: string }) {
   const coverage = useMaterialProcurement(items);
@@ -27,16 +27,8 @@ export function OrderMaterialsSummary({ items, orderId }: { items: ProcurementIt
   const elenco = counts.find(([label]) => label === aperta)?.[1] ?? [];
   return (
     <section aria-label="Riepilogo materiali" className="rounded-lg border bg-background p-4 max-sm:p-3">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        {counts.map(([label, righe]) => (
-          <button key={label} type="button" disabled={righe.length === 0} aria-pressed={aperta === label}
-            onClick={() => setAperta(aperta === label ? null : label)}
-            className={cn("rounded-md border border-transparent p-2 text-left transition-colors enabled:hover:bg-accent", aperta === label && "border-primary bg-primary/5")}>
-            <span className="block text-xs text-muted-foreground">{label}</span>
-            <span className="mt-1 block text-lg font-semibold tabular-nums">{righe.length}</span>
-          </button>
-        ))}
-      </div>
+      <ContatoriFiltro etichetta="Materiali per stato" attivo={aperta} onScegli={setAperta}
+        voci={counts.map(([label, righe]) => ({ chiave: label, etichetta: label, valore: righe.length, avviso: label === "Da verificare" }))} />
       {elenco.length > 0 && (
         <ul aria-label={`Articoli: ${aperta}`} className="mt-2 divide-y rounded-md border text-sm">
           {elenco.map(p => (
