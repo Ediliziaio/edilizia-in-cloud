@@ -503,6 +503,17 @@ describe("campi propri nel PDF", () => {
     expect(testi).not.toContain("FIRMA DEL CLIENTE");
     expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
   });
+  it("chi ha compilato e la firma stanno in un riquadro solo, senza il titolo Firme", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2" });
+    expect(testi).not.toContain("FIRME");
+  });
+  it("le precisazioni in fondo non restano mai da sole su una pagina", async () => {
+    for (let righe = 0; righe < 70; righe += 1) {
+      const { scritti } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2", descrizione_lavori: Array.from({ length: righe }, (_, i) => `Riga ${i}`).join("\n") });
+      const pagina = (pezzo: string) => scritti.find(s => s.testo.includes(pezzo))?.pagina;
+      expect(pagina("Compilato da"), `${righe} righe`).toBe(pagina("timbratura"));
+    }
+  });
   it("un giornaliero non stampa mai una firma del cliente, nemmeno se ne ha una vecchia", async () => {
     const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
     expect(testi).not.toContain("FIRMA DEL CLIENTE");

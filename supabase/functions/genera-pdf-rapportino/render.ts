@@ -123,10 +123,10 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const ensure = (needed: number) => { if (y - needed < bottom) { nextPage(); return true; } return false; };
   const sezione = (label: string, riserva = 60) => {
     ensure(riserva);
-    y -= 4;
+    y -= 2;
     box(M, y, 3.5, 12, accent);
     T(label.toUpperCase(), M + 10, y - 9.5, 9.5, bold, ink);
-    y -= 20;
+    y -= 19;
   };
   const paragraph = (value: string, size = 9.5, color: Rgb = ink, width = CW, x = M) => {
     for (const l of wrap(value, regular, size, width)) { ensure(size + 5); T(l, x, y - size, size, regular, color); y -= size + 4; }
@@ -339,13 +339,13 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     const wTessera = (CW - 3 * 8) / 4;
     contatori.forEach(([etich, valore, sotto], i) => {
       const x = M + i * (wTessera + 8);
-      box(x, y, wTessera, 44, pale);
+      box(x, y, wTessera, 36, pale);
       box(x, y, wTessera, 2.5, accent);
-      T(etich, x + 10, y - 15, 6.4, bold, muted);
-      T(valore, x + 10, y - 34, 15, bold, vuoti(valore) ? faint : ink);
-      if (sotto) T(sotto, x + 10 + larghezza(valore, 15, bold) + 5, y - 34, 6.8, regular, muted);
+      T(etich, x + 10, y - 12, 6.4, bold, muted);
+      T(valore, x + 10, y - 28, 13, bold, vuoti(valore) ? faint : ink);
+      if (sotto) T(sotto, x + 10 + larghezza(valore, 13, bold) + 5, y - 28, 6.8, regular, muted);
     });
-    y -= 44 + 8;
+    y -= 36 + 8;
   }
 
   // ═════════ Cosa è stato fatto ═════════
@@ -364,7 +364,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     T(String(n), x + 6 + (26 - larghezza(String(n), 7, bold)) / 2, yTop - 15, 7, bold, white);
   };
   /** Tre per riga anche quando sono poche: si vedono bene e il rapportino resta compatto. */
-  const impaginaFoto = (_n: number) => { const colonne = 3; return { colonne, w: (interno - gapFoto * (colonne - 1)) / colonne, h: 86 }; };
+  const impaginaFoto = (_n: number) => { const colonne = 3; return { colonne, w: (interno - gapFoto * (colonne - 1)) / colonne, h: 62 }; };
   const misureScheda = (f: FaseBlocco) => {
     const nomeRighe = wrap(f.nome, bold, 11, CW - 24 - 150).slice(0, 2);
     const testaH = 14 + nomeRighe.length * 14 + (f.percentuale !== null ? 16 : 6) + (f.ore !== null ? 11 : 0);
@@ -495,14 +495,38 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     ...(fineLavori ? [{ etichetta: "Firma del cliente", ref: text(r.firma_cliente_url), nome: text(r.firma_cliente_nome), data: r.firma_cliente_at ? timestamp(r.firma_cliente_at) : "" }] : []),
   ].filter(s => s.ref || fineLavori);
   const chiEQuando = compilatoDa(r);
-  if (chiEQuando) {
+  const note: string[] = [];
+  if (blocchi.fasi.length) note.push("Le ore di fase non si sommano alle presenze della squadra e non sostituiscono la verifica dell'ufficio.");
+  if (summary.crew.length) note.push("Il totale usa solo le presenze elencate: le ore personali del compilatore non vengono sommate di nuovo. Le presenze esterne non determinano automaticamente un costo orario.");
+  if (blocchi.totaleMateriali) note.push("Le quantità dichiarate non attestano uno scarico di magazzino.");
+  note.push(ctx.punches.length
+    ? "Eventi di chi compila, per questo cantiere e questa data: non sono un totale ore validato. Per turni oltre mezzanotte consultare anche la giornata adiacente nell'app."
+    : "Nessuna timbratura di chi compila in questa giornata: le ore sono dichiarate.");
+  // Le precisazioni non restano mai da sole su una pagina: si tengono insieme a chi ha compilato.
+  const altezzaNote = documentoPer === "interno" ? 12 + wrap(note.join(" "), regular, 6.8, CW).length * 10.8 : 0;
+  if (!fineLavori && (chiEQuando || firme.length)) {
+    const firma = firme[0];
+    const alto = firma ? 38 : 22;
+    ensure(alto + 8 + altezzaNote);
+    box(M, y, CW, alto, firma ? white : pale, firma ? line : undefined);
+    box(M, y, 3.5, alto, accent);
+    T(chiEQuando || summary.author, M + 14, y - alto / 2 - 3, 8.8, bold, ink);
+    if (firma) {
+      const wFirma = 150, xFirma = M + CW - wFirma - 10;
+      T(firma.etichetta.toUpperCase(), xFirma, y - 10, 5.8, bold, muted);
+      const img = await embed(firma.ref, "signature");
+      if (img) { const d = img.scaleToFit(wFirma, 24); page.drawImage(img, { x: xFirma, y: y - 36, ...d }); }
+      else { T("Firma registrata, immagine non disponibile", xFirma, y - 28, 7.4, regular, faint); warnings.push(`${firma.etichetta}: immagine non inclusa.`); }
+    }
+    y -= alto + 8;
+  } else if (chiEQuando) {
     ensure(30);
     box(M, y, CW, 22, pale);
     box(M, y, 3.5, 22, accent);
     T(chiEQuando, M + 14, y - 14.5, 8.8, bold, ink);
     y -= 30;
   }
-  if (firme.length) {
+  if (fineLavori && firme.length) {
     sezione("Firme", 150);
     const wF = (CW - 12) / 2;
     ensure(112);
@@ -522,18 +546,11 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   }
 
   // ═════════ Note del documento ═════════
-  const note: string[] = [];
-  if (blocchi.fasi.length) note.push("Ore e avanzamenti riferiti alle singole lavorazioni: le ore di fase non si sommano di nuovo alle presenze della squadra. La dichiarazione non sostituisce la verifica dell'ufficio.");
-  if (summary.crew.length) note.push("Il totale usa solo le presenze elencate: le ore personali del compilatore non vengono sommate di nuovo. Le presenze esterne non determinano automaticamente un costo orario.");
-  if (blocchi.totaleMateriali) note.push("Quantità dichiarate nel rapportino: non attestano da sole uno scarico di magazzino.");
-  note.push(ctx.punches.length
-    ? "Eventi di chi compila, per questo cantiere e questa data: non sono un totale ore validato. Per turni oltre mezzanotte consultare anche la giornata adiacente nell'app."
-    : "Nessuna timbratura disponibile per chi compila su questo cantiere nella giornata: le ore sono dichiarate, non verificate automaticamente.");
   // Questo è un dato, non una precisazione: resta visibile anche nel documento per il cliente.
   if (!blocchi.fasi.length && (number0(r.percentuale_avanzamento) ?? 0) > 0) paragraph(`Avanzamento generale dichiarato della commessa: ${Number(r.percentuale_avanzamento).toLocaleString("it-IT")}%.`, 8.6, ink);
   // Precisazioni per l'ufficio: una riga piccola in fondo, e nel documento per il cliente non servono.
   if (documentoPer === "interno") {
-    ensure(40);
+    ensure(altezzaNote);
     y -= 6;
     rule(y);
     y -= 5;
