@@ -7,7 +7,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Building, Download, Eye, Map as MappaIcona, Rotate3d } from "lucide-react";
+import { Box, Building, Download, Eye, Layers, Map as MappaIcona, Rotate3d } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +31,7 @@ import {
   type Vista3D as VistaLavori,
 } from "@/lib/planimetrie/tred";
 import { catturaFotogramma, type Fotogramma } from "./tred/fotogramma";
+import { esplodiInStrati } from "@/lib/planimetrie/tred/esploso";
 import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
 
 export type ModoVista = "alto" | "giro" | "dentro";
@@ -106,15 +107,20 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const conPiani = (piani?.length ?? 0) > 1;
   const [edificio, setEdificio] = useState(false);
   const [esploso, setEsploso] = useState(false);
+  // Vista esplosa a strati: platea, pavimenti, pareti, soffitti e tetto staccati lungo l'altezza.
+  const [strati, setStrati] = useState(false);
+  const [distanzaStrati, setDistanzaStrati] = useState(1.6);
   const [finoA, setFinoA] = useState<string>("");
   const tuttiIPiani = conPiani && edificio;
-  const scena: Scena3D = useMemo(
+  const strutturaStrati = strati && modo !== "dentro";
+  const scenaBase: Scena3D = useMemo(
     () =>
       tuttiIPiani
-        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
-        : costruisciScena(pianta, { vista, soffitto, elementi: arredi }),
-    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, esploso, finoA],
+        ? scenaEdificio(piani!, { vista, soffitto: soffitto || strutturaStrati, elementi: arredi, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
+        : costruisciScena(pianta, { vista, soffitto: soffitto || strutturaStrati, elementi: arredi }),
+    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, esploso, finoA, strutturaStrati],
   );
+  const scena: Scena3D = useMemo(() => (strutturaStrati ? esplodiInStrati(scenaBase, distanzaStrati) : scenaBase), [scenaBase, strutturaStrati, distanzaStrati]);
 
   // Avvio di three.js, una volta.
   useEffect(() => {
@@ -411,6 +417,15 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
                   </SelectContent>
                 </Select>
               </>
+            )}
+          </div>
+        )}
+        {modo !== "dentro" && (
+          <div className="flex items-center gap-2">
+            <Switch id="vista3d-strati" checked={strati} onCheckedChange={setStrati} />
+            <Label htmlFor="vista3d-strati" className="flex items-center gap-1"><Layers className="h-3.5 w-3.5" />Vista esplosa</Label>
+            {strati && (
+              <input type="range" min={0.5} max={4} step={0.1} value={distanzaStrati} onChange={(e) => setDistanzaStrati(Number(e.target.value))} aria-label="Distanza fra gli strati" className="h-1.5 w-24 accent-primary" />
             )}
           </div>
         )}
