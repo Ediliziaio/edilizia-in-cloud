@@ -73,7 +73,8 @@ export function controlliQuadratura(piano: PianoCommessa): ProblemaQuadratura[] 
 export function avvisiDiRipresa(piano: PianoCommessa): string[] {
   return [...new Set(controlliQuadratura(piano)
     .filter((p) => piano.aree[p.area]?.[p.chiave]?.stato === "attenzione")
-    .map((p) => `Mentre la bozza era ferma qualcosa è cambiato. ${p.testo} Finché il conto non torna, questo dato resta fuori dalla commessa.`))];
+    // Solo una commessa che c'è già può cambiare mentre la bozza è ferma: una bozza nuova è rimasta com'era.
+    .map((p) => `${piano.orderId ? "Mentre la bozza era ferma qualcosa è cambiato. " : ""}${p.testo} Finché il conto non torna, questo dato resta fuori dalla commessa.`))];
 }
 
 // ── Le rate in percentuale che aspettano l'IVA o il totale (revisione 2/11, G9 e G20) ──

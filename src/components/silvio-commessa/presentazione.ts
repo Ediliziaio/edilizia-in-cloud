@@ -16,7 +16,8 @@ import { completezzaPiano, type Completezza } from "../../../shared/silvio-comme
 import type { Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import { personaOccupata, type ContestoRisorse, type PersonaDelPiano } from "../../../shared/silvio-commessa/risorse.ts";
 import { annulla, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
-import { COLONNE_SCRIVIBILI, entraNellaScrittura, giaNellaCommessa, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
+import { clienteRitrovabile, COLONNE_SCRIVIBILI, entraNellaScrittura, giaNellaCommessa, type ClienteDelGestionale, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
+import { controlliQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
 import { avvisoLettureFallite } from "../../../shared/silvio-commessa/contestoRisorse.ts";
 import type { EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
@@ -614,7 +615,9 @@ function etichettaFonte(v: Valore): string {
  * La domanda del momento, una sola (3.4, punto 4): prima i conflitti, poi i ❓ veri
  * (cliente, inizio, importo, cantiere), poi le proposte da guardare.
  */
-export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommessa, oggi = new Date(), vedeImporti = true, vedeCosti = true): Domanda | null {
+export function domandaDiSilvio(
+  piano: PianoCommessa, scrittura: ScritturaCommessa, oggi = new Date(), vedeImporti = true, vedeCosti = true, clienti?: readonly ClienteDelGestionale[] | null,
+): Domanda | null {
   const conflitto = piano.conflitti[0];
   if (conflitto) {
     const v = variabile(conflitto.chiave);
@@ -639,6 +642,18 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
   };
   if (scrittura.modo === "crea" && !valore("cliente.customer_id") && !scrittura.cliente.nome && !scrittura.cliente.email && !scrittura.preventivo_id) {
     return { testo: "Per chi è il lavoro? Scegli il cliente o crealo.", risposte: [{ etichetta: "Scegli il cliente", apri: "cliente.customer_id" }] };
+  }
+  // Il nome c'è ma nel gestionale non si ritrova: «Crea» è fermo, e senza domanda si vedeva solo una riga piccola in fondo.
+  if (clienteDaScegliere(scrittura, clienti)) {
+    return {
+      testo: `${scrittura.cliente.nome ? `«${scrittura.cliente.nome}»` : "Questo cliente"} non è ancora nel gestionale, o ce n'è più d'uno. Senza non posso creare la commessa.`,
+      risposte: [{ etichetta: "Scegli o crea il cliente", apri: "cliente.customer_id" }],
+    };
+  }
+  // Un conto che non torna toglie il dato dalla commessa: si dice prima di «Crea», non dopo.
+  const nonTorna = contiCheNonTornano(piano, vedeImporti, vedeCosti)[0];
+  if (nonTorna) {
+    return { testo: `${nonTorna.testo} Finché non torna, ${minuscola(nonTorna.etichetta)} restano fuori dalla commessa.`, risposte: [{ etichetta: `Sistema ${ARTICOLO_CONTO[nonTorna.chiave] ?? ""}${minuscola(nonTorna.etichetta)}`, apri: nonTorna.chiave }] };
   }
   if (!valore("fasi.work_start_date")) {
     const lunedi = prossimoLunedi(oggi);
@@ -679,7 +694,7 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
     const tutte = accettaProposte(piano, daVedere.map((e) => e.chiave));
     return {
       testo: daVedere.length === 1
-        ? `«${daVedere[0].etichetta}» è una mia proposta: entra solo se mi dici di sì.`
+        ? scrittoInChat(piano, daVedere[0].chiave, daVedere[0].etichetta, vedeCosti) ?? `«${daVedere[0].etichetta}» è una mia proposta: entra solo se mi dici di sì.`
         : `${daVedere.length} mie proposte aspettano un tuo sì (${daVedere.map((e) => minuscola(e.etichetta)).join(", ")}).`,
       risposte: [
         ...(tutte.length ? [{ etichetta: daVedere.length === 1 ? "Va bene" : `Va bene a tutte e ${daVedere.length}`, modifica: tutte }] : []),
@@ -688,6 +703,17 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
     };
   }
   return null;
+}
+
+/** Un valore scritto dalla persona in chat aspetta il suo sì, ma non è una proposta di Silvio. */
+function scrittoInChat(piano: PianoCommessa, chiave: string, etichetta: string, vedeCosti: boolean): string | null {
+  const v = variabile(chiave);
+  const x = v ? piano.aree[v.area]?.[chiave] : undefined;
+  if (!x?.daConfermare || x.alPostoDi === undefined || x.sopraCommessa) return null;
+  const nuovo = testoValore(chiave, x.valore, vedeCosti);
+  return x.alPostoDi
+    ? `«${etichetta}»: ${nuovo} al posto di ${testoValore(chiave, x.alPostoDi.valore, vedeCosti)}. Entra solo se mi dici di sì.`
+    : `«${etichetta}»: ${nuovo}. Entra solo se mi dici di sì.`;
 }
 
 /** «Dal preventivo PR-0142 ho preso cliente, importo e 6 fasi.» */
@@ -915,10 +941,27 @@ export function nonDisponibili(piano: PianoCommessa): NonDisponibile[] {
   return out;
 }
 
+const ARTICOLO_CONTO: Readonly<Record<string, string>> = { "pagamenti.rate": "le ", "ditte.contratti": "i ", "materiali.acquisti": "gli " };
+
+/** I conti che tengono un dato fuori dalla commessa (⚠ della quadratura), se chi guarda può leggerli. */
+export function contiCheNonTornano(piano: PianoCommessa, vedeImporti = true, vedeCosti = true): { chiave: string; etichetta: string; testo: string }[] {
+  return controlliQuadratura(piano)
+    .filter((p) => piano.aree[p.area]?.[p.chiave]?.stato === "attenzione" && !importoNascosto(p.chiave, vedeImporti, vedeCosti)
+      && !parlaDiCosti(p.chiave, vedeCosti) && (vedeImporti || !/\d\s*€/.test(p.testo)))
+    .map((p) => ({ chiave: p.chiave, etichetta: variabile(p.chiave)?.etichetta ?? "Questo dato", testo: p.testo }));
+}
+
+/** Il cliente ha un nome o un'email ma la RPC non lo ritroverebbe: «Crea» è fermo finché non lo si sceglie. */
+export function clienteDaScegliere(s: ScritturaCommessa, clienti?: readonly ClienteDelGestionale[] | null): boolean {
+  return s.modo === "crea" && !!clienti && !s.cliente.customer_id && !s.preventivo_id && !!(s.cliente.nome || s.cliente.email) && !clienteRitrovabile(s, clienti);
+}
+
 /** Le cose che aspettano la persona, nell'ordine in cui vanno decise: fonti in disaccordo, ⚠, domande, proposte. */
 export interface DaDecidere {
   conflitti: Conflitto[];
   nonDisponibili: NonDisponibile[];
+  /** I conti che non tornano: quel dato resta fuori dalla commessa finché non si sistema. */
+  nonTornano: { chiave: string; etichetta: string; testo: string }[];
   /** I ❓ che chiedono una risposta (cliente, inizio, importo, cantiere). */
   domande: Variabile[];
   /** Le proposte che entrano solo con un sì. */
@@ -930,18 +973,19 @@ export interface DaDecidere {
 
 export function cosaDecidere(
   piano: PianoCommessa, scrittura: ScritturaCommessa, c: Completezza = completezzaPiano(piano),
-  opz: { vedeImporti?: boolean; vedeCosti?: boolean; contesto?: ContestoRisorse | null } = {},
+  opz: { vedeImporti?: boolean; vedeCosti?: boolean; contesto?: ContestoRisorse | null; clienti?: readonly ClienteDelGestionale[] | null } = {},
 ): DaDecidere {
   const vedeImporti = opz.vedeImporti ?? true;
   const vedeCosti = opz.vedeCosti ?? true;
   const domande = c.mancano.filter((v) => v.livello === "chiede" && siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti)
-    && !(v.chiave === "cliente.customer_id" && (scrittura.cliente.nome || scrittura.cliente.email || scrittura.preventivo_id)));
+    && !(v.chiave === "cliente.customer_id" && (scrittura.cliente.nome || scrittura.cliente.email || scrittura.preventivo_id) && !clienteDaScegliere(scrittura, opz.clienti)));
   const proposte = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare" && !importoNascosto(e.chiave, vedeImporti, vedeCosti))
     .map(({ chiave, etichetta }) => ({ chiave, etichetta }));
   const nd = nonDisponibili(piano);
   const letture = opz.contesto ? avvisoLettureFallite(opz.contesto) : null;
   const avvisi = [...(letture ? [letture] : []), ...avvisiVisibili(piano.avvisi ?? [], vedeImporti, vedeCosti)];
-  return { conflitti: piano.conflitti, nonDisponibili: nd, domande, proposte, totale: piano.conflitti.length + nd.length + domande.length + proposte.length, avvisi };
+  const nonTornano = contiCheNonTornano(piano, vedeImporti, vedeCosti);
+  return { conflitti: piano.conflitti, nonDisponibili: nd, nonTornano, domande, proposte, totale: piano.conflitti.length + nd.length + nonTornano.length + domande.length + proposte.length, avvisi };
 }
 
 /** «1 conflitto, 1 persona non disponibile e 6 proposte»: per la barra e la scheda del telefono. */
@@ -949,6 +993,7 @@ export function testoDaDecidere(d: DaDecidere): string {
   const parti = [
     d.conflitti.length ? `${d.conflitti.length} ${d.conflitti.length === 1 ? "valore da scegliere" : "valori da scegliere"}` : "",
     d.nonDisponibili.length ? `${d.nonDisponibili.length} non ${d.nonDisponibili.length === 1 ? "disponibile" : "disponibili"}` : "",
+    d.nonTornano.length ? `${d.nonTornano.length} ${d.nonTornano.length === 1 ? "conto che non torna" : "conti che non tornano"}` : "",
     d.domande.length ? `${d.domande.length} ${d.domande.length === 1 ? "dato che manca" : "dati che mancano"}` : "",
     d.proposte.length ? `${d.proposte.length} ${d.proposte.length === 1 ? "proposta" : "proposte"}` : "",
   ].filter(Boolean);
@@ -964,8 +1009,9 @@ export function cosaScriveCrea(s: ScritturaCommessa): string {
     s.date_fasi.length ? conta(s.date_fasi.length, "data di fase", "date di fase") : "",
     s.righe.length ? conta(s.righe.length, "riga", "righe") : "",
     s.rate.length ? conta(s.rate.length, "rata", "rate") : "",
-    s.squadra.length ? conta(s.squadra.length, "persona", "persone") : "",
-    s.ditte.length ? conta(s.ditte.length, "ditta", "ditte") : "",
+    // Una persona o una ditta su due fasi sono due righe, ma una persona e una ditta.
+    s.squadra.length ? conta(new Set(s.squadra.map((x) => x.employee_id)).size, "persona", "persone") : "",
+    s.ditte.length ? conta(new Set(s.ditte.map((x) => x.external_team_id)).size, "ditta", "ditte") : "",
     s.mezzi.length ? conta(s.mezzi.length, "mezzo", "mezzi") : "",
     s.oda.length ? conta(s.oda.length, "ordine in bozza", "ordini in bozza") : "",
     s.contratti.length ? conta(s.contratti.length, "contratto in bozza", "contratti in bozza") : "",

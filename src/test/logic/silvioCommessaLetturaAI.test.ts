@@ -166,9 +166,9 @@ describe("i valori: si tengono quelli provati, gli altri restano proposte", () =
     }));
     const rate = val(fr, "pagamenti.rate")!;
     expect(rate.valore).toEqual([
-      { label: "Acconto", type: "deposit", amount: 31903, percent: 50, trigger_evento: "firma_contratto" },
+      { label: "Acconto", type: "deposit", amount: 31903, percent: 50, daPercentuale: true, trigger_evento: "firma_contratto" },
       { label: "SAL 1", type: "deposit", amount: 20000, trigger_evento: "sal_numero", trigger_numero: 1 },
-      { label: "Saldo", type: "balance", amount: 38283.6, percent: 60, trigger_evento: null },
+      { label: "Saldo", type: "balance", amount: 38283.6, percent: 60, daPercentuale: true, trigger_evento: null },
     ] satisfies RataDelPiano[]);
     expect(rate.nota).toMatch(/Rotto/);
     expect(rate.nota).toMatch(/sommano 110 %/);

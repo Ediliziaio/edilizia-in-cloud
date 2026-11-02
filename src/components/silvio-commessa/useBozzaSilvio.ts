@@ -42,7 +42,7 @@ import {
 } from "../../../shared/silvio-commessa/fondi.ts";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import {
-  contrattoSenzaFase, fasiDiLavoro, frammentoDaOfferta, proposteRisorse, riassuntoRisorse,
+  contrattoSenzaFase, FONTE_RISORSE, fasiDiLavoro, frammentoDaOfferta, proposteRisorse, riassuntoRisorse,
   type ContestoRisorse, type ContrattoDelPiano, type RichiestaOfferta,
 } from "../../../shared/silvio-commessa/risorse.ts";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
@@ -128,6 +128,24 @@ export function pianoSenzaFonte(
   }
   if (!nuovo.scartati?.length) delete nuovo.scartati;
   return { tolti, piano: conQuadratura(nuovo), storia: storia.map((p) => passoSenzaFonte(p, sua, daTogliere)) };
+}
+
+const FASI = "fasi.order_work_phases";
+const eModello = (f: Fonte) => f.tipo === "modello" && f.id !== FONTE_RISORSE.id;
+
+/**
+ * Il modello per tipo di lavoro serve quando nessun documento dice le fasi (prova cliccata del 2/11).
+ * Un capitolato senza fasi se lo porta dietro: letto con un contratto che le fasi le ha, proponeva
+ * «fine lavori 9 dicembre» contro il 21 del contratto, e «manca la misura» su fasi che non venivano
+ * dal modello. Vale in tutti e due gli ordini, perché le letture finiscono quando capita.
+ */
+function senzaModelloContro(piano: PianoCommessa, storia: Passo[], frammenti: Frammento[]): { piano: PianoCommessa; storia: Passo[]; frammenti: Frammento[] } {
+  const fasi = piano.aree.fasi?.[FASI];
+  const portaFasi = frammenti.some((fr) => !eModello(fr.fonte) && fr.aree.fasi?.[FASI]);
+  if (!portaFasi && (!fasi || eModello(fasi.fonte))) return { piano, storia, frammenti };
+  const modelli = piano.fonti.filter(eModello);
+  const senza = portaFasi && modelli.length ? pianoSenzaFonte(piano, modelli, storia) : { piano, storia };
+  return { piano: senza.piano, storia: senza.storia, frammenti: frammenti.filter((fr) => !eModello(fr.fonte)) };
 }
 
 /**
@@ -232,6 +250,8 @@ export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi
 }
 /** Una lettura di un'offerta con `rdo-ai-estrai-offerta`: una pagina o due, come un documento. */
 export const STIMA_OFFERTA_EUR = 0.03;
+/** Come `MAX_BYTE` della funzione `silvio-commessa`: oltre, caricarlo è solo tempo e traffico perso. */
+export const MASSIMO_FILE_AI_BYTE = 20 * 1024 * 1024;
 
 export type StatoFonte = "da_confermare" | "in_coda" | "in_lettura" | "fatta" | "errore" | "da_collegare";
 
@@ -275,6 +295,8 @@ export interface Messaggio {
   tono: "silvio" | "avviso" | "errore" | "persona";
   /** Le variabili che questa risposta ha cambiato: «Vedi» le mostra. */
   chiavi?: string[];
+  /** Quanti passi aveva la storia dopo questa risposta: «Annulla» vale finché non ce ne sono altri. */
+  passi?: number;
 }
 
 interface Stato {
@@ -378,12 +400,13 @@ function riduttore(s: Stato, a: Azione): Stato {
       };
     }
     case "frammenti": {
-      const piano = a.frammenti.reduce((p, fr) => fondi(p, fr), s.piano);
-      const cambiate = chiaviCambiate(s.piano, piano);
+      const { piano: partenza, storia: storiaDiPartenza, frammenti } = senzaModelloContro(s.piano, s.storia, a.frammenti);
+      const piano = frammenti.reduce((p, fr) => fondi(p, fr), partenza);
+      const cambiate = chiaviCambiate(partenza, piano);
       const fonte = s.fonti.find((f) => f.id === a.id);
       let messaggi = s.messaggi;
       const conMessaggio = (t: string, tono: Messaggio["tono"] = "silvio") => { messaggi = messaggio({ ...s, messaggi }, t, tono); };
-      if (!a.muto) conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? a.frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
+      if (!a.muto) conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
       const nuoviConflitti = piano.conflitti.length - s.piano.conflitti.length;
       if (nuoviConflitti > 0) {
         conMessaggio(nuoviConflitti === 1
@@ -395,13 +418,13 @@ function riduttore(s: Stato, a: Azione): Stato {
         const gia = new Set(avvisiDiRipresa(s.piano));
         for (const t of avvisiDiRipresa(piano)) if (!gia.has(t)) conMessaggio(t, "avviso");
       }
-      const avvisi = a.frammenti.flatMap((f) => f.avvisi ?? []);
+      const avvisi = frammenti.flatMap((f) => f.avvisi ?? []);
       return {
         ...s,
         piano,
         // La commessa riletta vince anche sull'annulla, se arriva dopo una ripresa.
-        storia: a.base ? storiaDopoRilettura(piano, s.storia) : s.storia,
-        fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, fontiLette: a.frammenti.map((x) => x.fonte), ...a.patch } : f)),
+        storia: a.base ? storiaDopoRilettura(piano, storiaDiPartenza) : storiaDiPartenza,
+        fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, fontiLette: frammenti.map((x) => x.fonte), ...a.patch } : f)),
         caricate: a.caricata ? [...s.caricate.filter((c) => chiaveCaricata(c) !== chiaveCaricata(a.caricata!)), a.caricata] : s.caricate,
         evidenziate: a.base || a.muto ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
         messaggi,
@@ -430,7 +453,7 @@ function riduttore(s: Stato, a: Azione): Stato {
         versione: s.versione + 1,
         ...(a.dallaChat ? {
           daGuardare: [...new Set([...s.daGuardare, ...cambiate])],
-          messaggi: messaggio(s, a.dallaChat.righe.join(" "), "silvio", cambiate),
+          messaggi: messaggio(s, a.dallaChat.righe.join(" "), "silvio", cambiate).map((m, i, tutti) => (i === tutti.length - 1 ? { ...m, passi: bozza.storia.length } : m)),
         } : {}),
       };
     }
@@ -439,9 +462,13 @@ function riduttore(s: Stato, a: Azione): Stato {
     case "annulla": {
       if (!s.storia.length) return s;
       const bozza = annulla(s.piano, s.storia);
+      const tornate = chiaviCambiate(s.piano, bozza.piano);
+      const sparite = chiaviCambiate(bozza.piano, s.piano);
       return {
         ...s, ...bozza,
-        evidenziate: [...new Set([...s.evidenziate, ...chiaviCambiate(s.piano, bozza.piano)])],
+        evidenziate: [...new Set([...s.evidenziate, ...tornate])],
+        // Tornato com'era, o sparito: «cambiato in chat» non è più vero.
+        daGuardare: s.daGuardare.filter((k) => !tornate.includes(k) && !sparite.includes(k)),
         versione: s.versione + 1,
       };
     }
@@ -464,7 +491,8 @@ function riduttore(s: Stato, a: Azione): Stato {
         ripresa: true,
         storia: storiaDopoRilettura(piano, (a.bozza.storia ?? []) as Passo[]),
         caricate: a.bozza.fonti ?? [],
-        fonti: piano.fonti.map((f) => ({
+        // Le proposte di Silvio non sono una fonte da togliere: si rifanno da sole.
+        fonti: piano.fonti.filter((f) => f.id !== FONTE_RISORSE.id).map((f) => ({
           id: nuovoId(), tipo: "ripresa", etichetta: f.etichetta, stato: "fatta", stimaEur: 0, avvisi: [] as string[], tentativo: 0,
           ...(f.id ? { idFonte: f.id } : {}),
         })),
@@ -606,8 +634,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       }
       saldo.current = { letto: Date.now(), esito };
     }
-    if (esito.bloccato) return "Le chiamate AI dell'azienda sono ferme per credito: ricarica i crediti e riprova.";
+    // Quello che non basta non si ricorda: chi ha appena ricaricato preme «Riprova» subito.
+    if (esito.bloccato) { saldo.current = null; return "Le chiamate AI dell'azienda sono ferme per credito: ricarica i crediti e riprova."; }
     if (esito.saldoEur != null && esito.saldoEur < stimaEur) {
+      saldo.current = null;
       return `I crediti AI non bastano (servono circa ${euroAI(stimaEur)}, ne restano ${euroAI(Math.max(0, esito.saldoEur))}): ricarica e riprova.`;
     }
     return null;
@@ -697,7 +727,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     } catch (e) {
       const testo = erroreLeggibile(e, "il servizio non ha risposto.");
       invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "errore", errore: testo } });
-      invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere «${f.etichetta}»: ${testo} Il resto va avanti; puoi riprovare.` });
+      invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere «${f.etichetta}»: ${/[.!?…]$/.test(testo) ? testo : `${testo}.`} Il resto va avanti; puoi riprovare.` });
     } finally {
       avviate.current.delete(f.id);
     }
@@ -754,6 +784,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
           if (r.lettore === "non_letto") {
             return { ...base, tipo: "file", file: n.file, etichetta: n.file.name, stato: "errore", errore: r.motivo, stimaEur: 0 };
           }
+          if (r.ai && n.file.size > MASSIMO_FILE_AI_BYTE) {
+            return { ...base, tipo: "file", file: n.file, etichetta: n.file.name, stato: "errore", stimaEur: 0,
+              errore: `troppo grande (${Math.ceil(n.file.size / (1024 * 1024))} MB, il massimo è 20 MB): caricane uno più leggero` };
+          }
           const stima = stimaLettura(r, n.file.size);
           return { ...base, tipo: "file", file: n.file, etichetta: n.file.name, stato: stima > 0 ? "da_confermare" : "in_coda", stimaEur: stima };
         }
@@ -762,6 +796,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     invia({ tipo: "aggiungi_fonti", fonti });
     // Quello che la persona ha scritto si vede come suo messaggio, anche quando diventa una fonte.
     for (const n of nuove) if (n.tipo === "testo" && !n.daLink) invia({ tipo: "messaggio", tono: "persona", testo: n.testo });
+    // Sul telefono si parte dalla chat: un file rifiutato non può dirlo solo la scheda Fonti.
+    for (const f of fonti) if (f.stato === "errore") invia({ tipo: "messaggio", tono: "errore", testo: `«${f.etichetta}»: ${f.errore}.` });
   }, []);
 
   /** «Leggi»: le fonti che aspettavano il via per il costo entrano in coda. */

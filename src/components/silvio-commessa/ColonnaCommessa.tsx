@@ -32,6 +32,7 @@ import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { useSediList } from "@/hooks/useSediAnalytics";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { cn } from "@/lib/utils";
 import {
@@ -288,10 +289,16 @@ function NomeCliente({ companyId, id }: { companyId: string; id: string }) {
 }
 
 /** Il nome di una persona dello staff: mai da `profiles` grezzo, dove ci sono anche i clienti. */
-function NomeStaff({ companyId, id }: { companyId: string; id: string }) {
+export function NomeStaff({ companyId, id }: { companyId: string; id: string }) {
   const { data: staff = [] } = useCompanyStaffUsers(companyId);
   const p = staff.find((x) => x.id === id);
   return <>{p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email : "persona dello staff"}</>;
+}
+
+/** Il nome della sede scelta: il valore è il suo id. */
+export function NomeSede({ id }: { id: string }) {
+  const { data: sedi = [] } = useSediList();
+  return <>{sedi.find((s) => s.id === id)?.nome ?? "sede scelta"}</>;
 }
 
 // ── Una riga ────────────────────────────────────────────────────────────────
@@ -442,12 +449,14 @@ interface RigaProps {
   vedeCosti?: boolean;
   /** La fine che la commessa prende dalle fasi, se la proposta non si conferma. */
   fineDalleFasi?: string | null;
+  /** Il cliente letto non si ritrova nel gestionale: senza sceglierlo «Crea» non parte. */
+  clienteDaScegliere?: boolean;
 }
 
 /** La nota che si legge sulla riga anche a valore confermato: l'inizio spostato su un giorno utile, le rate che aspettano (G3, G9, G20). */
 const NOTE_SEMPRE_IN_VISTA: ReadonlySet<string> = new Set(["fasi.work_start_date", "pagamenti.rate"]);
 
-function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null }: RigaProps) {
+function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null, clienteDaScegliere = false }: RigaProps) {
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
@@ -469,10 +478,15 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
       ? <NomeCliente companyId={companyId} id={valore.valore} />
       : (v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to") && typeof valore.valore === "string"
         ? <NomeStaff companyId={companyId} id={valore.valore} />
-        : testoValore(v.chiave, valore.valore, vedeCosti))
+        : v.chiave === "identita.sede_id" && typeof valore.valore === "string"
+          ? <NomeSede id={valore.valore} />
+          : testoValore(v.chiave, valore.valore, vedeCosti))
     : v.chiave === "cliente.customer_id" && piano.aree.cliente?.["cliente.nome"]
-      ? "da collegare: alla creazione lo cerco per nome, oppure sceglilo tu"
-      : "manca";
+      ? (clienteDaScegliere ? "non è nel gestionale: sceglilo o crealo" : "da collegare: alla creazione lo cerco per nome, oppure sceglilo tu")
+      // La testata dice già la fine lavori: «manca» sulla stessa schermata sarebbe falso.
+      : v.chiave === "fasi.work_end_date" && fineDalleFasi
+        ? `${dataBreve(fineDalleFasi)} (segue le fasi)`
+        : "manca";
 
   const apriDi = (f: Fonte) => apriFonte?.(f) ?? null;
 
@@ -669,6 +683,12 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
             <Button type="button" size="sm" variant="ghost" className="h-11 gap-1 lg:h-8" onClick={() => onVai(n.chiave)}>Vedi<ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
           </li>
         ))}
+        {d.nonTornano.map((n) => (
+          <li key={`t-${n.chiave}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
+            <p className="min-w-0 flex-1 basis-full text-red-800"><span aria-hidden>⚠ </span>{n.testo} <strong>{n.etichetta}</strong> resta fuori finché non torna.</p>
+            <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8" onClick={() => onApri(n.chiave)}>Sistema</Button>
+          </li>
+        ))}
         {d.domande.map((v) => (
           <li key={`q-${v.chiave}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
             <p className="min-w-0 flex-1 text-slate-800">Manca <strong>{minuscola(v.etichetta)}</strong>.</p>
@@ -738,11 +758,12 @@ export interface ColonnaCommessaProps {
   vedeCosti?: boolean;
   /** La fine che la commessa prende dalle fasi, se la proposta non si conferma. */
   fineDalleFasi?: string | null;
+  clienteDaScegliere?: boolean;
 }
 
 export function ColonnaCommessa({
   companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte, autonomia = null,
-  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null,
+  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null, clienteDaScegliere = false,
 }: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
     // Un importo che chi guarda non vede non si può nemmeno chiedere.
@@ -806,7 +827,7 @@ export function ColonnaCommessa({
               <RigaVariabile key={r.variabile.chiave} riga={r} companyId={companyId} piano={piano}
                 evidenziata={accese.has(r.variabile.chiave)} aperta={aperta === r.variabile.chiave}
                 onApri={onApri} onModifica={onModifica}
-                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} vedeImporti={vedeImporti} vedeCosti={vedeCosti} fineDalleFasi={fineDalleFasi} />
+                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} vedeImporti={vedeImporti} vedeCosti={vedeCosti} fineDalleFasi={fineDalleFasi} clienteDaScegliere={clienteDaScegliere} />
             ))}
           </ul>
           )}
