@@ -90,6 +90,12 @@ export default function RenderPlanimetriaScheda() {
     return conta;
   }, [renders]);
   const completati = renders.filter((r) => r.status === "completed" && r.result_urls?.[0]);
+  // la sezione delle unità c'è solo con due appartamenti o più (condomini, bifamiliari)
+  const piuUnita = useMemo(() => {
+    if (!documento) return false;
+    const sigle = new Set(documento.livelli.flatMap((l) => l.fatto.locali.map((x) => x.unita?.trim()).filter((u): u is string => !!u && !/comun|condominial|androne/i.test(u))));
+    return sigle.size >= 2;
+  }, [documento]);
 
   if (isLoading) {
     return (
@@ -219,11 +225,27 @@ export default function RenderPlanimetriaScheda() {
         />
       )}
 
-      <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} />
-
-      <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} sola={permessi.solaLettura} prezzi={permessi.canViewPreventivi} modificaPrezzi={permessi.canEditPreventivi} />
+      {/* Scorciatoie: la scheda è lunga, si salta a quello che serve */}
+      {stanze.length > 0 && (
+        <nav aria-label="Sezioni della scheda" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-sm [&>a]:shrink-0">
+          {([
+            livello.proposte.length > 0 && ["prima-e-dopo", "Prima e dopo"],
+            ["stanze", "Stanze e render"],
+            ["verifiche", "Verifiche"],
+            piuUnita && ["unita", "Unità e vendite"],
+            ["abachi", "Abachi"],
+            completati.length > 0 && ["render-fatti", "Render fatti"],
+          ].filter(Boolean) as Array<[string, string]>).map(([ancora, nome]) => (
+            <a key={ancora} href={`#${ancora}`} onClick={(e) => { e.preventDefault(); document.getElementById(ancora)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              className="rounded-full border bg-background px-3 py-1 text-muted-foreground transition-colors hover:border-purple-400 hover:text-foreground">
+              {nome}
+            </a>
+          ))}
+        </nav>
+      )}
 
       {livello.proposte.length > 0 && (
+        <div id="prima-e-dopo" className="scroll-mt-4">
         <PrimaEDopo
           key={`${livello.id}:${ambito}`}
           documento={documento}
@@ -237,9 +259,10 @@ export default function RenderPlanimetriaScheda() {
           prezzi={permessi.canViewPreventivi}
           creaPreventivo={permessi.canEditPreventivi && !permessi.solaLettura}
         />
+        </div>
       )}
 
-      <section className="space-y-3">
+      <section id="stanze" className="scroll-mt-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
             Stanze
@@ -293,10 +316,20 @@ export default function RenderPlanimetriaScheda() {
         )}
       </section>
 
-      <AbachiPianta documento={documento} livelloId={livello.id} ambito={ambito} titolo={data.riga.titolo} />
+      <div id="verifiche" className="scroll-mt-4">
+        <VerifichePianta documento={documento} titolo={data.riga.titolo} ambito={ambito} nomeStato={ambito === "fatto" ? "Com'è oggi" : ambiti.find((x) => x.chiave === ambito)?.nome ?? "Progetto"} />
+      </div>
+
+      <div id="unita" className="scroll-mt-4">
+        <UnitaEdificio documento={documento} titolo={data.riga.titolo} planimetriaId={id} versione={data.versione.numero} sola={permessi.solaLettura} prezzi={permessi.canViewPreventivi} modificaPrezzi={permessi.canEditPreventivi} />
+      </div>
+
+      <div id="abachi" className="scroll-mt-4">
+        <AbachiPianta documento={documento} livelloId={livello.id} ambito={ambito} titolo={data.riga.titolo} />
+      </div>
 
       {completati.length > 0 && (
-        <section className="space-y-3">
+        <section id="render-fatti" className="scroll-mt-4 space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
             Render di questa pianta
           </h2>

@@ -327,8 +327,16 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
             const misurabile = latiModificabili.has(l.id);
             const xs = interno.map((p) => p.x);
             const larghezzaPx = (Math.max(...xs) - Math.min(...xs)) * camera.s;
+            const ys = interno.map((p) => p.y);
+            const altezzaPx = (Math.max(...ys) - Math.min(...ys)) * camera.s;
             const nomeCiSta = larghezzaPx > Math.min(l.nome.length, 22) * 7.5 + 8;
-            const latiVisibili = !misureSoloSelezione || sel("locale", l.id);
+            const selezionata = sel("locale", l.id);
+            const latiVisibili = !misureSoloSelezione || selezionata;
+            // Nelle stanze piccole le misure dei lati coprirebbero nome e mq: si vedono quando la
+            // stanza è selezionata (o ingrandendo). Lati verticali: serve spazio ai lati del nome;
+            // orizzontali: sopra e sotto le due righe di nome e mq.
+            const spazioLatiVerticali = selezionata || larghezzaPx > (nomeCiSta ? Math.min(l.nome.length, 22) * 7.5 : 60) + 2 * (14 + 40) + 8;
+            const spazioLatiOrizzontali = selezionata || altezzaPx > 2 * (14 + 22) + 44;
             const coloreTesto = q.stimata ? STIMATA : "#0f172a";
             return (
               <g key={`m-${l.id}`}>
@@ -362,6 +370,8 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   const b = interno[(i + 1) % interno.length];
                   const lunghezza = q.lati[i];
                   if (lunghezza * camera.s < 46) return null;
+                  const verticale = Math.abs(b.y - a.y) > Math.abs(b.x - a.x);
+                  if (verticale ? !spazioLatiVerticali : !spazioLatiOrizzontali) return null;
                   const chiave = `lato:${l.id}:${i}`;
                   if (inModifica === chiave) return null;
                   // dentro la stanza, a 14 px dal muro

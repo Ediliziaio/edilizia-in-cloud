@@ -116,6 +116,20 @@ const SUGGERIMENTI: Record<Strumento, string> = {
   testo: "Clic dove vuoi la scritta, poi scrivila nel pannello a destra.",
 };
 
+/** Sul telefono: niente tastiera, niente clic e Maiusc; si tocca e si trascina col dito. */
+const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
+  seleziona: "Tocca una stanza, una parete o una porta: sotto compaiono le misure da correggere. Trascina una parete per spostarla.",
+  stanza: "Trascina col dito per disegnare la stanza, oppure usa «Scrivi le misure».",
+  parete: "Tocca l'inizio e poi la fine: la parete va dritta da sola.",
+  porta: "Tocca la parete dove va la porta. Toccala di nuovo per girarne il verso.",
+  finestra: "Tocca la parete dove va la finestra.",
+  poligono: "Tocca ogni angolo della stanza; tocca il primo punto per chiuderla.",
+  area: "Tocca ogni angolo dell'area; tocca il primo punto per chiuderla.",
+  arredo: "Tocca il foglio per posare l'arredo, poi trascinalo dove va.",
+  quota: "Tocca il primo punto e poi il secondo: la quota misura da sola.",
+  testo: "Tocca dove vuoi la scritta, poi scrivila qui sotto.",
+};
+
 export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
   const telefono = useIsMobile();
   // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
@@ -271,7 +285,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const xs = ps.map((p) => p.x);
     const ys = ps.map((p) => p.y);
     // margine: le porte aperte verso fuori sporgono dalla pianta
-    const margine = 40 + Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
+    // (sullo schermo stretto se ne tiene poco più di mezza: con tutta, la pianta restava piccola)
+    const quota = dimensioniRef.current.w < 600 ? 0.6 : 1;
+    const margine = 25 + quota * Math.max(0, ...stato.current.pianta.aperture.map((a) => a.larghezza));
     const minX = Math.min(...xs) - margine;
     const maxX = Math.max(...xs) + margine;
     const minY = Math.min(...ys) - margine;
@@ -1326,7 +1342,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </Button>
         )}
         {!sola && (
-          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Cosa vuoi fare">
+          <div className={cn("flex items-center gap-1", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
             <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
             <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
             <StanzaDaMisure
@@ -1374,7 +1390,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
           </div>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className={cn("flex items-center gap-2", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
           {!sola && (
             <SfondoDaRicalcare
               ricalco={ricalco}
@@ -1434,7 +1450,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             pianta={pianta}
             dati={dati}
             latiModificabili={latiModificabili}
-            misureSoloSelezione={sola}
+            misureSoloSelezione={sola || telefono}
             vista={vista}
             selezione={selezione}
             gruppo={gruppo}
@@ -1469,7 +1485,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-w-sm rounded-lg border bg-background/95 p-5 text-center shadow-sm">
                 <p className="font-semibold">Comincia dalla prima stanza</p>
-                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure scrivi le misure. Le altre stanze si attaccano da sole.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Disegnala trascinando sul foglio, oppure premi «Scrivi le misure» in alto e scrivi larghezza e lunghezza. Le altre stanze si attaccano da sole.</p>
                 <div className="mt-3 flex justify-center gap-2">
                   <Button size="sm" onClick={() => setStrumento("stanza")}>
                     <Square /> Disegna una stanza
@@ -1479,8 +1495,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             </div>
           )}
           {vuota && sola && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              La pianta è vuota. Tocca «Modifica» in alto per disegnarla anche da qui.
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+              <p>La pianta è vuota.</p>
+              {/* sul telefono si comincia con un tocco, senza cercare «Modifica» in alto */}
+              {telefono && soloVista === undefined && (
+                <Button size="sm" className="pointer-events-auto" onClick={() => { setModificaTelefono(true); setStrumento("stanza"); }}>
+                  <Square /> Disegna la prima stanza
+                </Button>
+              )}
             </div>
           )}
 
@@ -1535,7 +1557,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
       )}
 
-      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{SUGGERIMENTI[strumento]}</div>}
+      {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
   );
 }
@@ -1833,7 +1855,7 @@ function StrumentoEsterni({ attivo, tipo, onScegli }: { attivo: boolean; tipo: T
       <PopoverTrigger asChild>
         <Button size="sm" variant={attivo ? "default" : "outline"} aria-pressed={attivo} title="Lotto, prato, vialetti, ghiaia, parcheggio">
           <Trees />
-          <span className="hidden lg:inline">Esterni</span>
+          <span>Esterni</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">
