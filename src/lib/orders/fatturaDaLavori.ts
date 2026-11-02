@@ -6,7 +6,8 @@
  * `sal:<id>:…`). Così una bozza eliminata, una fattura annullata o stornata e una
  * riga corretta nell'editor contano subito per quello che sono, senza niente da
  * tenere allineato. Le fatture fatte prima, o con «Un importo», non sono divise
- * per fase: finiscono in `senzaDettaglio` e il popup lo dice.
+ * per fase, come quelle in archivio (`invoices`): finiscono in `senzaDettaglio` e il
+ * popup lo dice.
  *
  * Gli importi di fasi, voci e SAL sono SENZA IVA, come il valore della commessa.
  * Modulo puro: niente React, niente Supabase.
@@ -48,6 +49,39 @@ export interface Fatturato {
   senzaDettaglio: number;
   /** Tutto il fatturato sulla commessa (senza IVA). */
   totale: number;
+}
+
+/** Una fattura dell'archivio (importata o sincronizzata), riga di `invoices` senza gemello nei documenti. */
+export interface FatturaArchivio {
+  id: string;
+  document_type: string | null;
+  status: string | null;
+  subtotal: number | string | null;
+}
+
+/**
+ * Le fatture d'archivio non hanno righe per fase: valgono come fatturato senza
+ * dettaglio, le note di credito col segno meno. Annullate, stornate, bozze e
+ * proforma non sono fatturato. Quelle col gemello si tolgono prima: `invoices`
+ * rispecchia i documenti del gestionale con lo stesso id.
+ */
+export function documentiDaArchivio(fatture: ReadonlyArray<FatturaArchivio>, giaLetti: ReadonlySet<string>): DocumentoPerFatturato[] {
+  return fatture.flatMap((f): DocumentoPerFatturato[] => {
+    if (giaLetti.has(f.id) || !["invoice", "credit_note"].includes(f.document_type ?? "")) return [];
+    if (["cancelled", "credited", "draft"].includes(f.status ?? "")) return [];
+    const imponibile = Math.abs(numero(f.subtotal)) * (f.document_type === "credit_note" ? -1 : 1);
+    return [{ tipo: "fattura", stato: "emessa", righe: [{ id: `archivio:${f.id}`, imponibile }] }];
+  });
+}
+
+/** La rata ha già la sua fattura: rifarla sarebbe fatturarla due volte. */
+export function rataGiaFatturata(rata: { documento_fiscale_id?: string | null } | null | undefined): boolean {
+  return !!rata?.documento_fiscale_id;
+}
+
+/** La prima rata da proporre: non pagata e non ancora fatturata. */
+export function primaRataDaFatturare<T extends { is_paid: boolean; documento_fiscale_id?: string | null }>(rate: ReadonlyArray<T>): T | undefined {
+  return rate.find((r) => !r.is_paid && !rataGiaFatturata(r));
 }
 
 function imponibileRiga(r: Partial<RigaDocumento>): number {
