@@ -14,7 +14,7 @@ import type { ServiziSilvioCommessa } from "@/components/silvio-commessa/servizi
 import type { EsitoLettura } from "@/lib/silvio-commessa/leggiDocumento";
 import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 
-const permessi = { canViewOrderAmounts: true, canViewMargins: true };
+const permessi = { canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true };
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permessi }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
@@ -152,7 +152,7 @@ const pdf = () => new File(["x"], "Contratto.pdf", { type: "application/pdf" });
 // Aspettano il salvataggio vero, con la sua attesa: sotto carico i 5 secondi di serie non bastano.
 vi.setConfig({ testTimeout: 20_000 });
 
-beforeEach(() => { permessi.canViewOrderAmounts = true; permessi.canViewMargins = true; });
+beforeEach(() => { permessi.canViewOrderAmounts = true; permessi.canViewMargins = true; permessi.canViewCosts = true; });
 
 describe("P1: «Crea» non scrive una bozza vecchia", () => {
   it("se l'ultima modifica non si salva si ferma e lo dice", async () => {
@@ -171,6 +171,49 @@ describe("P1: «Crea» non scrive una bozza vecchia", () => {
 
 describe("P2: gli importi seguono «Importi di vendita»", () => {
   const conCosti = base({ fasi: FASI });
+  it("Controlla: chi entra in parte non è barrato, e la fine lavori segue le fasi", async () => {
+    const squadra = { "persone.squadra": { valore: [
+      { employee_id: "e0000000-0000-4000-a000-000000000001", nome: "Mario", fase: "Demolizioni", stato: "proposta" },
+      { employee_id: "e0000000-0000-4000-a000-000000000002", nome: "Luca", fase: "Demolizioni", stato: "attenzione", avviso: "è in ferie" },
+    ], fiducia: 1, stato: "fatto" as const } };
+    const { s } = servizi({}, [base({ fasi: { ...FASI, "fasi.work_end_date": { valore: "2030-03-01", fiducia: 0.7, stato: "proposta" as const } }, persone: squadra })]);
+    apri(s);
+    await pronto();
+    fireEvent.click(screen.getByRole("button", { name: /Controlla/ }));
+    const persone = await screen.findByRole("region", { name: "Persone" });
+    expect(within(persone).getByText(/entra in parte, resta fuori:.*Luca/)).toBeInTheDocument();
+    expect(within(persone).getByText(/Mario/).className).not.toMatch(/line-through/);
+    const fasi = screen.getByRole("region", { name: "Fasi e tempi" });
+    expect(within(fasi).getByText("9 gen 2030")).toBeInTheDocument();
+    expect(within(fasi).getByText(/segue le fasi: 1 mar 2030 entra solo se la confermi/)).toBeInTheDocument();
+    expect(within(fasi).queryByText(/resta fuori/)).toBeNull();
+  });
+
+  it("il margine con i costi parziali non è una percentuale: si dicono i costi e cosa manca", async () => {
+    const { s } = servizi({}, [conCosti]);
+    apri(s);
+    await pronto();
+    expect(screen.getByText("Costi inseriti")).toBeInTheDocument();
+    expect(screen.queryByText(/Margine previsto/)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/98\s*%/);
+  });
+
+  it("senza il permesso sui costi non si vedono i costi inseriti né la cifra di una ditta; la chat non li riceve", async () => {
+    permessi.canViewCosts = false;
+    const ditte = { "ditte.assegnate": { valore: [{ external_team_id: "t1", nome: "Edil Rossi", fase: "Demolizioni", costo_previsto: 7777, stato: "proposta" }], fiducia: 1, stato: "fatto" as const } };
+    const { s } = servizi({}, [base({ fasi: FASI, ditte })]);
+    apri(s);
+    await pronto();
+    expect(document.body.textContent).toMatch(/Edil Rossi/);
+    expect(document.body.textContent).not.toMatch(/7\.777/);
+    expect(screen.queryByText("Costi inseriti")).toBeNull();
+    await inChat("cambia il titolo");
+    await waitFor(() => expect(s.chat).toHaveBeenCalled());
+    const contesto = JSON.stringify((s.chat as ReturnType<typeof vi.fn>).mock.calls[0][0].contesto);
+    expect(contesto).not.toMatch(/7777|"costo":900/);
+    expect(contesto).toMatch(/Edil Rossi/);
+  });
+
   it("senza il permesso niente importo, margine, domanda sull'importo né contesto alla chat", async () => {
     permessi.canViewOrderAmounts = false;
     const { s } = servizi({}, [conCosti]);
@@ -188,6 +231,8 @@ describe("P2: gli importi seguono «Importi di vendita»", () => {
   });
 
   it("con il permesso si vedono importo e margine; senza quello sui margini, il margine no", async () => {
+    // Coi costi veri: 900 € su 48.500 € verrebbe 98 %, che si dice in un altro modo (vedi sotto).
+    const conCosti = base({ fasi: { ...FASI, "fasi.order_work_phases": { ...FASI["fasi.order_work_phases"], valore: [{ name: "Demolizioni", start_date: "2030-01-07", end_date: "2030-01-09", sottofasi: [{ name: "Tubi", quantita: 1, costo: 30000 }] }] } } });
     const { s } = servizi({}, [conCosti]);
     const { unmount } = apri(s);
     await pronto();

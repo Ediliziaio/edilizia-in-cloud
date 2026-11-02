@@ -19,7 +19,8 @@ export interface ProblemaQuadratura {
   testo: string;
 }
 
-const euro = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+// «4.190,00 €», non «4190,00 €»: in italiano le quattro cifre si raggruppano solo con "always".
+const euro = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" })} €`;
 const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const elenco = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? (v as Record<string, unknown>[]).filter((x) => x && typeof x === "object") : []);
 

@@ -60,7 +60,7 @@ import {
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
-import { euroAI, pianoProposto, riassuntoFrammento, senzaImporti, stimaLettura, testoValore } from "./presentazione";
+import { euroAI, pianoProposto, riassuntoFrammento, riservataPerProfilo, stimaLettura, testoValore, vistaPerLaChat } from "./presentazione";
 import type { ServiziSilvioCommessa } from "./servizi";
 
 export const LETTURE_INSIEME = 3;
@@ -77,15 +77,26 @@ export function pianoSenzaFonte(piano: PianoCommessa, fonti: readonly FonteLetta
   const sua = (x: Fonte) => fonti.some((f) => (f.id && x.id ? f.id === x.id : f.etichetta === x.etichetta));
   const aree: PianoCommessa["aree"] = {};
   let tolti = 0;
+  const svuotate = new Set<string>();
   for (const [area, valori] of Object.entries(piano.aree)) {
     aree[area as keyof PianoCommessa["aree"]] = Object.fromEntries(Object.entries(valori ?? {}).filter(([, v]) => {
       const via = !v.toccato && !giaNellaCommessa(piano, v) && !v.sopraCommessa && sua(v.fonte);
       if (via) tolti += 1;
       return !via;
+    }).map(([chiave, v]) => {
+      // Sotto una proposta della chat c'era il valore della fonte tolta: in vigore non resta niente,
+      // e «Toglilo» non deve rimetterlo.
+      const sotto = v.alPostoDi;
+      if (!sotto || sotto.toccato || giaNellaCommessa(piano, sotto) || sotto.sopraCommessa || !sua(sotto.fonte)) return [chiave, v];
+      tolti += 1;
+      svuotate.add(chiave);
+      return [chiave, { ...v, alPostoDi: null }];
     }));
   }
+  // Sopra una proposta della chat quello che resta va sotto: la proposta aspetta ancora il sì.
   const metti = (area: keyof PianoCommessa["aree"], chiave: string, v: Valore) => {
-    aree[area] = { ...(aree[area] ?? {}), [chiave]: v };
+    const sopra = aree[area]?.[chiave];
+    aree[area] = { ...(aree[area] ?? {}), [chiave]: sopra?.alPostoDi !== undefined ? { ...sopra, alPostoDi: v } : v };
   };
   const conflitti = piano.conflitti.flatMap((c) => {
     const restano = c.candidati.filter((x) => !sua(x.fonte));
@@ -100,7 +111,8 @@ export function pianoSenzaFonte(piano: PianoCommessa, fonti: readonly FonteLetta
   });
   const scartati = (piano.scartati ?? []).filter((s) => !sua(s.valore.fonte));
   const fuori = (piano.scartati ?? []).length ? scartati.filter((s) => {
-    if (aree[s.area]?.[s.chiave]) return true;
+    if (aree[s.area]?.[s.chiave] && !svuotate.has(s.chiave)) return true;
+    svuotate.delete(s.chiave);
     metti(s.area, s.chiave, s.valore);
     return false;
   }) : scartati;
@@ -461,9 +473,11 @@ export interface OpzioniBozza {
   attesaMs?: number;
   /** Il permesso «Importi di vendita»: senza, la chat non riceve gli importi. */
   vedeImporti?: boolean;
+  /** Il permesso sui costi: la chat non li riceve e non li dice. */
+  vedeCosti?: boolean;
 }
 
-export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, attesaMs = 800, vedeImporti = true }: OpzioniBozza) {
+export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, attesaMs = 800, vedeImporti = true, vedeCosti = true }: OpzioniBozza) {
   const [s, invia] = useReducer(riduttore, undefined, (): Stato => ({
     piano: pianoVuoto(companyId, orderId), storia: [], fonti: [], caricate: [], evidenziate: [], messaggi: [], versione: 0, base: [],
     daGuardare: [],
@@ -754,7 +768,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       }
       const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
       const risposta = await servizi.chat({
-        companyId, messaggio: t, contesto: pianoPerLaChat(vedeImporti ? ultimo.current.piano : senzaImporti(ultimo.current.piano), oggi),
+        companyId, messaggio: t, contesto: pianoPerLaChat(vistaPerLaChat(ultimo.current.piano, vedeImporti, vedeCosti), oggi),
         storia: precedenti.filter((m) => m.tono === "persona" || m.tono === "silvio").slice(-6)
           .map((m) => ({ ruolo: m.tono === "persona" ? "persona" as const : "silvio" as const, testo: m.testo })),
         richiestaId: `${idBozza ?? "nuova"}-${Date.now().toString(36)}-${inviate.current++}`,
@@ -762,7 +776,9 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       speso();
       setCostoChat((c) => c + risposta.costoEur);
       // Sulla bozza di adesso: nel frattempo può essere arrivata una lettura.
-      const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, testoValore, { autonomia });
+      const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, (c, x) => testoValore(c, x, vedeCosti), {
+        autonomia, riservata: (c) => riservataPerProfilo(c, vedeImporti, vedeCosti),
+      });
       const righe = esito.righe.length ? esito.righe : [risposta.testo || "Non ho capito cosa cambiare: prova a dirlo in un altro modo."];
       invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, esito.modifiche), dallaChat: { righe } });
       return true;
@@ -776,7 +792,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       inCorso.current = false;
       setScrivendo(false);
     }
-  }, [controllaCrediti, servizi, companyId, idBozza, autonomia, vedeImporti]);
+  }, [controllaCrediti, servizi, companyId, idBozza, autonomia, vedeImporti, vedeCosti]);
 
   /** Le variabili cambiate dalla chat che l'utente ha guardato. */
   const visto = useCallback((chiavi: string | string[]) => {

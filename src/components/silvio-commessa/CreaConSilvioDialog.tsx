@@ -49,7 +49,7 @@ import { ColonnaFonti } from "./ColonnaFonti";
 import { ColonnaChat } from "./ColonnaChat";
 import { ColonnaCommessa } from "./ColonnaCommessa";
 import {
-  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, fineLavori, importoNascosto, marginePrevisto,
+  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
   minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
 } from "./presentazione";
 import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
@@ -124,8 +124,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // «Importi di vendita» decide anche qui; il margine ha il suo permesso, e dagli importi si ricava.
-  const { canViewOrderAmounts: vedeImporti, canViewMargins } = usePermissions();
-  const b = useBozzaSilvio({ companyId, userId, servizi, orderId, vedeImporti });
+  const { canViewOrderAmounts: vedeImporti, canViewMargins, canViewCosts: vedeCosti } = usePermissions();
+  const b = useBozzaSilvio({ companyId, userId, servizi, orderId, vedeImporti, vedeCosti });
   // La chat è la scheda principale del telefono: lì Silvio dice cosa legge e cosa chiede.
   const [scheda, setScheda] = useState<Scheda>("chat");
   const [campoAttivo, setCampoAttivo] = useState(false);
@@ -191,14 +191,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const vuota = !completa && !b.fonti.length && !b.messaggi.length;
   const legge = b.fonti.some((f) => f.stato === "in_lettura" || f.stato === "in_coda");
   // Una domanda alla volta, e non mentre legge: la risposta può arrivare dal documento.
-  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti);
-  const margine = vedeImporti && canViewMargins ? marginePrevisto(b.piano) : null;
-  const fine = fineLavori(b.piano);
-  const costiParziali = useMemo(() => {
-    const fasi = b.piano.aree.fasi?.["fasi.order_work_phases"]?.valore;
-    return !b.piano.aree.costi?.["costi.previsti"] && Array.isArray(fasi)
-      && (fasi as { sottofasi?: { costo?: number }[] }[]).some((f) => !(f.sottofasi ?? []).some((x) => Number(x.costo) > 0));
-  }, [b.piano]);
+  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti, vedeCosti);
+  const margine = vedeImporti && canViewMargins ? margineDaMostrare(b.piano) : null;
+  const fine = fineLavori(b.piano, b.scrittura);
   const inAttesa = b.fonti.filter((f) => f.stato === "da_confermare").map((f) => f.etichetta);
   const nonLetti = b.fonti.filter((f) => f.stato === "errore" || f.stato === "da_collegare").map((f) => f.etichetta);
   const motivi = [
@@ -209,11 +204,11 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   ];
   const ultimo = b.messaggi[b.messaggi.length - 1];
   const daDecidere = useMemo(() => {
-    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, contesto: b.contesto });
+    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto });
     return vuota ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
-  }, [b.piano, b.scrittura, completezza, vuota, vedeImporti, b.contesto]);
+  }, [b.piano, b.scrittura, completezza, vuota, vedeImporti, vedeCosti, b.contesto]);
   const suggerimenti = useMemo(() => suggerimentiChat(b.piano, completezza), [b.piano, completezza]);
-  const mancano = useMemo(() => completezza.mancano.filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti)).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti]);
+  const mancano = useMemo(() => completezza.mancano.filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti)).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti, vedeCosti]);
   const scrive = cosaScriveCrea(b.scrittura);
 
   const apri = (chiave: string | null) => {
@@ -424,11 +419,17 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   : `${completezza.punteggio} %`}
               </dd>
             </div>
-            {margine && (
-              // Coi costi di una fase sola il margine viene 98 %: si dice che è parziale.
-              <div className="flex gap-1 max-sm:hidden" title={costiParziali ? "Calcolato sui costi che Silvio conosce: non tutte le fasi hanno un costo." : undefined}>
-                <dt>{costiParziali ? "Margine (costi parziali)" : "Margine previsto"}</dt>
+            {margine && margine.parziale === false && (
+              <div className="flex gap-1 max-sm:hidden">
+                <dt>Margine previsto</dt>
                 <dd className="font-semibold text-slate-900">{euro(margine.euro)} ({margine.percento} %)</dd>
+              </div>
+            )}
+            {/* Coi costi di una fase sola il margine verrebbe 98 %: finché sono parziali non è un risultato. */}
+            {margine?.parziale && vedeCosti && (
+              <div className="flex gap-1 max-sm:hidden" title="Il margine si calcola quando ci sono tutti i costi.">
+                <dt>Costi inseriti</dt>
+                <dd><span className="font-semibold text-slate-900">{euro(margine.costi)}</span> ({margine.mancano})</dd>
               </div>
             )}
             {fine && <div className="flex gap-1 max-sm:hidden"><dt>Fine lavori</dt><dd className="font-semibold text-slate-900">{dataBreve(fine)}</dd></div>}
@@ -525,15 +526,16 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </Button>
                 <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? "Cosa si aggiunge" : "Cosa nascerà"}</h3>
               </div>
-              {elencoControlla(b.piano, b.scrittura, vedeImporti).map((g) => (
+              {elencoControlla(b.piano, b.scrittura, vedeImporti, vedeCosti).map((g) => (
                 <section key={g.area} className="rounded-xl border bg-white p-3 shadow-sm" aria-label={NOMI_AREE[g.area]}>
                   <h4 className="text-sm font-semibold text-slate-900">{NOMI_AREE[g.area]}</h4>
                   <ul className="mt-1 divide-y divide-slate-100">
                     {g.voci.map((v) => (
                       <li key={v.chiave} className="flex flex-wrap items-baseline gap-x-3 py-1.5 text-sm">
                         <span className="w-full text-xs text-slate-500 sm:w-44 sm:shrink-0">{v.etichetta}</span>
-                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori ? "text-slate-400 line-through" : "text-slate-900")}>{v.testo}</span>
-                        {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">resta fuori: {v.fuori}</span>}
+                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori && !v.parziale ? "text-slate-400 line-through" : "text-slate-900")}>{v.testo}</span>
+                        {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">{v.parziale ? "entra in parte, resta fuori" : "resta fuori"}: {v.fuori}</span>}
+                        {v.nota && <span className="w-full text-xs text-slate-500 sm:w-auto">{v.nota}</span>}
                       </li>
                     ))}
                   </ul>
@@ -571,7 +573,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <ColonnaCommessa companyId={companyId} piano={b.piano} completezza={completezza} evidenziate={b.evidenziate}
                 aperta={aperta} onApri={apri} onModifica={modifica}
                 daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
-                daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} vedeImporti={vedeImporti} />
+                daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti}
+                fineDalleFasi={dateDalleFasi(b.scrittura).fine} />
             </section>
           </div>
         )}

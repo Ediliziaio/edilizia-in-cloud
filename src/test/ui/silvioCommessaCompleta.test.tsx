@@ -15,7 +15,7 @@ import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 import type { CommessaDaCompletare } from "@/lib/silvio-commessa/daCompletare";
 import { frammentiPerCompletare } from "@/lib/silvio-commessa/lettori/commessa";
 
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrderAmounts: true, canViewMargins: true }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true }) }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({

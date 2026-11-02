@@ -228,6 +228,12 @@ export interface OpzioniChat {
   /** AAAA-MM-GG a Roma; di serie, oggi. */
   oggi?: string;
   autonomia?: Autonomia | null;
+  /**
+   * Quello che chi scrive non può vedere (permessi su importi e costi). Il modello non lo riceve,
+   * ma gli strumenti girano sulla bozza vera, e la loro risposta non deve dirlo: «tutta» è una
+   * variabile che non si vede; «cifre» è un elenco che si vede senza le cifre.
+   */
+  riservata?: (chiave: string) => "tutta" | "cifre" | null;
 }
 
 /**
@@ -401,6 +407,9 @@ export function eseguiStrumento(
     case "cambia_valore": {
       const v = areaDi(a.chiave);
       if (!v) return rifiuto(`Non so cosa sia «${String(a.chiave ?? "")}» nella commessa.`);
+      const riservata = opzioni.riservata?.(v.chiave);
+      if (riservata === "tutta") return rifiuto(`«${v.etichetta}» non è visibile col tuo profilo: la cambia chi la vede.`);
+      if (riservata) return rifiuto(`«${v.etichetta}» contiene importi che il tuo profilo non vede: da qui si può togliere o spostare, non riscrivere.`);
       const azione = azioneDellaVariabile(v.chiave);
       if (azione && livelloDi(opzioni.autonomia, azione.azione) === "vietata") {
         return rifiuto(`«${v.etichetta}»: nelle impostazioni Silvio non lo fa. Si fa dalla pagina della commessa.`);
@@ -479,6 +488,7 @@ export function eseguiStrumento(
     case "togli": {
       const v = areaDi(a.chiave);
       if (!v) return rifiuto(`Non so cosa sia «${String(a.chiave ?? "")}» nella commessa.`);
+      if (opzioni.riservata?.(v.chiave) === "tutta") return rifiuto(`«${v.etichetta}» non è visibile col tuo profilo: la cambia chi la vede.`);
       const attuale = piano.aree[v.area]?.[v.chiave];
       if (!attuale || attuale.valore == null) return rifiuto(`«${v.etichetta}» non c'è già.`);
       if (typeof a.elemento === "string" && a.elemento.trim()) {
@@ -518,22 +528,25 @@ export function eseguiStrumento(
           : undefined;
       if (!scelto) return rifiuto(`Su «${v.etichetta}» ci sono più fonti di quel tipo. ${quale(delTipo.map((c) => c.fonte.etichetta))}`);
       return conBlocco([{ tipo: "scegli_fonte", area: v.area, chiave: v.chiave, fonte: scelto.fonte.tipo, idFonte: scelto.fonte.id ?? null, etichettaFonte: scelto.fonte.etichetta }],
-        `Per «${v.etichetta}» tengo ${formatta(v.chiave, scelto.valore)}, dal ${scelto.fonte.etichetta}.`);
+        opzioni.riservata?.(v.chiave) === "tutta"
+          ? `Per «${v.etichetta}» tengo quello del ${scelto.fonte.etichetta}.`
+          : `Per «${v.etichetta}» tengo ${formatta(v.chiave, scelto.valore)}, dal ${scelto.fonte.etichetta}.`);
     }
 
     case "spiega": {
       const v = areaDi(a.chiave);
       if (!v) return rifiuto(`Non so cosa sia «${String(a.chiave ?? "")}» nella commessa.`);
       const conflitto = piano.conflitti.find((c) => c.chiave === v.chiave);
+      const riservata = opzioni.riservata?.(v.chiave) ?? null;
+      // Il testo citato da un documento può dire la cifra: a chi non la vede si dice solo la fonte.
+      const provenienza = (x: Valore) => (riservata ? `${x.fonte.etichetta}${x.fonte.dove ? `, ${x.fonte.dove}` : ""}` : daDove(x));
       if (conflitto) {
-        return {
-          tipo: "spiegazione",
-          testo: `Su «${v.etichetta}» le fonti non sono d'accordo: ${conflitto.candidati.map((c) => `${formatta(v.chiave, c.valore)} dal ${daDove(c)}`).join("; ")}.`,
-        };
+        const dette = conflitto.candidati.map((c) => (riservata === "tutta" ? `il ${provenienza(c)}` : `${formatta(v.chiave, c.valore)} dal ${provenienza(c)}`));
+        return { tipo: "spiegazione", testo: `Su «${v.etichetta}» le fonti non sono d'accordo: ${dette.join("; ")}.` };
       }
       const x = piano.aree[v.area]?.[v.chiave];
       if (!x || x.valore == null) return { tipo: "spiegazione", testo: `«${v.etichetta}» non c'è ancora: nessuna fonte lo dice.` };
-      return { tipo: "spiegazione", testo: `«${v.etichetta}» viene dal ${daDove(x)}.` };
+      return { tipo: "spiegazione", testo: `«${v.etichetta}» viene dal ${provenienza(x)}.` };
     }
   }
 }

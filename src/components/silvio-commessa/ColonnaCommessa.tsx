@@ -45,7 +45,7 @@ import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
   comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoConferma, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea, accettaProposte, minuscola, type DaDecidere, alternativePersona, sostituisciPersona,
-  importoNascosto, importoRata, TESTO_IMPORTO_NASCOSTO,
+  importoNascosto, importoRata, parlaDiCosti, TESTO_IMPORTO_NASCOSTO,
 } from "./presentazione";
 
 const COLORI_STATO: Record<Stato, string> = {
@@ -305,26 +305,26 @@ interface ElementoRisorsa {
   righe?: unknown[];
 }
 
-function rigaRisorsa(chiave: string, x: ElementoRisorsa): { titolo: string; dettaglio: string } {
+function rigaRisorsa(chiave: string, x: ElementoRisorsa, vedeCosti: boolean): { titolo: string; dettaglio: string } {
   const periodo = x.dal ? `${dataBreve(x.dal, false)}${x.al && x.al !== x.dal ? ` → ${dataBreve(x.al, false)}` : ""}` : "";
   switch (chiave) {
     case "persone.squadra": return { titolo: x.nome ?? "Persona", dettaglio: [x.fase, periodo].filter(Boolean).join(" · ") };
-    case "ditte.assegnate": return { titolo: x.nome ?? "Ditta", dettaglio: [x.fase, x.costo_previsto ? euro(x.costo_previsto) : ""].filter(Boolean).join(" · ") };
+    case "ditte.assegnate": return { titolo: x.nome ?? "Ditta", dettaglio: [x.fase, vedeCosti && x.costo_previsto ? euro(x.costo_previsto) : ""].filter(Boolean).join(" · ") };
     case "mezzi.allocazioni": return { titolo: x.nome ?? "Mezzo", dettaglio: [(x.fasi ?? []).join(", "), periodo].filter(Boolean).join(" · ") };
     case "materiali.acquisti": return {
       titolo: x.fornitore ?? "Fornitore",
       dettaglio: [x.fase, `${x.righe?.length ?? 0} voci`, x.data_ordine ? `ordinare entro ${dataBreve(x.data_ordine, false)}` : ""].filter(Boolean).join(" · "),
     };
-    default: return { titolo: x.nome ?? "Contratto", dettaglio: [(x.fasi ?? []).join(", "), x.importo ? euro(x.importo) : "", periodo].filter(Boolean).join(" · ") };
+    default: return { titolo: x.nome ?? "Contratto", dettaglio: [(x.fasi ?? []).join(", "), vedeCosti && x.importo ? euro(x.importo) : "", periodo].filter(Boolean).join(" · ") };
   }
 }
 
-function Dettaglio({ chiave, valore, onTogli }: { chiave: string; valore: unknown; onTogli?: (indice: number) => void }) {
+function Dettaglio({ chiave, valore, onTogli, vedeCosti }: { chiave: string; valore: unknown; onTogli?: (indice: number) => void; vedeCosti: boolean }) {
   if (ELENCHI_RISORSE.has(chiave) && Array.isArray(valore)) {
     return (
       <ul className="mt-1 space-y-1 text-xs lg:text-[11px]">
         {(valore as ElementoRisorsa[]).map((x, i) => {
-          const r = rigaRisorsa(chiave, x);
+          const r = rigaRisorsa(chiave, x, vedeCosti);
           const ko = x.stato === "attenzione";
           return (
             <li key={i} data-stato={ko ? "attenzione" : "proposta"} className={cn("rounded-md px-1.5 py-1", ko && "bg-red-50")}>
@@ -438,17 +438,23 @@ interface RigaProps {
   autonomia?: Autonomia | null;
   /** Il permesso «Importi di vendita». */
   vedeImporti?: boolean;
+  /** Il permesso sui costi. */
+  vedeCosti?: boolean;
+  /** La fine che la commessa prende dalle fasi, se la proposta non si conferma. */
+  fineDalleFasi?: string | null;
 }
 
 /** La nota che si legge sulla riga anche a valore confermato: l'inizio spostato su un giorno utile, le rate che aspettano (G3, G9, G20). */
 const NOTE_SEMPRE_IN_VISTA: ReadonlySet<string> = new Set(["fasi.work_start_date", "pagamenti.rate"]);
 
-function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null, vedeImporti = true }: RigaProps) {
+function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, onModifica, daGuardare, onVisto, apriFonte, autonomia = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null }: RigaProps) {
   const { variabile: v, valore, conflitto, stato } = riga;
   const [info, setInfo] = useState(false);
   const rif = useRef<HTMLLIElement>(null);
   const bloccata = giaNellaCommessa(piano, valore);
-  const nascosto = importoNascosto(v.chiave, vedeImporti);
+  const nascosto = importoNascosto(v.chiave, vedeImporti, vedeCosti);
+  // Un elenco con le cifre si vede senza: nota e testo citato di un'offerta possono dirle.
+  const senzaFonte = nascosto || parlaDiCosti(v.chiave, vedeCosti);
   const modo = bloccata || nascosto ? "no" : comeSiModifica(v);
   const idInfo = useId();
   useEffect(() => {
@@ -463,7 +469,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
       ? <NomeCliente companyId={companyId} id={valore.valore} />
       : (v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to") && typeof valore.valore === "string"
         ? <NomeStaff companyId={companyId} id={valore.valore} />
-        : testoValore(v.chiave, valore.valore))
+        : testoValore(v.chiave, valore.valore, vedeCosti))
     : v.chiave === "cliente.customer_id" && piano.aree.cliente?.["cliente.nome"]
       ? "da collegare: alla creazione lo cerco per nome, oppure sceglilo tu"
       : "manca";
@@ -495,15 +501,15 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
           </p>
           <p className={cn("break-words text-sm lg:text-[13px]", stato === "manca" ? "italic text-slate-500" : "font-medium text-slate-900")}>{testo}</p>
           {valore && stato !== "manca" && !aperta && !nascosto && (
-            <Dettaglio chiave={v.chiave} valore={valore.valore}
+            <Dettaglio chiave={v.chiave} valore={valore.valore} vedeCosti={vedeCosti}
               onTogli={bloccata ? undefined : (indice) => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice })} />
           )}
-          {valore?.nota && NOTE_SEMPRE_IN_VISTA.has(v.chiave) && !nascosto && !aperta && !daConfermare(riga, autonomia) && (
+          {valore?.nota && NOTE_SEMPRE_IN_VISTA.has(v.chiave) && !senzaFonte && !aperta && !daConfermare(riga, autonomia) && (
             <p className="mt-0.5 text-xs lg:text-[11px] font-medium text-amber-800">⚠ {valore.nota}</p>
           )}
         </div>
         <div className="flex shrink-0 items-center">
-          {valore && stato !== "manca" && !nascosto && (
+          {valore && stato !== "manca" && !senzaFonte && (
             <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
               aria-expanded={info} aria-controls={idInfo} aria-label={`Da dove viene «${v.etichetta}»`} onClick={() => setInfo(!info)}>
               <Info className="h-4 w-4" />
@@ -521,14 +527,14 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 
       {conflitto && (
         <div className="mt-2 space-y-2" role="group" aria-label={`Scegli quale «${v.etichetta}» tenere`}>
-          {conflitto.nota && !nascosto && <p className="text-xs lg:text-[11px] font-medium text-amber-800">{conflitto.nota}</p>}
+          {conflitto.nota && !senzaFonte && <p className="text-xs lg:text-[11px] font-medium text-amber-800">{conflitto.nota}</p>}
           {conflitto.candidati.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-red-200 bg-white p-2">
               <div className="min-w-0 flex-1">
-                {!nascosto && <p className="text-sm lg:text-[13px] font-semibold text-slate-900">{testoValore(v.chiave, c.valore)}</p>}
+                {!nascosto && <p className="text-sm lg:text-[13px] font-semibold text-slate-900">{testoValore(v.chiave, c.valore, vedeCosti)}</p>}
                 <p className="text-xs lg:text-[11px] text-slate-500">{c.fonte.etichetta}{c.fonte.dove ? `, ${c.fonte.dove}` : ""}</p>
-                {c.fonte.citazione && !nascosto && <p className="text-xs lg:text-[11px] italic text-slate-500">«{c.fonte.citazione}»</p>}
-                {apriDi(c.fonte) && !nascosto && (
+                {c.fonte.citazione && !senzaFonte && <p className="text-xs lg:text-[11px] italic text-slate-500">«{c.fonte.citazione}»</p>}
+                {apriDi(c.fonte) && !senzaFonte && (
                   <button type="button" className="mt-0.5 inline-flex min-h-11 items-center gap-1 text-xs lg:min-h-0 lg:text-[11px] font-medium text-orange-700 underline-offset-2 hover:underline"
                     onClick={() => apriDi(c.fonte)?.()}>
                     <FileSearch className="h-3 w-3" aria-hidden />
@@ -553,7 +559,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 
       {daConfermare(riga, autonomia) && !aperta && !nascosto && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5">
-          <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{testoConferma(riga, autonomia)}</p>
+          <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{testoConferma(riga, autonomia, { fineDalleFasi, vedeCosti })}</p>
           <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8"
             onClick={() => onModifica({ tipo: "cambia_valore", area: v.area, chiave: v.chiave, valore: valore!.valore })}>
             Va bene
@@ -614,9 +620,9 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 // ── Da decidere ─────────────────────────────────────────────────────────────
 
 /** In cima alla colonna: quello che aspetta la persona, con l'azione accanto. Prima le cose che fermano «Crea». */
-function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeImporti }: {
+function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeImporti, vedeCosti }: {
   d: DaDecidere; piano: PianoCommessa; onModifica: (m: Modifica | Modifica[]) => void;
-  onApri: (chiave: string) => void; onVai: (chiave: string) => void; contesto: ContestoRisorse | null; vedeImporti: boolean;
+  onApri: (chiave: string) => void; onVai: (chiave: string) => void; contesto: ContestoRisorse | null; vedeImporti: boolean; vedeCosti: boolean;
 }) {
   const [tuttiAvvisi, setTuttiAvvisi] = useState(false);
   if (!d.totale && !d.avvisi.length) return null;
@@ -631,18 +637,18 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
       <ul className="mt-2 space-y-1.5">
         {d.conflitti.map((c) => {
           const v = REGISTRO_ETICHETTA(c.chiave);
-          const nascosto = importoNascosto(c.chiave, vedeImporti);
+          const nascosto = importoNascosto(c.chiave, vedeImporti, vedeCosti);
           return (
             <li key={`c-${c.chiave}`} className="rounded-lg bg-white px-2.5 py-2 text-sm lg:text-[13px]">
               <p className="text-slate-800"><strong>{v}</strong>: i documenti non sono d'accordo. Quale tengo?</p>
-              {c.nota && !nascosto && <p className="mt-1 text-xs lg:text-[11px] font-medium text-amber-800">{c.nota}</p>}
+              {c.nota && !nascosto && !parlaDiCosti(c.chiave, vedeCosti) && <p className="mt-1 text-xs lg:text-[11px] font-medium text-amber-800">{c.nota}</p>}
               <div className="mt-2 flex flex-wrap gap-2">
                 {c.candidati.map((x, i) => (
                   <Button key={i} type="button" size="sm" variant="outline" className="h-auto min-h-11 whitespace-normal text-left lg:min-h-8"
                     onClick={() => onModifica({ tipo: "scegli_fonte", area: c.area, chiave: c.chiave, fonte: x.fonte.tipo, idFonte: x.fonte.id ?? null })}>
                     {nascosto
                       ? <span>{x.fonte.etichetta}</span>
-                      : <span><strong>{testoValore(c.chiave, x.valore)}</strong> <span className="font-normal text-slate-500">· {x.fonte.etichetta}</span></span>}
+                      : <span><strong>{testoValore(c.chiave, x.valore, vedeCosti)}</strong> <span className="font-normal text-slate-500">· {x.fonte.etichetta}</span></span>}
                   </Button>
                 ))}
               </div>
@@ -728,19 +734,23 @@ export interface ColonnaCommessaProps {
   contesto?: ContestoRisorse | null;
   /** Il permesso «Importi di vendita»: senza, gli importi non si vedono e non si cambiano. */
   vedeImporti?: boolean;
+  /** Il permesso sui costi: senza, costi previsti e cifre delle ditte non si vedono. */
+  vedeCosti?: boolean;
+  /** La fine che la commessa prende dalle fasi, se la proposta non si conferma. */
+  fineDalleFasi?: string | null;
 }
 
 export function ColonnaCommessa({
   companyId, piano, completezza, evidenziate, aperta, onApri, onModifica, daGuardare = [], onVisto, apriFonte, autonomia = null,
-  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true,
+  daDecidere = null, onVai, vuota = false, contesto = null, vedeImporti = true, vedeCosti = true, fineDalleFasi = null,
 }: ColonnaCommessaProps) {
   const aree = useMemo(() => AREE.map((area) => {
     // Un importo che chi guarda non vede non si può nemmeno chiedere.
-    const righe = righeDellArea(piano, area, completezza).filter((r) => r.stato !== "manca" || !importoNascosto(r.variabile.chiave, vedeImporti));
+    const righe = righeDellArea(piano, area, completezza).filter((r) => r.stato !== "manca" || !importoNascosto(r.variabile.chiave, vedeImporti, vedeCosti));
     // In «Completa» un'area che la commessa ha già tutta si raccoglie in una riga: si guarda quello che manca.
     const chiusa = righe.length > 0 && righe.every((r) => giaNellaCommessa(piano, r.valore)) && !righe.some((r) => daGuardare.includes(r.variabile.chiave));
     return { area, righe, stato: statoArea(righe), chiusa };
-  }), [piano, completezza, daGuardare, vedeImporti]);
+  }), [piano, completezza, daGuardare, vedeImporti, vedeCosti]);
   const accese = new Set(evidenziate);
   const segnate = new Set(daGuardare);
   const vuote = aree.filter((a) => !a.righe.length);
@@ -757,7 +767,7 @@ export function ColonnaCommessa({
   return (
     <div className="space-y-2">
       {daDecidere && (
-        <DaDecidereInCima d={daDecidere} piano={piano} onModifica={onModifica} contesto={contesto} vedeImporti={vedeImporti} onApri={(c) => onApri(c)} onVai={(c) => (onVai ?? onApri)(c)} />
+        <DaDecidereInCima d={daDecidere} piano={piano} onModifica={onModifica} contesto={contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti} onApri={(c) => onApri(c)} onVai={(c) => (onVai ?? onApri)(c)} />
       )}
       {aree.filter((a) => a.righe.length).map(({ area, righe, stato, chiusa }) => chiusa && !mostrate.has(area) ? (
         <section key={area} aria-label={NOMI_AREE[area as Area]} className="flex items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-sm lg:text-[13px] shadow-sm">
@@ -796,7 +806,7 @@ export function ColonnaCommessa({
               <RigaVariabile key={r.variabile.chiave} riga={r} companyId={companyId} piano={piano}
                 evidenziata={accese.has(r.variabile.chiave)} aperta={aperta === r.variabile.chiave}
                 onApri={onApri} onModifica={onModifica}
-                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} vedeImporti={vedeImporti} />
+                daGuardare={segnate.has(r.variabile.chiave)} onVisto={onVisto} apriFonte={apriFonte} autonomia={autonomia} vedeImporti={vedeImporti} vedeCosti={vedeCosti} fineDalleFasi={fineDalleFasi} />
             ))}
           </ul>
           )}

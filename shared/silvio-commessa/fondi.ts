@@ -253,7 +253,7 @@ const conAvviso = (piano: PianoCommessa, testo: string): PianoCommessa =>
   ((piano.avvisi ?? []).includes(testo) ? piano : { ...piano, avvisi: [...(piano.avvisi ?? []), testo] });
 
 const inParole = (v: unknown): string => {
-  if (typeof v === "number") return v.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  if (typeof v === "number") return v.toLocaleString("it-IT", { maximumFractionDigits: 2, useGrouping: "always" });
   const o = oggettoDi(v);
   return o ? pieneDi(o).map(([, x]) => String(x)).join(", ") : String(v);
 };
@@ -377,7 +377,7 @@ function conNotaImponibile(piano: PianoCommessa): PianoCommessa {
   const importi = conflitto.candidati.map((c) => c.valore).filter((v): v is number => typeof v === "number");
   const netto = importi.find((a) => importi.some((b) => Math.abs(a * (1 + iva / 100) - b) <= 1));
   if (netto == null) return piano;
-  const nota = `${inParole(Math.round(netto * (1 + iva / 100) * 100) / 100)} € è ${inParole(netto)} € più l'IVA al ${iva} %: sembra lo stesso importo. Nella commessa va quello senza IVA, ${inParole(netto)} €, se è così.`;
+  const nota = `${inParole(Math.round(netto * (1 + iva / 100) * 100) / 100)} € è ${inParole(netto)} € più l'IVA al ${inParole(iva)} %: sembra lo stesso importo. Nella commessa va quello senza IVA, ${inParole(netto)} €, se è così.`;
   if (conflitto.nota === nota) return piano;
   const mostrato = piano.aree.economia?.["economia.total_amount"];
   const conN = mostrato && mostrato.alPostoDi === undefined ? conValore(piano, "economia", "economia.total_amount", { ...mostrato, nota }) : piano;

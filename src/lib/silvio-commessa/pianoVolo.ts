@@ -83,7 +83,7 @@ export function azioneInParole(a: AzioneVolo): string {
     case "sal_bozza": {
       const importo = a.importo as number | null;
       return typeof importo === "number"
-        ? `SAL n. ${a.numero} in bozza, ${importo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}`
+        ? `SAL n. ${a.numero} in bozza, ${importo.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" })}`
         : `SAL n. ${a.numero} in bozza (l'importo lo vede chi ha «Importi di vendita»)`;
     }
   }

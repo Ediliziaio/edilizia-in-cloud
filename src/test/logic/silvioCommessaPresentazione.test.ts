@@ -85,7 +85,7 @@ describe("Controlla, per chi non vede gli importi (visto a schermo il 2/11)", ()
       companyId: "az", conflitti: [], fonti: [],
       aree: { pagamenti: { "pagamenti.rate": { valore: [{ label: "Acconto", type: "deposit", amount: 48500 }], fiducia: 1, stato: "attenzione", fonte: { tipo: "preventivo", etichetta: "preventivo" } } } },
     } as unknown as Parameters<typeof elencoControlla>[0];
-    const scrittura = { escluse: [{ chiave: "pagamenti.rate", etichetta: "Rate", motivo }] } as unknown as Parameters<typeof elencoControlla>[1];
+    const scrittura = { escluse: [{ chiave: "pagamenti.rate", etichetta: "Rate", motivo }], fasi: [], date_fasi: [], ordine: {} } as unknown as Parameters<typeof elencoControlla>[1];
     const voce = (vede: boolean) => elencoControlla(piano, scrittura, vede).flatMap((g) => g.voci).find((v) => v.chiave === "pagamenti.rate")!;
     expect(voce(true).fuori).toBe(motivo);
     expect(voce(false).fuori).not.toMatch(/\d/);

@@ -173,7 +173,8 @@ export function frammentoDaFileComputo(
   const avvisi = [...esito.avvisi];
   if (esito.scostamenti.length) avvisi.push(`${esito.scostamenti.length} voci con la quantità ricalcolata diversa dal documento`);
   if (esito.totaleDocumento != null && Math.abs(esito.totaleDocumento - esito.totaleRicalcolato) >= 0.01) {
-    avvisi.push(`il totale del documento (${esito.totaleDocumento.toFixed(2)} €) non torna col ricalcolo (${esito.totaleRicalcolato.toFixed(2)} €)`);
+    const euro = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" })} €`;
+    avvisi.push(`il totale del documento (${euro(esito.totaleDocumento)}) non torna col ricalcolo (${euro(esito.totaleRicalcolato)})`);
   }
   return { ...fr, avvisi: [...(fr.avvisi ?? []), ...avvisi] };
 }

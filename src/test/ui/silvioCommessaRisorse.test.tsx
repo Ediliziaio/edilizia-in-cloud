@@ -15,7 +15,7 @@ import type { EsitoLettura } from "@/lib/silvio-commessa/leggiDocumento";
 import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 
 const CAPO = "c0000000-0000-4000-a000-0000000000c1";
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrderAmounts: true, canViewMargins: true }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true }) }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({
   useCompanyStaffUsers: () => ({ data: [{ id: "c0000000-0000-4000-a000-0000000000c1", first_name: "Carlo", last_name: "Capo", email: null as string | null }] }),
 }));
