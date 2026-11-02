@@ -183,3 +183,85 @@ Le 27 righe del loro scadenzario, così:
 
 «La Cafferia» e «Ufficio» diventano due sedi in Impostazioni → Sedi, e i documenti
 si agganciano lì.
+
+---
+
+# Seconda parte — scritta il 02/11/2026, dopo il primo collaudo
+
+Le fasi 1 e 2 sono fatte e provate sui dati veri di Impresa Vulcano. Il collaudo ha
+mostrato una cosa sola, ma grossa: **ventitré scadenze dentro e zero file allegati**.
+La pagina ricorda, ma l'archivio resta vuoto. Da lì nasce l'ordine di questa seconda
+parte: prima si riempie, poi si collega, poi si esporta.
+
+## 5. Caricare i file in blocco
+
+**Il problema.** Allegare un PDF ora costa: apri la riga, scegli il file. Venti
+documenti sono venti giri. Chi ha l'archivio su una cartella del server non lo
+travasa mai.
+
+**Come.** Si trascina una cartella di PDF sulla pagina. Per ogni file si cerca il
+documento che gli somiglia di più per nome (confronto sul titolo e sul numero, senza
+accenti né punteggiatura) e si mostra l'abbinamento proposto: `durc_ottobre.pdf →
+DURC`. Quelli che non trovano casa restano in fondo con un menu a tendina per
+sceglierli a mano, oppure «crea un documento nuovo con questo nome». Si conferma una
+volta sola e partono tutti, con una barra che dice a che punto è.
+
+**Non fa.** Non indovina senza mostrare: nessun file si attacca da solo a un documento
+senza che qualcuno abbia visto l'abbinamento. Un file attaccato alla carta sbagliata è
+peggio di un file non attaccato.
+
+## 6. La scadenza letta dal PDF
+
+**Il problema.** Anche con i file dentro, le date le batte a mano qualcuno.
+
+**Come.** Lo stesso meccanismo del lettore di bolle (`ai-ddt-analyzer`): il PDF va al
+modello, che risponde con tipo di documento, ente, numero e scadenza. La data **si
+propone**, non si scrive: il campo si riempie evidenziato e chi carica conferma.
+Insieme al punto 5: trascini venti PDF, confermi venti date, non hai digitato niente.
+
+**Non fa.** Non tocca una data già scritta da una persona, e se non è sicura lascia il
+campo vuoto invece di inventare. Una scadenza sbagliata su un DURC è peggio di una
+scadenza mancante: una la vedi rossa, l'altra ti fa credere di essere a posto.
+
+## 7. Le scadenze in Attività
+
+`azienda_scadenze_tutte` unisce già carte della ditta e scadenze dei mezzi e non la
+guarda nessuno. In Attività una riga sola: «3 carte scadute, 1 scade entro il mese»,
+che apre la pagina. La pagina la apri se ti ricordi che esiste; Attività la vedi ogni
+mattina.
+
+## 8. Le carte che non scadono ma invecchiano
+
+La visura camerale non scade: è una fotografia del registro imprese al giorno in cui la
+estrai. Però in gara una visura di otto mesi te la rifiutano. Stessa cosa per
+organigramma e DVR, che non hanno una data di morte ma vanno rivisti.
+
+Serve un **promemoria separato dalla scadenza**: «ricordamelo ogni N mesi dalla data del
+documento». Nel modello è una colonna sua (`promemoria_mesi`), non un riuso di
+`data_scadenza`: un documento senza scadenza deve continuare a dire «senza scadenza»,
+perché è la verità, e l'avviso deve avere parole sue — «la visura ha sei mesi, se ti
+serve per una gara rifalla» — non «scaduta».
+
+## 9. Un DURC solo
+
+Oggi in EiC il DURC sta in tre posti:
+
+1. `subappaltatori_sicurezza.durc_scadenza` — il DURC **del subappaltatore**, col
+   semaforo `durc_ok` che decide se quella ditta può lavorare in cantiere. **Resta dov'è:
+   è un dato suo, non nostro.**
+2. `anagrafica_azienda.durc_expiry_date` — **il nostro**, in Impostazioni → Fatturazione.
+   Lo legge `check-due-dates`. Su otto aziende è compilato da una sola; Vulcano no.
+3. `azienda_documenti` — dove il DURC di Vulcano c'è davvero, con scadenza 15/10/2026.
+
+La pagina diventa la fonte unica per il DURC dell'impresa: il campo in Fatturazione
+legge da lì, `check-due-dates` smette di guardare una colonna quasi sempre vuota, e i
+valori già scritti si travasano. Il DURC del subappaltatore non si tocca.
+
+## 10. Il foglio per la gara, e i test
+
+Lo scadenzario in PDF e in Excel con un bottone: è la cosa che l'ufficio gare chiede, ed
+è il motivo per cui l'Excel sopravvive al gestionale.
+
+E due test che mancano, su bug già pagati una volta: la scadenza calcolata dai mesi di
+rinnovo (che cadeva un giorno prima, passando per UTC) e la cancellazione che porta via
+tutta la catena delle versioni.

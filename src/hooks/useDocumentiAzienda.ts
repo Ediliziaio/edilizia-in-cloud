@@ -159,6 +159,42 @@ export function useSalvaDocumentoAzienda() {
   });
 }
 
+/**
+ * Attacca (o sostituisce) il file di un documento senza passare dalla finestra di modifica.
+ *
+ * È il gesto più frequente della pagina — le scadenze arrivano da un import, i file no — e
+ * farlo costare l'apertura di un modulo con dodici campi vuol dire che i file non li carica
+ * nessuno. Il file vecchio se ne va dall'archivio: resterebbe lì senza che nulla lo mostri.
+ */
+export function useAllegaFileDocumento() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ documento, file }: {
+      documento: Pick<DocumentoAzienda, 'id' | 'file_path'>;
+      file: File;
+    }) => {
+      if (!companyId) throw new Error('Azienda non trovata');
+      const caricato = await caricaFileDocumento(companyId, file);
+      const { error } = await db
+        .from('azienda_documenti')
+        .update({ file_path: caricato.path, file_name: caricato.name })
+        .eq('id', documento.id);
+      if (error) {
+        // La riga non è stata salvata: il file appena caricato resterebbe orfano nel bucket.
+        await rimuoviFileDocumento(caricato.path);
+        throw error;
+      }
+      if (documento.file_path) await rimuoviFileDocumento(documento.file_path);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: chiavi.elenco(companyId) });
+      toast.success('File caricato');
+    },
+    onError: (e) => toast.error(messaggio(e, 'Non è riuscito a caricare il file')),
+  });
+}
+
 export function useEliminaDocumentoAzienda() {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();

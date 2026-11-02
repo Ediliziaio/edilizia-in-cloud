@@ -26,7 +26,7 @@ import { useSediList } from '@/hooks/useSediAnalytics';
 import { useCompanyStaffUsers } from '@/hooks/useCompanyStaffUsers';
 import {
   caricaFileDocumento, linkFileDocumento, rimuoviFileDocumento,
-  useAggiungiDaElencoDiPartenza, useDocumentiAzienda, useEliminaDocumentoAzienda,
+  useAggiungiDaElencoDiPartenza, useAllegaFileDocumento, useDocumentiAzienda, useEliminaDocumentoAzienda,
   useElencoDiPartenzaDaMostrare, useRinnovaDocumentoAzienda, useSalvaDocumentoAzienda,
   useStoricoDocumento,
 } from '@/hooks/useDocumentiAzienda';
@@ -520,12 +520,17 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
             <Dato etichetta="Sede" valore={documento.sede_nome ?? 'Tutta l’azienda'} />
           </div>
           {documento.note && <p className="whitespace-pre-wrap text-muted-foreground">{documento.note}</p>}
-          <div className="flex flex-wrap gap-2">
-            {documento.file_path && (
+          <div className="flex flex-wrap items-center gap-2">
+            {documento.file_path ? (
               <Button variant="outline" size="sm" onClick={() => apriFile(documento.file_path)}>
                 <Paperclip className="mr-2 h-4 w-4" />
                 {documento.file_name ?? 'Apri il file'}
               </Button>
+            ) : (
+              !puoModificare && <span className="text-muted-foreground">Nessun file caricato</span>
+            )}
+            {puoModificare && (
+              <CaricaQui documento={documento} ha={!!documento.file_path} />
             )}
             {puoModificare && !daRinnovare && (
               <Button variant="outline" size="sm" onClick={onRinnova}>
@@ -562,6 +567,44 @@ function Riga({ documento, aperta, onApri, puoModificare, onModifica, onRinnova,
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * «Carica il file» dentro la riga aperta.
+ *
+ * Senza questo, per allegare un PDF bisogna aprire la finestra di modifica, che ha dodici campi
+ * già pieni e un bottone Salva: troppo per un gesto che si fa cento volte. Qui si sceglie il
+ * file e parte, senza conferme.
+ */
+function CaricaQui({ documento, ha }: { documento: DocumentoAzienda; ha: boolean }) {
+  const campo = useRef<HTMLInputElement>(null);
+  const allega = useAllegaFileDocumento();
+  const id = `carica-${documento.id}`;
+
+  return (
+    <>
+      <input
+        ref={campo}
+        id={id}
+        type="file"
+        className="sr-only"
+        accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          allega.mutate({ documento, file });
+          // Così lo stesso file si può riscegliere subito, se il caricamento va storto.
+          if (campo.current) campo.current.value = '';
+        }}
+      />
+      <Button asChild variant={ha ? 'ghost' : 'outline'} size="sm" disabled={allega.isPending}>
+        <label htmlFor={id} className="cursor-pointer">
+          <Upload className="mr-2 h-4 w-4" />
+          {allega.isPending ? 'Carico…' : ha ? 'Sostituisci' : 'Carica il file'}
+        </label>
+      </Button>
+    </>
   );
 }
 
