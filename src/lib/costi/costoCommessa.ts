@@ -1,5 +1,5 @@
 /**
- * Costo registrato dalla commessa (Materiali e acquisti → Costi). Serve per i
+ * Costo registrato dalla commessa (Fatture e costi → Altri costi). Serve per i
  * costi che una fattura non l'avranno mai — la tassa del Comune, un bollo, un
  * F24 — e per quelli che la fattura la aspettano ancora. Finisce in
  * company_costs con order_id: v_ordine_marginalita lo conta come costo diretto,
@@ -14,8 +14,28 @@ export function leggiImporto(valore: string): number {
   return Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t);
 }
 
+/** Di che tipo è il costo: decide in quale gruppo compare in Fatture e costi (commessa_quadro_pagamenti). */
+export type TipoCosto = "altro" | "noleggio" | "professionista";
+export const TIPI_COSTO: { value: TipoCosto; label: string; categoria: string | null }[] = [
+  { value: "altro", label: "Altro", categoria: null },
+  { value: "noleggio", label: "Noleggio e mezzi", categoria: "noleggio" },
+  { value: "professionista", label: "Professionista", categoria: "consulenze_professionali" },
+];
+
+export const categoriaDelTipo = (tipo: TipoCosto) => TIPI_COSTO.find((t) => t.value === tipo)?.categoria ?? null;
+
+/** Le stesse regole di commessa_quadro_pagamenti, per le categorie scritte in passato. */
+export function tipoDellaCategoria(categoria: string | null | undefined): TipoCosto {
+  const c = (categoria ?? "").toLowerCase();
+  if (["consulenze_professionali", "progettazione", "direzione lavori"].includes(c)) return "professionista";
+  return /nolegg|noli|nolo/.test(c) ? "noleggio" : "altro";
+}
+
 export interface FormCostoCommessa {
   descrizione: string;
+  tipo: TipoCosto;
+  /** Facoltativo: chi riceve il pagamento. */
+  fornitoreId: string | null;
   /** Quanto si è pagato o si pagherà, IVA compresa. */
   importo: string;
   aliquotaIva: string;
@@ -28,6 +48,8 @@ export interface FormCostoCommessa {
 
 export const formCostoVuoto = (oggi: string): FormCostoCommessa => ({
   descrizione: "",
+  tipo: "altro",
+  fornitoreId: null,
   importo: "",
   // Il caso tipico (tasse, bolli, diritti) non ha IVA.
   aliquotaIva: "0",
@@ -52,6 +74,8 @@ export function rigaCostoCommessa(form: FormCostoCommessa, ids: { companyId: str
     company_id: ids.companyId,
     order_id: ids.orderId,
     name: descrizione,
+    category: categoriaDelTipo(form.tipo),
+    supplier_id: form.fornitoreId,
     // Variabile e una tantum: è un costo di questa commessa, non un fisso che si ripete.
     cost_type: "variable",
     recurrence: "once",

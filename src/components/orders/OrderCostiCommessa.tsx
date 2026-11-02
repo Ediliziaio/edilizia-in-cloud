@@ -1,8 +1,9 @@
 /**
- * Materiali e acquisti → Fatture e costi → «Costi della commessa».
+ * Fatture e costi → «Altri costi».
  *
  * I costi registrati direttamente sulla commessa (company_costs.order_id, senza
- * ordine d'acquisto né squadra esterna: quelli hanno la loro scheda). Qui si
+ * ordine d'acquisto né squadra esterna: quelli hanno la loro scheda) e senza una
+ * fattura collegata, che sta in «Fornitori». Qui si
  * aggiungono anche i costi che una fattura non l'avranno mai — la tassa del
  * Comune, un bollo, un F24 — con la ricevuta allegata e, se serve, la fase.
  * Entrano nel margine come costo diretto (v_ordine_marginalita), con l'imponibile.
@@ -21,8 +22,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import {
-  controllaRicevuta, documentoDelCosto, formCostoVuoto, leggiImporto, percorsoRicevuta, rigaCostoCommessa,
-  type DocumentoCosto, type FormCostoCommessa,
+  TIPI_COSTO, controllaRicevuta, documentoDelCosto, formCostoVuoto, leggiImporto, percorsoRicevuta, rigaCostoCommessa, tipoDellaCategoria,
+  type DocumentoCosto, type FormCostoCommessa, type TipoCosto,
 } from "@/lib/costi/costoCommessa";
 import { dataIt } from "./OrderDocumentiFornitore";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { RiquadroCommessa, StatoPill, TabellaCommessa } from "./TabellaCommessa";
 import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SupplierSelect } from "./SupplierSelect";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,6 +63,7 @@ export const COSTI_PRONTI: { descrizione: string; aliquotaIva: string; senzaFatt
 export interface CostoCommessa {
   id: string;
   name: string;
+  tipo: TipoCosto;
   amount: number;
   vat_rate: number | null;
   due_date: string;
@@ -90,7 +93,7 @@ export function useCostiCommessa(orderId: string) {
     queryFn: async (): Promise<{ costi: CostoCommessa[]; fasi: Fase[] }> => {
       const [costi, fasi] = await Promise.all([
         allPaymentRows((da, a) => db.from("company_costs")
-          .select("id, name, amount, vat_rate, due_date, is_paid, paid_date, senza_fattura, allegato_path, allegato_nome, order_work_phase_id, notes")
+          .select("id, name, category, amount, vat_rate, due_date, is_paid, paid_date, senza_fattura, allegato_path, allegato_nome, order_work_phase_id, notes")
           .eq("company_id", companyId).eq("order_id", orderId)
           // Ordini d'acquisto e squadre esterne hanno la loro scheda e la loro regola nel margine.
           .is("purchase_order_id", null).is("order_external_team_id", null)
@@ -109,8 +112,9 @@ export function useCostiCommessa(orderId: string) {
       const perFase = new Map((fasi as Fase[]).map((f) => [f.id, f.name]));
       return {
         fasi: fasi as Fase[],
-        costi: (costi as Omit<CostoCommessa, "fase" | "fattura" | "documento">[]).map((c) => ({
+        costi: (costi as (Omit<CostoCommessa, "fase" | "fattura" | "documento" | "tipo"> & { category: string | null })[]).map((c) => ({
           ...c,
+          tipo: tipoDellaCategoria(c.category),
           amount: Number(c.amount ?? 0),
           fase: c.order_work_phase_id ? perFase.get(c.order_work_phase_id) ?? null : null,
           fattura: fatture.get(c.id) ?? null,
@@ -149,7 +153,8 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   const [pagamentiDi, setPagamentiDi] = useState<string | null>(null);
   const [allegaA, setAllegaA] = useState<string | null>(null);
   const inputAllega = useRef<HTMLInputElement>(null);
-  const costi = data?.costi ?? [];
+  // Quelli con una fattura stanno in «Fornitori».
+  const costi = (data?.costi ?? []).filter((c) => c.documento !== "fattura");
   const totale = costi.reduce((s, c) => s + c.amount, 0);
 
   const aggiorna = () => {
@@ -184,7 +189,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
     {pagamentiDi && <ExpensePaymentDialog key={pagamentiDi} costId={pagamentiDi} onClose={() => { setPagamentiDi(null); aggiorna(); }} />}
     <RiquadroCommessa id="costi-commessa"
       icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
-      titolo="Costi della commessa" conteggio={costi.length}
+      titolo="Altri costi" conteggio={costi.length}
       riassunto={costi.length > 0 ? `${formatCurrency(totale)} nel margine` : undefined}
       azioni={puoModificare ? <Button size="sm" onClick={() => setAperto(true)}><Plus className="mr-1.5 h-4 w-4" />Aggiungi costo</Button> : undefined}
     >
@@ -206,10 +211,11 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
         ) : isLoading ? (
           <Skeleton className="h-20 w-full" />
         ) : costi.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun costo registrato direttamente su questa commessa.</p>
+          <p className="text-sm text-muted-foreground">Nessun costo senza fattura su questa commessa: Comune, bolli, F24, polizze si aggiungono da qui.</p>
         ) : (
-          <TabellaCommessa etichetta="Costi della commessa" righe={costi} chiave={(c) => c.id} colonne={[
+          <TabellaCommessa etichetta="Altri costi" righe={costi} chiave={(c) => c.id} colonne={[
             { titolo: "Costo", principale: true, cella: (c) => <span className="font-medium">{c.name}</span> },
+            { titolo: "Tipo", cella: (c) => TIPI_COSTO.find((t) => t.value === c.tipo)?.label },
             { titolo: "Data", cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
             { titolo: "Fase", cella: (c) => c.fase ?? "—" },
             { titolo: "Documento", cella: (c) => (
@@ -260,11 +266,15 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   );
 }
 
-function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
-  orderId: string; companyId: string; fasi: Fase[]; onClose: () => void; onSalvato: () => void;
+export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, onClose, onSalvato, onCreato }: {
+  orderId: string; companyId: string; fasi: Fase[];
+  /** Il modulo già compilato, per chi aggiunge un costo da un'altra vista. */
+  iniziale?: Partial<FormCostoCommessa>;
+  onClose: () => void; onSalvato: () => void;
+  onCreato?: (costo: { id: string; imponibile: number }) => void;
 }) {
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
-  const [form, setForm] = useState<FormCostoCommessa>(() => formCostoVuoto(oggi));
+  const [form, setForm] = useState<FormCostoCommessa>(() => ({ ...formCostoVuoto(oggi), ...iniziale }));
   const [file, setFile] = useState<File | null>(null);
   const set = <K extends keyof FormCostoCommessa>(k: K, v: FormCostoCommessa[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -284,6 +294,7 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
         if (path) await supabase.storage.from(BUCKET).remove([path]);
         throw error ?? new Error("Costo non salvato.");
       }
+      onCreato?.({ id: creato.id, imponibile: riga.amount });
       if (!form.pagato) return { pagamento: null as string | null };
       // Stessa strada di Economia → Costi: stato, cassa e scadenze insieme.
       const { error: payErr } = await db.rpc("registra_pagamenti_costi", { p_ids: [creato.id], p_data: form.data });
@@ -327,7 +338,22 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="costo-importo">Importo pagato (€) *</Label>
+              <Label htmlFor="costo-tipo">Di che tipo è</Label>
+              <Select value={form.tipo} onValueChange={(v) => set("tipo", v as TipoCosto)}>
+                <SelectTrigger id="costo-tipo"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIPI_COSTO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Fornitore</Label>
+              <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder="Nessuno" searchable allowCreate={false} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="costo-importo">Importo (€) *</Label>
               <Input id="costo-importo" inputMode="decimal" value={form.importo} onChange={(e) => set("importo", e.target.value)} placeholder="350,00" />
             </div>
             <div>

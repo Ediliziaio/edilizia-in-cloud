@@ -66,12 +66,14 @@ const OrdineSAL = lazy(() => import("@/components/orders/OrdineSAL").then((m) =>
 const OrderErrors = lazy(() => import("@/components/orders/OrderErrors").then((m) => ({ default: m.OrderErrors })));
 const RendicontoAppalto = lazy(() => import("@/components/orders/RendicontoAppalto").then((m) => ({ default: m.RendicontoAppalto })));
 const SicurezzaCommessa = lazy(() => import("@/components/sicurezza/SicurezzaCommessa").then((m) => ({ default: m.SicurezzaCommessa })));
+const NoleggiCommessa = lazy(() => import("@/components/mezzi/NoleggiCommessa").then((m) => ({ default: m.NoleggiCommessa })));
 const PianoMezziCantiere = lazy(() => import("@/components/mezzi/PianoMezziCantiere").then((m) => ({ default: m.PianoMezziCantiere })));
 const OrderEconomicsSummary = lazy(() => import("@/components/orders/OrderEconomicsSummary").then((m) => ({ default: m.OrderEconomicsSummary })));
 const RapportiniUfficio = lazy(() => import("@/components/orders/RapportiniUfficio").then((m) => ({ default: m.RapportiniUfficio })));
 const OrderAcceptanceReports = lazy(() => import("@/components/orders/OrderAcceptanceReports").then((m) => ({ default: m.OrderAcceptanceReports })));
 const OreEPersone = lazy(() => import("@/components/orders/OreEPersone").then((m) => ({ default: m.OreEPersone })));
 const OrderLaborEconomics = lazy(() => import("@/components/orders/OrderLaborEconomics").then((m) => ({ default: m.OrderLaborEconomics })));
+const OrderDitteEconomics = lazy(() => import("@/components/orders/OrderLaborEconomics").then((m) => ({ default: m.OrderDitteEconomics })));
 const OrderResourceStatistics = lazy(() => import("@/components/orders/OrderResourceStatistics").then((m) => ({ default: m.OrderResourceStatistics })));
 const TimelineCantiere = lazy(() => import("@/components/orders/TimelineCantiere").then((m) => ({ default: m.TimelineCantiere })));
 const vistaInCaricamento = (
@@ -91,7 +93,7 @@ import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
-import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { ECONOMIA_VIEWS, MATERIALI_VIEWS, COSTI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
@@ -102,7 +104,7 @@ import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { avvisoAlCliente, statoConclusivo } from "@/lib/orders/statoCommessa";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
-import { QuadroPagamentiCommessa } from "@/components/orders/QuadroPagamentiCommessa";
+import { QuadroPagamentiCommessa, UsciteCommessa } from "@/components/orders/QuadroPagamentiCommessa";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
@@ -133,6 +135,7 @@ import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard, useBolleCommessa, useFattureFornitoriCommessa } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
+import { StatoSubappaltiCantiere, SubappaltatoriCommessa } from "@/components/orders/SubappaltatoriCommessa";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
@@ -516,12 +519,12 @@ function OrderDetailInner() {
   const variationsEnabled = permissions.canViewOrderAmounts || permissions.canViewMargins;
   const variations = useOrderVariations(id, effectiveCompany?.id, variationsEnabled && schedaPronta);
   // The page stays on its loading/error shell until variants are resolved too.
-  const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, navigateTo } = useOrderDetailNavigation(
+  const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, activeCostiView, navigateTo } = useOrderDetailNavigation(
     !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
   );
   const { data: conteggioOfferte } = useConteggioRichiesteCommessa(id, companyId, activeTab === "articoli");
   const { data: bolleCommessa } = useBolleCommessa(id ?? "", activeTab === "articoli");
-  const { data: fattureCommessa } = useFattureFornitoriCommessa(id ?? "", activeTab === "articoli" && !!permissions.canViewCosts);
+  const { data: fattureCommessa } = useFattureFornitoriCommessa(id ?? "", activeTab === "costi" && !!permissions.canViewCosts);
   // Keep any desktop-only view fallback; Cronoprogramma also has a mobile agenda.
   const vistaCantiere = isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
   const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
@@ -1400,6 +1403,12 @@ function OrderDetailInner() {
 
   const operationalIntervention = contractLink.data?.workflow_kind === "intervento";
   const contractFinancePending = contractLink.data?.workflow_kind === "contratto" && (order.vat_rate == null || agreedAmount <= 0);
+  // Da telefono due viste, come sul resto (regola mobile). Su interventi e contratti da confermare
+  // i pagamenti stanno sul contratto, come in Economia: restano le fatture e i costi registrati qui.
+  const visteCosti = COSTI_VIEWS.filter(v =>
+    (!isMobile || v.value === "tutte" || v.value === "altri")
+    && (!(operationalIntervention || contractFinancePending) || v.value === "fornitori" || v.value === "altri"));
+  const vistaCosti = visteCosti.some(v => v.value === activeCostiView) ? activeCostiView : visteCosti[0].value;
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
 
   // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
@@ -1636,7 +1645,7 @@ function OrderDetailInner() {
             if (isOrderDetailTab(value)) navigateTo({ tab: value });
           }}
         >
-          <OrderDetailNavigation operational={contractLink.data?.workflow_kind === "intervento"} />
+          <OrderDetailNavigation operational={contractLink.data?.workflow_kind === "intervento"} conCosti={!!permissions.canViewCosts} />
 
           {/* Tab: Panoramica */}
           <TabsContent value="panoramica" className="order-detail-tab-panel space-y-4 mt-4">
@@ -1766,7 +1775,7 @@ function OrderDetailInner() {
           <TabsContent value="articoli" className="order-detail-tab-panel space-y-4 mt-4">
             {permissions.canEditOrders && effectiveCompany?.id && <LegacyWorkReview items={orderItems} orderId={id!} companyId={effectiveCompany.id} showAmounts={permissions.canViewOrderAmounts} />}
             <div id="materiali-workspace" className="scroll-mt-24 space-y-2">
-              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length, fatture: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
+              <OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value={activeMaterialiView} onChange={materialiView => navigateTo({ tab: "articoli", materialiView })} counts={{ articoli: displayItems.length, offerte: conteggioOfferte, acquisti: conteggiViste?.ordiniAcquisto, bolle: bolleCommessa?.length }} />
             </div>
             <DocumentiInPopup orderId={id!}>
             <OrderViewTransition viewKey={activeMaterialiView}>
@@ -1881,14 +1890,6 @@ function OrderDetailInner() {
             {activeMaterialiView === "bolle" && <div id="section-bolle" className="space-y-4 scroll-mt-24">
               <OrderBolleDdtCard orderId={id!} puoAprireDocumenti={permissions.canViewBilling} />
             </div>}
-            {activeMaterialiView === "fatture" && <div id="section-fatture-fornitori" className="space-y-4 scroll-mt-24">
-              {permissions.canViewCosts
-                ? <>
-                  <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} puoModificare={permissions.canEditOrders} />
-                  <OrderCostiCommessaCard orderId={id!} puoModificare={permissions.canEditOrders} />
-                </>
-                : <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare le fatture dei fornitori di questa commessa.</p>}
-            </div>}
             {activeMaterialiView === "offerte" && <div id="section-offerte" className="scroll-mt-24">
               <OrderRichiesteOfferta orderId={id!} orderCode={order.order_code} />
             </div>}
@@ -1918,6 +1919,39 @@ function OrderDetailInner() {
             </div>}
             </OrderViewTransition>
             </DocumentiInPopup>
+          </TabsContent>
+
+          {/* Fatture e costi: tutto quello che esce dalla commessa, diviso per chi lo riceve. */}
+          <TabsContent value="costi" className="order-detail-tab-panel space-y-4 mt-4">
+            {!permissions.canViewCosts ? <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare fatture e costi di questa commessa.</p> : <>
+            <div id="costi-workspace" className="scroll-mt-24">
+              <OrderWorkspaceNav label="Viste di fatture e costi" views={visteCosti} value={vistaCosti} onChange={costiView => navigateTo({ tab: "costi", costiView })} counts={{ fornitori: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
+            </div>
+            <DocumentiInPopup orderId={id!}>
+            <OrderViewTransition viewKey={vistaCosti}>
+            <Suspense fallback={vistaInCaricamento}>
+            {vistaCosti === "tutte" && <div id="section-uscite" className="scroll-mt-24">
+              <UsciteCommessa orderId={id!} onApriSubappalti={() => navigateTo({ tab: "costi", costiView: "subappaltatori" })} />
+            </div>}
+            {vistaCosti === "fornitori" && <div id="section-fatture-fornitori" className="space-y-4 scroll-mt-24">
+              <OrderFattureFornitoriCard orderId={id!} mostraImporti={permissions.canViewCosts} puoAprireFatture={permissions.canViewBilling} puoModificare={permissions.canEditOrders} onApriCosti={() => navigateTo({ tab: "costi", costiView: "altri" })} />
+            </div>}
+            {vistaCosti === "subappaltatori" && <div id="section-subappaltatori" className="space-y-4 scroll-mt-24">
+              <SubappaltatoriCommessa orderId={id!} onApriCantiere={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })} />
+              <OrderDitteEconomics orderId={id!} />
+            </div>}
+            {vistaCosti === "noleggi" && <div id="section-noleggi" className="space-y-4 scroll-mt-24">
+              <NoleggiCommessa orderId={id!} puoModificare={permissions.canEditOrders} />
+              <UsciteCommessa orderId={id!} categoria="noleggi" nascondiSeVuota />
+            </div>}
+            {vistaCosti === "manodopera" && <OrderLaborEconomics orderId={id!} />}
+            {vistaCosti === "altri" && <div id="section-altri-costi" className="space-y-4 scroll-mt-24">
+              <OrderCostiCommessaCard orderId={id!} puoModificare={permissions.canEditOrders} />
+            </div>}
+            </Suspense>
+            </OrderViewTransition>
+            </DocumentiInPopup>
+            </>}
           </TabsContent>
 
           {/* Tab: Finanza */}
@@ -1977,19 +2011,16 @@ function OrderDetailInner() {
               </ErrorBoundary>
             )}
 
-            {activeEconomiaView === "manodopera" && <OrderLaborEconomics orderId={id!} />}
-
             {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
             {activeEconomiaView === "pagamenti" && <>
             {/* Lo stato in una lettura (01/11/2026): i quattro numeri, poi le rate del cliente, poi i SAL
-                emessi, poi ogni uscita verso fornitori, subappalti, ditte, professionisti, noleggi ed extra.
-                IVA, ritenute, blocca prezzo e bonus in fondo; provvigioni e «Chi finanzia il cantiere» in
-                Margini e costi. */}
+                emessi. IVA, ritenute, blocca prezzo e bonus in fondo; provvigioni e «Chi finanzia il
+                cantiere» in Margini e costi; le uscite in Fatture e costi. */}
             <QuadroPagamentiCommessa
               orderId={id!}
               mostraIncassi={permissions.canViewOrderAmounts}
               mostraUscite={permissions.canViewCosts}
-              onApriSubappalti={() => navigateTo({ tab: "finanza", economiaView: "manodopera" })}
+              onApriUscite={() => navigateTo({ tab: "costi", costiView: "tutte" })}
               conIva={false}
               incassi={permissions.canViewOrderAmounts ? (
                 <div id="section-pagamenti" className="scroll-mt-24">
@@ -2066,9 +2097,8 @@ function OrderDetailInner() {
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 
-            {/* Le uscite ai fornitori stanno nel quadro in cima alla vista
-                (QuadroPagamentiCommessa), insieme a subappalti, ditte,
-                professionisti, noleggi e costi extra. */}
+            {/* Le uscite verso fornitori, subappalti, ditte, professionisti, noleggi e
+                costi extra stanno in Fatture e costi (UsciteCommessa). */}
             {/* Fatture e documenti fiscali della commessa: stavano nella
                 Panoramica, lontani da incassi e scadenze a cui appartengono.
                 Il database li mostra a chi vede gli importi della commessa o
@@ -2249,6 +2279,7 @@ function OrderDetailInner() {
             <Suspense fallback={vistaInCaricamento}>
             {vistaCantiere === "lavorazioni" && <>
             {permissions.canViewOrderAmounts && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => navigateTo({tab:"finanza",economiaView:"documenti",section:"section-varianti"})}>Lavori extra e varianti</Button></div>}
+            {!isMobile && permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione && <ErrorBoundary fallback={null}><StatoSubappaltiCantiere orderId={id!} /></ErrorBoundary>}
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}

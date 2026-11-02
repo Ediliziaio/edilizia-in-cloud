@@ -135,11 +135,15 @@ export default function SubappaltatoreDetail() {
   // ── Contratti: uno per ogni commessa; Contratto, SAL e Ritenute lavorano su
   // quello scelto (prima si vedeva solo il più recente) ──────────────────────
   const { data: contratti = [], isLoading: caricoContratti, error: erroreContratti, refetch: ricaricaContratti } = useContrattiSubappaltatore(id);
-  // Dalla commessa (Ditte e contratti, 31/10/2026) si arriva col contratto da aprire: ?tab=contratto&contratto=…
+  // Dalla commessa si arriva col contratto da aprire (?tab=contratto&contratto=…, Ditte e contratti)
+  // o coi suoi SAL (?tab=contabilita&contratto=…, Fatture e costi).
   const [parametri] = useSearchParams();
   const [contrattoSelId, setContrattoSelId] = useState<string | null>(() => parametri.get('contratto'));
-  const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(() => parametri.get('contratto'));
-  const [tabAttiva, setTabAttiva] = useState(() => parametri.get('tab') === 'contratto' ? 'contratto' : 'anagrafica');
+  const [contrattoDaAprire, setContrattoDaAprire] = useState<string | null>(() => parametri.get('tab') === 'contabilita' ? null : parametri.get('contratto'));
+  const [tabAttiva, setTabAttiva] = useState(() => {
+    const scheda = parametri.get('tab');
+    return scheda === 'contratto' || scheda === 'contabilita' ? scheda : 'anagrafica';
+  });
   const [commessaPopup, setCommessaPopup] = useState<string | null>(null);
   const [vistaContabilita, setVistaContabilita] = useState('sal');
   const contratto = (contratti.find((c) => c.id === contrattoSelId) ?? contratti[0] ?? null) as unknown as ContrattoSubappalto | null;

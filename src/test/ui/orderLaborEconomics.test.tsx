@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
+import { OrderDitteEconomics, OrderLaborEconomics } from "@/components/orders/OrderLaborEconomics";
 
 vi.mock("@/components/personale/DailyHoursPanel", () => ({ DailyHoursPanel: (): null => null }));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), retryEmployees: vi.fn(), retryTeams: vi.fn() }));
@@ -14,9 +14,9 @@ const state = () => ({ allowed: true, readRates: true, canCheckPending:true, pen
 const view = () => render(<MemoryRouter><OrderLaborEconomics orderId="order" /></MemoryRouter>);
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); mocks.read.mockReturnValue(state()); });
-describe("Manodopera e subappalti in Economia e pagamenti", () => {
+describe("Manodopera in Fatture e costi", () => {
   it("separa dipendenti dalle ditte e tariffa attuale dalla media storica", () => {
-    view(); expect(screen.getByText("Dipendenti e operai interni")).toBeInTheDocument(); expect(screen.getByText("Ditte esterne e subappalti")).toBeInTheDocument();
+    view(); expect(screen.getByText("Dipendenti e operai interni")).toBeInTheDocument(); expect(screen.queryByText("Ditte esterne e subappalti")).toBeNull();
     const person = within(screen.getByRole("region", { name: "Costi di Mario Rossi" }));
     expect(person.getByText("25,00 € / h", { exact: false })).toBeInTheDocument(); expect(person.getByText("30,00 € / h", { exact: false })).toBeInTheDocument();
     expect(person.getByText("100,00 €", { exact: false })).toBeInTheDocument();
@@ -49,8 +49,9 @@ describe("Manodopera e subappalti in Economia e pagamenti", () => {
     expect(screen.getByText("Da completare")).toBeInTheDocument(); expect(screen.queryByText("Oltre budget")).not.toBeInTheDocument();
   });
   it("subappalto mostra netto e lordo distinti, senza tariffa dipendente", () => {
-    const s = state(); s.teams.data = [{ id: "t1", team: { name: "Edil Alfa", kind: "esterna" }, total_cost: 122, vat_rate: 22, cost_preventivo: 244 }]; mocks.read.mockReturnValue(s); view();
-    const team = within(screen.getByRole("region", { name: "Costi ditta Edil Alfa" }));
+    const s = state(); s.teams.data = [{ id: "t1", team: { name: "Edil Alfa", kind: "esterna" }, total_cost: 122, vat_rate: 22, cost_preventivo: 244 }]; mocks.read.mockReturnValue(s); render(<MemoryRouter><OrderDitteEconomics orderId="order" /></MemoryRouter>);
+    expect(screen.getByText("Ditte esterne e subappalti")).toBeInTheDocument();
+    const team = within(screen.getByRole("table", { name: "Costi delle ditte" }));
     expect(team.getByText("Costo netto IVA")).toBeInTheDocument(); expect(team.getByText("122,00 €", { exact: false })).toBeInTheDocument();
     expect(team.queryByText("Tariffa attuale / h")).not.toBeInTheDocument();
   });

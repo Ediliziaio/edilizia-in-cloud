@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 /**
- * Materiali e acquisti → «Bolle e DDT» e «Fatture fornitori» della commessa.
+ * Materiali e acquisti → «Bolle e DDT» e Fatture e costi → «Fornitori» della commessa.
  *
  * I documenti c'erano già, sparsi: le bolle dei fornitori stanno sull'ordine
  * d'acquisto (ddt_ricezione → purchase_orders.order_id), quelle fotografate in
@@ -571,7 +571,7 @@ const PAGAMENTO: Record<StatoPagamento, { testo: string; tono: TonoStato }> = {
   da_pagare: { testo: "Da pagare", tono: "ambra" },
 };
 
-export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true, puoModificare = false }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean; puoModificare?: boolean }) {
+export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFatture = true, puoModificare = false, onApriCosti }: { orderId: string; mostraImporti: boolean; puoAprireFatture?: boolean; puoModificare?: boolean; onApriCosti?: () => void }) {
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [daDividere, setDaDividere] = useState<RigaFattura | null>(null);
@@ -723,7 +723,7 @@ export function OrderFattureFornitoriCard({ orderId, mostraImporti, puoAprireFat
       azioni={puoModificare ? <CaricaFatturaCommessaButton orderId={orderId} /> : undefined}
       numeri={!isLoading && !isError && (data.length > 0 || costiSenzaFattura > 0) ? (
         <ContatoriFiltro etichetta="Fatture per stato" attivo={filtro} onScegli={(c) => {
-          if (c === "costi") { document.getElementById("costi-commessa")?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+          if (c === "costi") { onApriCosti?.(); return; }
           setFiltro(c);
         }} voci={[
           { chiave: "daVerificare", etichetta: "Da verificare", valore: conta("daVerificare"), avviso: true },

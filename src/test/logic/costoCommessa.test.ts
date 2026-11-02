@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   controllaRicevuta, documentoDelCosto, formCostoVuoto, leggiImporto, percorsoRicevuta, rigaCostoCommessa,
 } from "@/lib/costi/costoCommessa";
+import { categoriaDelTipo, tipoDellaCategoria } from "@/lib/costi/costoCommessa";
 
 const ids = { companyId: "azienda-1", orderId: "commessa-1" };
 
@@ -60,3 +61,27 @@ describe("costo registrato dalla commessa", () => {
     expect(documentoDelCosto({ senza_fattura: false }, false)).toBe("in_attesa");
   });
 });
+
+describe("Il tipo del costo", () => {
+  const base = { ...formCostoVuoto("2026-11-02"), descrizione: "Gru", importo: "122", aliquotaIva: "22" };
+  it("un noleggio finisce fra i noleggi, un professionista fra i professionisti", () => {
+    expect(rigaCostoCommessa({ ...base, tipo: "noleggio" }, { companyId: "c", orderId: "o" }).category).toBe("noleggio");
+    expect(rigaCostoCommessa({ ...base, tipo: "professionista" }, { companyId: "c", orderId: "o" }).category).toBe("consulenze_professionali");
+  });
+  it("«Altro» non scrive una categoria, come prima", () => {
+    expect(rigaCostoCommessa(base, { companyId: "c", orderId: "o" }).category).toBeNull();
+    expect(categoriaDelTipo("altro")).toBeNull();
+  });
+  it("il fornitore è facoltativo", () => {
+    expect(rigaCostoCommessa(base, { companyId: "c", orderId: "o" }).supplier_id).toBeNull();
+    expect(rigaCostoCommessa({ ...base, fornitoreId: "s1" }, { companyId: "c", orderId: "o" }).supplier_id).toBe("s1");
+  });
+  it("riconosce anche le categorie scritte prima", () => {
+    expect(tipoDellaCategoria("trasporti_noleggi")).toBe("noleggio");
+    expect(tipoDellaCategoria("noleggio_mezzi_attrezzature")).toBe("noleggio");
+    expect(tipoDellaCategoria("consulenze_professionali")).toBe("professionista");
+    expect(tipoDellaCategoria("trasporti_logistica")).toBe("altro");
+    expect(tipoDellaCategoria(null)).toBe("altro");
+  });
+});
+
