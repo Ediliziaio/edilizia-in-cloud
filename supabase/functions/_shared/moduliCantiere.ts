@@ -143,6 +143,7 @@ export function validaModifica(prima: ModuloSchema, dopo: ModuloSchema, uso: Rec
     const nuovo = dopo.campi.find(c => c.chiave === vecchio.chiave);
     if (!nuovo) errori.push(`«${vecchio.etichetta}»: ${n} documenti lo contengono già, si può solo archiviare.`);
     else if (nuovo.tipo !== vecchio.tipo) errori.push(`«${vecchio.etichetta}»: il tipo non si cambia, ${n} documenti contengono già questo campo.`);
+    else if (nuovo.livello !== vecchio.livello) errori.push(`«${vecchio.etichetta}»: non si sposta tra rapportino e fase, ${n} documenti contengono già questo campo.`);
   }
   return errori;
 }

@@ -95,6 +95,7 @@ describe("Campi propri", () => {
     conModello({ campi: [campo()] }); stato.uso = { pezzi: 3 };
     render(<ModuliCantiereConfig tipo="rapportino" />);
     expect(screen.getByLabelText("Tipo del campo 1")).toBeDisabled();
+    expect(screen.getByLabelText("Dove, campo 1")).toBeDisabled();
     expect(screen.getByText("Il tipo non si cambia: 3 documenti contengono già questo campo.")).toBeInTheDocument();
   });
   it("eliminare un campo con dati lo archivia dopo conferma e si può riattivare", async () => {

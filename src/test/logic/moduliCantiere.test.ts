@@ -281,3 +281,12 @@ describe("correzioni dalla revisione", () => {
     expect(validaSchema({ ...SCHEMA_COME_OGGI, voci: ["x".repeat(201)] }).length).toBeGreaterThan(0);
   });
 });
+
+describe("livello di un campo già usato", () => {
+  const prima = schema([campo()]);
+  it("non cambia se ci sono dati: i valori scritti resterebbero senza fase o senza posto", () => {
+    expect(validaModifica(prima, schema([campo({ livello: "fase" })]), { pezzi: 2 }).length).toBeGreaterThan(0);
+    expect(validaModifica(prima, schema([campo({ livello: "fase" })]), {})).toEqual([]);
+  });
+});
+

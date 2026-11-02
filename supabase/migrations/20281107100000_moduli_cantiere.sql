@@ -130,6 +130,8 @@ begin
           raise exception using errcode = '22023', message = format('«%s» è già in %s documenti: si può solo archiviare.', c->>'etichetta', v_uso->>(c->>'chiave'));
         elsif v_nuovo->>'tipo' is distinct from c->>'tipo' then
           raise exception using errcode = '22023', message = format('«%s»: il tipo non si cambia, %s documenti contengono già questo campo.', c->>'etichetta', v_uso->>(c->>'chiave'));
+        elsif coalesce(v_nuovo->>'livello', 'rapportino') is distinct from coalesce(c->>'livello', 'rapportino') then
+          raise exception using errcode = '22023', message = format('«%s»: non si sposta tra rapportino e fase, %s documenti contengono già questo campo.', c->>'etichetta', v_uso->>(c->>'chiave'));
         end if;
       end if;
     end loop;

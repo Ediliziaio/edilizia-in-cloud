@@ -5,7 +5,7 @@ import CampoVerbale from "@/pages/campo/CampoVerbale";
 import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
 
 const stato = vi.hoisted(() => ({
-  modelli: [] as unknown[], erroreModelli: null as unknown, invocazioni: [] as Array<Record<string, unknown>>, righe: [] as unknown[], naviga: vi.fn(),
+  modelli: [] as unknown[], erroreModelli: null as unknown, invocazioni: [] as Array<Record<string, unknown>>, righe: [] as unknown[], naviga: vi.fn(), fallisceSalva: false,
 }));
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "o1" }), useNavigate: () => stato.naviga }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, profile: { first_name: "Marco", last_name: "Capo" } }) }));
@@ -16,6 +16,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   functions: { invoke: async (_n: string, o: { body: Record<string, unknown> }) => {
     stato.invocazioni.push(o.body);
     if (o.body.action === "list") return { data: { reports: stato.righe }, error: null };
+    if (stato.fallisceSalva && o.body.action === "save") return { data: { error: "Verbale modificato" }, error: null };
     return { data: { report: { id: "r1", status: o.body.action === "sign" ? "finalized" : "draft", version: 2, pdf_path: "a.pdf", document_hash: "h", content: o.body.content ?? {}, firma_cliente_nome: "Mario Rossi" }, url: "https://x/a.pdf" }, error: null };
   } },
 } }));
@@ -159,5 +160,15 @@ describe("Verbale dal telefono", () => {
     await waitFor(() => expect(azioni()).toContain("save"));
     expect((stato.invocazioni.find(b => b.action === "save") as { content: { modulo_id: string } }).content.modulo_id).toBe("a");
   });
-});
 
+  it("se il verbale è cambiato nel frattempo rilegge l'elenco, così si riapre aggiornato", async () => {
+    stato.righe = [{ id: "r9", status: "draft", version: 3, created_at: "2026-11-02T10:00:00Z", content: { title: "Bozza", date: "2026-11-02", scope: "", inspector: "", customer: "", outcome: "pending", checks: [{ label: "V", result: "ok", note: "" }], reservations: "", actions: [], documents: "", notes: "" } }];
+    stato.fallisceSalva = true;
+    mostra();
+    fireEvent.click(await screen.findByRole("button", { name: /Bozza/ }));
+    fireEvent.change(screen.getByLabelText("Lavori verificati"), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva bozza" }));
+    await waitFor(() => expect(azioni().filter(a => a === "list").length).toBeGreaterThan(1));
+    stato.fallisceSalva = false;
+  });
+});

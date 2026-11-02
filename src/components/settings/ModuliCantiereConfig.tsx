@@ -114,7 +114,7 @@ function EditorCampi({ tipoModulo, campi, uso, bloccato, onChange }: {
                 <Scelta etichetta="Chi lo compila" aria={`Chi lo compila, campo ${n}`} value={c.chi} disabled={bloccato} opzioni={[["tutti", "Tutti"], ["capo", "Solo il capo"]]} onChange={chi => cambia(i, { chi })} />
                 <Scelta etichetta="Quali ditte" aria={`Quali ditte, campo ${n}`} value={c.ditte} disabled={bloccato} opzioni={[["tutti", "Tutte"], ["dipendenti", "Dipendenti"], ["subappaltatori", "Subappaltatori"]]} onChange={ditte => cambia(i, { ditte })} />
                 <Scelta etichetta="Quando" aria={`Quando, campo ${n}`} value={c.quando} disabled={bloccato} opzioni={[["sempre", "Sempre"], ["giornaliero", "Ogni giorno"], ["fine_lavori", "A fine lavori"]]} onChange={quando => cambia(i, { quando })} />
-                <Scelta etichetta="Dove" aria={`Dove, campo ${n}`} value={c.livello} disabled={bloccato} opzioni={[["rapportino", "Sul rapportino"], ["fase", "Per ogni fase"]]} onChange={livello => cambia(i, { livello })} />
+                <Scelta etichetta="Dove" aria={`Dove, campo ${n}`} value={c.livello} disabled={bloccato || usato > 0} opzioni={[["rapportino", "Sul rapportino"], ["fase", "Per ogni fase"]]} onChange={livello => cambia(i, { livello })} />
               </>}
               <Scelta etichetta="Nel PDF" aria={`Nel PDF, campo ${n}`} value={c.stampa} disabled={bloccato} opzioni={[["mai", "Mai"], ["interno", "Solo interno"], ["cliente", "Anche per il cliente"]]} onChange={stampa => cambia(i, { stampa })} />
             </div>

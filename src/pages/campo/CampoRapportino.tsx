@@ -522,7 +522,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     if (confermaCliente || !(parti.fasi || daRifare)) return [];
     const salvate = daRifare ? fasiDelRapportino(rapportinoGiaOggi?.fasi_lavorate, leggiValori(rapportinoGiaOggi?.campi_extra)) : [];
     return Object.keys(fasiDichiarate).map(id => ({
-      id, nome: fasiCommessa.find(f => f.id === id)?.name ?? salvate.find(f => f.id === id)?.nome ?? "",
+      id, nome: fasiCommessa.find(f => f.id === id)?.name || salvate.find(f => f.id === id)?.nome || "Lavorazione",
     }));
   }, [confermaCliente, parti.fasi, daRifare, fasiCommessa, fasiDichiarate, rapportinoGiaOggi]);
   // Scritto prima di scegliere la fase: passa alla prima fase scelta, invece di restare in un campo che non si vede più.
@@ -704,7 +704,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
       // in foto_urls (che resta l'elenco di tutte); i materiali portano la loro fase in materiali_usati[].fase_id.
       const fasiLavorate = confermaCliente || !parti.fasi ? [] : costruisciFasiLavorate({
         dichiarate: fasiDichiarate,
-        nomi: Object.fromEntries(fasiCommessa.map(f => [f.id, f.name])),
+        nomi: {
+          // Con l'elenco delle fasi non arrivato, la voce tiene il nome che aveva.
+          ...Object.fromEntries(fasiPerCampi.map(f => [f.id, f.nome])),
+          ...Object.fromEntries(fasiCommessa.map(f => [f.id, f.name])),
+        },
         fotoUrls,
         fotoFase,
         base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate),

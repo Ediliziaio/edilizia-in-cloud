@@ -85,7 +85,11 @@ export default function CampoVerbale() {
   const conErrore = async (fn: () => Promise<void>) => {
     if (occupato) return;
     setOccupato(true);
-    try { await fn(); } catch (e) { toast.error(e instanceof Error ? e.message : "Operazione non riuscita. Riprova."); } finally { setOccupato(false); }
+    try { await fn(); } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Operazione non riuscita. Riprova.");
+      // Un altro può aver cambiato il verbale: riaprendolo si deve avere la versione nuova.
+      void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
+    } finally { setOccupato(false); }
   };
   const salvaBozza = async (): Promise<Verbale> => {
     const { report: r } = await chiama<{ report: Verbale }>({ action: "save", order_id: orderId, id: report?.id, version: report?.version, content });

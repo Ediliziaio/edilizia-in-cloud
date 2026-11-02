@@ -66,7 +66,7 @@
     - le parti spente valgono anche per i subappaltatori;
     - l'ufficio vede tutti i campi.
 16. **Interno o cliente:** il PDF di un rapportino di fine lavori o firmato è un documento per il cliente e stampa solo `cliente`. Il giornaliero stampa `interno` e `cliente`. Il verbale stampa solo `cliente`; gli altri valori restano visibili nell'app.
-17. **Modifiche a un modello già usato:** il tipo di un campo con dati non si cambia, e il server lo rifiuta. Eliminare un campo con dati lo archivia: non si compila più, ma i dati e i totali restano e la sua chiave non si riusa. Togliere un'opzione non tocca i valori già scritti.
+17. **Modifiche a un modello già usato:** il tipo di un campo con dati non si cambia, né il suo passaggio tra rapportino e fase, e il server lo rifiuta. Eliminare un campo con dati lo archivia: non si compila più, ma i dati e i totali restano e la sua chiave non si riusa. Togliere un'opzione non tocca i valori già scritti.
 
 **Fuori da questo piano** (lo schema li permette dopo):
 - firma elettronica FEA sul verbale

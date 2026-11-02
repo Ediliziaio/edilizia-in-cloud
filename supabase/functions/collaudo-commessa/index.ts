@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
           return errorResponse("Non hai il permesso di gestire questo verbale", 403, cors);
       }
     }
-    // Il capo arriva solo ai verbali nati da un modello che lo permette, non a quelli dell'ufficio.
+    // Il capo arriva solo ai verbali nati da un modello che lo permette, anche se li ha iniziati l'ufficio.
     let modelliCapo: Array<{ id: string; schema: unknown }> = [];
     if (capo) {
       const { data: modelli, error: modelliError } = await admin

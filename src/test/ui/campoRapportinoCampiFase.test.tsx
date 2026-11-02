@@ -200,5 +200,19 @@ describe("Campi per fase", () => {
     await waitFor(() => expect(state.insert).toHaveBeenCalled());
     expect(inviato()!.campi_extra).toEqual([expect.objectContaining({ valore: 12, phase_id: "f1" })]);
   });
+
+  it("a elenco fasi non arrivato non scrive voci di fase senza nome, e il riquadro ha un titolo", async () => {
+    state.fasi = [];
+    riaperto({ fasi_lavorate: [{ phase_id: "f1", percentuale: 40, nome: "Posa infissi" }, { phase_id: "f9", percentuale: 10 }] });
+    state.schema = perFase();
+    render(<CampoRapportino />);
+    expect(await screen.findByText("Posa infissi")).toBeInTheDocument();
+    expect(screen.getByText("Lavorazione")).toBeInTheDocument();
+    await waitFor(() => expect(ore()).toHaveValue(8));
+    rimanda();
+    await waitFor(() => expect(state.update).toHaveBeenCalled());
+    const u = state.update.mock.calls[0][0] as { fasi_lavorate: Array<{ phase_id: string; nome?: string }> };
+    expect(u.fasi_lavorate.find(f => f.phase_id === "f1")?.nome).toBe("Posa infissi");
+  });
 });
 

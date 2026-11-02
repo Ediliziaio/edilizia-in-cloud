@@ -30,6 +30,7 @@ describe("moduli_cantiere: permessi", () => {
   it("il salvataggio rifiuta il cambio di tipo e la sparizione di un campo con dati", () => {
     const f = funzione("moduli_cantiere_salva");
     expect(f).toContain("il tipo non si cambia");
+    expect(f).toContain("non si sposta tra rapportino e fase");
     expect(f).toContain("si può solo archiviare");
     expect(f).toContain("errcode = '22023'");
   });
