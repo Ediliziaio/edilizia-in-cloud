@@ -6,7 +6,7 @@
  * tali: il render le usa come indicative.
  */
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Box, Building2, Download, ImageIcon, PenLine, Sparkles, Trees, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
 import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
 import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
+import { GalleriaStanza } from "@/components/planimetrie/GalleriaStanza";
 import { UnitaEdificio } from "@/components/planimetrie/UnitaEdificio";
 import { VerifichePianta } from "@/components/planimetrie/VerifichePianta";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "@/lib/planimetrie/tred";
@@ -46,6 +47,10 @@ const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURICom
 
 export default function RenderPlanimetriaScheda() {
   const { id = "" } = useParams();
+  // La galleria di una stanza si apre da sola quando si arriva da «Salva nella galleria» (?galleria=<stanza>).
+  const [params, setParams] = useSearchParams();
+  const galleriaDi = params.get("galleria");
+  const chiudiGalleria = () => setParams((p) => { const n = new URLSearchParams(p); n.delete("galleria"); return n; }, { replace: true });
   const permessi = usePermissions();
   const { data, isLoading, error } = usePlanimetria(id);
   const { data: renders = [] } = useRenderDellaPianta(id);
@@ -91,6 +96,16 @@ export default function RenderPlanimetriaScheda() {
     return conta;
   }, [renders]);
   const completati = renders.filter((r) => r.status === "completed" && r.result_urls?.[0]);
+  // tutti i render di ogni stanza, i più recenti per primi (per la galleria della stanza)
+  const renderPerStanza = useMemo(() => {
+    const m = new Map<string, Array<{ id: string; url: string; salvato: boolean; creato: string }>>();
+    for (const r of [...completati].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))) {
+      const k = r.planimetria?.locale_id;
+      if (!k) continue;
+      m.set(k, [...(m.get(k) ?? []), { id: r.id, url: r.result_urls![0], salvato: !!r.saved_to_gallery, creato: r.created_at }]);
+    }
+    return m;
+  }, [completati]);
   // l'ultimo render fatto per ogni stanza: la scheda mostra quello, invece dello schema, appena c'è
   const ultimoPerLocale = useMemo(() => {
     const m = new Map<string, string>();
@@ -224,6 +239,19 @@ export default function RenderPlanimetriaScheda() {
         />
       )}
 
+      {(() => {
+        const st = galleriaDi ? stanzeEdificio.find((x) => x.id === galleriaDi) : undefined;
+        return (
+          <GalleriaStanza
+            aperto={!!galleriaDi && !!st}
+            onChiudi={chiudiGalleria}
+            nomeStanza={st?.nome ?? "Stanza"}
+            render={galleriaDi ? renderPerStanza.get(galleriaDi) ?? [] : []}
+            nuovoRender={galleriaDi ? percorsiPlanimetrie.renderStanza(id, galleriaDi, { livelloId: livello.id, ambito }) : "#"}
+          />
+        );
+      })()}
+
       <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} tetto={livello.tetto} titolo={data.riga.titolo} />
 
       {mostra3D && piante3D && (
@@ -317,6 +345,7 @@ export default function RenderPlanimetriaScheda() {
               return (
                 <Card key={v.locale.id} className="overflow-hidden transition-shadow hover:shadow-md max-sm:grid max-sm:grid-cols-[116px_1fr]">
                   <div className="relative border-b bg-white max-sm:border-b-0 max-sm:border-r">
+                    {fatti > 0 && <button type="button" className="absolute inset-0 z-10" onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.set("galleria", v.locale.id); return n; })} aria-label={`Apri la galleria di ${v.locale.nome}`} />}
                     <img
                       loading="lazy"
                       src={ultimo ?? svgUrl(svgPiantaStanza(v, { lato: 480 }))}
@@ -353,7 +382,11 @@ export default function RenderPlanimetriaScheda() {
                         <span className="max-xl:hidden">Più stili</span>
                       </Button>
                     </div>
-                    {fatti > 0 && <p className="text-xs text-muted-foreground">{fatti === 1 ? "1 render fatto" : `${fatti} render fatti`}</p>}
+                    {fatti > 0 && (
+                      <button type="button" className="w-fit text-left text-xs font-medium text-primary hover:underline" onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.set("galleria", v.locale.id); return n; })}>
+                        Galleria · {fatti === 1 ? "1 render" : `${fatti} render`}
+                      </button>
+                    )}
                   </CardContent>
                 </Card>
               );

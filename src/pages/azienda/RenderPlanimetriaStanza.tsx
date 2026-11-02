@@ -292,7 +292,10 @@ export default function RenderPlanimetriaStanza() {
       return;
     }
     setSalvato(true);
-    toast.success("Salvato in galleria.");
+    void queryClient.invalidateQueries({ queryKey: chiaviRenderPianta.dellaPianta(id) });
+    toast.success(`Salvato nella galleria di «${vincoli?.locale.nome ?? "questa stanza"}»`, {
+      action: { label: "Apri", onClick: () => navigate(`${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}`) },
+    });
   };
 
   if (isLoading) {
@@ -482,7 +485,7 @@ export default function RenderPlanimetriaStanza() {
         <div className="space-y-4 max-md:space-y-3">
           <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-            <p className="text-sm font-semibold text-green-800">Render pronto: è già tra i render di questa pianta.</p>
+            <p className="text-sm font-semibold text-green-800">Render pronto. Salvalo nella galleria della stanza per ritrovarlo nella scheda della pianta.</p>
           </div>
           <Card className="overflow-hidden">
             <CardContent className="p-0">
@@ -496,7 +499,7 @@ export default function RenderPlanimetriaStanza() {
             </Button>
             <Button variant={salvato ? "secondary" : "default"} className="gap-2" disabled={salvato} onClick={salvaInGalleria}>
               <CheckCircle2 className="h-4 w-4" />
-              {salvato ? "Salvato in galleria" : "Salva in galleria"}
+              {salvato ? "Salvato nella galleria" : `Salva nella galleria di ${vincoli.locale.nome}`}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -505,7 +508,7 @@ export default function RenderPlanimetriaStanza() {
               Un'altra variante
             </Button>
             <Button asChild variant="outline">
-              <Link to={percorsiPlanimetrie.pianta(id)}>Torna alla pianta</Link>
+              <Link to={salvato ? `${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}` : percorsiPlanimetrie.pianta(id)}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
             </Button>
           </div>
         </div>
