@@ -59,7 +59,7 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente" },
   { chiave: "cantiere.indirizzo", forma: "indirizzo_cantiere", istruzione: "indirizzo del cantiere (dove si fanno i lavori), come testo" },
   { chiave: "cantiere.materials_location", forma: "testo", istruzione: "dove si scaricano o si tengono i materiali" },
-  { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota" },
+  { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «IVA inclusa» vuol dire che la cifra va scorporata. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota" },
   { chiave: "economia.vat_rate", forma: "iva", istruzione: "aliquota IVA in percentuale (22, 10, 4, 0)" },
   { chiave: "economia.condizioni_contratto", forma: "condizioni", istruzione: "condizioni del contratto: vedi CONDIZIONI" },
   { chiave: "pagamenti.payment_type", forma: "tipo_pagamento", istruzione: "\"financing\" se è previsto un finanziamento, altrimenti \"standard\"" },
@@ -569,7 +569,18 @@ function cifraGiaSenzaIva(valore: number | null, iva: number, testo: string | nu
 }
 
 /** Il documento non ne parla: non è un problema da dire a chi legge. */
-const MOTIVI_DI_NIENTE = new Set(["piano dei SAL vuoto", "nessuna condizione leggibile"]);
+const MOTIVI_DI_NIENTE = new Set(["piano dei SAL vuoto", "nessuna condizione leggibile", "nessuna rata con un importo o una percentuale leggibile", "nessuna fase col nome"]);
+
+/** Il modello ha scritto come imponibile una cifra che il documento dà «IVA inclusa»: l'imponibile vero, altrimenti null. */
+function cifraConIvaInclusa(valore: number | null, iva: number, testo: string | null | undefined): number | null {
+  if (!valore || !iva || !testo) return null;
+  for (const m of testo.matchAll(/(\d[\d.,\s']*\d|\d)\s*(?:k\b|mila\b)?[^\d\n]{0,24}?(?:iva\s+(?:inclusa|compresa|incl\.?)|ivat[oa]|compres[oa]\s+(?:l'|di\s+)?iva|inclus[oa]\s+(?:l'|di\s+)?iva)/gi)) {
+    for (const n of numeriNelTesto(m[0])) {
+      if (n > 100 && Math.abs(n - valore) <= Math.max(1, valore * 0.0005)) return tondo(valore / (1 + iva / 100));
+    }
+  }
+  return null;
+}
 
 /** Il nome che legge chi lavora in cantiere, mai la chiave tecnica. */
 const etichettaAvviso = (chiave: string): string => variabile(chiave)?.etichetta ?? "un campo del documento";
@@ -631,6 +642,14 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const letti = new Map<string, { valore: unknown; prov: Provenienza }>();
 
   const grezzi = coppie(json, avvisi);
+  // Nel testo della persona un solo indirizzo è quello dove si lavora: il modello lo metteva sul cliente.
+  if (ctx.fonte.tipo === "testo") {
+    const delCliente = grezzi.find(([k]) => k === "cliente.client_address");
+    if (delCliente && !grezzi.some(([k]) => k === "cantiere.indirizzo")) {
+      grezzi.push(["cantiere.indirizzo", { valore: delCliente[1].valore, citazione: delCliente[1].citazione, dove: delCliente[1].dove, fiducia: 0.6, nota: "Il testo dà un solo indirizzo: controlla che sia quello del cantiere." }]);
+      grezzi.splice(grezzi.indexOf(delCliente), 1);
+    }
+  }
   // Il modello a volte perde il telefono scritto da chi apre la commessa («telefono 333 000 7788»).
   // Solo dal testo della persona: in un documento il primo numero può essere quello dell'impresa.
   if (ctx.fonte.tipo === "testo" && ctx.testo) {
@@ -656,6 +675,13 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
     // Provata, ma l'ha corretta il codice e non il modello: resta da guardare (✋), senza fermare «Crea».
     totaleGrezzo.fiducia = Math.min(numeroDa(totaleGrezzo.fiducia) ?? 0.6, 0.6);
     totaleGrezzo.nota = `Il documento dice ${scorporato.cifra} più IVA: l'importo è questo, senza togliere l'IVA. Controlla.`;
+  }
+  // Al contrario: «7.320 euro IVA inclusa» scritto com'è farebbe la commessa più alta del 22 %.
+  const scorporata = totaleGrezzo && iva != null && scorporato == null ? cifraConIvaInclusa(numeroDa(totaleGrezzo.valore), iva, ctx.testo) : null;
+  if (totaleGrezzo && scorporata != null) {
+    totaleGrezzo.nota = `Il documento dice ${totaleGrezzo.valore} IVA inclusa: tolta l'IVA fa ${scorporata}. Controlla.`;
+    totaleGrezzo.valore = scorporata;
+    totaleGrezzo.citazione = null;
   }
   const totale = numeroDa(totaleGrezzo?.valore);
   const ivaNota = iva != null && ALIQUOTE_IVA.has(iva);
