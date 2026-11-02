@@ -11,7 +11,7 @@
  *
  * Funzioni pure, senza dipendenze, compatibili con Deno.
  */
-import type { Area, PianoCommessa, RataDelPiano, Valore } from "./piano.ts";
+import { inVigore, type Area, type PianoCommessa, type RataDelPiano, type Valore } from "./piano.ts";
 
 export interface ProblemaQuadratura {
   area: Area;
@@ -23,14 +23,20 @@ const euro = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits
 const numero = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const elenco = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? (v as Record<string, unknown>[]).filter((x) => x && typeof x === "object") : []);
 
+/** L'importo o l'IVA su cui si fanno i conti: un valore ancora da confermare non conta (terza revisione, 2). */
+function numeroInVigore(piano: PianoCommessa, chiave: "economia.total_amount" | "economia.vat_rate"): number | null {
+  const v = inVigore(piano.aree.economia?.[chiave]);
+  return v?.daConfermare ? null : numero(v?.valore);
+}
+
 /** Cosa non torna nella bozza, una riga per variabile coinvolta. */
 export function controlliQuadratura(piano: PianoCommessa): ProblemaQuadratura[] {
   const out: ProblemaQuadratura[] = [];
-  const imponibile = numero(piano.aree.economia?.["economia.total_amount"]?.valore);
-  const iva = numero(piano.aree.economia?.["economia.vat_rate"]?.valore);
+  const imponibile = numeroInVigore(piano, "economia.total_amount");
+  const iva = numeroInVigore(piano, "economia.vat_rate");
   if (!imponibile || imponibile <= 0) return out;
 
-  const rate = elenco(piano.aree.pagamenti?.["pagamenti.rate"]?.valore);
+  const rate = elenco(inVigore(piano.aree.pagamenti?.["pagamenti.rate"])?.valore);
   if (rate.length && iva != null) {
     const somma = Math.round(rate.reduce((t, r) => t + (Number(r.amount) || 0), 0) * 100) / 100;
     const ivato = Math.round(imponibile * (1 + iva / 100) * 100) / 100;
@@ -43,10 +49,10 @@ export function controlliQuadratura(piano: PianoCommessa): ProblemaQuadratura[] 
     }
   }
 
-  const contratti = elenco(piano.aree.ditte?.["ditte.contratti"]?.valore)
+  const contratti = elenco(inVigore(piano.aree.ditte?.["ditte.contratti"])?.valore)
     .filter((c) => c.stato !== "attenzione")
     .reduce((t, c) => t + (Number(c.importo) || 0), 0);
-  const ordini = elenco(piano.aree.materiali?.["materiali.acquisti"]?.valore)
+  const ordini = elenco(inVigore(piano.aree.materiali?.["materiali.acquisti"])?.valore)
     .filter((o) => o.stato !== "attenzione")
     .reduce((t, o) => t + elenco(o.righe).reduce((s, r) => s + (Number(r.quantita) || 0) * (Number(r.prezzo) || 0), 0), 0);
   const costi = Math.round((contratti + ordini) * 100) / 100;
@@ -71,29 +77,37 @@ const rateDaPercentuale = (v: Valore | undefined): RataDelPiano[] | null =>
 
 /** Le rate non si scrivono ancora: i loro importi aspettano l'IVA o il totale. Il motivo, o null. */
 export function rateInAttesa(piano: PianoCommessa): string | null {
-  if (!rateDaPercentuale(piano.aree.pagamenti?.["pagamenti.rate"])) return null;
-  const imponibile = numero(piano.aree.economia?.["economia.total_amount"]?.valore);
+  if (!rateDaPercentuale(inVigore(piano.aree.pagamenti?.["pagamenti.rate"]))) return null;
+  const imponibile = numeroInVigore(piano, "economia.total_amount");
   if (!imponibile || imponibile <= 0) return "le rate in percentuale aspettano il totale: si calcolano quando c'è";
-  if (numero(piano.aree.economia?.["economia.vat_rate"]?.valore) == null) return "le rate in percentuale aspettano l'IVA: si calcolano quando c'è, oppure confermale così";
+  if (numeroInVigore(piano, "economia.vat_rate") == null) return "le rate in percentuale aspettano l'IVA: si calcolano quando c'è";
   return null;
 }
 
 /** Rifà gli importi dalle percentuali con il totale e l'IVA di adesso: annullare l'IVA li riporta indietro. */
 function conRatePercentuali(piano: PianoCommessa): PianoCommessa {
   const v = piano.aree.pagamenti?.["pagamenti.rate"];
-  const rate = rateDaPercentuale(v);
-  if (!v || !rate || piano.conflitti.some((c) => c.chiave === "pagamenti.rate")) return piano;
-  const imponibile = numero(piano.aree.economia?.["economia.total_amount"]?.valore);
-  const iva = numero(piano.aree.economia?.["economia.vat_rate"]?.valore);
+  if (!v || piano.conflitti.some((c) => c.chiave === "pagamenti.rate")) return piano;
+  const imponibile = numeroInVigore(piano, "economia.total_amount");
+  const iva = numeroInVigore(piano, "economia.vat_rate");
   const base = imponibile && imponibile > 0 ? imponibile * (1 + (iva ?? 0) / 100) : 0;
-  const nuove = rate.map((r) => (r.daPercentuale && r.percent != null
-    ? { ...r, amount: Math.round((base * r.percent) / 100 * 100) / 100 } : r));
   const attesa = !imponibile || imponibile <= 0 ? NOTA_SENZA_TOTALE : iva == null ? NOTA_SENZA_IVA : "";
-  const nota = [senzaNotaRate(v.quadratura ? v.quadratura.nota : v.nota), attesa].filter(Boolean).join(" ") || null;
-  const stesseRate = nuove.every((r, i) => r.amount === rate[i].amount);
-  const notaPrima = (v.quadratura ? v.quadratura.nota : v.nota) ?? null;
-  if (stesseRate && nota === notaPrima) return piano;
-  const nuovo: Valore = v.quadratura ? { ...v, valore: nuove, quadratura: { ...v.quadratura, nota } } : { ...v, valore: nuove, nota };
+  const rifai = (x: Valore): Valore => {
+    const rate = rateDaPercentuale(x);
+    if (!rate) return x;
+    const nuove = rate.map((r) => (r.daPercentuale && r.percent != null
+      ? { ...r, amount: Math.round((base * r.percent) / 100 * 100) / 100 } : r));
+    const nota = [senzaNotaRate(x.quadratura ? x.quadratura.nota : x.nota), attesa].filter(Boolean).join(" ") || null;
+    const stesseRate = nuove.every((r, i) => r.amount === rate[i].amount);
+    const notaPrima = (x.quadratura ? x.quadratura.nota : x.nota) ?? null;
+    if (stesseRate && nota === notaPrima) return x;
+    return x.quadratura ? { ...x, valore: nuove, quadratura: { ...x.quadratura, nota } } : { ...x, valore: nuove, nota };
+  };
+  // Sotto una proposta della chat le rate di prima restano quelle che valgono: si rifanno anche loro.
+  const sotto = v.alPostoDi ? rifai(v.alPostoDi) : v.alPostoDi;
+  const sopra = rifai(v);
+  if (sopra === v && sotto === v.alPostoDi) return piano;
+  const nuovo: Valore = sotto === v.alPostoDi ? sopra : { ...sopra, alPostoDi: sotto };
   return { ...piano, aree: { ...piano.aree, pagamenti: { ...(piano.aree.pagamenti ?? {}), "pagamenti.rate": nuovo } } };
 }
 
@@ -109,8 +123,12 @@ export function conQuadratura(pianoPrima: PianoCommessa): PianoCommessa {
   const problemi = controlliQuadratura(piano);
   let out = piano;
   for (const { area, chiave } of CONTROLLATE) {
-    const v = out.aree[area]?.[chiave];
-    if (!v || out.conflitti.some((c) => c.area === area && c.chiave === chiave)) continue;
+    const mostrato = out.aree[area]?.[chiave];
+    if (!mostrato || out.conflitti.some((c) => c.area === area && c.chiave === chiave)) continue;
+    // Sotto una proposta della chat il ⚠ va al valore che vale: la proposta conta da confermata.
+    const proposta = mostrato.alPostoDi !== undefined;
+    const v = proposta ? mostrato.alPostoDi : mostrato;
+    if (!v) continue;
     // Quello che la commessa ha già (fonte persona con l'id della commessa) non si tocca.
     if (piano.orderId && v.fonte.tipo === "persona" && v.fonte.id === piano.orderId) continue;
     const problema = problemi.find((p) => p.chiave === chiave);
@@ -122,7 +140,7 @@ export function conQuadratura(pianoPrima: PianoCommessa): PianoCommessa {
       const { quadratura, ...resto } = v;
       nuovo = { ...resto, stato: quadratura.stato, nota: quadratura.nota };
     }
-    if (nuovo) out = { ...out, aree: { ...out.aree, [area]: { ...(out.aree[area] ?? {}), [chiave]: nuovo } } };
+    if (nuovo) out = { ...out, aree: { ...out.aree, [area]: { ...(out.aree[area] ?? {}), [chiave]: proposta ? { ...mostrato, alPostoDi: nuovo } : nuovo } } };
   }
   return out;
 }

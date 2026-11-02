@@ -22,6 +22,11 @@
  * telefono le schede sono Chat · Commessa · Fonti e si parte dalla chat; quando la tastiera
  * si apre il popup si accorcia e la barra di «Crea» si nasconde, così il campo resta in vista;
  * «Crea» dice cosa scriverà e cosa resta da decidere.
+ *
+ * 02/11/2026, visto davvero a schermo: finché il campo ha il fuoco E la tastiera è aperta si
+ * nascondono barra e schede; la barra torna con un attimo di ritardo, altrimenti il tocco su
+ * un pulsante (che toglie il fuoco) sposta la pagina e il pulsante non riceve il click. Il
+ * fuoco all'apertura va al popup, e alla chiusura torna a chi l'ha aperto.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -101,6 +106,9 @@ function useAltezzaVisibile(attivo: boolean): number | null {
 /** Il giorno di un istante, a Roma: «2026-10-31T23:30Z» è il 1° novembre, non il 31 ottobre. */
 const giornoInItalia = (istante: string) => new Date(istante).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
+/** Quanto aspetta la barra a tornare dopo che il campo ha perso il fuoco: il click di quel tocco deve arrivare prima. */
+const RITARDO_BARRA_MS = 250;
+
 const campoDiTesto = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
@@ -120,8 +128,29 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const b = useBozzaSilvio({ companyId, userId, servizi, orderId, vedeImporti });
   // La chat è la scheda principale del telefono: lì Silvio dice cosa legge e cosa chiede.
   const [scheda, setScheda] = useState<Scheda>("chat");
-  const [tastiera, setTastiera] = useState(false);
+  const [campoAttivo, setCampoAttivo] = useState(false);
   const altezza = useAltezzaVisibile(open);
+  // La tastiera c'è davvero solo se l'altezza visibile si è accorciata: con un mouse, su uno schermo stretto, non si nasconde niente.
+  const tastiera = campoAttivo && altezza != null;
+  const attesaBarra = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alFuoco = useCallback((dentro: boolean) => {
+    if (attesaBarra.current) clearTimeout(attesaBarra.current);
+    if (dentro) setCampoAttivo(true);
+    else attesaBarra.current = setTimeout(() => setCampoAttivo(false), RITARDO_BARRA_MS);
+  }, []);
+  useEffect(() => () => { if (attesaBarra.current) clearTimeout(attesaBarra.current); }, []);
+  // La tastiera si è aperta: il campo resta in vista nello spazio che è rimasto.
+  useEffect(() => {
+    if (!tastiera) return;
+    // Tutta la modifica, se ce n'è una: il campo col suo «Salva». A tastiera ferma: sale a scatti, e prima lo scorrimento si perde.
+    const t = setTimeout(() => {
+      const attivo = document.activeElement as HTMLElement | null;
+      (attivo?.closest("form:not(.thinking-composer)") ?? attivo)?.scrollIntoView?.({ block: "nearest" });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [tastiera, altezza]);
+  // Senza DialogTrigger Radix non sa a chi ridare il fuoco: lo ricorda il popup.
+  const chiLhaAperto = useRef<HTMLElement | null>(null);
   const [aperta, setAperta] = useState<string | null>(null);
   const [controlla, setControlla] = useState(false);
   const [creando, setCreando] = useState(false);
@@ -328,19 +357,34 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     <Dialog open={open} onOpenChange={cambiaApertura}>
       <DialogContent
         onInteractOutside={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e) => {
+          chiLhaAperto.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          // Il fuoco sul popup, non sul primo pulsante: niente anello su «Chat» o «Scegli i file», niente tastiera che sale.
+          e.preventDefault();
+          (e.target as HTMLElement | null)?.focus({ preventScroll: true });
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          if (chiLhaAperto.current?.isConnected) chiLhaAperto.current.focus();
+        }}
         onKeyDown={tasti}
+        // Ogni campo, non solo la chat: con la tastiera aperta anche la modifica di un importo ha bisogno dello spazio.
+        onFocus={(e) => { if (campoDiTesto(e.target)) alFuoco(true); }}
+        onBlur={(e) => { if (campoDiTesto(e.target)) alFuoco(false); }}
+        // Esc mentre si modifica un valore annulla la modifica, non chiude il popup.
+        onEscapeKeyDown={(e) => { if (aperta) { e.preventDefault(); setAperta(null); } }}
         style={altezza ? { height: altezza, maxHeight: altezza } : undefined}
         className={cn(
           // La X del popup: 44 px sotto lg, come ogni altro tocco.
           "max-lg:[&>button:last-child]:right-1 max-lg:[&>button:last-child]:top-1 max-lg:[&>button:last-child]:flex max-lg:[&>button:last-child]:h-11 max-lg:[&>button:last-child]:w-11 max-lg:[&>button:last-child]:items-center max-lg:[&>button:last-child]:justify-center",
-          "inset-0 left-0 top-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-slate-50 p-0",
+          "inset-0 left-0 top-0 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-slate-50 p-0 outline-none",
           "lg:left-[50%] lg:top-[50%] lg:h-[calc(100dvh-48px)] lg:w-[calc(100vw-48px)] lg:max-w-[1500px] lg:translate-x-[-50%] lg:translate-y-[-50%] lg:rounded-2xl lg:border",
         )}
       >
         <div className="sr-only" aria-live="polite" aria-atomic="true">{ultimo?.testo ?? ""}</div>
 
         {/* ── Testata ───────────────────────────────────────────── */}
-        <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b bg-white px-4 py-2.5 pr-12 lg:px-5 lg:py-2">
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b bg-white py-2.5 pl-4 pr-12 lg:py-2 lg:pl-5">
           <div className="min-w-0 flex-1">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 lg:text-lg">
               <Sparkles className="h-5 w-5 shrink-0 text-orange-600" aria-hidden />
@@ -364,7 +408,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 : "Carica quello che hai: Silvio compone la commessa, tu controlli e crei."}
             </DialogDescription>
           </div>
-          <Button type="button" variant="outline" size="sm" className="h-11 w-11 gap-1 max-sm:px-0 sm:w-auto lg:h-8" disabled={!b.storia.length}
+          <Button type="button" variant="outline" size="sm" className="h-11 w-11 gap-1 max-sm:px-0 sm:w-auto lg:h-8" disabled={!b.storia.length || !!esito}
             onClick={b.indietro} aria-keyshortcuts="Meta+Z Control+Z" title="Annulla l'ultima modifica (Cmd+Z)">
             <Undo2 className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">Annulla</span>
           </Button>
@@ -374,7 +418,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
             <div className="flex items-center gap-2">
               <dt>{completa ? "Completa al" : "Pronta al"}</dt>
               <dd className="flex items-center gap-2 font-semibold text-slate-900">
-                <Progress value={completezza.punteggio} className="h-1.5 w-20" aria-label={`Pronta al ${completezza.punteggio} %`} />
+                <Progress value={completezza.punteggio} className="h-1.5 w-16 bg-slate-200 sm:w-20" aria-label={`Pronta al ${completezza.punteggio} %`} />
                 {prima != null && prima !== completezza.punteggio
                   ? <span>{prima} % <span className="text-slate-400" aria-hidden>→</span><span className="sr-only">, con Silvio</span> {completezza.punteggio} %</span>
                   : `${completezza.punteggio} %`}
@@ -400,7 +444,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
 
         {ripresa && (
           <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm lg:px-6" role="region" aria-label="Bozza da riprendere">
-            <p className="min-w-0 flex-1 text-amber-900">
+            <p className="min-w-0 flex-1 text-amber-900 max-sm:basis-full">
               {completa
                 ? <>Avevi già cominciato a completarla il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>
                 : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
@@ -413,7 +457,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
         )}
 
         {/* ── Schede del telefono ───────────────────────────────── */}
-        <div role="tablist" aria-label="Sezioni" className={cn("grid grid-cols-3 border-b bg-white lg:hidden", (controlla || esito) && "hidden")}>
+        <div role="tablist" aria-label="Sezioni" className={cn("grid grid-cols-3 border-b bg-white lg:hidden", (controlla || esito || tastiera) && "hidden")}>
           {schede.map((s) => (
             <button key={s.id} type="button" role="tab" id={`scheda-${s.id}`} aria-controls={`pannello-${s.id}`} aria-selected={scheda === s.id}
               onClick={() => setScheda(s.id)} aria-label={s.etichetta}
@@ -453,7 +497,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
                   <p className="font-medium">
                     {esito.risorse.non_prenotati.length === 1 ? "Un mezzo non si è prenotato" : `${esito.risorse.non_prenotati.length} mezzi non si sono prenotati`}:
-                    il resto della commessa c'è. Prenotali dalla scheda Mezzi della commessa.
+                    il resto della commessa c'è. {esito.risorse.non_prenotati.length === 1 ? "Prenotalo" : "Prenotali"} dalla scheda Mezzi della commessa.
                   </p>
                   <ul className="mt-1 space-y-0.5">
                     {esito.risorse.non_prenotati.map((x, i) => <li key={`${x.mezzo_id}-${i}`}>• {x.motivo}</li>)}
@@ -487,8 +531,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   <ul className="mt-1 divide-y divide-slate-100">
                     {g.voci.map((v) => (
                       <li key={v.chiave} className="flex flex-wrap items-baseline gap-x-3 py-1.5 text-sm">
-                        <span className="w-44 shrink-0 text-xs text-slate-500">{v.etichetta}</span>
-                        <span className={cn("min-w-0 flex-1", v.fuori ? "text-slate-400 line-through" : "text-slate-900")}>{v.testo}</span>
+                        <span className="w-full text-xs text-slate-500 sm:w-44 sm:shrink-0">{v.etichetta}</span>
+                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori ? "text-slate-400 line-through" : "text-slate-900")}>{v.testo}</span>
                         {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">resta fuori: {v.fuori}</span>}
                       </li>
                     ))}
@@ -519,7 +563,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 annullabile={b.storia.length > 0} onAnnulla={b.indietro}
                 trascrivi={servizi.trascrivi} primaDiDettare={() => b.controllaCrediti(STIMA_DETTATURA_EUR)}
                 fonti={b.fonti} onAllega={(f) => b.aggiungi(f.map((file) => ({ tipo: "file" as const, file })))} onConferma={b.confermaLetture}
-                suggerimenti={suggerimenti} daDecidere={daDecidere} mancano={mancano} onFonti={() => setScheda("fonti")} onFuoco={setTastiera} />
+                suggerimenti={suggerimenti} daDecidere={daDecidere} mancano={mancano} onFonti={() => setScheda("fonti")} tastiera={tastiera} />
             </section>
             <section id="pannello-commessa" role="tabpanel" aria-label="La commessa"
               className={cn("min-h-0 overflow-y-auto p-3", scheda !== "commessa" && "max-lg:hidden")}>
@@ -545,7 +589,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </p>
                 <p className="text-xs text-slate-500">
                   {daDecidere.totale > 0
-                    ? <button type="button" className="min-h-11 text-left font-medium text-amber-700 underline-offset-2 hover:underline lg:min-h-0" onClick={() => vedi(["silvio-da-decidere"])}>
+                    ? <button type="button" className="min-h-11 text-left font-medium text-amber-700 underline-offset-2 hover:underline max-lg:-my-2.5 lg:min-h-0" onClick={() => vedi(["silvio-da-decidere"])}>
                       Da decidere: {testoDaDecidere(daDecidere)}
                     </button>
                     : vuota ? "Carica un documento o scrivi il lavoro nella chat." : "Niente da decidere."}
@@ -562,7 +606,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   onClick={() => setControlla(!controlla)}>
                   <ClipboardCheck className="h-4 w-4" aria-hidden />Controlla
                 </Button>
-                <Button type="button" className="h-11 gap-1 bg-orange-600 hover:bg-orange-700 max-sm:flex-1 lg:h-10"
+                <Button type="button" className="h-11 gap-1 bg-orange-700 hover:bg-orange-800 max-sm:flex-1 lg:h-10"
                   disabled={creando || motivi.length > 0} aria-describedby={motivi.length ? "silvio-crea-motivi" : undefined}
                   aria-label={completa && avanti && !creando ? "Completa e vai alla prossima" : undefined}
                   onClick={() => void crea()}>

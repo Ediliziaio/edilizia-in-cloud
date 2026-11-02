@@ -17,7 +17,7 @@
  * Senza dipendenze, compatibile con Deno.
  */
 import {
-  AREE, TIPI_FONTE,
+  AREE, TIPI_FONTE, inVigore, tipoDOrigine,
   type Area, type Conflitto, type FaseDelPiano, type Fonte, type Frammento, type Modifica, type PianoCommessa, type Valore,
 } from "./piano.ts";
 import { variabile } from "./registro.ts";
@@ -83,8 +83,15 @@ function stessoTesto(a: unknown, b: unknown): boolean {
   return stessoValore(a, b);
 }
 
-/** Le parole di un indirizzo, senza punteggiatura né sigla della provincia. */
-const paroleIndirizzo = (s: string) => new Set(testoPiano(s).split(/[^a-z0-9]+/).filter((p) => p && !/^[a-z]{2}$/.test(p)));
+/**
+ * Le parole di un indirizzo, senza punteggiatura né sigla della provincia. La sigla è solo
+ * l'ultima parola (terza revisione, 5): «Via XX Settembre», «Via Po 3» hanno parole di due lettere
+ * che distinguono la via. «Via Po» da sola resta di due parole: lì «po» è la via.
+ */
+const paroleIndirizzo = (s: string) => {
+  const parole = testoPiano(s).split(/[^a-z0-9]+/).filter(Boolean);
+  return new Set(parole.length > 2 && /^[a-z]{2}$/.test(parole[parole.length - 1]) ? parole.slice(0, -1) : parole);
+};
 
 /** «Via Roma 1 - Milano» e «Via Roma 1, 20121 Milano (MI)»: una dice tutte le parole dell'altra. */
 function stessoIndirizzo(a: string, b: string): boolean {
@@ -95,6 +102,19 @@ function stessoIndirizzo(a: string, b: string): boolean {
 const oggettoDi = (v: unknown): Record<string, unknown> | null =>
   (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
 const pieneDi = (o: Record<string, unknown>) => Object.entries(o).filter(([, x]) => x != null && x !== "");
+
+/**
+ * «Via Roma» contro «Via Roma 5, Bari»: l'indirizzo `meno` lascia fuori il civico o la città di
+ * `piu`. Il CAP e la provincia in più non contano: non dicono un posto diverso.
+ */
+function diceMenoDi(chiave: string, meno: unknown, piu: unknown): boolean {
+  if (chiave !== "cantiere.indirizzo") return false;
+  const a = pieneDi(oggettoDi(meno) ?? {})[0]?.[1];
+  const b = pieneDi(oggettoDi(piu) ?? {})[0]?.[1];
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const dette = paroleIndirizzo(a);
+  return [...paroleIndirizzo(b)].some((p) => !dette.has(p) && !/^\d{5}$/.test(p) && !/^[a-z]{2}$/.test(p));
+}
 const soloCifre = (s: unknown) => String(s ?? "").replace(/\D/g, "").replace(/^(00)?39(?=\d{9,})/, "");
 
 /** Lo stesso dato di una colonna: il telefono per le sue cifre. */
@@ -153,8 +173,11 @@ function senzaConflitto(conflitti: Conflitto[], area: Area, chiave: string): Con
 function candidati(chiave: string, prima: Valore[], nuovo: Valore): Valore[] {
   const tutti = [...prima.filter((c) => !stessaFonte(c.fonte, nuovo.fonte)), nuovo];
   const unici: Valore[] = [];
+  // Se il più fidato dice di meno, l'altro non lo completa: lo contraddice finché qualcuno non sceglie.
+  const fidatoDiceMeno = (u: Valore, c: Valore) => (rangoFonte(c.fonte) < rangoFonte(u.fonte)
+    ? diceMenoDi(chiave, c.valore, u.valore) : diceMenoDi(chiave, u.valore, c.valore));
   for (const c of tutti) {
-    const i = unici.findIndex((u) => stessoSenso(chiave, u.valore, c.valore));
+    const i = unici.findIndex((u) => stessoSenso(chiave, u.valore, c.valore) && !fidatoDiceMeno(u, c));
     if (i < 0) unici.push(c);
     else if (rangoFonte(c.fonte) < rangoFonte(unici[i].fonte)) unici[i] = { ...c, valore: valoreUnito(chiave, c.valore, unici[i].valore) };
     else unici[i] = { ...unici[i], valore: valoreUnito(chiave, unici[i].valore, c.valore) };
@@ -241,7 +264,8 @@ const NOMI_COLONNE: Readonly<Record<string, string>> = {
 
 /**
  * Un documento su una colonna che la commessa ha già (revisione 2/11, G8). Il valore della
- * commessa resta, e se è diverso lo si dice; le colonne che le mancano diventano una proposta.
+ * commessa resta, e se è diverso lo si dice; le colonne che le mancano diventano una proposta,
+ * da confermare anche dove il livello della variabile è «da solo» (terza revisione, 8).
  */
 function confrontoConCommessa(piano: PianoCommessa, area: Area, chiave: string, esistente: Valore, nuovo: Valore): PianoCommessa {
   const def = variabile(chiave);
@@ -251,7 +275,9 @@ function confrontoConCommessa(piano: PianoCommessa, area: Area, chiave: string, 
   const arrivato = oggettoDi(nuovo.valore);
   if (!inCommessa || !arrivato) return stessoSenso(chiave, esistente.valore, nuovo.valore) ? piano : conAvviso(piano, dice);
 
-  if (chiave === "cantiere.indirizzo") return stessoSenso(chiave, esistente.valore, nuovo.valore) ? piano : conAvviso(piano, dice);
+  if (chiave === "cantiere.indirizzo") {
+    return stessoSenso(chiave, esistente.valore, nuovo.valore) && !diceMenoDi(chiave, esistente.valore, nuovo.valore) ? piano : conAvviso(piano, dice);
+  }
   const piena = (k: string) => inCommessa[k] != null && inCommessa[k] !== "";
   const base = pieneDi(arrivato).some(([k, x]) => piena(k) && !stessaColonna(k, x, inCommessa[k])) ? conAvviso(piano, dice) : piano;
   // Il nome scritto in un'altra colonna non è una colonna che manca, è lo stesso dato.
@@ -260,7 +286,7 @@ function confrontoConCommessa(piano: PianoCommessa, area: Area, chiave: string, 
   if (!mancanti.length) return base;
   const nomi = mancanti.map(([k]) => NOMI_COLONNE[k] ?? "il dato che manca");
   return conValore(base, area, chiave, {
-    ...nuovo, valore: { ...inCommessa, ...Object.fromEntries(mancanti) }, stato: "proposta", sopraCommessa: esistente,
+    ...nuovo, valore: { ...inCommessa, ...Object.fromEntries(mancanti) }, stato: "proposta", sopraCommessa: esistente, daConfermare: true,
     nota: `La commessa non ha ${nomi.join(" né ")}: te lo propongo dal ${nuovo.fonte.etichetta}. Il resto resta com'è.`,
   });
 }
@@ -274,6 +300,7 @@ function fondiValore(piano: PianoCommessa, area: Area, chiave: string, arrivato:
   if (giaNellaCommessa(piano, nuovo) && esistente?.sopraCommessa && !giaNellaCommessa(piano, esistente)) {
     return conValore(piano, area, chiave, {
       ...esistente, sopraCommessa: nuovo,
+      ...(esistente.fonte.tipo === "persona" ? {} : { daConfermare: true }),
       valore: { ...(oggettoDi(esistente.valore) ?? {}), ...(oggettoDi(nuovo.valore) ?? {}) },
     });
   }
@@ -299,7 +326,7 @@ function fondiValore(piano: PianoCommessa, area: Area, chiave: string, arrivato:
   // Sopra una commessa: le colonne che ha già non cambiano, qualunque cosa dica il documento.
   const sopra = esistente?.sopraCommessa;
   if (sopra && oggettoDi(nuovo.valore)) {
-    nuovo = { ...nuovo, sopraCommessa: sopra, valore: { ...oggettoDi(nuovo.valore), ...oggettoDi(sopra.valore) } };
+    nuovo = { ...nuovo, sopraCommessa: sopra, daConfermare: true, valore: { ...oggettoDi(nuovo.valore), ...oggettoDi(sopra.valore) } };
   }
   const lista = candidati(chiave, aperto ? aperto.candidati : esistente ? [esistente] : [], nuovo);
   const altri = senzaConflitto(piano.conflitti, area, chiave);
@@ -344,7 +371,7 @@ export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa
  * l'imponibile e l'ivato. Resta un conflitto, ma Silvio dice cosa ha capito.
  */
 function conNotaImponibile(piano: PianoCommessa): PianoCommessa {
-  const iva = piano.aree.economia?.["economia.vat_rate"]?.valore;
+  const iva = inVigore(piano.aree.economia?.["economia.vat_rate"])?.valore;
   const conflitto = piano.conflitti.find((c) => c.chiave === "economia.total_amount");
   if (!conflitto || typeof iva !== "number" || iva <= 0) return piano;
   const importi = conflitto.candidati.map((c) => c.valore).filter((v): v is number => typeof v === "number");
@@ -353,7 +380,7 @@ function conNotaImponibile(piano: PianoCommessa): PianoCommessa {
   const nota = `${inParole(Math.round(netto * (1 + iva / 100) * 100) / 100)} € è ${inParole(netto)} € più l'IVA al ${iva} %: sembra lo stesso importo. Nella commessa va quello senza IVA, ${inParole(netto)} €, se è così.`;
   if (conflitto.nota === nota) return piano;
   const mostrato = piano.aree.economia?.["economia.total_amount"];
-  const conN = mostrato ? conValore(piano, "economia", "economia.total_amount", { ...mostrato, nota }) : piano;
+  const conN = mostrato && mostrato.alPostoDi === undefined ? conValore(piano, "economia", "economia.total_amount", { ...mostrato, nota }) : piano;
   return { ...conN, conflitti: conN.conflitti.map((c) => (c === conflitto ? { ...c, nota } : c)) };
 }
 
@@ -367,6 +394,8 @@ export interface Passo {
   prima: { area: Area; chiave: string; valore: Valore | null }[];
   /** I conflitti aperti, prima della modifica, sulle sole variabili toccate. */
   conflittiPrima: Conflitto[];
+  /** I valori messi da parte che la modifica ha fatto rientrare: l'annulla li rimette da parte. */
+  scartatiPrima?: NonNullable<PianoCommessa["scartati"]>;
 }
 
 export interface Bozza {
@@ -378,11 +407,16 @@ function controllaChiave(area: Area, chiave: string): void {
   if (variabile(chiave)?.area !== area) throw new Error(`«${chiave}» non è una variabile dell'area ${area}`);
 }
 
-function daPersona(valore: unknown, etichetta: string, base?: Fonte): Valore {
+/**
+ * `da` è il valore che la persona ha toccato: la fonte passa a `persona`, ma resta il tipo della
+ * fonte d'origine, perché le voci di un computo spostato sono ancora le voci del computo.
+ */
+function daPersona(valore: unknown, etichetta: string, base?: Fonte, da?: Pick<Valore, "fonte" | "tipoOrigine"> | null): Valore {
   const fonte: Fonte = base
     ? { ...base, tipo: "persona", etichetta: `${etichetta}: ${base.etichetta}` }
     : { tipo: "persona", etichetta };
-  return { valore, fonte, fiducia: 1, stato: "fatto", nota: null };
+  const origine = da ? tipoDOrigine(da) : null;
+  return { valore, fonte, fiducia: 1, stato: "fatto", nota: null, ...(origine && origine !== "persona" ? { tipoOrigine: origine } : {}) };
 }
 
 /**
@@ -392,7 +426,7 @@ function daPersona(valore: unknown, etichetta: string, base?: Fonte): Valore {
  */
 function elencoToccato(attuale: Valore, lista: unknown[]): Valore {
   const stato = attuale.quadratura?.stato ?? attuale.stato;
-  if (attuale.fonte.tipo === "persona" || stato === "fatto") return daPersona(lista, "modificato da te");
+  if (attuale.fonte.tipo === "persona" || stato === "fatto") return daPersona(lista, "modificato da te", undefined, attuale);
   const { quadratura, ...resto } = attuale;
   if (stato === "attenzione") return { ...resto, valore: lista, stato: "proposta", nota: null, toccato: true, daConfermare: true };
   return { ...resto, valore: lista, stato, ...(quadratura ? { nota: quadratura.nota } : {}), toccato: true };
@@ -434,13 +468,15 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
         return [{ area: modifica.area, chiave: modifica.chiave, valore: {
           valore: modifica.valore, fonte: { tipo: "testo", etichetta: "scritto in chat" }, fiducia: 0.5, stato: "proposta",
           nota: modifica.nota ?? "Scritto in chat: entra nella commessa solo se lo confermi.", daConfermare: true, toccato: true,
+          // Finché non si conferma vale quello di prima, e «Toglilo» lo rimette (terza revisione, 2).
+          alPostoDi: attuale ? (attuale.alPostoDi !== undefined ? attuale.alPostoDi : attuale) : null,
         } }];
       }
       // Le colonne che mancano a una commessa: quelle che ha già restano lì sotto.
       const commessa = attuale?.sopraCommessa ?? (giaNellaCommessa(piano, attuale) ? attuale : null);
       return [{
         area: modifica.area, chiave: modifica.chiave,
-        valore: { ...daPersona(modifica.valore, "modificato da te"), ...nota, ...(commessa ? { sopraCommessa: commessa } : {}) },
+        valore: { ...daPersona(modifica.valore, "modificato da te", undefined, attuale), ...nota, ...(commessa ? { sopraCommessa: commessa } : {}) },
       }];
     }
 
@@ -448,6 +484,9 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
       controllaChiave(modifica.area, modifica.chiave);
       const attuale = piano.aree[modifica.area]?.[modifica.chiave]?.valore;
       if (modifica.indice == null) {
+        // Togliere una proposta della chat rimette quello che c'era (null: non c'era niente).
+        const prima = piano.aree[modifica.area]?.[modifica.chiave]?.alPostoDi;
+        if (prima !== undefined) return [{ area: modifica.area, chiave: modifica.chiave, valore: prima }];
         // Togliere la proposta fatta sopra una commessa rimette la commessa com'è.
         const sotto = piano.aree[modifica.area]?.[modifica.chiave]?.sopraCommessa;
         if (sotto) return [{ area: modifica.area, chiave: modifica.chiave, valore: sotto }];
@@ -481,7 +520,7 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
       // Quello che la commessa ha già non si sposta: si spostano le date che Silvio propone.
       const libera = (chiave: string) => !giaNellaCommessa(piano, fasi[chiave]);
       const sposta = (chiave: string, valore: unknown) => {
-        out.push({ area: "fasi", chiave, valore: daPersona(valore, "spostato da te", fasi[chiave]?.fonte) });
+        out.push({ area: "fasi", chiave, valore: daPersona(valore, "spostato da te", fasi[chiave]?.fonte, fasi[chiave]) });
       };
       const conData = (f: unknown) => Array.isArray(f) && f.some((x) => typeof (x as FaseDelPiano | null)?.start_date === "string");
 
@@ -521,7 +560,7 @@ function effetti(piano: PianoCommessa, modifica: Modifica): { area: Area; chiave
       // Scelto dall'utente: vale come scritto da una persona, ma la ⓘ porta ancora al documento.
       return [{
         area: modifica.area, chiave: modifica.chiave,
-        valore: { ...daPersona(scelto.valore, "scelto da te", scelto.fonte), ...(scelto.sopraCommessa ? { sopraCommessa: scelto.sopraCommessa } : {}) },
+        valore: { ...daPersona(scelto.valore, "scelto da te", scelto.fonte, scelto), ...(scelto.sopraCommessa ? { sopraCommessa: scelto.sopraCommessa } : {}) },
       }];
     }
   }
@@ -541,11 +580,33 @@ export function applica(piano: PianoCommessa, modifica: Modifica, storia: Passo[
     prima: cambi.map(({ area, chiave }) => ({ area, chiave, valore: piano.aree[area]?.[chiave] ?? null })),
     conflittiPrima: piano.conflitti.filter((c) => cambi.some((x) => x.area === c.area && x.chiave === c.chiave)),
   };
+  // Una proposta non decide niente, e neanche toglierla: il disaccordo fra le fonti resta aperto.
+  const togliProposta = modifica.tipo === "togli" && modifica.indice == null && piano.aree[modifica.area]?.[modifica.chiave]?.alPostoDi !== undefined;
+  const decide = !togliProposta && !(modifica.tipo === "cambia_valore" && modifica.proposta);
   let out = piano;
   for (const { area, chiave, valore } of cambi) {
-    out = { ...conValore(out, area, chiave, valore), conflitti: senzaConflitto(out.conflitti, area, chiave) };
+    out = decide ? { ...conValore(out, area, chiave, valore), conflitti: senzaConflitto(out.conflitti, area, chiave) } : conValore(out, area, chiave, valore);
+  }
+  // Tolta una proposta della chat, i documenti arrivati mentre era aperta tornano nella fusione.
+  if (togliProposta) {
+    const { area, chiave } = modifica;
+    const rientrano = (out.scartati ?? []).filter((s) => s.area === area && s.chiave === chiave);
+    if (rientrano.length && out.aree[area]?.[chiave]?.fonte.tipo !== "persona") {
+      passo.scartatiPrima = rientrano;
+      out = conScartatiRientrati(out, area, chiave);
+    }
   }
   return { piano: conQuadratura(out), storia: [...storia, passo] };
+}
+
+/** I valori messi da parte di una variabile rientrano nella fusione: una fonte in disaccordo riapre il conflitto. */
+function conScartatiRientrati(piano: PianoCommessa, area: Area, chiave: string): PianoCommessa {
+  const rientrano = (piano.scartati ?? []).filter((s) => s.area === area && s.chiave === chiave);
+  if (!rientrano.length) return piano;
+  let out: PianoCommessa = { ...piano, scartati: (piano.scartati ?? []).filter((s) => !(s.area === area && s.chiave === chiave)) };
+  for (const s of rientrano) out = fondiValore(out, area, chiave, s.valore);
+  if (out.scartati && !out.scartati.length) delete out.scartati;
+  return out;
 }
 
 function annullaPasso(piano: PianoCommessa, passo: Passo): PianoCommessa {
@@ -556,14 +617,12 @@ function annullaPasso(piano: PianoCommessa, passo: Passo): PianoCommessa {
     conflitti = senzaConflitto(conflitti, area, chiave);
   }
   out = { ...out, conflitti: [...conflitti, ...passo.conflittiPrima] };
+  if (passo.scartatiPrima?.length) out = { ...out, scartati: [...(out.scartati ?? []), ...passo.scartatiPrima] };
   // I valori arrivati mentre la persona aveva scritto la sua: tornano nella fusione, dove
   // una fonte in disaccordo riapre il conflitto (revisione 1/11, L5).
   for (const { area, chiave, valore } of passo.prima) {
     if (valore?.fonte.tipo === "persona") continue;
-    const rientrano = (out.scartati ?? []).filter((s) => s.area === area && s.chiave === chiave);
-    if (!rientrano.length) continue;
-    out = { ...out, scartati: (out.scartati ?? []).filter((s) => !(s.area === area && s.chiave === chiave)) };
-    for (const s of rientrano) out = fondiValore(out, area, chiave, s.valore);
+    out = conScartatiRientrati(out, area, chiave);
   }
   if (out.scartati && !out.scartati.length) delete out.scartati;
   return out;

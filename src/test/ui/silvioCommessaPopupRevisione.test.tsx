@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { ContestoRisorse } from "../../../shared/silvio-commessa/risorse.ts";
 import type { ServiziSilvioCommessa } from "@/components/silvio-commessa/servizi";
@@ -542,5 +542,84 @@ describe("Quello che i livelli sotto hanno preparato", () => {
     expect(within(riga).getByText("30 %")).toBeInTheDocument();
     expect(riga.textContent).not.toMatch(/0 €/);
     expect(within(riga).getByText(/Manca il totale/)).toBeInTheDocument();
+  });
+});
+
+describe("Visto a schermo il 2/11: quello che test e classi non dicevano", () => {
+  /** La tastiera del telefono: l'altezza visibile si accorcia, e il popup se ne accorge da lì. */
+  function tastieraFinta() {
+    const larghezza = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { value: 375, configurable: true });
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight });
+    Object.defineProperty(window, "visualViewport", { value: vv, configurable: true });
+    return {
+      apri: () => act(() => { vv.height = window.innerHeight - 280; vv.dispatchEvent(new Event("resize")); }),
+      togli: () => {
+        Object.defineProperty(window, "visualViewport", { value: undefined, configurable: true });
+        Object.defineProperty(window, "innerWidth", { value: larghezza, configurable: true });
+      },
+    };
+  }
+
+  it("con la tastiera aperta la barra si nasconde, e dopo il tocco torna solo con un attimo di ritardo: il pulsante deve ricevere il click", async () => {
+    const t = tastieraFinta();
+    const { s } = servizi();
+    apri(s);
+    await pronto();
+    const barra = crea().closest("footer")!;
+    const campo = screen.getByRole("textbox", { name: "Scrivi a Silvio" });
+    fireEvent.focus(campo);
+    expect(barra.className).not.toMatch(/max-lg:hidden/); // Il fuoco da solo non basta: senza tastiera non si nasconde niente.
+    t.apri();
+    expect(barra.className).toMatch(/max-lg:hidden/);
+    fireEvent.blur(campo);
+    expect(barra.className).toMatch(/max-lg:hidden/);
+    await waitFor(() => expect(barra.className).not.toMatch(/max-lg:hidden/));
+    t.togli();
+  });
+
+  it("alla chiusura il fuoco torna a chi ha aperto il popup", async () => {
+    const { s } = servizi();
+    function ConPulsante() {
+      const [aperto, setAperto] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setAperto(true)}>Apri il popup</button>
+          {aperto && <CreaConSilvioDialog open onOpenChange={setAperto} companyId={AZIENDA} userId={UTENTE} servizi={s} />}
+        </>
+      );
+    }
+    avvolgi(<ConPulsante />);
+    const pulsante = screen.getByRole("button", { name: "Apri il popup" });
+    pulsante.focus();
+    fireEvent.click(pulsante);
+    const popup = await screen.findByRole("dialog");
+    await waitFor(() => expect(document.activeElement).toBe(popup));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(pulsante));
+  });
+
+  it("Esc mentre si modifica un valore annulla la modifica e non chiude il popup", async () => {
+    const onOpenChange = vi.fn();
+    const { s } = servizi();
+    apri(s, { onOpenChange });
+    await pronto();
+    fireEvent.click(within(commessa()).getByRole("button", { name: "Modifica «Importo»" }));
+    expect(within(commessa()).getByLabelText("Importo")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(within(commessa()).queryByLabelText("Importo")).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("un avviso solo in più si dice al singolare", async () => {
+    const avvisi = ["Primo avviso", "Secondo avviso", "Terzo avviso", "Quarto avviso"];
+    const { s } = servizi({}, [base({}, { avvisi })]);
+    apri(s);
+    await pronto();
+    expect(await within(commessa()).findByRole("button", { name: "Un altro avviso" })).toBeInTheDocument();
+    expect(within(fontiColonna()).getByText("e un altro avviso")).toBeInTheDocument();
   });
 });

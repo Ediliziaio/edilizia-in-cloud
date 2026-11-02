@@ -100,7 +100,7 @@ function SchedaFonte({ f, onRiprova, onTogli, collega, onComeDocumento }: {
       <div className="flex items-start gap-2">
         <span className="mt-0.5 shrink-0"><IconaStato f={f} /></span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-slate-900" title={f.etichetta}>{f.etichetta}</p>
+          <p className="line-clamp-2 break-words font-medium text-slate-900" title={f.etichetta}>{f.etichetta}</p>
           <p className="text-xs lg:text-[11px] text-slate-500">
             {STATI[f.stato]}
             {f.stato === "fatta" && f.valori != null ? ` · ${f.valori} ${f.valori === 1 ? "dato preso" : "dati presi"}` : ""}
@@ -160,7 +160,7 @@ function SchedaFonte({ f, onRiprova, onTogli, collega, onComeDocumento }: {
       {f.avvisi.length > 0 && (
         <ul className="mt-2 space-y-1 text-xs lg:text-[11px] text-amber-800">
           {f.avvisi.slice(0, 3).map((a) => <li key={a}>• {a}</li>)}
-          {f.avvisi.length > 3 && <li>e altri {f.avvisi.length - 3} avvisi</li>}
+          {f.avvisi.length > 3 && <li>{f.avvisi.length === 4 ? "e un altro avviso" : `e altri ${f.avvisi.length - 3} avvisi`}</li>}
         </ul>
       )}
     </li>
@@ -221,8 +221,8 @@ function ElencoDaScegliere({ tipo, companyId, servizi, onScegli, onChiudi }: {
             <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-white focus-visible:bg-white lg:min-h-0"
               onClick={() => onScegli({ tipo, id: r.id, etichetta: r.etichetta })}>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm lg:text-[13px] font-medium">{r.titolo}</span>
-                <span className="block truncate text-xs lg:text-[11px] text-slate-500">{[r.stato, r.sotto].filter(Boolean).join(" · ")}</span>
+                <span className="line-clamp-2 break-words text-sm lg:text-[13px] font-medium">{r.titolo}</span>
+                <span className="line-clamp-2 break-words text-xs lg:text-[11px] text-slate-500">{[r.stato, r.sotto].filter(Boolean).join(" · ")}</span>
               </span>
               {r.totale != null && <span className="shrink-0 text-xs lg:text-[11px] font-medium">{formatCurrency(r.totale)}</span>}
             </button>
@@ -256,9 +256,10 @@ function DocumentiDellaCommessa({ orderId, fonti, servizi, onAggiungi }: {
       <p className="px-1 text-xs lg:text-[11px] text-slate-500">Silvio li legge solo se tocchi «Leggi».</p>
       <ul className="mt-1 max-h-48 space-y-1 overflow-y-auto">
         {leggibili.map(({ a, stima }: { a: AllegatoCommessa; stima: number }) => (
-          <li key={a.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm lg:text-[13px]">
+          <li key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-1 py-1 text-sm lg:text-[13px]">
             <FileText className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-            <span className="min-w-0 flex-1 truncate" title={a.nome}>{a.nome}</span>
+            {/* Nella colonna stretta il pulsante scende sotto: «Capitolat…» non si riconosceva. */}
+            <span className="line-clamp-2 min-w-0 flex-1 basis-40 break-words" title={a.nome}>{a.nome}</span>
             <Button type="button" size="sm" variant="outline" className="h-11 shrink-0 px-2 text-xs lg:h-8 lg:text-[11px]" disabled={aggiunti.has(a.id)}
               aria-label={aggiunti.has(a.id) ? `${a.nome}: già tra le fonti` : `Leggi ${a.nome}${stima ? `, circa ${euroAI(stima)}` : ", gratis"}`}
               onClick={() => onAggiungi([{ tipo: "allegato", allegato: a }])}>
@@ -315,7 +316,7 @@ export function ColonnaFonti({
         className={cn("rounded-xl border-2 border-dashed p-3 text-center transition-colors",
           sopra ? "border-orange-400 bg-orange-50" : "border-slate-300 bg-white")}
       >
-        <p className="flex items-center justify-center gap-1.5 text-sm lg:text-[13px] font-medium text-slate-900"><Upload className="h-4 w-4 shrink-0 text-orange-600" aria-hidden />Trascina qui i documenti</p>
+        <p className="flex items-center justify-center gap-1.5 text-sm lg:text-[13px] font-medium text-slate-900"><Upload className="h-4 w-4 shrink-0 text-orange-600" aria-hidden /><span className="sm:hidden">Carica i documenti</span><span className="max-sm:hidden">Trascina qui i documenti</span></p>
         <p className="text-xs lg:text-[11px] text-slate-500">Contratti, capitolati, PDF, foto: un PDF circa 0,01 €.</p>
         <Button type="button" variant="outline" size="sm" className="mt-2 h-11 gap-1 lg:h-9" onClick={() => inputFile.current?.click()}>
           <Plus className="h-4 w-4" aria-hidden />Scegli i file
@@ -350,7 +351,7 @@ export function ColonnaFonti({
             {daConfermare.length === 1 ? "1 documento" : `${daConfermare.length} documenti`} da leggere con l'AI:
             {" "}<strong>circa {euroAI(stima)}</strong>{stima >= 0.01 ? " (di più se sono scansioni)" : ""}.
           </p>
-          <Button type="button" size="sm" className="mt-2 h-11 w-full bg-orange-600 hover:bg-orange-700 lg:h-9" onClick={onConferma}>
+          <Button type="button" size="sm" className="mt-2 h-11 w-full bg-orange-700 hover:bg-orange-800 lg:h-9" onClick={onConferma}>
             Leggi {daConfermare.length === 1 ? "il documento" : "i documenti"}
           </Button>
         </div>

@@ -75,6 +75,32 @@ export interface Valore<T = unknown> {
    * mancano (revisione 2/11, G8). Quelle colonne non si cambiano e non si riscrivono.
    */
   sopraCommessa?: Valore;
+  /**
+   * Il tipo della fonte da cui viene il valore, dopo che una persona ci ha messo mano (revisione
+   * 2/11, terza): spostare le date mette la fonte a `persona`, ma le voci restano quelle del
+   * computo. Le voci previste lo leggono per sapere da dove arrivano (`tipoDOrigine`).
+   */
+  tipoOrigine?: TipoFonte;
+  /**
+   * Una proposta della chat: il valore che c'era prima, che resta in vigore finché la persona non
+   * conferma (`inVigore`), e che «Toglilo» rimette. Null: prima non c'era niente.
+   */
+  alPostoDi?: Valore | null;
+}
+
+/**
+ * Il valore che conta adesso: sotto una proposta della chat ancora da confermare, quello di prima.
+ * La riga del popup mostra la proposta; la scrittura e i conti leggono questo.
+ */
+export function inVigore(v: Valore | null | undefined): Valore | undefined {
+  if (!v) return undefined;
+  if (!v.daConfermare || v.alPostoDi === undefined) return v;
+  return v.alPostoDi ?? undefined;
+}
+
+/** Il tipo della fonte da cui viene il valore, anche se poi una persona l'ha toccato. */
+export function tipoDOrigine(v: Pick<Valore, "fonte" | "tipoOrigine">): TipoFonte {
+  return v.tipoOrigine ?? v.fonte.tipo;
 }
 
 /** Due fonti che dicono cose diverse sulla stessa variabile: decide l'utente. */

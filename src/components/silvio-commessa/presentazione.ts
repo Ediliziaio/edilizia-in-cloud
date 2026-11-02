@@ -38,8 +38,11 @@ export const NOMI_AREE: Record<Area, string> = {
   comunicazione: "Comunicazione",
 };
 
-/** Il segno di uno stato: ✓ fatto · ✋ da guardare · ❓ manca · ⚠ da sistemare (fonti in disaccordo, conti che non tornano, risorsa non disponibile). */
-export const SEGNI: Record<Stato, string> = { fatto: "✓", proposta: "✋", manca: "❓", attenzione: "⚠" };
+/**
+ * Il segno di uno stato: ✓ fatto · ✋ da guardare · ? manca · ⚠ da sistemare (fonti in disaccordo, conti che non tornano, risorsa non disponibile).
+ * «?» e non l'emoji ❓: quella è rossa su ogni telefono, e un dato facoltativo che manca sembrava un allarme come il ⚠.
+ */
+export const SEGNI: Record<Stato, string> = { fatto: "✓", proposta: "✋", manca: "?", attenzione: "⚠" };
 export const NOMI_STATI: Record<Stato, string> = {
   fatto: "pronto", proposta: "da guardare", manca: "manca", attenzione: "da sistemare",
 };
@@ -583,7 +586,9 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
         if (giaNellaCommessa(piano, x)) return null;
         if (!motivo && (!x || x.stato === "manca" || vuoto(x.valore))) return null;
         const testo = !x ? "—" : importoNascosto(v.chiave, vedeImporti) ? TESTO_IMPORTO_NASCOSTO : testoValore(v.chiave, x.valore);
-        return { chiave: v.chiave, etichetta: v.etichetta, testo, fuori: motivo };
+        // Il motivo può citare le cifre («le rate fanno 48.500 €»): chi non vede gli importi legge solo che resta fuori.
+        const fuori = motivo && importoNascosto(v.chiave, vedeImporti) ? "da sistemare, con chi vede gli importi" : motivo;
+        return { chiave: v.chiave, etichetta: v.etichetta, testo, fuori };
       })
       .filter((x): x is VoceControlla => x !== null),
   })).filter((g) => g.voci.length > 0);

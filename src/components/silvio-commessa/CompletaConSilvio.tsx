@@ -51,7 +51,7 @@ export function CompletaConSilvio({ orderId, companyId, orderCode, puoModificare
       ) : (
         <p className="min-w-0 flex-1 text-slate-600">Silvio può aggiungere quello che manca a questa commessa.</p>
       )}
-      <Button type="button" size="sm" className="h-8 gap-1 bg-orange-600 hover:bg-orange-700 max-sm:w-full" onClick={() => setAperto(true)}>
+      <Button type="button" size="sm" className="h-8 gap-1 bg-orange-700 hover:bg-orange-800 max-sm:w-full" onClick={() => setAperto(true)}>
         <Sparkles className="h-4 w-4" aria-hidden />Completa con Silvio
       </Button>
       {aperto && (

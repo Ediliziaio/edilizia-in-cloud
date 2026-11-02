@@ -26,6 +26,7 @@
 import { erroreLeggibile } from "./testoErrore";
 import type { Frammento } from "../../../shared/silvio-commessa/piano.ts";
 import type { CalendarioCantiere } from "../../../shared/silvio-commessa/calendario.ts";
+import { dataVera } from "../../../shared/silvio-commessa/date.ts";
 import { riconosciDocumento, type Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import type { FonteLetturaAI } from "../../../shared/silvio-commessa/letturaAI.ts";
 import type { RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
@@ -92,7 +93,8 @@ export function percorsoDocumento(opz: Pick<OpzioniLettura, "companyId" | "userI
 /**
  * Se il frammento capisce il lavoro ma non dice le fasi, il modello per tipo di lavoro le
  * propone. Il tipo di lavoro lo dice già il documento: il modello non lo ripete, così non
- * nasce un conflitto per niente.
+ * nasce un conflitto per niente. Se non c'è un inizio già deciso vale quello che dice il
+ * documento: «si parte il 16/11» dà le date alle fasi.
  */
 export function conModelloSeMancanoLeFasi(fr: Frammento, inizio?: string | null, calendario?: CalendarioCantiere): Frammento[] {
   if (fr.aree.fasi?.["fasi.order_work_phases"]) return [fr];
@@ -100,7 +102,9 @@ export function conModelloSeMancanoLeFasi(fr: Frammento, inizio?: string | null,
     .filter((x): x is string => typeof x === "string").join(" ");
   const tipo = riconosciTipoLavoro(testi);
   if (!tipo) return [fr];
-  const modello = frammentoDalModello(tipo, { misura: misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita), inizio, calendario });
+  const detto = fr.aree.fasi?.["fasi.work_start_date"]?.valore;
+  const data = inizio || (typeof detto === "string" && dataVera(detto) ? detto : null);
+  const modello = frammentoDalModello(tipo, { misura: misuraDalTesto(testi, MODELLI_LAVORO[tipo].unita), inizio: data, calendario });
   if (fr.aree.identita?.["identita.tipo_lavoro"]) delete modello.aree.identita;
   return [fr, modello];
 }

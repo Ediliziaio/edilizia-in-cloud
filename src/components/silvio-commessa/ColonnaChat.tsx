@@ -10,6 +10,10 @@
  * (`ThinkingPromptInput`), con graffetta e microfono sempre in vista; al primo ingresso una
  * frase e due esempi da toccare; mentre legge, Silvio dice cosa sta leggendo passo per passo
  * (`ThinkingProgress`); sotto i messaggi i suggerimenti che cambiano con la bozza.
+ *
+ * 02/11/2026, visto a schermo su un telefono da 667 px: il campo sta su una riga con i suoi
+ * pulsanti, e con la tastiera aperta spariscono suggerimenti e nota del costo, altrimenti ai
+ * messaggi restavano 58 px. Il tocco sui pulsanti del campo non gli toglie il fuoco.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUpRight, Eye, FileText, Loader2, Mic, Paperclip, Sparkles, Square, Undo2 } from "lucide-react";
@@ -61,8 +65,8 @@ export interface ColonnaChatProps {
   mancano?: { chiave: string; etichetta: string }[];
   /** Porta alla colonna Fonti (sul telefono è un'altra scheda). */
   onFonti?: () => void;
-  /** Il campo ha il fuoco: sul telefono il popup nasconde la barra di «Crea». */
-  onFuoco?: (dentro: boolean) => void;
+  /** La tastiera del telefono è aperta: ai messaggi serve tutto lo spazio. */
+  tastiera?: boolean;
 }
 
 function Microfono({ d }: { d: Dettatura }) {
@@ -111,7 +115,7 @@ function Pillola({ children, onClick, disabled, primaria }: { children: ReactNod
   return (
     <button type="button" onClick={onClick} disabled={disabled}
       className={cn("inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border px-3.5 py-2 text-left text-sm leading-snug lg:px-3 lg:py-1.5 lg:text-[13px] transition-colors disabled:opacity-50 lg:min-h-9",
-        primaria ? "border-orange-600 bg-orange-600 text-white hover:bg-orange-700" : "border-slate-300 bg-white text-slate-800 hover:border-orange-300 hover:bg-orange-50")}>
+        primaria ? "border-orange-700 bg-orange-700 text-white hover:bg-orange-800" : "border-slate-300 bg-white text-slate-800 hover:border-orange-300 hover:bg-orange-50")}>
       {!primaria && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden />}
       <span className="min-w-0 break-words">{children}</span>
     </button>
@@ -120,7 +124,7 @@ function Pillola({ children, onClick, disabled, primaria }: { children: ReactNod
 
 export function ColonnaChat({
   messaggi, domanda, legge, onModifica, onApri, onScrivi, scrivendo = false, onVedi, annullabile = false, onAnnulla, trascrivi, primaDiDettare,
-  fonti = [], onAllega, onConferma, suggerimenti = [], daDecidere = null, mancano = [], onFonti, onFuoco,
+  fonti = [], onAllega, onConferma, suggerimenti = [], daDecidere = null, mancano = [], onFonti, tastiera = false,
 }: ColonnaChatProps) {
   const fondo = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLTextAreaElement | null>(null);
@@ -131,14 +135,15 @@ export function ColonnaChat({
   const stima = daLeggere.reduce((s, f) => s + f.stimaEur, 0);
   const passi = passiDellaLettura(fonti);
   const secondi = useSecondi(legge);
-  useEffect(() => { fondo.current?.scrollIntoView?.({ block: "end" }); }, [messaggi.length, domanda?.testo, scrivendo, legge, cosaManca, daLeggere.length]);
+  const vuota = !messaggi.length && !fonti.length;
+  // Al primo ingresso si legge dall'alto: in fondo non c'è ancora niente da inseguire.
+  useEffect(() => { if (!vuota) fondo.current?.scrollIntoView?.({ block: "end" }); }, [vuota, messaggi.length, domanda?.testo, scrivendo, legge, cosaManca, daLeggere.length, tastiera]);
   const dettatura = useDettatura(
     trascrivi ?? (async () => ""),
     (t) => { setTesto((p) => (p.trim() ? `${p.trim()} ${t}` : t)); campo.current?.focus(); },
     primaDiDettare,
   );
   const ultimaConModifiche = [...messaggi].reverse().find((m) => m.chiavi?.length)?.id;
-  const vuota = !messaggi.length && !fonti.length;
 
   const manda = async (t = testo.trim()) => {
     if (!t || !onScrivi || scrivendo) return;
@@ -240,7 +245,7 @@ export function ColonnaChat({
             <div className="mt-2 flex flex-wrap gap-2">
               {domanda.risposte.map((r, i) => (
                 <Button key={r.etichetta} type="button" size="sm" variant={i === 0 ? "default" : "outline"}
-                  className={cn("h-auto min-h-11 whitespace-normal rounded-full px-4 text-left lg:min-h-9", i === 0 ? "bg-orange-600 hover:bg-orange-700" : "bg-white")}
+                  className={cn("h-auto min-h-11 whitespace-normal rounded-full px-4 text-left lg:min-h-9", i === 0 ? "bg-orange-700 hover:bg-orange-800" : "bg-white")}
                   onClick={() => ("modifica" in r ? onModifica(r.modifica) : onApri(r.apri))}>
                   {r.etichetta}
                 </Button>
@@ -275,8 +280,8 @@ export function ColonnaChat({
         <div ref={fondo} />
       </div>
 
-      {suggerimenti.length > 0 && !vuota && (
-        <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible" role="group" aria-label="Suggerimenti">
+      {suggerimenti.length > 0 && !vuota && !tastiera && (
+        <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible max-lg:[@media(max-height:600px)]:hidden" role="group" aria-label="Suggerimenti">
           {suggerimenti.map((s) => (
             <button key={s.etichetta} type="button" disabled={scrivendo || !onScrivi} onClick={() => suggerisci(s)}
               className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-slate-300 bg-white px-3.5 text-sm text-slate-700 lg:min-h-8 lg:px-3 lg:text-[13px] hover:border-orange-300 hover:bg-orange-50 disabled:opacity-50 lg:min-h-9">
@@ -286,11 +291,13 @@ export function ColonnaChat({
         </div>
       )}
 
-      <div className="mt-2 [&_.thinking-composer]:rounded-2xl [&_.thinking-composer]:border-slate-300 [&_.thinking-composer]:p-2 [&_.thinking-composer_textarea]:text-base lg:[&_.thinking-composer_textarea]:text-sm [&_.thinking-composer-send-tools>button[data-busy]]:h-11 [&_.thinking-composer-send-tools>button[data-busy]]:w-11 [&_.thinking-composer-send-tools>button[data-busy]]:rounded-full [&_.thinking-composer-send-tools>button[data-busy]]:bg-orange-600 lg:[&_.thinking-composer-send-tools>button[data-busy]]:h-9 lg:[&_.thinking-composer-send-tools>button[data-busy]]:w-9">
+      {/* Sul telefono campo e pulsanti stanno su una riga; il tocco su un pulsante non toglie il fuoco al campo. */}
+      <div onMouseDown={(e) => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}
+        className="mt-2 [&_.thinking-composer]:rounded-2xl [&_.thinking-composer]:border-slate-300 [&_.thinking-composer]:p-2 focus-within:[&_.thinking-composer]:border-orange-500 [&_.thinking-composer_textarea]:text-base [&_.thinking-composer_textarea:focus-visible]:shadow-none lg:[&_.thinking-composer_textarea]:text-sm max-sm:[&_.thinking-composer]:flex max-sm:[&_.thinking-composer]:items-end max-sm:[&_.thinking-composer]:gap-1 max-lg:[&_.thinking-composer_textarea]:!min-h-11 max-sm:[&_.thinking-composer_textarea]:min-w-0 max-sm:[&_.thinking-composer_textarea]:flex-1 max-sm:[&_.thinking-composer_textarea]:py-2.5 max-sm:[&_.thinking-composer-actions]:mt-0 max-sm:[&_.thinking-composer-actions]:shrink-0 max-sm:[&_.thinking-composer-send-tools]:gap-0.5 [&_.thinking-composer-send-tools>button[data-busy]]:h-11 [&_.thinking-composer-send-tools>button[data-busy]]:w-11 [&_.thinking-composer-send-tools>button[data-busy]]:rounded-full [&_.thinking-composer-send-tools>button[data-busy]]:bg-orange-700 lg:[&_.thinking-composer-send-tools>button[data-busy]]:h-9 lg:[&_.thinking-composer-send-tools>button[data-busy]]:w-9">
         <ThinkingPromptInput compact inline value={testo} onValueChange={setTesto} onSubmit={() => void manda()} onStop={() => {}}
           busy={false} disabled={!onScrivi} maxLength={MAX_MESSAGGIO_CHAT} label="Scrivi a Silvio"
-          placeholder={dettatura.registra ? "Ti ascolto…" : vuota ? "Scrivi il lavoro, o tocca il microfono e parla" : "Scrivi o detta una correzione"}
-          textareaRef={(el) => { campo.current = el; }} onFocus={() => onFuoco?.(true)} onBlur={() => onFuoco?.(false)}
+          placeholder={dettatura.registra ? "Ti ascolto…" : vuota ? "Scrivi il lavoro…" : "Scrivi una correzione…"}
+          textareaRef={(el) => { campo.current = el; }}
           trailingTools={<>
             {onAllega && (
               <button type="button" onClick={() => inputFile.current?.click()} aria-label="Allega un documento" title="Allega un documento"
@@ -304,7 +311,7 @@ export function ColonnaChat({
           <input ref={inputFile} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden accept={FILE_LEGGIBILI}
             onChange={(e) => { if (e.target.files?.length) onAllega([...e.target.files]); e.target.value = ""; }} />
         )}
-        <p className="mt-1 px-1 text-xs text-slate-500">
+        <p className={cn("mt-1 px-1 text-xs text-slate-500", !dettatura.errore && !dettatura.registra && (tastiera ? "hidden" : "max-lg:[@media(max-height:600px)]:hidden"))}>
           {dettatura.errore
             ? <span className="text-red-700">{dettatura.errore}</span>
             : dettatura.registra ? `Ti ascolto… ${dettatura.secondi} s (tocca ■ quando hai finito)`

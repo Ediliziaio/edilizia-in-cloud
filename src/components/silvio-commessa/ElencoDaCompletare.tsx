@@ -88,7 +88,7 @@ export function ElencoDaCompletare({ companyId, userId, leggi = (id) => leggiDaC
           </p>
         </div>
         {righe.length > 0 && (
-          <Button type="button" className="gap-2 bg-orange-600 hover:bg-orange-700 max-sm:w-full"
+          <Button type="button" className="gap-2 bg-orange-700 hover:bg-orange-800 max-sm:w-full"
             onClick={() => { setFatto(null); setSequenza(avviaSequenza(righe)); }}>
             <Sparkles className="h-4 w-4" aria-hidden />Completa le prossime {Math.min(PROSSIME, righe.length)}
           </Button>

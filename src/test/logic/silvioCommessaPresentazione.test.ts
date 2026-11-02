@@ -77,3 +77,18 @@ describe("presentazione del popup", () => {
     expect(pianoProposto(piano, storia).aree.economia!["economia.total_amount"].valore).toBe(48500);
   });
 });
+
+describe("Controlla, per chi non vede gli importi (visto a schermo il 2/11)", () => {
+  it("il motivo di una voce d'importo rimasta fuori non cita le cifre", () => {
+    const motivo = "Le rate fanno 48.500,00 €, il totale con l'IVA è 52.690,00 €";
+    const piano = {
+      companyId: "az", conflitti: [], fonti: [],
+      aree: { pagamenti: { "pagamenti.rate": { valore: [{ label: "Acconto", type: "deposit", amount: 48500 }], fiducia: 1, stato: "attenzione", fonte: { tipo: "preventivo", etichetta: "preventivo" } } } },
+    } as unknown as Parameters<typeof elencoControlla>[0];
+    const scrittura = { escluse: [{ chiave: "pagamenti.rate", etichetta: "Rate", motivo }] } as unknown as Parameters<typeof elencoControlla>[1];
+    const voce = (vede: boolean) => elencoControlla(piano, scrittura, vede).flatMap((g) => g.voci).find((v) => v.chiave === "pagamenti.rate")!;
+    expect(voce(true).fuori).toBe(motivo);
+    expect(voce(false).fuori).not.toMatch(/\d/);
+    expect(voce(false).testo).not.toMatch(/\d/);
+  });
+});

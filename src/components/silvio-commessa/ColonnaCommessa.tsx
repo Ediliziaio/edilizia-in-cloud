@@ -174,14 +174,23 @@ function ModificaFasi({ fasi, onSalva, onAnnulla }: { fasi: FaseDelPiano[]; onSa
     <form className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); onSalva(righe.filter((r) => r.name.trim())); }}>
       <ol className="space-y-2">
         {righe.map((r, i) => (
-          <li key={i} className="grid grid-cols-[1fr_auto] gap-2 rounded-md border bg-white p-2 sm:grid-cols-[1fr_8.5rem_8.5rem_auto]">
-            <Input aria-label={`Nome della fase ${i + 1}`} value={r.name} onChange={(e) => cambia(i, { name: e.target.value })} className="h-11 lg:h-9" />
-            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 sm:order-last lg:h-9 lg:w-9" aria-label={`Togli la fase ${i + 1}`}
-              onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
-            <Input aria-label={`Inizio della fase ${i + 1}`} type="date" value={r.start_date ?? ""} className="h-11 lg:h-9"
-              onChange={(e) => cambia(i, { start_date: e.target.value || null })} />
-            <Input aria-label={`Fine della fase ${i + 1}`} type="date" value={r.end_date ?? ""} className="h-11 lg:h-9"
-              onChange={(e) => cambia(i, { end_date: e.target.value || null })} />
+          <li key={i} className="grid grid-cols-2 items-end gap-2 rounded-md border bg-white p-2 sm:grid-cols-[1fr_8.5rem_8.5rem_auto]">
+            {/* Sul telefono il nome ha tutta la riga, e le due date dicono quale è quale. */}
+            <div className="col-span-2 flex gap-2 sm:contents">
+              <Input aria-label={`Nome della fase ${i + 1}`} value={r.name} onChange={(e) => cambia(i, { name: e.target.value })} className="h-11 min-w-0 flex-1 lg:h-9" />
+              <Button type="button" size="icon" variant="ghost" className="h-11 w-11 shrink-0 sm:order-last lg:h-9 lg:w-9" aria-label={`Togli la fase ${i + 1}`}
+                onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
+            </div>
+            <div className="min-w-0 space-y-0.5 text-xs text-slate-600 lg:text-[11px]">
+              <span aria-hidden>Inizio</span>
+              <Input aria-label={`Inizio della fase ${i + 1}`} type="date" value={r.start_date ?? ""} className="h-11 px-2 lg:h-9"
+                onChange={(e) => cambia(i, { start_date: e.target.value || null })} />
+            </div>
+            <div className="min-w-0 space-y-0.5 text-xs text-slate-600 lg:text-[11px]">
+              <span aria-hidden>Fine</span>
+              <Input aria-label={`Fine della fase ${i + 1}`} type="date" value={r.end_date ?? ""} className="h-11 px-2 lg:h-9"
+                onChange={(e) => cambia(i, { end_date: e.target.value || null })} />
+            </div>
           </li>
         ))}
       </ol>
@@ -208,10 +217,10 @@ function ModificaRate({ rate, onSalva, onAnnulla }: { rate: RataDelPiano[]; onSa
       <ol className="space-y-2">
         {righe.map((r, i) => (
           <li key={i} className="grid grid-cols-[1fr_7rem_auto] gap-2">
-            <Input aria-label={`Nome della rata ${i + 1}`} value={r.label} onChange={(e) => cambia(i, { label: e.target.value })} className="h-11 lg:h-9" />
+            <Input aria-label={`Nome della rata ${i + 1}`} value={r.label} onChange={(e) => cambia(i, { label: e.target.value })} className="col-span-2 h-11 max-sm:order-1 sm:col-span-1 lg:h-9" />
             <Input aria-label={`Importo della rata ${i + 1}`} inputMode="decimal" value={r.testo} placeholder={r.percent != null ? `${r.percent} %` : undefined}
-              onChange={(e) => cambia(i, { testo: e.target.value })} className="h-11 lg:h-9" />
-            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 lg:h-9 lg:w-9" aria-label={`Togli la rata ${i + 1}`}
+              onChange={(e) => cambia(i, { testo: e.target.value })} className="col-span-3 h-11 max-sm:order-3 sm:col-span-1 lg:h-9" />
+            <Button type="button" size="icon" variant="ghost" className="h-11 w-11 max-sm:order-2 lg:h-9 lg:w-9" aria-label={`Togli la rata ${i + 1}`}
               onClick={() => setRighe(righe.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
           </li>
         ))}
@@ -384,7 +393,7 @@ function Dettaglio({ chiave, valore, onTogli }: { chiave: string; valore: unknow
       <ol className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {(valore as FaseDelPiano[]).map((f, i) => (
           <li key={i} className="flex justify-between gap-2">
-            <span className="truncate">{i + 1}. {f.name}{f.sottofasi?.length ? ` · ${f.sottofasi.length} voci` : ""}</span>
+            <span className="min-w-0 break-words">{i + 1}. {f.name}{f.sottofasi?.length ? ` · ${f.sottofasi.length} voci` : ""}</span>
             <span className="shrink-0">{f.start_date && f.end_date ? `${dataBreve(f.start_date, false)} → ${dataBreve(f.end_date, false)}` : f.giorni ? `${f.giorni} gg` : ""}</span>
           </li>
         ))}
@@ -395,7 +404,7 @@ function Dettaglio({ chiave, valore, onTogli }: { chiave: string; valore: unknow
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
         {(valore as RataDelPiano[]).map((r, i) => (
-          <li key={i} className="flex justify-between gap-2"><span className="truncate">{r.label}</span><span className="shrink-0">{importoRata(r)}</span></li>
+          <li key={i} className="flex justify-between gap-2"><span className="min-w-0 break-words">{r.label}</span><span className="shrink-0">{importoRata(r)}</span></li>
         ))}
       </ul>
     );
@@ -404,7 +413,7 @@ function Dettaglio({ chiave, valore, onTogli }: { chiave: string; valore: unknow
     const righe = valore as { name?: string }[];
     return (
       <ul className="mt-1 space-y-0.5 text-xs lg:text-[11px] text-slate-600">
-        {righe.slice(0, 6).map((r, i) => <li key={i} className="truncate">• {r.name}</li>)}
+        {righe.slice(0, 6).map((r, i) => <li key={i} className="break-words">• {r.name}</li>)}
         {righe.length > 6 && <li>e altre {righe.length - 6}</li>}
       </ul>
     );
@@ -484,7 +493,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
               </span>
             )}
           </p>
-          <p className={cn("break-words text-sm lg:text-[13px]", stato === "manca" ? "italic text-slate-400" : "font-medium text-slate-900")}>{testo}</p>
+          <p className={cn("break-words text-sm lg:text-[13px]", stato === "manca" ? "italic text-slate-500" : "font-medium text-slate-900")}>{testo}</p>
           {valore && stato !== "manca" && !aperta && !nascosto && (
             <Dettaglio chiave={v.chiave} valore={valore.valore}
               onTogli={bloccata ? undefined : (indice) => onModifica({ tipo: "togli", area: v.area, chiave: v.chiave, indice })} />
@@ -495,13 +504,13 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
         </div>
         <div className="flex shrink-0 items-center">
           {valore && stato !== "manca" && !nascosto && (
-            <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
+            <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
               aria-expanded={info} aria-controls={idInfo} aria-label={`Da dove viene «${v.etichetta}»`} onClick={() => setInfo(!info)}>
               <Info className="h-4 w-4" />
             </button>
           )}
           {modo !== "no" && !conflitto && (
-            <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
+            <button type="button" className="grid h-11 w-11 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 lg:h-8 lg:w-8"
               aria-label={`Modifica «${v.etichetta}»`} aria-expanded={aperta} onClick={() => onApri(aperta ? null : v.chiave)}>
               <Pencil className="h-4 w-4" />
             </button>
@@ -545,7 +554,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
       {daConfermare(riga, autonomia) && !aperta && !nascosto && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5">
           <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{testoConferma(riga, autonomia)}</p>
-          <Button type="button" size="sm" className="h-11 bg-amber-600 text-white hover:bg-amber-700 lg:h-8"
+          <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8"
             onClick={() => onModifica({ tipo: "cambia_valore", area: v.area, chiave: v.chiave, valore: valore!.valore })}>
             Va bene
           </Button>
@@ -569,9 +578,9 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
               }} />
             );
           case "responsabile":
-            return <div className="mt-2"><AssignedToSelect value={typeof attuale === "string" ? attuale : ""} onChange={(x) => cambia(x || null)} /></div>;
+            return <div className="mt-2 max-lg:[&_[role=combobox]]:h-11"><AssignedToSelect value={typeof attuale === "string" ? attuale : ""} onChange={(x) => cambia(x || null)} /></div>;
           case "sede":
-            return <div className="mt-2"><SedeSelect value={typeof attuale === "string" ? attuale : null} onChange={(x) => cambia(x)} /></div>;
+            return <div className="mt-2 max-lg:[&_[role=combobox]]:h-11"><SedeSelect value={typeof attuale === "string" ? attuale : null} onChange={(x) => cambia(x)} /></div>;
           case "elenco":
             return (
               <div className="mt-2 space-y-2">
@@ -646,7 +655,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
               <span aria-hidden>⚠ </span><strong>{n.nome}</strong>{n.avviso.startsWith(n.nome) ? n.avviso.slice(n.nome.length) : `: ${n.avviso}`}
             </p>
             {alternativePersona(piano, n, contesto).map((a) => (
-              <Button key={a.id} type="button" size="sm" className="h-11 bg-amber-600 text-white hover:bg-amber-700 lg:h-8"
+              <Button key={a.id} type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8"
                 onClick={() => onModifica(sostituisciPersona(piano, n, a))}>Metti {a.nome}</Button>
             ))}
             <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8"
@@ -668,7 +677,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {tutte.length > 0 && (
-                <Button type="button" size="sm" className="h-11 bg-amber-600 text-white hover:bg-amber-700 lg:h-8" onClick={() => onModifica(tutte)}>
+                <Button type="button" size="sm" className="h-11 bg-amber-700 text-white hover:bg-amber-800 lg:h-8" onClick={() => onModifica(tutte)}>
                   {d.proposte.length === 1 ? "Va bene" : `Va bene a tutte e ${d.proposte.length}`}
                 </Button>
               )}
@@ -683,7 +692,7 @@ function DaDecidereInCima({ d, piano, onModifica, onApri, onVai, contesto, vedeI
         ))}
         {d.avvisi.length > 3 && !tuttiAvvisi && (
           <li>
-            <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-8" onClick={() => setTuttiAvvisi(true)}>Altri {d.avvisi.length - 3} avvisi</Button>
+            <Button type="button" size="sm" variant="ghost" className="h-11 lg:h-8" onClick={() => setTuttiAvvisi(true)}>{d.avvisi.length === 4 ? "Un altro avviso" : `Altri ${d.avvisi.length - 3} avvisi`}</Button>
           </li>
         )}
       </ul>

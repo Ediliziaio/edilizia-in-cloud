@@ -34,8 +34,9 @@
  * e sotto la soglia). Le RPC ritolgono comunque quello che è vietato. Gli adempimenti prima di
  * partire vanno in `adempimenti_sicurezza`; gli avvisi meteo si mostrano e non si scrivono.
  */
-import type {
-  CondizioniContratto, CostoDelPiano, FaseDelPiano, PianoCommessa, RataDelPiano, TipoFonte, Valore,
+import {
+  inVigore, tipoDOrigine,
+  type CondizioniContratto, type CostoDelPiano, type FaseDelPiano, type PianoCommessa, type RataDelPiano, type TipoFonte, type Valore,
 } from "../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { giaNellaCommessa } from "../../../shared/silvio-commessa/fondi.ts";
@@ -122,6 +123,12 @@ export interface Esclusa {
   chiave: string;
   etichetta: string;
   motivo: string;
+  /**
+   * True: la variabile entra comunque in parte (una persona ⚠ su due, un ordine da confermare su
+   * due, il valore di prima sotto una proposta della chat), e il motivo riguarda solo il resto.
+   * Assente: non entra niente. Una variabile può avere più esclusioni, una per elemento.
+   */
+  parziale?: true;
 }
 
 export interface PersonaScritta { employee_id: string; fase: string | null }
@@ -312,10 +319,13 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
     conflitti: piano.conflitti.length,
     escluse: [],
   };
-  const fuori = (v: Variabile, motivo: string) => s.escluse.push({ chiave: v.chiave, etichetta: v.etichetta, motivo });
+  const fuori = (v: Variabile, motivo: string) => {
+    if (s.escluse.some((e) => e.chiave === v.chiave && e.motivo === motivo)) return;
+    s.escluse.push({ chiave: v.chiave, etichetta: v.etichetta, motivo });
+  };
   const valoreDi = (chiave: string): Valore | undefined => {
     const v = REGISTRO.find((x) => x.chiave === chiave);
-    return v ? piano.aree[v.area]?.[chiave] : undefined;
+    return v ? inVigore(piano.aree[v.area]?.[chiave]) : undefined;
   };
   const costi = (() => {
     const v = valoreDi("costi.previsti");
@@ -324,7 +334,11 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
 
   let contrattiAccettati: ContrattoDelPiano[] = [];
   for (const variabile of REGISTRO) {
-    const v = piano.aree[variabile.area]?.[variabile.chiave];
+    const mostrato = piano.aree[variabile.area]?.[variabile.chiave];
+    if (!mostrato || giaNellaCommessa(piano, mostrato)) continue;
+    // Una proposta della chat aspetta il sì, e intanto vale quello che c'era (terza revisione, 2).
+    if (mostrato.daConfermare && mostrato.alPostoDi !== undefined) fuori(variabile, "proposta da confermare");
+    const v = inVigore(mostrato);
     if (!v || giaNellaCommessa(piano, v)) continue;
     const motivo = motivoFuori(v, variabile, autonomia);
     if (motivo) {
@@ -353,7 +367,7 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
         if (!s.rate.length && Array.isArray(v.valore) && v.valore.length) fuori(variabile, "le rate non hanno un importo: manca il totale");
         continue;
       case "fasi.order_work_phases":
-        if (Array.isArray(v.valore)) s.fasi = fasiScritte(v.valore as FaseDelPiano[], v.fonte.tipo, costi, piano.calendario);
+        if (Array.isArray(v.valore)) s.fasi = fasiScritte(v.valore as FaseDelPiano[], tipoDOrigine(v), costi, piano.calendario);
         continue;
       case "fasi.date_fasi":
         // In «crea» le date stanno dentro le fasi; in «completa» sono per le fasi che ci sono.
@@ -362,6 +376,8 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
             .filter((f) => typeof f?.name === "string" && f.name.trim() && f.start_date && f.end_date
               && DATA.test(f.start_date) && DATA.test(f.end_date) && f.end_date >= f.start_date)
             .map((f) => ({ nome: f.name.trim(), inizio: f.start_date!, fine: f.end_date! }));
+          // Accettate col solo numero di giorni: senza l'inizio lavori non hanno ancora una data.
+          if (!s.date_fasi.length && v.valore.length) fuori(variabile, "senza l'inizio lavori le date delle fasi non si calcolano: arrivano quando c'è");
         }
         continue;
       case "costi.previsti":
@@ -484,9 +500,16 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
   const regCosti = REGISTRO.find((x) => x.chiave === "costi.previsti");
   const voceCosti = valoreDi("costi.previsti");
   if (regCosti && costi && voceCosti && !giaNellaCommessa(piano, voceCosti)) {
-    const persi = costi.filter((c) => Number(c?.importo) > 0 && !s.fasi.some((f) => f.nome.trim().toLowerCase() === c.fase?.trim().toLowerCase()
+    // Senza origine la RPC non scrive voci: una sottofase col costo, lì, non basta.
+    const persi = costi.filter((c) => Number(c?.importo) > 0 && !s.fasi.some((f) => f.origine && f.nome.trim().toLowerCase() === c.fase?.trim().toLowerCase()
       && f.sottofasi.some((x) => x.costo != null)));
     if (persi.length) fuori(regCosti, `i costi di ${persi.map((c) => `«${c.fase}»`).join(", ")} non si scrivono da qui: si mettono sulle fasi dalla pagina della commessa`);
+  }
+  // Le fasi entrano, ma le voci con importi di un documento che non è un computo né un preventivo no.
+  const regFasi = REGISTRO.find((x) => x.chiave === "fasi.order_work_phases");
+  const senzaVoci = s.fasi.filter((f) => !f.origine && f.sottofasi.some((x) => x.costo != null || x.importo != null));
+  if (regFasi && senzaVoci.length) {
+    fuori(regFasi, `gli importi delle voci di ${senzaVoci.map((f) => `«${f.nome}»`).join(", ")} non si scrivono: vengono solo da un computo o da un preventivo. Le fasi entrano senza`);
   }
 
   // Un contratto solo per una ditta che entra nella commessa (o che c'è già, in «completa»).
@@ -512,7 +535,35 @@ export function scritturaDalPiano(piano: PianoCommessa, autonomia: Autonomia | n
     : typeof nome?.client_company === "string" && nome.client_company.trim() ? nome.client_company.trim() : null;
   s.cliente.email = typeof contatto?.client_email === "string" && contatto.client_email.includes("@")
     ? contatto.client_email.trim() : null;
+  s.escluse = s.escluse.map((e) => (entraNellaScrittura(e.chiave, s) ? { ...e, parziale: true as const } : e));
   return s;
+}
+
+/** Qualcosa di questa variabile entra nella scrittura? Con `Esclusa.parziale` dice al «Controlla» cosa succede davvero. */
+export function entraNellaScrittura(chiave: string, s: ScritturaCommessa): boolean {
+  switch (chiave) {
+    case "cliente.customer_id": return !!s.cliente.customer_id;
+    case "identita.origine": return !!s.preventivo_id;
+    case "economia.order_items": return s.righe.length > 0;
+    case "economia.condizioni_contratto": return !!s.condizioni;
+    case "pagamenti.rate": return s.rate.length > 0;
+    case "fasi.order_work_phases": return s.fasi.length > 0;
+    case "fasi.date_fasi": return s.modo === "crea" ? s.fasi.some((f) => !!f.inizio) : s.date_fasi.length > 0;
+    case "costi.previsti": return s.fasi.some((f) => !!f.origine && f.sottofasi.some((x) => x.costo != null));
+    case "persone.venditori": return !!s.venditore;
+    case "persone.squadra": return s.squadra.length > 0;
+    case "ditte.assegnate": return s.ditte.length > 0;
+    case "ditte.contratti": return s.contratti.length > 0;
+    case "mezzi.allocazioni": return s.mezzi.length > 0;
+    case "materiali.acquisti": return s.oda.length > 0;
+    case "sicurezza.adempimenti": return s.adempimenti.length > 0;
+    case "sicurezza.pos_duvri": return s.promemoria.some((p) => p.tipo !== "avvio_cliente");
+    case "comunicazione.avvio_cliente": return s.promemoria.some((p) => p.tipo === "avvio_cliente");
+    default: {
+      const v = REGISTRO.find((x) => x.chiave === chiave);
+      return !!v && v.colonne.some((c) => (s.ordine as Record<string, unknown>)[c] !== undefined);
+    }
+  }
 }
 
 /**

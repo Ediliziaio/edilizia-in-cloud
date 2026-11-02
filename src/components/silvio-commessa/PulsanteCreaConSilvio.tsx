@@ -41,7 +41,7 @@ export function PulsanteCreaConSilvio({
   return (
     <>
       <Button type="button" variant={variant} size={size} onClick={() => setAperto(true)}
-        className={cn("gap-2", !variant && "bg-orange-600 text-white hover:bg-orange-700", className)}>
+        className={cn("gap-2", !variant && "bg-orange-700 text-white hover:bg-orange-800", className)}>
         <Sparkles className="h-4 w-4" aria-hidden />{etichetta}
       </Button>
       {aperto && (
