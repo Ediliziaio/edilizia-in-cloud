@@ -5,7 +5,7 @@ import { marginePrevisto } from "../../../shared/piano-cantiere/margine.ts";
 import { risorsePerPiano } from "../../../shared/piano-cantiere/risorse.ts";
 import { correzioniDalloStorico, prevediFine } from "../../../shared/piano-cantiere/previsione.ts";
 import { regioneDaProvincia } from "../../../shared/piano-cantiere/regioni.ts";
-import { limitaSquadre, righeOreCapitoli, segnaFasiFuoriComputo } from "../../../shared/piano-cantiere/cronoprogramma.ts";
+import { limitaSquadre, segnaFasiFuoriComputo } from "../../../shared/piano-cantiere/cronoprogramma.ts";
 import type { ContestoRisorse } from "../../../shared/silvio-commessa/risorse.ts";
 
 const voce = (o: Partial<VoceCantiere>): VoceCantiere => ({ fase: null, capitolo: null, descrizione: "Lavoro", unita: "m2", quantita: 1, importo: null, costo_manodopera: null, costo_materiali: null, ore_previste: null, incidenza: null, origine: "computo", ...o });
@@ -337,10 +337,6 @@ describe("il cronoprogramma dell'AI", () => {
     expect(r.daControllare).toEqual(["Scavi e preparazione"]);
     expect(r.fasi[1].nota).toContain("controlla");
     expect(segnaFasiFuoriComputo(fasi, "Scavo a sezione").daControllare).toEqual([]);
-  });
-  it("le ore per capitolo diventano giorni di una squadra", () => {
-    const r = righeOreCapitoli([{ nome: "Demolizioni", importo: 8160 }, { nome: "Senza", importo: 100 }], new Map([["demolizioni", 0.5]]), 30);
-    expect(r).toEqual(["- Demolizioni: circa 136 ore di lavoro, cioè 7 giorni per una squadra di 3 persone"]);
   });
   it("la stagionatura segue il massetto spostato", () => {
     const r = limitaSquadre([f("A", 1, 5), f("Massetto", 1, 2), f("Stagionatura", 3, 5)], 1);

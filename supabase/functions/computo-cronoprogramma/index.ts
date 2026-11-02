@@ -14,8 +14,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { regioneDaProvincia } from "../../../shared/piano-cantiere/regioni.ts";
-import { limitaSquadre, righeOreCapitoli, segnaFasiFuoriComputo } from "../../../shared/piano-cantiere/cronoprogramma.ts";
+import { limitaSquadre, segnaFasiFuoriComputo } from "../../../shared/piano-cantiere/cronoprogramma.ts";
 
 const SYSTEM_PROMPT = `Sei il direttore tecnico di un'impresa edile italiana. Ricevi il computo metrico di un lavoro (capitoli, voci, quantità, importi) e prepari il cronoprogramma dei lavori da allegare al preventivo.
 
@@ -23,7 +22,6 @@ REGOLE
 - Fasi in GIORNI LAVORATIVI (lun-ven). "inizio" è il primo giorno della fase (1 = primo giorno di cantiere), "durata" quanti giorni lavorativi dura.
 - Segui la sequenza reale di cantiere: allestimento e sicurezza, demolizioni e scavi, opere strutturali e sottofondi, impianti, finiture, collaudi e pulizia. Sovrapponi le fasi che si possono fare insieme con squadre diverse; NON sovrapporre quelle che dipendono una dall'altra (il manto in resina dopo il massetto e dopo la sua stagionatura).
 - Tieni conto dei tempi tecnici che non sono lavoro ma attesa: stagionatura dei getti e dei massetti, asciugatura degli intonaci, consegna dei materiali su ordinazione. Mettili come fasi o nella nota della fase. Dopo la posa di pavimenti, sanitari o tinte non serve nessuna attesa.
-- Se ricevi le ore di lavoro stimate per capitolo, le durate devono partire da quelle: dividi il capitolo nelle sue fasi senza superare quei giorni, salvo attese vere.
 - Durate realistiche per le QUANTITÀ date (mai dedotte dagli importi) e per il numero di squadre indicato. Le squadre disponibili sono il totale, non per specialità: mai più fasi di lavoro insieme di quante squadre ci sono. Se non è indicato, ipotizza una squadra per specialità (edile, impiantisti, posatori): la stessa squadra non lavora in parallelo su due fasi. Meglio una stima prudente, e dillo nella nota generale.
 - Una fase per gruppo di lavorazioni sensato (di solito per capitolo, oppure dividi un capitolo in due fasi se ha lavorazioni in momenti diversi). Da 3 a 15 fasi, nomi brevi e chiari per il cliente.
 - "nota": una frase breve solo se serve (attesa, condizione meteo, dipendenza), altrimenti stringa vuota.
@@ -65,26 +63,13 @@ Deno.serve(async (req) => {
       ...capitoli.map((c, k) => `${k + 1}. ${c.nome}${c.importo != null ? ` (${Math.round(c.importo)} €)` : ""}\n${c.voci.map((v) => `   - ${v.descrizione}${v.quantita != null ? `: ${v.quantita} ${v.unita}` : ""}`).join("\n")}`),
     ].filter((r) => r !== false && r !== null && r !== undefined).join("\n");
 
-    // Le ore per capitolo: dal prezzario, per dare al modello un conto da cui partire. Se non risponde si va avanti senza.
-    const { data: azienda } = await supabaseAdmin.from("companies").select("operational_province, legal_province").eq("id", companyId).maybeSingle();
-    const { data: costi } = await supabaseAdmin.from("employees").select("costo_orario").eq("company_id", companyId).gt("costo_orario", 0).limit(200);
-    const valori = (costi ?? []).map((c: { costo_orario: number }) => Number(c.costo_orario)).filter((c: number) => c > 0);
-    const costoOrario = valori.length ? valori.reduce((t: number, c: number) => t + c, 0) / valori.length : 30;
-    const { data: stimeRighe } = await supabaseAdmin.rpc("piano_cantiere_incidenze", {
-      p_company_id: companyId,
-      p_testi: capitoli.slice(0, 10).map((c) => c.nome.trim().slice(0, 120).toLowerCase()),
-      p_regione: regioneDaProvincia(azienda?.operational_province || azienda?.legal_province),
-    });
-    const stime = new Map(((stimeRighe ?? []) as { testo: string; frazione: number }[]).map((r) => [r.testo, Number(r.frazione)]));
-    const righeOre = righeOreCapitoli(capitoli, stime, costoOrario);
-
     const t0 = Date.now();
     const idempotencyKey = await buildStableAiIdempotencyKey("computo_cronoprogramma", [companyId, userId, descrizione.length, descrizione.slice(0, 400)]);
     const ai = await aiRouterComplete({
       // eslint-disable-next-line no-explicit-any
       supabase: supabaseAdmin as any,
       taskKey: "preventivo_genera",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: righeOre.length ? `${descrizione}\n\nOre di lavoro stimate dal prezzario:\n${righeOre.join("\n")}` : descrizione }],
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: descrizione }],
       params: { temperature: 0.2, max_tokens: 3000 },
       responseFormat: { type: "json_object" },
       companyId, userId, idempotencyKey,
