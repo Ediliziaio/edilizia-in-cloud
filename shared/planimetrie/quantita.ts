@@ -146,6 +146,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   const aperture = new Map<string, { acc: Accumulo; descrizione: string }>();
   // Arredi, sanitari e punti impianto per tipo (1/11/2026): «elementi:<stato>:<tipo>.numero».
   const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
+  // Un ascensore è un vano che attraversa i piani: lo stesso vano su più piani si conta una volta, con le sue fermate.
+  const ascensori: Array<{ st: string; x: number; y: number; fermate: number }> = [];
   // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
   const linee = new Map<LineaImpianto, number>();
   // Lotto e aree esterne: «esterni:<tipo>.superficie_mq», recinzione del lotto in metri.
@@ -234,6 +236,11 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       // i punti quotati del terreno sono misure, non cose da comprare o posare
       if (!/^[a-z0-9_]+$/.test(e.tipo) || e.tipo === "quota_terreno") continue;
       const st = e.stato ?? "esistente";
+      if (e.tipo === "ascensore") {
+        const stesso = ascensori.find((a) => a.st === st && Math.hypot(a.x - e.posizione.x, a.y - e.posizione.y) < 60);
+        if (stesso) { stesso.fermate += 1; continue; }
+        ascensori.push({ st, x: e.posizione.x, y: e.posizione.y, fermate: 1 });
+      }
       const soggetto = `elementi:${st}:${e.tipo}`;
       const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
       const nome = NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
@@ -286,6 +293,12 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
+  const fermatePerStato = new Map<string, number>();
+  for (const a of ascensori) fermatePerStato.set(a.st, (fermatePerStato.get(a.st) ?? 0) + a.fermate);
+  for (const [st, n] of fermatePerStato) {
+    const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st as "esistente"] ?? st;
+    metti(`elementi:${st}:ascensore_fermate`, "numero", { valore: n, origini: ["rilevata"] }, `Fermate degli ascensori ${nomeStato} (piani serviti)`);
+  }
 }
 
 /** La sigla di un appartamento dentro una chiave: «Int. 3» → «int_3». */

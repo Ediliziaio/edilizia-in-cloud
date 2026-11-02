@@ -3,7 +3,7 @@
  * selezionato. Le misure si scrivono qui come sulla pianta.
  */
 import { useEffect, useState } from "react";
-import { AlertTriangle, Armchair, Check, Copy, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { AlertTriangle, Armchair, Check, Copy, Layers, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
 import { dist } from "./geometria";
+import { TIPI_SU_TUTTI_I_PIANI } from "@/lib/planimetrie/copiaSuiPiani";
 import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
@@ -38,6 +39,8 @@ export interface AzioniPannello {
   modificaElemento: (id: string, campi: Partial<Pick<ElementoLavoro, "rotazione" | "larghezza" | "profondita" | "altezza" | "etichetta" | "tipo">>) => void;
   ruotaElemento: (id: string, gradi: number) => void;
   duplicaElemento: (id: string) => void;
+  /** Ripete l'elemento (vano ascensore, scala, pilastro) sugli altri piani, nello stesso punto. */
+  copiaSuiPiani: (id: string) => void;
   modificaQuota: (id: string, campi: Partial<Pick<QuotaLavoro, "scostamento">>) => void;
   modificaTesto: (id: string, campi: Partial<Pick<TestoLavoro, "testo" | "rotazione">>) => void;
   /** Arredi tipici della destinazione, appoggiati alle pareti. */
@@ -216,6 +219,9 @@ function DettaglioElemento({ vista, elemento: e, azioni, essenziale }: { vista: 
       )}
       <div className="flex flex-wrap gap-2 pt-1">
         <Button size="sm" variant="outline" onClick={() => azioni.duplicaElemento(e.id)}><Copy /> Duplica</Button>
+        {TIPI_SU_TUTTI_I_PIANI.includes(e.tipo) && ok && (
+          <Button size="sm" variant="outline" onClick={() => azioni.copiaSuiPiani(e.id)}><Layers /> Su tutti i piani</Button>
+        )}
         {!essenziale && (
           vista === "progetto" && e.stato === "da_demolire"
             ? <Button size="sm" variant="outline" onClick={() => azioni.elimina({ tipo: "elemento", id: e.id })}><Undo2 /> Rimetti</Button>

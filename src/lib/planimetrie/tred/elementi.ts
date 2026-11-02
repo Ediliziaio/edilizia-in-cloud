@@ -171,7 +171,24 @@ export const MODELLI: Record<string, ModelloElemento> = {
   banco_lavoro: { nome: "Banco da lavoro", misure: { l: 2.0, p: 0.8, h: 0.9 }, blocchi: (l, p, h) => [b("legno", 0, 0, h - 0.06, l, p, 0.06), b("metallo", 0, 0, 0, l - 0.1, p - 0.1, h - 0.06)] },
   // ─── struttura ───
   pilastro: { nome: "Pilastro", misure: { l: 0.3, p: 0.3, h: 3.0 }, blocchi: (l, p, h) => [b("muro", 0, 0, 0, l, p, h)] },
-  ascensore: { nome: "Ascensore", misure: { l: 1.5, p: 1.5, h: 2.8 }, blocchi: (l, p, h) => [b("metallo", 0, 0, 0, l, p, h)] },
+  // Vano ascensore: quattro pareti piene fino al piano sopra (l'altezza la decide l'edificio) e, sul davanti
+  // (+p/2), l'apertura con la porta di piano in metallo. Su ogni piano ce n'è uno, uno sopra l'altro: fanno un vano unico.
+  ascensore: {
+    nome: "Ascensore",
+    misure: { l: 1.5, p: 1.5, h: 2.8 },
+    blocchi: (l, p, h) => {
+      const s = 0.12, porta = Math.min(0.9, l - 0.4), alta = Math.min(2.1, h), lato = (l - porta) / 2;
+      return [
+        b("muro", 0, -p / 2 + s / 2, 0, l, s, h),
+        b("muro", -l / 2 + s / 2, 0, 0, s, p - 2 * s, h),
+        b("muro", l / 2 - s / 2, 0, 0, s, p - 2 * s, h),
+        b("muro", -(porta + lato) / 2, p / 2 - s / 2, 0, lato, s, h),
+        b("muro", (porta + lato) / 2, p / 2 - s / 2, 0, lato, s, h),
+        ...(h > alta ? [b("muro", 0, p / 2 - s / 2, alta, porta, s, h - alta)] : []),
+        b("metallo", 0, p / 2 - s / 2, 0, porta, 0.04, alta),
+      ];
+    },
+  },
   scala: {
     nome: "Scala",
     misure: { l: 1.0, p: 4.5, h: 2.8 },
