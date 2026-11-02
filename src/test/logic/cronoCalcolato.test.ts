@@ -122,6 +122,17 @@ describe("il cronoprogramma calcolato", () => {
     expect(r.ore).toBe(50);
     expect(r.fasi.map((f) => f.nome)).toEqual(["Allestimento cantiere", "Pavimenti e rivestimenti", "Pulizia e consegna"]);
   });
+  it("una voce del capitolo «Pulizia e consegna» allunga la fase finale, non ne apre una seconda", () => {
+    const r = calcolaCrono([ore("Tinteggiatura", 40), ore("Voce 12", 34, "Pulizia e consegna"), ore("Trasporti vari", 34, "Allestimento cantiere")], ip);
+    expect(r.fasi.filter((f) => f.nome === "Pulizia e consegna")).toHaveLength(1);
+    expect(r.fasi.filter((f) => f.nome === "Allestimento cantiere")).toHaveLength(1);
+    expect(fase(r, "Pulizia e consegna").durata).toBe(3);
+    expect(r.fasi.at(-1)?.nome).toBe("Pulizia e consegna");
+    expect(r.ore).toBe(108);
+  });
+  it("«Demolizione» nel capitolo «Pulizia» resta una demolizione", () => {
+    expect(calcolaCrono([ore("Demolizione tramezzi", 40, "Pulizia e consegna")], ip).fasi.map((f) => f.nome)).toContain("Demolizioni e rimozioni");
+  });
   it("computo vuoto: nessuna fase", () => {
     expect(calcolaCrono([], ip)).toMatchObject({ fasi: [], giorni: 0 });
   });

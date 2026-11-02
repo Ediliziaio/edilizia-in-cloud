@@ -63,6 +63,9 @@ const LAVORAZIONI: readonly Lavorazione[] = [
   { nome: "Sanitari e rubinetterie", parole: /sanitar|box doccia|rubinett|lavabo|\bwc\b|\bvaso\b/i, rango: 9 },
   { nome: "Tinteggiature", parole: /tinteggi|pittur|verniciat|\btinta/i, rango: 9 },
 ];
+/** Apertura e chiusura ci sono sempre: una voce così allunga quelle fasi, non ne apre una seconda. */
+const APERTURA = /allestiment|cantierizzaz|recinzion/i;
+const CHIUSURA = /pulizi|collaud|consegn/i;
 /** Non sono lavoro di cantiere: oneri, pratiche, spese tecniche. */
 const NON_CANTIERE = /\boneri\b|spese tecniche|progettazion|direzione lavori|\bpratich|sicurezza\b.*\bcosti\b|\bcosti\b.*sicurezza\b/i;
 /** «Fornitura di…» senza posa: il materiale arriva, il lavoro no. */
@@ -115,9 +118,17 @@ export function calcolaCrono(
 
   interface Gruppo { nome: string; rango: number; ordine: number; attesa?: Lavorazione["attesa"]; ore: number; min: number; max: number; voci: number; senza: number; stimate: number }
   const gruppi = new Map<string, Gruppo>();
-  let senzaDati = 0, nonRiconosciute = 0, stimate = 0;
+  let senzaDati = 0, nonRiconosciute = 0, stimate = 0, oreApertura = 0, oreChiusura = 0;
   voci.forEach((v, i) => {
+    // Prima le lavorazioni vere: «Pulizia e consegna» è un capitolo, «Demolizione» in quel capitolo resta demolizione.
     const l = lavorazioneDellaVoce(v);
+    const testo = `${v.descrizione} ${l ? "" : v.capitolo ?? ""}`;
+    if (!primaLavorazione(senzaAccenti(v.descrizione)) && (APERTURA.test(testo) || CHIUSURA.test(testo))) {
+      const o = oreDellaVoce(inCantiere(v), ip);
+      if (APERTURA.test(testo)) oreApertura += o?.ore ?? 0; else oreChiusura += o?.ore ?? 0;
+      if (o?.fonte === "prezzario") stimate++;
+      return;
+    }
     if (!l) nonRiconosciute++;
     const nome = l?.nome ?? ((v.capitolo ?? "").trim() || "Altre lavorazioni");
     const g = gruppi.get(nome) ?? { nome, rango: l?.rango ?? RANGO_ALTRE, ordine: i, attesa: l?.attesa, ore: 0, min: 0, max: 0, voci: 0, senza: 0, stimate: 0 };
@@ -132,13 +143,15 @@ export function calcolaCrono(
 
   const oreTot = [...gruppi.values()].reduce((t, g) => t + g.ore, 0);
   const servizio = oreTot < POCHE_ORE ? 1 : 2;
+  const giorniDa = (ore: number) => Math.max(servizio, Math.ceil(ore / (persone * oreUtili) - 1e-9));
   const conPonteggi = gruppi.has("Ponteggi");
   const fasi: FaseCalcolataCrono[] = [];
   const senzaOre: string[] = [];
   if (!voci.length) return { fasi, giorni: 0, ore: 0, oreMin: 0, oreMax: 0, voci: 0, vociSenzaDati: 0, vociNonRiconosciute: 0, vociStimate: 0, vociSoloFornitura, avvisoInterno: "" };
 
-  fasi.push({ nome: "Allestimento cantiere", inizio: 1, durata: servizio, nota: "", ore: 0, attesa: false });
-  let pronto = 1 + servizio;
+  const apertura = giorniDa(oreApertura);
+  fasi.push({ nome: "Allestimento cantiere", inizio: 1, durata: apertura, nota: "", ore: tondo(oreApertura), attesa: false });
+  let pronto = 1 + apertura;
   const ordinati = [...gruppi.values()].sort((a, b) => a.rango - b.rango || a.ordine - b.ordine);
   for (let i = 0; i < ordinati.length;) {
     const rango = ordinati[i].rango;
@@ -164,10 +177,10 @@ export function calcolaCrono(
   }
   fasi.push({
     nome: conPonteggi ? "Smontaggio ponteggi, pulizia e consegna" : "Pulizia e consegna", inizio: pronto,
-    durata: servizio + (conPonteggi ? 1 : 0), nota: "", ore: 0, attesa: false,
+    durata: giorniDa(oreChiusura) + (conPonteggi ? 1 : 0), nota: "", ore: tondo(oreChiusura), attesa: false,
   });
 
-  const somma = (k: "ore" | "min" | "max") => tondo([...gruppi.values()].reduce((t, g) => t + g[k], 0));
+  const somma = (k: "ore" | "min" | "max") => tondo([...gruppi.values()].reduce((t, g) => t + g[k], 0) + oreApertura + oreChiusura);
   const intervallo = somma("min") !== somma("max") ? ` (da ${Math.round(somma("min"))} a ${Math.round(somma("max"))})` : "";
   const parti = [`Circa ${Math.round(somma("ore"))} ore di lavoro${intervallo}, con ${nSquadre} ${nSquadre === 1 ? "squadra" : "squadre"} da ${persone} ${persone === 1 ? "persona" : "persone"} e ${ip.oreGiorno} ore al giorno.`];
   const conOre = fasi.filter((f) => f.ore > 0);

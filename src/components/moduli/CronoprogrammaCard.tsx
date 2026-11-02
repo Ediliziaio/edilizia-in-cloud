@@ -136,7 +136,7 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
 
       <div className="space-y-1.5 px-3 py-2">
         {fasi.map((f, i) => (
-          <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,7rem)_auto] items-center gap-2">
+          <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,9.5rem)_auto] items-center gap-2">
             <GripVertical aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-300" />
             <Input
               aria-label={`Nome della fase ${i + 1}`}
