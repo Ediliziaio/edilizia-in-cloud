@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isValidElement } from "react";
 import { createOrdinePDFDocument } from "@/components/orders/OrdinePDF";
 import {
+  asseTempo, cassaPerMese, orePerSettimana, periodoFase, righeAzienda, tempoTrascorso,
   avanzamentoSal, caricaDatiRiepilogo, fattureDiCommessa, giornateMezzi, oreDaRapportini, totaliFatture, type DatiRiepilogo,
 } from "@/lib/orders/riepilogoCommessaDati";
 
@@ -22,7 +23,7 @@ function dbFinto(tabelle: Record<string, unknown[]>, rotte: string[] = []) {
     from: (t: string) => {
       lette.push(t);
       const q: Record<string, unknown> = {};
-      for (const m of ["select", "eq", "is", "order", "limit"]) q[m] = () => q;
+      for (const m of ["select", "eq", "is", "in", "order", "limit"]) q[m] = () => q;
       q.then = (ok: (r: Risposta) => unknown) =>
         Promise.resolve<Risposta>(rotte.includes(t) ? { data: null, error: { message: "rotta" } } : { data: tabelle[t] ?? [], error: null }).then(ok);
       return q;
@@ -74,6 +75,63 @@ describe("Riepilogo commessa: i conti delle sezioni nuove", () => {
   });
 });
 
+describe("Riepilogo commessa: cronoprogramma e grafici", () => {
+  it("l'asse copre mesi interi e posiziona le date", () => {
+    const a = asseTempo(["2026-03-16", null, "2026-01-10"])!;
+    expect(a.mesi.map((m) => m.etichetta)).toEqual(["gen 26", "feb 26", "mar 26"]);
+    expect(a.pos("2026-01-01")).toBe(0);
+    expect(a.pos("2026-04-30")).toBe(100);
+    expect(a.pos("2026-02-15")).toBeGreaterThan(40);
+    expect(asseTempo([null, undefined])).toBeNull();
+  });
+
+  it("una fase senza date prende quelle delle sottofasi", () => {
+    expect(periodoFase({ sottofasi: [{ data_inizio: "2026-02-01", data_fine: "2026-02-05" }, { data_inizio: "2026-01-20" }] })).toEqual({ inizio: "2026-01-20", fine: "2026-02-05" });
+    expect(periodoFase({ start_date: "2026-01-01", end_date: "2026-01-09", sottofasi: [] })).toEqual({ inizio: "2026-01-01", fine: "2026-01-09" });
+    expect(periodoFase({})).toEqual({ inizio: null, fine: null });
+  });
+
+  it("tempo trascorso sul periodo dei lavori", () => {
+    expect(tempoTrascorso("2026-01-01", "2026-01-11", "2026-01-06")).toBe(50);
+    expect(tempoTrascorso("2026-01-01", "2026-01-11", "2027-01-01")).toBe(100);
+    expect(tempoTrascorso(null, "2026-01-11", "2026-01-06")).toBeNull();
+  });
+
+  it("cassa per mese: incassato e pagato alla loro data, il resto alla scadenza, ordini senza fattura fuori", () => {
+    const { mesi, senzaData } = cassaPerMese({
+      rate: [{ amount: 100, is_paid: true, paid_date: "2026-01-15", expected_date: "2026-01-01" }, { amount: 50, is_paid: false, expected_date: "2026-03-01" }, { amount: 5, is_paid: false, expected_date: null }],
+      uscite: [
+        { stato: "parziale", pagato: 30, pagato_il: "2026-01-20", residuo: 40, scadenza: "2026-02-10" },
+        { stato: "fattura_da_arrivare", pagato: 0, residuo: 999, scadenza: "2026-02-10" },
+      ],
+    });
+    expect(mesi).toEqual([
+      { mese: "2026-01", etichetta: "gen 26", entrate: 100, uscite: 30, saldo: 70 },
+      { mese: "2026-02", etichetta: "feb 26", entrate: 0, uscite: 40, saldo: 30 },
+      { mese: "2026-03", etichetta: "mar 26", entrate: 50, uscite: 0, saldo: 80 },
+    ]);
+    expect(senzaData).toBe(5);
+  });
+
+  it("settimane dal lunedì: ore delle presenze, lavori senza doppioni, rifiutati fuori", () => {
+    const s = orePerSettimana([
+      { data_lavoro: "2026-11-02", ore_lavorate: 16, stato: "approvato", descrizione_lavori: "Getto", presenze: [{ nome: "A", ore: 8 }, { nome: "B", ore: 8 }] },
+      { data_lavoro: "2026-11-08", ore_lavorate: 4, stato: "inviato", descrizione_lavori: "Getto" },
+      { data_lavoro: "2026-11-09", ore_lavorate: 2, stato: "inviato", descrizione_lavori: "Pulizia" },
+      { data_lavoro: "2026-11-09", ore_lavorate: 99, stato: "rifiutato" },
+    ]);
+    expect(s).toEqual([
+      { lunedi: "2026-11-02", giornate: 2, ore: 20, lavori: ["Getto"] },
+      { lunedi: "2026-11-09", giornate: 1, ore: 2, lavori: ["Pulizia"] },
+    ]);
+  });
+
+  it("intestazione dell'azienda solo con i dati presenti", () => {
+    expect(righeAzienda({ legal_address: "Via Po 1", legal_city: "Torino", legal_province: "TO", vat_number: "123", pec: null })).toEqual(["Via Po 1, Torino (TO)", "P.IVA 123"]);
+    expect(righeAzienda(null)).toEqual([]);
+  });
+});
+
 describe("Riepilogo commessa: lettura", () => {
   it("una lettura fallita è dichiarata, le altre arrivano lo stesso", async () => {
     const db = dbFinto({ order_work_phases: [{ id: "f1", name: "Scavi" }] }, ["tasks"]);
@@ -88,15 +146,17 @@ describe("Riepilogo commessa: lettura", () => {
     for (const t of ["documenti_fiscali", "invoices", "contratti_subappalto", "sal_subappaltatori", "pos_documents", "order_errors"]) expect(db.lette).not.toContain(t);
   });
 
-  it("per il cliente si leggono solo fasi, fatture e foto", async () => {
-    const db = dbFinto({});
-    await caricaDatiRiepilogo(db, "o", tutti, { perCliente: true });
-    expect([...new Set(db.lette)].sort()).toEqual(["documenti_fiscali", "foto_cantiere", "invoices", "order_work_phases"]);
+  it("per il cliente si leggono solo azienda, fasi, fatture e foto", async () => {
+    const db = dbFinto({ order_work_phases: [{ id: "f1" }], order_work_subphases: [{ phase_id: "f1", name: "Sotto" }] });
+    const d = await caricaDatiRiepilogo(db, "o", tutti, { perCliente: true, companyId: "c" });
+    expect([...new Set(db.lette)].sort()).toEqual(["companies", "documenti_fiscali", "foto_cantiere", "invoices", "order_work_phases", "order_work_subphases"]);
+    expect(d.fasi[0].sottofasi).toHaveLength(1);
   });
 });
 
 const dati: DatiRiepilogo = {
   permessi: tutti,
+  azienda: { nome: "Impresa Verdi", righe: ["P.IVA 123"], logo: null },
   fornitoriArticoli: { i1: "Ceramiche Rossi" },
   fasi: [{ id: "f1", name: "Scavi", status: "in_corso", percentuale: 40, start_date: "2026-01-01", end_date: "2026-02-01", notes: "NOTA-FASE-INTERNA" }],
   fatture: [{ numero: "FT-77", tipo: "fattura", data: "2026-01-10", scadenza: null, totale: 1220, pagato: 0, pagataIl: null, stato: "emessa" }],
@@ -145,7 +205,7 @@ describe("Riepilogo commessa: il documento", () => {
   it("interno: tutte le sezioni, i dati corretti e i difetti di prima non ci sono più", () => {
     const t = leggi(createOrdinePDFDocument({ ...base, showCosts: true, showMargins: true }));
     for (const atteso of [
-      "Rossi Mario", "Via Roma 1", "Rifacimento tetto", "Ceramiche Rossi", "Programma lavori", "Scavi", "FT-77", "Fatture al cliente", "Ditta Sub Srl",
+      "Rossi Mario", "Via Roma 1", "Rifacimento tetto", "Ceramiche Rossi", "Fasi di lavorazione", "Scavi", "FT-77", "Fatture al cliente", "Ditta Sub Srl",
       "Mario Operaio", "DDT-5", "Chiamare il geometra", "contratto-riservato.pdf", "Ispezione", "Voce di SAL", "Firmato", "50%", "Ricevuto", "Cemento", "IN QUESTO DOCUMENTO",
       "NOTA-INTERNA", "Non è stato possibile leggere: Mezzi", "Senza dati registrati a oggi",
     ]) expect(t).toContain(atteso);
@@ -159,7 +219,21 @@ describe("Riepilogo commessa: il documento", () => {
       "Costo Acq.", "Margine", "Fornitore", "Ceramiche Rossi", "Ditta Sub Srl", "Forniture Spa", "ODA-9", "Vera", "Provvigioni", "Otto", "Personale Cantiere", "Mario Operaio",
       "Chiamare il geometra", "contratto-riservato.pdf", "Ispezione", "DDT-5", "Non è stato possibile",
     ]) expect(t).not.toContain(interno);
-    for (const visibile of ["Rossi Mario", "Via Roma 1", "Piastrelle", "Programma lavori", "Scavi", "FT-77", "Voce di SAL", "Lavori pubblici", "Variante buona"]) expect(t).toContain(visibile);
+    for (const visibile of ["Rossi Mario", "Via Roma 1", "Piastrelle", "Fasi di lavorazione", "Scavi", "FT-77", "Voce di SAL", "Lavori pubblici", "Variante buona"]) expect(t).toContain(visibile);
+  });
+
+  it("cronoprogramma nel documento; se nessuna fase ha date non esce", () => {
+    const conDate = leggi(createOrdinePDFDocument({ ...base, perCliente: true }));
+    expect(conDate).toContain("Cronoprogramma");
+    expect(conDate).toContain("Impresa Verdi");
+    const senza = leggi(createOrdinePDFDocument({ ...base, perCliente: true, dati: { ...dati, fasi: [{ id: "f1", name: "Scavi" }] } }));
+    expect(senza).not.toContain("Cronoprogramma");
+  });
+
+  it("le parti tolte non escono, anche dall'indice", () => {
+    const t = leggi(createOrdinePDFDocument({ ...base, showCosts: true, showMargins: true, gruppi: ["programma", "sal"] }));
+    for (const v of ["Scavi", "Voce di SAL"]) expect(t).toContain(v);
+    for (const v of ["Piastrelle", "FT-77", "Mario Operaio", "Chiamare il geometra", "NOTA-INTERNA", "Lavori pubblici", "Allegati 1", "Rapportini"]) expect(t).not.toContain(v);
   });
 
   it("chi non vede costi e margini non li trova neppure nel documento interno", () => {

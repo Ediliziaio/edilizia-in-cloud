@@ -9,6 +9,30 @@
 type Db = { from: (tabella: string) => any; storage?: any };
 type Riga = Record<string, any>;
 
+/** Le parti del documento che si possono togliere prima di scaricarlo. */
+export const GRUPPI_RIEPILOGO = [
+  { id: "programma", label: "Cronoprogramma e fasi" },
+  { id: "articoli", label: "Articoli" },
+  { id: "economia", label: "Grafici, conto economico e pagamenti" },
+  { id: "fatture", label: "Fatture al cliente" },
+  { id: "sal", label: "SAL e varianti" },
+  { id: "subappalti", label: "Subappalti" },
+  { id: "risorse", label: "Dipendenti, provvigioni e ordini di acquisto" },
+  { id: "cantiere", label: "Ore, mezzi, bolle, sicurezza e segnalazioni" },
+  { id: "giornale", label: "Giornale lavori" },
+  { id: "agenda", label: "Attività, appuntamenti, firme e allegati" },
+  { id: "foto", label: "Foto di cantiere" },
+  { id: "diario", label: "Diario e note interne" },
+] as const;
+export type GruppoRiepilogo = (typeof GRUPPI_RIEPILOGO)[number]["id"];
+export const GRUPPI_SINTETICO: GruppoRiepilogo[] = ["programma", "economia", "fatture", "sal"];
+
+export interface AziendaRiepilogo {
+  nome: string | null;
+  righe: string[];
+  logo: string | null;
+}
+
 export interface PermessiRiepilogo {
   vedeCosti: boolean;
   vedeFatture: boolean;
@@ -40,6 +64,7 @@ export interface OreRapportini {
 export interface DatiRiepilogo {
   /** Cosa si è provato a leggere: una sezione negata non va dichiarata «senza dati». */
   permessi: PermessiRiepilogo;
+  azienda: AziendaRiepilogo | null;
   fornitoriArticoli: Record<string, string>;
   fasi: Riga[];
   fatture: FatturaRiepilogo[];
@@ -178,7 +203,158 @@ export function avanzamentoSal(voci: Riga[] | null | undefined): number | null {
   return tondo(v.reduce((s, x) => s + num(x.importo_contrattuale) * num(x.percentuale_avanzamento), 0) / peso);
 }
 
+/* ── Cronoprogramma ─────────────────────────────────────────────────── */
+const MESI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+const giornoUtc = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
+
+export interface AsseTempo {
+  mesi: Array<{ chiave: string; etichetta: string; sinistra: number; larghezza: number }>;
+  /** Posizione di una data sull'asse, da 0 a 100. */
+  pos: (d: string) => number;
+}
+
+/** Asse a mesi interi che contiene tutte le date; null se non ce n'è nessuna. */
+export function asseTempo(date: Array<string | null | undefined>): AsseTempo | null {
+  const valide = date.filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}/.test(d)).map((d) => d.slice(0, 10)).sort();
+  if (valide.length === 0) return null;
+  const primo = valide[0];
+  const ultimo = valide[valide.length - 1];
+  const inizio = Date.UTC(Number(primo.slice(0, 4)), Number(primo.slice(5, 7)) - 1, 1);
+  const fine = Date.UTC(Number(ultimo.slice(0, 4)), Number(ultimo.slice(5, 7)), 1);
+  const durata = fine - inizio;
+  const mesi: AsseTempo["mesi"] = [];
+  for (let c = new Date(inizio); c.getTime() < fine;) {
+    const a = c.getTime();
+    const dopo = Date.UTC(c.getUTCFullYear(), c.getUTCMonth() + 1, 1);
+    mesi.push({
+      chiave: `${c.getUTCFullYear()}-${String(c.getUTCMonth() + 1).padStart(2, "0")}`,
+      etichetta: `${MESI[c.getUTCMonth()]} ${String(c.getUTCFullYear()).slice(2)}`,
+      sinistra: ((a - inizio) / durata) * 100,
+      larghezza: ((dopo - a) / durata) * 100,
+    });
+    c = new Date(dopo);
+  }
+  return { mesi, pos: (d) => Math.max(0, Math.min(100, ((giornoUtc(d.slice(0, 10)) - inizio) / durata) * 100)) };
+}
+
+/** Date di una fase: le sue, altrimenti quelle delle sottofasi. */
+export function periodoFase(f: Riga): { inizio: string | null; fine: string | null } {
+  const sotto = (f.sottofasi ?? []) as Riga[];
+  const inizi = sotto.map((s) => s.data_inizio).filter(Boolean).sort();
+  const fini = sotto.map((s) => s.data_fine ?? s.data_inizio).filter(Boolean).sort();
+  const inizio = f.start_date ?? inizi[0] ?? f.end_date ?? null;
+  const fine = f.end_date ?? fini[fini.length - 1] ?? f.start_date ?? inizio;
+  return { inizio, fine };
+}
+
+/** Tempo trascorso sul periodo dei lavori, da mettere accanto all'avanzamento. */
+export function tempoTrascorso(inizio: string | null | undefined, fine: string | null | undefined, oggi: string): number | null {
+  if (!inizio || !fine) return null;
+  const a = giornoUtc(inizio);
+  const b = giornoUtc(fine);
+  if (b <= a) return null;
+  return Math.round(Math.max(0, Math.min(1, (giornoUtc(oggi) - a) / (b - a))) * 100);
+}
+
+/* ── Cassa mese per mese ────────────────────────────────────────────── */
+export interface MeseCassa { mese: string; etichetta: string; entrate: number; uscite: number; saldo: number }
+
+/**
+ * Entrate e uscite per mese, col saldo progressivo: l'incassato e il pagato alla
+ * loro data, il resto alla scadenza. Gli ordini senza fattura non sono ancora un debito.
+ */
+export function cassaPerMese(quadro: { rate: Riga[]; uscite: Riga[] } | null | undefined): { mesi: MeseCassa[]; senzaData: number } {
+  const per = new Map<string, { entrate: number; uscite: number }>();
+  let senzaData = 0;
+  const metti = (data: unknown, campo: "entrate" | "uscite", importo: number) => {
+    if (!importo) return;
+    if (!data) { senzaData += importo; return; }
+    const mese = String(data).slice(0, 7);
+    const m = per.get(mese) ?? { entrate: 0, uscite: 0 };
+    m[campo] += importo;
+    per.set(mese, m);
+  };
+  for (const r of quadro?.rate ?? []) metti(r.is_paid ? r.paid_date ?? r.expected_date : r.expected_date, "entrate", num(r.amount));
+  for (const u of quadro?.uscite ?? []) {
+    if (u.stato === "fattura_da_arrivare" || u.stato === "da_maturare") continue;
+    metti(u.pagato_il ?? u.scadenza, "uscite", num(u.pagato));
+    metti(u.scadenza ?? u.pagato_il, "uscite", num(u.residuo));
+  }
+  // Anche i mesi senza movimenti: sull'asse il tempo deve scorrere uguale.
+  const chiavi = [...per.keys()].sort();
+  const tutti: string[] = [];
+  if (chiavi.length > 0) {
+    let [anno, numero] = chiavi[0].split("-").map(Number);
+    const ultimo = chiavi[chiavi.length - 1];
+    for (let c = chiavi[0]; c <= ultimo; c = `${anno}-${String(numero).padStart(2, "0")}`) {
+      tutti.push(c);
+      numero += 1;
+      if (numero > 12) { numero = 1; anno += 1; }
+    }
+  }
+  let saldo = 0;
+  const mesi = tutti.map((mese) => {
+    const m = per.get(mese) ?? { entrate: 0, uscite: 0 };
+    saldo += m.entrate - m.uscite;
+    return { mese, etichetta: `${MESI[Number(mese.slice(5, 7)) - 1]} ${mese.slice(2, 4)}`, entrate: tondo(m.entrate), uscite: tondo(m.uscite), saldo: tondo(saldo) };
+  });
+  return { mesi, senzaData: tondo(senzaData) };
+}
+
+/* ── Rapportini per settimana ───────────────────────────────────────── */
+export interface SettimanaOre { lunedi: string; giornate: number; ore: number; lavori: string[] }
+
+export function orePerSettimana(righe: Riga[]): SettimanaOre[] {
+  const per = new Map<string, { giorni: Set<string>; ore: number; lavori: Set<string> }>();
+  for (const r of righe) {
+    if (r.stato === "rifiutato" || !r.data_lavoro) continue;
+    const giorno = String(r.data_lavoro).slice(0, 10);
+    const t = giornoUtc(giorno);
+    const lunedi = new Date(t - ((new Date(t).getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
+    const s = per.get(lunedi) ?? { giorni: new Set<string>(), ore: 0, lavori: new Set<string>() };
+    s.giorni.add(giorno);
+    const presenze = Array.isArray(r.presenze) ? r.presenze.filter((p: Riga) => p?.nome) : [];
+    s.ore += presenze.length > 0 ? presenze.reduce((x: number, p: Riga) => x + num(p.ore), 0) : num(r.ore_lavorate);
+    if (r.descrizione_lavori) s.lavori.add(String(r.descrizione_lavori).trim());
+    per.set(lunedi, s);
+  }
+  return [...per.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([lunedi, s]) => ({ lunedi, giornate: s.giorni.size, ore: tondo(s.ore), lavori: [...s.lavori] }));
+}
+
 const FOTO_MASSIME = 12;
+
+/** Logo per la testata: sfondo bianco per i PNG trasparenti. Un SVG o un file illeggibile lascia il nome scritto. */
+async function logoPerPdf(url: string | null | undefined): Promise<string | null> {
+  if (!url || typeof document === "undefined") return null;
+  try {
+    const risposta = await fetch(url);
+    if (!risposta.ok) return null;
+    const img = await createImageBitmap(await risposta.blob());
+    const scala = Math.min(1, 500 / Math.max(img.width, img.height));
+    const tela = document.createElement("canvas");
+    tela.width = Math.round(img.width * scala);
+    tela.height = Math.round(img.height * scala);
+    const ctx = tela.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, tela.width, tela.height);
+    ctx.drawImage(img, 0, 0, tela.width, tela.height);
+    img.close();
+    return tela.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
+/** Righe d'intestazione dell'azienda, solo con quello che c'è. */
+export function righeAzienda(a: Riga | null | undefined): string[] {
+  if (!a) return [];
+  const luogo = [a.legal_postal_code, a.legal_city, a.legal_province ? `(${a.legal_province})` : null].filter(Boolean).join(" ");
+  return [
+    [a.legal_address, luogo].filter(Boolean).join(", "),
+    [a.vat_number ? `P.IVA ${a.vat_number}` : null, a.phone, a.email, a.pec ? `PEC ${a.pec}` : null].filter(Boolean).join(" · "),
+  ].filter(Boolean);
+}
 
 /** Foto rimpicciolita e dentro il PDF: dodici foto del telefono farebbero un file da decine di MB. */
 async function fotoPerPdf(url: string): Promise<string | null> {
@@ -211,7 +387,7 @@ async function caricaFoto(db: Db, righe: Riga[], segna: (nome: string) => void) 
   return lette.filter((f): f is NonNullable<typeof f> => f !== null);
 }
 
-export async function caricaDatiRiepilogo(db: Db, orderId: string, permessi: PermessiRiepilogo, opzioni: { perCliente?: boolean } = {}): Promise<DatiRiepilogo> {
+export async function caricaDatiRiepilogo(db: Db, orderId: string, permessi: PermessiRiepilogo, opzioni: { perCliente?: boolean; companyId?: string | null } = {}): Promise<DatiRiepilogo> {
   const nonLette: string[] = [];
   const leggi = async (nome: string, query: PromiseLike<{ data: unknown; error: unknown }>): Promise<Riga[]> => {
     try {
@@ -260,12 +436,22 @@ export async function caricaDatiRiepilogo(db: Db, orderId: string, permessi: Per
     seInterno("Note di cantiere", () => db.from("note_cantiere").select("testo, importante, created_at").eq("order_id", orderId).order("created_at")),
   ]);
 
+  // Le sottofasi si leggono dopo le fasi: stanno sotto di loro, non sulla commessa.
+  const idFasi = fasi.map((f) => f.id).filter(Boolean);
+  const sottofasi = idFasi.length > 0
+    ? await leggi("Fasi di lavorazione", db.from("order_work_subphases").select("id, phase_id, name, position, data_inizio, data_fine, fatta").in("phase_id", idFasi).order("position"))
+    : [];
+  const [aziendaRiga] = opzioni.companyId
+    ? await leggi("Dati dell'azienda", db.from("companies").select("name, logo_url, vat_number, phone, email, pec, legal_address, legal_city, legal_province, legal_postal_code").eq("id", opzioni.companyId).limit(1))
+    : [];
+
   const { fatture, annullate } = fattureDiCommessa(documenti, importate);
   const accettazioni = new Map(verbaliSub.map((v) => [v.sal_id, v]));
   return {
     permessi,
+    azienda: aziendaRiga ? { nome: aziendaRiga.name ?? null, righe: righeAzienda(aziendaRiga), logo: await logoPerPdf(aziendaRiga.logo_url) } : null,
     fornitoriArticoli: Object.fromEntries(articoli.filter((a) => a.supplier?.name).map((a) => [a.id, a.supplier.name])),
-    fasi,
+    fasi: fasi.map((f) => ({ ...f, sottofasi: sottofasi.filter((s) => s.phase_id === f.id) })),
     fatture,
     fattureAnnullate: annullate,
     contratti,

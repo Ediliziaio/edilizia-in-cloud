@@ -1,7 +1,7 @@
 import React from "react";
-import { Image, Text, View } from "@react-pdf/renderer";
+import { Circle, Image, Line, Link, Path, Polyline, Rect, Svg, Text, View } from "@react-pdf/renderer";
 import type { DossierEconomico } from "@/lib/orders/dossierEconomico";
-import { totaliFatture, type DatiRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
+import { asseTempo, cassaPerMese, orePerSettimana, periodoFase, tempoTrascorso, totaliFatture, type DatiRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
 
 /**
  * Sezioni del PDF «Riepilogo commessa» oltre a quelle storiche di OrdinePDF.
@@ -35,9 +35,12 @@ const STATI: Record<string, string> = {
 };
 const stato = (v: unknown) => STATI[String(v)] ?? etichetta(v);
 
+/** Destinazione dell'indice cliccabile: il titolo della sezione, senza il conteggio. */
+export const ancoraDi = (testo: string) => `sez-${testo.split(" (")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
 function titolo(kit: KitPdf, testo: string) {
   return (
-    <View minPresenceAhead={50}>
+    <View id={ancoraDi(testo)} minPresenceAhead={50}>
       <Text style={kit.styles.sectionTitle}>{testo}</Text>
       <View style={kit.styles.sectionLine} />
     </View>
@@ -133,46 +136,283 @@ export function sezioneGrafici(kit: KitPdf, dossier: DossierEconomico, mostraMar
   );
 }
 
-/* ── Programma lavori ──────────────────────────────────────────────────── */
-export function sezioneProgramma(kit: KitPdf, dati: DatiRiepilogo, persone: Record<string, string[]>) {
+/** Spicchio di ciambella (angoli in radianti, da ore 12 in senso orario). */
+export function spicchio(cx: number, cy: number, esterno: number, interno: number, da: number, a: number): string {
+  const punto = (raggio: number, angolo: number) => `${(cx + raggio * Math.sin(angolo)).toFixed(2)} ${(cy - raggio * Math.cos(angolo)).toFixed(2)}`;
+  const grande = a - da > Math.PI ? 1 : 0;
+  return `M ${punto(esterno, da)} A ${esterno} ${esterno} 0 ${grande} 1 ${punto(esterno, a)} L ${punto(interno, a)} A ${interno} ${interno} 0 ${grande} 0 ${punto(interno, da)} Z`;
+}
+
+const COLORI_TORTA = ["#1E3A5F", "#F97316", "#0891b2", "#16a34a", "#d97706", "#7c3aed", "#db2777", "#64748b", "#65a30d"];
+
+export function sezioneGraficiCosti(kit: KitPdf, dossier: DossierEconomico) {
+  const { C, fmt, styles } = kit;
+  const voci = dossier.conto.righe.filter((r) => r.consuntivo > 0);
+  const totale = voci.reduce((s, r) => s + r.consuntivo, 0);
+  const { mesi, senzaData } = cassaPerMese(dossier.quadro);
+  if (totale <= 0 && mesi.length === 0) return null;
+  let angolo = 0;
+  const larghezza = 300;
+  const altezza = 90;
+  const massimo = Math.max(1, ...mesi.flatMap((m) => [m.entrate, m.uscite, m.saldo]));
+  const minimo = Math.min(0, ...mesi.map((m) => m.saldo));
+  const y = (v: number) => altezza - ((v - minimo) / (massimo - minimo)) * altezza;
+  const passo = mesi.length > 0 ? larghezza / mesi.length : 0;
+  const barra2 = Math.min(14, passo * 0.32);
+  const salto = mesi.length > 12 ? Math.ceil(mesi.length / 12) : 1;
+  return (
+    <View style={styles.row2} wrap={false}>
+      {totale > 0 && (
+        <View style={[styles.financialBox, { flex: 1 }]}>
+          <Text style={[styles.label, { marginBottom: 6 }]}>DOVE VANNO I COSTI</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Svg width={84} height={84} viewBox="0 0 84 84">
+              {voci.length === 1
+                ? <Circle cx={42} cy={42} r={33} fill="none" stroke={COLORI_TORTA[0]} strokeWidth={18} />
+                : voci.map((r, i) => {
+                  const da = angolo;
+                  angolo += (r.consuntivo / totale) * Math.PI * 2;
+                  return <Path key={r.key} d={spicchio(42, 42, 42, 24, da, angolo)} fill={COLORI_TORTA[i % COLORI_TORTA.length]} />;
+                })}
+            </Svg>
+            <View style={{ flex: 1 }}>
+              {voci.map((r, i) => (
+                <View key={r.key} style={{ flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 2 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: COLORI_TORTA[i % COLORI_TORTA.length] }} />
+                  <Text style={{ fontSize: 6.5, color: C.gray700, flex: 1 }}>{r.label}</Text>
+                  <Text style={{ fontSize: 6.5, color: C.gray900, fontFamily: "Helvetica-Bold" }}>{`${Math.round((r.consuntivo / totale) * 100)}%`}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          <Text style={{ fontSize: 7, color: C.gray500, marginTop: 4 }}>{`Totale costi registrati ${fmt(totale)}`}</Text>
+        </View>
+      )}
+      {mesi.length > 0 && (
+        <View style={[styles.financialBox, { flex: 1.5 }]}>
+          <Text style={[styles.label, { marginBottom: 6 }]}>ENTRATE E USCITE MESE PER MESE</Text>
+          <Svg width="100%" height={altezza} viewBox={`0 0 ${larghezza} ${altezza}`}>
+            <Line x1={0} x2={larghezza} y1={y(0)} y2={y(0)} stroke={C.gray300} strokeWidth={0.5} />
+            {mesi.map((m, i) => {
+              const centro = passo * i + passo / 2;
+              return (
+                <React.Fragment key={m.mese}>
+                  <Rect x={centro - barra2} y={y(m.entrate)} width={barra2} height={Math.max(0, y(0) - y(m.entrate))} fill={C.green} />
+                  <Rect x={centro} y={y(m.uscite)} width={barra2} height={Math.max(0, y(0) - y(m.uscite))} fill={C.orange} />
+                </React.Fragment>
+              );
+            })}
+            <Polyline points={mesi.map((m, i) => `${(passo * i + passo / 2).toFixed(1)},${y(m.saldo).toFixed(1)}`).join(" ")} fill="none" stroke={C.navy} strokeWidth={1.2} />
+          </Svg>
+          <View style={{ flexDirection: "row", marginTop: 2 }}>
+            {mesi.map((m, i) => <Text key={m.mese} style={{ flex: 1, fontSize: 5.5, color: C.gray500, textAlign: "center" }}>{i % salto === 0 ? m.etichetta : ""}</Text>)}
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            {[[C.green, "Entrate"], [C.orange, "Uscite"], [C.navy, "Saldo progressivo"]].map(([colore, nome]) => (
+              <View key={nome} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                <View style={{ width: 6, height: 6, backgroundColor: colore }} />
+                <Text style={{ fontSize: 6, color: C.gray500 }}>{nome}</Text>
+              </View>
+            ))}
+            <Text style={{ fontSize: 6, color: C.gray500, marginLeft: "auto" }}>{`Saldo finale ${fmt(mesi[mesi.length - 1].saldo)}`}</Text>
+          </View>
+          {senzaData > 0 && <Text style={{ fontSize: 6, color: C.gray500, marginTop: 2 }}>{`Non nel grafico perché senza data: ${fmt(senzaData)}.`}</Text>}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/* ── Cronoprogramma ────────────────────────────────────────────────────── */
+export function sezioneCronoprogramma(kit: KitPdf, dati: DatiRiepilogo, ordine: Record<string, any>, salList: any[], rate: any[], oggi: string) {
   const { C, styles } = kit;
+  const fasi: Array<Record<string, any>> = dati.fasi.map((f) => ({ ...f, ...periodoFase(f) }));
+  const conDate = fasi.filter((f) => f.inizio);
+  const traguardiSal = salList.map((s) => ({ data: s.data_emissione as string | null, nome: `SAL ${s.numero_sal ?? ""}` })).filter((t) => t.data);
+  const traguardiRate = rate.map((r) => (r.is_paid ? r.paid_date ?? r.expected_date : r.expected_date) as string | null).filter(Boolean) as string[];
+  const inizioLavori = ordine?.work_start_date ?? conDate.map((f) => f.inizio).sort()[0] ?? null;
+  const fineLavori = ordine?.work_end_date ?? conDate.map((f) => f.fine).sort().reverse()[0] ?? null;
+  const asse = asseTempo([
+    ...conDate.flatMap((f) => [f.inizio, f.fine]),
+    ...conDate.flatMap((f) => (f.sottofasi ?? []).flatMap((s: any) => [s.data_inizio, s.data_fine])),
+    ...traguardiSal.map((t) => t.data),
+    ...traguardiRate,
+    ordine?.work_start_date, ordine?.work_end_date,
+  ]);
+  if (!asse || conDate.length === 0) return null;
+  const senzaDate = fasi.filter((f) => !f.inizio);
+  const avanzamento = ordine?.percentuale_avanzamento != null
+    ? Number(ordine.percentuale_avanzamento)
+    : Math.round(fasi.reduce((s, f) => s + Number(f.percentuale ?? 0), 0) / Math.max(1, fasi.length));
+  const tempo = tempoTrascorso(inizioLavori, fineLavori, oggi);
+  const oggiPos = oggi >= asse.mesi[0].chiave && oggi.slice(0, 7) <= asse.mesi[asse.mesi.length - 1].chiave ? asse.pos(oggi) : null;
+  const salto = asse.mesi.length > 14 ? Math.ceil(asse.mesi.length / 14) : 1;
+  const griglia = (alto: number) => (
+    <>
+      {asse.mesi.map((m) => <View key={m.chiave} style={{ position: "absolute", left: `${m.sinistra}%`, top: 0, height: alto, width: 0.25, backgroundColor: C.gray200 }} />)}
+      {oggiPos != null && <View style={{ position: "absolute", left: `${oggiPos}%`, top: 0, height: alto, width: 0.8, backgroundColor: C.red }} />}
+    </>
+  );
+  const barra = (inizio: string, fine: string, percentuale: number, colore: string, alta: number, alto: number) => {
+    const sx = asse.pos(inizio);
+    const larga = Math.max(1, asse.pos(fine) - sx);
+    return (
+      <View style={{ position: "absolute", left: `${sx}%`, width: `${larga}%`, top: (alto - alta) / 2, height: alta, backgroundColor: C.gray300, borderRadius: 1.5 }}>
+        <View style={{ width: `${Math.max(0, Math.min(100, percentuale))}%`, height: alta, backgroundColor: colore, borderRadius: 1.5 }} />
+      </View>
+    );
+  };
+  const etichettaRiga = (testo: string, sotto = false) => (
+    <Text style={{ width: "27%", paddingRight: 6, paddingLeft: sotto ? 8 : 0, fontSize: sotto ? 6.5 : 7.5, color: sotto ? C.gray500 : C.gray900, fontFamily: sotto ? "Helvetica" : "Helvetica-Bold" }}>{testo}</Text>
+  );
+  const righeTotali = conDate.reduce((s, f) => s + 1 + (f.sottofasi ?? []).filter((x: any) => x.data_inizio).length, 0);
+  return (
+    <View wrap={righeTotali > 22}>
+      {titolo(kit, "Cronoprogramma")}
+      {tempo != null && (
+        <View style={[styles.row2, { marginBottom: 6 }]}>
+          <View style={styles.col}>
+            <View style={styles.financialRow}><Text style={styles.financialLabel}>Tempo trascorso</Text><Text style={styles.financialValue}>{`${tempo}%`}</Text></View>
+            <View style={{ height: 6, backgroundColor: C.gray200, borderRadius: 2 }}><View style={{ height: 6, width: `${tempo}%`, backgroundColor: C.navy, borderRadius: 2 }} /></View>
+          </View>
+          <View style={styles.col}>
+            <View style={styles.financialRow}><Text style={styles.financialLabel}>Lavori eseguiti</Text><Text style={[styles.financialValue, { color: avanzamento + 5 < tempo ? C.red : C.green }]}>{`${avanzamento}%`}</Text></View>
+            <View style={{ height: 6, backgroundColor: C.gray200, borderRadius: 2 }}><View style={{ height: 6, width: `${Math.min(100, avanzamento)}%`, backgroundColor: avanzamento + 5 < tempo ? C.red : C.green, borderRadius: 2 }} /></View>
+          </View>
+        </View>
+      )}
+      <View style={{ border: `0.5pt solid ${C.gray200}`, borderRadius: 4, padding: 6 }}>
+        <View style={{ flexDirection: "row", marginBottom: 3 }}>
+          <View style={{ width: "27%" }} />
+          <View style={{ flex: 1, position: "relative", height: 10 }}>
+            {asse.mesi.map((m, i) => (i % salto === 0
+              ? <Text key={m.chiave} style={{ position: "absolute", left: `${m.sinistra}%`, fontSize: 5.5, color: C.gray500 }}>{m.etichetta}</Text>
+              : null))}
+          </View>
+        </View>
+        {conDate.map((f) => {
+          const p = Number(f.percentuale ?? 0);
+          const inRitardo = p < 100 && !!f.fine && f.fine < oggi;
+          const sotto = (f.sottofasi ?? []).filter((s: any) => s.data_inizio);
+          return (
+            <View key={f.id} wrap={false}>
+              <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 1.5 }}>
+                {etichettaRiga(f.name ?? "—")}
+                <View style={{ flex: 1, position: "relative", height: 11 }}>
+                  {griglia(11)}
+                  {barra(f.inizio, f.fine, p, inRitardo ? C.red : p >= 100 ? C.green : C.orange, 7, 11)}
+                </View>
+              </View>
+              {sotto.map((s: any) => (
+                <View key={s.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 0.5 }}>
+                  {etichettaRiga(s.name ?? "—", true)}
+                  <View style={{ flex: 1, position: "relative", height: 7 }}>
+                    {griglia(7)}
+                    {barra(s.data_inizio, s.data_fine ?? s.data_inizio, s.fatta ? 100 : 0, C.cyan, 4, 7)}
+                  </View>
+                </View>
+              ))}
+            </View>
+          );
+        })}
+        {[{ nome: "SAL", date: traguardiSal.map((t) => t.data as string), colore: C.navy }, { nome: "Rate al cliente", date: traguardiRate, colore: C.green }].filter((t) => t.date.length > 0).map((t) => (
+          <View key={t.nome} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 1.5, borderTop: `0.25pt solid ${C.gray200}` }} wrap={false}>
+            {etichettaRiga(t.nome, true)}
+            <View style={{ flex: 1, position: "relative", height: 8 }}>
+              {griglia(8)}
+              {t.date.map((d, i) => <View key={i} style={{ position: "absolute", left: `${asse.pos(d)}%`, top: 1.5, width: 5, height: 5, marginLeft: -2.5, borderRadius: 2.5, backgroundColor: t.colore }} />)}
+            </View>
+          </View>
+        ))}
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 5 }}>
+          {[[C.green, "Fase finita"], [C.orange, "Parte eseguita"], [C.gray300, "Da eseguire"], [C.red, "In ritardo / oggi"]].map(([colore, nome]) => (
+            <View key={nome} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+              <View style={{ width: 6, height: 6, backgroundColor: colore }} />
+              <Text style={{ fontSize: 6, color: C.gray500 }}>{nome}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      {senzaDate.length > 0 && <Text style={{ fontSize: 7, color: C.gray500, marginTop: 3 }}>{`Fasi senza date, non nel grafico: ${senzaDate.map((f) => f.name).join(", ")}.`}</Text>}
+    </View>
+  );
+}
+
+/** SAL cumulativi sul contratto, uno sotto l'altro. */
+export function graficoSal(kit: KitPdf, salList: any[], contratto: number) {
+  const { C, fmt, styles } = kit;
+  const righe = salList.filter((s) => s.importo_totale != null);
+  const base = Math.max(contratto, ...righe.map((s) => Number(s.importo_totale)), 1);
+  if (righe.length === 0) return null;
+  return (
+    <View style={[styles.financialBox, { marginBottom: 6 }]} wrap={false}>
+      <Text style={[styles.label, { marginBottom: 5 }]}>{`AVANZAMENTO SUL CONTRATTO (${fmt(contratto)} SENZA IVA)`}</Text>
+      {righe.map((s, i) => {
+        const v = Number(s.importo_totale);
+        return (
+          <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <Text style={{ width: 34, fontSize: 7, color: C.gray700 }}>{`SAL ${s.numero_sal ?? i + 1}`}</Text>
+            <View style={{ flex: 1, height: 7, backgroundColor: C.gray200, borderRadius: 2 }}><View style={{ height: 7, width: `${(v / base) * 100}%`, backgroundColor: C.navy, borderRadius: 2 }} /></View>
+            <Text style={{ width: 90, fontSize: 7, color: C.gray900, textAlign: "right" }}>{`${fmt(v)} · ${Math.round((v / base) * 100)}%`}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/* ── Programma lavori ──────────────────────────────────────────────────── */
+export function sezioneProgramma(kit: KitPdf, dati: DatiRiepilogo, persone: Record<string, string[]>, dossier: DossierEconomico | null, mostraMargini: boolean) {
+  const { C, styles, fmt, fmtPerc, data } = kit;
   if (dati.fasi.length === 0) return null;
   const media = dati.fasi.reduce((s, f) => s + Number(f.percentuale ?? 0), 0) / dati.fasi.length;
+  const economia = new Map((dossier?.fasi ?? []).map((f) => [f.id, f.economia]));
+  const conti = economia.size > 0;
+  const soldi = (v: number | null | undefined) => (v ? fmt(v) : "—");
   return (
-    <>
-      <View wrap={dati.fasi.length > 12}>
-      {titolo(kit, `Programma lavori (${dati.fasi.length} fasi · media ${Math.round(media)}%)`)}
+    <View wrap={dati.fasi.length > 12}>
+      {titolo(kit, `Fasi di lavorazione (${dati.fasi.length} · media ${Math.round(media)}%)`)}
       <View style={styles.table}>
         <View style={styles.tableHeader} fixed>
-          <Text style={[styles.tableHeaderText, { flex: 2.4 }]}>Fase</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Stato</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Inizio</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Fine</Text>
-          <Text style={[styles.tableHeaderText, { flex: 1.6 }]}>Avanzamento</Text>
+          <Text style={[styles.tableHeaderText, { flex: 2.3 }]}>Fase</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1 }]}>Periodo</Text>
+          <Text style={[styles.tableHeaderText, { flex: 1.1 }]}>Avanzamento</Text>
+          {conti && <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Venduto</Text>}
+          {conti && <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Previsto</Text>}
+          {conti && <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Sostenuto</Text>}
+          {conti && mostraMargini && <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: "right" }]}>Margine</Text>}
         </View>
         {dati.fasi.map((f, i) => {
           const p = Number(f.percentuale ?? 0);
           const chi = persone[f.id] ?? [];
+          const { inizio, fine } = periodoFase(f);
+          const sotto = (f.sottofasi ?? []) as any[];
+          const e = economia.get(f.id);
           return (
             <View key={f.id ?? i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt} wrap={false}>
-              <View style={{ flex: 2.4 }}>
+              <View style={{ flex: 2.3, paddingRight: 6 }}>
                 <Text style={[styles.tableCell, { fontFamily: "Helvetica-Bold" }]}>{f.name ?? "—"}</Text>
+                <Text style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{`${stato(f.status)}${sotto.length > 0 ? ` · ${sotto.filter((x) => x.fatta).length}/${sotto.length} sottofasi` : ""}`}</Text>
                 {chi.length > 0 && <Text style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{chi.join(", ")}</Text>}
                 {f.notes ? <Text style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{f.notes}</Text> : null}
               </View>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{stato(f.status)}</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{kit.data(f.start_date)}</Text>
-              <Text style={[styles.tableCell, { flex: 1 }]}>{kit.data(f.end_date)}</Text>
-              <View style={{ flex: 1.6, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <View style={{ flex: 1 }}>{barra(kit, p, p >= 100 ? C.green : C.orange)}</View>
-                <Text style={{ fontSize: 7, color: C.gray700, width: 22, textAlign: "right" }}>{p}%</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 7, color: C.gray700 }}>{data(inizio)}</Text>
+                <Text style={{ fontSize: 7, color: C.gray700 }}>{data(fine)}</Text>
               </View>
+              <View style={{ flex: 1.1, flexDirection: "row", alignItems: "center", gap: 3, paddingRight: 6 }}>
+                <View style={{ flex: 1 }}>{barra(kit, p, p >= 100 ? C.green : C.orange)}</View>
+                <Text style={{ fontSize: 6.5, color: C.gray700, width: 19, textAlign: "right" }}>{`${p}%`}</Text>
+              </View>
+              {conti && <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{soldi(e?.venduto)}</Text>}
+              {conti && <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{soldi(e?.costoPrevisto)}</Text>}
+              {conti && <Text style={[styles.tableCell, { flex: 1, textAlign: "right", color: (e?.scostamento ?? 0) > 0.5 ? C.red : C.gray700 }]}>{soldi(e?.costoConsuntivo)}</Text>}
+              {conti && mostraMargini && <Text style={[styles.tableCell, { flex: 0.7, textAlign: "right" }]}>{e?.margineConsuntivoPct == null ? "—" : fmtPerc(e.margineConsuntivoPct)}</Text>}
             </View>
           );
         })}
       </View>
-      </View>
-    </>
+    </View>
   );
 }
 
@@ -222,7 +462,9 @@ export function sezioneSubappalti(kit: KitPdf, dati: DatiRiepilogo) {
 export function sezioneCantiere(kit: KitPdf, dati: DatiRiepilogo) {
   const { data, styles, C } = kit;
   const { ore } = dati;
-  const descrizioni = dati.rapportini.filter((r) => r.stato !== "rifiutato" && r.descrizione_lavori).slice(0, 20);
+  const settimane = orePerSettimana(dati.rapportini);
+  const massimoSettimana = Math.max(1, ...settimane.map((x) => x.ore));
+  const passoEtichette = settimane.length > 16 ? Math.ceil(settimane.length / 16) : 1;
   const documentiSicurezza = [
     ...dati.sicurezzaPos.map((p) => [etichetta(p.document_type ?? "POS"), p.revisione ?? p.version, stato(p.status), data(p.approvato_il ?? p.firmato_il), data(p.valid_until)]),
     ...dati.sicurezzaDuvri.map((d) => ["DUVRI", null, stato(d.status), data(d.firmato_committente_il ?? d.firmato_subappaltatore_il), null]),
@@ -241,13 +483,19 @@ export function sezioneCantiere(kit: KitPdf, dati: DatiRiepilogo) {
             ))}
           </View>
           {tabella(kit, null, [{ titolo: "Persona", flex: 3, forte: true }, { titolo: "Giornate", flex: 1, destra: true }, { titolo: "Ore", flex: 1, destra: true }], ore.perPersona.map((p) => [p.nome, p.giornate, p.ore]))}
-          {descrizioni.length > 0 && (
-            <>
-              <Text style={[styles.label, { marginTop: 8, marginBottom: 4 }]}>ULTIMI RAPPORTINI{ore.rapportini > descrizioni.length ? ` (${descrizioni.length} DI ${ore.rapportini})` : ""}</Text>
-              {tabella(kit, null, [{ titolo: "Data", flex: 0.8 }, { titolo: "Lavori", flex: 4 }, { titolo: "Ore", flex: 0.5, destra: true }, { titolo: "Stato", flex: 0.8 }],
-                descrizioni.map((r) => [data(r.data_lavoro), r.descrizione_lavori, Number(r.ore_lavorate ?? 0), stato(r.stato)]))}
-            </>
+          {settimane.length > 1 && (
+            <View style={[styles.financialBox, { marginTop: 8, marginBottom: 6 }]} wrap={false}>
+              <Text style={[styles.label, { marginBottom: 5 }]}>ORE PER SETTIMANA</Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-end", height: 50, gap: 2 }}>
+                {settimane.map((x) => <View key={x.lunedi} style={{ flex: 1, height: Math.max(1, (x.ore / massimoSettimana) * 50), backgroundColor: C.navy, borderRadius: 1 }} />)}
+              </View>
+              <View style={{ flexDirection: "row", gap: 2, marginTop: 2 }}>
+                {settimane.map((x, i) => <Text key={x.lunedi} style={{ flex: 1, fontSize: 5, color: C.gray500, textAlign: "center" }}>{i % passoEtichette === 0 ? `${x.lunedi.slice(8, 10)}/${x.lunedi.slice(5, 7)}` : ""}</Text>)}
+              </View>
+            </View>
           )}
+          {settimane.length > 0 && tabella(kit, "Lavori per settimana", [{ titolo: "Settimana del", flex: 0.9 }, { titolo: "Lavori svolti", flex: 4.2 }, { titolo: "Giorni", flex: 0.5, destra: true }, { titolo: "Ore", flex: 0.5, destra: true }],
+            [...settimane].reverse().map((x) => [data(x.lunedi), x.lavori.slice(0, 4).join(" · ") + (x.lavori.length > 4 ? ` · e altri ${x.lavori.length - 4}` : ""), x.giornate, x.ore]))}
         </>
       )}
       {dati.mezzi.length > 0 && (
@@ -364,7 +612,7 @@ export function sezioneFoto(kit: KitPdf, dati: DatiRiepilogo) {
 }
 
 /* ── Cosa c'è nel documento, cosa manca e perché ───────────────────────── */
-export function sezioneIndice(kit: KitPdf, sezioni: Array<{ nome: string; n: number }>) {
+export function sezioneIndice(kit: KitPdf, sezioni: Array<{ nome: string; n: number; titolo?: string }>) {
   const { C, styles } = kit;
   const piene = sezioni.filter((s) => s.n > 0);
   if (piene.length === 0) return null;
@@ -373,7 +621,7 @@ export function sezioneIndice(kit: KitPdf, sezioni: Array<{ nome: string; n: num
       <Text style={[styles.label, { marginBottom: 4 }]}>IN QUESTO DOCUMENTO</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>
         {piene.map((s) => (
-          <Text key={s.nome} style={{ fontSize: 7, color: C.gray700, backgroundColor: C.white, border: `0.5pt solid ${C.gray200}`, borderRadius: 3, padding: "2 4" }}>{s.nome} {s.n}</Text>
+          <Link key={s.nome} src={`#${ancoraDi(s.titolo ?? s.nome)}`} style={{ fontSize: 7, color: C.navy, textDecoration: "none", backgroundColor: C.white, border: `0.5pt solid ${C.gray200}`, borderRadius: 3, padding: "2 4" }}>{`${s.nome} ${s.n}`}</Link>
         ))}
       </View>
     </View>

@@ -46,6 +46,8 @@ export interface OrdinePDFProps {
   dati?: unknown;
   /** Il PDF che parte verso il cliente: niente costi, margini né dati interni. */
   perCliente?: boolean;
+  /** Le parti da stampare. Assente = tutte. */
+  gruppi?: string[] | null;
 }
 
 /**

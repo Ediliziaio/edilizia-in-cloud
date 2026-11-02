@@ -110,6 +110,7 @@ import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrde
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
+import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
@@ -398,7 +399,8 @@ function OrderDetailInner() {
   const incassiUnita = useIncassiUnita(id);
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
 
-  const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const { getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const [riepilogoAperto, setRiepilogoAperto] = useState(false);
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
@@ -1194,7 +1196,7 @@ function OrderDetailInner() {
 
   // Raccoglie tutti i dati "ricchi" (in parallelo) e costruisce gli opts del PDF.
   // Condiviso tra "Scarica PDF" (download) e "Invia PDF al cliente" (blob → email).
-  const gatherPdfOpts = useCallback(async ({ perCliente = false }: { perCliente?: boolean } = {}): Promise<OrdinePDFProps | null> => {
+  const gatherPdfOpts = useCallback(async ({ perCliente = false, gruppi = null }: { perCliente?: boolean; gruppi?: string[] | null } = {}): Promise<OrdinePDFProps | null> => {
     if (!order) return null;
     const [
       laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
@@ -1236,7 +1238,7 @@ function OrderDetailInner() {
         vedeFatture: permissions.canViewBilling,
         vedeSubappalti: permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione,
         vedeSicurezza: permissions.canViewSicurezzaCantiere,
-      }, { perCliente }));
+      }, { perCliente, companyId: effectiveCompany?.id ?? null }));
     // Letture della pagina finite male: il PDF lo dice, non le fa passare per sezioni vuote.
     const lettureFallite = ([
       ["Dipendenti", laborEmployees], ["Subappaltatori", laborTeams], ["SAL", salList], ["Provvigioni", salespeople],
@@ -1272,26 +1274,32 @@ function OrderDetailInner() {
       dossier,
       dati,
       perCliente,
+      gruppi,
     };
   }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (!order || pdfPreparing) return;
+  const handleDownloadPDF = useCallback(() => {
+    if (!order) return;
     if (!permissions.canViewOrderAmounts) {
       toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
       return;
     }
+    setRiepilogoAperto(true);
+  }, [order, permissions.canViewOrderAmounts]);
+
+  const preparaRiepilogo = useCallback(async (scelta: SceltaRiepilogo) => {
     setPdfPreparing(true);
     try {
-      const opts = await gatherPdfOpts();
-      if (opts) await downloadPDF(opts);
+      const opts = await gatherPdfOpts(scelta);
+      return opts ? await getPDFBlob(opts) : null;
     } catch (e) {
       console.error("[OrderDetail] preparazione dati PDF fallita:", e);
       toast.error("Impossibile preparare i dati per il PDF. Riprova.");
+      return null;
     } finally {
       setPdfPreparing(false);
     }
-  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF, permissions.canViewOrderAmounts]);
+  }, [gatherPdfOpts, getPDFBlob]);
 
   // Genera il PDF come blob (per allegarlo all'email del cliente).
   const getPdfBlobForOrder = useCallback(async () => {
@@ -2318,6 +2326,12 @@ function OrderDetailInner() {
       )}
 
       {/* Documenti e file della commessa (popup) */}
+      <RiepilogoPdfDialog
+        open={riepilogoAperto}
+        onOpenChange={setRiepilogoAperto}
+        occupato={pdfPreparing || isGeneratingPDF}
+        onPrepara={preparaRiepilogo}
+      />
       <OrderFilesDialog
         open={filesOpen}
         onOpenChange={setFilesOpen}

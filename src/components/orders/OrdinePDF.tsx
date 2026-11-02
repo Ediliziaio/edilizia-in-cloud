@@ -2,9 +2,9 @@ import React from "react";
 import type { DossierEconomico } from "@/lib/orders/dossierEconomico";
 import { CATEGORIE, STATO_USCITA, documentoUscita } from "@/lib/orders/quadroPagamenti";
 import { ritenutaSuLordo } from "@/lib/orders/bonusFiscali";
-import { avanzamentoSal, type DatiRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
-import { etichetta, sezioneAgenda, sezioneCantiere, sezioneCompletezza, sezioneFatture, sezioneFoto, sezioneGrafici, sezioneIndice, sezioneProgramma, sezioneSubappalti, type KitPdf } from "./RiepilogoCommessaSezioni";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { avanzamentoSal, type DatiRiepilogo, type GruppoRiepilogo } from "@/lib/orders/riepilogoCommessaDati";
+import { ancoraDi, etichetta, graficoSal, sezioneAgenda, sezioneCantiere, sezioneCompletezza, sezioneCronoprogramma, sezioneFatture, sezioneFoto, sezioneGrafici, sezioneGraficiCosti, sezioneIndice, sezioneProgramma, sezioneSubappalti, type KitPdf } from "./RiepilogoCommessaSezioni";
+import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -292,6 +292,8 @@ export interface OrdinePDFProps {
   dati?: DatiRiepilogo | null;
   /** Il PDF che parte verso il cliente: niente costi, margini né dati interni. */
   perCliente?: boolean;
+  /** Le parti da stampare. Assente = tutte. */
+  gruppi?: GruppoRiepilogo[] | null;
 }
 
 /**
@@ -350,6 +352,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
   dossier = null,
   dati = null,
   perCliente = false,
+  gruppi = null,
   } = ricevute.perCliente ? versionePerCliente(ricevute) : ricevute;
   // ── Financials ──
   const imponibile = order?.total_amount ?? 0;
@@ -423,33 +426,41 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
   laborEmployees.forEach((e: any) => aggiungiAFase(e.phase_id, `${e.employee?.first_name ?? ""} ${e.employee?.last_name ?? ""}`.trim()));
   laborTeams.forEach((t: any) => aggiungiAFase(t.phase_id, t.external_team?.name ?? ""));
 
+  const mostra = (g: GruppoRiepilogo) => !gruppi || gruppi.includes(g);
+  const oggi = format(new Date(), "yyyy-MM-dd");
   const permessi = dati?.permessi;
-  const sezioni: Array<{ nome: string; n: number }> = [
-    { nome: "Articoli", n: items.length },
-    ...(dati ? [{ nome: "Fasi di lavorazione", n: dati.fasi.length }] : []),
-    { nome: "SAL", n: salList.length },
-    { nome: "Varianti", n: varianti.length },
-    ...(permessi?.vedeFatture ? [{ nome: "Fatture", n: dati!.fatture.length }] : []),
-    { nome: "Bonus", n: bonusLines.length },
-    ...(dati && showCosts ? [{ nome: "Pagamenti", n: dossier?.quadro?.uscite.length ?? 0 }, { nome: "Ordini di acquisto", n: purchaseOrders.length }] : []),
-    ...(permessi?.vedeSubappalti ? [{ nome: "Contratti di subappalto", n: dati!.contratti.length }, { nome: "SAL dei subappaltatori", n: dati!.salSub.length }] : []),
-    { nome: "Giornale lavori", n: giornaleLavori.length },
-    ...(dati && !perCliente ? [
-      { nome: "Rapportini", n: dati.ore.rapportini },
-      { nome: "Mezzi", n: dati.mezzi.length },
-      { nome: "Bolle di consegna", n: dati.ddt.length },
-      { nome: "Uscite di magazzino", n: dati.usciteMagazzino.length },
-      ...(permessi?.vedeSicurezza ? [{ nome: "Sicurezza", n: dati.sicurezzaPos.length + dati.sicurezzaDuvri.length + dati.sicurezzaVerbali.length }] : []),
-      { nome: "Segnalazioni di cantiere", n: dati.segnalazioni.length },
-      { nome: "Attività", n: dati.attivita.length },
-      { nome: "Appuntamenti", n: dati.appuntamenti.length },
-      { nome: "Sopralluoghi", n: dati.sopralluoghi.length },
-      { nome: "Assistenza", n: dati.ticket.length },
-      { nome: "Firme", n: dati.firme.length },
-      { nome: "Allegati", n: dati.allegati.length },
+  const conDate = (dati?.fasi ?? []).some((f) => f.start_date || f.end_date || (f.sottofasi ?? []).some((s: any) => s.data_inizio));
+  const sezioni: Array<{ nome: string; n: number; titolo?: string; gruppo: GruppoRiepilogo }> = ([
+    ...(dati && conDate ? [{ nome: "Cronoprogramma", n: 1, gruppo: "programma" as const }] : []),
+    ...(dati ? [{ nome: "Fasi di lavorazione", n: dati.fasi.length, gruppo: "programma" as const }] : []),
+    { nome: "Articoli", n: items.length, titolo: "Articoli della Commessa", gruppo: "articoli" as const },
+    ...(dati && dossier && showCosts ? [{ nome: "Grafici", n: 1, titolo: "A colpo d'occhio", gruppo: "economia" as const }, { nome: "Conto economico", n: dossier.conto.righe.length, titolo: "Conto economico per voce", gruppo: "economia" as const }] : []),
+    { nome: "SAL", n: salList.length, titolo: "SAL — Avanzamento Lavori", gruppo: "sal" as const },
+    { nome: "Varianti", n: varianti.length, gruppo: "sal" as const },
+    ...(permessi?.vedeFatture ? [{ nome: "Fatture", n: dati!.fatture.length, titolo: "Fatture al cliente", gruppo: "fatture" as const }] : []),
+    { nome: "Bonus", n: bonusLines.length, titolo: "Bonus Edilizi e Bonifici Parlanti", gruppo: "fatture" as const },
+    ...(dati && showCosts ? [
+      { nome: "Pagamenti", n: dossier?.quadro?.uscite.length ?? 0, titolo: "Pagamenti della commessa", gruppo: "economia" as const },
+      { nome: "Ordini di acquisto", n: purchaseOrders.length, titolo: "Ordini di Acquisto", gruppo: "risorse" as const },
     ] : []),
-    ...(dati ? [{ nome: "Foto di cantiere", n: dati.fotoTotali }] : []),
-  ];
+    ...(permessi?.vedeSubappalti ? [{ nome: "Contratti di subappalto", n: dati!.contratti.length, gruppo: "subappalti" as const }, { nome: "SAL dei subappaltatori", n: dati!.salSub.length, gruppo: "subappalti" as const }] : []),
+    { nome: "Giornale lavori", n: giornaleLavori.length, titolo: "Giornale Lavori", gruppo: "giornale" as const },
+    ...(dati && !perCliente ? [
+      { nome: "Rapportini", n: dati.ore.rapportini, titolo: "Ore di cantiere", gruppo: "cantiere" as const },
+      { nome: "Mezzi", n: dati.mezzi.length, titolo: "Mezzi usati", gruppo: "cantiere" as const },
+      { nome: "Bolle di consegna", n: dati.ddt.length, titolo: "Consegne e bolle", gruppo: "cantiere" as const },
+      { nome: "Uscite di magazzino", n: dati.usciteMagazzino.length, titolo: "Consegne e bolle", gruppo: "cantiere" as const },
+      ...(permessi?.vedeSicurezza ? [{ nome: "Sicurezza", n: dati.sicurezzaPos.length + dati.sicurezzaDuvri.length + dati.sicurezzaVerbali.length, gruppo: "cantiere" as const }] : []),
+      { nome: "Segnalazioni di cantiere", n: dati.segnalazioni.length, gruppo: "cantiere" as const },
+      { nome: "Attività", n: dati.attivita.length, gruppo: "agenda" as const },
+      { nome: "Appuntamenti", n: dati.appuntamenti.length, gruppo: "agenda" as const },
+      { nome: "Sopralluoghi", n: dati.sopralluoghi.length, gruppo: "agenda" as const },
+      { nome: "Assistenza", n: dati.ticket.length, gruppo: "agenda" as const },
+      { nome: "Firme", n: dati.firme.length, titolo: "Documenti alla firma", gruppo: "agenda" as const },
+      { nome: "Allegati", n: dati.allegati.length, titolo: "Allegati della commessa", gruppo: "agenda" as const },
+    ] : []),
+    ...(dati ? [{ nome: "Foto di cantiere", n: dati.fotoTotali, gruppo: "foto" as const }] : []),
+  ] as Array<{ nome: string; n: number; titolo?: string; gruppo: GruppoRiepilogo }>).filter((x) => mostra(x.gruppo));
 
   return (
     <Document title={`Commessa ${orderCode}`} author={companyName ?? "Edilizia in Cloud"}>
@@ -457,9 +468,13 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
         {/* ─── HEADER ─── */}
         <View style={styles.header} fixed>
-          <View>
-            <Text style={styles.companyName}>{companyName ?? "Edilizia in Cloud"}</Text>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", maxWidth: "62%" }}>
+            {dati?.azienda?.logo && <Image src={dati.azienda.logo} style={{ maxHeight: 38, maxWidth: 90, objectFit: "contain" }} />}
+            <View>
+            <Text style={styles.companyName}>{dati?.azienda?.nome ?? companyName ?? "Edilizia in Cloud"}</Text>
+            {(dati?.azienda?.righe ?? []).map((riga) => <Text key={riga} style={{ fontSize: 6.5, color: C.gray500, marginTop: 1 }}>{riga}</Text>)}
             <Text style={{ fontSize: 8, color: C.gray500, marginTop: 3 }}>{perCliente ? "Riepilogo commessa" : "Riepilogo commessa completo"}</Text>
+            </View>
           </View>
           <View>
             <Text style={styles.orderCode}>{orderCode}</Text>
@@ -606,12 +621,13 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           </View>
         )}
 
-        {dati && sezioneProgramma(kit, dati, personePerFase)}
+        {dati && mostra("programma") && sezioneCronoprogramma(kit, dati, order, salList, installments, oggi)}
+        {dati && mostra("programma") && sezioneProgramma(kit, dati, personePerFase, showCosts ? dossier : null, showMargins)}
 
         {/* ─── ARTICOLI ─── */}
-        {items.length > 0 && (
+        {mostra("articoli") && items.length > 0 && (
           <View wrap={items.length > 12}>
-            <Text style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
+            <Text id={ancoraDi("Articoli della Commessa")} style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
@@ -813,10 +829,11 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         </View>
 
         {/* ─── CONTO ECONOMICO PER VOCE, FASI, PAGAMENTI (dossier) ─── */}
-        {dossier && showCosts && (
+        {dossier && showCosts && mostra("economia") && (
           <>
             {sezioneGrafici(kit, dossier, showMargins)}
-            <Text style={styles.sectionTitle}>Conto economico per voce</Text>
+            {sezioneGraficiCosti(kit, dossier)}
+            <Text id={ancoraDi("Conto economico per voce")} style={styles.sectionTitle}>Conto economico per voce</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -853,7 +870,8 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
               Lavori al {dossier.ordine.avanzamento == null ? "—" : `${dossier.ordine.avanzamento}%`}: il previsto a oggi è il preventivo per l'avanzamento. Importi senza IVA. Incidenze sui ricavi (preventivo) e sul maturato (consuntivo).
             </Text>
 
-            {dossier.fasi.length > 0 && (
+            {/* Con le sezioni nuove l'economia sta nella tabella unica delle fasi. */}
+            {!(dati && dati.fasi.length > 0) && dossier.fasi.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Economia delle fasi ({dossier.fasi.length})</Text>
                 <View style={styles.sectionLine} />
@@ -882,7 +900,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
 
             {dossier.quadro && dossier.quadro.uscite.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>Pagamenti della commessa ({dossier.quadro.uscite.length})</Text>
+                <Text id={ancoraDi("Pagamenti della commessa")} style={styles.sectionTitle}>Pagamenti della commessa ({dossier.quadro.uscite.length})</Text>
                 <View style={styles.sectionLine} />
                 {dossier.totaliQuadro && (
                   <Text style={[styles.tableCell, { marginBottom: 4 }]}>
@@ -916,15 +934,15 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           </>
         )}
 
-        {dati && sezioneFatture(kit, dati)}
+        {dati && mostra("fatture") && sezioneFatture(kit, dati)}
 
         {/* ─── BONUS EDILIZI: UNA PRATICA PER RIGA ─── */}
         {/* Il pezzo che il cliente deve avere davanti: quanti bonifici parlanti
             servono, di quanto e con che causale. Un bonifico solo per due
             pratiche = una detrazione persa. */}
-        {bonusLines.length > 0 && (
+        {mostra("fatture") && bonusLines.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
+            <Text id={ancoraDi("Bonus Edilizi e Bonifici Parlanti")} style={styles.sectionTitle}>Bonus Edilizi e Bonifici Parlanti ({bonusLines.length})</Text>
             <View style={styles.sectionLine} />
             <View style={[styles.financialBox, { marginBottom: 8 }]}>
               {bonusLines.map((b: any, idx: number) => {
@@ -962,7 +980,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── MANODOPERA DIPENDENTI ─── */}
-        {showCosts && laborEmployees.length > 0 && (
+        {mostra("risorse") && showCosts && laborEmployees.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Dipendenti Assegnati ({laborEmployees.length})</Text>
             <View style={styles.sectionLine} />
@@ -1004,7 +1022,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── SUBAPPALTATORI ─── */}
-        {showCosts && laborTeams.length > 0 && (
+        {mostra("subappalti") && showCosts && laborTeams.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Subappaltatori ({laborTeams.length})</Text>
             <View style={styles.sectionLine} />
@@ -1042,10 +1060,10 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           </>
         )}
 
-        {dati && sezioneSubappalti(kit, dati)}
+        {dati && mostra("subappalti") && sezioneSubappalti(kit, dati)}
 
         {/* ─── PROVVIGIONI VENDITORI ─── */}
-        {showMargins && salespeople.length > 0 && (
+        {mostra("risorse") && showMargins && salespeople.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Provvigioni Venditori ({salespeople.length})</Text>
             <View style={styles.sectionLine} />
@@ -1091,9 +1109,9 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── ORDINI DI ACQUISTO ─── */}
-        {showCosts && purchaseOrders.length > 0 && (
+        {mostra("risorse") && showCosts && purchaseOrders.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
+            <Text id={ancoraDi("Ordini di Acquisto")} style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1123,10 +1141,11 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── SAL ─── */}
-        {salList.length > 0 && (
+        {mostra("sal") && salList.length > 0 && (
           <View wrap={salList.length > 6}>
-            <Text style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
+            <Text id={ancoraDi("SAL — Avanzamento Lavori")} style={styles.sectionTitle}>SAL — Avanzamento Lavori ({salList.length})</Text>
             <View style={styles.sectionLine} />
+            {graficoSal(kit, salList, imponibile)}
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderText, { flex: 1 }]}>N.</Text>
@@ -1171,7 +1190,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── PERSONALE CANTIERE ─── */}
-        {!perCliente && campoAssignments.length > 0 && (
+        {mostra("risorse") && !perCliente && campoAssignments.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Personale Cantiere ({campoAssignments.length})</Text>
             <View style={styles.sectionLine} />
@@ -1209,12 +1228,12 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           </>
         )}
 
-        {dati && sezioneCantiere(kit, dati)}
+        {dati && mostra("cantiere") && sezioneCantiere(kit, dati)}
 
         {/* ─── GIORNALE LAVORI ─── */}
-        {giornaleLavori.length > 0 && (
+        {mostra("giornale") && giornaleLavori.length > 0 && (
           <>
-            <Text style={styles.sectionTitle} break>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
+            <Text id={ancoraDi("Giornale Lavori")} style={styles.sectionTitle} break>Giornale Lavori ({giornaleLavori.length} giornate)</Text>
             <View style={styles.sectionLine} />
             {giornaleLavori.map((g: any, idx: number) => (
               <View key={idx} style={[styles.infoBox, { marginBottom: 6 }]} wrap={false}>
@@ -1262,9 +1281,9 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── VARIANTI / ORDINI DI VARIAZIONE ─── */}
-        {varianti.length > 0 && (
+        {mostra("sal") && varianti.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Varianti ({varianti.length})</Text>
+            <Text id={ancoraDi("Varianti")} style={styles.sectionTitle}>Varianti ({varianti.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
               <View style={styles.tableHeader}>
@@ -1299,7 +1318,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "center" }]}>
                       {v.impatto_giorni != null ? `${v.impatto_giorni > 0 ? "+" : ""}${v.impatto_giorni}gg` : "—"}
                     </Text>
-                    <Text style={[styles.tableCell, { flex: 1, fontSize: 7 }]}>{fmtDate(v.richiesto_il ?? v.created_at)}</Text>
+                    <Text style={[styles.tableCell, { flex: 1, fontSize: 7 }]}>{fmtData(v.richiesto_il ?? v.created_at)}</Text>
                   </View>
                 );
               })}
@@ -1307,11 +1326,11 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
           </>
         )}
 
-        {dati && sezioneAgenda(kit, dati)}
-        {dati && sezioneFoto(kit, dati)}
+        {dati && mostra("agenda") && sezioneAgenda(kit, dati)}
+        {dati && mostra("foto") && sezioneFoto(kit, dati)}
 
         {/* ─── DIARIO COMMESSA (Eventi + Comunicazioni) ─── */}
-        {(diaryEvents.length > 0 || diaryMessages.length > 0) && (
+        {mostra("diario") && (diaryEvents.length > 0 || diaryMessages.length > 0) && (
           <>
             <Text style={styles.sectionTitle} break>
               Diario Commessa ({diaryEvents.length + diaryMessages.length} registrazioni)
@@ -1389,7 +1408,7 @@ export function createOrdinePDFDocument(ricevute: OrdinePDFProps) {
         )}
 
         {/* ─── NOTE INTERNE ─── */}
-        {order?.internal_notes ? (
+        {mostra("diario") && order?.internal_notes ? (
           <>
             <Text style={styles.sectionTitle}>Note Interne</Text>
             <View style={styles.sectionLine} />
