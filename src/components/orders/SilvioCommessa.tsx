@@ -14,9 +14,11 @@
  * lavora conferma (vedi docs/silvio-commessa-piano.md).
  */
 import { useState } from "react";
-import { BarChart3, FileUp, MessageSquare, Users } from "lucide-react";
+import { BarChart3, Calculator, FileUp, MessageSquare, Users } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperaiAIDialog";
+import { PianoCantiereDialog } from "@/components/orders/PianoCantiereDialog";
+import { useCreaConSilvioAttivo } from "@/components/silvio-commessa/useCreaConSilvioAttivo";
 import { SilvioBottone, apriChatSilvio } from "@/components/silvio/SilvioAiuto";
 
 export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare, onRapportiniDaDocumenti, className }: {
@@ -29,6 +31,8 @@ export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare,
   className?: string;
 }) {
   const [operai, setOperai] = useState(false);
+  const [piano, setPiano] = useState(false);
+  const pianoAttivo = useCreaConSilvioAttivo(companyId);
   return (
     <>
       <DropdownMenu>
@@ -42,6 +46,11 @@ export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare,
           <DropdownMenuItem onSelect={() => apriChatSilvio(`Analizza la ${riferimento}: stato di avanzamento, costi rispetto al previsto, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`)}>
             <BarChart3 className="mr-2 h-4 w-4" />Analizza la commessa
           </DropdownMenuItem>
+          {pianoAttivo && (
+            <DropdownMenuItem onSelect={() => setPiano(true)}>
+              <Calculator className="mr-2 h-4 w-4" />Calcola come finire
+            </DropdownMenuItem>
+          )}
           {puoModificare && companyId && (
             <>
               <DropdownMenuSeparator />
@@ -57,6 +66,7 @@ export function SilvioCommessa({ orderId, companyId, riferimento, puoModificare,
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {pianoAttivo && <PianoCantiereDialog orderId={orderId} puoModificare={puoModificare} open={piano} onOpenChange={setPiano} />}
       {puoModificare && companyId && <AllocazioneOperaiAIDialog orderId={orderId} companyId={companyId} open={operai} onOpenChange={setOperai} />}
     </>
   );
