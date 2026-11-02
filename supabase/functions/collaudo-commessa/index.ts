@@ -5,7 +5,7 @@ import {
   errorResponse,
   jsonResponse,
 } from "../_shared/headers.ts";
-import { validateAcceptance } from "./model.ts";
+import { firmaInByte, validaFirma, validateAcceptance } from "./model.ts";
 import { renderAcceptance } from "./render.ts";
 const bucket = "order-acceptance-reports";
 const uuid = (v: unknown) =>
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     if (
       !uuid(body.order_id) ||
-      !["save", "preview", "finalize", "open"].includes(body.action) ||
+      !["save", "preview", "finalize", "open", "sign"].includes(body.action) ||
       (body.id && !uuid(body.id))
     )
       return errorResponse("Richiesta non valida", 400, cors);
@@ -135,20 +135,23 @@ Deno.serve(async (req) => {
       return jsonResponse({ report: data }, 200, cors);
     }
     if (!report) return errorResponse("Salva prima il verbale", 422, cors);
-    if (body.action === "preview") {
+    const disegna = async (firma?: Parameters<typeof renderAcceptance>[2]) => {
       const { data: company, error: companyError } = await admin
         .from("companies")
         .select("name")
         .eq("id", order.company_id)
         .single();
       if (companyError) throw companyError;
-      const { bytes } = await renderAcceptance(report.content, {
+      return await renderAcceptance(report.content, {
         company: company.name,
         order: order.order_code ?? order.id,
         address: order.work_address ?? "",
         id: report.id,
         version: report.version,
-      });
+      }, firma);
+    };
+    if (body.action === "preview") {
+      const { bytes } = await disegna();
       const path = `${order.company_id}/${order.id}/${report.id}/${crypto.randomUUID()}.pdf`;
       const hash = await sha(bytes);
       const { error: uploadError } = await admin.storage
@@ -185,6 +188,52 @@ Deno.serve(async (req) => {
         422,
         cors,
       );
+    if (body.action === "sign") {
+      const erroriFirma = validaFirma(body.firma);
+      if (erroriFirma.length)
+        return errorResponse(erroriFirma.join(". "), 422, cors);
+      const firmata = new Date();
+      const immagine = firmaInByte(body.firma.immagine)!;
+      const nome = body.firma.nome.trim();
+      const { bytes } = await disegna({
+        immagine,
+        nome,
+        quando: firmata.toLocaleString("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" }),
+      });
+      const cartella = `${order.company_id}/${order.id}/${report.id}`;
+      const pathFirma = `${cartella}/firma-${crypto.randomUUID()}.png`;
+      const pathPdf = `${cartella}/${crypto.randomUUID()}.pdf`;
+      const { error: erroreFirma } = await admin.storage.from(bucket).upload(pathFirma, immagine, { contentType: "image/png", upsert: false });
+      if (erroreFirma) throw erroreFirma;
+      const { error: errorePdf } = await admin.storage.from(bucket).upload(pathPdf, bytes, { contentType: "application/pdf", upsert: false });
+      if (errorePdf) {
+        await admin.storage.from(bucket).remove([pathFirma]);
+        throw errorePdf;
+      }
+      // Una sola scrittura: firma, documento e congelamento insieme. Se un altro è arrivato prima, non passa.
+      const { data, error } = await admin
+        .from("order_acceptance_reports")
+        .update({
+          status: "finalized",
+          finalized_at: firmata.toISOString(),
+          pdf_path: pathPdf,
+          document_hash: await sha(bytes),
+          firma_cliente_path: pathFirma,
+          firma_cliente_nome: nome,
+          firma_cliente_at: firmata.toISOString(),
+          firma_raccolta_da: userId,
+        })
+        .eq("id", report.id)
+        .eq("version", body.version)
+        .eq("status", "draft")
+        .select("*")
+        .maybeSingle();
+      if (error || !data) {
+        await admin.storage.from(bucket).remove([pathFirma, pathPdf]);
+        return errorResponse("Il verbale è cambiato: riaprilo prima di far firmare.", 409, cors);
+      }
+      return jsonResponse({ report: data }, 200, cors);
+    }
     const { data: file, error: downloadError } = await admin.storage
       .from(bucket)
       .download(report.pdf_path);

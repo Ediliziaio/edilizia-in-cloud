@@ -12,6 +12,7 @@ export async function renderAcceptance(
     id: string;
     version: number;
   },
+  firma?: { immagine: Uint8Array; nome: string; quando: string },
 ) {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
@@ -68,7 +69,7 @@ export async function renderAcceptance(
   y -= 15;
   paragraph(c.title, 23, blue, true);
   y -= 5;
-  paragraph("EDIZIONE NON FIRMATA", 9, orange, true);
+  if (!firma) paragraph("EDIZIONE NON FIRMATA", 9, orange, true);
   paragraph(
     "Documento operativo: non sostituisce certificazioni, dichiarazioni di conformità o verifiche riservate a tecnici abilitati.",
     9,
@@ -130,9 +131,19 @@ export async function renderAcceptance(
     section("Note condivise con il cliente");
     paragraph(c.notes);
   }
+  if (firma) {
+    section("Firma del cliente");
+    const immagine = await pdf.embedPng(firma.immagine);
+    const d = immagine.scaleToFit(220, 80);
+    ensure(d.height + 30);
+    page.drawImage(immagine, { x: 42, y: y - d.height, width: d.width, height: d.height });
+    y -= d.height + 14;
+    paragraph(`Firmato su schermo da ${firma.nome} il ${firma.quando}.`, 10, ink, true);
+  }
   ensure(50);
   y -= 12;
   paragraph(
+    firma ? "La firma non approva costi extra e non modifica gli importi della commessa. Eventuali varianti richiedono approvazione separata." :
     "La registrazione di questo verbale non costituisce firma o accettazione del cliente, non approva costi extra e non modifica gli importi della commessa. Eventuali varianti richiedono approvazione separata.",
     9,
     muted,

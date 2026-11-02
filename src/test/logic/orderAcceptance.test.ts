@@ -3,6 +3,8 @@ import {
   emptyAcceptance,
   validateAcceptance,
   acceptanceDaModello,
+  firmaInByte,
+  validaFirma,
 } from "../../../supabase/functions/collaudo-commessa/model";
 import { SCHEMA_COME_OGGI, type ModuloSchema } from "../../../supabase/functions/_shared/moduliCantiere";
 import { readFileSync } from "node:fs";
@@ -181,3 +183,47 @@ describe("verbale da modello", () => {
     expect(validateAcceptance(acceptanceDaModello("2026-11-02", modello))).toEqual([]);
   });
 });
+
+describe("firma del cliente sul verbale", () => {
+  const PNG = "data:image/png;base64," + btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3));
+  const fonte = () => readFileSync("supabase/functions/collaudo-commessa/index.ts", "utf8").replace(/\s+/g, "").replaceAll('"', "'");
+  const azioneFirma = () => { const c = fonte(); return c.slice(c.indexOf("body.action==='sign'")); };
+
+  it("accetta una firma PNG con il nome", () => {
+    expect(validaFirma({ immagine: PNG, nome: "Mario Rossi" })).toEqual([]);
+    expect(firmaInByte(PNG)?.[0]).toBe(0x89);
+  });
+  it("rifiuta nome vuoto, firma che non è un PNG, firma troppo grande", () => {
+    expect(validaFirma({ immagine: PNG, nome: "  " }).length).toBeGreaterThan(0);
+    expect(validaFirma({ immagine: "data:image/png;base64," + btoa("non è un png"), nome: "M" }).length).toBeGreaterThan(0);
+    expect(validaFirma({ immagine: "data:image/jpeg;base64,AAAA", nome: "M" }).length).toBeGreaterThan(0);
+    expect(validaFirma({ immagine: "data:image/png;base64," + "A".repeat(700_000), nome: "M" }).length).toBeGreaterThan(0);
+    expect(validaFirma(undefined).length).toBeGreaterThan(0);
+    expect(validaFirma({ immagine: PNG, nome: "x".repeat(201) }).length).toBeGreaterThan(0);
+  });
+  it("l'azione è tra quelle ammesse e congela con versione e stato", () => {
+    expect(fonte()).toContain("'sign'");
+    const c = azioneFirma();
+    expect(c).toContain("validaFirma(body.firma)");
+    // Anteprima controllata e documento uguale: gli stessi controlli della chiusura, prima di firmare.
+    const tutto = fonte();
+    expect(tutto.indexOf("body.reviewed!==true")).toBeGreaterThan(-1);
+    expect(tutto.indexOf("body.document_hash!==report.document_hash")).toBeLessThan(tutto.indexOf("body.action==='sign'"));
+    expect(c).toContain("status:'finalized'");
+    expect(c).toContain(".eq('version',body.version)");
+    expect(c).toContain(".eq('status','draft')");
+  });
+  it("salva chi ha firmato e chi ha raccolto la firma", () => {
+    const c = azioneFirma();
+    for (const x of ["firma_cliente_path", "firma_cliente_nome", "firma_cliente_at", "firma_raccolta_da:userId"]) expect(c).toContain(x);
+  });
+  it("se un altro è arrivato prima toglie i file appena caricati", () => {
+    const c = azioneFirma();
+    expect(c).toMatch(/if\(error\|\|!data\)\{awaitadmin\.storage\.from\(bucket\)\.remove\(\[/);
+  });
+  it("la migrazione aggiunge le colonne della firma", () => {
+    const sql = readFileSync("supabase/migrations/20281107120000_verbale_firma_cliente.sql", "utf8");
+    for (const x of ["firma_cliente_path text", "firma_cliente_nome text", "firma_cliente_at timestamptz", "firma_raccolta_da uuid"]) expect(sql).toContain(x);
+  });
+});
+

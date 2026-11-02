@@ -59,6 +59,28 @@ export function emptyAcceptance(date: string): AcceptanceContent {
     notes: "",
   };
 }
+const LIMITE_FIRMA = 500 * 1024;
+const PNG_INIZIO = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** La firma tracciata sullo schermo (PNG in base64), in byte; null se non è un PNG o è troppo grande. */
+export function firmaInByte(immagine: unknown): Uint8Array | null {
+  if (typeof immagine !== "string" || !immagine.startsWith("data:image/png;base64,")) return null;
+  const base64 = immagine.slice("data:image/png;base64,".length);
+  if (base64.length > (LIMITE_FIRMA * 4) / 3 + 4) return null;
+  try {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return PNG_INIZIO.every((b, i) => bytes[i] === b) ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+export function validaFirma(firma: unknown): string[] {
+  const f = (firma ?? {}) as { immagine?: unknown; nome?: unknown };
+  const errori: string[] = [];
+  if (typeof f.nome !== "string" || !f.nome.trim() || f.nome.length > 200) errori.push("Scrivi il nome di chi firma");
+  if (!firmaInByte(f.immagine)) errori.push("Firma non valida: falla ripetere");
+  return errori;
+}
+
 /** Un verbale nuovo dal modello dell'azienda; senza modello è quello di sempre. */
 export function acceptanceDaModello(date: string, modello: ModuloSchema | null): AcceptanceContent {
   const vuoto = emptyAcceptance(date);
