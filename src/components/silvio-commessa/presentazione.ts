@@ -194,7 +194,7 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true): 
     case "materiali.acquisti":
     case "ditte.contratti": {
       if (!Array.isArray(valore)) break;
-      const elenco = valore as Array<{ stato?: string; costo_previsto?: number; importo?: number; nome?: string; fornitore?: string }>;
+      const elenco = valore as Array<{ stato?: string; costo_previsto?: number; importo?: number; nome?: string; fornitore?: string; quantita?: number | null }>;
       const buoni = elenco.filter((x) => x?.stato !== "attenzione");
       const ko = elenco.length - buoni.length;
       const cosa = ({
