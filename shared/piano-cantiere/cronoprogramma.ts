@@ -7,7 +7,7 @@
 export interface FaseCrono { nome: string; inizio: number; durata: number; nota: string }
 
 const SOLO_ATTESA = /stagionat|asciugat|attesa/i;
-const LAVORI_SPECIFICI = ["scav", "sbanc", "fondaz", "ponteg", "copertur", "tett", "demoli", "cappott", "fotovolt", "ascensor", "piscin"];
+const LAVORI_SPECIFICI = ["scav", "sbanc", "fondaz", "ponteg", "demoli", "cappott", "fotovolt", "ascensor", "piscin"];
 
 const senzaAccenti = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 

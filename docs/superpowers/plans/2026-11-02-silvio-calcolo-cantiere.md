@@ -135,3 +135,13 @@
 1. **Dove manca il dato:** usare il prezzario regionale come partenza, dichiarandolo (consigliato), oppure far scrivere le rese all'azienda prima di calcolare.
 2. **Costo orario predefinito** per le 113 schede su 202 che non l'hanno: il valore del simulatore costo orario, modificabile, oppure bloccare il calcolo finché non c'è.
 3. **Prima azienda vera** dopo Demo 2. Bonarrigo ha i computi ma 0 commesse, per sua indicazione.
+
+## Esito al 2/11/2026
+
+Task 1-8 fatti, su Demo 2. Misure e limiti:
+
+- **Stima della manodopera dal prezzario** (600 voci di 4 regioni, nascoste e stimate): errore mediano 7 punti percentuali. Su un lavoro intero: tipico ±20% con 6 righe, ±13% con 20 voci, ±7% con 80. Misura la distanza dal prezzario, non dalle ore vere.
+- **Ore vere:** non verificabile, una sola commessa reale ha ore registrate (8).
+- **Cronoprogramma AI:** ordine delle fasi giusto in 24 prove su 24, durate instabili. Dare al modello le ore per capitolo non ha aiutato (palazzina 74-147 giorni invece di 63-73), quindi la prova è stata tolta.
+
+Prossimo passo proposto: durate del cronoprogramma calcolate dal codice, con l'AI solo per l'ordine delle fasi.

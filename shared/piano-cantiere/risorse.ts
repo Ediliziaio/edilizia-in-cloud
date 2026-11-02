@@ -15,7 +15,7 @@ export interface MezzoFase { mezzo_id: string; nome: string; fase: string; dal: 
 export interface RisorsePiano {
   persone: PersonaFase[];
   mezzi: MezzoFase[];
-  mancano: { fase: string; persone: number }[];
+  mancano: { fase: string; persone: number; specialisti?: boolean }[];
   /** Fasi per cui di solito serve un mezzo che l'azienda non ha libero. */
   mezziMancanti: { fase: string; cosa: string }[];
 }
@@ -33,6 +33,9 @@ const MEZZI_DI_SOLITO: ReadonlyArray<{ fase: RegExp; mezzo: RegExp; cosa: string
   { fase: /murar|massett|gett|calcestr/i, mezzo: /betonier|impastatr|pompa/i, cosa: "una betoniera" },
   { fase: /serrament|infiss|posa|impiant|finitur/i, mezzo: /furgon|ducato|daily|transit/i, cosa: "un furgone" },
 ];
+
+/** Questi lavori non si danno al primo libero: serve chi lo fa di mestiere, o una ditta. */
+const LAVORO_DA_SPECIALISTI = /impiant|elettric|idraul|termo/i;
 
 export function risorsePerPiano(
   piano: PianoCantiere, ctx: ContestoRisorse,
@@ -63,7 +66,9 @@ export function risorsePerPiano(
       scelti.push({ id: c.id, motivo: `ha fatto ${c.volte === 1 ? "una fase simile" : `${c.volte} fasi simili`}` });
     }
     // Poi chi è già sul cantiere per un'altra fase, poi chiunque sia libero: senza fingere esperienza.
-    const altri = attivi.filter((d) => !scelti.some((s) => s.id === d.id) && libera(d.id))
+    const specialisti = LAVORO_DA_SPECIALISTI.test(f.nome);
+    const altri = attivi.filter((d) => !scelti.some((s) => s.id === d.id) && libera(d.id)
+      && (!specialisti || LAVORO_DA_SPECIALISTI.test(String(ruoli.get(d.id)?.role_type ?? ""))))
       .sort((a, b) => Number(giaNelCantiere.has(b.id)) - Number(giaNelCantiere.has(a.id)) || a.nome.localeCompare(b.nome));
     for (const d of altri) {
       if (scelti.length >= f.operaiNecessari) break;
@@ -73,7 +78,7 @@ export function risorsePerPiano(
       giaNelCantiere.add(s.id);
       persone.push({ employee_id: s.id, nome: nome(s.id), fase: f.nome, faseId: f.id ?? null, dal: f.dal, al: f.al, motivo: s.motivo, gia: s.gia });
     }
-    if (scelti.length < f.operaiNecessari) mancano.push({ fase: f.nome, persone: f.operaiNecessari - scelti.length });
+    if (scelti.length < f.operaiNecessari) mancano.push({ fase: f.nome, persone: f.operaiNecessari - scelti.length, specialisti: specialisti || undefined });
   }
 
   const mezzi: MezzoFase[] = [];
