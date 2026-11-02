@@ -61,7 +61,7 @@ import {
 import { normalizeTagList } from "@/lib/marketingTags";
 import { useLossReasons } from "@/hooks/useLossReasons";
 import { EsportaOpportunitaDialog, type SceltaDialog } from "@/components/opportunities/EsportaOpportunitaDialog";
-import { colonneConCampi, excelOpportunita, NOMI_STATO, rigaOpportunita, scegliOpportunita } from "@/lib/opportunita/esportaOpportunita";
+import { colonneConCampi, excelOpportunita, NOMI_DATA_PERIODO, NOMI_STATO, rigaOpportunita, scegliOpportunita, soloColonne } from "@/lib/opportunita/esportaOpportunita";
 
 export default function MarketingOpportunities() {
   return (
@@ -469,8 +469,8 @@ function MarketingOpportunitiesContent() {
     }
   }, [selectedPipelineId, filtriServer, idsPerFase, chiaveIdsColonne, handleSelectMany]);
 
-  const fetchAllOpportunitiesForExport = useCallback(async () => {
-    if (!companyId || !selectedPipelineId) return [];
+  const fetchAllOpportunitiesForExport = useCallback(async (tuttePipeline = false) => {
+    if (!companyId || (!selectedPipelineId && !tuttePipeline)) return [];
     const pageSize = 1000;
     let from = 0;
     let allRows: any[] = [];
@@ -480,11 +480,11 @@ function MarketingOpportunitiesContent() {
         .from("marketing_opportunities")
         .select("*, marketing_contacts(id, first_name, last_name, email, phone, city, address, province, region, postal_code, source, company_name, tags)")
         .eq("company_id", companyId)
-        .eq("pipeline_id", selectedPipelineId)
         // Coerente con la lista: mai esportare righe soft-deleted.
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(from, from + pageSize - 1);
+      if (!tuttePipeline) query = query.eq("pipeline_id", selectedPipelineId);
 
       // «Vede solo i propri»: venditore, call center o follower (come la pagina).
       if (permissions.onlyAssigned && currentUserId) {
@@ -510,12 +510,16 @@ function MarketingOpportunitiesContent() {
     setIsExporting(true);
     try {
       // le opportunità della pagina (ricerca e filtri compresi), poi le fasi e gli stati scelti
-      const exportRows = scegliOpportunita(await fetchAllOpportunitiesForExport(), { fasi: scelta.fasi, stati: scelta.stati });
+      const exportRows = scegliOpportunita(await fetchAllOpportunitiesForExport(scelta.tuttePipeline), { fasi: scelta.fasi, stati: scelta.stati, periodo: scelta.periodo });
       if (!exportRows.length) {
-        toast.info("Nessuna opportunità con le fasi e gli stati scelti.");
+        toast.info("Nessuna opportunità con le scelte fatte.");
         return;
       }
-      const fasi = Object.fromEntries(stages.map((s: any) => [s.id, s.name]));
+      // con tutte le pipeline: le fasi di tutte, con il nome della pipeline davanti nei fogli
+      const pipelineInUso = scelta.tuttePipeline ? pipelines : pipelines.filter((pp: any) => pp.id === selectedPipelineId);
+      const tutteLeFasi = pipelineInUso.flatMap((pp: any) => (pp.marketing_pipeline_stages ?? []).map((st: any) => ({ id: st.id as string, name: st.name as string, pipeline: pp.name as string })));
+      const fasi = Object.fromEntries((tutteLeFasi.length ? tutteLeFasi : stages).map((s: any) => [s.id, s.name]));
+      const pipelineDellaFase = Object.fromEntries(tutteLeFasi.map((s) => [s.id, s.pipeline]));
       const venditori = Object.fromEntries(staff.map((s: any) => [s.id, s.name]));
 
       // Campi personalizzati, a blocchi per i limiti di IN().
@@ -542,9 +546,11 @@ function MarketingOpportunitiesContent() {
         }
       }
 
-      const ctx = { fasi, venditori, motivi: motiviPerdita, campi, valoriCampi };
+      const ctx = { fasi, pipelineDellaFase, venditori, motivi: motiviPerdita, campi, valoriCampi };
       const righe = exportRows.map((o: any) => ({ faseId: (o.stage_id as string | null) ?? null, riga: rigaOpportunita(o, ctx) }));
-      const colonne = colonneConCampi(campi);
+      // colonne scelte: «cf» vuol dire tutti i campi personalizzati
+      const scelte = scelta.colonne.size ? new Set([...scelta.colonne, ...(scelta.colonne.has("cf") ? campi.map((c) => `cf_${c.id}`) : [])]) : null;
+      const colonne = soloColonne(colonneConCampi(campi).filter((c) => c.key !== "pipeline" || scelta.tuttePipeline), scelte);
       const today = new Date().toISOString().slice(0, 10);
       const nomiFasi = scelta.fasi.size ? stages.filter((s: any) => scelta.fasi.has(s.id)).map((s: any) => s.name) : [];
       // Prima il registro, poi il file: senza registrazione non parte.
@@ -554,7 +560,9 @@ function MarketingOpportunitiesContent() {
         formato: scelta.formato,
         righe: righe.length,
         filtri: {
-          pipeline: selectedPipeline?.name ?? selectedPipelineId,
+          pipeline: scelta.tuttePipeline ? "tutte" : selectedPipeline?.name ?? selectedPipelineId,
+          periodo: scelta.periodo ? `${scelta.periodo.da || "…"} – ${scelta.periodo.a || "…"} (${NOMI_DATA_PERIODO[scelta.periodo.data]})` : undefined,
+          colonne: scelta.colonne.size ? `${colonne.length} scelte` : undefined,
           ricerca: safeSearchQuery,
           filtri: filters,
           // solo se scelti: senza, sono tutte le fasi e tutti gli stati
@@ -566,7 +574,8 @@ function MarketingOpportunitiesContent() {
       });
       const parteNome = nomiFasi.length === 1 ? `_${nomiFasi[0].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-")}` : "";
       if (scelta.formato === "xlsx") {
-        const blob = await excelOpportunita(righe, colonne, stages.map((s: any) => ({ id: s.id, nome: s.name })));
+        const fogli = scelta.tuttePipeline ? tutteLeFasi.map((s) => ({ id: s.id, nome: `${s.pipeline} · ${s.name}` })) : stages.map((s: any) => ({ id: s.id, nome: s.name }));
+        const blob = await excelOpportunita(righe, colonne, fogli);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -583,7 +592,7 @@ function MarketingOpportunitiesContent() {
     } finally {
       setIsExporting(false);
     }
-  }, [canExportClients, fetchAllOpportunitiesForExport, selectedPipelineId, selectedPipeline, safeSearchQuery, filters, onlyMine, stages, staff, permissions.onlyAssigned, companyId, motiviPerdita]);
+  }, [canExportClients, fetchAllOpportunitiesForExport, selectedPipelineId, selectedPipeline, safeSearchQuery, filters, onlyMine, stages, staff, permissions.onlyAssigned, companyId, motiviPerdita, pipelines]);
 
   const activeFilterCount = countActiveFilters(filters);
   // Mobile: il numero sul bottone dei filtri (Miei, Da fare/In stallo, filtri avanzati o elenco).
@@ -1229,6 +1238,9 @@ function MarketingOpportunitiesContent() {
           aperto={esportaAperto}
           onChiudi={() => setEsportaAperto(false)}
           fasi={stages.map((s: any) => ({ id: s.id, name: s.name }))}
+          nomePipeline={selectedPipeline?.name}
+          piuPipeline={pipelines.length > 1}
+          chiaveMemoria={companyId ?? "azienda"}
           filtriAttivi={activeFilterCount + (safeSearchQuery ? 1 : 0)}
           inCorso={isExporting}
           onEsporta={handleExportOpportunities}

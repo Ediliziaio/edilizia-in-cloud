@@ -59,3 +59,30 @@ describe("esportazione delle opportunità", () => {
     expect(nomeFoglio("x".repeat(40), usati)).toHaveLength(31);
   });
 });
+
+describe("esportazione: periodo, colonne, pipeline", () => {
+  it("periodo sulla data vinta o persa, in ora italiana; le aperte restano fuori", async () => {
+    const { scegliOpportunita: sc } = await import("@/lib/opportunita/esportaOpportunita");
+    const lista: OpportunitaDaEsportare[] = [
+      { id: "a", status: "lost", lost_at: "2026-10-31T23:30:00Z" }, // 00:30 del 1° novembre in Italia
+      { id: "b", status: "lost", lost_at: "2026-10-15T10:00:00Z" },
+      { id: "c", status: "open", created_at: "2026-10-15T10:00:00Z" },
+    ];
+    expect(sc(lista, { periodo: { da: "2026-10-01", a: "2026-10-31", data: "chiusura" } }).map((o) => o.id)).toEqual(["b"]);
+    expect(sc(lista, { periodo: { da: "2026-11-01", a: null, data: "chiusura" } }).map((o) => o.id)).toEqual(["a"]);
+    expect(sc(lista, { periodo: { da: "2026-10-01", a: "2026-10-31", data: "creazione" } }).map((o) => o.id)).toEqual(["c"]);
+  });
+  it("solo le colonne scelte, nell'ordine del file; la pipeline nella riga", async () => {
+    const { soloColonne } = await import("@/lib/opportunita/esportaOpportunita");
+    const col = soloColonne(colonneConCampi([]), new Set(["lost_cause", "stage", "name"]));
+    expect(col.map((c) => c.key)).toEqual(["name", "stage", "lost_cause"]);
+    expect(soloColonne(colonneConCampi([]), new Set(["boh"])).length).toBeGreaterThan(10);
+    expect(rigaOpportunita(opp[0], { ...ctx, pipelineDellaFase: { f1: "Fotovoltaico" } }).pipeline).toBe("Fotovoltaico");
+  });
+  it("esportazioni salvate: «mese scorso» e «settimana scorsa» calcolati oggi", async () => {
+    const { periodoRelativo } = await import("@/components/opportunities/EsportaOpportunitaDialog");
+    expect(periodoRelativo("mese_scorso", new Date(2026, 10, 2))).toEqual({ da: "2026-10-01", a: "2026-10-31" });
+    expect(periodoRelativo("settimana_scorsa", new Date(2026, 10, 4))).toEqual({ da: "2026-10-26", a: "2026-11-01" });
+    expect(periodoRelativo("nessuno")).toBeNull();
+  });
+});

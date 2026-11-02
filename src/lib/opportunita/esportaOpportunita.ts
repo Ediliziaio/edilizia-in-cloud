@@ -20,6 +20,7 @@ export interface ColonnaEsportazione { key: string; label: string }
 
 /** Le colonne fisse, nell'ordine del file; poi i campi personalizzati. */
 export const COLONNE_OPPORTUNITA: ColonnaEsportazione[] = [
+  { key: "pipeline", label: "Pipeline" },
   { key: "name", label: "Nome opportunità" },
   { key: "contact", label: "Contatto" },
   { key: "email", label: "Email" },
@@ -70,6 +71,8 @@ export interface OpportunitaDaEsportare {
 
 export interface ContestoEsportazione {
   fasi: Record<string, string>;
+  /** Pipeline di ogni fase (per esportarne più d'una insieme). */
+  pipelineDellaFase?: Record<string, string>;
   venditori: Record<string, string>;
   motivi: MotivoPerdita[];
   campi: Array<{ id: string; name: string }>;
@@ -88,6 +91,7 @@ export function rigaOpportunita(o: OpportunitaDaEsportare, ctx: ContestoEsportaz
   const ponderato = o.status === "won" ? valore : o.status === "open" ? valore * (prob / 100) : 0;
   const persa = o.status === "lost";
   const riga: Record<string, string> = {
+    pipeline: (o.stage_id && ctx.pipelineDellaFase?.[o.stage_id]) || "",
     name: o.name || "",
     contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
     email: c.email || "",
@@ -116,17 +120,51 @@ export function rigaOpportunita(o: OpportunitaDaEsportare, ctx: ContestoEsportaz
   return riga;
 }
 
+/** Su quale data si conta il periodo: chiusura (vinta o persa), creazione, ingresso nella fase. */
+export type DataPeriodo = "chiusura" | "creazione" | "fase";
+export const NOMI_DATA_PERIODO: Record<DataPeriodo, string> = { chiusura: "data vinta o persa", creazione: "data di creazione", fase: "data di ingresso nella fase" };
+
 export interface SceltaEsportazione {
   /** Fasi da esportare (id); vuoto o null = tutte. */
   fasi?: ReadonlySet<string> | null;
   /** Stati da esportare; vuoto o null = tutti. */
   stati?: ReadonlySet<string> | null;
+  /** Periodo (AAAA-MM-GG, estremi compresi) e la data su cui si conta. */
+  periodo?: { da?: string | null; a?: string | null; data: DataPeriodo } | null;
+}
+
+function dataDi(o: OpportunitaDaEsportare, d: DataPeriodo): string | null {
+  if (d === "creazione") return o.created_at ?? null;
+  if (d === "fase") return o.stage_changed_at ?? o.created_at ?? null;
+  return o.status === "won" ? o.won_at ?? null : o.status === "lost" ? o.lost_at ?? null : null;
+}
+
+/** Il giorno (AAAA-MM-GG) in ora italiana: una perdita alle 23:30 del 31 è del 31, non del 1°. */
+export function giornoItaliano(iso: string): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome" }).format(new Date(iso));
 }
 
 export function scegliOpportunita<T extends OpportunitaDaEsportare>(opp: T[], s: SceltaEsportazione): T[] {
-  return opp.filter((o) =>
-    (!s.fasi?.size || (!!o.stage_id && s.fasi.has(o.stage_id)))
-    && (!s.stati?.size || s.stati.has(o.status ?? "")));
+  const p = s.periodo && (s.periodo.da || s.periodo.a) ? s.periodo : null;
+  return opp.filter((o) => {
+    if (s.fasi?.size && !(o.stage_id && s.fasi.has(o.stage_id))) return false;
+    if (s.stati?.size && !s.stati.has(o.status ?? "")) return false;
+    if (p) {
+      const d = dataDi(o, p.data);
+      if (!d) return false;
+      const g = giornoItaliano(d);
+      if (p.da && g < p.da) return false;
+      if (p.a && g > p.a) return false;
+    }
+    return true;
+  });
+}
+
+/** Le colonne scelte, nell'ordine del file (le chiavi sconosciute si ignorano); vuoto = tutte. */
+export function soloColonne(colonne: ColonnaEsportazione[], scelte: ReadonlySet<string> | null | undefined): ColonnaEsportazione[] {
+  if (!scelte?.size) return colonne;
+  const out = colonne.filter((c) => scelte.has(c.key));
+  return out.length ? out : colonne;
 }
 
 export function colonneConCampi(campi: Array<{ id: string; name: string }>): ColonnaEsportazione[] {
