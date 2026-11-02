@@ -322,7 +322,7 @@ describe("le porte (lotto 3.3)", () => {
   it("il link della chat e di WhatsApp porta le fonti al popup, e scarta quelle con una forma sbagliata", () => {
     const link = linkCreaCommessa([
       { tipo: "caricato", path: `${AZIENDA}/u/1-contratto.pdf`, nome: "contratto.pdf", mime: "application/pdf" },
-      { tipo: "testo", testo: "rifare bagno 6 mq a Monza, 12k" },
+      { tipo: "testo", testo: "rifare bagno 6 mq a Monza, 12k", daLink: true },
     ]);
     expect(link.startsWith("/azienda/ordini/nuovo?silvio=1&fonte=")).toBe(true);
     const params = new URLSearchParams(link.split("?")[1]);
@@ -332,7 +332,7 @@ describe("le porte (lotto 3.3)", () => {
     expect(fonti).toHaveLength(2);
     expect(fontiDaLink(fonti)).toEqual([
       { tipo: "caricato", path: `${AZIENDA}/u/1-contratto.pdf`, nome: "contratto.pdf", mime: "application/pdf" },
-      { tipo: "testo", testo: "rifare bagno 6 mq a Monza, 12k" },
+      { tipo: "testo", testo: "rifare bagno 6 mq a Monza, 12k", daLink: true },
     ]);
     expect(fontiDalLink(new URLSearchParams("quote_id=1"))).toBeNull();
   });

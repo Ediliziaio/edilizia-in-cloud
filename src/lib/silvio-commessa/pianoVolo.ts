@@ -9,14 +9,7 @@ import type { AzioneVolo, ProblemaVolo } from "../../../shared/silvio-commessa/p
 import { supabase } from "@/integrations/supabase/client";
 
 interface Risposta { data: unknown; error: { message: string; code?: string } | null }
-interface Query extends PromiseLike<Risposta> {
-  select: (c: string) => Query;
-  eq: (c: string, v: unknown) => Query;
-  order: (c: string, o?: { ascending?: boolean }) => Query;
-  limit: (n: number) => Query;
-}
 export type ClientVolo = {
-  from: (t: string) => Query;
   rpc: (nome: string, argomenti: Record<string, unknown>) => PromiseLike<Risposta>;
 };
 

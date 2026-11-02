@@ -35,10 +35,10 @@ export const NOMI_AREE: Record<Area, string> = {
   comunicazione: "Comunicazione",
 };
 
-/** Il segno di uno stato: ✓ fatto · ✋ da guardare · ❓ manca · ⚠ fonti in disaccordo. */
+/** Il segno di uno stato: ✓ fatto · ✋ da guardare · ❓ manca · ⚠ da sistemare (fonti in disaccordo, conti che non tornano, risorsa non disponibile). */
 export const SEGNI: Record<Stato, string> = { fatto: "✓", proposta: "✋", manca: "❓", attenzione: "⚠" };
 export const NOMI_STATI: Record<Stato, string> = {
-  fatto: "pronto", proposta: "da guardare", manca: "manca", attenzione: "fonti in disaccordo",
+  fatto: "pronto", proposta: "da guardare", manca: "manca", attenzione: "da sistemare",
 };
 
 /** I nomi delle colonne nei campi delle variabili con più colonne. */
@@ -322,6 +322,23 @@ export function daConfermare(r: RigaArea, autonomia: Autonomia | null = null): b
   return oda.some((o) => !ordineDaSolo(autonomia, o?.righe ?? []));
 }
 
+/**
+ * Il testo della conferma. Con gli ordini «da sola» la scrittura fa entrare quelli coi prezzi e
+ * sotto la soglia e tiene fuori gli altri: il popup dice proprio questo (revisione 1/11, L12).
+ */
+export function testoConferma(r: RigaArea, autonomia: Autonomia | null = null): string {
+  const generico = r.valore?.nota ?? "Proposta di Silvio: entra nella commessa se la confermi.";
+  const azione = azioneDellaVariabile(r.variabile.chiave);
+  if (azione?.azione !== "ordini" || livelloDi(autonomia, "ordini") !== "da_sola" || !Array.isArray(r.valore?.valore)) return generico;
+  const oda = r.valore.valore as { righe?: Parameters<typeof ordineDaSolo>[1] }[];
+  const soli = oda.filter((o) => ordineDaSolo(autonomia, o?.righe ?? [])).length;
+  const fuori = oda.length - soli;
+  const parola = (n: number) => (n === 1 ? "1 ordine" : `${n} ordini`);
+  if (!soli) return `${parola(fuori)} senza prezzi o sopra la soglia: ${fuori === 1 ? "entra" : "entrano"} solo se confermi.`;
+  return `${parola(soli)} coi prezzi e sotto la soglia ${soli === 1 ? "entra" : "entrano"} da ${soli === 1 ? "solo" : "soli"}. `
+    + `${parola(fuori)} senza prezzi o sopra la soglia ${fuori === 1 ? "entra" : "entrano"} solo se confermi: «Va bene» conferma tutto.`;
+}
+
 /** La proposta entra senza chiedere: l'azione è «da sola» nelle impostazioni. */
 export function fattoDaSolo(r: RigaArea, autonomia: Autonomia | null = null): boolean {
   const azione = azioneDellaVariabile(r.variabile.chiave);
@@ -427,7 +444,7 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
         + `${etichettaFonte(b)} dice ${testoValore(conflitto.chiave, b.valore)}. Quale tengo?`,
       risposte: conflitto.candidati.map((c) => ({
         etichetta: `${testoValore(conflitto.chiave, c.valore)} (${etichettaFonte(c)})`,
-        modifica: { tipo: "scegli_fonte", area: conflitto.area, chiave: conflitto.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null },
+        modifica: { tipo: "scegli_fonte", area: conflitto.area, chiave: conflitto.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null, etichettaFonte: c.fonte.etichetta },
       })),
     };
   }

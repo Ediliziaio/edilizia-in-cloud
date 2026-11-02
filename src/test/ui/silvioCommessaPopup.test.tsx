@@ -22,6 +22,7 @@ vi.mock("@/hooks/useVoiceInput", () => ({
 vi.mock("@/components/orders/CreateCustomerDialog", () => ({ CreateCustomerDialog: (): null => null }));
 
 import CreaConSilvioDialog from "@/components/silvio-commessa/CreaConSilvioDialog";
+import { fontiDaLink } from "@/components/silvio-commessa/useBozzaSilvio";
 
 const AZIENDA = "d2000000-0000-4000-a000-000000000002";
 const UTENTE = "u0000000-0000-4000-a000-000000000001";
@@ -273,5 +274,29 @@ describe("Striscia «Silvio ha preparato N cose»", () => {
     fireEvent.click(within(conferma).getByRole("button", { name: "Annulla tutto" }));
     expect(await within(conferma).findByRole("alert")).toHaveTextContent("qualcuno ha aggiunto un costo su questa commessa");
     expect(rpc).toHaveBeenCalledWith("commessa_annulla_silvio", { p_bozza_id: "b1" });
+  });
+});
+
+describe("Revisione dell'1/11: i difetti rimasti nel popup", () => {
+  it("il testo di un link non parte da solo e non sembra scritto dalla persona (E6); con «Leggi» parte col calendario (L10)", async () => {
+    const { s } = servizi();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <CreaConSilvioDialog open onOpenChange={() => {}} companyId={AZIENDA} userId={UTENTE} servizi={s} onCreata={vi.fn()}
+            iniziale={fontiDaLink([{ tipo: "testo", testo: "rifare bagno a Monza" }])} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findAllByText("testo dal link")).not.toHaveLength(0);
+    await act(async () => { await Promise.resolve(); });
+    expect(s.leggiTesto).not.toHaveBeenCalled();
+    expect(screen.queryByText("rifare bagno a Monza")).toBeNull();
+
+    const leggi = screen.getAllByRole("button", { name: /^Leggi/ })[0];
+    fireEvent.click(leggi);
+    await waitFor(() => expect(s.leggiTesto).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(s.leggiTesto).mock.calls[0][1]).toHaveProperty("calendario");
   });
 });

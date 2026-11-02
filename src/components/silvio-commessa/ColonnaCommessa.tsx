@@ -43,7 +43,7 @@ import { variabile as variabileDi, type Variabile } from "../../../shared/silvio
 import type { ContestoRisorse } from "../../../shared/silvio-commessa/risorse.ts";
 import { giaNellaCommessa } from "@/lib/silvio-commessa/scrittura";
 import {
-  comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoValore, tipoCampo,
+  comeSiModifica, daConfermare, fattoDaSolo, NOMI_AREE, NOMI_STATI, nomeColonna, righeDellArea, SEGNI, statoArea, testoConferma, testoValore, tipoCampo,
   dataBreve, euro, SCELTE, type RigaArea, accettaProposte, minuscola, type DaDecidere, alternativePersona, sostituisciPersona,
 } from "./presentazione";
 
@@ -511,7 +511,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
                 )}
               </div>
               <Button type="button" size="sm" variant="outline" className="h-11 lg:h-8"
-                onClick={() => onModifica({ tipo: "scegli_fonte", area: v.area, chiave: v.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null })}>
+                onClick={() => onModifica({ tipo: "scegli_fonte", area: v.area, chiave: v.chiave, fonte: c.fonte.tipo, idFonte: c.fonte.id ?? null, etichettaFonte: c.fonte.etichetta })}>
                 Tieni questo
               </Button>
             </div>
@@ -527,7 +527,7 @@ function RigaVariabile({ riga, companyId, piano, evidenziata, aperta, onApri, on
 
       {daConfermare(riga, autonomia) && !aperta && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5">
-          <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{valore?.nota ?? "Proposta di Silvio: entra nella commessa se la confermi."}</p>
+          <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-amber-900">{testoConferma(riga, autonomia)}</p>
           <Button type="button" size="sm" className="h-11 bg-amber-600 text-white hover:bg-amber-700 lg:h-8"
             onClick={() => onModifica({ tipo: "cambia_valore", area: v.area, chiave: v.chiave, valore: valore!.valore })}>
             Va bene

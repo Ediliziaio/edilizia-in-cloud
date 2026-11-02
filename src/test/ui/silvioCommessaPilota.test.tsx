@@ -126,11 +126,11 @@ describe("Il piano di volo sulla commessa", () => {
       ],
       fase: [{ name: "Rifacimento tetto" }],
     };
-    const rpc = vi.fn(async () => ({ data: { fatte: [{ indice: 1, tipo: "attivita" }], saltate: [] }, error: null }));
-    const q: Record<string, unknown> = {};
-    for (const k of ["select", "eq", "order", "limit"]) q[k] = () => q;
-    q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: [proposta], error: null }).then(ok);
-    avvolgi(<PianoDiVoloCommessa orderId="o1" companyId="c" puoModificare db={{ from: () => q as never, rpc }} />);
+    // Le proposte si leggono dalla RPC che toglie gli importi a chi non può vederli (revisione 1/11, S5).
+    const rpc = vi.fn(async (nome: string, _argomenti?: Record<string, unknown>) => (nome === "silvio_volo_della_commessa"
+      ? { data: [proposta], error: null }
+      : { data: { fatte: [{ indice: 1, tipo: "attivita" }], saltate: [] as unknown[] }, error: null }));
+    avvolgi(<PianoDiVoloCommessa orderId="o1" companyId="c" puoModificare db={{ rpc }} />);
     expect(await screen.findByText(/una cosa da guardare/)).toBeInTheDocument();
     expect(screen.getByText(/Nessuno è assegnato/)).toBeInTheDocument();
     expect(screen.getByText(/☂ Rifacimento tetto \(novembre\)/)).toBeInTheDocument();

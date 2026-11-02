@@ -324,7 +324,8 @@ export type FonteDaAggiungere =
   | { tipo: "computo"; id: string; etichetta?: string }
   | { tipo: "contratto"; id: string; etichetta?: string }
   | { tipo: "file"; file: File }
-  | { tipo: "testo"; testo: string }
+  /** `daLink`: l'ha portato un link, non la persona: non ha visto il costo e non è un suo messaggio. */
+  | { tipo: "testo"; testo: string; daLink?: boolean }
   /** Un file già caricato in silvio-uploads (allegato della chat). Con `confermata` la stima l'ha già vista chi l'ha mandato. */
   | { tipo: "caricato"; path: string; nome: string; mime?: string | null; confermata?: boolean }
   /** Un allegato di un'email: lo legge Silvio dove sta. */
@@ -338,7 +339,7 @@ export function fontiDaLink(fonti: readonly FonteDaLink[]): FonteDaAggiungere[] 
       case "email": return { tipo: "documento", documento: { tipo: "allegato_email", email_id: f.email_id, indice: f.indice }, nome: f.nome, mime: f.mime };
       case "contratto": return { tipo: "contratto", id: f.id };
       case "preventivo": return { tipo: "preventivo", id: f.id };
-      case "testo": return { tipo: "testo", testo: f.testo };
+      case "testo": return { tipo: "testo", testo: f.testo, daLink: true };
     }
   });
 }
@@ -436,7 +437,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
 
   const leggi = useCallback(async (f: FonteNelPopup) => {
     invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "in_lettura", errore: undefined } });
-    const opz = { companyId, userId, inizio: inizioLavori(), tentativo: f.tentativo };
+    const opz = { companyId, userId, inizio: inizioLavori(), calendario: ultimo.current.piano.calendario, tentativo: f.tentativo };
     try {
       // Le letture a regole partono subito: il saldo si guarda solo per quelle che costano.
       const crediti = f.stimaEur > 0 ? await controllaCrediti(f.stimaEur) : null;
@@ -563,8 +564,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
           return { ...comune, stato: stima > 0 && !n.confermata ? "da_confermare" : "in_coda", stimaEur: stima };
         }
         case "testo":
-          // Il testo l'ha mandato la persona col pulsante che mostrava già il costo.
-          return { ...base, tipo: "testo", testo: n.testo, etichetta: "testo scritto", stato: "in_coda", stimaEur: 0.005 };
+          // Il testo della persona parte: l'ha mandato col pulsante che mostrava già il costo. Quello di un link aspetta «Leggi».
+          return { ...base, tipo: "testo", testo: n.testo, etichetta: n.daLink ? "testo dal link" : "testo scritto", stato: n.daLink ? "da_confermare" : "in_coda", stimaEur: 0.005 };
         case "file": {
           const r = riconosciDocumento({ nome: n.file.name, mime: n.file.type });
           if (r.lettore === "non_letto") {
@@ -577,7 +578,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     });
     invia({ tipo: "aggiungi_fonti", fonti });
     // Quello che la persona ha scritto si vede come suo messaggio, anche quando diventa una fonte.
-    for (const n of nuove) if (n.tipo === "testo") invia({ tipo: "messaggio", tono: "persona", testo: n.testo });
+    for (const n of nuove) if (n.tipo === "testo" && !n.daLink) invia({ tipo: "messaggio", tono: "persona", testo: n.testo });
   }, []);
 
   /** «Leggi»: le fonti che aspettavano il via per il costo entrano in coda. */

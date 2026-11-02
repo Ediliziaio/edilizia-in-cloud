@@ -100,9 +100,8 @@ function useSecondi(attivo: boolean): number {
   const [secondi, setSecondi] = useState(0);
   useEffect(() => {
     if (!attivo) return;
-    setSecondi(0);
     const t = setInterval(() => setSecondi((s) => s + 1), 1000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); setSecondi(0); };
   }, [attivo]);
   return secondi;
 }
