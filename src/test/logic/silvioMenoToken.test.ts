@@ -201,7 +201,7 @@ describe("cache del prompt", () => {
   it("silvio-chat compone il blocco che va in cache con questi pezzi e solo questi", () => {
     const sorgente = readFileSync("supabase/functions/silvio-chat/index.ts", "utf8");
     expect(sorgente).toContain("const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE + REGOLE_DATI_SILVIO;");
-    expect(sorgente).toContain('promptCache: { ttl: "5m", coda: true }');
+    expect(sorgente).toContain('promptCache: { ttl: "5m" as const, coda: true }');
     expect(REGOLE_DATI_SILVIO).toContain("l'azione NON è conclusa");
   });
 
