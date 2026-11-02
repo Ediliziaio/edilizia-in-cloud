@@ -9,8 +9,8 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: s.utente, pro
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   functions: { invoke: (...a: unknown[]) => { s.ordine.push("invoke"); return s.invoke(...a); } },
   auth: {
-    signOut: async (o: unknown) => { s.ordine.push(`signOut:${JSON.stringify(o)}`); return { error: null }; },
-    verifyOtp: async () => { s.ordine.push("verifyOtp"); return { error: null }; },
+    signOut: async (o: unknown) => { s.ordine.push(`signOut:${JSON.stringify(o)}`); return { error: null as null }; },
+    verifyOtp: async () => { s.ordine.push("verifyOtp"); return { error: null as null }; },
   },
 } }));
 const mostra = (qc = new QueryClient()) => render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={["/entra/t"]}><Routes>

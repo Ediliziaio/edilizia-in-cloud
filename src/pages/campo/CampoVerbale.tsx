@@ -119,7 +119,7 @@ export default function CampoVerbale() {
     toast.success("Verbale firmato. L’ufficio è stato avvisato.");
     void qc.invalidateQueries({ queryKey: ["verbali-capo", orderId] });
   });
-  const apriChiuso = (r: Verbale) => void conErrore(async () => {
+  const apriChiuso = (r: Verbale): void => void conErrore(async () => {
     const { url } = await chiama<{ url: string }>({ action: "open", order_id: orderId, id: r.id });
     window.open(url, "_blank");
   });

@@ -15,9 +15,9 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc: async () => ({ data: stato.erroreModelli ? null : stato.modelli, error: stato.erroreModelli }),
   functions: { invoke: async (_n: string, o: { body: Record<string, unknown> }) => {
     stato.invocazioni.push(o.body);
-    if (o.body.action === "list") return { data: { reports: stato.righe }, error: null };
-    if (stato.fallisceSalva && o.body.action === "save") return { data: { error: "Verbale modificato" }, error: null };
-    return { data: { report: { id: "r1", status: o.body.action === "sign" ? "finalized" : "draft", version: 2, pdf_path: "a.pdf", document_hash: "h", content: o.body.content ?? {}, firma_cliente_nome: "Mario Rossi" }, url: "https://x/a.pdf" }, error: null };
+    if (o.body.action === "list") return { data: { reports: stato.righe }, error: null as null };
+    if (stato.fallisceSalva && o.body.action === "save") return { data: { error: "Verbale modificato" }, error: null as null };
+    return { data: { report: { id: "r1", status: o.body.action === "sign" ? "finalized" : "draft", version: 2, pdf_path: "a.pdf", document_hash: "h", content: o.body.content ?? {}, firma_cliente_nome: "Mario Rossi" }, url: "https://x/a.pdf" }, error: null as null };
   } },
 } }));
 

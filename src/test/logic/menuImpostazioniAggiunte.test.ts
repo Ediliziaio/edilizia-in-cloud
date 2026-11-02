@@ -21,7 +21,7 @@ describe("un solo ingresso per Piano e Crediti", () => {
   it("in «La mia azienda» resta solo Piano abbonamento", () => {
     const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "La mia azienda")!;
     expect(gruppo.items.filter((i) => i.visible).map((i) => i.label)).toEqual([
-      "Profilo aziendale", "Sedi", "Marchio e colori", "Piano abbonamento",
+      "Profilo aziendale", "Sedi", "Documenti e scadenze", "Marchio e colori", "Piano abbonamento",
     ]);
     expect(gruppo.items.find((i) => i.label === "Piano abbonamento")!.to).toBe(url("abbonamento"));
     expect(gruppo.items.some(i => i.to === url("crediti"))).toBe(false);
