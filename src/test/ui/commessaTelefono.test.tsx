@@ -156,8 +156,8 @@ describe("Testata della commessa dal telefono", () => {
     render(
       <MemoryRouter>
         <OrdineDetailHeader
-          ordineId="o1" orderCode="ORD-001" descrizione="Bagno completo" dataCreazione="2026-07-02T10:00:00Z" nomeCliente="Mario Bianchi"
-          onDuplica={vi.fn()} onModifica={modifica} onRegistraIncasso={vi.fn()} onElimina={vi.fn()}
+          orderCode="ORD-001" descrizione="Bagno completo" dataCreazione="2026-07-02T10:00:00Z" nomeCliente="Mario Bianchi"
+          onModifica={modifica} onRegistraIncasso={vi.fn()}
           azioniTelefono={azioni}
         />
       </MemoryRouter>,
@@ -165,26 +165,27 @@ describe("Testata della commessa dal telefono", () => {
     return { modifica };
   };
 
-  it("una fila sola: «Registra incasso» e le icone delle azioni rapide; «Modifica» nel menu accanto al titolo", async () => {
-    const { modifica } = testata(
-      <OrderQuickActions inline orderId="o1" orderCode="ORD-001" companyId="c" customer={null} getPdfBlob={async () => null} onCreateTask={vi.fn()} onOpenFiles={vi.fn()} />,
+  it("una fila sola: «Registra incasso» e le icone delle azioni rapide; «Modifica» in «Altre azioni»", async () => {
+    const modifica = vi.fn();
+    testata(
+      <OrderQuickActions inline orderId="o1" orderCode="ORD-001" companyId="c" customer={null} getPdfBlob={async () => null} onCreateTask={vi.fn()} onOpenFiles={vi.fn()} onModifica={modifica} />,
     );
     expect(screen.getByRole("button", { name: /Registra incasso/ })).toBeInTheDocument();
     for (const nome of ["Nuova attività", "Documenti", "Altre azioni"]) {
       expect(screen.getByRole("button", { name: nome })).toHaveTextContent("");
     }
+    // Un menu solo: niente più i tre puntini accanto al titolo.
+    expect(screen.queryByRole("button", { name: "Altre azioni commessa" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Modifica commessa" })).not.toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni commessa" }), { key: "Enter" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni" }), { key: "Enter" });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Modifica commessa" }));
     expect(modifica).toHaveBeenCalledOnce();
   });
 
-  it("dal computer «Modifica» è un bottone e il menu non lo ripete", async () => {
+  it("dal computer «Modifica» è un bottone in testata e non c'è un secondo menu", () => {
     state.mobile = false;
     testata();
     expect(screen.getByRole("button", { name: "Modifica commessa" })).toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Altre azioni commessa" }), { key: "Enter" });
-    expect(await screen.findByRole("menuitem", { name: /Diario/ })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Modifica commessa" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Altre azioni commessa" })).not.toBeInTheDocument();
   });
 });

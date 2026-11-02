@@ -16,6 +16,11 @@ export function statoProposto(statuses: OrderStatus[], attuale: string | null, l
   return statuses.find((s) => s.id === finale.id) ?? null;
 }
 
+/** La commessa è nello stato che la chiude? */
+export function statoConclusivo(statuses: OrderStatus[], attuale: string | null | undefined): boolean {
+  return !!attuale && faseConclusiva(statuses.map((s) => ({ ...s, position: s.position ?? 0 })))?.id === attuale;
+}
+
 /** Cambiare stato avvisa il cliente solo se c'è un cliente collegato e l'azienda non l'ha spento. */
 export const avvisoAlCliente = (customerId: string | null | undefined, attivoInAzienda: boolean | null | undefined) =>
   !!customerId && attivoInAzienda !== false;

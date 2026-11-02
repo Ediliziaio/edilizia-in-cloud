@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, ListPlus, Eye, Scale, RotateCcw, AlertTriangle, Landmark,
+  Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, ListPlus, Eye, Scale, RotateCcw, AlertTriangle, Landmark, ClipboardCheck, Layers, ChevronRight,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
@@ -33,6 +33,23 @@ import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorState";
 import { type DetrazioneValue, EMPTY_DETRAZIONE } from "@/lib/fatturazione/detrazioniEdilizie";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { avanzamentoFase } from "@/lib/orders/cronoprogramma";
+import {
+  type DocumentoPerFatturato,
+  type ModoFattura,
+  type SalPerFattura,
+  fatturatoDaDocumenti,
+  fuoriDalleFasi,
+  modoSuggerito,
+  quotaDaFatturare,
+  quoteDentroIlContratto,
+  righeSal,
+  rigaFase,
+  rigaFuoriDalleFasi,
+  rigaVoce,
+  salFatturabili,
+  salInFattura,
+} from "@/lib/orders/fatturaDaLavori";
 import { parseBonusLines, getPreset, causaleBonificoParlante } from "@/lib/orders/bonusFiscali";
 import {
   CLAUSOLE_FATTURA,
@@ -67,6 +84,32 @@ const piuGiorni = (giorni: number) => {
 const dataIt = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT");
 
 // ── Types ────────────────────────────────────────────────────────
+
+interface FaseRow {
+  id: string;
+  name: string;
+  status: string;
+  percentuale: number | null;
+  importo_venduto: number | null;
+}
+
+interface VoceRow {
+  id: string;
+  phase_id: string;
+  descrizione: string;
+  unita: string | null;
+  quantita: number | null;
+  importo: number | null;
+}
+
+/** Cosa l'utente ha cambiato su una fase o una voce: il resto segue il calcolato. */
+interface SceltaRiga {
+  esclusa?: boolean;
+  /** Importo scritto a mano, come testo. */
+  importo?: string;
+  /** Fase divisa nelle sue voci del computo. */
+  aperta?: boolean;
+}
 
 interface OrderItemRow {
   id: string;
@@ -202,10 +245,6 @@ function descrizioneRata(inst: Installment, orderCode: string | null, orderDescr
 
 // ── Component ────────────────────────────────────────────────────
 
-/** «importo»: una riga per l'importo della rata (modificabile); «articoli»: gli
- *  articoli della commessa, tutti o in parte, a una quota. */
-type InvoiceMode = "importo" | "articoli";
-
 export function CreaFatturaDialog({
   open,
   onOpenChange,
@@ -219,6 +258,7 @@ export function CreaFatturaDialog({
   installments,
 }: CreaFatturaDialogProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   // 0 è un'aliquota vera (reverse charge, esente): non diventa 22.
@@ -229,7 +269,10 @@ export function CreaFatturaDialog({
   // arriva senza IVA: prima si divideva una rata con IVA per un contratto senza, e la percentuale usciva gonfiata.
   const contratto = totalAmount > 0 ? Math.round(totalAmount * (1 + defaultVat / 100) * 100) / 100 : installments.reduce((s, i) => s + (i.amount || 0), 0);
 
-  const [mode, setMode] = useState<InvoiceMode>("articoli");
+  // null = segui il suggerimento (SAL pronto, fasi maturate, rata, articoli).
+  const [modoScelto, setModoScelto] = useState<ModoFattura | null>(null);
+  const [salScelto, setSalScelto] = useState<string | null>(null);
+  const [scelteRighe, setScelteRighe] = useState<Record<string, SceltaRiga>>({});
   const [selectedInstId, setSelectedInstId] = useState<string | null>(null);
   // Importo della riga «a corpo»: parte dalla rata e si cambia (il SAL vero non
   // è quasi mai quello previsto in contratto).
@@ -283,14 +326,15 @@ export function CreaFatturaDialog({
       const firstUnpaid = installments.find(i => !i.is_paid);
       if (firstUnpaid) {
         setSelectedInstId(firstUnpaid.id || `pos-${firstUnpaid.position}`);
-        setMode("importo");
         applicaRata(firstUnpaid);
       } else {
         setSelectedInstId(null);
-        setMode("articoli");
         setQuotaArticoli("100");
       }
       // reset composizione a ogni apertura
+      setModoScelto(null);
+      setSalScelto(null);
+      setScelteRighe({});
       setExcludedItemIds(new Set());
       setFreeLines([]);
       setDraft({ descrizione: "", quantita: "1", prezzo: "", aliquota: "" });
@@ -324,6 +368,78 @@ export function CreaFatturaDialog({
         .order("position");
       if (error) throw error;
       return (data || []) as OrderItemRow[];
+    },
+  });
+
+  // ── Fasi, voci del computo, SAL e fatture già fatte sulla commessa ───
+  // importo_venduto è null per chi non può vedere gli importi: le fasi non si propongono.
+  const { data: fasi = [], isLoading: fasiLoading } = useQuery({
+    queryKey: ["order-fasi-for-invoice", orderId],
+    enabled: open && !!orderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_work_phases")
+        .select("id, name, status, percentuale, importo_venduto")
+        .eq("order_id", orderId)
+        .order("position");
+      if (error) throw error;
+      return (data || []) as unknown as FaseRow[];
+    },
+  });
+  const { data: voci = [] } = useQuery({
+    queryKey: ["order-voci-for-invoice", orderId],
+    enabled: open && !!orderId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("order_work_phase_voci")
+        .select("id, phase_id, descrizione, unita, quantita, importo")
+        .eq("order_id", orderId)
+        .order("position");
+      if (error) throw error;
+      return (data || []) as VoceRow[];
+    },
+  });
+  const { data: salList = [], isLoading: salLoading } = useQuery({
+    queryKey: ["order-sal-for-invoice", orderId],
+    enabled: open && !!orderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sal_records")
+        .select("id, numero_sal, stato, importo_totale, installment_id, data_emissione, sal_voci(id, descrizione, importo_sal)")
+        .eq("order_id", orderId)
+        .order("numero_sal");
+      if (error) throw error;
+      return (data || []) as unknown as SalPerFattura[];
+    },
+  });
+  const { data: documentiCommessa = [], isLoading: documentiLoading } = useQuery({
+    queryKey: ["order-documenti-for-invoice", orderId],
+    enabled: open && !!orderId,
+    queryFn: async () => {
+      const campi = "id, tipo, stato, deleted_at, righe, totale_documento";
+      const { data: legami, error: errLegami } = await (supabase as any)
+        .from("fattura_ordine")
+        .select("fattura_id, importo_associato")
+        .eq("ordine_id", orderId);
+      if (errLegami) throw errLegami;
+      const quote = new Map<string, number | null>(((legami || []) as Array<{ fattura_id: string; importo_associato: number | null }>).map((l) => [l.fattura_id, l.importo_associato]));
+      const { data: diretti, error: errDiretti } = await (supabase as any)
+        .from("documenti_fiscali")
+        .select(campi)
+        .eq("ordine_id", orderId)
+        .limit(500);
+      if (errDiretti) throw errDiretti;
+      const trovati = new Map<string, DocumentoPerFatturato>(((diretti || []) as Array<DocumentoPerFatturato & { id: string }>).map((d) => [d.id, d]));
+      const mancanti = [...quote.keys()].filter((id) => !trovati.has(id));
+      if (mancanti.length > 0) {
+        const { data: collegati, error: errCollegati } = await (supabase as any)
+          .from("documenti_fiscali")
+          .select(campi)
+          .in("id", mancanti);
+        if (errCollegati) throw errCollegati;
+        for (const d of (collegati || []) as Array<DocumentoPerFatturato & { id: string }>) trovati.set(d.id, d);
+      }
+      return [...trovati.entries()].map(([id, d]) => ({ ...d, importo_associato: quote.get(id) ?? null }));
     },
   });
 
@@ -363,6 +479,68 @@ export function CreaFatturaDialog({
     [installments, selectedInstId]
   );
 
+  // ── Da fasi, voci e SAL ──────────────────────────────────────
+  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa), [documentiCommessa]);
+  const scelta = (id: string): SceltaRiga => scelteRighe[id] ?? {};
+  const cambiaScelta = (id: string, patch: SceltaRiga) => setScelteRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+
+  const contrattoNetto = Math.max(0, Number(totalAmount) || 0);
+  // Senza contratto scritto non c'è un tetto: si propone il maturato.
+  const residuoContratto = contrattoNetto > 0 ? Math.max(0, round2(contrattoNetto - fatturato.totale)) : Infinity;
+  const fasiVendute = useMemo(() => {
+    const righe = fasi
+      .filter((f) => Number(f.importo_venduto) > 0)
+      .map((f) => {
+        const venduto = Number(f.importo_venduto);
+        const avanzamento = avanzamentoFase({ status: f.status, percentuale: f.percentuale });
+        const gia = fatturato.perFase.get(f.id) ?? 0;
+        return { id: f.id, nome: f.name, venduto, avanzamento, gia, maturato: quotaDaFatturare(venduto, avanzamento, gia) };
+      });
+    const dentro = quoteDentroIlContratto(righe.map((r) => r.maturato), residuoContratto);
+    return righe.map((r, i) => ({ ...r, calcolato: dentro[i] }));
+  }, [fasi, fatturato, residuoContratto]);
+  const vociDiFase = (faseId: string) => voci.filter((v) => v.phase_id === faseId && Number(v.importo) > 0);
+  const totaleFasi = round2(fasiVendute.reduce((t, f) => t + f.venduto, 0));
+  const fuoriFasi = fuoriDalleFasi(contrattoNetto, fasiVendute);
+
+  // L'importo «ora» di una voce: scritto a mano, o il suo maturato al netto del già fatturato.
+  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) =>
+    round2(quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0) * (f.maturato > 0 ? f.calcolato / f.maturato : 0));
+  const importoVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => {
+    const s = scelta(v.id);
+    if (s.esclusa) return 0;
+    return s.importo !== undefined ? Math.max(0, parseImporto(s.importo)) : voceCalcolata(v, f);
+  };
+  const importoFase = (f: (typeof fasiVendute)[number]) => {
+    const s = scelta(f.id);
+    if (s.esclusa) return 0;
+    if (s.aperta) return round2(vociDiFase(f.id).reduce((t, v) => t + importoVoce(v, f), 0));
+    return s.importo !== undefined ? Math.max(0, parseImporto(s.importo)) : f.calcolato;
+  };
+
+  const salDisponibili = useMemo(() => salFatturabili(salList), [salList]);
+  const statoSal = (sal: SalPerFattura) => salInFattura(sal, salList, fatturato, installments);
+  const salDaFatturare = salDisponibili.filter((s) => statoSal(s).stato === "da_fatturare");
+  // Il più vecchio ancora da fatturare: prima il SAL 1, poi il 2.
+  const salPredefinito = salDaFatturare[salDaFatturare.length - 1] ?? null;
+  const salAttivo = salDisponibili.find((s) => s.id === salScelto) ?? salPredefinito;
+
+  const caricamento = itemsLoading || fasiLoading || salLoading || documentiLoading;
+  const suggerito = modoSuggerito({
+    salDaFatturare: salDaFatturare.length > 0 && residuoContratto > 0,
+    fasiConQuota: fasiVendute.some((f) => f.calcolato > 0),
+    rataDaFatturare: installments.some((i) => !i.is_paid),
+    articoli: orderItems.length > 0,
+  });
+  const mode: ModoFattura = modoScelto ?? suggerito;
+
+  // Scegliere un SAL sceglie anche la sua rata: la fattura resta legata a quella.
+  const rataDelSal = salAttivo?.installment_id ?? null;
+  useEffect(() => {
+    if (!open || mode !== "sal") return;
+    setSelectedInstId(rataDelSal && installments.some((i) => i.id === rataDelSal) ? rataDelSal : null);
+  }, [open, mode, rataDelSal, installments]);
+
   const quota = Math.min(100, Math.max(0, parseImporto(quotaArticoli)));
   const lordoImporto = parseImporto(importo.lordo);
   const aliquotaImporto = importo.aliquota.trim() ? Math.max(0, parseImporto(importo.aliquota)) : defaultVat;
@@ -375,11 +553,34 @@ export function CreaFatturaDialog({
   );
 
   const righeBase = useMemo(() => {
+    const daFasi = () => {
+      const righe: RigaDocumento[] = [];
+      for (const f of fasiVendute) {
+        if (scelta(f.id).esclusa) continue;
+        if (scelta(f.id).aperta) {
+          for (const v of vociDiFase(f.id)) {
+            const imp = importoVoce(v, f);
+            if (imp > 0) righe.push(rigaVoce(f.id, f.nome, { id: v.id, descrizione: v.descrizione, quantita: v.quantita, unita: v.unita, importo: Number(v.importo) }, imp, defaultVat));
+          }
+        } else {
+          const imp = importoFase(f);
+          if (imp > 0) righe.push(rigaFase(f, imp, defaultVat));
+        }
+      }
+      const altri = parseImporto(scelta("fuori-fasi").importo ?? "");
+      if (altri > 0) righe.push(rigaFuoriDalleFasi(altri, defaultVat));
+      return righe;
+    };
     const base = mode === "importo"
       ? (lordoImporto > 0 ? [buildRigaImporto(importo.descrizione, lordoImporto, aliquotaImporto)] : [])
-      : includedItemRighe;
+      : mode === "sal"
+        ? (salAttivo && statoSal(salAttivo).stato === "da_fatturare" ? righeSal(salAttivo, salList, defaultVat) : [])
+        : mode === "fasi"
+          ? daFasi()
+          : includedItemRighe;
     return [...base, ...freeLines.map((fl) => freeLineToRiga(fl, defaultVat))];
-  }, [mode, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat, fasiVendute, voci, scelteRighe, salAttivo, salList, fatturato]);
 
   // ── Tipo di fattura e clausole ──────────────────────────────
   const profiloSuggerito = profiloDaCliente(
@@ -475,7 +676,7 @@ export function CreaFatturaDialog({
     // Con una riga sola la rata e la commessa sono già nella descrizione: qui
     // basta il riferimento, senza ripetere.
     const rif = `Rif. commessa ${orderCode || ""}`.trim();
-    if (mode === "importo") return rif;
+    if (mode !== "articoli") return rif;
     const rataLabel = selectedInstallment
       ? `${selectedInstallment.label || LABEL_MAP[selectedInstallment.type] || "Pagamento"} — `
       : "";
@@ -620,7 +821,11 @@ export function CreaFatturaDialog({
       toast.error("Nessuna riga da fatturare", {
         description: mode === "importo"
           ? "Scrivi l'importo da fatturare o aggiungi una riga."
-          : "Includi almeno un articolo o aggiungi una riga descrittiva.",
+          : mode === "sal"
+            ? "Scegli un SAL con una quota da fatturare o aggiungi una riga."
+            : mode === "fasi"
+              ? "Scrivi quanto fatturare di almeno una fase o aggiungi una riga."
+              : "Includi almeno un articolo o aggiungi una riga descrittiva.",
       });
       return;
     }
@@ -661,6 +866,7 @@ export function CreaFatturaDialog({
             return;
           }
         }
+        queryClient.invalidateQueries({ queryKey: ["order-documenti-for-invoice", orderId] });
         onOpenChange(false);
         navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
       },
@@ -836,7 +1042,8 @@ export function CreaFatturaDialog({
                         if (isSelected) { setSelectedInstId(null); return; }
                         setSelectedInstId(key);
                         applicaRata(inst);
-                        setMode("importo");
+                        // Dalle fasi la rata si lega soltanto; altrimenti si fattura il suo importo.
+                        setModoScelto(mode === "fasi" ? "fasi" : "importo");
                       }}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                         isSelected
@@ -860,6 +1067,12 @@ export function CreaFatturaDialog({
                   <AlertTriangle className="h-3 w-3" /> Questa rata risulta già pagata.
                 </p>
               )}
+              {selectedInstallment && mode !== "importo" && totali.totale_documento > 0 && Math.abs(totali.totale_documento - (selectedInstallment.amount || 0)) > 1 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  La fattura vale {fmt(totali.totale_documento)}, la rata {fmt(selectedInstallment.amount || 0)}: pagata la fattura, la rata risulterà pagata per intero. Se non è così, togli la rata con un clic.
+                </p>
+              )}
             </div>
           </>
         )}
@@ -873,28 +1086,29 @@ export function CreaFatturaDialog({
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               Cosa fatturi ({previewRighe.length} {previewRighe.length === 1 ? "riga" : "righe"})
             </p>
-            <div className="inline-flex rounded-md border p-0.5 bg-muted/40">
-              <button
-                type="button"
-                onClick={() => setMode("importo")}
-                className={`text-xs px-2.5 py-1 rounded ${mode === "importo" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-              >
-                <Receipt className="h-3.5 w-3.5 inline mr-1 -mt-0.5" />
-                Un importo
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("articoli")}
-                disabled={orderItems.length === 0}
-                className={`text-xs px-2.5 py-1 rounded disabled:opacity-40 ${mode === "articoli" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-              >
-                <Package className="h-3.5 w-3.5 inline mr-1 -mt-0.5" />
-                Gli articoli
-              </button>
+            {/* Solo ciò che su questa commessa esiste: il SAL, le fasi vendute, gli articoli. */}
+            <div className="inline-flex flex-wrap rounded-md border p-0.5 bg-muted/40" role="group" aria-label="Da dove prendere le righe">
+              {([
+                ...(salDisponibili.length > 0 ? [{ id: "sal", etichetta: "SAL", icona: ClipboardCheck }] : []),
+                ...(fasiVendute.length > 0 ? [{ id: "fasi", etichetta: "Fasi", icona: Layers }] : []),
+                ...(orderItems.length > 0 ? [{ id: "articoli", etichetta: "Articoli", icona: Package }] : []),
+                { id: "importo", etichetta: "Un importo", icona: Receipt },
+              ] as Array<{ id: ModoFattura; etichetta: string; icona: typeof Receipt }>).map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  aria-pressed={mode === o.id}
+                  onClick={() => setModoScelto(o.id)}
+                  className={`text-xs px-2.5 py-1 rounded ${mode === o.id ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+                >
+                  <o.icona className="h-3.5 w-3.5 inline mr-1 -mt-0.5" />
+                  {o.etichetta}
+                </button>
+              ))}
             </div>
           </div>
 
-          {itemsLoading ? (
+          {caricamento ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
@@ -970,6 +1184,179 @@ export function CreaFatturaDialog({
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* SAL: la quota nuova del verbale, voce per voce. */}
+              {mode === "sal" && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Verbali SAL · importi senza IVA
+                  </div>
+                  <div className="divide-y max-h-56 overflow-auto">
+                    {salDisponibili.map((sal) => {
+                      const { stato, quota: quotaSal } = statoSal(sal);
+                      const attivo = salAttivo?.id === sal.id;
+                      return (
+                        <button
+                          key={sal.id}
+                          type="button"
+                          disabled={stato !== "da_fatturare"}
+                          aria-pressed={attivo}
+                          onClick={() => setSalScelto(sal.id)}
+                          className={`w-full grid grid-cols-[1fr_auto] gap-2 px-3 py-2 text-left text-xs ${attivo ? "bg-primary/5" : "hover:bg-muted/30"} disabled:opacity-60 disabled:hover:bg-transparent`}
+                        >
+                          <span className="min-w-0">
+                            <span className="font-medium">SAL n. {sal.numero_sal}</span>
+                            {sal.data_emissione && <span className="text-muted-foreground"> · {dataIt(sal.data_emissione)}</span>}
+                            <span className="text-muted-foreground"> · cumulativo {fmt(Number(sal.importo_totale))}</span>
+                          </span>
+                          <span className="text-right tabular-nums">
+                            {stato === "gia_fatturato"
+                              ? <span className="text-green-700 dark:text-green-400">Già fatturato</span>
+                              : stato === "senza_quota"
+                                ? <span className="text-muted-foreground">Niente di nuovo</span>
+                                : <span className="font-medium">{fmt(quotaSal)}</span>}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {salAttivo && statoSal(salAttivo).stato === "da_fatturare" && righeBase.some((r) => r.id.startsWith("sal:")) && (
+                    <div className="divide-y border-t bg-muted/20">
+                      {righeBase.filter((r) => r.id.startsWith("sal:")).map((r) => (
+                        <div key={r.id} className="grid grid-cols-[1fr_84px] gap-2 px-3 py-1.5 text-[11px]">
+                          <span className="leading-tight">{r.descrizione}</span>
+                          <span className="text-right tabular-nums">{fmt(r.prezzo_unitario)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fasi: venduto, avanzamento, già fatturato e quanto fatturare ora. */}
+              {mode === "fasi" && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="hidden sm:grid grid-cols-[22px_1fr_84px_44px_84px_96px] gap-1 px-3 py-1.5 bg-muted/60 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span />
+                    <span>Fase · senza IVA</span>
+                    <span className="text-right">Venduto</span>
+                    <span className="text-right">Avanz.</span>
+                    <span className="text-right">Fatturato</span>
+                    <span className="text-right">Ora</span>
+                  </div>
+                  <div className="divide-y max-h-72 overflow-auto">
+                    {fasiVendute.map((f) => {
+                      const s = scelta(f.id);
+                      const vociFase = vociDiFase(f.id);
+                      return (
+                        <div key={f.id} className={s.esclusa ? "opacity-45" : ""}>
+                          <div className="grid grid-cols-[22px_1fr_96px] sm:grid-cols-[22px_1fr_84px_44px_84px_96px] gap-1 px-3 py-2 text-xs items-center">
+                            <Checkbox checked={!s.esclusa} onCheckedChange={() => cambiaScelta(f.id, { esclusa: !s.esclusa })} aria-label={`In fattura: ${f.nome}`} />
+                            <span className="min-w-0">
+                              <span className="leading-tight line-clamp-2">{f.nome}</span>
+                              {vociFase.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => cambiaScelta(f.id, { aperta: !s.aperta })}
+                                  aria-expanded={!!s.aperta}
+                                  className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-medium text-primary hover:underline"
+                                >
+                                  <ChevronRight className={`h-3 w-3 transition-transform ${s.aperta ? "rotate-90" : ""}`} />
+                                  {vociFase.length} {vociFase.length === 1 ? "voce" : "voci"} del computo
+                                </button>
+                              )}
+                              <span className="block sm:hidden text-[10px] text-muted-foreground tabular-nums">
+                                {fmt(f.venduto)} · {f.avanzamento}% · fatturato {fmt(f.gia)}
+                              </span>
+                            </span>
+                            <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{fmt(f.venduto)}</span>
+                            <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{f.avanzamento}%</span>
+                            <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{fmt(f.gia)}</span>
+                            {s.aperta ? (
+                              <span className="text-right tabular-nums font-medium">{fmt(importoFase(f))}</span>
+                            ) : (
+                              <Input
+                                value={s.importo ?? scriviImporto(f.calcolato)}
+                                onChange={(e) => cambiaScelta(f.id, { importo: e.target.value })}
+                                disabled={!!s.esclusa}
+                                inputMode="decimal"
+                                aria-label={`Importo da fatturare: ${f.nome}`}
+                                className="h-7 text-xs text-right tabular-nums px-1.5"
+                              />
+                            )}
+                          </div>
+                          {s.aperta && !s.esclusa && (
+                            <div className="divide-y bg-muted/20">
+                              {vociFase.map((v) => {
+                                const sv = scelta(v.id);
+                                const giaVoce = fatturato.perVoce.get(v.id) ?? 0;
+                                const calcolato = voceCalcolata(v, f);
+                                return (
+                                  <div key={v.id} className={`grid grid-cols-[22px_1fr_96px] gap-1 py-1.5 pl-8 pr-3 text-[11px] items-center ${sv.esclusa ? "opacity-45" : ""}`}>
+                                    <Checkbox checked={!sv.esclusa} onCheckedChange={() => cambiaScelta(v.id, { esclusa: !sv.esclusa })} aria-label={`In fattura: ${v.descrizione}`} />
+                                    <span className="min-w-0 leading-tight">
+                                      <span className="line-clamp-2">{v.descrizione}</span>
+                                      <span className="block text-[10px] text-muted-foreground tabular-nums">
+                                        {v.quantita != null && v.unita ? `${String(v.quantita).replace(".", ",")} ${v.unita} · ` : ""}{fmt(Number(v.importo))}
+                                        {giaVoce > 0 ? ` · fatturato ${fmt(giaVoce)}` : ""}
+                                      </span>
+                                    </span>
+                                    <Input
+                                      value={sv.importo ?? scriviImporto(calcolato)}
+                                      onChange={(e) => cambiaScelta(v.id, { importo: e.target.value })}
+                                      disabled={!!sv.esclusa}
+                                      inputMode="decimal"
+                                      aria-label={`Importo da fatturare: ${v.descrizione}`}
+                                      className="h-6 text-[11px] text-right tabular-nums px-1.5"
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {fuoriFasi > 0 && (
+                      <div className="grid grid-cols-[22px_1fr_96px] sm:grid-cols-[22px_1fr_84px_44px_84px_96px] gap-1 px-3 py-2 text-xs items-center">
+                        <span />
+                        <span className="leading-tight text-muted-foreground">Fuori dalle fasi</span>
+                        <span className="hidden sm:block text-right tabular-nums text-muted-foreground">{fmt(fuoriFasi)}</span>
+                        <span className="hidden sm:block" />
+                        <span className="hidden sm:block" />
+                        <Input
+                          value={scelta("fuori-fasi").importo ?? ""}
+                          onChange={(e) => cambiaScelta("fuori-fasi", { importo: e.target.value })}
+                          placeholder="0,00"
+                          inputMode="decimal"
+                          aria-label="Importo da fatturare fuori dalle fasi"
+                          className="h-7 text-xs text-right tabular-nums px-1.5"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {contrattoNetto > 0 && totaleFasi > contrattoNetto + 1 && (
+                    <p className="flex items-start gap-1.5 border-t px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                      Le fasi sommano {fmt(totaleFasi)}, il contratto {fmt(contrattoNetto)} senza IVA: controlla il venduto delle fasi.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Fatture già fatte senza dettaglio: le quote di fasi e SAL non possono saperlo. */}
+              {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA fatturati senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
+                </p>
+              )}
+              {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  Con questa fattura il fatturato arriva a {fmt(round2(fatturato.totale + totali.imponibile_totale))}, oltre il contratto di {fmt(contrattoNetto)} senza IVA.
+                </p>
               )}
 
               {/* Articoli della commessa: spunta cosa mettere in fattura e a che quota. */}
@@ -1079,7 +1466,11 @@ export function CreaFatturaDialog({
                   <span>
                     {mode === "importo"
                       ? "Scrivi l'importo da fatturare o aggiungi una riga."
-                      : "Nessuna riga selezionata: includi almeno un articolo o aggiungi una riga."}
+                      : mode === "sal"
+                        ? "Nessun SAL con una quota da fatturare: scegline un altro o aggiungi una riga."
+                        : mode === "fasi"
+                          ? "Nessun importo da fatturare: le fasi sono già fatturate per il loro avanzamento. Scrivi un importo o aggiungi una riga."
+                          : "Nessuna riga selezionata: includi almeno un articolo o aggiungi una riga."}
                   </span>
                 </div>
               )}

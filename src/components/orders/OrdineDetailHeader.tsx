@@ -1,40 +1,23 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Banknote, BookOpen, ChevronRight, Copy, FileDown, HardHat, Loader2, MoreVertical, Pencil, Trash2, ClipboardList } from "lucide-react";
+import { Banknote, ChevronRight, HardHat, Pencil, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface OrdineDetailHeaderProps {
-  ordineId: string;
   orderCode: string;
   descrizione: string;
   dataCreazione: string;
   nomeCliente: string;
   /** Tipo ordine: 'appaltatore_lavoro' mostra badge dedicato. */
   orderType?: "cliente" | "appaltatore_lavoro" | null;
-  onDuplica: () => void;
   onModifica: () => void;
   onRegistraIncasso: () => void;
-  onElimina: () => void;
-  onDownloadPDF?: () => void;
-  isGeneratingPDF?: boolean;
-  /**
-   * 2026-05-27 (UX audit fix): permessi opzionali per nascondere le voci
-   * distruttive quando l'utente non ha il diritto. Backward-compat: se
-   * undefined, tutto è visibile (comportamento legacy admin).
-   */
+  /** Le altre voci (registro, PDF, duplica, elimina) stanno in «Altre azioni». */
   canEdit?: boolean;
-  canDelete?: boolean;
   /**
    * Telefono (06/10/2026): le icone delle azioni rapide (attività, documenti,
    * altro) nella fila di «Registra incasso», invece di una fila a parte.
@@ -43,78 +26,19 @@ interface OrdineDetailHeaderProps {
 }
 
 export function OrdineDetailHeader({
-  ordineId,
   orderCode,
   descrizione,
   dataCreazione,
   nomeCliente,
   orderType,
-  onDuplica,
   onModifica,
   onRegistraIncasso,
-  onElimina,
-  onDownloadPDF,
-  isGeneratingPDF = false,
   canEdit = true,
-  canDelete = true,
   azioniTelefono,
 }: OrdineDetailHeaderProps) {
   const isMobile = useIsMobile();
   const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
-  // Azioni secondarie nel menu ⋮, anche da tablet: prima sul desktop erano
-  // quattro bottoni in fila (Diario, Scarica PDF, Duplica, Elimina) accanto a
-  // «Registra incasso» e «Modifica». Da telefono sta accanto al titolo.
-  const menu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className="tap-compact h-9 w-9"
-          aria-label="Altre azioni commessa"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {/* Da telefono «Modifica» sta qui: nella fila resta posto per incasso e azioni rapide */}
-        {isMobile && canEdit && (
-          <DropdownMenuItem onClick={onModifica}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Modifica commessa
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/${ordineId}/diario`)}>
-          <BookOpen className="h-4 w-4 mr-2 text-orange-600" />
-          Registro attività
-        </DropdownMenuItem>
-        {/* Niente export su telefono. */}
-        {/* Niente export su telefono. */}
-        {!isMobile && !isMobile && onDownloadPDF && (
-          <DropdownMenuItem onClick={onDownloadPDF} disabled={isGeneratingPDF}>
-            {isGeneratingPDF ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
-            Scarica PDF
-          </DropdownMenuItem>
-        )}
-        {canEdit && (
-          <DropdownMenuItem onClick={onDuplica}>
-            <Copy className="h-4 w-4 mr-2" />
-            Duplica
-          </DropdownMenuItem>
-        )}
-        {canDelete && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onElimina} className="text-red-600 focus:text-red-700">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Elimina
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
   return (
     <div className="bg-white border-b border-slate-200 px-3 sm:px-6 py-3 sm:py-5 max-sm:py-2.5">
       {/* Breadcrumb (mobile no: la freccia indietro dell'app c'è già, e il
@@ -153,7 +77,6 @@ export function OrdineDetailHeader({
               <span className="font-medium text-slate-700">{nomeCliente}</span>
             </p>
           </div>
-          {isMobile && <div className="-mr-1 shrink-0">{menu}</div>}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end w-full sm:w-auto">
           {/* Primary: Registra incasso — sempre visibile, porta al piano rate */}
@@ -180,7 +103,6 @@ export function OrdineDetailHeader({
               <span className="hidden sm:inline">Modifica</span>
             </Button>
           )}
-          {!isMobile && menu}
         </div>
       </div>
     </div>
