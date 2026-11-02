@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   const costruttore = (tabella: string) => {
     const q: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "order", "limit", "in", "or"]) q[m] = () => q;
+    for (const m of ["select", "eq", "order", "limit", "in", "or", "is"]) q[m] = () => q;
     q.maybeSingle = async () => ({ data: null as unknown, error: null as unknown });
     q.then = (ok: (v: unknown) => unknown) => ok({ data: mocks.tabelle[tabella] ?? [], error: null });
     return q;
@@ -160,6 +160,32 @@ describe("Crea fattura: cosa fatturi", () => {
     fireEvent.change(screen.getAllByLabelText("Descrizione della riga")[1], { target: { value: "CIG 66636856D1" } });
     creaFattura();
     expect(righeCreate()[1]).toMatchObject({ descrizione: "CIG 66636856D1", prezzo_unitario: 0 });
+  });
+
+  it("le fatture in archivio contano nel già fatturato: la proposta si ferma al residuo del contratto", async () => {
+    mocks.tabelle.invoices = [{ id: "i1", document_type: "invoice", status: "issued", subtotal: 25000 }];
+    apri();
+    await apriFasi();
+    expect(await screen.findByLabelText("Importo da fatturare: Opere murarie")).toHaveValue("5.000,00");
+    expect(screen.getByText(/fatturati senza dettaglio per fase/)).toHaveTextContent("25.000,00");
+  });
+
+  it("una rata già fatturata non si propone, si vede il numero e rifarla chiede conferma", async () => {
+    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const rate = [
+      { id: "r1", position: 1, type: "deposit", label: "Acconto", amount: 9900, is_paid: false, documento_fiscale_id: "d1", fattura: { id: "d1", numero: "FT-7", stato: "emessa" } },
+      { id: "r2", position: 2, type: "balance", label: "Saldo", amount: 1100, is_paid: false },
+    ] as unknown as Installment[];
+    apri(rate);
+    expect(await screen.findByRole("button", { name: /Saldo/ })).toBeInTheDocument();
+    const acconto = screen.getByRole("button", { name: /Acconto.*FT-7/ });
+    await waitFor(() => expect(screen.getAllByLabelText("Descrizione della riga")[0]).toHaveValue("Saldo — commessa n. ORD-1\nLavori"));
+    fireEvent.click(acconto);
+    expect(screen.getByText(/già fatturata con FT-7/)).toBeInTheDocument();
+    creaFattura();
+    await waitFor(() => expect(conferma).toHaveBeenCalled());
+    expect(mocks.crea).not.toHaveBeenCalled();
+    conferma.mockRestore();
   });
 
   it("le righe delle fasi non vengono da chi non vede gli importi", async () => {
