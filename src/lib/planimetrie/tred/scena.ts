@@ -5,7 +5,7 @@
  */
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
-import { pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
+import { poligonoConBuchi, pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
 import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
 import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { meshImpianti } from "./impianti3d";
@@ -221,17 +221,31 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
       avvisi.push(`${l.nome}: contorno non valido, pavimento non disegnato.`);
       continue;
     }
-    // ai piani sopra, il vano scala non ha pavimento: la scala sale dal piano sotto
-    const foro = opzioni.foroScala && (/scal/i.test(l.nome) || pianta.elementi.some((e) => e.tipo === "scala" && puntoNelPoligono(e.centro, l.contorno)));
+    // la scala e l'ascensore del piano sotto passano dal pavimento: lì c'è il buco (solo l'ingombro, non tutta la stanza)
+    // il buco che sbordava dalla stanza (scala a tutta larghezza) si stringe verso il centro finché ci sta
+    const bucoDi = (poligoni: Array<Array<{ x: number; y: number }>> | undefined) => (poligoni ?? []).flatMap((q) => {
+      const pts = q.map((pt) => v2(pt.x * CM, pt.y * CM));
+      const c = v2(pts.reduce((a, pt) => a + pt.x, 0) / pts.length, pts.reduce((a, pt) => a + pt.y, 0) / pts.length);
+      if (!puntoNelPoligono(c, contorno)) return [];
+      for (let k = 1; k >= 0.6; k -= 0.04) {
+        const r = pts.map((pt) => v2(c.x + (pt.x - c.x) * k, c.y + (pt.y - c.y) * k));
+        if (r.every((pt) => puntoNelPoligono(pt, contorno))) return [r];
+      }
+      return [];
+    });
+    const buchiPav = bucoDi(opzioni.buchiPavimento);
+    // senza elementi sotto, un locale chiamato «scala/vano scala» resta senza pavimento come prima
+    const foro = opzioni.foroScala && !opzioni.buchiPavimento?.length && /scal/i.test(l.nome);
     if (!foro) {
       const pav = new CostruttoreMesh();
-      pav.orizzontale(contorno, 0, true);
+      pav.orizzontale(buchiPav.length ? poligonoConBuchi(contorno, buchiPav) : contorno, 0, true);
       mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialePavimento(l.destinazione), riferimento: l.id }));
     }
     // all'aperto non c'è soffitto
     if (conSoffitto && !falde && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
       const sof = new CostruttoreMesh();
-      sof.orizzontale(contorno, l.altezza * CM, false);
+      const buchiSof = bucoDi(opzioni.buchiSoffitto);
+      sof.orizzontale(buchiSof.length ? poligonoConBuchi(contorno, buchiSof) : contorno, l.altezza * CM, false);
       mesh.push(sof.mesh({ id: `soffitto:${l.id}`, nome: `Soffitto ${l.nome}`, genere: "soffitto", materiale: "soffitto", riferimento: l.id }));
     }
   }
@@ -247,6 +261,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
           l: el.larghezza !== undefined ? el.larghezza * CM : undefined,
           p: el.profondita !== undefined ? el.profondita * CM : undefined,
           // in mansarda il lucernario sta sulla falda sopra di lui
+          senzaCabina: el.senzaCabina,
           h: el.tipo === "lucernario" && falde ? quotaIn(falde, el.centro.x * CM, el.centro.y * CM) + 0.02
             : el.tipo === "quota_terreno" ? (pianta.terreno?.length ? quotaTerreno(pianta.terreno, el.centro.x, el.centro.y) * CM : 0)
             : el.altezza !== undefined ? el.altezza * CM : undefined,

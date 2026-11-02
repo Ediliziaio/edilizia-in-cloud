@@ -10,6 +10,7 @@ import type { Planimetria } from "../../../../shared/planimetrie/modello.ts";
 import { pianteDaPlanimetria } from "./adattatore";
 import { costruisciScena, limitiDi, meshTerreno } from "./scena";
 import { MATERIALI } from "./materiali";
+import { modelloElemento } from "./elementi";
 import { CostruttoreMesh } from "./costruttore";
 import type { Mesh3D, OpzioniScena, PiantaPer3D, Scena3D } from "./tipi";
 
@@ -38,6 +39,19 @@ export interface OpzioniEdificio extends OpzioniScena {
   finoA?: string;
 }
 
+const MARGINE_BUCO_CM = 6;
+const PASSANTI = ["scala", "ascensore"];
+
+/** L'ingombro (ruotato) di scale e ascensori di un piano, un po' allargato: da lì passa il solaio bucato. */
+function ingombriPassanti(p: PiantaPer3D): Array<Array<{ x: number; y: number }>> {
+  return p.elementi.filter((e) => PASSANTI.includes(e.tipo)).map((e) => {
+    const m = modelloElemento(e.tipo).misure;
+    const l = (e.larghezza ?? m.l * 100) / 2 + MARGINE_BUCO_CM, pr = (e.profondita ?? m.p * 100) / 2 + MARGINE_BUCO_CM;
+    const a = (e.rotazione * Math.PI) / 180, c = Math.cos(a), sn = Math.sin(a);
+    return [[-l, -pr], [l, -pr], [l, pr], [-l, pr]].map(([dx, dz]) => ({ x: e.centro.x + dx * c - dz * sn, y: e.centro.y + dx * sn + dz * c }));
+  });
+}
+
 export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}): Scena3D {
   const vista = opzioni.vista ?? "progetto";
   const fino = opzioni.finoA ? piani.findIndex((p) => p.id === opzioni.finoA) : -1;
@@ -46,8 +60,12 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
   const materiali: Scena3D["materiali"] = {};
   const avvisi: string[] = [];
   const impiantiTot = new Map<string, { linea: string; nome: string; colore: string; metri: number }>();
+  const pianteDi = (p: PianoPer3D) => (vista === "fatto" ? p.piante.fatto : p.piante.progetto);
+  // la cabina dell'ascensore sta al piano terra (quota 0, o il più basso se non c'è)
+  const pianoCabina = scelti.find((p) => p.quota === 0)?.id ?? scelti[0]?.id;
   scelti.forEach((piano, i) => {
-    const base = vista === "fatto" ? piano.piante.fatto : piano.piante.progetto;
+    const base0 = pianteDi(piano);
+    const base = { ...base0, elementi: base0.elementi.map((e) => (e.tipo === "ascensore" && piano.id !== pianoCabina ? { ...e, senzaCabina: true } : e)) };
     // le pareti arrivano fino al piano sopra (lo spessore del solaio): senza, da fuori fra un
     // piano e l'altro resterebbe una fessura
     const sopra = scelti[i + 1];
@@ -58,7 +76,10 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
       : base;
     // il tetto solo sull'ultimo piano mostrato (con «fino a» si scoperchia)
     const conTetto = i === scelti.length - 1 ? pianta : { ...pianta, tetto: undefined };
-    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0 });
+    // la scala e l'ascensore del piano sotto bucano il pavimento, quelli di questo piano il soffitto (se c'è un piano sopra)
+    const buchiPavimento = i > 0 ? ingombriPassanti(pianteDi(scelti[i - 1])) : [];
+    const buchiSoffitto = sopra ? ingombriPassanti(base) : [];
+    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0, buchiPavimento, buchiSoffitto });
     // un attico o un duplex ai piani alti: sotto c'è il resto dell'edificio, in grigio
     if (i === 0 && piano.quota > 100) {
       const l = limitiDi(s.mesh, (g) => g === "muro");

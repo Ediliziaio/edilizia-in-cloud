@@ -55,8 +55,18 @@ describe("edificio più vero nel 3D", () => {
     doc = rinominaLivello(doc, "pt", { tetto: { tipo: "piano", pendenza: 0, sporto: 0 } });
     const s = scenaEdificio(pianiDaPlanimetria(doc), { vista: "fatto", soffitto: true });
     const scala = (pid: string) => s.mesh.some((m) => m.id.startsWith(`${pid}/pavimento:`) && m.nome.includes("Vano scala"));
+    // il piano sopra ha il pavimento del vano scala bucato solo dove passa la scala: meno area di quello sotto
+    const areaPav = (pid: string) => {
+      const m = s.mesh.find((x) => x.id.startsWith(`${pid}/pavimento:`) && x.nome.includes("Vano scala"))!;
+      let a = 0;
+      for (let i = 0; i < m.indici.length; i += 3) {
+        const [p0, p1, p2] = [0, 1, 2].map((k) => ({ x: m.posizioni[m.indici[i + k] * 3], y: m.posizioni[m.indici[i + k] * 3 + 2] }));
+        a += Math.abs((p1.x - p0.x) * (p2.y - p0.y) - (p2.x - p0.x) * (p1.y - p0.y)) / 2;
+      }
+      return a;
+    };
     expect(scala("pt")).toBe(true);
-    expect(scala(doc.livelli[1].id)).toBe(false);
+    expect(areaPav(doc.livelli[1].id)).toBeLessThan(areaPav("pt") - 1);
     expect(s.mesh.filter((m) => m.id.endsWith("/tetto")).map((m) => m.id)).toEqual([`${doc.livelli[1].id}/tetto`]);
     // la scala sale fino al piano sopra (3 m), non i 2,80 del catalogo
     const gradini = s.mesh.filter((m) => m.id.startsWith("pt/") && m.genere !== "muro" && m.genere !== "pavimento" && /scala/i.test(m.nome) && !/vano/i.test(m.nome));
