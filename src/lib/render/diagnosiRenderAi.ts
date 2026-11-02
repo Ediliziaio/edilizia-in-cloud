@@ -60,3 +60,17 @@ export function riassuntoRenderAi(righe: RigaDiagnosi[]): { stato: RigaDiagnosi[
     ? { stato: "ok", frase: "I render partono da OpenAI; se si ferma, subentra OpenRouter." }
     : { stato: "attenzione", frase: "I render partono da OpenAI, ma il ripiego OpenRouter non è verificato: se OpenAI si ferma il render potrebbe fallire." };
 }
+
+/** La prova approfondita del ripiego (`?mode=ripiego`): un'immagine vera passata solo da OpenRouter. */
+export function leggiProvaRipiego(risposta: unknown): { stato: RigaDiagnosi["stato"]; frase: string } {
+  const r = risposta as { ok?: boolean; latencyMs?: number; error?: string } | null;
+  if (!r || typeof r !== "object") return { stato: "attenzione", frase: "La prova non ha restituito risultati." };
+  if (r.ok) {
+    const sec = typeof r.latencyMs === "number" ? ` in ${Math.round(r.latencyMs / 1000)} s` : "";
+    return { stato: "ok", frase: `Il ripiego OpenRouter ha restituito un'immagine vera${sec}: se OpenAI si ferma il render passa da qui.` };
+  }
+  const testo = r.error ?? "";
+  if (/quota|credit|billing|402|429/i.test(testo)) return { stato: "guasto", frase: "Il ripiego è senza credito o quota: va ricaricato OpenRouter." };
+  if (/401|403|invalid api key|unauthorized/i.test(testo)) return { stato: "guasto", frase: "Il ripiego ha la chiave rifiutata: va sostituita." };
+  return { stato: "guasto", frase: testo ? `Il ripiego non restituisce l'immagine: ${testo.slice(0, 120)}` : "Il ripiego non restituisce l'immagine." };
+}

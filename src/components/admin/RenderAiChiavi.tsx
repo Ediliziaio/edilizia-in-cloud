@@ -3,7 +3,7 @@ import { CheckCircle2, KeyRound, Loader2, TriangleAlert, XCircle } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { leggiDiagnosiRenderAi, riassuntoRenderAi, type RigaDiagnosi } from "@/lib/render/diagnosiRenderAi";
+import { leggiDiagnosiRenderAi, leggiProvaRipiego, riassuntoRenderAi, type RigaDiagnosi } from "@/lib/render/diagnosiRenderAi";
 
 const ICONA = { ok: CheckCircle2, attenzione: TriangleAlert, guasto: XCircle } as const;
 const COLORE = { ok: "text-emerald-600", attenzione: "text-amber-600", guasto: "text-red-600" } as const;
@@ -23,6 +23,17 @@ export function RenderAiChiavi() {
     const r = leggiDiagnosiRenderAi(data);
     if (!r.length) { setErrore("La prova non ha restituito risultati."); return; }
     setRighe(r);
+  };
+
+  const [ripiego, setRipiego] = useState<{ stato: RigaDiagnosi["stato"]; frase: string } | null>(null);
+  const [ripiegoInCorso, setRipiegoInCorso] = useState(false);
+
+  const provaRipiego = async () => {
+    setRipiegoInCorso(true);
+    setRipiego(null);
+    const { data, error } = await supabase.functions.invoke("debug-ai-providers?mode=ripiego");
+    setRipiegoInCorso(false);
+    setRipiego(error ? { stato: "guasto", frase: "Non riesco a fare la prova: serve l'accesso da super admin." } : leggiProvaRipiego(data));
   };
 
   const riassunto = righe ? riassuntoRenderAi(righe) : null;
@@ -61,6 +72,17 @@ export function RenderAiChiavi() {
             })}
           </ul>
         )}
+        <div className="space-y-2 border-t pt-3">
+          <Button size="sm" variant="outline" onClick={provaRipiego} disabled={ripiegoInCorso}>
+            {ripiegoInCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+            Prova approfondita del ripiego
+          </Button>
+          {ripiego && (
+            <p className={`flex items-start gap-2 ${COLORE[ripiego.stato]}`}>
+              {(() => { const I = ICONA[ripiego.stato]; return <I className="mt-0.5 h-4 w-4 shrink-0" />; })()}{ripiego.frase}
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

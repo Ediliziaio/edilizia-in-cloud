@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leggiDiagnosiRenderAi, riassuntoRenderAi } from "@/lib/render/diagnosiRenderAi";
+import { leggiDiagnosiRenderAi, leggiProvaRipiego, riassuntoRenderAi } from "@/lib/render/diagnosiRenderAi";
 
 // la risposta vera del 02/11/2026 (chiavi OpenAI e OpenRouter ok, Gemini senza quota, ripiego senza immagine)
 const rispostaVera = {
@@ -42,5 +42,22 @@ describe("diagnosi delle chiavi dei render", () => {
   it("chiave assente o risposta vuota", () => {
     expect(leggiDiagnosiRenderAi({ chain: [{ provider: "openai_direct", api_key_present: false, ok: false }] })[0].frase).toMatch(/non è configurata/);
     expect(leggiDiagnosiRenderAi(null)).toEqual([]);
+  });
+});
+
+describe("leggiProvaRipiego", () => {
+  it("dice che il ripiego funziona con i secondi", () => {
+    const r = leggiProvaRipiego({ ok: true, latencyMs: 41000 });
+    expect(r.stato).toBe("ok");
+    expect(r.frase).toContain("41 s");
+  });
+  it("riconosce credito finito", () => {
+    expect(leggiProvaRipiego({ ok: false, error: "402 insufficient credits" }).stato).toBe("guasto");
+  });
+  it("riconosce chiave rifiutata", () => {
+    expect(leggiProvaRipiego({ ok: false, error: "401 Unauthorized" }).frase).toContain("chiave");
+  });
+  it("risposta vuota = attenzione", () => {
+    expect(leggiProvaRipiego(null).stato).toBe("attenzione");
   });
 });
