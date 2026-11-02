@@ -568,15 +568,37 @@ export function entraNellaScrittura(chiave: string, s: ScritturaCommessa): boole
   }
 }
 
+export interface ClienteDelGestionale { id: string; first_name?: string | null; last_name?: string | null; email?: string | null }
+
+const nomePulito = (t: string | null | undefined) => (t ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
 /**
- * Cosa manca perché «Crea» parta: i conflitti e, se non c'è nessun modo di ritrovare il
- * cliente, il cliente. Le RPC lo ricontrollano; qui serve al pulsante.
+ * Il cliente si ritrova nel gestionale? La stessa ricerca di `_silvio_cliente`: per email, poi
+ * per nome e cognome, e vale solo se ne trova uno. Da un preventivo il cliente può venire
+ * anche dal suo contatto, che qui non si vede: lì decide la RPC.
  */
-export function prontaPerScrivere(s: ScritturaCommessa): string[] {
+export function clienteRitrovabile(s: ScritturaCommessa, clienti: readonly ClienteDelGestionale[]): boolean {
+  if (s.cliente.customer_id || s.preventivo_id) return true;
+  const email = nomePulito(s.cliente.email);
+  if (email.includes("@") && clienti.filter((c) => nomePulito(c.email) === email).length === 1) return true;
+  const nome = nomePulito(s.cliente.nome);
+  if (!nome) return false;
+  return clienti.filter((c) => [`${c.first_name ?? ""} ${c.last_name ?? ""}`, `${c.last_name ?? ""} ${c.first_name ?? ""}`].map(nomePulito).includes(nome)).length === 1;
+}
+
+/**
+ * Cosa manca perché «Crea» parta: i conflitti e il cliente. Con l'elenco dei clienti si sa già
+ * se la RPC lo ritroverà (simulazioni del 2/11: con un cliente nuovo il pulsante era attivo e
+ * la RPC rispondeva «Manca il cliente»); finché l'elenco non è arrivato decide la RPC.
+ */
+export function prontaPerScrivere(s: ScritturaCommessa, clienti?: readonly ClienteDelGestionale[] | null): string[] {
   const out: string[] = [];
   if (s.conflitti > 0) out.push(s.conflitti === 1 ? "C'è un valore in conflitto da decidere" : `Ci sono ${s.conflitti} valori in conflitto da decidere`);
-  if (s.modo === "crea" && !s.cliente.customer_id && !s.preventivo_id && !s.cliente.nome && !s.cliente.email) {
-    out.push("Manca il cliente");
+  if (s.modo === "crea" && !s.cliente.customer_id && !s.preventivo_id) {
+    if (!s.cliente.nome && !s.cliente.email) out.push("Manca il cliente");
+    else if (clienti && !clienteRitrovabile(s, clienti)) {
+      out.push(`${s.cliente.nome ? `«${s.cliente.nome}»` : "Questo cliente"} non è ancora nel gestionale, o ce n'è più d'uno: scegli il cliente o crealo`);
+    }
   }
   if (s.modo === "completa" && !daAggiungere(s)) out.push("Silvio non ha ancora niente da aggiungere");
   return out;

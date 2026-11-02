@@ -65,6 +65,17 @@ export function controlliQuadratura(piano: PianoCommessa): ProblemaQuadratura[] 
   return out;
 }
 
+/**
+ * I conti che non tornano in una bozza ripresa: chi l'ha lasciata aperta non sa che nel frattempo
+ * la commessa è cambiata (simulazioni del 2/11: rate da 25.620 € su 21.960 €). La rilettura le
+ * blocca con il ⚠, ma va detto alla persona. Una riga per variabile, solo quelle bloccate davvero.
+ */
+export function avvisiDiRipresa(piano: PianoCommessa): string[] {
+  return [...new Set(controlliQuadratura(piano)
+    .filter((p) => piano.aree[p.area]?.[p.chiave]?.stato === "attenzione")
+    .map((p) => `Mentre la bozza era ferma qualcosa è cambiato. ${p.testo} Finché il conto non torna, questo dato resta fuori dalla commessa.`))];
+}
+
 // ── Le rate in percentuale che aspettano l'IVA o il totale (revisione 2/11, G9 e G20) ──
 
 const NOTA_SENZA_IVA = "Manca l'IVA: le rate in percentuale sono calcolate sull'imponibile, da rifare quando c'è l'IVA.";

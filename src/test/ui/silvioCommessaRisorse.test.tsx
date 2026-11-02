@@ -19,7 +19,7 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrder
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({
   useCompanyStaffUsers: () => ({ data: [{ id: "c0000000-0000-4000-a000-0000000000c1", first_name: "Carlo", last_name: "Capo", email: null as string | null }] }),
 }));
-vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [{ id: "cliente-prova", first_name: "Cliente", last_name: "Prova", email: null as string | null }] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({
   useVoiceInput: () => ({ recording: false, transcribing: false, recordingMs: 0, toggle: vi.fn() }),
 }));

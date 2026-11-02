@@ -54,6 +54,9 @@
  * Fase 5 (1/11/2026): «sposta» e le fasi nuove della chat seguono il calendario dell'azienda
  * (shared/silvio-commessa/calendario.ts, importato da chat.ts e fondi.ts). Questo commento
  * c'è anche perché il job di deploy ripubblichi la funzione: guarda solo supabase/functions/.
+ *
+ * Simulazioni del 2/11/2026: le fasi con le durate prendono le date in `fondi`, «rifacimento» non
+ * vuol dire ristrutturazione (shared/silvio-commessa/fondi.ts, modelliLavoro.ts, quadratura.ts).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";

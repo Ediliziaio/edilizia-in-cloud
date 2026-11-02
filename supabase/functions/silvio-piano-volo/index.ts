@@ -27,6 +27,8 @@
  * Con `anteprima` legge e calcola, e restituisce cosa scriverebbe senza scrivere niente.
  *
  * Pubblicata con verify_jwt = false (supabase/config.toml): il cron porta x-cron-secret.
+ *
+ * Simulazioni del 2/11/2026: risorse.ts importa fondi.ts, che ora data le fasi con le durate.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

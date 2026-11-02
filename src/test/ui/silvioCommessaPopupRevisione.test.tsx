@@ -17,7 +17,7 @@ import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 const permessi = { canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true };
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permessi }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
-vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [{ id: "cliente-mario", first_name: "Mario", last_name: "Rossi", email: null as string | null }] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({
   useVoiceInput: () => ({ recording: false, transcribing: false, recordingMs: 0, toggle: vi.fn() }),
 }));

@@ -35,7 +35,7 @@ function soloChiaviDelRegistro(fr: Frammento) {
 // ── 1. Preventivo del bagno (preventivatore edile, firmato) ─────────────────
 const bagno = () => frammentoDaPreventivo({
   quote: {
-    id: "q-bagno", quote_number: "PR-0101", title: "Rifacimento bagno", status: "accettato", signed_at: "2026-10-20T10:00:00Z",
+    id: "q-bagno", quote_number: "PR-0101", title: "Rifacimento bagno", status: "accettata", signed_at: "2026-10-20T10:00:00Z",
     source: `modulo:bagni:${PROGETTO_BAGNO}`, subtotal: 9000, discount_amount: 0, vat_amount: 900, total: 9900,
     client_name: "Mario Prova", client_email: "mario@example.test", client_phone: "333 0000000",
   },

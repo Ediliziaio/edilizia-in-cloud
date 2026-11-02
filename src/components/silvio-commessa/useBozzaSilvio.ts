@@ -38,7 +38,7 @@ import type { Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { eAnnulla, eseguiRisposta, pianoPerLaChat, STIMA_CHAT_EUR } from "../../../shared/silvio-commessa/chat.ts";
 import type { FonteDaLink, RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
-  annulla, applica, conScartatiDiNuovoInGioco, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, storiaDopoRilettura, type Passo,
+  annulla, applica, conInizioUtile, conScartatiDiNuovoInGioco, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, storiaDopoRilettura, type Passo,
 } from "../../../shared/silvio-commessa/fondi.ts";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import {
@@ -60,7 +60,7 @@ import {
 } from "@/lib/silvio-commessa/bozze";
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
-import { conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
+import { avvisiDiRipresa, conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
 import { euroAI, pianoProposto, riassuntoFrammento, riservataPerProfilo, stimaLettura, testoValore, vistaPerLaChat } from "./presentazione";
 import type { ServiziSilvioCommessa } from "./servizi";
 
@@ -175,6 +175,16 @@ export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi
     try { ora = applica(ora, m).piano; } catch { /* resta com'è */ }
   };
   for (const m of modifiche) {
+    // Scelta fra due documenti: le fasi senza date le prendono, come se la data l'avesse scritta la persona.
+    if (m.tipo === "scegli_fonte" && m.chiave === "fasi.work_start_date") {
+      metti(m);
+      const scelta = ora.aree.fasi?.[m.chiave]?.valore;
+      const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
+      if (typeof scelta === "string" && !giaNellaCommessa(ora, fasi) && Array.isArray(fasi?.valore) && (fasi!.valore as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
+        metti({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: dateDelleFasi(fasi!.valore as FaseDelPiano[], scelta, ora.calendario), conservaStato: true });
+      }
+      continue;
+    }
     if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
       const { data, avviso } = inizioUtile(m.valore, ora.calendario, oggi);
       const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
@@ -280,6 +290,8 @@ interface Stato {
   base: Frammento[];
   /** Cambiate dalla chat e non ancora guardate: restano segnate. */
   daGuardare: string[];
+  /** Una bozza ripresa: la commessa riletta dopo può far saltare i suoi conti. */
+  ripresa?: boolean;
 }
 
 type Azione =
@@ -378,6 +390,11 @@ function riduttore(s: Stato, a: Azione): Stato {
           ? "Su un valore le fonti non sono d'accordo: l'ho segnato con ⚠, scegli tu."
           : `Su ${nuoviConflitti} valori le fonti non sono d'accordo: li ho segnati con ⚠, scegli tu.`, "avviso");
       }
+      // La commessa riletta dopo una ripresa può far saltare i conti della bozza: lo si dice.
+      if (a.base && s.ripresa) {
+        const gia = new Set(avvisiDiRipresa(s.piano));
+        for (const t of avvisiDiRipresa(piano)) if (!gia.has(t)) conMessaggio(t, "avviso");
+      }
       const avvisi = a.frammenti.flatMap((f) => f.avvisi ?? []);
       return {
         ...s,
@@ -440,16 +457,18 @@ function riduttore(s: Stato, a: Azione): Stato {
       const ripresa = s.base.reduce((p, fr) => fondi(p, fr), a.bozza.piano);
       // Il calendario è quello di adesso, non quello salvato con la bozza.
       const piano = s.piano.calendario ? { ...ripresa, calendario: s.piano.calendario } : ripresa;
+      const ripresaDetta = messaggio(s, "Ho ripreso la bozza com'era: puoi continuare da dove eri rimasto. I documenti che non avevo ancora letto non si salvano: se ne manca uno, ricaricalo.");
       return {
         ...s,
         piano,
+        ripresa: true,
         storia: storiaDopoRilettura(piano, (a.bozza.storia ?? []) as Passo[]),
         caricate: a.bozza.fonti ?? [],
         fonti: piano.fonti.map((f) => ({
           id: nuovoId(), tipo: "ripresa", etichetta: f.etichetta, stato: "fatta", stimaEur: 0, avvisi: [] as string[], tentativo: 0,
           ...(f.id ? { idFonte: f.id } : {}),
         })),
-        messaggi: messaggio(s, "Ho ripreso la bozza com'era: puoi continuare da dove eri rimasto. I documenti che non avevo ancora letto non si salvano: se ne manca uno, ricaricalo."),
+        messaggi: avvisiDiRipresa(piano).reduce((m, t) => messaggio({ ...s, messaggi: m }, t, "avviso"), ripresaDetta),
         versione: s.versione,
       };
     }
@@ -607,7 +626,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       const crediti = f.stimaEur > 0 ? await controllaCrediti(f.stimaEur) : null;
       if (crediti) throw new ErroreBozza(crediti);
       if (f.tipo === "contratto") {
-        const fr = await servizi.frammentoContratto(f.refId!);
+        const fr = conInizioUtile(await servizi.frammentoContratto(f.refId!), opz.calendario);
         invia({ tipo: "frammenti", id: f.id, frammenti: [fr], patch: { etichetta: fr.fonte.etichetta, costoEur: 0, idFonte: fr.fonte.id ?? undefined } });
         return;
       }
