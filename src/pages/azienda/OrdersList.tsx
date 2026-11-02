@@ -62,6 +62,7 @@ import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
+import { RaggruppaDialog } from "@/components/orders/generali/RaggruppaDialog";
 import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
 import { leggiIdGenerali, leggiIncassiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
@@ -85,7 +86,6 @@ function OrdersListInner() {
   // Commesse generali accese da Impostazioni: il bivio «Nuova Commessa» le offre accanto alla commessa normale.
   const { modelli: modelliGenerali, configurata: generaliConfigurate } = useImpostazioniCommesseGenerali();
   const [nuovaGenerale, setNuovaGenerale] = useState<ModelloGenerale | null>(null);
-  const conBivio = appaltatoreEnabled || modelliGenerali.length > 0;
   const mappaGenerali = useMappaGenerali();
   const queryClient = useQueryClient();
   const refreshOrderScope = useCallback(() => {
@@ -98,6 +98,7 @@ function OrdersListInner() {
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
     paymentFilter: { key: "payment", defaultValue: "all" },
+    generaliFilter: { key: "generali", defaultValue: "all" },
     viewMode: { key: "view", defaultValue: (() => { try { return localStorage.getItem("orders-view-mode") || "table"; } catch { return "table"; } })() },
     customerFilter: { key: "cliente", defaultValue: "all" },
     // Annualità corrente completa + pregresso con lavori, assistenza o saldo aperti.
@@ -122,10 +123,16 @@ function OrdersListInner() {
   const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
   const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid" | "overdue";
   const setPaymentFilter = useCallback((v: "all" | "pending" | "paid" | "overdue") => setURLParam("paymentFilter", v), [setURLParam]);
+  const generaliFilter = urlFilters.generaliFilter as "all" | "solo" | "senza";
+  const setGeneraliFilter = useCallback((v: "all" | "solo" | "senza") => setURLParam("generaliFilter", v), [setURLParam]);
   // Su mobile la pipeline (kanban drag) non è usabile e il toggle è hidden sm:flex:
   // un link condiviso ?view=pipeline (o il localStorage del desktop) lasciava il
   // telefono inchiodato sulla pipeline senza via d'uscita → forziamo la tabella.
   const isMobile = useIsMobile();
+  // Da telefono una generale si legge soltanto (piano §3.4): la scelta non si offre.
+  const modelliCreabili = isMobile ? [] : modelliGenerali;
+  const conBivio = appaltatoreEnabled || modelliCreabili.length > 0;
+  const [daRaggruppare, setDaRaggruppare] = useState<string[] | null>(null);
   const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
   const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
   const setViewMode = useCallback((v: "table" | "pipeline") => {
@@ -361,17 +368,17 @@ function OrdersListInner() {
   const focusReady = (!(isYearCorrente || statusFilter === "__assistenza__") || !!globalStats) && (controlFocus === "all" || (!isLoadingGlobalStats && !scopeMarginsPending)) && (paymentIds === null || !!globalStats);
 
   function filterReaderKey() {
-    return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, monthFilter,
+    return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter,
       amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId,
       contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds]);
   }
 
   const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+    generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
     queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
     enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
     placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
@@ -819,7 +826,7 @@ function OrdersListInner() {
     expectedDateRange.from || expectedDateRange.to;
 
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
-    paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
+    paymentFilter !== "all" || generaliFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
     controlFocus !== "all" || (isYearCorrente && scopeGroup !== "all") || hideCompleted || countActiveFilters(sidebarFilters) > 0);
 
@@ -882,6 +889,7 @@ function OrdersListInner() {
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
+    setGeneraliFilter("all");
     setCustomerFilter("all");
     setYearFilter("corrente");
     setAmountMin("");
@@ -910,7 +918,7 @@ function OrdersListInner() {
   };
 
   // Reset page to 1 when any filter changes
-  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${scopeGroup}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${generaliFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${scopeGroup}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
   // Il reset e' intenzionale: evita di lasciare l'utente su una pagina vuota
   // quando un filtro server-side riduce il numero totale di risultati.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1742,6 +1750,8 @@ function OrdersListInner() {
             availableYears={availableYears}
             paymentFilter={paymentFilter}
             onPaymentFilterChange={setPaymentFilter}
+            generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
+            onGeneraliFilterChange={setGeneraliFilter}
             monthFilter={monthFilter}
             onMonthFilterChange={handleMonthChange}
             hasAnyFilter={hasAnyFilter}
@@ -1855,6 +1865,7 @@ function OrdersListInner() {
                 laborMap={laborMap}
                 supplierMap={supplierMap}
                 mappaGenerali={mappaGenerali}
+                onRaggruppa={modelliCreabili.length > 0 && orderPerms.canEditOrders ? setDaRaggruppare : undefined}
               />
               {controlFocus === "all" && totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
@@ -1901,7 +1912,7 @@ function OrdersListInner() {
         open={showOrderTypeDialog}
         onOpenChange={setShowOrderTypeDialog}
         appaltatore={appaltatoreEnabled}
-        modelliGenerali={modelliGenerali}
+        modelliGenerali={modelliCreabili}
         onScegliGenerale={setNuovaGenerale}
       />
       <NuovaGeneraleDialog
@@ -1910,6 +1921,15 @@ function OrdersListInner() {
         modelli={modelliGenerali}
         iniziale={nuovaGenerale}
       />
+      {daRaggruppare && (
+        <RaggruppaDialog
+          righe={rawOrders.filter((o) => daRaggruppare.includes(o.id))}
+          modelli={modelliGenerali}
+          mappa={mappaGenerali}
+          mostraImporti={orderPerms.canViewOrderAmounts}
+          onClose={() => setDaRaggruppare(null)}
+        />
+      )}
     </div>
   );
 }

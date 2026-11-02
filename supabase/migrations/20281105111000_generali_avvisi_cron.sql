@@ -1,12 +1,8 @@
 -- Il giro degli avvisi delle commesse generali, ogni ora dalle 6 alle 19 (ora di Roma, circa).
 --
--- NON è in supabase/migrations apposta: va acceso DOPO che la edge function generali-avvisi
--- è pubblicata (CLAUDE.md: un cron che dipende da una funzione si accende con una migrazione
--- successiva al deploy). Ordine:
---   1. 20281105110000_generali_avvisi (tabelle, preferenze, funzioni SQL) — va col push;
---   2. pubblicazione di generali-avvisi (job «Deploy edge functions» al push su main);
---   3. prova senza effetti: POST {"anteprima": true} con x-cron-secret → nessuna scrittura, nessuna email;
---   4. questo file: spostarlo in supabase/migrations, applicarlo con apply_migration e riallineare la versione.
+-- Acceso DOPO la pubblicazione della edge function generali-avvisi
+-- (CLAUDE.md: un cron che dipende da una funzione si accende con una migrazione successiva al deploy).
+-- Anteprima fatta il 02/11/2026 ({"anteprima": true}): 200, nessun errore, 3 generali guardate.
 --
 -- Una generale si guarda una volta al giorno; ogni giro ne prende al massimo 20 (le meno
 -- recenti) e manda al massimo 25 email, dalle 7. La funzione risponde a pg_net entro 5 secondi

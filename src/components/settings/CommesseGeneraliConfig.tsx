@@ -1,9 +1,16 @@
 // src/components/settings/CommesseGeneraliConfig.tsx
 // Impostazioni → Commesse generali: quali tipi l'azienda usa. Spento = la scelta non compare
 // da nessuna parte; le generali già create restano visibili e si possono ancora usare.
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
 import { AmbitoImpostazione, RigaInterruttore, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,11 +45,16 @@ function useGeneraliPerModello() {
 export default function CommesseGeneraliConfig({ puoModificare, evidenziata = false }: { puoModificare: boolean; evidenziata?: boolean }) {
   const { modelli, disponibile, isLoading, salva } = useImpostazioniCommesseGenerali();
   const { data: conti = {} } = useGeneraliPerModello();
+  const permissions = usePermissions();
+  const isMobile = useIsMobile();
+  // Appena acceso un tipo si può creare la prima generale da qui, senza cercare dove.
+  const puoCreare = !!permissions.canEditOrders && !isMobile;
+  const [nuova, setNuova] = useState<ModelloGenerale | null>(null);
 
   const cambia = (m: ModelloGenerale, acceso: boolean) => {
     const scelti = acceso ? [...modelli, m] : modelli.filter((x) => x !== m);
     salva.mutate(scelti, {
-      onSuccess: () => toast.success(acceso ? `«${DEFINIZIONI_MODELLI[m].nome}» è attivo: lo trovi in «Nuova commessa»` : `«${DEFINIZIONI_MODELLI[m].nome}» è spento`),
+      onSuccess: () => toast.success(acceso ? `«${DEFINIZIONI_MODELLI[m].nome}» è attivo` : `«${DEFINIZIONI_MODELLI[m].nome}» è spento`),
       onError: (e) => toast.error(messaggioGenerale(e, "questa impostazione")),
     });
   };
@@ -50,8 +62,8 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
   return (
     <SezioneImpostazione
       id="tipi"
-      titolo="Tipi di commessa generale"
-      descrizione="Una commessa generale raccoglie più commesse e ne somma i numeri. Accendi solo i tipi che usi: gli altri non compaiono da nessuna parte."
+      titolo="Come lavori?"
+      descrizione="Accendi quello che fai: una commessa generale raccoglie più commesse e ne somma i numeri. Quello che resta spento non compare da nessuna parte."
       ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
       azione={<span>Si salva subito</span>}
       evidenziata={evidenziata}
@@ -77,9 +89,24 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
             disabled={!puoModificare || !disponibile || isLoading || salva.isPending}
             onCheckedChange={(v) => cambia(m, v)}
           >
-            <p className="mt-1 text-xs text-muted-foreground">
-              Dentro ci sono {def.figlia.tante.toLowerCase()}. Esempio: {def.esempio}.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Esempio: {def.esempio}.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{def.comprende}</p>
+            {acceso && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {puoCreare && (
+                  <Button type="button" size="sm" variant={esistenti > 0 ? "outline" : "default"} onClick={() => setNuova(m)}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> {esistenti > 0 ? "Creane un'altra" : "Crea la prima"}
+                  </Button>
+                )}
+                {esistenti > 0 && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link to="/azienda/ordini?generali=solo">
+                      {esistenti === 1 ? "Vedi quella che hai" : `Vedi le ${esistenti} che hai`} <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            )}
             {!acceso && esistenti > 0 && (
               <p className="mt-1 text-xs text-muted-foreground">
                 {esistenti === 1 ? "Hai già una commessa generale di questo tipo: resta visibile." : `Hai già ${esistenti} commesse generali di questo tipo: restano visibili.`}
@@ -88,6 +115,14 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
           </RigaInterruttore>
         );
       })}
+      {puoCreare && (
+        <NuovaGeneraleDialog
+          open={nuova !== null}
+          onOpenChange={(aperta) => { if (!aperta) setNuova(null); }}
+          modelli={modelli}
+          iniziale={nuova}
+        />
+      )}
     </SezioneImpostazione>
   );
 }

@@ -7,8 +7,7 @@
 // schede accanto a «Panoramica», solo quando sono pronti e accesi dal modello (schede.tsx).
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, Info, Link2, MoreHorizontal, Pencil, Plus, Unlink } from "lucide-react";
-import { toast } from "sonner";
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, Info, Link2, MoreHorizontal, Pencil, Plus, Unlink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -17,15 +16,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CollegaCommesseDialog } from "@/components/orders/generali/CollegaCommesseDialog";
 import { ModificaGeneraleDialog } from "@/components/orders/generali/ModificaGeneraleDialog";
 import { BottoneRendiconto } from "@/components/orders/generali/rendiconto/RendicontoGenerale";
-import { schedeDelModello } from "@/components/orders/generali/schede";
+import { PerPartire } from "@/components/orders/generali/PerPartire";
+import { riquadriDelModello, schedeDelModello } from "@/components/orders/generali/schede";
+import { SpostaFigliaDialog, type AzioneFiglia } from "@/components/orders/generali/SpostaFigliaDialog";
+import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { useQuoteCostiComuni, type QuoteCostiComuni } from "@/hooks/useQuoteCostiComuni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
-import { messaggioGenerale, useRiepilogoGenerale, useScollegaCommessa } from "@/hooks/useCommesseGenerali";
+import { useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
 import {
   DEFINIZIONI_MODELLI, avvisiGenerale, formattaEuro, quota, totaliGenerale,
   type FigliaGenerale, type RiepilogoGenerale, type TotaliGenerale,
 } from "@/lib/orders/commesseGenerali";
+import { totaliSal } from "@/lib/orders/generali/contratto";
 import { cn } from "@/lib/utils";
 
 const euro = (n: number | null) => (n === null ? "—" : formattaEuro(n));
@@ -70,6 +73,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   // Il cliente della generale arriva già scelto nella commessa nuova (customer_id è letto da CreateOrder).
   const nuovaFiglia = () => navigate(`/azienda/ordini/nuovo?generale=${generaleId}${r.generale.clienteId ? `&customer_id=${r.generale.clienteId}` : ""}`);
   const schede = schedeDelModello(r.generale.modello, isMobile);
+  const riquadri = riquadriDelModello(r.generale.modello);
   const propsScheda = { riepilogo: r, totali, puoModificare };
   // La scheda aperta sta nell'indirizzo (?scheda=piano): si può mandare un link e tornare indietro.
   const richiesta = parametri.get("scheda");
@@ -86,7 +90,9 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
       <NumeriChiave r={r} t={totali} quote={quote} />
 
-      {schede.map((x) => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
+      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
+
+      {riquadri.map((x) => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
 
       {avvisi.length > 0 && (
         <section aria-label="Cosa richiede attenzione" className="space-y-1.5">
@@ -196,9 +202,14 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 function Scala({ r, t }: { r: RiepilogoGenerale; t: TotaliGenerale }) {
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const conValore = r.generale.valore !== null;
+  const appalto = r.generale.modello === "appalto";
+  // Il SAL è del contratto: la riga c'è solo per l'appalto, e sparisce se la lettura non riesce.
+  const contratto = useDatiContratto(r.generale.id, appalto);
+  const aSal = appalto && contratto.data ? totaliSal(contratto.data.sal).aSal : null;
   const righe = [
-    { etichetta: r.generale.modello === "appalto" ? "Assegnato agli ordini" : "Prezzi delle unità", valore: t.assegnato, tono: "bg-primary/25" },
+    { etichetta: appalto ? "Assegnato agli ordini" : "Prezzi delle unità", valore: t.assegnato, tono: "bg-primary/25" },
     { etichetta: "Eseguito", valore: t.eseguito, tono: "bg-primary/45" },
+    ...(aSal !== null ? [{ etichetta: "A SAL", valore: aSal, tono: "bg-primary/60" }] : []),
     { etichetta: "Fatturato", valore: t.fatturato, tono: "bg-primary/70" },
     { etichetta: "Incassato", valore: t.incassato, tono: "bg-primary" },
   ];
@@ -310,17 +321,14 @@ function TabellaFiglie({ r, t, puoModificare, quote }: { r: RiepilogoGenerale; t
   // Il margine di ogni commessa è «pieno»: meno la sua quota dei costi comuni, se ce ne sono.
   const conQuote = !!quote && quote.totale > 0;
   const pieno = (f: FigliaGenerale) => (f.margine === null ? null : f.margine - (quote?.perFiglia.get(f.id)?.importo ?? 0));
-  const scollega = useScollegaCommessa();
+  const [azione, setAzione] = useState<{ figlia: FigliaGenerale; tipo: AzioneFiglia } | null>(null);
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const p = r.permessi;
-  const rendiIndipendente = (f: FigliaGenerale) => {
-    scollega.mutate(f.id, {
-      onSuccess: () => toast.success(`${f.codice ?? f.nome} ora è una commessa indipendente`),
-      onError: (e) => toast.error(messaggioGenerale(e, "la commessa")),
-    });
-  };
   return (
     <div className="overflow-x-auto">
+      {azione && (
+        <SpostaFigliaDialog riepilogo={r} totali={t} figlia={azione.figlia} azione={azione.tipo} onClose={() => setAzione(null)} />
+      )}
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
@@ -372,7 +380,10 @@ function TabellaFiglie({ r, t, puoModificare, quote }: { r: RiepilogoGenerale; t
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild><Link to={`/azienda/ordini/${f.id}`}>Apri</Link></DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => rendiIndipendente(f)} disabled={scollega.isPending}>
+                      <DropdownMenuItem onClick={() => setAzione({ figlia: f, tipo: "sposta" })}>
+                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Sposta in un'altra generale
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setAzione({ figlia: f, tipo: "togli" })}>
                         <Unlink className="mr-2 h-4 w-4" /> Togli da questa generale
                       </DropdownMenuItem>
                     </DropdownMenuContent>

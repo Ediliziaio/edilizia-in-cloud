@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useGeneraleDellaCommessa, useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
 import { nomeCriterio, useQuoteCostiComuni } from "@/hooks/useQuoteCostiComuni";
-import { DEFINIZIONI_MODELLI, formattaEuro } from "@/lib/orders/commesseGenerali";
+import { DEFINIZIONI_MODELLI, formattaEuro, quota as quotaDi } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
 
 export function PercorsoGenerale({ orderId }: { orderId: string }) {
@@ -21,6 +21,8 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
   const quota = quote?.perFiglia.get(orderId) ?? null;
   const mostraQuota = !!quote && quote.totale > 0 && !!quota && !!r?.permessi.margini && !figlia?.divisa;
   const pieno = figlia?.margine != null && quota ? figlia.margine - quota.importo : null;
+  const valore = r?.permessi.importi ? r.generale.valore : null;
+  const sulValore = figlia?.importo != null && valore ? quotaDi(figlia.importo, valore) : null;
 
   const def = g.modello ? DEFINIZIONI_MODELLI[g.modello] : null;
   const indice = g.sorelle.findIndex((s) => s.id === orderId);
@@ -43,6 +45,11 @@ export function PercorsoGenerale({ orderId }: { orderId: string }) {
             <span className="font-medium">{[g.codice, g.nome].filter(Boolean).join(" · ")}</span>
           </span>
         </Link>
+        {sulValore !== null && (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {formattaEuro(figlia!.importo!)} · {Math.round(sulValore)}% di {formattaEuro(valore!)}
+          </span>
+        )}
 
         {g.sorelle.length > 1 && indice >= 0 && (
           <div className="ml-auto flex items-center gap-1">

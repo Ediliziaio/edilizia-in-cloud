@@ -2,6 +2,7 @@
 // Il riquadro degli investitori in Panoramica: capitale raccolto dalle fonti contro il
 // capitale massimo impegnato del piano, e il rendimento atteso. Lo vede chi vede i margini.
 import { useSearchParams } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +24,8 @@ function Numero({ etichetta, valore, nota, tono }: { etichetta: string; valore: 
 export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
   const inv = useGeneraleInvestitori(riepilogo);
   const [parametri, setParametri] = useSearchParams();
+  // Da telefono la scheda non c'è: il riquadro si legge e basta.
+  const telefono = useIsMobile();
   if (!riepilogo.permessi.margini || inv.isError) return null;
 
   const apri = () => {
@@ -34,9 +37,11 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
   const intestazione = (
     <div className="flex items-center justify-between gap-2">
       <h2 className="text-sm font-semibold">Investitori</h2>
-      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
-        Apri gli investitori <ArrowRight className="ml-1 h-3.5 w-3.5" />
-      </Button>
+      {!telefono && (
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={apri}>
+          Apri gli investitori <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      )}
     </div>
   );
 

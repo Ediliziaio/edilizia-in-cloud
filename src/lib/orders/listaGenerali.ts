@@ -44,3 +44,41 @@ export function raggruppaGenerali<T extends { id: string }>(
 /** La somma di un numero sulle commesse dentro: i totali della riga della generale. */
 export const sommaFiglie = <T>(figlie: readonly T[], valore: (o: T) => number): number =>
   Math.round(figlie.reduce((t, o) => t + (Number.isFinite(valore(o)) ? valore(o) : 0), 0) * 100) / 100;
+
+/** Cosa cambia nei totali di una generale quando una commessa esce (-1) o entra (+1). */
+export function effettoSpostamento(
+  t: { assegnato: number | null; daAssegnare: number | null },
+  importo: number | null,
+  verso: 1 | -1,
+): { assegnatoDopo: number | null; daAssegnareDopo: number | null } {
+  const delta = (importo ?? 0) * verso;
+  const tondo = (n: number) => Math.round(n * 100) / 100;
+  return {
+    assegnatoDopo: t.assegnato === null ? null : tondo(t.assegnato + delta),
+    daAssegnareDopo: t.daAssegnare === null ? null : tondo(t.daAssegnare - delta),
+  };
+}
+
+export interface RigaRaggruppo { id: string; customer_id?: string | null; total_amount?: number | null }
+
+/**
+ * Il controllo prima di raggruppare commesse in una generale nuova (F8): il cliente se è uno
+ * solo, l'importo totale, e cosa non si può mettere dentro. Una generale non entra in un'altra:
+ * si fermerebbe il database, quindi lo si dice prima.
+ */
+export function controllaRaggruppo(
+  righe: readonly RigaRaggruppo[],
+  mappa: { figliePerGenerale: ReadonlyMap<string, number>; generaleDellaFiglia: ReadonlyMap<string, unknown> },
+) {
+  const buone = righe.filter((r) => !mappa.figliePerGenerale.has(r.id));
+  const clienti = [...new Set(buone.map((r) => r.customer_id).filter((c): c is string => !!c))];
+  const senzaCliente = buone.some((r) => !r.customer_id);
+  return {
+    commesse: buone.map((r) => r.id),
+    generaliEscluse: righe.length - buone.length,
+    giaInUnaGenerale: buone.filter((r) => mappa.generaleDellaFiglia.has(r.id)).length,
+    clienteUnico: clienti.length === 1 && !senzaCliente ? clienti[0] : null,
+    clientiDiversi: clienti.length > 1,
+    totale: Math.round(buone.reduce((s, r) => s + (Number(r.total_amount) || 0), 0) * 100) / 100,
+  };
+}

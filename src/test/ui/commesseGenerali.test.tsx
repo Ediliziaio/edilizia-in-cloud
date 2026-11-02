@@ -11,6 +11,7 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 const m = vi.hoisted(() => ({
   riepilogo: null as RiepilogoGenerale | null,
   mobile: false,
+  contratto: undefined as undefined | { sal: { diContratto: boolean; stato: string; numero: number; cumulativo: number; netto: number; al: string | null }[] },
   canEditOrders: true,
   modelli: [] as string[],
   salva: vi.fn(),
@@ -19,6 +20,8 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/useQuoteCostiComuni", () => ({ useQuoteCostiComuni: () => m.quote }));
 
+vi.mock("@/hooks/useGeneraleContratto", () => ({ useDatiContratto: () => ({ data: m.contratto }) }));
+vi.mock("@/components/orders/generali/PerPartire", () => ({ PerPartire: (): ReactElement => <p>Per partire</p> }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: m.canEditOrders, isLoading: false }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -79,6 +82,7 @@ const disegna = () => render(<MemoryRouter><CommessaGeneraleDettaglio generaleId
 beforeEach(() => {
   m.riepilogo = riepilogo();
   m.mobile = false;
+  m.contratto = undefined;
   m.canEditOrders = true;
   m.modelli = [];
   m.salva.mockReset();
@@ -179,10 +183,29 @@ describe("le schede dei moduli", () => {
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
-  it("da telefono una scheda che non lo dichiara non compare", () => {
+  it("da telefono una scheda che non lo dichiara non compare, ma il suo riquadro in Panoramica sì", () => {
     m.mobile = true;
     disegna();
     expect(screen.queryByRole("tab", { name: "Contratto e SAL" })).not.toBeInTheDocument();
+    expect(screen.getByText("Riquadro del contratto")).toBeInTheDocument();
+  });
+
+  it("nell'appalto la barra che scala ha anche «A SAL», appena c'è il contratto", () => {
+    disegna();
+    expect(screen.queryByText("A SAL")).not.toBeInTheDocument();
+    cleanup();
+    m.contratto = { sal: [{ diContratto: true, stato: "emesso", numero: 1, cumulativo: 40_000, netto: 36_000, al: "2026-10-01" }] };
+    disegna();
+    expect(screen.getByText("A SAL").closest("div")).toHaveTextContent(/40\.000/);
+  });
+
+  it("«Per partire» è per chi può fare i passi, non per chi legge da telefono", () => {
+    disegna();
+    expect(screen.getByText("Per partire")).toBeInTheDocument();
+    cleanup();
+    m.mobile = true;
+    disegna();
+    expect(screen.queryByText("Per partire")).not.toBeInTheDocument();
   });
 });
 

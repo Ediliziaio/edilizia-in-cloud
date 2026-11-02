@@ -26,6 +26,7 @@ import { TONI, dataBreve, euro, euroSegno, nomeMese, tonoScostamento } from "@/c
 import {
   messaggioPiano, useApprovaPiano, useEliminaBozzaPiano, useGeneralePianoNumeri, useNuovaVersionePiano,
 } from "@/hooks/useGeneralePiano";
+import { meseCorrente } from "@/lib/orders/generali/avvio";
 import type { RigaReale, Scenario } from "@/lib/orders/generali/pianoConti";
 import type { VersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { cn } from "@/lib/utils";
@@ -34,11 +35,6 @@ type Vista = "voci" | "cassa" | "comuni" | "andamento";
 
 const nomeVersione = (v: VersionePiano) =>
   `Versione ${v.numero} · ${v.stato === "bozza" ? "bozza" : v.stato === "approvata" ? `approvata${v.approvataIl ? ` il ${dataBreve(v.approvataIl)}` : ""}` : "superata"}`;
-
-const questoMese = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
 
 export function PianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
   const g = riepilogo.generale;
@@ -85,7 +81,7 @@ export function PianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
       <PrimoPiano
         riepilogo={riepilogo}
         puoModificare={puoModificare}
-        mese={questoMese()}
+        mese={meseCorrente()}
         onCreato={(id, apriIncolla) => {
           setVersioneId(id);
           if (apriIncolla) setIncolla(true);

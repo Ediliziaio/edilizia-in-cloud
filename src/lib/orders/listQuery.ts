@@ -20,6 +20,8 @@ export interface OrdersReaderFilters {
   hasSelectedYear: boolean; selectedYear: number | null;
   contractDateRange: DateRange; warehouseDateRange: DateRange; expectedDateRange: DateRange;
   sortField: string; sortDir: "asc" | "desc";
+  /** «solo» = le generali e ciò che contengono; «senza» = le commesse fuori da ogni generale. */
+  generaliFilter?: "all" | "solo" | "senza";
 }
 
 /** The same scoped reader serves table, pipeline and exports. Filters precede range. */
@@ -116,6 +118,8 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         .is("deleted_at", null);
 
       if (allowedOrderIds !== null && allowedOrderIds.length <= 100) query = query.in("id", allowedOrderIds);
+      if (filters.generaliFilter === "solo") query = query.or("workflow_kind.eq.generale,commessa_generale_id.not.is.null");
+      if (filters.generaliFilter === "senza") query = query.or("workflow_kind.neq.generale").or("commessa_generale_id.is.null");
       if (sf.includeStatuses.length) query = query.in("current_status_id", sf.includeStatuses);
       if (sf.excludeStatuses.length) query = query.or(`current_status_id.not.in.(${sf.excludeStatuses.join(",")}),current_status_id.is.null`);
       if (sf.orderSearch.trim()) {

@@ -21,6 +21,8 @@ export interface DefinizioneModello {
   /** Come si chiama chi sta sopra: il committente o nessuno (l'operazione è dell'azienda). */
   cliente: { etichetta: string; facoltativo: boolean };
   esempio: string;
+  /** Cosa si accende con questo tipo, detto in una riga in Impostazioni. */
+  comprende: string;
 }
 
 export const DEFINIZIONI_MODELLI: Record<ModelloGenerale, DefinizioneModello> = {
@@ -32,6 +34,7 @@ export const DEFINIZIONI_MODELLI: Record<ModelloGenerale, DefinizioneModello> = 
     valore: { etichetta: "Valore del contratto", aiuto: "L'importo del contratto con il committente. Le commesse dentro lo «scalano»." },
     cliente: { etichetta: "Committente", facoltativo: false },
     esempio: "Appalto manutenzione scuole 2027 — 3.000.000 €",
+    comprende: "Contratto e SAL · Budget · Documenti",
   },
   sviluppo: {
     id: "sviluppo",
@@ -41,6 +44,7 @@ export const DEFINIZIONI_MODELLI: Record<ModelloGenerale, DefinizioneModello> = 
     valore: { etichetta: "Ricavi previsti", aiuto: "Quanto pensi di incassare vendendo tutte le unità." },
     cliente: { etichetta: "Società dell'operazione", facoltativo: true },
     esempio: "Residenza Via Roma — 6 appartamenti",
+    comprende: "Unità e vendite · Business plan · Investitori e banca · Documenti",
   },
   compravendita: {
     id: "compravendita",
@@ -50,6 +54,7 @@ export const DEFINIZIONI_MODELLI: Record<ModelloGenerale, DefinizioneModello> = 
     valore: { etichetta: "Ricavi previsti", aiuto: "Quanto pensi di incassare rivendendo." },
     cliente: { etichetta: "Società dell'operazione", facoltativo: true },
     esempio: "Appartamento Corso Italia — diviso in due",
+    comprende: "Unità e vendite · Piano dell'operazione · Investitori e banca · Documenti",
   },
 };
 

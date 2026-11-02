@@ -67,6 +67,8 @@ interface OrdersTableProps {
   supplierMap?: Map<string, string[]>;
   /** Chi è una commessa generale e chi sta dentro quale (useMappaGenerali). */
   mappaGenerali?: MappaGenerali;
+  /** Se c'è, le commesse scelte si possono raggruppare in una commessa generale nuova. */
+  onRaggruppa?: (orderIds: string[]) => void;
 }
 
 const SENZA_GENERALI: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
@@ -100,6 +102,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   laborMap = new Map(),
   supplierMap = new Map(),
   mappaGenerali = SENZA_GENERALI,
+  onRaggruppa,
 }: OrdersTableProps) {
   const sortAccessors = useMemo(() => ({
     order_code: (o: OrderWithDetails) => o.order_code || "",
@@ -354,6 +357,13 @@ export const OrdersTable = React.memo(function OrdersTable({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          )}
+
+          {onRaggruppa && (
+            <Button variant="outline" size="sm" onClick={() => onRaggruppa(Array.from(selectedIds))}>
+              <Layers className="h-4 w-4 mr-1" />
+              Raggruppa in una generale
+            </Button>
           )}
 
           <Button variant="ghost" size="sm" onClick={clearSelection} className="ml-auto">

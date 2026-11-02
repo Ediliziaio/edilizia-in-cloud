@@ -165,6 +165,13 @@ export function useCommesseCollegabili(generaleId: string | undefined, enabled: 
   });
 }
 
+/** Una commessa è entrata o uscita da una generale: tutto ciò che lo mostra va riletto, anche la generale da cui è uscita. */
+function invalidaAppartenenza(qc: ReturnType<typeof useQueryClient>) {
+  for (const queryKey of [chiaviGenerali.tutte, ["commesse-collegabili"], ["order-contract-link"], ["mappa-commesse-generali"], ["generale-della-commessa"], ["orders"]]) {
+    void qc.invalidateQueries({ queryKey });
+  }
+}
+
 export function useCollegaCommesse(generaleId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -174,10 +181,7 @@ export function useCollegaCommesse(generaleId: string) {
       return typeof data === "number" ? data : 0;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: chiaviGenerali.riepilogo(generaleId) });
-      void qc.invalidateQueries({ queryKey: ["commesse-collegabili"] });
-      void qc.invalidateQueries({ queryKey: ["order-contract-link"] });
-      void qc.invalidateQueries({ queryKey: ["orders"] });
+      invalidaAppartenenza(qc);
     },
   });
 }
@@ -190,10 +194,75 @@ export function useScollegaCommessa() {
       if (error) throw error;
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: chiaviGenerali.tutte });
-      void qc.invalidateQueries({ queryKey: ["commesse-collegabili"] });
-      void qc.invalidateQueries({ queryKey: ["order-contract-link"] });
-      void qc.invalidateQueries({ queryKey: ["orders"] });
+      invalidaAppartenenza(qc);
+    },
+  });
+}
+
+/** Sposta una commessa in un'altra generale: collegarla la toglie da quella in cui stava. */
+export function useSpostaCommessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ generaleId, commessaId }: { generaleId: string; commessaId: string }) => {
+      const { error } = await db.rpc("commessa_generale_collega", { p_generale_id: generaleId, p_commesse: [commessaId] });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidaAppartenenza(qc),
+  });
+}
+
+/**
+ * Una generale nuova con dentro commesse che esistono già. Sono due passi: se il secondo non riesce
+ * la generale resta, vuota, e chi chiama lo dice (le commesse si collegano dalla sua pagina).
+ */
+export function useRaggruppaCommesse() {
+  const crea = useCreaGenerale();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ nuova, commesse }: { nuova: NuovaGenerale; commesse: string[] }): Promise<{ id: string; collegate: boolean }> => {
+      const id = await crea.mutateAsync(nuova);
+      const { error } = await db.rpc("commessa_generale_collega", { p_generale_id: id, p_commesse: commesse });
+      return { id, collegate: !error };
+    },
+    onSuccess: () => invalidaAppartenenza(qc),
+  });
+}
+
+/** Le altre generali dell'azienda, per spostarci una commessa. */
+export function useAltreGenerali(generaleId: string, enabled: boolean) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  return useQuery({
+    queryKey: ["altre-generali", companyId, generaleId],
+    enabled: !!companyId && enabled,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("orders")
+        .select("id, order_code, description")
+        .eq("company_id", companyId!)
+        .eq("workflow_kind", "generale")
+        .is("deleted_at", null)
+        .neq("id", generaleId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as { id: string; order_code: string | null; description: string | null }[];
+    },
+  });
+}
+
+/** Quante misure del contratto ha la commessa: restano nel contratto di partenza se la si sposta. */
+export function useMisureDellaCommessa(figliaId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["misure-della-commessa", figliaId],
+    enabled,
+    staleTime: 30_000,
+    meta: { silent: true },
+    queryFn: async (): Promise<number> => {
+      const { count, error } = await db.from("generale_misure").select("id", { count: "exact", head: true }).eq("figlia_id", figliaId);
+      if (error) throw error;
+      return count ?? 0;
     },
   });
 }

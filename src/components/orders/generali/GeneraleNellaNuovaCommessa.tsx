@@ -33,6 +33,11 @@ export function GeneraleNellaNuovaCommessa({ generaleId, importo }: { generaleId
             {c && (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {[c.riferimento && `Contratto ${c.riferimento}`, c.cig && `CIG ${c.cig}`, c.cup && `CUP ${c.cup}`].filter(Boolean).join(" · ")}
+                {" · "}
+                {/* In un'altra scheda: la commessa che si sta scrivendo non si perde. */}
+                <Link to={`/azienda/ordini/${generaleId}?scheda=contratto`} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">
+                  Modifica nel contratto
+                </Link>
               </p>
             )}
           </div>
