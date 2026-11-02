@@ -277,6 +277,8 @@ export interface MappaGenerali {
    * che non passano da rate e fatture. Facoltativa: manca dove non ci sono unità.
    */
   incassiUnita?: Map<string, number>;
+  /** Le permute delle unità: pagano il prezzo senza essere un incasso, quindi tolgono solo dal «da incassare». */
+  permuteUnita?: Map<string, number>;
 }
 
 const MAPPA_VUOTA: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
@@ -313,8 +315,8 @@ export function useMappaGenerali(): MappaGenerali {
           figliePerGenerale.set(r.commessa_generale_id, (figliePerGenerale.get(r.commessa_generale_id) ?? 0) + 1);
           generaleDellaFiglia.set(r.id, { id: r.commessa_generale_id, etichetta: generali.get(r.commessa_generale_id)! });
         }
-        const incassiUnita = await leggiIncassiUnita(companyId!);
-        return { figliePerGenerale, generaleDellaFiglia, incassiUnita };
+        const { incassi: incassiUnita, permute: permuteUnita } = await leggiMovimentiUnita(companyId!);
+        return { figliePerGenerale, generaleDellaFiglia, incassiUnita, permuteUnita };
       } catch {
         return MAPPA_VUOTA;
       }
@@ -356,7 +358,7 @@ export function useGeneraleDellaCommessa(orderId: string | undefined) {
         const generaleId = figlia?.commessa_generale_id as string | null | undefined;
         if (error || !generaleId) return null;
         const [g, scheda, sorelle] = await Promise.all([
-          db.from("orders").select("id, order_code, description").eq("id", generaleId).eq("company_id", companyId!).maybeSingle(),
+          db.from("orders").select("id, order_code, description").eq("id", generaleId).eq("company_id", companyId!).is("deleted_at", null).maybeSingle(),
           db.from("commesse_generali").select("modello").eq("order_id", generaleId).maybeSingle(),
           db.from("orders").select("id, order_code, description")
             .eq("company_id", companyId!).eq("commessa_generale_id", generaleId).is("deleted_at", null)
@@ -468,15 +470,19 @@ export function useIncassiUnita(orderId: string | undefined) {
     enabled: !!orderId && !!effectiveCompany?.id && configurata,
     staleTime: 30_000,
     meta: { silent: true },
-    queryFn: async (): Promise<number> => {
+    queryFn: async (): Promise<{ incassi: number; permute: number }> => {
+      const vuoto = { incassi: 0, permute: 0 };
       try {
         const { data: u, error } = await db.from("unita_immobiliari").select("id").eq("order_id", orderId!).maybeSingle();
-        if (error || !u) return 0;
-        const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo").eq("unita_id", (u as { id: string }).id).in("tipo", ["caparra", "acconto", "saldo"]);
-        if (e2) return 0;
-        return ((m ?? []) as { importo: number | string }[]).reduce((t, x) => t + Number(x.importo || 0), 0);
+        if (error || !u) return vuoto;
+        const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo, tipo").eq("unita_id", (u as { id: string }).id);
+        if (e2) return vuoto;
+        return ((m ?? []) as { importo: number | string; tipo: string }[]).reduce(
+          (t, x) => (x.tipo === "permuta" ? { ...t, permute: t.permute + Number(x.importo || 0) } : { ...t, incassi: t.incassi + Number(x.importo || 0) }),
+          vuoto,
+        );
       } catch {
-        return 0;
+        return vuoto;
       }
     },
   });
@@ -487,18 +493,26 @@ export function useIncassiUnita(orderId: string | undefined) {
  * mappa vuota se il modulo Unità non c'è o la lettura fallisce (la lista funziona lo stesso).
  */
 export async function leggiIncassiUnita(companyId: string): Promise<Map<string, number>> {
+  return (await leggiMovimentiUnita(companyId)).incassi;
+}
+
+/** Caparre, acconti e saldi delle unità, e a parte le permute: pagano il prezzo ma non sono incassi. */
+export async function leggiMovimentiUnita(companyId: string): Promise<{ incassi: Map<string, number>; permute: Map<string, number> }> {
   const incassi = new Map<string, number>();
+  const permute = new Map<string, number>();
   try {
     const [unita, movimenti] = await Promise.all([
       db.from("unita_immobiliari").select("id, order_id").eq("company_id", companyId).limit(5000),
-      db.from("unita_movimenti").select("unita_id, importo").eq("company_id", companyId).in("tipo", ["caparra", "acconto", "saldo"]).limit(20000),
+      db.from("unita_movimenti").select("unita_id, importo, tipo").eq("company_id", companyId).limit(20000),
     ]);
-    if (unita.error || movimenti.error) return incassi;
+    if (unita.error || movimenti.error) return { incassi, permute };
     const ordineDi = new Map(((unita.data ?? []) as { id: string; order_id: string }[]).map((u) => [u.id, u.order_id]));
-    for (const m of (movimenti.data ?? []) as { unita_id: string; importo: number | string }[]) {
+    for (const m of (movimenti.data ?? []) as { unita_id: string; importo: number | string; tipo: string }[]) {
       const ordine = ordineDi.get(m.unita_id);
-      if (ordine) incassi.set(ordine, (incassi.get(ordine) ?? 0) + Number(m.importo || 0));
+      if (!ordine) continue;
+      const dove = m.tipo === "permuta" ? permute : incassi;
+      dove.set(ordine, (dove.get(ordine) ?? 0) + Number(m.importo || 0));
     }
   } catch { /* la lista funziona anche senza */ }
-  return incassi;
+  return { incassi, permute };
 }

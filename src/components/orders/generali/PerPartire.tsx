@@ -7,7 +7,7 @@ import { ArrowRight, Check, Circle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
 import { useFontiGenerale } from "@/hooks/useGeneraleInvestitori";
-import { useVersioniPiano } from "@/hooks/useGeneralePiano";
+import { useVersioniPiano, useVociPiano } from "@/hooks/useGeneralePiano";
 import { DEFINIZIONI_MODELLI, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { valoreContratto } from "@/lib/orders/generali/contratto";
 import { passiPerPartire, perPartireServe, type IdPasso } from "@/lib/orders/generali/perPartire";
@@ -25,17 +25,18 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
   const { importi, margini } = riepilogo.permessi;
   const contratto = useDatiContratto(g.id, appalto && importi);
   const versioni = useVersioniPiano(g.id, margini);
+  const voci = useVociPiano(versioni.data?.[0]?.id ?? null);
   const fonti = useFontiGenerale(g.id, !appalto && margini);
   const [parametri, setParametri] = useSearchParams();
   const [nascosta, setNascosta] = useState(() => leggiNascosta(g.id));
 
   // Finché una lettura è in corso non si mostra niente: la lista non deve lampeggiare passi già fatti.
-  if (nascosta || contratto.isLoading || versioni.isLoading || fonti.isLoading) return null;
+  if (nascosta || contratto.isLoading || versioni.isLoading || voci.isLoading || fonti.isLoading) return null;
 
   const passi = passiPerPartire(g.modello, {
     figlie: riepilogo.figlie.length,
     contrattoCompilato: contratto.data ? valoreContratto(contratto.data.contratto, contratto.data.atti) !== null : null,
-    versioniPiano: versioni.data ? versioni.data.length : null,
+    vociPianoConImporto: !versioni.data ? null : versioni.data.length === 0 ? 0 : voci.data ? voci.data.filter((v) => v.importo > 0).length : null,
     fonti: fonti.data ? fonti.data.length : null,
   });
   if (!perPartireServe(passi)) return null;
@@ -46,7 +47,7 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
     setParametri(dopo, { replace: true });
   };
   const testi: Record<IdPasso, { titolo: string; azione: () => void }> = {
-    contratto: { titolo: "Inserisci i dati del contratto", azione: () => apriScheda("contratto") },
+    contratto: { titolo: "Completa i dati del contratto", azione: () => apriScheda("contratto") },
     figlie: {
       titolo: def.figlia.nuova,
       azione: appalto ? nuovaFiglia : () => apriScheda("unita"),

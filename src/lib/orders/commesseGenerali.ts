@@ -90,6 +90,9 @@ export interface FigliaGenerale {
   divisa?: boolean;
   /** Caparre e acconti incassati sull'unità (modulo Unità); null = importi non visibili. */
   acconti?: number | null;
+  /** Quanto manca su un'unità a compromesso o rogitata: prezzo con varianti, meno pagamenti e permute. */
+  residuoUnita?: number | null;
+  statoVendita?: string | null;
 }
 
 export interface RiepilogoGenerale {
@@ -155,6 +158,8 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
         margine: numero(f.margine),
         divisa: f.divisa === true,
         acconti: numero(f.acconti),
+        residuoUnita: numero(f.residuo_unita),
+        statoVendita: testo(f.stato_vendita),
       })),
     fattureGenerale: (() => {
       const fg = d?.fatture_generale as Record<string, unknown> | null | undefined;
@@ -212,7 +217,13 @@ export function totaliGenerale(r: Pick<RiepilogoGenerale, "figlie" | "generale" 
     eseguito,
     fatturato,
     incassato,
-    daIncassare: fatturato !== null && incassato !== null ? arrotonda(Math.max(0, fatturato - incassato)) : null,
+    // Commessa per commessa: chi ha pagato non compensa chi no. Un'unità venduta è da incassare anche senza fattura.
+    daIncassare: fatturato !== null && incassato !== null
+      ? arrotonda(somma([
+        ...f.map((x) => Math.max(0, (x.fatturato ?? 0) - (x.incassato ?? 0), x.residuoUnita ?? 0)),
+        Math.max(0, (sulContratto?.fatturato ?? 0) - (sulContratto?.incassato ?? 0)),
+      ]) ?? 0)
+      : null,
     costo: r.permessi.costi && f.length > 0 ? somma(f.map((x) => x.costo ?? 0)) : null,
     margine: r.permessi.margini && f.length > 0 ? somma(f.map((x) => x.margine ?? 0)) : null,
     avanzamento: Math.round(avanzamento * 10) / 10,
@@ -257,4 +268,13 @@ export function avvisiGenerale(r: RiepilogoGenerale, t: TotaliGenerale): AvvisoG
 
 const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 /** Importi in euro senza decimali: nei riepiloghi i centesimi sono rumore. */
+/**
+ * Le somme da coprire con la fideiussione 122/2005: caparre e acconti versati prima del rogito.
+ * A rogito fatto la garanzia ha finito il suo compito, e il saldo non ne ha mai avuta bisogno.
+ */
+export function sommeDaGarantire(f: Pick<FigliaGenerale, "acconti" | "incassato" | "statoVendita">): number {
+  if (f.statoVendita === "rogitata") return 0;
+  return (f.acconti ?? 0) > 0 ? f.acconti! : f.incassato ?? 0;
+}
+
 export const formattaEuro = (n: number) => EURO.format(n);

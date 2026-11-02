@@ -12,7 +12,7 @@
 // Lo controlla src/test/logic/generaleAvvisi.test.ts. ATTENZIONE: il CI ripubblica una edge
 // function solo se cambia un file sotto supabase/functions/: chi cambia questo file (o quelli
 // che importa) deve toccare anche supabase/functions/generali-avvisi/index.ts.
-import { DEFINIZIONI_MODELLI, leggiRiepilogo, totaliGenerale, formattaEuro, type RiepilogoGenerale } from "../commesseGenerali.ts";
+import { DEFINIZIONI_MODELLI, leggiRiepilogo, sommeDaGarantire, totaliGenerale, formattaEuro, type RiepilogoGenerale } from "../commesseGenerali.ts";
 import {
   TIPI_GARANZIA,
   anticipazione,
@@ -179,7 +179,7 @@ export function avvisiDaMandare(c: ContestoAvvisi): AvvisoDaMandare[] {
       if (k.voce.id === "fideiussione_122") {
         // Unità che hanno incassato senza fideiussione: avviso a parte, con la legge.
         const figlia = r.figlie.find((f) => f.id === k.orderId);
-        const acconti = figlia ? Math.max(figlia.acconti ?? 0, figlia.incassato ?? 0) : 0;
+        const acconti = figlia ? sommeDaGarantire(figlia) : 0;
         if (r.permessi.importi && acconti > 0 && (k.stato === "mancante" || k.stato === "scaduto")) {
           out.push({
             chiave: `fideiussione:${k.orderId}:${k.stato === "scaduto" ? `scaduta:${k.scadenza}` : "manca"}`,
@@ -281,7 +281,7 @@ export function contestoDaRisposta(data: unknown, oggi: string): ContestoAvvisi 
       // Come useChecklistGenerale: per la fideiussione contano anche caparre e acconti dell'unità.
       figlie: riepilogo.figlie.map((f) => ({
         id: f.id,
-        incassato: riepilogo.permessi.importi ? Math.max(f.acconti ?? 0, f.incassato ?? 0) : null,
+        incassato: riepilogo.permessi.importi ? sommeDaGarantire(f) : null,
       })),
       allegati: elenco<AllegatoCommessa>(d.allegati),
       segni: elenco<SegnoDocumento>(d.segni),

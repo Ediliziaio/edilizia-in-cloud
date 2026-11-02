@@ -5,14 +5,14 @@ import type { ReactElement } from "react";
 
 /** Impostazioni → Commesse generali: dire come si lavora e partire da lì (02/11/2026). */
 const m = vi.hoisted(() => ({
-  modelli: [] as string[], conti: {} as Record<string, number>, mobile: false, canEditOrders: true,
+  modelli: [] as string[], conti: {} as Record<string, number>, ultime: [] as { id: string; codice: string; nome: string; modello: string }[], mobile: false, canEditOrders: true,
   avvia: vi.fn(), navigate: vi.fn(),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" } }) }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: (): { data: Record<string, number> } => ({ data: m.conti }) }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: (): { data: { conti: Record<string, number>; ultime: { id: string; codice: string; nome: string; modello: string }[] } } => ({ data: { conti: m.conti, ultime: m.ultime } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: m.canEditOrders }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: m.canEditOrders, canViewMargins: true }) }));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   messaggioGenerale: () => "errore",
   useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: vi.fn(), isPending: false } }),
@@ -31,7 +31,7 @@ globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} 
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
-  m.modelli = []; m.conti = {}; m.mobile = false; m.canEditOrders = true;
+  m.modelli = []; m.conti = {}; m.ultime = []; m.mobile = false; m.canEditOrders = true;
 });
 
 const disegna = () => render(<MemoryRouter><CommesseGeneraliConfig puoModificare /></MemoryRouter>);
@@ -40,7 +40,7 @@ describe("impostazione delle commesse generali", () => {
   it("spento: si legge cosa comprende, ma non si offre di creare", () => {
     disegna();
     expect(screen.getByText("Come lavori?")).toBeInTheDocument();
-    expect(screen.getByText(/Contratto e SAL · Budget/)).toBeInTheDocument();
+    expect(screen.getByText("Contratto e SAL")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Crea la prima/ })).not.toBeInTheDocument();
   });
 
@@ -58,6 +58,12 @@ describe("impostazione delle commesse generali", () => {
     disegna();
     expect(screen.getByRole("link", { name: /Vedi le 2 che hai/ })).toHaveAttribute("href", "/azienda/ordini?generali=solo");
     expect(screen.getByRole("button", { name: /Creane un'altra/ })).toBeInTheDocument();
+  });
+
+  it("le generali che ci sono già si aprono da qui", () => {
+    m.ultime = [{ id: "g1", codice: "O-1", nome: "Residenza", modello: "sviluppo" }];
+    disegna();
+    expect(screen.getByRole("link", { name: /Residenza/ })).toHaveAttribute("href", "/azienda/ordini/g1");
   });
 
   it("da telefono o senza permesso non si crea", () => {

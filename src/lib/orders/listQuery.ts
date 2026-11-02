@@ -24,6 +24,19 @@ export interface OrdersReaderFilters {
   generaliFilter?: "all" | "solo" | "senza";
 }
 
+/** Le commesse scelte per id, senza nessun altro filtro. */
+export const soloQuesteCommesse = (companyId: string, ids: string[]): OrdersReaderFilters => ({
+  companyId, periodIds: ids, focusIds: null, paymentIds: null,
+  salespersonFilter: "all", laborFilter: "all", supplierFilter: "all",
+  sidebarFilters: { dateFrom: "", dateTo: "", createdFrom: "", createdTo: "", orderSearch: "", includeStatuses: [], excludeStatuses: [], paymentStatus: "all", amountMin: "", amountMax: "", salespersonId: "", laborIds: [] },
+  customerFilter: "all", debouncedSearch: "", statusFilter: "all",
+  supportStatusId: null, lastStatusId: null, hideCompleted: false, amountMin: "", amountMax: "",
+  isYearCorrente: false, monthFilter: "all", currentYear: new Date().getFullYear(),
+  hasSelectedYear: false, selectedYear: null,
+  contractDateRange: { from: undefined, to: undefined }, warehouseDateRange: { from: undefined, to: undefined }, expectedDateRange: { from: undefined, to: undefined },
+  sortField: "created_at", sortDir: "desc",
+});
+
 /** The same scoped reader serves table, pipeline and exports. Filters precede range. */
 export async function readOrdersPage(filters: OrdersReaderFilters, from: number, to: number): Promise<{orders: OrderWithDetails[]; totalCount: number}> {
   const {companyId, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir} = filters;

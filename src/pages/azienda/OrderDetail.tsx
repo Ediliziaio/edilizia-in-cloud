@@ -123,7 +123,7 @@ import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
-import { conIncassiUnita, incassiDellaCommessa, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo, totaleFatturato } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard } from "@/components/orders/OrderDocumentiFornitore";
@@ -1373,7 +1373,7 @@ function OrderDetailInner() {
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
     varianti: variantiDatate,
-  }), incassiUnita.data ?? 0, order.vat_rate ?? 22);
+  }), nettoUnitaInLordo(incassiUnita.data?.incassi ?? 0, order.vat_rate ?? 22), order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
   const cashTotalGross = incassi.totaleLordo;

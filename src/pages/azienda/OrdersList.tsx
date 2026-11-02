@@ -3,7 +3,7 @@ import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
 import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, orderWorkflowCounts, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
-import {readOrdersPage} from "@/lib/orders/listQuery";
+import {readOrdersPage, soloQuesteCommesse} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import { matchesOrderPayment } from "@/lib/orders/listPayments";
@@ -64,7 +64,7 @@ import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
 import { RaggruppaDialog } from "@/components/orders/generali/RaggruppaDialog";
 import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
-import { leggiIdGenerali, leggiIncassiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
+import { leggiIdGenerali, leggiMovimentiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
 // MP-CAN-001 — types/constants estratti in ./OrdersList/constants.ts
@@ -293,13 +293,13 @@ function OrdersListInner() {
       // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
       const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
       // Caparre, acconti e saldi delle unità in vendita contano come incassato anche nei riquadri in alto.
-      const incassiUnita = generaliConfigurate ? await leggiIncassiUnita(effectiveCompany.id) : undefined;
+      const { incassi: incassiUnita, permute: permuteUnita } = generaliConfigurate ? await leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined };
       const generali = new Set(generaliIds);
       const righeCheContano = generali.size ? rows.filter(order => !generali.has(order.id)) : rows;
       const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
       const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
-      const annual = orderEconomics(annualRows, incassiUnita);
-      const previous = orderEconomics(previousRows, incassiUnita);
+      const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
+      const previous = orderEconomics(previousRows, incassiUnita, permuteUnita);
       const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
       const reasons = {work:0,support:0,payment:0};
       Object.values(previousReasons).forEach(values => {
@@ -387,6 +387,45 @@ function OrdersListInner() {
   });
 
   const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
+  // La pagina taglia l'elenco: una generale può stare qui e le sue commesse in un'altra pagina.
+  // I totali della sua riga vogliono tutte le sue commesse, quindi quelle mancanti si leggono a parte.
+  const idFiglieFuoriPagina = useMemo(() => {
+    const qui = new Set(rawOrders.map((o) => o.id));
+    return [...mappaGenerali.generaleDellaFiglia.entries()]
+      .filter(([figlia, g]) => qui.has(g.id) && !qui.has(figlia))
+      .map(([figlia]) => figlia)
+      .sort();
+  }, [rawOrders, mappaGenerali]);
+  // Le commesse scelte possono stare in altre pagine: si leggono tutte, non solo quelle che si vedono ora.
+  const { data: righeDaRaggruppare } = useQuery({
+    queryKey: ["orders", "da-raggruppare", effectiveCompany?.id, daRaggruppare],
+    enabled: !!effectiveCompany?.id && !!daRaggruppare,
+    queryFn: async () => (await readOrdersPage(soloQuesteCommesse(effectiveCompany!.id, daRaggruppare!), 0, Infinity)).orders,
+  });
+  const { data: marginiFuoriPagina = [] } = useQuery({
+    queryKey: ["orders-margin-fuori-pagina", effectiveCompany?.id, idFiglieFuoriPagina],
+    enabled: !!effectiveCompany?.id && idFiglieFuoriPagina.length > 0 && (orderPerms.canViewMargins || orderPerms.canViewCosts),
+    staleTime: 2 * 60 * 1000,
+    meta: { silent: true },
+    queryFn: async () => {
+      const righe: OrderMarginRow[] = [];
+      for (let from = 0; from < idFiglieFuoriPagina.length; from += 100) {
+        const { data, error } = await supabase.from("v_ordine_marginalita")
+          .select("id, preventivo_totale, consuntivo, margine, margine_perc")
+          .eq("company_id", effectiveCompany!.id).in("id", idFiglieFuoriPagina.slice(from, from + 100));
+        if (error) throw error;
+        righe.push(...(data ?? []));
+      }
+      return righe;
+    },
+  });
+  const { data: figlieFuoriPagina = EMPTY_ORDERS } = useQuery({
+    queryKey: ["orders", "figlie-fuori-pagina", effectiveCompany?.id, idFiglieFuoriPagina],
+    enabled: !!effectiveCompany?.id && idFiglieFuoriPagina.length > 0,
+    staleTime: 60_000,
+    meta: { silent: true },
+    queryFn: async () => (await readOrdersPage(soloQuesteCommesse(effectiveCompany!.id, idFiglieFuoriPagina), 0, Infinity)).orders,
+  });
   const totalCount = ordersResult?.totalCount ?? 0;
   const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && (isLoadingOrders || !ordersResult || !focusReady);
 
@@ -667,7 +706,7 @@ function OrdersListInner() {
       marginReliable: boolean;
     }>();
 
-    for (const row of canonicalMargins) {
+    for (const row of [...canonicalMargins, ...marginiFuoriPagina]) {
       if (!row.id) continue;
       const revenue = Number(row.preventivo_totale || 0);
       const variableCosts = Number(row.consuntivo || 0);
@@ -680,7 +719,7 @@ function OrdersListInner() {
     }
 
     return map;
-  }, [canonicalMargins]);
+  }, [canonicalMargins, marginiFuoriPagina]);
 
   const { mutateAsync: updateOrderStatus } = useMutation({
     mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
@@ -1865,6 +1904,7 @@ function OrdersListInner() {
                 laborMap={laborMap}
                 supplierMap={supplierMap}
                 mappaGenerali={mappaGenerali}
+                figlieFuoriPagina={figlieFuoriPagina}
                 onRaggruppa={modelliCreabili.length > 0 && orderPerms.canEditOrders ? setDaRaggruppare : undefined}
               />
               {controlFocus === "all" && totalPages > 1 && (
@@ -1921,9 +1961,9 @@ function OrdersListInner() {
         modelli={modelliGenerali}
         iniziale={nuovaGenerale}
       />
-      {daRaggruppare && (
+      {daRaggruppare && righeDaRaggruppare && (
         <RaggruppaDialog
-          righe={rawOrders.filter((o) => daRaggruppare.includes(o.id))}
+          righe={righeDaRaggruppare}
           modelli={modelliGenerali}
           mappa={mappaGenerali}
           mostraImporti={orderPerms.canViewOrderAmounts}

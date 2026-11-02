@@ -4,7 +4,7 @@ import { controllaRaggruppo, effettoSpostamento } from "@/lib/orders/listaGenera
 
 /** Commesse generali: i pezzi del piano completati il 02/11/2026 (Per partire, F3, F8). */
 describe("«Per partire»", () => {
-  const vuota = { figlie: 0, contrattoCompilato: false, versioniPiano: 0, fonti: 0 };
+  const vuota = { figlie: 0, contrattoCompilato: false, vociPianoConImporto: 0, fonti: 0 };
 
   it("i passi dipendono dal modello", () => {
     expect(passiPerPartire("appalto", vuota).map((p) => p.id)).toEqual(["contratto", "figlie", "piano"]);
@@ -12,11 +12,15 @@ describe("«Per partire»", () => {
   });
 
   it("un passo di cui non si sa niente non compare: meglio tacere che dire «da fare»", () => {
-    expect(passiPerPartire("appalto", { ...vuota, contrattoCompilato: null, versioniPiano: null }).map((p) => p.id)).toEqual(["figlie"]);
+    expect(passiPerPartire("appalto", { ...vuota, contrattoCompilato: null, vociPianoConImporto: null }).map((p) => p.id)).toEqual(["figlie"]);
+  });
+
+  it("il piano con le voci tipiche a zero è ancora da scrivere", () => {
+    expect(passiPerPartire("sviluppo", { ...vuota, figlie: 4, vociPianoConImporto: 0 }).find((p) => p.id === "piano")?.fatto).toBe(false);
   });
 
   it("sparisce quando è tutto fatto", () => {
-    const fatti = passiPerPartire("sviluppo", { figlie: 2, contrattoCompilato: null, versioniPiano: 1, fonti: 1 });
+    const fatti = passiPerPartire("sviluppo", { figlie: 2, contrattoCompilato: null, vociPianoConImporto: 1, fonti: 1 });
     expect(perPartireServe(fatti)).toBe(false);
     expect(perPartireServe(passiPerPartire("sviluppo", vuota))).toBe(true);
   });

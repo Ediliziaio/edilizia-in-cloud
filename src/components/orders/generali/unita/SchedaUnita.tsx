@@ -2,8 +2,9 @@
 // La scheda «Unità e vendite» della generale: tabellone disponibilità (o tabella), avviso delle
 // garanzie per gli immobili da costruire, nuove unità in serie, l'unità aperta.
 // Da telefono si guarda il tabellone e si cambia lo stato di vendita, nient'altro.
+import { CaricaFileUnita } from "@/components/orders/generali/unita/CaricaFileUnita";
 import { useMemo, useState } from "react";
-import { LayoutGrid, Plus, ShieldAlert, Table2 } from "lucide-react";
+import { LayoutGrid, Plus, ShieldAlert, Table2, FolderUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -30,6 +31,7 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
   const [aperta, setAperta] = useState<string | null>(null);
   const [daDividere, setDaDividere] = useState<string | null>(null);
   const [serie, setSerie] = useState(false);
+  const [caricaFile, setCaricaFile] = useState(false);
 
   const criterio = useCriterioRipartizione(riepilogo.generale.id);
   const conti = useMemo(() => (e ? contiUnita(e, criterio.data?.criterio ?? "auto") : null), [e, criterio.data]);
@@ -78,6 +80,9 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
                 <ToggleGroupItem value="tabella" aria-label="Tabella"><Table2 className="mr-1.5 h-3.5 w-3.5" /> Tabella</ToggleGroupItem>
               </ToggleGroup>
               <BottoneListino generaleId={generaleId} operazione={riepilogo.generale.nome} unita={e.unita} vedeImporti={e.permessi.importi} />
+              {gestisci && (
+                <Button size="sm" variant="outline" onClick={() => setCaricaFile(true)}><FolderUp className="mr-1.5 h-3.5 w-3.5" /> Carica piante e documenti</Button>
+              )}
               {gestisci && (
                 <Button size="sm" onClick={() => setSerie(true)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
               )}
@@ -149,6 +154,14 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
             onChiudi={() => setDaDividere(null)}
           />
         </>
+      )}
+      {caricaFile && (
+        <CaricaFileUnita
+          generaleId={generaleId}
+          modello={riepilogo.generale.modello}
+          unita={e.unita.filter((u) => !u.divisaIl).map((u) => ({ orderId: u.orderId, sigla: u.sigla }))}
+          onClose={() => setCaricaFile(false)}
+        />
       )}
     </div>
   );

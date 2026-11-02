@@ -75,7 +75,7 @@ export function RiquadroInvestitori({ riepilogo }: PropsScheda) {
     <section aria-label="Investitori" className="rounded-lg border bg-card px-4 py-3">
       {intestazione}
       <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Numero etichetta="Capitale raccolto" valore={euro(c.totali.dentro)} nota={`impegni ${euro(c.totali.impegno)}`} />
+        <Numero etichetta="Capitale ancora dentro" valore={euro(c.totali.dentro)} nota={`impegni ${euro(c.totali.impegno)}`} />
         <Numero etichetta="Capitale massimo impegnato" valore={euro(massimo)} nota={n?.meseCapitaleMassimo ? `a ${nomeMese(n.meseCapitaleMassimo)}` : n ? undefined : "serve il piano economico"} />
         <Numero
           etichetta="Rendimento atteso"

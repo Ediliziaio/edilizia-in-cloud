@@ -1,3 +1,4 @@
+import { sommeDaGarantire } from "@/lib/orders/commesseGenerali";
 // src/hooks/useGeneraleDocumenti.ts
 // Modulo «Documenti» della commessa generale: legge l'archivio della generale e delle figlie
 // (order_attachments), i segni della checklist (commesse_generali_documenti) e le scelte
@@ -131,7 +132,7 @@ export function useChecklistGenerale(r: RiepilogoGenerale): ChecklistGenerale {
       // Per la fideiussione 122/2005 contano caparre e acconti dell'unità (modulo Unità) oltre alle fatture incassate.
       figlie: r.figlie.map((f) => ({
         id: f.id,
-        incassato: r.permessi.importi ? Math.max(f.acconti ?? 0, f.incassato ?? 0) : null,
+        incassato: r.permessi.importi ? sommeDaGarantire(f) : null,
       })),
       allegati: dati.allegati,
       segni: dati.segni,

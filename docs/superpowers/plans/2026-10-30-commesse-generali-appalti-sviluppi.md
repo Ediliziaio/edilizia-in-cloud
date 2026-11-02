@@ -193,3 +193,5 @@ Ogni tappa si può rilasciare da sola e lascia l'app coerente: chi ha solo la ta
 **Non fatto, da decidere:** vita del contratto (sospensioni, riserve, revisione prezzi, collaudo), affitti, post-vendita, cassa aziendale, modello personalizzato con moduli accendibili, criterio manuale dei costi comuni, scenari salvati del piano, lotti, indirizzo alla creazione, numeri a seconda del modello nei quattro riquadri, figlie a pagine, dove sta la funzione nei piani tariffari (§5).
 
 **Mai fatto:** prova dal vivo con un'azienda vera (Pistilli, un costruttore), prototipo P, prova con tre ruoli.
+
+**Simulazioni del 02/11 (Demo, dati veri):** corretti incassi delle unità in testata e nell'elenco (netti contro ivati), somme delle generali su tutte le commesse e non solo quelle della pagina, margine unico tra testata e piano, ROE a operazione chiusa, eseguito dalle misure, conteggio delle unità divise. Migrazione `20281105480500`. Piante: dal pannello dell'unità si disegna, si ricava da PDF o foto o a parole (collegata a `planimetrie.order_id`); «Carica piante e documenti» abbina i file alle unità dalla sigla nel nome.

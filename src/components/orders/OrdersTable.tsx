@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, Pencil, Trash2, X, ChevronDown, ChevronRight, HardHat, Layers, MoreVertical } from "lucide-react";
 import { raggruppaGenerali, sommaFiglie, type RigaAlbero } from "@/lib/orders/listaGenerali";
+import { nettoUnitaInLordo } from "@/lib/orders/incassiCommessa";
 import type { MappaGenerali } from "@/hooks/useCommesseGenerali";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
@@ -67,10 +68,13 @@ interface OrdersTableProps {
   supplierMap?: Map<string, string[]>;
   /** Chi è una commessa generale e chi sta dentro quale (useMappaGenerali). */
   mappaGenerali?: MappaGenerali;
+  /** Le commesse dentro le generali di questa pagina che la pagina non contiene: servono ai totali. */
+  figlieFuoriPagina?: OrderWithDetails[];
   /** Se c'è, le commesse scelte si possono raggruppare in una commessa generale nuova. */
   onRaggruppa?: (orderIds: string[]) => void;
 }
 
+const NESSUNA_FIGLIA: OrderWithDetails[] = [];
 const SENZA_GENERALI: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
 
 /**
@@ -78,11 +82,12 @@ const SENZA_GENERALI: MappaGenerali = { figliePerGenerale: new Map(), generaleDe
  * se sono di più. Sono gli stessi soldi registrati in due posti: si prende il più alto, mai la somma.
  */
 function incassatoConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
-  return Math.max(getAmountCollected(o), mappa.incassiUnita?.get(o.id) ?? 0);
+  return Math.max(getAmountCollected(o), nettoUnitaInLordo(mappa.incassiUnita?.get(o.id) ?? 0, o.vat_rate));
 }
 function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
   const inPiu = incassatoConUnita(o, mappa) - getAmountCollected(o);
-  return inPiu > 0 ? Math.max(0, getAmountDue(o) - inPiu) : getAmountDue(o);
+  const permuta = nettoUnitaInLordo(mappa.permuteUnita?.get(o.id) ?? 0, o.vat_rate);
+  return Math.max(0, getAmountDue(o) - Math.max(0, inPiu) - permuta);
 }
 
 export const OrdersTable = React.memo(function OrdersTable({
@@ -102,6 +107,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   laborMap = new Map(),
   supplierMap = new Map(),
   mappaGenerali = SENZA_GENERALI,
+  figlieFuoriPagina = NESSUNA_FIGLIA,
   onRaggruppa,
 }: OrdersTableProps) {
   const sortAccessors = useMemo(() => ({
@@ -157,12 +163,12 @@ export const OrdersTable = React.memo(function OrdersTable({
   });
   const righe = useMemo<RigaAlbero<OrderWithDetails>[]>(
     () => raggruppaGenerali(
-      sortedItems,
+      figlieFuoriPagina.length > 0 ? [...sortedItems, ...figlieFuoriPagina] : sortedItems,
       (id) => mappaGenerali.generaleDellaFiglia.get(id)?.id,
       (id) => mappaGenerali.figliePerGenerale.has(id),
       aperte,
     ),
-    [sortedItems, mappaGenerali, aperte],
+    [sortedItems, figlieFuoriPagina, mappaGenerali, aperte],
   );
   /** Per una generale i numeri sono la somma delle commesse dentro (più i costi registrati su di lei). */
   const incassato = (o: OrderWithDetails) => incassatoConUnita(o, mappaGenerali);
@@ -199,8 +205,9 @@ export const OrdersTable = React.memo(function OrdersTable({
     ? virtualizer.getVirtualItems().map(vr => ({ vr, riga: righe[vr.index] }))
     : righe.map((riga, i) => ({ vr: { key: riga.order.id, index: i, start: 0, size: 56 }, riga }));
 
-  const allSelected = orders.length > 0 && selectedIds.size === orders.length;
-  const someSelected = selectedIds.size > 0 && selectedIds.size < orders.length;
+  // Le righe visibili comprendono le commesse di una generale aperta che stanno in un'altra pagina.
+  const allSelected = orders.length > 0 && orders.every((o) => selectedIds.has(o.id));
+  const someSelected = selectedIds.size > 0 && !allSelected;
 
   const toggleAll = () => {
     if (allSelected) {
@@ -514,7 +521,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("imponibile") && (
                     <TableCell className="hidden 2xl:table-cell text-right">
-                      {formatCurrency(contrattoPattuito(order))}
+                      {formatCurrency(generale ? ricaviFiglie : contrattoPattuito(order))}
                     </TableCell>
                   )}
                   {visibleColumns.has("collected") && (

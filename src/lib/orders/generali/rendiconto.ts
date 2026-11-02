@@ -621,17 +621,18 @@ export function semafori(d: DatiDossier, av: DatiDossier["avanzamento"], oggi: s
       });
     }
   }
-  // Le fatture dei SAL di contratto stanno sulla generale: il riepilogo delle figlie non le conta.
-  const fatt = (av?.scala?.fatturato ?? 0) + (d.contratto?.fatture.emesso ?? 0);
-  const inc = (av?.scala?.incassato ?? 0) + (d.contratto?.fatture.incassato ?? 0);
+  // I totali del riepilogo comprendono già le fatture sulla generale (i SAL di contratto): non si risommano.
+  const fatt = av?.scala?.fatturato ?? d.contratto?.fatture.emesso ?? 0;
+  const inc = av?.scala?.incassato ?? d.contratto?.fatture.incassato ?? 0;
   if ((av?.scala?.fatturato != null || d.contratto) && fatt > 0) {
-    const daIncassare = Math.max(0, fatt - inc);
-    const q = daIncassare / fatt;
+    // Commessa per commessa, come in testata: un'unità pagata senza fattura non copre una fattura aperta.
+    const daIncassare = av?.scala?.daIncassare ?? Math.max(0, fatt - inc);
+    const q = Math.min(1, daIncassare / fatt);
     s.push({
       id: "incassi",
       titolo: "Incassi",
       tono: q <= 0.15 ? "verde" : q <= 0.4 ? "giallo" : "rosso",
-      testo: daIncassare < 1 ? "Tutto il fatturato è incassato." : `${euro(daIncassare)} fatturati e non ancora incassati, su ${euro(fatt)}.`,
+      testo: daIncassare < 1 ? "Tutto incassato." : `${euro(daIncassare)} ancora da incassare, su ${euro(fatt)} fatturati.`,
     });
   }
   if (d.documenti) {

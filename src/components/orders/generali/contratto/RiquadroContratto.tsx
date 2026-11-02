@@ -32,7 +32,7 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
     if (telefono) return null;
     return (
       <section aria-label="Contratto" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed bg-muted/30 px-4 py-3">
-        <p className="text-sm text-muted-foreground">Inserisci il valore del contratto per vedere il residuo, le ritenute e le scadenze.</p>
+        <p className="text-sm text-muted-foreground">Completa i dati del contratto per vedere il residuo, le ritenute e le scadenze.</p>
         <Link to={link()} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
           Vai al contratto <ArrowRight className="h-3.5 w-3.5" />
         </Link>

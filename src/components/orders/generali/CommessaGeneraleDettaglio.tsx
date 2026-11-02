@@ -20,6 +20,7 @@ import { PerPartire } from "@/components/orders/generali/PerPartire";
 import { riquadriDelModello, schedeDelModello } from "@/components/orders/generali/schede";
 import { SpostaFigliaDialog, type AzioneFiglia } from "@/components/orders/generali/SpostaFigliaDialog";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
+import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
 import { useQuoteCostiComuni, type QuoteCostiComuni } from "@/hooks/useQuoteCostiComuni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -28,7 +29,8 @@ import {
   DEFINIZIONI_MODELLI, avvisiGenerale, formattaEuro, quota, totaliGenerale,
   type FigliaGenerale, type RiepilogoGenerale, type TotaliGenerale,
 } from "@/lib/orders/commesseGenerali";
-import { totaliSal } from "@/lib/orders/generali/contratto";
+import { totaliSal, valoreContratto } from "@/lib/orders/generali/contratto";
+import { numeriChiave, pianoPerNumeri, type NumeroChiave } from "@/lib/orders/generali/numeriChiave";
 import { cn } from "@/lib/utils";
 
 const euro = (n: number | null) => (n === null ? "—" : formattaEuro(n));
@@ -70,6 +72,8 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const avvisi = avvisiGenerale(r, totali);
+  // Un'unità divisa non è più un'unità: si contano le sue parti.
+  const quanteVive = r.figlie.filter((f) => !f.divisa).length;
   // Il cliente della generale arriva già scelto nella commessa nuova (customer_id è letto da CreateOrder).
   const nuovaFiglia = () => navigate(`/azienda/ordini/nuovo?generale=${generaleId}${r.generale.clienteId ? `&customer_id=${r.generale.clienteId}` : ""}`);
   const schede = schedeDelModello(r.generale.modello, isMobile);
@@ -153,7 +157,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
             <h1 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">{r.generale.nome}</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {r.generale.cliente ? `${def.cliente.etichetta}: ${r.generale.cliente} · ` : ""}
-              {r.figlie.length === 1 ? `1 ${def.figlia.una}` : `${r.figlie.length} ${def.figlia.tante.toLowerCase()}`}
+              {quanteVive === 1 ? `1 ${def.figlia.una}` : `${quanteVive} ${def.figlia.tante.toLowerCase()}`}
             </p>
           </div>
           <BottoneRendiconto riepilogo={r} />
@@ -225,6 +229,7 @@ function Scala({ r, t }: { r: RiepilogoGenerale; t: TotaliGenerale }) {
           </span>
         )}
       </div>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">Importi al netto dell'IVA.</p>
       <dl className="mt-2 space-y-1.5">
         {righe.map((riga) => {
           const q = quota(riga.valore, t.base);
@@ -255,40 +260,48 @@ function Riquadro({ etichetta, valore, nota, tono }: { etichetta: string; valore
   );
 }
 
-/** Quattro numeri, sempre nello stesso posto: valore, cosa manca, cosa devono pagarti, come va. */
+/** Quattro numeri, sempre nello stesso posto: valore, come va, cosa devono pagarti, cosa resta. */
 function NumeriChiave({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenerale; quote: QuoteCostiComuni | null }) {
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
+  const n = useGeneralePianoNumeri(r);
+  const piano = pianoPerNumeri(n.piano);
+  const contratto = useDatiContratto(r.generale.id, r.generale.modello === "appalto");
+  // Senza il valore del contratto non c'è un residuo da dire.
+  const aSal = contratto.data && valoreContratto(contratto.data.contratto, contratto.data.atti) ? totaliSal(contratto.data.sal).aSal : null;
+  const numeri = numeriChiave(r.generale.modello, t, piano, { costiComuni: quote?.totale ?? 0, aSal });
+  const di = (id: NumeroChiave["id"]) => numeri.find((x) => x.id === id)?.valore ?? null;
+  const margine = di("margine");
   return (
     <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
       {r.permessi.importi ? (
         <>
           <Riquadro etichetta={def.valore.etichetta} valore={euro(r.generale.valore ?? t.assegnato)} nota={r.generale.valore === null ? `somma delle ${def.figlia.tante.toLowerCase()}` : undefined} />
-          <Riquadro
-            etichetta="Da assegnare"
-            valore={euro(t.daAssegnare)}
-            tono={t.daAssegnare !== null && t.daAssegnare < 0 ? "rosso" : undefined}
-            nota={t.daAssegnare === null ? "manca il valore" : undefined}
-          />
-          <Riquadro etichetta="Da incassare" valore={euro(t.daIncassare)} nota="fatturato e non ancora pagato" />
+          <Riquadro etichetta="Da incassare" valore={euro(t.daIncassare)} nota={r.generale.modello === "appalto" ? "fatturato e non ancora pagato" : "venduto o fatturato, non ancora pagato"} />
+          {numeri.some((x) => x.id === "residuo") && <Riquadro etichetta="Residuo del contratto" valore={euro(di("residuo"))} nota={`non ancora a SAL · ultimo cumulato ${euro(aSal)}`} />}
+          {numeri.some((x) => x.id === "capitale") && r.permessi.margini && <Riquadro etichetta="Capitale impegnato" valore={euro(di("capitale"))} nota="il massimo previsto" />}
+          {numeri.some((x) => x.id === "assegnare") && (
+            <Riquadro
+              etichetta="Da assegnare"
+              valore={euro(t.daAssegnare)}
+              tono={t.daAssegnare !== null && t.daAssegnare < 0 ? "rosso" : undefined}
+              nota={t.daAssegnare === null ? "manca il valore" : undefined}
+            />
+          )}
         </>
       ) : (
         <Riquadro etichetta={def.figlia.tante} valore={String(t.figlie)} />
       )}
       {r.permessi.margini ? (
-        (() => {
-          // Margine dell'operazione: quello delle commesse dentro meno i costi registrati sulla generale.
-          const margine = t.margine !== null && quote ? t.margine - quote.totale : t.margine;
-          return (
-            <Riquadro
-              etichetta={quote ? "Margine dell'operazione" : `Margine delle ${def.figlia.tante.toLowerCase()}`}
-              valore={euro(margine)}
-              tono={margine !== null && margine < 0 ? "rosso" : margine !== null && margine > 0 ? "verde" : undefined}
-              nota={quote
-                ? (quote.totale > 0 ? `${def.figlia.tante.toLowerCase()} ${euro(t.margine)} − costi comuni ${euro(quote.totale)}` : "ricavi meno costi registrati")
-                : "senza i costi comuni registrati sulla generale"}
-            />
-          );
-        })()
+        <Riquadro
+          etichetta={piano ? "Margine a finire" : quote ? "Margine dell'operazione" : `Margine delle ${def.figlia.tante.toLowerCase()}`}
+          valore={euro(margine)}
+          tono={margine !== null && margine < 0 ? "rosso" : margine !== null && margine > 0 ? "verde" : undefined}
+          nota={piano
+            ? "stima dal piano, con costi comuni e interessi"
+            : quote
+              ? (quote.totale > 0 ? `${def.figlia.tante.toLowerCase()} ${euro(t.margine)} − costi comuni ${euro(quote.totale)}` : "ricavi meno costi registrati")
+              : "senza i costi comuni registrati sulla generale"}
+        />
       ) : (
         <Riquadro etichetta="Avanzamento" valore={`${Math.round(t.avanzamento)}%`} />
       )}

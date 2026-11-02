@@ -12,13 +12,14 @@ export interface StatoPerPartire {
   figlie: number;
   /** null = non si sa. */
   contrattoCompilato: boolean | null;
-  versioniPiano: number | null;
+  /** Le voci del piano con un importo: un piano con le sole voci tipiche a zero non è ancora scritto. */
+  vociPianoConImporto: number | null;
   fonti: number | null;
 }
 
 export function passiPerPartire(modello: ModelloGenerale, s: StatoPerPartire): PassoPerPartire[] {
   const figlie: PassoPerPartire = { id: "figlie", fatto: s.figlie > 0 };
-  const piano: PassoPerPartire | null = s.versioniPiano === null ? null : { id: "piano", fatto: s.versioniPiano > 0 };
+  const piano: PassoPerPartire | null = s.vociPianoConImporto === null ? null : { id: "piano", fatto: s.vociPianoConImporto > 0 };
   const passi = modello === "appalto"
     ? [s.contrattoCompilato === null ? null : { id: "contratto" as const, fatto: s.contrattoCompilato }, figlie, piano]
     : [figlie, piano, s.fonti === null ? null : { id: "fonti" as const, fatto: s.fonti > 0 }];

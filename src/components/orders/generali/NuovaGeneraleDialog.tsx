@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
 import { Switch } from "@/components/ui/switch";
 import { useAvviaGenerale } from "@/hooks/useAvviaGenerale";
+import { usePermissions } from "@/hooks/usePermissions";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
 import { leggiQuanteUnita, meseCorrente, unitaDiPartenza } from "@/lib/orders/generali/avvio";
 import { vociDiPartenza } from "@/lib/orders/generali/pianoCategorie";
@@ -41,6 +42,9 @@ export function NuovaGeneraleDialog({ open, onOpenChange, modelli, iniziale }: P
 function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   const navigate = useNavigate();
   const crea = useAvviaGenerale();
+  // Il piano è dentro il permesso sui margini: chi non lo ha non può prepararlo.
+  const permessi = usePermissions();
+  const puoFarePiano = !!permessi.canViewMargins || !!permessi.isAdmin;
   const [modello, setModello] = useState<ModelloGenerale | null>(iniziale ?? modelli[0] ?? null);
   const [nome, setNome] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
@@ -61,12 +65,12 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
       {
         nuova: { modello, nome: nome.trim(), clienteId, valore },
         unita: unitaDiPartenza(quante ?? 0),
-        voci: conPiano ? vociDiPartenza(modello, meseCorrente(), valore) : null,
+        voci: conPiano && puoFarePiano ? vociDiPartenza(modello, meseCorrente(), valore) : null,
       },
       {
         onSuccess: ({ id, rimasti }) => {
           if (rimasti.length > 0) {
-            toast.warning("Commessa generale creata", { description: `Non sono riuscito a preparare ${rimasti.includes("unita") ? "le unità" : "il piano"}: fallo dalla sua pagina.` });
+            toast.warning("Commessa generale creata", { description: `Non sono riuscito a preparare ${rimasti.map((x) => (x === "unita" ? "le unità" : "il piano")).join(" e ")}: fallo dalla sua pagina.` });
           } else {
             toast.success("Commessa generale creata");
           }
@@ -162,10 +166,10 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          {puoFarePiano && <div className="flex items-center gap-2">
             <Switch id="generale-con-piano" checked={conPiano} onCheckedChange={setConPiano} />
             <Label htmlFor="generale-con-piano" className="text-sm font-normal">Prepara il piano con le voci tipiche</Label>
-          </div>
+          </div>}
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>

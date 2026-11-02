@@ -40,6 +40,7 @@ export function useAvviaGenerale() {
       return { id, rimasti };
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["orders"] });
       void qc.invalidateQueries({ queryKey: ["mappa-commesse-generali"] });
       void qc.invalidateQueries({ queryKey: ["commesse-generali-per-modello"] });
     },

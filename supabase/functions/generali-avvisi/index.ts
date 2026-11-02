@@ -20,6 +20,8 @@
  *
  * A pg_net risponde entro 5 secondi (serveConMetricheRapida) e finisce sotto waitUntil.
  *
+ * Le somme da garantire con la fideiussione stanno in commesseGenerali.ts (sommeDaGarantire).
+ *
  * PROVE SENZA EFFETTI: {"anteprima": true} calcola gli avvisi (al massimo 5 generali, o quella
  * di "generale_id") e le email che partirebbero, senza scrivere né spedire niente.
  *
