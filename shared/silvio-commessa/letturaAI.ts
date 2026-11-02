@@ -59,7 +59,7 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente" },
   { chiave: "cantiere.indirizzo", forma: "indirizzo_cantiere", istruzione: "indirizzo del cantiere (dove si fanno i lavori), come testo" },
   { chiave: "cantiere.materials_location", forma: "testo", istruzione: "dove si scaricano o si tengono i materiali" },
-  { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «IVA inclusa» vuol dire che la cifra va scorporata. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota" },
+  { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «IVA inclusa» vuol dire che la cifra va scorporata. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota. Se l'importo è una somma di più voci (12 × 1.250,50 + 2 × 3.000), somma TUTTE le voci e scrivi il conto nel campo nota" },
   { chiave: "economia.vat_rate", forma: "iva", istruzione: "aliquota IVA in percentuale (22, 10, 4, 0)" },
   { chiave: "economia.condizioni_contratto", forma: "condizioni", istruzione: "condizioni del contratto: vedi CONDIZIONI" },
   { chiave: "pagamenti.payment_type", forma: "tipo_pagamento", istruzione: "\"financing\" se è previsto un finanziamento, altrimenti \"standard\"" },

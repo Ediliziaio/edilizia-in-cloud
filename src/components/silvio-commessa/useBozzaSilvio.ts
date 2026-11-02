@@ -203,6 +203,14 @@ export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi
       metti(m);
       const scelta = ora.aree.fasi?.[m.chiave]?.valore;
       const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
+      // Quelle che le date le hanno già si spostano con l'inizio scelto, o partirebbero prima dei lavori
+      // (visto online: inizio scelto il 23/11, fasi ancora dal 16/11).
+      const giaDatate = Array.isArray(fasi?.valore) ? (fasi!.valore as FaseDelPiano[]).map((f) => f.start_date).filter((d): d is string => !!d).sort()[0] : undefined;
+      if (typeof scelta === "string" && giaDatate && !giaNellaCommessa(ora, fasi)) {
+        const scarto = lavorativiTra(giaDatate, scelta, ora.calendario);
+        const spostate = scarto ? applica(ora, { tipo: "sposta_date", giorniLavorativi: scarto, daFase: null }).piano.aree.fasi?.["fasi.order_work_phases"]?.valore : null;
+        if (spostate) metti({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: spostate, conservaStato: true });
+      }
       if (typeof scelta === "string" && !giaNellaCommessa(ora, fasi) && Array.isArray(fasi?.valore) && (fasi!.valore as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
         metti({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: dateDelleFasi(fasi!.valore as FaseDelPiano[], scelta, ora.calendario), conservaStato: true });
       }
