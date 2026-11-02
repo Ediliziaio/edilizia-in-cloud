@@ -39,7 +39,7 @@ import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
-import { generaPlanimetria, type ChiamaModello, type Messaggio, type RichiestaGenerazione } from "./genera.ts";
+import { generaPlanimetria, MASSIMO_FOTO_RILIEVO, type ChiamaModello, type Messaggio, type RichiestaGenerazione } from "./genera.ts";
 import { planimetriaDaSopralluogo, stanzeDaAreeSopralluogo } from "./daSopralluogo.ts";
 import { planimetriaConSfondoDxf } from "./sfondoDxf.ts";
 import { dimensioniPdf } from "./dimensioniPdf.ts";
@@ -53,7 +53,9 @@ const MODELLI = (Deno.env.get("PLANIMETRIA_MODELLI") ?? "google/gemini-2.5-pro,a
   .split(",").map((m) => m.trim()).filter(Boolean);
 const MAX_BYTES = 15 * 1024 * 1024;
 const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
-const INGRESSI = ["documento", "schizzo", "descrizione", "sopralluogo", "dxf"] as const;
+const INGRESSI = ["documento", "schizzo", "descrizione", "sopralluogo", "dxf", "rilievo"] as const;
+/** «rilievo»: ogni foto di stanza al massimo 3 MB (il browser le riduce prima). */
+const MAX_BYTES_FOTO = 3 * 1024 * 1024;
 type Ingresso = typeof INGRESSI[number];
 
 function base64(bytes: Uint8Array): string {
@@ -131,7 +133,21 @@ serveConMetricheRapida(NOME, async (req: Request) => {
       sorgentePath: typeof body.file_path === "string" ? body.file_path : null,
     };
     let impronta = String(body.testo ?? "");
-    if (ingresso !== "descrizione") {
+    if (ingresso === "rilievo") {
+      if (!richiesta.testo?.trim()) return rifiuto("ingresso_mancante", "Scrivi o detta le misure delle stanze.", 400, cors);
+      const foto = Array.isArray(body.foto_base64) ? body.foto_base64 : [];
+      if (foto.length > MASSIMO_FOTO_RILIEVO) return rifiuto("file", `Al massimo ${MASSIMO_FOTO_RILIEVO} foto.`, 413, cors);
+      richiesta.foto = [];
+      for (const f of foto) {
+        if (typeof f !== "string" || !/^[A-Za-z0-9+/=]+$/.test(f.slice(0, 200))) return rifiuto("file", "Una foto non è valida.", 400, cors);
+        if (f.length * 0.75 > MAX_BYTES_FOTO) return rifiuto("file", "Una foto è troppo grande: riprova.", 413, cors);
+        richiesta.foto.push(`data:image/jpeg;base64,${f}`);
+        impronta += f.slice(0, 500) + f.length;
+      }
+    }
+    // lo schizzo del rilievo è facoltativo; per documento e schizzo il file serve
+    const conFile = ingresso === "documento" || ingresso === "schizzo" || (ingresso === "rilievo" && (body.file_path || body.file_base64));
+    if (conFile) {
       let bytes: Uint8Array;
       let mime = String(body.mime ?? "");
       if (typeof body.file_path === "string" && body.file_path) {
@@ -156,7 +172,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
         altezza = d?.altezza ?? null;
       }
       const b64 = base64(bytes);
-      impronta = b64.slice(0, 4000) + b64.length;
+      impronta += b64.slice(0, 4000) + b64.length;
       richiesta.file = { dataUrl: `data:${mime};base64,${b64}`, mime, nome: richiesta.sorgentePath?.split("/").pop() ?? "pianta", larghezza, altezza };
     }
 

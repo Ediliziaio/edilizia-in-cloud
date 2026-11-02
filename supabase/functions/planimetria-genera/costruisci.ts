@@ -316,12 +316,17 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     origineForma = () => (daDocumento ? "da_documento" : "stimata");
   } else {
     conv = (c) => ({ x: c[0] * 100, y: c[1] * 100 });
-    scala = { metodo: "in_metri", cm_per_unita: 1, da_confermare: opz.ingresso !== "sopralluogo" };
-    origineForma = (l) => (opz.ingresso === "schizzo" && l.misure_lette ? "da_documento" : "stimata");
+    scala = { metodo: "in_metri", cm_per_unita: 1, da_confermare: opz.ingresso !== "sopralluogo" && opz.ingresso !== "rilievo" };
+    // misure prese sul posto col metro: rilevate; quelle dedotte restano stimate
+    origineForma = (l) => (opz.ingresso === "schizzo" && l.misure_lette ? "da_documento" : opz.ingresso === "rilievo" && l.misure_lette ? "rilevata" : "stimata");
     if (opz.ingresso === "descrizione") {
       avvisi.push("Pianta di esempio costruita dalla descrizione: tutte le misure sono stimate, vanno controllate.");
     } else if (opz.ingresso === "schizzo" && locali3.some((l) => !l.misure_lette)) {
       avvisi.push("Alcune stanze non avevano misure scritte sullo schizzo: le loro dimensioni sono stimate.");
+    } else if (opz.ingresso === "rilievo") {
+      const senza = locali3.filter((l) => !l.misure_lette).map((l) => l.nome);
+      avvisi.push("Le misure dettate sono quelle prese sul posto; la posizione delle stanze, delle porte e delle finestre è dedotta: controllala.");
+      if (senza.length) avvisi.push(`Senza misure dettate (stimate): ${senza.slice(0, 8).join(", ")}${senza.length > 8 ? "…" : ""}.`);
     }
   }
 

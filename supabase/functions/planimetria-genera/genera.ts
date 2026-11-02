@@ -11,7 +11,7 @@ import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
 import { estraiJson, leggiRispostaAI } from "./rispostaAI.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
-import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
+import { PROMPT_DESCRIZIONE, PROMPT_DOCUMENTO, PROMPT_RILIEVO, PROMPT_SCHIZZO, promptCorrezione } from "./prompt.ts";
 
 export type ParteContenuto =
   | { type: "text"; text: string }
@@ -32,14 +32,18 @@ export interface RispostaModello {
 export type ChiamaModello = (messaggi: Messaggio[], tentativo: number) => Promise<RispostaModello>;
 
 export interface RichiestaGenerazione {
-  ingresso: "documento" | "schizzo" | "descrizione";
+  ingresso: "documento" | "schizzo" | "descrizione" | "rilievo";
   /** data URL dell'immagine (png/jpeg/webp) oppure del PDF. */
   file?: { dataUrl: string; mime: string; nome?: string; larghezza?: number | null; altezza?: number | null };
   testo?: string;
   /** Un'indicazione dell'utente: «è il piano primo», «la cucina è a destra». */
   nota?: string;
   sorgentePath?: string | null;
+  /** Solo «rilievo»: foto delle stanze (data URL di immagini), al massimo sei. */
+  foto?: string[];
 }
+
+export const MASSIMO_FOTO_RILIEVO = 6;
 
 export interface Tentativo {
   modello: string;
@@ -61,6 +65,21 @@ export const MESSAGGI_UTENTE = {
 export function messaggiIniziali(req: RichiestaGenerazione): Messaggio[] {
   const system = req.ingresso === "documento" ? PROMPT_DOCUMENTO : req.ingresso === "schizzo" ? PROMPT_SCHIZZO : PROMPT_DESCRIZIONE;
   const nota = req.nota?.trim() ? `\nIndicazione di chi ha caricato il file: ${req.nota.trim().slice(0, 500)}` : "";
+  if (req.ingresso === "rilievo") {
+    const parti: ParteContenuto[] = [{ type: "text", text: `Appunti del sopralluogo:\n${(req.testo ?? "").slice(0, 6000)}${nota}` }];
+    if (req.file) {
+      parti.push({ type: "text", text: "Schizzo fatto sul posto:" });
+      parti.push(req.file.mime === "application/pdf"
+        ? { type: "file", file: { filename: req.file.nome ?? "schizzo.pdf", file_data: req.file.dataUrl } }
+        : { type: "image_url", image_url: { url: req.file.dataUrl } });
+    }
+    const foto = (req.foto ?? []).slice(0, MASSIMO_FOTO_RILIEVO);
+    foto.forEach((url, i) => {
+      parti.push({ type: "text", text: `Foto ${i + 1} di ${foto.length} di una stanza:` });
+      parti.push({ type: "image_url", image_url: { url } });
+    });
+    return [{ role: "system", content: conRegoleDocumento(PROMPT_RILIEVO) }, { role: "user", content: parti }];
+  }
   if (req.ingresso === "descrizione") {
     return [{ role: "system", content: conRegoleDocumento(system) }, { role: "user", content: `Descrizione dell'appartamento:\n${(req.testo ?? "").slice(0, 3000)}${nota}` }];
   }
@@ -109,7 +128,7 @@ export async function generaPlanimetria(
   opzioni: { tempoMassimoMs?: number; ora?: () => number } = {},
 ): Promise<EsitoGenerazione> {
   const tentativi: Tentativo[] = [];
-  if (req.ingresso === "descrizione" ? !req.testo?.trim() : !req.file?.dataUrl) {
+  if (req.ingresso === "descrizione" || req.ingresso === "rilievo" ? !req.testo?.trim() : !req.file?.dataUrl) {
     return { ok: false, codice: "ingresso_mancante", messaggio: MESSAGGI_UTENTE.ingresso_mancante, tentativi };
   }
   const ora = opzioni.ora ?? Date.now;

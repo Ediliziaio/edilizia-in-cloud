@@ -13,7 +13,7 @@ import type { Planimetria } from "./adattatore";
 
 export type { InfoGenerazione };
 
-export type IngressoAI = "documento" | "schizzo" | "descrizione";
+export type IngressoAI = "documento" | "schizzo" | "descrizione" | "rilievo";
 
 export const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 /** Il file va alla funzione dentro la richiesta: oltre questa misura conviene una foto più leggera. */
@@ -27,6 +27,25 @@ export interface RichiestaAI {
   mime?: string;
   larghezza?: number;
   altezza?: number;
+  /** Solo «rilievo»: foto delle stanze in JPEG, base64 senza intestazione. */
+  foto_base64?: string[];
+}
+
+/** Una foto di stanza ridotta per l'AI: lato lungo 1280 px, JPEG. Basta per vedere finestre e sanitari. */
+export async function fotoPerRilievo(file: Blob): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((ok, ko) => { img.onload = () => ok(); img.onerror = () => ko(new Error("Foto non leggibile.")); img.src = url; });
+    const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export type EsitoAI =
