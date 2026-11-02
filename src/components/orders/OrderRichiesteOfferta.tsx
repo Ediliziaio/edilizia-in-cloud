@@ -106,6 +106,8 @@ function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; ord
   const [articoli, setArticoli] = useState<Set<string>>(new Set());
   const [fornitori, setFornitori] = useState<Set<string>>(new Set());
   const [occupato, setOccupato] = useState(false);
+  const [cercaFornitore, setCercaFornitore] = useState("");
+  const attivi = suppliers.filter((s: { is_active?: boolean | null }) => s.is_active !== false) as Array<{ id: string; name: string }>;
 
   // Solo ciò che si può davvero chiedere: materiali ancora da comprare, di fasi validate, non già in un'altra richiesta.
   const daChiedere = useMemo(() => fasi.flatMap(f => acquistabile(f.validazione?.stato ?? null)
@@ -172,14 +174,17 @@ function NuovaRichiesta({ orderId, orderCode, onChiudi }: { orderId: string; ord
                 </label>
               ))}
           </fieldset>
-          <fieldset className="max-h-44 space-y-1 overflow-auto rounded border p-2">
-            <legend className="px-1 text-sm font-medium">Fornitori a cui chiederla</legend>
-            {suppliers.filter((s: { is_active?: boolean | null }) => s.is_active !== false).map((s: { id: string; name: string }) => (
-              <label key={s.id} className="flex items-center gap-2 text-sm">
-                <Checkbox checked={fornitori.has(s.id)} onCheckedChange={() => setFornitori(inverti(fornitori, s.id))} />
-                <span className="min-w-0 truncate">{s.name}</span>
-              </label>
-            ))}
+          <fieldset className="space-y-1.5 rounded border p-2">
+            <legend className="px-1 text-sm font-medium">Fornitori a cui chiederla{fornitori.size > 0 ? ` (${fornitori.size})` : ""}</legend>
+            <Input aria-label="Cerca il fornitore" placeholder="Cerca il fornitore…" className="h-8" value={cercaFornitore} onChange={(e) => setCercaFornitore(e.target.value)} />
+            <div className="max-h-40 space-y-1 overflow-auto">
+              {attivi.filter((s) => s.name.toLowerCase().includes(cercaFornitore.trim().toLowerCase()) || fornitori.has(s.id)).map((s) => (
+                <label key={s.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={fornitori.has(s.id)} onCheckedChange={() => setFornitori(inverti(fornitori, s.id))} />
+                  <span className="min-w-0 truncate">{s.name}</span>
+                </label>
+              ))}
+            </div>
           </fieldset>
         </div>
         <DialogFooter>

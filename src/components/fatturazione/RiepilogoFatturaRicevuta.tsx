@@ -11,6 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
+import { PagamentoRicevutaCella } from "@/components/fatturazione/PagamentoRicevuta";
+import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
+import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
+import { usePermissions } from "@/hooks/usePermissions";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import {
@@ -78,7 +83,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, verifica_manuale, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -113,6 +118,14 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   let daCollegareStessoCedente: string[] = [];
   const piva = chiaveFiscale(f.cedente_piva);
   const cf = chiaveFiscale(f.cedente_cf);
+  // Senza codici si riconosce dal nome, se è di un fornitore solo: niente doppioni con «Aggiungi ai fornitori».
+  if (!f.fornitore_id && !piva && !cf && f.cedente_ragione_sociale) {
+    const { data: idNome } = await db.rpc("fornitore_per_nome", { p_company_id: companyId, p_nome: String(f.cedente_ragione_sociale) });
+    if (idNome) {
+      const { data: scheda } = await db.from("suppliers").select("id, name").eq("id", idNome).eq("company_id", companyId).maybeSingle();
+      if (scheda) candidatiFornitore = [{ id: String(scheda.id), name: String(scheda.name ?? "Fornitore") }];
+    }
+  }
   if (!f.fornitore_id && (piva || cf)) {
     const filtri = [piva && `vat_number.ilike.%${piva}%`, cf && `fiscal_code.ilike.%${cf}%`].filter(Boolean).join(",");
     const [sup, stesse] = await Promise.all([
@@ -179,6 +192,8 @@ export function RiepilogoFatturaRicevuta({
     queryFn: () => leggiDettaglio(fatturaId!, companyId!),
   });
 
+  const permessi = usePermissions();
+  const [pagamenti, setPagamenti] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const aggiorna = () => {
     queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
@@ -265,6 +280,8 @@ export function RiepilogoFatturaRicevuta({
     : "";
 
   return (
+    <>
+    {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
     <Sheet open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
       <SheetContent
         side={isMobile ? "bottom" : "right"}
@@ -292,7 +309,8 @@ export function RiepilogoFatturaRicevuta({
               </SheetDescription>
             </SheetHeader>
 
-            {/* Fornitore */}
+            {/* Fornitore: senza dati non resta un riquadro vuoto. */}
+            {(f.cedente_piva || f.cedente_cf || indirizzo || f.ai_riassunto || f.categoria_ai) ? (
             <section className="rounded-lg border p-3 text-sm space-y-1">
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
                 {f.cedente_piva ? <span>P.IVA {String(f.cedente_piva)}</span> : null}
@@ -306,6 +324,7 @@ export function RiepilogoFatturaRicevuta({
                 <div className="pt-1"><Badge variant="secondary">{String(f.categoria_ai)}{f.sottocategoria_ai ? ` · ${String(f.sottocategoria_ai)}` : ""}</Badge></div>
               ) : null}
             </section>
+            ) : null}
 
             {anomalie.length > 0 && (
               <section className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -430,6 +449,21 @@ export function RiepilogoFatturaRicevuta({
                       </>
                     );
                   })()}
+                </dd>
+
+                <dt className="text-muted-foreground">Verifica</dt>
+                <dd>
+                  <VerificaFatturaPill id={String(f.id)} numero={f.numero_fattura ? String(f.numero_fattura) : null} puoCambiare={!!permessi.canViewCosts && !permessi.solaLettura}
+                    verificata={fatturaVerificata({ stato: String(f.stato ?? ""), verifica_manuale: f.verifica_manuale ? String(f.verifica_manuale) : null })} />
+                </dd>
+
+                <dt className="text-muted-foreground">Pagamento</dt>
+                <dd>
+                  {d.costo && permessi.canViewCosts ? (
+                    <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={() => setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button>
+                  ) : (
+                    <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura ?? "")} tipo={String(f.tipo_documento ?? "")} pagataIl={f.pagata_il ? String(f.pagata_il) : null} />
+                  )}
                 </dd>
 
                 <dt className="text-muted-foreground">Nei costi</dt>
@@ -585,5 +619,6 @@ export function RiepilogoFatturaRicevuta({
         )}
       </SheetContent>
     </Sheet>
+    </>
   );
 }

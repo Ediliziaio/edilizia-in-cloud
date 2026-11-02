@@ -443,7 +443,7 @@ export function NewDDTDialog({
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <FileCheck className="h-5 w-5 text-primary" />
             Nuovo DDT fornitore
-            <Badge variant="secondary" className="ml-auto text-[10px] font-normal">
+            <Badge variant="secondary" className="ml-auto mr-6 text-[10px] font-normal">
               Step {stepIdx + 1} / {STEPS.length}
             </Badge>
           </DialogTitle>

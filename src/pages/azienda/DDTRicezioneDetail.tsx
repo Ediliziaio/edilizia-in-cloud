@@ -635,6 +635,8 @@ export default function DDTRicezioneDetail() {
                     <span>
                       {righeMerce.length} {righeMerce.length === 1 ? "riga" : "righe"}
                     </span>
+                  ) : receipts.length > 0 ? (
+                    <span>{receipts.length} {receipts.length === 1 ? "articolo ricevuto" : "articoli ricevuti"}</span>
                   ) : (
                     <span className="text-amber-600">nessuna riga</span>
                   )
@@ -771,6 +773,7 @@ export default function DDTRicezioneDetail() {
             ddtId={ddtId}
             aiConfidenza={ddt?.ai_confidenza}
             aiAvvisi={ddt?.ai_avvisi}
+            ricezioni={receipts.length}
             quantitaInTestata={
               ddt?.quantita_ricevuta != null ? Number(ddt.quantita_ricevuta) : null
             }
@@ -1176,7 +1179,7 @@ export default function DDTRicezioneDetail() {
         </div>
 
           {/* ─── 4. CHI L'HA PORTATA: corriere, mezzo, autista, orari ─── */}
-          <Card>
+          <Card className="self-start">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
