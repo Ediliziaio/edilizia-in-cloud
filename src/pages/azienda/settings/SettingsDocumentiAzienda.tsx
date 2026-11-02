@@ -13,10 +13,10 @@
  *   - In sola lettura non compare nessun comando.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type DragEvent } from 'react';
 import { toast } from 'sonner';
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, FileText, Lock, Paperclip,
+  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, FileText, FolderUp, Lock, Paperclip,
   Pencil, Plus, RotateCw, Search, Trash2, Upload, X,
 } from 'lucide-react';
 
@@ -26,10 +26,12 @@ import { useSediList } from '@/hooks/useSediAnalytics';
 import { useCompanyStaffUsers } from '@/hooks/useCompanyStaffUsers';
 import {
   caricaFileDocumento, linkFileDocumento, rimuoviFileDocumento,
-  useAggiungiDaElencoDiPartenza, useAllegaFileDocumento, useDocumentiAzienda, useEliminaDocumentoAzienda,
+  useAggiungiDaElencoDiPartenza, useAllegaFileDocumento, useAllegaFileInBlocco,
+  useDocumentiAzienda, useEliminaDocumentoAzienda,
   useElencoDiPartenzaDaMostrare, useRinnovaDocumentoAzienda, useSalvaDocumentoAzienda,
-  useStoricoDocumento,
+  useStoricoDocumento, type FileDaCaricare,
 } from '@/hooks/useDocumentiAzienda';
+import { abbinaFile, titoloDaNomeFile } from '@/lib/documentiAzienda/abbinaFile';
 import {
   CATEGORIE_DOCUMENTO, ELENCO_DI_PARTENZA, ETICHETTA_CATEGORIA, PREAVVISO_PREDEFINITO,
   type CategoriaDocumento, type DatiDocumento, type DocumentoAzienda, type StatoDocumento,
@@ -43,6 +45,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -52,7 +56,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 
 // ── Aiutanti ─────────────────────────────────────────────────────────────────
@@ -182,6 +186,56 @@ async function apriFile(path: string | null) {
 
 // ── Pagina ───────────────────────────────────────────────────────────────────
 
+/** Quanti file si prendono in un colpo: oltre, chi ha trascinato ha sbagliato cartella. */
+const MASSIMO_FILE = 100;
+
+const TIPI_AMMESSI = '.pdf,.jpg,.jpeg,.png,.heic,.doc,.docx';
+
+/**
+ * I file di un trascinamento, aprendo le cartelle.
+ *
+ * Trascinare una cartella dà **una voce sola**, non i file dentro: senza aprirla non si
+ * carica niente e sembra che la pagina non funzioni. Le voci vanno lette subito, prima di
+ * qualunque attesa, perché dopo il gestore dell'evento il browser le butta.
+ */
+async function fileDalTrascinamento(dt: DataTransfer): Promise<File[]> {
+  const voci = Array.from(dt.items ?? [])
+    .filter((i) => i.kind === 'file')
+    .map((i) => (typeof i.webkitGetAsEntry === 'function' ? i.webkitGetAsEntry() : null));
+
+  if (!voci.some((v) => v?.isDirectory)) return Array.from(dt.files ?? []).slice(0, MASSIMO_FILE);
+
+  const trovati: File[] = [];
+
+  const leggiCartella = (cartella: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> =>
+    new Promise((risolvi) => {
+      const lettore = cartella.createReader();
+      const tutte: FileSystemEntry[] = [];
+      // readEntries ne dà cento per volta: si richiama finché non risponde vuoto.
+      const giro = () => lettore.readEntries(
+        (parte) => (parte.length === 0 ? risolvi(tutte) : (tutte.push(...parte), giro())),
+        () => risolvi(tutte),
+      );
+      giro();
+    });
+
+  const apri = async (voce: FileSystemEntry | null, profondita: number): Promise<void> => {
+    if (!voce || trovati.length >= MASSIMO_FILE || profondita > 4) return;
+    if (voce.isFile) {
+      const file = await new Promise<File | null>((risolvi) =>
+        (voce as FileSystemFileEntry).file((f) => risolvi(f), () => risolvi(null)));
+      if (file) trovati.push(file);
+      return;
+    }
+    for (const dentro of await leggiCartella(voce as FileSystemDirectoryEntry)) {
+      await apri(dentro, profondita + 1);
+    }
+  };
+
+  for (const voce of voci) await apri(voce, 0);
+  return trovati.slice(0, MASSIMO_FILE);
+}
+
 type Filtro = 'tutti' | 'scaduto' | 'in_scadenza' | 'valido';
 
 export default function SettingsDocumentiAzienda() {
@@ -198,11 +252,17 @@ export default function SettingsDocumentiAzienda() {
   const [nuovo, setNuovo] = useState(false);
   const [daRinnovare, setDaRinnovare] = useState<DocumentoAzienda | null>(null);
   const [daEliminare, setDaEliminare] = useState<DocumentoAzienda | null>(null);
+  const [daAbbinare, setDaAbbinare] = useState<File[] | null>(null);
+  const [sottoIlFile, setSottoIlFile] = useState(false);
+  // dragenter e dragleave scattano anche passando da un figlio all'altro: senza contarli
+  // il riquadro sfarfalla a ogni riga che il mouse attraversa.
+  const quantiTrascinamenti = useRef(0);
 
   const conti = useMemo(() => ({
     scaduto: documenti.filter((d) => d.stato === 'scaduto').length,
     in_scadenza: documenti.filter((d) => d.stato === 'in_scadenza').length,
     valido: documenti.filter((d) => d.stato === 'valido' || d.stato === 'senza_scadenza').length,
+    senzaFile: documenti.filter((d) => !d.file_path).length,
   }), [documenti]);
 
   const visibili = useMemo(() => {
@@ -225,6 +285,37 @@ export default function SettingsDocumentiAzienda() {
     return gruppi;
   }, [visibili]);
 
+  // Il trascinamento vale su tutta la pagina: con venti PDF in mano, mirare un riquadro
+  // piccolo è un lavoro in più.
+  const portaFile = (e: DragEvent<HTMLDivElement>) =>
+    puoModificare && Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
+  const entraTrascinamento = (e: DragEvent<HTMLDivElement>) => {
+    if (!portaFile(e)) return;
+    quantiTrascinamenti.current += 1;
+    setSottoIlFile(true);
+  };
+  const esceTrascinamento = () => {
+    quantiTrascinamenti.current = Math.max(0, quantiTrascinamenti.current - 1);
+    if (quantiTrascinamenti.current === 0) setSottoIlFile(false);
+  };
+  const sopraTrascinamento = (e: DragEvent<HTMLDivElement>) => {
+    // Senza preventDefault il browser apre il PDF in una scheda e il lavoro è perso.
+    if (portaFile(e)) e.preventDefault();
+  };
+  const lasciaFile = async (e: DragEvent<HTMLDivElement>) => {
+    if (!portaFile(e)) return;
+    e.preventDefault();
+    quantiTrascinamenti.current = 0;
+    setSottoIlFile(false);
+    const file = await fileDalTrascinamento(e.dataTransfer);
+    if (file.length === 0) {
+      toast.error('Non ho trovato nessun file da caricare');
+      return;
+    }
+    setDaAbbinare(file);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -235,7 +326,25 @@ export default function SettingsDocumentiAzienda() {
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div
+      className="relative max-w-6xl space-y-6"
+      onDragEnter={entraTrascinamento}
+      onDragLeave={esceTrascinamento}
+      onDragOver={sopraTrascinamento}
+      onDrop={lasciaFile}
+    >
+      {sottoIlFile && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-6 backdrop-blur-sm">
+          <div className="rounded-xl border-2 border-dashed border-primary bg-card px-10 py-8 text-center shadow-lg">
+            <FolderUp className="mx-auto h-9 w-9 text-primary" />
+            <p className="mt-3 font-medium">Lascia qui i file</p>
+            <p className="text-sm text-muted-foreground">
+              Guardo il nome e ti dico a quale carta va ciascuno
+            </p>
+          </div>
+        </div>
+      )}
+
       {!puoModificare && (
         <Alert>
           <Lock className="h-4 w-4" />
@@ -302,6 +411,30 @@ export default function SettingsDocumentiAzienda() {
           )}
         </div>
         )}
+        {/* Anche a elenco vuoto: chi ha la cartella dei PDF in mano parte da lì, e ogni file
+            diventa una carta nuova col suo nome. */}
+        {puoModificare && (
+          <>
+            <input
+              id="carica-in-blocco"
+              type="file"
+              multiple
+              className="sr-only"
+              accept={TIPI_AMMESSI}
+              onChange={(e) => {
+                const scelti = Array.from(e.target.files ?? []).slice(0, MASSIMO_FILE);
+                if (scelti.length > 0) setDaAbbinare(scelti);
+                e.target.value = '';
+              }}
+            />
+            <Button asChild variant="outline" className="shrink-0">
+              <label htmlFor="carica-in-blocco" className="cursor-pointer">
+                <FolderUp className="mr-2 h-4 w-4" />
+                Carica più file
+              </label>
+            </Button>
+          </>
+        )}
         {puoModificare && (
           <Button onClick={() => setNuovo(true)} className="shrink-0">
             <Plus className="mr-2 h-4 w-4" />
@@ -309,6 +442,18 @@ export default function SettingsDocumentiAzienda() {
           </Button>
         )}
       </div>
+      )}
+
+      {/* Le date arrivano da un import, i file no: quasi ogni azienda parte con l'elenco
+          pieno e l'archivio vuoto, e non sa che si possono buttare dentro tutti insieme. */}
+      {puoModificare && conti.senzaFile > 0 && documenti.length > 0 && (
+        <p className="-mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Paperclip className="h-3.5 w-3.5 shrink-0" />
+          {conti.senzaFile === 1
+            ? 'Una carta non ha il file.'
+            : `${conti.senzaFile} carte non hanno il file.`}
+          {' '}Trascina qui i PDF: guardo il nome e li abbino io.
+        </p>
       )}
 
       {/* Il suggerimento sta sotto il comando: chi sa già cosa caricare non deve scavalcarlo. */}
@@ -370,6 +515,13 @@ export default function SettingsDocumentiAzienda() {
       )}
       {daRinnovare && (
         <ModuloRinnovo documento={daRinnovare} onChiudi={() => setDaRinnovare(null)} />
+      )}
+      {daAbbinare && (
+        <CaricaInBlocco
+          file={daAbbinare}
+          documenti={documenti}
+          onChiudi={() => setDaAbbinare(null)}
+        />
       )}
       <AlertDialog open={!!daEliminare} onOpenChange={(v) => !v && setDaEliminare(null)}>
         <AlertDialogContent>
@@ -605,6 +757,201 @@ function CaricaQui({ documento, ha }: { documento: DocumentoAzienda; ha: boolean
         </label>
       </Button>
     </>
+  );
+}
+
+/** Oltre questo non si carica: un PDF da quaranta mega è una scansione fatta male. */
+const MASSIMO_MB = 40;
+
+const NUOVO = '__nuovo__';
+const SALTA = '__salta__';
+
+function pesoLeggibile(byte: number): string {
+  if (byte < 1024 * 1024) return `${Math.max(1, Math.round(byte / 1024))} kB`;
+  return `${(byte / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+}
+
+/**
+ * Tutto l'archivio in un colpo: si trascinano i PDF sulla pagina e si conferma una volta.
+ *
+ * Il collaudo su Impresa Vulcano ha trovato ventitré scadenze dentro e **zero file**: la
+ * pagina ricordava le date, l'archivio era vuoto. Allegare un PDF per volta costa un giro
+ * a testa, e chi ha le carte in una cartella del server non le travasa mai.
+ *
+ * Gli abbinamenti si propongono e si vedono tutti prima di partire: nessun file si attacca
+ * da solo a una carta. Quello che il nome non dice diventa un documento nuovo col nome del
+ * file — una riga in più la cancelli, un DURC che in realtà è la polizza incendio te lo
+ * scopri in gara.
+ */
+function CaricaInBlocco({ file, documenti, onChiudi }: {
+  file: File[];
+  documenti: DocumentoAzienda[];
+  onChiudi: () => void;
+}) {
+  const carica = useAllegaFileInBlocco();
+  const [fatti, setFatti] = useState(0);
+
+  const troppoGrandi = useMemo(() => file.filter((f) => f.size > MASSIMO_MB * 1024 * 1024), [file]);
+  const buoni = useMemo(() => file.filter((f) => f.size <= MASSIMO_MB * 1024 * 1024), [file]);
+
+  // Abbinamenti e ordine si decidono all'apertura e non si muovono più: l'elenco dei
+  // documenti si aggiorna da sé ogni mezzo minuto, e vedere le righe saltare di posto
+  // mentre le stai controllando è il modo di confermare la riga sbagliata.
+  const [iniziale] = useState(() => {
+    const proposte = abbinaFile(buoni.map((f) => f.name), documenti);
+    // Gli abbinati in cima, chi non ha trovato casa in fondo: lì sotto c'è da lavorare.
+    const ordine = buoni.map((_, i) => i).sort((a, b) => proposte[b].punteggio - proposte[a].punteggio);
+    return { proposte, ordine };
+  });
+  const { proposte, ordine } = iniziale;
+  const [scelte, setScelte] = useState<string[]>(() => proposte.map((p) => p.documentoId ?? NUOVO));
+
+  const perCategoria = useMemo(() => {
+    const gruppi: Array<[CategoriaDocumento, DocumentoAzienda[]]> = [];
+    for (const categoria of CATEGORIE_DOCUMENTO) {
+      const righe = documenti.filter((d) => d.categoria === categoria);
+      if (righe.length > 0) gruppi.push([categoria, righe]);
+    }
+    return gruppi;
+  }, [documenti]);
+
+  // Due file sulla stessa carta: il secondo cancellerebbe il primo senza dirlo.
+  const doppioni = useMemo(() => {
+    const quante = new Map<string, number>();
+    for (const s of scelte) {
+      if (s === NUOVO || s === SALTA) continue;
+      quante.set(s, (quante.get(s) ?? 0) + 1);
+    }
+    return new Set([...quante.entries()].filter(([, n]) => n > 1).map(([id]) => id));
+  }, [scelte]);
+
+  const daCaricare = scelte.filter((s) => s !== SALTA).length;
+  const nuovi = scelte.filter((s) => s === NUOVO).length;
+  const abbinati = daCaricare - nuovi;
+
+  const avvia = () => {
+    const righe: FileDaCaricare[] = [];
+    buoni.forEach((f, i) => {
+      const scelta = scelte[i];
+      if (scelta === SALTA) return;
+      if (scelta === NUOVO) {
+        righe.push({ file: f, titoloNuovo: titoloDaNomeFile(f.name) });
+        return;
+      }
+      const documento = documenti.find((d) => d.id === scelta);
+      if (documento) righe.push({ file: f, documento: { id: documento.id, file_path: documento.file_path } });
+    });
+    if (righe.length === 0) return;
+    setFatti(0);
+    carica.mutate({ righe, onProgresso: (n) => setFatti(n) }, { onSuccess: () => onChiudi() });
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v && !carica.isPending) onChiudi(); }}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            {file.length === 1 ? 'Un file da caricare' : `${file.length} file da caricare`}
+          </DialogTitle>
+          <DialogDescription>
+            Ho provato a capire dal nome a quale carta va ciascuno. Controlla prima di partire:
+            quello che non ho riconosciuto diventa un documento nuovo.
+          </DialogDescription>
+        </DialogHeader>
+
+        {carica.isPending ? (
+          <div className="space-y-3 py-6">
+            <Progress value={buoni.length > 0 ? (fatti / buoni.length) * 100 : 0} />
+            <p className="text-center text-sm text-muted-foreground tabular-nums">
+              {fatti} di {daCaricare}
+            </p>
+          </div>
+        ) : (
+          <>
+            {troppoGrandi.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  {troppoGrandi.length === 1
+                    ? `«${troppoGrandi[0].name}» pesa troppo`
+                    : `${troppoGrandi.length} file pesano troppo`}: oltre {MASSIMO_MB} MB non si
+                  carica. Riscansionali più leggeri.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <ScrollArea className="max-h-[52vh] pr-3">
+              <div className="divide-y">
+                {ordine.map((i) => {
+                  const f = buoni[i];
+                  const scelta = scelte[i];
+                  const proposto = proposte[i].documentoId !== null;
+                  const bersaglio = documenti.find((d) => d.id === scelta);
+                  return (
+                    <div key={`${f.name}-${i}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{f.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pesoLeggibile(f.size)}
+                          {proposto && ' · riconosciuto dal nome'}
+                          {bersaglio?.file_path && ' · sostituisce il file che c’è adesso'}
+                        </p>
+                      </div>
+                      <div className="sm:w-80">
+                        <Select
+                          value={scelta}
+                          onValueChange={(v) => setScelte((prima) => prima.map((s, k) => (k === i ? v : s)))}
+                        >
+                          <SelectTrigger
+                            className={doppioni.has(scelta) ? 'border-destructive text-destructive' : undefined}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NUOVO}>Documento nuovo con questo nome</SelectItem>
+                            <SelectItem value={SALTA}>Non caricarlo</SelectItem>
+                            {perCategoria.map(([categoria, righe]) => (
+                              <SelectGroup key={categoria}>
+                                <SelectLabel>{ETICHETTA_CATEGORIA[categoria]}</SelectLabel>
+                                {righe.map((d) => (
+                                  <SelectItem key={d.id} value={d.id}>{d.titolo}</SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {doppioni.has(scelta) && (
+                          <p className="mt-1 text-xs text-destructive">
+                            Due file su questa carta: scegline uno.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+
+            <p className="text-sm text-muted-foreground">
+              {abbinati > 0 && `${abbinati} su carte che hai già`}
+              {abbinati > 0 && nuovi > 0 && ', '}
+              {nuovi > 0 && `${nuovi} ${nuovi === 1 ? 'documento nuovo' : 'documenti nuovi'}`}
+              {daCaricare === 0 && 'Non hai scelto niente da caricare'}
+            </p>
+          </>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onChiudi} disabled={carica.isPending}>
+            Lascia stare
+          </Button>
+          <Button onClick={avvia} disabled={carica.isPending || daCaricare === 0 || doppioni.size > 0}>
+            <Upload className="mr-2 h-4 w-4" />
+            {carica.isPending ? 'Carico…' : `Carica ${daCaricare} file`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

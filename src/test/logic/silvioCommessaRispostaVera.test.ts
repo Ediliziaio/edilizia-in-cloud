@@ -82,4 +82,33 @@ describe("la risposta del modello vero", () => {
     const f = leggi({ fasi: { "fasi.order_work_phases": [{ name: "Inizio lavori", giorni: 14 }] } });
     expect(f.aree.fasi?.["fasi.order_work_phases"]).toBeUndefined();
   });
+
+  describe("«più IVA» non si scorpora", () => {
+    const conTesto = (testo: string, totale: number) => frammentoDaRispostaAI({ aree: {
+      economia: { "economia.total_amount": { valore: totale, citazione: "12.000 euro piu IVA 10%", fiducia: 0.9 }, "economia.vat_rate": { valore: 10, citazione: "IVA 10%", fiducia: 0.9 } },
+    } }, { fonte: { tipo: "testo" as const, etichetta: "testo" }, testo } as never);
+
+    it("12.000 più IVA, il modello scrive 10.909,09: vale 12.000, da controllare", () => {
+      const v = conTesto("Bagno a Monza, 12.000 euro piu IVA 10%, si parte lunedi", 10909.09).aree.economia?.["economia.total_amount"];
+      expect(v?.valore).toBe(12000);
+      expect(v?.stato).toBe("proposta");
+    });
+
+    it.each(["12.000 oltre IVA", "12.000 + IVA", "euro 12.000,00 IVA esclusa", "12mila euro piu IVA"])("«%s»", (frase) => {
+      expect(conTesto(`Lavori: ${frase} al 10%`, 10909.09).aree.economia?.["economia.total_amount"]?.valore).toBe(12000);
+    });
+
+    it("«IVA inclusa»: lo scorporo resta", () => {
+      expect(conTesto("Bagno, 12.000 euro IVA inclusa al 10%", 10909.09).aree.economia?.["economia.total_amount"]?.valore).toBe(10909.09);
+    });
+
+    it("la cifra giusta non si tocca", () => {
+      expect(conTesto("Bagno, 12.000 euro piu IVA 10%", 12000).aree.economia?.["economia.total_amount"]?.valore).toBe(12000);
+    });
+  });
+
+  it("contatti tutti vuoti: nessun avviso", () => {
+    const f = leggi({ cliente: { "cliente.contatto": { client_phone: null as string | null, client_email: null as string | null } } });
+    expect(f.avvisi ?? []).toEqual([]);
+  });
 });
