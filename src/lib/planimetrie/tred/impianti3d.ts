@@ -3,12 +3,13 @@
  *
  * Usa le STESSE stime del disegno 2D e del computo (shared/planimetrie/impianti.ts): dal quadro a ogni
  * presa, dal collettore a ogni punto acqua, dai sanitari alla colonna di scarico, dagli split all'unità
- * esterna. Il tratto orizzontale corre a «L» sopra il pavimento, ogni linea alla sua altezza per non
+ * esterna. Il tratto orizzontale corre a segmenti ortogonali (instradamento: meno muri bucati, vicino ai muri), ogni linea alla sua altezza per non
  * sovrapporsi; le calate in verticale arrivano alla quota del simbolo (presa a 30 cm, quadro a 1,60 m…).
  * Sono percorsi STIMATI, non un progetto: servono a vedere dove passeranno e a quantificare i metri.
  */
 import { metriConSfrido, percorsiDaElementi, quotaPunto, type LineaImpianto, type PartenzaMancante } from "../../../../shared/planimetrie/impianti.ts";
 import { CostruttoreMesh } from "./costruttore";
+import { instradaTubo } from "./instradamento";
 import { MATERIALI } from "./materiali";
 import type { Mesh3D, PiantaPer3D, Scena3D } from "./tipi";
 
@@ -60,9 +61,13 @@ export function meshImpianti(pianta: PiantaPer3D): Impianti3D {
     cm.set(p.linea, (cm.get(p.linea) ?? 0) + p.lunghezzaCm);
     const x0 = p.da.x * CM, z0 = p.da.y * CM, x1 = p.a.x * CM, z1 = p.a.y * CM;
     const base = quota - t / 2;
-    // orizzontale a «L»: prima lungo x, poi lungo z
-    if (Math.abs(x1 - x0) > 0.005) c.scatola((x0 + x1) / 2, z0, base, Math.abs(x1 - x0) + t, t, t, 0);
-    if (Math.abs(z1 - z0) > 0.005) c.scatola(x1, (z0 + z1) / 2, base, t, Math.abs(z1 - z0) + t, t, 0);
+    // orizzontale a segmenti ortogonali, scelti per bucare meno muri e stare vicino ai muri
+    const punti = instradaTubo(p.da, p.a, pianta.muri.filter((m) => m.stato !== "demolire"));
+    for (let i = 0; i < punti.length - 1; i++) {
+      const ax = punti[i].x * CM, az = punti[i].y * CM, bx = punti[i + 1].x * CM, bz = punti[i + 1].y * CM;
+      if (Math.abs(bx - ax) > 0.005) c.scatola((ax + bx) / 2, az, base, Math.abs(bx - ax) + t, t, t, 0);
+      if (Math.abs(bz - az) > 0.005) c.scatola(bx, (az + bz) / 2, base, t, Math.abs(bz - az) + t, t, 0);
+    }
     // calate: dal tubo orizzontale alla quota del simbolo, alle due estremità
     const risale = (x: number, z: number, h: number) => {
       const da = Math.min(quota, h), a = Math.max(quota, h);
