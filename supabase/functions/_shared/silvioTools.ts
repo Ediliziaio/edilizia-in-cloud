@@ -950,12 +950,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_employees_workload",
-        description: "Ritorna carico di lavoro per ogni operaio attivo: ore lavorate ultimi 30gg, ordini attivi, % utilizzo, stato (libero/leggero/medio/pieno/overload, oppure ore_mancanti se la scheda non ha le ore contrattuali: in quel caso dillo e invita a completarla). Usa per 'chi è libero', 'carico operai', 'chi posso assegnare', 'team in overload'.",
-        parameters: { type: "object", properties: {}, required: [] },
+        description: "Carico di ogni persona attiva: ore da rapportini per data di lavoro negli ultimi 30 giorni, commesse su cui è impegnata (impegni), assenze, stato (libero/leggero/medio/pieno/overload, impegnato se è già su una commessa nel periodo, assente, ore_mancanti se la scheda non ha le ore contrattuali). Senza date guarda oggi: passa dal e al per sapere chi è libero in un periodo. Zero ore può voler dire solo che non scrive rapportini. role_type staff_interno o impiegato è ufficio, subappaltatore è una ditta: non contarli come operai.",
+        parameters: { type: "object", properties: { dal: { type: "string", format: "date", description: "Primo giorno del periodo" }, al: { type: "string", format: "date", description: "Ultimo giorno del periodo" } }, required: [] },
       },
     },
-    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_employees_workload", {
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_employees_workload", {
       p_company_id: ctx.companyId,
+      p_dal: args?.dal ?? null,
+      p_al: args?.al ?? null,
     }),
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "hr", "assistente_imprenditore"],
@@ -8041,43 +8043,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
-  // MP-HR-03 — Allocazione Operai Ottimale (5 tool)
+  // MP-HR-03 — tolti il 2/11/2026: leggevano employee_skills, sempre vuota, o rimandavano a una funzione mai scritta. Il carico vero è get_employees_workload.
   // ═════════════════════════════════════════════════════════════════════════
 
-  suggerisci_squadra_cantiere: {
-    schema: { type: "function", function: { name: "suggerisci_squadra_cantiere", description: "Suggerisce top-N operai per un cantiere/lavorazione basato su skill + productivity score.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, lavorazione: { type: "string" }, team_size: { type: "integer", default: 3 } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_squadra_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_lavorazione: args?.lavorazione ?? null, p_team_size: args?.team_size ?? 3 }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
-  },
 
-  analizza_competenze_operaio: {
-    schema: { type: "function", function: { name: "analizza_competenze_operaio", description: "Skill matrix di un operaio (proficiency, ore, productivity per skill).", parameters: { type: "object", properties: { employee_id: { type: "string" } }, required: ["employee_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_competenze_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
-  },
 
-  aggiorna_skill_da_rapportini: {
-    schema: { type: "function", function: { name: "aggiorna_skill_da_rapportini", description: "Aggiorna employee_skills.productivity_score aggregando rapportini periodo.", parameters: { type: "object", properties: { employee_id: { type: "string" }, period_start: { type: "string", format: "date" }, period_end: { type: "string", format: "date" } }, required: ["employee_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_aggiorna_skill_da_rapportini", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_period_start: args?.period_start ?? null, p_period_end: args?.period_end ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "hr"], riskLevel: "yellow", domain: "hr",
-  },
 
-  top_performer_lavorazione: {
-    schema: { type: "function", function: { name: "top_performer_lavorazione", description: "Top-N performer per skill_key.", parameters: { type: "object", properties: { skill_key: { type: "string" }, top_n: { type: "integer", default: 5 } }, required: ["skill_key"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_top_performer_lavorazione", { p_company_id: ctx.companyId, p_skill_key: args?.skill_key, p_top_n: args?.top_n ?? 5 }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "capocantiere", "*"], riskLevel: "safe", domain: "hr",
-  },
 
-  analizza_squadra_storia: {
-    schema: { type: "function", function: { name: "analizza_squadra_storia", description: "Storia performance squadra (employee_ids → media produttività/qualità).", parameters: { type: "object", properties: { employee_ids: { type: "array", items: { type: "string" } } }, required: ["employee_ids"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_squadra_storia", { p_company_id: ctx.companyId, p_employee_ids: args?.employee_ids }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
-  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // MP-HR-04 — Sicurezza Operai DPI/Formazione/Visite (6 tool)
@@ -8126,43 +8098,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
-  // MP-OPS-07 — Pianificazione Multi-Cantiere (5 tool)
+  // MP-OPS-07 — tolti il 2/11/2026: scrivevano in cantiere_allocations, che nessuna pagina legge. Le assegnazioni vere sono in order_employees.
   // ═════════════════════════════════════════════════════════════════════════
 
-  pianifica_cantiere: {
-    schema: { type: "function", function: { name: "pianifica_cantiere", description: "Crea allocazioni cantiere (employees/subcontractors/mezzi).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, resources: { type: "array", items: { type: "object" } }, start_date: { type: "string", format: "date" }, end_date: { type: "string", format: "date" } }, required: ["cantiere_id", "resources"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_pianifica_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_resources: args?.resources, p_start_date: args?.start_date ?? null, p_end_date: args?.end_date ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "yellow", domain: "cantiere",
-  },
 
-  ottimizza_allocazioni_settimana: {
-    schema: { type: "function", function: { name: "ottimizza_allocazioni_settimana", description: "AI ottimizza allocazioni per settimana (scenario: balanced|max_throughput|min_overtime).", parameters: { type: "object", properties: { start_date: { type: "string", format: "date" }, scenario: { type: "string" } } } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_ottimizza_allocazioni_settimana", { p_company_id: ctx.companyId, p_start_date: args?.start_date ?? null, p_scenario: args?.scenario ?? "balanced" }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.06,
-  },
 
-  identifica_conflitti_allocazione: {
-    schema: { type: "function", function: { name: "identifica_conflitti_allocazione", description: "Lista conflitti (stesso operaio su 2+ cantieri stesso periodo).", parameters: { type: "object", properties: {} } } },
-    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_conflitti_allocazione", { p_company_id: ctx.companyId }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  prevedi_impatto_ritardo: {
-    schema: { type: "function", function: { name: "prevedi_impatto_ritardo", description: "Stima allocazioni impattate da ritardo cantiere.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, delay_days: { type: "integer" } }, required: ["cantiere_id", "delay_days"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prevedi_impatto_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_delay_days: args?.delay_days }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  sposta_allocazione: {
-    schema: { type: "function", function: { name: "sposta_allocazione", description: "Sposta una allocazione su nuove date.", parameters: { type: "object", properties: { allocation_id: { type: "string" }, new_start: { type: "string", format: "date" }, new_end: { type: "string", format: "date" }, reason: { type: "string" } }, required: ["allocation_id", "new_start", "new_end"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_sposta_allocazione", { p_company_id: ctx.companyId, p_allocation_id: args?.allocation_id, p_new_start: args?.new_start, p_new_end: args?.new_end, p_reason: args?.reason ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere",
-  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // MP-OPS-08 — Sicurezza POS Auto (4 tool)
@@ -8197,29 +8139,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
-  // MP-PRED-02 — Cantiere Ritardo Prediction (5 tool)
+  // MP-PRED-02 — tolti il 2/11/2026 predici_data_fine, cause e piano di recupero: nessuno scrive cantiere_risk_predictions.
   // ═════════════════════════════════════════════════════════════════════════
 
-  predici_data_fine_cantiere: {
-    schema: { type: "function", function: { name: "predici_data_fine_cantiere", description: "Ultima previsione data fine cantiere + risk level.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_predici_data_fine_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  analizza_cause_ritardo: {
-    schema: { type: "function", function: { name: "analizza_cause_ritardo", description: "Analizza cause primarie e fattori contribuenti al ritardo.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_cause_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  genera_piano_recovery_cantiere: {
-    schema: { type: "function", function: { name: "genera_piano_recovery_cantiere", description: "AI propone piano recovery cantiere a rischio.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, target_date: { type: "string", format: "date" } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_piano_recovery_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_target_date: args?.target_date ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.05,
-  },
 
   lista_cantieri_a_rischio: {
     schema: { type: "function", function: { name: "lista_cantieri_a_rischio", description: "SOLO previsioni di rischio registrate (low/medium/high/critical), NON ritardi reali. Un elenco vuoto non dimostra assenza di ritardi o copertura di tutti i cantieri. Per quanti/quali cantieri sono in ritardo usa analizza_stato_commesse.", parameters: { type: "object", properties: { risk_level_min: { type: "string", enum: ["low", "medium", "high", "critical"] } } } } },
