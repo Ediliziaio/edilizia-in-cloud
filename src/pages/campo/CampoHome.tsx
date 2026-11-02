@@ -28,7 +28,8 @@ import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
+import { AvvisiCampo } from "@/components/campo/AvvisiCampo";
+import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { MioMezzoCampoCard } from "@/components/mezzi/MioMezzoCampoCard";
 import { RapportiniDaCompilareOggi, RapportiniSospesi } from "@/components/campo/RapportiniDaFare";
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
@@ -113,6 +114,7 @@ export default function CampoHome() {
   // «Oggi» e l'elenco dei cantieri dicono la stessa cosa: sul telefono, se «Oggi» c'è, l'elenco sta in «Lavori».
   // Stessa richiesta di CampoOggi (stessa chiave): non costa niente in più.
   const giornata = useMiaGiornata(14);
+  const dayTime = useCampoDayTime(user?.id, profile?.company_id ?? null);
   const giorni = giornata.data?.giorni ?? [];
   const oggiVisibile = giornata.isLoading
     || (!giornata.isError && !!giorni[0] && (giorni[0].cantieri.length > 0 || giorni.slice(1).some(g => g.cantieri.length > 0)));
@@ -120,18 +122,6 @@ export default function CampoHome() {
   const ora = new Date().getHours();
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
   const sera = ora >= 15;
-  // Banner push: se lo chiude, torna dopo 14 giorni.
-  const [pushBannerNascosto, setPushBannerNascosto] = useState<boolean>(() => {
-    try {
-      const fino = Number(localStorage.getItem("campo-push-banner-fino") ?? 0);
-      return fino > Date.now();
-    } catch { return false; }
-  });
-  const nascondiPushBanner = () => {
-    try { localStorage.setItem("campo-push-banner-fino", String(Date.now() + 14 * 86400_000)); } catch { /* privato */ }
-    setPushBannerNascosto(true);
-  };
-
   return (
     <div className="mx-auto max-w-4xl space-y-3 md:space-y-6">
       {/* Header — compatto su mobile */}
@@ -154,14 +144,13 @@ export default function CampoHome() {
         </div>
       </div>
 
-      {/* Consenso alle notifiche: senza, gli avvisi (rapportino approvato, cantiere
-          assegnato, promemoria) restano solo nella campanella. Solo web in produzione:
-          il service worker c'è solo lì, l'app nativa ha le sue push. */}
-      {import.meta.env.PROD && !isNative && !pushBannerNascosto && (
-        <PushConsentBanner onDismiss={nascondiPushBanner} />
-      )}
       {/* Timbratura: l'azione di ogni mattina, in cima. Un tocco per iniziare, un tocco per ogni posto. */}
       {isOperaio && <CampoTimbroCard />}
+
+      {/* Senza il permesso gli avvisi restano nella campanella. L'app nativa ha le sue push. */}
+      {import.meta.env.PROD && !isNative && (
+        <AvvisiCampo momentoGiusto={isSubappaltatore || dayTime.todayPunches.length > 0} />
+      )}
 
       {/* A fine giornata il rapportino è la cosa che aspetta: sta sopra, non in fondo alla pagina. */}
       {isOperaio && sera && <RapportiniDaCompilareOggi />}
