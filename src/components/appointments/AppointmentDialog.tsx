@@ -9,7 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CalendarClock, CalendarDays, Check, CheckCircle2, ChevronsUpDown, Clock, LifeBuoy, Settings, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, ChevronDown, ChevronsUpDown, LifeBuoy, Settings, Trash2 } from "lucide-react";
+import { durataTra, durateDisponibili, etichettaDurata, sovrapposizioni, titoloProposto } from "@/lib/appuntamenti/orari";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,8 @@ interface AppointmentDialogProps {
   defaultTime?: string;
   defaultAppointmentType?: string;
   defaultTitle?: string;
+  /** Codice della commessa: il titolo proposto diventa «Tipo — codice» e segue il tipo. */
+  riferimentoTitolo?: string | null;
   defaultAddress?: string | null;
   defaultCity?: string | null;
   defaultProvince?: string | null;
@@ -184,7 +187,24 @@ const APPOINTMENT_TYPES = [
   { value: "riunione",               label: "Riunione",                 group: "Altro" },
   { value: "cliente",                label: "Appuntamento Cliente",     group: "Altro" },
   { value: "generico",               label: "Generico",                 group: "Altro" },
+  // Ci sono appuntamenti con questi tipi: senza, la tendina resterebbe vuota.
+  { value: "videocall",              label: "Videochiamata",            group: "Altro" },
+  { value: "altro",                  label: "Altro",                    group: "Altro" },
 ];
+
+const STATI_APPUNTAMENTO: Array<{ value: string; label: string }> = [
+  { value: "confermato", label: "Confermato" },
+  { value: "in_attesa", label: "In attesa" },
+  { value: "riprogrammato", label: "Riprogrammato" },
+  { value: "completato", label: "Completato" },
+  { value: "annullato", label: "Annullato" },
+];
+const RUOLI_LEGGIBILI: Record<string, string> = {
+  company_admin: "Amministratore", employee: "Dipendente", worker: "Operaio", subcontractor: "Subappaltatore", super_admin: "Amministratore di piattaforma",
+};
+const DURATE_FISSE = [30, 60, 90, 120, 180, 240, 480];
+const etichettaTipo = (tipo: string) => APPOINTMENT_TYPES.find((t) => t.value === tipo)?.label ?? tipo.replace(/_/g, " ");
+const etichettaCodice = (v: string) => { const t = v.replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1); };
 
 // Tipi che mostrano la sezione Luogo (sopralluoghi e associazione ordini)
 const SOPRALLUOGO_TYPES = new Set([
@@ -393,6 +413,7 @@ export function AppointmentDialog({
   defaultTime,
   defaultAppointmentType = "generico",
   defaultTitle = "",
+  riferimentoTitolo,
   defaultAddress,
   defaultCity,
   defaultProvince,
@@ -437,8 +458,11 @@ export function AppointmentDialog({
   const [reminderMinutes, setReminderMinutes] = useState<string>("none");
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
   const [saving, setSaving] = useState(false);
+  const [dataAperta, setDataAperta] = useState(false);
+  const [luogoAperto, setLuogoAperto] = useState(false);
 
   useEffect(() => {
+    setLuogoAperto(false);
     if (currentAppointment) {
       setTitle(currentAppointment.title);
       setDescription(currentAppointment.description || "");
@@ -472,7 +496,7 @@ export function AppointmentDialog({
         place_id: currentAppointment.place_id || "",
       });
     } else {
-      setTitle(defaultTitle);
+      setTitle(riferimentoTitolo ? titoloProposto(etichettaTipo(defaultAppointmentType), riferimentoTitolo) : defaultTitle);
       setDescription("");
       setAppointmentDate(defaultDate ? new Date(defaultDate) : undefined);
       setAppointmentTime(defaultTime || "");
@@ -500,6 +524,7 @@ export function AppointmentDialog({
     defaultTime,
     defaultAppointmentType,
     defaultTitle,
+    riferimentoTitolo,
     defaultAddress,
     defaultCity,
     defaultProvince,
@@ -733,7 +758,7 @@ export function AppointmentDialog({
     ...assignableUsers.map((user) => ({
       value: user.id,
       label: getUserName(user),
-      description: user.roles?.join(", ") || undefined,
+      description: user.roles?.map((ruolo) => RUOLI_LEGGIBILI[ruolo] ?? etichettaCodice(ruolo)).join(", ") || undefined,
       badge: user.roles?.includes("subcontractor") ? "Subapp." : user.roles?.includes("employee") ? "Operaio" : undefined,
     })),
   ], [assignableUsers]);
@@ -995,28 +1020,63 @@ export function AppointmentDialog({
     }
   };
 
+  const conflitti = appointmentTime ? sovrapposizioni(appointmentTime, appointmentEndTime, dayAppointments) : [];
+  const durata = Number(durationMinutes) || DEFAULT_DURATION_MINUTES;
+  const persona = assignedTo && assignedTo !== "none" ? getUserName(selectedAssignee) : null;
+  const luogoTesto = addressData.formatted_address.trim() || addressData.address_line.trim();
+  const mostraLuogo = SOPRALLUOGO_TYPES.has(appointmentType) || !!luogoTesto;
+  // Dalla commessa il calendario è un dettaglio; dall'agenda è la prima cosa che si sceglie.
+  const calendarioInVista = !hideMarketingFields && !orderId && marketingCalendars.length > 0;
+  const riassuntoDettagli = [
+    STATI_APPUNTAMENTO.find((x) => x.value === status)?.label ?? etichettaCodice(status),
+    reminderMinutes !== "none" ? "con promemoria" : null,
+    contactId && contactId !== "none" ? "contatto collegato" : null,
+    !calendarioInVista && calendarId && calendarId !== "none" ? "in calendario" : null,
+  ].filter(Boolean).join(" · ");
+  const selettoreCalendario = (
+    <div className="space-y-1">
+      <Label className="text-xs">Calendario</Label>
+      <Select value={calendarId} onValueChange={setCalendarId}>
+        <SelectTrigger className="h-9"><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Nessuno</SelectItem>
+          {marketingCalendars.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Modifica Appuntamento" : "Nuovo Appuntamento"}</DialogTitle>
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="border-b py-2.5 pl-4 pr-11 text-left">
+          <DialogTitle className="text-sm font-semibold">{isEditing ? "Modifica appuntamento" : "Nuovo appuntamento"}</DialogTitle>
           {/* Ripeteva il titolo: resta solo per i lettori di schermo. */}
           <DialogDescription className="sr-only">
             {isEditing ? "Modifica i dettagli dell'appuntamento" : "Compila i campi per creare un nuovo appuntamento"}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="apt-title">Titolo *</Label>
-            <Input id="apt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Sopralluogo tecnico" />
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          <div className="space-y-1">
+            <Label htmlFor="apt-title" className="text-xs">Titolo *</Label>
+            <Input id="apt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Sopralluogo tecnico" className="h-9" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select value={appointmentType} onValueChange={setAppointmentType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo</Label>
+              <Select
+                value={appointmentType}
+                onValueChange={(nuovo) => {
+                  // Il titolo proposto segue il tipo; uno scritto a mano resta.
+                  if (riferimentoTitolo && title === titoloProposto(etichettaTipo(appointmentType), riferimentoTitolo)) {
+                    setTitle(titoloProposto(etichettaTipo(nuovo), riferimentoTitolo));
+                  }
+                  setAppointmentType(nuovo);
+                }}
+              >
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {APPOINTMENT_TYPE_GROUPS.map(group => {
                     const groupTypes = APPOINTMENT_TYPES.filter(t => t.group === group);
@@ -1029,134 +1089,121 @@ export function AppointmentDialog({
                       </SelectGroup>
                     );
                   })}
+                  {!APPOINTMENT_TYPES.some((t) => t.value === appointmentType) && (
+                    <SelectItem value={appointmentType}>{etichettaTipo(appointmentType)}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Assegna a</Label>
+              <SearchableSelect
+                value={assignedTo || "none"}
+                options={assigneeOptions}
+                placeholder="Nessun assegnatario"
+                searchPlaceholder="Cerca operaio, tecnico o subappaltatore..."
+                emptyLabel="Nessun assegnatario trovato"
+                disabled={onlyAssigned && membriSquadra.length === 0}
+                onChange={(value) => setAssignedTo(value === "none" ? "" : value)}
+              />
               {REQUIRES_TECHNICIAN.has(appointmentType) && !assignedTo && (
-                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                <p className="flex items-center gap-1 text-xs text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  Questo tipo richiede un tecnico assegnato
+                  Questo tipo richiede un tecnico
                 </p>
               )}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Data *</Label>
-              <Popover>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
+            <div className="space-y-1 max-sm:col-span-2">
+              <Label className="text-xs">Data *</Label>
+              <Popover open={dataAperta} onOpenChange={setDataAperta}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !appointmentDate && "text-muted-foreground")}>
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    {appointmentDate ? format(appointmentDate, "dd/MM/yyyy") : "Seleziona data"}
+                  <Button variant="outline" className={cn("h-9 w-full justify-start px-2.5 text-left font-normal", !appointmentDate && "text-muted-foreground")}>
+                    <CalendarDays className="mr-1.5 h-4 w-4 shrink-0" />
+                    <span className="truncate">{appointmentDate ? format(appointmentDate, "EEE d MMM yyyy", { locale: it }) : "Seleziona data"}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={appointmentDate} onSelect={setAppointmentDate} locale={it} />
+                  <Calendar mode="single" selected={appointmentDate} onSelect={(d) => { setAppointmentDate(d); setDataAperta(false); }} locale={it} />
                 </PopoverContent>
               </Popover>
             </div>
-          </div>
-
-          {/* Niente riquadro né spiegazione, come già sul telefono: le etichette
-              dei tre campi dicono tutto e l'orario scelto è nei campi stessi.
-              Mobile: inizio e fine affiancati, la durata sotto. */}
-          <div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_140px]">
-              <div className="space-y-2">
-                <Label htmlFor="apt-time">{requireTime ? "Ora inizio *" : "Ora inizio"}</Label>
-                <Input
-                  id="apt-time"
-                  type="time"
-                  step={APPOINTMENT_SLOT_MINUTES * 60}
-                  value={appointmentTime}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setAppointmentTime(value);
-                    setAppointmentEndTime(value ? addMinutesToTime(value, Number(durationMinutes) || DEFAULT_DURATION_MINUTES) : "");
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="apt-end-time">Ora fine</Label>
-                <Input
-                  id="apt-end-time"
-                  type="time"
-                  step={APPOINTMENT_SLOT_MINUTES * 60}
-                  value={appointmentEndTime}
-                  onChange={(e) => setAppointmentEndTime(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2 max-sm:col-span-2">
-                <Label>Durata</Label>
-                <Select
-                  value={durationMinutes}
-                  onValueChange={(value) => {
-                    setDurationMinutes(value);
-                    if (appointmentTime) setAppointmentEndTime(addMinutesToTime(appointmentTime, Number(value)));
-                  }}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 minuti</SelectItem>
-                    <SelectItem value="60">1 ora</SelectItem>
-                    <SelectItem value="90">1 ora e 30</SelectItem>
-                    <SelectItem value="120">2 ore</SelectItem>
-                    <SelectItem value="180">3 ore</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1">
+              <Label htmlFor="apt-time" className="text-xs">{requireTime ? "Inizio *" : "Inizio"}</Label>
+              <Input
+                id="apt-time"
+                type="time"
+                step={APPOINTMENT_SLOT_MINUTES * 60}
+                value={appointmentTime}
+                className="h-9 px-2"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setAppointmentTime(value);
+                  setAppointmentEndTime(value ? addMinutesToTime(value, durata) : "");
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="apt-end-time" className="text-xs">Fine</Label>
+              <Input
+                id="apt-end-time"
+                type="time"
+                step={APPOINTMENT_SLOT_MINUTES * 60}
+                value={appointmentEndTime}
+                className="h-9 px-2"
+                onChange={(e) => {
+                  setAppointmentEndTime(e.target.value);
+                  const diff = durataTra(appointmentTime, e.target.value);
+                  if (diff) setDurationMinutes(String(diff));
+                }}
+              />
+            </div>
+            <div className="space-y-1 max-sm:col-span-2">
+              <Label className="text-xs">Durata</Label>
+              <Select
+                value={durationMinutes}
+                onValueChange={(value) => {
+                  setDurationMinutes(value);
+                  if (appointmentTime) setAppointmentEndTime(addMinutesToTime(appointmentTime, Number(value)));
+                }}
+              >
+                <SelectTrigger className="h-9 px-2"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {durateDisponibili(DURATE_FISSE, durata).map((m) => <SelectItem key={m} value={String(m)}>{etichettaDurata(m)}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Assegna a</Label>
-            <SearchableSelect
-              value={assignedTo || "none"}
-              options={assigneeOptions}
-              placeholder="Nessun assegnatario"
-              searchPlaceholder="Cerca operaio, tecnico o subappaltatore..."
-              emptyLabel="Nessun assegnatario trovato"
-              disabled={onlyAssigned && membriSquadra.length === 0}
-              onChange={(value) => setAssignedTo(value === "none" ? "" : value)}
-            />
-          </div>
+          {conflitti.length > 0 && (
+            <p className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{persona} ha già: {conflitti.map((c) => `${toTimeValue(c.appointment_time)} ${c.title}`).join(", ")}.</span>
+            </p>
+          )}
 
-          {selectedDateStr && assignedTo && assignedTo !== "none" && (
-            <div className="rounded-md border bg-slate-50/70 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium flex items-center gap-1.5">
-                    <CalendarClock className="h-4 w-4 text-blue-600" />
-                    Disponibilità tecnico
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Seleziona uno slot libero: verranno compilati ora e fine prevista.
-                  </p>
-                </div>
-                <Badge variant="outline">{availabilitySlots.filter((slot) => slot.available).length} liberi</Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {availabilitySlots.map((slot) => {
-                  const active = appointmentTime === slot.start;
-                  return (
-                    <Button
-                      key={slot.start}
-                      type="button"
-                      variant={active ? "default" : "outline"}
-                      size="sm"
-                      disabled={!slot.available}
-                      className={cn("justify-start gap-1.5", slot.available ? "bg-white" : "opacity-60")}
-                      title={slot.blocker ? `Occupato: ${slot.blocker.title}` : `Libero ${slot.start}-${slot.end}`}
-                      onClick={() => {
-                        setAppointmentTime(slot.start);
-                        setAppointmentEndTime(slot.end);
-                      }}
-                    >
-                      {slot.available ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Clock className="h-3.5 w-3.5 text-amber-600" />}
-                      <span>{slot.start}</span>
-                    </Button>
-                  );
-                })}
+          {selectedDateStr && persona && (
+            <div className="rounded-md bg-slate-50 px-2.5 py-2">
+              <p className="pb-1.5 text-xs text-muted-foreground">
+                Orari liberi di <span className="font-medium text-foreground">{persona}</span> per {etichettaDurata(durata)}
+                {dayAppointments.length > 0 && ` · ${dayAppointments.length} già in agenda`}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {availabilitySlots.filter((slot) => slot.available && Number(slot.start.slice(3)) % 30 === 0).map((slot) => (
+                  <button
+                    key={slot.start}
+                    type="button"
+                    title={`Libero ${slot.start}-${slot.end}`}
+                    aria-pressed={appointmentTime === slot.start}
+                    onClick={() => { setAppointmentTime(slot.start); setAppointmentEndTime(slot.end); }}
+                    className={cn("rounded border px-1.5 py-0.5 text-xs tabular-nums transition-colors", appointmentTime === slot.start ? "border-primary bg-primary text-primary-foreground" : "bg-white hover:border-slate-400")}
+                  >
+                    {slot.start}
+                  </button>
+                ))}
+                {!availabilitySlots.some((slot) => slot.available) && <span className="text-xs text-muted-foreground">Nessun orario libero tra le 8 e le 18.</span>}
               </div>
             </div>
           )}
@@ -1258,74 +1305,73 @@ export function AppointmentDialog({
             </div>
           )}
 
-          {SOPRALLUOGO_TYPES.has(appointmentType) && (
-            <AddressAutocomplete value={addressData} onChange={setAddressData} />
+          {mostraLuogo && (
+            luogoTesto && !luogoAperto ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="shrink-0 text-xs font-medium">Luogo</span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground" title={luogoTesto}>{luogoTesto}</span>
+                <button type="button" className="shrink-0 text-xs font-medium text-primary hover:underline" onClick={() => setLuogoAperto(true)}>Cambia</button>
+              </div>
+            ) : (
+              <AddressAutocomplete value={addressData} onChange={setAddressData} />
+            )
           )}
 
-          <div className={hideMarketingFields ? "" : "grid grid-cols-2 gap-4"}>
-            {!hideMarketingFields && (
-              <div className="space-y-2">
-                <Label>Calendario</Label>
-                <Select value={calendarId} onValueChange={setCalendarId}>
-                  <SelectTrigger><SelectValue placeholder="Nessun calendario" /></SelectTrigger>
+          {calendarioInVista && selettoreCalendario}
+
+          <div className="space-y-1">
+            <Label htmlFor="apt-desc" className="text-xs">Note</Label>
+            <Textarea id="apt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={2} />
+          </div>
+
+          <details className="group/altri" open={isEditing || undefined}>
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+              <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform group-open/altri:rotate-0" aria-hidden="true" />
+              Altri dettagli
+              <span className="font-normal">· {riassuntoDettagli}</span>
+            </summary>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Stato</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Nessuno</SelectItem>
-                    {marketingCalendars.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
+                    {STATI_APPUNTAMENTO.map((x) => <SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>)}
+                    {!STATI_APPUNTAMENTO.some((x) => x.value === status) && <SelectItem value={status}>{etichettaCodice(status)}</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label>Stato</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="confermato">Confermato</SelectItem>
-                  <SelectItem value="annullato">Annullato</SelectItem>
-                  <SelectItem value="riprogrammato">Riprogrammato</SelectItem>
-                  <SelectItem value="completato">Completato</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-1">
+                <Label className="text-xs">Promemoria</Label>
+                <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nessuno</SelectItem>
+                    <SelectItem value="60">1 ora prima</SelectItem>
+                    <SelectItem value="120">2 ore prima</SelectItem>
+                    <SelectItem value="1440">24 ore prima</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {!hideMarketingFields && !calendarioInVista && selettoreCalendario}
+              {!hideMarketingFields && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Contatto CRM</Label>
+                  <Select value={contactId} onValueChange={setContactId}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessuno</SelectItem>
+                      {contacts.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.first_name} {c.last_name || ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Promemoria</Label>
-            <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
-              <SelectTrigger><SelectValue placeholder="Nessun promemoria" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
-                <SelectItem value="60">1 ora prima</SelectItem>
-                <SelectItem value="120">2 ore prima</SelectItem>
-                <SelectItem value="1440">24 ore prima</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {!hideMarketingFields && (
-            <div className="space-y-2">
-              <Label>Contatto CRM</Label>
-              <Select value={contactId} onValueChange={setContactId}>
-                <SelectTrigger><SelectValue placeholder="Nessun contatto" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuno</SelectItem>
-                  {contacts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name || ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="apt-desc">Note</Label>
-            <Textarea id="apt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} />
-          </div>
+          </details>
 
           {/* v8.6.113 — Custom fields appuntamento. */}
           {isEditing && appointment?.id && (
@@ -1338,18 +1384,18 @@ export function AppointmentDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="shrink-0 gap-2 border-t px-4 py-2.5">
           {isEditing && (
-            <Button variant="destructive" onClick={handleDelete} disabled={saving || solaLettura} title={bloccoTitle} className="sm:mr-auto">
+            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={saving || solaLettura} title={bloccoTitle} className="sm:mr-auto">
               <Trash2 className="h-4 w-4 mr-2" />
               Annulla appuntamento
             </Button>
           )}
           {/* Mobile: chiude la X in alto. */}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="max-sm:hidden">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={saving} className="max-sm:hidden">
             Annulla
           </Button>
-          <Button onClick={handleSave} disabled={saving || solaLettura} title={bloccoTitle}>
+          <Button size="sm" onClick={handleSave} disabled={saving || solaLettura} title={bloccoTitle}>
             {saving ? "Salvataggio..." : isEditing ? "Salva modifiche" : "Crea appuntamento"}
           </Button>
         </DialogFooter>
