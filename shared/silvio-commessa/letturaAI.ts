@@ -58,7 +58,7 @@ export const CHIAVI_LETTURA: readonly ChiaveLettura[] = [
   { chiave: "cliente.client_address", forma: "testo", istruzione: "indirizzo o sede del committente" },
   { chiave: "cantiere.indirizzo", forma: "indirizzo_cantiere", istruzione: "indirizzo del cantiere (dove si fanno i lavori), come testo" },
   { chiave: "cantiere.materials_location", forma: "testo", istruzione: "dove si scaricano o si tengono i materiali" },
-  { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro (se il documento dà solo l'ivato, scorporalo e dillo nel campo nota)" },
+  { chiave: "economia.total_amount", forma: "importo", istruzione: "importo dei lavori SENZA IVA, in euro. «più IVA», «oltre IVA», «+ IVA», «IVA esclusa» vogliono dire che la cifra è GIÀ senza IVA: scrivila com'è. Scorpora solo se il documento dice «IVA inclusa» o «ivato», e dillo nel campo nota" },
   { chiave: "economia.vat_rate", forma: "iva", istruzione: "aliquota IVA in percentuale (22, 10, 4, 0)" },
   { chiave: "economia.condizioni_contratto", forma: "condizioni", istruzione: "condizioni del contratto: vedi CONDIZIONI" },
   { chiave: "pagamenti.payment_type", forma: "tipo_pagamento", istruzione: "\"financing\" se è previsto un finanziamento, altrimenti \"standard\"" },
@@ -522,6 +522,21 @@ export function jsonDallaRisposta(risposta: unknown): unknown {
   return undefined;
 }
 
+/**
+ * Il documento scrive la cifra «più IVA», e il modello ne ha tolto l'IVA: la cifra vera, altrimenti null.
+ * Solo se nel testo quella cifra è seguita da «più IVA» e simili, e non da «IVA inclusa».
+ */
+function cifraGiaSenzaIva(valore: number | null, iva: number, testo: string | null | undefined): number | null {
+  if (!valore || !iva || !testo) return null;
+  const lordo = valore * (1 + iva / 100);
+  for (const m of testo.matchAll(/(\d[\d.,\s']*\d|\d)\s*(?:k\b|mila\b)?[^\d\n]{0,24}?(?:(?:più|piu|oltre|\+|escluso|esclusa|escl\.?)\s*(?:l'|la\s+)?iva|iva\s+(?:esclusa|escl))/gi)) {
+    for (const n of numeriNelTesto(m[0])) {
+      if (n > 100 && Math.abs(n - lordo) <= Math.max(1, lordo * 0.0005)) return n;
+    }
+  }
+  return null;
+}
+
 /** Il nome che legge chi lavora in cantiere, mai la chiave tecnica. */
 const etichettaAvviso = (chiave: string): string => variabile(chiave)?.etichetta ?? "un campo del documento";
 
@@ -538,6 +553,7 @@ function coppie(json: Grezzo, avvisi: string[]): Array<[string, Grezzo]> {
     const { citazione, dove, fiducia, nota, ...resto } = v;
     // Le variabili a più colonne (nome e telefono del cliente, condizioni) arrivano come oggetto nudo.
     const campi = Object.values(resto);
+    if (campi.every((c) => c == null || c === "")) return;
     const unElenco = campi.length === 1 && Array.isArray(campi[0]);
     if (campi.length) out.push([chiave, { valore: unElenco ? campi[0] : resto, citazione, dove, fiducia, nota }]);
   };
@@ -578,8 +594,16 @@ export function frammentoDaRispostaAI(risposta: unknown, ctx: ContestoLettura): 
   const grezzi = coppie(json, avvisi);
   const totaleGrezzo = grezzi.find(([k]) => k === "economia.total_amount")?.[1];
   const ivaGrezza = grezzi.find(([k]) => k === "economia.vat_rate")?.[1];
-  const totale = numeroDa(totaleGrezzo?.valore);
   const iva = numeroDa(ivaGrezza?.valore);
+  // Con «12.000 euro più IVA 10%» il modello vero a volte scorpora lo stesso e scrive 10.909,09:
+  // la stessa frase, una volta sì e una no. Si controlla sul testo, non ci si fida.
+  const scorporato = totaleGrezzo && iva != null ? cifraGiaSenzaIva(numeroDa(totaleGrezzo.valore), iva, ctx.testo) : null;
+  if (totaleGrezzo && scorporato != null) {
+    totaleGrezzo.valore = scorporato;
+    totaleGrezzo.citazione = null;
+    totaleGrezzo.nota = `Il documento dice ${scorporato} più IVA: l'importo è questo, senza togliere l'IVA. Controlla.`;
+  }
+  const totale = numeroDa(totaleGrezzo?.valore);
   const ivaNota = iva != null && ALIQUOTE_IVA.has(iva);
   const totaleIvato = totale && totale > 0 && ivaNota ? tondo(totale * (1 + (iva as number) / 100)) : null;
   const imponibile = totale && totale > 0 ? tondo(totale) : null;
