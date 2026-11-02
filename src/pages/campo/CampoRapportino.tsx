@@ -33,7 +33,7 @@ import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { CampiModulo } from "@/components/campo/CampiModulo";
 import { useModuloRapportino } from "@/hooks/useModuliCantiere";
-import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
+import { campiPerContesto, chiaveValore, componiValori, fasiDelRapportino, leggiValori, mancanti, valoreInTesto, valoriInBozza } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
 import { buildRapportinoMaterials, restoreRapportinoMaterials, rapportinoStockSelectionKey, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
@@ -545,6 +545,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const mancantiRapportino = mancanti(campiSulRapportino, campiValori);
   const mancantiFase = mancanti(campiDiFase, campiValori, fasiPerCampi);
   const campiMancanti = [...mancantiRapportino, ...mancantiFase];
+  const valoriDaRivedere = componiValori(campiModulo, campiValori, [], fasiPerCampi);
   const idsFasiDichiarate = Object.keys(fasiDichiarate);
   // Quello che non appartiene a nessuna fase (con più fasi e nessuna scelta, o senza fasi).
   const materialiGenerali = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === null);
@@ -1772,6 +1773,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                     ))}
                   </div>
                 )}
+              </BloccoRiepilogo>
+            )}
+
+            {valoriDaRivedere.length > 0 && (
+              <BloccoRiepilogo titolo="Altre informazioni">
+                {valoriDaRivedere.map(v => (
+                  <div key={`${v.chiave}@${v.phase_id ?? ""}`} className="flex justify-between gap-3 text-sm">
+                    <span className="min-w-0 text-muted-foreground">{v.etichetta}{v.fase_nome ? ` · ${v.fase_nome}` : ""}</span>
+                    <span className="min-w-0 break-words text-right text-foreground">{valoreInTesto(v)}</span>
+                  </div>
+                ))}
               </BloccoRiepilogo>
             )}
 

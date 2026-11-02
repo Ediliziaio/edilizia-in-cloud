@@ -245,3 +245,23 @@ describe("Bozza", () => {
     expect(inviato()).not.toHaveProperty("campi_extra");
   });
 });
+
+describe("Riepilogo prima dell'invio", () => {
+  it("il capo rivede i campi propri con la fase, e senza valori il riquadro non c'è", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    state.schema = conCampi(campo({ unita: "pz" }), campo({ chiave: "nota", etichetta: "Nota", tipo: "text" }));
+    render(<CampoRapportino />);
+    fireEvent.change(screen.getByLabelText("Pezzi posati"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    expect(screen.getByText("Altre informazioni")).toBeInTheDocument();
+    expect(screen.getByText("12 pz")).toBeInTheDocument();
+    expect(screen.queryByText("Nota")).toBeNull();
+  });
+  it("senza nulla di compilato il riepilogo resta com'è", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    expect(screen.queryByText("Altre informazioni")).toBeNull();
+  });
+});
+
