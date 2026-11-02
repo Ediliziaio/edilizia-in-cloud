@@ -230,6 +230,7 @@ export default function RenderPlanimetriaScheda() {
           versione={data.versione.numero}
           livelloId={livello.id}
           propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : livello.proposte[0].id}
+          contactId={data.riga.contact_id}
         />
       )}
 

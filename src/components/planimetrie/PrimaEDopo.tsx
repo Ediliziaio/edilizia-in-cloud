@@ -4,7 +4,8 @@
  * della stessa stanza prima e dopo (stessa inquadratura: la vista 3D dentro la stanza).
  */
 import { useMemo, useRef, useState } from "react";
-import { ChevronDown, Download, Loader2, Sparkles } from "lucide-react";
+import { ChevronDown, Download, FileText, Loader2, Sparkles } from "lucide-react";
+import { PreventivoDaPiantaDialog } from "@/components/planimetrie/PreventivoDaPiantaDialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,8 @@ interface Props {
   livelloId: string;
   /** La proposta da confrontare (quella scelta in alto, o la prima). */
   propostaId: string;
+  /** Il cliente della pianta: il preventivo creato da qui nasce già suo. */
+  contactId?: string | null;
 }
 
 const svgUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -46,7 +49,8 @@ async function pngDaSvg(svg: string, larghezza = 1800): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livelloId, propostaId }: Props) {
+export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livelloId, propostaId, contactId }: Props) {
+  const [preventivo, setPreventivo] = useState(false);
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const [modo, setModo] = useState<"cursore" | "affiancate">("cursore");
@@ -141,6 +145,10 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
             {pdfInCorso ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
             PDF prima e dopo
           </Button>
+          <Button size="sm" onClick={() => setPreventivo(true)} disabled={!lavori || lavori.totale <= 0}>
+            <FileText className="mr-1.5 h-4 w-4" />
+            Crea il preventivo
+          </Button>
         </div>
       </div>
 
@@ -234,6 +242,9 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
             </Button>
           </CardContent>
         </Card>
+      )}
+      {lavori && (
+        <PreventivoDaPiantaDialog aperto={preventivo} onChiudi={() => setPreventivo(false)} lavori={lavori} titolo={titolo} planimetriaId={planimetriaId} contactId={contactId} />
       )}
     </section>
   );

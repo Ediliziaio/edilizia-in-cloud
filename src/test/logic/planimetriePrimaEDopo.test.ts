@@ -1,3 +1,4 @@
+import { itemsPreventivo, righeDaLavori, totaleRighe } from "@/lib/planimetrie/preventivoDaPianta";
 import { describe, expect, it } from "vitest";
 import { aPlanimetria, daPlanimetria, duplicaProposta, type Pianta } from "@/components/planimetrie/editor/adattatore";
 import * as C from "@/components/planimetrie/editor/comandi";
@@ -68,5 +69,20 @@ describe("prima e dopo: i lavori dalla pianta", () => {
     const { doc, propostaId } = progetto();
     const dati = await pdfPrimaEDopo({ titolo: "Casa Rossi — è così", prima: png, dopo: png, lavori: lavoriDaPianta(doc, doc.livelli[0].id, propostaId) });
     expect((await PDFDocument.load(dati)).getPageCount()).toBeGreaterThanOrEqual(2);
+  });
+});
+
+
+describe("dalla pianta al preventivo", () => {
+  it("una riga per lavoro con la stanza davanti; arredi senza prezzo esclusi; quantità a due decimali", () => {
+    const { doc, propostaId } = progetto();
+    const lav = lavoriDaPianta(doc, doc.livelli[0].id, propostaId);
+    const righe = righeDaLavori(lav);
+    expect(righe.find((r) => r.genere === "arredi")!.inclusa).toBe(false);
+    expect(totaleRighe(righe)).toBeCloseTo(lav.totale, 0);
+    const items = itemsPreventivo(righe, 10);
+    expect(items.every((i) => i.vat_rate === 10 && Number.isInteger(i.quantity * 100))).toBe(true);
+    expect(items.find((i) => i.name.startsWith("Soggiorno — Nuova finestra"))).toMatchObject({ unit_of_measure: "pz", item_category: "posa" });
+    expect(items.map((i) => i.sort_order)).toEqual(items.map((_, k) => k));
   });
 });
