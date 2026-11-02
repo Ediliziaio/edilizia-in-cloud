@@ -148,7 +148,7 @@ export default function OperaiTab() {
       {vista === "squadre" && <SquadreOperai puoModificare={puoModificare} onNuova={() => setNuovaSquadra(true)} />}
       {vista === "elenco" && <ElencoOperai onNuovo={puoModificare ? () => setNuovoAperto(true) : undefined} />}
 
-      <LinkAccessoDialog aperto={linkAperto} onAperto={setLinkAperto} employeeIds={idsSenzaApp} />
+      {linkAperto && <LinkAccessoDialog aperto onAperto={setLinkAperto} employeeIds={idsSenzaApp} />}
       <OperaioDialog
         aperto={nuovoAperto}
         onAperto={setNuovoAperto}
