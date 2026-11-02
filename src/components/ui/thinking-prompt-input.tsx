@@ -9,8 +9,8 @@ export type ThinkingStep = { id: string; text: string; status: "pending" | "acti
 /** Public operation summaries supplied by the caller, never private model reasoning.
  * No timers fabricate successful phases in this view; status comes from the operation.
  */
-export function ThinkingProgress({ status, steps, elapsedSeconds = 0, simulated = false, onReveal }: {
-  status: ThinkingStatus; steps: ThinkingStep[]; elapsedSeconds?: number; simulated?: boolean; onReveal?: () => void;
+export function ThinkingProgress({ status, steps, elapsedSeconds = 0, simulated = false, onReveal, busyLabel = "Elaborazione in corso" }: {
+  status: ThinkingStatus; steps: ThinkingStep[]; elapsedSeconds?: number; simulated?: boolean; onReveal?: () => void; busyLabel?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const region = useId();
@@ -19,7 +19,7 @@ export function ThinkingProgress({ status, steps, elapsedSeconds = 0, simulated 
   useLayoutEffect(() => { if (open) onReveal?.(); }, [open, steps, onReveal]);
   const seconds = Number.isFinite(elapsedSeconds) ? Math.max(0, Math.floor(elapsedSeconds)) : 0;
   const allComplete = steps.length > 0 && steps.every(step => step.status === "complete");
-  const title = busy ? "Elaborazione in corso" : status === "stopped" ? "Operazione interrotta" : allComplete ? "Passaggi completati" : "Stato dei passaggi";
+  const title = busy ? busyLabel : status === "stopped" ? "Operazione interrotta" : allComplete ? "Passaggi completati" : "Stato dei passaggi";
   return <div className="thinking-progress" data-state={status}>
     <button type="button" aria-expanded={open} aria-controls={region} onClick={() => setExpanded(value => !value)} disabled={busy}>
       <Sparkles size={14} aria-hidden="true" /><span className={busy ? "thinking-progress-shimmer" : ""}>{title}{simulated ? " · simulazione" : ""}</span>
@@ -38,12 +38,13 @@ export function ThinkingProgress({ status, steps, elapsedSeconds = 0, simulated 
 /** Adapted from the supplied reference: controlled composer, IME-safe Enter,
  * lightweight native height animation, stop/send transition and reduced motion.
  */
-export function ThinkingPromptInput({ value, onValueChange, onSubmit, onStop, busy, disabled = false, placeholder = "Descrivi il lavoro o rispondi alla domanda…", label = "Messaggio all’assistente preventivi", className, compact = false, inline = false, tools, trailingTools }: {
+export function ThinkingPromptInput({ value, onValueChange, onSubmit, onStop, busy, disabled = false, placeholder = "Descrivi il lavoro o rispondi alla domanda…", label = "Messaggio all’assistente preventivi", className, compact = false, inline = false, tools, trailingTools, maxLength = 3000, textareaRef, onFocus, onBlur }: {
   value: string; onValueChange: (value: string) => void; onSubmit: () => void; onStop: () => void;
   busy: boolean; disabled?: boolean; placeholder?: string; label?: string; className?: string;
   compact?: boolean; inline?: boolean; tools?: ReactNode; trailingTools?: ReactNode;
+  maxLength?: number; textareaRef?: (el: HTMLTextAreaElement | null) => void; onFocus?: () => void; onBlur?: () => void;
 }) {
-  const textarea = useRef<HTMLTextAreaElement>(null);
+  const textarea = useRef<HTMLTextAreaElement | null>(null);
   useLayoutEffect(() => {
     const input = textarea.current;
     if (!input) return;
@@ -60,7 +61,7 @@ export function ThinkingPromptInput({ value, onValueChange, onSubmit, onStop, bu
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); }
   };
   return <form className={cn("thinking-composer", compact && "thinking-composer--compact", inline && "thinking-composer--inline", className)} onSubmit={event => { event.preventDefault(); submit(); }}>
-    <textarea ref={textarea} aria-label={label} placeholder={placeholder} maxLength={3000} rows={compact ? 1 : 2} value={value} disabled={disabled} onChange={event => onValueChange(event.target.value)} onKeyDown={keyDown} />
+    <textarea ref={(el) => { textarea.current = el; textareaRef?.(el); }} aria-label={label} placeholder={placeholder} maxLength={maxLength} onFocus={onFocus} onBlur={onBlur} rows={compact ? 1 : 2} value={value} disabled={disabled} onChange={event => onValueChange(event.target.value)} onKeyDown={keyDown} />
     <div className="thinking-composer-actions">{tools ? <div className="thinking-composer-tools">{tools}</div> : !inline && <span><Sparkles size={13} aria-hidden="true" /> Assistente preventivi</span>}
       <div className="thinking-composer-send-tools">{trailingTools}
       <button type={busy ? "button" : "submit"} aria-label={busy ? "Interrompi risposta" : "Invia messaggio"} onClick={busy ? onStop : undefined} disabled={disabled || (!busy && !value.trim())} data-busy={busy}>

@@ -16,12 +16,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, Sparkles } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
+const ElencoDaCompletare = lazy(() => import("@/components/silvio-commessa/ElencoDaCompletare"));
+const QuantoLavoraSilvio = lazy(() => import("@/components/silvio-commessa/QuantoLavoraSilvio"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -40,6 +42,7 @@ import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCreaConSilvioAttivo } from "@/components/silvio-commessa/useCreaConSilvioAttivo";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,6 +56,7 @@ import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
 import { OrdersFilters } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
+import { commessaDaRiga } from "@/lib/orders/importaCommesse";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
@@ -1256,12 +1260,12 @@ function OrdersListInner() {
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
     if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
 
-    // Fetch customers to match by email
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, email")
-      .eq("company_id", effectiveCompany.id);
-    const emailToId = new Map((profiles || []).map((p) => [p.email.toLowerCase(), p.id]));
+    // Solo i clienti: un'email di un dipendente non può intestare la commessa.
+    const { data: clienti, error: clientiErr } = await (supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: Array<{ id: string; email?: string | null }> | null; error: { message: string } | null }>;
+    }).rpc("get_company_customers", { p_company_id: effectiveCompany.id });
+    if (clientiErr) return { success: 0, errors: [`Clienti non leggibili: ${clientiErr.message}`] };
+    const clientePerEmail = new Map((clienti || []).filter((c) => c.email).map((c) => [c.email!.toLowerCase(), c.id]));
 
     // Get default status
     const { data: defaultStatus } = await supabase
@@ -1278,53 +1282,33 @@ function OrdersListInner() {
       .select("order_code")
       .eq("company_id", effectiveCompany.id)
       .not("order_code", "is", null);
-    const existingCodeSet = new Set((existingCodes || []).map(r => r.order_code?.trim().toLowerCase()));
+    const existingCodeSet = new Set<string>((existingCodes || []).flatMap(r => r.order_code ? [r.order_code.trim().toLowerCase()] : []));
 
     let success = 0;
     const errors: string[] = [];
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
       try {
-        const email = row.customer_email?.trim().toLowerCase();
-        if (!email) { errors.push(`Riga ${i + 1}: Email cliente mancante`); continue; }
-        const customerId = emailToId.get(email);
-        if (!customerId) { errors.push(`Riga ${i + 1}: Cliente con email "${email}" non trovato`); continue; }
-        if (!row.description?.trim()) { errors.push(`Riga ${i + 1}: Descrizione mancante`); continue; }
+        const esito = commessaDaRiga(rows[i], {
+          aziendaId: effectiveCompany.id,
+          clientePerEmail,
+          codiciEsistenti: existingCodeSet,
+          statoPredefinito: defaultStatusId,
+        });
+        if ("errore" in esito) { errors.push(`Riga ${i + 1}: ${esito.errore}`); continue; }
 
-        // B5 — verifica duplicato order_code
-        if (row.order_code?.trim()) {
-          const normalizedCode = row.order_code.trim().toLowerCase();
-          if (existingCodeSet.has(normalizedCode)) {
-            errors.push(`Riga ${i + 1}: Codice commessa "${row.order_code}" già esistente`);
-            continue;
-          }
-        }
-
-        const totalAmount = parseFloat(row.total_amount) || 0;
-        if (totalAmount <= 0) { errors.push(`Riga ${i + 1}: Importo totale non valido`); continue; }
-
-        const depositAmount = parseFloat(row.deposit_amount) || 0;
-        const deposit2Amount = parseFloat(row.deposit_2_amount) || 0;
-        const balanceAmount = row.balance_amount ? parseFloat(row.balance_amount) : totalAmount - depositAmount - deposit2Amount;
-
-        const { error } = await supabase.from("orders").insert({
-          company_id: effectiveCompany.id,
-          customer_id: customerId,
-          description: row.description.trim(),
-          total_amount: totalAmount,
-          deposit_amount: depositAmount,
-          deposit_2_amount: deposit2Amount,
-          balance_amount: Math.max(0, balanceAmount),
-          order_code: row.order_code?.trim() || null,
-          expected_date: row.expected_date || null,
-          warehouse_arrival_date: row.warehouse_arrival_date || null,
-          work_start_date: row.work_start_date || null,
-          internal_notes: row.internal_notes || null,
-          payment_type: row.payment_type || "standard",
-          current_status_id: defaultStatusId,
+        // Stessa creazione del modulo Nuova Commessa: stato, storico, rate e autore.
+        const { error } = await (supabase as unknown as {
+          rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+        }).rpc("create_order_atomic", {
+          p_order_data: esito.ordine,
+          p_items: [],
+          p_salesperson: null,
+          p_user_id: user?.id ?? null,
+          p_installments: esito.rate.map((r) => ({ position: r.position, label: r.label, type: r.type, amount: r.amount, is_paid: false })),
         });
         if (error) throw error;
+        if (esito.codice) existingCodeSet.add(esito.codice.toLowerCase());
         success++;
       } catch (err: any) {
         errors.push(`Riga ${i + 1}: ${err?.message || "Errore"}`);
@@ -1333,7 +1317,7 @@ function OrdersListInner() {
 
     refreshOrderScope();
     return { success, errors };
-  }, [effectiveCompany, queryClient, refreshOrderScope]);
+  }, [effectiveCompany, user?.id, queryClient, refreshOrderScope]);
 
   const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
@@ -1939,6 +1923,7 @@ function OrdersListInner() {
         onOpenChange={setImportOpen}
         title="Importa Commesse"
         fields={ORDER_IMPORT_FIELDS}
+        nota="Importo totale senza IVA; acconti e saldo con l'IVA. Numeri all'italiana (12.000,50), date come 31/12/2026."
         onImport={handleOrdersImport}
       />
 
@@ -1985,6 +1970,9 @@ export default function OrdersList() {
   const requestedTab = searchParams.get("tab") || (soloAcquisti ? "acquisto" : "ordini");
   const { isFeatureEnabled } = useFeatureFlags();
   const surveysEnabled = isFeatureEnabled("surveys_module");
+  const { effectiveCompany, user } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const silvioCompleta = useCreaConSilvioAttivo(companyId);
   const handleTabChange = (tab: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -1998,6 +1986,10 @@ export default function OrdersList() {
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: !soloAcquisti },
     // I cantieri aperti oggi: chi c'è, rapportino arrivato, chi tace (prima era una voce di menu).
     { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
+    // Fase 2 di Silvio: le commesse aperte coi buchi, da completare una dopo l'altra.
+    { id: "da_completare", label: "Da completare", icon: Sparkles, show: permissions.canEditOrders && silvioCompleta && !!companyId && !!user?.id },
+    // Fase 5 di Silvio: quanto lavora, coi numeri veri (o «ancora nessun dato»).
+    { id: "silvio_lavora", label: "Quanto lavora Silvio", icon: Sparkles, show: permissions.canEditOrders && silvioCompleta && !!companyId },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
@@ -2071,6 +2063,22 @@ export default function OrdersList() {
         <ErrorBoundary title="Errore in Cantieri oggi">
           <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento cantieri…</div>}>
             <CantieriOggi />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "da_completare" && companyId && user?.id && (
+        <ErrorBoundary title="Errore in Da completare">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento…</div>}>
+            <ElencoDaCompletare companyId={companyId} userId={user.id} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "silvio_lavora" && companyId && (
+        <ErrorBoundary title="Errore in Quanto lavora Silvio">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento…</div>}>
+            <QuantoLavoraSilvio companyId={companyId} />
           </Suspense>
         </ErrorBoundary>
       )}

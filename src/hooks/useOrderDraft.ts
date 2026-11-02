@@ -61,6 +61,19 @@ export interface OrderDraftData {
 
 export const DRAFT_VERSION = 2;
 
+/**
+ * La bozza si salva da sola appena si apre il modulo, col codice proposto e lo
+ * stato iniziale: senza niente scritto dall'utente non c'è niente da recuperare.
+ */
+export function bozzaHaContenuto(d: Partial<OrderDraftData>): boolean {
+  return !!(
+    d.commessaCreataId || d.contractExtract || d.contractSource ||
+    d.customerId || d.description?.trim() || d.internalNotes?.trim() || d.cantiereAddress?.trim() ||
+    (d.totalAmount?.trim() && parseFloat(d.totalAmount.replace(",", ".")) !== 0) ||
+    d.orderItems?.length || d.expectedDate || d.workStartDate || d.workEndDate || d.warehouseArrivalDate
+  );
+}
+
 const DRAFT_KEY_PREFIX = "order-draft-";
 
 function getDraftKey(companyId: string, orderId?: string) {

@@ -50,6 +50,7 @@ const DIFFERENZE_NOTE: Record<string, string> = {
 /** Pagine con una rotta e nessuna voce di menu, e perché. */
 const SENZA_VOCE_NOTE: Record<string, string> = {
   "ai-automazioni": "non è promossa nel menu (scelta di prodotto)",
+  "silvio-commesse": "dietro la chiave silvio_crea_commessa: ci si arriva dal popup «Crea con Silvio» e dalla scheda «Quanto lavora Silvio»",
   "whatsapp-bot": "pagina da ritirare: il bot si governa dai numeri di /azienda/whatsapp",
   "ai-test-lab": "per l'azienda dimostrativa, si apre da dentro la pagina",
   "listini-serramenti": "funzione a richiesta: ci si arriva dal link nella pagina del listino",

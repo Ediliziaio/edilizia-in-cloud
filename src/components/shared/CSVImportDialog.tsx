@@ -25,6 +25,8 @@ export interface CSVImportDialogProps {
   title: string;
   fields: ImportField[];
   onImport: (rows: Record<string, string>[]) => Promise<{ success: number; errors: string[] }>;
+  /** Come scrivere il file: si legge prima di caricarlo e mentre si abbinano le colonne. */
+  nota?: string;
 }
 
 type Step = "upload" | "mapping" | "importing" | "result";
@@ -117,7 +119,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
   });
 }
 
-export function CSVImportDialog({ open, onOpenChange, title, fields, onImport }: CSVImportDialogProps) {
+export function CSVImportDialog({ open, onOpenChange, title, fields, onImport, nota }: CSVImportDialogProps) {
   const [step, setStep] = useState<Step>("upload");
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
   const [fileRows, setFileRows] = useState<string[][]>([]);
@@ -214,6 +216,7 @@ export function CSVImportDialog({ open, onOpenChange, title, fields, onImport }:
             {step === "importing" && "Importazione in corso..."}
             {step === "result" && "Importazione completata"}
           </DialogDescription>
+          {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
         </DialogHeader>
 
         <div className="flex-1 overflow-auto">

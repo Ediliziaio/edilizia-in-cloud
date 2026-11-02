@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { rigaConQuantitaIntera } from "@/lib/orders/quantitaIntera";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
@@ -18,7 +19,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
-import { useOrderDraft, type OrderDraftData } from "@/hooks/useOrderDraft";
+import { useOrderDraft, bozzaHaContenuto, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,6 +47,9 @@ import {
   QuoteCard,
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { PulsanteCreaConSilvio } from "@/components/silvio-commessa/PulsanteCreaConSilvio";
+import { fontiDaLink } from "@/components/silvio-commessa/useBozzaSilvio";
+import { fontiDalLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
@@ -94,31 +98,8 @@ import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
   modello ? rateDaModello(modello, 0) : createDefaultInstallments('standard', 2);
 
-const arrotonda2 = (n: number): number => Math.round(n * 100) / 100;
-
-/**
- * Una riga con quantità non intera («massetto 12,5 mq») diventa 1 × il totale
- * di riga, come nel simulatore (`src/lib/simulatore/trasforma.ts`):
- * `order_items.quantity` è un intero e `create_order_atomic` lo converte, quindi
- * 12,5 la farebbe fallire. Prezzo di vendita, costo d'acquisto e costo standard
- * diventano importi di riga; la quantità vera resta scritta nella descrizione.
- * Le righe con quantità intera restano come sono.
- */
-export function rigaConQuantitaIntera<T extends Pick<OrderItem, "quantity" | "description" | "unit_price" | "purchase_price" | "standard_cost">>(riga: T): T {
-  const quantita = Number(riga.quantity);
-  if (!Number.isFinite(quantita) || Number.isInteger(quantita) || quantita <= 0) return riga;
-  const quantitaScritta = `Quantità ${quantita.toLocaleString("it-IT", { maximumFractionDigits: 4 })}`
-    + (riga.unit_price ? ` × ${formatDecimalIT(riga.unit_price)} €` : "");
-  const perRiga = (v: number | undefined) => (v == null ? v : arrotonda2(Number(v) * quantita));
-  return {
-    ...riga,
-    quantity: 1,
-    unit_price: perRiga(riga.unit_price),
-    purchase_price: perRiga(riga.purchase_price),
-    standard_cost: perRiga(riga.standard_cost),
-    description: riga.description?.trim() ? `${riga.description.trim()} · ${quantitaScritta}` : quantitaScritta,
-  };
-}
+// Spostata in src/lib/orders/quantitaIntera.ts (la usa anche Silvio): resta esportata da qui.
+export { rigaConQuantitaIntera };
 
 function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamento | null }) {
   const navigate = useNavigate();
@@ -150,6 +131,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     searchParams.get("quote_id"),
   );
   const { data: quotePrefill } = useQuotePrefill(selectedQuoteId);
+  // Il link della chat di Silvio e di WhatsApp (?silvio=1&fonte=…): il popup si apre già con le fonti.
+  const fontiSilvio = useMemo(() => fontiDalLink(searchParams), [searchParams]);
   const appliedQuoteRef = useRef<string | null>(null);
 
   // Dati iniziali per il dialog "Nuovo cliente" quando si arriva da un preventivo
@@ -337,7 +320,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     lastCantiereCustomerRef.current = null;
     // Un ordine creato da una commessa generale parte pulito: la bozza è di un'altra commessa nuova.
     const draft = searchParams.get("generale") ? null : loadDraft();
-    if (!draft) return;
+    if (!draft || !bozzaHaContenuto(draft)) return;
     reset({
       customer_id: draft.customerId || "",
       order_code: draft.orderCode || "",
@@ -1444,15 +1427,22 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         title="Nuova Commessa"
         subtitle="Crea una nuova commessa per un cliente"
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="text-xs"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-            Indietro
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Lotto 1.5: lo stesso lavoro con Silvio, che legge le fonti. Il modulo classico resta qui sotto. */}
+            {!createdOrderId && (
+              <PulsanteCreaConSilvio size="sm" className="text-xs" apriSubito={!!fontiSilvio}
+                iniziale={fontiSilvio?.length ? fontiDaLink(fontiSilvio) : selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="text-xs"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+              Indietro
+            </Button>
+          </div>
         }
       />
 

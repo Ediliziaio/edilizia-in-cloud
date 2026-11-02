@@ -58,6 +58,7 @@ import {
   predictEmailReconciliation,
   type PredictiveEmailResult,
 } from "../lib/predictiveReconciliation";
+import { FanneUnaCommessa } from "@/components/silvio-commessa/PulsantiIngressi";
 
 interface MessageRow {
   id: string;
@@ -1876,6 +1877,8 @@ function MessageBubble({ message }: { message: MessageRow }) {
               </div>
             ))}
           </div>
+          {/* Silvio crea la commessa (fase 3): gli allegati letti dove stanno. Senza interruttore non si vede. */}
+          <FanneUnaCommessa emailId={message.id} allegati={attachments} />
           {/* MP-EMAIL-AI-06: estrazione dati da allegati PDF → bozza gestionale */}
           <DocumentoEstrattoPanel emailId={message.id} attachments={attachments} />
         </>

@@ -44,6 +44,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PulsanteCreaConSilvio } from "@/components/silvio-commessa/PulsanteCreaConSilvio";
 import {
   QuotePageHeader,
   QuoteCard,
@@ -460,6 +461,13 @@ export default function QuoteDetail() {
                   : <HardHat className="h-4 w-4" />}
                 {converting ? "Conversione..." : "Converti in Cantiere"}
               </button>
+            )}
+
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && !controlloCommessa && (
+              // Lotto 1.5: lo stesso preventivo, letto da Silvio, apre il popup già al lavoro.
+              <PulsanteCreaConSilvio etichetta="Trasforma in commessa con Silvio" variant="outline"
+                className="h-9 border-orange-300 text-orange-800 hover:bg-orange-50"
+                iniziale={{ tipo: "preventivo", id: quote.id, etichetta: `preventivo ${quote.quote_number}` }} />
             )}
 
             {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (

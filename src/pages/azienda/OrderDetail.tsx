@@ -95,6 +95,9 @@ import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSect
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
+import { StrisciaSilvioCommessa } from "@/components/silvio-commessa/StrisciaSilvioCommessa";
+import { CompletaConSilvio } from "@/components/silvio-commessa/CompletaConSilvio";
+import { PianoDiVoloCommessa } from "@/components/silvio-commessa/PianoDiVoloCommessa";
 import { OrderStatusWorkflow } from "@/components/orders/OrderStatusWorkflow";
 import { avvisoAlCliente, statoConclusivo } from "@/lib/orders/statoCommessa";
 import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/orders/OrdineArticoli";
@@ -1543,6 +1546,13 @@ function OrderDetailInner() {
           Da telefono stanno, solo icone, nella fila di «Registra incasso». */}
       {!isMobile && azioniRapide}
 
+      {/* Lotto 1.5: «Silvio ha preparato N cose», con «Annulla tutto». Solo se l'ha fatta Silvio. */}
+      <StrisciaSilvioCommessa orderId={id!} companyId={companyId} puoModificare={permissions.canEditOrders} />
+      <PianoDiVoloCommessa orderId={id!} companyId={companyId} puoModificare={permissions.canEditOrders} />
+      {/* Fase 2: «Completa al 34 %» e «Completa con Silvio», dietro lo stesso interruttore. */}
+      <CompletaConSilvio orderId={id!} companyId={companyId} orderCode={order.order_code} puoModificare={permissions.canEditOrders}
+        chiusa={["completato", "annullato"].includes(String(order.status)) || !!operationalIntervention} />
+
       {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
           stavano a 24px dal bordo dello schermo). */}
       <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
@@ -2514,6 +2524,17 @@ function OrderDetailInner() {
 }
 
 export default function OrderDetail() {
+  const { id } = useParams<{ id: string }>();
+  // Un indirizzo che non è una commessa (/ordini/nuova): il database rispondeva
+  // 400 a ogni lettura e la pagina restava sui riquadri grigi per sempre.
+  if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Commessa non trovata</p>
+        <Button asChild className="mt-4"><Link to="/azienda/ordini">Torna alle commesse</Link></Button>
+      </div>
+    );
+  }
   return (
     <ErrorBoundary title="Errore nel dettaglio commessa">
       <OrderDetailInner />

@@ -2928,17 +2928,42 @@ Istruzione: ${aiPrompt}`;
       const ordClientName = ordContact
         ? [ordContact.first_name, ordContact.last_name].filter(Boolean).join(" ").trim()
         : "";
+      // Come ogni commessa: numero progressivo, stato iniziale, autore (chi ha creato il flusso) e una rata.
+      const { data: ordStato } = await supabase
+        .from("order_statuses").select("id").eq("company_id", companyId)
+        .order("is_default", { ascending: false }).order("position", { ascending: true })
+        .limit(1).maybeSingle();
+      const { data: ordFlow } = await supabase
+        .from("automation_flows").select("created_by").eq("id", queueItem?.flow_id).maybeSingle();
+      const { data: ordCodice } = await supabase.rpc("prossimo_numero_commessa", { p_company_id: companyId });
+      const ordIva = Number(rv(ncfg.iva ?? 22));
+      const ordAliquota = Number.isFinite(ordIva) && ordIva >= 0 && ordIva <= 100 ? ordIva : 22;
       const { data, error } = await supabase.from("orders").insert({
         company_id: companyId,
         description: ncfg.note ? `${title} — ${rv(String(ncfg.note))}` : title,
         total_amount: importo,
+        vat_rate: ordAliquota,
         status: "bozza",
+        order_code: typeof ordCodice === "string" ? ordCodice : null,
+        current_status_id: ordStato?.id ?? null,
+        created_by: ordFlow?.created_by ?? null,
         customer_id: ordContact?.customer_profile_id || null,
         client_name: ordClientName || null,
         client_email: ordContact?.email || null,
         client_phone: ordContact?.phone || null,
       }).select("id").single();
       if (error) return { success: false, error: error.message };
+      if (importo > 0 && data?.id) {
+        const { error: rataErr } = await supabase.from("order_installments").insert({
+          order_id: data.id,
+          position: 0,
+          label: "Saldo",
+          type: "balance",
+          amount: Math.round(importo * (100 + ordAliquota)) / 100,
+          is_paid: false,
+        });
+        if (rataErr) return { success: true, output: { action: "crea_bozza_ordine", ordine_id: data.id, avviso: `Rata non creata: ${rataErr.message}` } };
+      }
       return { success: true, output: { action: "crea_bozza_ordine", ordine_id: data?.id } };
     }
 

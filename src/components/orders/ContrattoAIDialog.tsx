@@ -25,6 +25,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { CommessaDaContratto } from "@/components/silvio-commessa/PulsantiIngressi";
 import {
   FileText, Sparkles, Download, Save, AlertTriangle,
   CheckCircle2, Loader2, Wand2, ShieldCheck,
@@ -472,6 +473,8 @@ export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera C
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Chiudi
           </Button>
+          {/* Silvio completa la commessa coi dati del contratto (fase 3): solo con l'interruttore acceso. */}
+          {contrattoId && <CommessaDaContratto contrattoId={contrattoId} orderId={orderId} />}
           {previewMd && (
             <>
               {contrattoId && (
