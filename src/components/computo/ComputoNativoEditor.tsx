@@ -331,8 +331,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     const nuova = { ...voceVuota(), capitolo: capitolo || v?.capitolo || "Opere edili" };
     cambia({ ...bozza, voci: [...bozza.voci, nuova] }); apriVoce(nuova.id);
   };
-  const daListino = (scelte: PickedVoce[]) => {
-    if (bozza.voci.length + scelte.length > 5000) { toast.error("Il computo supererebbe le 5000 lavorazioni: togli qualche voce."); setPicker(null); return; }
+  const daListino = (scelte: PickedVoce[]): void | false => {
+    if (bozza.voci.length + scelte.length > 5000) { toast.error("Il computo supererebbe le 5000 lavorazioni: togli qualche voce."); return false; }
     const nuove = scelte.map(picked => {
       const unita = picked.unita_originale?.trim() || picked.unita_misura;
       return { ...voceVuota(), capitolo: picker?.capitolo || picked.capitolo_nome || "Opere edili",

@@ -4,19 +4,27 @@ export interface VoceScelta {
   costo_materiali: number; costo_manodopera: number; capitolo_nome?: string; listino_voce_id?: string | null;
   fonte?: string | null; codice_tariffa?: string | null; famiglia_id?: string | null; immagine_url?: string | null;
   descrizione_estesa?: string | null; quantita?: number;
+  /** L'unità della fonte, prima di adattarla al modulo: la revisione dei Bagni la controlla. */
+  sourceUnit?: string | null;
 }
 
 export interface RigaScelta {
-  chiave: string; descrizione: string; meta?: string; immagine?: string | null; prezzo: number; unitaLabel: string;
+  chiave: string; descrizione: string; meta?: string;
+  /** Il titolo sopra le voci nell'elenco: capitolo o gruppo. */
+  sezione?: string; immagine?: string | null; prezzo: number; unitaLabel: string;
   /** Prodotto al metro quadro: la quantità va scritta, non vale 1. */
   chiedeQuantita?: boolean;
   voce: VoceScelta;
 }
 
-/** «2,5» e «2.5» sono la stessa quantità. Null se non è un numero positivo. */
+/** «2,5» e «2.5» sono la stessa quantità, «1.500» e «1.500,5» hanno il punto delle migliaia. Null se non è un numero positivo. */
 export function leggiQuantita(testo: string): number | null {
-  const n = Number(testo.trim().replace(",", "."));
-  return testo.trim() && Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+  const t = testo.trim();
+  const conMigliaia = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t);
+  const n = Number((conMigliaia ? t.replace(/\./g, "") : t).replace(",", "."));
+  if (!t || !Number.isFinite(n)) return null;
+  const tonda = Math.round(n * 100) / 100;
+  return tonda > 0 ? tonda : null;
 }
 
 /** Le voci pronte da aggiungere, il totale, e quante aspettano ancora una quantità valida. */
@@ -35,9 +43,12 @@ export function totaleScelte(scelte: readonly { riga: RigaScelta; quantita: stri
 
 const normalizza = (t: string) => t.split("\n")[0].trim().toLowerCase();
 
-export function voceGiaPresente(descrizione: string, presenti: readonly string[]): boolean {
+/** Le voci già nel computo, pronte per il confronto: un computo può averne 5000. */
+export const insiemeVoci = (voci: readonly string[]): ReadonlySet<string> => new Set(voci.map(normalizza));
+
+export function voceGiaPresente(descrizione: string, presenti: ReadonlySet<string>): boolean {
   const d = normalizza(descrizione);
-  return !!d && presenti.some((p) => normalizza(p) === d);
+  return !!d && presenti.has(d);
 }
 
 export function rigaVoceLibera(testo: string, capitolo?: string): VoceScelta {

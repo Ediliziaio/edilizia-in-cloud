@@ -14,7 +14,8 @@ import type { PickedVoce } from "./types";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPick: (voci: PickedVoce[]) => void;
+  /** `false`: le voci non vanno bene, il popup resta aperto. */
+  onPick: (voci: PickedVoce[]) => void | false;
   /** Capitolo in cui vanno le voci. */
   targetCapitolo?: string;
   /** Le voci già nel computo, per dirlo sulla riga. */

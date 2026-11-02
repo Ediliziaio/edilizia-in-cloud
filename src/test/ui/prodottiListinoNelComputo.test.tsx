@@ -262,7 +262,7 @@ describe("ogni modulo a computo, anche uno futuro, usa il listino prodotti", () 
     expect(comune).toContain("...inRiga,");
     expect(comune).toContain("famiglia_id: p.id,");
     expect(comune).toContain("immagine_url: p.immagine_url,");
-    expect(comune).toContain("descrizione_estesa: p.descrizione }");
+    expect(comune).toContain("descrizione_estesa: p.descrizione,");
     const tipi = leggi(cartella, "types.ts");
     expect(tipi).toContain("descrizione_estesa: picked.descrizione_estesa ?? null,");
     expect(tipi).toContain("quantita: picked.quantita ?? 1,");
