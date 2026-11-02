@@ -47,9 +47,9 @@ vi.mock("@tanstack/react-query", () => ({
     isLoading: queryKey[0] === "campo-ruolo" && state.verificaCaricamento,
     refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: () => void; onError?: (e: unknown) => void }) => ({
+  useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: (esito?: unknown) => void; onError?: (e: unknown) => void }) => ({
     isPending: false,
-    mutate: async () => { try { await config.mutationFn(); config.onSuccess?.(); } catch (e) { config.onError?.(e); } },
+    mutate: async () => { try { config.onSuccess?.(await config.mutationFn()); } catch (e) { config.onError?.(e); } },
   }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
@@ -66,7 +66,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  state.role = { isCapocantiere: false, esisteCapo: false }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
+  state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
   state.fasi = []; state.sottofasi = [];
   state.verificaErrore = false; state.verificaCaricamento = false;
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
@@ -237,23 +237,25 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
 
   it("se il capo lo ha già messo nelle presenze, le sue ore non si scrivono due volte, in ogni flusso", async () => {
     state.regole = { chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null };
+    state.role = { isCapocantiere: false, esisteCapo: true };
     state.oreGia = { ore: 8, da: "Marco Operaio" };
     render(<CampoRapportino />);
     expect(ore()).toBeNull();
     expect(screen.getByText(/Marco Operaio ha già segnato le tue ore di questa giornata \(8h\)/)).toBeInTheDocument();
     // «Oggi il capo non c'era» non ha senso: il capo c'era e le ha segnate
     expect(screen.queryByRole("button", { name: /Scrivo io le mie ore/ })).toBeNull();
-    avanti(); invia();
+    invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 0 })));
   });
 
   it("ma chi ha fatto ore diverse sullo stesso cantiere può aggiungerle: solo quelle in più", async () => {
+    state.role = { isCapocantiere: false, esisteCapo: true };
     state.oreGia = { ore: 4, da: "Marco Operaio" };
     render(<CampoRapportino />);
     fireEvent.click(screen.getByRole("button", { name: /Ho fatto altre ore, non comprese in queste/ }));
     expect(screen.getByText(/ha già segnato 4h per te in questa giornata: scrivi qui solo le ore in più/)).toBeInTheDocument();
     fireEvent.change(ore()!, { target: { value: "3" } });
-    avanti(); invia();
+    invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 3 })));
   });
 });
@@ -277,12 +279,13 @@ describe("Un rapportino diverso per chi lo compila", () => {
     expect(screen.queryByText("Firma simulata")).toBeNull();
   });
 
-  it("chi lavora da solo, senza un capo nominato, ha i due passi di sempre", () => {
+  it("chi lavora senza un capo nominato ha il modulo corto, e il resto sta in «Altro»", () => {
     state.role = { isCapocantiere: false, esisteCapo: false };
     render(<CampoRapportino />);
-    expect(screen.getByRole("button", { name: "Avanti" })).toBeInTheDocument();
-    expect(screen.getByText("1 · Lavoro e foto")).toBeInTheDocument();
-    expect(screen.queryByText("Altro da segnalare (facoltativo)")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Avanti" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Invia rapportino" })).toBeInTheDocument();
+    expect(screen.getByText("Altro da segnalare (facoltativo)")).toBeInTheDocument();
+    expect(screen.getByText(/Avanzamento/)).toBeInTheDocument();
   });
 
   it("il capo usa le ore personali per sole note e le presenze quando seleziona la squadra", () => {

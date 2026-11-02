@@ -224,7 +224,7 @@ async function processQueueUnlocked(): Promise<void> {
 
   isProcessing = true;
   try {
-    const items = await getPending();
+    const items = (await getPending()).sort((a, b) => a.createdAt - b.createdAt);
     for (const item of items) {
       // Backoff esponenziale: se retryCount alto, salta se non è ancora tempo
       if (item.retryCount > 0) {

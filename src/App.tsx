@@ -127,6 +127,7 @@ const Login = lazy(() => import("@/pages/Login"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
 const LavoriLogin = lazy(() => import("@/pages/LavoriLogin"));
+const EntraConLink = lazy(() => import("@/pages/EntraConLink"));
 const ReferralLogin = lazy(() => import("@/pages/ReferralLogin"));
 const ProduttoreLogin = lazy(() => import("@/pages/ProduttoreLogin"));
 const CommercialistaLogin = lazy(() => import("@/pages/CommercialistaLogin"));
@@ -746,6 +747,7 @@ const App = () => (
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
               <Route path="/lavori-login" element={<LavoriLogin />} />
+              <Route path="/entra/:token" element={<EntraConLink />} />
               <Route path="/referral-login" element={<ReferralLogin />} />
               <Route path="/produttore-login" element={<ProduttoreLogin />} />
               <Route path="/commercialista-login" element={<CommercialistaLogin />} />

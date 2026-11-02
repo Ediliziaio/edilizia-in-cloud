@@ -7,24 +7,25 @@
  * rapportini esistenti.
  *
  * Qui le foto si fanno QUANDO si fanno — davanti al lavoro — e restano
- * attaccate alla commessa. La sera il rapportino le pesca già pronte.
+ * attaccate alla commessa. La sera il rapportino le pesca già pronte
+ * (vedi «campo-foto-del-giorno» in CampoRapportino).
  * Ogni scatto viene compresso, marchiato con data/ora/cantiere/GPS e, se non
  * c'è campo, messo in coda: parte da solo al ritorno della rete.
  */
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, WifiOff } from "lucide-react";
+import { ArrowLeft, Camera, Image as ImageIcon, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useFotoCantiere } from "@/hooks/useFotoCantiere";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
-import { FotoUploader } from "@/components/foto-cantiere/FotoUploader";
+import { ScattaFoto } from "@/components/campo/ScattaFoto";
 import { FotoGrid } from "@/components/foto-cantiere/FotoGrid";
 
 export default function CampoFotoCantiere() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { queueCount } = useOfflineSync();
-  const { foto, isLoading, upload, isUploading, elimina, getSignedUrl } = useFotoCantiere(orderId);
+  const { foto, isLoading, elimina, getSignedUrl } = useFotoCantiere(orderId);
 
   const { data: order } = useQuery({
     queryKey: ["campo-foto-order", orderId],
@@ -69,10 +70,16 @@ export default function CampoFotoCantiere() {
       </div>
 
       <div className="space-y-4 p-3">
-        <FotoUploader
-          onUpload={({ files, descrizione }) => upload({ files, descrizione, nomeCantiere })}
-          isUploading={isUploading}
-        />
+        {orderId && (
+          <div className="grid grid-cols-2 gap-2">
+            <ScattaFoto orderId={orderId} nomeCantiere={nomeCantiere} className="min-h-14 rounded-xl bg-primary text-sm text-primary-foreground">
+              <Camera className="h-5 w-5" aria-hidden="true" />Scatta
+            </ScattaFoto>
+            <ScattaFoto orderId={orderId} nomeCantiere={nomeCantiere} galleria className="min-h-14 rounded-xl border text-sm">
+              <ImageIcon className="h-5 w-5" aria-hidden="true" />Galleria
+            </ScattaFoto>
+          </div>
+        )}
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">
