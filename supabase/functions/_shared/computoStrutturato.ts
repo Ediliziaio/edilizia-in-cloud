@@ -1,6 +1,6 @@
 /**
  * Computo metrico «strutturato»: il formato comune in cui finiscono il PDF di
- * PriMus e l'XPWE, con le righe di misura (libretto), la gerarchia
+ * PriMus, l'XPWE e i fogli Excel, con le righe di misura (libretto), la gerarchia
  * super-categoria › categoria › sotto-categoria e il controllo dei totali.
  *
  * Codice puro, senza import: lo usano la edge function `computo-ai-extract`
@@ -55,13 +55,16 @@ export interface ComputoRigaRiepilogo {
 }
 
 export interface ComputoStrutturato {
-  formato: "primus_pdf" | "xpwe";
+  formato: "primus_pdf" | "xpwe" | "excel";
   metadata: { oggetto_lavori?: string | null; committente?: string | null; data_computo?: string | null; impresa?: string | null };
   voci: ComputoVoceStrutturata[];
   totale_dichiarato: number | null;
   riepiloghi: ComputoRigaRiepilogo[];
   prezzari: string[];
   avvisi: string[];
+  /** Lo sconto scritto nel documento (per ora i fogli Excel): il totale dichiarato resta quello lordo. */
+  sconto?: { importo: number; descrizione: string } | null;
+  totale_netto?: number | null;
 }
 
 // ── Numeri ───────────────────────────────────────────────────────────────────

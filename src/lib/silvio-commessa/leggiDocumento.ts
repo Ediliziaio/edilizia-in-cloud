@@ -5,7 +5,7 @@
  * Il giro, per ogni file che l'utente trascina nel popup:
  *   1. le prime righe (la prima pagina di un PDF, l'inizio di un XML o di un testo);
  *   2. il riconoscitore sceglie il lettore;
- *   3. i computi di PriMus si leggono qui, nel browser, senza AI e senza caricare niente;
+ *   3. i computi (PriMus, Excel) si leggono qui, nel browser, senza AI e senza caricare niente;
  *      le offerte delle ditte vanno a `rdo-ai-estrai-offerta`; il resto si carica in
  *      silvio-uploads (`<azienda>/<utente>/commessa-…`, la cartella che la policy dello
  *      storage già concede a chi carica) e lo legge `silvio-commessa`.
@@ -131,6 +131,7 @@ export async function leggiDocumento(file: File, opz: OpzioniLettura, servizi: S
       throw new Error(riconosciuto.motivo);
 
     case "computo_xpwe":
+    case "computo_excel":
       return { riconosciuto, frammenti: [frammentoDaFileComputo(await servizi.leggiComputo(file), file.name, { inizio: opz.inizio, calendario: opz.calendario })] };
 
     case "computo_primus": {
@@ -200,7 +201,7 @@ export async function leggiDocumentoRemoto(
   const riconosciuto = riconosciDocumento({ nome: meta.nome, mime: meta.mime ?? "" });
   if (riconosciuto.lettore === "non_letto") throw new Error(riconosciuto.motivo);
   if (riconosciuto.lettore === "offerta_ditta" && !opz.comeDocumento) return { riconosciuto, frammenti: [], daCollegare: "richiesta_offerta" };
-  if (riconosciuto.lettore === "computo_xpwe") {
+  if (riconosciuto.lettore === "computo_xpwe" || riconosciuto.lettore === "computo_excel") {
     throw new Error("È un computo: scaricalo e trascinalo tra le fonti, lo leggo senza AI.");
   }
   const ai = riconosciuto.lettore === "silvio_commessa" ? riconosciuto
@@ -268,7 +269,7 @@ async function primeRighe(file: File): Promise<string> {
       await caricamento.destroy();
     }
   }
-  if (file.type.startsWith("image/")) return "";
+  if (file.type.startsWith("image/") || /\.(xlsx|xlsm)$/.test(nome)) return "";
   return (await file.slice(0, 8000).text()).slice(0, 6000);
 }
 

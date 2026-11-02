@@ -29,7 +29,7 @@ import type { FonteNelPopup, Messaggio } from "./useBozzaSilvio";
 import { useDettatura, type Dettatura } from "./useDettatura";
 
 /** I file che il popup sa leggere: gli stessi della colonna Fonti. */
-export const FILE_LEGGIBILI = ".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,application/pdf,image/jpeg,image/png,image/webp,text/plain";
+export const FILE_LEGGIBILI = ".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,.xls,application/pdf,image/jpeg,image/png,image/webp,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel";
 
 export interface ColonnaChatProps {
   messaggi: Messaggio[];
