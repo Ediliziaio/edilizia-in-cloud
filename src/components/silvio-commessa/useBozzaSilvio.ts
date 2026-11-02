@@ -55,7 +55,7 @@ import { calendarioAzienda, inizioUtile, lavorativiTra, type CalendarioCantiere 
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
-  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
+  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti, scartaAltreBozzeCrea,
   type Bozza, type EsitoCommessa, type FonteCaricata, type SalvataggioConAttesa,
 } from "@/lib/silvio-commessa/bozze";
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
@@ -203,7 +203,8 @@ export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi
       }
       continue;
     }
-    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
+    // Una proposta non sposta niente: lo fa il suo «Va bene», che ripassa di qui.
+    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string" && !m.proposta) {
       const { data, avviso } = inizioUtile(m.valore, ora.calendario, oggi);
       const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
       const bloccate = giaNellaCommessa(ora, fasi);
@@ -570,6 +571,12 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   /** L'ultimo salvataggio non riuscito: «Crea» non parte da una bozza vecchia (P1). */
   const erroreSalvataggio = useRef<ErroreBozza | null>(null);
 
+  // Non ferma niente: se non riesce, la bozza nuova c'è comunque.
+  const scartaVecchie = useCallback(
+    (tieni: string) => scartaAltreBozzeCrea({ companyId, userId, tieni }, servizi.db).catch(() => 0),
+    [companyId, userId, servizi.db],
+  );
+
   // Uno per popup, nato al primo uso (mai durante il render): azienda e client non cambiano.
   const salvaRef = useRef<SalvataggioConAttesa<DatiBozza> | null>(null);
   const salvatore = useCallback(() => (salvaRef.current ??= salvataggioConAttesa<DatiBozza>(
@@ -579,6 +586,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
         const b = await creaBozza({ companyId, orderId, piano: d.piano, fonti: d.caricate, autonomia: d.autonomia }, servizi.db);
         bozzaId.current = b.id;
         setIdBozza(b.id);
+        // La nuova c'è: quelle lasciate a metà si scartano, e chi le ignorava lo sa.
+        if (!orderId) void scartaVecchie(b.id).then((n) => {
+          if (n) invia({ tipo: "messaggio", tono: "avviso", testo: n === 1 ? "La commessa a metà che avevi lasciato l'ho scartata: ne tengo una sola alla volta." : `Le ${n} commesse a metà che avevi lasciato le ho scartate: ne tengo una sola alla volta.` });
+        });
         if (d.storia.length) await salvaBozza(b.id, { piano: d.piano, fonti: d.caricate, storia: d.storia, autonomia: d.autonomia }, servizi.db);
         return;
       }
@@ -589,7 +600,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       quandoSalvato: () => { erroreSalvataggio.current = null; setSalvataggio({ tipo: "salvata" }); },
       quandoSbaglia: (e) => { erroreSalvataggio.current = e; setSalvataggio({ tipo: "errore", messaggio: e.message }); },
     },
-  )), [companyId, orderId, servizi.db, attesaMs]);
+  )), [companyId, orderId, servizi.db, attesaMs, scartaVecchie]);
 
   // Cosa fa Silvio da solo: decide la scrittura che si salva, e serve anche alla chat, per non
   // scrivere quello che l'azienda ha vietato (G19).
@@ -867,7 +878,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       setCostoChat((c) => c + risposta.costoEur);
       // Sulla bozza di adesso: nel frattempo può essere arrivata una lettura.
       const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, (c, x) => testoValore(c, x, vedeCosti), {
-        autonomia, riservata: (c) => riservataPerProfilo(c, vedeImporti, vedeCosti),
+        autonomia, riservata: (c) => riservataPerProfilo(c, vedeImporti, vedeCosti), messaggioPersona: t,
       });
       const righe = esito.righe.length ? esito.righe : [risposta.testo || "Non ho capito cosa cambiare: prova a dirlo in un altro modo."];
       invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, esito.modifiche), dallaChat: { righe } });
@@ -902,7 +913,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     setIdBozza(b.id);
     setSalvataggio({ tipo: "salvata" });
     invia({ tipo: "riprendi", bozza: b });
-  }, []);
+    if (b.modo === "crea") void scartaVecchie(b.id);
+  }, [scartaVecchie]);
 
   /** «Crea» (o «Completa»): salva quello che aspetta, scrive, registra le correzioni. */
   const crea = useCallback(async (): Promise<EsitoCommessa> => {

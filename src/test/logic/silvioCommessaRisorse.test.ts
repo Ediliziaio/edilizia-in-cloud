@@ -273,7 +273,7 @@ describe("4.3 Bozze rosse, mai inviate", () => {
     expect(dataOrdine("2026-12-07", null)).toBe("2026-12-07");
     expect(dataOrdine(null, 10)).toBeNull();
     const [o] = elenco<OdaDelPiano>(proposteRisorse(pianoConFasi(FASI), contesto({ oggi: "2026-11-30" })), "materiali", "materiali.acquisti");
-    expect(o).toMatchObject({ stato: "proposta", avviso: "andava ordinato il 27/11: chiedi al fornitore se ce la fa" });
+    expect(o).toMatchObject({ stato: "proposta", avviso: "da ordinare subito, andava ordinato entro il 27 nov: chiedi al fornitore se ce la fa" });
   });
 
   it("il contratto c'è per ogni ditta proponibile, con l'elenco dei lavori; la ditta senza subappaltatore è ⚠", () => {

@@ -295,9 +295,9 @@ describe("lettore del computo", () => {
 
   it("rate sul totale con l'IVA, agganciate a firma, SAL numerato e fine lavori", () => {
     expect(val<RataDelPiano[]>(computo(), "pagamenti.rate")).toEqual([
-      { label: "Acconto", type: "deposit", amount: 1540, percent: 20, trigger_evento: "firma_contratto", trigger_numero: null },
-      { label: "SAL", type: "deposit", amount: 3850, percent: 50, trigger_evento: "sal_numero", trigger_numero: 1 },
-      { label: "Saldo", type: "balance", amount: 2310, percent: 30, trigger_evento: "fine_lavori", trigger_numero: null },
+      { label: "Acconto", type: "deposit", amount: 1540, percent: 20, daPercentuale: true, trigger_evento: "firma_contratto", trigger_numero: null },
+      { label: "SAL", type: "deposit", amount: 3850, percent: 50, daPercentuale: true, trigger_evento: "sal_numero", trigger_numero: 1 },
+      { label: "Saldo", type: "balance", amount: 2310, percent: 30, daPercentuale: true, trigger_evento: "fine_lavori", trigger_numero: null },
     ]);
   });
 

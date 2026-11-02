@@ -216,10 +216,10 @@ describe("Popup «Crea con Silvio»: l'esperienza d'uso (01/11/2026)", () => {
   it("in cima «Da decidere»: il ⚠ si toglie sul posto, le proposte con un tocco, e «Crea» dice cosa scrive", async () => {
     const { s } = servizi();
     apri(s);
-    const decidere = await within(commessa()).findByRole("region", { name: /Da decidere/ });
+    const decidere = await within(commessa()).findByRole("region", { name: /Niente di urgente/ });
     expect(await within(decidere).findByText("Mario Prova")).toBeInTheDocument();
     expect(within(decidere).getByText(/mie proposte aspettano un sì/)).toBeInTheDocument();
-    expect(screen.getByText(/^Da decidere: .*1 non disponibile.* \d+ proposte$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Niente di urgente\. Altre \d+ cose, se vuoi guardarle\.$/)).toBeInTheDocument();
 
     // Il ⚠ si risolve dove lo vedi: Mario esce dalla squadra.
     fireEvent.click(within(decidere).getByRole("button", { name: "Toglilo" }));
@@ -232,7 +232,7 @@ describe("Popup «Crea con Silvio»: l'esperienza d'uso (01/11/2026)", () => {
     // Resta solo il dato che manca (qui l'indirizzo del cantiere), con «Aggiungi» accanto.
     expect(within(decidere).queryByText(/proposte aspettano/)).not.toBeInTheDocument();
     expect(within(decidere).getByText("indirizzo del cantiere")).toBeInTheDocument();
-    expect(screen.getByText("Da decidere: 1 dato che manca")).toBeInTheDocument();
+    expect(screen.getByText("Niente di urgente. Un'altra cosa, se vuoi guardarla.")).toBeInTheDocument();
     expect(screen.getByText(/2 fasi, 1 persona, 1 ditta/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Crea la commessa/ })).toBeEnabled();
   });
@@ -283,7 +283,7 @@ describe("Le conseguenze di una modifica (01/11/2026)", () => {
   it("al posto di chi non è libero, Silvio propone chi lo è nelle stesse date", async () => {
     const { s } = servizi();
     apri(s);
-    const decidere = await within(commessa()).findByRole("region", { name: /Da decidere/ });
+    const decidere = await within(commessa()).findByRole("region", { name: /Niente di urgente/ });
     fireEvent.click(await within(decidere).findByRole("button", { name: "Metti Luca Prova" }));
     const persone = await area("Persone");
     await waitFor(() => expect(within(persone).queryByText(/⚠ Mario Prova/)).not.toBeInTheDocument());

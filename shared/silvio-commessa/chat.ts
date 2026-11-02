@@ -20,7 +20,7 @@ import {
 import { REGISTRO, variabile } from "./registro.ts";
 import { applica, giaNellaCommessa, modificaBloccata, spostaGiorniLavorativi } from "./fondi.ts";
 import { inizioUtile, lavorativiTra, type CalendarioCantiere } from "./calendario.ts";
-import { numeroDellaColonna } from "./letturaAI.ts";
+import { dataNelTesto, numeriNelTesto, numeroDellaColonna } from "./letturaAI.ts";
 import { dataVera, oggiInItalia } from "./date.ts";
 import { azioneDellaVariabile, livelloDi, type Autonomia } from "./autonomia.ts";
 
@@ -234,6 +234,8 @@ export interface OpzioniChat {
    * variabile che non si vede; «cifre» è un elenco che si vede senza le cifre.
    */
   riservata?: (chiave: string) => "tutta" | "cifre" | null;
+  /** Il messaggio che la persona ha scritto: solo un valore che compare qui può valere subito. */
+  messaggioPersona?: string | null;
 }
 
 /**
@@ -242,6 +244,22 @@ export interface OpzioniChat {
  * proposte, ed entrano col «Va bene» di una persona.
  */
 const SOLO_PROPOSTA = /^(ditte|persone|mezzi|materiali|economia|pagamenti|costi|sicurezza|comunicazione|sal_scadenze)\.|^cliente\.(customer_id|opportunity_id)$|^identita\.(sede_id|origine)$/;
+
+/**
+ * Quello che vale subito se la persona l'ha scritto lei (2/11): «il totale è 15.000» non chiede anche
+ * «Va bene». Solo importo, IVA, inizio e fine, e solo se il valore sta nel SUO messaggio: quello che il
+ * modello ha preso da un documento, o ha calcolato, resta una proposta. È la difesa di G18.
+ */
+const DECIDE_SUBITO = /^(economia\.(total_amount|vat_rate)|fasi\.work_(start|end)_date)$/;
+/** Oltre, non è una correzione: è un testo incollato, che può dire qualunque cosa. */
+export const MAX_MESSAGGIO_CHE_DECIDE = 280;
+
+/** Il valore compare davvero nel messaggio della persona? */
+export function valoreNelMessaggio(chiave: string, valore: unknown, messaggio: string | null | undefined): boolean {
+  if (!messaggio?.trim() || messaggio.length > MAX_MESSAGGIO_CHE_DECIDE || !DECIDE_SUBITO.test(chiave)) return false;
+  if (typeof valore === "number") return numeriNelTesto(messaggio).some((x) => Math.abs(x - valore) < 0.005);
+  return typeof valore === "string" && dataNelTesto(messaggio, valore);
+}
 
 function areaDi(chiave: unknown): { area: Area; chiave: string; etichetta: string } | null {
   if (typeof chiave !== "string") return null;
@@ -416,7 +434,8 @@ export function eseguiStrumento(
       }
       const pulito = valoreDellaVariabile(piano, v.chiave, a.valore);
       if (!pulito.ok) return rifiuto(`«${v.etichetta}»: ${pulito.motivo}.`);
-      if (SOLO_PROPOSTA.test(v.chiave)) {
+      const detto = valoreNelMessaggio(v.chiave, pulito.valore, opzioni.messaggioPersona);
+      if ((SOLO_PROPOSTA.test(v.chiave) || DECIDE_SUBITO.test(v.chiave)) && !detto) {
         return conBlocco([{ tipo: "cambia_valore", area: v.area, chiave: v.chiave, valore: pulito.valore, proposta: true }],
           `Ti propongo ${formatta(v.chiave, pulito.valore)} per «${v.etichetta}»: entra nella commessa se lo confermi nella bozza.`);
       }

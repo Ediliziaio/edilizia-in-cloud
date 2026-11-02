@@ -47,6 +47,12 @@ export interface DatiComputo {
   calendario?: CalendarioCantiere;
 }
 
+/**
+ * Oltre questi giorni lavorativi (circa 9 mesi) una stima dal valore non è un tempo: mette i capitoli
+ * uno dopo l'altro, e un computo grande in Excel veniva 891 giornate in fila. Meglio chiedere.
+ */
+export const SOGLIA_GIORNI_STIMATI = 180;
+
 /** Il momento della rata del computo come evento della rata di commessa. */
 const EVENTO: Readonly<Record<MomentoRata, string>> = {
   firma: "firma_contratto", inizio: "inizio_lavori", sal: "sal_numero", fine: "fine_lavori", collaudo: "fine_lavori",
@@ -126,6 +132,8 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
         label: r.rata.descrizione.trim() || "Rata",
         type: quando === "fine" || quando === "collaudo" || (i === economia.rate.length - 1 && economia.rate.length > 1) ? "balance" : "deposit",
         amount, percent: r.percentuale,
+        // Il computo dice la percentuale: l'importo segue il totale, se la persona lo cambia.
+        ...(r.percentuale != null ? { daPercentuale: true } : {}),
         trigger_evento: EVENTO[quando],
         trigger_numero: quando === "sal" ? ++sal : null,
       };
@@ -137,10 +145,21 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   // ── Fasi ──
   const crono = pianoDaCronoprogrammaComputo({ ...bozza.cronoprogramma, fasi: normalizzaFasi(bozza.cronoprogramma.fasi) });
   const voci = vociDellaBozza(bozza);
-  const { fasi, stimate } = fasiDaCapitoli(voci, crono.piano, giorniDalValore);
-  const inizio = dati.inizio || crono.inizioSuggerito;
+  const capitoli = fasiDaCapitoli(voci, crono.piano, giorniDalValore);
+  const { stimate } = capitoli;
+  const giorniInFila = capitoli.fasi.reduce((max, f) => Math.max(max, (f.giorno_inizio ?? 1) + (f.giorni ?? 1) - 1), 0);
+  const nonCredibile = stimate.length > 0 && giorniInFila > SOGLIA_GIORNI_STIMATI;
+  // Una durata inventata darebbe date inventate: restano i nomi e le voci, senza tempi.
+  const fasi: FaseDelPiano[] = nonCredibile
+    ? capitoli.fasi.map((f) => { const { giorni: _g, giorno_inizio: _i, ...resto } = f; return resto; })
+    : capitoli.fasi;
+  const inizio = nonCredibile ? null : dati.inizio || crono.inizioSuggerito;
   const conDate: FaseDelPiano[] = inizio ? dateDelleFasi(fasi, inizio, dati.calendario) : fasi;
-  if (conDate.length) {
+  if (nonCredibile) {
+    const testo = `Dal valore dei capitoli verrebbero ${giorniInFila} giornate di lavoro in fila: non è un tempo credibile, e le date non le invento. Dimmi quanto dura il lavoro: quando inizia e quando finisce.`;
+    avvisa(fr, testo);
+    metti(fr, "fasi.order_work_phases", conDate, { fiducia: 0.6, stato: "proposta", dove: "capitoli", nota: testo });
+  } else if (conDate.length) {
     metti(fr, "fasi.order_work_phases", conDate, stimate.length
       ? {
         fiducia: crono.piano.length ? 0.8 : 0.6, stato: "proposta", dove: "capitoli",
@@ -150,7 +169,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   }
   if (!dati.inizio && crono.inizioSuggerito) metti(fr, "fasi.work_start_date", crono.inizioSuggerito, { dove: "cronoprogramma" });
   const fine = conDate.reduce<string | null>((max, f) => (f.end_date && (!max || f.end_date > max) ? f.end_date : max), null);
-  if (fine) {
+  if (fine && !nonCredibile) {
     const opz = { fiducia: stimate.length ? 0.6 : 0.9, stato: "proposta" as const, dove: "cronoprogramma" };
     metti(fr, "fasi.work_end_date", fine, opz);
     metti(fr, "fasi.expected_date", fine, opz);

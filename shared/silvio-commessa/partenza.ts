@@ -20,7 +20,7 @@
  * Funzioni pure, senza dipendenze, compatibili con Deno.
  */
 import { CALENDARIO_NAZIONALE, lavorativiTra, lavorativo, spostaLavorativi, type CalendarioCantiere } from "./calendario.ts";
-import { dataCorta } from "./date.ts";
+import { dataConMese, dataCorta } from "./date.ts";
 
 // ── Meteo ───────────────────────────────────────────────────────────────────
 
@@ -197,7 +197,17 @@ export function adempimentiPrimaDiPartire(d: DatiPartenza, cal: CalendarioCantie
   return out.map((a) => ({ ...a, avviso: avvisoScadenza(a.scadenza, d.oggi) }));
 }
 
-/** «Andava fatto entro il 28/10: è già passato.», o null. */
+/** La scadenza è già passata, oggi a Roma? Il confronto è fra giorni di calendario, senza ore. */
+export const scadenzaPassata = (scadenza: string | null | undefined, oggi: string | null | undefined): boolean =>
+  !!scadenza && !!oggi && scadenza < oggi;
+
+/** «era da fare entro il 26 ott»: una scadenza passata non è una data a cui arrivare. */
+export const eraDaFare = (scadenza: string) => `era da fare entro il ${dataConMese(scadenza)}`;
+
+/** «Da fare subito: CILA o SCIA, era da fare entro il 26 ott». */
+export const daFareSubito = (titolo: string, scadenza: string) => `Da fare subito: ${titolo}, ${eraDaFare(scadenza)}`;
+
+/** «Da fare subito: era da fare entro il 26 ott.», o null se la scadenza non è passata. */
 export function avvisoScadenza(scadenza: string | null, oggi: string | null | undefined): string | null {
-  return scadenza && oggi && scadenza < oggi ? `Andava fatto entro il ${dataCorta(scadenza)}: la data è già passata, fallo subito.` : null;
+  return scadenzaPassata(scadenza, oggi) ? `Da fare subito: ${eraDaFare(scadenza!)}.` : null;
 }

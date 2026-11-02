@@ -8,14 +8,16 @@
  */
 import { azioneDellaVariabile, livelloDi, ordineDaSolo, type Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import {
-  AREE, inVigore, type Area, type Conflitto, type CostoDelPiano, type FaseDelPiano, type PianoCommessa,
+  AREE, inVigore, tipoDOrigine, type Area, type Conflitto, type CostoDelPiano, type FaseDelPiano, type PianoCommessa,
   type RataDelPiano, type Stato, type Valore, type CondizioniContratto, type Modifica,
 } from "../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO, variabile, variabiliDellArea, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { completezzaPiano, type Completezza } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import { personaOccupata, type ContestoRisorse, type PersonaDelPiano } from "../../../shared/silvio-commessa/risorse.ts";
-import { annulla, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
+import { annulla, applica, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
+import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { eraDaFare, scadenzaPassata } from "../../../shared/silvio-commessa/partenza.ts";
 import { clienteRitrovabile, COLONNE_SCRIVIBILI, entraNellaScrittura, giaNellaCommessa, type ClienteDelGestionale, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
 import { controlliQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
 import { avvisoLettureFallite } from "../../../shared/silvio-commessa/contestoRisorse.ts";
@@ -152,7 +154,7 @@ export function arcoDelleFasi(fasi: readonly FaseDelPiano[]): { inizio: string |
 }
 
 /** Il testo breve di un valore, come compare nella riga dell'area. Senza `vedeCosti`, gli elenchi non dicono quanto costano. */
-export function testoValore(chiave: string, valore: unknown, vedeCosti = true): string {
+export function testoValore(chiave: string, valore: unknown, vedeCosti = true, oggi: string = oggiInItalia()): string {
   if (vuoto(valore)) return "—";
   switch (chiave) {
     case "fasi.order_work_phases": {
@@ -218,13 +220,17 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true): 
     case "sicurezza.pos_duvri": {
       if (!Array.isArray(valore)) break;
       const p = valore as Array<{ titolo?: string; scadenza?: string | null }>;
-      const entro = p.map((x) => x.scadenza).filter((d): d is string => !!d).sort()[0];
-      return `${p.length} ${p.length === 1 ? "promemoria" : "promemoria"}${entro ? ` · entro ${dataBreve(entro, false)}` : ""}`;
+      const scadenze = p.map((x) => x.scadenza).filter((d): d is string => !!d).sort();
+      const passate = scadenze.filter((d) => scadenzaPassata(d, oggi));
+      // Una scadenza passata non è una data a cui arrivare: la prima di quelle ancora buone sarebbe falsa.
+      const quando = passate.length ? ` · ${passate.length} da fare subito` : scadenze[0] ? ` · entro ${dataBreve(scadenze[0], false)}` : "";
+      return `${p.length} promemoria${quando}`;
     }
     case "comunicazione.avvio_cliente": {
       const m = valore as { canale?: string | null; destinatario?: string | null; scadenza?: string | null };
       const dove = m.canale === "email" ? "per email" : m.canale === "whatsapp" ? "per WhatsApp" : "";
-      return `bozza da mandare ${dove}${m.scadenza ? ` entro ${dataBreve(m.scadenza, false)}` : ""}`.replace(/\s+/g, " ").trim();
+      const quando = !m.scadenza ? "" : scadenzaPassata(m.scadenza, oggi) ? `, da mandare subito: ${eraDaFare(m.scadenza)}` : ` entro ${dataBreve(m.scadenza, false)}`;
+      return `bozza da mandare ${dove}${quando}`.replace(/\s+/g, " ").replace(/ ,/, ",").trim();
     }
   }
   if (Array.isArray(valore)) return `${valore.length} ${valore.length === 1 ? "elemento" : "elementi"}`;
@@ -490,8 +496,9 @@ export function contiDellaBarra(piano: PianoCommessa, scrittura: ScritturaCommes
 /** Il margine previsto, se il piano ha importo e costi: importo − costi, e la percentuale. */
 export function marginePrevisto(piano: PianoCommessa): { euro: number; percento: number } | null {
   // Quelli in vigore: una proposta della chat ancora da confermare non cambia i conti.
-  const importo = Number(inVigore(piano.aree.economia?.["economia.total_amount"])?.valore);
-  if (!(importo > 0)) return null;
+  const vale = inVigore(piano.aree.economia?.["economia.total_amount"]);
+  const importo = Number(vale?.valore);
+  if (!(importo > 0) || vale?.daConfermare) return null;
   const { totale } = costiConosciuti(piano);
   if (!(totale > 0)) return null;
   const margine = importo - totale;
@@ -655,6 +662,16 @@ export function domandaDiSilvio(
   if (nonTorna) {
     return { testo: `${nonTorna.testo} Finché non torna, ${minuscola(nonTorna.etichetta)} restano fuori dalla commessa.`, risposte: [{ etichetta: `Sistema ${ARTICOLO_CONTO[nonTorna.chiave] ?? ""}${minuscola(nonTorna.etichetta)}`, apri: nonTorna.chiave }] };
   }
+  // Le durate del computo non erano credibili: chiedere solo l'inizio non darebbe le date a nessuna fase.
+  if (fasiSenzaTempi(piano) && (!valore("fasi.work_start_date") || !valore("fasi.work_end_date"))) {
+    return {
+      testo: "Quanto dura il lavoro? Dimmi quando inizia e quando finisce: dal computo i tempi non sono credibili, e non li invento.",
+      risposte: [
+        ...(!valore("fasi.work_start_date") ? [{ etichetta: "Scegli l'inizio", apri: "fasi.work_start_date" }] : []),
+        ...(!valore("fasi.work_end_date") ? [{ etichetta: "Scegli la fine", apri: "fasi.work_end_date" }] : []),
+      ],
+    };
+  }
   if (!valore("fasi.work_start_date")) {
     const lunedi = prossimoLunedi(oggi);
     return {
@@ -703,6 +720,13 @@ export function domandaDiSilvio(
     };
   }
   return null;
+}
+
+/** Le fasi di un computo restate senza date né durate: le stime erano troppo lunghe (`SOGLIA_GIORNI_STIMATI`). */
+export function fasiSenzaTempi(piano: PianoCommessa): boolean {
+  const v = piano.aree.fasi?.["fasi.order_work_phases"];
+  if (!v || !Array.isArray(v.valore) || !v.valore.length || tipoDOrigine(v) !== "computo") return false;
+  return (v.valore as FaseDelPiano[]).every((f) => !f.start_date && !f.giorni);
 }
 
 /** Un valore scritto dalla persona in chat aspetta il suo sì, ma non è una proposta di Silvio. */
@@ -793,7 +817,9 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
         // Un conto che non torna su un valore scelto da una persona: entra, perché l'ha scelto lei, ma si dice.
         const nonTorna = mostrato?.quadratura && mostrato.nota && !restano.length
           ? (nascosto || (parlaDiCosti(v.chiave, vedeCosti) && /\d\s*€/.test(mostrato.nota)) ? "⚠ il conto non torna: da controllare con chi vede gli importi" : `⚠ ${mostrato.nota}`) : null;
-        const nota = [proposta, nonTorna].filter(Boolean).join(" ") || null;
+        // Letto da una foto o senza prova: «resta fuori» da solo non dice perché, né come farlo entrare.
+        const senzaProva = x?.daConfermare && x.alPostoDi === undefined && !nascosto && x.nota ? x.nota : null;
+        const nota = [proposta, nonTorna, senzaProva].filter(Boolean).join(" ") || null;
         // Il motivo può citare le cifre («le rate fanno 48.500 €»): chi non le vede legge solo che resta fuori.
         const motivi = restano.map((e) => (nascosto && !vedeImporti && CHIAVI_IMPORTI.has(v.chiave) ? "da sistemare, con chi vede gli importi"
           : nascosto || (parlaDiCosti(v.chiave, vedeCosti) && /\d\s*€/.test(e.motivo)) ? "da sistemare, con chi vede i costi" : e.motivo));
@@ -918,11 +944,19 @@ function parolaDellaColonna(colonna: string): string {
 
 /** «Va bene» a più proposte insieme: confermano il valore che c'è, come il «Va bene» della riga. */
 export function accettaProposte(piano: PianoCommessa, chiavi: string[]): Modifica[] {
-  return chiavi.flatMap((chiave): Modifica[] => {
+  // Le rate per ultime, e lette dopo i «sì» a importo e IVA: in percentuale gli importi nascono da lì.
+  const inOrdine = [...chiavi.filter((c) => c !== "pagamenti.rate"), ...chiavi.filter((c) => c === "pagamenti.rate")];
+  let ora = piano;
+  const out: Modifica[] = [];
+  for (const chiave of inOrdine) {
     const v = variabile(chiave);
-    const x = v ? piano.aree[v.area]?.[chiave] : undefined;
-    return v && x && !vuoto(x.valore) ? [{ tipo: "cambia_valore", area: v.area, chiave, valore: x.valore }] : [];
-  });
+    const x = v ? ora.aree[v.area]?.[chiave] : undefined;
+    if (!v || !x || vuoto(x.valore)) continue;
+    const m: Modifica = { tipo: "cambia_valore", area: v.area, chiave, valore: x.valore };
+    out.push(m);
+    try { ora = applica(ora, m).piano; } catch { /* la ferma il riduttore, col suo messaggio */ }
+  }
+  return out;
 }
 
 /** Una persona, ditta o mezzo proposto ma non disponibile: il ⚠ dentro un elenco. */
@@ -998,6 +1032,120 @@ export function testoDaDecidere(d: DaDecidere): string {
     d.proposte.length ? `${d.proposte.length} ${d.proposte.length === 1 ? "proposta" : "proposte"}` : "",
   ].filter(Boolean);
   return parti.length <= 1 ? parti.join("") : `${parti.slice(0, -1).join(", ")} e ${parti[parti.length - 1]}`;
+}
+
+// ── Prima quello che ferma o cambia i soldi (2/11, visto con l'AI vera: 12 voci alla pari) ──
+
+/** I numeri che contano: una proposta su questi non è come una proposta sul capomastro. */
+const CHIAVI_SOLDI: ReadonlySet<string> = new Set(["economia.total_amount", "economia.vat_rate", "pagamenti.rate"]);
+/** Senza cliente «Crea» è fermo; senza importo la commessa nasce a zero. */
+const DOMANDE_CHE_FERMANO: ReadonlySet<string> = new Set(["cliente.customer_id", "economia.total_amount"]);
+
+export interface DaDecidereDiviso {
+  /** In evidenza, e mai nascosti: conflitti e conti che non tornano stanno sempre qui. */
+  domande: Variabile[];
+  proposte: { chiave: string; etichetta: string }[];
+  /** Sotto, chiuso. */
+  altreDomande: Variabile[];
+  altreProposte: { chiave: string; etichetta: string }[];
+  subito: number;
+  /** Quante cose ci sono sotto, avvisi compresi. */
+  altre: number;
+}
+
+export function divisioneDaDecidere(d: DaDecidere): DaDecidereDiviso {
+  const domande = d.domande.filter((v) => DOMANDE_CHE_FERMANO.has(v.chiave));
+  const altreDomande = d.domande.filter((v) => !DOMANDE_CHE_FERMANO.has(v.chiave));
+  const proposte = d.proposte.filter((p) => CHIAVI_SOLDI.has(p.chiave));
+  const altreProposte = d.proposte.filter((p) => !CHIAVI_SOLDI.has(p.chiave));
+  return {
+    domande, proposte, altreDomande, altreProposte,
+    subito: d.conflitti.length + d.nonTornano.length + domande.length + proposte.length,
+    altre: d.nonDisponibili.length + altreDomande.length + altreProposte.length + d.avvisi.length,
+  };
+}
+
+/** «Altre 8 cose, se vuoi guardarle». */
+export const titoloAltre = (n: number) => (n === 1 ? "Un'altra cosa, se vuoi guardarla" : `Altre ${n} cose, se vuoi guardarle`);
+
+/** La riga della barra: solo quello che ferma o cambia i soldi; il resto si conta. */
+export function testoDecisioniSubito(d: DaDecidere): string {
+  const div = divisioneDaDecidere(d);
+  return testoDaDecidere({ ...d, nonDisponibili: [], domande: div.domande, proposte: div.proposte });
+}
+
+/** Importo, IVA, rate, inizio e fine, come stanno adesso: il riepilogo in testa alla colonna. */
+export interface NumeroDaControllare {
+  chiave: string;
+  testo: string;
+  stato: Stato;
+  /** Per chi non vede il segno. */
+  come: string;
+}
+
+/**
+ * «importo 12.000 €, IVA 10 %, 2 rate, dal 9 nov, al 26 nov». ✓ letto con la prova o scritto dalla
+ * persona, ✋ proposto. Chi non vede gli importi non ha importo, IVA e rate, neanche quante sono.
+ */
+export function numeriDaControllare(
+  piano: PianoCommessa, scrittura: Pick<ScritturaCommessa, "fasi" | "date_fasi">, vedeImporti = true,
+): NumeroDaControllare[] {
+  const leggi = (chiave: string) => {
+    const v = variabile(chiave);
+    const x = v ? piano.aree[v.area]?.[chiave] : undefined;
+    return { x: x && x.stato !== "manca" && !vuoto(x.valore) ? x : undefined, conflitto: piano.conflitti.some((c) => c.chiave === chiave) };
+  };
+  const come: Record<Stato, string> = { fatto: "letto dal documento con la prova", proposta: "proposto, da controllare", manca: "manca", attenzione: "da sistemare" };
+  const voce = (chiave: string, testo: (x: Valore) => string, nome: string, seManca: "mostra" | "salta" = "salta", dalleFasi?: string | null): NumeroDaControllare[] => {
+    const { x, conflitto } = leggi(chiave);
+    if (conflitto) return [{ chiave, testo: `${nome}: da scegliere`, stato: "attenzione", come: come.attenzione }];
+    if (x && giaNellaCommessa(piano, x)) return [];
+    if (!x) {
+      if (dalleFasi) return [{ chiave, testo: `${nome === "inizio" ? "dal" : "al"} ${dataBreve(dalleFasi, false)}`, stato: "proposta", come: "segue le fasi, da controllare" }];
+      return seManca === "mostra" ? [{ chiave, testo: nome, stato: "manca", come: come.manca }] : [];
+    }
+    const stato: Stato = x.stato === "attenzione" ? "attenzione" : x.daConfermare || (x.stato === "proposta" && x.fonte.tipo !== "persona") ? "proposta" : "fatto";
+    return [{ chiave, testo: testo(x), stato, come: stato === "fatto" && x.fonte.tipo === "persona" ? "scritto da te" : come[stato] }];
+  };
+  const dalleFasi = dateDalleFasi(scrittura);
+  const soldi = !vedeImporti ? [] : [
+    ...voce("economia.total_amount", (x) => `importo ${testoValore("economia.total_amount", x.valore)}`, "importo", "mostra"),
+    ...voce("economia.vat_rate", (x) => `IVA ${testoValore("economia.vat_rate", x.valore)}`, "IVA", "mostra"),
+    ...voce("pagamenti.rate", (x) => { const n = Array.isArray(x.valore) ? x.valore.length : 0; return `${n} ${n === 1 ? "rata" : "rate"}`; }, "rate"),
+  ];
+  const data = (prefisso: string) => (x: Valore) => `${prefisso} ${typeof x.valore === "string" ? dataBreve(x.valore, false) : ""}`;
+  return [
+    ...soldi,
+    ...voce("fasi.work_start_date", data("dal"), "inizio", "mostra", dalleFasi.inizio),
+    ...voce("fasi.work_end_date", data("al"), "fine", "salta", dalleFasi.fine),
+  ];
+}
+
+/** Una fase dell'azienda, per dire in quale nasce la commessa. */
+export interface StatoDellAzienda { name: string; position?: number | null; is_default?: boolean | null; is_support_phase?: boolean | null }
+
+/**
+ * Le fasi che vogliono dire «da confermare». La stessa espressione di `_silvio_stato_iniziale`
+ * (migrazione 20281112160000): un test le confronta.
+ */
+export const FASE_DA_CONFERMARE = "da[[:space:]]*conferm|attesa[[:space:]]+(di[[:space:]]+)?conferm|non[[:space:]]+confermat|provvisori";
+const FASE_DA_CONFERMARE_JS = /da\s*conferm|attesa\s+(di\s+)?conferm|non\s+confermat|provvisori/i;
+
+/** La fonte è un contratto o un preventivo accettato? Altrimenti nessuno ha firmato niente. */
+export function nasceDaFirma(piano: PianoCommessa, s: Pick<ScritturaCommessa, "preventivo_id">): boolean {
+  return !!s.preventivo_id || piano.fonti.some((f) => f.tipo === "contratto");
+}
+
+/**
+ * «Contratto Firmato» senza un contratto: la fase predefinita di un'azienda che non ne ha una per le
+ * commesse da confermare. La commessa nasce lì, e chi crea lo deve sapere prima. Null se non serve dirlo.
+ */
+export function avvisoStatoIniziale(piano: PianoCommessa, s: Pick<ScritturaCommessa, "modo" | "preventivo_id">, stati: readonly StatoDellAzienda[] | null | undefined): string | null {
+  if (s.modo !== "crea" || !stati?.length || nasceDaFirma(piano, s)) return null;
+  if (stati.some((x) => !x.is_support_phase && FASE_DA_CONFERMARE_JS.test(x.name))) return null;
+  const prima = [...stati].sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.position ?? 0) - (b.position ?? 0))[0];
+  if (!/contratt|firmat|accettat/i.test(prima.name)) return null;
+  return `Nasce nella fase «${prima.name}» anche senza firma: la tua azienda non ha una fase «Da confermare». Puoi aggiungerla in Impostazioni → Stati ordine.`;
 }
 
 const conta = (n: number, uno: string, tanti: string) => `${n} ${n === 1 ? uno : tanti}`;
