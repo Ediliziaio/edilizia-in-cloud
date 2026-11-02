@@ -15,7 +15,14 @@ export interface VoceCrono {
   costo_manodopera?: number | null; ore_previste?: number | null; incidenza?: Incidenza | null;
 }
 
-export interface FaseCalcolataCrono { nome: string; inizio: number; durata: number; nota: string; ore: number; attesa: boolean }
+export interface FaseCalcolataCrono {
+  nome: string; inizio: number; durata: number;
+  /** Va nel PDF del cliente: mai ore, stime o avvisi per l'impresa. */
+  nota: string;
+  /** Solo per chi prepara il preventivo. */
+  dettaglio: string;
+  ore: number; attesa: boolean;
+}
 
 export interface CronoCalcolato {
   fasi: FaseCalcolataCrono[];
@@ -24,7 +31,8 @@ export interface CronoCalcolato {
   voci: number; vociSenzaDati: number; vociNonRiconosciute: number;
   /** Quante voci hanno ore stimate dal prezzario. */
   vociStimate: number;
-  nota: string;
+  /** Solo per chi prepara il preventivo: non va nel PDF. */
+  avvisoInterno: string;
 }
 
 export interface SquadreCrono { squadre: number; personePerSquadra: number }
@@ -100,9 +108,9 @@ export function calcolaCrono(
   const servizio = oreTot < POCHE_ORE ? 1 : 2;
   const conPonteggi = gruppi.has("Ponteggi");
   const fasi: FaseCalcolataCrono[] = [];
-  if (!voci.length) return { fasi, giorni: 0, ore: 0, oreMin: 0, oreMax: 0, voci: 0, vociSenzaDati: 0, vociNonRiconosciute: 0, vociStimate: 0, nota: "" };
+  if (!voci.length) return { fasi, giorni: 0, ore: 0, oreMin: 0, oreMax: 0, voci: 0, vociSenzaDati: 0, vociNonRiconosciute: 0, vociStimate: 0, avvisoInterno: "" };
 
-  fasi.push({ nome: "Allestimento cantiere", inizio: 1, durata: servizio, nota: "", ore: 0, attesa: false });
+  fasi.push({ nome: "Allestimento cantiere", inizio: 1, durata: servizio, nota: "", dettaglio: "", ore: 0, attesa: false });
   let pronto = 1 + servizio;
   const ordinati = [...gruppi.values()].sort((a, b) => a.rango - b.rango || a.ordine - b.ordine);
   for (let i = 0; i < ordinati.length;) {
@@ -116,13 +124,13 @@ export function calcolaCrono(
       const squadra = libere.indexOf(Math.min(...libere));
       const inizio = libere[squadra];
       libere[squadra] = inizio + durata;
-      const nota = g.ore > 0
+      const dettaglio = g.ore > 0
         ? `Circa ${Math.round(g.ore)} ore${g.stimate ? ", stimate dal prezzario" : ""}${g.senza ? `; ${g.senza} ${g.senza === 1 ? "voce senza dati" : "voci senza dati"}` : ""}.`
         : "Nessun dato di manodopera: durata da controllare.";
-      fasi.push({ nome: g.nome, inizio, durata, nota, ore: tondo(g.ore), attesa: false });
+      fasi.push({ nome: g.nome, inizio, durata, nota: "", dettaglio, ore: tondo(g.ore), attesa: false });
       let fine = inizio + durata;
       if (g.attesa) {
-        fasi.push({ nome: g.attesa.nome, inizio: fine, durata: g.attesa.giorni, nota: "Attesa tecnica: nessuna squadra impegnata.", ore: 0, attesa: true });
+        fasi.push({ nome: g.attesa.nome, inizio: fine, durata: g.attesa.giorni, nota: "Tempo tecnico di attesa.", dettaglio: "", ore: 0, attesa: true });
         fine += g.attesa.giorni;
       }
       fineRango = Math.max(fineRango, fine);
@@ -131,19 +139,20 @@ export function calcolaCrono(
   }
   fasi.push({
     nome: conPonteggi ? "Smontaggio ponteggi, pulizia e consegna" : "Pulizia e consegna", inizio: pronto,
-    durata: servizio + (conPonteggi ? 1 : 0), nota: "", ore: 0, attesa: false,
+    durata: servizio + (conPonteggi ? 1 : 0), nota: "", dettaglio: "", ore: 0, attesa: false,
   });
 
-  const parti = [`${nSquadre} ${nSquadre === 1 ? "squadra" : "squadre"} da ${persone} ${persone === 1 ? "persona" : "persone"}, ${ip.oreGiorno} ore al giorno.`];
+  const somma = (k: "ore" | "min" | "max") => tondo([...gruppi.values()].reduce((t, g) => t + g[k], 0));
+  const intervallo = somma("min") !== somma("max") ? ` (da ${Math.round(somma("min"))} a ${Math.round(somma("max"))})` : "";
+  const parti = [`Circa ${Math.round(somma("ore"))} ore di lavoro${intervallo}, con ${nSquadre} ${nSquadre === 1 ? "squadra" : "squadre"} da ${persone} ${persone === 1 ? "persona" : "persone"} e ${ip.oreGiorno} ore al giorno.`];
   if (stimate) parti.push("Le ore di alcune voci sono stimate dal prezzario regionale: correggi le durate con i tempi reali delle tue squadre.");
   if (senzaDati) parti.push(`${senzaDati} ${senzaDati === 1 ? "voce non ha" : "voci non hanno"} dati di manodopera e ${senzaDati === 1 ? "non è contata" : "non sono contate"}.`);
   if (nonRiconosciute) parti.push(`${nonRiconosciute} ${nonRiconosciute === 1 ? "voce non è stata riconosciuta" : "voci non sono state riconosciute"}: controlla dove stanno nella sequenza.`);
-  const somma = (k: "ore" | "min" | "max") => tondo([...gruppi.values()].reduce((t, g) => t + g[k], 0));
   return {
     fasi, giorni: Math.max(...fasi.map((f) => f.inizio + f.durata - 1)),
     ore: somma("ore"), oreMin: somma("min"), oreMax: somma("max"),
     voci: voci.length, vociSenzaDati: senzaDati, vociNonRiconosciute: nonRiconosciute, vociStimate: stimate,
-    nota: parti.join(" "),
+    avvisoInterno: parti.join(" "),
   };
 }
 

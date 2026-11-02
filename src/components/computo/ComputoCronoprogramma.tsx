@@ -29,6 +29,7 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
   const [calcolando, setCalcolando] = useState(false);
   const [squadre, setSquadre] = useState(1);
   const [persone, setPersone] = useState(3);
+  const [avviso, setAvviso] = useState<string | null>(null);
   const cambia = (patch: Partial<Cronoprogramma>) => onChange({ cronoprogramma: { ...crono, ...patch } });
   const cambiaFase = (id: string, patch: Partial<FaseCrono>) => cambia({ fasi: crono.fasi.map(f => f.id === id ? { ...f, ...patch } : f) });
   const totale = durataTotale(crono);
@@ -43,7 +44,8 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
       const esito = await preparaCrono(supabase as unknown as ClientCrono, companyId, vociPerCrono(bozza), { squadre, personePerSquadra: persone }, regioneDaProvincia);
       const fasi = normalizzaFasi(esito.fasi.map(f => ({ id: crypto.randomUUID(), nome: f.nome, inizio: f.inizio, durata: f.durata, nota: f.nota })));
       if (!fasi.length) throw new Error("Il computo non ha ancora lavorazioni: aggiungile prima.");
-      onChange({ cronoprogramma: { ...crono, fasi, nota: esito.nota }, mostraCronoprogrammaPdf: true });
+      onChange({ cronoprogramma: { ...crono, fasi, nota: "" }, mostraCronoprogrammaPdf: true });
+      setAvviso(esito.avvisoInterno);
       toast.success("Cronoprogramma calcolato", { description: `${fasi.length} fasi, ${durataTotale({ fasi })} giorni lavorativi. Correggile dove serve.` });
     } catch (e) { toast.error((e as Error).message); }
     finally { setCalcolando(false); }
@@ -91,6 +93,7 @@ export default function ComputoCronoprogramma({ bozza, companyId, onChange }: {
         {chiedendo ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}{crono.fasi.length ? "Rifallo con Silvio" : "Proposta di Silvio"}</Button>}
       <Button size="sm" variant="outline" disabled={chiedendo || calcolando || !bozza.voci.length} onClick={() => onChange({ cronoprogramma: cronoDaCapitoli(bozza, crono.dataInizio), mostraCronoprogrammaPdf: true })}>Parti dai capitoli</Button>
     </div>
+    {avviso && !!crono.fasi.length && <p className="rounded bg-slate-50 px-2 py-1.5 text-xs text-muted-foreground">{avviso} Questa nota la vedi solo tu, nel PDF non esce.</p>}
     {!!crono.fasi.length && <>
       <div className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)]">
         <div className="space-y-1"><Label htmlFor="crono-inizio" className="text-xs">Inizio lavori</Label>

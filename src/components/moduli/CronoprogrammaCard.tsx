@@ -58,7 +58,7 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
     try {
       const esito = await preparaCrono(supabase as unknown as ClientCrono, effectiveCompany.id, voci, {}, regioneDaProvincia);
       onChange(fasiDaCalcolo(esito.fasi));
-      setNota(esito.nota);
+      setNota(esito.avvisoInterno);
       setConfermaSostituzione(false);
     } catch {
       toast.error("Non sono riuscito a calcolare i tempi: riprova tra poco, o scrivili a mano.");
@@ -127,7 +127,7 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
           {durata && <span className="text-[11px] font-semibold text-sky-800">{durata} in tutto</span>}
         </div>
       </div>
-      {nota && <p className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">{nota}</p>}
+      {nota && <p className="border-b px-3 py-1.5 text-[11px] text-muted-foreground">{nota} Questa nota la vedi solo tu, nel PDF non esce.</p>}
 
       <div className="space-y-1.5 px-3 py-2">
         {fasi.map((f, i) => (

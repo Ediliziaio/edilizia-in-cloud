@@ -71,18 +71,25 @@ describe("il cronoprogramma calcolato", () => {
     expect(r.oreMin).toBe(35);
     expect(r.oreMax).toBe(85);
     expect(r.vociStimate).toBe(1);
-    expect(r.nota).toContain("prezzario");
+    expect(r.avvisoInterno).toContain("prezzario");
   });
   it("una voce senza dati non vale zero in silenzio", () => {
     const r = calcolaCrono([{ descrizione: "Posa gres", importo: 100 }], ip);
     expect(r.vociSenzaDati).toBe(1);
-    expect(fase(r, "Pavimenti e rivestimenti")).toMatchObject({ durata: 1, nota: expect.stringContaining("da controllare") });
-    expect(r.nota).toContain("non ha");
+    expect(fase(r, "Pavimenti e rivestimenti")).toMatchObject({ durata: 1, dettaglio: expect.stringContaining("da controllare") });
+    expect(r.avvisoInterno).toContain("non ha");
   });
   it("una voce non riconosciuta resta col suo capitolo e lo dice", () => {
     const r = calcolaCrono([ore("Xyz", 10, "Lavori speciali")], ip);
     expect(r.fasi.map((f) => f.nome)).toContain("Lavori speciali");
-    expect(r.nota).toContain("non è stata riconosciuta");
+    expect(r.avvisoInterno).toContain("non è stata riconosciuta");
+  });
+  it("nel PDF del cliente non finiscono ore, stime né avvisi per l'impresa", () => {
+    const r = calcolaCrono([{ descrizione: "Massetto", importo: 3000, incidenza: { frazione: 0.5 } }, { descrizione: "Xyz", importo: 100 }], ip);
+    const perCliente = r.fasi.map((f) => f.nota).join(" ");
+    expect(perCliente).not.toMatch(/ore|prezzario|dati|controllare/i);
+    expect(r.fasi.find((f) => f.attesa)?.nota).toBe("Tempo tecnico di attesa.");
+    expect(fasiDaCalcolo(r.fasi).map((f) => f.descrizione).join(" ")).not.toMatch(/prezzario|ore di/i);
   });
   it("computo vuoto: nessuna fase", () => {
     expect(calcolaCrono([], ip)).toMatchObject({ fasi: [], giorni: 0 });
