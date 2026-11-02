@@ -32,7 +32,7 @@ import { Vista3DPigra, type Fotogramma } from "@/components/planimetrie/Vista3DP
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
-import { chiaviRenderPianta, pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "@/lib/planimetrie/render/renderDallaPianta";
+import { chiaviRenderPianta, fraseErroreRender, pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "@/lib/planimetrie/render/renderDallaPianta";
 import { preloadImage } from "@/lib/render/preloadImage";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
@@ -277,7 +277,7 @@ export default function RenderPlanimetriaStanza() {
       setInCorso(false);
       setPreparo(false);
       setPasso(2);
-      toast.error(e instanceof Error ? e.message : "Render non avviato: riprova.");
+      toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
   }, [anteprima, companyId, config, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, partenza, scelta, sessione, user, vincoli]);
 
