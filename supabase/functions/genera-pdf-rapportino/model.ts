@@ -1,4 +1,6 @@
 /** Operational PDF only: never copy payroll, GPS or costing snapshots into it. */
+import { leggiValori, type ValoreCampo } from "../_shared/moduliCantiere.ts";
+
 export type RecordData = Record<string, unknown>;
 export const record = (value: unknown): RecordData => value && typeof value === "object" && !Array.isArray(value) ? value as RecordData : {};
 export const rows = (value: unknown): RecordData[] => Array.isArray(value) ? value.map(record) : [];
@@ -99,6 +101,8 @@ export interface FaseBlocco {
   ore: number | null;
   materiali: MaterialeBlocco[];
   foto: string[];
+  /** I campi propri dell'azienda compilati per questa fase. */
+  campi: ValoreCampo[];
 }
 
 const originiMateriale = (m: RecordData) => m.da_furgone === true ? "Dal furgone" : m.order_item_id ? "Articolo commessa" : "Dichiarato";
@@ -126,6 +130,7 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
   const usate = new Set<string>();
   const materialiTutti = rows(report.materiali_usati);
   const assegnati = new Set<number>();
+  const valori = leggiValori(report.campi_extra);
 
   const fasi: FaseBlocco[] = voci.map((v, indice) => {
     const id = text(v.phase_id) || `senza-id-${indice}`;
@@ -143,6 +148,7 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
       ore: number(v.ore),
       materiali,
       foto,
+      campi: valori.filter(c => !!c.phase_id && c.phase_id === text(v.phase_id)),
     };
   });
   // Un materiale legato a una fase che il rapportino non elenca (fase cancellata o non dichiarata) resta tra gli altri.
@@ -150,6 +156,8 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
   return {
     fasi,
     altriMateriali,
+    // Una fase che il rapportino non elenca più: il valore non si perde e porta con sé il nome salvato.
+    altriCampi: valori.filter(c => !c.phase_id || !idsFasi.has(c.phase_id)),
     altreFoto: tutteLeFoto.filter(u => !usate.has(u)),
     totaleMateriali: materialiTutti.length,
     totaleFoto: tutteLeFoto.length,

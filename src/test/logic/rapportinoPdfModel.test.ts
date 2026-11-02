@@ -80,7 +80,7 @@ describe("rapportino a blocchi: materiali e foto per fase", () => {
       materiali_usati: [{ nome: "Colla", quantita: 2, unita: "kg" }],
       foto_urls: ["f0"],
     }, nomi);
-    expect(b.fasi).toEqual([{ id: "ph-1", nome: "Demolizioni", percentuale: 40, ore: null, materiali: [], foto: [] }]);
+    expect(b.fasi).toEqual([{ id: "ph-1", nome: "Demolizioni", percentuale: 40, ore: null, materiali: [], foto: [], campi: [] }]);
     expect(b.altriMateriali.map(m => m.nome)).toEqual(["Colla"]);
     expect(b.altreFoto).toEqual(["f0"]);
   });

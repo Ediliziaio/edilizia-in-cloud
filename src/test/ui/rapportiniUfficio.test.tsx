@@ -129,4 +129,21 @@ describe("Rapportini dall'ufficio", () => {
     const [, args] = stato.rpc.mock.calls[0] as unknown as [string, { p_rapportini: Array<Record<string, unknown>> }];
     expect(args.p_rapportini[0].campi_extra).toEqual([{ chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", valore: 4, stampa: "interno" }]);
   });
+
+  it("un campo per fase si compila per ogni fase scelta, senza fasi sul rapportino", async () => {
+    stato.rpc.mockClear();
+    modulo.schema = { formato: 1, blocchi: { fasi: true, materiali: true, mezzi: true, foto: true, straordinario: true, avanzamento: true },
+      campi: [{ chiave: "pz", etichetta: "Pezzi", tipo: "number", obbligatorio: false, chi: "tutti", ditte: "tutti", quando: "sempre", livello: "fase", stampa: "interno" }] };
+    render(<QueryClientProvider client={new QueryClient()}><RapportiniUfficio orderId="o1" /></QueryClientProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Scrivi rapportini" }));
+    fireEvent.change(screen.getByLabelText("Cosa si è fatto, rapportino 1"), { target: { value: "Posa" } });
+    fireEvent.change(screen.getByLabelText("Pezzi"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Impianti" }));
+    expect(screen.getAllByText("Impianti").length).toBeGreaterThan(1);
+    fireEvent.change(screen.getByLabelText("Pezzi"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva il rapportino" }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledTimes(1));
+    const [, args] = stato.rpc.mock.calls[0] as unknown as [string, { p_rapportini: Array<{ campi_extra: Array<Record<string, unknown>> }> }];
+    expect(args.p_rapportini[0].campi_extra).toEqual([expect.objectContaining({ chiave: "pz", valore: 5, phase_id: "f1", fase_nome: "Impianti" })]);
+  });
 });

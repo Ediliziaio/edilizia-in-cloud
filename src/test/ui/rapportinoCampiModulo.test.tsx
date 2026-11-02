@@ -51,6 +51,27 @@ describe("RapportinoBlocchi", () => {
   });
 });
 
+describe("Valori per fase", () => {
+  const voce = { chiave: "pz", etichetta: "Pezzi posati", tipo: "number", valore: 3, stampa: "interno", phase_id: "f1", fase_nome: "Nome di allora" };
+  const fasi = [{ phase_id: "f1", percentuale: 50, nome: "Posa infissi" }];
+  it("stanno nella scheda della loro fase", () => {
+    render(<RapportinoBlocchi report={{ fasi_lavorate: fasi, campi_extra: [voce] }} />);
+    const scheda = screen.getByText("Posa infissi").closest("section")!;
+    expect(scheda).toHaveTextContent("Pezzi posati");
+    expect(scheda).toHaveTextContent("3");
+    expect(screen.queryByText("Altre informazioni")).toBeNull();
+  });
+  it("se la fase non è nel rapportino restano visibili col nome salvato", () => {
+    render(<RapportinoBlocchi report={{ fasi_lavorate: [], campi_extra: [voce] }} />);
+    expect(screen.getByText("Altre informazioni")).toBeInTheDocument();
+    expect(screen.getByText(/Nome di allora/)).toBeInTheDocument();
+  });
+  it("la vista compatta non li mostra", () => {
+    render(<RapportinoBlocchi compatto report={{ fasi_lavorate: fasi, campi_extra: [voce] }} />);
+    expect(screen.queryByText("Pezzi posati")).toBeNull();
+  });
+});
+
 describe("CampiDaCompletare", () => {
   it("senza nulla di mancante non mostra nulla", () => {
     const { container } = avvolgi(<CampiDaCompletare report={report({ campi_extra: [{ chiave: "pezzi", etichetta: "Pezzi posati", tipo: "number", valore: 2, stampa: "interno" }] })} schema={schema} puoModificare onSalvato={vi.fn()} />);

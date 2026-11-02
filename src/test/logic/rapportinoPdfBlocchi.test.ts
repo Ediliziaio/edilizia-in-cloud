@@ -451,4 +451,19 @@ describe("campi propri nel PDF", () => {
     expect(risultato.pageCount).toBeGreaterThan(1);
     expect(scritto(testi)).toContain("parola399");
   });
+  it("un valore per fase sta nella scheda della sua fase, e rispetta la stampa", async () => {
+    const { testi } = await disegna({ ...base,
+      fasi_lavorate: [{ phase_id: "ph-1", percentuale: 50, nome: "Demolizioni e allestimento" }],
+      campi_extra: [
+        { chiave: "p", etichetta: "Pezzi posati", tipo: "number", valore: 3, stampa: "interno", phase_id: "ph-1", fase_nome: "Vecchio nome" },
+        { chiave: "q", etichetta: "Da non stampare", tipo: "number", valore: 9, stampa: "mai", phase_id: "ph-1", fase_nome: "Vecchio nome" },
+      ] });
+    expect(testi).not.toContain("ALTRE INFORMAZIONI");
+    expect(posizione(testi, "Pezzi posati: 3")).toBeGreaterThan(posizione(testi, "Demolizioni e allestimento"));
+    expect(testi.join(" ")).not.toContain("Da non stampare");
+  });
+  it("un valore di una fase non più nel rapportino non si perde, col nome salvato", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: [{ chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 3, stampa: "interno", phase_id: "x", fase_nome: "Vecchio nome" }] });
+    expect(testi.join(" ")).toContain("Pezzi (Vecchio nome): 3");
+  });
 });

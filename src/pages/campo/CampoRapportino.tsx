@@ -382,7 +382,6 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     subappaltatore: isSubappaltatore,
     soloOre: soloOreAllOperaio,
   }), [moduloCantiere, ruoloCampo, faSquadra, lavoro_completato, isSubappaltatore, soloOreAllOperaio]);
-  const campiMancanti = mancanti(campiModulo, campiValori);
   const vocaleVisibile = voceAperta && !lavoro_completato && !soloOreAllOperaio && !flusso.soloTimbratura && !bloccatoDaEsistente;
   // Il respinto si rimanda anche oltre la scadenza: è l'ufficio che lo ha chiesto.
   // Quanti giorni indietro lo decide l'azienda (Impostazioni → Rapportini e presenze); lo controlla anche il database.
@@ -515,6 +514,16 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // materiale e a ogni foto compare «Fase»; con una sola, tutto si collega lì senza chiedere niente.
   const fasiSelezionate = fasiCommessa.filter(f => f.id in fasiDichiarate);
   const sceltaFasePerOgniCosa = fasiSelezionate.length > 1;
+  // Un campo per fase si compila una volta per ogni fase lavorata. Senza fasi scelte, o a fasi spente, sta sul rapportino;
+  // un respinto a fasi spente conserva i valori che aveva, senza richiederli.
+  const fasiPerCampi = useMemo(() => confermaCliente || !(parti.fasi || daRifare) ? [] : fasiSelezionate.map(f => ({ id: f.id, nome: f.name })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fasiSelezionate cambia solo con queste due
+    [confermaCliente, parti.fasi, daRifare, fasiCommessa, fasiDichiarate]);
+  const campiSulRapportino = campiModulo.filter(c => c.livello !== "fase" || fasiPerCampi.length === 0);
+  const campiDiFase = parti.fasi && fasiPerCampi.length > 0 ? campiModulo.filter(c => c.livello === "fase") : [];
+  const mancantiRapportino = mancanti(campiSulRapportino, campiValori);
+  const mancantiFase = mancanti(campiDiFase, campiValori, fasiPerCampi);
+  const campiMancanti = [...mancantiRapportino, ...mancantiFase];
   const idsFasiDichiarate = Object.keys(fasiDichiarate);
   // Quello che non appartiene a nessuna fase (con più fasi e nessuna scelta, o senza fasi).
   const materialiGenerali = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === null);
@@ -723,7 +732,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             }))
         : null;
       const campiPrecedenti = daRifare ? leggiValori(rapportinoGiaOggi?.campi_extra) : [];
-      const campiExtra = componiValori(campiModulo, campiValori, campiPrecedenti);
+      const campiExtra = componiValori(campiModulo, campiValori, campiPrecedenti, fasiPerCampi);
       const campi = {
         ...(campiExtra.length > 0 || campiPrecedenti.length > 0 ? { campi_extra: campiExtra as unknown as Json } : {}),
         ore_lavorate: orePayload,
@@ -863,7 +872,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const goNext = () => {
     if (verificaInCorso || verificaFallita || clienteNonConsentito) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
-    if (step === 1 && campiMancanti.length > 0) { setErroriCampi(true); toast.error(`Compila: ${campiMancanti.join(", ")}`); return; }
+    // Quelli per fase stanno più avanti, per chi ha due passi: si chiedono all'invio.
+    const mancaOra = isUltimoStep ? campiMancanti : step === 1 ? mancantiRapportino : [];
+    if (mancaOra.length > 0) { setErroriCampi(true); toast.error(`Compila: ${mancaOra.join(", ")}`); return; }
     if (step < totalSteps) setStep(s => s + 1);
     else salva();
   };
@@ -1319,6 +1330,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // Mezzi e attrezzi si spostano solo per oggi e ieri: per un giorno più vecchio non si chiede dove restano.
   const mezziAmmessi = workDay >= shiftWorkDay(campoWorkDay(), -1);
   const bloccoMezzi = orderId && mezziAmmessi ? <MezziFineGiornata orderId={orderId} companyId={companyId ?? undefined} valori={mezziSel} onChange={setMezziSel} /> : null;
+  const bloccoCampiFase = campiDiFase.length > 0 ? fasiPerCampi.map(f => (
+    <div key={f.id} className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
+      <p className="text-sm font-semibold">{f.nome}</p>
+      <CampiModulo campi={campiDiFase} phaseId={f.id} valori={campiValori} onChange={cambiaCampo} mostraErrori={erroriCampi} />
+    </div>
+  )) : null;
   const bloccoStraordinario = (
               <details open={oreStraordinario > 0 ? true : undefined} className={semplice ? "rounded-xl border bg-muted/30 p-3" : "border-t border-border pt-3"}>
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Straordinario · facoltativo{oreStraordinario > 0 ? ` · ${oreStraordinario}h` : ""}</summary>
@@ -1607,9 +1624,9 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             </div>
             )}
 
-            {campiModulo.length > 0 && (
+            {campiSulRapportino.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
-                <CampiModulo campi={campiModulo} valori={campiValori} onChange={cambiaCampo} mostraErrori={erroriCampi} />
+                <CampiModulo campi={campiSulRapportino} valori={campiValori} onChange={cambiaCampo} mostraErrori={erroriCampi} />
               </div>
             )}
 
@@ -1625,6 +1642,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 </div>
               </details>
             )}
+            {semplice && bloccoCampiFase}
             {/* «Ognuno le sue ore»: anche lo straordinario è un'ora propria. */}
             {semplice && soloOreAllOperaio && !oreNonMie && parti.straordinario && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">{bloccoStraordinario}</div>
@@ -1640,6 +1658,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
               <summary className="min-h-11 cursor-pointer text-sm font-semibold">{parti.fasi && parti.avanzamento ? "Lavorazioni e avanzamento" : parti.fasi ? "Lavorazioni" : "Avanzamento"}{Object.keys(fasiDichiarate).length > 0 ? ` · ${Object.keys(fasiDichiarate).length} selezionate` : ""}</summary>
               <div className="space-y-3">{parti.avanzamento && bloccoAvanzamento}{parti.fasi && bloccoFasi}</div>
             </details>}
+            {bloccoCampiFase}
             {parti.materiali && <details className="rounded-2xl border p-3">
               <summary className="min-h-11 cursor-pointer text-sm font-semibold">Materiali usati · facoltativo{Object.keys(materialiSel).length > 0 ? ` · ${Object.keys(materialiSel).length}` : ""}</summary>
               {bloccoMateriali}

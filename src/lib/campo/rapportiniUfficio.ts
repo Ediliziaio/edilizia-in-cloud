@@ -7,7 +7,7 @@
  * rapportino del cantiere (fasiLavorateDelRapportino), così l'approvazione le
  * tratta allo stesso modo.
  */
-import { componiValori, mancanti, type CampoModulo } from "../../../supabase/functions/_shared/moduliCantiere";
+import { componiValori, mancanti, type CampoModulo, type FaseScelta } from "../../../supabase/functions/_shared/moduliCantiere";
 import { fasiLavorateDelRapportino, type Sottofase } from "@/lib/orders/sottofasi";
 
 export type StatoSottofaseGiorno = "lavorata" | "finita";
@@ -67,8 +67,13 @@ export function giornoVuoto(oggi: string, chiave: string, dopo?: GiornoUfficio):
   };
 }
 
+/** Le fasi scelte in una giornata, per i campi che si compilano una volta per fase. */
+export function fasiDelGiorno(g: GiornoUfficio, nomi: ReadonlyMap<string, string>): FaseScelta[] {
+  return g.fasi.map((id) => ({ id, nome: nomi.get(id) ?? "" }));
+}
+
 /** Cosa manca prima di salvare; vuoto se si può. */
-export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string, campi: CampoModulo[] = []): string[] {
+export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string, campi: CampoModulo[] = [], nomiFasi: ReadonlyMap<string, string> = new Map()): string[] {
   const errori: string[] = [];
   const visti = new Set<string>();
   giorni.forEach((g, i) => {
@@ -88,7 +93,7 @@ export function erroriGiorni(giorni: ReadonlyArray<GiornoUfficio>, oggi: string,
       const n2 = oreLette(q);
       if (n2 == null || n2 <= 0) { errori.push(`Quantità dei materiali maggiore di zero${n}.`); break; }
     }
-    for (const m of mancanti(campi, g.campi ?? {})) errori.push(`Compila ${m}${n}.`);
+    for (const m of mancanti(campi, g.campi ?? {}, fasiDelGiorno(g, nomiFasi))) errori.push(`Compila ${m}${n}.`);
     const chiave = `${g.data}|${g.autore}`;
     if (g.data && visti.has(chiave)) errori.push(`Due rapportini della stessa persona lo stesso giorno${n}.`);
     visti.add(chiave);
@@ -106,6 +111,7 @@ export function caricoRapportini(
     mezzi?: ReadonlyArray<{ id: string; nome: string }>;
     materiali?: ReadonlyArray<{ id: string; nome: string; unita: string | null }>;
     campi?: CampoModulo[];
+    nomiFasi?: ReadonlyMap<string, string>;
   } = {},
 ) {
   const percentuale = new Map(fasi.map((f) => [f.id, f.percentuale]));
@@ -113,7 +119,7 @@ export function caricoRapportini(
     const dichiarate = Object.fromEntries(g.fasi.map((id) => [id, g.percentuali?.[id] ?? percentuale.get(id) ?? 0]));
     const finite = Object.entries(g.sottofasi).filter(([, s]) => s === "finita").map(([id]) => id);
     const lavorate = Object.entries(g.sottofasi).filter(([, s]) => s === "lavorata").map(([id]) => id);
-    const valori = componiValori(cataloghi.campi ?? [], g.campi ?? {});
+    const valori = componiValori(cataloghi.campi ?? [], g.campi ?? {}, [], fasiDelGiorno(g, cataloghi.nomiFasi ?? new Map()));
     return {
       data_lavoro: g.data,
       autore: g.autore || null,
