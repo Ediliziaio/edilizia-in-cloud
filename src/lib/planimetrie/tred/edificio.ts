@@ -45,6 +45,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
   const mesh: Mesh3D[] = [];
   const materiali: Scena3D["materiali"] = {};
   const avvisi: string[] = [];
+  const impiantiTot = new Map<string, { linea: string; nome: string; colore: string; metri: number }>();
   scelti.forEach((piano, i) => {
     const base = vista === "fatto" ? piano.piante.fatto : piano.piante.progetto;
     // le pareti arrivano fino al piano sopra (lo spessore del solaio): senza, da fuori fra un
@@ -77,11 +78,15 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     }
     Object.assign(materiali, s.materiali);
     avvisi.push(...s.avvisi.map((a) => `${piano.nome}: ${a}`));
+    for (const im of s.impianti ?? []) {
+      const gia = impiantiTot.get(im.linea);
+      impiantiTot.set(im.linea, gia ? { ...gia, metri: Math.round((gia.metri + im.metri) * 10) / 10 } : im);
+    }
   });
   const limiti = limitiDi(mesh);
   if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) {
     mesh.push(meshTerreno(limiti, opzioni.terreno, piani[0]?.piante.fatto.terreno, limitiDi(mesh, (g) => g === "muro")));
     materiali.prato = MATERIALI.prato;
   }
-  return { mesh, materiali, limiti, avvisi };
+  return { mesh, materiali, limiti, avvisi, ...(impiantiTot.size ? { impianti: [...impiantiTot.values()] } : {}) };
 }

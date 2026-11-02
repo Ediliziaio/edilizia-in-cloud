@@ -7,7 +7,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Building, Download, Eye, Layers, Map as MappaIcona, Rotate3d } from "lucide-react";
+import { Box, Building, Cable, Download, Eye, Layers, Map as MappaIcona, Rotate3d } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -94,6 +94,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   );
   const [soffitto, setSoffitto] = useState(modoIniziale === "dentro");
   const [arredi, setArredi] = useState(true);
+  const [impianti, setImpianti] = useState(false);
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -116,9 +117,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const scenaBase: Scena3D = useMemo(
     () =>
       tuttiIPiani
-        ? scenaEdificio(piani!, { vista, soffitto: soffitto || strutturaStrati, elementi: arredi, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
-        : costruisciScena(pianta, { vista, soffitto: soffitto || strutturaStrati, elementi: arredi }),
-    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, esploso, finoA, strutturaStrati],
+        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, impianti, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
+        : costruisciScena(pianta, { vista, soffitto, elementi: arredi, impianti }),
+    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, impianti, esploso, finoA],
   );
   const scena: Scena3D = useMemo(() => (strutturaStrati ? esplodiInStrati(scenaBase, distanzaStrati) : scenaBase), [scenaBase, strutturaStrati, distanzaStrati]);
 
@@ -422,7 +423,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         )}
         {modo !== "dentro" && (
           <div className="flex items-center gap-2">
-            <Switch id="vista3d-strati" checked={strati} onCheckedChange={setStrati} />
+            <Switch id="vista3d-strati" checked={strati} onCheckedChange={(v) => { setStrati(v); if (v) setSoffitto(true); }} />
             <Label htmlFor="vista3d-strati" className="flex items-center gap-1"><Layers className="h-3.5 w-3.5" />Vista esplosa</Label>
             {strati && (
               <input type="range" min={0.5} max={4} step={0.1} value={distanzaStrati} onChange={(e) => setDistanzaStrati(Number(e.target.value))} aria-label="Distanza fra gli strati" className="h-1.5 w-24 accent-primary" />
@@ -436,6 +437,10 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         <div className="flex items-center gap-2">
           <Switch id="vista3d-arredi" checked={arredi} onCheckedChange={setArredi} />
           <Label htmlFor="vista3d-arredi">Arredi e sanitari</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="vista3d-impianti" checked={impianti} onCheckedChange={setImpianti} />
+          <Label htmlFor="vista3d-impianti" className="flex items-center gap-1"><Cable className="h-3.5 w-3.5" />Impianti</Label>
         </div>
         {modo === "dentro" && onFotogramma && (
           <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma()))}>
@@ -452,6 +457,17 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         aria-label="Vista 3D della pianta"
       >
         {errore && <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">{errore}</div>}
+        {impianti && (scena.impianti?.length ?? 0) > 0 && (
+          <div className="pointer-events-none absolute bottom-3 left-3 max-w-[16rem] space-y-0.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
+            <p className="font-semibold">Impianti (percorsi stimati)</p>
+            {scena.impianti!.map((l) => (
+              <p key={l.linea} className="flex items-center gap-1.5">
+                <span className="inline-block h-1 w-4 rounded-full" style={{ background: l.colore }} />
+                {l.nome}: {l.metri.toLocaleString("it-IT")} m
+              </p>
+            ))}
+          </div>
+        )}
         {vista === "confronto" && (
           <div className="pointer-events-none absolute left-3 top-3 flex gap-3 rounded-md bg-white/85 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#f2c200]" />Da demolire</span>

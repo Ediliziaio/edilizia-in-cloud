@@ -65,3 +65,33 @@ describe("il telefono scritto dalla persona", () => {
     expect(telefono(leggi("telefono 333 000 7788", "testo", { cliente: { "cliente.contatto": { valore: { client_phone: "333 111 2222" } } } }))).toBe("333 111 2222");
   });
 });
+
+describe("prove a parole col modello vero", () => {
+  const leggi = (testo: string, aree: Record<string, unknown>) => frammentoDaRispostaAI({ aree }, { fonte: { tipo: "testo", etichetta: "testo" }, testo } as never);
+  const economia = (valore: number) => ({ economia: { "economia.total_amount": { valore, citazione: "7.320 euro IVA inclusa", fiducia: 0.9 }, "economia.vat_rate": { valore: 22, citazione: "22%", fiducia: 0.9 } } });
+
+  it("«7.320 IVA inclusa» scritto com'è: si scorpora e resta da controllare", () => {
+    const v = leggi("Totale lavori 7.320 euro IVA inclusa al 22%.", economia(7320)).aree.economia?.["economia.total_amount"];
+    expect(v?.valore).toBe(6000);
+    expect(v?.stato).toBe("proposta");
+  });
+
+  it("già scorporato dal modello: non si scorpora due volte", () => {
+    expect(leggi("Totale lavori 7.320 euro IVA inclusa al 22%.", economia(6000)).aree.economia?.["economia.total_amount"]?.valore).toBe(6000);
+  });
+
+  it("un solo indirizzo nel testo diventa il cantiere, da controllare", () => {
+    const f = leggi("Cucina per Bruna Galli, via Prova 21 Bergamo.", { cliente: { "cliente.client_address": { valore: "via Prova 21 Bergamo", citazione: "via Prova 21 Bergamo" } } });
+    expect(f.aree.cantiere?.["cantiere.indirizzo"]?.stato).toBe("proposta");
+    expect(f.aree.cliente?.["cliente.client_address"]).toBeUndefined();
+  });
+
+  it("due indirizzi restano ciascuno al suo posto", () => {
+    const f = leggi("Cliente in via Prova 1, cantiere in via Prova 2.", { cliente: { "cliente.client_address": { valore: "via Prova 1", citazione: "via Prova 1" } }, cantiere: { "cantiere.indirizzo": { valore: { indirizzo_lavori: "via Prova 2" }, citazione: "via Prova 2" } } });
+    expect(f.aree.cliente?.["cliente.client_address"]?.valore).toBe("via Prova 1");
+  });
+
+  it("rate e fasi assenti non danno avvisi", () => {
+    expect(leggi("Bagno.", { pagamenti: { "pagamenti.rate": [{ label: "x" }] }, fasi: { "fasi.order_work_phases": [{ giorni: 3 }] } }).avvisi ?? []).toEqual([]);
+  });
+});

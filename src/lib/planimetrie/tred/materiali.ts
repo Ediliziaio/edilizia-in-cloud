@@ -2,6 +2,13 @@ import type { Materiale3D } from "./tipi";
 
 /** Colori dei materiali (sRGB). Giallo e rosso seguono la convenzione italiana: demolizioni e nuove costruzioni. */
 export const MATERIALI: Record<string, Materiale3D> = {
+  // linee degli impianti (stesse tinte del disegno 2D)
+  impianto_elettrica: { nome: "Impianto elettrico", colore: "#dc2626", opacita: 1, ruvidita: 0.5 },
+  impianto_acqua: { nome: "Acqua", colore: "#2563eb", opacita: 1, ruvidita: 0.4 },
+  impianto_scarico: { nome: "Scarichi", colore: "#92400e", opacita: 1, ruvidita: 0.6 },
+  impianto_frigorifera: { nome: "Linea frigorifera (rame)", colore: "#0891b2", opacita: 1, ruvidita: 0.35 },
+  impianto_condensa: { nome: "Scarico condensa", colore: "#65a30d", opacita: 1, ruvidita: 0.5 },
+  impianto_riscaldamento: { nome: "Riscaldamento", colore: "#ea580c", opacita: 1, ruvidita: 0.4 },
   muro: { nome: "Muro", colore: "#ece7df", opacita: 1, ruvidita: 0.9 },
   muro_demolire: { nome: "Muro da demolire", colore: "#f2c200", opacita: 1, ruvidita: 0.8 },
   muro_nuovo: { nome: "Muro nuovo", colore: "#d42a2a", opacita: 1, ruvidita: 0.8 },
