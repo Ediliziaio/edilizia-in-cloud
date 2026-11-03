@@ -12,11 +12,12 @@ interface Props {
   permessi: Record<string, unknown>;
   aree: readonly AreaRiepilogo[];
   solaLettura?: boolean;
+  ruolo?: string;
 }
 
 /** «Cosa vede davvero»: chiusa di partenza, non cambia nulla per chi non la apre. */
-export function AnteprimaAccessi({ nome, permessi, aree, solaLettura }: Props) {
-  const accessi = accessiEffettivi(permessi);
+export function AnteprimaAccessi({ nome, permessi, aree, solaLettura, ruolo }: Props) {
+  const accessi = accessiEffettivi(permessi, ruolo);
   const voci = vociAccesePerArea(aree, permessi);
   const aperte = accessi.filter((a) => a.aperta).length;
 

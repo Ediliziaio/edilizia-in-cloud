@@ -773,6 +773,7 @@ export function UserRolesPermissionsTab({
                 permessi={permissions as unknown as Record<string, unknown>}
                 aree={PERMISSION_CATEGORIES}
                 solaLettura={!!permissions.sola_lettura}
+                ruolo={selectedRole}
               />
 
               {/* Toolbar: search + bulk */}

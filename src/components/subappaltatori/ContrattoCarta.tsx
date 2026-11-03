@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
+import { puoConsultareSalSub, puoScrivereSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { useQuery } from "@tanstack/react-query";
 import { FileCheck2, Upload, FileText, Loader2, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,9 +59,9 @@ export function ContrattoCarta({
   children?: ReactNode;
 }) {
   const p = usePermissions();
-  const lettura = p.canViewCosts && p.canViewSubappaltatoriAmministrazione;
+  const lettura = puoConsultareSalSub(p);
   const scrittura =
-    lettura && p.canEditOrders && !p.solaLettura && !firmaElettronica;
+    puoScrivereSalSub(p) && !firmaElettronica;
   const [open, setOpen] = useState(false),
     [modulo, setModulo] = useState(false);
   const [file, setFile] = useState<File | null>(null),

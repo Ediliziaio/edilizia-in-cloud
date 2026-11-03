@@ -129,10 +129,7 @@ export const STAFF_ROLE_PRESETS: Record<string, Record<string, boolean | string[
     visible_areas: ["commerciale"],
   },
   call_center: {
-    can_view_dashboard: true,
-    can_view_calendar: true,
-    can_view_customers: true,
-    can_view_users: true,
+    // Solo marketing e vendita: niente dashboard generale, calendario lavori, clienti e utenti.
     can_view_marketing_contacts: true,
     can_view_marketing_opportunities: true,
     can_view_preventivi: true,

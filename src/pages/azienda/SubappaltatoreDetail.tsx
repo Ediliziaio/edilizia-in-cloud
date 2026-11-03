@@ -1,4 +1,5 @@
 import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
+import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { SALContabilita, RitenuteContabilita } from "@/components/subappaltatori/ContabilitaSubappalto";
 import { euroSub } from "@/lib/subappaltatori/lavoriMisure";
@@ -819,7 +820,7 @@ export default function SubappaltatoreDetail() {
 
         {/* ─── Tab 1: Anagrafica ─────────────────────────────────────────────── */}
         <TabsContent value="anagrafica" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
-          <PercorsiSubappaltatore amministrazione={permessi.canViewSubappaltatoriAmministrazione && permessi.canViewCosts} onApri={setTabAttiva} />
+          <PercorsiSubappaltatore amministrazione={puoConsultareSalSub(permessi)} onApri={setTabAttiva} />
           <div className="grid items-start gap-4 xl:grid-cols-2 [&>*]:min-w-0">
           <Card>
             <CardHeader className="pb-3 max-sm:hidden">

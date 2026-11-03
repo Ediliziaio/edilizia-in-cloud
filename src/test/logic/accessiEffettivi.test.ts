@@ -14,7 +14,7 @@ const SQL = {
   cg: readFileSync("supabase/migrations/20281118090000_permessi_fase1_urgenze.sql", "utf8"),
   aree: readFileSync("supabase/migrations/20281118110000_permessi_fase3_ruoli.sql", "utf8"),
   correzioni: readFileSync("supabase/migrations/20281118120000_permessi_correzioni_verifica.sql", "utf8"),
-  venditore: readFileSync("supabase/migrations/20281118170000_venditore_senza_ordini_fornitore.sql", "utf8"),
+  acquisti: readFileSync("supabase/migrations/20281118190000_call_center_e_scheda_subappaltatori.sql", "utf8"),
 };
 const permessiIn = (testo: string) => new Set(testo.match(/can_(?:view|edit|manage|validate)_[a-z_]+/g) ?? []);
 
@@ -35,13 +35,21 @@ describe("gli elenchi sono quelli delle regole del database", () => {
     // Vale l'ultima migrazione che tocca la tabella.
     const voce = new RegExp(`\\('${tabella}', array\\[([^\\]]+)\\]`);
     const riga = tabella === "purchase_orders"
-      ? SQL.venditore.match(/array\[([^\]]+)\]::text/)?.[1] ?? ""
+      ? [...SQL.acquisti.matchAll(/aziende_area\(array\[([^\]]+)\]/g)].map((m) => m[1]).join(",")
       : SQL.correzioni.match(voce)?.[1] ?? SQL.aree.match(voce)?.[1] ?? "";
     expect(new Set(area(id).aperturaDa)).toEqual(permessiIn(riga));
   });
 });
 
 describe("cosa vede davvero", () => {
+  it("al Call Center Dashboard e Calendario non aprono gli ordini ai fornitori, Commesse sì", () => {
+    const ordini = (p: Record<string, unknown>, ruolo?: string) =>
+      accessiEffettivi(p, ruolo).find((a) => a.area.id === "acquisti")!;
+    expect(ordini({ can_view_dashboard: true, can_view_calendar: true }, "call_center").aperta).toBe(false);
+    expect(ordini({ can_view_dashboard: true }, "company_staff").aperta).toBe(true);
+    expect(ordini({ can_view_dashboard: true, can_view_orders: true }, "call_center").apertaDa).toEqual(["can_view_orders"]);
+  });
+
   it("spegnere il Controllo di gestione non basta se restano accesi i Costi", () => {
     const accessi = accessiEffettivi({ can_view_controllo_gestione: false, can_view_costs: true });
     const cg = accessi.find((a) => a.area.id === "controllo_gestione")!;

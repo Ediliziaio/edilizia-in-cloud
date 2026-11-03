@@ -87,35 +87,36 @@ export function creaGestore(
       } catch {
         throw new Errore("Azienda non accessibile", 403);
       }
-      for (
-        const permission of [
-          "can_view_subappaltatori_amministrazione",
-          "can_view_costs",
-        ]
-      ) {
-        const p = await db.rpc("has_permission_for_company", {
-          _user_id: u,
-          _permission: permission,
-          _company_id: input.company_id,
-        });
-        if (p.error || p.data !== true) {
-          throw new Errore(
-            "Non hai il permesso di consultare i verbali economici del subappalto",
-            403,
-          );
-        }
+      const consulta = await db.rpc("puo_consultare_sal_sub", {
+        _user_id: u,
+        _company_id: input.company_id,
+      });
+      if (consulta.error || consulta.data !== true) {
+        throw new Errore(
+          "Non hai il permesso di consultare i verbali economici del subappalto",
+          403,
+        );
       }
       if (mode === "archivia") {
-        const w = await db.rpc("has_permission_for_company", {
-          _user_id: u,
-          _permission: "can_edit_orders",
-          _company_id: input.company_id,
-        });
-        if (w.error || w.data !== true) {
-          throw new Errore(
-            "Non hai il permesso di archiviare documenti della commessa",
-            403,
-          );
+        // Archiviare scrive: non basta la scheda Subappaltatori.
+        for (
+          const permission of [
+            "can_view_subappaltatori_amministrazione",
+            "can_view_costs",
+            "can_edit_orders",
+          ]
+        ) {
+          const w = await db.rpc("has_permission_for_company", {
+            _user_id: u,
+            _permission: permission,
+            _company_id: input.company_id,
+          });
+          if (w.error || w.data !== true) {
+            throw new Errore(
+              "Non hai il permesso di archiviare documenti della commessa",
+              403,
+            );
+          }
         }
       }
       const link = async (r: any) => {

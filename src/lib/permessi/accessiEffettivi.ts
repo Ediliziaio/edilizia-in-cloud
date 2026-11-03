@@ -73,9 +73,14 @@ export interface AccessoEffettivo {
   apertaDa: ChiavePermesso[];
 }
 
-export function accessiEffettivi(permessi: Record<string, unknown>): AccessoEffettivo[] {
+/** Al Call Center questi due permessi non aprono gli ordini ai fornitori: sono di altre pagine. */
+const NON_APRONO_ORDINI_AL_CALL_CENTER: readonly ChiavePermesso[] = ["can_view_dashboard", "can_view_calendar"];
+
+export function accessiEffettivi(permessi: Record<string, unknown>, ruolo?: string): AccessoEffettivo[] {
   return AREE_SENSIBILI.map((area) => {
-    const apertaDa = area.aperturaDa.filter((chiave) => permessi[chiave] === true);
+    const apertaDa = area.aperturaDa.filter((chiave) =>
+      permessi[chiave] === true
+      && !(area.id === "acquisti" && ruolo === "call_center" && NON_APRONO_ORDINI_AL_CALL_CENTER.includes(chiave)));
     return { area, aperta: apertaDa.length > 0, apertaDa };
   });
 }

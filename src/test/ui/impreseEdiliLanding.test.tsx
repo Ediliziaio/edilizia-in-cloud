@@ -3,9 +3,9 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import ImpreseEdili, { impreseFaq } from "@/pages/per/ImpreseCostuzione";
-vi.mock("@/components/landing/LandingNavbar", () => ({ default: () => null }));
-vi.mock("@/components/landing/LandingFooter", () => ({ default: () => null }));
-vi.mock("@/components/landing/SolutionSection", () => ({ default: () => null }));
+vi.mock("@/components/landing/LandingNavbar", () => ({ default: (): null => null }));
+vi.mock("@/components/landing/LandingFooter", () => ({ default: (): null => null }));
+vi.mock("@/components/landing/SolutionSection", () => ({ default: (): null => null }));
 describe("landing imprese edili", () => {
   it("collega la scelta alla demo e dichiara i dati illustrativi nelle schermate", () => {
     const host = document.createElement("div"); document.body.appendChild(host);
