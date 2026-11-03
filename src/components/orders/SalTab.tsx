@@ -953,6 +953,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           htmlContent={printHtml}
           fileName={printTitle}
           title={printTitle}
+          soloPdf
           open={!!printHtml}
           onOpenChange={(open) => { if (!open) setPrintHtml(null); }}
         />
