@@ -11,6 +11,7 @@ export interface BlogPost {
   readTime: number;
   author: { name: string; role: string; avatar?: string };
   coverImage: string;
+  video?: { youtubeId: string; duration: string; uploadedAt: string };
   content: Array<{
     type: "intro" | "section" | "quote" | "list" | "cta" | "table" | "image" | "callout";
     heading?: string;

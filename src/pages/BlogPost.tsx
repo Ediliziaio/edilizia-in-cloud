@@ -312,6 +312,17 @@ export default function BlogPost() {
     "@context": "https://schema.org",
     "@type": "Article",
     "@id": `https://www.ediliziaincloud.com/blog/${post.slug}`,
+    ...(post.video ? { video: {
+      "@type": "VideoObject",
+      name: post.title,
+      description: post.excerpt,
+      thumbnailUrl: `https://i.ytimg.com/vi/${post.video.youtubeId}/hqdefault.jpg`,
+      uploadDate: post.video.uploadedAt,
+      duration: post.video.duration,
+      embedUrl: `https://www.youtube-nocookie.com/embed/${post.video.youtubeId}`,
+      url: `https://www.youtube.com/watch?v=${post.video.youtubeId}`,
+      inLanguage: "it",
+    } } : {}),
     headline: post.title,
     description: post.excerpt,
     image: {
@@ -486,6 +497,23 @@ export default function BlogPost() {
             ref={articleRef}
             className="flex-1 min-w-0 max-w-3xl"
           >
+            {post.video && (
+              <section aria-label="Video dell’articolo" className="mb-10">
+                <h2 className="text-2xl font-bold text-[#111111] mb-4">Guarda la guida in video</h2>
+                <div className="aspect-video overflow-hidden rounded-xl bg-slate-950">
+                  <iframe
+                    className="w-full h-full border-0"
+                    src={`https://www.youtube-nocookie.com/embed/${post.video.youtubeId}`}
+                    title={post.title}
+                    loading="lazy"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+                <a href={`https://www.youtube.com/watch?v=${post.video.youtubeId}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm font-medium text-eic-orange underline underline-offset-2">Apri il video su YouTube</a>
+              </section>
+            )}
             {post.content.map((section, i) => {
               switch (section.type) {
                 case "intro":

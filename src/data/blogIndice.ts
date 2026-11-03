@@ -440,6 +440,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "p1",
     "slug": "chi-gestisce-i-numeri-impresa-edile",
+    "video": {
+      "youtubeId": "M6qECgflApQ",
+      "duration": "PT6M12S",
+      "uploadedAt": "2026-11-03T20:20:00+01:00"
+    },
     "title": "Chi controlla davvero i numeri della tua impresa edile?",
     "excerpt": "Il commercialista chiude i bilanci, non controlla i margini a cantieri aperti. I 4 numeri che ti servono ogni settimana e come tenerli da solo.",
     "category": "Finanza",
