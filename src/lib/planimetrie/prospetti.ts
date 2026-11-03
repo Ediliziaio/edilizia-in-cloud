@@ -29,7 +29,7 @@ export type Primitiva =
   | { tipo: "rett"; u1: number; u2: number; z1: number; z2: number; stile: "muro" | "muro_lontano" | "taglio" | "vano" | "vetro" | "porta" | "porta_chiusa" | "cassonetto" | "cassonetto_nascosto" | "persiana" }
   | { tipo: "linea"; a: { u: number; z: number }; b: { u: number; z: number }; stile: "terra" | "quota" | "solaio" | "richiamo" | "montante" | "apertura" | "lamella" }
   | { tipo: "testo"; u: number; z: number; testo: string; stile: "titolo" | "quota" | "etichetta"; ruota?: boolean; ancora?: "fine" }
-  | { tipo: "poligono"; punti: Array<{ u: number; z: number }>; stile: "falda" | "timpano" | "falda_lontana" | "taglio_tetto" };
+  | { tipo: "poligono"; punti: Array<{ u: number; z: number }>; stile: "falda" | "falda_verde" | "falda_lamiera" | "timpano" | "falda_lontana" | "taglio_tetto" };
 
 export interface Disegno2D {
   titolo: string;
@@ -105,14 +105,14 @@ function facceDelTetto(stato: StatoPianta, tetto: Tetto | null | undefined): Fac
 }
 
 /** Le facce del tetto proiettate su chi guarda, dalla più lontana (la vicina copre la lontana). */
-function tettoInAlzato(facce: Faccia[], v: P, asse: P, lontano: boolean): Primitiva[] {
+function tettoInAlzato(facce: Faccia[], v: P, asse: P, lontano: boolean, finitura?: string): Primitiva[] {
   return facce
     .map((f) => ({ f, profondita: f.vertici.reduce((t, q) => t + dot(q, v), 0) / f.vertici.length }))
     .sort((a, b) => b.profondita - a.profondita)
     .map(({ f }): Primitiva => ({
       tipo: "poligono",
       punti: f.vertici.map((q) => ({ u: dot(q, asse), z: q.z })),
-      stile: lontano ? "falda_lontana" : f.genere === "timpano" ? "timpano" : "falda",
+      stile: lontano ? "falda_lontana" : f.genere === "timpano" ? "timpano" : finitura === "verde" || finitura === "verde_intensivo" ? "falda_verde" : finitura === "lamiera" ? "falda_lamiera" : "falda",
     }))
     // una falda vista di taglio è una linea: non aggiunge niente
     .filter((p) => p.tipo !== "poligono" || areaUZ(p.punti) > 1);
@@ -200,7 +200,7 @@ export function prospetto(stato: StatoPianta, lato: Lato, tetto?: Tetto | null):
   const asse = destra(v);
   const primitive = primitiveProspetto(stato, v, asse);
   const facce = facceDelTetto(stato, tetto);
-  primitive.push(...tettoInAlzato(facce, v, asse, false));
+  primitive.push(...tettoInAlzato(facce, v, asse, false, tetto?.finitura));
   primitive.push(...lucernariInAlzato(stato, facce, v, asse));
   return conTerraEQuote(NOMI_LATO[lato], primitive);
 }
@@ -450,7 +450,7 @@ export function prospettoQuotato(piani: PianoProspetto[], lato: Lato): Disegno2D
     primitive.push(...locale.map((p) => spostaZ(p, base)));
     if (indice === ultimo) {
       const facce = facceDelTetto(piano.stato, piano.tetto).map((f) => ({ ...f }));
-      primitive.push(...[...tettoInAlzato(facce, v, asse, false), ...lucernariInAlzato(piano.stato, facce, v, asse)].map((p) => spostaZ(p, base)));
+      primitive.push(...[...tettoInAlzato(facce, v, asse, false, piano.tetto?.finitura), ...lucernariInAlzato(piano.stato, facce, v, asse)].map((p) => spostaZ(p, base)));
     }
   });
   if (!primitive.length) return estensione(NOMI_LATO[lato], []);
@@ -506,6 +506,8 @@ const STILE_SVG: Record<string, { fill: string; stroke: string; width: number; d
   cassonetto: { fill: "#e5e7eb", stroke: "#0f172a", width: 0.35 },
   cassonetto_nascosto: { fill: "none", stroke: "#64748b", width: 0.25, dash: "1.6 1" },
   persiana: { fill: "#dfe6d6", stroke: "#0f172a", width: 0.3 },
+  falda_verde: { fill: "#b9d39a", stroke: "#0f172a", width: 0.4 },
+  falda_lamiera: { fill: "#cfd4d8", stroke: "#0f172a", width: 0.4 },
   falda: { fill: "#e7d3c4", stroke: "#0f172a", width: 0.4 },
   timpano: { fill: "#ffffff", stroke: "#0f172a", width: 0.5 },
   falda_lontana: { fill: "#f8fafc", stroke: "#94a3b8", width: 0.3 },
@@ -545,7 +547,7 @@ export function disegnoInSvg(d: Disegno2D, scala = 50): { svg: string; larghezza
 /** DXF in centimetri, a layer (PROSPETTO, TAGLIO, APERTURE, QUOTE, TESTI). */
 export function disegnoInDxf(d: Disegno2D): Uint8Array {
   const m = new MotoreDxfR12();
-  const LAYER: Record<string, string> = { muro: "PROSPETTO", muro_lontano: "OLTRE", taglio: "TAGLIO", vano: "APERTURE", vetro: "APERTURE", porta: "APERTURE", terra: "PROSPETTO", quota: "QUOTE", solaio: "OLTRE", falda: "TETTO", timpano: "TETTO", falda_lontana: "OLTRE", taglio_tetto: "TAGLIO", porta_chiusa: "APERTURE", richiamo: "QUOTE", montante: "APERTURE", apertura: "APERTURE", lamella: "APERTURE", cassonetto: "APERTURE", cassonetto_nascosto: "APERTURE", persiana: "APERTURE" };
+  const LAYER: Record<string, string> = { muro: "PROSPETTO", muro_lontano: "OLTRE", taglio: "TAGLIO", vano: "APERTURE", vetro: "APERTURE", porta: "APERTURE", terra: "PROSPETTO", quota: "QUOTE", solaio: "OLTRE", falda: "TETTO", falda_verde: "TETTO", falda_lamiera: "TETTO", timpano: "TETTO", falda_lontana: "OLTRE", taglio_tetto: "TAGLIO", porta_chiusa: "APERTURE", richiamo: "QUOTE", montante: "APERTURE", apertura: "APERTURE", lamella: "APERTURE", cassonetto: "APERTURE", cassonetto_nascosto: "APERTURE", persiana: "APERTURE" };
   m.layer({ nome: "PROSPETTO", colore: 7 });
   m.layer({ nome: "OLTRE", colore: 8 });
   m.layer({ nome: "TAGLIO", colore: 7 });

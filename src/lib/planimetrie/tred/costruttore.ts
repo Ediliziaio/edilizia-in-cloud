@@ -101,6 +101,22 @@ export class CostruttoreMesh {
     this.quad(p(-1, -1, y0), p(1, -1, y0), p(1, -1, y1), p(-1, -1, y1), [-ez[0], 0, -ez[2]]);
   }
 
+  /** Sfera a facce piatte (poche, per cespugli e chiome): `passi` fasce di latitudine, il doppio di longitudine. */
+  sfera(cx: number, cy: number, cz: number, raggio: number, passi = 3): void {
+    const lat = Math.max(2, passi), lon = lat * 2;
+    const punto = (i: number, j: number): V3 => {
+      const th = (Math.PI * i) / lat, ph = (2 * Math.PI * j) / lon;
+      return [cx + raggio * Math.sin(th) * Math.cos(ph), cy + raggio * Math.cos(th), cz + raggio * Math.sin(th) * Math.sin(ph)];
+    };
+    for (let i = 0; i < lat; i++) {
+      for (let j = 0; j < lon; j++) {
+        const a = punto(i, j), b = punto(i, j + 1), c = punto(i + 1, j + 1), d = punto(i + 1, j);
+        const m: V3 = [(a[0] + b[0] + c[0] + d[0]) / 4 - cx, (a[1] + b[1] + c[1] + d[1]) / 4 - cy, (a[2] + b[2] + c[2] + d[2]) / 4 - cz];
+        this.poligono(i === 0 ? [a, c, d] : i === lat - 1 ? [a, b, c] : [a, b, c, d], m);
+      }
+    }
+  }
+
   vuoto(): boolean {
     return this.indici.length === 0;
   }

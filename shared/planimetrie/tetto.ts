@@ -18,8 +18,20 @@ export interface Fotovoltaico {
   pannelliMax?: number;
 }
 
+/** Copertura del tetto (vedi `FinituraTetto` in modello.ts). */
+export type FinituraTettoGeom = "tegole" | "verde" | "verde_intensivo" | "ghiaia" | "lamiera" | "guaina";
+
+/** Spessore del substrato di un tetto verde, cm: estensivo 10, giardino pensile 25. */
+export const SUBSTRATO_VERDE_CM: Record<"verde" | "verde_intensivo", number> = { verde: 10, verde_intensivo: 25 };
+
+/** La copertura vera di un tetto: quella scelta, altrimenti tegole sulle falde e guaina sul tetto piano. */
+export function finituraDi(t: Pick<TettoGeom, "tipo" | "finitura">): FinituraTettoGeom {
+  return t.finitura ?? (t.tipo === "piano" ? "guaina" : "tegole");
+}
+
 export interface TettoGeom {
   tipo: TipoTetto;
+  finitura?: FinituraTettoGeom;
   pendenza: number;
   sporto: number;
   fotovoltaico?: Fotovoltaico;

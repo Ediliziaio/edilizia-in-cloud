@@ -328,3 +328,17 @@ dell'abaco (F1, PF1, P2) e le misure, i simboli di apertura (triangolo dei batte
 cassonetti (nascosti a linea tratteggiata, esterni a vista), tapparelle con le lamelle e persiane chiuse, la catena di quote
 orizzontali (spalle dei vani, filo dei muri) col totale, le quote di piano (±0,00, +3,00…) con gli interpiani e il totale
 a sinistra, davanzale / luce / architrave a destra. Uscita come gli altri disegni: SVG in scala e DXF a layer (`QUOTE`, `APERTURE`).
+
+## Copertura del tetto e aspetto da fuori
+
+`Livello.tetto.finitura` (`tegole` | `verde` | `verde_intensivo` | `ghiaia` | `lamiera` | `guaina`; assente = tegole sulle falde,
+cemento sul tetto piano). Il tetto verde ha un substrato di 10 cm (giardino pensile 25 cm), alza la superficie di quello
+spessore e sul tetto piano ha il cordolo tutto intorno (e, nel giardino pensile, gli arbusti). Il computo dà superficie,
+substrato in m³, strato drenante e telo antiradice; le verifiche segnalano il peso (100–150 kg/m², 300 per il pensile),
+la pendenza oltre il 35% e le coperture sbagliate per il tipo di tetto (ghiaia sulle falde, tegole sul piano o sotto il 25%).
+
+La scena 3D ha anche la zoccolatura (30 cm) alla base dei muri esterni del piano terra, i davanzali di pietra sotto le
+finestre e il marciapiede intorno alla casa (solo se la pianta è più o meno un rettangolo e non ha un lotto disegnato).
+Nel visualizzatore (`Vista3D`) l'«aspetto realistico» è solo di chi guarda e non entra nel file: tessiture (intonaco in
+quattro tinte, mattoni, pietra, legno, cemento), colore degli infissi, ora del giorno (sole, cielo, nebbia, ombre), alberi
+intorno alla casa e ombre morbide negli angoli; nell'esportazione GLB/OBJ e nei render AI non c'è.

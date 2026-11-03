@@ -45,7 +45,7 @@ import {
 import { misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_ZANZARIERA } from "./serramenti.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
-import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
+import { facceTetto, finituraDi, fotovoltaicoSulTetto, rettangoloTetto, SUBSTRATO_VERDE_CM, superficieFalde } from "./tetto.ts";
 import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
@@ -158,6 +158,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   let recinzioneCm = 0;
   // Tetti: superficie delle falde e fotovoltaico (shared/planimetrie/tetto.ts)
   let coperturaMq = 0, pannelliFv = 0, kWp = 0;
+  // la copertura scelta (solo se il tetto ne dichiara una): superficie e, per il tetto verde, substrato e stratigrafia
+  const finiture = new Map<string, { mq: number; substratoMc: number }>();
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
@@ -169,7 +171,13 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), livello.tetto.sporto);
       if (r) {
         const facce = facceTetto(r, Math.max(...muri.map((m) => m.altezza)), livello.tetto);
-        coperturaMq += superficieFalde(facce);
+        const mqFalde = superficieFalde(facce);
+        coperturaMq += mqFalde;
+        if (livello.tetto.finitura) {
+          const f = finituraDi(livello.tetto);
+          const prec = finiture.get(f) ?? { mq: 0, substratoMc: 0 };
+          finiture.set(f, { mq: prec.mq + mqFalde, substratoMc: prec.substratoMc + (f === "verde" || f === "verde_intensivo" ? (mqFalde * SUBSTRATO_VERDE_CM[f]) / 100 : 0) });
+        }
         if (livello.tetto.fotovoltaico) {
           const fv = fotovoltaicoSulTetto(facce, livello.tetto.fotovoltaico);
           pannelliFv += fv.numero;
@@ -368,6 +376,15 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
     }
   }
   if (coperturaMq > 0) metti("tetto:copertura", "superficie_mq", { valore: coperturaMq, origini: ["stimata"] }, "Copertura: superficie delle falde (o del tetto piano)");
+  const NOMI_COPERTURA: Record<string, string> = { tegole: "tegole", verde: "tetto verde (sedum)", verde_intensivo: "giardino pensile", ghiaia: "ghiaia", lamiera: "lamiera", guaina: "guaina" };
+  for (const [f, v] of finiture) {
+    metti(`tetto:${f}`, "superficie_mq", { valore: v.mq, origini: ["stimata"] }, `Copertura in ${NOMI_COPERTURA[f]}: superficie`);
+    if (f === "verde" || f === "verde_intensivo") {
+      metti(`tetto:${f}`, "substrato_mc", { valore: v.substratoMc, origini: ["stimata"] }, `Tetto verde: substrato di coltivo (${SUBSTRATO_VERDE_CM[f]} cm)`);
+      metti(`tetto:${f}`, "drenaggio_mq", { valore: v.mq, origini: ["stimata"] }, "Tetto verde: strato drenante e di accumulo idrico");
+      metti(`tetto:${f}`, "telo_antiradice_mq", { valore: v.mq, origini: ["stimata"] }, "Tetto verde: telo antiradice e feltro di protezione");
+    }
+  }
   if (pannelliFv > 0) {
     metti("impianti:fotovoltaico", "pannelli", { valore: pannelliFv, origini: ["stimata"] }, "Fotovoltaico: pannelli sul tetto");
     metti("impianti:fotovoltaico", "kwp", { valore: kWp, origini: ["stimata"] }, "Fotovoltaico: potenza di picco (kWp)");

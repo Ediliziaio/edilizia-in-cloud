@@ -79,7 +79,7 @@ export function scenaEdificio(piani: PianoPer3D[], opzioni: OpzioniEdificio = {}
     // la scala e l'ascensore del piano sotto bucano il pavimento, quelli di questo piano il soffitto (se c'è un piano sopra)
     const buchiPavimento = i > 0 ? ingombriPassanti(pianteDi(scelti[i - 1])) : [];
     const buchiSoffitto = sopra ? ingombriPassanti(base) : [];
-    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0, buchiPavimento, buchiSoffitto, fondazioni: !!opzioni.fondazioni && i === 0 });
+    const s = costruisciScena(conTetto, { ...opzioni, terreno: undefined, foroScala: i > 0, zoccolo: piano.id === pianoCabina && opzioni.zoccolo !== false, buchiPavimento, buchiSoffitto, fondazioni: !!opzioni.fondazioni && i === 0 });
     // un attico o un duplex ai piani alti: sotto c'è il resto dell'edificio, in grigio
     if (i === 0 && piano.quota > 100) {
       const l = limitiDi(s.mesh, (g) => g === "muro");

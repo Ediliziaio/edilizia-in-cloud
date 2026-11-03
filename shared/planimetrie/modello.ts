@@ -283,8 +283,27 @@ export interface Livello {
 
 export type TipoTetto = "piano" | "una_falda" | "due_falde" | "padiglione" | "shed";
 export const TIPI_TETTO: readonly TipoTetto[] = ["piano", "una_falda", "due_falde", "padiglione", "shed"];
+/**
+ * Cosa copre il tetto: `tegole` (laterizio o cemento), `verde` (tetto verde estensivo: sedum, substrato sottile,
+ * poca manutenzione), `verde_intensivo` (giardino pensile: substrato profondo, arbusti), `ghiaia` (zavorra,
+ * solo tetto piano), `lamiera` (zinco, rame o alluminio a doppia aggraffatura), `guaina` (membrana bituminosa o sintetica).
+ * Assente: tegole per i tetti a falde, guaina per il tetto piano.
+ */
+export type FinituraTetto = "tegole" | "verde" | "verde_intensivo" | "ghiaia" | "lamiera" | "guaina";
+export const FINITURE_TETTO: readonly FinituraTetto[] = ["tegole", "verde", "verde_intensivo", "ghiaia", "lamiera", "guaina"];
+export const NOMI_FINITURA_TETTO: Record<FinituraTetto, string> = {
+  tegole: "Tegole",
+  verde: "Tetto verde (sedum)",
+  verde_intensivo: "Giardino pensile",
+  ghiaia: "Ghiaia",
+  lamiera: "Lamiera (zinco, rame)",
+  guaina: "Guaina",
+};
+
 export interface Tetto {
   tipo: TipoTetto;
+  /** Copertura: vedi FinituraTetto. */
+  finitura?: FinituraTetto;
   /** Pendenza delle falde, in percento (30 = 30%). */
   pendenza: number;
   /** Sporto della gronda oltre i muri, in cm. */
@@ -485,6 +504,8 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       const t = liv.tetto;
       if (!eOggetto(t) || !(TIPI_TETTO as readonly unknown[]).includes(t.tipo) || !eNumero(t.pendenza) || !eNumero(t.sporto) || (t.pendenza as number) < 0 || (t.pendenza as number) > 150) {
         errori.push(`${nomeLiv}: il tetto non è valido.`);
+      } else if (t.finitura !== undefined && !(FINITURE_TETTO as readonly unknown[]).includes(t.finitura)) {
+        errori.push(`${nomeLiv}: la copertura del tetto non è valida.`);
       } else if (t.mansarda !== undefined && !(eOggetto(t.mansarda) && eNumero(t.mansarda.imposta) && t.mansarda.imposta >= 0 && t.mansarda.imposta <= 500)) {
         errori.push(`${nomeLiv}: l'altezza d'imposta della mansarda non è valida.`);
       } else if (t.fotovoltaico !== undefined) {
