@@ -1012,9 +1012,6 @@ serve(async (req: Request) => {
     let soloLettura = !gruppoFisso && risparmioToken && !!toolDomains &&
       Deno.env.get("SILVIO_SOLA_LETTURA_DISABLED") !== "true" &&
       domandaDiSolaLettura(userMessage, attachments.length > 0);
-    // «Lo stato di salute dei cantieri» e' l'unica domanda che ha bisogno da
-    // subito di un'area fuori dal gruppo: una riscrittura sola, solo per lei.
-    if (gruppoFisso && siteHealthRequested) dominiExtra.add("cantiere");
     let catalogoIntero = false;
     const listaStrumenti = () => getToolsForChannel({
       channel: "internal_chat",

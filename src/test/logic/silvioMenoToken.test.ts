@@ -21,6 +21,7 @@ import { cachePromptAnthropic, tokenCacheDaUsage } from "../../../supabase/funct
 import { silvioHistoryMessages } from "../../../supabase/functions/_shared/silvioAnswerQuality";
 import { CHART_RULES, FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../../../supabase/functions/_shared/chartRules";
 import { SILVIO_REPLY_STYLE } from "../../../supabase/functions/_shared/silvioReplyStyle";
+import { SITE_HEALTH_TOOL } from "../../../supabase/functions/_shared/silvioSiteHealth";
 import { readFileSync } from "node:fs";
 
 /**
@@ -298,6 +299,10 @@ describe("gruppo fisso di strumenti", () => {
     expect(JSON.stringify(toolsToOpenAISpec(conEspansi([])))).toBe(uno);
     expect(token(toolsToOpenAISpec(conEspansi()))).toBeLessThan(10_000);
     expect(token(toolsToOpenAISpec(conEspansi()))).toBeLessThan(token(schema("operations")));
+  });
+
+  it("la domanda sui ritardi trova il suo strumento nel gruppo, senza riscrivere la cache", () => {
+    expect(GRUPPO_FISSO_STRUMENTI.has(SITE_HEALTH_TOOL)).toBe(true);
   });
 
   it("carica_strumenti aggiunge l'area intera, azioni comprese", () => {
