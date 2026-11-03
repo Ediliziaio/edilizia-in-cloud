@@ -391,7 +391,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
   },
 
   call_center: {
-    // Solo marketing e vendita: niente dashboard generale, calendario lavori, clienti e utenti.
+    // Solo marketing e vendita: ha la sua Dashboard Marketing, non quella generale, il calendario
+    // lavori, i clienti e gli utenti.
+    can_view_marketing_dashboard: true,
     can_view_marketing_contacts: true,
     // Il call center non guarda soltanto: qualifica il contatto e sposta
     // l'opportunita' di fase. La modifica segue la visibilità.

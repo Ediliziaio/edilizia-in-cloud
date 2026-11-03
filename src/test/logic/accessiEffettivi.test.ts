@@ -7,6 +7,7 @@ import {
   nomiPermessi,
   vociAccesePerArea,
 } from "@/lib/permessi/accessiEffettivi";
+import { ROLE_PRESETS } from "@/components/users/permissionsDefaults";
 
 const area = (id: string) => AREE_SENSIBILI.find((a) => a.id === id)!;
 const SQL = {
@@ -42,6 +43,13 @@ describe("gli elenchi sono quelli delle regole del database", () => {
 });
 
 describe("cosa vede davvero", () => {
+  it("il modello Call Center ha la sua dashboard, non quella generale né il calendario lavori", () => {
+    const p = ROLE_PRESETS.call_center as Record<string, unknown>;
+    expect(p.can_view_marketing_dashboard).toBe(true);
+    expect(p.can_view_dashboard ?? false).toBe(false);
+    expect(p.can_view_calendar ?? false).toBe(false);
+  });
+
   it("al Call Center Dashboard e Calendario non aprono gli ordini ai fornitori, Commesse sì", () => {
     const ordini = (p: Record<string, unknown>, ruolo?: string) =>
       accessiEffettivi(p, ruolo).find((a) => a.area.id === "acquisti")!;
