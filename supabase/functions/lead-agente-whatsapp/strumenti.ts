@@ -17,6 +17,7 @@ import type { ConfigAgenteLead, ShowroomAgenteLead } from "../_shared/agenteLead
 import { dataEstesa, sincronizzaCalendariEsterni } from "../_shared/appuntamentiPubblici.ts";
 import { dataRoma, prenotaSuCalendario, slotLiberiCalendario, STATI_CHE_LIBERANO } from "../_shared/calendarioPrenotazione.ts";
 import { fasciaDi, type Fascia } from "../_shared/calendarioSlot.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 export interface CtxAgente {
   admin: any;
@@ -29,6 +30,8 @@ export interface CtxAgente {
   prenotazioniNelGiro: number;
   /** Esito da riassumere negli appunti dell'opportunità dopo la risposta (prenotazione, fuori zona, operatore). */
   riepilogo?: { esito: string; opportunityId: string | null } | null;
+  /** Numero WhatsApp aziendale da cui scrivere agli avvisi alle persone del team. */
+  waNumberId?: string | null;
 }
 
 export type EsitoStrumento = Record<string, unknown> & { ok: boolean };
@@ -517,7 +520,7 @@ const passaAOperatore: Strumento = {
  * dell'azienda.
  */
 export async function avvisaUtenti(
-  ctx: Pick<CtxAgente, "admin" | "companyId" | "contactId" | "config">,
+  ctx: Pick<CtxAgente, "admin" | "companyId" | "contactId" | "config"> & Partial<Pick<CtxAgente, "contatto" | "waNumberId">>,
   titolo: string,
   testo: string,
   altri: string[] = [],
@@ -525,8 +528,8 @@ export async function avvisaUtenti(
   const destinatari = [...new Set([...ctx.config.utentiDaAvvisare, ...altri])];
   if (!destinatari.length) return;
   const { data: persone } = await ctx.admin
-    .from("profiles").select("id").eq("company_id", ctx.companyId).in("id", destinatari);
-  for (const p of (persone ?? []) as Array<{ id: string }>) {
+    .from("profiles").select("id, email, phone").eq("company_id", ctx.companyId).in("id", destinatari);
+  for (const p of (persone ?? []) as Array<{ id: string; email: string | null; phone: string | null }>) {
     const { error } = await ctx.admin.rpc("create_notification", {
       p_company_id: ctx.companyId,
       p_user_id: p.id,
@@ -540,6 +543,42 @@ export async function avvisaUtenti(
       p_action_url: `/azienda/chat?tab=conversazioni&filo=contatto:${ctx.contactId}`,
     });
     if (error) console.warn("[lead-agente] notifica non creata:", error.message);
+    // In app non basta: chi deve richiamare un lead se ne accorge solo se riceve anche
+    // una mail e un WhatsApp (3/11/2026: un «ti chiamo tra 5 minuti» è rimasto senza esito).
+    await avvisoFuoriApp({ ...ctx, contatto: ctx.contatto ?? { first_name: null, last_name: null, phone: null }, waNumberId: ctx.waNumberId ?? null }, p, titolo, testo);
+  }
+}
+
+async function avvisoFuoriApp(
+  ctx: Pick<CtxAgente, "admin" | "companyId" | "contactId" | "contatto" | "waNumberId">,
+  persona: { email: string | null; phone: string | null },
+  titolo: string,
+  testo: string,
+): Promise<void> {
+  const nome = [ctx.contatto?.first_name, ctx.contatto?.last_name].filter(Boolean).join(" ") || "il contatto";
+  const tel = ctx.contatto?.phone ? ` Telefono: ${ctx.contatto.phone}.` : "";
+  const corpo = `${testo} Contatto: ${nome}.${tel} Apri la conversazione in Edilizia in Cloud > Conversazioni.`;
+  if (persona.email) {
+    try {
+      const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      await sendEmailUnified({
+        companyId: null, stream: "transactional", to: [persona.email], subject: titolo,
+        html: `<p style="font-family:Arial,sans-serif;font-size:15px">${esc(corpo)}</p>`, text: corpo,
+        templateName: "lead_agente_avviso", skipCredits: true, platformSender: true, adminClient: ctx.admin,
+        metadata: { company_id: ctx.companyId, contact_id: ctx.contactId },
+      });
+    } catch (e) { console.warn("[lead-agente] email avviso non inviata:", String(e)); }
+  }
+  const telefono = String(persona.phone ?? "").replace(/\D/g, "");
+  if (telefono && ctx.waNumberId) {
+    try {
+      const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+        body: JSON.stringify({ wa_number_id: ctx.waNumberId, company_id: ctx.companyId, to: telefono, text: `${titolo}\n${corpo}` }),
+      });
+      if (!res.ok) console.warn("[lead-agente] whatsapp avviso rifiutato:", res.status, (await res.text()).slice(0, 200));
+    } catch (e) { console.warn("[lead-agente] whatsapp avviso non inviato:", String(e)); }
   }
 }
 

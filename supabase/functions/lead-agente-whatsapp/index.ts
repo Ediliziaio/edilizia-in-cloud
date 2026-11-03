@@ -182,6 +182,7 @@ async function unGiro(admin: Admin, g: {
     config: g.config,
     adesso,
     prenotazioniNelGiro: 0,
+    waNumberId: g.numeroId,
   };
 
   const budget = await checkBudget(admin, g.companyId);
