@@ -1,312 +1,59 @@
-import {
-  Building2, BarChart3, Users, FileText, TrendingUp, Smartphone, Shield,
-  TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Warehouse, FolderOpen,
-} from "lucide-react";
-import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
+import { Link } from "react-router-dom";
+import { ArrowRight, Check, ClipboardList, Users, Package, BarChart3 } from "lucide-react";
+import { useSEO } from "@/hooks/useSEO";
+import { JsonLd } from "@/components/seo/JsonLd";
+import LandingNavbar from "@/components/landing/LandingNavbar";
+import LandingFooter from "@/components/landing/LandingFooter";
+import SolutionSection from "@/components/landing/SolutionSection";
+import { eicWhatsapp, eicSiAdatta } from "@/lib/marketing/eicPuntiFermi";
 
-const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese Edili: margini, SAL e cassa",
-  seoDescription: "Il gestionale con AI per imprese edili e general contractor: margini reali su ogni commessa, SAL, subappaltatori, cassa a 90 giorni e computi metrici.",
-  seoKeywords: "gestionale impresa costruzione, software impresa edile, software general contractor, gestione appalti edili, software commesse costruzione, gestionale cantieri multipli, software margini costruzione, SAL software, ERP impresa costruzione italiana",
-  // SEO fix 2026-05-26: canonical aggiornato a /per/imprese-edili/ (keyword più
-  // cercata + footer linka questa URL). Il vecchio /per/imprese-costruzione viene
-  // 301 redirettato in public/_redirects per evitare 404 su GSC.
-  seoCanonical: "/per/imprese-edili",
-
-  badge: "Imprese Edili & General Contractor",
-
-  heroTitle: (
-    <>
-      <span className="text-white">Il gestionale per imprese edili</span>{" "}
-      <span className="text-eic-orange">che ti mostra margini e cassa di ogni cantiere.</span>
-    </>
-  ),
-  heroSubtitle:
-    "Il 78% delle imprese edili scopre le perdite solo a cantiere chiuso. Con Edilizia in Cloud è il sistema a governare tutta l'azienda: margine reale di ogni commessa mentre lavori (+8,4% recuperato nei primi 90 giorni), SAL aggiornati, forecast di cassa a 90 giorni e ore di ogni squadra in tempo reale — ogni settimana, non solo a fine lavori.",
-  heroImage: "/hero/stock/cantiere-1541888946425-1400.webp",
-
-  socialProof: [
-    { initials: "CF", name: "Costruzioni Ferretti", city: "Bologna", months: 14, gradient: "from-eic-orange to-eic-orange-dark" },
-    { initials: "BG", name: "Bianchi & Grassi Edil", city: "Firenze", months: 9, gradient: "from-[#1a1a2e] to-[#16213e]" },
-    { initials: "TM", name: "Tirelli Manufatti", city: "Brescia", months: 22, gradient: "from-[#0f3460] to-[#533483]" },
-    { initials: "RE", name: "Romano Edilizia", city: "Napoli", months: 7, gradient: "from-[#2d6a4f] to-[#1b4332]" },
-  ],
-
-  problemsTitle: "I problemi che conosce ogni imprenditore edile",
-  problemsSubtitle:
-    "Se gestisci cantieri multipli con subappaltatori e non hai controllo sui margini in tempo reale, stai lavorando alla cieca.",
-
-  roi: {
-    lossValue: "€ 28.000",
-    lossLabel: "persi in margini non tracciati su commesse",
-    wasteValue: "€ 15.600",
-    wasteLabel: "ore perse su report, Excel e telefonate capocantiere",
-    errorValue: "€ 11.000",
-    errorLabel: "in errori di preventivo e varianti non gestite",
-    totalLoss: "€ 54.600",
-    softwareCost: "€ 2.388",
-    roiX: "23x",
-  },
-
-  problems: [
-    {
-      emoji: "🏗️",
-      title: "Scopri le perdite solo a cantiere chiuso",
-      desc: "Il preventivo era giusto, ma a fine lavori i costi reali erano il 30% in più. Materiali fuori controllo, ore extra non imputate alla commessa, subappaltatori che sforano il contratto. A quel punto non puoi fare nulla.",
-    },
-    {
-      emoji: "📊",
-      title: "5 cantieri, 5 Excel diversi, 0 visione d'insieme",
-      desc: "Ogni capocantiere ha il suo file, il suo sistema, il suo modo di aggiornare i dati. Tu ogni settimana passi ore a consolidare fogli per avere una fotografia che è già vecchia di 3 giorni.",
-    },
-    {
-      emoji: "💸",
-      title: "SAL in ritardo, cassa sempre tesa",
-      desc: "I SAL non vengono emessi in tempo, i clienti pagano lentamente e intanto devi pagare subappaltatori e fornitori. Il cash flow diventa un'emergenza mensile invece di un dato sotto controllo.",
-    },
-    {
-      emoji: "📋",
-      title: "Computi metrici fatti a sensazione",
-      desc: "Prezziario aggiornato a mano, voci di costo stimate, margine calcolato a occhio nel preventivo. Poi arrivano le varianti, le riserve della DL e il margine reale è già evaporato.",
-    },
-  ],
-
-  transformation: {
-    title: "Come cambia il tuo lavoro dal primo mese",
-    subtitle: "Non è ottimizzazione. È la differenza tra un'azienda che cresce e una che lavora tanto per guadagnare poco.",
-    fromTitle: "Senza Edilizia in Cloud",
-    fromItems: [
-      "Excel caotico per ogni cantiere — dati sempre in ritardo",
-      "Scopri le perdite a lavori finiti, quando non si può rimediare",
-      "SAL emessi in ritardo perché nessuno sa quando scattano",
-      "Cassa tesa: paghi i subappaltatori prima di incassare",
-      "Il capocantiere ti chiama per aggiornarti — o peggio, non ti chiama",
-      "Preventivo fatto a sensazione, poi stressato dai costi che salgono",
-    ],
-    toTitle: "Con Edilizia in Cloud",
-    toItems: [
-      "Margine reale di ogni commessa aggiornato in tempo reale",
-      "Allarmi preventivi quando una commessa sta andando in perdita",
-      "SAL generati automaticamente in base all'avanzamento lavori",
-      "Forecast di cassa a 90 giorni — liquidità sempre sotto controllo",
-      "Il capocantiere aggiorna dall'app: tu vedi tutto senza telefonate",
-      "Preventivi da prezziario DEI/regionale con margine protetto",
-    ],
-  },
-
-  stats: [
-    { value: "+8.4%", label: "Margine medio recuperato", sublabel: "su commesse già in corso nei primi 90 giorni" },
-    { value: "12h", label: "Risparmiate a settimana", sublabel: "su report, consolidamento dati e riunioni" },
-    { value: "87%", label: "Vede le perdite in anticipo", sublabel: "prima che la commessa sia chiusa" },
-  ],
-
-  modulesTitle: "I moduli che fanno la differenza su ogni cantiere",
-  modulesSubtitle:
-    "Non un gestionale generico. Strumenti costruiti per come lavora davvero un'impresa edile italiana.",
-
-  modules: [
-    {
-      icon: BarChart3,
-      name: "Controllo Margini Commessa",
-      desc: "Vedi il margine reale di ogni cantiere aggiornato al minuto: costi materiali, manodopera diretta, subappalti e overhead allocato. Allarme automatico se scendi sotto soglia.",
-      saving: "Evita perdite medie del 8%",
-    },
-    {
-      icon: FileText,
-      name: "SAL & Fatturazione Avanzamento",
-      desc: "Genera SAL automatici dall'avanzamento lavori registrato in cantiere. Calcola ritenute di garanzia, residui e scadenze. Zero fogli Excel, zero dimenticanze.",
-      saving: "Incassi più veloci di 3 settimane",
-    },
-    {
-      icon: Users,
-      name: "Gestione Subappaltatori",
-      desc: "Registro completo per ogni subappaltatore: ordini, bolle, fatture ricevute, ritenute di garanzia e stato pagamenti. Nessuna sorpresa a fine lavori.",
-      saving: "Zero contenziosi irrisolti",
-    },
-    {
-      icon: TrendingUp,
-      name: "Forecast Cassa 90gg",
-      desc: "Proiezione automatica di liquidità basata su SAL emessi, scadenze fornitori, costi fissi e rate subappalti. Sai oggi se avrai un problema tra 30 giorni.",
-      saving: "Liquidità sempre positiva",
-    },
-    {
-      icon: Building2,
-      name: "Computi Metrici & Preventivi",
-      desc: "Crea preventivi professionali partendo dal prezziario DEI/regionale o dal tuo listino personalizzato. Converti in commessa attiva in un click.",
-      saving: "−3h per ogni preventivo",
-    },
-    {
-      icon: Smartphone,
-      name: "App Mobile Cantiere",
-      desc: "Il capocantiere aggiorna SAL, carica foto, registra bolle di consegna e timbra le presenze dal telefono. Tutto sincronizzato in tempo reale senza tornare in ufficio.",
-      saving: "−80% burocrazia in cantiere",
-    },
-  ],
-
-  aiShowcase: {
-    title: "L'AI che lavora per te, anche quando hai sei cantieri aperti",
-    subtitle:
-      "Silvio coordina 19 persone AI specializzate che leggono i dati della tua azienda e agiscono. Per un'impresa di costruzione significa questo:",
-    actions: [
-      {
-        icon: TrendingDown,
-        tag: "Margini",
-        title: "Ti avvisa quando una commessa va in perdita",
-        desc: "Costi materiali oltre il budget, ore extra non imputate, un subappaltatore che sfora il contratto: se il margine della commessa scende sotto la tua soglia, Silvio ti avvisa subito — non a cantiere chiuso, quando non puoi più rimediare.",
-      },
-      {
-        icon: Send,
-        tag: "Cassa",
-        title: "Prepara SAL e solleciti d'incasso",
-        desc: "In base all'avanzamento lavori registrato in cantiere, Silvio ti prepara il SAL da emettere. Cliente in ritardo su un pagamento? Mette in firma il sollecito con il tono giusto — email o PEC. Tu approvi, lui invia e tiene traccia.",
-      },
-      {
-        icon: Camera,
-        tag: "Campo",
-        title: "Trasforma foto e vocali del capocantiere in rapportini",
-        desc: "Il capocantiere carica le foto e una nota vocale dal cantiere: Silvio genera il rapportino, aggiorna l'avanzamento della commessa e collega tutto al cantiere giusto — con timestamp che valgono in caso di contestazione.",
-      },
-      {
-        icon: Sparkles,
-        tag: "Vendita",
-        title: "Rinforza preventivi, gare e varianti",
-        desc: "Prepara preventivi da prezziario con margine protetto, riscrive le proposte di gara puntando sui tuoi punti di forza e formalizza le varianti in corso d'opera — prima che diventino lavoro extra non fatturato.",
-      },
-    ],
-    note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — commesse, costi, SAL, subappaltatori, incassi, squadre.",
-  },
-
-  platformExtra: {
-    title: "E tutto il resto dell'azienda? Già incluso.",
-    subtitle:
-      "Non devi incollare cinque software diversi: dentro Edilizia in Cloud c'è tutto quello che serve a un'impresa di costruzione, collegato nello stesso posto.",
-    items: [
-      {
-        icon: Receipt,
-        name: "Fatturazione elettronica",
-        desc: "Fatture SDI attive e passive, SAL, acconti e ritenute collegati alla commessa, bozze pronte da approvare.",
-      },
-      {
-        icon: Wallet,
-        name: "Cassa e scadenzario",
-        desc: "Incassi attesi, pagamenti fornitori e subappaltatori: la cassa prevista a 30, 60 e 90 giorni, commessa per commessa.",
-      },
-      {
-        icon: Users,
-        name: "CRM e gare d'appalto",
-        desc: "Richieste, sopralluoghi, preventivi e gare in un'unica pipeline: sai sempre cosa rilanciare e quando.",
-      },
-      {
-        icon: Warehouse,
-        name: "Magazzino e DDT",
-        desc: "Materiali e noli con scorte tracciate, DDT di entrata e uscita collegati a ordini fornitori e cantieri.",
-      },
-      {
-        icon: FolderOpen,
-        name: "Documenti e qualifiche",
-        desc: "DURC, SOA, certificazioni, PSC e contratti archiviati per commessa: trovi tutto in 5 secondi, anche in caso di ispezione.",
-      },
-      {
-        icon: BarChart3,
-        name: "Report direzionali",
-        desc: "Fatturato, margini per commessa e per tipo di lavoro, forecast: i numeri dell'azienda in una schermata.",
-      },
-    ],
-  },
-
-  caseStudy: {
-    company: "Costruzioni Ferretti S.r.l.",
-    city: "Bologna",
-    sector: "Costruzioni residenziali e commerciali",
-    revenue: "2.4M €",
-    person: "Gianluca Ferretti",
-    role: "Titolare",
-    initials: "GF",
-    gradient: "from-eic-orange to-eic-orange-dark",
-    quote:
-      "In sei mesi ho scoperto che 2 cantieri su 7 erano in perdita. Uno lo sospettavo. L'altro mi ha gelato. Adesso ogni lunedì mattina apro il gestionale e in 10 minuti so esattamente come stanno andando tutti i cantieri — margini, SAL aperti, subappaltatori da pagare. Prima impiegavo mezza giornata per avere la metà delle informazioni.",
-    metrics: [
-      { label: "Margine medio per commessa", before: "4.2%", after: "11.8%" },
-      { label: "Ore settimana su reportistica", before: "14h", after: "2h" },
-      { label: "Commesse monitorate in tempo reale", before: "0", after: "7" },
-    ],
-    image: "/hero/stock/cantiere-1504307651254-768.webp",
-  },
-
-  faq: [
-    {
-      q: "Funziona con SAL a percentuale di avanzamento lavori?",
-      a: "Sì, gestisce SAL a percentuale, a misura e misti. Il sistema calcola automaticamente gli importi fatturabili, le ritenute di garanzia da applicare e il residuo a fine lavori. Tutto conforme alla normativa appalti italiana.",
-    },
-    {
-      q: "Come gestisco più subappaltatori sullo stesso cantiere?",
-      a: "Ogni subappaltatore ha la sua scheda commessa con contratto, SAL ricevuti, fatture, ritenute di garanzia accumulate e stato pagamenti. Puoi vedere in un colpo solo quanto devi a ciascuno e quando scadono le ritenute.",
-    },
-    {
-      q: "Posso importare i computi metrici che faccio già con PriMus o Excel?",
-      a: "Sì. Importiamo computi in formato Excel/CSV e file standard PriMus. Il nostro team ti affianca durante il setup nelle prime 48h: nessun dato va perso e nessun preventivo va riscritto da zero.",
-    },
-    {
-      q: "Il capocantiere deve saper usare il computer?",
-      a: "No. L'app mobile è progettata per chi usa il telefono solo per WhatsApp. Foto, bolle, timbrature e aggiornamento SAL si fanno in 3 tocchi. Abbiamo clienti con capicantiere over 55 che la usano senza problemi dal primo giorno.",
-    },
-  ],
-
-  verticalFeatures: [
-    {
-      icon: BarChart3,
-      problem: "Non sai se stai guadagnando — finché non finisci il cantiere",
-      solution: "Il SAL Avanzamento Lavori si aggiorna in tempo reale: ogni costo registrato (materiali, subappaltatori, ore operai) scala automaticamente sul budget di commessa. Vedi il margine residuo ogni giorno, non a consuntivo.",
-      economicBenefit: "€ 28.000",
-      benefitLabel: "margine recuperato in media nel 1° anno",
-    },
-    {
-      icon: Users,
-      problem: "I tuoi operai e subappaltatori: dove sono, cosa fanno, quanto costano",
-      solution: "Ogni squadra timbra entrata e uscita dal cantiere via app — con geolocalizzazione opzionale. Il timesheet è automatico. I costi di manodopera si imputano alla commessa giusta. Zero fogli firma cartacei.",
-      economicBenefit: "−4h/sett",
-      benefitLabel: "in recupero dati presenze e inserimento manuale",
-    },
-    {
-      icon: FileText,
-      problem: "Varianti in corso d'opera mai formalizzate — il cliente non le riconosce a fine lavori",
-      solution: "Ogni variante viene creata nel sistema, firmata digitalmente dal cliente via app o link SMS, archiviata sulla commessa. Nessuna contestazione possibile. Nessuna perdita di lavoro extra non fatturato.",
-      economicBenefit: "+ 15%",
-      benefitLabel: "di lavori extra recuperati e fatturati",
-    },
-    {
-      icon: Shield,
-      problem: "Sicurezza cantiere: cartelli, DVR, PSC, DPI — tutto su carta o su WhatsApp",
-      solution: "Il modulo sicurezza gestisce cartelli digitali, consegna DPI con firma operaio, scadenze visite mediche, PSC allegato alla commessa. In caso di ispezione, hai tutto in 30 secondi dal telefono.",
-      economicBenefit: "€ 0",
-      benefitLabel: "sanzioni per documentazione sicurezza mancante",
-    },
-  ],
-  verticalFeaturesTitle: "Il gestionale costruito per chi fa cantieri veri",
-  verticalFeaturesSubtitle: "Non uno strumento per ufficio. Un sistema che va in cantiere con te e con le tue squadre — e ti dice ogni giorno se stai guadagnando o perdendo.",
-  demoLabel: "Vedi come un general contractor gestisce 6 cantieri da un'unica dashboard — senza un call ogni mattina",
-
-  ctaTitle: (
-    <>
-      <span className="text-white">I margini di ogni cantiere.</span>{" "}
-      <span className="text-eic-orange">Visibili. In tempo reale.</span>
-    </>
-  ),
-  ctaSubtitle:
-    "30 minuti di demo: ti mostriamo i margini reali su un cantiere tipo, con i tuoi numeri. Nessun impegno. Cancella quando vuoi.",
-
-  schemaFaq: [
-    {
-      q: "Qual è il miglior gestionale per imprese di costruzione?",
-      a: "Edilizia in Cloud è il gestionale con AI scelto da oltre 150 aziende: controlla margini reali per commessa, gestisce SAL automatici, subappaltatori con ritenute di garanzia e previsione cassa a 90 giorni.",
-    },
-    {
-      q: "Come si gestiscono i SAL con un software per costruzioni?",
-      a: "Il software genera automaticamente i SAL sulla base dell'avanzamento lavori registrato dal capocantiere in app. Calcola importi, applica le ritenute di garanzia e traccia i residui fino al saldo finale.",
-    },
-  ],
-};
-
+export const impreseFaq = [
+  { q: "Cosa deve fare un gestionale per imprese edili?", a: "Deve collegare preventivi, commesse, fasi, squadre, ore, materiali e documenti. Il titolare deve poter ricostruire il costo del cantiere e distinguere costi registrati, stime ancora da completare e pagamenti. La prova va fatta su un lavoro simile a quelli della propria impresa." },
+  { q: "Posso partire dai cantieri aperti senza importare tutto lo storico?", a: "In demo si concordano i dati da cui partire: anagrafiche, preventivi, commesse aperte, costi già sostenuti e lavorazioni residue. Formati, qualità dei dati e tempi dell'avvio assistito si verificano prima dell'importazione." },
+  { q: "La squadra deve usare l'app o può lavorare su WhatsApp?", a: "Può usare l'app; con WhatsApp Business attivo, un servizio aggiuntivo, può inviare anche vocali e foto al numero dell'azienda. Il flusso di conferma e le persone autorizzate si configurano sul lavoro della squadra." },
+  { q: "Edilizia in Cloud sostituisce il commercialista?", a: "No. Collega il lavoro di cantiere ai documenti, alla fatturazione e al controllo di gestione. Contabilità ordinaria, bilancio e conservazione digitale a norma restano compiti da verificare con lo studio e i servizi dedicati." },
+  { q: "Quanto costa e come posso provarlo?", a: "Sul sito trovi il piano gratuito e la prova di 31 giorni. Il perimetro dei moduli e dei servizi aggiuntivi si definisce in una consulenza: porta un preventivo e un esempio di giornata di cantiere per verificare ciò che serve alla tua impresa." },
+];
+const steps = [
+  { icon: ClipboardList, title: "Dal preventivo alla commessa", body: "Ritrova lavorazioni, importi e fasi nello stesso lavoro. Assegna le responsabilità prima di mandare la squadra in cantiere.", href: "/funzionalita/gestione-commesse/", label: "Gestione delle commesse" },
+  { icon: Users, title: "Ore e rapportini dalla squadra", body: "Collega le registrazioni alla commessa e alla fase. Controlla chi deve confermarle e come vengono valorizzate le ore.", href: "/funzionalita/rapportini-cantiere/", label: "Rapportini di cantiere" },
+  { icon: Package, title: "Materiali e documenti collegati", body: "Segui consegne, DDT e fatture. Verifica le attribuzioni al cantiere e i documenti mancanti, senza contare due volte lo stesso acquisto.", href: "/funzionalita/ddt-digitali/", label: "DDT e materiali" },
+  { icon: BarChart3, title: "Costi, margine e scadenze", body: "Confronta il preventivo con i costi registrati e quelli ancora previsti. Tieni separato il margine atteso dai soldi da incassare.", href: "/funzionalita/margini-cantiere/", label: "Margini per cantiere" },
+];
+const guides = [
+  ["/blog/migliori-software-gestionali-edilizia-confronto/", "Confronta i gestionali per imprese edili", "Otto strumenti, fonti ufficiali e la stessa prova pratica da chiedere a ogni fornitore."],
+  ["/blog/chi-gestisce-i-numeri-impresa-edile/", "Quali numeri controllare ogni settimana", "Margine, cassa, ore e scostamenti: la guida con il video di Florin."],
+  ["/blog/excel-whatsapp-carta-gestione-impresa-edile/", "Quando Excel, chat e carta non bastano più", "Come tenere insieme le informazioni di ufficio e cantiere."],
+];
 export default function ImpreseCostuzione() {
-  return <PerTipoPageTemplate config={config} />;
+  useSEO({ title: "Gestionale per imprese edili: commesse, costi e margini", description: "Collega preventivi, commesse, squadre, ore e materiali. Guarda il gestionale per imprese edili con dati demo e richiedi una prova sul tuo lavoro.", canonical: "/per/imprese-edili/" });
+  return <div className="min-h-screen bg-white text-[#111111]">
+    <LandingNavbar />
+    <JsonLd id="jsonld-service-imprese-edili" data={{ "@context": "https://schema.org", "@type": "Service", name: "Gestionale per imprese edili", url: "https://www.ediliziaincloud.com/per/imprese-edili/", description: "Preventivi, commesse, squadre, ore, materiali e controllo dei costi per imprese edili.", provider: { "@id": "https://www.ediliziaincloud.com/#organization" }, areaServed: { "@type": "Country", name: "Italia" } }} />
+    <JsonLd id="jsonld-faq-imprese-edili" data={{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: impreseFaq.map(f => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }} />
+    <JsonLd id="jsonld-breadcrumb-imprese-edili" data={{ "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: "https://www.ediliziaincloud.com/" }, { "@type": "ListItem", position: 2, name: "Gestionale per imprese edili", item: "https://www.ediliziaincloud.com/per/imprese-edili/" }] }} />
+    <main>
+      <header className="bg-[#101820] px-5 pb-16 pt-32 text-white md:pb-24">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1fr_1.15fr]">
+          <div><p className="mb-5 text-xs font-bold uppercase tracking-[.18em] text-eic-orange">Edilizia in Cloud · Imprese edili</p>
+            <h1 className="text-4xl font-extrabold leading-tight tracking-tight md:text-5xl">Il gestionale per imprese edili.<span className="mt-2 block text-eic-orange">Dal preventivo ai costi del cantiere.</span></h1>
+            <p className="mt-6 text-lg leading-relaxed text-white/75">Commesse, fasi, squadre, ore, materiali e fatture nello stesso flusso. Guarda da dove nasce il costo di ogni lavoro, cosa manca da registrare e quanto resta da fare.</p>
+            <div className="mt-8 flex flex-wrap gap-3"><Link to="/demo/" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-eic-orange px-6 py-3 font-bold text-white hover:bg-orange-600">Porta un tuo preventivo in demo <ArrowRight size={18} /></Link><a href="#prodotto" className="inline-flex min-h-12 items-center rounded-full border border-white/30 px-6 py-3 font-semibold">Guarda il portale</a></div>
+            <p className="mt-4 text-sm text-white/60">Prova di 31 giorni · Avvio assistito · Moduli e servizi concordati sui tuoi processi</p>
+          </div>
+          <figure className="overflow-hidden rounded-2xl border border-white/20 bg-white shadow-xl"><img src="/product/commessa-demo.webp" alt="Schermata reale di una commessa in Edilizia in Cloud, con dati dell’azienda dimostrativa" width={984} height={624} fetchPriority="high" className="h-auto w-full" /><figcaption className="bg-[#192b3d] px-5 py-3 text-xs leading-relaxed text-white/70">Il portale Edilizia in Cloud · Azienda dimostrativa, dati di esempio.</figcaption></figure>
+        </div>
+      </header>
+      <section id="prodotto" className="scroll-mt-24 px-5 py-16 md:py-20"><div className="mx-auto max-w-6xl">
+        <div className="max-w-3xl"><p className="text-xs font-bold uppercase tracking-widest text-eic-orange">La prova da fare sul tuo lavoro</p><h2 className="mt-3 text-3xl font-extrabold tracking-tight md:text-4xl">Una commessa. Quattro passaggi da verificare.</h2><p className="mt-5 text-lg leading-relaxed text-gray-600">Se l’ufficio deve ricopiare le ore per sapere quanto costa il cantiere, il collegamento si è interrotto. In demo seguiamo lo stesso lavoro dalla proposta al controllo dei costi.</p></div>
+        <div className="mt-10 grid gap-6 md:grid-cols-2">{steps.map(({ icon: Icon, title, body, href, label }, i) => <div key={href} className="rounded-2xl border border-gray-200 p-6"><div className="mb-5 flex items-center gap-3"><Icon className="text-eic-orange" size={25} /><span className="text-xs font-bold text-gray-500">0{i+1}</span></div><h3 className="text-xl font-bold">{title}</h3><p className="my-4 leading-relaxed text-gray-600">{body}</p><Link to={href} className="inline-flex min-h-11 items-center gap-2 font-semibold text-eic-orange underline underline-offset-4">{label}<ArrowRight size={16} /></Link></div>)}</div>
+        <figure className="mt-10 overflow-hidden rounded-2xl border border-gray-200"><img src="/product/fasi-commessa-demo.webp" alt="Fasi e pianificazione di una commessa nel portale Edilizia in Cloud con dati dimostrativi" width={944} height={640} loading="lazy" className="h-auto w-full" /><figcaption className="bg-gray-50 px-5 py-4 text-sm text-gray-600">Schermata del portale nell’azienda demo. Importi, nomi e lavorazioni sono esempi, non risultati di un cliente.</figcaption></figure>
+      </div></section>
+      <SolutionSection />
+      <section className="px-5 py-16 md:py-20"><div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-2">{[eicWhatsapp,eicSiAdatta].map(item => <div key={item.heading}><h2 className="text-2xl font-extrabold leading-tight md:text-3xl">{item.heading}</h2>{item.body.split("\n\n").map((p,i)=><p key={i} className="mt-5 leading-relaxed text-gray-600">{p}</p>)}</div>)}</div></section>
+      <section className="bg-orange-50 px-5 py-16"><div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-2"><div><h2 className="text-3xl font-extrabold">Cosa portare alla demo</h2><p className="mt-5 leading-relaxed text-gray-700">Un preventivo, una giornata della squadra e un acquisto di materiali. Puoi usare un esempio senza nominativi: confrontiamo i passaggi che ti servono, prima di parlare di configurazione.</p><Link to="/demo/" className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-eic-orange px-6 py-3 font-bold text-white">Richiedi la demo <ArrowRight size={18}/></Link></div><ul className="space-y-4">{["Come diventano commessa le lavorazioni del preventivo", "Chi registra, chi conferma e cosa vede ogni ruolo", "Come si collegano ore, materiali e documenti", "Quali dati mancano prima di leggere il margine", "Moduli, servizi aggiuntivi e dati da importare"].map(t=><li key={t} className="flex gap-3 leading-relaxed"><Check className="mt-1 shrink-0 text-eic-orange" size={18}/>{t}</li>)}</ul></div></section>
+      <section className="px-5 py-16"><div className="mx-auto max-w-6xl"><h2 className="text-3xl font-extrabold">Prima di scegliere il gestionale</h2><div className="mt-8 grid gap-5 md:grid-cols-3">{guides.map(([href,title,body])=><Link key={href} to={href} className="rounded-2xl border border-gray-200 p-6 hover:border-eic-orange"><h3 className="text-lg font-bold">{title}</h3><p className="mt-3 text-sm leading-relaxed text-gray-600">{body}</p><span className="mt-5 inline-flex min-h-11 items-center gap-2 font-semibold text-eic-orange">Leggi la guida <ArrowRight size={16}/></span></Link>)}</div></div></section>
+      <section className="bg-gray-50 px-5 py-16"><div className="mx-auto max-w-3xl"><h2 className="mb-8 text-3xl font-extrabold">Domande sul gestionale per imprese edili</h2>{impreseFaq.map(f=><details key={f.q} className="mb-3 rounded-xl border border-gray-200 bg-white p-5"><summary className="cursor-pointer font-bold leading-relaxed">{f.q}</summary><p className="mt-4 leading-relaxed text-gray-600">{f.a}</p></details>)}<p className="mt-8 text-sm leading-relaxed text-gray-600">Il software organizza i dati disponibili. Risultati economici, tempi di adozione e copertura dei processi dipendono dall’uso, dai dati inseriti e dai servizi abilitati. <Link to="/prezzi/" className="font-semibold text-eic-orange underline">Vedi piani e condizioni della prova.</Link></p></div></section>
+    </main><LandingFooter />
+  </div>;
 }

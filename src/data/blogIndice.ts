@@ -340,7 +340,7 @@ export const blogIndice: BlogPostScheda[] = [
       "gestione commesse"
     ],
     "publishedAt": "2026-07-25",
-    "updatedAt": "2026-10-30",
+    "updatedAt": "2026-11-03",
     "readTime": 9,
     "author": {
       "name": "Florin Andriciuc",

@@ -76,6 +76,10 @@ function renderPost(post) {
               .join("")}</tbody></table>`,
           );
         break;
+      case "image":
+        if (block.src?.startsWith("/") && !block.src.startsWith("//"))
+          parts.push(`<figure><img src="${esc(block.src)}" alt="${esc(block.alt || "")}" loading="lazy">${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ""}</figure>`);
+        break;
       case "callout":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
         if (block.body) parts.push(`<p>${rich(cap(block.body))}</p>`);

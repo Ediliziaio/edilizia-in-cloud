@@ -17,7 +17,7 @@ export const blogPostsConfrontoMercato: BlogPost[] = [{
   excerpt: "Edilizia in Cloud, TeamSystem, PriMus, Pillar, PlanRadar, Dylog, Buildertrend ed Excel: cosa dichiara ognuno, con fonti ufficiali e una prova pratica.",
   category: "Digitalizzazione",
   tags: ["gestionale imprese edili", "confronto gestionali edilizia", "software edilizia", "gestione commesse"],
-  publishedAt: "2026-07-25", updatedAt: "2026-10-30", readTime: 9,
+  publishedAt: "2026-07-25", updatedAt: "2026-11-03", readTime: 9,
   author: { name: BLOG_AUTHOR.name, role: "Fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
   coverImage: "/blog/covers/migliori-software-gestionali-edilizia-confronto.jpg",
   faqs: [
@@ -29,6 +29,8 @@ export const blogPostsConfrontoMercato: BlogPost[] = [{
   ],
   content: [
     { type: "intro", body: "Quale gestionale scegliere per un'impresa edile nel 2026? Parti dal lavoro che oggi non riesci a controllare: il preventivo che non diventa commessa, le ore della squadra che arrivano a fine mese, le bolle che si perdono, il SAL da far firmare o il margine che scopri solo a cantiere chiuso.\n\nIn questa guida mettiamo uno accanto all'altro otto strumenti che le imprese edili italiane valutano spesso: Edilizia in Cloud, TeamSystem Construction, PriMus di ACCA, Pillar, PlanRadar, Dylog, Buildertrend ed Excel. Non hanno tutti lo stesso mestiere: alcuni gestiscono la commessa, altri il computo, altri la documentazione o l'amministrazione.\n\nQuesta guida è pubblicata da Edilizia in Cloud: siamo parte interessata, non una classifica indipendente. Le descrizioni dei concorrenti si basano sulle fonti ufficiali consultate il 30 ottobre 2026, elencate in fondo. Quando una funzione non compare su quelle pagine scriviamo «non indicato sul sito ufficiale», che non vuol dire che manchi. Non abbiamo fatto prove indipendenti di tutti i prodotti e non pubblichiamo prezzi." },
+    { type: "section", heading: "La prova da chiedere prima di scegliere", body: "Porta lo stesso lavoro a ogni fornitore: un preventivo con tre lavorazioni, una giornata di due operai e un acquisto di materiali. Chiedi di seguirlo fino al costo della commessa e al saldo da incassare. Annota chi inserisce i dati, quali passaggi richiedono una conferma e cosa deve essere ricopiato. Per vedere come organizziamo questo percorso, trovi schermate e passaggi nella pagina del [gestionale per imprese edili](/per/imprese-edili/)." },
+    { type: "image", src: "/product/commessa-demo.webp", alt: "Riepilogo economico di una commessa nel portale Edilizia in Cloud, con dati dimostrativi", caption: "Schermata reale del nostro portale nell’azienda demo: importi e nominativi sono esempi, non risultati di un cliente. Il confronto con gli altri prodotti va svolto sulla stessa prova." },
     ...eicPuntiFermiSezioni,
     { type: "table", heading: "Gli 8 strumenti: che cosa dichiara ognuno", headers: ["Strumento", "Mestiere principale (dichiarato)", "Quando ha senso guardarlo"], rows: [
       ["Edilizia in Cloud", "Dalla vendita alla fattura: preventivi di mestiere e computo, commessa con fasi e squadre, app di cantiere e WhatsApp, magazzino, SAL firmati, SDI, sicurezza, portali; si configura sul flusso dell'azienda", "Se vuoi vendita, cantiere e controllo dei costi nello stesso posto, con la squadra che lavora dal telefono o da WhatsApp."],

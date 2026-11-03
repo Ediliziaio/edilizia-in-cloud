@@ -1990,16 +1990,15 @@ const ROUTES = {
   // stare sulla destinazione, non sul vecchio /per/imprese-costruzione che ora
   // fa 301 (vedi LEGACY_REDIRECTS). Prima il prerender era sull'URL sbagliato.
   "/per/imprese-edili": {
-    title: "Gestionale per Imprese di Costruzione | Più Margini, Più Controllo, Zero Caos",
-    description:
-      "Il gestionale con AI per imprese di costruzione: margine reale per commessa, SAL automatici, subappaltatori, cassa a 90 giorni e computi metrici.",
-    h1: "Aumenta i margini e controlla ogni cantiere della tua impresa di costruzione",
-    intro:
-      "Edilizia in Cloud governa tutta l'impresa di costruzione: margine reale di ogni commessa aggiornato in tempo reale, SAL automatici, gestione subappaltatori con ritenute, forecast di cassa a 90 giorni e fatturazione elettronica.",
+    title: "Gestionale per imprese edili: commesse, costi e margini",
+    description: "Collega preventivi, commesse, squadre, ore e materiali. Guarda il gestionale per imprese edili con dati demo e richiedi una prova sul tuo lavoro.",
+    h1: "Il gestionale per imprese edili. Dal preventivo ai costi del cantiere.",
+    intro: "Commesse, fasi, squadre, ore, materiali e fatture nello stesso flusso. Segui un lavoro dalla proposta al controllo dei costi: chi registra i dati, chi li conferma e cosa manca prima di leggere il margine. La pagina mostra schermate reali del portale con dati dell’azienda dimostrativa. Porta in demo un preventivo, una giornata della squadra e un acquisto di materiali per verificare i passaggi utili alla tua impresa.",
     links: [
-      { href: "/per/impiantisti", label: "Per Impiantisti" },
-      { href: "/per/ristrutturatori", label: "Per Ristrutturatori" },
-      { href: "/demo", label: "Richiedi Demo" },
+      { href: "/funzionalita/gestione-commesse/", label: "Gestione commesse" },
+      { href: "/funzionalita/rapportini-cantiere/", label: "Rapportini di cantiere" },
+      { href: "/blog/migliori-software-gestionali-edilizia-confronto/", label: "Confronto gestionali per imprese edili" },
+      { href: "/demo/", label: "Richiedi Demo" },
     ],
   },
 
