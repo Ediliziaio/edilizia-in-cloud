@@ -32,7 +32,7 @@ export interface AzioniPannello {
   latoStanza: (id: string, lato: number, cm: number) => void;
   lunghezzaParete: (id: string, cm: number) => void;
   spessoreParete: (id: string, cm: number) => void;
-  modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore">>) => void;
+  modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore" | "zanzariera">>) => void;
   giraApertura: (id: string) => void;
   elimina: (sel: Selezione) => void;
   conferma: (sel: Selezione) => void;
