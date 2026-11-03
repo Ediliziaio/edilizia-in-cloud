@@ -76,3 +76,36 @@ export function domandaDiSolaLettura(messaggio: string, conAllegati = false): bo
   if (testo.length < 12 || testo.length > 300) return false;
   return APERTURA_DI_LETTURA.test(testo) && !VERBO_DI_AZIONE.test(testo);
 }
+
+/**
+ * Il gruppo fisso (03/11/2026): sempre gli stessi strumenti, qualunque sia la
+ * domanda. Prima la lista cambiava con l'area e, siccome gli strumenti stanno in
+ * testa alla cache, ogni cambio riscriveva anche ~20K token di sistema uguali.
+ *
+ * Scelti dai registri (`silvio_decision_log`, da luglio: 29 strumenti usati su
+ * 216) piu' le letture di base di ogni area e le azioni di tutti i giorni. Tutto
+ * il resto e' a una chiamata di `carica_strumenti`, che costa una riscrittura:
+ * un nome si aggiunge qui solo se viene ricaricato spesso, e si aggiunge in un
+ * colpo solo, perche' anche questo elenco che cambia invalida la cache.
+ */
+export const GRUPPO_FISSO_STRUMENTI: ReadonlySet<string> = new Set([
+  // Sempre: ricerca, quadro generale, proposte
+  "carica_strumenti", "propose_action", "crea_promemoria",
+  "universal_search", "search_brain", "query_activity",
+  "approve_proposal_with_edits", "batch_approve_proposals", "undo_executed_action", "get_proposal_audit_log",
+  "cosa_conta_ora", "get_company_kpi", "get_executive_snapshot", "get_monthly_performance",
+  "get_revenue_forecast", "get_marginalita_commesse", "get_serie_grafico", "report_commessa",
+  // Soldi
+  "get_overdue_payments", "get_quadro_incassi", "get_cashflow_status", "get_cashflow_forecast_90d",
+  "get_received_invoices", "lista_scadenze", "lista_transazioni", "invia_sollecito_pagamento",
+  // Commesse e cantieri
+  "search_orders", "get_orders_summary", "quadro_commessa", "analizza_stato_commesse",
+  "lista_lavori_pose_periodo", "lista_cantieri_a_rischio", "prevedi_ritardi_cantieri",
+  "commessa_da_documento", "aggiungi_nota_commessa",
+  // Persone, clienti, preventivi, fornitori
+  "get_employees_workload", "lista_dipendenti_oggi",
+  "lookup_contact_live", "get_top_customers", "lista_lead_first_touch", "get_pipeline_forecast",
+  "get_quotes_summary", "get_suppliers_summary",
+  // Azioni di tutti i giorni
+  "crea_task", "completa_task", "trova_slot_liberi", "fissa_appuntamento",
+]);
