@@ -9156,6 +9156,11 @@ export const DOMAIN_STAFF_PERMISSION_ANCHE: Partial<Record<ToolDomain, string[]>
   calendar: ["can_view_marketing_appointments"],
 };
 
+/** Aree senza dati riservati, aperte di proposito: una nuova va mappata o scritta qui. */
+export const DOMINI_SENZA_PERMESSO: ReadonlySet<ToolDomain> = new Set<ToolDomain>([
+  "ai", "meta", "knowledge", "generative", "titolare",
+]);
+
 /** I permessi che aprono l'area: il principale e le alternative. */
 export function permessiDellArea(domain: ToolDomain | undefined): string[] {
   if (!domain) return [];
@@ -9171,7 +9176,10 @@ export function areaSpentaPerPermessi(
   domain: ToolDomain | undefined,
 ): boolean {
   const chiavi = permessiDellArea(domain);
-  if (!perms || chiavi.length === 0) return false;
+  if (!perms) return false;
+  // Un'area nuova non collegata a un permesso nasce chiusa per gli addetti (03/11/2026):
+  // prima era aperta a tutti finché qualcuno non si ricordava di mapparla.
+  if (chiavi.length === 0) return Boolean(domain) && !DOMINI_SENZA_PERMESSO.has(domain as ToolDomain);
   return chiavi.every((k) => perms[k] === false);
 }
 

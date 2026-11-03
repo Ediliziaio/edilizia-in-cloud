@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { AnteprimaAccessi } from "./AnteprimaAccessi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -766,6 +767,13 @@ export function UserRolesPermissionsTab({
               )}
 
               <Separator />
+
+              <AnteprimaAccessi
+                nome={user.first_name || "questa persona"}
+                permessi={permissions as unknown as Record<string, unknown>}
+                aree={PERMISSION_CATEGORIES}
+                solaLettura={!!permissions.sola_lettura}
+              />
 
               {/* Toolbar: search + bulk */}
               <div className="flex items-center gap-2 flex-wrap max-sm:flex-nowrap">
