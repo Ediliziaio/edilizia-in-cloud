@@ -319,3 +319,12 @@ salvati (un campo che cambia significato, un'unità diversa) porta la versione a
 aggiunge in `modello.ts` una funzione che porta un documento v1 a v2 prima della
 validazione; le versioni vecchie nel database non si riscrivono. Un documento con una
 versione più nuova di quella del programma viene rifiutato con «ricarica la pagina».
+
+## Prospetti quotati
+
+`prospettoQuotato(piani, lato)` (`src/lib/planimetrie/prospetti.ts`) disegna la facciata da un lato, di tutto l'edificio:
+i piani uno sopra l'altro con il solaio fra l'uno e l'altro, il tetto sopra l'ultimo, ogni serramento con il codice
+dell'abaco (F1, PF1, P2) e le misure, i simboli di apertura (triangolo dei battenti, vasistas, freccia degli scorrevoli),
+cassonetti (nascosti a linea tratteggiata, esterni a vista), tapparelle con le lamelle e persiane chiuse, la catena di quote
+orizzontali (spalle dei vani, filo dei muri) col totale, le quote di piano (±0,00, +3,00…) con gli interpiani e il totale
+a sinistra, davanzale / luce / architrave a destra. Uscita come gli altri disegni: SVG in scala e DXF a layer (`QUOTE`, `APERTURE`).

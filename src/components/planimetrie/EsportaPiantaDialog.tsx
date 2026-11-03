@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
-import { prospetto, sezione, type Disegno2D } from "@/lib/planimetrie/prospetti";
+import { pianiProspetto, prospettoQuotato, sezione, type Disegno2D, type PianoProspetto } from "@/lib/planimetrie/prospetti";
 import { allegaSchedeTecniche } from "@/lib/quotes/allegatiPreventivo";
 import {
   allegatoPreventivo,
@@ -30,7 +30,7 @@ import {
 import type { Planimetria, StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
 
 /** I disegni della tavola completa: i quattro prospetti e una sezione a metà, sulla parte lunga. */
-export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?: Tetto | null): Disegno2D[] {
+export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?: Tetto | null, piani?: PianoProspetto[]): Disegno2D[] {
   if (!stato || !stato.muri.some((m) => m.stato !== "da_demolire")) return [];
   const pts = stato.muri.flatMap((m) => [m.p1, m.p2]);
   const minX = Math.min(...pts.map((p) => p.x)), maxX = Math.max(...pts.map((p) => p.x));
@@ -39,8 +39,10 @@ export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?
   const taglio = maxX - minX >= maxY - minY
     ? { asse: "verticale" as const, valore: (minX + maxX) / 2 }
     : { asse: "orizzontale" as const, valore: (minY + maxY) / 2 };
+  // i prospetti sono quotati; con più piani escono di tutto l'edificio, coi livelli
+  const tutti: PianoProspetto[] = piani && piani.length > 1 ? piani : [{ id: "corrente", nome: "", quota: 0, stato, tetto }];
   return [
-    prospetto(stato, "sud", tetto), prospetto(stato, "nord", tetto), prospetto(stato, "est", tetto), prospetto(stato, "ovest", tetto),
+    prospettoQuotato(tutti, "sud"), prospettoQuotato(tutti, "nord"), prospettoQuotato(tutti, "est"), prospettoQuotato(tutti, "ovest"),
     sezione(stato, taglio, "Sezione A-A", tetto),
   ].filter((d) => d.primitive.length > 0);
 }
@@ -237,7 +239,7 @@ export function EsportaPiantaDialog({
           }
           r = { ...r, dati: await unisciPdf(parti) };
         }
-        const disegni = conProspetti ? disegniDellaTavola(statoDisegnato, (documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0])?.tetto) : [];
+        const disegni = conProspetti ? disegniDellaTavola(statoDisegnato, (documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0])?.tetto, documento.livelli.length > 1 ? pianiProspetto(documento, haProgetto && modo === "progetto" && propostaId ? `progetto:${propostaId}` : "fatto") : undefined) : [];
         if (disegni.length) {
           const { accodaTavole, accodaFoglioImpianti } = await import("@/lib/planimetrie/tavole");
           const intestazione = [titolo, vista.livello].filter(Boolean).join(" — ");
