@@ -178,6 +178,8 @@ export interface OpzioniScena {
   buchiPavimento?: Punto2[][];
   /** Buchi nel soffitto (la scala e l'ascensore di questo piano salgono): poligoni in cm. */
   buchiSoffitto?: Punto2[][];
+  /** Zoccolatura alla base dei muri esterni e marciapiede intorno (solo il piano terra). Predefinito: sì. */
+  zoccolo?: boolean;
   /** Le fondazioni sotto il piano: cordoli sotto le pareti portanti, plinti sotto i pilastri. Predefinito: no. */
   fondazioni?: boolean;
 }

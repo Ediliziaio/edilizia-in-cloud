@@ -15,7 +15,7 @@ import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
 import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
-import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
+import { FINITURE_TETTO, NOMI_FINITURA_TETTO, type FinituraTetto, type Ricalco, type Tetto } from "../../../../shared/planimetrie/modello.ts";
 import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -1784,7 +1784,7 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
               <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Tetto sopra questo piano</Label>
-                  <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50 } })}>
+                  <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50, ...(attuale.tetto?.finitura ? { finitura: attuale.tetto.finitura } : {}) } })}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="nessuno">Nessuno (c'è un piano sopra)</SelectItem>
@@ -1802,6 +1802,26 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                 )}
               </div>
               {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
+              {attuale.tetto && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Copertura</Label>
+                  <Select
+                    value={attuale.tetto.finitura ?? "predefinita"}
+                    onValueChange={(v) => {
+                      if (!attuale.tetto) return;
+                      const { finitura: _f, ...senza } = attuale.tetto;
+                      onModifica({ tetto: v === "predefinita" ? senza : { ...senza, finitura: v as FinituraTetto } });
+                    }}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="predefinita">{attuale.tetto.tipo === "piano" ? "Predefinita (cemento)" : "Predefinita (tegole)"}</SelectItem>
+                      {FINITURE_TETTO.map((f) => <SelectItem key={f} value={f}>{NOMI_FINITURA_TETTO[f]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {(attuale.tetto.finitura === "verde" || attuale.tetto.finitura === "verde_intensivo") && <p className="text-[11px] text-muted-foreground">Substrato {attuale.tetto.finitura === "verde" ? "10" : "25"} cm. Nel computo: coltivo, strato drenante e telo antiradice. Controlla la portata del solaio.</p>}
+                </div>
+              )}
               {attuale.tetto && attuale.tetto.tipo !== "piano" && (
                 <div className="space-y-1 rounded-md border p-2">
                   <label className="flex items-center gap-2 text-xs font-medium">
@@ -1820,7 +1840,7 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
               {attuale.tetto && (
                 <div className="space-y-1 rounded-md border p-2">
                   <label className="flex items-center gap-2 text-xs font-medium">
-                    <input type="checkbox" checked={!!attuale.tetto.fotovoltaico} onChange={(e) => attuale.tetto && onModifica({ tetto: e.target.checked ? { ...attuale.tetto, fotovoltaico: { potenzaPannelloW: 430 } } : { tipo: attuale.tetto.tipo, pendenza: attuale.tetto.pendenza, sporto: attuale.tetto.sporto } })} />
+                    <input type="checkbox" checked={!!attuale.tetto.fotovoltaico} onChange={(e) => attuale.tetto && onModifica({ tetto: e.target.checked ? { ...attuale.tetto, fotovoltaico: { potenzaPannelloW: 430 } } : { tipo: attuale.tetto.tipo, pendenza: attuale.tetto.pendenza, sporto: attuale.tetto.sporto, ...(attuale.tetto.finitura ? { finitura: attuale.tetto.finitura } : {}), ...(attuale.tetto.mansarda ? { mansarda: attuale.tetto.mansarda } : {}) } })} />
                     Fotovoltaico sul tetto
                   </label>
                   {attuale.tetto.fotovoltaico && (

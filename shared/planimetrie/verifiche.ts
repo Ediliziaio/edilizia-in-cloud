@@ -24,7 +24,7 @@ export type EsitoVerifica = "ok" | "attenzione" | "non_conforme";
 
 export interface Verifica {
   /** Codice breve per raggruppare: «rai», «altezza», «superficie», «bagno», «alloggio». */
-  codice: "rai" | "altezza" | "superficie" | "bagno" | "alloggio" | "interferenza" | "scala" | "contenimento" | "serramento";
+  codice: "rai" | "altezza" | "superficie" | "bagno" | "alloggio" | "interferenza" | "scala" | "contenimento" | "serramento" | "tetto";
   esito: EsitoVerifica;
   livello: string;
   /** Il locale (o l'alloggio) a cui si riferisce. */

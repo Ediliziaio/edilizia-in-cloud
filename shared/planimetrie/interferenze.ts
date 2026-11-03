@@ -8,7 +8,8 @@
  */
 import { assiDelMuro, lunghezzaMuro } from "./geometria.ts";
 import { anteDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_ZANZARIERA, NOMI_SISTEMA, sistemaDi } from "./serramenti.ts";
-import type { Elemento, Livello, Muro, Punto, StatoPianta } from "./modello.ts";
+import type { Elemento, Livello, Muro, Punto, StatoPianta, Tetto } from "./modello.ts";
+import { finituraDi } from "./tetto.ts";
 import type { Verifica } from "./verifiche.ts";
 
 const INGOMBRANTI = ["pilastro", "ascensore", "scala", "scala_u", "scala_chiocciola"];
@@ -153,11 +154,27 @@ function verificheSerramenti(stato: StatoPianta, v: (esito: Verifica["esito"], c
   }
 }
 
+/** La copertura del tetto: pendenze adatte e peso del tetto verde. */
+function verificheTetto(t: Tetto, v: (esito: Verifica["esito"], codice: Verifica["codice"], oggetto: string, messaggio: string, valore?: string, richiesto?: string) => void) {
+  const f = finituraDi(t);
+  const nome = t.tipo === "piano" ? "Tetto piano" : "Tetto";
+  if (f === "verde" || f === "verde_intensivo") {
+    const pesante = f === "verde_intensivo";
+    v("attenzione", "tetto", nome, pesante ? "Il giardino pensile pesa 300 kg/m² e più, con l'acqua: il solaio va verificato dallo strutturista." : "Il tetto verde pesa 100–150 kg/m² da saturo: controlla la portata del solaio con lo strutturista.", pesante ? "≥ 300 kg/m²" : "100–150 kg/m²");
+    if (t.tipo !== "piano" && t.pendenza > 35) v("attenzione", "tetto", nome, `Con ${Math.round(t.pendenza)}% di pendenza il substrato scivola: servono graticci o fermi antiscivolo (di solito si sta sotto il 35%).`, `${Math.round(t.pendenza)}%`, "≤ 35%");
+    if (t.tipo !== "piano" && f === "verde_intensivo") v("attenzione", "tetto", nome, "Il giardino pensile con arbusti è pensato per il tetto piano: sulle falde si usa il verde estensivo.");
+  }
+  if (f === "ghiaia" && t.tipo !== "piano") v("non_conforme", "tetto", nome, "La ghiaia di zavorra tiene solo sul tetto piano: sulle falde scivola.");
+  if (f === "tegole" && t.tipo !== "piano" && t.pendenza < 25) v("attenzione", "tetto", nome, `Le tegole con ${Math.round(t.pendenza)}% di pendenza rischiano infiltrazioni (di solito servono almeno il 25–30%).`, `${Math.round(t.pendenza)}%`, "≥ 25%");
+  if (f === "tegole" && t.tipo === "piano") v("attenzione", "tetto", nome, "Le tegole non si posano sul tetto piano: scegli guaina, ghiaia o verde.");
+}
+
 export function verificheDiProgetto(livello: Livello, stato: StatoPianta, interpianoCm = ALTEZZA_INTERPIANO_CM): Verifica[] {
   const out: Verifica[] = [];
   const v = (esito: Verifica["esito"], codice: Verifica["codice"], oggetto: string, messaggio: string, valore?: string, richiesto?: string) =>
     out.push({ codice, esito, livello: livello.nome, oggetto, messaggio, valore, richiesto });
   verificheSerramenti(stato, v);
+  if (livello.tetto) verificheTetto(livello.tetto, v);
   for (const e of stato.elementi) if (e.tipo === "muro_contenimento" && e.stato !== "da_demolire") verificheMuroContenimento(e, v);
   const muri = new Map(stato.muri.filter((m) => m.stato !== "da_demolire").map((m) => [m.id, m]));
   const elementi = stato.elementi.filter((e) => INGOMBRANTI.includes(e.tipo) && e.stato !== "da_demolire");

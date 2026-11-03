@@ -8,7 +8,7 @@ import { costruisciElemento, modelloElemento } from "./elementi";
 import { poligonoConBuchi, pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
 import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
-import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
+import { baseTetto, facceTetto, finituraDi, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, SUBSTRATO_VERDE_CM, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { meshImpianti } from "./impianti3d";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciAnteOscuranti, costruisciZanzariera, costruisciCassonetto, costruisciMuro, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
@@ -80,7 +80,12 @@ function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
   const r = rettangoloTetto(pianta.muri, t.sporto);
   if (!r) return [];
   const h = baseTetto(t, Math.max(...muri.map((m) => m.altezza)) / CM);
-  const facce = facceTetto(r, h, t);
+  const facce0 = facceTetto(r, h, t);
+  const finitura = finituraDi(t);
+  const verde = finitura === "verde" || finitura === "verde_intensivo";
+  const sub = verde ? SUBSTRATO_VERDE_CM[finitura] : 0;
+  // sotto il verde c'è il substrato: la superficie si alza dello spessore (le falde, non i timpani)
+  const facce = sub ? facce0.map((f) => (f.genere === "falda" ? { ...f, vertici: f.vertici.map((q) => ({ ...q, z: q.z + sub })) } : f)) : facce0;
   const v3 = (p: P3): V3 => [p.x * CM, p.z * CM, p.y * CM];
   const normale = (a: V3, b: V3, c: V3): V3 => {
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -100,7 +105,36 @@ function meshTetto(pianta: PiantaPer3D, muri: MuroCalc[]): Mesh3D[] {
   if (t.fotovoltaico) for (const p of fotovoltaicoSulTetto(facce, t.fotovoltaico).pannelli) faccia(pannelli, p);
   const out: Mesh3D[] = [];
   const piano = t.tipo === "piano";
-  if (!falde.vuoto()) out.push(falde.mesh({ id: "tetto", nome: piano ? "Tetto piano" : "Tetto", genere: "soffitto", materiale: piano ? "muro" : "tegole", riferimento: "tetto" }));
+  // senza una copertura scelta restano il tetto piano in cemento e le tegole di sempre
+  const materialeTetto = t.finitura === undefined ? (piano ? "muro" : "tegole") : finitura === "verde" ? "tetto_verde" : finitura === "verde_intensivo" ? "tetto_verde_intensivo" : finitura;
+  const nomeTetto = verde ? (finitura === "verde" ? "Tetto verde" : "Giardino pensile") : piano ? "Tetto piano" : "Tetto";
+  if (!falde.vuoto()) out.push(falde.mesh({ id: "tetto", nome: nomeTetto, genere: "soffitto", materiale: materialeTetto, riferimento: "tetto" }));
+  // tetto piano con verde o ghiaia: il cordolo (parapetto) tutto intorno trattiene substrato e zavorra
+  if (piano && (verde || finitura === "ghiaia")) {
+    const cordolo = new CostruttoreMesh();
+    const base = (h + 25) * CM, alto = (sub + 12) * CM, sp = 0.2;
+    const { x0, x1, y0, y1 } = r;
+    const lungoX = (x1 - x0) * CM, lungoY = (y1 - y0) * CM;
+    cordolo.scatola(((x0 + x1) / 2) * CM, y0 * CM + sp / 2, base - 0.25, lungoX, sp, alto + 0.25, 0);
+    cordolo.scatola(((x0 + x1) / 2) * CM, y1 * CM - sp / 2, base - 0.25, lungoX, sp, alto + 0.25, 0);
+    cordolo.scatola(x0 * CM + sp / 2, ((y0 + y1) / 2) * CM, base - 0.25, sp, lungoY - 2 * sp, alto + 0.25, 0);
+    cordolo.scatola(x1 * CM - sp / 2, ((y0 + y1) / 2) * CM, base - 0.25, sp, lungoY - 2 * sp, alto + 0.25, 0);
+    out.push(cordolo.mesh({ id: "tetto:parapetto", nome: "Cordolo del tetto", genere: "muro", materiale: "muro", riferimento: "tetto" }));
+  }
+  // giardino pensile: cespugli e arbusti sparsi (sempre gli stessi: dipendono solo dalla misura)
+  if (piano && finitura === "verde_intensivo") {
+    const veg = new CostruttoreMesh();
+    const larg = (r.x1 - r.x0) * CM - 1, prof = (r.y1 - r.y0) * CM - 1;
+    const n = Math.max(4, Math.min(40, Math.round((larg * prof) / 3)));
+    let seme = Math.round(larg * 1000 + prof * 7) % 2147483647 || 1;
+    const rnd = () => (seme = (seme * 48271) % 2147483647) / 2147483647;
+    const quota = (h + 25 + sub) * CM;
+    for (let i = 0; i < n; i++) {
+      const raggio = 0.22 + rnd() * 0.3;
+      veg.sfera(r.x0 * CM + 0.5 + rnd() * larg, quota + raggio * 0.7, r.y0 * CM + 0.5 + rnd() * prof, raggio, 3);
+    }
+    out.push(veg.mesh({ id: "tetto:vegetazione", nome: "Arbusti del giardino pensile", genere: "elemento", materiale: "fogliame", riferimento: "tetto" }));
+  }
   if (!timpani.vuoto()) out.push(timpani.mesh({ id: "tetto:timpani", nome: "Timpani", genere: "muro", materiale: "muro", riferimento: "tetto" }));
   if (!vetrate.vuoto()) out.push(vetrate.mesh({ id: "tetto:vetrate", nome: "Vetrate degli shed", genere: "vetro", materiale: "vetro", riferimento: "tetto" }));
   if (!pannelli.vuoto()) out.push(pannelli.mesh({ id: "tetto:fotovoltaico", nome: "Pannelli fotovoltaici", genere: "elemento", materiale: "pannello_fv", riferimento: "tetto" }));
@@ -242,6 +276,61 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
           }
         }
       }
+    }
+
+    // Dettagli da fuori: davanzali di pietra sotto le finestre e zoccolatura alla base dei muri esterni
+    const mu = pianta.muri.find((x) => x.id === m.id);
+    const fuori = mu ? latoEsterno({ x: ((m.a.x + m.b.x) / 2) / CM, y: ((m.a.y + m.b.y) / 2) / CM }, { x: m.n.x, y: m.n.y }, mu.spessore, pianta.locali.map((l) => l.contorno)) : 0;
+    if (fuori && m.stato !== "demolire") {
+      const rot = Math.atan2(m.d.y, m.d.x);
+      const mezzoDi = (s: number) => ({ x: m.a.x + m.d.x * s, y: m.a.y + m.d.y * s });
+      const h = m.spessore / 2;
+      const davanzali = new CostruttoreMesh();
+      for (const v of vani) {
+        const { a, come } = apertura(v);
+        if (come === "tamponata" || a.tipo !== "finestra" || v.z0 < 0.3) continue;
+        const mz = mezzoDi((v.s0 + v.s1) / 2);
+        const profondita = m.spessore / 2 + 0.06, centro = h - m.spessore / 4 + 0.03;
+        davanzali.scatola(mz.x + m.n.x * fuori * centro, mz.y + m.n.y * fuori * centro, v.z0 - 0.035, v.s1 - v.s0 + 0.08, profondita, 0.035, rot);
+      }
+      if (!davanzali.vuoto()) mesh.push(davanzali.mesh({ id: `davanzali:${m.id}`, nome: `Davanzali ${m.id}`, genere: "elemento", materiale: "davanzale", riferimento: m.id }));
+      if (opzioni.zoccolo !== false) {
+        const da = fuori > 0 ? e.piu0 : e.meno0, a1 = fuori > 0 ? e.piu1 : e.meno1;
+        // la zoccolatura si interrompe alle porte (i vani che arrivano a terra)
+        const buchi = vani.filter((v) => v.z0 < 0.3).map((v) => [v.s0, v.s1] as [number, number]).sort((p, q) => p[0] - q[0]);
+        const tratti: Array<[number, number]> = [];
+        let cursore = da;
+        for (const [b0, b1] of buchi) {
+          if (b0 > cursore) tratti.push([cursore, Math.min(b0, a1)]);
+          cursore = Math.max(cursore, b1);
+        }
+        if (cursore < a1) tratti.push([cursore, a1]);
+        const zoc = new CostruttoreMesh();
+        for (const [s0, s1] of tratti) {
+          if (s1 - s0 < 0.05) continue;
+          const mz = mezzoDi((s0 + s1) / 2);
+          zoc.scatola(mz.x + m.n.x * fuori * (h + 0.012), mz.y + m.n.y * fuori * (h + 0.012), 0, s1 - s0, 0.03, 0.3, rot);
+        }
+        if (!zoc.vuoto()) mesh.push(zoc.mesh({ id: `zoccolo:${m.id}`, nome: `Zoccolatura ${m.id}`, genere: "elemento", materiale: "zoccolo", riferimento: m.id }));
+      }
+    }
+  }
+
+  // Marciapiede intorno all'edificio (solo se è più o meno un rettangolo e non c'è un lotto disegnato)
+  if (opzioni.zoccolo !== false && !pianta.aree?.length && !pianta.terreno?.length && muri.length >= 4) {
+    const xs = pianta.muri.flatMap((q) => [q.a.x, q.b.x]), ys = pianta.muri.flatMap((q) => [q.a.y, q.b.y]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const areaStanze = pianta.locali.reduce((t, l) => t + Math.abs(l.contorno.reduce((s, p, i) => { const q = l.contorno[(i + 1) % l.contorno.length]; return s + p.x * q.y - q.x * p.y; }, 0)) / 2, 0);
+    if (areaStanze > 0 && areaStanze / ((x1 - x0) * (y1 - y0)) >= 0.7) {
+      const sp = Math.max(...pianta.muri.map((q) => q.spessore)) / 2;
+      const [ax0, ax1, ay0, ay1] = [(x0 - sp - 90) * CM, (x1 + sp + 90) * CM, (y0 - sp - 90) * CM, (y1 + sp + 90) * CM];
+      const [bx0, bx1, by0, by1] = [(x0 - sp) * CM, (x1 + sp) * CM, (y0 - sp) * CM, (y1 + sp) * CM];
+      const mp = new CostruttoreMesh();
+      mp.scatola((ax0 + ax1) / 2, (ay0 + by0) / 2, 0, ax1 - ax0, by0 - ay0, 0.03, 0);
+      mp.scatola((ax0 + ax1) / 2, (by1 + ay1) / 2, 0, ax1 - ax0, ay1 - by1, 0.03, 0);
+      mp.scatola((ax0 + bx0) / 2, (by0 + by1) / 2, 0, bx0 - ax0, by1 - by0, 0.03, 0);
+      mp.scatola((bx1 + ax1) / 2, (by0 + by1) / 2, 0, ax1 - bx1, by1 - by0, 0.03, 0);
+      mesh.push(mp.mesh({ id: "marciapiede", nome: "Marciapiede", genere: "pavimento", materiale: "marciapiede", riferimento: "edificio" }));
     }
   }
 

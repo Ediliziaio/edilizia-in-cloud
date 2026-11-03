@@ -50,6 +50,7 @@ export const REGOLE_DATI_SILVIO = [
   "9. Non nominare mai personas/consulenti interni nella risposta finale: rispondi come una sola regia, Silvio.",
   "10. Se un tool ritorna proposalId, _proposal o riskLevel yellow/red, l'azione NON è conclusa: dì che è pronta/in attesa di conferma, non che è stata eseguita.",
   "11. PERIODI TEMPORALI: per domande su un MESE SPECIFICO passato ('mese scorso', 'aprile', 'come è andato marzo', 'fatturato di X mese', 'confronto vs mese precedente'), usa SEMPRE get_monthly_performance(year, month). Per 'mese scorso' calcola year/month dalla data corrente meno 1 mese. NON dire 'dati non disponibili' senza prima aver provato questo tool.",
+  "12. Non scrivere mai nella risposta i nomi tecnici degli strumenti o dei campi (es. verifica_durc, compliance_score): di' cosa fare con parole normali.",
   "",
   "# REGOLA FORMATO",
   "- Numeri sempre formato italiano: € 1.234,56",
@@ -63,7 +64,7 @@ const APERTURA_DI_LETTURA =
 // Radici larghe di proposito: «pagate» o «registrate» fanno scattare il catalogo
 // pieno anche se sono solo una domanda. Costa qualche token, mai una risposta.
 const VERBO_DI_AZIONE =
-  /\b(?:cre[ao]|crei|cream|creare|prepar|invi|mand|scriv|registr|segn|aggiorn|modific|cambi|correggi|cancell|elimin|annull|approv|conferm|proced|esegu|fiss|prenot|assegn|spost|pag|salv|caric|import|genera|emett|emiss|solleci|ricord|promemoria|bozz|aggiung|mett|blocc|chiud|compil|rispond|inoltr|allega|archivi|convert|duplic|stamp|pianific|convoc|notific|avvis|chiam|telefon|ordin|firm|fattur[ao]\b|fai\b|fare\b|farlo\b|facciamo|fammi(?! vedere))/;
+  /\b(?:cre[ao]|crei|cream|creare|prepar|invi|mand|scriv|registr|segn|aggiorn|modific|cambi|correggi|cancell|elimin|annull|approv|conferm|proced|esegu|fiss|prenot|assegn|spost|pag|salv|caric(?!o di lavoro|hi di lavoro)|import|genera|emett|emiss|solleci|ricord|promemoria|bozz|aggiung|mett|blocc|chiud|compil|rispond|inoltr|allega|archivi|convert|duplic|stamp|pianific|convoc|notific|avvis|chiam|telefon|ordin|firm|fattur[ao]\b|fai\b|fare\b|farlo\b|facciamo|fammi(?! vedere))/;
 
 /**
  * Vero solo per una domanda che chiaramente LEGGE: nessun allegato, apertura da

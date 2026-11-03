@@ -5,6 +5,7 @@
  * classifyQuery + contratti compatti + prompt cache a prefisso statico).
  * 02/11/2026: cache a 5 minuti col breakpoint di coda, sola lettura, tetti sul
  * turno (_shared/silvioRisparmioToken.ts).
+ * 03/11/2026: gruppo fisso di strumenti e listino proprio (t2_silvio).
  * Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED / AI_PROMPT_CACHE_DISABLED /
  * AI_PROMPT_CACHE_TAIL_DISABLED / SILVIO_SOLA_LETTURA_DISABLED.
  *

@@ -14,7 +14,7 @@ import type { Mesh3D, Scena3D } from "./tipi";
 /** Strati dal basso: -1 platea, 0 pavimenti, 0,5 impianti, 1 pareti e arredi, 2 soffitti, 3 tetto. `null` = non si muove. */
 export function stratoDi(m: Pick<Mesh3D, "id" | "riferimento" | "genere">): number | null {
   const base = m.id.includes("/") ? m.id.slice(m.id.lastIndexOf("/") + 1) : m.id;
-  if (base === "terreno" || base.startsWith("area:")) return null;
+  if (base === "terreno" || base === "marciapiede" || base.startsWith("area:")) return null;
   if (base === "edificio-sotto" || base === "platea") return -1;
   if (m.riferimento === "tetto" || base.startsWith("tetto")) return 3;
   if (base.startsWith("soffitto:")) return 2;

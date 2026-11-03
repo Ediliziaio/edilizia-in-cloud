@@ -31,8 +31,9 @@ describe("più piani", () => {
     doc = aggiungiLivello(doc, { nome: "Interrato", quota: -300, base: "identico" }).documento;
     const piani = pianiDaPlanimetria(doc);
     expect(piani.map((p) => p.nome)).toEqual(["Interrato", "Piano terra", "Primo piano"]);
-    const uno = costruisciScena(piani[1].piante.fatto, { vista: "fatto" });
-    const tutti = scenaEdificio(piani, { vista: "fatto" });
+    // senza zoccolatura e marciapiede (solo il piano terra li ha): ogni piano ha le stesse mesh
+    const uno = costruisciScena(piani[1].piante.fatto, { vista: "fatto", zoccolo: false });
+    const tutti = scenaEdificio(piani, { vista: "fatto", zoccolo: false });
     expect(tutti.mesh.length).toBe(uno.mesh.length * 3);
     expect(tutti.limiti.min[1]).toBeCloseTo(-3, 1);
     expect(tutti.limiti.max[1]).toBeCloseTo(uno.limiti.max[1] + 3, 1);
