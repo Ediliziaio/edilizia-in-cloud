@@ -172,11 +172,11 @@ describe("simulazione E · finestre con tapparelle, veneziane, persiane e scuri 
       if (r.id) p = C.modificaApertura(p, r.id, campi as never);
       return r.id!;
     };
-    const f1 = metti("finestra", 70, { larghezza: 100, altezza: 140, davanzale: 90, oscurante: "tapparella" });
+    const f1 = metti("finestra", 70, { larghezza: 100, altezza: 140, davanzale: 90, oscurante: "tapparella", zanzariera: "laterale" });
     const f2 = metti("finestra", 190, { larghezza: 100, altezza: 140, davanzale: 90, oscurante: "tapparella", cassonetto: "a_filo", motore: true });
     const f3 = metti("portafinestra", 320, { larghezza: 120, altezza: 220, davanzale: 0, oscurante: "veneziana", cassonetto: "esterno", motore: true });
     const f4 = metti("finestra", 440, { larghezza: 90, altezza: 120, davanzale: 90, oscurante: "persiana", ante: 2 });
-    const f5 = metti("finestra", 545, { larghezza: 90, altezza: 120, davanzale: 90, oscurante: "scuro", ante: 2 });
+    const f5 = metti("finestra", 545, { larghezza: 90, altezza: 120, davanzale: 90, oscurante: "scuro", ante: 2, zanzariera: "plisse" });
     let doc = aPlanimetria(p);
     const l0 = doc.livelli[0].id;
     doc = aggiungiLivello(doc, { nome: "Primo piano", quota: 300, base: "identico", daLivelloId: l0 }).documento;
@@ -192,9 +192,12 @@ describe("simulazione E · finestre con tapparelle, veneziane, persiane e scuri 
     expect(v("cassonetti:nuovo:a_filo.numero")).toBe(1);
     expect(v("cassonetti:nuovo:esterno.numero")).toBe(1);
     expect(v("serramenti:nuovo:controtelaio_monoblocco.numero")).toBe(1);
+    expect(v("zanzariere:nuovo:laterale.numero")).toBe(1);
+    expect(v("zanzariere:nuovo:plisse.numero")).toBe(1);
     // il 3D del progetto ha un pezzo di oscurante per ogni finestra che ne ha
     const progetto = scenaEdificio(pianiDaPlanimetria(doc), { vista: "progetto" });
     expect(progetto.mesh.filter((m) => m.id.includes("oscurante:")).length).toBe(5);
+    expect(progetto.mesh.filter((m) => m.id.includes("zanzariera:")).length).toBe(2);
     // l'abaco li elenca e il riepilogo da ordinare li somma
     const righe = abacoSerramenti(doc, l0, "progetto:A");
     expect(righe.filter((r) => r.oscurante !== "—")).toHaveLength(5);

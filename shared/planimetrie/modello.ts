@@ -104,6 +104,14 @@ export type TipoCassonetto = "monoblocco" | "a_filo" | "esterno";
 export const TIPI_CASSONETTO: readonly TipoCassonetto[] = ["monoblocco", "a_filo", "esterno"];
 
 /**
+ * Zanzariera: `laterale` (anta che scorre di lato su binario), `verticale` (a rullo, in una cassetta sopra),
+ * `plisse` (a pieghe, si apre di lato), `battente` (anta su cerniere, di solito per portefinestre),
+ * `incastro` (telaio fisso a pressione, si toglie).
+ */
+export type TipoZanzariera = "laterale" | "verticale" | "plisse" | "battente" | "incastro";
+export const TIPI_ZANZARIERA: readonly TipoZanzariera[] = ["laterale", "verticale", "plisse", "battente", "incastro"];
+
+/**
  * Verso di un'anta a battente.
  * - `cardine`: l'estremo della parete (verso p1 o verso p2) dove stanno le cerniere.
  * - `lato`: dove si apre l'anta, guardando da p1 verso p2 (sinistra o destra dell'asse).
@@ -137,6 +145,8 @@ export interface Apertura extends ConOrigine {
   altezzaCassonetto?: number;
   /** Tapparella o veneziana motorizzata. */
   motore?: boolean;
+  /** Zanzariera: assente = nessuna. Solo per finestre e portefinestre. */
+  zanzariera?: TipoZanzariera;
   verso?: Verso | null;
   stato: StatoLavori;
 }
@@ -582,6 +592,7 @@ function validaStato(
     if (o.oscurante !== undefined) scelta(o.oscurante, TIPI_OSCURANTE, e, "l'oscurante");
     if (o.cassonetto !== undefined) scelta(o.cassonetto, TIPI_CASSONETTO, e, "il cassonetto");
     if (o.altezzaCassonetto !== undefined) positivo(o, "altezzaCassonetto", e, "l'altezza del cassonetto");
+    if (o.zanzariera !== undefined) scelta(o.zanzariera, TIPI_ZANZARIERA, e, "la zanzariera");
     if (o.motore !== undefined && typeof o.motore !== "boolean") errori.push(`${e}: il motore dev'essere sì o no.`);
     if (o.verso !== undefined && o.verso !== null) {
       const v = o.verso;

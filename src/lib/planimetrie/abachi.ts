@@ -10,7 +10,7 @@ import type { Apertura, Locale, Planimetria, StatoPianta, TipoApertura } from ".
 import { distanzaDalContorno, facceDellApertura, TOLLERANZA_LOCALE_CM } from "../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
-import { anteDi, misureOscurante, misureSerramento, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, sistemaDi } from "../../../shared/planimetrie/serramenti.ts";
+import { anteDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, NOMI_ZANZARIERA, sistemaDi } from "../../../shared/planimetrie/serramenti.ts";
 
 export const PREFISSO_CODICE: Record<TipoApertura, string> = { porta: "P", finestra: "F", portafinestra: "PF", varco: "V" };
 const NOME_TIPO: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
@@ -30,6 +30,8 @@ export interface RigaSerramento {
   /** Oscurante («Tapparella», «Persiana»…) e cassonetto con le misure; «—» se non ci sono. */
   oscurante: string;
   cassonetto: string;
+  /** Zanzariera con le misure; «—» se non c'è. */
+  zanzariera: string;
   motore: boolean;
   /** Larghezza di un'anta, cm. */
   anta: number;
@@ -70,14 +72,17 @@ function controtelaioDi(a: Apertura, stato: StatoPianta): RigaSerramento["contro
 
 const cmIt = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
 
-function descrizioneOscurante(a: Apertura): Pick<RigaSerramento, "oscurante" | "cassonetto" | "motore"> {
+function descrizioneOscurante(a: Apertura): Pick<RigaSerramento, "oscurante" | "cassonetto" | "zanzariera" | "motore"> {
+  const z = misureZanzariera(a);
+  const zanzariera = z ? `${NOMI_ZANZARIERA[z.tipo]} ${cmIt(z.larghezza)} × ${cmIt(z.altezza)} cm` : "—";
   const o = misureOscurante(a);
-  if (!o) return { oscurante: "—", cassonetto: "—", motore: false };
+  if (!o) return { oscurante: "—", cassonetto: "—", zanzariera, motore: false };
   const misura = o.avvolgibile ? `${cmIt(o.telo.larghezza)} × ${cmIt(o.telo.altezza)} cm` : `${o.ante} ${o.ante === 1 ? "anta" : "ante"}`;
   const c = o.cassonetto;
   return {
     oscurante: `${NOMI_OSCURANTE[o.tipo]} ${misura}${o.motore ? " (motore)" : ""}`,
     cassonetto: c ? `${NOMI_CASSONETTO[c.tipo]} ${cmIt(c.larghezza)} × ${cmIt(c.altezza)} cm` : "—",
+    zanzariera,
     motore: o.motore,
   };
 }
@@ -87,7 +92,7 @@ export function riepilogoOscuranti(righe: RigaSerramento[]): Array<{ descrizione
   const gruppi = new Map<string, number>();
   for (const r of righe) {
     if (r.stato === "Da demolire" || r.stato === "Esistente") continue;
-    for (const d of [r.oscurante, r.cassonetto]) if (d !== "—") gruppi.set(d, (gruppi.get(d) ?? 0) + 1);
+    for (const d of [r.oscurante, r.cassonetto, r.zanzariera]) if (d !== "—") gruppi.set(d, (gruppi.get(d) ?? 0) + 1);
   }
   return [...gruppi].map(([descrizione, numero]) => ({ descrizione, numero })).sort((x, y) => x.descrizione.localeCompare(y.descrizione, "it"));
 }
@@ -190,8 +195,8 @@ export function inCsv(intestazioni: string[], righe: Array<Array<string | number
 
 export function csvSerramenti(righe: RigaSerramento[]): string {
   return inCsv(
-    ["Codice", "Tipo", "Sistema", "Ante", "Larghezza cm", "Altezza cm", "Davanzale cm", "Controtelaio L cm", "Controtelaio H cm", "Larghezza anta cm", "Superficie m²", "Oscurante", "Cassonetto", "Stanze", "Stato", "Misure"],
-    righe.map((r) => [r.codice, r.tipo, r.sistema === "—" ? r.manovra : r.sistema, r.ante || null, r.larghezza, r.altezza, r.davanzale, r.controtelaio.larghezza || null, r.controtelaio.altezza || null, r.anta || null, r.superficieMq, r.oscurante === "—" ? null : r.oscurante, r.cassonetto === "—" ? null : r.cassonetto, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
+    ["Codice", "Tipo", "Sistema", "Ante", "Larghezza cm", "Altezza cm", "Davanzale cm", "Controtelaio L cm", "Controtelaio H cm", "Larghezza anta cm", "Superficie m²", "Oscurante", "Cassonetto", "Zanzariera", "Stanze", "Stato", "Misure"],
+    righe.map((r) => [r.codice, r.tipo, r.sistema === "—" ? r.manovra : r.sistema, r.ante || null, r.larghezza, r.altezza, r.davanzale, r.controtelaio.larghezza || null, r.controtelaio.altezza || null, r.anta || null, r.superficieMq, r.oscurante === "—" ? null : r.oscurante, r.cassonetto === "—" ? null : r.cassonetto, r.zanzariera === "—" ? null : r.zanzariera, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
   );
 }
 

@@ -14,7 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
-import { anteDi, misureOscurante, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
+import { anteDi, misureOscurante, sistemaDi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
 import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
@@ -100,10 +100,11 @@ function muroVista(m: Muro, modo: ModoVista): MuroVista {
   };
 }
 
-function oscuranteVista(a: Apertura): Pick<AperturaVista, "oscurante"> {
+function oscuranteVista(a: Apertura): Pick<AperturaVista, "oscurante" | "zanzariera"> {
+  const z = zanzarieraDi(a);
   const o = misureOscurante(a);
-  if (!o) return {};
-  return { oscurante: { tipo: o.tipo, ante: o.ante, ...(o.cassonetto ? { cassonetto: { tipo: o.cassonetto.tipo, altezza: o.cassonetto.altezza, profondita: o.cassonetto.profondita } } : {}) } };
+  if (!o) return z ? { zanzariera: { tipo: z } } : {};
+  return { ...(z ? { zanzariera: { tipo: z } } : {}), oscurante: { tipo: o.tipo, ante: o.ante, ...(o.cassonetto ? { cassonetto: { tipo: o.cassonetto.tipo, altezza: o.cassonetto.altezza, profondita: o.cassonetto.profondita } } : {}) } };
 }
 
 function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {

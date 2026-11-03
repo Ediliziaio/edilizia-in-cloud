@@ -26,7 +26,7 @@ import {
   type TipoApertura,
 } from "./adattatore";
 import type { TipoArea } from "../../../../shared/planimetrie/modello.ts";
-import { eAvvolgibile, oscuranteAmmessi, sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
+import { eAvvolgibile, oscuranteAmmessi, sistemiAmmessi, zanzarieraAmmessa } from "../../../../shared/planimetrie/serramenti.ts";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
 
 /** «Com'è oggi» (stato di fatto) o «Progetto» (giallo = demolire, rosso = nuovo). */
@@ -431,7 +431,7 @@ export function spostaApertura(pianta: Pianta, id: string, muroId: string, t: nu
 export function modificaApertura(
   pianta: Pianta,
   id: string,
-  campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "stato" | "origine" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore">>,
+  campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "stato" | "origine" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore" | "zanzariera">>,
 ): Pianta {
   return {
     ...pianta,
@@ -444,6 +444,7 @@ export function modificaApertura(
       if (nuova.oscurante && !oscuranteAmmessi(nuova.tipo).includes(nuova.oscurante)) nuova = { ...nuova, oscurante: undefined };
       if (!nuova.oscurante) nuova = { ...nuova, cassonetto: undefined, altezzaCassonetto: undefined, motore: undefined };
       else if (!eAvvolgibile(nuova.oscurante)) nuova = { ...nuova, cassonetto: undefined, altezzaCassonetto: undefined, motore: undefined };
+      if (nuova.zanzariera && !zanzarieraAmmessa(nuova.tipo)) nuova = { ...nuova, zanzariera: undefined };
       const muro = pianta.muri.find((m) => m.id === a.muroId);
       return muro ? { ...nuova, posizione: limitaPosizione(muro, nuova.larghezza, nuova.posizione) } : nuova;
     }),

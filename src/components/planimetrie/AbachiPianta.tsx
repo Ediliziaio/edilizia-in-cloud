@@ -69,7 +69,7 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
                       <Badge variant="outline" className={COLORE_STATO[r.stato] ?? ""}>{r.stato}</Badge>
                     </div>
                     <p className={`text-xs tabular-nums ${r.stimata ? "italic text-primary" : "text-muted-foreground"}`}>
-                      {r.stimata && "≈ "}{r.larghezza} × {r.altezza} cm{r.davanzale ? ` · davanzale ${r.davanzale}` : ""} · {n2(r.superficieMq)} m²{r.controtelaio.larghezza ? ` · controtelaio ${r.controtelaio.larghezza} × ${r.controtelaio.altezza}` : ""}{r.oscurante !== "—" ? ` · ${r.oscurante}` : ""}{r.cassonetto !== "—" ? ` · ${r.cassonetto}` : ""}{r.stanze ? ` · ${r.stanze}` : ""}
+                      {r.stimata && "≈ "}{r.larghezza} × {r.altezza} cm{r.davanzale ? ` · davanzale ${r.davanzale}` : ""} · {n2(r.superficieMq)} m²{r.controtelaio.larghezza ? ` · controtelaio ${r.controtelaio.larghezza} × ${r.controtelaio.altezza}` : ""}{r.oscurante !== "—" ? ` · ${r.oscurante}` : ""}{r.cassonetto !== "—" ? ` · ${r.cassonetto}` : ""}{r.zanzariera !== "—" ? ` · ${r.zanzariera}` : ""}{r.stanze ? ` · ${r.stanze}` : ""}
                     </p>
                   </li>
                 ))}
@@ -94,7 +94,7 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
                           {r.stimata && "≈ "}{r.larghezza} × {r.altezza}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground" title={r.controtelaio.speciale ? "Controtelaio speciale per porta a scomparsa" : r.anta ? `Anta ${r.anta} cm` : undefined}>{r.controtelaio.larghezza ? `${r.controtelaio.larghezza} × ${r.controtelaio.altezza}${r.controtelaio.speciale ? " ★" : ""}` : "—"}</td>
-                        <td className="px-3 py-2 text-muted-foreground" title={r.cassonetto !== "—" ? `Cassonetto: ${r.cassonetto}` : undefined}>{r.oscurante}</td>
+                        <td className="px-3 py-2 text-muted-foreground" title={[r.cassonetto !== "—" ? `Cassonetto: ${r.cassonetto}` : "", r.zanzariera !== "—" ? r.zanzariera : ""].filter(Boolean).join(" · ") || undefined}>{r.oscurante}{r.zanzariera !== "—" ? <span className="block text-xs">{r.zanzariera}</span> : null}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{r.davanzale || "—"}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{n2(r.superficieMq)}</td>
                         <td className="px-3 py-2">{r.stanze}</td>
@@ -114,7 +114,7 @@ export function AbachiPianta({ documento, livelloId, ambito, titolo }: {
               )}
               {oscuranti.length > 0 && (
                 <div className="border-t px-3 py-2.5 text-xs">
-                  <p className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">Oscuranti e cassonetti da ordinare (serramenti nuovi)</p>
+                  <p className="mb-1 font-semibold uppercase tracking-wide text-muted-foreground">Oscuranti, cassonetti e zanzariere da ordinare (serramenti nuovi)</p>
                   <ul className="grid gap-x-4 gap-y-0.5 tabular-nums sm:grid-cols-2">
                     {oscuranti.map((c) => <li key={c.descrizione}><span className="font-semibold">{c.numero} ×</span> {c.descrizione}</li>)}
                   </ul>

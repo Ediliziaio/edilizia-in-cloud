@@ -5,7 +5,7 @@
  * prima della posa, quindi serve già in fase di computo. Le misure qui sono di massima (1 cm di fuga per lato
  * fra vano e controtelaio, 1,5 cm per lato fra controtelaio e telaio); il serramentista conferma in cantiere.
  */
-import type { Apertura, Muro, Punto, SistemaApertura, TipoCassonetto, TipoOscurante } from "./modello.ts";
+import type { Apertura, Muro, Punto, SistemaApertura, TipoCassonetto, TipoOscurante, TipoZanzariera } from "./modello.ts";
 
 export const NOMI_SISTEMA: Record<SistemaApertura, string> = {
   battente: "A battente",
@@ -28,7 +28,7 @@ export function sistemiAmmessi(tipo: Apertura["tipo"]): readonly SistemaApertura
   return tipo === "finestra" ? SISTEMI_FINESTRA : tipo === "porta" ? SISTEMI_PORTA : tipo === "portafinestra" ? SISTEMI_PORTAFINESTRA : [];
 }
 
-type Dati = Pick<Apertura, "tipo" | "larghezza" | "manovra"> & Partial<Pick<Apertura, "ante" | "sistema" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore">>;
+type Dati = Pick<Apertura, "tipo" | "larghezza" | "manovra"> & Partial<Pick<Apertura, "ante" | "sistema" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore" | "zanzariera">>;
 
 export function sistemaDi(a: Dati): SistemaApertura {
   if (a.sistema) return a.sistema;
@@ -136,6 +136,53 @@ export function misureOscurante(a: Dati & Pick<Apertura, "altezza">): MisureOscu
     guideMl: avv ? Math.round(((2 * telo.altezza) / 100) * 100) / 100 : 0,
     alberoMl: avv ? Math.round((telo.larghezza / 100) * 100) / 100 : 0,
     motore: avv && !!a.motore,
+  };
+}
+
+export const NOMI_ZANZARIERA: Record<TipoZanzariera, string> = {
+  laterale: "Zanzariera laterale",
+  verticale: "Zanzariera a rullo",
+  plisse: "Zanzariera plissé",
+  battente: "Zanzariera a battente",
+  incastro: "Zanzariera a incastro",
+};
+
+/** Solo finestre e portefinestre hanno la zanzariera. */
+export function zanzarieraAmmessa(tipo: Apertura["tipo"]): boolean {
+  return tipo === "finestra" || tipo === "portafinestra";
+}
+
+export function zanzarieraDi(a: Dati): TipoZanzariera | null {
+  return a.zanzariera && zanzarieraAmmessa(a.tipo) ? a.zanzariera : null;
+}
+
+export interface MisureZanzariera {
+  tipo: TipoZanzariera;
+  /** Il telo, cm: la luce del serramento meno 2 cm per lato di appoggio. */
+  larghezza: number;
+  altezza: number;
+  superficieMq: number;
+  /** Ante o teli (2 se laterale o plissé e la luce supera 2 m). */
+  ante: number;
+  /** Guide, binari o telaio da ordinare, m (rullo: due guide verticali; laterale e plissé: binario alto e basso; battente e incastro: il telaio). */
+  guideMl: number;
+}
+
+/** Misure di massima della zanzariera (null se la finestra non ne ha). */
+export function misureZanzariera(a: Dati & Pick<Apertura, "altezza">): MisureZanzariera | null {
+  const tipo = zanzarieraDi(a);
+  if (!tipo) return null;
+  const t = misureSerramento(a).telaio;
+  const larghezza = Math.round((t.larghezza - 4) * 10) / 10, altezza = Math.round((t.altezza - 4) * 10) / 10;
+  const ante = (tipo === "laterale" || tipo === "plisse") && larghezza > 200 ? 2 : tipo === "battente" && larghezza > 100 ? 2 : 1;
+  const guide = tipo === "verticale" ? 2 * altezza : tipo === "laterale" || tipo === "plisse" ? 2 * larghezza : 2 * (larghezza + altezza);
+  return {
+    tipo,
+    larghezza,
+    altezza,
+    superficieMq: Math.round(((larghezza * altezza) / 10_000) * 100) / 100,
+    ante,
+    guideMl: Math.round((guide / 100) * 100) / 100,
   };
 }
 

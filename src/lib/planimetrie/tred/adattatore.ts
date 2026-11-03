@@ -17,7 +17,7 @@
 import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
 import type { Apertura, Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
-import { anteDi, eScorrevole, misureOscurante, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
+import { anteDi, eScorrevole, misureOscurante, sistemaDi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
 
 const stato = (s: StatoLavori | undefined): StatoOggetto => (s === "da_demolire" ? "demolire" : s === "nuovo" ? "nuovo" : "esistente");
 const giu = (p: { x: number; y: number }) => ({ x: p.x, y: -p.y });
@@ -39,6 +39,7 @@ export function daStatoPianta(s: StatoPianta): PiantaPer3D {
       stato: stato(a.stato),
       ...(a.ante !== undefined || a.sistema !== undefined ? { ante: anteDi(a), scorrevole: eScorrevole(sistemaDi(a)) } : {}),
       ...oscurante3D(a),
+      ...zanzariera3D(a),
     })),
     locali: s.locali.map((l) => ({ id: l.id, nome: l.nome, destinazione: l.destinazione, contorno: l.contorno.map(giu), altezza: l.altezza })),
     elementi: s.elementi.map(daElemento),
@@ -50,6 +51,13 @@ function oscurante3D(a: Apertura): { oscurante?: NonNullable<import("./tipi").Ap
   const o = misureOscurante(a);
   if (!o) return {};
   return { oscurante: { tipo: o.tipo, ante: o.ante, ...(o.cassonetto ? { cassonetto: { tipo: o.cassonetto.tipo, altezza: o.cassonetto.altezza, profondita: o.cassonetto.profondita } } : {}) } };
+}
+
+function zanzariera3D(a: Apertura): { zanzariera?: NonNullable<import("./tipi").AperturaPer3D["zanzariera"]> } {
+  const z = zanzarieraDi(a);
+  if (!z) return {};
+  const o = misureOscurante(a);
+  return { zanzariera: { tipo: z, altezzaPersa: o?.cassonetto?.tipo === "monoblocco" ? o.cassonetto.altezza : 0 } };
 }
 
 function daElemento(e: Elemento) {

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { altezzaCassonettoConsigliata, cassonettoDi, latoEsterno, misureOscurante, misureSerramento, oscuranteAmmessi, oscuranteDi } from "../../../shared/planimetrie/serramenti";
+import { altezzaCassonettoConsigliata, cassonettoDi, latoEsterno, misureOscurante, misureSerramento, misureZanzariera, oscuranteAmmessi, oscuranteDi, zanzarieraAmmessa, zanzarieraDi } from "../../../shared/planimetrie/serramenti";
 import { validaPlanimetria, type Livello, type Planimetria, type StatoPianta } from "../../../shared/planimetrie/modello";
 import { verificheDiProgetto } from "../../../shared/planimetrie/interferenze";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
 import { abacoSerramenti, csvSerramenti, riepilogoControtelai, riepilogoOscuranti } from "@/lib/planimetrie/abachi";
-import { segniSerramento } from "@/components/planimetrie/editor/disegno";
+import { segniSerramento, segniZanzariera } from "@/components/planimetrie/editor/disegno";
 import { modificaApertura } from "@/components/planimetrie/editor/comandi";
 import { daStatoPianta } from "@/lib/planimetrie/tred/adattatore";
 import { costruisciScena } from "@/lib/planimetrie/tred/scena";
-import { simboloOscurante } from "@/lib/planimetrie/esporta/scena";
+import { simboloOscurante, simboloZanzariera } from "@/lib/planimetrie/esporta/scena";
 import trilocale from "../../../shared/planimetrie/esempi/trilocale.json";
 
 const muro = (spessore = 30) => ({ id: "m1", p1: { x: 0, y: 0 }, p2: { x: 600, y: 0 }, spessore, altezza: 270, tipo: "esterno", stato: "esistente", origine: "rilevata" });
@@ -230,5 +230,102 @@ describe("disegno", () => {
     expect(pers.materiale).toBe("legno");
     const pers4 = ids(pianta({ oscurante: "persiana", ante: 4 }))[0];
     expect(pers4.facce).toBeGreaterThan(pers.facce);
+  });
+});
+
+describe("zanzariere", () => {
+  const base = { tipo: "finestra" as const, larghezza: 140, altezza: 130, manovra: "battente" as const };
+  it("solo finestre e portefinestre; senza scelta nessuna", () => {
+    expect(zanzarieraAmmessa("finestra")).toBe(true);
+    expect(zanzarieraAmmessa("portafinestra")).toBe(true);
+    expect(zanzarieraAmmessa("porta")).toBe(false);
+    expect(zanzarieraDi(base)).toBeNull();
+    expect(zanzarieraDi({ ...base, zanzariera: "plisse" })).toBe("plisse");
+    expect(zanzarieraDi({ ...base, tipo: "porta", zanzariera: "plisse" })).toBeNull();
+    expect(misureZanzariera(base)).toBeNull();
+  });
+  it("misure: luce del serramento meno 2 cm per lato; guide secondo il tipo; ante sopra i 2 m", () => {
+    const l = misureZanzariera({ ...base, zanzariera: "laterale" })!;
+    expect(l.larghezza).toBeCloseTo(140 - 2 - 3 - 4, 5);
+    expect(l.altezza).toBeCloseTo(130 - 1 - 1.5 - 4, 5);
+    expect(l.guideMl).toBeCloseTo((2 * l.larghezza) / 100, 2);
+    const r = misureZanzariera({ ...base, zanzariera: "verticale" })!;
+    expect(r.guideMl).toBeCloseTo((2 * r.altezza) / 100, 2);
+    const inc = misureZanzariera({ ...base, zanzariera: "incastro" })!;
+    expect(inc.guideMl).toBeCloseTo((2 * (inc.larghezza + inc.altezza)) / 100, 2);
+    expect(misureZanzariera({ ...base, larghezza: 260, zanzariera: "plisse" })!.ante).toBe(2);
+    expect(l.ante).toBe(1);
+  });
+  it("con il cassonetto monoblocco la zanzariera è più bassa", () => {
+    const senza = misureZanzariera({ ...base, zanzariera: "laterale" })!;
+    const con = misureZanzariera({ ...base, zanzariera: "laterale", oscurante: "tapparella" })!;
+    expect(con.altezza).toBeCloseTo(senza.altezza - 22, 5);
+  });
+  it("il documento la valida e il comando la toglie dalle porte", () => {
+    const d = JSON.parse(JSON.stringify(trilocale));
+    const a = d.livelli[0].fatto.aperture[0];
+    a.zanzariera = "plisse";
+    expect(validaPlanimetria(d).ok).toBe(true);
+    a.zanzariera = "volante";
+    expect(validaPlanimetria(d).ok).toBe(false);
+    const pianta = { muri: [], aperture: [{ id: "f1", muroId: "m1", tipo: "finestra", posizione: 300, larghezza: 140, altezza: 130, davanzale: 90, manovra: "battente", verso: { cerniera: "inizio", lato: "destra" }, stato: "nuovo" }], locali: [], elementi: [], quote: [], testi: [], aree: [] } as never;
+    const z = modificaApertura(pianta, "f1", { zanzariera: "laterale" });
+    expect(z.aperture[0].zanzariera).toBe("laterale");
+    expect(modificaApertura(z, "f1", { tipo: "porta" }).aperture[0].zanzariera).toBeUndefined();
+    expect(modificaApertura(z, "f1", { zanzariera: undefined }).aperture[0].zanzariera).toBeUndefined();
+  });
+  it("computo, abaco e CSV", () => {
+    const d = doc([
+      fin({ id: "z1", posizione: 100, zanzariera: "laterale" }),
+      fin({ id: "z2", posizione: 300, zanzariera: "laterale" }),
+      fin({ id: "z3", posizione: 500, zanzariera: "verticale", larghezza: 100 }),
+      fin({ id: "z4", posizione: 560, larghezza: 40, stato: "esistente", zanzariera: "plisse" }),
+    ]);
+    const q = calcolaQuantita(d);
+    const v = (suffisso: string) => Object.entries(q).find(([k]) => k.endsWith(suffisso))?.[1];
+    expect(v("zanzariere:nuovo:laterale.numero")?.valore).toBe(2);
+    expect(v("zanzariere:nuovo:verticale.numero")?.valore).toBe(1);
+    expect(v("zanzariere:esistente:plisse.numero")?.valore).toBe(1);
+    expect(v("struttura:nuovo:zanzariere.superficie_mq")?.unita).toBe("mq");
+    expect(v("struttura:nuovo:zanzariere.guide_ml")?.unita).toBe("ml");
+    const righe = abacoSerramenti(d, "l", "fatto");
+    expect(righe[0].zanzariera).toMatch(/^Zanzariera laterale/);
+    expect(righe[3].zanzariera).toMatch(/plissé/);
+    const rr = riepilogoOscuranti(righe);
+    expect(rr.find((x) => /Zanzariera laterale/.test(x.descrizione))?.numero).toBe(2);
+    expect(rr.some((x) => /plissé/.test(x.descrizione))).toBe(false);
+    expect(csvSerramenti(righe)).toContain("Zanzariera");
+  });
+  it("verifiche: rullo largo, plissé largo, battente su finestra", () => {
+    const prova = (extra: object) => verificheDiProgetto(livello, stato(doc([fin(extra)])));
+    expect(prova({ larghezza: 240, zanzariera: "verticale" }).some((x) => x.esito === "attenzione" && /a rullo/.test(x.messaggio))).toBe(true);
+    expect(prova({ larghezza: 140, zanzariera: "verticale" }).some((x) => /a rullo/.test(x.messaggio))).toBe(false);
+    expect(prova({ larghezza: 290, zanzariera: "plisse" }).some((x) => /plissé/.test(x.messaggio))).toBe(true);
+    expect(prova({ zanzariera: "battente" }).some((x) => /portefinestre/.test(x.messaggio))).toBe(true);
+    expect(prova({ tipo: "portafinestra", davanzale: 0, altezza: 220, larghezza: 90, zanzariera: "battente" }).some((x) => /portefinestre|troppo larga/.test(x.messaggio))).toBe(false);
+  });
+  it("disegno 2D, PDF/DXF e 3D", () => {
+    const muroEd = { ...muro(30), p1: { x: 0, y: 0 }, p2: { x: 600, y: 0 } } as never;
+    const edit = (extra: object) => ({ ...(fin(extra) as object), posizione: 300 }) as never;
+    expect(segniZanzariera(edit({}), muroEd)).toEqual([]);
+    const l = segniZanzariera(edit({ zanzariera: "laterale" }), muroEd);
+    expect(l.some((x) => x.tipo === "linea" && x.tratteggio)).toBe(true);
+    expect(segniZanzariera(edit({ zanzariera: "plisse" }), muroEd).length).toBeGreaterThan(l.length);
+    expect(segniSerramento(edit({ zanzariera: "laterale" }), muroEd).length).toBeGreaterThan(segniSerramento(edit({}), muroEd).length);
+    // l'interno è dalla parte opposta all'esterno
+    const y = (arr: ReturnType<typeof segniZanzariera>) => (arr[0].tipo === "linea" ? arr[0].p.y : 0);
+    expect(Math.sign(y(segniZanzariera(edit({ zanzariera: "laterale" }), muroEd, 1)))).toBe(-Math.sign(y(segniZanzariera(edit({ zanzariera: "laterale" }), muroEd, -1))));
+    const m = { id: "m1", p1: { x: 0, y: 0 }, p2: { x: 600, y: 0 }, spessore: 30, altezza: 270, stato: "nuovo" } as never;
+    const a = { id: "f1", muroId: "m1", tipo: "finestra", distanza: 230, larghezza: 140, altezza: 130, davanzale: 90, manovra: "battente", cerniera: "inizio", lato: "sinistra", sistema: "battente", ante: 2, stato: "nuovo", zanzariera: { tipo: "plisse" } } as never;
+    expect(simboloZanzariera(a, m, false, []).length).toBe(2);
+    expect(simboloZanzariera({ ...(a as object), zanzariera: undefined } as never, m, false, [])).toEqual([]);
+    const pianta = (zanz?: string, osc?: string) => daStatoPianta({ ...stato(doc([fin({ id: "f1", stato: "esistente", ...(zanz ? { zanzariera: zanz } : {}), ...(osc ? { oscurante: osc } : {}) })])), locali: [] } as never);
+    const z3 = (p: ReturnType<typeof pianta>) => costruisciScena(p, { vista: "fatto" }).mesh.filter((x) => x.id.startsWith("zanzariera:"));
+    expect(z3(pianta())).toHaveLength(0);
+    const t = z3(pianta("laterale"));
+    expect(t).toHaveLength(1);
+    expect(t[0].materiale).toBe("zanzariera");
+    expect(z3(pianta("plisse"))[0].facce).toBeGreaterThan(t[0].facce);
+    expect(z3(pianta("verticale", "tapparella"))).toHaveLength(1);
   });
 });

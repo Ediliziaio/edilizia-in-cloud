@@ -58,6 +58,8 @@ Planimetria { schema: 1, unita: "cm", titolo?, scala?, nord?, riferimenti?, live
   `altezzaCassonetto` (cm; assente = consigliata: 22/25/30/35 secondo il vano, +5 per la veneziana) e
   `motore` (booleano). Misure di telo, guide e cassonetto, e il muro libero che serve sopra il vano
   (`misureOscurante`) si calcolano, non si salvano. Persiane (fuori) e scuri (dentro) usano `ante`.
+  Anche `zanzariera` (`laterale` | `verticale` | `plisse` | `battente` | `incastro`; assente = nessuna): telo, guide e
+  ante (`misureZanzariera`) si calcolano; sta sul filo interno e, con un cassonetto monoblocco, arriva sotto di esso.
 - **Locale** = poligono al **filo interno** delle pareti (`contorno`, almeno 3 punti,
   verso qualunque), `altezza`, `destinazione` (soggiorno, cucina, camera, bagno,
   ingresso, disimpegno, corridoio, ripostiglio, studio, lavanderia, balcone, terrazzo,

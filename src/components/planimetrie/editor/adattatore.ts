@@ -29,6 +29,7 @@ import {
   type SistemaApertura,
   type TipoCassonetto,
   type TipoOscurante,
+  type TipoZanzariera,
   type Muro as MuroModello,
   type Origine,
   type Planimetria,
@@ -86,6 +87,7 @@ export interface Apertura {
   cassonetto?: TipoCassonetto;
   altezzaCassonetto?: number;
   motore?: boolean;
+  zanzariera?: TipoZanzariera;
   /** Da che parte sta la cerniera e verso quale lato (sullo schermo) si apre. */
   verso: { cerniera: "inizio" | "fine"; lato: "sinistra" | "destra" };
   stato: StatoElemento;
@@ -351,6 +353,7 @@ function aperturaDaModello(a: AperturaModello): Apertura {
     ...(a.cassonetto ? { cassonetto: a.cassonetto } : {}),
     ...(a.altezzaCassonetto ? { altezzaCassonetto: a.altezzaCassonetto } : {}),
     ...(a.motore ? { motore: true } : {}),
+    ...(a.zanzariera ? { zanzariera: a.zanzariera } : {}),
     // capovolgendo y la sinistra del documento diventa la destra dello schermo
     verso: a.verso
       ? { cerniera: a.verso.cardine === "p1" ? "inizio" : "fine", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" }
@@ -555,6 +558,7 @@ function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModel
     ...(a.cassonetto ? { cassonetto: a.cassonetto } : {}),
     ...(a.altezzaCassonetto ? { altezzaCassonetto: a.altezzaCassonetto } : {}),
     ...(a.motore ? { motore: true } : {}),
+    ...(a.zanzariera ? { zanzariera: a.zanzariera } : {}),
     ...(battente
       ? { verso: { cardine: a.verso.cerniera === "inizio" ? "p1" : "p2", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" } as const }
       : {}),
