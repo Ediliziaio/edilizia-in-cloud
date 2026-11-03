@@ -931,7 +931,12 @@ export default function MarginalitaCantieri() {
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Marginalità commesse</p>
                   <h2 className="mt-1 text-lg font-semibold">Cosa è già eroso e cosa puoi ancora correggere</h2>
                   <p className="mt-1 max-w-2xl text-sm text-blue-100/85">
-                    {marginControl.insight}
+                    {/* Finché i dati non ci sono non si può dire che le commesse sono sopra il target. */}
+                    {isLoading
+                      ? "Sto caricando le commesse..."
+                      : error
+                        ? "Dati non caricati: premi Aggiorna dati per riprovare."
+                        : marginControl.insight}
                     {isFetchingAnomalies ? " Sto aggiornando le anomalie collegate..." : ""}
                     {anomaliesError ? " Anomalie non caricate: premi Aggiorna dati per riprovare." : ""}
                   </p>
@@ -985,7 +990,11 @@ export default function MarginalitaCantieri() {
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {marginControl.riskRows.length === 0 ? (
+            {isLoading || error ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                {isLoading ? "Sto caricando le commesse..." : "Dati non caricati: nessuna indicazione disponibile."}
+              </div>
+            ) : marginControl.riskRows.length === 0 ? (
               <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
                 Nessuna commessa sotto soglia nella vista corrente. Mantieni aggiornati acquisti e anomalie.
               </div>

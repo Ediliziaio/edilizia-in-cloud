@@ -10,6 +10,7 @@ const stato = vi.hoisted(() => ({
   impostazioni: null as unknown,
   sedi: [] as unknown[],
   cdg: [] as unknown[],
+  errore: null as unknown,
 }));
 
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "azienda" }));
@@ -37,7 +38,9 @@ vi.mock("@/integrations/supabase/client", () => {
       b[metodo] = (...args: unknown[]) => { stato.chiamate.push({ tabella, metodo, args }); return b; };
     }
     b.maybeSingle = async () => ({ data: stato.impostazioni, error: null as unknown });
-    b.then = (ok: (r: unknown) => unknown) => ok({ data: righe(), error: null, count: righe().length });
+    b.then = (ok: (r: unknown) => unknown) => ok(tabella === "v_ordine_marginalita" && stato.errore
+      ? { data: null, error: stato.errore, count: null }
+      : { data: righe(), error: null, count: righe().length });
     return b;
   };
   return { supabase: { from: costruttore } };
@@ -176,6 +179,16 @@ describe("Marginalità cantieri", () => {
     await waitFor(() => expect(codici()).toHaveLength(6));
     await waitFor(() => expect(stato.chiamate.some((c) => c.tabella === "order_errors" && c.metodo === "range")).toBe(true));
     expect(stato.chiamate.some((c) => c.tabella === "order_errors" && c.metodo === "in")).toBe(false);
+  });
+
+  it("se i dati non arrivano non dice che le commesse sono sopra il target", async () => {
+    stato.tabelle.v_ordine_marginalita = [];
+    stato.errore = { message: "canceling statement due to statement timeout" };
+    apri();
+    await waitFor(() => expect(screen.getByText(/Dati non caricati: premi Aggiorna dati/)).toBeTruthy());
+    expect(screen.queryByText(/sono sopra il target/)).toBeNull();
+    expect(screen.queryByText(/Nessuna commessa sotto soglia/)).toBeNull();
+    stato.errore = null;
   });
 
   it("senza permesso sui mezzi non mostra un costo zero", async () => {

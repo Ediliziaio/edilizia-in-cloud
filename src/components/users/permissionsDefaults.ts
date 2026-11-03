@@ -361,9 +361,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_giornale_lavori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
-    can_view_billing: true, can_view_prima_nota: true,
-    can_view_costs: true,
-    can_manage_payments: true, can_manage_suppliers: true,
+    // Costi, fatturazione, prima nota e pagamenti non sono più di serie (03/11/2026): aprono banca,
+    // cassa e margini. L'amministratore li accende a chi serve. Chi esiste già non cambia.
+    can_manage_suppliers: true,
   },
 
   // Le colonne can_edit_* operative non compaiono nei preset: le deriva

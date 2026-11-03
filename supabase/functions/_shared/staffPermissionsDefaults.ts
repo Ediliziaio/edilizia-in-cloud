@@ -110,9 +110,7 @@ export const STAFF_ROLE_PRESETS: Record<string, Record<string, boolean | string[
     can_view_giornale_lavori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
-    can_view_billing: true, can_view_prima_nota: true,
-    can_view_costs: true,
-    can_manage_payments: true, can_manage_suppliers: true,
+    can_manage_suppliers: true,
   },
   // Il venditore, di serie, vede solo Marketing & Vendita (25/09/2026).
   salesperson: {
