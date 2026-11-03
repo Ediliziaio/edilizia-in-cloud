@@ -22,6 +22,18 @@ import {
 } from "@/components/ui/table";
 import { ArrowUpRight, Euro, TrendingUp, Package, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { margineAffidabile, vociConsuntivo } from "@/lib/marginalita/fasceMargine";
+
+const COLORE_VOCE: Record<string, string> = {
+  acquisti: "bg-blue-500",
+  magazzino: "bg-orange-500",
+  manodopera: "bg-indigo-500",
+  diretti: "bg-slate-500",
+  provvigioni: "bg-purple-500",
+  rimborsi: "bg-cyan-500",
+  errori: "bg-red-500",
+  altro: "bg-slate-400",
+};
 
 interface MarginalitaRow {
   id: string;
@@ -31,6 +43,10 @@ interface MarginalitaRow {
   costo_acquisti: number;
   costo_materiali_magazzino: number;
   movimenti_magazzino_senza_costo: number;
+  costo_manodopera?: number;
+  costo_provvigioni?: number;
+  costo_diretto?: number;
+  costo_rimborsi_km?: number;
   costo_errori: number;
   consuntivo: number;
   margine: number;
@@ -158,13 +174,13 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
 
   const preventivoTotale = safeNumber(row.preventivo_totale);
   const variazioniApprovate = safeNumber(row.variazioni_approvate);
-  const costoAcquisti = safeNumber(row.costo_acquisti);
-  const costoMagazzino = safeNumber(row.costo_materiali_magazzino);
   const prelieviSenzaCosto = safeNumber(row.movimenti_magazzino_senza_costo);
   const costoErrori = safeNumber(row.costo_errori);
   const consuntivo = safeNumber(row.consuntivo);
   const margine = safeNumber(row.margine);
   const marginePerc = safeNumber(row.margine_perc);
+  const affidabile = margineAffidabile(row);
+  const vociCosto = vociConsuntivo(row);
   const margineColor =
     marginePerc >= 25 ? "bg-green-500" : marginePerc >= 10 ? "bg-amber-500" : "bg-red-500";
   const margineTextColor =
@@ -225,54 +241,57 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
             </div>
             <div className="rounded-lg border p-3 space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Margine</p>
-              <p className={cn("text-lg font-bold", margineTextColor)}>{formatCurrency(margine)}</p>
-              <Badge className={cn("text-xs border-0",
-                marginePerc >= 25 ? "bg-green-100 text-green-800" :
-                marginePerc >= 10 ? "bg-amber-100 text-amber-800" :
-                "bg-red-100 text-red-800"
-              )}>
-                {marginePerc.toFixed(1)}%
-              </Badge>
+              {affidabile ? (
+                <>
+                  <p className={cn("text-lg font-bold", margineTextColor)}>{formatCurrency(margine)}</p>
+                  <Badge className={cn("text-xs border-0",
+                    marginePerc >= 25 ? "bg-green-100 text-green-800" :
+                    marginePerc >= 10 ? "bg-amber-100 text-amber-800" :
+                    "bg-red-100 text-red-800"
+                  )}>
+                    {marginePerc.toFixed(1)}%
+                  </Badge>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-bold text-muted-foreground">—</p>
+                  <p className="text-xs text-orange-700">
+                    {preventivoTotale > 0 ? "Nessun costo registrato" : "Ricavo mancante"}
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
           {/* Cost breakdown bars */}
           <div className="space-y-3 p-4 rounded-lg bg-muted/30 border">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Breakdown costi</p>
-            <BreakdownBar
-              label="Acquisti impegnati (ODA)"
-              value={costoAcquisti}
-              total={preventivoTotale}
-              colorClass="bg-blue-500"
-            />
-            {costoMagazzino > 0 && (
-              <BreakdownBar
-                label="Materiali prelevati da scorta"
-                value={costoMagazzino}
-                total={preventivoTotale}
-                colorClass="bg-orange-500"
-              />
+            {vociCosto.length === 0 && (
+              <p className="text-xs text-muted-foreground">Nessun costo registrato su questa commessa.</p>
             )}
+            {vociCosto.map((voce) => (
+              <BreakdownBar
+                key={voce.chiave}
+                label={voce.etichetta}
+                value={voce.importo}
+                total={preventivoTotale}
+                colorClass={COLORE_VOCE[voce.chiave] ?? "bg-slate-400"}
+              />
+            ))}
             {prelieviSenzaCosto > 0 && (
               <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 {prelieviSenzaCosto} {prelieviSenzaCosto === 1 ? "prelievo non ha" : "prelievi non hanno"} un costo unitario: il margine è parziale.
               </p>
             )}
-            {costoErrori > 0 && (
+            {affidabile && (
               <BreakdownBar
-                label="Costi errori / rilavorazioni"
-                value={costoErrori}
+                label="Margine lordo"
+                value={Math.max(margine, 0)}
                 total={preventivoTotale}
-                colorClass="bg-red-500"
+                colorClass={margineColor}
               />
             )}
-            <BreakdownBar
-              label="Margine lordo"
-              value={Math.max(margine, 0)}
-              total={preventivoTotale}
-              colorClass={margineColor}
-            />
           </div>
 
           <div className="space-y-3 rounded-lg border border-orange-100 bg-orange-50/50 p-4">
@@ -403,7 +422,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
           </div>
 
           {/* Warnings */}
-          {(costoErrori > 0 || marginePerc < 10) && (
+          {(costoErrori > 0 || (affidabile && marginePerc < 10)) && (
             <div className="space-y-2">
               {costoErrori > 0 && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm">
@@ -414,7 +433,7 @@ export default function MargineVociDetail({ open, onClose, row }: Props) {
                   </div>
                 </div>
               )}
-              {marginePerc < 10 && (
+              {affidabile && marginePerc < 10 && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
                   <Euro className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" aria-hidden="true" />
                   <div>
