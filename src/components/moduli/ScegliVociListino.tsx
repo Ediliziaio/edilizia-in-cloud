@@ -232,7 +232,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
     const prezzo = Number(t.prezzo_vendita) || costo;
     return {
       chiave: `tariffa-${t.id}`, gruppo, descrizione: t.nome, meta: t.codice ?? undefined, prezzo, unitaLabel: unita ? `/ ${unita}` : "",
-      voce: { descrizione: t.nome, unita_misura: mapUnita(unita), unita_originale: unita, prezzo_unitario: prezzo, costo_materiali: 0, costo_manodopera: costo, capitolo_nome: targetCapitolo, sourceUnit: unita },
+      voce: { descrizione: t.nome, unita_misura: mapUnita(unita), unita_originale: unita, prezzo_unitario: prezzo, costo_materiali: 0, costo_manodopera: costo, capitolo_nome: targetCapitolo, codice_tariffa: t.codice, sourceUnit: unita },
     };
   }), [tariffe.data, mapUnita, targetCapitolo]);
 
@@ -272,13 +272,13 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         voci.push({
           chiave: `prodotto-${p.id}`, sezione: "Prodotti", descrizione: p.nome, meta: dettaglioNelPicker(p, verticale) || undefined, immagine: p.immagine_url, prezzo: inRiga.prezzo_unitario,
           unitaLabel: p.modo === "mq" ? "/ mq" : p.unita ? `/ ${p.unita}` : "/ pz", chiedeQuantita: chiedeQuantita(p),
-          voce: { descrizione: p.nome, unita_misura: mapUnita(p.unita), unita_originale: p.unita, ...inRiga, capitolo_nome: targetCapitolo, famiglia_id: p.id, immagine_url: p.immagine_url, descrizione_estesa: p.descrizione, sourceUnit: p.modo === "mq" ? "mq" : p.unita },
+          voce: { descrizione: p.nome, unita_misura: mapUnita(p.unita), unita_originale: p.unita, ...inRiga, capitolo_nome: targetCapitolo, famiglia_id: p.id, immagine_url: p.immagine_url, descrizione_estesa: p.descrizione, codice_tariffa: p.codice, sourceUnit: p.modo === "mq" ? "mq" : p.unita },
         });
       }
       for (const a of articoli.data ?? []) {
         voci.push({
           chiave: `articolo-${a.id}`, sezione: "Prodotti", descrizione: a.name, meta: [a.marca, a.sku].filter(Boolean).join(" · ") || undefined, prezzo: a.prezzo_vendita || a.costo, unitaLabel: a.unita ? `/ ${a.unita}` : "",
-          voce: { descrizione: a.name, unita_misura: mapUnita(a.unita), unita_originale: a.unita, prezzo_unitario: a.prezzo_vendita || a.costo, costo_materiali: a.costo, costo_manodopera: 0, capitolo_nome: targetCapitolo, sourceUnit: a.unita },
+          voce: { descrizione: a.name, unita_misura: mapUnita(a.unita), unita_originale: a.unita, prezzo_unitario: a.prezzo_vendita || a.costo, costo_materiali: a.costo, costo_manodopera: 0, capitolo_nome: targetCapitolo, codice_tariffa: a.sku, sourceUnit: a.unita },
         });
       }
     }
