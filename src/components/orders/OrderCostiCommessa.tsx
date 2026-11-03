@@ -22,7 +22,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import {
-  TIPI_COSTO, campiModificaCosto, controllaRicevuta, documentoDelCosto, formCostoVuoto, formDaCosto, leggiImporto, percorsoRicevuta, rigaCostoCommessa, tipoDellaCategoria,
+  TIPI_COSTO, campiModificaCosto, lordoCosto, totaliAltriCosti, controllaRicevuta, documentoDelCosto, formCostoVuoto, formDaCosto, leggiImporto, percorsoRicevuta, rigaCostoCommessa, tipoDellaCategoria,
   type DocumentoCosto, type FormCostoCommessa, type TipoCosto,
 } from "@/lib/costi/costoCommessa";
 import { dataIt } from "./OrderDocumentiFornitore";
@@ -176,7 +176,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   };
   const conta = (chiave: string) => costi.filter(groups[chiave]).length;
   const visibili = filtro ? costi.filter(groups[filtro]) : costi;
-  const lordo = (c: CostoCommessa) => Math.round(c.amount * (1 + Number(c.vat_rate ?? 0) / 100) * 100) / 100;
+  const totali = totaliAltriCosti(costi);
 
   const aggiorna = () => {
     refreshFinancialQueries(queryClient);
@@ -212,14 +212,22 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
       icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
       titolo="Altri costi" conteggio={costi.length}
       riassunto={costi.length > 0 ? `${formatCurrency(totale)} nel margine` : undefined}
-      numeri={costi.length > 1 ? (
+      numeri={!isLoading && !isError ? <>
+        <dl className="grid grid-cols-3 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl" aria-label="Totali degli altri costi, IVA compresa">
+          {([["Totale", totali.totale, false], ["Saldati", totali.saldati, false], ["Da saldare", totali.daSaldare, totali.daSaldare > 0]] as const).map(([titolo, valore, evidenza]) => (
+            <div key={titolo}>
+              <dt className="text-xs text-muted-foreground">{titolo}</dt>
+              <dd className={`mt-1 text-sm font-semibold tabular-nums ${evidenza ? "text-amber-700" : ""}`}>{formatCurrency(valore)}</dd>
+            </div>
+          ))}
+        </dl>
         <ContatoriFiltro etichetta="Altri costi per stato" attivo={filtro} onScegli={setFiltro} voci={[
           { chiave: "pagare", etichetta: "Da pagare", valore: conta("pagare"), avviso: true },
           { chiave: "pagati", etichetta: "Pagati", valore: conta("pagati") },
           { chiave: "ricevuta", etichetta: "Senza ricevuta", valore: conta("ricevuta"), avviso: true },
           { chiave: "attesa", etichetta: "Fattura da arrivare", valore: conta("attesa") },
         ]} />
-      ) : undefined}
+      </> : undefined}
       azioni={puoModificare ? <Button size="sm" onClick={() => setModulo({})}><Plus className="mr-1.5 h-4 w-4" />Aggiungi costo</Button> : undefined}
     >
         <input
@@ -286,7 +294,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
               </div>
             ) },
             { titolo: "Importo", destra: true, cella: (c) => <>
-              <span className="font-medium">{formatCurrency(lordo(c))}</span>
+              <span className="font-medium">{formatCurrency(lordoCosto(c))}</span>
               {!!c.vat_rate && <span className="block whitespace-nowrap text-xs text-muted-foreground">{formatCurrency(c.amount)} + IVA {c.vat_rate}%</span>}
             </> },
             { titolo: "Azioni", destra: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (

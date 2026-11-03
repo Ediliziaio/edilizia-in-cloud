@@ -538,3 +538,25 @@ export function useUnassignSerial() {
     onError: (e) => toast.error(e.message || "Errore"),
   });
 }
+
+/**
+ * Quali articoli di magazzino hanno una matricola: tracciati pezzo per pezzo o con garanzia
+ * obbligatoria. Il resto (cemento, collante) un seriale non ce l'ha.
+ */
+export function useArticoliConSeriale(stockItemIds: string[]) {
+  const ids = Array.from(new Set(stockItemIds.filter(Boolean))).sort();
+  return useQuery<Set<string>>({
+    queryKey: ["warehouse", "articoli-con-seriale", ids.join(",")],
+    enabled: ids.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_stock")
+        .select("id, tracking_mode, requires_warranty")
+        .in("id", ids);
+      if (error) throw error;
+      const righe = (data ?? []) as unknown as { id: string; tracking_mode: string | null; requires_warranty: boolean | null }[];
+      return new Set(righe.filter((r) => r.tracking_mode === "serialized" || r.requires_warranty).map((r) => r.id));
+    },
+  });
+}

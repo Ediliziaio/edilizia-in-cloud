@@ -1,27 +1,19 @@
 /**
- * Card "Tracking Seriali" nella pagina commessa.
+ * «Seriali e garanzie» nella pagina commessa: gli articoli che hanno una matricola, con quanti
+ * seriali sono assegnati e «Gestisci seriali» (manuale + scanner).
  *
- * Per ogni riga order_items mostra:
- *  - nome articolo + product_code (codice articolo)
- *  - counter "N/qty seriali assegnati"
- *  - button "Gestisci seriali" → apre AssignSerialsDialog (manuale + scanner)
+ * Una matricola ce l'hanno gli articoli di magazzino tracciati pezzo per pezzo o con garanzia
+ * obbligatoria, e quelli che ne hanno già una assegnata. Le righe libere della commessa (quasi
+ * tutte: non sono collegate al magazzino) non si sa: restano sotto «Altri articoli».
  *
- * Le query per i seriali partono solo quando la Card viene espansa (lazy),
- * per non scatenare N query in parallelo al mount della pagina commessa.
+ * Una query sola per tutte le righe (batched), non una per riga.
  */
-import { useState, useMemo, useId } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import { Package, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight, ScanLine, Package } from "lucide-react";
+import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella } from "@/components/orders/TabellaCommessa";
 import { AssignSerialsDialog } from "@/components/warehouse/AssignSerialsDialog";
-import { useStockUnitsByOrderItemIds } from "@/hooks/warehouse/useStockUnits";
+import { useArticoliConSeriale, useStockUnitsByOrderItemIds } from "@/hooks/warehouse/useStockUnits";
 import type { OrderItemData } from "@/lib/orderUtils";
 
 interface OrderSerialsTrackingCardProps {
@@ -29,148 +21,69 @@ interface OrderSerialsTrackingCardProps {
   orderItems: OrderItemData[];
 }
 
-export function OrderSerialsTrackingCard({
-  orderId,
-  orderItems,
-}: OrderSerialsTrackingCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const contentId = useId();
+export function OrderSerialsTrackingCard({ orderId, orderItems }: OrderSerialsTrackingCardProps) {
+  const [altriAperti, setAltriAperti] = useState(false);
+  const [gestito, setGestito] = useState<OrderItemData | null>(null);
 
   // Solo materiali fisici con quantità positiva possono avere matricole.
   const trackableItems = useMemo(
     () => orderItems.filter((it) => (!it.natura_riga || it.natura_riga === "materiale") && (it.quantity ?? 0) > 0),
     [orderItems],
   );
-
-  // Batched fetch (1 sola query in.()) invece di N parallele per ogni riga.
-  // Parte SOLO se la Card è espansa (lazy). Senza, apri commessa con 20 righe
-  // → 20 query parallele a Supabase al primo expand.
-  const itemIds = useMemo(
-    () => trackableItems.map((it) => it.id),
-    [trackableItems],
-  );
-  const { data: serialsByItem = new Map() } = useStockUnitsByOrderItemIds(
-    expanded ? itemIds : [],
-  );
+  const itemIds = useMemo(() => trackableItems.map((it) => it.id), [trackableItems]);
+  const { data: serialsByItem = new Map() } = useStockUnitsByOrderItemIds(itemIds);
+  const { data: conSeriale = new Set<string>() } = useArticoliConSeriale(trackableItems.map((it) => it.stock_item_id ?? ""));
 
   if (trackableItems.length === 0) return null;
 
+  const assegnati = (it: OrderItemData): number => (serialsByItem.get(it.id) ?? []).length;
+  const daSeguire = trackableItems.filter((it) => (it.stock_item_id && conSeriale.has(it.stock_item_id)) || assegnati(it) > 0);
+  const altri = trackableItems.filter((it) => !daSeguire.includes(it));
+  const complete = daSeguire.filter((it) => assegnati(it) >= (it.quantity ?? 0)).length;
+
+  const colonne: ColonnaTabella<OrderItemData>[] = [
+    { titolo: "Articolo", principale: true, cella: (it) => (
+      <span className="flex flex-wrap items-center gap-2 font-medium">
+        {it.name}
+        {it.product_code && <span className="font-mono text-xs font-normal text-muted-foreground">{it.product_code}</span>}
+      </span>
+    ) },
+    { titolo: "Seriali", cella: (it) => {
+      const n = assegnati(it);
+      const q = it.quantity ?? 0;
+      return <StatoPill tono={n >= q ? "verde" : n > 0 ? "ambra" : "grigio"}>{n} / {q}</StatoPill>;
+    } },
+    { titolo: "Azione", intestazione: <span className="sr-only">Azione</span>, destra: true, cella: (it) => (
+      <Button variant="outline" size="sm" className="h-8" onClick={() => setGestito(it)}>
+        <ScanLine className="mr-1.5 h-3.5 w-3.5" aria-hidden />Gestisci seriali
+      </Button>
+    ) },
+  ];
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Package className="h-4 w-4 text-orange-600" />
-            <CardTitle className="text-base">Seriali e garanzie</CardTitle>
-          </div>
-          <Badge variant="outline" className="shrink-0 text-xs">
-            {trackableItems.length} {trackableItems.length === 1 ? "articolo" : "articoli"}
-          </Badge>
-        </div>
-        {!expanded && (
-          <CardDescription className="hidden text-xs ml-6 md:block">
-            Assegna matricole o numeri di serie ai prodotti della commessa che li prevedono.
-            Scansiona l'etichetta del prodotto oppure inserisci il seriale per tracciabilità e garanzia.
-          </CardDescription>
+    <RiquadroCommessa icona={<Package className="h-4 w-4 text-orange-600" aria-hidden />} titolo="Seriali e garanzie" conteggio={daSeguire.length}
+      riassunto={daSeguire.length > 0 ? `${complete} su ${daSeguire.length} completi` : undefined}>
+      <div className="space-y-3">
+        {daSeguire.length > 0
+          ? <TabellaCommessa etichetta="Seriali degli articoli" colonne={colonne} righe={daSeguire} chiave={(it) => it.id} />
+          : <p className="text-sm text-muted-foreground">Nessun articolo del magazzino prevede una matricola in questa commessa.</p>}
+        {altri.length > 0 && (
+          <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" aria-expanded={altriAperti} onClick={() => setAltriAperti((v) => !v)}>
+            {altriAperti ? "Nascondi gli altri articoli" : `Altri articoli (${altri.length})`}
+          </Button>
         )}
-        <Button variant="outline" className="min-h-11 w-full justify-between border-slate-300 font-semibold text-blue-950"
-          aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded(v => !v)}>
-          {expanded ? "Chiudi seriali" : "Apri seriali e garanzie"}
-          {expanded ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
-        </Button>
-      </CardHeader>
-      {expanded && (
-        <CardContent id={contentId} className="space-y-2">
-          {trackableItems.map((item) => (
-            <SerialsTrackingRow
-              key={item.id}
-              orderId={orderId}
-              orderItemId={item.id}
-              itemName={item.name}
-              productCode={(item as unknown as { product_code?: string }).product_code ?? null}
-              quantity={item.quantity ?? 0}
-              assignedCount={(serialsByItem.get(item.id) ?? []).length}
-            />
-          ))}
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-interface SerialsTrackingRowProps {
-  orderId: string;
-  orderItemId: string;
-  itemName: string;
-  productCode: string | null;
-  quantity: number;
-  /** Counter assegnati passato dal parent (batched fetch, no N+1). */
-  assignedCount: number;
-}
-
-function SerialsTrackingRow({
-  orderId,
-  orderItemId,
-  itemName,
-  productCode,
-  quantity,
-  assignedCount,
-}: SerialsTrackingRowProps) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  const complete = assignedCount >= quantity;
-  const partial = assignedCount > 0 && !complete;
-
-  return (
-    <>
-      <div className="flex flex-wrap items-center justify-between gap-3 border rounded-md p-3 hover:bg-muted/30 transition-colors">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm truncate">{itemName}</span>
-            {productCode && (
-              <Badge variant="outline" className="text-[10px] font-mono">
-                {productCode}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-1 text-xs">
-            <span className="text-muted-foreground">Seriali:</span>
-            <Badge
-              variant={complete ? "default" : partial ? "secondary" : "outline"}
-              className={
-                complete
-                  ? "bg-emerald-600"
-                  : partial
-                    ? "bg-amber-100 text-amber-800 border-amber-300"
-                    : ""
-              }
-            >
-              {assignedCount} / {quantity}
-            </Badge>
-            {complete && <span className="text-emerald-600 text-xs">✓ Completo</span>}
-          </div>
-        </div>
-        <Button
-          variant={complete ? "outline" : "default"}
-          size="sm"
-          className="min-h-11 border border-slate-300 font-semibold"
-          onClick={() => setDialogOpen(true)}
-        >
-          <ScanLine className="h-3.5 w-3.5 mr-1.5" />
-          Gestisci seriali
-        </Button>
+        {altriAperti && <TabellaCommessa etichetta="Altri articoli" colonne={colonne} righe={altri} chiave={(it) => it.id} />}
       </div>
-
-      {dialogOpen && (
+      {gestito && (
         <AssignSerialsDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          open
+          onOpenChange={(aperto) => { if (!aperto) setGestito(null); }}
           orderId={orderId}
-          orderItemId={orderItemId}
-          expectedQty={quantity}
-          itemLabel={productCode ? `${itemName} · ${productCode}` : itemName}
+          orderItemId={gestito.id}
+          expectedQty={gestito.quantity ?? 0}
+          itemLabel={gestito.product_code ? `${gestito.name} · ${gestito.product_code}` : gestito.name}
         />
       )}
-    </>
+    </RiquadroCommessa>
   );
 }
