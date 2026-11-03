@@ -20,6 +20,7 @@ import { Vista3DPigra } from "@/components/planimetrie/Vista3DPigra";
 import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialog";
 import { AbachiPianta } from "@/components/planimetrie/AbachiPianta";
 import { ProspettiDialog } from "@/components/planimetrie/ProspettiDialog";
+import { pianiProspetto } from "@/lib/planimetrie/prospetti";
 import { RenderInSerieDialog } from "@/components/planimetrie/RenderInSerieDialog";
 import { RenderEsterniDialog } from "@/components/planimetrie/RenderEsterniDialog";
 import { PrimaEDopo } from "@/components/planimetrie/PrimaEDopo";
@@ -252,7 +253,7 @@ export default function RenderPlanimetriaScheda() {
         );
       })()}
 
-      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} tetto={livello.tetto} titolo={data.riga.titolo} />
+      <ProspettiDialog aperto={prospetti} onChiudi={() => setProspetti(false)} stato={statoPerAmbito(documento, livello.id, ambito)} tetto={livello.tetto} titolo={data.riga.titolo} piani={pianiProspetto(documento, ambito)} />
 
       {mostra3D && piante3D && (
         <Vista3DPigra

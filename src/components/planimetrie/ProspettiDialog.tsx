@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { disegnoInDxf, disegnoInSvg, prospetto, sezione, type Lato } from "@/lib/planimetrie/prospetti";
+import { Switch } from "@/components/ui/switch";
+import { disegnoInDxf, disegnoInSvg, prospetto, prospettoQuotato, sezione, type Lato, type PianoProspetto } from "@/lib/planimetrie/prospetti";
 import type { StatoPianta, Tetto } from "../../../shared/planimetrie/modello.ts";
 
 type Scelta = Lato | "sezione";
@@ -26,11 +27,14 @@ function scarica(nome: string, dati: Uint8Array | string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto }: { aperto: boolean; onChiudi: () => void; stato: StatoPianta | null; titolo: string; tetto?: Tetto | null }) {
+export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto, piani }: { aperto: boolean; onChiudi: () => void; stato: StatoPianta | null; titolo: string; tetto?: Tetto | null; /** Tutti i piani (per ambito): con più di uno si può disegnare l'intero edificio. */ piani?: PianoProspetto[] }) {
   const [scelta, setScelta] = useState<Scelta>("sud");
   const [asse, setAsse] = useState<"orizzontale" | "verticale">("orizzontale");
   const [posizione, setPosizione] = useState(50);
   const [scala, setScala] = useState(50);
+  const [quotato, setQuotato] = useState(true);
+  const [edificio, setEdificio] = useState(true);
+  const piuPiani = (piani?.length ?? 0) > 1;
 
   const limiti = useMemo(() => {
     const pts = (stato?.muri ?? []).flatMap((m) => [m.p1, m.p2]);
@@ -39,11 +43,14 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto }: { ap
   }, [stato]);
 
   const disegno = useMemo(() => {
-    if (!stato || !limiti) return null;
-    if (scelta !== "sezione") return prospetto(stato, scelta, tetto);
+    if (!aperto || !stato || !limiti) return null;
+    if (scelta !== "sezione") {
+      if (!quotato) return prospetto(stato, scelta, tetto);
+      return prospettoQuotato(piuPiani && edificio && piani ? piani : [{ id: "corrente", nome: titolo || "Piano", quota: 0, stato, tetto }], scelta);
+    }
     const [a, b] = asse === "orizzontale" ? [limiti.minY, limiti.maxY] : [limiti.minX, limiti.maxX];
     return sezione(stato, { asse, valore: a + ((b - a) * posizione) / 100 }, "Sezione A-A", tetto);
-  }, [stato, limiti, scelta, asse, posizione, tetto]);
+  }, [aperto, stato, limiti, scelta, asse, posizione, tetto, quotato, edificio, piani, piuPiani, titolo]);
   const svg = useMemo(() => (disegno ? disegnoInSvg(disegno, scala).svg : null), [disegno, scala]);
   const base = `${(titolo || "pianta").replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase()}-${scelta === "sezione" ? "sezione" : `prospetto-${scelta}`}`;
 
@@ -60,7 +67,7 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto }: { ap
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Prospetti e sezioni</DialogTitle>
-          <DialogDescription>Disegnati dalle pareti, porte e finestre della pianta, in scala. Si aggiornano da soli quando cambi la pianta.</DialogDescription>
+          <DialogDescription>Disegnati dalle pareti, porte e finestre della pianta, in scala, con quote, codici dei serramenti, cassonetti e oscuranti. Si aggiornano da soli quando cambi la pianta.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-1.5">
@@ -80,6 +87,12 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto }: { ap
               <ToggleGroupItem value="100">1:100</ToggleGroupItem>
             </ToggleGroup>
           </div>
+          {scelta !== "sezione" && (
+            <div className="flex flex-wrap items-center gap-4 pb-1">
+              <label className="flex items-center gap-2 text-sm"><Switch checked={quotato} onCheckedChange={setQuotato} />Quote e dettagli</label>
+              {piuPiani && quotato && <label className="flex items-center gap-2 text-sm"><Switch checked={edificio} onCheckedChange={setEdificio} />Tutto l'edificio</label>}
+            </div>
+          )}
           {scelta === "sezione" && (
             <>
               <div className="space-y-1.5">
