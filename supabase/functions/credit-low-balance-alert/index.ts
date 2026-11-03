@@ -22,6 +22,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
+import { notificaInterna } from "../_shared/notificaInterna.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -170,6 +171,7 @@ Deno.serve(async (req) => {
     // Alcune aziende avevano il portafoglio AI a zero, mai
     // ricaricato, e centinaia di chiamate respinte senza che nessuno lo sapesse.
     const aiSenzaCrediti = new Set<string>();
+    const esterniSenzaCrediti: Array<{ id: string; name: string | null }> = [];
     {
       const da = new Date(Date.now() - 7 * 86_400_000).toISOString();
       const { data: respinteAi } = await supabase
@@ -185,9 +187,13 @@ Deno.serve(async (req) => {
       }
       // Chi è fatturato fuori dall'app non ricarica da qui: «Ricarica ora» non gli serve.
       if (aiSenzaCrediti.size) {
-        const { data: esterni } = await supabase.from("companies").select("id")
+        // Ma l'AI gli si ferma lo stesso (BeMade, 03/11/2026): lo deve sapere chi lo fattura.
+        const { data: esterni } = await supabase.from("companies").select("id, name")
           .in("id", [...aiSenzaCrediti]).eq("billing_mode", "external");
-        for (const c of (esterni ?? []) as Array<{ id: string }>) aiSenzaCrediti.delete(c.id);
+        for (const c of (esterni ?? []) as Array<{ id: string; name: string | null }>) {
+          aiSenzaCrediti.delete(c.id);
+          esterniSenzaCrediti.push(c);
+        }
       }
     }
 
@@ -253,8 +259,38 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Stessa regola dei 7 giorni, nello stesso registro. Non puo' aspettare il
+    // ritorno qui sotto: spesso e' l'unico avviso del giro.
+    const avvisoEsterni = async (): Promise<string[]> => {
+      if (esterniSenzaCrediti.length === 0) return [];
+      const { data: gia } = await supabase.from("credit_low_balance_alerts")
+        .select("company_id, alerted_at")
+        .in("company_id", esterniSenzaCrediti.map((c) => c.id))
+        .eq("wallet_type", "ai");
+      const recenti = new Set(((gia ?? []) as any[])
+        .filter((a) => Date.now() - new Date(a.alerted_at).getTime() < REALERT_DAYS * 86_400_000)
+        .map((a) => a.company_id));
+      const nuove = esterniSenzaCrediti.filter((c) => !recenti.has(c.id));
+      if (nuove.length === 0 || dryRun) return nuove.map((c) => c.name ?? c.id);
+      const inviata = await notificaInterna(supabase, {
+        oggetto: `AI ferma per credito finito: ${nuove.map((c) => c.name ?? c.id).join(", ")}`,
+        sommario: "Queste aziende sono fatturate fuori dall'app e hanno il credito AI a zero: le chiamate AI vengono respinte e a loro non arriva nessun avviso. Se devono continuare a usare l'AI va caricato il credito.",
+        dettagli: nuove.map((c) => ["Azienda", c.name ?? c.id] as [string, string]),
+      });
+      if (inviata) {
+        for (const c of nuove) {
+          await supabase.from("credit_low_balance_alerts").upsert(
+            { company_id: c.id, wallet_type: "ai", alerted_at: new Date().toISOString(), balance_at_alert: 0, threshold_at_alert: 0 },
+            { onConflict: "company_id,wallet_type" },
+          );
+        }
+      }
+      return nuove.map((c) => c.name ?? c.id);
+    };
+
     if (lowByCompany.size === 0) {
-      return json({ ok: true, alerts_sent: 0, dry_run: dryRun, note: "nessun wallet sotto soglia" }, 200, req);
+      const esterni_senza_crediti = await avvisoEsterni();
+      return json({ ok: true, alerts_sent: 0, dry_run: dryRun, esterni_senza_crediti, note: "nessun wallet sotto soglia" }, 200, req);
     }
 
     // ── 4. Dedup: filtra i wallet già avvisati negli ultimi 7 giorni ─────
@@ -329,7 +365,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, alerts_sent: sent, dry_run: dryRun, details }, 200, req);
+    const esterni_senza_crediti = await avvisoEsterni();
+    return json({ ok: true, alerts_sent: sent, dry_run: dryRun, details, esterni_senza_crediti }, 200, req);
   } catch (err) {
     console.error("[credit-low-balance-alert] error:", err);
     return json({ error: err instanceof Error ? err.message : "Unknown error" }, 500, req);

@@ -465,10 +465,9 @@ serve(async (req: Request) => {
     if (channel.name !== "silvio-ai") return errorResponse("Canale non è Silvio", 400, corsHeaders);
 
     const companyId: string = channel.company_id;
-    // Cache di coda, sola lettura e tetti (02/11/2026): prima su Demo Azienda 2, dove si misura col
-    // provider vero. Per tutti: SILVIO_RISPARMIO_TOKEN_PER_TUTTI=true, senza ripubblicare.
-    const risparmioToken = companyId === "d2000000-0000-4000-a000-000000000002" ||
-      Deno.env.get("SILVIO_RISPARMIO_TOKEN_PER_TUTTI") === "true";
+    // Cache di coda, sola lettura, tetti e gruppo fisso: per tutti dal 03/11/2026, misurati prima su
+    // Demo Azienda 2. Kill-switch, senza ripubblicare: SILVIO_RISPARMIO_TOKEN_DISABLED=true.
+    const risparmioToken = Deno.env.get("SILVIO_RISPARMIO_TOKEN_DISABLED") !== "true";
 
     // Sei controlli indipendenti, una sola attesa. Prima erano in fila —
     // accesso, carta, membro del canale, persona, RBAC, e il credito non
@@ -1485,6 +1484,12 @@ serve(async (req: Request) => {
     let richiamoAzioneFatto = false;
     // Caratteri di risultati gia' messi nel prompt di questo turno.
     let charRisultati = 0;
+    // Haiku sulle domande di sola lettura: prova su Demo Azienda 2, si confronta
+    // la qualita' prima di allargare. Solo qui, perche' cambia cosa paga il cliente.
+    const taskSilvio = companyId === "d2000000-0000-4000-a000-000000000002" && gruppoFisso &&
+        domandaDiSolaLettura(userMessage, false)
+      ? "persona_silvio_lettura"
+      : "persona_silvio";
     const passaggiDiLettura = soloLettura || (gruppoFisso && domandaDiSolaLettura(userMessage, false));
     const limitePassaggi = () => (passaggiDiLettura && !azioniChieste ? PASSAGGI_SOLA_LETTURA : MAX_TOOL_ITERATIONS);
     while (!finalContent && iteration < limitePassaggi()) {
@@ -1499,7 +1504,7 @@ serve(async (req: Request) => {
       try {
         result = await aiRouterComplete({
           supabase: supabaseAdmin,
-          taskKey: "persona_silvio",
+          taskKey: taskSilvio,
           turnControl,
           sessionId: `${companyId}:${userId}:${channelId}`,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
