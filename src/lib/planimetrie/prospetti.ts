@@ -470,7 +470,7 @@ export function prospettoQuotato(piani: PianoProspetto[], lato: Lato): Disegno2D
   }
   for (const piano of ordinati) {
     out.push({ tipo: "linea", a: { u: base.minU - 4, z: piano.quota }, b: { u: base.minU - 40, z: piano.quota }, stile: "terra" });
-    out.push({ tipo: "testo", u: base.minU - 115, z: piano.quota + 6, testo: `${quotaM(piano.quota)} ${piano.nome}`, stile: "etichetta", ancora: "fine" });
+    out.push({ tipo: "testo", u: base.minU - 115, z: piano.quota + 6, testo: `${quotaM(piano.quota)} ${piano.nome}`.trim(), stile: "etichetta", ancora: "fine" });
   }
   out.push({ tipo: "testo", u: base.minU - 115, z: Math.round(base.maxZ) + 6, testo: quotaM(Math.round(base.maxZ)), stile: "etichetta", ancora: "fine" });
   // altezze dei vani a destra: davanzale, luce, architrave

@@ -40,7 +40,7 @@ export function disegniDellaTavola(stato: StatoPianta | null | undefined, tetto?
     ? { asse: "verticale" as const, valore: (minX + maxX) / 2 }
     : { asse: "orizzontale" as const, valore: (minY + maxY) / 2 };
   // i prospetti sono quotati; con più piani escono di tutto l'edificio, coi livelli
-  const tutti: PianoProspetto[] = piani && piani.length > 1 ? piani : [{ id: "corrente", nome: "Piano", quota: 0, stato, tetto }];
+  const tutti: PianoProspetto[] = piani && piani.length > 1 ? piani : [{ id: "corrente", nome: "", quota: 0, stato, tetto }];
   return [
     prospettoQuotato(tutti, "sud"), prospettoQuotato(tutti, "nord"), prospettoQuotato(tutti, "est"), prospettoQuotato(tutti, "ovest"),
     sezione(stato, taglio, "Sezione A-A", tetto),

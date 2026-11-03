@@ -128,4 +128,9 @@ describe("prospetti quotati", () => {
     expect(tre).toHaveLength(5);
     expect(tre[0].maxZ).toBeGreaterThan(uno[0].maxZ + 500);
   });
+
+  it("con un piano solo la quota di piano è senza nome", () => {
+    const d = prospettoQuotato([{ id: "c", nome: "", quota: 0, stato: carica("trilocale.json").livelli[0].fatto }], "sud");
+    expect(testi(d)).toContain("±0,00");
+  });
 });

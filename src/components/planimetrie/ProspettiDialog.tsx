@@ -46,11 +46,11 @@ export function ProspettiDialog({ aperto, onChiudi, stato, titolo, tetto, piani 
     if (!aperto || !stato || !limiti) return null;
     if (scelta !== "sezione") {
       if (!quotato) return prospetto(stato, scelta, tetto);
-      return prospettoQuotato(piuPiani && edificio && piani ? piani : [{ id: "corrente", nome: titolo || "Piano", quota: 0, stato, tetto }], scelta);
+      return prospettoQuotato(piuPiani && edificio && piani ? piani : [{ id: "corrente", nome: "", quota: 0, stato, tetto }], scelta);
     }
     const [a, b] = asse === "orizzontale" ? [limiti.minY, limiti.maxY] : [limiti.minX, limiti.maxX];
     return sezione(stato, { asse, valore: a + ((b - a) * posizione) / 100 }, "Sezione A-A", tetto);
-  }, [aperto, stato, limiti, scelta, asse, posizione, tetto, quotato, edificio, piani, piuPiani, titolo]);
+  }, [aperto, stato, limiti, scelta, asse, posizione, tetto, quotato, edificio, piani, piuPiani]);
   const svg = useMemo(() => (disegno ? disegnoInSvg(disegno, scala).svg : null), [disegno, scala]);
   const base = `${(titolo || "pianta").replace(/[^\p{L}\p{N}]+/gu, "-").toLowerCase()}-${scelta === "sezione" ? "sezione" : `prospetto-${scelta}`}`;
 
