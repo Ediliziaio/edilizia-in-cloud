@@ -9,6 +9,8 @@
 import * as THREE from "three";
 import { costruisciScena, scenaEdificio, metadatiFotogramma, type PianoPer3D, type MetadatiFotogramma, type PiantaPer3D, type Telecamera3D, type Vista3D } from "@/lib/planimetrie/tred";
 import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
+import { creaAspetto } from "./aspetto";
+import type { OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
 export interface RichiestaFotogramma {
   pianta: PiantaPer3D;
@@ -24,6 +26,8 @@ export interface RichiestaFotogramma {
   terreno?: number;
   /** Viste da fuori di un edificio a più piani: tutti, uno sopra l'altro. */
   piani?: PianoPer3D[];
+  /** Aspetto realistico (facciata, infissi, ora, alberi…) come nel 3D: per i render degli esterni. Senza, la vista è quella semplice di sempre. */
+  aspetto?: OpzioniAspetto;
 }
 
 export interface Fotogramma {
@@ -53,11 +57,20 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   scene.add(gruppo);
   const camera = new THREE.PerspectiveCamera(r.telecamera.fov, larghezza / altezza, 0.05, 500);
   applicaTelecamera(camera, r.telecamera);
+  // con l'aspetto scelto (facciata, infissi, cielo, ora, alberi) la vista è quella del 3D realistico
+  const aspetto = r.aspetto?.realistico ? creaAspetto({ renderer, scene, camera }) : null;
   try {
-    renderer.render(scene, camera);
+    if (aspetto && r.aspetto) {
+      aspetto.dimensiona(larghezza, altezza);
+      aspetto.applica(gruppo, scena, { ...r.aspetto, dentro: false }, ambiente);
+      aspetto.disegna();
+    } else {
+      renderer.render(scene, camera);
+    }
     const png = await new Promise<Blob>((ok, ko) => canvas.toBlob((b) => (b ? ok(b) : ko(new Error("Immagine non creata."))), "image/png"));
     return { png, metadati };
   } finally {
+    aspetto?.libera();
     liberaGruppo(gruppo);
     ambiente.libera();
     renderer.dispose();

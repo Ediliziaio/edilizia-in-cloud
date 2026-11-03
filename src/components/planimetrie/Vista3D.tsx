@@ -33,7 +33,8 @@ import {
 import { catturaFotogramma, type Fotogramma } from "./tred/fotogramma";
 import { esplodiInStrati } from "@/lib/planimetrie/tred/esploso";
 import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
-import { ASPETTO_PREDEFINITO, creaAspetto, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type Aspetto, type OpzioniAspetto } from "./tred/aspetto";
+import { creaAspetto, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type Aspetto, type OpzioniAspetto } from "./tred/aspetto";
+import { leggiAspetto, salvaAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
 export type ModoVista = "alto" | "giro" | "dentro";
 
@@ -101,8 +102,9 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const [impianti, setImpianti] = useState(false);
   const [fondazioni, setFondazioni] = useState(false);
   // Aspetto realistico: tessiture, cielo, ora del giorno, alberi, ombre negli angoli. Sul telefono gli effetti pesanti partono spenti.
-  const [asp, setAsp] = useState<OpzioniAspetto>(() => ({ ...ASPETTO_PREDEFINITO, effetti: !(typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches), ...aspettoIniziale }));
-  const cambiaAsp = (campi: Partial<OpzioniAspetto>) => setAsp((a) => ({ ...a, ...campi }));
+  // Le scelte si ricordano nel browser: valgono anche per i render esterni con l'AI.
+  const [asp, setAsp] = useState<OpzioniAspetto>(() => ({ ...leggiAspetto(), ...aspettoIniziale }));
+  const cambiaAsp = (campi: Partial<OpzioniAspetto>) => setAsp((a) => { const n = { ...a, ...campi }; salvaAspetto(n); return n; });
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
