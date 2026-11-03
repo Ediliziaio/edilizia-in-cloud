@@ -20,6 +20,15 @@ describe("Documento SAL progressivo",()=>{
     const html=buildSalHtml(record(),{description:"Opere",order_code:"TEST",total_amount:40000,work_address:'<script>cantiere</script>',customer:{first_name:'<img src="x">',last_name:"DEMO",address:"Via prova"}},company);
     expect(html).toContain("Committente");expect(html).toContain("Via prova");expect(html).toContain("&lt;script&gt;cantiere");expect(html).not.toContain('<img src="x">');
   });
+  it("foto e allegati scelti stanno in una pagina a sé, senza eseguire contenuti",()=>{
+    const order={description:"Lavori",order_code:"DEMO",total_amount:40000};
+    const html=buildSalHtml(record(),order,company,null,undefined,20000,null,{foto:[{url:"https://x.test/a.jpg?token=1",data:"2026-10-10T08:00:00Z",didascalia:"Getto <b>solaio</b>"}],allegati:["Libretto delle misure","<script>x</script>"]});
+    expect(html).toContain("Documentazione fotografica");expect(html).toContain("https://x.test/a.jpg");expect(html).toContain("10/10/2026");
+    expect(html).toContain("Allegati al verbale");expect(html).toContain("Libretto delle misure");expect(html).not.toContain("<script>x");expect(html).not.toContain("<b>solaio");
+    if(process.env.SAL_FOTO_PROOF)writeFileSync(process.env.SAL_FOTO_PROOF,html);
+    const senza=buildSalHtml(record(),order,company,null,undefined,20000);
+    expect(senza).not.toContain("Documentazione fotografica");expect(senza).not.toContain("Allegati al verbale");
+  });
   it("marca una bozza non emessa e rende innocue note HTML",()=>{
     const html=buildSalHtml({...record("bozza"),note:'<img src="x" onerror="alert(1)">'},null,company);
     expect(html).toContain("BOZZA - Non emessa");expect(html).toContain("&lt;img");expect(html).not.toContain('<img src="x"');

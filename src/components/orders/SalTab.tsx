@@ -29,6 +29,7 @@ import {usePermissions} from "@/hooks/usePermissions";
 import {prepareSalLines,salNumber,salLineAmount,salListIssues,salEmissionIssue} from "@/lib/orders/salDraft";
 import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
+import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
 
 interface SalVoce {
@@ -115,6 +116,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const [isExporting, setIsExporting] = useState(false);
   const [exportingSalId, setExportingSalId] = useState<string | null>(null);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
+  const [verbaleDi, setVerbaleDi] = useState<SalRecord | null>(null);
   const [printTitle, setPrintTitle] = useState("");
   const [signatureUrl,setSignatureUrl]=useState<string|null>(null);
   const [signatureBusy,setSignatureBusy]=useState(false);
@@ -241,12 +243,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     onError:(error:Error)=>{toast.error(error.message);refreshSal();},
   });
 
-  const handleExportPdf = async (sal: SalRecord) => {
+  const handleExportPdf = async (sal: SalRecord, fotoIds: string[] = [], allegati: string[] = []) => {
     setIsExporting(true);
     setExportingSalId(sal.id);
     try {
       const { data, error } = await supabase.functions.invoke("generate-sal-pdf", {
-        body: { sal_id: sal.id, company_id: companyId, prepare_signature:false },
+        body: { sal_id: sal.id, company_id: companyId, prepare_signature:false, foto_ids: fotoIds, allegati },
       });
       if (error) {
         const detail = error.context ? await error.context.json?.().catch((): null => null) : null;
@@ -255,6 +257,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       if (!data?.html) throw new Error("Nessun contenuto generato");
       setPrintTitle(`SAL n. ${sal.numero_sal}`);
       setPrintHtml(data.html);
+      setVerbaleDi(null);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Errore nell'esportazione");
     } finally {
@@ -360,9 +363,30 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         )}
       </div>
 
+      {(() => {
+        const ultimo = salList.find((x) => x.stato !== "bozza");
+        if (!ultimo) return null;
+        const contrattuale = (ultimo.sal_voci ?? []).reduce((t, v) => t + Number(v.importo_contrattuale), 0);
+        const eseguito = Number(ultimo.importo_totale);
+        const numero = (titolo: string, valore: string, nota?: string) => (
+          <div><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{valore}</dd>{nota && <dd className="text-[11px] text-muted-foreground">{nota}</dd>}</div>
+        );
+        return (
+          <dl aria-label="Riepilogo dei SAL" className="grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
+            {numero("Voci del contratto", formatCurrency(contrattuale))}
+            {numero("Eseguito a tutto l'ultimo SAL", formatCurrency(eseguito), `verbale ${ultimo.numero_sal}`)}
+            {numero("Avanzamento", contrattuale > 0 ? `${Math.round((eseguito / contrattuale) * 1000) / 10}%` : "—")}
+            {numero("Resta da eseguire", formatCurrency(Math.max(0, contrattuale - eseguito)))}
+          </dl>
+        );
+      })()}
+
       {/* Il punto che vale tutto il capitolo: il SAL è una misura del lavoro
           eseguito, non una scadenza sul calendario. */}
-      <SalPlanInfo companyId={companyId} installments={installments ?? []}/>
+      <details className="rounded-lg border bg-muted/20">
+        <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">Come funziona il SAL e quando matura la rata</summary>
+        <div className="px-3 pb-3"><SalPlanInfo companyId={companyId} installments={installments ?? []}/></div>
+      </details>
 
       {/* Avanzamento incassi: riporta qui il piano rate della commessa (lo
           stesso Riepilogo Finanziario di creazione/modifica) così lo stato
@@ -593,18 +617,14 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       );
                     })()}
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => handleExportPdf(sal)}
-                      disabled={isExporting && exportingSalId === sal.id}
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => setVerbaleDi(sal)}
                       aria-label="Anteprima e stampa SAL"
                     >
-                      {isExporting && exportingSalId === sal.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Verbale PDF
                     </Button>
                     {permissions.canEditOrders && sal.stato === "bozza" && <Button
                       variant="ghost"
@@ -640,6 +660,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               </CardHeader>
               {sal.sal_voci?.length > 0 && (
                 <CardContent className="pt-0">
+                  <details open={sal.id === salList[0]?.id}>
+                  <summary className="mb-2 cursor-pointer text-xs font-medium text-muted-foreground">Voci del verbale ({sal.sal_voci.length})</summary>
                   <div className="border rounded overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
@@ -683,6 +705,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                   {sal.note && (
                     <p className="text-xs text-muted-foreground mt-2 italic">{sal.note}</p>
                   )}
+                  </details>
                 </CardContent>
               )}
             </Card>
@@ -918,6 +941,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       </Dialog>
       <Dialog open={!!signatureUrl} onOpenChange={open=>{if(!open)setSignatureUrl(null);}}><DialogContent><DialogHeader><DialogTitle>Link per il cliente</DialogTitle><DialogDescription>Il link consente di approvare il SAL. Non è stata inviata alcuna email.</DialogDescription></DialogHeader><Input readOnly aria-label="Link cliente SAL" value={signatureUrl??""}/><Button onClick={async()=>{try{await navigator.clipboard.writeText(signatureUrl!);toast.success("Link copiato");}catch{toast.error("Copia non riuscita: seleziona e copia il link dal campo.");}}}>Copia link</Button></DialogContent></Dialog>
 
+      {verbaleDi && (() => {
+        // salList è dal più recente: il precedente è il primo con un numero più basso e già emesso.
+        const precedente = salList.find((x) => x.numero_sal < verbaleDi.numero_sal && x.stato !== "bozza");
+        return <VerbaleSalDialog numero={verbaleDi.numero_sal} orderId={orderId} companyId={companyId}
+          dal={precedente?.data_emissione ?? null} al={verbaleDi.data_emissione} inCorso={isExporting}
+          onGenera={(fotoIds, allegati) => void handleExportPdf(verbaleDi, fotoIds, allegati)} onClose={() => setVerbaleDi(null)} />;
+      })()}
       {printHtml && (
         <PrintPreviewModal
           htmlContent={printHtml}

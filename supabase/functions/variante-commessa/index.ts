@@ -1,12 +1,35 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { prepareVariation, validateVariationWorkspace, variationDraftPublicTerms, variationProposalPdf, variationPdfFilename } from "./_render.mjs";
+import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
+import { formatoImmagine } from "../_shared/logoAzienda.ts";
+import { prepareVariation, validateVariationWorkspace, variationDocumentParts, variationDraftPublicTerms, variationProposalPdf, variationPdfFilename } from "./_render.mjs";
 
 const bucket = "order-variation-documents";
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v);
 const sha = async (bytes: ArrayBuffer | Uint8Array) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)).buffer))).map(x => x.toString(16).padStart(2,"0")).join("");
 const safeFileName = (value: string) => value.replace(/[\r\n/\\]/g,"_").slice(0,180);
+/**
+ * Il logo per il PDF, come data URL, rimpicciolito dallo storage: al 3/11/2026 il PNG di un'azienda
+ * vera entrava da 151 KB e il PDF ne pesava 62 MB, oltre il limite di 10 MB. Solo dal nostro storage
+ * pubblico: l'indirizzo lo scrive l'azienda. Se non si può, il documento esce col solo nome.
+ */
+const logoPerPdf = async (admin: Parameters<typeof leggiAziendaDocumento>[0], company: string) => {
+  try {
+    const url = (await leggiAziendaDocumento(admin, company))?.logo_url;
+    const pubblico = `${Deno.env.get("SUPABASE_URL")!.replace(/\/+$/, "")}/storage/v1/object/public/`;
+    if (!url?.startsWith(pubblico)) return undefined;
+    const ridotto = `${url.split("?")[0].replace("/object/public/", "/render/image/public/")}?height=180&resize=contain&format=origin`;
+    const res = await fetch(ridotto, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return undefined;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const formato = formatoImmagine(bytes);
+    if (!formato || bytes.byteLength > 300 * 1024) return undefined;
+    let binario = "";
+    for (let i = 0; i < bytes.length; i += 8192) binario += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return `data:image/${formato === "png" ? "png" : "jpeg"};base64,${btoa(binario)}`;
+  } catch { return undefined; }
+};
 
 Deno.serve(async req => {
   const cors = getCorsHeaders(req);
@@ -137,7 +160,7 @@ Deno.serve(async req => {
       const terms=prepareVariation(valid.content);
       if([terms.descrizione,workspace.context.companyName,workspace.context.customerName,workspace.context.documentHeading].some(value=>typeof value==="string"&&/{{|}}/.test(value)))return errorResponse("Completa le variabili del documento",422,cors);
       const docId=crypto.randomUUID(),prefix=`${scope.company}/${scope.order}/${scope.id}/${docId}/`;
-      const pdf=await variationProposalPdf(terms,{...workspace.context,proposalNumber:variation.numero_odv,proposalRegisteredAt:variation.created_at,archivedOriginal:true});
+      const pdf=await variationProposalPdf(terms,{...workspace.context,proposalNumber:variation.numero_odv,proposalRegisteredAt:variation.created_at,archivedOriginal:true,parti:variationDocumentParts(valid.content),logo:await logoPerPdf(admin,scope.company)});
       const bytes=pdf.output("arraybuffer"),path=`${prefix}proposal.pdf`,hash=await sha(bytes);
       if(bytes.byteLength>10*1024*1024)return errorResponse("Documento troppo grande",413,cors);
       const sourceContent=valid.content as typeof valid.content & {attachmentIds?:string[];templateId?:string};
