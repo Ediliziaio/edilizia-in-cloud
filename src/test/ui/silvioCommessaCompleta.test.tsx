@@ -2,7 +2,7 @@
  * «Completa con Silvio» e «Da completare» (fase 2, lotti 2.1 e 2.3), con commessa, documenti
  * e database finti: il popup parte dalla commessa, mostra chiuso quello che c'è, non lo fa
  * cambiare, legge un documento allegato solo su tocco, «Completa» chiama la RPC giusta;
- * l'elenco si ordina per urgenza e «Completa le prossime 5» passa da una all'altra.
+ * la riga sulla commessa dice cosa manca e porta alle impostazioni di Silvio.
  */
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -15,7 +15,9 @@ import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 import type { CommessaDaCompletare } from "@/lib/silvio-commessa/daCompletare";
 import { frammentiPerCompletare } from "@/lib/silvio-commessa/lettori/commessa";
 
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true, canViewSettingsOrders: true }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u0000000-0000-4000-a000-000000000001" } }) }));
+vi.mock("@/components/silvio-commessa/useCreaConSilvioAttivo", () => ({ useCreaConSilvioAttivo: () => true }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({
@@ -24,7 +26,7 @@ vi.mock("@/hooks/useVoiceInput", () => ({
 vi.mock("@/components/orders/CreateCustomerDialog", () => ({ CreateCustomerDialog: (): null => null }));
 
 import CreaConSilvioDialog from "@/components/silvio-commessa/CreaConSilvioDialog";
-import { ElencoDaCompletare } from "@/components/silvio-commessa/ElencoDaCompletare";
+import { CompletaConSilvio } from "@/components/silvio-commessa/CompletaConSilvio";
 
 const AZIENDA = "d2000000-0000-4000-a000-000000000002";
 const UTENTE = "u0000000-0000-4000-a000-000000000001";
@@ -196,39 +198,10 @@ const riga = (id: string, extra: Partial<CommessaDaCompletare> = {}): CommessaDa
   punteggio: 33, mancano: ["fasi.order_work_phases", "pagamenti.rate", "fasi.work_start_date"], totale: 6, ...extra,
 });
 
-describe("L'elenco «Da completare»", () => {
-  it("mostra le commesse in ordine, col punteggio e cosa manca", async () => {
-    const { s } = servizi();
-    const righe = [riga("ORD-A", { inizio: "2026-11-02", punteggio: 29 }), riga("ORD-B", { punteggio: 45, mancano: ["pagamenti.rate"] })];
-    conClient(<ElencoDaCompletare companyId={AZIENDA} userId={UTENTE} servizi={s} leggi={async () => righe} />);
-    const lista = await screen.findByRole("list", { name: "Commesse da completare" });
-    const voci = within(lista).getAllByRole("listitem");
-    expect(within(voci[0]).getByRole("link")).toHaveTextContent("ORD-A · Lavoro ORD-A");
-    expect(within(voci[0]).getByText(/29 %/)).toBeInTheDocument();
-    expect(within(voci[0]).getByText(/fasi, rate e inizio lavori/)).toBeInTheDocument();
-    expect(within(voci[1]).getByText("rate")).toBeInTheDocument();
-    expect(screen.getByText(/6 commesse aperte hanno dei buchi/)).toBeInTheDocument();
-    expect(screen.getByText(/Le prime 2 di 6/)).toBeInTheDocument();
-  });
-
-  it("«Completa le prossime 5» apre la prima e, dopo «Completa» o «Salta», la successiva", async () => {
-    const { s, db } = servizi();
-    const righe = ["ORD-1", "ORD-2", "ORD-3", "ORD-4", "ORD-5", "ORD-6"].map((id) => riga(id));
-    conClient(<ElencoDaCompletare companyId={AZIENDA} userId={UTENTE} servizi={s} leggi={async () => righe} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Completa le prossime 5/ }));
-
-    let titolo = await screen.findByRole("heading", { name: /Completa la commessa ORD-1 con Silvio/ });
-    expect(titolo).toHaveTextContent("1 di 5");
-    await screen.findAllByText(/te le propongo dal modello/);
-    fireEvent.click(screen.getByRole("button", { name: /Completa e vai alla prossima/ }));
-
-    titolo = await screen.findByRole("heading", { name: /Completa la commessa ORD-2 con Silvio/ });
-    expect(titolo).toHaveTextContent("2 di 5");
-    expect(db.rpc).toHaveBeenCalledWith("commessa_completa_con_silvio", expect.anything());
-    expect(s.frammentiCommessa).toHaveBeenCalledWith("ORD-2");
-
-    fireEvent.click(screen.getByRole("button", { name: "Salta" }));
-    titolo = await screen.findByRole("heading", { name: /Completa la commessa ORD-3 con Silvio/ });
-    expect(titolo).toHaveTextContent("3 di 5");
+describe("La riga sulla commessa", () => {
+  it("dice cosa manca e porta alle impostazioni di Silvio", async () => {
+    conClient(<CompletaConSilvio orderId={ORDINE} companyId={AZIENDA} puoModificare leggi={async () => [riga(ORDINE, { mancano: ["cliente.customer_id"] })]} />);
+    expect(await screen.findByText(/manca: cliente in anagrafica/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Cosa fa Silvio da solo/ })).toHaveAttribute("href", "/azienda/impostazioni/silvio-commesse");
   });
 });

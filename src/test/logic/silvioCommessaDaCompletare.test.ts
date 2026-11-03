@@ -1,8 +1,7 @@
 /**
  * «Completa con Silvio» e «Da completare» (fase 2, lotti 2.1 e 2.3), senza database:
  * quello che la commessa ha già non si cambia né si riscrive, il modello propone le fasi a una
- * commessa che non le ha, l'elenco si ordina per urgenza, la sequenza delle prossime 5 avanza,
- * e la funzione SQL dell'elenco conta con le stesse espressioni del popup. Dati inventati.
+ * commessa che non le ha, e la funzione SQL dell'elenco conta con le stesse espressioni del popup. Dati inventati.
  */
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
@@ -15,7 +14,7 @@ import { daAggiungere, giaNellaCommessa, prontaPerScrivere, scritturaDalPiano } 
 import { modificaBloccata } from "@/components/silvio-commessa/useBozzaSilvio";
 import { elencoControlla, pianoDellaCommessa, testoValore } from "@/components/silvio-commessa/presentazione";
 import {
-  attuale, avanza, avviaSequenza, cosaManca, leggiDaCompletare, ordinaPerUrgenza, quando, type CommessaDaCompletare,
+  cosaManca, leggiDaCompletare,
 } from "@/lib/silvio-commessa/daCompletare";
 
 const AZ = "az-1";
@@ -134,36 +133,13 @@ describe("«Completa»: quello che c'è non si tocca", () => {
   });
 });
 
-const riga = (id: string, extra: Partial<CommessaDaCompletare> = {}): CommessaDaCompletare => ({
-  order_id: id, order_code: id, titolo: null, cliente: null, inizio: null, consegna: null, importo: null,
-  punteggio: 30, mancano: [], totale: 7, ...extra,
-});
-
-describe("«Da completare»: l'ordine per urgenza", () => {
-  it("prima la data più vicina a oggi (prima o dopo), poi senza data; a parità l'importo più alto", () => {
-    const righe = [
-      riga("senza-data-piccola", { importo: 1000 }),
-      riga("tra-20-giorni", { inizio: "2026-11-20" }),
-      riga("senza-data-grande", { importo: 90000 }),
-      riga("iniziata-3-giorni-fa", { inizio: "2026-10-28" }),
-      riga("consegna-tra-3", { consegna: "2026-11-03", importo: 5000 }),
-      riga("inizio-tra-3", { inizio: "2026-11-03", importo: 40000 }),
-      riga("domani", { inizio: "2026-11-01" }),
-    ];
-    expect(ordinaPerUrgenza(righe, "2026-10-31").map((r) => r.order_id)).toEqual([
-      // A 3 giorni ce ne sono tre: prima l'importo più alto, chi non lo mostra per ultimo.
-      "domani", "inizio-tra-3", "consegna-tra-3", "iniziata-3-giorni-fa", "tra-20-giorni", "senza-data-grande", "senza-data-piccola",
-    ]);
-  });
-
-  it("dice cosa manca e quando, in parole", () => {
+describe("«Da completare»: cosa manca e la lettura", () => {
+  it("dice cosa manca, in parole", () => {
     expect(cosaManca(["fasi.order_work_phases", "pagamenti.rate", "fasi.work_start_date", "cantiere.indirizzo", "identita.sede_id"]))
       .toBe("fasi, rate, inizio lavori e altre 2");
     expect(cosaManca(["pagamenti.rate", "fasi.work_start_date"])).toBe("rate e inizio lavori");
-    expect(quando({ inizio: "2026-11-03", consegna: null }, "2026-10-31")).toBe("inizio tra 3 giorni");
-    expect(quando({ inizio: "2026-10-28", consegna: null }, "2026-10-31")).toBe("iniziata da 3 giorni");
-    expect(quando({ inizio: null, consegna: "2026-10-31" }, "2026-10-31")).toBe("consegna oggi");
-    expect(quando({ inizio: null, consegna: null })).toBeNull();
+    // Il nome può esserci già: quello che manca è il collegamento all'anagrafica.
+    expect(cosaManca(["cliente.customer_id"])).toBe("cliente in anagrafica");
   });
 
   it("legge la funzione SQL con l'azienda, la commessa e il tetto", async () => {
@@ -177,28 +153,6 @@ describe("«Da completare»: l'ordine per urgenza", () => {
     expect(righe[0]).toMatchObject({ order_id: "o1", importo: 12000, punteggio: 33, totale: 41, mancano: ["pagamenti.rate"] });
     await expect(leggiDaCompletare(AZ, {}, { rpc: async () => ({ data: null, error: { message: "Could not find the function", code: "PGRST202" } }) }))
       .rejects.toThrow("non è ancora attiva");
-  });
-});
-
-describe("«Completa le prossime 5»: la sequenza avanza", () => {
-  it("prende le prime 5, passa alla successiva dopo «Completa» o «Salta», poi finisce", () => {
-    const righe = ["a", "b", "c", "d", "e", "f", "g"].map((id) => riga(id));
-    let s = avviaSequenza(righe);
-    expect(s.coda).toEqual(["a", "b", "c", "d", "e"]);
-    expect(attuale(s)).toBe("a");
-    s = avanza(s, "completata");
-    expect(attuale(s)).toBe("b");
-    s = avanza(s, "saltata");
-    s = avanza(s, "completata");
-    s = avanza(s, "completata");
-    expect(attuale(s)).toBe("e");
-    s = avanza(s, "completata");
-    expect(attuale(s)).toBeNull();
-    expect(s.completate).toEqual(["a", "c", "d", "e"]);
-    expect(s.saltate).toEqual(["b"]);
-    // Finita, non va oltre.
-    expect(avanza(s, "completata")).toBe(s);
-    expect(avviaSequenza(righe.slice(0, 2)).coda).toEqual(["a", "b"]);
   });
 });
 

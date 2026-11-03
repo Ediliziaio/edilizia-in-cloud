@@ -14,7 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, Sparkles } from "lucide-react";
@@ -23,8 +23,6 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
-const ElencoDaCompletare = lazy(() => import("@/components/silvio-commessa/ElencoDaCompletare"));
-const QuantoLavoraSilvio = lazy(() => import("@/components/silvio-commessa/QuantoLavoraSilvio"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -43,7 +41,6 @@ import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCreaConSilvioAttivo } from "@/components/silvio-commessa/useCreaConSilvioAttivo";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1971,9 +1968,7 @@ export default function OrdersList() {
   const requestedTab = searchParams.get("tab") || (soloAcquisti ? "acquisto" : "ordini");
   const { isFeatureEnabled } = useFeatureFlags();
   const surveysEnabled = isFeatureEnabled("surveys_module");
-  const { effectiveCompany, user } = useAuth();
-  const companyId = effectiveCompany?.id;
-  const silvioCompleta = useCreaConSilvioAttivo(companyId);
+  const navigate = useNavigate();
   const handleTabChange = (tab: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -1987,10 +1982,6 @@ export default function OrdersList() {
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: !soloAcquisti },
     // I cantieri aperti oggi: chi c'è, rapportino arrivato, chi tace (prima era una voce di menu).
     { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
-    // Fase 2 di Silvio: le commesse aperte coi buchi, da completare una dopo l'altra.
-    { id: "da_completare", label: "Da completare", icon: Sparkles, show: permissions.canEditOrders && silvioCompleta && !!companyId && !!user?.id },
-    // Fase 5 di Silvio: quanto lavora, coi numeri veri (o «ancora nessun dato»).
-    { id: "silvio_lavora", label: "Quanto lavora Silvio", icon: Sparkles, show: permissions.canEditOrders && silvioCompleta && !!companyId },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
@@ -2005,6 +1996,11 @@ export default function OrdersList() {
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : (soloAcquisti ? "acquisto" : "ordini");
 
   useEffect(() => {
+    // La vecchia scheda «Quanto lavora Silvio»: i link salvati arrivano dove sta adesso.
+    if (requestedTab === "silvio_lavora") {
+      navigate("/azienda/impostazioni/silvio-commesse", { replace: true });
+      return;
+    }
     if (requestedTab !== activeTab) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
@@ -2012,7 +2008,7 @@ export default function OrdersList() {
         return next;
       }, { replace: true });
     }
-  }, [activeTab, requestedTab, setSearchParams]);
+  }, [activeTab, navigate, requestedTab, setSearchParams]);
 
   return (
     <div className="space-y-3 overflow-x-hidden">
@@ -2064,22 +2060,6 @@ export default function OrdersList() {
         <ErrorBoundary title="Errore in Cantieri oggi">
           <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento cantieri…</div>}>
             <CantieriOggi />
-          </Suspense>
-        </ErrorBoundary>
-      )}
-
-      {activeTab === "da_completare" && companyId && user?.id && (
-        <ErrorBoundary title="Errore in Da completare">
-          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento…</div>}>
-            <ElencoDaCompletare companyId={companyId} userId={user.id} />
-          </Suspense>
-        </ErrorBoundary>
-      )}
-
-      {activeTab === "silvio_lavora" && companyId && (
-        <ErrorBoundary title="Errore in Quanto lavora Silvio">
-          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento…</div>}>
-            <QuantoLavoraSilvio companyId={companyId} />
           </Suspense>
         </ErrorBoundary>
       )}

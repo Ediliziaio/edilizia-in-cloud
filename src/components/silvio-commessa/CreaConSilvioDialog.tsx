@@ -12,7 +12,7 @@
  *
  * Con `orderId` è «Completa con Silvio» (fase 2, lotto 2.1): parte dalla commessa, mostra
  * chiuso quello che ha già, propone il resto (anche dai suoi documenti) e «Completa» aggiunge
- * senza toccare niente. Con `sequenza` è un passo di «Completa le prossime 5» (lotto 2.3).
+ * senza toccare niente.
  *
  * Fase 3: la chat scrive sulla bozza (anche a voce), la ⓘ apre il documento alla pagina
  * citata (`VisoreFonte`), e il popup si apre con più fonti insieme (gli allegati di un'email,
@@ -31,7 +31,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, SkipForward, Sparkles, Undo2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, Sparkles, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,8 +76,6 @@ export interface CreaConSilvioDialogProps {
   etichettaCommessa?: string | null;
   /** Dopo «Completa». Di serie chiude il popup e ricarica la pagina della commessa. */
   onCompletata?: (orderId: string) => void;
-  /** «Completa le prossime 5»: a che punto siamo, e come saltare questa commessa. */
-  sequenza?: { posizione: number; totale: number; onSalta: () => void } | null;
 }
 
 /** Il nome di una bozza da riprendere: il cliente, o il titolo. */
@@ -114,7 +112,7 @@ const campoDiTesto = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
-  const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null, sequenza = null } = props;
+  const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null } = props;
   const completa = !!orderId;
   const { etichettaCommessa, iniziale: daFuori } = props;
   const iniziale = useMemo((): FonteDaAggiungere[] | null => {
@@ -321,7 +319,6 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     onOpenChange(false);
     (props.onCreata ?? ((x: string) => navigate(`/azienda/ordini/${x}`)))(id);
   };
-  const avanti = sequenza && sequenza.posizione < sequenza.totale;
 
   /**
    * Chiudere mentre Silvio legge o scrive vuol dire pagare la lettura e perderne il
@@ -413,11 +410,6 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   </>
                   : "Nuova commessa con Silvio"}
               </span>
-              {sequenza && (
-                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                  {sequenza.posizione} di {sequenza.totale}
-                </span>
-              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 max-sm:sr-only">
               {completa
@@ -534,7 +526,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   </Button>
                 )}
                 <Button type="button" className="h-11 lg:h-10" onClick={() => dopo(esito.order_id)}>
-                  {completa ? (avanti ? "Vai alla prossima" : "Chiudi") : "Apri la commessa"}
+                  {completa ? "Chiudi" : "Apri la commessa"}
                 </Button>
               </div>
             </div>
@@ -629,22 +621,16 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </p>
               </div>
               <div className="flex gap-2 max-sm:w-full">
-                {sequenza && (
-                  <Button type="button" variant="ghost" className="h-11 gap-1 max-sm:flex-1 lg:h-10" disabled={creando} onClick={() => chiudiSeSicuro(sequenza.onSalta)}>
-                    <SkipForward className="h-4 w-4" aria-hidden />Salta
-                  </Button>
-                )}
                 <Button type="button" variant="outline" className="h-11 gap-1 max-sm:flex-1 lg:h-10" aria-pressed={controlla}
                   onClick={() => setControlla(!controlla)}>
                   <ClipboardCheck className="h-4 w-4" aria-hidden />Controlla
                 </Button>
                 <Button type="button" className="h-11 gap-1 bg-orange-700 hover:bg-orange-800 max-sm:flex-1 lg:h-10"
                   disabled={creando || motivi.length > 0} aria-describedby={motivi.length ? "silvio-crea-motivi" : undefined}
-                  aria-label={completa && avanti && !creando ? "Completa e vai alla prossima" : undefined}
                   onClick={() => void crea()}>
                   {creando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
                   {completa
-                    ? (creando ? "Completo…" : avanti ? <><span className="sm:hidden" aria-hidden>Completa ▸</span><span className="max-sm:hidden" aria-hidden>Completa e vai alla prossima ▸</span></> : "Completa ▸")
+                    ? (creando ? "Completo…" : "Completa ▸")
                     : (creando ? "Creo…" : "Crea la commessa ▸")}
                 </Button>
               </div>
