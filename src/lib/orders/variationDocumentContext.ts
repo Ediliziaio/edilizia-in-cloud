@@ -12,3 +12,9 @@ export function variationDocumentContext(draft:VariationDraft,context:VariationC
     customerAddress:draft.documentCustomerDetails?.trim() ?? context.customerAddress,
     documentHeading:draft.documentHeading,primaryColor:draft.documentColor};
 }
+/** L'impresa sul documento: sede, poi i dati fiscali e i contatti. Si possono cambiare nel modulo. */
+export function dettagliImpresa(a:{indirizzo_completo?:string|null;partita_iva?:string|null;telefono?:string|null;email?:string|null}|null):string|undefined {
+  if(!a)return undefined;
+  const contatti=[a.partita_iva&&`P.IVA ${a.partita_iva}`,a.telefono&&`Tel. ${a.telefono}`,a.email].filter(Boolean).join(" - ");
+  return [a.indirizzo_completo,contatti].filter(Boolean).join("\n") || undefined;
+}

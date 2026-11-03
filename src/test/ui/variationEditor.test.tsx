@@ -8,6 +8,7 @@ import {VariationEditor} from "@/components/orders/VariationEditor";
 import {emptyVariationDraft} from "@/lib/orders/variationDraft";
 const mock=vi.hoisted(()=>({request:vi.fn(),open:vi.fn(),canEdit:true,insert:vi.fn(),invoke:vi.fn(),refetch:vi.fn(),rows:[] as unknown[],session:vi.fn(),query:vi.fn()}));
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:mock.canEdit})}));
+vi.mock("@/hooks/useCompanyAnagraficaForTemplate",()=>({useCompanyAnagraficaForTemplate:():null=>null}));
 vi.mock("@/hooks/useVariationTemplates",()=>({useVariationTemplates:()=>({data:[] as unknown[],isError:false,refetch:vi.fn()})}));
 vi.mock("@/hooks/useOrderVariations",()=>({useOrderVariations:()=>({data:mock.rows,isLoading:false,isError:false,refetch:mock.refetch})}));
 vi.mock("@/components/shared/EntityCustomFieldsSection",()=>({EntityCustomFieldsSection:(): null =>null}));

@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import {describe,it,expect} from "vitest";
 import {writeFileSync} from "node:fs";
+import {dettagliImpresa} from "@/lib/orders/variationDocumentContext";
 import {variationPreviewPdf,variationProposalPdf,variationPdfFilename} from "@/lib/orders/variationPreviewPdf";
 import {prepareVariation,emptyVariationDraft,variationDocumentParts,CONDIZIONI_STANDARD_VARIANTE} from "@/lib/orders/variationDraft";
 describe("Documento di anteprima variante",()=>{
@@ -28,6 +29,10 @@ describe("Documento di anteprima variante",()=>{
     expect(t).toContain(CONDIZIONI_STANDARD_VARIANTE[0].slice(0,40));
     expect(t).not.toContain("Dettaglio economico");
     if(process.env.VARIATION_TABLE_PDF_PROOF)writeFileSync(process.env.VARIATION_TABLE_PDF_PROOF,Buffer.from(pdf.output("arraybuffer")));
+  });
+  it("i dati dell'impresa vengono dal profilo, se ci sono",()=>{
+    expect(dettagliImpresa({indirizzo_completo:"Via Roma 1, 20100 Milano",partita_iva:"01234567890",telefono:null,email:"a@b.it"})).toBe("Via Roma 1, 20100 Milano\nP.IVA 01234567890 - a@b.it");
+    expect(dettagliImpresa({})).toBeUndefined();expect(dettagliImpresa(null)).toBeUndefined();
   });
   it("una riduzione mostra importi negativi coerenti col totale",()=>{
     const parti=variationDocumentParts({...emptyVariationDraft(),kind:"riduzione",title:"Meno opere",description:"Tolta la tinteggiatura",pricing:"voci",lines:[{id:"a",description:"Tinteggiatura",quantity:"10",price:"8"}]});

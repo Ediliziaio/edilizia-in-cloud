@@ -13,6 +13,8 @@ import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomField
 import { usePermissions } from "@/hooks/usePermissions";
 import { type VariationContext } from "./VariationEditor";
 import { variationEventDate } from "@/lib/orders/pendingVariationDocument";
+import { dettagliImpresa } from "@/lib/orders/variationDocumentContext";
+import { useCompanyAnagraficaForTemplate } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { PendingVariationPdf } from "./PendingVariationPdf";
 import { VariationLifecycleDialog } from "./VariationLifecycleDialog";
 import type { WorkflowVariation } from "@/hooks/useVariationWorkflow";
@@ -32,7 +34,10 @@ const STATUS_CONFIG: Record<string, { label: string; tono: TonoStato }> = {
   annullato: { label: "Annullato", tono: "grigio" },
 };
 
-export function OdVSection({ orderId, companyId, context = {}, onOpenDocuments }: OdVSectionProps) {
+export function OdVSection({ orderId, companyId, context: contestoCommessa = {}, onOpenDocuments }: OdVSectionProps) {
+  // Senza i dati dell'impresa il riquadro nel PDF restava col solo nome.
+  const anagrafica = useCompanyAnagraficaForTemplate();
+  const context: VariationContext = { ...contestoCommessa, companyDetails: contestoCommessa.companyDetails ?? dettagliImpresa(anagrafica) };
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<{id:string;existing:boolean}|null>(null);
