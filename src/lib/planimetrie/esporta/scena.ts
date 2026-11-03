@@ -8,6 +8,7 @@
  * sono in millimetri stampati e passano in centimetri con la scala.
  */
 import { NOMI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import {
   allarga, diff, distanza, lungo, numeroIt, per, puntiArco, puntoEtichetta, riquadroDi, riquadroVuoto, sinistra, somma, versore,
   type Riquadro,
@@ -305,7 +306,7 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
   // Aperture
   for (const a of vista.aperture) {
     const m = muriPerId.get(a.muroId);
-    if (m) primitive.push(...simboloApertura(a, m, presentazione));
+    if (m) primitive.push(...simboloApertura(a, m, presentazione), ...simboloOscurante(a, m, presentazione, vista.locali.map((l) => l.contorno)), ...simboloZanzariera(a, m, presentazione, vista.locali.map((l) => l.contorno)));
   }
 
   // Quote
@@ -520,6 +521,71 @@ export function simboloApertura(a: AperturaVista, m: MuroVista, presentazione: b
     } else {
       out.push(...anta(faccia(da), latoN, faccia(aa), a.larghezza, tr));
     }
+  }
+  return out;
+}
+
+/**
+ * Oscurante di una finestra in pianta: cassonetto tratteggiato sopra il vano (nello spessore del muro, o sul prospetto
+ * se è esterno), guide di tapparelle e veneziane sul filo esterno, ante aperte a 90° per persiane (fuori) e scuri (dentro).
+ * L'esterno è il lato senza stanze; se non si capisce, quello opposto a dove si apre l'anta (come il davanzale).
+ */
+export function simboloOscurante(a: AperturaVista, m: MuroVista, presentazione: boolean, contorni: Punto[][]): Primitiva[] {
+  const o = a.oscurante;
+  if (!o) return [];
+  const d = versore(diff(m.p2, m.p1));
+  const nSin = sinistra(d);
+  const latoN = a.lato === "destra" ? per(nSin, -1) : nSin;
+  const t = m.spessore, h = t / 2;
+  const da = a.distanza, aa = a.distanza + a.larghezza;
+  const centro = somma(lungo(m.p1, d, (da + aa) / 2), per(latoN, 0));
+  const fuori = latoEsterno(centro, latoN, t, contorni) || -1;
+  const asse = (s: number, off = 0) => somma(lungo(m.p1, d, s), per(latoN, off * fuori));
+  const tratto = trattoApertura(a, presentazione, 0.13);
+  const tratteggio = { ...tratto, tratteggioMm: [1.2, 0.8] };
+  const out: Primitiva[] = [];
+  const c = o.cassonetto;
+  if (c) {
+    const [x0, x1] = c.tipo === "esterno" ? [h, h + c.altezza] : [-(h - 1), Math.min(h - 1, -(h - 1) + c.profondita)];
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: true, tratto: tratteggio, punti: [asse(da, x0), asse(aa, x0), asse(aa, x1), asse(da, x1)] });
+  }
+  if (o.tipo === "tapparella" || o.tipo === "veneziana") {
+    for (const s of [da, aa]) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: 0.3 }, punti: [asse(s, h), asse(s, h + 4)] });
+    return out;
+  }
+  const verso = o.tipo === "persiana" ? 1 : -1;
+  const foglia = a.larghezza / Math.max(1, o.ante);
+  const sin = Math.ceil(Math.max(1, o.ante) / 2), des = Math.max(1, o.ante) - sin;
+  for (let i = 0; i < sin; i++) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da - i * 2, verso * h), asse(da - i * 2, verso * (h + foglia))] });
+  for (let i = 0; i < des; i++) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(aa + i * 2, verso * h), asse(aa + i * 2, verso * (h + foglia))] });
+  return out;
+}
+
+/** Zanzariera: una linea a tratti sul filo interno del vano (più il segno del tipo: zig-zag, cassetta, anta). */
+export function simboloZanzariera(a: AperturaVista, m: MuroVista, presentazione: boolean, contorni: Punto[][]): Primitiva[] {
+  const z = a.zanzariera;
+  if (!z) return [];
+  const d = versore(diff(m.p2, m.p1));
+  const nSin = sinistra(d);
+  const latoN = a.lato === "destra" ? per(nSin, -1) : nSin;
+  const t = m.spessore, h = t / 2;
+  const da = a.distanza, aa = a.distanza + a.larghezza;
+  const centro = lungo(m.p1, d, (da + aa) / 2);
+  const fuori = latoEsterno(centro, latoN, t, contorni) || -1;
+  // l'interno è dalla parte opposta all'esterno
+  const asse = (s: number, off = 0) => somma(lungo(m.p1, d, s), per(latoN, off * -fuori));
+  const tratto = trattoApertura(a, presentazione, 0.1);
+  const y = h + 2;
+  const out: Primitiva[] = [{ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, tratteggioMm: [0.4, 0.8] }, punti: [asse(da, y), asse(aa, y)] }];
+  if (z.tipo === "plisse") {
+    const pt = Array.from({ length: 9 }, (_, i) => asse(aa - (Math.min(a.larghezza / 3, 30) * i) / 8, y + (i % 2 ? 2 : -2)));
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: pt });
+  } else if (z.tipo === "verticale") {
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da, y - 3), asse(aa, y - 3)] }, { tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da, y + 3), asse(aa, y + 3)] });
+  } else if (z.tipo === "battente") {
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da, y), asse(da + a.larghezza * 0.7, y + a.larghezza * 0.7)] });
+  } else {
+    for (const s of [da, aa]) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: 0.2 }, punti: [asse(s, y - 2), asse(s, y + 2)] });
   }
   return out;
 }

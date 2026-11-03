@@ -7,6 +7,7 @@ import { AlertTriangle, Armchair, Check, Copy, Layers, RotateCcw, RotateCw, Tras
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DESTINAZIONI, type Apertura, type AreaLavoro, type DatiVista, type Destinazione, type ElementoLavoro, type LocaleVista, type Muro, type Pianta, type QuotaLavoro, type TestoLavoro, type TipoApertura } from "./adattatore";
@@ -14,13 +15,13 @@ import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
 import { dist } from "./geometria";
-import { anteDi, manovraDi, misureSerramento, NOMI_SISTEMA, sistemaDi, sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
+import { altezzaCassonettoConsigliata, anteDi, cassonettoDi, eAvvolgibile, manovraDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, NOMI_ZANZARIERA, oscuranteAmmessi, oscuranteDi, sistemaDi, sistemiAmmessi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
 import { TIPI_SU_TUTTI_I_PIANI } from "@/lib/planimetrie/copiaSuiPiani";
 import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
-import { NOMI_AREA, TIPI_AREA, type SistemaApertura, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
+import { NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, TIPI_ZANZARIERA, type SistemaApertura, type TipoArea, type TipoCassonetto, type TipoOscurante, type TipoZanzariera } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
@@ -31,7 +32,7 @@ export interface AzioniPannello {
   latoStanza: (id: string, lato: number, cm: number) => void;
   lunghezzaParete: (id: string, cm: number) => void;
   spessoreParete: (id: string, cm: number) => void;
-  modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra">>) => void;
+  modificaApertura: (id: string, campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore">>) => void;
   giraApertura: (id: string) => void;
   elimina: (sel: Selezione) => void;
   conferma: (sel: Selezione) => void;
@@ -680,6 +681,72 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
         </div>
       )}
       {a.tipo !== "varco" && !essenziale && <MisureControtelaio a={a} />}
+      {oscuranteAmmessi(a.tipo).length > 0 && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label>Oscurante</Label>
+              <Select
+                value={oscuranteDi(a) ?? "nessuno"}
+                onValueChange={(v) => azioni.modificaApertura(a.id, { oscurante: v === "nessuno" ? undefined : (v as TipoOscurante) })}
+                disabled={!misurabile}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nessuno">Nessuno</SelectItem>
+                  {oscuranteAmmessi(a.tipo).map((o) => <SelectItem key={o} value={o}>{NOMI_OSCURANTE[o]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {eAvvolgibile(oscuranteDi(a)) && (
+              <div className="space-y-1">
+                <Label>Cassonetto</Label>
+                <Select
+                  value={cassonettoDi(a) ?? "monoblocco"}
+                  onValueChange={(v) => azioni.modificaApertura(a.id, { cassonetto: v as TipoCassonetto })}
+                  disabled={!misurabile}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TIPI_CASSONETTO.map((c) => <SelectItem key={c} value={c}>{NOMI_CASSONETTO[c]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          {eAvvolgibile(oscuranteDi(a)) && (
+            <div className="grid grid-cols-2 items-end gap-2">
+              <CampoMisura
+                etichetta="Altezza cassonetto (cm)"
+                valore={a.altezzaCassonetto ?? altezzaCassonettoConsigliata(a.altezza, oscuranteDi(a) ?? "tapparella")}
+                centimetri
+                disabled={!misurabile}
+                onConferma={(cm) => azioni.modificaApertura(a.id, { altezzaCassonetto: cm })}
+              />
+              <label className="flex h-9 items-center gap-2 text-sm">
+                <Switch checked={!!a.motore} onCheckedChange={(v) => azioni.modificaApertura(a.id, { motore: v })} disabled={!misurabile} />
+                Motore
+              </label>
+            </div>
+          )}
+          {oscuranteDi(a) && !essenziale && <MisureOscuranteRiga a={a} />}
+          <div className="space-y-1">
+            <Label>Zanzariera</Label>
+            <Select
+              value={zanzarieraDi(a) ?? "nessuna"}
+              onValueChange={(v) => azioni.modificaApertura(a.id, { zanzariera: v === "nessuna" ? undefined : (v as TipoZanzariera) })}
+              disabled={!misurabile}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nessuna">Nessuna</SelectItem>
+                {TIPI_ZANZARIERA.map((z) => <SelectItem key={z} value={z}>{NOMI_ZANZARIERA[z]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {zanzarieraDi(a) && !essenziale && <MisureZanzarieraRiga a={a} />}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <CampoMisura
           etichetta="Larghezza (cm)"
@@ -735,6 +802,38 @@ function MisureControtelaio({ a }: { a: Apertura }) {
       <p><span className="font-medium text-foreground">Controtelaio{m.controtelaioSpeciale ? " per scorrevole a scomparsa" : ""}:</span> {cm(m.controtelaio.larghezza)} × {cm(m.controtelaio.altezza)} cm</p>
       <p>Serramento: {cm(m.telaio.larghezza)} × {cm(m.telaio.altezza)} cm · anta {cm(m.anta)} cm{anteDi(a) > 1 ? ` (${anteDi(a)} ante)` : ""}</p>
       {m.tascaScomparsa > 0 && <p>Serve un tratto di muro libero di almeno {cm(m.tascaScomparsa)} cm a fianco, senza porte né impianti.</p>}
+    </div>
+  );
+}
+
+function MisureZanzarieraRiga({ a }: { a: Apertura }) {
+  const z = misureZanzariera(a);
+  if (!z) return null;
+  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  return (
+    <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+      <span className="font-medium text-foreground">Zanzariera:</span> telo {cm(z.larghezza)} × {cm(z.altezza)} cm ({cm(z.superficieMq)} m²){z.ante > 1 ? ` · ${z.ante} ante` : ""} · guide e telaio {cm(z.guideMl)} m
+    </div>
+  );
+}
+
+function MisureOscuranteRiga({ a }: { a: Apertura }) {
+  const o = misureOscurante(a);
+  if (!o) return null;
+  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  return (
+    <div className="space-y-0.5 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+      {o.cassonetto && (
+        <p>
+          <span className="font-medium text-foreground">Cassonetto:</span> {cm(o.cassonetto.larghezza)} × {cm(o.cassonetto.altezza)} cm, profondo {cm(o.cassonetto.profondita)} cm
+          {o.cassonetto.tipo === "monoblocco" ? ` · sta nel vano: il serramento resta alto ${cm(misureSerramento(a).telaio.altezza)} cm` : ` · serve muro libero sopra il vano: ${cm(o.spazioSopra)} cm`}
+        </p>
+      )}
+      <p>
+        {o.avvolgibile
+          ? `Telo ${cm(o.telo.larghezza)} × ${cm(o.telo.altezza)} cm (${cm(o.superficieMq)} m²) · guide ${cm(o.guideMl * 2)} m${o.motore ? " · motorizzata" : ""}`
+          : `${o.ante} ${o.ante === 1 ? "anta" : "ante"} da ${cm(a.larghezza / o.ante)} cm (${cm(o.superficieMq)} m²)`}
+      </p>
     </div>
   );
 }

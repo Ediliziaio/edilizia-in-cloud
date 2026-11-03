@@ -174,16 +174,6 @@ describe("la schermata", () => {
   });
 });
 
-describe("il codice della tariffa", () => {
-  it("resta fuori dalla voce, come prima", async () => {
-    const { onPick } = apri();
-    await screen.findByText("Platea in cemento");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Platea in cemento" }));
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
-    expect(onPick.mock.calls[0][0][0].codice_tariffa).toBeUndefined();
-  });
-});
-
 describe("le aggiunte al popup delle voci", () => {
   beforeEach(() => localStorage.clear());
   afterEach(cleanup);
@@ -272,6 +262,18 @@ describe("le aggiunte al popup delle voci", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Usate di recente/ }));
     expect(screen.getAllByRole("checkbox")).toHaveLength(1);
     expect(screen.getByRole("checkbox", { name: "Scegli: Massetto" }).closest("li")?.textContent).toContain("60,00");
+  });
+
+  it("il codice del listino segue la voce nel computo, da ogni fonte", async () => {
+    const conArticolo = { ...fonti, useArticoli: () => ({ data: [{ id: "a1", name: "Silicone", sku: "SIL-9", marca: null as string | null, unita: "pz", prezzo_vendita: 8, costo: 4 }] }) };
+    const { onPick } = apri({ fonti: conArticolo });
+    await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
+    spunta("Platea in cemento");
+    spunta("Silicone");
+    aggiungi();
+    const voci = onPick.mock.calls[0][0] as { descrizione: string; codice_tariffa?: string }[];
+    expect(voci.find((v) => v.descrizione === "Platea in cemento")?.codice_tariffa).toBe("C0");
+    expect(voci.find((v) => v.descrizione === "Silicone")?.codice_tariffa).toBe("SIL-9");
   });
 
   it("il prezzo: «0.500» è mezzo euro e «0,125» resta tale", () => {

@@ -42,7 +42,7 @@ import {
   type StatoPianta,
   type TipoArea,
 } from "./modello.ts";
-import { misureSerramento } from "./serramenti.ts";
+import { misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_ZANZARIERA } from "./serramenti.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
 import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
@@ -225,8 +225,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       // Controtelai e superficie dei serramenti: cosa ordinare prima della posa (misure di massima, vedi serramenti.ts)
       if (a.tipo !== "varco" && a.stato !== "da_demolire") {
         const ms = misureSerramento(a, stato.muri.find((m) => m.id === a.muroId));
-        const chiave = ms.controtelaioSpeciale ? "controtelaio_scomparsa" : "controtelaio";
-        const nomeCt = ms.controtelaioSpeciale ? "Controtelai per porte scorrevoli a scomparsa" : "Controtelai";
+        const chiave = ms.controtelaioSpeciale ? "controtelaio_scomparsa" : ms.controtelaioMonoblocco ? "controtelaio_monoblocco" : "controtelaio";
+        const nomeCt = ms.controtelaioSpeciale ? "Controtelai per porte scorrevoli a scomparsa" : ms.controtelaioMonoblocco ? "Controtelai monoblocco con cassonetto" : "Controtelai";
         const orig = [...origini];
         for (const [soggetto, descrizione, valore] of [
           [`serramenti:${a.stato}:${chiave}`, `${nomeCt} ${nomeStato}`, 1],
@@ -237,6 +237,40 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
         }
         somma(struttura, `${a.stato}:serramenti.superficie_mq`, { valore: ms.superficieMq, origini: orig });
         somma(struttura, `${a.stato}:controtelai.perimetro_ml`, { valore: ms.perimetroMl, origini: orig });
+        const mz = misureZanzariera(a);
+        if (mz) {
+          const dimZ = `${Math.round(mz.larghezza)}x${Math.round(mz.altezza)}`;
+          for (const [soggetto, descrizione] of [
+            [`zanzariere:${a.stato}:${mz.tipo}`, `${NOMI_ZANZARIERA[mz.tipo]} ${nomeStato}`],
+            [`zanzariere:${a.stato}:${mz.tipo}:${dimZ}`, `${NOMI_ZANZARIERA[mz.tipo]} ${nomeStato} ${dimZ.replace("x", "×")} cm`],
+          ] as Array<[string, string]>) {
+            const prec = aperture.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+            aperture.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, ...orig] }, descrizione });
+          }
+          somma(struttura, `${a.stato}:zanzariere.superficie_mq`, { valore: mz.superficieMq, origini: orig });
+          somma(struttura, `${a.stato}:zanzariere.guide_ml`, { valore: mz.guideMl, origini: orig });
+        }
+        // Oscuranti e cassonetti: tapparelle, veneziane, persiane, scuri
+        const mo = misureOscurante(a);
+        if (mo) {
+          const conta = (soggetto: string, descrizione: string, valore = 1) => {
+            const prec = aperture.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+            aperture.set(soggetto, { acc: { valore: prec.valore + valore, origini: [...prec.origini, ...orig] }, descrizione });
+          };
+          const nomiPl: Record<string, string> = { tapparella: "Tapparelle", veneziana: "Veneziane esterne", persiana: "Persiane", scuro: "Scuri interni" };
+          const dim = `${Math.round(mo.telo.larghezza)}×${Math.round(mo.telo.altezza)}`;
+          conta(`oscuranti:${a.stato}:${mo.tipo}`, `${nomiPl[mo.tipo]} ${nomeStato}`);
+          conta(`oscuranti:${a.stato}:${mo.tipo}:${dim.replace("×", "x")}`, `${nomiPl[mo.tipo]} ${nomeStato} ${dim} cm`);
+          if (mo.motore) conta(`oscuranti:${a.stato}:motore`, `Motori per ${NOMI_OSCURANTE[mo.tipo].toLowerCase()} ${nomeStato}`);
+          somma(struttura, `${a.stato}:oscuranti.superficie_mq`, { valore: mo.superficieMq, origini: orig });
+          if (mo.guideMl) somma(struttura, `${a.stato}:oscuranti.guide_ml`, { valore: mo.guideMl * 2, origini: orig });
+          if (mo.cassonetto) {
+            const c = mo.cassonetto;
+            conta(`cassonetti:${a.stato}:${c.tipo}`, `Cassonetti ${NOMI_CASSONETTO[c.tipo].toLowerCase()} ${nomeStato}`);
+            conta(`cassonetti:${a.stato}:${c.tipo}:${c.larghezza}x${c.altezza}`, `Cassonetti ${NOMI_CASSONETTO[c.tipo].toLowerCase()} ${nomeStato} ${c.larghezza}×${c.altezza} cm`);
+            somma(struttura, `${a.stato}:cassonetti.lunghezza_ml`, { valore: c.larghezza / 100, origini: orig });
+          }
+        }
       }
       for (const [soggetto, descrizione] of [
         [`aperture:${a.stato}:${a.tipo}`, `${nomeTipo} ${nomeStato}`],
@@ -352,7 +386,7 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
-  const NOMI_STRUTTURA: Record<string, string> = { "serramenti.superficie_mq": "Serramenti (superficie del vano)", "controtelai.perimetro_ml": "Perimetro dei controtelai (per sigillature e nastri)", "travi.lunghezza_ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.superficie_mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri", "muri_contenimento.lunghezza_ml": "Muri di contenimento (lunghezza)", "muri_contenimento.cls_mc": "Calcestruzzo dei muri di contenimento (suola + fusto)", "muri_contenimento.scavo_mc": "Scavo per i muri di contenimento", "muri_contenimento.drenaggio_ml": "Drenaggio a tergo dei muri di contenimento" };
+  const NOMI_STRUTTURA: Record<string, string> = { "serramenti.superficie_mq": "Serramenti (superficie del vano)", "controtelai.perimetro_ml": "Perimetro dei controtelai (per sigillature e nastri)", "oscuranti.superficie_mq": "Oscuranti (superficie dei teli e delle ante)", "oscuranti.guide_ml": "Guide laterali di tapparelle e veneziane", "cassonetti.lunghezza_ml": "Cassonetti (lunghezza)", "zanzariere.superficie_mq": "Zanzariere (superficie del telo)", "zanzariere.guide_ml": "Guide, binari e telai delle zanzariere", "travi.lunghezza_ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.superficie_mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri", "muri_contenimento.lunghezza_ml": "Muri di contenimento (lunghezza)", "muri_contenimento.cls_mc": "Calcestruzzo dei muri di contenimento (suola + fusto)", "muri_contenimento.scavo_mc": "Scavo per i muri di contenimento", "muri_contenimento.drenaggio_ml": "Drenaggio a tergo dei muri di contenimento" };
   for (const [chiave, acc] of struttura) {
     const [st, resto] = chiave.split(":");
     const [soggetto, misura] = resto.split(".");

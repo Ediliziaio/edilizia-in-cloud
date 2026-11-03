@@ -10,7 +10,7 @@ import type { Apertura, Locale, Planimetria, StatoPianta, TipoApertura } from ".
 import { distanzaDalContorno, facceDellApertura, TOLLERANZA_LOCALE_CM } from "../../../shared/planimetrie/geometria.ts";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita.ts";
 import { statoPerAmbito } from "../../../shared/render-planimetria/vincoli.ts";
-import { anteDi, misureSerramento, NOMI_SISTEMA, sistemaDi } from "../../../shared/planimetrie/serramenti.ts";
+import { anteDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, NOMI_ZANZARIERA, sistemaDi } from "../../../shared/planimetrie/serramenti.ts";
 
 export const PREFISSO_CODICE: Record<TipoApertura, string> = { porta: "P", finestra: "F", portafinestra: "PF", varco: "V" };
 const NOME_TIPO: Record<TipoApertura, string> = { porta: "Porta", finestra: "Finestra", portafinestra: "Portafinestra", varco: "Varco" };
@@ -26,7 +26,13 @@ export interface RigaSerramento {
   sistema: string;
   ante: number;
   /** Controtelaio (cm) da ordinare e se è quello speciale per la porta a scomparsa. */
-  controtelaio: { larghezza: number; altezza: number; speciale: boolean };
+  controtelaio: { larghezza: number; altezza: number; speciale: boolean; monoblocco: boolean };
+  /** Oscurante («Tapparella», «Persiana»…) e cassonetto con le misure; «—» se non ci sono. */
+  oscurante: string;
+  cassonetto: string;
+  /** Zanzariera con le misure; «—» se non c'è. */
+  zanzariera: string;
+  motore: boolean;
   /** Larghezza di un'anta, cm. */
   anta: number;
   /** cm */
@@ -59,9 +65,36 @@ export interface RigaStanza {
 const NOMI_SISTEMA_FINALE = (a: Apertura) => NOMI_SISTEMA[sistemaDi(a)];
 
 function controtelaioDi(a: Apertura, stato: StatoPianta): RigaSerramento["controtelaio"] {
-  if (a.tipo === "varco") return { larghezza: 0, altezza: 0, speciale: false };
+  if (a.tipo === "varco") return { larghezza: 0, altezza: 0, speciale: false, monoblocco: false };
   const m = misureSerramento(a, stato.muri.find((x) => x.id === a.muroId));
-  return { larghezza: m.controtelaio.larghezza, altezza: m.controtelaio.altezza, speciale: m.controtelaioSpeciale };
+  return { larghezza: m.controtelaio.larghezza, altezza: m.controtelaio.altezza, speciale: m.controtelaioSpeciale, monoblocco: m.controtelaioMonoblocco };
+}
+
+const cmIt = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+
+function descrizioneOscurante(a: Apertura): Pick<RigaSerramento, "oscurante" | "cassonetto" | "zanzariera" | "motore"> {
+  const z = misureZanzariera(a);
+  const zanzariera = z ? `${NOMI_ZANZARIERA[z.tipo]} ${cmIt(z.larghezza)} × ${cmIt(z.altezza)} cm` : "—";
+  const o = misureOscurante(a);
+  if (!o) return { oscurante: "—", cassonetto: "—", zanzariera, motore: false };
+  const misura = o.avvolgibile ? `${cmIt(o.telo.larghezza)} × ${cmIt(o.telo.altezza)} cm` : `${o.ante} ${o.ante === 1 ? "anta" : "ante"}`;
+  const c = o.cassonetto;
+  return {
+    oscurante: `${NOMI_OSCURANTE[o.tipo]} ${misura}${o.motore ? " (motore)" : ""}`,
+    cassonetto: c ? `${NOMI_CASSONETTO[c.tipo]} ${cmIt(c.larghezza)} × ${cmIt(c.altezza)} cm` : "—",
+    zanzariera,
+    motore: o.motore,
+  };
+}
+
+/** Oscuranti e cassonetti da ordinare, raggruppati per descrizione (esclusi i serramenti da demolire e quelli esistenti). */
+export function riepilogoOscuranti(righe: RigaSerramento[]): Array<{ descrizione: string; numero: number }> {
+  const gruppi = new Map<string, number>();
+  for (const r of righe) {
+    if (r.stato === "Da demolire" || r.stato === "Esistente") continue;
+    for (const d of [r.oscurante, r.cassonetto, r.zanzariera]) if (d !== "—") gruppi.set(d, (gruppi.get(d) ?? 0) + 1);
+  }
+  return [...gruppi].map(([descrizione, numero]) => ({ descrizione, numero })).sort((x, y) => x.descrizione.localeCompare(y.descrizione, "it"));
 }
 
 /** I controtelai da ordinare, raggruppati per misura (esclusi i serramenti da demolire e i varchi). */
@@ -69,7 +102,7 @@ export function riepilogoControtelai(righe: RigaSerramento[]): Array<{ descrizio
   const gruppi = new Map<string, number>();
   for (const r of righe) {
     if (r.controtelaio.larghezza <= 0 || r.stato === "Da demolire" || r.stato === "Esistente") continue;
-    const k = `${r.controtelaio.speciale ? "Controtelaio per scorrevole a scomparsa" : "Controtelaio"} ${r.controtelaio.larghezza.toLocaleString("it-IT")} × ${r.controtelaio.altezza.toLocaleString("it-IT")} cm`;
+    const k = `${r.controtelaio.speciale ? "Controtelaio per scorrevole a scomparsa" : r.controtelaio.monoblocco ? "Controtelaio monoblocco con cassonetto" : "Controtelaio"} ${r.controtelaio.larghezza.toLocaleString("it-IT")} × ${r.controtelaio.altezza.toLocaleString("it-IT")} cm`;
     gruppi.set(k, (gruppi.get(k) ?? 0) + 1);
   }
   return [...gruppi].map(([descrizione, numero]) => ({ descrizione, numero })).sort((x, y) => x.descrizione.localeCompare(y.descrizione, "it"));
@@ -105,6 +138,7 @@ export function abacoSerramenti(p: Planimetria, livelloId: string, ambito: strin
       sistema: a.tipo === "varco" ? "—" : NOMI_SISTEMA_FINALE(a),
       ante: anteDi(a),
       controtelaio: controtelaioDi(a, stato),
+      ...descrizioneOscurante(a),
       anta: a.tipo === "varco" ? 0 : misureSerramento(a).anta,
       larghezza: Math.round(a.larghezza),
       altezza: Math.round(a.altezza),
@@ -161,8 +195,8 @@ export function inCsv(intestazioni: string[], righe: Array<Array<string | number
 
 export function csvSerramenti(righe: RigaSerramento[]): string {
   return inCsv(
-    ["Codice", "Tipo", "Sistema", "Ante", "Larghezza cm", "Altezza cm", "Davanzale cm", "Controtelaio L cm", "Controtelaio H cm", "Larghezza anta cm", "Superficie m²", "Stanze", "Stato", "Misure"],
-    righe.map((r) => [r.codice, r.tipo, r.sistema === "—" ? r.manovra : r.sistema, r.ante || null, r.larghezza, r.altezza, r.davanzale, r.controtelaio.larghezza || null, r.controtelaio.altezza || null, r.anta || null, r.superficieMq, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
+    ["Codice", "Tipo", "Sistema", "Ante", "Larghezza cm", "Altezza cm", "Davanzale cm", "Controtelaio L cm", "Controtelaio H cm", "Larghezza anta cm", "Superficie m²", "Oscurante", "Cassonetto", "Zanzariera", "Stanze", "Stato", "Misure"],
+    righe.map((r) => [r.codice, r.tipo, r.sistema === "—" ? r.manovra : r.sistema, r.ante || null, r.larghezza, r.altezza, r.davanzale, r.controtelaio.larghezza || null, r.controtelaio.altezza || null, r.anta || null, r.superficieMq, r.oscurante === "—" ? null : r.oscurante, r.cassonetto === "—" ? null : r.cassonetto, r.zanzariera === "—" ? null : r.zanzariera, r.stanze, r.stato, r.stimata ? "stimate" : "rilevate"]),
   );
 }
 

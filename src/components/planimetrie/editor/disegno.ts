@@ -5,7 +5,7 @@
 import type { Apertura, Muro, Pianta, Punto, StatoElemento } from "./adattatore";
 import { direzione, lunghezzaMuro, puntoSulMuro, uguali } from "./geometria";
 import type { Vista } from "./comandi";
-import { anteDi, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
+import { anteDi, eAvvolgibile, misureOscurante, misureZanzariera, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
 
 /** Poligono del corpo della parete; si allunga di mezzo spessore dove tocca un'altra parete, così gli angoli si chiudono. */
 export function corpoParete(muro: Muro, pianta: Pianta): Punto[] {
@@ -87,7 +87,79 @@ export type SegnoSerramento =
  * ante a battente (un arco per anta), scorrevole (anta sul binario e posizione aperta tratteggiata),
  * scorrevole a scomparsa (la tasca dentro il muro), a libro (zig-zag), finestre con i montanti fra le ante.
  */
-export function segniSerramento(a: Apertura, muro: Muro): SegnoSerramento[] {
+export function segniSerramento(a: Apertura, muro: Muro, fuori: 1 | -1 = 1): SegnoSerramento[] {
+  return [...segniSistema(a, muro), ...segniOscurante(a, muro, fuori), ...segniZanzariera(a, muro, fuori)];
+}
+
+/**
+ * La zanzariera sta sul filo interno (dalla parte opposta all'esterno): una linea a punti lungo il vano;
+ * il plissé ha uno zig-zag a un capo, il rullo una piccola cassetta in alto, il battente un'anta aperta di 45°.
+ */
+export function segniZanzariera(a: Apertura, muro: Muro, fuori: 1 | -1 = 1): SegnoSerramento[] {
+  const z = misureZanzariera(a);
+  if (!z) return [];
+  const u = direzione(muro);
+  const n = { x: -u.y, y: u.x };
+  const c = puntoSulMuro(muro, a.posizione);
+  const w = a.larghezza;
+  const h = muro.spessore / 2;
+  const al = (s: number, off: number): Punto => ({ x: c.x + u.x * s + n.x * off * -fuori, y: c.y + u.y * s + n.y * off * -fuori });
+  const out: SegnoSerramento[] = [];
+  const y = h + 2;
+  out.push({ tipo: "linea", p: al(-w / 2, y), q: al(w / 2, y), tratteggio: true });
+  if (z.tipo === "plisse") {
+    const pt: Punto[] = [];
+    for (let i = 0; i <= 8; i++) pt.push(al(w / 2 - (Math.min(w / 3, 30) * i) / 8, y + (i % 2 ? 2 : -2)));
+    for (let i = 0; i < pt.length - 1; i++) out.push({ tipo: "linea", p: pt[i], q: pt[i + 1] });
+  } else if (z.tipo === "verticale") {
+    out.push({ tipo: "linea", p: al(-w / 2, y - 3), q: al(w / 2, y - 3), spesso: true }, { tipo: "linea", p: al(-w / 2, y + 3), q: al(w / 2, y + 3), spesso: true });
+  } else if (z.tipo === "battente") {
+    out.push({ tipo: "linea", p: al(-w / 2, y), q: al(-w / 2 + w * 0.7, y + w * 0.7), spesso: false });
+  } else {
+    for (const s of [-w / 2, w / 2]) out.push({ tipo: "linea", p: al(s, y - 2), q: al(s, y + 2), spesso: true });
+  }
+  return out;
+}
+
+/**
+ * L'oscurante in pianta (`fuori` = da che parte della normale sta l'esterno):
+ * il cassonetto è un rettangolo tratteggiato sopra il vano (dentro il muro, o sul prospetto se è esterno),
+ * persiane e scuri sono ante aperte a 90° fuori o dentro, tapparelle e veneziane due piccole guide ai lati.
+ */
+export function segniOscurante(a: Apertura, muro: Muro, fuori: 1 | -1 = 1): SegnoSerramento[] {
+  const mo = misureOscurante(a);
+  if (!mo) return [];
+  const u = direzione(muro);
+  const n = { x: -u.y, y: u.x };
+  const c = puntoSulMuro(muro, a.posizione);
+  const w = a.larghezza;
+  const h = muro.spessore / 2;
+  const al = (s: number, off: number): Punto => ({ x: c.x + u.x * s + n.x * off * fuori, y: c.y + u.y * s + n.y * off * fuori });
+  const out: SegnoSerramento[] = [];
+  const tratt = (p: Punto, q: Punto) => out.push({ tipo: "linea", p, q, tratteggio: true });
+  if (mo.cassonetto) {
+    const k = mo.cassonetto;
+    const [da, a2] = k.tipo === "esterno" ? [h, h + k.altezza] : [-(h - 1), Math.min(h - 1, -(h - 1) + k.profondita)];
+    tratt(al(-w / 2, da), al(w / 2, da));
+    tratt(al(-w / 2, a2), al(w / 2, a2));
+    tratt(al(-w / 2, da), al(-w / 2, a2));
+    tratt(al(w / 2, da), al(w / 2, a2));
+  }
+  if (eAvvolgibile(mo.tipo)) {
+    // guide laterali, sul filo esterno
+    for (const s of [-w / 2, w / 2]) out.push({ tipo: "linea", p: al(s, h), q: al(s, h + 4), spesso: true });
+    return out;
+  }
+  // persiana (fuori) e scuri (dentro): ante aperte a 90° ai lati del vano
+  const verso = mo.tipo === "persiana" ? 1 : -1;
+  const foglia = w / mo.ante;
+  const sinistra = Math.ceil(mo.ante / 2), destra = mo.ante - sinistra;
+  for (let i = 0; i < sinistra; i++) out.push({ tipo: "linea", p: al(-w / 2 - i * 2, verso * h), q: al(-w / 2 - i * 2, verso * (h + foglia)) });
+  for (let i = 0; i < destra; i++) out.push({ tipo: "linea", p: al(w / 2 + i * 2, verso * h), q: al(w / 2 + i * 2, verso * (h + foglia)) });
+  return out;
+}
+
+function segniSistema(a: Apertura, muro: Muro): SegnoSerramento[] {
   const u = direzione(muro);
   const n = { x: -u.y, y: u.x };
   const c = puntoSulMuro(muro, a.posizione);

@@ -11,7 +11,7 @@ import { copiaGruppoSuTuttiIPiani, copiaSuTuttiIPiani } from "@/lib/planimetrie/
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello";
 import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
 import { verificaPianta } from "../../../shared/planimetrie/verifiche";
-import { abacoSerramenti, abacoStanze, csvSerramenti, riepilogoControtelai } from "@/lib/planimetrie/abachi";
+import { abacoSerramenti, abacoStanze, csvSerramenti, riepilogoControtelai, riepilogoOscuranti } from "@/lib/planimetrie/abachi";
 import { pianiDaPlanimetria, scenaEdificio } from "@/lib/planimetrie/tred/edificio";
 import { esportaDxf, esportaSvg, vistaDaPlanimetria } from "@/lib/planimetrie/esporta";
 
@@ -36,7 +36,7 @@ function ogniNumeroFinito(oggetto: unknown, percorso = "$"): string[] {
 
 function controllaTutto(doc: Planimetria) {
   const val = validaPlanimetria(doc);
-  expect(val.ok, val.ok ? "" : val.errori.slice(0, 5).join(" | ")).toBe(true);
+  expect(val.ok, "errori" in val ? val.errori.slice(0, 5).join(" | ") : "").toBe(true);
   const q = calcolaQuantita(doc);
   expect(ogniNumeroFinito(Object.values(q).map((x) => x.valore))).toEqual([]);
   expect(() => verificaPianta(doc, "fatto")).not.toThrow();
@@ -159,5 +159,62 @@ describe("simulazione D · modifiche a catena sull'editor", () => {
     const a = p.aperture.find((x) => x.id === aid)!;
     expect(a.sistema).toBe("fisso");
     expect(a.manovra).toBe("nessuna");
+  });
+});
+
+describe("simulazione E · finestre con tapparelle, veneziane, persiane e scuri su due piani", () => {
+  it("regge computo, abaco, esportazioni e 3D, e gli oscuranti sopravvivono al salvataggio", () => {
+    let p = appartamento();
+    const muroSopra = p.muri.find((m) => m.p1.y === m.p2.y && m.p1.y === Math.min(...p.muri.map((x) => x.p1.y)))!;
+    const metti = (tipo: "finestra" | "portafinestra", t: number, campi: object) => {
+      const r = C.aggiungiApertura(p, muroSopra.id, tipo, t, { stato: "nuovo" });
+      p = r.pianta;
+      if (r.id) p = C.modificaApertura(p, r.id, campi as never);
+      return r.id!;
+    };
+    const f1 = metti("finestra", 70, { larghezza: 100, altezza: 140, davanzale: 90, oscurante: "tapparella", zanzariera: "laterale" });
+    const f2 = metti("finestra", 190, { larghezza: 100, altezza: 140, davanzale: 90, oscurante: "tapparella", cassonetto: "a_filo", motore: true });
+    const f3 = metti("portafinestra", 320, { larghezza: 120, altezza: 220, davanzale: 0, oscurante: "veneziana", cassonetto: "esterno", motore: true });
+    const f4 = metti("finestra", 440, { larghezza: 90, altezza: 120, davanzale: 90, oscurante: "persiana", ante: 2 });
+    const f5 = metti("finestra", 545, { larghezza: 90, altezza: 120, davanzale: 90, oscurante: "scuro", ante: 2, zanzariera: "plisse" });
+    let doc = aPlanimetria(p);
+    const l0 = doc.livelli[0].id;
+    doc = aggiungiLivello(doc, { nome: "Primo piano", quota: 300, base: "identico", daLivelloId: l0 }).documento;
+    const { q, s } = controllaTutto(doc);
+    const v = (suffisso: string) => Object.entries(q).filter(([k]) => k.endsWith(suffisso)).reduce((t, [, x]) => t + x.valore, 0);
+    // le finestre nuove stanno nella proposta del primo piano: 2 tapparelle, 1 veneziana, 1 persiana, 1 scuro
+    expect(v("oscuranti:nuovo:tapparella.numero")).toBe(2);
+    expect(v("oscuranti:nuovo:veneziana.numero")).toBe(1);
+    expect(v("oscuranti:nuovo:persiana.numero")).toBe(1);
+    expect(v("oscuranti:nuovo:scuro.numero")).toBe(1);
+    expect(v("oscuranti:nuovo:motore.numero")).toBe(2);
+    expect(v("cassonetti:nuovo:monoblocco.numero")).toBe(1);
+    expect(v("cassonetti:nuovo:a_filo.numero")).toBe(1);
+    expect(v("cassonetti:nuovo:esterno.numero")).toBe(1);
+    expect(v("serramenti:nuovo:controtelaio_monoblocco.numero")).toBe(1);
+    expect(v("zanzariere:nuovo:laterale.numero")).toBe(1);
+    expect(v("zanzariere:nuovo:plisse.numero")).toBe(1);
+    // il 3D del progetto ha un pezzo di oscurante per ogni finestra che ne ha
+    const progetto = scenaEdificio(pianiDaPlanimetria(doc), { vista: "progetto" });
+    expect(progetto.mesh.filter((m) => m.id.includes("oscurante:")).length).toBe(5);
+    expect(progetto.mesh.filter((m) => m.id.includes("zanzariera:")).length).toBe(2);
+    // l'abaco li elenca e il riepilogo da ordinare li somma
+    const righe = abacoSerramenti(doc, l0, "progetto:A");
+    expect(righe.filter((r) => r.oscurante !== "—")).toHaveLength(5);
+    expect(csvSerramenti(righe)).toContain("Veneziana esterna");
+    expect(riepilogoOscuranti(righe).length).toBeGreaterThan(4);
+    // salvataggio e riapertura: niente si perde (nel documento e tornando all'editor)
+    const idAperture = [f1, f2, f3, f4, f5];
+    const salvate = doc.livelli[0].proposte[0].aperture;
+    for (const aid of idAperture) expect(salvate.find((x) => x.id === aid)?.oscurante).toBeDefined();
+    expect(salvate.find((x) => x.id === f3)).toMatchObject({ oscurante: "veneziana", cassonetto: "esterno", motore: true });
+    const ripresa = daPlanimetria(doc);
+    expect(ripresa.aperture.find((x) => x.id === f2)).toMatchObject({ oscurante: "tapparella", cassonetto: "a_filo", motore: true });
+    // modifiche a catena: cambiare tipo e togliere l'oscurante pulisce cassonetto e motore
+    let q2 = C.modificaApertura(p, f3, { oscurante: "persiana" });
+    expect(q2.aperture.find((x) => x.id === f3)).toMatchObject({ oscurante: "persiana" });
+    expect(q2.aperture.find((x) => x.id === f3)?.cassonetto).toBeUndefined();
+    q2 = C.modificaApertura(q2, f3, { oscurante: undefined });
+    expect(validaPlanimetria(aPlanimetria(q2)).ok).toBe(true);
   });
 });

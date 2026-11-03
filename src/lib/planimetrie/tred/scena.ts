@@ -6,11 +6,12 @@
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
 import { poligonoConBuchi, pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
+import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
 import { baseTetto, facceTetto, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { meshImpianti } from "./impianti3d";
 import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
-import { calcolaIncroci, costruisciMuro, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
+import { calcolaIncroci, costruisciAnteOscuranti, costruisciZanzariera, costruisciCassonetto, costruisciMuro, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
 
 const CM = 0.01;
@@ -207,6 +208,38 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
           const t = new CostruttoreMesh();
           costruisciTelaio(m, v, t, a.ante, !!a.scorrevole);
           mesh.push(t.mesh({ id: `telaio:${a.id}`, nome: `Telaio ${nomeApertura(a)}`, genere: "elemento", materiale: "telaio", riferimento: a.id }));
+        }
+        if (a.zanzariera) {
+          const mu = pianta.muri.find((x) => x.id === m.id);
+          if (mu) {
+            const lung = Math.hypot(mu.b.x - mu.a.x, mu.b.y - mu.a.y) || 1;
+            const dx = (mu.b.x - mu.a.x) / lung, dy = (mu.b.y - mu.a.y) / lung;
+            const centro = { x: mu.a.x + dx * a.posizione, y: mu.a.y + dy * a.posizione };
+            const fuori = latoEsterno(centro, { x: -dy, y: dx }, mu.spessore, pianta.locali.map((l) => l.contorno)) || 1;
+            const cz = new CostruttoreMesh();
+            costruisciZanzariera(m, v, cz, a.zanzariera.tipo, a.zanzariera.altezzaPersa * CM, fuori);
+            mesh.push(cz.mesh({ id: `zanzariera:${a.id}`, nome: `Zanzariera ${nomeApertura(a)}`, genere: "elemento", materiale: "zanzariera", riferimento: a.id }));
+          }
+        }
+        if (a.oscurante) {
+          // l'esterno è la parte del muro senza stanze; se non si capisce, quella della normale
+          const mu = pianta.muri.find((x) => x.id === m.id);
+          const o = a.oscurante;
+          if (mu) {
+            const lung = Math.hypot(mu.b.x - mu.a.x, mu.b.y - mu.a.y) || 1;
+            const dx = (mu.b.x - mu.a.x) / lung, dy = (mu.b.y - mu.a.y) / lung;
+            const centro = { x: mu.a.x + dx * a.posizione, y: mu.a.y + dy * a.posizione };
+            const fuori = latoEsterno(centro, { x: -dy, y: dx }, mu.spessore, pianta.locali.map((l) => l.contorno)) || 1;
+            const co = new CostruttoreMesh();
+            const avvolgibile = o.tipo === "tapparella" || o.tipo === "veneziana";
+            if (avvolgibile) {
+              costruisciCassonetto(m, v, co, { tipo: o.tipo, ante: o.ante, ...(o.cassonetto ? { cassonetto: { tipo: o.cassonetto.tipo, altezza: o.cassonetto.altezza * CM, profondita: o.cassonetto.profondita * CM } } : {}) }, fuori);
+            } else {
+              costruisciAnteOscuranti(m, v, co, o.ante, fuori, o.tipo === "scuro");
+            }
+            const nomi = { tapparella: "Tapparella", veneziana: "Veneziana", persiana: "Persiane", scuro: "Scuri" }[o.tipo];
+            mesh.push(co.mesh({ id: `oscurante:${a.id}`, nome: `${nomi} ${nomeApertura(a)}`, genere: "elemento", materiale: avvolgibile ? "oscurante" : "legno", riferimento: a.id }));
+          }
         }
       }
     }

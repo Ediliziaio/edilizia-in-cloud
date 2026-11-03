@@ -88,6 +88,30 @@ export type SistemaApertura = "battente" | "anta_ribalta" | "vasistas" | "scorre
 export const SISTEMI_APERTURA: readonly SistemaApertura[] = ["battente", "anta_ribalta", "vasistas", "scorrevole", "scorrevole_scomparsa", "alzante_scorrevole", "libro", "fisso"];
 
 /**
+ * Oscurante della finestra: `tapparella` (telo avvolgibile) e `veneziana` (frangisole a lamelle orientabili) stanno
+ * arrotolate in un cassonetto sopra il vano; `persiana` (ante esterne) e `scuro` (ante interne) si aprono a battente.
+ */
+export type TipoOscurante = "tapparella" | "veneziana" | "persiana" | "scuro";
+export const TIPI_OSCURANTE: readonly TipoOscurante[] = ["tapparella", "veneziana", "persiana", "scuro"];
+
+/**
+ * Dove sta il cassonetto di una tapparella o veneziana:
+ * - `monoblocco`: dentro il vano, integrato nel controtelaio (la luce vetrata si accorcia);
+ * - `a_filo`: murato sopra il vano, sotto l'architrave, a filo dell'intonaco;
+ * - `esterno`: a vista sul prospetto, sopra il vano (si usa quando il muro non basta, spesso in ristrutturazione).
+ */
+export type TipoCassonetto = "monoblocco" | "a_filo" | "esterno";
+export const TIPI_CASSONETTO: readonly TipoCassonetto[] = ["monoblocco", "a_filo", "esterno"];
+
+/**
+ * Zanzariera: `laterale` (anta che scorre di lato su binario), `verticale` (a rullo, in una cassetta sopra),
+ * `plisse` (a pieghe, si apre di lato), `battente` (anta su cerniere, di solito per portefinestre),
+ * `incastro` (telaio fisso a pressione, si toglie).
+ */
+export type TipoZanzariera = "laterale" | "verticale" | "plisse" | "battente" | "incastro";
+export const TIPI_ZANZARIERA: readonly TipoZanzariera[] = ["laterale", "verticale", "plisse", "battente", "incastro"];
+
+/**
  * Verso di un'anta a battente.
  * - `cardine`: l'estremo della parete (verso p1 o verso p2) dove stanno le cerniere.
  * - `lato`: dove si apre l'anta, guardando da p1 verso p2 (sinistra o destra dell'asse).
@@ -113,6 +137,16 @@ export interface Apertura extends ConOrigine {
   ante?: number;
   /** Sistema del serramento: assente = quello che dice la manovra (battente o scorrevole semplice). */
   sistema?: SistemaApertura;
+  /** Oscurante (tapparella, persiana…): assente = nessuno. Solo per finestre e portefinestre. */
+  oscurante?: TipoOscurante;
+  /** Cassonetto di tapparella o veneziana: assente = monoblocco. */
+  cassonetto?: TipoCassonetto;
+  /** Altezza del cassonetto in cm: assente = quella consigliata per l'altezza del vano. */
+  altezzaCassonetto?: number;
+  /** Tapparella o veneziana motorizzata. */
+  motore?: boolean;
+  /** Zanzariera: assente = nessuna. Solo per finestre e portefinestre. */
+  zanzariera?: TipoZanzariera;
   verso?: Verso | null;
   stato: StatoLavori;
 }
@@ -555,6 +589,11 @@ function validaStato(
     scelta(o.manovra, MANOVRE, e, "il modo di apertura");
     if (o.ante !== undefined && !(Number.isInteger(o.ante) && (o.ante as number) >= 1 && (o.ante as number) <= 6)) errori.push(`${e}: le ante devono essere da 1 a 6.`);
     if (o.sistema !== undefined) scelta(o.sistema, SISTEMI_APERTURA, e, "il sistema del serramento");
+    if (o.oscurante !== undefined) scelta(o.oscurante, TIPI_OSCURANTE, e, "l'oscurante");
+    if (o.cassonetto !== undefined) scelta(o.cassonetto, TIPI_CASSONETTO, e, "il cassonetto");
+    if (o.altezzaCassonetto !== undefined) positivo(o, "altezzaCassonetto", e, "l'altezza del cassonetto");
+    if (o.zanzariera !== undefined) scelta(o.zanzariera, TIPI_ZANZARIERA, e, "la zanzariera");
+    if (o.motore !== undefined && typeof o.motore !== "boolean") errori.push(`${e}: il motore dev'essere sì o no.`);
     if (o.verso !== undefined && o.verso !== null) {
       const v = o.verso;
       if (!eOggetto(v) || !["p1", "p2"].includes(v.cardine as string) || !["sinistra", "destra"].includes(v.lato as string)) {
