@@ -143,3 +143,14 @@ export function documentoDelCosto(c: { senza_fattura: boolean | null }, haFattur
   if (haFattura) return "fattura";
   return c.senza_fattura ? "senza_fattura" : "in_attesa";
 }
+
+/** Quanto si esce davvero, IVA compresa: per la riga del costo e i numeri in cima. */
+export const lordoCosto = (c: { amount: number; vat_rate: number | null }) =>
+  Math.round(c.amount * (1 + Number(c.vat_rate ?? 0) / 100) * 100) / 100;
+
+/** I numeri in cima ad «Altri costi». «Da saldare» conta per intero un costo pagato solo in parte. */
+export function totaliAltriCosti(costi: readonly { amount: number; vat_rate: number | null; is_paid: boolean }[]) {
+  const somma = (righe: readonly { amount: number; vat_rate: number | null }[]) =>
+    Math.round(righe.reduce((t, c) => t + lordoCosto(c), 0) * 100) / 100;
+  return { totale: somma(costi), saldati: somma(costi.filter((c) => c.is_paid)), daSaldare: somma(costi.filter((c) => !c.is_paid)) };
+}
