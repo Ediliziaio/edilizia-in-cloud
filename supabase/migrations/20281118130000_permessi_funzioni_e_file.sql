@@ -1,7 +1,8 @@
 -- Permessi: funzioni e file, dalla seconda verifica (03/11/2026).
 --
 -- 1. Tra aziende: bot_report_mattino_dati dava a chiunque fosse loggato i dati di qualsiasi azienda,
---    marginalita_costo_oda() i costi di tutte le commesse, i conteggi utenti tutte le aziende.
+--    i conteggi utenti tutte le aziende. marginalita_costo_oda() filtrava già per azienda: si chiude
+--    solo perché nessuno la chiama dal browser.
 -- 2. In azienda: statistiche, clienti e anomalie erano leggibili da operai, subappaltatori e clienti.
 -- 3. File: il cliente leggeva DDT e computi, l'operaio tutti gli allegati delle commesse.
 -- 4. Profili: il subappaltatore vedeva tutti i clienti dell'azienda; ora vale la regola dell'operaio.
