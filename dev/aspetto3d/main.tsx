@@ -1,5 +1,8 @@
 import { createRoot } from "react-dom/client";
 import Vista3D from "../../src/components/planimetrie/Vista3D";
+import { MemoryRouter } from "react-router-dom";
+import { Toaster } from "sonner";
+import { RenderEsterniDialog } from "../../src/components/planimetrie/RenderEsterniDialog";
 import { pianiDaPlanimetria, pianteDaPlanimetria } from "../../src/lib/planimetrie/tred";
 import trilocale from "../../shared/planimetrie/esempi/trilocale.json";
 import "../../src/index.css";
@@ -23,6 +26,7 @@ base.livelli.forEach((l: { id: string; fatto: Record<string, Array<Record<string
 const piante = pianteDaPlanimetria(base, { livelloId: base.livelli[0].id });
 const piani = n > 1 ? pianiDaPlanimetria(base) : undefined;
 createRoot(document.getElementById("root")!).render(
+  q.get("esterni") ? <MemoryRouter><RenderEsterniDialog aperto onChiudi={() => undefined} pianta={piante.fatto} vista="fatto" titolo="Prova" piani={piani} /><Toaster /></MemoryRouter> :
   <main className="p-3"><Vista3D piante={piante} piani={piani} modoIniziale="giro" vistaIniziale="fatto" aspettoIniziale={{ ...(q.get("facciata") ? { facciata: q.get("facciata") as never } : {}), ...(q.get("infissi") ? { infissi: q.get("infissi") as never } : {}), ...(q.get("ora") ? { ora: Number(q.get("ora")) } : {}), ...(q.get("effetti") === "0" ? { effetti: false } : {}) }} className="[&>div:last-child]:h-[78vh]" /></main>,
 );
 

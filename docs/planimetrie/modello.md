@@ -342,3 +342,7 @@ finestre e il marciapiede intorno alla casa (solo se la pianta è più o meno un
 Nel visualizzatore (`Vista3D`) l'«aspetto realistico» è solo di chi guarda e non entra nel file: tessiture (intonaco in
 quattro tinte, mattoni, pietra, legno, cemento), colore degli infissi, ora del giorno (sole, cielo, nebbia, ombre), alberi
 intorno alla casa e ombre morbide negli angoli; nell'esportazione GLB/OBJ e nei render AI non c'è.
+
+I render degli esterni con l'AI (`RenderEsterniDialog`) partono dalla stessa vista: la casa ha la facciata, gli infissi,
+l'ora e gli alberi scelti nel 3D (le scelte si ricordano nel browser, `aspettoOpzioni.ts`), e una frase
+(`descriviAspetto`) li racconta all'AI perché non cambi materiali e colori. Si può spegnere con «Aspetto della casa come nel 3D».

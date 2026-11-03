@@ -10,6 +10,7 @@ import { esplodiInStrati } from "@/lib/planimetrie/tred/esploso";
 import { CostruttoreMesh } from "@/lib/planimetrie/tred/costruttore";
 import { FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, postiAlberi, sole, TRAME, uvPerProiezione } from "@/components/planimetrie/tred/aspetto";
 import { prospettoQuotato, pianiProspetto } from "@/lib/planimetrie/prospetti";
+import { ASPETTO_PREDEFINITO, descriviAspetto, leggiAspetto, salvaAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
 const carica = (nome: string): Planimetria => JSON.parse(readFileSync(join(process.cwd(), "shared/planimetrie/esempi", nome), "utf8"));
 const conTetto = (tetto: object): Planimetria => {
@@ -176,5 +177,29 @@ describe("aspetto realistico: funzioni pure", () => {
     for (const id of ID_FACCIATE) expect(TRAME[FACCIATE[id].trama]).toBeDefined();
     for (const id of ID_INFISSI) expect(INFISSI[id].colore).toMatch(/^#[0-9a-f]{6}$/);
     for (const t of Object.values(TRAME)) expect([256, 512]).toContain(t.lato);
+  });
+});
+
+describe("aspetto scelto: memoria e descrizione per l'AI", () => {
+  it("le scelte si ricordano nel browser e un valore rotto torna al predefinito", () => {
+    window.localStorage.removeItem("planimetrie:aspetto:v1");
+    expect(leggiAspetto()).toMatchObject({ realistico: true, facciata: ASPETTO_PREDEFINITO.facciata, infissi: ASPETTO_PREDEFINITO.infissi });
+    salvaAspetto({ ...ASPETTO_PREDEFINITO, facciata: "mattone", infissi: "verde", ora: 18.5, alberi: false, effetti: false });
+    expect(leggiAspetto()).toMatchObject({ facciata: "mattone", infissi: "verde", ora: 18.5, alberi: false, effetti: false });
+    window.localStorage.setItem("planimetrie:aspetto:v1", JSON.stringify({ facciata: "oro", infissi: 3, ora: 99, alberi: "sì" }));
+    expect(leggiAspetto()).toMatchObject({ facciata: ASPETTO_PREDEFINITO.facciata, infissi: ASPETTO_PREDEFINITO.infissi, ora: ASPETTO_PREDEFINITO.ora, alberi: ASPETTO_PREDEFINITO.alberi });
+    window.localStorage.setItem("planimetrie:aspetto:v1", "{non json");
+    expect(leggiAspetto().facciata).toBe(ASPETTO_PREDEFINITO.facciata);
+    window.localStorage.removeItem("planimetrie:aspetto:v1");
+  });
+  it("la frase per il render racconta facciata, infissi e tetto; spento non dice niente", () => {
+    const f = descriviAspetto({ ...ASPETTO_PREDEFINITO, facciata: "mattone", infissi: "antracite" }, { tipo: "due_falde", finitura: "lamiera" });
+    expect(f).toContain("mattoni a vista");
+    expect(f).toContain("grigio antracite");
+    expect(f).toContain("lamiera");
+    expect(descriviAspetto(ASPETTO_PREDEFINITO, { tipo: "piano", finitura: "verde" })).toContain("tetto piano in tetto verde");
+    expect(descriviAspetto(ASPETTO_PREDEFINITO, { tipo: "due_falde" })).toContain("a falde in tegole");
+    expect(descriviAspetto(ASPETTO_PREDEFINITO)).not.toContain("tetto");
+    expect(descriviAspetto({ ...ASPETTO_PREDEFINITO, realistico: false })).toBe("");
   });
 });

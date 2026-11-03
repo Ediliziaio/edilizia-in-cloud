@@ -13,46 +13,10 @@ import { GTAOPass } from "three/examples/jsm/postprocessing/GTAOPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { Scena3D } from "@/lib/planimetrie/tred";
 
-// ─── Scelte ──────────────────────────────────────────────────────────────────
-
-export type IdFacciata = "intonaco_bianco" | "intonaco_caldo" | "intonaco_grigio" | "intonaco_terra" | "mattone" | "pietra" | "legno" | "cemento";
-export type IdInfissi = "bianco" | "antracite" | "legno" | "verde" | "grigio";
-
-export const FACCIATE: Record<IdFacciata, { nome: string; colore: string; trama: string; metri: number }> = {
-  intonaco_bianco: { nome: "Intonaco bianco", colore: "#f4f1ea", trama: "intonaco", metri: 2 },
-  intonaco_caldo: { nome: "Intonaco sabbia", colore: "#e7d2ad", trama: "intonaco", metri: 2 },
-  intonaco_grigio: { nome: "Intonaco grigio", colore: "#c6cacf", trama: "intonaco", metri: 2 },
-  intonaco_terra: { nome: "Intonaco terracotta", colore: "#cf9d78", trama: "intonaco", metri: 2 },
-  mattone: { nome: "Mattoni a vista", colore: "#ffffff", trama: "mattone", metri: 1 },
-  pietra: { nome: "Pietra", colore: "#ffffff", trama: "pietra", metri: 1.5 },
-  legno: { nome: "Rivestimento in legno", colore: "#ffffff", trama: "legno", metri: 1 },
-  cemento: { nome: "Cemento a vista", colore: "#ffffff", trama: "cemento", metri: 2 },
-};
-export const ID_FACCIATE = Object.keys(FACCIATE) as IdFacciata[];
-
-export const INFISSI: Record<IdInfissi, { nome: string; colore: string }> = {
-  bianco: { nome: "Bianchi", colore: "#f1f1ee" },
-  antracite: { nome: "Grigio antracite", colore: "#3b4046" },
-  legno: { nome: "Legno", colore: "#8a6a4b" },
-  verde: { nome: "Verde bosco", colore: "#3f5b49" },
-  grigio: { nome: "Grigio chiaro", colore: "#8d949a" },
-};
-export const ID_INFISSI = Object.keys(INFISSI) as IdInfissi[];
-
-export interface OpzioniAspetto {
-  realistico: boolean;
-  facciata: IdFacciata;
-  infissi: IdInfissi;
-  /** Ora del giorno, da 7 a 19. */
-  ora: number;
-  alberi: boolean;
-  /** Occlusione ambientale (ombre negli angoli): più bella, più pesante. */
-  effetti: boolean;
-  /** Dentro la stanza la facciata e il cielo non servono. */
-  dentro?: boolean;
-}
-
-export const ASPETTO_PREDEFINITO: OpzioniAspetto = { realistico: true, facciata: "intonaco_bianco", infissi: "antracite", ora: 15, alberi: true, effetti: true };
+// Le scelte (facciata, infissi, ora…) stanno in un modulo senza three.js, così anche i dialoghi le leggono senza appesantire il bundle.
+import { ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type IdFacciata, type IdInfissi, type OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
+export { ASPETTO_PREDEFINITO, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI };
+export type { IdFacciata, IdInfissi, OpzioniAspetto };
 
 // ─── Sole e cielo (funzioni pure) ────────────────────────────────────────────
 
@@ -438,7 +402,7 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   const costruisciAlberi = (scena: Scena3D) => {
     if (alberi) { alberi.traverse((o) => { if (o instanceof THREE.InstancedMesh) { o.geometry.dispose(); (o.material as THREE.Material).dispose(); } }); scene.remove(alberi); alberi = null; }
     // se la pianta ha un lotto disegnato (prato, aiuole, alberi suoi) il giardino lo ha deciso chi l'ha fatta
-    if (scena.mesh.some((m) => m.id === "terreno" || m.id.startsWith("area:"))) return;
+    if (scena.mesh.some((m) => m.id.startsWith("area:") || /^albero/i.test(m.nome))) return;
     const posti = postiAlberi(scena.limiti);
     if (!posti.length) return;
     const alberiVeri = posti.filter((p) => !p.cespuglio), cespugli = posti.filter((p) => p.cespuglio);
