@@ -286,6 +286,11 @@ describe("tetti del turno", () => {
 });
 
 describe("gruppo fisso di strumenti", () => {
+  it("«carico di lavoro» e' una domanda, «carica il documento» no", () => {
+    expect(domandaDiSolaLettura("Chi è più carico di lavoro questa settimana?")).toBe(true);
+    expect(domandaDiSolaLettura("Dimmi dove carico il documento e caricalo tu")).toBe(false);
+  });
+
   const base = { channel: "internal_chat", role: "company_admin", personaKey: "silvio", gruppoFisso: GRUPPO_FISSO_STRUMENTI } as const;
   const conEspansi = (domains?: ToolDomain[]) => getToolsForChannel({ ...base, domains });
 
