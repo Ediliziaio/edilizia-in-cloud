@@ -14,7 +14,8 @@
  * (email, attività, appuntamenti): questa vale per il popup «Crea con Silvio» e per il piano
  * di volo delle commesse.
  */
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Lock, Save } from "lucide-react";
 import { toast } from "sonner";
@@ -31,8 +32,10 @@ import { useCreaConSilvioAttivo } from "@/components/silvio-commessa/useCreaConS
 import {
   giornoDaTesto, giornoInTesto, leggiImpostazioniSilvio, salvaImpostazioniSilvio, type ClientAutonomia, type ImpostazioniSilvio,
 } from "@/lib/silvio-commessa/autonomia";
-import { AZIONI_SILVIO, SEMPRE_TU, livelloDi, sogliaDi, type LivelloAutonomia } from "../../../../shared/silvio-commessa/autonomia.ts";
+import { AZIONI_SILVIO, SEMPRE_TU, livelloDi, sogliaDi, type AzioneSilvio, type LivelloAutonomia } from "../../../../shared/silvio-commessa/autonomia.ts";
 import { cn } from "@/lib/utils";
+
+const QuantoLavoraSilvio = lazy(() => import("@/components/silvio-commessa/QuantoLavoraSilvio"));
 
 const ETICHETTE: Record<LivelloAutonomia, string> = { vietata: "Mai", chiede: "Chiede", da_sola: "Da solo" };
 
@@ -119,93 +122,129 @@ export default function SettingsSilvioCommesse({ db }: { db?: ClientAutonomia } 
     }
   };
 
-  return (
-    <SezioneImpostazione
-      id="silvio-commesse"
-      titolo="Cosa fa Silvio da solo sulle commesse"
-      descrizione="Mai: non lo propone. Chiede: lo propone e aspetta il tuo «Va bene». Da solo: lo fa, e lo vedi nella commessa."
-      azione={puoModificare ? (
-        <Button type="button" size="sm" className="h-8 gap-1" disabled={!cambiata || !!errore || salvando} onClick={() => void salva()}>
-          {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}Salva
-        </Button>
-      ) : (
-        <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" aria-hidden />Sola lettura: serve «Impostazioni commesse → Modifica»</span>
-      )}
-    >
-      <ul className="divide-y">
-        {AZIONI_SILVIO.map((a) => {
-          const scelto = bozza.livelli[a.azione] ?? "chiede";
-          return (
-            <li key={a.azione} className="flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between" data-azione={a.azione}>
-              <div className="min-w-0">
-                <p className="text-sm font-medium leading-tight">{a.etichetta}</p>
-                <p className="text-xs text-muted-foreground">{a.effetto}</p>
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                {a.soglia && scelto === "da_sola" && (
-                  <Label className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
-                    fino a
-                    <Input value={bozza.soglia} inputMode="decimal" aria-label="Soglia degli ordini in euro" disabled={!puoModificare}
-                      className="h-8 w-20 text-right" placeholder="500" onChange={(e) => metti({ soglia: e.target.value })} />
-                    €
-                  </Label>
-                )}
-                <div role="radiogroup" aria-label={a.etichetta} className="inline-flex overflow-hidden rounded-md border">
-                  {(["vietata", "chiede", "da_sola"] as const).map((l) => {
-                    const oltre = l === "da_sola" && a.massimo !== "da_sola";
-                    return (
-                      <button key={l} type="button" role="radio" aria-checked={scelto === l} disabled={!puoModificare || oltre}
-                        title={oltre ? "Esce verso terzi o ha valore legale: Silvio chiede sempre" : undefined}
-                        onClick={() => metti({ livelli: { ...bozza.livelli, [a.azione]: l } })}
-                        className={cn("h-11 px-3 text-sm transition-colors sm:h-8 sm:px-2.5 sm:text-xs disabled:cursor-not-allowed disabled:opacity-40",
-                          l !== "vietata" && "border-l",
-                          scelto === l ? (l === "da_sola" ? "bg-emerald-600 text-white" : l === "vietata" ? "bg-slate-700 text-white" : "bg-primary text-primary-foreground")
-                            : "bg-background hover:bg-muted")}>
-                        {ETICHETTE[l]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </li>
-          );
-        })}
-        <li className="px-4 py-2.5 text-xs text-muted-foreground">
-          <Lock className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
-          Sempre tu, mai Silvio da solo: {SEMPRE_TU.map((s) => s.etichetta).join(", ")}.
-        </li>
-        <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4" aria-label="Calendario di cantiere">
-          <div className="w-full text-sm font-medium leading-tight sm:w-auto sm:basis-full">
-            Calendario di cantiere
-            <span className="ml-1 text-xs font-normal text-muted-foreground">
-              le date di Silvio saltano domeniche, feste (Pasqua e Pasquetta comprese), e queste chiusure; le altre stanno in Personale → festività
-            </span>
+  const rigaAzione = (a: AzioneSilvio) => {
+    const scelto = bozza.livelli[a.azione] ?? "chiede";
+    const livelli: LivelloAutonomia[] = a.massimo === "da_sola" ? ["vietata", "chiede", "da_sola"] : ["vietata", "chiede"];
+    return (
+      <li key={a.azione} className="flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between" data-azione={a.azione}>
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-tight">{a.etichetta}</p>
+          <p className="text-xs text-muted-foreground first-letter:uppercase">{a.effetto}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {a.soglia && scelto === "da_sola" && (
+            <Label className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+              fino a
+              <Input value={bozza.soglia} inputMode="decimal" aria-label="Soglia degli ordini in euro" disabled={!puoModificare}
+                className="h-8 w-20 text-right" placeholder="500" onChange={(e) => metti({ soglia: e.target.value })} />
+              €
+            </Label>
+          )}
+          {/* Larghezza fissa: i «Mai» e i «Chiede» restano in colonna anche dove «Da solo» non c'è. */}
+          <div className="sm:w-[12.75rem]">
+            <div role="radiogroup" aria-label={a.etichetta} className="inline-flex overflow-hidden rounded-md border">
+              {livelli.map((l) => (
+                <button key={l} type="button" role="radio" aria-checked={scelto === l} disabled={!puoModificare}
+                  onClick={() => metti({ livelli: { ...bozza.livelli, [a.azione]: l } })}
+                  className={cn("h-11 w-[4.25rem] text-sm transition-colors sm:h-8 sm:text-xs disabled:cursor-not-allowed disabled:opacity-40",
+                    l !== "vietata" && "border-l",
+                    scelto === l ? (l === "da_sola" ? "bg-emerald-600 text-white" : l === "vietata" ? "bg-slate-700 text-white" : "bg-primary text-primary-foreground")
+                      : "bg-background hover:bg-muted")}>
+                  {ETICHETTE[l]}
+                </button>
+              ))}
+            </div>
           </div>
-          <Label className="flex items-center gap-1.5 text-xs font-normal">
-            Chiusura estiva dal
-            <Input value={bozza.chiusuraDal} placeholder="10/08" disabled={!puoModificare} className="h-8 w-16" aria-label="Chiusura estiva dal"
-              onChange={(e) => metti({ chiusuraDal: e.target.value })} />
-            al
-            <Input value={bozza.chiusuraAl} placeholder="23/08" disabled={!puoModificare} className="h-8 w-16" aria-label="Chiusura estiva al"
-              onChange={(e) => metti({ chiusuraAl: e.target.value })} />
-          </Label>
-          <Label className="flex items-center gap-1.5 text-xs font-normal">
-            Patrono
-            <Input value={bozza.patrono} placeholder="07/12" disabled={!puoModificare} className="h-8 w-16" aria-label="Giorno del patrono"
-              onChange={(e) => metti({ patrono: e.target.value })} />
-            <Input value={bozza.patronoNome} placeholder="Sant'Ambrogio" disabled={!puoModificare} className="h-8 w-36" aria-label="Nome del patrono"
-              onChange={(e) => metti({ patronoNome: e.target.value })} />
-          </Label>
-          <Label className="flex items-center gap-2 text-xs font-normal">
+        </div>
+      </li>
+    );
+  };
+  const titoloGruppo = (testo: string) => (
+    <li className="bg-muted/40 px-4 py-1.5 text-xs font-semibold text-muted-foreground">{testo}</li>
+  );
+
+  return (
+    <div className="space-y-4">
+      <SezioneImpostazione
+        id="silvio-commesse"
+        titolo="Cosa può fare Silvio"
+        descrizione="Mai: non lo propone. Chiede: lo propone e aspetta il tuo «Va bene». Da solo: lo fa, e lo vedi nella commessa."
+        azione={puoModificare ? undefined : (
+          <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" aria-hidden />Sola lettura: serve «Impostazioni commesse → Modifica»</span>
+        )}
+      >
+        <ul className="divide-y">
+          {titoloGruppo("Può farlo da solo, se vuoi")}
+          {AZIONI_SILVIO.filter((a) => a.massimo === "da_sola").map(rigaAzione)}
+          {titoloGruppo("Prepara lui, decidi sempre tu")}
+          {AZIONI_SILVIO.filter((a) => a.massimo !== "da_sola").map(rigaAzione)}
+          <li className="px-4 py-2.5 text-xs text-muted-foreground">
+            <Lock className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
+            Sempre tu, mai Silvio da solo: {SEMPRE_TU.map((s) => s.etichetta).join(", ")}.
+          </li>
+        </ul>
+      </SezioneImpostazione>
+
+      <SezioneImpostazione
+        id="calendario-cantiere"
+        titolo="Calendario di cantiere"
+        descrizione="Le date di Silvio saltano domeniche, feste (Pasqua e Pasquetta comprese) e queste chiusure; le altre stanno in Personale → festività."
+      >
+        <div className="grid gap-4 px-4 py-3 sm:grid-cols-[auto_auto_1fr] sm:items-end sm:gap-6">
+          <fieldset className="space-y-1">
+            <legend className="text-xs font-medium">Chiusura estiva</legend>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              dal
+              <Input value={bozza.chiusuraDal} placeholder="GG/MM" disabled={!puoModificare} className="h-8 w-20" aria-label="Chiusura estiva dal"
+                onChange={(e) => metti({ chiusuraDal: e.target.value })} />
+              al
+              <Input value={bozza.chiusuraAl} placeholder="GG/MM" disabled={!puoModificare} className="h-8 w-20" aria-label="Chiusura estiva al"
+                onChange={(e) => metti({ chiusuraAl: e.target.value })} />
+            </div>
+          </fieldset>
+          <fieldset className="space-y-1">
+            <legend className="text-xs font-medium">Patrono</legend>
+            <div className="flex items-center gap-1.5">
+              <Input value={bozza.patrono} placeholder="GG/MM" disabled={!puoModificare} className="h-8 w-20" aria-label="Giorno del patrono"
+                onChange={(e) => metti({ patrono: e.target.value })} />
+              <Input value={bozza.patronoNome} placeholder="Nome del santo" disabled={!puoModificare} className="h-8 w-40" aria-label="Nome del patrono"
+                onChange={(e) => metti({ patronoNome: e.target.value })} />
+            </div>
+          </fieldset>
+          <Label className="flex h-8 items-center gap-2 text-xs font-medium">
             <Switch checked={bozza.sabato} disabled={!puoModificare} onCheckedChange={(v) => metti({ sabato: v })} aria-label="Si lavora il sabato" />
             Si lavora il sabato
           </Label>
-          <p className="text-xs text-muted-foreground sm:basis-full">
+          <p className="text-xs text-muted-foreground sm:col-span-3">
             Senza patrono scritto qui, Silvio usa quello della città del cantiere quando la conosce (Milano, Roma, Torino e gli altri capoluoghi grandi).
           </p>
-        </li>
-      </ul>
-      {errore && <p role="alert" className="border-t px-4 py-2 text-xs text-red-700">{errore}</p>}
-    </SezioneImpostazione>
+        </div>
+      </SezioneImpostazione>
+
+      {permissions.canEditOrders && companyId && (
+        <SezioneImpostazione id="quanto-lavora-silvio" titolo="Quanto lavora Silvio" descrizione="I suoi numeri degli ultimi 90 giorni, sulle commesse.">
+          <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+            <QuantoLavoraSilvio companyId={companyId} />
+          </Suspense>
+        </SezioneImpostazione>
+      )}
+
+      {/* In fondo alla pagina; con una modifica in corso resta a galla (`sticky` qui non funziona:
+          scorre il documento, e i contenitori hanno overflow). Al centro: a destra c'è il pulsante di Silvio. */}
+      {puoModificare && (
+        <div className={cn("flex flex-wrap items-center gap-2 rounded-lg border bg-card px-4 py-2 shadow-sm",
+          cambiata && "fixed bottom-24 left-1/2 z-40 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 shadow-lg md:bottom-4")}>
+          <Button type="button" size="sm" className="h-8 gap-1" disabled={!cambiata || !!errore || salvando} onClick={() => void salva()}>
+            {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}Salva
+          </Button>
+          {cambiata && (
+            <Button type="button" size="sm" variant="ghost" className="h-8" disabled={salvando} onClick={() => setModifiche(null)}>Annulla</Button>
+          )}
+          {errore
+            ? <p role="alert" className="min-w-0 text-xs text-red-700">{errore}</p>
+            : <p className="text-xs text-muted-foreground">{cambiata ? "Modifiche da salvare" : "Nessuna modifica"}</p>}
+        </div>
+      )}
+    </div>
   );
 }

@@ -7,10 +7,12 @@
 import { Suspense, useState } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { cosaManca, leggiDaCompletare, type CommessaDaCompletare } from "@/lib/silvio-commessa/daCompletare";
 import { useCreaConSilvioAttivo } from "./useCreaConSilvioAttivo";
 
@@ -26,6 +28,7 @@ export function CompletaConSilvio({ orderId, companyId, orderCode, puoModificare
   leggi?: (companyId: string, opz: { orderId: string }) => Promise<CommessaDaCompletare[]>;
 }) {
   const { user } = useAuth();
+  const permessi = usePermissions();
   const attivo = useCreaConSilvioAttivo(companyId) && puoModificare && !chiusa;
   const [aperto, setAperto] = useState(false);
   const punteggio = useQuery({
@@ -43,14 +46,19 @@ export function CompletaConSilvio({ orderId, companyId, orderCode, puoModificare
     <div className="mx-0 mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm sm:mx-6"
       role="region" aria-label="Completezza della commessa">
       {c ? (
-        <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-slate-700">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-slate-700">
           <span className="flex items-center gap-2 font-semibold text-slate-900">
             <Progress value={c.punteggio} className="h-1.5 w-16" aria-hidden />Completa al {c.punteggio} %
           </span>
           {c.mancano.length > 0 && <span className="min-w-0 text-xs text-slate-500">manca: {cosaManca(c.mancano)}</span>}
-        </p>
+        </div>
       ) : (
         <p className="min-w-0 flex-1 text-slate-600">Silvio può aggiungere quello che manca a questa commessa.</p>
+      )}
+      {(permessi.isAdmin || permessi.canViewSettingsOrders) && (
+        <Link to="/azienda/impostazioni/silvio-commesse" className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 max-sm:hidden">
+          <Settings className="h-3.5 w-3.5" aria-hidden />Cosa fa Silvio da solo
+        </Link>
       )}
       <Button type="button" size="sm" className="h-8 gap-1 bg-orange-700 hover:bg-orange-800 max-sm:w-full" onClick={() => setAperto(true)}>
         <Sparkles className="h-4 w-4" aria-hidden />Completa con Silvio
