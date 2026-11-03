@@ -306,7 +306,7 @@ export function costruisciScena(vista: VistaPianta, opzioni: OpzioniScena = {}):
   // Aperture
   for (const a of vista.aperture) {
     const m = muriPerId.get(a.muroId);
-    if (m) primitive.push(...simboloApertura(a, m, presentazione), ...simboloOscurante(a, m, presentazione, vista.locali.map((l) => l.contorno)));
+    if (m) primitive.push(...simboloApertura(a, m, presentazione), ...simboloOscurante(a, m, presentazione, vista.locali.map((l) => l.contorno)), ...simboloZanzariera(a, m, presentazione, vista.locali.map((l) => l.contorno)));
   }
 
   // Quote
@@ -558,6 +558,35 @@ export function simboloOscurante(a: AperturaVista, m: MuroVista, presentazione: 
   const sin = Math.ceil(Math.max(1, o.ante) / 2), des = Math.max(1, o.ante) - sin;
   for (let i = 0; i < sin; i++) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da - i * 2, verso * h), asse(da - i * 2, verso * (h + foglia))] });
   for (let i = 0; i < des; i++) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(aa + i * 2, verso * h), asse(aa + i * 2, verso * (h + foglia))] });
+  return out;
+}
+
+/** Zanzariera: una linea a tratti sul filo interno del vano (più il segno del tipo: zig-zag, cassetta, anta). */
+export function simboloZanzariera(a: AperturaVista, m: MuroVista, presentazione: boolean, contorni: Punto[][]): Primitiva[] {
+  const z = a.zanzariera;
+  if (!z) return [];
+  const d = versore(diff(m.p2, m.p1));
+  const nSin = sinistra(d);
+  const latoN = a.lato === "destra" ? per(nSin, -1) : nSin;
+  const t = m.spessore, h = t / 2;
+  const da = a.distanza, aa = a.distanza + a.larghezza;
+  const centro = lungo(m.p1, d, (da + aa) / 2);
+  const fuori = latoEsterno(centro, latoN, t, contorni) || -1;
+  // l'interno è dalla parte opposta all'esterno
+  const asse = (s: number, off = 0) => somma(lungo(m.p1, d, s), per(latoN, off * -fuori));
+  const tratto = trattoApertura(a, presentazione, 0.1);
+  const y = h + 2;
+  const out: Primitiva[] = [{ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, tratteggioMm: [0.4, 0.8] }, punti: [asse(da, y), asse(aa, y)] }];
+  if (z.tipo === "plisse") {
+    const pt = Array.from({ length: 9 }, (_, i) => asse(aa - (Math.min(a.larghezza / 3, 30) * i) / 8, y + (i % 2 ? 2 : -2)));
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: pt });
+  } else if (z.tipo === "verticale") {
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da, y - 3), asse(aa, y - 3)] }, { tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da, y + 3), asse(aa, y + 3)] });
+  } else if (z.tipo === "battente") {
+    out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto, punti: [asse(da, y), asse(da + a.larghezza * 0.7, y + a.larghezza * 0.7)] });
+  } else {
+    for (const s of [da, aa]) out.push({ tipo: "poligono", layer: "APERTURE", chiuso: false, tratto: { ...tratto, spessoreMm: 0.2 }, punti: [asse(s, y - 2), asse(s, y + 2)] });
+  }
   return out;
 }
 

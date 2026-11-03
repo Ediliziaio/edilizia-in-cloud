@@ -353,6 +353,28 @@ export function costruisciCassonetto(m: MuroCalc, v: VanoMuro, c: CostruttoreMes
   scatola(v.s0 + guida, v.s1 - guida, fondo - 0.03, fondo, 0.03, sp);
 }
 
+/**
+ * Zanzariera: cornice sottile e telo (una lastra quasi piatta) sul filo interno del vano, in testa fino alla quota
+ * del cassonetto monoblocco se c'è. Il rullo ha anche la cassetta in alto, il plissé è un po' più spesso a un capo.
+ */
+export function costruisciZanzariera(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, tipo: string, altezzaPersa: number, fuori: 1 | -1): void {
+  const rot = Math.atan2(m.d.y, m.d.x);
+  const n = { x: -m.d.y, y: m.d.x };
+  const interno = -fuori * (m.spessore / 2 + 0.012);
+  const z1 = v.z1 - altezzaPersa;
+  const scatola = (s0: number, s1: number, z0: number, zz1: number, profondita: number) => {
+    const mezzo = piu(m.a, per(m.d, (s0 + s1) / 2));
+    c.scatola(mezzo.x + n.x * interno, mezzo.y + n.y * interno, z0, s1 - s0, profondita, zz1 - z0, rot);
+  };
+  const t = 0.025;
+  scatola(v.s0, v.s0 + t, v.z0, z1, 0.02);
+  scatola(v.s1 - t, v.s1, v.z0, z1, 0.02);
+  scatola(v.s0, v.s1, v.z0, v.z0 + t, 0.02);
+  scatola(v.s0, v.s1, z1 - t, z1, tipo === "verticale" ? 0.05 : 0.02);
+  scatola(v.s0 + t, v.s1 - t, v.z0 + t, z1 - t, 0.004);
+  if (tipo === "plisse") scatola(v.s1 - 0.12, v.s1 - t, v.z0 + t, z1 - t, 0.03);
+}
+
 /** Ante di persiane (fuori) e scuri (dentro), aperte a 90° ai lati del vano. */
 export function costruisciAnteOscuranti(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, ante: number, fuori: 1 | -1, interno: boolean): void {
   const rot = Math.atan2(m.d.y, m.d.x);

@@ -15,13 +15,13 @@ import { CATALOGO, nomeDelTipo } from "./catalogo";
 import { destinazioneArredabile, dotazioneCei } from "./arreda";
 import { btuConsigliati, DESTINAZIONI_CLIMA } from "../../../../shared/planimetrie/impianti.ts";
 import { dist } from "./geometria";
-import { altezzaCassonettoConsigliata, anteDi, cassonettoDi, eAvvolgibile, manovraDi, misureOscurante, misureSerramento, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, oscuranteAmmessi, oscuranteDi, sistemaDi, sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
+import { altezzaCassonettoConsigliata, anteDi, cassonettoDi, eAvvolgibile, manovraDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, NOMI_ZANZARIERA, oscuranteAmmessi, oscuranteDi, sistemaDi, sistemiAmmessi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
 import { TIPI_SU_TUTTI_I_PIANI } from "@/lib/planimetrie/copiaSuiPiani";
 import { contaStimate, modificabile, prossimaStimata, visibile, type Vista } from "./comandi";
 import { lunghezzaMuro } from "./geometria";
 import { leggiMisura, scriviCentimetri, scriviMetri, scriviMq } from "./misure";
 import type { Selezione } from "./TelaPlanimetria";
-import { NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, type SistemaApertura, type TipoArea, type TipoCassonetto, type TipoOscurante } from "../../../../shared/planimetrie/modello.ts";
+import { NOMI_AREA, TIPI_AREA, TIPI_CASSONETTO, TIPI_ZANZARIERA, type SistemaApertura, type TipoArea, type TipoCassonetto, type TipoOscurante, type TipoZanzariera } from "../../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../../shared/planimetrie/geometria.ts";
 import type { AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/planimetrie/terreno.ts";
@@ -730,6 +730,21 @@ function DettaglioApertura({ vista, apertura: a, azioni, essenziale }: { vista: 
             </div>
           )}
           {oscuranteDi(a) && !essenziale && <MisureOscuranteRiga a={a} />}
+          <div className="space-y-1">
+            <Label>Zanzariera</Label>
+            <Select
+              value={zanzarieraDi(a) ?? "nessuna"}
+              onValueChange={(v) => azioni.modificaApertura(a.id, { zanzariera: v === "nessuna" ? undefined : (v as TipoZanzariera) })}
+              disabled={!misurabile}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nessuna">Nessuna</SelectItem>
+                {TIPI_ZANZARIERA.map((z) => <SelectItem key={z} value={z}>{NOMI_ZANZARIERA[z]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {zanzarieraDi(a) && !essenziale && <MisureZanzarieraRiga a={a} />}
         </div>
       )}
       <div className="grid grid-cols-2 gap-2">
@@ -787,6 +802,17 @@ function MisureControtelaio({ a }: { a: Apertura }) {
       <p><span className="font-medium text-foreground">Controtelaio{m.controtelaioSpeciale ? " per scorrevole a scomparsa" : ""}:</span> {cm(m.controtelaio.larghezza)} × {cm(m.controtelaio.altezza)} cm</p>
       <p>Serramento: {cm(m.telaio.larghezza)} × {cm(m.telaio.altezza)} cm · anta {cm(m.anta)} cm{anteDi(a) > 1 ? ` (${anteDi(a)} ante)` : ""}</p>
       {m.tascaScomparsa > 0 && <p>Serve un tratto di muro libero di almeno {cm(m.tascaScomparsa)} cm a fianco, senza porte né impianti.</p>}
+    </div>
+  );
+}
+
+function MisureZanzarieraRiga({ a }: { a: Apertura }) {
+  const z = misureZanzariera(a);
+  if (!z) return null;
+  const cm = (v: number) => v.toLocaleString("it-IT", { maximumFractionDigits: 1 });
+  return (
+    <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+      <span className="font-medium text-foreground">Zanzariera:</span> telo {cm(z.larghezza)} × {cm(z.altezza)} cm ({cm(z.superficieMq)} m²){z.ante > 1 ? ` · ${z.ante} ante` : ""} · guide e telaio {cm(z.guideMl)} m
     </div>
   );
 }

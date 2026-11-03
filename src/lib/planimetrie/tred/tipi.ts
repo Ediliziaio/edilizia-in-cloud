@@ -53,6 +53,8 @@ export interface AperturaPer3D {
   scorrevole?: boolean;
   /** Oscurante e cassonetto scelti da chi ha fatto la pianta (tapparella, veneziana, persiana, scuri). */
   oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
+  /** Zanzariera (sul filo interno del vano); `altezzaPersa` = cm presi in testa da un cassonetto monoblocco. */
+  zanzariera?: { tipo: "laterale" | "verticale" | "plisse" | "battente" | "incastro"; altezzaPersa: number };
   /**
    * esistente = c'è e resta; nuovo = da aprire in un muro (demolizione della muratura);
    * demolire = da chiudere (tamponamento, muratura nuova).

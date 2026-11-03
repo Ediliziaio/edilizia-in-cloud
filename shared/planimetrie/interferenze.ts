@@ -7,7 +7,7 @@
  * Sono controlli di massima sui disegni: la verifica vera la firma il tecnico.
  */
 import { assiDelMuro, lunghezzaMuro } from "./geometria.ts";
-import { anteDi, misureOscurante, misureSerramento, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, sistemaDi } from "./serramenti.ts";
+import { anteDi, misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_ZANZARIERA, NOMI_SISTEMA, sistemaDi } from "./serramenti.ts";
 import type { Elemento, Livello, Muro, Punto, StatoPianta } from "./modello.ts";
 import type { Verifica } from "./verifiche.ts";
 
@@ -110,6 +110,18 @@ function verificheSerramenti(stato: StatoPianta, v: (esito: Verifica["esito"], c
     if ((sistema === "battente" || sistema === "anta_ribalta") && ante >= 1) {
       const anta = misureSerramento(a, m).anta;
       if (anta > 100) v("attenzione", "serramento", nome, `Ante molto larghe (${Math.round(anta)} cm): cerniere e ferramenta sotto sforzo, meglio più ante o uno scorrevole.`, `${Math.round(anta)} cm`, "≤ 100 cm");
+    }
+    const zan = misureZanzariera(a);
+    if (zan) {
+      const nomeZ = `${NOMI_ZANZARIERA[zan.tipo]} · ${nome.toLowerCase()}`;
+      const larg = `${Math.round(zan.larghezza)} cm`;
+      if (zan.tipo === "verticale" && zan.larghezza > 200) v("attenzione", "serramento", nomeZ, `Zanzariera a rullo larga ${larg}: il telo si imbarca, meglio laterale o plissé.`, larg, "≤ 200 cm");
+      if (zan.tipo === "verticale" && zan.altezza > 250) v("attenzione", "serramento", nomeZ, `Zanzariera a rullo alta ${Math.round(zan.altezza)} cm: oltre 2,5 m il telo non rientra bene.`, `${Math.round(zan.altezza)} cm`, "≤ 250 cm");
+      if (zan.tipo === "plisse" && zan.larghezza > 250) v("attenzione", "serramento", nomeZ, `Zanzariera plissé larga ${larg}: servono due teli che si chiudono al centro.`, larg, "≤ 250 cm per telo");
+      if (zan.tipo === "laterale" && zan.larghezza > 300) v("attenzione", "serramento", nomeZ, `Zanzariera laterale larga ${larg}: oltre 3 m si divide in più ante.`, larg, "≤ 300 cm");
+      if (zan.tipo === "battente" && a.tipo === "finestra") v("attenzione", "serramento", nomeZ, "La zanzariera a battente è pensata per le portefinestre; su una finestra meglio a incastro o laterale.");
+      if (zan.tipo === "battente" && zan.larghezza / zan.ante > 100) v("attenzione", "serramento", nomeZ, `Anta da ${Math.round(zan.larghezza / zan.ante)} cm: troppo larga per le cerniere, usa due ante.`, `${Math.round(zan.larghezza / zan.ante)} cm`, "≤ 100 cm");
+      if (sistema === "libro" || sistema === "alzante_scorrevole") v("attenzione", "serramento", nomeZ, "Con questo serramento la zanzariera interna ostacola le ante che scorrono o si ripiegano: controlla con il serramentista.");
     }
     const osc = misureOscurante(a);
     if (osc) {
