@@ -14,6 +14,7 @@ const SQL = {
   cg: readFileSync("supabase/migrations/20281118090000_permessi_fase1_urgenze.sql", "utf8"),
   aree: readFileSync("supabase/migrations/20281118110000_permessi_fase3_ruoli.sql", "utf8"),
   correzioni: readFileSync("supabase/migrations/20281118120000_permessi_correzioni_verifica.sql", "utf8"),
+  venditore: readFileSync("supabase/migrations/20281118170000_venditore_senza_ordini_fornitore.sql", "utf8"),
 };
 const permessiIn = (testo: string) => new Set(testo.match(/can_(?:view|edit|manage|validate)_[a-z_]+/g) ?? []);
 
@@ -33,7 +34,9 @@ describe("gli elenchi sono quelli delle regole del database", () => {
   ])("%s", (id, tabella) => {
     // Vale l'ultima migrazione che tocca la tabella.
     const voce = new RegExp(`\\('${tabella}', array\\[([^\\]]+)\\]`);
-    const riga = SQL.correzioni.match(voce)?.[1] ?? SQL.aree.match(voce)?.[1] ?? "";
+    const riga = tabella === "purchase_orders"
+      ? SQL.venditore.match(/array\[([^\]]+)\]::text/)?.[1] ?? ""
+      : SQL.correzioni.match(voce)?.[1] ?? SQL.aree.match(voce)?.[1] ?? "";
     expect(new Set(area(id).aperturaDa)).toEqual(permessiIn(riga));
   });
 });
@@ -44,6 +47,11 @@ describe("cosa vede davvero", () => {
     const cg = accessi.find((a) => a.area.id === "controllo_gestione")!;
     expect(cg.aperta).toBe(true);
     expect(cg.apertaDa).toEqual(["can_view_costs"]);
+  });
+
+  it("i preventivi non aprono gli ordini ai fornitori", () => {
+    const accessi = accessiEffettivi({ can_view_preventivi: true, can_edit_preventivi: true });
+    expect(accessi.find((a) => a.area.id === "acquisti")?.aperta).toBe(false);
   });
 
   it("senza permessi è tutto chiuso", () => {

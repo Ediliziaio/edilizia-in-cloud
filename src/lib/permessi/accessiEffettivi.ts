@@ -44,8 +44,7 @@ export const AREE_SENSIBILI: readonly AreaSensibile[] = [
       "can_manage_suppliers", "can_manage_purchasing", "can_validate_bom", "can_view_costs",
       "can_view_billing", "can_view_financial_reports", "can_view_scadenzario", "can_view_tickets",
       "can_view_dashboard", "can_view_cruscotto", "can_view_settings_suppliers", "can_view_forecast",
-      "can_view_tesoreria", "can_view_preventivi", "can_edit_tickets", "can_edit_preventivi",
-      "can_view_calendar", "can_view_subappaltatori",
+      "can_view_tesoreria", "can_edit_tickets", "can_view_calendar", "can_view_subappaltatori",
     ],
   },
   {
