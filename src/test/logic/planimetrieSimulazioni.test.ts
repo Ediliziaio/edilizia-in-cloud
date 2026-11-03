@@ -36,7 +36,7 @@ function ogniNumeroFinito(oggetto: unknown, percorso = "$"): string[] {
 
 function controllaTutto(doc: Planimetria) {
   const val = validaPlanimetria(doc);
-  expect(val.ok, val.ok ? "" : val.errori.slice(0, 5).join(" | ")).toBe(true);
+  expect(val.ok, "errori" in val ? val.errori.slice(0, 5).join(" | ") : "").toBe(true);
   const q = calcolaQuantita(doc);
   expect(ogniNumeroFinito(Object.values(q).map((x) => x.valore))).toEqual([]);
   expect(() => verificaPianta(doc, "fatto")).not.toThrow();

@@ -48,6 +48,9 @@ export interface AperturaPer3D {
   altezza: number;
   /** Altezza del davanzale dal pavimento (0 per le porte), in cm. */
   davanzale: number;
+  /** Numero di ante e se scorre: assente = telaio non disegnato. */
+  ante?: number;
+  scorrevole?: boolean;
   /** Oscurante e cassonetto scelti da chi ha fatto la pianta (tapparella, veneziana, persiana, scuri). */
   oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
   /**

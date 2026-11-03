@@ -112,7 +112,7 @@ function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {
     davanzale: a.davanzale, manovra: a.manovra,
     cerniera: a.verso?.cardine === "p2" ? "fine" : "inizio",
     lato: a.verso?.lato ?? "sinistra",
-    ante: anteDi(a) || 1,
+    ante: (anteDi(a) || 1) as 1 | 2,
     sistema: sistemaDi(a),
     ...oscuranteVista(a),
     stato: modo === "progetto" ? "esistente" : a.stato,

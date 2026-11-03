@@ -15,7 +15,7 @@
  * Il livello si disegna alla sua quota zero: un livello per volta.
  */
 import { puntiTerreno } from "../../../../shared/planimetrie/terreno.ts";
-import type { Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
+import type { Apertura, Elemento, Livello, Planimetria, StatoLavori, StatoPianta } from "../../../../shared/planimetrie/modello.ts";
 import type { PiantaPer3D, StatoOggetto } from "./tipi";
 import { anteDi, eScorrevole, misureOscurante, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
 

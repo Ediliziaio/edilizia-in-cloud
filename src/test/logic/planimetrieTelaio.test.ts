@@ -72,7 +72,7 @@ import { calcolaQuantita } from "../../../shared/planimetrie/quantita";
 import { copiaGruppoSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
 
 describe("telaio: computo e piani", () => {
-  const vuoto = { muri: [], aperture: [], locali: [], quote: [], testi: [] };
+  const vuoto = { muri: [] as never[], aperture: [] as never[], locali: [] as never[], quote: [] as never[], testi: [] as never[] };
   const el = (id: string, tipo: string, extra: object) => ({ id, tipo, posizione: { x: 0, y: 0 }, rotazione: 0, stato: "esistente", origine: "rilevata", ...extra });
   const doc = () => ({ schemaVersione: 1, titolo: "t", livelli: [
     { id: "a", nome: "Terra", quota: 0, fatto: { ...vuoto, elementi: [el("t1", "trave", { posizione: { x: 200, y: 0 }, larghezza: 400, profondita: 30, altezza: 50 }), el("p1", "pilastro", { larghezza: 30, profondita: 30, altezza: 300 }), el("s1", "solaio", { posizione: { x: 300, y: 300 }, larghezza: 800, profondita: 600, altezza: 25 })] }, proposte: [] },
@@ -97,7 +97,7 @@ describe("telaio: computo e piani", () => {
 
 describe("muro di contenimento: computo", () => {
   it("metri, calcestruzzo, scavo e drenaggio", () => {
-    const vuoto = { muri: [], aperture: [], locali: [], quote: [], testi: [] };
+    const vuoto = { muri: [] as never[], aperture: [] as never[], locali: [] as never[], quote: [] as never[], testi: [] as never[] };
     const d = { schemaVersione: 1, titolo: "t", livelli: [{ id: "a", nome: "Terra", quota: 0, proposte: [], fatto: { ...vuoto, elementi: [
       { id: "mc", tipo: "muro_contenimento", posizione: { x: 0, y: 0 }, rotazione: 0, larghezza: 1000, profondita: 220, altezza: 300, stato: "esistente", origine: "rilevata" }] } }] } as never;
     const q = calcolaQuantita(d);

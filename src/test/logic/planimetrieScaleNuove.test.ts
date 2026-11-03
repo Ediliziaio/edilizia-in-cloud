@@ -67,7 +67,7 @@ describe("fondazioni", () => {
     expect(s.mesh.filter((m) => m.id.endsWith("/fondazioni")).map((m) => m.id)).toEqual(["t/fondazioni"]);
   });
   it("il computo stima cordolo, calcestruzzo e scavo solo per le pareti nuove portanti", () => {
-    const vuoto = { aperture: [], locali: [], elementi: [], quote: [], testi: [] };
+    const vuoto = { aperture: [] as never[], locali: [] as never[], elementi: [] as never[], quote: [] as never[], testi: [] as never[] };
     const muro = (id: string, tipo: string, stato: string) => ({ id, p1: { x: 0, y: 0 }, p2: { x: 1000, y: 0 }, spessore: 30, altezza: 270, tipo, stato, origine: "rilevata" });
     const doc = { schemaVersione: 1, titolo: "t", livelli: [{ id: "l", nome: "Terra", quota: 0, fatto: { ...vuoto, muri: [muro("a", "portante", "esistente")] },
       proposte: [{ id: "A", nome: "A", ...vuoto, muri: [muro("a", "portante", "esistente"), muro("b", "portante", "nuovo"), muro("c", "tramezzo", "nuovo")] }] }] } as never;
