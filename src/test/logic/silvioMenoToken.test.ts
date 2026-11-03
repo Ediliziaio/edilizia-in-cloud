@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   domainsForClassification,
   getToolsForChannel,
+  indiceAreeGruppoFisso,
   indiceAreeCaricabili,
   SILVIO_TOOLS,
   TOOL_CONTRACT_LEGEND,
@@ -11,6 +12,7 @@ import {
 import {
   BUDGET_RISULTATI_TURNO,
   domandaDiSolaLettura,
+  GRUPPO_FISSO_STRUMENTI,
   limiteRisultatoStrumento,
   REGOLE_DATI_SILVIO,
 } from "../../../supabase/functions/_shared/silvioRisparmioToken";
@@ -200,7 +202,7 @@ describe("cache del prompt", () => {
 
   it("silvio-chat compone il blocco che va in cache con questi pezzi e solo questi", () => {
     const sorgente = readFileSync("supabase/functions/silvio-chat/index.ts", "utf8");
-    expect(sorgente).toContain("const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE + REGOLE_DATI_SILVIO;");
+    expect(sorgente).toContain("const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE + REGOLE_DATI_SILVIO + (gruppoFisso ? indiceAreeGruppoFisso() : \"\");");
     expect(sorgente).toContain('promptCache: { ttl: "5m" as const, coda: true }');
     expect(REGOLE_DATI_SILVIO).toContain("l'azione NON è conclusa");
   });
@@ -279,5 +281,41 @@ describe("tetti del turno", () => {
     expect(storico[3].content.length).toBeLessThan(700);
     expect(storico[4].content).not.toContain("parziale");
     expect(storico[9].content).not.toContain("parziale");
+  });
+});
+
+describe("gruppo fisso di strumenti", () => {
+  const base = { channel: "internal_chat", role: "company_admin", personaKey: "silvio", gruppoFisso: GRUPPO_FISSO_STRUMENTI } as const;
+  const conEspansi = (domains?: ToolDomain[]) => getToolsForChannel({ ...base, domains });
+
+  it("ogni nome esiste ed e' nella chat interna: un nome sbagliato sparisce in silenzio", () => {
+    const presenti = new Set(conEspansi().map((t) => t.schema.function.name));
+    expect([...GRUPPO_FISSO_STRUMENTI].filter((n) => !presenti.has(n))).toEqual([]);
+  });
+
+  it("stessi byte a ogni domanda, e meno del catalogo di un'area larga", () => {
+    const uno = JSON.stringify(toolsToOpenAISpec(conEspansi()));
+    expect(JSON.stringify(toolsToOpenAISpec(conEspansi([])))).toBe(uno);
+    expect(token(toolsToOpenAISpec(conEspansi()))).toBeLessThan(10_000);
+    expect(token(toolsToOpenAISpec(conEspansi()))).toBeLessThan(token(schema("operations")));
+  });
+
+  it("carica_strumenti aggiunge l'area intera, azioni comprese", () => {
+    const nomiArea = conEspansi(["warehouse"]).map((t) => t.schema.function.name);
+    expect(nomiArea).toContain("registra_movimento_magazzino");
+    expect(nomiArea).toContain("crea_task");
+  });
+
+  it("non scavalca ruolo e permessi", () => {
+    const staff = getToolsForChannel({ ...base, role: "company_staff", staffPermissions: { can_view_billing: false } }).map((t) => t.schema.function.name);
+    expect(staff).not.toContain("get_overdue_payments");
+    const pieno = getToolsForChannel({ channel: "internal_chat", role: "company_staff", personaKey: "silvio" }).map((t) => t.schema.function.name);
+    expect(staff.filter((n) => !pieno.includes(n))).toEqual([]);
+  });
+
+  it("l'indice nomina ogni area caricabile ed e' sempre lo stesso testo", () => {
+    expect(indiceAreeGruppoFisso()).toBe(indiceAreeGruppoFisso());
+    for (const area of ["magazzino", "sicurezza", "mezzi", "posta"]) expect(indiceAreeGruppoFisso()).toContain(`- ${area} (`);
+    expect(indiceAreeGruppoFisso()).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
   });
 });

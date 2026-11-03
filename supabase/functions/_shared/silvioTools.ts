@@ -8979,6 +8979,21 @@ export function indiceAreeCaricabili(dominiGiaABordo: ToolDomain[] | null, soloL
   ].join("\n");
 }
 
+/**
+ * L'indice quando la lista e' il gruppo fisso: sempre lo stesso testo, quindi
+ * sta nel blocco statico e si rilegge dalla cache con tutto il resto.
+ */
+export function indiceAreeGruppoFisso(): string {
+  return [
+    "",
+    "## STRUMENTI NON ANCORA A BORDO",
+    "Hai gli strumenti usati piu spesso. Tutti gli altri, di lettura e di azione, si caricano per area:",
+    ...Object.entries(AREE_CARICABILI).map(([k, v]) => `- ${k} (${v.etichetta})`),
+    "Prima di caricare, guarda se basta uno strumento che hai. Se ti serve altro chiama `carica_strumenti` con l'area e riprova subito: caricare costa, quindi carica solo l'area che serve.",
+    "Non rispondere MAI \"non posso farlo\" prima di aver provato a caricare l'area giusta.",
+  ].join("\n");
+}
+
 /** Domini corrispondenti alle aree chieste dal modello via `carica_strumenti`. */
 export function dominiPerAree(aree: unknown): ToolDomain[] {
   if (!Array.isArray(aree)) return [];
@@ -9186,6 +9201,8 @@ export function getToolsForChannel(opts: {
   /** Solo i tool safe (domanda di sola lettura). Toglie e basta: i filtri sopra
    *  restano tutti, e il resto si riprende con `carica_strumenti` area `azioni`. */
   soloLettura?: boolean;
+  /** Gruppo fisso: questi nomi piu' i soli domini in `domains` (quelli ricaricati). */
+  gruppoFisso?: ReadonlySet<string>;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
   const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
@@ -9207,7 +9224,10 @@ export function getToolsForChannel(opts: {
     // Domain filter (singolo, back-compat)
     if (opts.domain && tool.domain !== opts.domain) continue;
     // Domain-set filter (token-opt): tool senza domain = sempre incluso
-    if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
+    if (opts.gruppoFisso) {
+      const ricaricato = !!(domainSet && tool.domain && domainSet.has(tool.domain));
+      if (!ricaricato && !opts.gruppoFisso.has(tool.schema.function.name)) continue;
+    } else if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
     // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
     // staff mappato sul suo dominio è esplicitamente false.
     if (opts.staffPermissions && tool.domain && areaSpentaPerPermessi(opts.staffPermissions, tool.domain)) continue;

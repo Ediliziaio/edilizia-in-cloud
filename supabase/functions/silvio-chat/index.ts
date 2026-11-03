@@ -68,12 +68,13 @@ import {
 } from "../_shared/structuredOutput.ts";
 // MP-09: auto-delegate al Council orchestrator quando la query è multi-area
 import { classifyQuery, type QueryClassification } from "../_shared/queryClassifier.ts";
-import { dominiPerAree, indiceAreeCaricabili } from "../_shared/silvioTools.ts";
+import { dominiPerAree, indiceAreeCaricabili, indiceAreeGruppoFisso } from "../_shared/silvioTools.ts";
 import { ruoloPrincipaleSilvio, usaPermessiStaff } from "../_shared/ruoloSilvio.ts";
 import { dichiaraAzioneNonEseguita, RICHIAMO_AZIONE_NON_ESEGUITA } from "../_shared/azioneDichiarata.ts";
 import {
   CONCLUDI_ADESSO,
   domandaDiSolaLettura,
+  GRUPPO_FISSO_STRUMENTI,
   limiteRisultatoStrumento,
   PASSAGGI_SOLA_LETTURA,
   REGOLE_DATI_SILVIO,
@@ -932,7 +933,13 @@ serve(async (req: Request) => {
     // dopo il breakpoint. aiRouter mette i breakpoint su Anthropic e fonde i
     // due blocchi in un'unica stringa sugli altri provider.
     // Niente data, azienda, utente o messaggio in questo blocco.
-    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE + REGOLE_DATI_SILVIO;
+    // Gruppo fisso: stessa lista a ogni domanda, cosi' strumenti e sistema si
+    // rileggono anche cambiando area. Con gli allegati resta il catalogo intero
+    // (documenti e foto usano strumenti fuori dal gruppo).
+    // Kill-switch: SILVIO_GRUPPO_FISSO_DISABLED=true.
+    const gruppoFisso = risparmioToken && attachments.length === 0 &&
+      Deno.env.get("SILVIO_GRUPPO_FISSO_DISABLED") !== "true";
+    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE + REGOLE_DATI_SILVIO + (gruppoFisso ? indiceAreeGruppoFisso() : "");
     let dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
@@ -1002,41 +1009,42 @@ serve(async (req: Request) => {
     // Domanda chiaramente di lettura: niente strumenti che scrivono, che valgono
     // un quarto dello schema. Solo col filtro attivo, perche' per riprenderli
     // serve `carica_strumenti`. Kill-switch: SILVIO_SOLA_LETTURA_DISABLED=true.
-    let soloLettura = risparmioToken && !!toolDomains &&
+    let soloLettura = !gruppoFisso && risparmioToken && !!toolDomains &&
       Deno.env.get("SILVIO_SOLA_LETTURA_DISABLED") !== "true" &&
       domandaDiSolaLettura(userMessage, attachments.length > 0);
-    let allowedTools = getToolsForChannel({
+    // «Lo stato di salute dei cantieri» e' l'unica domanda che ha bisogno da
+    // subito di un'area fuori dal gruppo: una riscrittura sola, solo per lei.
+    if (gruppoFisso && siteHealthRequested) dominiExtra.add("cantiere");
+    let catalogoIntero = false;
+    const listaStrumenti = () => getToolsForChannel({
       channel: "internal_chat",
       role: primaryRole,
       personaKey: PERSONA_KEY,
-      domains: toolDomains,
+      domains: gruppoFisso
+        ? (catalogoIntero ? null : [...dominiExtra].sort())
+        : toolDomains ? [...new Set([...toolDomains, ...dominiExtra])].sort() : null,
       staffPermissions,
       soloLettura,
+      gruppoFisso: gruppoFisso && !catalogoIntero ? GRUPPO_FISSO_STRUMENTI : undefined,
     });
+    let allowedTools = listaStrumenti();
     // Senza filtro attivo il catalogo e gia tutto a bordo: offrire
     // `carica_strumenti` sarebbe solo un invito a sprecare un giro.
-    if (!toolDomains) allowedTools = allowedTools.filter((t) => t.schema?.function?.name !== "carica_strumenti");
+    if (!toolDomains && !gruppoFisso) allowedTools = allowedTools.filter((t) => t.schema?.function?.name !== "carica_strumenti");
     let toolSchemas = toolsToOpenAISpec(allowedTools);
     const rebuildTools = () => {
-      allowedTools = getToolsForChannel({
-        channel: "internal_chat",
-        role: primaryRole,
-        personaKey: PERSONA_KEY,
-        domains: toolDomains ? [...new Set([...toolDomains, ...dominiExtra])].sort() : null,
-        staffPermissions,
-        soloLettura,
-      });
+      allowedTools = listaStrumenti();
       toolSchemas = toolsToOpenAISpec(allowedTools);
       console.log(`[silvio-chat] strumenti ricaricati: +${[...dominiExtra].join(",")} soloLettura=${soloLettura} → ${allowedTools.length} tool`);
     };
     // Log per misurare prima/dopo su ai_router_usage_log (prompt_tokens) + qui (char).
     console.log(
-      `[silvio-chat] tool filter: ${toolDomains ? toolDomains.join(",") : "FULL"} soloLettura=${soloLettura} → ${allowedTools.length} tool, ~${JSON.stringify(toolSchemas).length} char`,
+      `[silvio-chat] tool filter: ${gruppoFisso ? "GRUPPO_FISSO" : toolDomains ? toolDomains.join(",") : "FULL"} soloLettura=${soloLettura} → ${allowedTools.length} tool, ~${JSON.stringify(toolSchemas).length} char`,
     );
     // Il modello deve SAPERE cosa gli manca, altrimenti l'unico modo di
     // scoprirlo e indovinare. Va nel blocco dinamico: cambia con la
     // classificazione, e metterlo in quello statico romperebbe la cache.
-    const indiceAree = indiceAreeCaricabili(toolDomains, soloLettura);
+    const indiceAree = gruppoFisso ? "" : indiceAreeCaricabili(toolDomains, soloLettura);
     if (indiceAree) dynamicSystemPrompt = `${dynamicSystemPrompt ?? ""}${indiceAree}`;
 
     const toolCtx: ToolContext = {
@@ -1476,10 +1484,12 @@ serve(async (req: Request) => {
     // Firme delle tool-call per iterazione (per il loop-detection sotto).
     const iterationSigs: string[] = [];
     let azioniDaCaricare = false;
+    let azioniChieste = false;
     let richiamoAzioneFatto = false;
     // Caratteri di risultati gia' messi nel prompt di questo turno.
     let charRisultati = 0;
-    const limitePassaggi = () => (soloLettura ? PASSAGGI_SOLA_LETTURA : MAX_TOOL_ITERATIONS);
+    const passaggiDiLettura = soloLettura || (gruppoFisso && domandaDiSolaLettura(userMessage, false));
+    const limitePassaggi = () => (passaggiDiLettura && !azioniChieste ? PASSAGGI_SOLA_LETTURA : MAX_TOOL_ITERATIONS);
     while (!finalContent && iteration < limitePassaggi()) {
       iteration++;
       const idempotencyKey = `${idempotencyBase}_iter${iteration}`;
@@ -1663,16 +1673,26 @@ serve(async (req: Request) => {
           // domini si aggiungono qui, la lista strumenti si ricostruisce sotto
           // e alla prossima iterazione li ha davvero a bordo.
           if (toolName === "carica_strumenti" && toolResult.success) {
+            if (toolArgs?.azioni === true) azioniChieste = true;
             if (soloLettura && toolArgs?.azioni === true) {
               soloLettura = false;
               azioniDaCaricare = true;
+            }
+            // Col gruppo fisso «azioni» senza area non dice cosa caricare: si
+            // prendono le aree della domanda, o tutto se non sono note.
+            if (gruppoFisso && toolArgs?.azioni === true && dominiPerAree(toolArgs?.aree).length === 0) {
+              if (toolDomains) toolDomains.forEach((d) => dominiExtra.add(d));
+              else if (!catalogoIntero) {
+                catalogoIntero = true;
+                azioniDaCaricare = true;
+              }
             }
             for (const d of dominiPerAree(toolArgs?.aree)) {
               // Solo i domini che NON sono gia' a bordo: rifare la lista con
               // gli stessi tool bucherebbe la cache del prompt per niente
               // (misurato: la chiamata in cui l'elenco cambia perde il 96% di
               // riuso e costa ~8 volte tanto).
-              if (!toolDomains?.includes(d)) dominiExtra.add(d);
+              if (gruppoFisso || !toolDomains?.includes(d)) dominiExtra.add(d);
             }
           }
         }
