@@ -44,7 +44,8 @@ export const AREE_SENSIBILI: readonly AreaSensibile[] = [
       "can_manage_suppliers", "can_manage_purchasing", "can_validate_bom", "can_view_costs",
       "can_view_billing", "can_view_financial_reports", "can_view_scadenzario", "can_view_tickets",
       "can_view_dashboard", "can_view_cruscotto", "can_view_settings_suppliers", "can_view_forecast",
-      "can_view_tesoreria", "can_view_preventivi",
+      "can_view_tesoreria", "can_view_preventivi", "can_edit_tickets", "can_edit_preventivi",
+      "can_view_calendar", "can_view_subappaltatori",
     ],
   },
   {
@@ -54,7 +55,8 @@ export const AREE_SENSIBILI: readonly AreaSensibile[] = [
     aperturaDa: [
       "can_view_marketing_whatsapp", "can_view_marketing", "can_view_marketing_contacts",
       "can_view_marketing_opportunities", "can_view_marketing_activities", "can_view_customers",
-      "can_view_settings_integrations", "can_view_tickets",
+      "can_view_settings_integrations", "can_view_tickets", "can_view_manutenzione",
+      "can_view_subappaltatori",
     ],
   },
   {

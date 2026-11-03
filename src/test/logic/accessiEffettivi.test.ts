@@ -12,6 +12,7 @@ const SQL = {
   finanza: readFileSync("supabase/migrations/20281118100000_permessi_fase2_finanza.sql", "utf8"),
   cg: readFileSync("supabase/migrations/20281118090000_permessi_fase1_urgenze.sql", "utf8"),
   aree: readFileSync("supabase/migrations/20281118110000_permessi_fase3_ruoli.sql", "utf8"),
+  correzioni: readFileSync("supabase/migrations/20281118120000_permessi_correzioni_verifica.sql", "utf8"),
 };
 const permessiIn = (testo: string) => new Set(testo.match(/can_(?:view|edit|manage|validate)_[a-z_]+/g) ?? []);
 
@@ -29,7 +30,9 @@ describe("gli elenchi sono quelli delle regole del database", () => {
     ["whatsapp", "whatsapp_messages"],
     ["registri", "central_audit_log"],
   ])("%s", (id, tabella) => {
-    const riga = SQL.aree.match(new RegExp(`\\('${tabella}', array\\[([^\\]]+)\\]`))?.[1] ?? "";
+    // Vale l'ultima migrazione che tocca la tabella.
+    const voce = new RegExp(`\\('${tabella}', array\\[([^\\]]+)\\]`);
+    const riga = SQL.correzioni.match(voce)?.[1] ?? SQL.aree.match(voce)?.[1] ?? "";
     expect(new Set(area(id).aperturaDa)).toEqual(permessiIn(riga));
   });
 });
