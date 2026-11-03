@@ -7,7 +7,7 @@
  * Sono controlli di massima sui disegni: la verifica vera la firma il tecnico.
  */
 import { assiDelMuro, lunghezzaMuro } from "./geometria.ts";
-import { anteDi, misureSerramento, NOMI_SISTEMA, sistemaDi } from "./serramenti.ts";
+import { anteDi, misureOscurante, misureSerramento, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_SISTEMA, sistemaDi } from "./serramenti.ts";
 import type { Elemento, Livello, Muro, Punto, StatoPianta } from "./modello.ts";
 import type { Verifica } from "./verifiche.ts";
 
@@ -110,6 +110,33 @@ function verificheSerramenti(stato: StatoPianta, v: (esito: Verifica["esito"], c
     if ((sistema === "battente" || sistema === "anta_ribalta") && ante >= 1) {
       const anta = misureSerramento(a, m).anta;
       if (anta > 100) v("attenzione", "serramento", nome, `Ante molto larghe (${Math.round(anta)} cm): cerniere e ferramenta sotto sforzo, meglio più ante o uno scorrevole.`, `${Math.round(anta)} cm`, "≤ 100 cm");
+    }
+    const osc = misureOscurante(a);
+    if (osc) {
+      const nomeOsc = `${NOMI_OSCURANTE[osc.tipo]} · ${nome.toLowerCase()}`;
+      if (m.tipo === "tramezzo") v("attenzione", "serramento", nomeOsc, "L'oscurante è su una parete interna (tramezzo): di solito serve solo sulle pareti esterne.");
+      const c = osc.cassonetto;
+      if (c) {
+        const altezzaMuro = m.altezza;
+        const sopra = altezzaMuro - (a.davanzale + a.altezza);
+        const nomeC = `${NOMI_CASSONETTO[c.tipo]} · ${nomeOsc.toLowerCase()}`;
+        if (c.tipo === "monoblocco") {
+          if (a.altezza - c.altezza < 60) v("non_conforme", "serramento", nomeC, `Il cassonetto (${c.altezza} cm) lascia solo ${Math.round(a.altezza - c.altezza)} cm di luce vetrata: alza il vano o usa un cassonetto esterno.`, `${Math.round(a.altezza - c.altezza)} cm`, "≥ 60 cm");
+        } else if (sopra < osc.spazioSopra) {
+          v("non_conforme", "serramento", nomeC, `Sopra il vano restano ${Math.round(sopra)} cm di muro e il cassonetto ne richiede ${osc.spazioSopra}: abbassa il vano o scegli il monoblocco.`, `${Math.round(sopra)} cm`, `≥ ${osc.spazioSopra} cm`);
+        } else if (c.tipo === "a_filo" && sopra < osc.spazioSopra + 20) {
+          v("attenzione", "serramento", nomeC, `Sopra il cassonetto rimangono ${Math.round(sopra - osc.spazioSopra)} cm per architrave e solaio: controlla con lo strutturista.`, `${Math.round(sopra - osc.spazioSopra)} cm`, "≥ 20 cm");
+        }
+        if (c.tipo !== "esterno" && m.spessore < c.profondita) {
+          v("non_conforme", "serramento", nomeC, `Il cassonetto è profondo ${c.profondita} cm e il muro spesso ${Math.round(m.spessore)}: non ci sta, usa un cassonetto esterno.`, `${Math.round(m.spessore)} cm`, `≥ ${c.profondita} cm`);
+        }
+      }
+      if (osc.avvolgibile) {
+        if (a.larghezza > 300) v("attenzione", "serramento", nomeOsc, `Telo molto largo (${Math.round(osc.telo.larghezza)} cm): serve un avvolgibile rinforzato con motore, o due teli.`, `${Math.round(a.larghezza)} cm`, "≤ 300 cm");
+        else if (!osc.motore && osc.superficieMq > 4.5) v("attenzione", "serramento", nomeOsc, `Telo di ${osc.superficieMq.toLocaleString("it-IT")} m² senza motore: a cinghia è pesante da manovrare, meglio motorizzare.`, `${osc.superficieMq.toLocaleString("it-IT")} m²`, "≤ 4,5 m² a mano");
+      } else if (a.larghezza / osc.ante > 110) {
+        v("attenzione", "serramento", nomeOsc, `Ante da ${Math.round(a.larghezza / osc.ante)} cm: troppo larghe per cerniere e fermi, usa più ante.`, `${Math.round(a.larghezza / osc.ante)} cm`, "≤ 110 cm");
+      }
     }
   }
 }

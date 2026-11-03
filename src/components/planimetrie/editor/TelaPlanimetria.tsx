@@ -18,7 +18,8 @@ import {
   segniSerramento,
   vanoApertura,
 } from "./disegno";
-import { dist, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
+import { dist, direzione, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
+import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { scriviMetri, scriviMq } from "./misure";
 import { SimboloArredo } from "./SimboloArredo";
 
@@ -309,7 +310,7 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   data-id={a.id}
                 />
                 {a.tipo === "varco" || (a.tipo !== "finestra" && a.manovra === "nessuna" && a.sistema !== "fisso") ? null : (
-                  segniSerramento(a, m).map((s, i) => s.tipo === "arco" ? (
+                  segniSerramento(a, m, latoEsterno(puntoSulMuro(m, a.posizione), { x: -direzione(m).y, y: direzione(m).x }, m.spessore, locali.map((l) => l.contorno)) || 1).map((s, i) => s.tipo === "arco" ? (
                     <path key={i} d={s.d} fill="none" stroke={colore} strokeWidth={px(1)} strokeDasharray={s.tratteggio ? `${px(4)} ${px(3)}` : undefined} data-tipo="apertura" data-id={a.id} />
                   ) : (
                     <line key={i} x1={s.p.x} y1={s.p.y} x2={s.q.x} y2={s.q.y} stroke={colore} strokeWidth={px(s.spesso ? 2 : 1.2)} strokeDasharray={s.tratteggio ? `${px(4)} ${px(3)}` : undefined} data-tipo="apertura" data-id={a.id} />

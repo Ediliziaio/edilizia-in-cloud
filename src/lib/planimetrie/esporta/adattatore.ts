@@ -14,7 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
-import { anteDi, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
+import { anteDi, misureOscurante, sistemaDi } from "../../../../shared/planimetrie/serramenti.ts";
 import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
@@ -100,6 +100,12 @@ function muroVista(m: Muro, modo: ModoVista): MuroVista {
   };
 }
 
+function oscuranteVista(a: Apertura): Pick<AperturaVista, "oscurante"> {
+  const o = misureOscurante(a);
+  if (!o) return {};
+  return { oscurante: { tipo: o.tipo, ante: o.ante, ...(o.cassonetto ? { cassonetto: { tipo: o.cassonetto.tipo, altezza: o.cassonetto.altezza, profondita: o.cassonetto.profondita } } : {}) } };
+}
+
 function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {
   return {
     id: a.id, muroId: a.muroId, tipo: a.tipo, distanza: a.offset, larghezza: a.larghezza, altezza: a.altezza,
@@ -108,6 +114,7 @@ function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {
     lato: a.verso?.lato ?? "sinistra",
     ante: anteDi(a) || 1,
     sistema: sistemaDi(a),
+    ...oscuranteVista(a),
     stato: modo === "progetto" ? "esistente" : a.stato,
   };
 }

@@ -5,7 +5,7 @@
  * prima della posa, quindi serve già in fase di computo. Le misure qui sono di massima (1 cm di fuga per lato
  * fra vano e controtelaio, 1,5 cm per lato fra controtelaio e telaio); il serramentista conferma in cantiere.
  */
-import type { Apertura, Muro, SistemaApertura } from "./modello.ts";
+import type { Apertura, Muro, Punto, SistemaApertura, TipoCassonetto, TipoOscurante } from "./modello.ts";
 
 export const NOMI_SISTEMA: Record<SistemaApertura, string> = {
   battente: "A battente",
@@ -28,7 +28,7 @@ export function sistemiAmmessi(tipo: Apertura["tipo"]): readonly SistemaApertura
   return tipo === "finestra" ? SISTEMI_FINESTRA : tipo === "porta" ? SISTEMI_PORTA : tipo === "portafinestra" ? SISTEMI_PORTAFINESTRA : [];
 }
 
-type Dati = Pick<Apertura, "tipo" | "larghezza" | "manovra"> & Partial<Pick<Apertura, "ante" | "sistema">>;
+type Dati = Pick<Apertura, "tipo" | "larghezza" | "manovra"> & Partial<Pick<Apertura, "ante" | "sistema" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore">>;
 
 export function sistemaDi(a: Dati): SistemaApertura {
   if (a.sistema) return a.sistema;
@@ -49,6 +49,118 @@ export function anteDi(a: Dati): number {
   return a.tipo !== "porta" && a.larghezza > 140 ? 2 : 1;
 }
 
+export const NOMI_OSCURANTE: Record<TipoOscurante, string> = {
+  tapparella: "Tapparella",
+  veneziana: "Veneziana esterna",
+  persiana: "Persiana",
+  scuro: "Scuri interni",
+};
+export const NOMI_CASSONETTO: Record<TipoCassonetto, string> = {
+  monoblocco: "Monoblocco (nel vano)",
+  a_filo: "Murato a filo",
+  esterno: "Esterno a vista",
+};
+
+/** Solo finestre e portefinestre hanno l'oscurante (le porte interne e i varchi no). */
+export function oscuranteAmmessi(tipo: Apertura["tipo"]): readonly TipoOscurante[] {
+  return tipo === "finestra" || tipo === "portafinestra" ? ["tapparella", "veneziana", "persiana", "scuro"] : [];
+}
+
+export const eAvvolgibile = (o: TipoOscurante | null | undefined): o is "tapparella" | "veneziana" => o === "tapparella" || o === "veneziana";
+
+export function oscuranteDi(a: Dati): TipoOscurante | null {
+  return a.oscurante && oscuranteAmmessi(a.tipo).includes(a.oscurante) ? a.oscurante : null;
+}
+
+/** Il cassonetto c'è solo per tapparelle e veneziane; senza scelta è un monoblocco. */
+export function cassonettoDi(a: Dati): TipoCassonetto | null {
+  return eAvvolgibile(oscuranteDi(a)) ? a.cassonetto ?? "monoblocco" : null;
+}
+
+/**
+ * Altezza del cassonetto consigliata: sale col vano (più telo da arrotolare). Le veneziane hanno il pacchetto
+ * delle lamelle, qualche centimetro in più.
+ */
+export function altezzaCassonettoConsigliata(altezzaVano: number, oscurante: TipoOscurante = "tapparella"): number {
+  const base = altezzaVano <= 150 ? 22 : altezzaVano <= 210 ? 25 : altezzaVano <= 250 ? 30 : 35;
+  return base + (oscurante === "veneziana" ? 5 : 0);
+}
+
+const altezzaCassonetto = (a: Dati & Pick<Apertura, "altezza">): number =>
+  a.altezzaCassonetto && a.altezzaCassonetto > 0 ? a.altezzaCassonetto : altezzaCassonettoConsigliata(a.altezza, oscuranteDi(a) ?? "tapparella");
+
+export interface MisureOscurante {
+  tipo: TipoOscurante;
+  avvolgibile: boolean;
+  /** Ante di persiane e scuri (1 per tapparelle e veneziane). */
+  ante: number;
+  cassonetto: { tipo: TipoCassonetto; larghezza: number; altezza: number; profondita: number } | null;
+  /** Muro libero che serve SOPRA il vano per il cassonetto, cm (0 se sta dentro il vano o non c'è). */
+  spazioSopra: number;
+  /** Il telo (tapparella o veneziana) o le ante (persiana, scuri). */
+  telo: { larghezza: number; altezza: number };
+  superficieMq: number;
+  /** Guide laterali, m (due per ogni telo). */
+  guideMl: number;
+  /** Albero di avvolgimento, m. */
+  alberoMl: number;
+  motore: boolean;
+}
+
+const GUIDE = 4;
+
+/** Misure di massima dell'oscurante e del cassonetto (null se la finestra non ne ha). */
+export function misureOscurante(a: Dati & Pick<Apertura, "altezza">): MisureOscurante | null {
+  const tipo = oscuranteDi(a);
+  if (!tipo) return null;
+  const avv = eAvvolgibile(tipo);
+  const cassTipo = cassonettoDi(a);
+  const ca = altezzaCassonetto(a);
+  const base = misureSerramentoBase(a);
+  const cassonetto = cassTipo
+    ? { tipo: cassTipo, larghezza: Math.round(a.larghezza - 2 * FUGA_FORO), altezza: ca, profondita: cassTipo === "esterno" ? ca : Math.max(ca, 25) }
+    : null;
+  const altezzaTelo = Math.max(0, base.altezzaLuce - (cassTipo === "monoblocco" ? ca : 0));
+  const telo = avv
+    ? { larghezza: Math.round((base.larghezzaTelaio - 2 * GUIDE) * 10) / 10, altezza: Math.round(altezzaTelo * 10) / 10 }
+    : { larghezza: a.larghezza, altezza: a.altezza };
+  const ante = avv ? 1 : Math.max(1, anteDi(a));
+  return {
+    tipo,
+    avvolgibile: avv,
+    ante,
+    cassonetto,
+    spazioSopra: cassTipo && cassTipo !== "monoblocco" ? ca : 0,
+    telo,
+    superficieMq: Math.round(((telo.larghezza * telo.altezza) / 10_000) * 100) / 100,
+    guideMl: avv ? Math.round(((2 * telo.altezza) / 100) * 100) / 100 : 0,
+    alberoMl: avv ? Math.round((telo.larghezza / 100) * 100) / 100 : 0,
+    motore: avv && !!a.motore,
+  };
+}
+
+/**
+ * Da che parte del muro è l'esterno: +1 se sta dalla parte della normale `n`, −1 dalla parte opposta, 0 se
+ * non si capisce (nessuna stanza da un lato né dall'altro, o stanze da tutti e due). `centro` è il punto
+ * dell'asse al centro del vano; vale in qualunque sistema di coordinate, purché `n` e i contorni siano nello stesso.
+ */
+export function latoEsterno(centro: Punto, n: Punto, spessore: number, locali: Punto[][]): 1 | -1 | 0 {
+  const dentro = (p: Punto, poly: Punto[]) => {
+    let r = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      if ((poly[i].y > p.y) !== (poly[j].y > p.y) && p.x < ((poly[j].x - poly[i].x) * (p.y - poly[i].y)) / (poly[j].y - poly[i].y) + poly[i].x) r = !r;
+    }
+    return r;
+  };
+  const k = spessore / 2 + 6, len = Math.hypot(n.x, n.y) || 1;
+  const prova = (sgn: number) => {
+    const p = { x: centro.x + (n.x / len) * k * sgn, y: centro.y + (n.y / len) * k * sgn };
+    return locali.some((c) => c.length >= 3 && dentro(p, c));
+  };
+  const piu = prova(1), meno = prova(-1);
+  return piu && !meno ? -1 : meno && !piu ? 1 : 0;
+}
+
 export interface MisureSerramento {
   /** Il vano disegnato (foro murario), cm. */
   foro: { larghezza: number; altezza: number };
@@ -66,15 +178,29 @@ export interface MisureSerramento {
   superficieMq: number;
   /** Il controtelaio è speciale (cassa per porta a scomparsa)? */
   controtelaioSpeciale: boolean;
+  /** Il controtelaio porta anche il cassonetto (monoblocco)? */
+  controtelaioMonoblocco: boolean;
+  /** Altezza del cassonetto dentro il vano, cm (0 se non è un monoblocco). */
+  cassonettoNelVano: number;
 }
 
 const FUGA_FORO = 1, FUGA_TELAIO = 1.5, MONTANTE = 6;
+
+/** Larghezza e altezza del telaio e della luce libera (senza cassonetto monoblocco), prima di arrotondare. */
+function misureSerramentoBase(a: Dati & Pick<Apertura, "altezza">) {
+  const larghezzaTelaio = a.larghezza - 2 * FUGA_FORO - 2 * FUGA_TELAIO;
+  const altezzaLuce = a.altezza - FUGA_FORO - FUGA_TELAIO;
+  return { larghezzaTelaio, altezzaLuce };
+}
 
 export function misureSerramento(a: Dati & Pick<Apertura, "altezza">, muro?: Pick<Muro, "spessore">): MisureSerramento {
   const sistema = sistemaDi(a), ante = Math.max(1, anteDi(a));
   const cl = a.larghezza - 2 * FUGA_FORO, ca = a.altezza - FUGA_FORO;
   const speciale = sistema === "scorrevole_scomparsa";
-  const tl = cl - 2 * FUGA_TELAIO, ta = ca - FUGA_TELAIO;
+  // il monoblocco si prende l'altezza del cassonetto dal vano: il serramento vero e proprio è più basso
+  const monoblocco = cassonettoDi(a) === "monoblocco";
+  const cass = monoblocco ? altezzaCassonetto(a) : 0;
+  const tl = cl - 2 * FUGA_TELAIO, ta = ca - FUGA_TELAIO - cass;
   const sp = muro?.spessore ?? 20;
   return {
     foro: { larghezza: a.larghezza, altezza: a.altezza },
@@ -86,5 +212,7 @@ export function misureSerramento(a: Dati & Pick<Apertura, "altezza">, muro?: Pic
     perimetroMl: Math.round(((2 * (cl + ca)) / 100) * 100) / 100,
     superficieMq: Math.round(((a.larghezza * a.altezza) / 10_000) * 100) / 100,
     controtelaioSpeciale: speciale,
+    controtelaioMonoblocco: monoblocco,
+    cassonettoNelVano: cass,
   };
 }

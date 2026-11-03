@@ -26,7 +26,7 @@ import {
   type TipoApertura,
 } from "./adattatore";
 import type { TipoArea } from "../../../../shared/planimetrie/modello.ts";
-import { sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
+import { eAvvolgibile, oscuranteAmmessi, sistemiAmmessi } from "../../../../shared/planimetrie/serramenti.ts";
 import { diff, direzione, dist, lunghezzaMuro, proiettaSuMuro, puntoSulMuro, sulSegmento, uguali } from "./geometria";
 
 /** «Com'è oggi» (stato di fatto) o «Progetto» (giallo = demolire, rosso = nuovo). */
@@ -431,7 +431,7 @@ export function spostaApertura(pianta: Pianta, id: string, muroId: string, t: nu
 export function modificaApertura(
   pianta: Pianta,
   id: string,
-  campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "stato" | "origine" | "ante" | "sistema" | "manovra">>,
+  campi: Partial<Pick<Apertura, "tipo" | "larghezza" | "altezza" | "davanzale" | "stato" | "origine" | "ante" | "sistema" | "manovra" | "oscurante" | "cassonetto" | "altezzaCassonetto" | "motore">>,
 ): Pianta {
   return {
     ...pianta,
@@ -440,6 +440,10 @@ export function modificaApertura(
       let nuova = { ...a, ...campi };
       // cambiando il tipo (finestra ↔ porta) un sistema che non ha più senso torna a «battente»
       if (campi.tipo && nuova.sistema && !sistemiAmmessi(nuova.tipo).includes(nuova.sistema)) nuova = { ...nuova, sistema: undefined, manovra: nuova.tipo === "varco" ? "nessuna" : "battente" };
+      // le porte e i varchi non hanno oscurante; tolto l'oscurante o scelto uno a battente, cassonetto e motore non servono più
+      if (nuova.oscurante && !oscuranteAmmessi(nuova.tipo).includes(nuova.oscurante)) nuova = { ...nuova, oscurante: undefined };
+      if (!nuova.oscurante) nuova = { ...nuova, cassonetto: undefined, altezzaCassonetto: undefined, motore: undefined };
+      else if (!eAvvolgibile(nuova.oscurante)) nuova = { ...nuova, cassonetto: undefined, altezzaCassonetto: undefined, motore: undefined };
       const muro = pianta.muri.find((m) => m.id === a.muroId);
       return muro ? { ...nuova, posizione: limitaPosizione(muro, nuova.larghezza, nuova.posizione) } : nuova;
     }),

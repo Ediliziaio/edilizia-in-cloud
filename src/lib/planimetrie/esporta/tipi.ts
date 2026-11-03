@@ -57,6 +57,8 @@ export interface AperturaVista {
   cerniera?: "inizio" | "fine";
   lato?: "sinistra" | "destra";
   ante?: 1 | 2;
+  /** Oscurante di una finestra (tapparella, veneziana, persiana, scuri) e relativo cassonetto, cm. */
+  oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
   stato: StatoCostruttivo;
 }
 

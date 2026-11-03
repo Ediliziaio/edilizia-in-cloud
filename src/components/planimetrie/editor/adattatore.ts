@@ -27,6 +27,8 @@ import {
   type Locale as LocaleModello,
   type Manovra,
   type SistemaApertura,
+  type TipoCassonetto,
+  type TipoOscurante,
   type Muro as MuroModello,
   type Origine,
   type Planimetria,
@@ -79,6 +81,11 @@ export interface Apertura {
   /** Ante (1-6) e sistema del serramento (vedi shared/planimetrie/serramenti.ts); assenti = quelli di default. */
   ante?: number;
   sistema?: SistemaApertura;
+  /** Oscurante, cassonetto e motore (vedi shared/planimetrie/serramenti.ts). */
+  oscurante?: TipoOscurante;
+  cassonetto?: TipoCassonetto;
+  altezzaCassonetto?: number;
+  motore?: boolean;
   /** Da che parte sta la cerniera e verso quale lato (sullo schermo) si apre. */
   verso: { cerniera: "inizio" | "fine"; lato: "sinistra" | "destra" };
   stato: StatoElemento;
@@ -340,6 +347,10 @@ function aperturaDaModello(a: AperturaModello): Apertura {
     manovra: a.manovra,
     ...(a.ante ? { ante: a.ante } : {}),
     ...(a.sistema ? { sistema: a.sistema } : {}),
+    ...(a.oscurante ? { oscurante: a.oscurante } : {}),
+    ...(a.cassonetto ? { cassonetto: a.cassonetto } : {}),
+    ...(a.altezzaCassonetto ? { altezzaCassonetto: a.altezzaCassonetto } : {}),
+    ...(a.motore ? { motore: true } : {}),
     // capovolgendo y la sinistra del documento diventa la destra dello schermo
     verso: a.verso
       ? { cerniera: a.verso.cardine === "p1" ? "inizio" : "fine", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" }
@@ -540,6 +551,10 @@ function aperturaAModello(a: Apertura, stato: StatoLavori, prima?: AperturaModel
     manovra: a.tipo === "varco" ? "nessuna" : a.manovra,
     ...(a.ante ? { ante: a.ante } : {}),
     ...(a.sistema ? { sistema: a.sistema } : {}),
+    ...(a.oscurante ? { oscurante: a.oscurante } : {}),
+    ...(a.cassonetto ? { cassonetto: a.cassonetto } : {}),
+    ...(a.altezzaCassonetto ? { altezzaCassonetto: a.altezzaCassonetto } : {}),
+    ...(a.motore ? { motore: true } : {}),
     ...(battente
       ? { verso: { cardine: a.verso.cerniera === "inizio" ? "p1" : "p2", lato: a.verso.lato === "sinistra" ? "destra" : "sinistra" } as const }
       : {}),

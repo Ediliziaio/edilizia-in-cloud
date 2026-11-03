@@ -52,6 +52,12 @@ Planimetria { schema: 1, unita: "cm", titolo?, scala?, nord?, riferimenti?, live
   `alzante_scorrevole` | `libro` | `fisso`; assente = quello che dice `manovra`). La `manovra` resta
   coerente: ogni sistema a scorrere è `scorrevole`, `fisso` è `nessuna`. Controtelaio e misure dell'anta
   si calcolano da `shared/planimetrie/serramenti.ts`, non si salvano.
+  Per finestre e portefinestre anche l'oscurante: `oscurante` (`tapparella` | `veneziana` | `persiana` | `scuro`),
+  `cassonetto` (`monoblocco` = dentro il vano, il serramento si accorcia | `a_filo` = murato sopra il vano |
+  `esterno` = a vista sul prospetto; vale solo per tapparella e veneziana, assente = monoblocco),
+  `altezzaCassonetto` (cm; assente = consigliata: 22/25/30/35 secondo il vano, +5 per la veneziana) e
+  `motore` (booleano). Misure di telo, guide e cassonetto, e il muro libero che serve sopra il vano
+  (`misureOscurante`) si calcolano, non si salvano. Persiane (fuori) e scuri (dentro) usano `ante`.
 - **Locale** = poligono al **filo interno** delle pareti (`contorno`, almeno 3 punti,
   verso qualunque), `altezza`, `destinazione` (soggiorno, cucina, camera, bagno,
   ingresso, disimpegno, corridoio, ripostiglio, studio, lavanderia, balcone, terrazzo,
