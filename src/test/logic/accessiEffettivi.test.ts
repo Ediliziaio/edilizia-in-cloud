@@ -4,6 +4,7 @@ import {
   AREE_SENSIBILI,
   accessiEffettivi,
   nomePermesso,
+  nomiPermessi,
   vociAccesePerArea,
 } from "@/lib/permessi/accessiEffettivi";
 
@@ -57,5 +58,9 @@ describe("cosa vede davvero", () => {
     expect(vociAccesePerArea(aree, { can_view_orders: true })).toEqual([{ id: "a", label: "Cantieri", voci: ["Commesse"] }]);
     expect(nomePermesso("can_view_costs", aree)).toBe("Costi");
     expect(nomePermesso("can_view_tesoreria", aree)).toBe("tesoreria");
+    // Non i nomi tecnici: il «modifica» si chiama come la sua voce, e non si ripete.
+    const conVoci = [{ id: "c", label: "Cantieri", modules: [{ label: "Ordini e Commesse", viewKey: "can_view_orders" }] }];
+    expect(nomePermesso("can_edit_orders", conVoci)).toBe("Ordini e Commesse");
+    expect(nomiPermessi(["can_view_orders", "can_edit_orders"], conVoci)).toEqual(["Ordini e Commesse"]);
   });
 });

@@ -107,11 +107,17 @@ export function vociAccesePerArea(
     .filter((area) => area.voci.length > 0);
 }
 
-/** Nome leggibile di un permesso: l'etichetta dell'editor, se c'è. */
+/** Nome leggibile di un permesso: l'etichetta dell'editor, anche per il «modifica» di una voce. */
 export function nomePermesso(chiave: string, aree: readonly AreaRiepilogo[]): string {
+  const vista = chiave.replace(/^can_edit_/, "can_view_");
   for (const area of aree) {
-    const voce = area.modules.find((m) => m.viewKey === chiave || m.editKey === chiave);
+    const voce = area.modules.find((m) => m.viewKey === chiave || m.editKey === chiave || m.viewKey === vista);
     if (voce) return voce.label;
   }
   return chiave.replace(/^can_(view_|edit_|manage_)?/, "").replace(/_/g, " ");
+}
+
+/** I nomi di chi apre un'area, senza doppioni: «vede» e «modifica» della stessa voce sono uno. */
+export function nomiPermessi(chiavi: readonly string[], aree: readonly AreaRiepilogo[]): string[] {
+  return [...new Set(chiavi.map((chiave) => nomePermesso(chiave, aree)))];
 }

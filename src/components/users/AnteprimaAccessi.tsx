@@ -2,7 +2,7 @@ import { Eye, Lock, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   accessiEffettivi,
-  nomePermesso,
+  nomiPermessi,
   vociAccesePerArea,
   type AreaRiepilogo,
 } from "@/lib/permessi/accessiEffettivi";
@@ -53,7 +53,7 @@ export function AnteprimaAccessi({ nome, permessi, aree, solaLettura }: Props) {
                   <span className="text-muted-foreground">{aperta ? ": la vede" : ": non la vede"}</span>
                   {aperta && (
                     <span className="block text-xs text-muted-foreground">
-                      Si apre con: {apertaDa.map((chiave) => nomePermesso(chiave, aree)).join(", ")}.
+                      Si apre con: {nomiPermessi(apertaDa, aree).join(", ")}.
                       {" "}Per chiuderla vanno spenti tutti.
                     </span>
                   )}
