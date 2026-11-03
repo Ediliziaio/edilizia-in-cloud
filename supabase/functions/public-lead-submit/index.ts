@@ -7,7 +7,7 @@ const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 // Destinatario notifica admin per ogni nuovo lead dal sito pubblico.
 // Hardcoded per affidabilità (in passato era un platform_setting → settori
 // dimenticati di configurarlo facevano perdere lead).
-const ADMIN_LEAD_NOTIFY_EMAIL = "flo.andriciuc@gmail.com";
+const ADMIN_LEAD_NOTIFY_EMAIL = "notificheotm@gmail.com";
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>

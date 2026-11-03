@@ -1167,3 +1167,6 @@ verify_jwt = false
 # Avvisi delle commesse generali (campanella ed email). Auth via x-cron-secret (Vault), niente JWT.
 [functions.generali-avvisi]
 verify_jwt = false
+
+[functions.support-message-notify]
+verify_jwt = false
