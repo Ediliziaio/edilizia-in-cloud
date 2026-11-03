@@ -1383,7 +1383,7 @@ export default function CompanyRoutesContainer() {
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
-          <Route path="ai-test-lab" element={<AITestLab />} />
+          <Route path="ai-test-lab" element={withCompanyPermission("canViewMarketingAiAgent", <AITestLab />)} />
           <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsFirmaElettronica />)} />
           {/* v8.6.71 — Sopralluoghi spostato qui dentro SettingsLayout */}
           <Route path="sopralluoghi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsSopralluoghi />)} />

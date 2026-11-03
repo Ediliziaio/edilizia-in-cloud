@@ -190,6 +190,26 @@ Deno.serve(async (req) => {
       });
     }
 
+    // I dati contabili non bastava essere in azienda per scaricarli (03/11/2026): serve un
+    // permesso sulla finanza, oppure essere il commercialista (già verificato qui sopra).
+    const { data: ruoli } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+    const commercialista = (ruoli ?? []).some((r: { role: string }) => r.role === "accountant");
+    if (!commercialista) {
+      let consentito = false;
+      for (const permesso of ["can_view_billing", "can_view_prima_nota", "can_view_financial_reports"]) {
+        const { data } = await supabase.rpc("has_permission_for_company", {
+          _user_id: userId, _permission: permesso, _company_id: company_id,
+        });
+        if (data === true) { consentito = true; break; }
+      }
+      if (!consentito) {
+        return new Response(JSON.stringify({ error: "Permesso insufficiente" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Fetch documenti fiscali
     const { data: docs, error: docsErr } = await supabase
       .from("documenti_fiscali")
