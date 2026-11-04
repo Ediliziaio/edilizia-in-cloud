@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
+import { orePersoneRapportino } from "@/lib/campo/orePersone";
 import { messaggioApprovazione } from "@/lib/campo/erroreApprovazione";
 import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
@@ -99,12 +100,7 @@ function TesseraGiorno({ data, stato }: { data: string | null | undefined; stato
 type RigaOre = { presenze?: unknown; ore_lavorate?: unknown; ore_straordinario?: unknown };
 const presenzeDi = (r: RigaOre) => (Array.isArray(r.presenze) ? (r.presenze as Array<{ ore?: unknown; employee_id?: unknown }>) : []);
 const haPresenze = (r: RigaOre) => presenzeDi(r).length > 0;
-/** Ore delle persone (gemello di campo_presenze_effettive): le presenze con un dipendente, altrimenti l'autore. */
-export function orePersoneRapportino(r: RigaOre): number {
-  const presenze = presenzeDi(r);
-  if (presenze.length > 0) return presenze.reduce((somma, p) => somma + (p.employee_id ? Number(p.ore) || 0 : 0), 0);
-  return (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0);
-}
+export { orePersoneRapportino };
 
 export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false }: Props) {
   const isMobile = useIsMobile();

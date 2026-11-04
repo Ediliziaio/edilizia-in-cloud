@@ -17,12 +17,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, Sparkles } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, NotebookPen, Sparkles } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
+const RapportiniCommesse = lazy(() => import("@/pages/azienda/RapportiniCommesse"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
     default: module.OrderCommissionsOverview,
@@ -1982,6 +1983,8 @@ export default function OrdersList() {
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: !soloAcquisti },
     // I cantieri aperti oggi: chi c'è, rapportino arrivato, chi tace (prima era una voce di menu).
     { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
+    // Giorno per giorno cosa si è lavorato: l'elenco di tutti i cantieri, con le statistiche del mese.
+    { id: "rapportini", label: "Rapportini", icon: NotebookPen, show: permissions.canViewOrders },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     // Prima degli ordini perche' e' il passo prima: si chiede il prezzo, poi si ordina.
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
@@ -2060,6 +2063,14 @@ export default function OrdersList() {
         <ErrorBoundary title="Errore in Cantieri oggi">
           <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento cantieri…</div>}>
             <CantieriOggi />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "rapportini" && (
+        <ErrorBoundary title="Errore in Rapportini">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento rapportini…</div>}>
+            <RapportiniCommesse />
           </Suspense>
         </ErrorBoundary>
       )}
