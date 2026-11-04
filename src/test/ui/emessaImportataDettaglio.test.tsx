@@ -8,7 +8,7 @@ import FattureEmesseImportate from "@/pages/azienda/fatturazione/FattureEmesseIm
 const state = vi.hoisted(() => ({
   invoice: null as Record<string, unknown> | null,
   filters: [] as unknown[][],
-  xml: vi.fn(), download: vi.fn(), error: null as Error | null,
+  xml: vi.fn(), download: vi.fn(), error: null as Error | null, aperte: [] as Record<string, unknown>[], rpc: vi.fn(async () => ({ data: null, error: null as Error | null })),
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 // I collegamenti operativi hanno test propri; qui verifichiamo il documento fiscale in sola lettura.
@@ -19,13 +19,14 @@ vi.mock("@/lib/fatturazione/originaleEmessaImportata", () => ({
   scaricaFileOriginale: (...args: unknown[]) => state.download(...args),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  rpc: (...args: unknown[]) => (state.rpc as (...a: unknown[]) => unknown)(...args),
   from: (tabella: string) => {
     const query: Record<string, unknown> = {};
-    for (const nome of ["select", "eq", "is", "not", "order", "limit", "range"]) query[nome] = (...args: unknown[]) => {
+    for (const nome of ["select", "eq", "is", "in", "not", "order", "limit", "range"]) query[nome] = (...args: unknown[]) => {
       state.filters.push([tabella, nome, ...args]); return query;
     };
     query.maybeSingle = async () => ({ data: state.invoice, error: state.error });
-    query.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: state.invoice ? [state.invoice] : [], error: state.error }).then(ok);
+    query.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: tabella === "invoices" ? (state.invoice ? [state.invoice] : []) : state.aperte, error: state.error }).then(ok);
     return query;
   },
 } }));
@@ -41,7 +42,7 @@ beforeEach(() => {
     subtotal: 100, tax_amount: 22, total: 122.02, paid_amount: 80, due_date: "2026-11-01", payment_method: "MP05", bank_iban: "IT00DEMO",
     invoice_lines: [{ id: "r-1", description: "Posa serramenti\nDettaglio completo", quantity: 2, unit: "pz", unit_price: 50, tax_rate: 22, line_net: 100, sort_order: 0 }],
   };
-  state.filters.length = 0; state.xml.mockReset(); state.download.mockReset(); state.error = null;
+  state.aperte = []; state.filters.length = 0; state.xml.mockReset(); state.download.mockReset(); state.error = null;
 });
 afterEach(() => { cleanup(); client.clear(); });
 const mostra = () => render(<QueryClientProvider client={client}><EmessaImportataDettaglio id="inv-1" companyId="az-1" onClose={vi.fn()} /></QueryClientProvider>);
@@ -107,6 +108,54 @@ describe("Dettaglio fattura emessa importata", () => {
 });
 
 const elenco = () => render(<MemoryRouter><QueryClientProvider client={client}><FattureEmesseImportate /></QueryClientProvider></MemoryRouter>);
+
+describe("Incasso dall'elenco delle fatture emesse importate", () => {
+  it("da incassare: l'icona apre la registrazione dell'incasso con il residuo", async () => {
+    state.invoice!.paid_amount = 0;
+    state.aperte = [{ id: "inv-1", origine: "importata", external_provider: "xml_import", tipo: "fattura", numero: "FPR 10/26", stato: "emessa", totale_da_pagare: 122.02, importo_pagato: 0, deleted_at: null }];
+    elenco();
+    expect(await screen.findByText("Da incassare")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Segna incassata la fattura FPR 10/26" }));
+    const dialogo = await screen.findByRole("dialog");
+    expect(dialogo).toHaveTextContent("Registra incasso");
+    expect(dialogo).toHaveTextContent("122,02");
+  });
+  it("incassata da XML: si riporta da incassare, dopo una conferma", async () => {
+    state.invoice!.paid_amount = 122.02; state.invoice!.status = "paid"; state.rpc.mockClear();
+    elenco();
+    fireEvent.click(await screen.findByRole("button", { name: "Riporta da incassare la fattura FPR 10/26" }));
+    expect(state.rpc).not.toHaveBeenCalled();
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Riporta da incassare" }));
+    await waitFor(() => expect(state.rpc).toHaveBeenCalledExactlyOnceWith("fattura_importata_torna_da_incassare", { p_invoice_id: "inv-1" }));
+  });
+  it("incassata da un gestionale collegato: niente pulsante, il dato torna da là", async () => {
+    state.invoice!.paid_amount = 122.02; state.invoice!.status = "paid"; state.invoice!.external_provider = "fattureincloud";
+    elenco();
+    await screen.findByRole("button", { name: "Apri fattura FPR 10/26" });
+    expect(screen.queryByRole("button", { name: /Riporta da incassare/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Segna incassata/ })).toBeNull();
+  });
+  it("già pagata da un gestionale ma con pagato minore del totale: niente incasso da offrire", async () => {
+    state.invoice!.paid_amount = 50; state.invoice!.status = "paid"; state.invoice!.external_provider = "fattureincloud";
+    elenco();
+    await screen.findByRole("button", { name: "Apri fattura FPR 10/26" });
+    expect(screen.queryByRole("button", { name: /Segna incassata|Riporta da incassare/ })).toBeNull();
+    expect(screen.queryByText("Da incassare")).toBeNull();
+  });
+  it("stornata con una nota di credito: fuori dalla vista delle aperte, niente da incassare", async () => {
+    state.invoice!.paid_amount = 0; state.invoice!.status = "credited";
+    elenco();
+    await screen.findByRole("button", { name: "Apri fattura FPR 10/26" });
+    expect(screen.queryByRole("button", { name: /Segna incassata|Riporta da incassare/ })).toBeNull();
+    expect(screen.queryByText("Da incassare")).toBeNull();
+  });
+  it("una nota di credito non si incassa", async () => {
+    state.invoice!.document_type = "credit_note"; state.invoice!.paid_amount = 0;
+    elenco();
+    await screen.findByRole("button", { name: /Apri fattura FPR 10\/26/ });
+    expect(screen.queryByRole("button", { name: /Segna incassata|Riporta da incassare/ })).toBeNull();
+  });
+});
 
 describe("Dati utili direttamente nell'elenco emesse importate", () => {
   it("mostra CF, indirizzo, descrizione e scadenza senza aprire la fattura", async () => {

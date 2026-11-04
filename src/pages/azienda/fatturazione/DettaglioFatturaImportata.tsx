@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CreditCard, Download, ExternalLink, FileCode, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Download, ExternalLink, FileCode, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,7 @@ import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
 import { CollegamentiEmessaImportata } from "@/components/fatturazione/CollegamentiEmessaImportata";
 import { PROVIDER_LABELS, SegnaPagataImportataDialog, importataPagabile, residuoImportata } from "@/components/fatturazione/GestionaleEsterno";
+import { RiportaDaIncassareDialog, siRiportaDaIncassare } from "@/components/fatturazione/RiportaDaIncassare";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
 import { AzioniInvioImportata } from "@/components/fatturazione/AzioniInvioImportata";
@@ -91,6 +92,7 @@ export default function DettaglioFatturaImportata() {
   const companyId = effectiveCompany?.id;
   const { data: azienda } = useAnagraficaAzienda();
   const [incasso, setIncasso] = useState<DocumentoFiscale | null>(null);
+  const [daRiaprire, setDaRiaprire] = useState(false);
   const [xmlAperto, setXmlAperto] = useState(false);
   const [scarico, setScarico] = useState(false);
 
@@ -195,6 +197,11 @@ export default function DettaglioFatturaImportata() {
         {importataPagabile(doc) && (
           <Button variant="outline" size="sm" onClick={() => setIncasso(doc)} className="gap-1.5">
             <CreditCard className="h-4 w-4" /> Segna pagata
+          </Button>
+        )}
+        {siRiportaDaIncassare(doc) && (
+          <Button variant="outline" size="sm" onClick={() => setDaRiaprire(true)} className="gap-1.5">
+            <RotateCcw className="h-4 w-4" /> Riporta da incassare
           </Button>
         )}
       </div>
@@ -337,6 +344,7 @@ export default function DettaglioFatturaImportata() {
 
       {xmlAperto && <EmessaImportataDettaglio id={f.id} companyId={companyId} apriXml onClose={() => setXmlAperto(false)} />}
       <SegnaPagataImportataDialog fattura={incasso} companyId={companyId} onClose={() => setIncasso(null)} />
+      <RiportaDaIncassareDialog fattura={daRiaprire ? doc : null} onClose={() => setDaRiaprire(false)} />
     </div>
   );
 }

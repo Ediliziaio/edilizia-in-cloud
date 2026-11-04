@@ -18,6 +18,7 @@ export interface EmessaImportata {
   tax_amount: number | null;
   total: number | null;
   paid_amount: number | null;
+  external_provider?: string | null;
   client_fiscal_code?: string | null;
   client_vat_number?: string | null;
   client_address?: string | null;

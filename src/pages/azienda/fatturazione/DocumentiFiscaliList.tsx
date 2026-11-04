@@ -61,6 +61,7 @@ import CassettoSDI from "./CassettoSDI";
 import FiscalWorkspace from "@/components/fatturazione/FiscalWorkspace";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { GestionaleEsternoAzioni, ImportInCorsoBanner, SegnaIncassateImportateDialog, SegnaPagataImportataDialog, importataPagabile } from "@/components/fatturazione/GestionaleEsterno";
+import { RiportaDaIncassareDialog, siRiportaDaIncassare } from "@/components/fatturazione/RiportaDaIncassare";
 import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fatturazione/HubEsterno";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -238,6 +239,7 @@ function DocumentiFiscaliListInner() {
   const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const puoCreare = !esterna && !isCommercialistaMode;
   const [incassoImportata, setIncassoImportata] = useState<DocumentoFiscale | null>(null);
+  const [daRiaprire, setDaRiaprire] = useState<DocumentoFiscale | null>(null);
   const apriDocumento = (doc: DocumentoFiscale) => {
     // Le importate hanno il loro dettaglio, con la stessa impaginazione e senza azioni che creano.
     navigate(doc.origine === "importata" ? `/azienda/documenti/importata/${doc.id}` : `/azienda/documenti/${doc.id}/dettaglio`);
@@ -1135,6 +1137,11 @@ function DocumentiFiscaliListInner() {
                                     <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                                   </DropdownMenuItem>
                                 )}
+                                {siRiportaDaIncassare(doc) && (
+                                  <DropdownMenuItem onClick={() => setDaRiaprire(doc)}>
+                                    <RotateCcw className="h-4 w-4 mr-2" /> Riporta da incassare
+                                  </DropdownMenuItem>
+                                )}
                               </>
                             ) : isTrash && esterna ? (
                               <DropdownMenuItem disabled>Nel cestino</DropdownMenuItem>
@@ -1399,6 +1406,9 @@ function DocumentiFiscaliListInner() {
       )}
       {effectiveCompany?.id && (
         <SegnaPagataImportataDialog fattura={incassoImportata} companyId={effectiveCompany.id} onClose={() => setIncassoImportata(null)} />
+      )}
+      {daRiaprire && (
+        <RiportaDaIncassareDialog fattura={daRiaprire} onClose={() => setDaRiaprire(null)} />
       )}
       {effectiveCompany?.id && (
         <AbbinaFattureCommesseDialog

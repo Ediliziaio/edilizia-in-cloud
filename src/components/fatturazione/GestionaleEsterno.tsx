@@ -87,6 +87,7 @@ export function invalidaFattureImportate(qc: QueryClient, companyId: string | nu
   void qc.invalidateQueries({ queryKey: ["billing-doc-counts"] });
   void qc.invalidateQueries({ queryKey: ["billing-monthly-timeline"] });
   void qc.invalidateQueries({ queryKey: ["incassi-importate"] });
+  void qc.invalidateQueries({ queryKey: ["fatture-emesse-importate"] });
   void qc.invalidateQueries({ queryKey: ["incassi-fattura", "importata"] });
   void qc.invalidateQueries({ queryKey: ["clienti-fiscali-importati"] });
   invalidaStatisticheFatturazione(qc, companyId);
