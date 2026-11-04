@@ -25,7 +25,7 @@ import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 // Il lettore e' condiviso e testato: quello che gira qui e' esattamente il
 // codice verificato dai test, non una copia parallela.
-import { leggiFatturaPA, normalizzaPiva } from "../_shared/fatturapaReader.ts";
+import { avvisoRate, leggiFatturaPA, normalizzaPiva } from "../_shared/fatturapaReader.ts";
 import { base64ToBytes } from "../_shared/base64.ts";
 import { fileOriginale, xmlDaFile } from "../_shared/ricevuteOpenapi.ts";
 import { archiviaOriginaleEmessa, originaleCorrispondeAllaFattura, scartaOriginaleNonCollegato } from "../_shared/originaleFatturaEmessa.ts";
@@ -186,6 +186,10 @@ Deno.serve(async (req) => {
       paid_amount: 0,
       payment_method: fattura.modalitaPagamento,
       bank_iban: fattura.iban,
+      // Tutte le rate: il trigger auto_create_scadenza_from_invoice le legge da qui,
+      // una scadenza per rata, nello stesso momento in cui nasce la fattura.
+      piano_pagamento: fattura.rate.length > 0 ? fattura.rate : null,
+      condizioni_pagamento: fattura.condizioniPagamento,
       notes: "Importata da XML del provider esterno.",
       external_provider: PROVIDER,
       external_id: externalId,
@@ -217,10 +221,14 @@ Deno.serve(async (req) => {
     const { data: cliente, error: clienteError } = await supabase.rpc("riconcilia_cliente_emessa_importata", {
       p_company_id: company_id, p_invoice_id: nuova.id, p_apply: true,
     });
+    const avvisi = [
+      avvisoRate(fattura),
+      clienteError || cliente?.status !== "ok" ? "Fattura importata. Anagrafica cliente da verificare dal dettaglio: " + (cliente?.motivo || "recupero non riuscito") : null,
+    ].filter(Boolean);
     return json({ success: true, id: nuova.id, numero: fattura.numero, totale: fattura.totale,
       anagrafica_id: cliente?.anagrafica_id ?? null,
       cliente_operativo_mancante: cliente?.cliente_operativo_mancante ?? true,
-      ...(clienteError || cliente?.status !== "ok" ? { warning: "Fattura importata. Anagrafica cliente da verificare dal dettaglio: " + (cliente?.motivo || "recupero non riuscito") } : {}),
+      ...(avvisi.length > 0 ? { warning: avvisi.join(" ") } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Errore interno";

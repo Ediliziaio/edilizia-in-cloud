@@ -66,9 +66,12 @@ in due grafie diverse **nella stessa lista** (`src/lib/impostazioni/
 pagamentiFornitori.ts`: `riba` e `ri.ba`), più `ri.ba` nello scadenzario e
 nella prima nota. Un filtro «pagati con RiBa» oggi ne troverebbe metà.
 
-Lato clienti la RiBa non la usa nessuno: le aziende vere incassano solo con
-bonifico — scritto in cinque modi diversi («Bonifico Vista Fattura»,
-«Bonifico vista fattura», «BONIFICO», «Bonifico», «MP05»).
+Lato clienti la RiBa non era usata da nessuno fino a novembre 2026, quando è comparsa
+negli XML emessi di due imprese. Dalla migrazione `20281121100000_fatture_emesse_rate_dall_xml` la RiBa
+attiva è un metodo sulla scadenza di ogni rata (`riba`), niente di più: portafoglio,
+presentazione in banca, anticipo salvo buon fine e insoluti non esistono. Le altre
+aziende incassano con bonifico, scritto in cinque modi diversi («Bonifico Vista
+Fattura», «Bonifico vista fattura», «BONIFICO», «Bonifico», «MP05»).
 
 ---
 

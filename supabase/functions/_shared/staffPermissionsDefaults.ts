@@ -46,7 +46,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_formazione: true, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
-  can_view_marketing_dashboard: false, can_view_marketing_contacts: false,
+  can_view_marketing_dashboard: false, can_view_callcenter_dashboard: false, can_view_marketing_contacts: false,
   can_edit_marketing_contacts: false, can_view_marketing_opportunities: false,
   can_edit_marketing_opportunities: false, can_view_marketing_activities: false,
   can_view_marketing_appointments: false,
@@ -129,9 +129,9 @@ export const STAFF_ROLE_PRESETS: Record<string, Record<string, boolean | string[
     visible_areas: ["commerciale"],
   },
   call_center: {
-    // Solo marketing e vendita: ha la sua Dashboard Marketing, non quella generale, il calendario
-    // lavori, i clienti e gli utenti.
-    can_view_marketing_dashboard: true,
+    // Solo la sua dashboard Call Center: niente Dashboard Marketing (spese pubblicitarie, social),
+    // niente dashboard generale, calendario lavori, clienti e utenti.
+    can_view_callcenter_dashboard: true,
     can_view_marketing_contacts: true,
     can_view_marketing_opportunities: true,
     can_view_preventivi: true,

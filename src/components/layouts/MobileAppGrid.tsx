@@ -307,7 +307,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) return false;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.url === "/azienda/cruscotto") {
-          if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard) return false;
+          if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard && !permissions.canViewCallcenterDashboard) return false;
         } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
           return false;
         }

@@ -15336,6 +15336,7 @@ export type Database = {
           id: string
           notes: string | null
           outcome: string
+          richiamo_il: string | null
           started_at: string
           user_id: string
         }
@@ -15347,6 +15348,7 @@ export type Database = {
           id?: string
           notes?: string | null
           outcome?: string
+          richiamo_il?: string | null
           started_at?: string
           user_id: string
         }
@@ -15358,6 +15360,7 @@ export type Database = {
           id?: string
           notes?: string | null
           outcome?: string
+          richiamo_il?: string | null
           started_at?: string
           user_id?: string
         }
@@ -85183,6 +85186,7 @@ export type Database = {
           can_view_marketing_appointments: boolean | null
           can_view_marketing_automations: boolean | null
           can_view_marketing_contacts: boolean | null
+          can_view_callcenter_dashboard: boolean
           can_view_marketing_dashboard: boolean | null
           can_view_marketing_email: boolean | null
           can_view_marketing_opportunities: boolean | null
@@ -85292,6 +85296,7 @@ export type Database = {
           can_view_marketing_appointments?: boolean | null
           can_view_marketing_automations?: boolean | null
           can_view_marketing_contacts?: boolean | null
+          can_view_callcenter_dashboard?: boolean
           can_view_marketing_dashboard?: boolean | null
           can_view_marketing_email?: boolean | null
           can_view_marketing_opportunities?: boolean | null
@@ -85401,6 +85406,7 @@ export type Database = {
           can_view_marketing_appointments?: boolean | null
           can_view_marketing_automations?: boolean | null
           can_view_marketing_contacts?: boolean | null
+          can_view_callcenter_dashboard?: boolean
           can_view_marketing_dashboard?: boolean | null
           can_view_marketing_email?: boolean | null
           can_view_marketing_opportunities?: boolean | null

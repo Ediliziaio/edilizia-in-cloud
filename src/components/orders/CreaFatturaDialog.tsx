@@ -430,7 +430,7 @@ export function CreaFatturaDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sal_records")
-        .select("id, numero_sal, stato, importo_totale, installment_id, data_emissione, sal_voci(id, descrizione, importo_sal)")
+        .select("id, numero_sal, stato, importo_totale, installment_id, data_emissione, sal_voci(id, descrizione, importo_sal), sal_certificati(netto)")
         .eq("order_id", orderId)
         .order("numero_sal");
       if (error) throw error;

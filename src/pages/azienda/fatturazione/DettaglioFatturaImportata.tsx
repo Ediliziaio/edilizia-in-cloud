@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { leggiOriginaleEmessa, scaricaFileOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
@@ -46,10 +47,11 @@ interface FatturaImportata {
   client_company_name: string | null; client_fiscal_code: string | null; client_vat_number: string | null;
   client_email: string | null; client_address: string | null; client_city: string | null; client_zip: string | null;
   client_country: string | null; payment_method: string | null; bank_iban: string | null;
+  piano_pagamento: unknown; condizioni_pagamento: string | null;
   invoice_lines: RigaImportata[] | null;
 }
 
-const COLONNE = "id, company_id, invoice_number, document_type, order_id, external_provider, external_sdi_id, external_xml_url, client_company_name, client_fiscal_code, client_vat_number, client_email, client_address, client_city, client_zip, client_country, payment_method, bank_iban, invoice_lines(id, description, quantity, unit, unit_price, discount_percent, tax_rate, tax_nature, line_net, line_tax, line_gross, product_code, sort_order)";
+const COLONNE = "id, company_id, invoice_number, document_type, order_id, external_provider, external_sdi_id, external_xml_url, client_company_name, client_fiscal_code, client_vat_number, client_email, client_address, client_city, client_zip, client_country, payment_method, bank_iban, piano_pagamento, condizioni_pagamento, invoice_lines(id, description, quantity, unit, unit_price, discount_percent, tax_rate, tax_nature, line_net, line_tax, line_gross, product_code, sort_order)";
 
 /** Le righe e il riepilogo IVA dell'importata nella forma che l'anteprima nativa disegna. */
 function documentoPerAnteprima(riga: DocumentoFiscale, f: FatturaImportata): DocumentoFiscale {
@@ -136,6 +138,7 @@ export default function DettaglioFatturaImportata() {
   const f = fattura.data;
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? "Fattura";
   const residuo = residuoImportata(doc);
+  const rateFattura = pagamentoDaMostrare(f as unknown as Record<string, unknown>)?.rate ?? [];
   const progresso = doc.totale_da_pagare > 0 ? Math.min(100, (doc.importo_pagato / doc.totale_da_pagare) * 100) : 0;
   const gestionale = f.external_provider ? (PROVIDER_LABELS[f.external_provider] ?? f.external_provider) : "un altro programma";
 
@@ -274,6 +277,23 @@ export default function DettaglioFatturaImportata() {
                   <CreditCard className="h-4 w-4 mr-1" /> Registra incasso
                 </Button>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Le rate scritte nell'XML: data, importo e metodo di ciascuna. */}
+        {rateFattura.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+              <CardTitle className="text-sm">{rateFattura.length > 1 ? `Rate (${rateFattura.length})` : "Scadenza dall'XML"}</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-border text-sm max-sm:px-3 max-sm:pb-3">
+              {rateFattura.map((r, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
+                  <span>{r.scadenza ? formatDateShort(r.scadenza) : "Senza data"}{r.metodo ? <span className="text-muted-foreground"> · {r.metodo}</span> : null}</span>
+                  <span className="font-medium tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}

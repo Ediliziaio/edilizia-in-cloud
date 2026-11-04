@@ -30,6 +30,8 @@ import {prepareSalLines,salNumber,salLineAmount,salListIssues,salEmissionIssue} 
 import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
 import {VerbaleSalDialog} from "./VerbaleSalDialog";
+import {CertificatoSal} from "./CertificatoSal";
+import {certificatoDelSal,certificatoPrecedente} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
 
 interface SalVoce {
@@ -51,6 +53,7 @@ interface SalRecord {
   /** Rata del piano pagamenti che questo verbale certifica (SAL = rata). */
   installment_id: string | null;
   sal_voci: SalVoce[];
+  sal_certificati?: unknown;
 }
 
 const STATO_LABELS: Record<string, string> = {
@@ -126,7 +129,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     queryFn: async () => {
       const { data, error, count } = await supabase
         .from("sal_records")
-        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note)",{count:"exact"})
+        .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note), sal_certificati(*)",{count:"exact"})
         .eq("order_id", orderId)
         .eq("company_id", companyId)
         .order("numero_sal", { ascending: false });
@@ -539,15 +542,21 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       {sal.stato==="bozza" ? "Bozza del" : "Emesso il"} {fmtDate(sal.data_emissione)} · Cumulativo netto: {formatCurrency(sal.importo_totale)}
                     </p>
                     {salEmissionIssue(sal,salList) && <p className="text-xs text-amber-700 mt-1 max-w-xl">{salEmissionIssue(sal,salList)}</p>}
+                    <CertificatoSal salId={sal.id} orderId={orderId} companyId={companyId} numero={sal.numero_sal} cumulativo={sal.importo_totale}
+                      certificato={certificatoDelSal(sal.sal_certificati)}
+                      precedente={certificatoPrecedente(sal,salList)}
+                      giaMaturato={maturatoPrecedente(sal,salList)}
+                      puoModificare={permissions.canEditOrders && !blocked}/>
                     {(() => {
                       const precedente = maturatoPrecedente(sal, salList);
                       if (precedente <= 0) return null;
-                      const { daFatturare } = nettoSal(sal.importo_totale, precedente);
+                      const certificato = certificatoDelSal(sal.sal_certificati);
+                      const daFatturare = certificato ? Number(certificato.netto) : nettoSal(sal.importo_totale, precedente).daFatturare;
                       return (
                         <p className="text-xs text-muted-foreground mt-0.5">
                           Ultimo cumulativo precedente: {formatCurrency(precedente)} ·{" "}
                           <span className={daFatturare < 0 ? "font-medium text-rose-600" : "font-medium text-foreground"}>
-                            {daFatturare < 0 ? "Rettifica da verificare" : "Quota nuova del SAL"}: {formatCurrency(daFatturare)}
+                            {daFatturare < 0 ? "Rettifica da verificare" : certificato ? "Da fatturare (netto del certificato)" : "Quota nuova del SAL"}: {formatCurrency(daFatturare)}
                           </span>
                         </p>
                       );
@@ -562,7 +571,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         rata,
                         saldoFinale: isSaldoFinale(rata),
                         importoMostrato: mostrato,
-                        nettoDaFatturare: nettoSal(sal.importo_totale, maturatoPrecedente(sal, salList)).daFatturare,
+                        nettoDaFatturare: certificatoDelSal(sal.sal_certificati) ? Number(certificatoDelSal(sal.sal_certificati)!.netto) : nettoSal(sal.importo_totale, maturatoPrecedente(sal, salList)).daFatturare,
                         aliquotaIva: vatRate,
                       });
                       return (

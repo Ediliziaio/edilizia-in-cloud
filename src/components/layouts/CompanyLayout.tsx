@@ -1113,7 +1113,8 @@ const CompanySidebar = memo(function CompanySidebar() {
         if (
           !permissions.canViewCruscotto &&
           !permissions.canViewDashboard &&
-          !permissions.canViewMarketingDashboard
+          !permissions.canViewMarketingDashboard &&
+          !permissions.canViewCallcenterDashboard
         ) {
           return false;
         }

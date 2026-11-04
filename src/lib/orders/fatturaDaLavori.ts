@@ -14,6 +14,7 @@
  */
 import type { RigaDocumento } from "@/types/fatturazione";
 import { maturatoPrecedente, nettoSal, type SalPerNetto } from "./salNetto";
+import { certificatoDelSal } from "./salCertificato";
 
 const arrotonda = (n: number): number => Math.round(n * 100) / 100;
 const numero = (v: unknown): number => {
@@ -193,6 +194,15 @@ export interface SalPerFattura extends SalPerNetto {
   installment_id?: string | null;
   data_emissione?: string | null;
   sal_voci?: ReadonlyArray<{ id?: string; descrizione: string | null; importo_sal: number | null }> | null;
+  /** Il certificato di pagamento, se c'è: si fattura il suo netto, non la differenza dei cumulativi. */
+  sal_certificati?: unknown;
+}
+
+/** Quanto si fattura per un SAL: il netto del certificato, altrimenti la quota nuova del verbale. */
+function quotaSal(sal: SalPerFattura, tutti: ReadonlyArray<SalPerFattura>): number {
+  const certificato = certificatoDelSal(sal.sal_certificati);
+  if (certificato) return numero(certificato.netto);
+  return nettoSal(numero(sal.importo_totale), maturatoPrecedente(sal, tutti)).daFatturare;
 }
 
 const STATI_FATTURABILI = new Set(["emesso", "approvato", "firmato"]);
@@ -206,7 +216,7 @@ export function salInFattura(
   fatturato: Pick<Fatturato, "salFatturati">,
   rate: ReadonlyArray<{ id?: string | null; documento_fiscale_id?: string | null }>,
 ): { stato: StatoSalInFattura; quota: number } {
-  const quota = nettoSal(numero(sal.importo_totale), maturatoPrecedente(sal, tutti)).daFatturare;
+  const quota = quotaSal(sal, tutti);
   const rata = sal.installment_id ? rate.find((r) => r.id === sal.installment_id) : undefined;
   if (fatturato.salFatturati.has(sal.id) || rata?.documento_fiscale_id) return { stato: "gia_fatturato", quota };
   return { stato: quota > 0 ? "da_fatturare" : "senza_quota", quota };
@@ -225,9 +235,12 @@ const chiaveVoce = (d: string | null | undefined) => (d ?? "").trim().toLowerCas
  * cambiati da un verbale all'altro) resta una riga sola: conta l'importo giusto.
  */
 export function righeSal(sal: SalPerFattura, tutti: ReadonlyArray<SalPerFattura>, aliquota: number): RigaDocumento[] {
-  const quota = nettoSal(numero(sal.importo_totale), maturatoPrecedente(sal, tutti)).daFatturare;
+  const quota = quotaSal(sal, tutti);
   if (quota <= 0) return [];
   const titolo = `SAL n. ${sal.numero_sal}`;
+  if (certificatoDelSal(sal.sal_certificati)) {
+    return [rigaACorpo(idSal(sal.id, 0), `Certificato di pagamento n. ${sal.numero_sal} — ${titolo}`, quota, aliquota)];
+  }
   const precedente = tutti
     .filter((s) => s.numero_sal < sal.numero_sal && STATI_FATTURABILI.has(s.stato))
     .reduce<SalPerFattura | null>((u, s) => (!u || s.numero_sal > u.numero_sal ? s : u), null);

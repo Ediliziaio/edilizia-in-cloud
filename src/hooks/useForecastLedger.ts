@@ -221,7 +221,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "scadenze",
-          "id,description,amount,paid_amount,due_date,direction,status,cost_id,invoice_id,order_item_id,order_id,notes,is_previsionale",
+          "id,description,amount,paid_amount,due_date,direction,status,cost_id,invoice_id,order_item_id,order_id,notes,is_previsionale,rata_numero",
         ).neq("status", "annullata"),
     },
     {

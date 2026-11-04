@@ -62,7 +62,7 @@ import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permission
 const PERMESSI_NUOVO_VENDITORE: StaffPermissions = { ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS.salesperson };
 
 const MARKETING_SECTION_KEYS = [
-  "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
+  "can_view_marketing_dashboard", "can_view_callcenter_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
   "can_view_marketing_activities", "can_view_marketing_appointments", "can_view_marketing_automations",
   "can_view_marketing_ai_agent", "can_view_marketing_email", "can_view_marketing_whatsapp", "can_view_marketing_reports",
 ];

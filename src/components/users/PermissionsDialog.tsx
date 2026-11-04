@@ -84,6 +84,7 @@ export interface StaffPermissions {
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
   can_view_marketing_dashboard: boolean;
+  can_view_callcenter_dashboard: boolean;
   can_view_marketing_contacts: boolean;
   can_edit_marketing_contacts: boolean;
   can_view_marketing_opportunities: boolean;
