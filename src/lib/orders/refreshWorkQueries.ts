@@ -14,6 +14,10 @@ export function refreshWorkQueries(
       queryKey[0] === "calendar-orders" &&
       (!companyId || queryKey[2] === companyId),
   });
+  // Questa chiave ha l'azienda prima della commessa.
+  void qc.invalidateQueries({
+    predicate: ({ queryKey }) => queryKey[0] === "voci-previste-fasi" && queryKey[2] === orderId,
+  });
   const orderKeys = [
     "order_work_phases",
     "order-phases-progress",
@@ -48,6 +52,8 @@ export function refreshWorkQueries(
     "timeline-varianti",
     "timeline-rapportini",
     "commessa-mezzi-lavoro",
+    "commessa-iva",
+    "sal-fasi-commessa",
   ];
   const sharedKeys = [
     "order-employees-costs",

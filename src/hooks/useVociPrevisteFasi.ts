@@ -1,3 +1,4 @@
+import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,14 +39,16 @@ export function useVociPrevisteFasi(orderId: string | null | undefined, abilitat
     enabled: abilitato && !!orderId && !!companyId,
     staleTime: 60_000,
     queryFn: async (): Promise<VocePrevista[]> => {
-      const { data, error } = await db
+      // A pagine: un cantiere grande supera le mille righe che il database restituisce in una volta.
+      const data = await tutteLePagine((from, to) => db
         .from("order_work_phase_voci")
         .select("id, phase_id, position, descrizione, unita, quantita, costo_manodopera, costo_materiali, importo, tariffa_id, origine, origine_codice, subphase_id")
         .eq("order_id", orderId)
         .eq("company_id", companyId)
-        .order("position", { ascending: true });
-      if (error) throw error;
-      return ((data ?? []) as Array<Record<string, unknown>>).map((v) => ({
+        .order("position", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)) as Array<Record<string, unknown>>;
+      return data.map((v) => ({
         id: v.id as string,
         phase_id: v.phase_id as string,
         position: Number(v.position) || 0,

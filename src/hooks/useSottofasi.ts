@@ -43,6 +43,16 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // Tante righe insieme: una scrittura sola e un solo aggiornamento alla fine.
+  const segnaTutte = useMutation({
+    mutationFn: async ({ ids, fatta }: { ids: string[]; fatta: boolean }) => {
+      const { error } = await db.from("order_work_subphases").update({ fatta }).in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
   const aggiungi = useMutation({
     mutationFn: async ({ phaseId, nome }: { phaseId: string; nome: string }) => {
       const { error } = await db.from("order_work_subphases").insert({
@@ -150,5 +160,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

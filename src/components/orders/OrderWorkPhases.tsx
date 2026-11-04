@@ -39,6 +39,9 @@ import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
+import { DistintaLavorazioni } from "@/components/orders/DistintaLavorazioni";
+import { useIvaCommessa } from "@/components/orders/IvaCommessa";
+import { distintaConsigliata } from "@/lib/orders/distintaLavorazioni";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
@@ -225,7 +228,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -301,6 +304,20 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     return map;
   }, [scheduleHealth]);
 
+  // Oltre una certa quantità di voci si parte dalla distinta; la scelta fatta a mano vale per quella commessa.
+  const [modoScelto, setModoScelto] = useState<"schede" | "distinta" | null>(() => {
+    try {
+      const v = localStorage.getItem(`fasi-lavoro-modo:${orderId}`);
+      return v === "schede" || v === "distinta" ? v : null;
+    } catch { return null; }
+  });
+  const scegliModo = (modo: "schede" | "distinta") => {
+    setModoScelto(modo);
+    try { localStorage.setItem(`fasi-lavoro-modo:${orderId}`, modo); } catch { /* resta per questa pagina */ }
+  };
+  const quanteVoci = Math.max(vociPreviste?.length ?? 0, [...sottofasiDi.values()].reduce((n, l) => n + l.length, 0));
+  const modoFasi = modoScelto ?? (distintaConsigliata(quanteVoci) ? "distinta" : "schede");
+  const { data: ivaDellaCommessa } = useIvaCommessa(orderId, modoFasi === "distinta" && canViewOrderAmounts);
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello">("manuale");
   const [filter, setFilter] = useState<WorkFilter>("all");
@@ -514,7 +531,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
               )}
               {!telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
-                setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setModoScelto("schede"); setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}
               {view && azioniCommessa}
             </span>
@@ -606,6 +623,38 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
           null
         ) : (
           <>
+            {phases.length > 0 && quanteVoci > 0 && (
+              <div role="group" aria-label="Come vedere le fasi" className="flex items-center gap-1">
+                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "distinta" ? "secondary" : "ghost"} aria-pressed={modoFasi === "distinta"} onClick={() => scegliModo("distinta")}>Distinta</Button>
+                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "schede" ? "secondary" : "ghost"} aria-pressed={modoFasi === "schede"} onClick={() => scegliModo("schede")}>Schede</Button>
+              </div>
+            )}
+            {modoFasi === "distinta" && phases.length > 0 && quanteVoci > 0 ? (
+              <DistintaLavorazioni
+                fasi={phases}
+                sottofasiDi={sottofasiDi}
+                voci={vociPreviste ?? []}
+                economiaDi={economia.perFase}
+                consuntivoSenzaFase={economia.senzaFase.costoConsuntivo}
+                iva={ivaDellaCommessa}
+                vedeVenduto={canViewOrderAmounts}
+                vedeCosti={canViewCosts}
+                vedeMargini={canViewMargins}
+                puoModificare={canEditOrders}
+                oggi={oggi}
+                onSegna={(id, fatta) => segnaSottofase.mutate({ id, fatta })}
+                onSegnaTutte={(ids, fatta) => segnaSottofasi.mutate({ ids, fatta })}
+                onPianifica={(id, piano) => pianificaSottofase.mutate({ id, ...piano })}
+                onPianificaTutte={(passi) => pianificaSottofasi.mutate(passi)}
+                onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
+                onApriScheda={(faseId) => {
+                  setSearch(phases.find((p) => p.id === faseId)?.name ?? "");
+                  setFilter("all");
+                  // Solo per adesso: la preferenza salvata non cambia.
+                  setModoScelto("schede");
+                }}
+              />
+            ) : <>
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
             {telefono ? (mostraFiltri || attentionCount > 0) && (
@@ -723,6 +772,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 {showCompleted ? "Nascondi le completate" : `Mostra ${completedCount} ${completedCount === 1 ? "fase completata" : "fasi completate"}`}
               </Button>
             )}
+            </>}
 
           </>
         )}
