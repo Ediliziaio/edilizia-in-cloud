@@ -86,7 +86,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -459,7 +459,9 @@ export function RiepilogoFatturaRicevuta({
                   <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura}
                     numeroContratto={d.subappalto?.numero_contratto} contrattoId={f.contratto_subappalto_id ? String(f.contratto_subappalto_id) : null}
                     salId={f.sal_subappaltatore_id ? String(f.sal_subappaltatore_id) : null} cedentePiva={f.cedente_piva ? String(f.cedente_piva) : null}
-                    notaDiCredito={isNotaCreditoRicevuta(String(f.tipo_documento ?? ""))} />
+                    notaDiCredito={isNotaCreditoRicevuta(String(f.tipo_documento ?? ""))}
+                    primaNotaId={f.prima_nota_id ? String(f.prima_nota_id) : null} costoId={f.company_cost_id ? String(f.company_cost_id) : null}
+                    vaiPrimaNota={permessi.canViewPrimaNota} vaiTesoreria={permessi.canViewTesoreria} vaiEmail={permessi.canViewMarketingEmail} />
                 )}
                 <dt className="text-muted-foreground">Verifica</dt>
                 <dd>
@@ -495,9 +497,6 @@ export function RiepilogoFatturaRicevuta({
               </dl>
               {azioni.extraCollegamenti?.(d)}
             </section>
-
-            {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
-            <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
             {/* Righe */}
             <section className="space-y-2">
@@ -606,6 +605,9 @@ export function RiepilogoFatturaRicevuta({
                 </section>
               );
             })()}
+
+            {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
+            <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
             {f.note ? <p className="text-sm"><span className="text-muted-foreground">Note: </span>{String(f.note)}</p> : null}
             <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={f.note_interne ? String(f.note_interne) : null}

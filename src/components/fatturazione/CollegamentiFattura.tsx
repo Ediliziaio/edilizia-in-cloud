@@ -18,9 +18,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const db = supabase as any;
 const errore = (e: unknown) => toast.error("Non salvato", { description: e instanceof Error ? e.message : String(e) });
 const DDT_A_VISTA = 6;
+const pivaPulita = (p: string | null | undefined) => (p ?? "").replace(/\s/g, "").replace(/^IT/i, "");
 
 interface LegameMezzo { id: string; mezzo_id: string; importo: number | null; confermata: boolean; mezzi: { nome: string; targa: string | null } | null }
 interface LegameDdt { id: string; numero_ddt: string; data_ddt: string | null; ddt_ricezione_id: string | null }
+interface Scrittura { id: string; entry_date: string | null; amount: number | null; reversal_of: string | null; bank_transaction_id: string | null }
+interface MovimentoBanca { id: string; booking_date: string | null; amount: number | null; description: string | null; counterparty_name: string | null }
+interface EmailOrigine { from_name: string | null; from_email: string | null; subject: string | null; received_at: string | null }
 interface Storno { fattura_id: string; nota_id: string; importo: number | null }
 
 // Con il ref: dentro PopoverTrigger è il pulsante a cui si aggancia la finestrella.
@@ -28,9 +32,13 @@ const Azione = forwardRef<HTMLButtonElement, ComponentProps<typeof Button>>(func
   return <Button ref={ref} variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" {...props}>{children}</Button>;
 });
 
-export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numeroContratto, contrattoId, salId, cedentePiva, notaDiCredito }: {
+export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numeroContratto, contrattoId, salId, cedentePiva, notaDiCredito,
+  primaNotaId, costoId, vaiPrimaNota, vaiTesoreria, vaiEmail }: {
   fatturaId: string; companyId: string; puoModificare: boolean;
   numeroContratto?: string | null; contrattoId?: string | null; salId?: string | null; cedentePiva?: string | null; notaDiCredito: boolean;
+  primaNotaId?: string | null; costoId?: string | null;
+  /** Chi non può aprire quelle pagine vede il testo, senza link. */
+  vaiPrimaNota?: boolean; vaiTesoreria?: boolean; vaiEmail?: boolean;
 }) {
   const qc = useQueryClient();
   const chiave = ["fattura-collegamenti", fatturaId];
@@ -53,6 +61,35 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
       };
     },
   });
+  // Le scritture del pagamento: quella della fattura e quelle del suo costo (i pagamenti a rate).
+  // Una scrittura stornata non è più un pagamento: restano fuori lei e il suo storno.
+  const { data: pagamenti } = useQuery({
+    queryKey: ["fattura-collegamenti-pagamenti", fatturaId, primaNotaId, costoId],
+    enabled: !!primaNotaId || !!costoId,
+    queryFn: async () => {
+      const filtri = [primaNotaId ? `id.eq.${primaNotaId}` : null, costoId ? `cost_id.eq.${costoId}` : null].filter(Boolean).join(",");
+      const { data: righe, error } = await db.from("prima_nota_entries").select("id, entry_date, amount, reversal_of, bank_transaction_id")
+        .eq("company_id", companyId).or(filtri).order("entry_date").limit(50);
+      if (error) throw error;
+      const tutte = (righe ?? []) as Scrittura[];
+      const stornate = new Set(tutte.map((r) => r.reversal_of).filter(Boolean));
+      const scritture = tutte.filter((r) => !r.reversal_of && !stornate.has(r.id));
+      const idMovimenti = [...new Set(scritture.map((r) => r.bank_transaction_id).filter(Boolean))];
+      const { data: movimenti } = idMovimenti.length
+        ? await db.from("bank_transactions").select("id, booking_date, amount, description, counterparty_name").in("id", idMovimenti)
+        : { data: [] };
+      return { scritture, movimenti: (movimenti ?? []) as MovimentoBanca[] };
+    },
+  });
+  const { data: emailOrigine = [] } = useQuery({
+    queryKey: ["fattura-collegamenti-email", fatturaId],
+    queryFn: async () => {
+      const { data: righe, error } = await db.from("email_documento_estratto").select("id, email_inbox(from_name, from_email, subject, received_at)")
+        .eq("company_id", companyId).eq("dedup_fattura_id", fatturaId).not("email_id", "is", null).limit(5);
+      if (error) throw error;
+      return ((righe ?? []) as Array<{ id: string; email_inbox: EmailOrigine | null }>).filter((r) => r.email_inbox);
+    },
+  });
   const [apriMezzo, setApriMezzo] = useState(false);
   const { data: tuttiMezzi = [] } = useQuery({
     queryKey: ["fattura-collegamenti-mezzi", companyId],
@@ -64,14 +101,16 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     },
   });
   // Solo i contratti di questo fornitore: uno di un altro subappaltatore sarebbe un errore.
+  // La P.IVA si confronta qui, pulita: nella scheda della ditta può avere spazi o il prefisso IT.
   const { data: contratti = [] } = useQuery({
     queryKey: ["fattura-collegamenti-contratti", companyId, cedentePiva],
     enabled: !!cedentePiva && puoModificare && !contrattoId,
     queryFn: async () => {
-      const { data: righe, error } = await db.from("contratti_subappalto").select("id, numero_contratto, descrizione_lavori, subappaltatori!inner(piva)")
-        .eq("company_id", companyId).eq("subappaltatori.piva", cedentePiva).limit(100);
-      if (error) return [];
-      return (righe ?? []) as Array<{ id: string; numero_contratto: string | null; descrizione_lavori: string | null }>;
+      const { data: righe, error } = await db.from("contratti_subappalto").select("id, numero_contratto, descrizione_lavori, subappaltatori_sicurezza(piva)")
+        .eq("company_id", companyId).limit(1000);
+      if (error) throw error;
+      return ((righe ?? []) as Array<{ id: string; numero_contratto: string | null; descrizione_lavori: string | null; subappaltatori_sicurezza: { piva: string | null } | null }>)
+        .filter((c) => pivaPulita(c.subappaltatori_sicurezza?.piva) === pivaPulita(cedentePiva));
     },
   });
   const { data: salDelContratto = [] } = useQuery({
@@ -79,7 +118,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     enabled: !!contrattoId,
     queryFn: async () => {
       const { data: righe, error } = await db.from("sal_subappaltatori").select("id, numero_sal, importo_netto").eq("contratto_id", contrattoId).order("numero_sal");
-      if (error) return [];
+      if (error) throw error;
       return (righe ?? []) as Array<{ id: string; numero_sal: number | null; importo_netto: number | null }>;
     },
   });
@@ -207,6 +246,51 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
                 <SelectContent>{contratti.map((c) => <SelectItem key={c.id} value={c.id}>{c.numero_contratto || "Senza numero"}{c.descrizione_lavori ? ` · ${c.descrizione_lavori.slice(0, 40)}` : ""}</SelectItem>)}</SelectContent>
               </Select>
             )}
+          </dd>
+        </>
+      )}
+
+      {!!pagamenti?.movimenti.length && (
+        <>
+          <dt className="text-muted-foreground">Banca</dt>
+          <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {pagamenti.movimenti.map((m) => {
+              const testo = [m.booking_date ? formatDateShort(m.booking_date) : null, m.amount != null ? formatCurrency(Math.abs(m.amount)) : null, m.counterparty_name].filter(Boolean).join(" · ");
+              return vaiTesoreria
+                ? <Link key={m.id} className="underline underline-offset-2" title={m.description ?? undefined} to="/azienda/tesoreria">{testo}</Link>
+                : <span key={m.id} title={m.description ?? undefined}>{testo}</span>;
+            })}
+          </dd>
+        </>
+      )}
+
+      {!!pagamenti?.scritture.length && (
+        <>
+          <dt className="text-muted-foreground">Prima nota</dt>
+          <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {pagamenti.scritture.map((r) => {
+              const testo = [r.entry_date ? formatDateShort(r.entry_date) : null, r.amount != null ? formatCurrency(Math.abs(r.amount)) : null].filter(Boolean).join(" · ");
+              return vaiPrimaNota
+                ? <Link key={r.id} className="underline underline-offset-2" to="/azienda/prima-nota">{testo}</Link>
+                : <span key={r.id}>{testo}</span>;
+            })}
+          </dd>
+        </>
+      )}
+
+      {emailOrigine.length > 0 && (
+        <>
+          <dt className="text-muted-foreground">Email</dt>
+          <dd className="space-y-0.5">
+            {emailOrigine.map((r) => {
+              const e = r.email_inbox;
+              const testo = [e?.from_name || e?.from_email, e?.subject, e?.received_at ? formatDateShort(e.received_at) : null].filter(Boolean).join(" · ");
+              return (
+                <div key={r.id} className="truncate">
+                  {vaiEmail ? <Link className="underline underline-offset-2" to="/azienda/email/documenti">{testo}</Link> : testo}
+                </div>
+              );
+            })}
           </dd>
         </>
       )}

@@ -255,6 +255,7 @@ export interface ReceivedInvoiceRow {
   tipo_documento: string | null;
   stato: string | null;
   storico_esterno?: boolean | null;
+  pagata_il?: string | null;
   company_cost_id: string | null;
   purchase_order_id?: string | null;
   piano_pagamento: { scadenza: string | null; importo: Money | null; modalita?: string | null; pagata_il?: string | null }[] | null;
@@ -1068,6 +1069,8 @@ export function buildForecastLedger(
   );
   for (const f of s.receivedInvoices ?? []) {
     if (f.company_cost_id || f.storico_esterno) continue;
+    // Pagata per intero (data sulla fattura, le rate restano senza): non è più un'uscita da prevedere.
+    if (f.pagata_il) continue;
     if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
     const tipo = f.tipo_documento ?? "";
     if (NOTE_CREDITO_RICEVUTE.includes(tipo) || AUTOFATTURE_RICEVUTE.includes(tipo)) continue;
@@ -1119,7 +1122,7 @@ export function buildForecastLedger(
     if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
     if (NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")) continue;
     const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
-    const pagata = piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
+    const pagata = f.pagata_il ?? piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
     const base = validDay(pagata ?? piano[0]?.scadenza ?? f.data_fattura);
     if (!base) continue;
     const date = sediciDelMeseDopo(base);

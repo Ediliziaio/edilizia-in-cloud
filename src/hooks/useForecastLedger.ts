@@ -200,7 +200,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "fatture_ricevute",
-          "id,cedente_ragione_sociale,cedente_piva,numero_fattura,data_fattura,tipo_documento,stato,storico_esterno,company_cost_id,purchase_order_id,piano_pagamento,netto_a_pagare,totale_documento,ritenuta_importo,ritenuta_aliquota",
+          "id,cedente_ragione_sociale,cedente_piva,numero_fattura,data_fattura,tipo_documento,stato,storico_esterno,pagata_il,company_cost_id,purchase_order_id,piano_pagamento,netto_a_pagare,totale_documento,ritenuta_importo,ritenuta_aliquota",
         )
           .gte("data_fattura", moveDay(today, -400))
           .or("company_cost_id.is.null,ritenuta_importo.gt.0"),

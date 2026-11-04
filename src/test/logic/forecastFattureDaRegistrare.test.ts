@@ -24,6 +24,12 @@ describe("previsionale: fatture arrivate ma non ancora registrate (01/11/2026)",
     expect(u[0].description).toBe("Bonarrigo Forniture · fattura 12 · RiBa 1 di 3");
   });
 
+  it("pagata per intero con la data sulla fattura: non è più un'uscita, anche se le rate non hanno la data", () => {
+    const s = emptyForecastSources();
+    s.receivedInvoices = [fattura({ pagata_il: "2026-10-15" })];
+    expect(uscite(s)).toEqual([]);
+  });
+
   it("già registrata (costo), nota di credito, autofattura, storico o rifiutata: niente", () => {
     const s = emptyForecastSources();
     s.receivedInvoices = [
