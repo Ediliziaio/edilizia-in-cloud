@@ -236,7 +236,7 @@ export const blogIndice: BlogPostScheda[] = [
       "uploadedAt": "2026-11-04T08:21:09+01:00"
     },
     "title": "Prezzario regionale edilizia: cos'è e come si usa davvero",
-    "excerpt": "Il prezzario regionale contiene già spese generali e utile: come leggerlo, usarlo in preventivi e computi, e quando scostarsi senza lavorare in perdita.",
+    "excerpt": "Prezzario regionale edilizia: leggi voci e inclusioni, verifica l’edizione e confronta i prezzi di riferimento con i costi reali del cantiere.",
     "category": "Normativa",
     "tags": [
       "prezzario regionale",

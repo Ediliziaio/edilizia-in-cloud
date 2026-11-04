@@ -298,7 +298,7 @@ export const blogPostsNormativa: BlogPost[] = [
     video: { youtubeId: "QttCZYmALfk", duration: "PT4M50S", uploadedAt: "2026-11-04T08:21:09+01:00" },
     title: "Prezzario regionale edilizia: cos'è e come si usa davvero",
     excerpt:
-      "Il prezzario regionale contiene già spese generali e utile: come leggerlo, usarlo in preventivi e computi, e quando scostarsi senza lavorare in perdita.",
+      "Prezzario regionale edilizia: leggi voci e inclusioni, verifica l’edizione e confronta i prezzi di riferimento con i costi reali del cantiere.",
     category: "Normativa",
     tags: ["prezzario regionale", "computo metrico", "preventivi", "appalti pubblici"],
     updatedAt: "2026-11-04",
@@ -310,12 +310,12 @@ export const blogPostsNormativa: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Firmi un ribasso del 30% per prendere il lavoro. Quello che nessuno ti ha detto: il prezzo di partenza conteneva già il 10% di utile. Hai appena firmato una perdita. Il prezzario regionale edilizia è il listino ufficiale dei prezzi delle lavorazioni edili pubblicato da ogni Regione e aggiornato ogni anno, come previsto dall'art. 41, comma 13, del Codice appalti (D.Lgs 36/2023). È la base di computi metrici e preventivi: obbligatorio come riferimento negli appalti pubblici, metro di paragone nei lavori privati, riferimento di congruità nei bonus fiscali. Imparare a leggerlo è la differenza tra prezzi difendibili e lavori in perdita.",
+        body: "Il prezzario regionale edilizia è un riferimento da leggere prima di usarlo nel preventivo: descrizione della voce, unità di misura, inclusioni e regole di applicazione contano quanto il prezzo. Un ribasso non dimostra da solo che lavorerai in perdita, così come il prezzo di listino non garantisce il margine. Devi confrontare il ricavo contrattuale con i costi previsti della tua lavorazione. Nei lavori pubblici, negli interventi privati e nelle verifiche per agevolazioni possono valere criteri diversi: individua il quadro applicabile, poi usa edizione e voce pertinenti.",
       },
       {
         type: "section",
         heading: "Cos'è il prezzario regionale e chi lo pubblica",
-        body: "Migliaia di voci, ognuna con codice, descrizione, unità di misura e prezzo unitario. Organizzate per capitoli: scavi, strutture, murature, impianti, finiture. Ogni Regione pubblica così il proprio prezzario delle opere edili. Il Codice appalti impone alle Regioni l'aggiornamento annuale, con possibilità di aggiornamenti infrannuali quando i prezzi dei materiali si muovono in modo significativo — come nel biennio 2022-2023, quando alcuni prezzari sono stati riemessi anche due volte l'anno. Accanto ai prezzari regionali esistono listini privati di riferimento, come quelli DEI, molto usati nel privato e nelle perizie: non sono ufficiali, ma spesso più aggiornati su lavorazioni particolari. Occhio alla data dell'edizione: preventivare su un prezzario vecchio significa usare prezzi che il mercato ha già superato.",
+        body: "Il prezzario organizza voci con codice, descrizione, unità di misura e prezzo unitario, raggruppate per lavorazioni. Il Codice dei contratti pubblici prevede l’aggiornamento dei prezzari regionali; per il tuo elaborato controlla anche validità, disposizioni transitorie e avvertenze della versione scelta. I listini DEI sono pubblicazioni private: non considerarli automaticamente più aggiornati o sufficienti in ogni situazione. Consulta le fonti richieste dalla disciplina applicabile e conserva il riferimento all’edizione effettivamente utilizzata.",
       },
       {
         type: "section",
@@ -325,7 +325,7 @@ export const blogPostsNormativa: BlogPost[] = [
       {
         type: "section",
         heading: "Come si usa nei preventivi e nei computi",
-        body: "Negli appalti pubblici non scegli: il prezzario regionale è il riferimento per progetto e stima dei costi. Il computo metrico estimativo si costruisce con le voci regionali e il ribasso d'asta si applica su quelle. Nei lavori privati nessuno ti obbliga, ma partire dalla voce di prezzario e adattarla ai tuoi costi reali produce preventivi difendibili davanti al cliente: «questo è il prezzo ufficiale della Regione, il mio è questo perché...». Il salto di qualità è collegare listino e consuntivi. Il prezzario dice 28 €/mq per l'intonaco e i tuoi cantieri chiudono a 34 €/mq? O hai un problema di produttività, o stai facendo preventivi in perdita. Chi produce preventivi professionali con un listino personale costruito sui prezzari e corretto con i propri dati reali chiude offerte più velocemente. E con margini che reggono fino a fine cantiere.",
+        body: "Nei lavori pubblici fonti, criteri e voci seguono il Codice, gli allegati pertinenti e gli atti della procedura. Nel privato verifica contratto, intervento e finalità del documento: il prezzario non va dichiarato sempre facoltativo in assoluto. Nel [computo metrico estimativo](/blog/computo-metrico-estimativo-guida/) controlla descrizioni, quantità e misurazioni prima del riepilogo. Confronta poi il ricavo offerto con la previsione dei costi reali, distinguendo produttività, materiali, condizioni operative e dati mancanti. Collegare il listino ai [preventivi professionali](/funzionalita/preventivi-edilizia/) e ai consuntivi aiuta il controllo: non sostituisce la verifica economica della singola commessa.",
       },
       {
         type: "list",
@@ -353,7 +353,7 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         type: "cta",
-        heading: "Dal prezzario al preventivo in pochi minuti",
+        heading: "Dal prezzario al preventivo, con dati verificati",
         body: "Il preventivo in perdita non si vede quando lo firmi: si vede a fine cantiere, quando mancano i soldi. Con Edilizia in Cloud costruisci il tuo listino dalle voci che usi davvero, lo colleghi a computi e preventivi e confronti i prezzi offerti con i costi reali di cantiere. Prova gratis 31 giorni e fai il prossimo preventivo con i numeri giusti.",
       },
     ],
@@ -368,15 +368,15 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         q: "Posso fare un preventivo con prezzi più alti del prezzario?",
-        a: "Sì: nei lavori privati il prezzo lo decidi tu, conta solo che il cliente accetti. La mossa intelligente è motivare lo scostamento con un'analisi (condizioni di cantiere, qualità delle forniture, garanzie) invece di presentare un numero secco. Nei lavori con bonus fiscali gli scostamenti vanno documentati bene, perché il tecnico deve asseverare la congruità della spesa.",
+        a: "Il prezzo contrattuale va distinto dai criteri eventualmente richiesti per asseverazioni, agevolazioni e altre verifiche. Nel privato si valutano accordi e regole applicabili; un’analisi può rendere trasparente il calcolo, ma non rende automaticamente agevolabile un importo che supera un limite pertinente. Verifica il caso con il professionista prima di promettere al cliente una detrazione.",
       },
       {
         q: "Come gestisco una lavorazione che nel prezzario non esiste?",
-        a: "Con l'analisi del nuovo prezzo (NP): scomponi la lavorazione in materiali, noli, trasporti e ore di manodopera ai costi correnti, poi aggiungi spese generali (13-17%) e utile d'impresa (10%). Negli appalti pubblici i nuovi prezzi vanno concordati e approvati secondo le regole del contratto; nei privati l'analisi allegata al preventivo rende il prezzo trasparente e difficile da contestare.",
+        a: "Valuta un’analisi del nuovo prezzo secondo le regole applicabili, documentando quantità di materiali, impiego dei mezzi, tempi e costi della manodopera e le altre componenti pertinenti. Spese generali e utile devono seguire un criterio esplicito: evita percentuali universali presunte. Negli appalti pubblici verifica anche il percorso di determinazione e approvazione previsto per il contratto.",
       },
       {
         q: "Che differenza c'è tra prezzario regionale e listino DEI?",
-        a: "Il prezzario regionale è pubblicato dalla Regione, gratuito e ufficiale: fa fede negli appalti pubblici. I listini DEI sono pubblicazioni private a pagamento, molto usate nel mercato privato, nelle perizie e per la congruità dei bonus: spesso coprono più lavorazioni e vengono aggiornati più di frequente. Nella pratica molte imprese li usano insieme, prendendo da ciascuno le voci più realistiche.",
+        a: "Il prezzario regionale è predisposto dall’amministrazione competente; i listini DEI sono pubblicazioni private con proprie edizioni e condizioni di accesso. Hanno origine e perimetro differenti. Per scegliere quale riferimento utilizzare, verifica la finalità dell’elaborato e le fonti ammesse o richieste nel caso concreto, senza presumere che una sia sempre più aggiornata o prevalga sull’altra.",
       },
       {
         q: "I prezzi del prezzario includono già l'utile dell'impresa?",
