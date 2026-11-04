@@ -61,7 +61,7 @@ export function useGovernanceThresholds(companyId: string | undefined) {
         const { data, error } = await governanceDb
           .from("company_governance_settings")
           .select(
-            "company_id, preventivo_doppia_firma_enabled, preventivo_soglia_importo, sal_scostamento_enabled, sal_tolleranza_perc, marginalita_alert_enabled, marginalita_soglia_perc",
+            "company_id, preventivo_doppia_firma_enabled, preventivo_soglia_importo, sal_scostamento_enabled, sal_tolleranza_perc, marginalita_alert_enabled, marginalita_soglia_perc, rincaro_acquisti_enabled, rincaro_soglia_perc, rincaro_minimo_euro",
           )
           .eq("company_id", companyId)
           .maybeSingle();

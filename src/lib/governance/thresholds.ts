@@ -5,6 +5,7 @@
  *   1. Doppia approvazione preventivi oltre un importo soglia.
  *   2. Alert di scostamento SAL (avanzamento dichiarato vs costi consumati).
  *   3. Soglia di marginalità "sana" delle commesse (oggi hardcoded a 15%).
+ *   4. Rincari d'acquisto: quando un carico di magazzino costa più del solito.
  *
  * La persistenza è su `company_governance_settings` (1 riga per company,
  * colonne flat). Qui mappiamo riga DB ⇄ config tipizzata e valutiamo le soglie.
@@ -29,18 +30,36 @@ export interface GovernanceThresholds {
     enabled: boolean;
     sogliaMinimaPerc: number; // % di margine considerata sana
   };
+  /**
+   * Rincari d'acquisto: un carico pagato più del costo medio della giacenza.
+   * Il confronto è prezzo pagato ADESSO contro il medio PRIMA del carico — non il
+   * medio nuovo contro quello vecchio (su una giacenza grande un acquisto a +40%
+   * muove il medio di mezzo punto e il rincaro non si vedrebbe), e non l'ultimo
+   * prezzo pagato (un acquisto d'urgenza da un fornitore caro diventerebbe il
+   * riferimento, e il rincaro vero dopo di lui sembrerebbe un ribasso).
+   */
+  rincaroAcquisti: {
+    enabled: boolean;
+    sogliaPerc: number;  // % sopra il medio oltre la quale è un rincaro
+    minimoEuro: number;  // spesa in più di quel carico sotto la quale si tace
+  };
 }
 
 export const DEFAULT_GOVERNANCE_THRESHOLDS: GovernanceThresholds = {
   preventivoDoppiaApprovazione: { enabled: false, importoSoglia: 50000 },
   salScostamento: { enabled: false, tolleranzaPerc: 5 },
   marginalita: { enabled: true, sogliaMinimaPerc: 15 },
+  rincaroAcquisti: { enabled: true, sogliaPerc: 15, minimoEuro: 50 },
 };
 
 /** Limiti di sicurezza per i valori configurabili. */
 const LIMITS = {
   importoSogliaMax: 100_000_000,
   percMax: 100,
+  // Un rincaro può essere anche di molto più del 100%: il prezzo che raddoppia è
+  // +100%, e chi vuole essere avvisato solo oltre il triplo deve poterlo scrivere.
+  rincaroPercMax: 10_000,
+  rincaroMinimoEuroMax: 10_000_000,
 } as const;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,6 +92,9 @@ export interface GovernanceSettingsRow {
   sal_tolleranza_perc?: number | string | null;
   marginalita_alert_enabled?: boolean | null;
   marginalita_soglia_perc?: number | string | null;
+  rincaro_acquisti_enabled?: boolean | null;
+  rincaro_soglia_perc?: number | string | null;
+  rincaro_minimo_euro?: number | string | null;
 }
 
 /** Normalizza/clampa una config (parziale o "sporca") sui valori validi. */
@@ -83,6 +105,7 @@ export function normalizeGovernanceThresholds(
   const p = raw?.preventivoDoppiaApprovazione;
   const s = raw?.salScostamento;
   const m = raw?.marginalita;
+  const r = raw?.rincaroAcquisti;
   return {
     preventivoDoppiaApprovazione: {
       enabled: bool(p?.enabled, d.preventivoDoppiaApprovazione.enabled),
@@ -108,6 +131,19 @@ export function normalizeGovernanceThresholds(
         LIMITS.percMax,
       ),
     },
+    rincaroAcquisti: {
+      enabled: bool(r?.enabled, d.rincaroAcquisti.enabled),
+      sogliaPerc: clamp(
+        num(r?.sogliaPerc, d.rincaroAcquisti.sogliaPerc),
+        0,
+        LIMITS.rincaroPercMax,
+      ),
+      minimoEuro: clamp(
+        num(r?.minimoEuro, d.rincaroAcquisti.minimoEuro),
+        0,
+        LIMITS.rincaroMinimoEuroMax,
+      ),
+    },
   };
 }
 
@@ -127,6 +163,11 @@ export function governanceFromRow(row?: GovernanceSettingsRow | null): Governanc
       enabled: bool(row.marginalita_alert_enabled, true),
       sogliaMinimaPerc: num(row.marginalita_soglia_perc, DEFAULT_GOVERNANCE_THRESHOLDS.marginalita.sogliaMinimaPerc),
     },
+    rincaroAcquisti: {
+      enabled: bool(row.rincaro_acquisti_enabled, true),
+      sogliaPerc: num(row.rincaro_soglia_perc, DEFAULT_GOVERNANCE_THRESHOLDS.rincaroAcquisti.sogliaPerc),
+      minimoEuro: num(row.rincaro_minimo_euro, DEFAULT_GOVERNANCE_THRESHOLDS.rincaroAcquisti.minimoEuro),
+    },
   });
 }
 
@@ -140,6 +181,9 @@ export function governanceToRow(cfg: GovernanceThresholds): Omit<GovernanceSetti
     sal_tolleranza_perc: n.salScostamento.tolleranzaPerc,
     marginalita_alert_enabled: n.marginalita.enabled,
     marginalita_soglia_perc: n.marginalita.sogliaMinimaPerc,
+    rincaro_acquisti_enabled: n.rincaroAcquisti.enabled,
+    rincaro_soglia_perc: n.rincaroAcquisti.sogliaPerc,
+    rincaro_minimo_euro: n.rincaroAcquisti.minimoEuro,
   };
 }
 
@@ -265,4 +309,58 @@ export function valutaMarginalita(
   const sottoSoglia = cfg.marginalita.enabled && !inPerdita && m < soglia;
   const semaforo: SemaforoMargine = inPerdita ? "rosso" : sottoSoglia ? "giallo" : "verde";
   return { semaforo, inPerdita, sottoSoglia, sogliaMinimaPerc: soglia };
+}
+
+// ── Valutatore 4: rincaro d'acquisto ─────────────────────────────────────────
+
+export interface RincaroEsito {
+  /** Vero quando questo carico va segnalato come rincaro. */
+  rincaro: boolean;
+  /** Di quanto il prezzo pagato sta sopra il medio della giacenza (%). */
+  scostamentoPerc: number;
+  /** Quanto si è speso in più su questo carico rispetto al medio (€). */
+  spesaInPiu: number;
+  messaggio: string | null;
+}
+
+/**
+ * Specchio in TypeScript di `public.magazzino_e_rincaro`: la decisione vera la
+ * prende il database al momento del carico (è lì che il prezzo pagato e il medio
+ * di prima sono entrambi in mano). Qui serve per mostrare l'esempio nelle
+ * impostazioni e per spiegare una riga già annotata, con le stesse regole:
+ *  - senza un medio di partenza non c'è un "solito" da confrontare;
+ *  - oltre la soglia % sopra il medio;
+ *  - E con una spesa in più oltre il minimo in euro.
+ */
+export function valutaRincaro(
+  cfg: GovernanceThresholds,
+  input: {
+    medioPrima: number | string | null | undefined;
+    prezzoPagato: number | string | null | undefined;
+    quantita: number | string | null | undefined;
+  },
+): RincaroEsito {
+  const medio = num(input.medioPrima);
+  const prezzo = num(input.prezzoPagato);
+  const qta = num(input.quantita);
+  const scostamentoPerc = medio > 0 ? Math.round(((prezzo - medio) / medio) * 1000) / 10 : 0;
+  const spesaInPiu = medio > 0 && qta > 0 ? Math.round(qta * (prezzo - medio) * 100) / 100 : 0;
+
+  const { enabled, sogliaPerc, minimoEuro } = cfg.rincaroAcquisti;
+  const rincaro =
+    enabled &&
+    medio > 0 &&
+    prezzo > 0 &&
+    qta > 0 &&
+    prezzo > medio * (1 + sogliaPerc / 100) &&
+    spesaInPiu >= minimoEuro;
+
+  return {
+    rincaro,
+    scostamentoPerc,
+    spesaInPiu,
+    messaggio: rincaro
+      ? `Pagato ${scostamentoPerc.toFixed(1)}% sopra il costo medio della giacenza: € ${spesaInPiu.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} di spesa in più su questo carico.`
+      : null,
+  };
 }

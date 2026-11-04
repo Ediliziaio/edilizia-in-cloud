@@ -21205,6 +21205,8 @@ export type Database = {
           paid_date: string | null
           payment_method: string | null
           purchase_order_id: string | null
+          quota_magazzino: number | null
+          quota_magazzino_righe: Json | null
           recurrence: string
           recurrence_auto: boolean
           recurrence_end_date: string | null
@@ -21234,6 +21236,8 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           purchase_order_id?: string | null
+          quota_magazzino?: number | null
+          quota_magazzino_righe?: Json | null
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
@@ -21263,6 +21267,8 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           purchase_order_id?: string | null
+          quota_magazzino?: number | null
+          quota_magazzino_righe?: Json | null
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
@@ -94559,6 +94565,8 @@ export type Database = {
           stock_item_id: string
           unit_cost: number | null
           uscita_id: string | null
+          valorizza_medio: boolean
+          medio_prima: number | null
           warehouse_id: string | null
         }
         Insert: {
@@ -94575,6 +94583,8 @@ export type Database = {
           stock_item_id: string
           unit_cost?: number | null
           uscita_id?: string | null
+          valorizza_medio?: boolean
+          medio_prima?: number | null
           warehouse_id?: string | null
         }
         Update: {
@@ -94591,6 +94601,8 @@ export type Database = {
           stock_item_id?: string
           unit_cost?: number | null
           uscita_id?: string | null
+          valorizza_medio?: boolean
+          medio_prima?: number | null
           warehouse_id?: string | null
         }
         Relationships: [
