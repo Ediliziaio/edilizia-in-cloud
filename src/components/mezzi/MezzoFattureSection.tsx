@@ -38,7 +38,7 @@ export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: strin
       return ((data ?? []) as Riga[]).sort((a, b) => (b.fatture_ricevute?.data_fattura ?? "").localeCompare(a.fatture_ricevute?.data_fattura ?? ""));
     },
   });
-  const aggiorna = () => void qc.invalidateQueries({ queryKey: chiave });
+  const aggiorna = (): void => { void qc.invalidateQueries({ queryKey: chiave }); };
   const conferma = useMutation({
     mutationFn: async (ids: string[]) => {
       const { data: u } = await supabase.auth.getUser();
