@@ -56,6 +56,7 @@ import {
   salFatturabili,
   salInFattura,
 } from "@/lib/orders/fatturaDaLavori";
+import { certificatoDelSal } from "@/lib/orders/salCertificato";
 import { parseBonusLines, getPreset, causaleBonificoParlante } from "@/lib/orders/bonusFiscali";
 import {
   CLAUSOLE_FATTURA,
@@ -679,7 +680,9 @@ export function CreaFatturaDialog({
   const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
   const fonteMostrata = fonteAperta ?? righeFattura.length === 0;
   const totali = composta.totali;
-  const avvisi = avvisiClausole(clausoleAttive);
+  // Il netto del certificato è già senza ritenuta: va detto, o la si toglie due volte.
+  const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
+  const avvisi = avvisiClausole(clausoleAttive, { ritenutaGiaTolta });
 
   const scriviRiga = (id: string, patch: TestiRiga) => setTestiRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   // Cambiare importo dal riquadro di sopra ridà la parola al calcolato per quella riga.

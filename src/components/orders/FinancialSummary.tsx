@@ -36,7 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Euro, CalendarIcon, Check, Clock, Building2, Landmark, AlertTriangle, Link2, FileText } from "lucide-react";
+import { Euro, CalendarIcon, Check, Clock, Building2, Landmark, AlertTriangle, Link2, FileText, Plus, X } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -499,6 +499,34 @@ export function FinancialSummary({
   };
 
   /** Evento, stato agganciato e giorni di preavviso della singola rata. */
+  // Il nome della rata lo scrive chi la incassa: «merce pronta», «al rogito», «SAL di marzo».
+  // Prima era fabbricato dal codice (Acconto 1, Rata 2, Saldo) e non si poteva toccare.
+  const handleInstallmentLabelChange = (position: number, label: string) => {
+    onInstallmentsChange(installments.map((i) => (i.position === position ? { ...i, label } : i)));
+  };
+
+  // Una rata si aggiunge e si toglie da sola. Cambiare il «numero rate» rifaceva il piano
+  // da capo e buttava via nomi ed eventi scritti a mano.
+  const rinumera = (righe: Installment[]): Installment[] => righe.map((r, idx) => ({ ...r, position: idx }));
+
+  const aggiungiRata = () => {
+    const saldo = installments.filter((i) => i.type === 'balance');
+    const prima = installments.filter((i) => i.type !== 'balance');
+    const nuove = rinumera([
+      ...prima,
+      { position: 0, label: `Rata ${prima.length + 1}`, type: 'deposit', amount: 0, is_paid: false },
+      ...saldo,
+    ]);
+    onInstallmentsChange(nuove);
+    onNumInstallmentsChange(nuove.length);
+  };
+
+  const togliRata = (position: number) => {
+    const nuove = rinumera(installments.filter((i) => i.position !== position));
+    onInstallmentsChange(nuove);
+    onNumInstallmentsChange(nuove.length);
+  };
+
   const handleInstallmentEventoChange = (position: number, patch: Partial<Installment>) => {
     onInstallmentsChange(installments.map(i => (i.position === position ? { ...i, ...patch } : i)));
   };
@@ -518,7 +546,26 @@ export function FinancialSummary({
   // Render an installment amount input + payment status
   const renderInstallmentInput = (inst: Installment, labelOverride?: string) => (
     <div key={inst.position} className="space-y-2">
-      <Label>{labelOverride || inst.label}</Label>
+      {labelOverride || readOnly ? (
+        <Label>{labelOverride || inst.label}</Label>
+      ) : (
+        <div className="flex items-center gap-1">
+          <Input
+            value={inst.label}
+            onChange={(e) => handleInstallmentLabelChange(inst.position, e.target.value)}
+            aria-label={`Nome della rata ${inst.position + 1}`}
+            maxLength={60}
+            placeholder="Nome della rata"
+            className="h-8 border-transparent bg-transparent px-1 text-sm font-medium hover:border-input focus:border-input"
+          />
+          {inst.type !== 'balance' && (
+            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+              aria-label={`Togli la rata ${inst.label}`} title="Togli questa rata" onClick={() => togliRata(inst.position)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      )}
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
         <Input
@@ -749,24 +796,23 @@ export function FinancialSummary({
             {/* Number of installments selector */}
             {!readOnly && (
               <div className="space-y-2">
-                <Label>Numero Rate</Label>
-                {/* Include anche 1 (solo Saldo): le commesse salvate senza acconti
-                    hanno numInstallments=1 — senza l'opzione il trigger restava
-                    VUOTO (value fuori lista) e sembrava un campo rotto. */}
-                <Select
-                  value={numInstallments.toString()}
-                  onValueChange={(v) => onNumInstallmentsChange(parseInt(v))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Seleziona numero rate" /></SelectTrigger>
-                  <SelectContent>
-                    {daContratto && <SelectItem value="0">Da confermare · nessuna rata impostata</SelectItem>}
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                      <SelectItem key={n} value={n.toString()}>
-                        {n === 1 ? "1 (solo Saldo, nessun acconto)" : `${n} rate (${n - 1} ${n - 1 === 1 ? 'Acconto' : 'Acconti'} + Saldo)`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label className="mr-auto">Rate · {installments.length}</Label>
+                  {/* Col contratto importato le rate possono non esserci ancora: si dice
+                      com'è, e finché ce ne sono si può tornare a «nessuna». */}
+                  {daContratto && (installments.length === 0 ? (
+                    <span className="text-sm text-muted-foreground">Nessuna rata: da confermare dal contratto</span>
+                  ) : (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => onNumInstallmentsChange(0)}>
+                      Torna a nessuna rata
+                    </Button>
+                  ))}
+                  {/* Una rata alla volta: il menu «numero rate» rifaceva il piano da capo e
+                      buttava via nomi, importi ed eventi scritti a mano. */}
+                  <Button type="button" variant="outline" size="sm" onClick={aggiungiRata}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />Aggiungi una rata
+                  </Button>
+                </div>
                 {(() => {
                   // Sintesi a colpo d'occhio: quanto è già allocato in acconti
                   // e quanto resta a saldo, senza dover scorrere i singoli campi.

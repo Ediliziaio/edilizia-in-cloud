@@ -80,12 +80,19 @@ export function prefillDaPreventivo(quote: Record<string, unknown>, rows: Array<
 
   // Il prezzo a corpo resta sul contratto: non genera un materiale fittizio.
   // ── Fasi di pagamento del preventivo → rate della commessa ──
+  // Quello che il preventivo sa lo sa anche la commessa (04/11/2026): il momento
+  // d'incasso, quale SAL, e la percentuale. Prima restavano indietro: le rate nascevano
+  // a data fissa con scadenze inventate, e «al SAL 2» non era più riconoscibile, così la
+  // card «SAL da emettere» della commessa restava vuota.
   const installments: Installment[] = parseQuotePaymentPhases(q.payment_phases).map((p, idx) => ({
     position: idx,
     label: p.label,
     type: p.type,
     amount: p.amount,
     is_paid: false,
+    percent: p.percent || undefined,
+    trigger_evento: p.evento ?? "data_fissa",
+    trigger_numero: p.evento === "sal_numero" ? p.numero ?? null : null,
   }));
   const paymentMethod = typeof q.payment_method === "string" ? q.payment_method : null;
   const hasFinancing = (Number(q.financing_amount) || 0) > 0 || q.financing_table_id != null;

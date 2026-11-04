@@ -314,7 +314,12 @@ export function componiFattura(
 }
 
 /** Le clausole che si contraddicono. */
-export function avvisiClausole(clausoleAttive: string[]): string[] {
+/**
+ * `ritenutaGiaTolta`: la fattura nasce da un SAL con il certificato di pagamento, dove il
+ * netto è già al netto della ritenuta. Spuntare anche la trattenuta la toglierebbe due
+ * volte, e la fattura uscirebbe più bassa del dovuto (04/11/2026).
+ */
+export function avvisiClausole(clausoleAttive: string[], contesto?: { ritenutaGiaTolta?: boolean }): string[] {
   const avvisi: string[] = [];
   const has = (id: string) => clausoleAttive.includes(id);
   const reverse = clausoleAttive.filter((id) => clausola(id)?.effetto === "reverse_charge");
@@ -332,6 +337,9 @@ export function avvisiClausole(clausoleAttive: string[]): string[] {
   }
   if (has("trattenuta_garanzia") && has("ritenuta_garanzia_pa")) {
     avvisi.push("Due trattenute a garanzia sulla stessa fattura: di solito ne vale una.");
+  }
+  if (contesto?.ritenutaGiaTolta && (has("trattenuta_garanzia") || has("ritenuta_garanzia_pa"))) {
+    avvisi.push("Il certificato di pagamento del SAL ha già tolto la ritenuta: con questa clausola la togli due volte e fatturi meno del dovuto.");
   }
   return avvisi;
 }

@@ -25,9 +25,11 @@ describe("il modello di pagamento nel modulo di nuova commessa", () => {
     expect(payload).not.toContain("percent");
   });
 
-  it("il modulo NON ha un selettore di modello: le rate sono nel riepilogo finanziario e il modello dell'azienda le precompila", () => {
-    expect(SORGENTE).not.toContain("ModelloPagamentoSelect");
-    expect(SORGENTE).not.toContain("applicaModelloPagamento");
+  // Dal 04/11/2026 il piano si sceglie anche QUI. Prima si poteva solo dopo aver creato
+  // la commessa, e in creazione restava il menu «numero rate», che rifaceva il piano da
+  // capo: «merce pronta», «al rogito» o «al SAL 2» non erano scrivibili da nessuna parte.
+  it("il piano di pagamento si sceglie già in creazione, e quello dell'azienda resta il punto di partenza", () => {
+    expect(SORGENTE).toContain("<ScegliPianoPagamento");
     expect(SORGENTE).toContain("rateDiPartenza(modelloIniziale)");
   });
 

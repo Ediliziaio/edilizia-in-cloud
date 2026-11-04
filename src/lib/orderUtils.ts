@@ -51,7 +51,11 @@ export function prefillExpectedDates(installments: Installment[]): Installment[]
   let step = 0;
   return installments.map((inst) => {
     step += 1;
+    // Una rata legata a un evento (merce in magazzino, SAL 2, fine lavori) prende la sua
+    // data dall'evento, e il database la riscrive: una data inventata qui non vale e
+    // confonde soltanto (04/11/2026).
     if (inst.expected_date || inst.is_paid) return inst;
+    if (inst.trigger_evento && inst.trigger_evento !== 'data_fissa') return inst;
     const d = new Date();
     d.setDate(d.getDate() + 30 * step);
     return { ...inst, expected_date: d.toLocaleDateString('en-CA') };
