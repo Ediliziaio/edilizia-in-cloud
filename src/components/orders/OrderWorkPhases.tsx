@@ -574,7 +574,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
         {/* Economia delle lavorazioni (06/10/2026): venduto, costo previsto e
             consuntivo fase per fase, al posto del riepilogo della sola
             manodopera. Solo in Lavorazioni e quando c'è qualcosa da sommare. */}
-        {showWork && (canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
+        {showWork && modoFasi !== "tabella" && (canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
           <RiepilogoEconomicoFasi
             economia={economia}
             fasi={phases}

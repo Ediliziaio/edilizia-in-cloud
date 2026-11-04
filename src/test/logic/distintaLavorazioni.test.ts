@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  avanzamentoFasi, contaFiltri, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
+  statoVoce, avanzamentoFasi, contaFiltri, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 
@@ -76,6 +76,14 @@ describe("ordine e nomi", () => {
     expect(ordineSpostando(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"]);
     expect(ordineSpostando(["a", "b"], "a", -1)).toBeNull();
     expect(ordineSpostando(["a", "b"], "b", 1)).toBeNull();
+  });
+});
+
+describe("stato della voce", () => {
+  it("dice fatta, i giorni lavorati o da fare", () => {
+    expect(statoVoce({ fatta: true, iniziata: true, giorniLavorati: 3, giorni: 5 }).testo).toBe("Fatta");
+    expect(statoVoce({ fatta: false, iniziata: true, giorniLavorati: 3, giorni: 5 })).toEqual({ testo: "3/5 gg", tono: "corso" });
+    expect(statoVoce({ fatta: false, iniziata: false, giorniLavorati: 0, giorni: null })).toEqual({ testo: "Da fare", tono: "fare" });
   });
 });
 

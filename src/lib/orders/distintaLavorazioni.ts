@@ -52,6 +52,8 @@ export interface RigaDistinta {
   giorni: number | null;
   /** Giorni di lavoro dichiarati dai rapportini approvati. */
   giorniLavorati: number;
+  /** Dal primo rapportino approvato che la dichiara. */
+  iniziata: boolean;
   fatta: boolean;
   venduto: number | null;
   /** Null se la riga non ha una voce o la voce non ha costi: non è un costo zero. */
@@ -113,6 +115,7 @@ export function righeDistinta(
         fine: s?.data_fine ?? null,
         giorni: s?.giorni ?? null,
         giorniLavorati: s?.giorni_lavorati ?? 0,
+        iniziata: !!s?.iniziata_il,
         // Una voce senza sottofase segue la fase: con la fase finita non resta «da fare».
         fatta: s?.fatta ?? (fase.status === "completata" || Number(fase.percentuale) >= 100),
         venduto: v.importo,
@@ -133,6 +136,7 @@ export function righeDistinta(
       fine: s.data_fine ?? null,
       giorni: s.giorni ?? null,
       giorniLavorati: s.giorni_lavorati ?? 0,
+      iniziata: !!s.iniziata_il,
       fatta: s.fatta,
       venduto: null,
       previsto: null,
@@ -283,4 +287,11 @@ export function ordineSpostando(ids: ReadonlyArray<string>, id: string, verso: -
   const nuovo = [...ids];
   [nuovo[i], nuovo[j]] = [nuovo[j], nuovo[i]];
   return nuovo;
+}
+
+/** Lo stato di una voce in parole: quello che ne dicono spunta e rapportini. */
+export function statoVoce(r: Pick<RigaDistinta, "fatta" | "iniziata" | "giorniLavorati" | "giorni">): { testo: string; tono: "fatta" | "corso" | "fare" } {
+  if (r.fatta) return { testo: "Fatta", tono: "fatta" };
+  if (r.iniziata || r.giorniLavorati > 0) return { testo: r.giorni ? `${r.giorniLavorati}/${r.giorni} gg` : `${r.giorniLavorati} gg`, tono: "corso" };
+  return { testo: r.giorni ? `${r.giorni} gg` : "Da fare", tono: "fare" };
 }

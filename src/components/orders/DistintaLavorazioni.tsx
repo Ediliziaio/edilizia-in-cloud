@@ -3,7 +3,7 @@
 // e si cambia cliccando sul dato. Per i cantieri con centinaia di voci.
 import { useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, Maximize2, Minimize2, ChevronDown, ChevronRight, Circle, ExternalLink, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -19,7 +19,7 @@ import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFas
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  avanzamentoFasi, contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta,
+  avanzamentoFasi, contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
   type EconomiaDistinta, type FaseDistinta, type FiltroDistinta, type RigaDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
@@ -37,7 +37,7 @@ export interface ChiLavora {
 export type FaseTabella = FaseDistinta & { start_date?: string | null; end_date?: string | null };
 
 // Scritte intere: Tailwind trova solo le classi che compaiono per esteso nel codice.
-const COLONNE = "md:grid-cols-[1.25rem_minmax(0,1fr)_4.25rem_4.25rem_5.5rem_5.5rem_1.25rem]";
+const COLONNE = "md:grid-cols-[1.25rem_minmax(12.5rem,1fr)_4.5rem_4.5rem_4rem_4rem_5.75rem_5.75rem_5.75rem_1.25rem]";
 
 const breve = (d: string | null | undefined) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "");
 const quantita = (n: number | null, u: string | null) => (n === null ? "" : `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${u ? ` ${u}` : ""}`);
@@ -74,9 +74,9 @@ function CellaData({ valore, etichetta, modificabile, rossa, onSalva }: {
 
 function Stat({ etichetta, children, nota }: { etichetta: string; children: ReactNode; nota?: ReactNode }) {
   return (
-    <div className="min-w-0">
-      <dt className="truncate text-[11px] text-muted-foreground">{etichetta}</dt>
-      <dd className="text-sm font-semibold tabular-nums">{children}{nota && <span className="block text-[11px] font-normal text-amber-700">{nota}</span>}</dd>
+    <div className="shrink-0">
+      <dt className="whitespace-nowrap text-[11px] text-muted-foreground">{etichetta}</dt>
+      <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{children}{nota && <span className="block text-[11px] font-normal text-amber-700">{nota}</span>}</dd>
     </div>
   );
 }
@@ -139,6 +139,7 @@ export function DistintaLavorazioni({
   const [filtro, setFiltro] = useState<FiltroDistinta>("tutte");
   const [testo, setTesto] = useState("");
   const [conIva, setConIva] = useState(false);
+  const [intero, setIntero] = useState(false);
   const [aperte, setAperte] = useState<ReadonlySet<string>>(() => new Set(fasi.filter((f) => f.status === "in_corso").slice(0, 3).map((f) => f.id)));
   const [scelteRighe, setScelteRighe] = useState<ReadonlySet<string>>(new Set());
   const [scelteFasi, setScelteFasi] = useState<ReadonlySet<string>>(new Set());
@@ -262,7 +263,6 @@ export function DistintaLavorazioni({
     setNuova("");
   };
 
-  const classeScelta = cn("transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=checked]:opacity-100", inSelezione && "[@media(hover:hover)]:opacity-100");
 
   const rigaFase = (f: FaseTabella, dellaFase: RigaDistinta[]) => {
     const aperta = !!faseId || filtrando || aperte.has(f.id);
@@ -274,50 +274,51 @@ export function DistintaLavorazioni({
     const senzaSottofase = dellaFase.filter((r) => r.voceId && !r.sottofaseId).length;
     const ritardo = !finita && !!f.end_date && f.end_date < oggi;
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-        <div className="flex min-w-0 flex-1 basis-40 items-center gap-1.5">
-          {puoModificare && !faseId && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className={classeScelta} />}
-          <button type="button" onClick={() => (faseId ? undefined : apriChiudi(f.id))} aria-expanded={aperta} className={cn("flex min-w-0 items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", faseId && "cursor-default")}>
+      <>
+        <div className="flex items-center">
+          {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} />}
+        </div>
+        <div className="min-w-0">
+          <button type="button" onClick={() => (faseId ? undefined : apriChiudi(f.id))} aria-expanded={aperta} className={cn("flex max-w-full items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", faseId && "cursor-default")}>
             {!faseId && (aperta ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />)}
             <span className="truncate text-[13px] font-semibold" title={f.name}>{f.name}</span>
-            <span className="shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground">{dellaFase.length}</span>
           </button>
-          {!!chi?.mezzi.length && <span title={chi.mezzi.join(", ")} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Truck className="h-3 w-3" aria-hidden="true" />{chi.mezzi.length}</span>}
-          {!!chi?.articoli && <span title={`${chi.articoli} articoli`} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Package className="h-3 w-3" aria-hidden="true" />{chi.articoli}</span>}
+          <div className="flex items-center gap-2">
+            {puoModificare || puoSquadre ? (
+              <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
+                className={cn("min-w-0 truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
+                {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "Nessuno" : "+ Assegna chi la fa"}
+              </button>
+            ) : <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={nomi.join(", ")}>{nomi.join(", ") || "Nessuno"}</span>}
+            {!!chi?.mezzi.length && <span title={chi.mezzi.join(", ")} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Truck className="h-3 w-3" aria-hidden="true" />{chi.mezzi.length}</span>}
+            {!!chi?.articoli && <span title={`${chi.articoli} articoli`} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Package className="h-3 w-3" aria-hidden="true" />{chi.articoli}</span>}
+          </div>
         </div>
-        <div className="flex items-center gap-1" title={`Avanzamento ${pct}%`}>
-          <span className="h-1 w-7 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
-          <span className="text-[11px] tabular-nums text-muted-foreground">{pct}%</span>
+        <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{dellaFase.length} voci</div>
+        <div className="flex items-center gap-1 max-md:col-start-2" title={`Avanzamento ${pct}%`}>
+          <span className="h-1 w-6 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
+          <span className="text-[11px] font-medium tabular-nums">{pct}%</span>
         </div>
-        <div className="w-28 min-w-0">
-          {puoModificare || puoSquadre ? (
-            <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
-              className={cn("block w-full truncate rounded px-0.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita && "font-medium text-amber-700", nomi.length === 0 && finita && "text-muted-foreground/40")}>
-              {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "—" : "+ Assegna"}
-            </button>
-          ) : <span className="block truncate text-xs" title={nomi.join(", ")}>{nomi.join(", ") || "—"}</span>}
+        <div className="max-md:hidden"><CellaData valore={f.start_date} etichetta={`Inizio di ${f.name}`} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} /></div>
+        <div className="max-md:hidden"><CellaData valore={f.end_date} etichetta={`Fine di ${f.name}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} /></div>
+        <div className="text-right text-xs font-semibold tabular-nums max-md:hidden">{vedeVenduto ? importo(e?.venduto) : ""}</div>
+        <div className="text-right text-xs font-semibold tabular-nums max-md:hidden">{vedeCosti ? (e?.costoPrevisto ? formatCurrency(e.costoPrevisto) : "—") : ""}</div>
+        <div className={cn("text-right text-xs font-semibold tabular-nums max-md:hidden", e && e.costoPrevisto > 0 && e.costoConsuntivo > e.costoPrevisto && "text-rose-700")}>{vedeCosti ? (e?.costoConsuntivo ? formatCurrency(e.costoConsuntivo) : "—") : ""}</div>
+        <div className="flex items-center justify-end max-md:col-start-3 max-md:row-start-1">
+          {puoModificare && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />Aggiungi sottofase</DropdownMenuItem>
+                {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />Crea {senzaSottofase} sottofasi dalle voci</DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Apri la scheda</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-        <div className="flex items-center gap-1 text-xs max-md:hidden">
-          <CellaData valore={f.start_date} etichetta={`Inizio di ${f.name}`} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} />
-          <span className="text-muted-foreground">→</span>
-          <CellaData valore={f.end_date} etichetta={`Fine di ${f.name}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} />
-        </div>
-        {vedeVenduto && <div className="text-right text-xs font-medium tabular-nums" title={conIva ? "Venduto con IVA" : "Venduto imponibile"}>{importo(e?.venduto)}</div>}
-        {vedeCosti && <div className="text-right text-xs tabular-nums text-muted-foreground" title="Costo previsto">{e?.costoPrevisto ? formatCurrency(e.costoPrevisto) : "—"}</div>}
-        {vedeCosti && <div className={cn("text-right text-xs tabular-nums text-muted-foreground", e && e.costoPrevisto > 0 && e.costoConsuntivo > e.costoPrevisto && "font-medium text-rose-700")} title="Costo consuntivo">{e?.costoConsuntivo ? formatCurrency(e.costoConsuntivo) : "—"}</div>}
-        {puoModificare && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />Aggiungi sottofase</DropdownMenuItem>
-              {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />Crea {senzaSottofase} sottofasi dalle voci</DropdownMenuItem>}
-              <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Apri la scheda</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+      </>
     );
   };
 
@@ -325,10 +326,11 @@ export function DistintaLavorazioni({
     const espansa = espanse.has(r.key);
     const ritardo = !r.fatta && !!r.fine && r.fine < oggi;
     const q = quantita(r.quantita, r.unita);
+    const stato = statoVoce(r);
     return (
       <>
         <div className="flex items-center">
-          {puoModificare && <Checkbox checked={scelteRighe.has(r.key)} onCheckedChange={() => inverti(setScelteRighe, r.key)} aria-label={`Seleziona ${r.descrizione}`} className={classeScelta} />}
+          {puoModificare && <Checkbox checked={scelteRighe.has(r.key)} onCheckedChange={() => inverti(setScelteRighe, r.key)} aria-label={`Seleziona ${r.descrizione}`} />}
         </div>
         <div className="flex min-w-0 items-center gap-1.5 pl-3">
           {r.sottofaseId ? (
@@ -348,21 +350,22 @@ export function DistintaLavorazioni({
             <button type="button" onClick={() => inverti(setEspanse, r.key)} aria-expanded={espansa} title={espansa ? undefined : r.descrizione}
               className={cn("min-w-0 flex-1 rounded text-left text-xs leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", !espansa && "line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
-              {q && <span className="ml-1 tabular-nums text-muted-foreground">· {q}</span>}
-              {r.giorni ? <span className="ml-1 tabular-nums text-muted-foreground">· {r.giorniLavorati > 0 ? `${r.giorniLavorati}/${r.giorni}` : r.giorni} gg</span> : null}
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
             </button>
           )}
         </div>
+        <div className="whitespace-nowrap text-right text-xs tabular-nums max-md:col-start-2 max-md:text-left">{q}</div>
+        <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>
         <div className="max-md:hidden">{r.sottofaseId ? <CellaData valore={r.inizio} etichetta={`Inizio di ${r.descrizione}`} modificabile={puoModificare} onSalva={(v) => salvaDataRiga(r, "inizio", v)} /> : null}</div>
         <div className="max-md:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={`Fine di ${r.descrizione}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeVenduto && r.venduto ? importo(r.venduto) : ""}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeCosti && r.previsto !== null ? formatCurrency(r.previsto) : ""}</div>
+        <div className="max-md:hidden" />
         <div className="flex items-center justify-end max-md:col-start-3 max-md:row-start-1">
           {puoModificare && r.sottofaseId && !inModifica && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label={`Altro per ${r.descrizione}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${r.descrizione}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setInModifica({ id: r.sottofaseId!, testo: r.descrizione.slice(0, 160) })}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
@@ -379,7 +382,7 @@ export function DistintaLavorazioni({
 
   const griglia = cn("group grid grid-cols-[1.25rem_minmax(0,1fr)_1.5rem] items-center gap-x-2 border-b px-2", COLONNE);
   const mostra = (e: Elemento) => {
-    if (e.tipo === "fase") return <div className="group border-b bg-muted/40 px-2 py-1 hover:bg-muted/70">{rigaFase(e.fase, e.righe)}</div>;
+    if (e.tipo === "fase") return <div className={cn(griglia, "bg-muted/50 py-1")}>{rigaFase(e.fase, e.righe)}</div>;
     if (e.tipo === "riga") return <div className={cn(griglia, "py-0.5 hover:bg-muted/30")}>{rigaVoce(e.riga)}</div>;
     return (
       <div className="border-b px-2 py-1 pl-9">
@@ -392,21 +395,26 @@ export function DistintaLavorazioni({
   };
 
   return (
-    <section aria-label="Lavorazioni della commessa" className="space-y-2">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border px-3 py-2 sm:grid-cols-4 lg:grid-cols-7">
+    <section aria-label="Lavorazioni della commessa" onKeyDown={(e) => { if (e.key === "Escape" && intero && e.target === e.currentTarget) setIntero(false); }} className={cn("space-y-2", intero && "fixed inset-0 z-50 overflow-y-auto bg-background p-3")}>
+      <div className="flex items-start gap-2">
+      <dl className="flex min-w-0 flex-1 flex-wrap items-start gap-x-6 gap-y-1.5 rounded-lg border px-3 py-1.5">
         {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
-        {vedeVenduto && <Stat etichetta="Venduto imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
+        {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
         {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
         {vedeCosti && <Stat etichetta="Previsto">{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
         {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? `+ ${formatCurrency(consuntivoSenzaFase)} senza fase` : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
         {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
         {vedeVenduto && vedeCosti && iva && daVersare && (
-          <div className="min-w-0" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
-            <dt className="truncate text-[11px] text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
-            <dd className="text-sm font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
+          <div className="shrink-0" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
+            <dt className="whitespace-nowrap text-[11px] text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
+            <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
           </div>
         )}
       </dl>
+      <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 gap-1 px-2 text-xs max-md:hidden" onClick={() => setIntero((v) => !v)}>
+        {intero ? <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" /> : <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />}{intero ? "Riduci" : "Schermo intero"}
+      </Button>
+      </div>
 
       <div className="grid gap-2 lg:grid-cols-[12rem_minmax(0,1fr)]">
       <div className="lg:hidden">
@@ -418,7 +426,7 @@ export function DistintaLavorazioni({
           </SelectContent>
         </Select>
       </div>
-      <nav aria-label="Fasi" className="hidden max-h-[78vh] space-y-0.5 self-start overflow-y-auto rounded-lg border p-1 lg:block">
+      <nav aria-label="Fasi" className={cn("hidden space-y-0.5 self-start overflow-y-auto rounded-lg border p-1 lg:block", intero ? "max-h-[calc(100vh-7.5rem)]" : "max-h-[78vh]")}>
         <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => { setFaseId(null); azzeraScelte(); }}
           className={cn("w-full rounded-md px-2 py-1 text-left text-xs font-medium hover:bg-muted", faseId === null && "bg-muted")}>
           Tutte le fasi <span className="font-normal text-muted-foreground">{tutte.length}</span>
@@ -430,7 +438,7 @@ export function DistintaLavorazioni({
           const v = economiaDi?.get(f.id)?.venduto ?? 0;
           return (
             <div key={f.id} className={cn("group flex items-start gap-1 rounded-md px-1.5 py-1 hover:bg-muted", faseId === f.id && "bg-muted")}>
-              {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className={cn("mt-0.5", classeScelta)} />}
+              {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className="mt-0.5" />}
               <button type="button" aria-current={faseId === f.id ? "true" : undefined} onClick={() => { setFaseId(f.id); setFiltro("tutte"); setScelteRighe(new Set()); }} className="min-w-0 flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className={cn("block truncate text-xs font-medium", senzaNessuno && "text-amber-700")} title={f.name}>{f.name}</span>
                 <span className="mt-0.5 flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground">
@@ -459,15 +467,17 @@ export function DistintaLavorazioni({
         {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
       </div>
 
-      <div ref={scrollRef} className="max-h-[78vh] overflow-y-auto rounded-lg border">
+      <div ref={scrollRef} className={cn("overflow-auto rounded-lg border", intero ? "max-h-[calc(100vh-7.5rem)]" : "max-h-[78vh]")}>
+        <div className="md:min-w-[49.5rem]">
         <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground md:grid", COLONNE)}>
-          <div /><div>Voce</div><div>Dal</div><div>Al</div>
+          <div /><div>Voce</div><div className="text-right">Quantità</div><div>Stato</div><div>Dal</div><div>Al</div>
           <div className="text-right">
             {vedeVenduto && (iva && aliquota > 0
               ? <button type="button" onClick={() => setConIva((v) => !v)} title="Cambia tra imponibile e con IVA" className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground">{conIva ? "Con IVA" : "Imponibile"}</button>
               : "Imponibile")}
           </div>
           <div className="text-right">{vedeCosti && "Previsto"}</div>
+          <div className="text-right">{vedeCosti && "Consuntivo"}</div>
           <div />
         </div>
         {elementi.length === 0 ? (
@@ -480,6 +490,7 @@ export function DistintaLavorazioni({
             })}
           </div>
         ) : elementi.map((e) => <div key={e.key}>{mostra(e)}</div>)}
+        </div>
       </div>
       </div>
       </div>

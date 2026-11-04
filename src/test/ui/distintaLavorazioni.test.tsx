@@ -73,7 +73,7 @@ describe("Tabella delle lavorazioni", () => {
     mostra({ vedeCosti: false, vedeVenduto: false, vedeMargini: false, iva });
     expect(screen.queryByText("Previsto")).toBeNull();
     expect(screen.queryByText("Consuntivo")).toBeNull();
-    expect(screen.queryByText("Venduto imponibile")).toBeNull();
+    expect(screen.queryByText("Imponibile")).toBeNull();
     expect(screen.queryByText("IVA da versare")).toBeNull();
     expect(screen.queryAllByText("900,00 €")).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /Senza previsto/ })).toBeNull();
@@ -151,6 +151,18 @@ describe("Tabella delle lavorazioni", () => {
     mostra({ economiaDi: vuota, voci: [], iva: { ...iva, valore_commessa: 85000 } });
     expect(riepilogo()).toHaveTextContent("85.000,00");
     expect(riepilogo()).toHaveTextContent("93.500,00");
+  });
+  it("su ogni voce si leggono quantità e stato", () => {
+    mostra();
+    expect(screen.getByText("10 mq")).toBeInTheDocument();
+    expect(screen.getByText("Da fare", { selector: "div" })).toBeInTheDocument();
+  });
+  it("lo schermo intero si apre e si chiude", () => {
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Schermo intero" }));
+    expect(screen.getByRole("region", { name: "Lavorazioni della commessa" })).toHaveClass("fixed");
+    fireEvent.click(screen.getByRole("button", { name: "Riduci" }));
+    expect(screen.getByRole("region", { name: "Lavorazioni della commessa" })).not.toHaveClass("fixed");
   });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });
