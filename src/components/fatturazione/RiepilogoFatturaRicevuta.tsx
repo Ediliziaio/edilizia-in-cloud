@@ -13,7 +13,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
-import { PagamentoRicevutaCella } from "@/components/fatturazione/PagamentoRicevuta";
+import { PagamentoRicevutaCella, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -455,6 +455,12 @@ export function RiepilogoFatturaRicevuta({
                   })()}
                 </dd>
 
+                {permessi.canViewCosts && (
+                  <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura}
+                    numeroContratto={d.subappalto?.numero_contratto} contrattoId={f.contratto_subappalto_id ? String(f.contratto_subappalto_id) : null}
+                    salId={f.sal_subappaltatore_id ? String(f.sal_subappaltatore_id) : null} cedentePiva={f.cedente_piva ? String(f.cedente_piva) : null}
+                    notaDiCredito={isNotaCreditoRicevuta(String(f.tipo_documento ?? ""))} />
+                )}
                 <dt className="text-muted-foreground">Verifica</dt>
                 <dd>
                   <VerificaFatturaPill id={String(f.id)} numero={f.numero_fattura ? String(f.numero_fattura) : null} puoCambiare={!!permessi.canViewCosts && !permessi.solaLettura}
@@ -486,19 +492,12 @@ export function RiepilogoFatturaRicevuta({
                   )}
                 </dd>
 
-                {d.subappalto ? (
-                  <>
-                    <dt className="text-muted-foreground">Subappalto</dt>
-                    <dd>Contratto {d.subappalto.numero_contratto || "senza numero"}</dd>
-                  </>
-                ) : null}
               </dl>
               {azioni.extraCollegamenti?.(d)}
             </section>
 
             {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
             <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
-            {permessi.canViewCosts && <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura} />}
 
             {/* Righe */}
             <section className="space-y-2">
