@@ -85,7 +85,7 @@ describe("il super admin entrato in un'azienda registra i costi", () => {
 
   it("è idempotente e non blocca la produzione", () => {
     expect(codice).toContain("set local lock_timeout = '3s'");
-    const creazioni = codice.match(/create (or replace )?function/g) ?? [];
+    const creazioni: string[] = codice.match(/create (or replace )?function/g) ?? [];
     expect(creazioni.every((c) => c.includes("or replace"))).toBe(true);
   });
 });
