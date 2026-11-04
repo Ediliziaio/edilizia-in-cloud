@@ -36,6 +36,7 @@ const COLORE: Record<StatoPagamento, string> = {
   da_pagare: "bg-amber-100 text-amber-800",
   da_registrare: "bg-slate-100 text-slate-700",
   nota_credito: "bg-violet-100 text-violet-800",
+  stornata: "bg-slate-100 text-slate-700",
 };
 
 const METODO: Record<string, string> = { riba: "RiBa", bonifico: "Bonifico", carta: "Carta", contanti: "Contanti" };

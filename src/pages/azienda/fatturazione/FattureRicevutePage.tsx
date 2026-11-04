@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PagamentoRicevutaCella, etichettaTipoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
+import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
 import { importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -1431,7 +1431,7 @@ export default function FattureRicevutePage() {
                         </button>
                       )
                     ) : nonSiPaga(f.tipo_documento) ? <span className="text-muted-foreground">—</span> : stornataDelTutto(f) ? (
-                      <StatoPill tono="neutro">Stornata</StatoPill>
+                      <StatoPill tono="grigio">Stornata</StatoPill>
                     ) : pagataSulCosto(f) && !pagataIl(f.id) ? (
                       <StatoPill tono="verde">Pagata{datiCosti?.pagati[f.company_cost_id!] ? ` ${formatDateShort(datiCosti.pagati[f.company_cost_id!]!)}` : ""}</StatoPill>
                     ) : pagataIl(f.id) ? (

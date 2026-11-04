@@ -66,7 +66,7 @@ describe("il partitario dopo una nota di credito", () => {
 });
 
 describe("il previsionale dopo una nota di credito", () => {
-  const costo = { id: "c1", name: "Fattura A", amount: 50, vat_rate: 22, is_paid: false, due_date: "2027-01-31", paid_date: null, recurrence: "once" };
+  const costo = { id: "c1", name: "Fattura A", amount: 50, vat_rate: 22, is_paid: false, due_date: "2027-01-31", paid_date: null as string | null, recurrence: "once" };
   const rataP = (numero: number, importo: number, stato: string, scadenza: string) =>
     ({ id: `r${numero}`, company_cost_id: "c1", numero, scadenza, importo, metodo: "riba", stato });
   const uscite = (rate: ReturnType<typeof rataP>[]) => {
