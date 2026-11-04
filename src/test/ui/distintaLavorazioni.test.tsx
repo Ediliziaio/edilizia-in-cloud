@@ -4,7 +4,7 @@ import { DistintaLavorazioni } from "@/components/orders/DistintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [], isLoading: false, isError: false }) }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[], isLoading: false, isError: false }) }));
 
 const fasi = [{ id: "f1", name: "Murature", percentuale: 64, status: "in_corso" }, { id: "f2", name: "Impianti", percentuale: 0, status: "da_iniziare" }];
 const sottofase: Sottofase = { id: "s1", phase_id: "f1", name: "Controparete", position: 0, peso: 1, fatta: false, fatta_il: null, data_fine: "2026-01-01" };
