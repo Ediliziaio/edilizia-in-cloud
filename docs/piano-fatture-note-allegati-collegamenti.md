@@ -153,6 +153,26 @@ l'IVA di queste uscite: qui si assume che **non** generino IVA detraibile.
   va deciso quale dei due comanda.
 - `f24_entries` non si cancella e passa da `fiscalita_guard`: si lavora per rettifica.
 
+### Fase 9: importare molte più fatture e sapere quante mancano (media)
+Richiesta aggiunta il 04/11/2026. Oggi il caricamento elabora una fattura alla volta nel
+browser, si ferma se si chiude la scheda e non dice se l'archivio è completo: 36 fatture
+emesse mancanti le ha notate una persona, guardando un mese con una sola fattura.
+
+**Prima di importare, un riepilogo:** quanti file, quante emesse e ricevute, quante già
+presenti, quante scartate dallo SDI, e solo dopo la conferma parte.
+
+**Durante:** più fatture in parallelo, con un tetto, e nuovo tentativo sugli errori
+passeggeri. Avanzamento con quante fatte, quante restano e quanto manca. Se si interrompe,
+ricaricando lo stesso file riparte da dove era: i doppioni si saltano senza rileggerli.
+Da provare con archivi veri: ogni file oltre il limite del gateway va gestito a parte.
+
+**Dopo: «Quante ne mancano»:**
+- **Emesse:** buchi nella numerazione per serie e anno, con l'elenco dei numeri mancanti.
+- **Emesse e ricevute:** fatture per mese, con l'avviso sul mese molto sotto la media.
+- **Documenti emessi con numero alto e data vecchia:** segnalati, non corretti.
+- **Limite:** sulle ricevute la numerazione è del fornitore, quindi i buchi non si possono
+  dedurre con certezza. La prova vera è il confronto col cassetto fiscale, se collegato.
+
 ## 4. Regole per tutte le fasi
 
 - Le migrazioni seguono `CLAUDE.md`: SQL idempotente, `apply_migration`, riallineamento
@@ -178,6 +198,7 @@ l'IVA di queste uscite: qui si assume che **non** generino IVA detraibile.
 | 6 | Fatture sui mezzi | Media | Sì | 4 |
 | 7 | Uscite senza fattura | Media | Sì | 4, 6, commercialista |
 | 8 | F24 | Piccola | Forse | 7 |
+| 9 | Import massivo e fatture mancanti | Media | Forse | 1 |
 
 ## 6. Domande aperte
 
