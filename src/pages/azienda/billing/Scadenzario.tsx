@@ -14,6 +14,7 @@ import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 import AdempimentiFiscali from "@/components/scadenzario/AdempimentiFiscali";
+import { IncassiPerSettimanaVista } from "@/components/scadenzario/IncassiPerSettimana";
 import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { useAuth } from "@/contexts/AuthContext";
@@ -288,6 +289,7 @@ export default function Scadenzario() {
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>
               <TabsTrigger value="pagate">Pagate<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
+              <TabsTrigger value="settimane">Per settimana</TabsTrigger>
               <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -395,7 +397,9 @@ export default function Scadenzario() {
       </div>
 
       {/* Adempimenti Fiscali tab */}
-      {tab === "adempimenti" ? (
+      {tab === "settimane" ? (
+        <IncassiPerSettimanaVista />
+      ) : tab === "adempimenti" ? (
         <AdempimentiFiscali />
       ) : (
         /* Table */
@@ -453,9 +457,10 @@ export default function Scadenzario() {
       >
         <PilloleFiltro
           titolo="Mostra"
-          valore={tab === "adempimenti" ? "tutte" : tab}
+          valore={tab === "adempimenti" || tab === "settimane" ? "tutte" : tab}
           onScegli={(v) => { setTab(v); setPage(1); }}
           scelte={[
+            { value: "settimane", label: "Per settimana" },
             { value: "tutte", label: "Tutte", n: counts.tutte },
             { value: "da_incassare", label: "Da incassare", n: counts.da_incassare },
             { value: "da_pagare", label: "Da pagare", n: counts.da_pagare },

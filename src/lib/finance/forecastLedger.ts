@@ -30,6 +30,8 @@ export interface ForecastMovement {
   source: string;
   href: string;
   estimated: boolean;
+  /** Rata di commessa con già la sua fattura, ancora da incassare. */
+  rataFatturata?: boolean;
   /** Gross amount before the forecast-only bank withholding assumption, never an actual tax receipt. */
   grossCents?: number;
   expectedDate?: string | null;
@@ -825,6 +827,7 @@ export function buildForecastLedger(
       orderId: d.order_id,
       estimated: false,
       sourceCategory: rate.get(d.id)?.type ?? null,
+      rataFatturata: !!(rata?.documento_fiscale_id || rata?.invoice_id),
     });
   }
   s.incassiRate.forEach((i, n) => {
