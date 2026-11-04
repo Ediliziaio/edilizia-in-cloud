@@ -12,12 +12,14 @@
 -- fattura può ricevere più note.
 --
 -- I SEGNI. Lo SDI ammette TD04 con importi positivi e negativi, e netto_a_pagare su una nota può essere
--- negativo o zero (visto su Bonarrigo): l'importo della nota è il valore assoluto del totale, meno la
--- ritenuta, e non passa da netto_a_pagare.
+-- negativo o zero: l'importo della nota è il valore assoluto del totale, meno la ritenuta, e non passa da
+-- netto_a_pagare.
 --
--- QUALI RATE. Da quella che scade prima. Si toccano le rate aperte; una RiBa già avvisata per ultima, e
--- l'esito lo dice, perché la banca addebita lo stesso l'importo pieno finché nessuno la blocca. Quel che
--- non trova rate aperte (fattura già pagata) è un credito verso il fornitore: resta scritto, non sparisce.
+-- QUALI RATE. Da quella che scade prima. Si toccano le rate aperte, lasciando in fondo gli addebiti bancari
+-- (RiBa, RID) che la banca fa comunque: prima quelli già avvisati o in scadenza entro 7 giorni, per ultimi
+-- quelli con la scadenza passata, che probabilmente sono già partiti anche se nessuno li ha segnati pagati.
+-- L'esito lo dice, perché nessuno di questi si ferma da solo. Quel che non trova rate aperte (fattura già
+-- pagata) è un credito verso il fornitore: resta scritto, non sparisce.
 --
 -- Una rata azzerata diventa «stornata»: non è stata pagata, e non è più da pagare.
 --
@@ -198,7 +200,9 @@ $fn$;
 revoke all on function public.nota_credito_importo(numeric, numeric, numeric, numeric) from public, anon;
 grant execute on function public.nota_credito_importo(numeric, numeric, numeric, numeric) to authenticated, service_role;
 
--- Porta la riduzione sulle rate aperte: prima le altre, poi le RiBa già avvisate; in ciascun gruppo dalla più vicina.
+-- Porta la riduzione sulle rate aperte: prima quelle che nessuna banca addebita da sola, poi gli addebiti avvisati
+-- o imminenti, per ultimi quelli già scaduti; in ciascun gruppo dalla più vicina. Un'insoluta o una richiamata non
+-- sta partendo: resta nel primo gruppo.
 create or replace function public.nota_credito_riduci_rate(p_storno uuid, p_quanto numeric)
 returns numeric language plpgsql security definer set search_path = '' as $fn$
 declare
@@ -215,7 +219,14 @@ begin
      where fattura_ricevuta_id = s.fattura_id
        and stato in ('da_pagare', 'da_bloccare', 'insoluta', 'richiamata', 'avvisata')
        and coalesce(importo, 0) > 0
-     order by (stato = 'avvisata'), scadenza nulls last, numero
+     order by case
+                when metodo in ('riba', 'rid') and stato in ('da_pagare', 'avvisata')
+                     and scadenza < (now() at time zone 'Europe/Rome')::date then 2
+                when stato = 'avvisata'
+                     or (metodo in ('riba', 'rid') and stato = 'da_pagare'
+                         and scadenza <= (now() at time zone 'Europe/Rome')::date + 7) then 1
+                else 0 end,
+              scadenza nulls last, numero
      for update
   loop
     exit when v_resto <= 0;
@@ -293,24 +304,27 @@ revoke all on function public.nota_credito_annulla_storno(uuid, boolean) from pu
 create or replace function public.nota_credito_riallinea(p_nota uuid, p_stato_prima text, p_costo_prima uuid)
 returns void language plpgsql security definer set search_path = '' as $fn$
 declare
-  v_quante integer; v_costi integer; v_costo uuid; v_somma numeric; n record;
+  v_quante integer; v_costi integer; v_senza_costo integer; v_costo uuid; v_somma numeric; n record; v_costo_prima uuid;
 begin
-  select count(*), count(distinct company_cost_id), (array_agg(company_cost_id) filter (where company_cost_id is not null))[1], coalesce(sum(importo), 0)
-    into v_quante, v_costi, v_costo, v_somma
+  select count(*), count(distinct company_cost_id), count(*) filter (where company_cost_id is null),
+         (array_agg(company_cost_id) filter (where company_cost_id is not null))[1], coalesce(sum(importo), 0)
+    into v_quante, v_costi, v_senza_costo, v_costo, v_somma
     from public.note_credito_storni where nota_id = p_nota;
+  -- Il costo d'ordine su cui stava la nota può essere stato cancellato nel frattempo: non si rimette un id che non c'è.
+  select id into v_costo_prima from public.company_costs where id = p_costo_prima;
   if v_quante = 0 then
     update public.fatture_ricevute
-       set stato = coalesce(p_stato_prima, stato), company_cost_id = p_costo_prima, updated_at = now()
+       set stato = coalesce(p_stato_prima, stato), company_cost_id = v_costo_prima, updated_at = now()
      where id = p_nota;
     return;
   end if;
   select totale_documento, imponibile_totale, iva_totale, ritenuta_importo into n from public.fatture_ricevute where id = p_nota;
-  -- Sul costo solo se la nota è tutta lì: è così che la leggono margine e pagamenti. Divisa su più costi,
-  -- o assegnata in parte, valgono le quote (costo_stornato_da_note).
+  -- Sul costo solo se la nota è tutta lì: è così che la leggono margine e pagamenti. Divisa su più costi, con una
+  -- quota su una fattura storica senza costo, o assegnata in parte, valgono le quote (costo_stornato_da_note).
   update public.fatture_ricevute
      set stato = 'contabilizzata',
-         company_cost_id = coalesce(p_costo_prima, case
-           when v_costi = 1 and v_somma >= public.nota_credito_importo(n.totale_documento, n.imponibile_totale, n.iva_totale, n.ritenuta_importo) - 0.01
+         company_cost_id = coalesce(v_costo_prima, case
+           when v_costi = 1 and v_senza_costo = 0 and v_somma >= public.nota_credito_importo(n.totale_documento, n.imponibile_totale, n.iva_totale, n.ritenuta_importo) - 0.01
              then v_costo end),
          updated_at = now()
    where id = p_nota;
@@ -511,7 +525,10 @@ begin
     select v_avvisate || coalesce(jsonb_agg(jsonb_build_object('fattura', f.numero_fattura, 'numero', e->'numero', 'scadenza', e->'scadenza', 'importo', e->'importo')), '[]'::jsonb)
       into v_avvisate
       from public.note_credito_storni s, jsonb_array_elements(s.rate_ridotte) e
-     where s.id = v_id and e->>'stato_prima' = 'avvisata';
+     where s.id = v_id
+       and (e->>'stato_prima' = 'avvisata'
+            or (e->>'metodo' in ('riba', 'rid') and e->>'stato_prima' = 'da_pagare'
+                and (e->>'scadenza')::date <= (now() at time zone 'Europe/Rome')::date + 7));
     if not exists (select 1 from public.rate_fornitori r where r.fattura_ricevuta_id = f.id and r.stato <> 'stornata')
        and exists (select 1 from public.rate_fornitori r where r.fattura_ricevuta_id = f.id) then
       v_chiuse := v_chiuse || to_jsonb(f.numero_fattura);
@@ -578,6 +595,13 @@ create or replace function public.fattura_con_storni_via()
 returns trigger language plpgsql security definer set search_path = '' as $fn$
 declare s record;
 begin
+  -- L'azienda sta sparendo (purge_deleted_companies: DELETE di companies e cascade): sparisce tutto, non c'è niente
+  -- da disfare. Riallineare qui aggiornerebbe righe che lo stesso comando deve ancora cancellare, e l'errore
+  -- («tuple to be updated was already modified…») fermerebbe la purga notturna di tutte le aziende.
+  if pg_trigger_depth() > 1
+     or not exists (select 1 from public.companies c where c.id = old.company_id and c.deleted_at is null) then
+    return old;
+  end if;
   for s in select * from public.note_credito_storni x where old.id in (x.nota_id, x.fattura_id) loop
     perform public.nota_credito_annulla_storno(s.id, true);
     if s.nota_id <> old.id then
@@ -629,7 +653,10 @@ begin
   if position('costo_stornato_da_note' in v_def) = 0 then
     v_nuova := replace(v_def, $q$tipo_documento in ('TD04','TD08') then$q$, $q$tipo_documento in ('TD04','TD08','passive_credit_note') then$q$);
     v_nuova := replace(v_nuova, $q$c.amount*(1+coalesce(c.vat_rate,0)/100)),2) into totale$q$, $q$c.amount*(1+coalesce(c.vat_rate,0)/100))-public.costo_stornato_da_note(c.id),2) into totale$q$);
-    if position('costo_stornato_da_note' in v_nuova) = 0 or position('passive_credit_note' in v_nuova) = 0 then
+    -- Un costo chiuso da una nota è pagato senza movimenti, e non c'è niente da riconciliare.
+    v_nuova := replace(v_nuova, $q$(c.is_paid and pagato=0)$q$,
+      $q$(c.is_paid and pagato=0 and totale<>0 and not exists(select 1 from public.rate_fornitori r where r.company_cost_id=c.id and r.stato='stornata'))$q$);
+    if position('costo_stornato_da_note' in v_nuova) = 0 or position('passive_credit_note' in v_nuova) = 0 or position($q$r.stato='stornata'$q$ in v_nuova) = 0 then
       raise exception 'dettaglio_pagamento_costo: punti da cambiare non trovati';
     end if;
     execute v_nuova;
@@ -661,7 +688,9 @@ begin
   if position('stornata' in v_def) = 0 then
     v_nuova := replace(replace(v_def, $q$(r.stato <> 'pagata'::text)$q$, $q$((r.stato <> 'pagata'::text) AND (r.stato <> 'stornata'::text))$q$),
                        $q$(x.stato <> 'pagata'::text)$q$, $q$((x.stato <> 'pagata'::text) AND (x.stato <> 'stornata'::text))$q$);
-    if v_nuova = v_def then raise exception 'v_uscite_stato: punto da cambiare non trovato'; end if;
+    if position($q$(r.stato <> 'stornata'::text)$q$ in v_nuova) = 0 or position($q$(x.stato <> 'stornata'::text)$q$ in v_nuova) = 0 then
+      raise exception 'v_uscite_stato: punti da cambiare non trovati';
+    end if;
     execute 'create or replace view public.v_uscite_stato with (security_invoker = on) as ' || v_nuova;
   end if;
 

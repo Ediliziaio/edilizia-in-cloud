@@ -29,8 +29,8 @@ export interface Proposta {
 
 export interface RiferimentoIrrisolto {
   riferimento: RiferimentoFattura;
-  motivo: "non_trovata" | "piu_fatture";
-  /** Con «piu_fatture»: tra quali scegliere. */
+  motivo: "non_trovata" | "piu_fatture" | "data_diversa";
+  /** Con «piu_fatture» e «data_diversa»: tra quali scegliere. */
   candidati: string[];
 }
 
@@ -59,9 +59,10 @@ export function capienza(f: FatturaCandidata): number {
 }
 
 /**
- * Da riferimenti e candidate alle proposte. Stesso numero e, se ce n'è più d'una, stessa data. La data della nota
- * esclude le fatture successive: una nota non storna ciò che non esiste ancora. Gli importi coprono la nota nell'ordine
- * dei riferimenti, fino a quanto ogni fattura può ricevere.
+ * Da riferimenti e candidate alle proposte. Stesso numero e date che non si contraddicono: una nota non storna ciò che
+ * non esiste ancora, e la numerazione riparte ogni anno, quindi la «12» di un altro anno è un'altra fattura anche se è
+ * l'unica con quel numero. Una data mancante non contraddice nulla. Gli importi coprono la nota nell'ordine dei
+ * riferimenti, fino a quanto ogni fattura può ricevere.
  */
 export function proponiStorno(
   riferimenti: RiferimentoFattura[],
@@ -74,17 +75,18 @@ export function proponiStorno(
   const prese = new Set<string>();
   for (const riferimento of riferimenti) {
     const chiave = numeroNormalizzato(riferimento.numero);
-    let trovate = candidate.filter((c) => chiave !== "" && numeroNormalizzato(c.numero_fattura) === chiave && !prese.has(c.id));
-    if (trovate.length > 1 && nota.data) {
-      const prima = trovate.filter((c) => !c.data_fattura || c.data_fattura <= nota.data!);
-      if (prima.length > 0) trovate = prima;
+    const conNumero = candidate.filter((c) => chiave !== "" && numeroNormalizzato(c.numero_fattura) === chiave && !prese.has(c.id));
+    if (conNumero.length === 0) {
+      irrisolti.push({ riferimento, motivo: "non_trovata", candidati: [] });
+      continue;
     }
-    if (trovate.length > 1 && riferimento.data) {
+    let trovate = conNumero.filter((c) => !nota.data || !c.data_fattura || c.data_fattura <= nota.data);
+    if (riferimento.data) {
       const stessaData = trovate.filter((c) => c.data_fattura === riferimento.data);
-      if (stessaData.length > 0) trovate = stessaData;
+      trovate = stessaData.length > 0 ? stessaData : trovate.filter((c) => !c.data_fattura);
     }
     if (trovate.length === 0) {
-      irrisolti.push({ riferimento, motivo: "non_trovata", candidati: [] });
+      irrisolti.push({ riferimento, motivo: "data_diversa", candidati: conNumero.map((c) => c.id) });
       continue;
     }
     if (trovate.length > 1) {

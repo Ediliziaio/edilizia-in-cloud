@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Nota di credito ricevuta → fattura da stornare (04/11/2026, caso F). I numeri dei riferimenti vengono da note vere
- * di Bonarrigo e Renova. Il comportamento su rate e costo sta nel database ed è provato in transazione annullata.
+ * Nota di credito ricevuta → fattura da stornare (04/11/2026, caso F). I numeri dei riferimenti hanno la forma di note vere.
+ * Il comportamento su rate e costo sta nel database ed è provato in transazione annullata.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -58,6 +58,20 @@ describe("la proposta non collega mai una fattura incerta", () => {
   });
   it("una fattura successiva alla nota non può essere quella stornata", () => {
     const r = proponiStorno([{ numero: "1", data: null }], [f("a", "1", 100, { data_fattura: "2025-02-01" }), f("b", "1", 100, { data_fattura: "2026-12-01" })], { importo: 100, data: "2026-03-01" });
+    expect(r.proposte).toEqual([{ fatturaId: "a", importo: 100 }]);
+  });
+  it("lo stesso numero di un altro anno non si propone, anche se è l'unica", () => {
+    const r = proponiStorno([{ numero: "12", data: "2026-03-10" }], [f("a", "12", 100, { data_fattura: "2024-03-10" })], { importo: 100, data: "2026-04-01" });
+    expect(r.proposte).toEqual([]);
+    expect(r.irrisolti[0]).toMatchObject({ motivo: "data_diversa", candidati: ["a"] });
+  });
+  it("l'unica fattura col numero ma successiva alla nota non si propone", () => {
+    const r = proponiStorno([{ numero: "12", data: null }], [f("a", "12", 100, { data_fattura: "2026-09-01" })], { importo: 100, data: "2026-04-01" });
+    expect(r.proposte).toEqual([]);
+    expect(r.irrisolti[0].motivo).toBe("data_diversa");
+  });
+  it("una data mancante non contraddice nulla", () => {
+    const r = proponiStorno([{ numero: "12", data: "2026-03-10" }], [f("a", "12", 100, { data_fattura: null })], { importo: 100, data: "2026-04-01" });
     expect(r.proposte).toEqual([{ fatturaId: "a", importo: 100 }]);
   });
   it("niente riferimenti, niente proposte", () => {

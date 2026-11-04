@@ -125,8 +125,8 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
       if (Number(r.non_assegnato) > 0) parti.push(`${formatCurrency(r.non_assegnato)} della nota restano da assegnare.`);
       toast.success(`Debito ridotto di ${formatCurrency(r.stornato)}`, { description: parti.join(" ") || undefined });
       if (r.riba_avvisate?.length) {
-        toast.warning("Una RiBa già avvisata è stata ridotta", {
-          description: "La banca addebita l'importo pieno finché nessuno la blocca: avvisa il fornitore o blocca la RiBa.",
+        toast.warning("Ridotto un addebito già avvisato o vicino alla scadenza", {
+          description: "La banca addebita l'importo pieno finché nessuno la blocca, e se la scadenza è passata può averlo già fatto: controlla, poi avvisa il fornitore o blocca la RiBa.",
           duration: 12_000,
         });
       }
@@ -183,7 +183,9 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
               <p key={x.riferimento.numero} role="status" className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-900">
                 {x.motivo === "non_trovata"
                   ? `Il file cita la fattura «${x.riferimento.numero}», ma tra quelle di questo fornitore non c’è: scegli qui sotto, se è un’altra.`
-                  : `Più fatture di questo fornitore hanno il numero «${x.riferimento.numero}»: scegli tu quella giusta.`}
+                  : x.motivo === "data_diversa"
+                    ? `Il file cita la fattura «${x.riferimento.numero}», ma la data non torna con quella di questo fornitore: può essere un altro anno. Scegli tu.`
+                    : `Più fatture di questo fornitore hanno il numero «${x.riferimento.numero}»: scegli tu quella giusta.`}
               </p>
             ))}
             {!collegata && riferimenti.length === 0 && (

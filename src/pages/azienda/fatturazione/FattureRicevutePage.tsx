@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
 import { importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
+import { importoNotaCredito } from "@/lib/fatturazione/notaCreditoStorno";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
@@ -143,6 +144,7 @@ interface FatturaRicevuta {
   imponibile_totale: number | null;
   iva_totale: number | null;
   totale_documento: number | null;
+  ritenuta_importo: number | null;
   xml_url: string | null;
   /** Costo generato contabilizzando: c'è = la fattura è nei conti. */
   company_cost_id: string | null;
@@ -260,7 +262,8 @@ export default function FattureRicevutePage() {
   }, []);
   const stornataDelTutto = useCallback((f: FatturaRicevuta) => {
     const s = storni?.perFattura.get(f.id);
-    return !!s && s.importo >= Math.abs(Number(f.totale_documento) || 0) - 0.01;
+    // Quello che si deve al fornitore è al netto della ritenuta: con la ritenuta la nota non arriva al totale.
+    return !!s && s.importo >= importoNotaCredito(f) - 0.01;
   }, [storni]);
   const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
   const { data: parziali } = usePagamentiParzialiRicevute(companyId);
@@ -362,7 +365,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false });

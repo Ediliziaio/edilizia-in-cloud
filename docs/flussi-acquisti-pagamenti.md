@@ -299,12 +299,16 @@ escluse dall'aggancio automatico fattura→ODA (giusto).
 
 **Dal 04/11/2026** (`20281119100000_nota_credito_riduce_debito`): da Fatture
 ricevute, «Collega alla fattura». Il riferimento in `DatiFattureCollegate` si
-trova già spuntato se indica una sola fattura dello stesso fornitore; se non c'è
-o non è univoco lo si dice e si sceglie a mano. Conferma sempre una persona.
+trova già spuntato se indica una sola fattura dello stesso fornitore e le date non
+lo contraddicono; se non c'è, non è univoco o la data non torna lo si dice e si
+sceglie a mano. Conferma sempre una persona.
 `nota_credito_collega` scrive in `note_credito_storni` e:
 - abbassa il costo dell'imponibile della quota;
-- riduce le rate aperte dalla più vicina, una RiBa già avvisata per ultima (la
-  banca addebita l'importo pieno finché nessuno la blocca, e l'esito lo dice);
+- riduce le rate aperte dalla più vicina, lasciando in fondo gli addebiti
+  bancari (RiBa, RID): prima quelli avvisati o in scadenza entro 7 giorni, per
+  ultimi quelli già scaduti, che possono essere partiti anche se nessuno li ha
+  segnati pagati. La banca addebita l'importo pieno finché nessuno la blocca, e
+  l'esito lo dice;
 - una rata azzerata diventa `stornata`: né pagata né da pagare. Tutte chiuse, il
   costo risulta saldato;
 - quel che non trova rate aperte è un credito verso il fornitore
