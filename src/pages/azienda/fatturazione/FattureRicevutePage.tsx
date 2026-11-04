@@ -2,7 +2,8 @@ import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
+import { PagamentoRicevutaCella, etichettaTipoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
+import { importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
@@ -249,6 +250,7 @@ export default function FattureRicevutePage() {
   const permessiCosti = usePermissions();
   const { data: pagate } = usePagamentiRicevute(companyId);
   const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
+  const { data: parziali } = usePagamentiParzialiRicevute(companyId);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -487,7 +489,7 @@ export default function FattureRicevutePage() {
     const totale = fatture.length;
     const nonLette = fatture.filter((f) => f.stato === "non_letta").length;
     const contabilizzate = fatture.filter((f) => f.stato === "contabilizzata").length;
-    const importoTotale = fatture.reduce((s, f) => s + (f.totale_documento ?? 0), 0);
+    const importoTotale = importoFornitori(fatture);
     // Fatture importate senza importi (es. cassetto SDI Aruba): il totale le
     // conta come 0 → lo dichiariamo, così il KPI non sembra falsato.
     const senzaImporto = fatture.filter((f) => f.totale_documento == null).length;
@@ -512,7 +514,7 @@ export default function FattureRicevutePage() {
       daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata").length,
       senzaOrdine: fatture.filter((f) => !haCollegamento(f)).length,
       daVerificare: fatture.filter((f) => f.stato !== "rifiutata" && !verificata(f)).length,
-      daPagare: fatture.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataSulCosto(f) && !pagataIl(f.id)).length,
+      daPagare: fatture.filter((f) => !nonSiPaga(f.tipo_documento) && !pagataSulCosto(f) && !pagataIl(f.id)).length,
     }),
     [fatture, haCollegamento, verificata, pagataIl, pagataSulCosto],
   );
@@ -568,7 +570,7 @@ export default function FattureRicevutePage() {
       result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata");
     }
     if (pagamentoFilter === "da_pagare") {
-      result = result.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataSulCosto(f) && !pagataIl(f.id));
+      result = result.filter((f) => !nonSiPaga(f.tipo_documento) && !pagataSulCosto(f) && !pagataIl(f.id));
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -1347,7 +1349,7 @@ export default function FattureRicevutePage() {
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
                 <div className={`mt-0.5 text-[11px] leading-tight ${pagataIl(f.id) || pagataSulCosto(f) ? "text-emerald-600" : f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
-                  {isNotaCreditoRicevuta(f.tipo_documento) ? etichettaStato(f) : pagataIl(f.id) || pagataSulCosto(f) ? "Pagata" : "Da pagare"}
+                  {nonSiPaga(f.tipo_documento) ? etichettaStato(f) : pagataIl(f.id) || pagataSulCosto(f) ? "Pagata" : parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}
                 </div>
               </div>
             </button>
@@ -1407,12 +1409,12 @@ export default function FattureRicevutePage() {
                     {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : <VerificaFatturaPill id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
                   </TableCell>
                   <TableCell>
-                    {isNotaCreditoRicevuta(f.tipo_documento) ? <span className="text-muted-foreground">—</span> : pagataSulCosto(f) && !pagataIl(f.id) ? (
+                    {nonSiPaga(f.tipo_documento) ? <span className="text-muted-foreground">—</span> : pagataSulCosto(f) && !pagataIl(f.id) ? (
                       <StatoPill tono="verde">Pagata{datiCosti?.pagati[f.company_cost_id!] ? ` ${formatDateShort(datiCosti.pagati[f.company_cost_id!]!)}` : ""}</StatoPill>
                     ) : pagataIl(f.id) ? (
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                     ) : (
-                      <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">Da pagare<PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} /></span>
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">{parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}<PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} /></span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -1607,7 +1609,7 @@ export default function FattureRicevutePage() {
                   ? ` · divisa tra ${quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ")}`
                   : ""}
               </p>
-              {!isNotaCreditoRicevuta(dettaglioMobile.tipo_documento) && (
+              {!nonSiPaga(dettaglioMobile.tipo_documento) && (
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Pagamento</span>
                   <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />
