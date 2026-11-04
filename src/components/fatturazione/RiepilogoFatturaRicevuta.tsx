@@ -18,6 +18,7 @@ import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
 import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
 import { usePermissions } from "@/hooks/usePermissions";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
+import { CollegamentiFattura } from "@/components/fatturazione/CollegamentiFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import {
@@ -497,6 +498,7 @@ export function RiepilogoFatturaRicevuta({
 
             {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
             <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
+            {permessi.canViewCosts && <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura} />}
 
             {/* Righe */}
             <section className="space-y-2">
