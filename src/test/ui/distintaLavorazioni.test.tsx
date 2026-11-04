@@ -9,7 +9,7 @@ const voci = [
   { id: "v1", phase_id: "f1", position: 0, descrizione: "Controparete", unita: "mq", quantita: 10, costo_manodopera: 5, costo_materiali: 5, importo: 200, origine_codice: "A1", subphase_id: "s1" as string | null },
   { id: "v2", phase_id: "f2", position: 0, descrizione: "Tubazione", unita: "m", quantita: 2, costo_manodopera: 0, costo_materiali: 0, importo: 50, origine_codice: "B2", subphase_id: null as string | null },
 ];
-const azioni = { onSegna: vi.fn(), onSegnaTutte: vi.fn(), onPianifica: vi.fn(), onPianificaTutte: vi.fn(), onDalleVoci: vi.fn(), onApriScheda: vi.fn() };
+const azioni = { onSegna: vi.fn(), onSegnaTutte: vi.fn(), onPianifica: vi.fn(), onPianificaTutte: vi.fn(), onDalleVoci: vi.fn(), onAggiungi: vi.fn(), onRinomina: vi.fn(), onElimina: vi.fn(), onRiordina: vi.fn(), onApriScheda: vi.fn() };
 const mostra = (extra: Partial<React.ComponentProps<typeof DistintaLavorazioni>> = {}) => render(
   <DistintaLavorazioni fasi={fasi} sottofasiDi={new Map([["f1", [sottofase]]])} voci={voci}
     economiaDi={new Map([["f1", { venduto: 900, costoPrevisto: 400, costoConsuntivo: 77 }], ["f2", { venduto: 100, costoPrevisto: 0, costoConsuntivo: 0 }]])}
@@ -132,6 +132,28 @@ describe("Distinta delle lavorazioni", () => {
   it("con la fase finita, una voce senza sottofase non resta da fare", () => {
     mostra({ fasi: [fasi[0], { id: "f2", name: "Impianti", percentuale: 100 }] });
     expect(screen.getByRole("button", { name: /Da fare/ })).toHaveTextContent("1");
+  });
+  it("aggiunge una sottofase alla fase aperta", () => {
+    mostra();
+    expect(screen.queryByLabelText("Nuova sottofase")).toBeNull();
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Fasi" })).getByRole("button", { name: /^Murature/ }));
+    fireEvent.change(screen.getByLabelText("Nuova sottofase"), { target: { value: " Rasatura " } });
+    fireEvent.keyDown(screen.getByLabelText("Nuova sottofase"), { key: "Enter" });
+    expect(azioni.onAggiungi).toHaveBeenCalledExactlyOnceWith("f1", "Rasatura");
+  });
+  it("mette le righe scelte in fila dai giorni scritti", () => {
+    mostra();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona Controparete" }));
+    const barra = screen.getByRole("group", { name: "Azioni sulle righe scelte" });
+    fireEvent.change(within(barra).getByLabelText("Inizio per le righe scelte"), { target: { value: "2026-12-01" } });
+    fireEvent.change(within(barra).getByLabelText("Giorni per ogni riga scelta"), { target: { value: "3" } });
+    fireEvent.click(within(barra).getByRole("button", { name: "Metti in fila" }));
+    expect(azioni.onPianificaTutte).toHaveBeenCalledExactlyOnceWith([{ id: "s1", data_inizio: "2026-12-01", data_fine: "2026-12-03", giorni: 3 }]);
+  });
+  it("una voce senza sottofase non ha comandi di riga", () => {
+    mostra();
+    expect(screen.getByRole("button", { name: "Altro per Controparete" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Altro per Tubazione" })).toBeNull();
   });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false });

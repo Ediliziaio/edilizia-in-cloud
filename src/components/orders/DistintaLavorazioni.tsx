@@ -2,7 +2,7 @@
 // Tutte le voci della commessa, una riga ciascuna, con la stessa riga vista in modi diversi.
 import { useMemo, useRef, useState, type FocusEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ListChecks, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ListChecks, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -10,15 +10,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  avanzamentoFasi, contaFiltri, dateValide, FILTRI_DISTINTA, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta,
+  avanzamentoFasi, contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, totaliDistinta,
   type EconomiaDistinta, type FaseDistinta, type FiltroDistinta, type RigaDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
-import type { Sottofase } from "@/lib/orders/sottofasi";
+import type { GiornoLavorativo, Sottofase } from "@/lib/orders/sottofasi";
 import { cn } from "@/lib/utils";
 
 type Vista = "struttura" | "pianificazione" | "economia";
@@ -60,13 +61,19 @@ interface Props {
   onPianifica: (id: string, piano: { data_inizio: string | null; data_fine: string | null; giorni: number | null }) => void;
   onPianificaTutte: (passi: Array<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => void;
   onDalleVoci: (faseId: string) => void;
+  onAggiungi: (faseId: string, nome: string) => void;
+  onRinomina: (id: string, nome: string) => void;
+  onElimina: (id: string) => void;
+  onRiordina: (ids: string[]) => void;
+  /** I giorni di lavoro del cantiere, per mettere le righe in fila. */
+  lavorativo?: GiornoLavorativo;
   /** Squadre, ditte, note e materiali restano nella scheda della fase. */
   onApriScheda: (faseId: string) => void;
 }
 
 export function DistintaLavorazioni({
   fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, iva, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onSegna, onSegnaTutte, onPianifica, onPianificaTutte, onDalleVoci, onApriScheda,
+  onSegna, onSegnaTutte, onPianifica, onPianificaTutte, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   const viste = VISTE.filter((v) => v.value !== "economia" || vedeCosti || vedeVenduto);
   const [vista, setVista] = useState<Vista>("struttura");
@@ -79,6 +86,10 @@ export function DistintaLavorazioni({
   const [bloccoFine, setBloccoFine] = useState("");
   const [divisione, setDivisione] = useState<string | null>(null);
   const [conIva, setConIva] = useState(false);
+  const [bloccoGiorni, setBloccoGiorni] = useState("");
+  const [nuova, setNuova] = useState("");
+  const [inModifica, setInModifica] = useState<{ id: string; testo: string } | null>(null);
+  const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
 
   const scegliFase = (id: string | null) => { setFaseId(id); setScelte(new Set()); };
 
@@ -158,6 +169,35 @@ export function DistintaLavorazioni({
     setBloccoInizio("");
     setBloccoFine("");
   };
+  const giorniScritti = bloccoGiorni === "" ? null : Number(bloccoGiorni);
+  const mettiInFila = () => {
+    if (giorniScritti !== null && (!Number.isInteger(giorniScritti) || giorniScritti < 1 || giorniScritti > 3650)) { toast.error("Scrivi i giorni con un numero intero."); return; }
+    const { passi, senzaGiorni: senza } = dateInFila(conSottofase, bloccoInizio || oggi, giorniScritti, lavorativo ?? (() => true));
+    if (senza.length > 0) { toast.error(`${senza.length === 1 ? "1 riga non ha" : `${senza.length} righe non hanno`} i giorni: scrivili qui accanto.`); return; }
+    if (passi.length === 0) { toast.error("Nessuna riga da mettere in fila: quelle fatte restano dove sono."); return; }
+    onPianificaTutte(passi);
+    setScelte(new Set());
+    setBloccoInizio("");
+    setBloccoFine("");
+    setBloccoGiorni("");
+  };
+  const sposta = (r: RigaDistinta, verso: -1 | 1) => {
+    const ids = (sottofasiDi.get(r.faseId) ?? []).map((s) => s.id);
+    const nuovo = r.sottofaseId ? ordineSpostando(ids, r.sottofaseId, verso) : null;
+    if (nuovo) onRiordina(nuovo);
+  };
+  const confermaNome = (r: RigaDistinta) => {
+    if (!inModifica) return;
+    const nome = inModifica.testo.trim();
+    setInModifica(null);
+    if (nome && nome !== r.descrizione) onRinomina(inModifica.id, nome);
+  };
+  const aggiungi = () => {
+    const nome = nuova.trim();
+    if (!faseId || !nome) return;
+    onAggiungi(faseId, nome);
+    setNuova("");
+  };
   const segnaBlocco = (fatta: boolean) => {
     const ids = conSottofase.filter((r) => r.fatta !== fatta).map((r) => r.sottofaseId!);
     if (ids.length > 0) onSegnaTutte(ids, fatta);
@@ -194,19 +234,52 @@ export function DistintaLavorazioni({
             : <span title="Non ha ancora una sottofase" className="block h-4 w-4 rounded-sm border border-dashed border-muted-foreground/40" />}
         </div>
         <div className="hidden min-w-0 items-center truncate font-mono text-[11px] text-muted-foreground sm:flex" title={r.codice ?? undefined}>{r.codice ?? ""}</div>
-        <button
-          type="button"
-          onClick={() => {
-            const nuove = new Set(aperte);
-            if (aperta) nuove.delete(r.key); else nuove.add(r.key);
-            setAperte(nuove);
-          }}
-          aria-expanded={aperta}
-          title={aperta ? undefined : r.descrizione}
-          className={cn("min-w-0 self-center rounded text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", !aperta && "truncate", r.fatta && "text-muted-foreground line-through")}
-        >
-          {r.descrizione}
-        </button>
+        <div className="flex min-w-0 items-center gap-1">
+          {inModifica && inModifica.id === r.sottofaseId ? (
+            <Input
+              autoFocus
+              value={inModifica.testo}
+              maxLength={160}
+              aria-label={`Nuovo nome di ${r.descrizione}`}
+              onChange={(e) => setInModifica({ ...inModifica, testo: e.target.value })}
+              onBlur={() => confermaNome(r)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); confermaNome(r); }
+                else if (e.key === "Escape") setInModifica(null);
+              }}
+              className="h-6 min-w-0 flex-1 px-1 text-xs"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                const nuove = new Set(aperte);
+                if (aperta) nuove.delete(r.key); else nuove.add(r.key);
+                setAperte(nuove);
+              }}
+              aria-expanded={aperta}
+              title={aperta ? undefined : r.descrizione}
+              className={cn("min-w-0 flex-1 rounded text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", !aperta && "truncate", r.fatta && "text-muted-foreground line-through")}
+            >
+              {r.descrizione}
+            </button>
+          )}
+          {puoModificare && r.sottofaseId && !inModifica && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 shrink-0 text-muted-foreground" aria-label={`Altro per ${r.descrizione}`}>
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setInModifica({ id: r.sottofaseId!, testo: r.descrizione.slice(0, 160) })}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => sposta(r, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />Sposta su</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => sposta(r, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />Sposta giù</DropdownMenuItem>
+                <DropdownMenuItem className="text-rose-700" onClick={() => setDaEliminare(r)}><Trash2 className="mr-2 h-3.5 w-3.5" />Elimina</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
         {vista === "struttura" && <>
           <div className="self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left">{quantita(r.quantita)} <span className="text-muted-foreground sm:hidden">{r.unita}</span></div>
           <div className="hidden self-center text-xs text-muted-foreground sm:block">{r.unita ?? ""}</div>
@@ -306,6 +379,12 @@ export function DistintaLavorazioni({
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca per descrizione o codice…" aria-label="Cerca nella distinta" className="h-8 pl-8" />
           </div>
+          {puoModificare && faseId && (
+            <div className="flex items-center gap-1">
+              <Input value={nuova} maxLength={160} onChange={(e) => setNuova(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aggiungi(); } }} placeholder="Nuova sottofase…" aria-label="Nuova sottofase" className="h-8 w-44 text-xs" />
+              <Button type="button" variant="outline" size="icon" className="h-8 w-8" disabled={!nuova.trim()} onClick={aggiungi} aria-label="Aggiungi la sottofase"><Plus className="h-3.5 w-3.5" /></Button>
+            </div>
+          )}
           {puoModificare && senzaSottofase > 0 && faseId && (
             <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => (Number(faseAperta?.percentuale) > 0 ? setDivisione(faseId) : onDalleVoci(faseId))}>
               <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Crea {senzaSottofase} sottofasi
@@ -333,6 +412,8 @@ export function DistintaLavorazioni({
             <label className="flex items-center gap-1">dal<Input type="date" value={bloccoInizio} onChange={(e) => setBloccoInizio(e.target.value)} aria-label="Inizio per le righe scelte" className="h-6 w-[8.5rem] px-1 text-xs" /></label>
             <label className="flex items-center gap-1">al<Input type="date" value={bloccoFine} onChange={(e) => setBloccoFine(e.target.value)} aria-label="Fine per le righe scelte" className="h-6 w-[8.5rem] px-1 text-xs" /></label>
             <Button type="button" size="sm" className="h-6 text-xs" disabled={conSottofase.length === 0 || (!bloccoInizio && !bloccoFine)} onClick={applicaDate}>Applica le date</Button>
+            <label className="flex items-center gap-1">giorni<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label="Giorni per ogni riga scelta" className="h-6 w-14 px-1 text-xs" /></label>
+            <Button type="button" variant="outline" size="sm" className="h-6 text-xs" disabled={conSottofase.length === 0} title="Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro" onClick={mettiInFila}>Metti in fila</Button>
             <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 text-xs" onClick={() => setScelte(new Set())}>Annulla</Button>
           </div>
         )}
@@ -366,6 +447,21 @@ export function DistintaLavorazioni({
         </div>
         {vedeCosti && economia && <p className="text-[11px] text-muted-foreground">Il consuntivo si legge per fase: costi, ore e fatture non sono ancora collegati alle singole voci.</p>}
       </div>
+
+      <AlertDialog open={!!daEliminare} onOpenChange={(aperto) => { if (!aperto) setDaEliminare(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare la sottofase?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {daEliminare?.descrizione.slice(0, 160)}{daEliminare?.voceId ? ". La voce con quantità e importo resta nella fase." : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (daEliminare?.sottofaseId) onElimina(daEliminare.sottofaseId); setDaEliminare(null); }}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!divisione} onOpenChange={(aperto) => { if (!aperto) setDivisione(null); }}>
         <AlertDialogContent>

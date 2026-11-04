@@ -679,6 +679,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 onPianifica={(id, piano) => pianificaSottofase.mutate({ id, ...piano })}
                 onPianificaTutte={(passi) => pianificaSottofasi.mutate(passi)}
                 onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
+                onAggiungi={(phaseId, nome) => aggiungiSottofase.mutate({ phaseId, nome })}
+                onRinomina={(id, nome) => rinominaSottofase.mutate({ id, nome })}
+                onElimina={(id) => eliminaSottofase.mutate(id)}
+                onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
+                lavorativo={calendario.lavorativo}
                 onApriScheda={(faseId) => {
                   setSearch(phases.find((p) => p.id === faseId)?.name ?? "");
                   setFilter("all");

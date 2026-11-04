@@ -87,10 +87,9 @@ export function useSottofasi(orderId: string | null | undefined) {
   // Il piano in fila (pianoInSequenza): giorni e date di più sottofasi in una volta.
   const pianificaTutte = useMutation({
     mutationFn: async (passi: ReadonlyArray<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => {
-      for (const { id, data_inizio, data_fine, giorni } of passi) {
-        const { error } = await db.from("order_work_subphases").update({ data_inizio, data_fine, giorni }).eq("id", id);
-        if (error) throw error;
-      }
+      // Una scrittura sola: tutto o niente, anche con centinaia di righe.
+      const { error } = await db.rpc("sottofasi_pianifica_in_blocco", { p_passi: passi });
+      if (error) throw error;
     },
     onSuccess: aggiorna,
     onError,
@@ -99,10 +98,8 @@ export function useSottofasi(orderId: string | null | undefined) {
   // L'ordine conta: il piano in fila le mette una dopo l'altra in quest'ordine.
   const riordina = useMutation({
     mutationFn: async (ids: ReadonlyArray<string>) => {
-      for (const [position, id] of ids.entries()) {
-        const { error } = await db.from("order_work_subphases").update({ position }).eq("id", id);
-        if (error) throw error;
-      }
+      const { error } = await db.rpc("sottofasi_riordina", { p_ids: ids });
+      if (error) throw error;
     },
     onSuccess: aggiorna,
     onError,

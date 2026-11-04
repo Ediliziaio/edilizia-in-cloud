@@ -5,7 +5,7 @@
  * Una voce può non avere ancora una sottofase e una sottofase può non avere una voce:
  * nella distinta ci sono tutte e due, una riga sola quando sono collegate.
  */
-import type { Sottofase } from "./sottofasi";
+import { fineLavorativa, fineDaGiorni, primoLavorativo, type GiornoLavorativo, type Sottofase } from "./sottofasi";
 
 export interface FaseDistinta {
   id: string;
@@ -96,6 +96,8 @@ export function righeDistinta(
 
     const daVoci = vociFase.map((v): RigaDistinta => {
       const s = v.subphase_id ? perId.get(v.subphase_id) : undefined;
+      // Una sottofase rinominata a mano mostra il suo nome; quella nata dalla voce il testo intero.
+      const rinominata = !!s && !v.descrizione.startsWith(s.name) && !s.name.includes("…");
       const costo = arrotonda(v.quantita * ((v.costo_manodopera || 0) + (v.costo_materiali || 0)));
       return {
         key: `v:${v.id}`,
@@ -104,7 +106,7 @@ export function righeDistinta(
         sottofaseId: s?.id ?? null,
         voceId: v.id,
         codice: mostraCodici ? v.origine_codice : null,
-        descrizione: v.descrizione,
+        descrizione: rinominata ? s.name : v.descrizione,
         quantita: v.quantita,
         unita: v.unita,
         inizio: s?.data_inizio ?? null,
@@ -135,7 +137,11 @@ export function righeDistinta(
       venduto: null,
       previsto: null,
     }));
-    return [...daVoci, ...soloSottofasi];
+    // Prima le righe con la sottofase, nel loro ordine: è quello che Su e Giù cambiano. Poi le voci ancora senza.
+    const posto = new Map(sottofasi.map((x) => [x.id, x.position]));
+    const conPosto = [...daVoci.filter((r) => r.sottofaseId), ...soloSottofasi]
+      .sort((a, b) => (posto.get(a.sottofaseId!) ?? 0) - (posto.get(b.sottofaseId!) ?? 0));
+    return [...conPosto, ...daVoci.filter((r) => !r.sottofaseId)];
   });
 }
 
@@ -243,4 +249,38 @@ export function avanzamentoFasi(
   const totale = pesato ? pesi.reduce((s, p) => s + p, 0) : fasi.length;
   const somma = fasi.reduce((s, f, i) => s + (Number(f.percentuale) || 0) * (pesato ? pesi[i] : 1), 0);
   return Math.round(somma / totale);
+}
+
+/**
+ * Le righe scelte una dopo l'altra, dalla data indicata, contando solo i giorni di lavoro. I giorni
+ * scritti valgono per tutte; altrimenti quelli della riga. Le righe già fatte e quelle senza giorni restano fuori.
+ */
+export function dateInFila(
+  righe: ReadonlyArray<Pick<RigaDistinta, "sottofaseId" | "descrizione" | "giorni" | "fatta">>,
+  inizio: string,
+  giorni: number | null,
+  lavorativo: GiornoLavorativo,
+): { passi: Array<{ id: string; data_inizio: string; data_fine: string; giorni: number }>; senzaGiorni: string[] } {
+  const passi: Array<{ id: string; data_inizio: string; data_fine: string; giorni: number }> = [];
+  const senzaGiorni: string[] = [];
+  let cursore = primoLavorativo(inizio, lavorativo);
+  for (const r of righe) {
+    if (!r.sottofaseId || r.fatta) continue;
+    const durata = giorni ?? r.giorni;
+    if (!durata || durata < 1) { senzaGiorni.push(r.descrizione); continue; }
+    const fine = fineLavorativa(cursore, durata, lavorativo);
+    passi.push({ id: r.sottofaseId, data_inizio: cursore, data_fine: fine, giorni: durata });
+    cursore = primoLavorativo(fineDaGiorni(fine, 2), lavorativo);
+  }
+  return { passi, senzaGiorni };
+}
+
+/** Il nuovo ordine di una fase spostando una sottofase di un posto; null se è già in cima o in fondo. */
+export function ordineSpostando(ids: ReadonlyArray<string>, id: string, verso: -1 | 1): string[] | null {
+  const i = ids.indexOf(id);
+  const j = i + verso;
+  if (i < 0 || j < 0 || j >= ids.length) return null;
+  const nuovo = [...ids];
+  [nuovo[i], nuovo[j]] = [nuovo[j], nuovo[i]];
+  return nuovo;
 }

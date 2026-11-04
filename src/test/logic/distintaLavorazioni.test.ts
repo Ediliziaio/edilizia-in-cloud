@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  avanzamentoFasi, contaFiltri, dateValide, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
+  avanzamentoFasi, contaFiltri, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 
@@ -22,7 +22,7 @@ describe("righeDistinta", () => {
   });
   it("tiene anche le voci senza sottofase e le sottofasi senza voce", () => {
     const righe = righeDistinta(fasi, new Map([["f1", [sottofase("s1")]]]), [voce("v1")]);
-    expect(righe.map((r) => [r.voceId, r.sottofaseId])).toEqual([["v1", null], [null, "s1"]]);
+    expect(righe.map((r) => [r.voceId, r.sottofaseId])).toEqual([[null, "s1"], ["v1", null]]);
   });
   it("una voce senza costi non ha previsto zero: è da definire", () => {
     expect(righeDistinta(fasi, new Map(), [voce("v1")])[0].previsto).toBeNull();
@@ -59,6 +59,39 @@ describe("filtri e ricerca", () => {
   });
   it("filtra per fase", () => {
     expect(filtraDistinta(righe, { faseId: "f2", oggi: OGGI })).toEqual([]);
+  });
+});
+
+describe("ordine e nomi", () => {
+  it("le righe seguono l'ordine delle sottofasi, così Su e Giù si vedono", () => {
+    const righe = righeDistinta(fasi, new Map([["f1", [sottofase("s1", { position: 1, name: "Voce a" }), sottofase("s2", { position: 0, name: "Voce b" })]]]), [voce("a", { position: 0, subphase_id: "s1" }), voce("b", { position: 1, subphase_id: "s2" })]);
+    expect(righe.map((r) => r.sottofaseId)).toEqual(["s2", "s1"]);
+  });
+  it("una sottofase rinominata mostra il suo nome, una nata dalla voce il testo intero", () => {
+    const voci = [voce("a", { descrizione: "Testo lungo della voce", subphase_id: "s1" })];
+    expect(righeDistinta(fasi, new Map([["f1", [sottofase("s1", { name: "Testo lungo" })]]]), voci)[0].descrizione).toBe("Testo lungo della voce");
+    expect(righeDistinta(fasi, new Map([["f1", [sottofase("s1", { name: "Nome mio" })]]]), voci)[0].descrizione).toBe("Nome mio");
+  });
+  it("sposta di un posto, e si ferma ai bordi", () => {
+    expect(ordineSpostando(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"]);
+    expect(ordineSpostando(["a", "b"], "a", -1)).toBeNull();
+    expect(ordineSpostando(["a", "b"], "b", 1)).toBeNull();
+  });
+});
+
+describe("righe in fila", () => {
+  const feriali = (g: string) => ![0, 6].includes(new Date(`${g}T12:00:00Z`).getUTCDay());
+  const riga = (id: string, giorni: number | null, fatta = false) => ({ sottofaseId: id, descrizione: id, giorni, fatta });
+  it("una dopo l'altra, saltando sabato e domenica", () => {
+    // Venerdì 4 dicembre 2026: 2 giorni arrivano a lunedì 7.
+    expect(dateInFila([riga("a", 2), riga("b", 1)], "2026-12-04", null, feriali).passi).toEqual([
+      { id: "a", data_inizio: "2026-12-04", data_fine: "2026-12-07", giorni: 2 },
+      { id: "b", data_inizio: "2026-12-08", data_fine: "2026-12-08", giorni: 1 },
+    ]);
+  });
+  it("i giorni scritti valgono per tutte; le fatte restano fuori; quelle senza giorni si dicono", () => {
+    expect(dateInFila([riga("a", null), riga("f", 5, true)], "2026-12-01", 3, feriali).passi.map((p) => p.id)).toEqual(["a"]);
+    expect(dateInFila([riga("a", null)], "2026-12-01", null, feriali).senzaGiorni).toEqual(["a"]);
   });
 });
 
