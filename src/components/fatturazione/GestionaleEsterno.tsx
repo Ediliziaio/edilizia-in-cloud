@@ -14,6 +14,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
+import { eseguiInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { cn } from "@/lib/utils";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
@@ -266,6 +267,117 @@ export function importataPagabile(doc: DocumentoFiscale): boolean {
  * `invoice_payments`; `paid_amount` e lo stato li ricalcolano i trigger. Se la fattura
  * arriva da Fatture in Cloud, il pagamento si registra anche lì (best effort).
  */
+/** Un incasso su una fattura importata; il pagamento va anche su Fatture in Cloud, se viene da lì. */
+async function registraIncassoImportata(
+  fattura: DocumentoFiscale,
+  companyId: string,
+  { importo, residuo, data, metodo }: { importo: number; residuo: number; data: string; metodo: string },
+) {
+  const { error } = await supabase.from("invoice_payments").insert({
+    invoice_id: fattura.id,
+    company_id: companyId,
+    amount: importo,
+    payment_date: data,
+    payment_method: metodo,
+  });
+  if (error) throw error;
+  let writeback: "ok" | "problema" | "error" | "skipped" | "solo_qui" = "skipped";
+  let messaggio = "";
+  const saldo = importo >= residuo - 0.005;
+  if (fattura.external_provider === "fattureincloud" && !saldo && !ACCONTI_SU_FATTURE_IN_CLOUD) {
+    writeback = "solo_qui";
+  } else if (fattura.external_provider === "fattureincloud") {
+    try {
+      const body = saldo
+        ? { invoice_id: fattura.id, paid_date: data }
+        : { invoice_id: fattura.id, paid_date: data, azione: "incassa", importo };
+      const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body });
+      if (pErr) writeback = "error";
+      else if (pr?.ok) writeback = "ok";
+      else if (pr?.messaggio) { writeback = "problema"; messaggio = String(pr.messaggio); }
+    } catch { writeback = "error"; }
+  }
+  return { writeback, messaggio, saldo };
+}
+
+/** «Segna incassate» sulla selezione: ognuna per il suo residuo. Una che non riesce non ferma le altre. */
+export function SegnaIncassateImportateDialog({ fatture, escluse, companyId, open, onOpenChange, onFatto }: {
+  fatture: DocumentoFiscale[]; escluse: number; companyId: string; open: boolean; onOpenChange: (v: boolean) => void; onFatto: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [data, setData] = useState(() => new Date().toLocaleDateString("en-CA"));
+  const [metodo, setMetodo] = useState("bank_transfer");
+  const [fatte, setFatte] = useState<number | null>(null);
+  const [fallite, setFallite] = useState<{ numero: string; motivo: string }[]>([]);
+  const totale = fatture.reduce((s, f) => s + residuoImportata(f), 0);
+  const daFattureInCloud = fatture.some((f) => f.external_provider === "fattureincloud");
+  const oggi = new Date().toLocaleDateString("en-CA");
+  const valido = /^\d{4}-\d{2}-\d{2}$/.test(data) && data <= oggi && fatture.length > 0;
+
+  const parti = async () => {
+    setFatte(0); setFallite([]);
+    let nonAllineate = 0;
+    const esito = await eseguiInBlocco(fatture, async (f) => {
+      const residuo = residuoImportata(f);
+      const r = await registraIncassoImportata(f, companyId, { importo: residuo, residuo, data, metodo });
+      if (r.writeback === "error" || r.writeback === "problema") nonAllineate += 1;
+    }, setFatte, 3);
+    setFatte(null);
+    invalidaFattureImportate(queryClient, companyId);
+    if (esito.riuscite.length) {
+      toast.success(`${esito.riuscite.length} fattur${esito.riuscite.length === 1 ? "a segnata incassata" : "e segnate incassate"}`, nonAllineate
+        ? { description: `${nonAllineate} non aggiornate su Fatture in Cloud: vanno registrate anche lì.` }
+        : undefined);
+    }
+    if (esito.fallite.length) {
+      setFallite(esito.fallite.map((x) => ({ numero: x.riga.numero, motivo: x.motivo })));
+      return;
+    }
+    onOpenChange(false);
+    onFatto();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (fatte === null) { setFallite([]); onOpenChange(v); } }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Segna incassate</DialogTitle>
+          <DialogDescription>
+            {fatture.length} fattur{fatture.length === 1 ? "a" : "e"} · {formatCurrency(totale)}, ognuna per quanto resta da incassare.
+            {escluse > 0 ? ` ${escluse} restano fuori: note di credito o già incassate.` : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="incassi-data">Data</Label>
+            <Input id="incassi-data" type="date" max={oggi} value={data} onChange={(e) => setData(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="incassi-metodo">Metodo</Label>
+            <select id="incassi-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+              {METODI.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+        {daFattureInCloud && <p className="text-xs text-muted-foreground">Il pagamento si registra anche su Fatture in Cloud.</p>}
+        {fatte !== null && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {fatte} di {fatture.length}…</p>}
+        {fallite.length > 0 && (
+          <div className="rounded-md border border-destructive/40 p-2.5 text-xs">
+            <p className="font-medium text-destructive">{fallite.length} non riuscite: le altre sono a posto.</p>
+            <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-muted-foreground">
+              {fallite.map((f) => <li key={f.numero}>{f.numero}: {f.motivo}</li>)}
+            </ul>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={fatte !== null} onClick={() => { setFallite([]); onOpenChange(false); }}>{fallite.length ? "Chiudi" : "Annulla"}</Button>
+          {!fallite.length && <Button disabled={!valido || fatte !== null} onClick={() => void parti()}>Segna incassate</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fattura: DocumentoFiscale | null; companyId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
   const residuo = fattura ? residuoImportata(fattura) : 0;
@@ -287,31 +399,7 @@ export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fa
   const registra = useMutation({
     mutationFn: async () => {
       if (!fattura) throw new Error("Nessuna fattura");
-      const { error } = await supabase.from("invoice_payments").insert({
-        invoice_id: fattura.id,
-        company_id: companyId,
-        amount: valore,
-        payment_date: data,
-        payment_method: metodo,
-      });
-      if (error) throw error;
-      let writeback: "ok" | "problema" | "error" | "skipped" | "solo_qui" = "skipped";
-      let messaggio = "";
-      const saldo = valore >= residuo - 0.005;
-      if (fattura.external_provider === "fattureincloud" && !saldo && !ACCONTI_SU_FATTURE_IN_CLOUD) {
-        writeback = "solo_qui";
-      } else if (fattura.external_provider === "fattureincloud") {
-        try {
-          const body = saldo
-            ? { invoice_id: fattura.id, paid_date: data }
-            : { invoice_id: fattura.id, paid_date: data, azione: "incassa", importo: valore };
-          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body });
-          if (pErr) writeback = "error";
-          else if (pr?.ok) writeback = "ok";
-          else if (pr?.messaggio) { writeback = "problema"; messaggio = String(pr.messaggio); }
-        } catch { writeback = "error"; }
-      }
-      return { writeback, messaggio, saldo };
+      return registraIncassoImportata(fattura, companyId, { importo: valore, residuo, data, metodo });
     },
     onSuccess: (res) => {
       const cosa = res.saldo ? "Fattura segnata come pagata" : "Acconto registrato";

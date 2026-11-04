@@ -37,6 +37,34 @@ export function testoRatePagate(pagate: number, totali: number): string {
  * SDI ammette sia positivo sia negativo), e di un'autofattura conta l'imponibile, perché la sua IVA
  * si compensa da sola e nessuno la incassa.
  */
+/**
+ * Imponibile e IVA del totale che si legge sopra l'elenco, con gli stessi segni di
+ * `importoFornitori`: una nota di credito toglie, un'autofattura non ha IVA da pagare al fornitore.
+ */
+export function imponibileIvaFornitori(
+  fatture: ReadonlyArray<{ tipo_documento?: string | null; totale_documento?: number | null; imponibile_totale?: number | null; iva_totale?: number | null }>,
+): { imponibile: number; iva: number } {
+  const centesimi = (n: number) => Math.round(n * 100) / 100;
+  let imponibile = 0;
+  let iva = 0;
+  for (const f of fatture) {
+    const imp = f.imponibile_totale ?? 0;
+    // Senza imponibile scritto (certe importate) l'IVA si ricava dal totale, non si inventa.
+    const i = f.iva_totale ?? (f.imponibile_totale != null && f.totale_documento != null ? f.totale_documento - f.imponibile_totale : 0);
+    if (eNotaDiCredito(f.tipo_documento)) {
+      imponibile -= Math.abs(imp);
+      iva -= Math.abs(i);
+    } else if (eAutofattura(f.tipo_documento)) {
+      // L'IVA dell'autofattura si versa con la liquidazione, non al fornitore.
+      imponibile += imp;
+    } else {
+      imponibile += imp;
+      iva += i;
+    }
+  }
+  return { imponibile: centesimi(imponibile), iva: centesimi(iva) };
+}
+
 export function importoFornitori(
   fatture: ReadonlyArray<{ tipo_documento?: string | null; totale_documento?: number | null; imponibile_totale?: number | null }>,
 ): number {

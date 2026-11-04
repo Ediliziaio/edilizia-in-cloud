@@ -1,9 +1,11 @@
-import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { AzioniInBloccoRicevute } from "@/components/fatturazione/AzioniInBloccoRicevute";
+import type { RicevutaInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
-import { importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
+import { imponibileIvaFornitori, importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
 import { importoNotaCredito } from "@/lib/fatturazione/notaCreditoStorno";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salvaColonne, type ColonnaRicevute } from "@/lib/fatturazione/colonneRicevute";
@@ -539,11 +541,12 @@ export default function FattureRicevutePage() {
     const nonLette = fatture.filter((f) => f.stato === "non_letta").length;
     const contabilizzate = fatture.filter((f) => f.stato === "contabilizzata").length;
     const importoTotale = importoFornitori(fatture);
+    const { imponibile, iva } = imponibileIvaFornitori(fatture);
     // Fatture importate senza importi (es. cassetto SDI Aruba): il totale le
     // conta come 0 → lo dichiariamo, così il KPI non sembra falsato.
     const senzaImporto = fatture.filter((f) => f.totale_documento == null).length;
     const daClassificare = fatture.filter((f) => !f.categoria_ai).length;
-    return { totale, nonLette, contabilizzate, importoTotale, senzaImporto, daClassificare };
+    return { totale, nonLette, contabilizzate, importoTotale, imponibile, iva, senzaImporto, daClassificare };
   }, [fatture]);
 
   // ─── Filters ────────────────────────────────────────────
@@ -655,6 +658,35 @@ export default function FattureRicevutePage() {
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
   }, [fatture, haCollegamento, verificata, verifiche, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
+
+  // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
+  const puoInBlocco = !permessiCosti.solaLettura;
+  const [selezionate, setSelezionate] = useState<Set<string>>(new Set());
+  useEffect(() => setSelezionate(new Set()), [companyId]);
+  const cambiaSelezione = useCallback((id: string, dentro: boolean) => {
+    setSelezionate((prima) => {
+      const dopo = new Set(prima);
+      if (dentro) dopo.add(id); else dopo.delete(id);
+      return dopo;
+    });
+  }, []);
+  const righeInBlocco = useMemo<RicevutaInBlocco[]>(() => filtered.filter((f) => selezionate.has(f.id)).map((f) => ({
+    id: f.id,
+    numero: f.numero_fattura,
+    totale: f.totale_documento,
+    stato: f.stato,
+    tipo: f.tipo_documento,
+    pagataIl: pagataIl(f.id),
+    pagataSulCosto: pagataSulCosto(f),
+    verificata: verificata(f),
+    stornata: stornataDelTutto(f),
+    storico: !!f.storico_esterno,
+    notaSenzaOrdine: isNotaCreditoRicevuta(f.tipo_documento) && !f.purchase_order_id,
+    conOrdine: !!f.purchase_order_id,
+    scadenze: Array.isArray(f.piano_pagamento) ? (f.piano_pagamento as Array<{ scadenza?: string | null }>).map((r) => r.scadenza ?? null) : [],
+  })), [filtered, selezionate, pagataIl, pagataSulCosto, verificata, stornataDelTutto]);
+  const tutteSelezionate = filtered.length > 0 && righeInBlocco.length === filtered.length;
+  const selezionaTutte = useCallback(() => setSelezionate(new Set(filtered.map((f) => f.id))), [filtered]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -1292,10 +1324,11 @@ export default function FattureRicevutePage() {
               tone={kpi.nonLette > 0 ? "text-orange-300" : "text-emerald-200"}
             />
             <NavyStatCard label="Contabilizzate" value={String(kpi.contabilizzate)} icon={CheckCircle2} tone="text-emerald-200" />
+            {/* Il totale è quello che si paga ai fornitori; sotto, di quanto è merce e quanta IVA. */}
             <NavyStatCard
               label="Importo totale"
               value={formatCurrency(kpi.importoTotale)}
-              sub={kpi.senzaImporto > 0 ? `${kpi.senzaImporto} senza importo (non conteggiate)` : undefined}
+              sub={`Imponibile ${formatCurrency(kpi.imponibile)} + IVA ${formatCurrency(kpi.iva)}${kpi.senzaImporto > 0 ? ` · ${kpi.senzaImporto} senza importo` : ""}`}
               icon={Euro}
             />
           </div>
@@ -1500,15 +1533,23 @@ export default function FattureRicevutePage() {
         </div>
       ) : (
         <>
+        {puoInBlocco && companyId && righeInBlocco.length > 0 && (
+          <AzioniInBloccoRicevute companyId={companyId} righe={righeInBlocco} filtrate={filtered.length} onSelezionaTutte={selezionaTutte} onSvuota={() => setSelezionate(new Set())} />
+        )}
         {/* Mobile: una riga per fattura (fornitore, numero · data, totale e
             stato); si apre un riquadro dal basso. Via la tabella a dieci colonne. */}
         <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
           {filtered.map((f) => (
+            <div key={f.id} className="flex items-center">
+            {puoInBlocco && (
+              <label className="flex shrink-0 items-center self-stretch pl-3 pr-1">
+                <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={`Seleziona la fattura ${f.numero_fattura}`} />
+              </label>
+            )}
             <button
-              key={f.id}
               type="button"
               onClick={() => setDettaglioMobile(f)}
-              className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+              className="tap-compact flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
             >
               {f.stato === "non_letta" && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Da leggere" />}
               <div className="min-w-0 flex-1">
@@ -1528,12 +1569,19 @@ export default function FattureRicevutePage() {
                 </div>
               </div>
             </button>
+            </div>
           ))}
         </div>
         <Card className="max-sm:hidden">
           <Table>
             <TableHeader>
               <TableRow>
+                {puoInBlocco && (
+                  <TableHead className="w-8 pr-0">
+                    <Checkbox aria-label="Seleziona tutte le fatture dell'elenco" checked={tutteSelezionate ? true : righeInBlocco.length ? "indeterminate" : false}
+                      onCheckedChange={(v) => (v === true ? selezionaTutte() : setSelezionate(new Set()))} />
+                  </TableHead>
+                )}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
                 <TableHead>Numero</TableHead>
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Data</IntestazioneOrdinabile>
@@ -1557,6 +1605,11 @@ export default function FattureRicevutePage() {
                   key={f.id}
                   className={`[&>td]:py-1.5 ${f.stato === "non_letta" ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
                 >
+                  {puoInBlocco && (
+                    <TableCell className="w-8 pr-0">
+                      <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={`Seleziona la fattura ${f.numero_fattura}`} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
                     <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
