@@ -126,6 +126,20 @@ export function normalizzaPiva(v: string | null | undefined): string {
   return (v ?? "").replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
 }
 
+/**
+ * Il progressivo di un numero «serie/numero» (1/216 è la fattura 216 della serie 1). Quando la parte dopo la
+ * barra è l'anno della fattura (5/2026, 5/26) il numero è quello prima, e lo capisce già la vista dell'elenco:
+ * qui si resta muti. «1/26» del 2026 resta ambiguo e vale come anno: non si indovina.
+ */
+export function progressivoSerieNumero(numero: string, data: string): number | null {
+  const m = numero.trim().match(/^\d{1,6}\s*\/\s*(\d{1,9})$/);
+  if (!m) return null;
+  const anno = data.slice(0, 4);
+  if (m[1] === anno || m[1] === anno.slice(2)) return null;
+  const n = Number(m[1]);
+  return Number.isSafeInteger(n) && n <= 2147483647 ? n : null;
+}
+
 /** TD04 e TD08 sono note di credito: trattarle come fatture gonfia i ricavi. */
 export function tipoDocumento(td: string): "invoice" | "credit_note" {
   return td === "TD04" || td === "TD08" ? "credit_note" : "invoice";

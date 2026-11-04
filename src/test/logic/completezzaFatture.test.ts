@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buchiNumerazione, fatturePerMese, fuoriSequenza, testoIntervalli, totaleMancanti } from "@/lib/fatturazione/completezzaFatture";
+import { progressivoSerieNumero } from "../../../supabase/functions/_shared/fatturapaReader";
 import { chiaveRicevuta, errorePassaggero, identitaFattura, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 
 const d = (numero: string, data = "2026-03-01") => ({ numero, data });
@@ -85,5 +86,18 @@ describe("import massivo", () => {
     expect(tempoRimanente(2, 100, 1000)).toBeNull();
     expect(tempoRimanente(50, 100, 600000)).toBe("circa 10 min");
     expect(tempoRimanente(99, 100, 9900)).toBe("meno di un minuto");
+  });
+});
+
+describe("progressivo di un numero con la serie", () => {
+  it("1/216 è la fattura 216, non la 1 dell'anno 216", () => expect(progressivoSerieNumero("1/216", "2026-10-28")).toBe(216));
+  it("la parte dopo la barra può essere bassa", () => expect(progressivoSerieNumero("2/5", "2026-05-14")).toBe(5));
+  it("se dopo la barra c'è l'anno, resta muto", () => {
+    expect(progressivoSerieNumero("5/2026", "2026-03-01")).toBeNull();
+    expect(progressivoSerieNumero("5/26", "2026-03-01")).toBeNull();
+  });
+  it("altri formati non si toccano", () => {
+    expect(progressivoSerieNumero("FT-2026-0001", "2026-01-01")).toBeNull();
+    expect(progressivoSerieNumero("123", "2026-01-01")).toBeNull();
   });
 });

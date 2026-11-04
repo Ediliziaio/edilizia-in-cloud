@@ -25,7 +25,7 @@ import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
 import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 // Il lettore e' condiviso e testato: quello che gira qui e' esattamente il
 // codice verificato dai test, non una copia parallela.
-import { avvisoRate, leggiFatturaPA, normalizzaPiva } from "../_shared/fatturapaReader.ts";
+import { avvisoRate, leggiFatturaPA, normalizzaPiva, progressivoSerieNumero } from "../_shared/fatturapaReader.ts";
 import { base64ToBytes } from "../_shared/base64.ts";
 import { fileOriginale, xmlDaFile } from "../_shared/ricevuteOpenapi.ts";
 import { archiviaOriginaleEmessa, originaleCorrispondeAllaFattura, scartaOriginaleNonCollegato } from "../_shared/originaleFatturaEmessa.ts";
@@ -168,6 +168,7 @@ Deno.serve(async (req) => {
       // rimetterebbe in gioco un invio allo SDI gia' avvenuto.
       status: "issued",
       invoice_number: fattura.numero,
+      progressive_number: progressivoSerieNumero(fattura.numero, fattura.data),
       client_id: null,
       client_company_name: fattura.cliente.nome,
       client_vat_number: fattura.cliente.piva,
