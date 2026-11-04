@@ -546,7 +546,9 @@ export default function FattureRicevutePage() {
     // conta come 0 → lo dichiariamo, così il KPI non sembra falsato.
     const senzaImporto = fatture.filter((f) => f.totale_documento == null).length;
     const daClassificare = fatture.filter((f) => !f.categoria_ai).length;
-    return { totale, nonLette, contabilizzate, importoTotale, imponibile, iva, senzaImporto, daClassificare };
+    // Bollo, cassa o dati incompleti: quello che imponibile e IVA non spiegano si dice, non si nasconde.
+    const altro = Math.round((importoTotale - imponibile - iva) * 100) / 100;
+    return { totale, nonLette, contabilizzate, importoTotale, imponibile, iva, altro, senzaImporto, daClassificare };
   }, [fatture]);
 
   // ─── Filters ────────────────────────────────────────────
@@ -1328,7 +1330,7 @@ export default function FattureRicevutePage() {
             <NavyStatCard
               label="Importo totale"
               value={formatCurrency(kpi.importoTotale)}
-              sub={`Imponibile ${formatCurrency(kpi.imponibile)} + IVA ${formatCurrency(kpi.iva)}${kpi.senzaImporto > 0 ? ` · ${kpi.senzaImporto} senza importo` : ""}`}
+              sub={`Imponibile ${formatCurrency(kpi.imponibile)} + IVA ${formatCurrency(kpi.iva)}${Math.abs(kpi.altro) >= 0.01 ? ` + altro ${formatCurrency(kpi.altro)}` : ""}${kpi.senzaImporto > 0 ? ` · ${kpi.senzaImporto} senza importo` : ""}`}
               icon={Euro}
             />
           </div>
@@ -1797,6 +1799,8 @@ export default function FattureRicevutePage() {
             </TableBody>
           </Table>
         </Card>
+        {/* La barra delle modifiche in blocco è fissa: senza questo spazio coprirebbe le ultime righe. */}
+        {righeInBlocco.length > 0 && <div aria-hidden="true" className="h-28" />}
         </>
       )}
 

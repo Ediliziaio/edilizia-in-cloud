@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { impostaSuImponibile } from "@/lib/fatturazione/calcoli";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -238,6 +239,28 @@ function freeLineToRiga(fl: FreeLine, defaultVat: number): RigaDocumento {
 
 /** Una riga sola «a corpo» per l'importo della rata, IVA inclusa: l'imponibile
  *  si ricava scorporando l'aliquota. */
+/**
+ * L'imponibile da fatturare per incassare un certo lordo (04/11/2026).
+ *
+ * Con l'IVA non tutti i totali esistono: l'imposta si calcola sull'imponibile in centesimi
+ * interi, quindi al 22% circa un lordo su cinque non è raggiungibile — per 100,01 € si può
+ * fare solo 100,00 o 100,02, e non c'è imponibile che dia 100,01. Misurato su 300.000
+ * importi: nessuno dei casi storti ha una soluzione esatta.
+ *
+ * Quando il lordo chiesto non è raggiungibile si sceglie il totale più vicino che NON lo
+ * supera: una fattura non deve chiedere al cliente più di quanto la rata dice. Prima lo
+ * scorporo arrotondato poteva andare sopra, e la differenza passava in silenzio perché
+ * l'avviso tollera un euro.
+ */
+export function imponibileDalLordo(lordo: number, aliquota: number): number {
+  const base = round2(lordo / (1 + aliquota / 100));
+  const atteso = round2(lordo);
+  const totale = (imponibile: number) => round2(imponibile + impostaSuImponibile(imponibile, aliquota));
+  if (totale(base) <= atteso) return base;
+  const sotto = round2(base - 0.01);
+  return totale(sotto) <= atteso ? sotto : base;
+}
+
 function buildRigaImporto(descrizione: string, lordo: number, aliquota: number): RigaDocumento {
   const al = Math.max(0, aliquota);
   return {
@@ -246,7 +269,7 @@ function buildRigaImporto(descrizione: string, lordo: number, aliquota: number):
     descrizione: descrizione.trim() || "Lavori come da contratto",
     quantita: 1,
     unita_misura: "a corpo",
-    prezzo_unitario: round2(lordo / (1 + al / 100)),
+    prezzo_unitario: imponibileDalLordo(lordo, al),
     imponibile: 0,
     aliquota_iva: String(al),
     imposta: 0,

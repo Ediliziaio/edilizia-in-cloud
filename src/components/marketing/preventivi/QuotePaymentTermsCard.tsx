@@ -58,7 +58,7 @@ export function QuotePaymentTermsCard({
     push(phases.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
 
   const addPhase = () =>
-    push([...phases, { label: `Rata ${phases.length + 1}`, type: "deposit", percent: 0, amount: 0 }]);
+    push([...phases, { label: `Rata ${phases.length + 1}`, type: "deposit", percent: 0, amount: 0, evento: "data_fissa", numero: null }]);
 
   const removePhase = (idx: number) => push(phases.filter((_, i) => i !== idx));
 
@@ -121,7 +121,7 @@ export function QuotePaymentTermsCard({
           </div>
 
           {computed.map((p, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg border bg-slate-50/60 p-3 xl:grid-cols-[minmax(0,1fr)_7rem_5rem_7rem_auto]">
+            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg border bg-slate-50/60 p-3 xl:grid-cols-[minmax(0,1fr)_7rem_minmax(13rem,auto)_5rem_7rem_auto]">
               <div className="col-span-3 min-w-0 space-y-1 xl:col-span-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrizione</span>
                 <Input

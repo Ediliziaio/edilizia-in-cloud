@@ -114,7 +114,8 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
     setFatte(null);
     aggiorna();
     if (esito.riuscite.length) {
-      toast.success(`${fatture(esito.riuscite.length)} ${AZIONI[azione].fatto}`, { action: annullamento(azione, esito.riuscite), duration: 10_000 });
+      const fatto = esito.riuscite.length === 1 ? AZIONI[azione].fatto.replace(/^segnate pagate$/, "segnata pagata").replace(/^verificate$/, "verificata").replace(/^contabilizzate$/, "contabilizzata").replace(/^messe /, "messa ") : AZIONI[azione].fatto;
+      toast.success(`${fatture(esito.riuscite.length)} ${fatto}`, { action: annullamento(azione, esito.riuscite), duration: 10_000 });
     }
     if (esito.fallite.length) {
       setFallite(esito.fallite);
@@ -129,7 +130,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
 
   return (
     <>
-      <div role="toolbar" aria-label="Modifiche in blocco" className="sticky bottom-2 z-20 flex flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-md">
+      <div role="toolbar" aria-label="Modifiche in blocco" className="fixed bottom-4 left-1/2 z-40 flex w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg">
         <span className="text-sm font-medium">{righe.length} selezionat{righe.length === 1 ? "a" : "e"}</span>
         {righe.length < filtrate && (
           <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onSelezionaTutte}>Seleziona tutte le {filtrate}</Button>

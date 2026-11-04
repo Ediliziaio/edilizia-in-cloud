@@ -7,8 +7,9 @@
  * della commessa restava vuota e il verbale non seguiva il piano concordato col cliente.
  */
 import { describe, expect, it } from "vitest";
-import { parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
+import { parseQuotePaymentPhases, quotePaymentPresets, recalcPhaseAmounts } from "@/lib/preventivi/paymentTerms";
 import { prefillExpectedDates, type Installment } from "@/lib/orderUtils";
+import { prefillDaPreventivo } from "@/lib/preventivi/prefillPreventivo";
 
 describe("le fasi di pagamento del preventivo portano il loro momento d'incasso", () => {
   it("legge evento e numero del SAL", () => {
@@ -39,6 +40,34 @@ describe("le fasi di pagamento del preventivo portano il loro momento d'incasso"
   it("lo stato della commessa non è un evento da preventivo: si sceglie sulla rata", () => {
     const fasi = parseQuotePaymentPhases([{ label: "X", type: "deposit", percent: 100, amount: 1, evento: "stato_commessa" }]);
     expect(fasi[0].evento).toBe("data_fissa");
+  });
+});
+
+describe("i piani pronti e il ricalcolo non perdono il momento d'incasso", () => {
+  it("il piano con i SAL arriva con evento e numero di ogni SAL", () => {
+    const conSal = quotePaymentPresets().find((p) => p.fasi.some((f) => f.evento === "sal_numero"));
+    expect(conSal).toBeDefined();
+    const numeri = conSal!.fasi.filter((f) => f.evento === "sal_numero").map((f) => f.numero);
+    expect(numeri).toEqual(numeri.map((_, i) => i + 1));
+  });
+
+  it("ricalcolare gli importi tiene evento e numero", () => {
+    const [fase] = recalcPhaseAmounts([{ label: "SAL", type: "balance", percent: 100, amount: 0, evento: "sal_numero", numero: 2 }], 1000);
+    expect(fase).toMatchObject({ amount: 1000, evento: "sal_numero", numero: 2 });
+  });
+});
+
+describe("dal preventivo alla commessa", () => {
+  it("la rata resta legata al suo SAL, con la sua percentuale e senza date inventate", () => {
+    const { installments } = prefillDaPreventivo({
+      payment_phases: [
+        { label: "Acconto", type: "deposit", percent: 20, amount: 200, evento: "firma_contratto" },
+        { label: "SAL 2", type: "deposit", percent: 50, amount: 500, evento: "sal_numero", numero: 2 },
+        { label: "Saldo", type: "balance", percent: 30, amount: 300, evento: "fine_lavori" },
+      ],
+    }, []);
+    expect(installments[1]).toMatchObject({ label: "SAL 2", amount: 500, percent: 50, trigger_evento: "sal_numero", trigger_numero: 2 });
+    expect(prefillExpectedDates(installments).every((r) => !r.expected_date)).toBe(true);
   });
 });
 

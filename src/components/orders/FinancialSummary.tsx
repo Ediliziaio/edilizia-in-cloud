@@ -518,13 +518,10 @@ export function FinancialSummary({
       ...saldo,
     ]);
     onInstallmentsChange(nuove);
-    onNumInstallmentsChange(nuove.length);
   };
 
   const togliRata = (position: number) => {
-    const nuove = rinumera(installments.filter((i) => i.position !== position));
-    onInstallmentsChange(nuove);
-    onNumInstallmentsChange(nuove.length);
+    onInstallmentsChange(rinumera(installments.filter((i) => i.position !== position)));
   };
 
   const handleInstallmentEventoChange = (position: number, patch: Partial<Installment>) => {

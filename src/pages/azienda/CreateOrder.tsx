@@ -1782,7 +1782,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             vatRate={vatRate ?? ""}
             paymentType={paymentType}
             installments={installments}
-            onInstallmentsChange={setInstallments}
+            // Aggiungere o togliere una rata non passa da handleNumInstallmentsChange, che rifà il piano da capo.
+            onInstallmentsChange={(rate) => { setInstallments(rate); setNumInstallments(rate.length); }}
             numInstallments={numInstallments}
             onNumInstallmentsChange={handleNumInstallmentsChange}
             // Le rate che vengono da un modello seguono il totale e l'IVA.

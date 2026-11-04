@@ -28,8 +28,10 @@ function Prova({ onRate }: { onRate?: (r: Installment[]) => void }) {
       <FinancialSummary
         nuova totalAmount="1000" vatRate="0" paymentType="standard"
         installments={rate}
-        onInstallmentsChange={(r) => { setRate(r); onRate?.(r); }}
-        numInstallments={quante} onNumInstallmentsChange={setQuante}
+        onInstallmentsChange={(r) => { setRate(r); setQuante(r.length); onRate?.(r); }}
+        numInstallments={quante}
+        // Come nelle pagine vere, questa funzione rifà il piano: aggiungere o togliere una rata non deve chiamarla.
+        onNumInstallmentsChange={() => { throw new Error("il piano non va rifatto da capo"); }}
         onTotalAmountChange={() => {}} onVatRateChange={() => {}} onPaymentTypeChange={() => {}}
         balance={700}
       />

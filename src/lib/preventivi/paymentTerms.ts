@@ -74,6 +74,8 @@ export function quotePaymentPresets(): QuotePaymentPreset[] {
       type: i === tutte.length - 1 ? "balance" : "deposit",
       percent: r.percent,
       amount: 0,
+      evento: r.evento,
+      numero: r.numero,
     })),
   }));
 }
