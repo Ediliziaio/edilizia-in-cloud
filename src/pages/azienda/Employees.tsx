@@ -38,7 +38,7 @@ import type { Employee, ExternalTeam } from "@/types/employees";
 import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
 
 const MARKETING_SECTION_KEYS = [
-  "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
+  "can_view_marketing_dashboard", "can_view_callcenter_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
   "can_view_marketing_activities", "can_view_marketing_appointments", "can_view_marketing_automations",
   "can_view_marketing_ai_agent", "can_view_marketing_email", "can_view_marketing_whatsapp", "can_view_marketing_reports",
 ];

@@ -431,6 +431,7 @@ const StoricoImpianto = lazy(() => import("@/pages/azienda/StoricoImpianto"));
 
 // Marketing
 const MarketingDashboard = lazy(() => import("@/pages/azienda/marketing/MarketingDashboard"));
+const CallCenterDashboard = lazy(() => import("@/pages/azienda/CallCenterDashboard"));
 const MarketingContacts = lazy(() => import("@/pages/azienda/marketing/MarketingContacts"));
 const MarketingOpportunities = lazy(() => import("@/pages/azienda/marketing/MarketingOpportunities"));
 const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/MarketingCalendar"));
@@ -506,7 +507,9 @@ function AziendaIndex() {
   if (permissions.isLoading) {
     return <>{withCompanyPermission("canViewDashboard", <CompanyDashboard />)}</>;
   }
-  if (!permissions.canViewDashboard) return <Navigate to="/azienda/attivita" replace />;
+  if (!permissions.canViewDashboard) {
+    return <Navigate to={permissions.canViewCallcenterDashboard ? "/azienda/call-center" : "/azienda/attivita"} replace />;
+  }
   return <CompanyDashboard />;
 }
 
@@ -932,6 +935,8 @@ export default function CompanyRoutesContainer() {
         <Route path="render/porte-interne/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleNew moduleId="porte-interne" /></FeatureRoute>)} />
         <Route path="render/porte-interne/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGallery moduleId="porte-interne" /></FeatureRoute>)} />
         <Route path="render/porte-interne/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderTechnicalModuleGalleryDetail moduleId="porte-interne" /></FeatureRoute>)} />
+
+        <Route path="call-center" element={withCompanyPermission("canViewCallcenterDashboard", <CallCenterDashboard />)} />
 
         {/* Marketing Routes */}
         <Route path="marketing" element={withCompanyPermission("canViewMarketingDashboard", <MarketingDashboard />)} />

@@ -237,6 +237,7 @@ export const macroAreas: MacroArea[] = [
     icon: Megaphone,
     items: [
       // ─── CRM & Vendita ───
+      { title: "Call Center", url: "/azienda/call-center", icon: HeadphonesIcon, permissionKey: "canViewCallcenterDashboard" },
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.

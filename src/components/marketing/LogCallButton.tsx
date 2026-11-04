@@ -83,6 +83,7 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
       user_id: userId,
       outcome,
       notes: finalNotes,
+      richiamo_il: isCallback && callbackDate ? callbackDate : null,
       started_at: new Date().toISOString(),
       duration_sec: 0,
     });
@@ -111,7 +112,13 @@ export function LogCallButton({ companyId, contactId, userId, opportunityId, cla
         const k = q.queryKey?.[0];
         // marketing-opportunities: se sopra abbiamo scritto next_action sulla
         // opportunità, kanban/worklist mostravano il valore stale per 2 minuti.
-        return k === "unified_call_logs" || k === "reg-calls" || k === "marketing-opportunities";
+        return (
+          k === "unified_call_logs" ||
+          k === "reg-calls" ||
+          k === "marketing-opportunities" ||
+          k === "callcenter-coda" ||
+          k === "callcenter-numeri"
+        );
       },
     });
     onLogged?.();
