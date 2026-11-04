@@ -49,7 +49,9 @@ export function useConteggiAllegatiRicevute(companyId: string | null | undefined
 export type MadreAllegato =
   | { invoiceId: string }
   | { documentoFiscaleId: string }
-  | { fatturaRicevutaId: string };
+  | { fatturaRicevutaId: string }
+  | { costoId: string }
+  | { f24Id: string };
 
 interface Allegato {
   id: string;
@@ -70,8 +72,12 @@ const MAX_BYTES = 20 * 1024 * 1024;
  */
 export const MAX_BYTES_INVIO_SDI = 3.5 * 1024 * 1024;
 
-const colonnaMadre = (m: MadreAllegato): ["invoice_id" | "documento_fiscale_id" | "fattura_ricevuta_id", string] =>
-  "invoiceId" in m ? ["invoice_id", m.invoiceId] : "documentoFiscaleId" in m ? ["documento_fiscale_id", m.documentoFiscaleId] : ["fattura_ricevuta_id", m.fatturaRicevutaId];
+const colonnaMadre = (m: MadreAllegato): ["invoice_id" | "documento_fiscale_id" | "fattura_ricevuta_id" | "company_cost_id" | "f24_entry_id", string] =>
+  "invoiceId" in m ? ["invoice_id", m.invoiceId]
+    : "documentoFiscaleId" in m ? ["documento_fiscale_id", m.documentoFiscaleId]
+      : "costoId" in m ? ["company_cost_id", m.costoId]
+        : "f24Id" in m ? ["f24_entry_id", m.f24Id]
+          : ["fattura_ricevuta_id", m.fatturaRicevutaId];
 
 export const allegatiQueryKey = (m: MadreAllegato) => ["fattura-allegati", ...colonnaMadre(m)] as const;
 

@@ -9,6 +9,7 @@ import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salvaColonne, type ColonnaRicevute } from "@/lib/fatturazione/colonneRicevute";
 import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiFattura";
 import { Checkbox } from "@/components/ui/checkbox";
+import { UsciteSenzaFattura } from "@/components/fatturazione/UsciteSenzaFattura";
 import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
 import { chiaveEmessa, chiaveRicevuta, errorePassaggero, identitaFattura, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -1214,6 +1215,7 @@ export default function FattureRicevutePage() {
       )}
 
       {companyId && <CompletezzaFatture companyId={companyId} />}
+      {companyId && permessiCosti.canViewCosts && <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} />}
 
       {report && (
         <Card className="border-l-4 border-l-primary">
