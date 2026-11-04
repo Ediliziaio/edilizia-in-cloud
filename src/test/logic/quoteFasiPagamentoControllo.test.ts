@@ -75,8 +75,9 @@ describe("fasi di pagamento: scenari a mano", () => {
     expect(parseQuotePaymentPhases("boh")).toEqual([]);
     expect(parseQuotePaymentPhases([null, 5, { label: 7, type: "boh", percent: "30,5", amount: "x" }, { label: "Saldo", type: "balance", percent: 70.5, amount: 100 }]))
       .toEqual([
-        { label: "7", type: "deposit", percent: 0, amount: 0 },
-        { label: "Saldo", type: "balance", percent: 70.5, amount: 100 },
+        // Dal 04/11/2026 ogni fase porta il suo momento d'incasso: senza, «a una data precisa».
+        { label: "7", type: "deposit", percent: 0, amount: 0, evento: "data_fissa", numero: null },
+        { label: "Saldo", type: "balance", percent: 70.5, amount: 100, evento: "data_fissa", numero: null },
       ]);
   });
 });

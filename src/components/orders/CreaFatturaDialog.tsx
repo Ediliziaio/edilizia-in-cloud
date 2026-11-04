@@ -1221,6 +1221,15 @@ export function CreaFatturaDialog({
                   Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA fatturati senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
                 </p>
               )}
+              {/* Le righe di un SAL non dicono quali fasi contenevano: dopo averlo fatturato,
+                  le stesse fasi si ripresentano come da fatturare (04/11/2026). */}
+              {mode === "fasi" && fatturato.salFatturati.size > 0 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  {fatturato.salFatturati.size === 1 ? "Un SAL è già stato fatturato" : `${fatturato.salFatturati.size} SAL sono già stati fatturati`} su
+                  questa commessa: i lavori che c'erano dentro compaiono qui come ancora da fatturare. Controlla di non fatturarli due volte.
+                </p>
+              )}
               {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />

@@ -254,7 +254,15 @@ export function righeSal(sal: SalPerFattura, tutti: ReadonlyArray<SalPerFattura>
   if (voci.length === 0 || Math.abs(somma - quota) > 0.01) {
     return [rigaACorpo(idSal(sal.id, 0), `${titolo} — lavori eseguiti`, quota, aliquota)];
   }
-  return voci.map((v, i) => rigaACorpo(idSal(sal.id, i), `${titolo} — ${v.descrizione || "lavori eseguiti"}`, v.importo, aliquota));
+  // La fattura deve fare ESATTAMENTE la quota del SAL. Le voci sono arrotondate una per
+  // una, quindi la loro somma può restare indietro o avanti di qualche centesimo: lo
+  // scarto va sull'ultima voce. Prima passava nella fattura (04/11/2026), e il SAL e la
+  // fattura che lo incassa non tornavano.
+  const scarto = arrotonda(quota - somma);
+  const finali = scarto === 0
+    ? voci
+    : voci.map((v, i) => (i === voci.length - 1 ? { ...v, importo: arrotonda(v.importo + scarto) } : v));
+  return finali.map((v, i) => rigaACorpo(idSal(sal.id, i), `${titolo} — ${v.descrizione || "lavori eseguiti"}`, v.importo, aliquota));
 }
 
 export type ModoFattura = "sal" | "fasi" | "articoli" | "importo";
