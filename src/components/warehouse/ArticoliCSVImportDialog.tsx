@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,7 @@ interface ParsedRow {
 }
 
 export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplete }: Props) {
+  const { effectiveCompany } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
   const [headers, setHeaders] = useState<string[]>([]);
@@ -203,10 +205,11 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
   const importMutation = useMutation({
     mutationFn: async () => {
       const validRows = rows.filter((r) => r.valid);
-      // Resolve company_id
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: companyId, error: cidErr } = await (supabase.rpc as any)("get_my_company_id");
-      if (cidErr || !companyId) throw new Error("Company ID non risolvibile");
+      // L'azienda è quella della schermata, come il magazzino scelto: chiederla al
+      // server (get_my_company_id) metteva gli articoli sull'azienda aperta da
+      // un'altra finestra, perché warehouse_stock lascia passare il super admin.
+      const companyId = effectiveCompany?.id;
+      if (!companyId) throw new Error("Company ID non risolvibile");
 
       const payload = validRows.map((r) => ({
         company_id: companyId,
