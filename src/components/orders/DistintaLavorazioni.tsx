@@ -138,11 +138,11 @@ export function DistintaLavorazioni({
 
   const selezionate = useMemo(() => righe.filter((r) => scelte.has(r.key)), [righe, scelte]);
   const conSottofase = selezionate.filter((r) => r.sottofaseId);
-  const inverti = (key: string) => {
-    const nuove = new Set(scelte);
+  const inverti = (key: string) => setScelte((ora) => {
+    const nuove = new Set(ora);
     if (nuove.has(key)) nuove.delete(key); else nuove.add(key);
-    setScelte(nuove);
-  };
+    return nuove;
+  });
   const tutteScelte = righe.length > 0 && selezionate.length === righe.length;
   const invertiTutte = () => setScelte(tutteScelte ? new Set() : new Set(righe.map((r) => r.key)));
 

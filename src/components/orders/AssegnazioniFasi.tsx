@@ -96,11 +96,11 @@ export function AssegnazioniFasi({ fasi, squadre, persone, ditte, puoSquadre, pu
   const tutte = righe.length > 0 && selezionate.length === righe.length;
   const niente = sSquadre.size + sPersone.size + sDitte.size === 0;
 
-  const inverti = (id: string) => {
-    const nuove = new Set(scelte);
+  const inverti = (id: string) => setScelte((ora) => {
+    const nuove = new Set(ora);
     if (nuove.has(id)) nuove.delete(id); else nuove.add(id);
-    setScelte(nuove);
-  };
+    return nuove;
+  });
   const chiudi = () => {
     setAperto(false);
     setCerca("");
@@ -139,12 +139,13 @@ export function AssegnazioniFasi({ fasi, squadre, persone, ditte, puoSquadre, pu
           <div key={f.id} className={cn("grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 border-b px-2 py-1 text-xs last:border-b-0", COLONNE)}>
             <div className="flex items-center">{puo && <Checkbox checked={scelte.has(f.id)} onCheckedChange={() => inverti(f.id)} aria-label={`Seleziona ${f.nome}`} />}</div>
             <button type="button" onClick={() => onApriScheda(f.id)} title={`Apri la scheda di ${f.nome}`} className={cn("min-w-0 truncate rounded text-left font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", faseDaAssegnare(f) && "text-amber-700")}>{f.nome}</button>
-            <div className="text-right tabular-nums text-muted-foreground max-sm:col-start-2 max-sm:text-left">{f.percentuale}%</div>
-            <div className="min-w-0 max-sm:col-start-2"><span className="text-muted-foreground sm:hidden">Squadre: </span><Nomi nomi={f.squadre} /></div>
-            <div className="min-w-0 max-sm:col-start-2"><span className="text-muted-foreground sm:hidden">Persone: </span><Nomi nomi={f.persone} /></div>
-            <div className="min-w-0 max-sm:col-start-2"><span className="text-muted-foreground sm:hidden">Ditte: </span><Nomi nomi={f.ditte} /></div>
-            <div className="min-w-0 max-sm:col-start-2"><span className="text-muted-foreground sm:hidden">Mezzi: </span><Nomi nomi={f.mezzi} /></div>
-            <div className="text-right tabular-nums max-sm:col-start-2 max-sm:text-left"><span className="text-muted-foreground sm:hidden">Articoli: </span>{f.articoli || "—"}</div>
+            <div className="col-start-2 truncate text-muted-foreground sm:hidden">{[`${f.percentuale}%`, ...f.squadre, ...f.persone, ...f.ditte, ...f.mezzi, f.articoli ? `${f.articoli} articoli` : null].filter(Boolean).join(" · ")}</div>
+            <div className="hidden text-right tabular-nums text-muted-foreground sm:block">{f.percentuale}%</div>
+            <div className="hidden min-w-0 sm:block"><Nomi nomi={f.squadre} /></div>
+            <div className="hidden min-w-0 sm:block"><Nomi nomi={f.persone} /></div>
+            <div className="hidden min-w-0 sm:block"><Nomi nomi={f.ditte} /></div>
+            <div className="hidden min-w-0 sm:block"><Nomi nomi={f.mezzi} /></div>
+            <div className="hidden text-right tabular-nums sm:block">{f.articoli || "—"}</div>
           </div>
         ))}
       </div>
