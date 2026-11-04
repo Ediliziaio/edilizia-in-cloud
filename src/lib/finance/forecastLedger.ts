@@ -138,6 +138,8 @@ export interface DeadlineRow {
   order_id?: string | null;
   notes?: string | null;
   is_previsionale?: boolean | null;
+  /** Numero della rata di una fattura importata: la fattura ha una scadenza per rata. */
+  rata_numero?: number | null;
 }
 export interface SupplierItemRow {
   id: string;
@@ -582,11 +584,24 @@ export function buildForecastLedger(
       );
   const noteCollegate = (id: string | undefined | null): number =>
     id ? (creditedTo.get(id) ?? 0) : 0;
+  // Una fattura a rate è sempre coperta dalle sue scadenze: a rate tutte chiuse è incassata, anche se
+  // sulla fattura non risulta, e non deve tornare fra gli incassi attesi per l'intero.
   const invoiceDeadlines = new Set(
     s.deadlines
-      .filter((d) => d.invoice_id && !closed(d.status))
+      .filter((d) => d.invoice_id && (!closed(d.status) || d.rata_numero != null))
       .map((d) => d.invoice_id),
   );
+  // Una nota di credito riduce il credito una volta sola: si consuma sulle scadenze aperte della
+  // fattura dalla più vicina, invece di togliere l'intero importo a ciascuna rata.
+  const notaSuScadenza = new Map<string, number>();
+  const notaResidua = new Map(creditedTo);
+  for (const d of [...s.deadlines].sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))) {
+    if (closed(d.status) || !d.invoice_id) continue;
+    const quota = Math.min(notaResidua.get(d.invoice_id) ?? 0, Math.max(0, toCents(d.amount) - toCents(d.paid_amount)));
+    if (quota <= 0) continue;
+    notaSuScadenza.set(d.id, quota);
+    notaResidua.set(d.invoice_id, (notaResidua.get(d.invoice_id) ?? 0) - quota);
+  }
   const costDeadlines = new Set(
     s.deadlines.filter((d) => d.cost_id).map((d) => d.cost_id),
   );
@@ -697,7 +712,7 @@ export function buildForecastLedger(
     // Il dovuto della fattura è al netto delle note di credito collegate.
     const noteFattura =
       invoice && !creditNote(invoice.document_type)
-        ? noteCollegate(invoice.id)
+        ? (notaSuScadenza.get(d.id) ?? 0)
         : 0;
     const amount = Math.max(
       0,
