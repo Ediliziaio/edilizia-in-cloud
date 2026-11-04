@@ -35,7 +35,7 @@ export interface RataFornitore {
   pagata_il: string | null;
 }
 
-export type StatoPagamento = "pagata" | "parziale" | "scaduta" | "da_pagare" | "da_registrare" | "nota_credito";
+export type StatoPagamento = "pagata" | "parziale" | "scaduta" | "da_pagare" | "da_registrare" | "nota_credito" | "stornata";
 
 export const ETICHETTA_STATO_PAGAMENTO: Record<StatoPagamento, string> = {
   pagata: "Pagata",
@@ -44,6 +44,7 @@ export const ETICHETTA_STATO_PAGAMENTO: Record<StatoPagamento, string> = {
   da_pagare: "Da pagare",
   da_registrare: "Da registrare",
   nota_credito: "Nota di credito",
+  stornata: "Stornata",
 };
 
 const NOTE_CREDITO = ["TD04", "TD08", "passive_credit_note"];
@@ -52,6 +53,11 @@ const cent = (v: number | string | null | undefined) => Math.round((Number(v) ||
 export const eNotaCredito = (f: Pick<FatturaFornitore, "tipo_documento">) => NOTE_CREDITO.includes(f.tipo_documento ?? "");
 /** Quanto si deve per la fattura: il netto a pagare (dopo ritenute e trattenute) se c'è, altrimenti il totale. */
 export const importoFattura = (f: FatturaFornitore) => cent(f.netto_a_pagare ?? f.totale_documento) / 100;
+/**
+ * Quanto vale una nota di credito: il totale in valore assoluto. Lo SDI ammette TD04 con importi di entrambi i
+ * segni, e il netto a pagare di una nota può essere negativo o zero: nel partitario una nota scende sempre.
+ */
+const importoNota = (f: FatturaFornitore) => Math.abs(cent(f.totale_documento ?? f.netto_a_pagare)) / 100;
 
 export interface RigaFattura {
   fattura: FatturaFornitore;
@@ -71,7 +77,7 @@ export function statoFatture(fatture: FatturaFornitore[], rate: RataFornitore[],
     else if (r.company_cost_id) perCosto.set(r.company_cost_id, [...(perCosto.get(r.company_cost_id) ?? []), r]);
   }
   return fatture.map((f): RigaFattura => {
-    const importo = importoFattura(f);
+    const importo = eNotaCredito(f) ? importoNota(f) : importoFattura(f);
     const proprie = (perFattura.get(f.id) ?? (f.company_cost_id ? perCosto.get(f.company_cost_id) : undefined) ?? [])
       .slice()
       .sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0));
@@ -80,16 +86,24 @@ export function statoFatture(fatture: FatturaFornitore[], rate: RataFornitore[],
     }
     if (proprie.length) {
       const pagato = proprie.filter((r) => r.stato === "pagata").reduce((s, r) => s + cent(r.importo), 0) / 100;
-      const aperte = proprie.filter((r) => r.stato !== "pagata");
+      // Una rata stornata non è stata pagata e non è più da pagare: l'ha chiusa una nota di credito.
+      const aperte = proprie.filter((r) => r.stato !== "pagata" && r.stato !== "stornata");
       const prossima = aperte.map((r) => r.scadenza).filter((d): d is string => !!d).sort()[0] ?? null;
+      const ridotte = proprie.some((r) => r.stato === "stornata");
       const stato: StatoPagamento = !aperte.length
-        ? "pagata"
+        ? pagato > 0 || !ridotte ? "pagata" : "stornata"
         : aperte.some((r) => r.scadenza && r.scadenza < oggi)
           ? "scaduta"
           : pagato > 0
             ? "parziale"
             : "da_pagare";
-      return { fattura: f, stato, importo, pagato, residuo: aperte.length ? Math.max(0, cent(importo) - cent(pagato)) / 100 : 0, prossimaScadenza: prossima, rate: proprie };
+      // Le rate aperte dicono quanto resta, note di credito comprese. Se a una manca l'importo si torna al conto col totale.
+      const residuo = !aperte.length
+        ? 0
+        : aperte.every((r) => r.importo != null)
+          ? aperte.reduce((s, r) => s + cent(r.importo), 0) / 100
+          : Math.max(0, cent(importo) - cent(pagato)) / 100;
+      return { fattura: f, stato, importo, pagato, residuo, prossimaScadenza: prossima, rate: proprie };
     }
     if (f.costo?.is_paid) return { fattura: f, stato: "pagata", importo, pagato: importo, residuo: 0, prossimaScadenza: null, rate: [] };
     if (!f.company_cost_id) {
@@ -170,7 +184,7 @@ export function totaliFornitore(righe: RigaFattura[], oggi: string): TotaliForni
     if (r.stato === "da_registrare") t.daRegistrare += cent(r.residuo);
     else t.daPagare += cent(r.residuo);
     t.scaduto += r.rate
-      .filter((x) => x.stato !== "pagata" && x.scadenza && x.scadenza < oggi)
+      .filter((x) => x.stato !== "pagata" && x.stato !== "stornata" && x.scadenza && x.scadenza < oggi)
       .reduce((s, x) => s + cent(x.importo), 0);
   }
   return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v / 100])) as unknown as TotaliFornitore;

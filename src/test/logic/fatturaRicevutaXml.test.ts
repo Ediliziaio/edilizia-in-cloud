@@ -197,3 +197,37 @@ describe("lettaDiRiserva: una fattura che arriva entra comunque", () => {
     expect(l.data_fattura).toBe("2026-10-02");
   });
 });
+
+describe("DatiFattureCollegate: la fattura che una nota di credito rettifica", () => {
+  const nota = (collegate: string) => `<?xml version="1.0"?>
+<p:FatturaElettronica xmlns:p="x"><FatturaElettronicaHeader>${cedenteSocieta}</FatturaElettronicaHeader>
+<FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD04</TipoDocumento><Data>2026-10-19</Data><Numero>NC1</Numero></DatiGeneraliDocumento>
+${collegate}</DatiGenerali><DatiBeniServizi></DatiBeniServizi></FatturaElettronicaBody></p:FatturaElettronica>`;
+
+  it("legge numero e data, e la data è facoltativa", () => {
+    const f = leggiFatturaRicevuta(nota(
+      `<DatiFattureCollegate><IdDocumento>0916534503</IdDocumento><Data>2026-10-13</Data></DatiFattureCollegate>
+       <DatiFattureCollegate><RiferimentoNumeroLinea>1</RiferimentoNumeroLinea><IdDocumento> 7/FE </IdDocumento></DatiFattureCollegate>`,
+    ), parser);
+    expect(f?.fatture_collegate).toEqual([{ numero: "0916534503", data: "2026-10-13" }, { numero: "7/FE", data: null }]);
+  });
+
+  it("lo stesso numero ripetuto vale una volta, e senza numero non c'è riferimento", () => {
+    const f = leggiFatturaRicevuta(nota(
+      `<DatiFattureCollegate><IdDocumento>12</IdDocumento></DatiFattureCollegate>
+       <DatiFattureCollegate><IdDocumento>12</IdDocumento></DatiFattureCollegate>
+       <DatiFattureCollegate><Data>2026-01-01</Data></DatiFattureCollegate>`,
+    ), parser);
+    expect(f?.fatture_collegate).toEqual([{ numero: "12", data: null }]);
+  });
+
+  it("una fattura senza riferimenti ha l'elenco vuoto", () => {
+    expect(leggiFatturaRicevuta(nota(""), parser)?.fatture_collegate).toEqual([]);
+  });
+
+  it("legge i riferimenti del corpo giusto in un lotto", () => {
+    const corpoRif = (n: string, r: string) => `<FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD04</TipoDocumento><Data>2026-10-19</Data><Numero>${n}</Numero></DatiGeneraliDocumento><DatiFattureCollegate><IdDocumento>${r}</IdDocumento></DatiFattureCollegate></DatiGenerali></FatturaElettronicaBody>`;
+    const xml = `<F><FatturaElettronicaHeader>${cedenteSocieta}</FatturaElettronicaHeader>${corpoRif("NC1", "A")}${corpoRif("NC2", "B")}</F>`;
+    expect(leggiFatturaRicevuta(xml, parser, 1)?.fatture_collegate).toEqual([{ numero: "B", data: null }]);
+  });
+});

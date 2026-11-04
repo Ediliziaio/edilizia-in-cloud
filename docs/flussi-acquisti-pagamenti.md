@@ -291,11 +291,27 @@ questo ramo è predisposto. Il pagamento segue il SAL, non la consegna.
 ### F. Reso, merce difettosa, nota di credito del fornitore
 
 Due finestre arrivano col vetro rotto. Il fornitore emette una **nota di
-credito** (TD04) che riduce il debito. Oggi le note di credito ricevute sono
-escluse dall'aggancio fattura→ODA (giusto) ma non riducono nessun debito,
-perché il debito non c'è. Serve: nota di credito → riduce le rate ancora da
-pagare della fattura che storna (sul lato clienti questo esiste dal 23/10:
-«le note di credito stornano la fattura»).
+credito** (TD04) che riduce il debito. Le note di credito ricevute restano
+escluse dall'aggancio automatico fattura→ODA (giusto).
+
+**Dal 04/11/2026** (`20281119100000_nota_credito_riduce_debito`): da Fatture
+ricevute, «Collega alla fattura». Il riferimento in `DatiFattureCollegate` si
+trova già spuntato se indica una sola fattura dello stesso fornitore; se non c'è
+o non è univoco lo si dice e si sceglie a mano. Conferma sempre una persona.
+`nota_credito_collega` scrive in `note_credito_storni` e:
+- abbassa il costo dell'imponibile della quota;
+- riduce le rate aperte dalla più vicina, una RiBa già avvisata per ultima (la
+  banca addebita l'importo pieno finché nessuno la blocca, e l'esito lo dice);
+- una rata azzerata diventa `stornata`: né pagata né da pagare. Tutte chiuse, il
+  costo risulta saldato;
+- quel che non trova rate aperte è un credito verso il fornitore
+  (`credito_residuo`): se la fattura era già pagata, non sparisce.
+
+Una nota può coprire più fatture e una fattura ricevere più note. L'importo è il
+valore assoluto del totale meno la ritenuta: lo SDI ammette entrambi i segni, e
+`netto_a_pagare` su una nota può essere negativo o zero. `nota_credito_scollega`
+rimette tutto com'era, e si ferma se una rata ridotta è stata pagata nel frattempo.
+Lo storico importato ha solo il collegamento: costo e rate non ci sono.
 
 ### G. Il prezzo in fattura non è quello dell'ordine
 

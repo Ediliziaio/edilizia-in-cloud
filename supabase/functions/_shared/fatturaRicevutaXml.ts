@@ -41,8 +41,15 @@ export interface FatturaRicevutaLetta {
   sdi_progressivo: string;
   /** Fatture nel file: più di una è un lotto, e qui c'è solo la prima. */
   fatture_nel_file: number;
+  /** DatiFattureCollegate: le fatture che il documento dichiara di rettificare (nota di credito). */
+  fatture_collegate: RiferimentoFattura[];
   /** Avviso per chi apre la fattura: dati presi alla meglio, da controllare sul file. */
   note_import?: string;
+}
+
+export interface RiferimentoFattura {
+  numero: string;
+  data: string | null;
 }
 
 type Nodo = ElementoXml | DocumentoXml;
@@ -193,7 +200,26 @@ export function leggiFatturaRicevuta(xml: string, parser: LettoreXml, indiceCorp
     sdi_id_trasmissione: testo(doc, "IdentificativoSdI"),
     sdi_progressivo: testo(primo(header, "DatiTrasmissione"), "ProgressivoInvio"),
     fatture_nel_file: corpi.length,
+    fatture_collegate: fattureCollegate(body),
   };
+}
+
+/**
+ * I riferimenti alle fatture che il corpo rettifica. Dove sono: DatiGenerali/DatiFattureCollegate, uno per
+ * fattura; la data è facoltativa. Lo stesso numero ripetuto vale una volta, e un riferimento senza numero non
+ * serve a niente.
+ */
+function fattureCollegate(body: ElementoXml): RiferimentoFattura[] {
+  const visti = new Set<string>();
+  const out: RiferimentoFattura[] = [];
+  for (const r of Array.from(body.getElementsByTagName("DatiFattureCollegate"))) {
+    const numero = testo(r, "IdDocumento");
+    if (!numero || visti.has(numero)) continue;
+    visti.add(numero);
+    const data = testo(r, "Data");
+    out.push({ numero, data: /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : null });
+  }
+  return out;
 }
 
 /**
@@ -259,6 +285,7 @@ export function lettaDiRiserva(
     sdi_id_trasmissione: "",
     sdi_progressivo: campo("ProgressivoInvio"),
     fatture_nel_file: 1,
+    fatture_collegate: [],
     note_import: `Dati incompleti (${contesto.motivo}): controlla fornitore, numero e importi sul file originale.`,
   };
 }

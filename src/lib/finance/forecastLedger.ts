@@ -857,7 +857,8 @@ export function buildForecastLedger(
       // Il costo ha le sue rate: esce rata per rata, ognuna alla sua data e col
       // suo importo (lordo, dal documento). Le rate già pagate non escono più.
       const rate = installmentsByCost.get(c.id)!;
-      const aperte = rate.filter((r) => r.stato !== "pagata");
+      // «Stornata»: chiusa da una nota di credito, non esce più dalla cassa.
+      const aperte = rate.filter((r) => r.stato !== "pagata" && r.stato !== "stornata");
       const vat = c.vat_rate ?? c.supplier?.vat_rate;
       // Una rata senza importo: la sua parte del lordo del costo, alla pari con
       // le altre. Capita quando l'XML non lo dice; di solito lo dice.

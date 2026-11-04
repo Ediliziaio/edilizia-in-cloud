@@ -99,7 +99,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
   const totali = useMemo(() => totaliFornitore(righe, giorno), [righe, giorno]);
   const conto = useMemo(() => estrattoConto(righe), [righe]);
   const aperte = useMemo(
-    () => (q.data?.rate ?? []).filter((r) => r.stato !== "pagata").sort((a, b) => (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999")),
+    () => (q.data?.rate ?? []).filter((r) => r.stato !== "pagata" && r.stato !== "stornata").sort((a, b) => (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999")),
     [q.data],
   );
 

@@ -11,6 +11,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
 import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
+import { CollegaNotaCreditoDialog } from "@/components/fatturazione/CollegaNotaCreditoDialog";
+import { useStorniNoteCredito } from "@/hooks/useStorniNoteCredito";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
 import { StatoPill } from "@/components/orders/TabellaCommessa";
 import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
@@ -248,6 +250,17 @@ export default function FattureRicevutePage() {
   const companyId = useEffectiveCompanyId();
   const permessiCosti = usePermissions();
   const { data: pagate } = usePagamentiRicevute(companyId);
+  const { data: storni } = useStorniNoteCredito(companyId);
+  const [collegaNota, setCollegaNota] = useState<FatturaRicevuta | null>(null);
+  // Una nota di credito senza ordine non si contabilizza da sola: va detto quale fattura storna.
+  const apriContabilizza = useCallback((f: FatturaRicevuta) => {
+    if (isNotaCreditoRicevuta(f.tipo_documento) && !f.purchase_order_id) setCollegaNota(f);
+    else setContabilizzaFattura(f);
+  }, []);
+  const stornataDelTutto = useCallback((f: FatturaRicevuta) => {
+    const s = storni?.perFattura.get(f.id);
+    return !!s && s.importo >= Math.abs(Number(f.totale_documento) || 0) - 0.01;
+  }, [storni]);
   const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -509,7 +522,7 @@ export default function FattureRicevutePage() {
   // Conteggi dei chip rapidi, sull'intero anno (non sul risultato dei filtri).
   const conteggi = useMemo(
     () => ({
-      daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata").length,
+      daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id)).length,
       senzaOrdine: fatture.filter((f) => !haCollegamento(f)).length,
       daVerificare: fatture.filter((f) => f.stato !== "rifiutata" && !verificata(f)).length,
       daPagare: fatture.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataSulCosto(f) && !pagataIl(f.id)).length,
@@ -565,7 +578,7 @@ export default function FattureRicevutePage() {
     }
     if (soloDaVerificare) result = result.filter((f) => f.stato !== "rifiutata" && !verificata(f));
     if (contabFilter === "da_contabilizzare") {
-      result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata");
+      result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id));
     }
     if (pagamentoFilter === "da_pagare") {
       result = result.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataSulCosto(f) && !pagataIl(f.id));
@@ -1347,7 +1360,7 @@ export default function FattureRicevutePage() {
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
                 <div className={`mt-0.5 text-[11px] leading-tight ${pagataIl(f.id) || pagataSulCosto(f) ? "text-emerald-600" : f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
-                  {isNotaCreditoRicevuta(f.tipo_documento) ? etichettaStato(f) : pagataIl(f.id) || pagataSulCosto(f) ? "Pagata" : "Da pagare"}
+                  {isNotaCreditoRicevuta(f.tipo_documento) ? (storni?.perNota.has(f.id) ? "Collegata" : etichettaStato(f)) : stornataDelTutto(f) ? "Stornata" : pagataIl(f.id) || pagataSulCosto(f) ? "Pagata" : "Da pagare"}
                 </div>
               </div>
             </button>
@@ -1407,7 +1420,17 @@ export default function FattureRicevutePage() {
                     {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : <VerificaFatturaPill id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
                   </TableCell>
                   <TableCell>
-                    {isNotaCreditoRicevuta(f.tipo_documento) ? <span className="text-muted-foreground">—</span> : pagataSulCosto(f) && !pagataIl(f.id) ? (
+                    {isNotaCreditoRicevuta(f.tipo_documento) ? (
+                      f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : (
+                        <button type="button" className="whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground" onClick={() => setCollegaNota(f)}>
+                          {storni?.perNota.has(f.id)
+                            ? `Storna ${fatture.filter((x) => storni.perNota.get(f.id)!.fatture.includes(x.id)).map((x) => x.numero_fattura).join(", ") || "una fattura"}`
+                            : <span className="text-amber-700 dark:text-amber-400">Collega alla fattura</span>}
+                        </button>
+                      )
+                    ) : stornataDelTutto(f) ? (
+                      <StatoPill tono="neutro">Stornata</StatoPill>
+                    ) : pagataSulCosto(f) && !pagataIl(f.id) ? (
                       <StatoPill tono="verde">Pagata{datiCosti?.pagati[f.company_cost_id!] ? ` ${formatDateShort(datiCosti.pagati[f.company_cost_id!]!)}` : ""}</StatoPill>
                     ) : pagataIl(f.id) ? (
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
@@ -1531,7 +1554,7 @@ export default function FattureRicevutePage() {
                           size="icon"
                           className="h-8 w-8 text-green-700 hover:bg-green-50 hover:text-green-800"
                           title="Contabilizza" aria-label={`Contabilizza la fattura ${f.numero_fattura}`}
-                          onClick={() => setContabilizzaFattura(f)}
+                          onClick={() => apriContabilizza(f)}
                         >
                           <CheckCircle2 className="h-4 w-4" />
                         </Button>
@@ -1623,9 +1646,18 @@ export default function FattureRicevutePage() {
               {dettaglioMobile.stato !== "contabilizzata" && (
                 <Button
                   className="mt-2 h-10 w-full bg-green-600 hover:bg-green-700"
-                  onClick={() => { setContabilizzaFattura(dettaglioMobile); setDettaglioMobile(null); }}
+                  onClick={() => { apriContabilizza(dettaglioMobile); setDettaglioMobile(null); }}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Contabilizza
+                </Button>
+              )}
+              {isNotaCreditoRicevuta(dettaglioMobile.tipo_documento) && dettaglioMobile.stato !== "rifiutata" && (dettaglioMobile.stato === "contabilizzata" || !!dettaglioMobile.purchase_order_id) && (
+                <Button
+                  variant="outline"
+                  className="mt-2 h-10 w-full"
+                  onClick={() => { setCollegaNota(dettaglioMobile); setDettaglioMobile(null); }}
+                >
+                  {storni?.perNota.has(dettaglioMobile.id) ? "Cambia la fattura stornata" : "Collega alla fattura"}
                 </Button>
               )}
             </>
@@ -1727,6 +1759,8 @@ export default function FattureRicevutePage() {
           onScegliOrdine={collegaCommesse.stato !== "contabilizzata" ? () => { setCollegaFattura(collegaCommesse); setCollegaCommesse(null); } : undefined}
           fattura={{ id: collegaCommesse.id, numero: collegaCommesse.numero_fattura, fornitore: collegaCommesse.cedente_ragione_sociale, imponibile: collegaCommesse.imponibile_totale, totale: collegaCommesse.totale_documento, companyCostId: collegaCommesse.company_cost_id, purchaseOrderId: collegaCommesse.purchase_order_id, suOrdini: (quoteOrdini[collegaCommesse.id]?.length ?? 0) > 0 }} />
       )}
+      {collegaNota && <CollegaNotaCreditoDialog nota={collegaNota} onChiudi={() => setCollegaNota(null)} />}
+
       {/* Collega ordine Dialog */}
       <CollegaOrdineFatturaDialog
         open={!!collegaFattura}
@@ -1803,7 +1837,7 @@ export default function FattureRicevutePage() {
           return {
             onCollegaOrdine: () => setCollegaFattura(f),
             onCollegaCommesse: () => { setRiepilogoId(null); setCollegaCommesse(f); },
-            onContabilizza: () => setContabilizzaFattura(f),
+            onContabilizza: () => apriContabilizza(f),
             onVersioneCompleta: () => void handleViewFattura(f),
             onScaricaOriginale: () => void handleScaricaOriginale(f),
           };

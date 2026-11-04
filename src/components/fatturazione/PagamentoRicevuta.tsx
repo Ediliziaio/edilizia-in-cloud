@@ -43,7 +43,7 @@ export function etichettaTipoRicevuta(tipo: string | null | undefined): string {
 
 /** Una nota di credito del fornitore non si paga: riduce quello che gli devi. */
 export function isNotaCreditoRicevuta(tipo: string | null | undefined): boolean {
-  return tipo === "TD04" || tipo === "passive_credit_note";
+  return tipo === "TD04" || tipo === "TD08" || tipo === "passive_credit_note";
 }
 
 /** Per ogni fattura ricevuta dell'azienda, il giorno in cui è stata pagata (o assente). */
