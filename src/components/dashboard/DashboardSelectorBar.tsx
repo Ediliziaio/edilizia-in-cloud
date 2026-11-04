@@ -78,7 +78,7 @@ const SYSTEM_DASHBOARDS: SystemDash[] = [
   // Controllo di Gestione rimosso dal selector Cruscotto: non e' una dashboard
   // ma un modulo dedicato con sidebar voce propria → l'utente lo trova li.
   { id: "sys-marketing", label: "Dashboard Marketing", url: "/azienda/marketing",            icon: TrendingUp,  permKey: "canViewMarketingDashboard" },
-  { id: "sys-callcenter", label: "Dashboard Call Center", url: "/azienda/call-center",        icon: Headphones,  permKey: "canViewCallcenterDashboard" },
+  { id: "sys-callcenter", label: "Cruscotto Call Center", url: "/azienda/call-center",        icon: Headphones,  permKey: "canViewCallcenterDashboard" },
 ];
 
 function isSystemActive(pathname: string, url: string) {
