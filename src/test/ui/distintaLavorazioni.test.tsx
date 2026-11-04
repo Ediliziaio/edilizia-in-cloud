@@ -4,6 +4,7 @@ import { DistintaLavorazioni } from "@/components/orders/DistintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [], isLoading: false, isError: false }) }));
 
 const fasi = [{ id: "f1", name: "Murature", percentuale: 64, status: "in_corso" }, { id: "f2", name: "Impianti", percentuale: 0, status: "da_iniziare" }];
 const sottofase: Sottofase = { id: "s1", phase_id: "f1", name: "Controparete", position: 0, peso: 1, fatta: false, fatta_il: null, data_fine: "2026-01-01" };
@@ -157,12 +158,27 @@ describe("Tabella delle lavorazioni", () => {
     expect(screen.getByText("10 mq")).toBeInTheDocument();
     expect(screen.getByText("Da fare", { selector: "div" })).toBeInTheDocument();
   });
-  it("lo schermo intero si apre e si chiude", () => {
+  it("un clic sulla voce apre il popup con tutto, e si passa alla voce dopo", () => {
+    mostra({ fasi: [{ ...fasi[0] }, { ...fasi[1], status: "in_corso" }] });
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    expect(within(popup).getByText("Stato dei lavori")).toBeInTheDocument();
+    expect(within(popup).getByText("Costo previsto")).toBeInTheDocument();
+    expect(within(popup).getByText("1 di 2")).toBeInTheDocument();
+    fireEvent.click(within(popup).getByRole("button", { name: "Voce dopo" }));
+    expect(within(screen.getByRole("dialog")).getByText("Tubazione")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText(/non ha ancora una sottofase/)).toBeInTheDocument();
+  });
+  it("nel popup le date si salvano solo se coerenti", () => {
     mostra();
-    fireEvent.click(screen.getByRole("button", { name: "Schermo intero" }));
-    expect(screen.getByRole("region", { name: "Lavorazioni della commessa" })).toHaveClass("fixed");
-    fireEvent.click(screen.getByRole("button", { name: "Riduci" }));
-    expect(screen.getByRole("region", { name: "Lavorazioni della commessa" })).not.toHaveClass("fixed");
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.change(within(popup).getByLabelText("Dal"), { target: { value: "2026-12-01" } });
+    expect(within(popup).getByRole("alert")).toHaveTextContent("La fine viene prima");
+    expect(within(popup).getByRole("button", { name: "Salva le date" })).toBeDisabled();
+    fireEvent.change(within(popup).getByLabelText("Dal"), { target: { value: "2025-12-01" } });
+    fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
+    expect(azioni.onPianifica).toHaveBeenCalledExactlyOnceWith("s1", { data_inizio: "2025-12-01", data_fine: "2026-01-01", giorni: null });
   });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });

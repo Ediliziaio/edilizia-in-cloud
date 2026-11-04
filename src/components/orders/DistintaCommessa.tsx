@@ -15,6 +15,7 @@ export function DistintaCommessa({ orderId, ...resto }: Props) {
   return (
     <DistintaLavorazioni
       {...resto}
+      orderId={orderId}
       iva={iva}
       squadre={squadre.map((s) => ({ id: s.id, nome: s.nome }))}
       assegnaInCorso={assegna.isPending}
