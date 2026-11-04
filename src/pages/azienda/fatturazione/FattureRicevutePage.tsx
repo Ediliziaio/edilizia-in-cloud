@@ -6,6 +6,9 @@ import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, u
 import { importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
 import { importoNotaCredito } from "@/lib/fatturazione/notaCreditoStorno";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
+import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salvaColonne, type ColonnaRicevute } from "@/lib/fatturazione/colonneRicevute";
+import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiFattura";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
@@ -64,6 +67,8 @@ import {
   Eye,
   FileText,
   CheckCircle2,
+  Columns3,
+  Paperclip,
   Inbox,
   Loader2,
   Link2,
@@ -155,6 +160,10 @@ interface FatturaRicevuta {
   /** Importata come storico già registrato nel gestionale di prima (data di taglio). */
   storico_esterno?: boolean | null;
   note: string | null;
+  note_interne?: string | null;
+  piano_pagamento?: unknown;
+  netto_a_pagare?: number | null;
+  rettifica_motivo?: string | null;
   created_at: string;
   /** Ordine d'acquisto collegato: dal trigger automatico o a mano da qui. */
   purchase_order_id: string | null;
@@ -280,6 +289,18 @@ export default function FattureRicevutePage() {
   const [categoriaFilter, setCategoriaFilter] = useState("all");
   const [ordineFilter, setOrdineFilter] = useState<"all" | "con" | "senza">("all");
   const [soloDaVerificare, setSoloDaVerificare] = useState(false);
+  const [soloDaRettificare, setSoloDaRettificare] = useState(false);
+  const [metodoFilter, setMetodoFilter] = useState("all");
+  const [allegatiFilter, setAllegatiFilter] = useState<"all" | "con" | "senza">("all");
+  const [colonne, setColonne] = useState<Set<ColonnaRicevute>>(() => leggiColonne());
+  const cambiaColonna = (c: ColonnaRicevute, attiva: boolean) => setColonne((prima) => {
+    const dopo = new Set(prima);
+    if (attiva) dopo.add(c); else dopo.delete(c);
+    salvaColonne(dopo);
+    return dopo;
+  });
+  const { data: conteggiAllegati } = useConteggiAllegatiRicevute(companyId);
+  const oggiIso = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
   const [collegaCommesse, setCollegaCommesse] = useState<FatturaRicevuta | null>(null);
   const [contabFilter, setContabFilter] = useState<"all" | "da_contabilizzare">("all");
   const [ordinamento, setOrdinamento] = useState<{ campo: "data" | "fornitore" | "totale"; dir: "asc" | "desc" }>({
@@ -369,7 +390,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false })
@@ -535,13 +556,15 @@ export default function FattureRicevutePage() {
     () => ({
       daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id)).length,
       senzaOrdine: fatture.filter((f) => !haCollegamento(f)).length,
-      daVerificare: fatture.filter((f) => f.stato !== "rifiutata" && !verificata(f)).length,
+      daVerificare: fatture.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare").length,
+      daRettificare: fatture.filter((f) => verifiche[f.id] === "da_rettificare").length,
       daPagare: fatture.filter((f) => !nonSiPaga(f.tipo_documento) && !stornataDelTutto(f) && !pagataSulCosto(f) && !pagataIl(f.id)).length,
     }),
-    [fatture, haCollegamento, verificata, pagataIl, pagataSulCosto, stornataDelTutto, storni],
+    [fatture, haCollegamento, verificata, verifiche, pagataIl, pagataSulCosto, stornataDelTutto, storni],
   );
   // Quelli dentro «Altri filtri»: si contano sul bottone, altrimenti non si vedono.
-  const altriFiltriAttivi = (statoFilter !== "all" ? 1 : 0) + (tipoFilter !== "all" ? 1 : 0) + (categoriaFilter !== "all" ? 1 : 0) + (ordineFilter !== "all" ? 1 : 0);
+  const opzioniMetodo = useMemo(() => [...new Set(fatture.flatMap((f) => metodiPagamento(f.piano_pagamento)))].sort(), [fatture]);
+  const altriFiltriAttivi = (metodoFilter !== "all" ? 1 : 0) + (allegatiFilter !== "all" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + (tipoFilter !== "all" ? 1 : 0) + (categoriaFilter !== "all" ? 1 : 0) + (ordineFilter !== "all" ? 1 : 0);
   const filtriAttivi =
     (statoFilter !== "all" ? 1 : 0) +
     (tipoFilter !== "all" ? 1 : 0) +
@@ -550,9 +573,15 @@ export default function FattureRicevutePage() {
     (contabFilter !== "all" ? 1 : 0) +
     (pagamentoFilter !== "all" ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0) +
-    (soloDaVerificare ? 1 : 0);
+    (soloDaVerificare ? 1 : 0) +
+    (soloDaRettificare ? 1 : 0) +
+    (metodoFilter !== "all" ? 1 : 0) +
+    (allegatiFilter !== "all" ? 1 : 0);
   const azzeraFiltri = () => {
     setSoloDaVerificare(false);
+    setSoloDaRettificare(false);
+    setMetodoFilter("all");
+    setAllegatiFilter("all");
     setSearchQuery("");
     setStatoFilter("all");
     setTipoFilter("all");
@@ -587,7 +616,10 @@ export default function FattureRicevutePage() {
     } else if (ordineFilter === "senza") {
       result = result.filter((f) => !haCollegamento(f));
     }
-    if (soloDaVerificare) result = result.filter((f) => f.stato !== "rifiutata" && !verificata(f));
+    if (soloDaVerificare) result = result.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare");
+    if (soloDaRettificare) result = result.filter((f) => verifiche[f.id] === "da_rettificare");
+    if (metodoFilter !== "all") result = result.filter((f) => metodiPagamento(f.piano_pagamento).includes(metodoFilter));
+    if (allegatiFilter !== "all") result = result.filter((f) => ((conteggiAllegati?.get(f.id) ?? 0) > 0) === (allegatiFilter === "con"));
     if (contabFilter === "da_contabilizzare") {
       result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id));
     }
@@ -600,7 +632,10 @@ export default function FattureRicevutePage() {
         (f) =>
           f.cedente_ragione_sociale?.toLowerCase().includes(q) ||
           f.numero_fattura?.toLowerCase().includes(q) ||
-          f.cedente_piva?.includes(q)
+          f.cedente_piva?.includes(q) ||
+          f.note_interne?.toLowerCase().includes(q) ||
+          f.note?.toLowerCase().includes(q) ||
+          f.rettifica_motivo?.toLowerCase().includes(q)
       );
     }
     const segno = ordinamento.dir === "asc" ? 1 : -1;
@@ -613,7 +648,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, haCollegamento, verificata, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
+  }, [fatture, haCollegamento, verificata, verifiche, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -1250,6 +1285,27 @@ export default function FattureRicevutePage() {
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 space-y-3">
+              {opzioniMetodo.length > 0 && (
+                <label className="block space-y-1 text-sm"><span className="font-medium">Modalità di pagamento</span>
+                  <Select value={metodoFilter} onValueChange={setMetodoFilter}>
+                    <SelectTrigger aria-label="Modalità di pagamento"><SelectValue placeholder="Modalità" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutte</SelectItem>
+                      {opzioniMetodo.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              <label className="block space-y-1 text-sm"><span className="font-medium">Allegati</span>
+                <Select value={allegatiFilter} onValueChange={(v) => setAllegatiFilter(v as "all" | "con" | "senza")}>
+                  <SelectTrigger aria-label="Allegati"><SelectValue placeholder="Allegati" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte</SelectItem>
+                    <SelectItem value="con">Con allegati</SelectItem>
+                    <SelectItem value="senza">Senza allegati</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
               <label className="block space-y-1 text-sm"><span className="font-medium">Stato</span>
                 <Select value={statoFilter} onValueChange={setStatoFilter}>
                   <SelectTrigger aria-label="Stato"><SelectValue placeholder="Stato" /></SelectTrigger>
@@ -1296,6 +1352,19 @@ export default function FattureRicevutePage() {
               </label>
             </PopoverContent>
           </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-1.5 max-sm:hidden"><Columns3 className="h-4 w-4" />Colonne</Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-60 space-y-2">
+              {COLONNE_RICEVUTE.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={colonne.has(c.id)} onCheckedChange={(v) => cambiaColonna(c.id, v === true)} />
+                  {c.etichetta}
+                </label>
+              ))}
+            </PopoverContent>
+          </Popover>
         </div>
         {/* Cosa c'è da fare: a zero non serve vederlo. */}
         <div className="flex flex-wrap items-center gap-2">
@@ -1305,6 +1374,7 @@ export default function FattureRicevutePage() {
           {([
             { attivo: statoFilter === "non_letta", fai: () => setStatoFilter((v) => (v === "non_letta" ? "all" : "non_letta")), n: kpi.nonLette, testo: "Da leggere" },
             { attivo: soloDaVerificare, fai: () => setSoloDaVerificare((v) => !v), n: conteggi.daVerificare, testo: "Da verificare" },
+            { attivo: soloDaRettificare, fai: () => setSoloDaRettificare((v) => !v), n: conteggi.daRettificare, testo: "Da rettificare" },
             { attivo: ordineFilter === "senza", fai: () => setOrdineFilter((v) => (v === "senza" ? "all" : "senza")), n: conteggi.senzaOrdine, testo: "Da collegare" },
             { attivo: contabFilter === "da_contabilizzare", fai: () => setContabFilter((v) => (v === "all" ? "da_contabilizzare" : "all")), n: conteggi.daContabilizzare, testo: "Da contabilizzare" },
             { attivo: pagamentoFilter === "da_pagare", fai: () => setPagamentoFilter((v) => (v === "da_pagare" ? "all" : "da_pagare")), n: conteggi.daPagare, testo: "Da pagare" },
@@ -1384,12 +1454,17 @@ export default function FattureRicevutePage() {
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
                 <TableHead>Numero</TableHead>
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Data</IntestazioneOrdinabile>
-                <TableHead className="text-right">Imponibile</TableHead>
+                {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
                 <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
-                <TableHead>Stato</TableHead>
-                <TableHead>Verifica</TableHead>
-                <TableHead>Pagamento</TableHead>
-                <TableHead>Collegata a</TableHead>
+                {colonne.has("netto") && <TableHead className="text-right">Netto</TableHead>}
+                {colonne.has("stato") && <TableHead>Stato</TableHead>}
+                {colonne.has("verifica") && <TableHead>Verifica</TableHead>}
+                {colonne.has("pagamento") && <TableHead>Pagamento</TableHead>}
+                {colonne.has("metodo") && <TableHead>Modalità</TableHead>}
+                {colonne.has("scadenza") && <TableHead>Scadenza</TableHead>}
+                {colonne.has("collegata") && <TableHead>Collegata a</TableHead>}
+                {colonne.has("allegati") && <TableHead>Allegati</TableHead>}
+                {colonne.has("note") && <TableHead>Note</TableHead>}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -1420,17 +1495,18 @@ export default function FattureRicevutePage() {
                   <TableCell className="whitespace-nowrap">
                     <DataFattura f={f} />
                   </TableCell>
-                  <TableCell className="text-right">
+                  {colonne.has("imponibile") && <TableCell className="text-right">
                     {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
+                  </TableCell>}
                   <TableCell className="whitespace-nowrap text-right font-medium" title={f.iva_totale != null ? `IVA ${formatCurrency(f.iva_totale)}` : undefined}>
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
-                  <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} /></TableCell>
-                  <TableCell>
-                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : <VerificaFatturaPill id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
-                  </TableCell>
-                  <TableCell>
+                  {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right">{f.netto_a_pagare != null ? formatCurrency(f.netto_a_pagare) : <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} /></TableCell>}
+                  {colonne.has("verifica") && <TableCell>
+                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
+                  </TableCell>}
+                  {colonne.has("pagamento") && <TableCell>
                     {isNotaCreditoRicevuta(f.tipo_documento) ? (
                       f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : (
                         <button type="button" className="whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground" onClick={() => setCollegaNota(f)}>
@@ -1448,8 +1524,10 @@ export default function FattureRicevutePage() {
                     ) : (
                       <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">{parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}<PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} /></span>
                     )}
-                  </TableCell>
-                  <TableCell>
+                  </TableCell>}
+                  {colonne.has("metodo") && <TableCell className="whitespace-nowrap text-xs">{metodiPagamento(f.piano_pagamento).join(", ") || <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("scadenza") && <TableCell className="whitespace-nowrap text-xs">{prossimaScadenza(f.piano_pagamento, oggiIso) ? formatDateShort(prossimaScadenza(f.piano_pagamento, oggiIso)!) : <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("collegata") && <TableCell>
                     <div className="flex flex-nowrap items-center gap-1">
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
                       <div className="flex flex-wrap items-center gap-0.5">
@@ -1529,7 +1607,13 @@ export default function FattureRicevutePage() {
                       </Button>
                     )}
                     </div>
-                  </TableCell>
+                  </TableCell>}
+                  {colonne.has("allegati") && <TableCell>
+                    <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" title="Apri la fattura per vedere o aggiungere allegati" aria-label={`Allegati della fattura ${f.numero_fattura}`} onClick={() => setRiepilogoId(f.id)}>
+                      <Paperclip className="h-3.5 w-3.5" />{conteggiAllegati?.get(f.id) ?? 0}
+                    </button>
+                  </TableCell>}
+                  {colonne.has("note") && <TableCell className="max-w-[220px] truncate text-xs" title={f.note_interne ?? undefined}>{f.note_interne || <span className="text-muted-foreground">—</span>}</TableCell>}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button

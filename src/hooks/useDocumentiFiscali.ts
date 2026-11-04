@@ -213,7 +213,11 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
         }
         const ricerca = ricercaDocumenti(filters.search ?? "");
         if (ricerca) {
-          query = query.or(ricerca);
+          // Anche nelle note interne: stanno fuori dalle viste dell'elenco, si chiedono a parte.
+          const { data: conNota } = await (supabase as unknown as { rpc: (f: string, a: unknown) => PromiseLike<{ data: Array<{ id: string }> | null }> })
+            .rpc("ricerca_note_fatture", { p_company_id: companyId, p_testo: filters.search ?? "" });
+          const ids = (conNota ?? []).map((r) => r.id);
+          query = query.or(ids.length ? `${ricerca},id.in.(${ids.join(",")})` : ricerca);
         }
 
         const { data, error, count } = await withClientTimeout(

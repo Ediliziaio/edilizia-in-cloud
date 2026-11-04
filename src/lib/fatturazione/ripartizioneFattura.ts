@@ -10,7 +10,7 @@ const centesimi = (n: number) => Math.round(n * 100) / 100;
 /** Chi ha scelto vince; finché nessuno sceglie, contabilizzata vale verificata. */
 export function fatturaVerificata(f: { stato?: string | null; verifica_manuale?: string | null }): boolean {
   if (f.verifica_manuale === "verificata") return true;
-  if (f.verifica_manuale === "da_verificare") return false;
+  if (f.verifica_manuale === "da_verificare" || f.verifica_manuale === "da_rettificare") return false;
   return f.stato === "contabilizzata";
 }
 

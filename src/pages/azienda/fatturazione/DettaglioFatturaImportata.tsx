@@ -17,6 +17,7 @@ import { PROVIDER_LABELS, SegnaPagataImportataDialog, importataPagabile, residuo
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
 import { AzioniInvioImportata } from "@/components/fatturazione/AzioniInvioImportata";
+import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,11 +48,11 @@ interface FatturaImportata {
   client_company_name: string | null; client_fiscal_code: string | null; client_vat_number: string | null;
   client_email: string | null; client_address: string | null; client_city: string | null; client_zip: string | null;
   client_country: string | null; payment_method: string | null; bank_iban: string | null;
-  piano_pagamento: unknown; condizioni_pagamento: string | null;
+  piano_pagamento: unknown; condizioni_pagamento: string | null; note_interne: string | null;
   invoice_lines: RigaImportata[] | null;
 }
 
-const COLONNE = "id, company_id, invoice_number, document_type, order_id, external_provider, external_sdi_id, external_xml_url, client_company_name, client_fiscal_code, client_vat_number, client_email, client_address, client_city, client_zip, client_country, payment_method, bank_iban, piano_pagamento, condizioni_pagamento, invoice_lines(id, description, quantity, unit, unit_price, discount_percent, tax_rate, tax_nature, line_net, line_tax, line_gross, product_code, sort_order)";
+const COLONNE = "id, note_interne, company_id, invoice_number, document_type, order_id, external_provider, external_sdi_id, external_xml_url, client_company_name, client_fiscal_code, client_vat_number, client_email, client_address, client_city, client_zip, client_country, payment_method, bank_iban, piano_pagamento, condizioni_pagamento, invoice_lines(id, description, quantity, unit, unit_price, discount_percent, tax_rate, tax_nature, line_net, line_tax, line_gross, product_code, sort_order)";
 
 /** Le righe e il riepilogo IVA dell'importata nella forma che l'anteprima nativa disegna. */
 function documentoPerAnteprima(riga: DocumentoFiscale, f: FatturaImportata): DocumentoFiscale {
@@ -305,6 +306,9 @@ export default function DettaglioFatturaImportata() {
         <Card>
           <CardContent className="pt-4 max-sm:p-3">
             <AllegatiFattura companyId={companyId} madre={{ invoiceId: f.id }} />
+            <div className="mt-4 border-t pt-4">
+              <NoteInterneFattura tabella="invoices" id={f.id} companyId={companyId} valore={f.note_interne} puoModificare chiaviDaAggiornare={["emessa-importata-dettaglio"]} />
+            </div>
           </CardContent>
         </Card>
 

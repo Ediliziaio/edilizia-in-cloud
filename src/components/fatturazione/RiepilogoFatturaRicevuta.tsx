@@ -19,6 +19,7 @@ import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
 import { usePermissions } from "@/hooks/usePermissions";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
+import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -84,7 +85,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, verifica_manuale, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -456,7 +457,9 @@ export function RiepilogoFatturaRicevuta({
                 <dt className="text-muted-foreground">Verifica</dt>
                 <dd>
                   <VerificaFatturaPill id={String(f.id)} numero={f.numero_fattura ? String(f.numero_fattura) : null} puoCambiare={!!permessi.canViewCosts && !permessi.solaLettura}
-                    verificata={fatturaVerificata({ stato: String(f.stato ?? ""), verifica_manuale: f.verifica_manuale ? String(f.verifica_manuale) : null })} />
+                    verificata={fatturaVerificata({ stato: String(f.stato ?? ""), verifica_manuale: f.verifica_manuale ? String(f.verifica_manuale) : null })}
+                    daRettificare={f.verifica_manuale === "da_rettificare"} motivoRettifica={f.rettifica_motivo ? String(f.rettifica_motivo) : null} />
+                  {f.verifica_manuale === "da_rettificare" && f.rettifica_motivo ? <p className="mt-1 text-xs text-muted-foreground">{String(f.rettifica_motivo)}</p> : null}
                 </dd>
 
                 <dt className="text-muted-foreground">Pagamento</dt>
@@ -604,6 +607,8 @@ export function RiepilogoFatturaRicevuta({
             })()}
 
             {f.note ? <p className="text-sm"><span className="text-muted-foreground">Note: </span>{String(f.note)}</p> : null}
+            <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={f.note_interne ? String(f.note_interne) : null}
+              puoModificare={!permessi.solaLettura} chiaviDaAggiornare={["fatture-ricevute", "fattura-ricevuta-riepilogo"]} />
 
             <div className="flex flex-wrap gap-2 border-t pt-4">
               {haXml && azioni.onVersioneCompleta ? (

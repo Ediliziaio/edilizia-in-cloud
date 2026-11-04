@@ -21,6 +21,7 @@ import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { useRataDellaFattura } from "@/hooks/useRataDellaFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -470,6 +471,11 @@ export default function DocumentoDetail() {
                 madre={{ documentoFiscaleId: doc.id }}
                 invioSdi={modificabile && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo}
               />
+              {effectiveCompany?.id && (
+                <div className="mt-4 border-t pt-4">
+                  <NoteInterneFattura tabella="documenti_fiscali" id={doc.id} companyId={effectiveCompany.id} valore={doc.note_interne} puoModificare chiaviDaAggiornare={["documenti-fiscali", "documento-fiscale"]} />
+                </div>
+              )}
             </CardContent>
           </Card>
 
