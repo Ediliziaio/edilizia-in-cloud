@@ -39,6 +39,7 @@ import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
+import { AssegnazioniFasiCommessa } from "@/components/orders/AssegnazioniFasi";
 import { DistintaLavorazioni } from "@/components/orders/DistintaLavorazioni";
 import { useIvaCommessa } from "@/components/orders/IvaCommessa";
 import { distintaConsigliata } from "@/lib/orders/distintaLavorazioni";
@@ -305,19 +306,34 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   }, [scheduleHealth]);
 
   // Oltre una certa quantità di voci si parte dalla distinta; la scelta fatta a mano vale per quella commessa.
-  const [modoScelto, setModoScelto] = useState<"schede" | "distinta" | null>(() => {
+  const [modoScelto, setModoScelto] = useState<"schede" | "distinta" | "assegnazioni" | null>(() => {
     try {
       const v = localStorage.getItem(`fasi-lavoro-modo:${orderId}`);
-      return v === "schede" || v === "distinta" ? v : null;
+      return v === "schede" || v === "distinta" || v === "assegnazioni" ? v : null;
     } catch { return null; }
   });
-  const scegliModo = (modo: "schede" | "distinta") => {
+  const scegliModo = (modo: "schede" | "distinta" | "assegnazioni") => {
     setModoScelto(modo);
     try { localStorage.setItem(`fasi-lavoro-modo:${orderId}`, modo); } catch { /* resta per questa pagina */ }
   };
   const quanteVoci = Math.max(vociPreviste?.length ?? 0, [...sottofasiDi.values()].reduce((n, l) => n + l.length, 0));
   const modoFasi = modoScelto ?? (distintaConsigliata(quanteVoci) ? "distinta" : "schede");
   const { data: ivaDellaCommessa } = useIvaCommessa(orderId, modoFasi === "distinta" && canViewOrderAmounts);
+  const fasiAssegnazioni = useMemo(() => {
+    if (modoFasi !== "assegnazioni") return [];
+    const nomePersona = new Map(employees.map((e) => [e.id, e.label]));
+    const nomeDitta = new Map(externalTeams.map((t) => [t.id, t.label]));
+    return phases.map((p) => ({
+      id: p.id,
+      nome: p.name,
+      percentuale: p.percentuale,
+      squadre: (squadrePerFase.get(p.id) ?? []).map((s) => s.nome),
+      persone: p.assignments.filter((a) => a.employee_id).map((a) => nomePersona.get(a.employee_id!) ?? "Persona non attiva"),
+      ditte: p.assignments.filter((a) => a.external_team_id).map((a) => nomeDitta.get(a.external_team_id!) ?? "Ditta non attiva"),
+      mezzi: (mezziPerFase.get(p.id) ?? []).map((m) => m.nome),
+      articoli: (materialsByPhase.get(p.id) ?? []).length,
+    }));
+  }, [modoFasi, phases, employees, externalTeams, squadrePerFase, mezziPerFase, materialsByPhase]);
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello">("manuale");
   const [filter, setFilter] = useState<WorkFilter>("all");
@@ -623,13 +639,29 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
           null
         ) : (
           <>
-            {phases.length > 0 && quanteVoci > 0 && (
+            {phases.length > 0 && (
               <div role="group" aria-label="Come vedere le fasi" className="flex items-center gap-1">
-                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "distinta" ? "secondary" : "ghost"} aria-pressed={modoFasi === "distinta"} onClick={() => scegliModo("distinta")}>Distinta</Button>
+                {quanteVoci > 0 && <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "distinta" ? "secondary" : "ghost"} aria-pressed={modoFasi === "distinta"} onClick={() => scegliModo("distinta")}>Distinta</Button>}
+                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "assegnazioni" ? "secondary" : "ghost"} aria-pressed={modoFasi === "assegnazioni"} onClick={() => scegliModo("assegnazioni")}>Assegnazioni</Button>
                 <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "schede" ? "secondary" : "ghost"} aria-pressed={modoFasi === "schede"} onClick={() => scegliModo("schede")}>Schede</Button>
               </div>
             )}
-            {modoFasi === "distinta" && phases.length > 0 && quanteVoci > 0 ? (
+            {modoFasi === "assegnazioni" && phases.length > 0 ? (
+              <AssegnazioniFasiCommessa
+                orderId={orderId}
+                fasi={fasiAssegnazioni}
+                persone={employees.map((e) => ({ id: e.id, nome: e.label }))}
+                ditte={externalTeams.filter((t) => t.kind !== "interna").map((t) => ({ id: t.id, nome: t.label }))}
+                puoSquadre={puoSquadre}
+                puoPersoneDitte={canEditOrders}
+                articoliSenzaFase={unassignedMaterials.length}
+                onApriScheda={(faseId) => {
+                  setSearch(phases.find((p) => p.id === faseId)?.name ?? "");
+                  setFilter("all");
+                  setModoScelto("schede");
+                }}
+              />
+            ) : modoFasi === "distinta" && phases.length > 0 && quanteVoci > 0 ? (
               <DistintaLavorazioni
                 fasi={phases}
                 sottofasiDi={sottofasiDi}
