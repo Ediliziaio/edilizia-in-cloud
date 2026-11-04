@@ -140,6 +140,7 @@ async function leggiFattura(nome: string, blob: Blob, dentroZip: boolean): Promi
 export async function espandiXmlDaFiles(files: File[]): Promise<EspansioneResult> {
   const xml: XmlDaImportare[] = [];
   const scartati: FileScartato[] = [];
+  const nomiVisti: string[] = files.map((f) => f.name);
   const raccogli = (r: Letto) => {
     if ("xml" in r) xml.push(r.xml);
     else if ("scarto" in r) scartati.push(r.scarto);
@@ -161,6 +162,7 @@ export async function espandiXmlDaFiles(files: File[]): Promise<EspansioneResult
         scartati.push({ nome: file.name, motivo: "Archivio zip illeggibile o danneggiato." });
         continue;
       }
+      nomiVisti.push(...entries.map((e) => e.name));
 
       const fattureNelloZip = entries.filter((e) => {
         const t = classificaFileFattura(e.name);
@@ -183,7 +185,34 @@ export async function espandiXmlDaFiles(files: File[]): Promise<EspansioneResult
     scartati.push({ nome: file.name, motivo: motivoScarto(tipo, file.name) });
   }
 
-  return { xml, scartati };
+  const rifiutateSdi = fattureRifiutateDalloSdi(nomiVisti);
+  if (rifiutateSdi.size === 0) return { xml, scartati };
+  const valide = xml.filter((f) => {
+    if (!rifiutateSdi.has(chiaveFile(f.nome))) return true;
+    scartati.push({ nome: f.nome, motivo: "Scartata dallo SDI (c'è la sua ricevuta di scarto): per il fisco non esiste, non la registro." });
+    return false;
+  });
+  return { xml: valide, scartati };
+}
+
+/** Il nome del file senza cartella né estensione: lega la fattura alle sue notifiche. */
+function chiaveFile(nome: string): string {
+  return (nome.split("/").pop() ?? nome).trim().replace(/\.xml(\.p7m)?$/i, "").toLowerCase();
+}
+
+/**
+ * Le fatture con una ricevuta di scarto (…_NS_001.xml) fra i file caricati. Lo scarto vuol dire che
+ * il documento non è mai stato emesso: di solito lo si corregge e lo si rimanda con lo stesso numero
+ *, e registrare la versione scartata fa respingere quella
+ * buona come doppione. Chi scarica dal portale le ha sempre entrambe nello stesso zip.
+ */
+export function fattureRifiutateDalloSdi(nomi: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const nome of nomi) {
+    const m = (nome.split("/").pop() ?? nome).trim().match(/^(.+)_NS_[A-Za-z0-9]{3}\.xml$/i);
+    if (m) out.add(m[1].toLowerCase());
+  }
+  return out;
 }
 
 /**

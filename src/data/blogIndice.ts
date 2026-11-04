@@ -203,6 +203,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "n3",
     "slug": "pos-piano-operativo-sicurezza-fac-simile",
+    "video": {
+      "youtubeId": "7ERyfY8sPKY",
+      "duration": "PT5M3S",
+      "uploadedAt": "2026-11-04T08:21:09+01:00"
+    },
     "title": "POS piano operativo di sicurezza: guida e fac simile",
     "excerpt": "Il POS è il primo documento che l'ispettore chiede: chi deve redigerlo, i 10 capitoli dell'Allegato XV, le sanzioni e come evitare il piano fotocopia.",
     "category": "Normativa",
@@ -212,6 +217,7 @@ export const blogIndice: BlogPostScheda[] = [
       "D.Lgs 81/08",
       "Allegato XV"
     ],
+    "updatedAt": "2026-11-04",
     "publishedAt": "2026-07-25",
     "readTime": 9,
     "author": {
@@ -224,8 +230,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "n4",
     "slug": "prezzario-regionale-edilizia",
+    "video": {
+      "youtubeId": "QttCZYmALfk",
+      "duration": "PT4M50S",
+      "uploadedAt": "2026-11-04T08:21:09+01:00"
+    },
     "title": "Prezzario regionale edilizia: cos'è e come si usa davvero",
-    "excerpt": "Il prezzario regionale contiene già spese generali e utile: come leggerlo, usarlo in preventivi e computi, e quando scostarsi senza lavorare in perdita.",
+    "excerpt": "Prezzario regionale edilizia: leggi voci e inclusioni, verifica l’edizione e confronta i prezzi di riferimento con i costi reali del cantiere.",
     "category": "Normativa",
     "tags": [
       "prezzario regionale",
@@ -233,6 +244,7 @@ export const blogIndice: BlogPostScheda[] = [
       "preventivi",
       "appalti pubblici"
     ],
+    "updatedAt": "2026-11-04",
     "publishedAt": "2026-07-25",
     "readTime": 7,
     "author": {
@@ -245,6 +257,12 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "n5",
     "slug": "cartello-di-cantiere-obbligatorio",
+    "updatedAt": "2026-11-04",
+    "video": {
+      "youtubeId": "tHdqM_ncn50",
+      "duration": "PT3M32S",
+      "uploadedAt": "2026-11-04T07:59:52+01:00"
+    },
     "title": "Cartello di cantiere: cosa scrivere, quando serve, sanzioni",
     "excerpt": "Cartello di cantiere obbligatorio anche con CILA e SCIA? Cosa deve contenere, modello di testo pronto, dimensioni, chi risponde e sanzioni.",
     "category": "Normativa",
@@ -266,8 +284,13 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "n6",
     "slug": "notifica-preliminare-cantiere",
+    "video": {
+      "youtubeId": "MjlWZJTEZRA",
+      "duration": "PT4M11S",
+      "uploadedAt": "2026-11-04T08:21:09+01:00"
+    },
     "title": "Notifica preliminare: quando serve e come inviarla",
-    "excerpt": "Quando serve e quando no la notifica preliminare: più imprese o almeno 200 uomini-giorno. Chi la invia, come si fa online e la sanzione fino a 1.800 €.",
+    "excerpt": "Notifica preliminare: quando è dovuta, chi la trasmette, destinatari, ricevuta e aggiornamenti da verificare prima di iniziare il cantiere.",
     "category": "Normativa",
     "tags": [
       "notifica preliminare",
@@ -276,7 +299,7 @@ export const blogIndice: BlogPostScheda[] = [
       "adempimenti cantiere"
     ],
     "publishedAt": "2026-07-25",
-    "updatedAt": "2026-10-18",
+    "updatedAt": "2026-11-04",
     "readTime": 7,
     "author": {
       "name": "Florin Andriciuc",
@@ -330,6 +353,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "c1",
     "slug": "migliori-software-gestionali-edilizia-confronto",
+    "video": {
+      "youtubeId": "Mh8bEVoJQtA",
+      "duration": "PT4M39S",
+      "uploadedAt": "2026-11-04T08:14:15+01:00"
+    },
     "title": "Migliori gestionali per imprese edili 2026: come sceglierli",
     "excerpt": "Edilizia in Cloud, TeamSystem, PriMus, Pillar, PlanRadar, Dylog, Buildertrend ed Excel: cosa dichiara ognuno, con fonti ufficiali e una prova pratica.",
     "category": "Digitalizzazione",
@@ -340,7 +368,7 @@ export const blogIndice: BlogPostScheda[] = [
       "gestione commesse"
     ],
     "publishedAt": "2026-07-25",
-    "updatedAt": "2026-11-03",
+    "updatedAt": "2026-11-04",
     "readTime": 9,
     "author": {
       "name": "Florin Andriciuc",
@@ -886,6 +914,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "16",
     "slug": "subappalto-edilizia-guida",
+    "video": {
+      "youtubeId": "ASAF7jA5q5c",
+      "duration": "PT5M12S",
+      "uploadedAt": "2026-11-04T07:59:52+01:00"
+    },
     "title": "Subappalto in Edilizia",
     "excerpt": "Guida completa al subappalto in edilizia: limiti normativi dopo il nuovo Codice Appalti, obblighi documentali, pagamento diretto e responsabilità solidale.",
     "category": "Finanza",
@@ -896,7 +929,7 @@ export const blogIndice: BlogPostScheda[] = [
       "appalti pubblici"
     ],
     "publishedAt": "2025-12-28",
-    "updatedAt": "2026-07-10",
+    "updatedAt": "2026-11-04",
     "readTime": 8,
     "author": {
       "name": "Florin Andriciuc",
@@ -1000,6 +1033,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "21",
     "slug": "computo-metrico-estimativo-guida",
+    "video": {
+      "youtubeId": "gZdxOaz_YBc",
+      "duration": "PT5M3S",
+      "uploadedAt": "2026-11-04T07:59:52+01:00"
+    },
     "title": "Computo Metrico Estimativo: Guida Completa 2026",
     "excerpt": "Computo metrico estimativo per imprese edili: struttura, prezzari regionali, esempi numerici, errori da evitare e come compilarlo velocemente.",
     "category": "Gestione Cantieri",
@@ -1012,7 +1050,7 @@ export const blogIndice: BlogPostScheda[] = [
       "prezzario regionale",
       "misurazioni edili"
     ],
-    "updatedAt": "2026-07-10",
+    "updatedAt": "2026-11-04",
     "publishedAt": "2026-01-18",
     "readTime": 14,
     "author": {
@@ -1048,6 +1086,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "23",
     "slug": "cassa-edile-come-funziona",
+    "video": {
+      "youtubeId": "UMUwmQ2DiDc",
+      "duration": "PT5M6S",
+      "uploadedAt": "2026-11-04T07:59:52+01:00"
+    },
     "title": "Cassa Edile: come funziona, quanto costa e cosa paga",
     "excerpt": "Come funziona la Cassa Edile: chi deve iscriversi, quanto costa all'impresa, cosa paga agli operai (ferie, gratifica, APE), legame con DURC e congruità.",
     "category": "HR & Personale",
@@ -1060,7 +1103,7 @@ export const blogIndice: BlogPostScheda[] = [
     ],
     "publishedAt": "2026-01-24",
     "readTime": 15,
-    "updatedAt": "2026-10-18",
+    "updatedAt": "2026-11-04",
     "author": {
       "name": "Florin Andriciuc",
       "role": "Co-fondatore di Edilizia in Cloud",
@@ -1886,6 +1929,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "63",
     "slug": "contabilita-di-cantiere-guida",
+    "video": {
+      "youtubeId": "ENWw_3JKV8c",
+      "duration": "PT5M59S",
+      "uploadedAt": "2026-11-04T08:14:15+01:00"
+    },
     "title": "Contabilità di Cantiere: la Guida Completa 2026",
     "excerpt": "Come funziona la contabilità di cantiere: libretto misure, SAL, contabilità industriale per commessa e strumenti per controllare i costi in tempo reale.",
     "category": "Finanza",
@@ -1901,7 +1949,7 @@ export const blogIndice: BlogPostScheda[] = [
       "margine di commessa"
     ],
     "publishedAt": "2026-07-10",
-    "updatedAt": "2026-08-03",
+    "updatedAt": "2026-11-04",
     "readTime": 17,
     "author": {
       "name": "Florin Andriciuc",
@@ -1913,6 +1961,11 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "64",
     "slug": "ritenuta-di-garanzia-appalti-come-funziona",
+    "video": {
+      "youtubeId": "K_3_WnrN5Uc",
+      "duration": "PT4M14S",
+      "uploadedAt": "2026-11-04T07:59:52+01:00"
+    },
     "title": "Ritenuta a garanzia negli appalti: percentuale e svincolo",
     "excerpt": "Ritenuta di garanzia negli appalti pubblici e privati: percentuali, svincolo, clausola pronta da contratto, fideiussione sostitutiva e trattamento IVA.",
     "category": "Finanza",
@@ -1927,7 +1980,7 @@ export const blogIndice: BlogPostScheda[] = [
       "subappalto"
     ],
     "publishedAt": "2026-07-10",
-    "updatedAt": "2026-08-03",
+    "updatedAt": "2026-11-04",
     "readTime": 14,
     "author": {
       "name": "Florin Andriciuc",

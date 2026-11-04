@@ -13,11 +13,12 @@ import { eicPuntiFermiSezioni } from "@/lib/marketing/eicPuntiFermi";
 export const blogPostsConfrontoMercato: BlogPost[] = [{
   id: "c1",
   slug: "migliori-software-gestionali-edilizia-confronto",
+    video: { youtubeId: "Mh8bEVoJQtA", duration: "PT4M39S", uploadedAt: "2026-11-04T08:14:15+01:00" },
   title: "Migliori gestionali per imprese edili 2026: come sceglierli",
   excerpt: "Edilizia in Cloud, TeamSystem, PriMus, Pillar, PlanRadar, Dylog, Buildertrend ed Excel: cosa dichiara ognuno, con fonti ufficiali e una prova pratica.",
   category: "Digitalizzazione",
   tags: ["gestionale imprese edili", "confronto gestionali edilizia", "software edilizia", "gestione commesse"],
-  publishedAt: "2026-07-25", updatedAt: "2026-11-03", readTime: 9,
+  publishedAt: "2026-07-25", updatedAt: "2026-11-04", readTime: 9,
   author: { name: BLOG_AUTHOR.name, role: "Fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
   coverImage: "/blog/covers/migliori-software-gestionali-edilizia-confronto.jpg",
   faqs: [

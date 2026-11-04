@@ -674,8 +674,13 @@ begin
 
   v_def := pg_get_viewdef('public.fatture_ricevute_pagamento'::regclass);
   if position('stornata' in v_def) = 0 then
+    -- Le stornate non contano né fra le aperte né fra le totali: rate_pagate (totali - aperte) resta il numero delle
+    -- pagate, e «Pagata 1 rata su 2» parla delle rate che si pagano davvero.
     v_nuova := replace(v_def, $q$(rf.stato <> 'pagata'::text)$q$, $q$((rf.stato <> 'pagata'::text) AND (rf.stato <> 'stornata'::text))$q$);
-    if v_nuova = v_def then raise exception 'fatture_ricevute_pagamento: punto da cambiare non trovato'; end if;
+    v_nuova := replace(v_nuova, $q$count(*) AS n,$q$, $q$count(*) FILTER (WHERE (rf.stato <> 'stornata'::text)) AS n,$q$);
+    if v_nuova = v_def or position('AS n,' in v_nuova) = 0 or position($q$FILTER (WHERE (rf.stato <> 'stornata'::text)) AS n$q$ in v_nuova) = 0 then
+      raise exception 'fatture_ricevute_pagamento: punti da cambiare non trovati';
+    end if;
     execute 'create or replace view public.fatture_ricevute_pagamento with (security_invoker = true) as ' || v_nuova;
   end if;
 end $$;

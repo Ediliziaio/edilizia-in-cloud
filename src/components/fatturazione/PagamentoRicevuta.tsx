@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateShort } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
+import { eNotaDiCredito, nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,7 +44,7 @@ export function etichettaTipoRicevuta(tipo: string | null | undefined): string {
 
 /** Una nota di credito del fornitore non si paga: riduce quello che gli devi. */
 export function isNotaCreditoRicevuta(tipo: string | null | undefined): boolean {
-  return tipo === "TD04" || tipo === "TD08" || tipo === "passive_credit_note";
+  return eNotaDiCredito(tipo);
 }
 
 /** Per ogni fattura ricevuta dell'azienda, il giorno in cui è stata pagata (o assente). */
@@ -60,6 +61,26 @@ export function usePagamentiRicevute(companyId: string | null | undefined) {
         .order("id", { ascending: true })
         .range(from, to)) as unknown as { id: string; pagata_il: string }[];
       return new Map(righe.map((r) => [r.id, r.pagata_il]));
+    },
+    staleTime: 30_000,
+  });
+}
+
+/** Le fatture a rate con una parte già pagata: id → quante rate pagate, su quante. */
+export function usePagamentiParzialiRicevute(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["fatture-ricevute-pagamento", "parziali", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const righe = await tutteLePagine((from, to) => supabase
+        .from("fatture_ricevute_pagamento" as never)
+        .select("id, rate_pagate, rate_totali")
+        .eq("company_id", companyId!)
+        .is("pagata_il", null)
+        .gt("rate_pagate", 0)
+        .order("id", { ascending: true })
+        .range(from, to)) as unknown as { id: string; rate_pagate: number; rate_totali: number }[];
+      return new Map(righe.map((r) => [r.id, { pagate: r.rate_pagate, totali: r.rate_totali }]));
     },
     staleTime: 30_000,
   });
@@ -112,7 +133,7 @@ export function PagamentoRicevutaCella({
 }: { id: string; numero: string; tipo: string; pagataIl: string | null | undefined; forma?: "chip" | "icona" | "pulsante" }) {
   const segna = useSegnaRicevutaPagata();
   const inCorso = segna.isPending && segna.variables?.id === id;
-  if (isNotaCreditoRicevuta(tipo)) return null;
+  if (nonSiPaga(tipo)) return null;
   const P = PAROLE_PAGAMENTO_RICEVUTA;
   if (pagataIl) {
     if (forma === "icona") return null;

@@ -161,6 +161,25 @@ describe("espandiXmlDaFiles", () => {
     expect(r.scartati).toHaveLength(0);
   });
 
+  it("una fattura scartata dallo SDI non entra: resta la riemessa con lo stesso numero", async () => {
+    const scarto = `<?xml version="1.0"?><ns3:RicevutaScarto xmlns:ns3="x"><IdentificativoSdI>1</IdentificativoSdI></ns3:RicevutaScarto>`;
+    const r = await espandiXmlDaFiles([await zip({
+      "IT12345678901_AAAAA.xml": XML_VALIDO,
+      "IT12345678901_AAAAA_NS_001.xml": scarto,
+      "IT12345678901_BBBBB.xml": XML_VALIDO.replace("<Numero>123</Numero>", "<Numero>124</Numero>"),
+    })]);
+    expect(r.xml.map((x) => x.nome)).toEqual(["IT12345678901_BBBBB.xml"]);
+    expect(r.scartati.map((x) => x.nome)).toEqual(["IT12345678901_AAAAA.xml"]);
+    expect(r.scartati[0].motivo).toMatch(/Scartata dallo SDI/);
+  });
+
+  it("una mancata consegna (MC) non è uno scarto: la fattura resta valida", async () => {
+    const mc = `<?xml version="1.0"?><RicevutaImpossibilitaRecapito><IdentificativoSdI>1</IdentificativoSdI></RicevutaImpossibilitaRecapito>`;
+    const r = await espandiXmlDaFiles([await zip({ "IT12345678901_CCCCC.xml": XML_VALIDO, "IT12345678901_CCCCC_MC_001.xml": mc })]);
+    expect(r.xml.map((x) => x.nome)).toEqual(["IT12345678901_CCCCC.xml"]);
+    expect(r.scartati).toHaveLength(0);
+  });
+
   it("lo zip del portale: fatture firmate e in chiaro, metadati saltati", async () => {
     const metadati = `<?xml version="1.0"?><FileMetadati><IdentificativoSdI>1</IdentificativoSdI></FileMetadati>`;
     const r = await espandiXmlDaFiles([await zip({
