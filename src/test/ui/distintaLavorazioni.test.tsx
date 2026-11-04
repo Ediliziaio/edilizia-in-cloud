@@ -155,6 +155,20 @@ describe("Distinta delle lavorazioni", () => {
     expect(screen.getByRole("button", { name: "Altro per Controparete" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Altro per Tubazione" })).toBeNull();
   });
+  it("senza venduto sulle fasi vale il contratto, e una fase dice che è da ripartire", () => {
+    const vuota = new Map([["f1", { venduto: 0, costoPrevisto: 0, costoConsuntivo: 0 }], ["f2", { venduto: 0, costoPrevisto: 0, costoConsuntivo: 0 }]]);
+    mostra({ economiaDi: vuota, iva: { ...iva, valore_commessa: 85000 } });
+    const riepilogo = screen.getByText("Avanzamento").closest("dl")!;
+    expect(riepilogo).toHaveTextContent("85.000,00");
+    expect(riepilogo).toHaveTextContent("93.500,00");
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Fasi" })).getByRole("button", { name: /^Murature/ }));
+    expect(screen.getByText("Avanzamento").closest("dl")).toHaveTextContent("Da ripartire");
+  });
+  it("le colonne senza dati non ci sono", () => {
+    mostra({ voci: [] });
+    expect(screen.queryByText("Codice")).toBeNull();
+    expect(screen.queryByText("Quantità")).toBeNull();
+  });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false });
     expect(screen.queryByRole("checkbox", { name: /Seleziona/ })).toBeNull();

@@ -30,11 +30,16 @@ const VISTE: ReadonlyArray<{ value: Vista; label: string }> = [
   { value: "economia", label: "Economia" },
 ];
 
-const COLONNE: Record<Vista, string> = {
-  struttura: "sm:grid-cols-[1.75rem_1.75rem_7rem_minmax(0,1fr)_6rem_3rem_7rem]",
-  pianificazione: "sm:grid-cols-[1.75rem_1.75rem_7rem_minmax(0,1fr)_8.5rem_8.5rem_3.5rem]",
-  economia: "sm:grid-cols-[1.75rem_1.75rem_7rem_minmax(0,1fr)_7rem_7rem_5rem]",
-};
+/**
+ * Le colonne della vista: quelle senza dati non occupano spazio, così resta posto alle descrizioni.
+ * Scritte intere: Tailwind trova solo le classi che compaiono per esteso nel codice.
+ */
+function colonne(vista: Vista, conCodici: boolean, conQuantita: boolean): string {
+  if (vista === "pianificazione") return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)_7.5rem_7.5rem_3rem]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_7.5rem_7.5rem_3rem]";
+  if (vista === "economia") return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)_6.5rem_6.5rem_3.5rem]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_6.5rem_6.5rem_3.5rem]";
+  if (!conQuantita) return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)]";
+  return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)_5rem_2.5rem_6.5rem]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_5rem_2.5rem_6.5rem]";
+}
 
 const quantita = (n: number | null) => (n === null ? "—" : n.toLocaleString("it-IT", { maximumFractionDigits: 2 }));
 const euro = (n: number | null) => (n === null ? "—" : formatCurrency(n));
@@ -113,7 +118,12 @@ export function DistintaLavorazioni({
   }, [economiaDi, fasiScelte]);
   const avanzamento = avanzamentoFasi(fasiScelte, economiaDi);
   const faseAperta = faseId ? fasi.find((f) => f.id === faseId) : undefined;
-  const venduto = economia ? economia.venduto : totali.venduto;
+  // Senza un venduto sulle fasi, per tutta la commessa vale il contratto: zero sarebbe un numero falso.
+  const vendutoFasi = economia ? economia.venduto : totali.venduto;
+  const venduto = vendutoFasi > 0 || faseId ? vendutoFasi : (iva?.valore_commessa ?? 0);
+  const daRipartire = !faseId && iva ? Math.round((iva.valore_commessa - vendutoFasi) * 100) / 100 : 0;
+  const conCodici = useMemo(() => tutte.some((r) => r.codice), [tutte]);
+  const conQuantita = useMemo(() => tutte.some((r) => r.voceId), [tutte]);
   const aliquota = iva?.aliquota ?? 0;
   const vendutoIva = conAliquota(venduto, aliquota);
   // Solo il venduto cambia: sui costi l'IVA dipende da chi fattura, e col reverse charge non c'è.
@@ -233,7 +243,7 @@ export function DistintaLavorazioni({
             ? <Checkbox checked={r.fatta} disabled={!puoModificare} onCheckedChange={(v) => onSegna(r.sottofaseId!, v === true)} aria-label={`${r.descrizione}: ${r.fatta ? "fatta" : "da fare"}`} className="data-[state=checked]:border-emerald-600 data-[state=checked]:bg-emerald-600" />
             : <span title="Non ha ancora una sottofase" className="block h-4 w-4 rounded-sm border border-dashed border-muted-foreground/40" />}
         </div>
-        <div className="hidden min-w-0 items-center truncate font-mono text-[11px] text-muted-foreground sm:flex" title={r.codice ?? undefined}>{r.codice ?? ""}</div>
+        {conCodici && <div className="hidden min-w-0 items-center truncate font-mono text-[11px] text-muted-foreground sm:flex" title={r.codice ?? undefined}>{r.codice ?? ""}</div>}
         <div className="flex min-w-0 items-center gap-1">
           {inModifica && inModifica.id === r.sottofaseId ? (
             <Input
@@ -280,7 +290,7 @@ export function DistintaLavorazioni({
             </DropdownMenu>
           )}
         </div>
-        {vista === "struttura" && <>
+        {vista === "struttura" && conQuantita && <>
           <div className="self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left">{quantita(r.quantita)} <span className="text-muted-foreground sm:hidden">{r.unita}</span></div>
           <div className="hidden self-center text-xs text-muted-foreground sm:block">{r.unita ?? ""}</div>
           {vedeVenduto && <div className="self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left">{importoVenduto(r.venduto)}</div>}
@@ -306,12 +316,12 @@ export function DistintaLavorazioni({
       {titolo}
     </button>
   );
-  const classiRiga = cn("grid grid-cols-[1.5rem_1.5rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 border-b px-2 py-0.5 sm:gap-y-0", COLONNE[vista]);
+  const classiRiga = cn("grid grid-cols-[1.5rem_1.5rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 border-b px-2 py-0.5 sm:gap-y-0", colonne(vista, conCodici, conQuantita));
 
   return (
-    <section aria-label="Distinta delle lavorazioni" className="grid gap-3 lg:grid-cols-[13rem_minmax(0,1fr)]">
+    <section aria-label="Distinta delle lavorazioni" className="grid gap-3 xl:grid-cols-[13rem_minmax(0,1fr)]">
       {/* Le fasi: sul telefono una tendina, altrimenti l'elenco con i totali. */}
-      <div className="lg:hidden">
+      <div className="xl:hidden">
         <Select value={faseId ?? "tutte"} onValueChange={(v) => scegliFase(v === "tutte" ? null : v)}>
           <SelectTrigger aria-label="Scegli la fase"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -320,7 +330,7 @@ export function DistintaLavorazioni({
           </SelectContent>
         </Select>
       </div>
-      <nav aria-label="Fasi" className="hidden max-h-[75vh] space-y-0.5 overflow-y-auto rounded-lg border p-1.5 lg:block">
+      <nav aria-label="Fasi" className="hidden max-h-[75vh] space-y-0.5 overflow-y-auto rounded-lg border p-1.5 xl:block">
         <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => scegliFase(null)}
           className={cn("w-full rounded-md px-2 py-1 text-left text-xs font-medium hover:bg-muted", faseId === null && "bg-muted")}>
           Tutte le fasi <span className="font-normal text-muted-foreground">{tutte.length}</span>
@@ -335,7 +345,7 @@ export function DistintaLavorazioni({
               <span className="block truncate text-xs font-medium" title={f.name}>{f.name}</span>
               <span className="mt-0.5 flex items-center justify-between gap-2 text-[11px] tabular-nums text-muted-foreground">
                 <span>{t?.righe ?? 0} voci · {pct}%</span>
-                {vedeVenduto && <span>{formatCurrency(conIva ? conAliquota(vendutoFase, aliquota).totale : vendutoFase)}</span>}
+                {vedeVenduto && vendutoFase > 0 && <span>{formatCurrency(conIva ? conAliquota(vendutoFase, aliquota).totale : vendutoFase)}</span>}
               </span>
             </button>
           );
@@ -345,9 +355,9 @@ export function DistintaLavorazioni({
       <div className="min-w-0 space-y-1.5">
         <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs">
           {avanzamento !== null && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Avanzamento</dt><dd className="font-semibold tabular-nums">{avanzamento}%</dd></div>}
-          {vedeVenduto && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Venduto imponibile</dt><dd className="font-semibold tabular-nums">{formatCurrency(venduto)}</dd></div>}
-          {vedeVenduto && iva && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">IVA {aliquota.toLocaleString("it-IT")}%</dt><dd className="font-semibold tabular-nums">{formatCurrency(vendutoIva.iva)}</dd></div>}
-          {vedeVenduto && iva && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Con IVA</dt><dd className="font-semibold tabular-nums">{formatCurrency(vendutoIva.totale)}</dd></div>}
+          {vedeVenduto && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Venduto imponibile</dt><dd className="font-semibold tabular-nums">{faseId && vendutoFasi === 0 ? "Da ripartire" : formatCurrency(venduto)}{daRipartire > 0.5 && vendutoFasi > 0 && <span className="ml-1 text-[11px] font-normal text-amber-700">{formatCurrency(daRipartire)} da ripartire sulle fasi</span>}</dd></div>}
+          {vedeVenduto && iva && venduto > 0 && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">IVA {aliquota.toLocaleString("it-IT")}%</dt><dd className="font-semibold tabular-nums">{formatCurrency(vendutoIva.iva)}</dd></div>}
+          {vedeVenduto && iva && venduto > 0 && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Con IVA</dt><dd className="font-semibold tabular-nums">{formatCurrency(vendutoIva.totale)}</dd></div>}
           {vedeCosti && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Previsto</dt><dd className="font-semibold tabular-nums">{previsto > 0 ? formatCurrency(previsto) : "Da definire"}{previsto > 0 && totali.senzaPrevisto > 0 && <span className="ml-1 text-[11px] font-normal text-amber-700">parziale</span>}</dd></div>}
           {vedeCosti && economia && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Consuntivo</dt><dd className="font-semibold tabular-nums">{formatCurrency(economia.costoConsuntivo)}{!faseId && consuntivoSenzaFase > 0 && <span className="ml-1 text-[11px] font-normal text-amber-700">+ {formatCurrency(consuntivoSenzaFase)} senza fase</span>}</dd></div>}
           {vedeCosti && <span className="text-[11px] text-muted-foreground">Previsto e consuntivo in imponibile, IVA esclusa</span>}
@@ -419,12 +429,12 @@ export function DistintaLavorazioni({
         )}
 
         <div ref={scrollRef} className="max-h-[75vh] overflow-y-auto rounded-lg border">
-          <div className={cn("sticky top-0 z-10 hidden gap-x-2 border-b bg-muted px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid", COLONNE[vista])}>
+          <div className={cn("sticky top-0 z-10 hidden gap-x-2 border-b bg-muted px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid", colonne(vista, conCodici, conQuantita))}>
             <div className="flex items-center">{puoModificare && <Checkbox checked={tutteScelte} onCheckedChange={invertiTutte} aria-label="Seleziona tutte le righe" />}</div>
             <div title="Fatta">✓</div>
-            <div>Codice</div>
+            {conCodici && <div>Codice</div>}
             <div>Descrizione</div>
-            {vista === "struttura" && <><div className="text-right">Quantità</div><div>Um</div>{vedeVenduto ? <div className="text-right">{conIva ? "Con IVA" : "Imponibile"}</div> : <div />}</>}
+            {vista === "struttura" && conQuantita && <><div className="text-right">Quantità</div><div>Um</div>{vedeVenduto ? <div className="text-right">{conIva ? "Con IVA" : "Imponibile"}</div> : <div />}</>}
             {vista === "pianificazione" && <><div>Dal</div><div>Al</div><div className="text-right">Giorni</div></>}
             {vista === "economia" && <>{vedeVenduto ? <div className="text-right">{conIva ? "Con IVA" : "Imponibile"}</div> : <div />}{vedeCosti ? <div className="text-right">Previsto</div> : <div />}{vedeMargini ? <div className="text-right" title="Margine previsto">Mrg %</div> : <div />}</>}
           </div>
