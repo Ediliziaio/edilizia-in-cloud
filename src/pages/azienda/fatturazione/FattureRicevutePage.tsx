@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
 import { importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
+import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
@@ -346,20 +347,25 @@ export default function FattureRicevutePage() {
       // per fattura) più righe e riepilogo_iva, per disegnare una tabella che
       // non li usa. Con qualche centinaio di fatture erano decine di MB a ogni
       // apertura. L'XML si carica quando lo si chiede davvero.
+      // A pagine: PostgREST ne restituisce al massimo mille per volta, e oltre
+      // quelle la lista e i numeri in alto erano tagliati senza dirlo.
+      const pagina = (from: number, to: number) => {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
           "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id" as never,
         )
         .eq("company_id", companyId!)
-        .order("data_fattura", { ascending: false });
+        .order("data_fattura", { ascending: false })
+        .order("id", { ascending: true });
       if (annoFilter !== "all") {
         q = q
           .gte("data_fattura", `${annoFilter}-01-01`)
           .lte("data_fattura", `${annoFilter}-12-31`);
       }
-      const { data, error } = await q;
-      return (data as unknown as FatturaRicevuta[]) ?? [];
+      return q.range(from, to) as unknown as PromiseLike<{ data: FatturaRicevuta[] | null; error: unknown }>;
+      };
+      return tutteLePagine<FatturaRicevuta>(pagina);
     },
   });
 
