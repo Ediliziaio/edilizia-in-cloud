@@ -13,7 +13,7 @@ const stato = vi.hoisted(() => ({
 const numeriVuoti = {
   chiamate: 0, contatti_chiamati: 0, contatti_raggiunti: 0, giorni_attivi: 0, appuntamenti_fissati: 0,
   appuntamenti_annullati: 0, svolti_totale: 0, svolti_presentati: 0, svolti_assenti: 0, lead_assegnati: 0,
-  lead_chiamati: 0, lead_con_appuntamento: 0, mediana_minuti: null, entro_5_min: 0,
+  lead_chiamati: 0, lead_con_appuntamento: 0, mediana_minuti: null as number | null, entro_5_min: 0,
 };
 
 vi.mock("@/hooks/useCallCenterDashboard", () => ({
