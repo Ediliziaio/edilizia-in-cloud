@@ -87,7 +87,7 @@ interface Props {
   onApriScheda: (faseId: string) => void;
 }
 
-/** La riga cambia passando alla voce dopo: i campi ripartono dai suoi valori con la `key`. */
+/** I campi ripartono dai valori salvati con la `key`: cambiando voce, o quando il database completa le date. */
 function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, onSegna, onPianifica, onRinomina, onSposta, onElimina, onAssegna, onCreaSottofasi, onApriScheda }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
   const [inizio, setInizio] = useState(r.inizio ?? "");
   const [fine, setFine] = useState(r.fine ?? "");
@@ -97,6 +97,16 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
   const nGiorni = giorni === "" ? null : Number(giorni);
   const giorniValidi = nGiorni === null || (Number.isInteger(nGiorni) && nGiorni >= 1 && nGiorni <= 3650);
   const dateOk = dateValide(inizio || null, fine || null);
+  // Il dato non toccato si lascia calcolare al database, altrimenti date e giorni si contraddicono.
+  const salvaDate = () => {
+    const giorniCambiati = giorni !== (r.giorni ? String(r.giorni) : "");
+    const fineCambiata = fine !== (r.fine ?? "");
+    onPianifica(r.sottofaseId!, {
+      data_inizio: inizio || null,
+      data_fine: giorniCambiati && !fineCambiata && inizio ? null : fine || null,
+      giorni: giorniCambiati ? nGiorni : null,
+    });
+  };
   const margine = r.venduto && r.previsto !== null ? r.venduto - r.previsto : null;
 
   return (
@@ -133,7 +143,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
             </div>
             {!dateOk && <p role="alert" className="text-xs text-rose-700">La fine viene prima dell'inizio.</p>}
             {puoModificare && cambiato && (
-              <Button type="button" size="sm" className="h-7 text-xs" disabled={!dateOk || !giorniValidi} onClick={() => onPianifica(r.sottofaseId!, { data_inizio: inizio || null, data_fine: fine || null, giorni: nGiorni })}>Salva le date</Button>
+              <Button type="button" size="sm" className="h-7 text-xs" disabled={!dateOk || !giorniValidi} onClick={salvaDate}>Salva le date</Button>
             )}
           </Riquadro>
         )}
@@ -201,7 +211,7 @@ export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Pr
               <DialogTitle className="text-base font-semibold leading-snug">{riga.descrizione}</DialogTitle>
               <DialogDescription className="sr-only">Stato, date, importi e rapportini di questa voce.</DialogDescription>
             </DialogHeader>
-            <Contenuto key={riga.key} riga={riga} {...resto} />
+            <Contenuto key={`${riga.key}|${riga.inizio}|${riga.fine}|${riga.giorni}`} riga={riga} {...resto} />
           </>
         )}
       </DialogContent>

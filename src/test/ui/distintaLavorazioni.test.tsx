@@ -180,6 +180,15 @@ describe("Tabella delle lavorazioni", () => {
     fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
     expect(azioni.onPianifica).toHaveBeenCalledExactlyOnceWith("s1", { data_inizio: "2025-12-01", data_fine: "2026-01-01", giorni: null });
   });
+  it("nel popup cambiando i giorni la fine la ricalcola il database", () => {
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.change(within(popup).getByLabelText("Dal"), { target: { value: "2025-12-01" } });
+    fireEvent.change(within(popup).getByLabelText("Giorni"), { target: { value: "7" } });
+    fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
+    expect(azioni.onPianifica.mock.calls[0][1]).toMatchObject({ data_fine: null, giorni: 7 });
+  });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });
     expect(screen.queryByRole("checkbox", { name: /Seleziona/ })).toBeNull();
