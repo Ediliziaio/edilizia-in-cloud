@@ -100,6 +100,7 @@ export interface Permissions {
   canCreateCourses: boolean;
   // Granular marketing permissions
   canViewMarketingDashboard: boolean;
+  canViewCallcenterDashboard: boolean;
   canViewMarketingContacts: boolean;
   canEditMarketingContacts: boolean;
   canViewMarketingOpportunities: boolean;
@@ -208,6 +209,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_marketing",
   "can_edit_marketing",
   "can_view_marketing_dashboard",
+  "can_view_callcenter_dashboard",
   "can_view_marketing_contacts",
   "can_edit_marketing_contacts",
   "can_view_marketing_opportunities",
@@ -295,7 +297,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewPrevisionale: true, canViewTesoreria: true,
   canViewPersone: true,
   canViewFormazione: true, canManagePortal: true, canCreateCourses: true,
-  canViewMarketingDashboard: true, canViewMarketingContacts: true,
+  canViewMarketingDashboard: true, canViewCallcenterDashboard: true, canViewMarketingContacts: true,
   canEditMarketingContacts: true, canViewMarketingOpportunities: true,
   canEditMarketingOpportunities: true, canViewMarketingActivities: true,
   canViewMarketingAppointments: true, canViewMarketingAutomations: true,
@@ -348,7 +350,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewPrevisionale: false, canViewTesoreria: false,
   canViewPersone: false,
   canViewFormazione: false, canManagePortal: false, canCreateCourses: false,
-  canViewMarketingDashboard: false, canViewMarketingContacts: false,
+  canViewMarketingDashboard: false, canViewCallcenterDashboard: false, canViewMarketingContacts: false,
   canEditMarketingContacts: false, canViewMarketingOpportunities: false,
   canEditMarketingOpportunities: false, canViewMarketingActivities: false,
   canViewMarketingAppointments: false, canViewMarketingAutomations: false,
@@ -427,7 +429,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettings: false,
   // ESPLICITAMENTE NO marketing / automazioni / vendita
   canViewMarketing: false, canEditMarketing: false,
-  canViewMarketingDashboard: false, canViewMarketingContacts: false,
+  canViewMarketingDashboard: false, canViewCallcenterDashboard: false, canViewMarketingContacts: false,
   canEditMarketingContacts: false, canViewMarketingOpportunities: false,
   canEditMarketingOpportunities: false, canViewMarketingActivities: false,
   canViewMarketingAppointments: false, canViewMarketingAutomations: false,
@@ -527,7 +529,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
       g("can_view_settings_pricing") || g("can_view_settings_suppliers") || g("can_view_settings_integrations") ||
       g("can_view_settings_scontistica") || g("can_view_settings_finanziamenti") || g("can_view_settings_bundle"),
     canViewMarketing:
-      g("can_view_marketing") || g("can_view_marketing_dashboard") || g("can_view_marketing_contacts") ||
+      g("can_view_marketing") || g("can_view_marketing_dashboard") || g("can_view_callcenter_dashboard") || g("can_view_marketing_contacts") ||
       g("can_view_marketing_opportunities") || g("can_view_marketing_activities") || g("can_view_marketing_appointments") ||
       g("can_view_marketing_automations") || g("can_view_marketing_ai_agent") || g("can_view_marketing_email") ||
       g("can_view_sms_marketing") || g("can_view_marketing_whatsapp") || g("can_view_marketing_reports") ||
@@ -552,6 +554,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     // i passi sono scritti in testa a quella migrazione.
     canCreateCourses:   g("can_create_courses") || g("can_manage_portal"),
     canViewMarketingDashboard:     g("can_view_marketing_dashboard"),
+    canViewCallcenterDashboard:    g("can_view_callcenter_dashboard"),
     canViewMarketingContacts:      g("can_view_marketing_contacts"),
     canEditMarketingContacts:      g("can_edit_marketing_contacts"),
     canViewMarketingOpportunities: g("can_view_marketing_opportunities"),

@@ -38,7 +38,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_formazione: true, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
-  can_view_marketing_dashboard: false, can_view_marketing_contacts: false,
+  can_view_marketing_dashboard: false, can_view_callcenter_dashboard: false, can_view_marketing_contacts: false,
   can_edit_marketing_contacts: false, can_view_marketing_opportunities: false,
   can_edit_marketing_opportunities: false, can_view_marketing_activities: false,
   can_view_marketing_appointments: false,
@@ -219,6 +219,7 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
+  { label: "Dashboard Call Center",   viewKey: "can_view_callcenter_dashboard",     editKey: null, description: "Chi chiamare adesso, appuntamenti fissati e numeri del proprio lavoro" },
   { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null, description: "KPI e panoramica marketing" },
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: null, description: "Contatti e lead: chi li vede li crea e li modifica, salvo «Sola lettura»" },
   { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: null, description: "Pipeline e trattative, Simulatore e moduli di vendita (Serramenti, Bagni…): chi le vede le crea e le sposta, salvo «Sola lettura»" },
@@ -391,9 +392,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
   },
 
   call_center: {
-    // Solo marketing e vendita: ha la sua Dashboard Marketing, non quella generale, il calendario
-    // lavori, i clienti e gli utenti.
-    can_view_marketing_dashboard: true,
+    // Solo la sua dashboard Call Center: niente Dashboard Marketing (spese pubblicitarie, social),
+    // niente dashboard generale, calendario lavori, clienti e utenti.
+    can_view_callcenter_dashboard: true,
     can_view_marketing_contacts: true,
     // Il call center non guarda soltanto: qualifica il contatto e sposta
     // l'opportunita' di fase. La modifica segue la visibilità.
@@ -464,7 +465,7 @@ export function syncLegacyMarketingFlags(input: StaffPermissions): StaffPermissi
     can_view_marketing_automations: !!input.can_view_automazioni,
   };
   const hasAnyView =
-    perms.can_view_marketing_dashboard || perms.can_view_marketing_contacts ||
+    perms.can_view_marketing_dashboard || perms.can_view_callcenter_dashboard || perms.can_view_marketing_contacts ||
     perms.can_view_marketing_opportunities || perms.can_view_marketing_activities ||
     perms.can_view_marketing_appointments || perms.can_view_marketing_automations ||
     perms.can_view_marketing_ai_agent || perms.can_view_marketing_email ||

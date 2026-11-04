@@ -45,7 +45,8 @@ describe("gli elenchi sono quelli delle regole del database", () => {
 describe("cosa vede davvero", () => {
   it("il modello Call Center ha la sua dashboard, non quella generale né il calendario lavori", () => {
     const p = ROLE_PRESETS.call_center as Record<string, unknown>;
-    expect(p.can_view_marketing_dashboard).toBe(true);
+    expect(p.can_view_callcenter_dashboard).toBe(true);
+    expect(p.can_view_marketing_dashboard ?? false).toBe(false);
     expect(p.can_view_dashboard ?? false).toBe(false);
     expect(p.can_view_calendar ?? false).toBe(false);
   });
