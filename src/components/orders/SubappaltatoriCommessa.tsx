@@ -160,37 +160,3 @@ export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: s
 function Numero({ titolo, valore, evidenza }: { titolo: string; valore: number; evidenza?: boolean }) {
   return <div><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className={`mt-1 text-sm font-semibold tabular-nums ${evidenza ? "text-amber-700" : ""}`}>{formatCurrency(valore)}</dd></div>;
 }
-
-/** Cantiere → Lavorazioni: a che punto sono le ditte coi soldi, senza gestirli qui. */
-export function StatoSubappaltiCantiere({ orderId }: { orderId: string }) {
-  const permessi = usePermissions();
-  const { righe, companyId } = useRigheSubappalti(orderId);
-  const { apri, scheda } = useSchedaImpresa(orderId, companyId);
-  const conScheda = righe.filter((r) => r.subappaltatoreId);
-  if (conScheda.length === 0) return null;
-  return (
-    <section aria-label="SAL e pagamenti delle ditte" className="rounded-xl border bg-white p-3">
-      {scheda}
-      <h3 className="mb-1.5 text-sm font-semibold">SAL e pagamenti delle ditte</h3>
-      <ul className="divide-y">
-        {conScheda.map((r) => {
-          const s = statoDi(r);
-          return (
-            <li key={r.uscita.chiave} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm">
-              <span className="min-w-0 font-medium">{r.uscita.controparte ?? "Senza nome"}</span>
-              <span className="flex flex-wrap items-center gap-2">
-                <StatoPill tono={TONO[s.chiave]}>{s.testo}</StatoPill>
-                <span className="tabular-nums text-muted-foreground">resta {formatCurrency(r.uscita.residuo)}</span>
-                {permessi.canViewSubappaltatori && (
-                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => apri(r)} aria-label={`SAL e pagamenti di ${r.uscita.controparte ?? "questa ditta"}`}>
-                    Apri<ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}

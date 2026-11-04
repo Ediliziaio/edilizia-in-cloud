@@ -134,7 +134,7 @@ import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
 import { OrderBolleDdtCard, OrderFattureFornitoriCard, useBolleCommessa, useFattureFornitoriCommessa } from "@/components/orders/OrderDocumentiFornitore";
 import { OrderCostiCommessaCard } from "@/components/orders/OrderCostiCommessa";
-import { StatoSubappaltiCantiere, SubappaltatoriCommessa } from "@/components/orders/SubappaltatoriCommessa";
+import { SubappaltatoriCommessa } from "@/components/orders/SubappaltatoriCommessa";
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
@@ -2274,7 +2274,6 @@ function OrderDetailInner() {
             <Suspense fallback={vistaInCaricamento}>
             {vistaCantiere === "lavorazioni" && <>
             {permissions.canViewOrderAmounts && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => navigateTo({tab:"finanza",economiaView:"documenti",section:"section-varianti"})}>Lavori extra e varianti</Button></div>}
-            {!isMobile && permissions.canViewCosts && permissions.canViewSubappaltatoriAmministrazione && <ErrorBoundary fallback={null}><StatoSubappaltiCantiere orderId={id!} /></ErrorBoundary>}
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}

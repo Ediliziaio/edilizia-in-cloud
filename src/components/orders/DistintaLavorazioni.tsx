@@ -1,8 +1,9 @@
 // src/components/orders/DistintaLavorazioni.tsx
-// Tutte le voci della commessa, una riga ciascuna, con la stessa riga vista in modi diversi.
-import { useMemo, useRef, useState, type FocusEvent } from "react";
+// Le lavorazioni in una tabella sola: ogni fase si apre sulle sue voci, tutto sulla stessa riga,
+// e si cambia cliccando sul dato. Per i cantieri con centinaia di voci.
+import { useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp, ListChecks, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -12,40 +13,76 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFasi";
+import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  avanzamentoFasi, contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, totaliDistinta,
+  avanzamentoFasi, contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta,
   type EconomiaDistinta, type FaseDistinta, type FiltroDistinta, type RigaDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
 import type { GiornoLavorativo, Sottofase } from "@/lib/orders/sottofasi";
 import { cn } from "@/lib/utils";
 
-type Vista = "struttura" | "pianificazione" | "economia";
-
-const VISTE: ReadonlyArray<{ value: Vista; label: string }> = [
-  { value: "struttura", label: "Struttura" },
-  { value: "pianificazione", label: "Pianificazione" },
-  { value: "economia", label: "Economia" },
-];
-
-/**
- * Le colonne della vista: quelle senza dati non occupano spazio, così resta posto alle descrizioni.
- * Scritte intere: Tailwind trova solo le classi che compaiono per esteso nel codice.
- */
-function colonne(vista: Vista, conCodici: boolean, conQuantita: boolean): string {
-  if (vista === "pianificazione") return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)_7.5rem_7.5rem_3rem]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_7.5rem_7.5rem_3rem]";
-  if (vista === "economia") return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)_6.5rem_6.5rem_3.5rem]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_6.5rem_6.5rem_3.5rem]";
-  if (!conQuantita) return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)]";
-  return conCodici ? "sm:grid-cols-[1.75rem_1.75rem_6.5rem_minmax(0,1fr)_5rem_2.5rem_6.5rem]" : "sm:grid-cols-[1.75rem_1.75rem_minmax(0,1fr)_5rem_2.5rem_6.5rem]";
+export interface ChiLavora {
+  squadre: string[];
+  persone: string[];
+  ditte: string[];
+  mezzi: string[];
+  articoli: number;
 }
 
-const quantita = (n: number | null) => (n === null ? "—" : n.toLocaleString("it-IT", { maximumFractionDigits: 2 }));
-const euro = (n: number | null) => (n === null ? "—" : formatCurrency(n));
+export type FaseTabella = FaseDistinta & { start_date?: string | null; end_date?: string | null };
+
+// Scritte intere: Tailwind trova solo le classi che compaiono per esteso nel codice.
+const COLONNE = "md:grid-cols-[1.25rem_minmax(0,1fr)_4.25rem_4.25rem_5.5rem_5.5rem_1.25rem]";
+
+const breve = (d: string | null | undefined) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}` : "");
+const quantita = (n: number | null, u: string | null) => (n === null ? "" : `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${u ? ` ${u}` : ""}`);
+
+/** Una data che sembra testo: si clicca e si cambia. */
+function CellaData({ valore, etichetta, modificabile, rossa, onSalva }: {
+  valore: string | null | undefined; etichetta: string; modificabile: boolean; rossa?: boolean; onSalva: (v: string | null, e: FocusEvent<HTMLInputElement>) => void;
+}) {
+  const [aperta, setAperta] = useState(false);
+  if (!modificabile) return <span className={cn("text-xs tabular-nums", valore ? "" : "text-muted-foreground/40")}>{breve(valore) || "—"}</span>;
+  if (aperta) {
+    return (
+      <Input
+        autoFocus type="date" defaultValue={valore ?? ""} aria-label={etichetta}
+        className="relative z-10 h-6 w-[7.5rem] px-1 text-xs"
+        onBlur={(e) => {
+          setAperta(false);
+          // Una data scritta a metà risulta vuota: non deve cancellare quella salvata.
+          if (e.target.validity.badInput) return;
+          const v = e.target.value || null;
+          if (v !== (valore ?? null)) onSalva(v, e);
+        }}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); else if (e.key === "Escape") setAperta(false); }}
+      />
+    );
+  }
+  return (
+    <button type="button" aria-label={etichetta} onClick={() => setAperta(true)}
+      className={cn("rounded px-0.5 text-left text-xs tabular-nums hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", rossa ? "font-medium text-rose-700" : valore ? "" : "text-muted-foreground/40")}>
+      {breve(valore) || "—"}
+    </button>
+  );
+}
+
+function Stat({ etichetta, children, nota }: { etichetta: string; children: ReactNode; nota?: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="truncate text-[11px] text-muted-foreground">{etichetta}</dt>
+      <dd className="text-sm font-semibold tabular-nums">{children}{nota && <span className="block text-[11px] font-normal text-amber-700">{nota}</span>}</dd>
+    </div>
+  );
+}
 
 interface Props {
-  fasi: ReadonlyArray<FaseDistinta>;
+  fasi: ReadonlyArray<FaseTabella>;
   sottofasiDi: ReadonlyMap<string, ReadonlyArray<Sottofase>>;
   voci: ReadonlyArray<VoceDistinta>;
   /** Venduto, previsto e consuntivo si leggono dalla fase: tengono conto di sconti, ditte e acquisti. */
@@ -54,17 +91,25 @@ interface Props {
   consuntivoSenzaFase?: number;
   /** Il conto dell'IVA della commessa: aliquota, debito, credito e reverse charge. */
   iva?: IvaCommessa | null;
+  chiDi: ReadonlyMap<string, ChiLavora>;
+  squadre: ReadonlyArray<Opzione>;
+  persone: ReadonlyArray<Opzione>;
+  ditte: ReadonlyArray<Opzione>;
+  puoSquadre: boolean;
   vedeVenduto: boolean;
   vedeCosti: boolean;
   /** Il margine è un permesso a sé: non basta vedere venduto e costi. */
   vedeMargini: boolean;
   puoModificare: boolean;
   oggi: string;
+  onAssegna: (scelte: ScelteAssegnazione, fatto: () => void) => void;
+  assegnaInCorso: boolean;
   onSegna: (id: string, fatta: boolean) => void;
   /** Una scrittura sola per tante righe: con centinaia di voci non si manda una richiesta per riga. */
   onSegnaTutte: (ids: string[], fatta: boolean) => void;
   onPianifica: (id: string, piano: { data_inizio: string | null; data_fine: string | null; giorni: number | null }) => void;
   onPianificaTutte: (passi: Array<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => void;
+  onDateFase: (id: string, date: { start_date: string | null; end_date: string | null }) => void;
   onDalleVoci: (faseId: string) => void;
   onAggiungi: (faseId: string, nome: string) => void;
   onRinomina: (id: string, nome: string) => void;
@@ -72,124 +117,132 @@ interface Props {
   onRiordina: (ids: string[]) => void;
   /** I giorni di lavoro del cantiere, per mettere le righe in fila. */
   lavorativo?: GiornoLavorativo;
-  /** Squadre, ditte, note e materiali restano nella scheda della fase. */
+  /** Materiali, mezzi, costi e note restano nella scheda della fase. */
   onApriScheda: (faseId: string) => void;
 }
 
+type Elemento =
+  | { tipo: "fase"; key: string; fase: FaseTabella; righe: RigaDistinta[] }
+  | { tipo: "riga"; key: string; riga: RigaDistinta }
+  | { tipo: "nuova"; key: string; faseId: string };
+
 export function DistintaLavorazioni({
-  fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, iva, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onSegna, onSegnaTutte, onPianifica, onPianificaTutte, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
+  fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
+  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
-  const viste = VISTE.filter((v) => v.value !== "economia" || vedeCosti || vedeVenduto);
-  const [vista, setVista] = useState<Vista>("struttura");
-  const [faseId, setFaseId] = useState<string | null>(null);
+  // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
+  const [faseId, setFaseId] = useState<string | null>(() => {
+    const voci = fasi.reduce((n, f) => n + (sottofasiDi.get(f.id)?.length ?? 0), 0);
+    if (voci <= 30) return null;
+    return (fasi.find((f) => f.status === "in_corso") ?? fasi.find((f) => Number(f.percentuale) < 100) ?? fasi[0])?.id ?? null;
+  });
   const [filtro, setFiltro] = useState<FiltroDistinta>("tutte");
   const [testo, setTesto] = useState("");
-  const [scelte, setScelte] = useState<ReadonlySet<string>>(new Set());
-  const [aperte, setAperte] = useState<ReadonlySet<string>>(new Set());
+  const [conIva, setConIva] = useState(false);
+  const [aperte, setAperte] = useState<ReadonlySet<string>>(() => new Set(fasi.filter((f) => f.status === "in_corso").slice(0, 3).map((f) => f.id)));
+  const [scelteRighe, setScelteRighe] = useState<ReadonlySet<string>>(new Set());
+  const [scelteFasi, setScelteFasi] = useState<ReadonlySet<string>>(new Set());
+  const [espanse, setEspanse] = useState<ReadonlySet<string>>(new Set());
+  const [inModifica, setInModifica] = useState<{ id: string; testo: string } | null>(null);
+  const [nuovaIn, setNuovaIn] = useState<string | null>(null);
+  const [nuova, setNuova] = useState("");
+  const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
+  const [divisione, setDivisione] = useState<string | null>(null);
+  const [assegnaA, setAssegnaA] = useState<string[] | null>(null);
   const [bloccoInizio, setBloccoInizio] = useState("");
   const [bloccoFine, setBloccoFine] = useState("");
-  const [divisione, setDivisione] = useState<string | null>(null);
-  const [conIva, setConIva] = useState(false);
   const [bloccoGiorni, setBloccoGiorni] = useState("");
-  const [nuova, setNuova] = useState("");
-  const [inModifica, setInModifica] = useState<{ id: string; testo: string } | null>(null);
-  const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
-
-  const scegliFase = (id: string | null) => { setFaseId(id); setScelte(new Set()); };
 
   const tutte = useMemo(() => righeDistinta(fasi, sottofasiDi, voci), [fasi, sottofasiDi, voci]);
-  const dellaFase = useMemo(() => (faseId ? tutte.filter((r) => r.faseId === faseId) : tutte), [tutte, faseId]);
-  const righe = useMemo(() => filtraDistinta(dellaFase, { testo, filtro, oggi }), [dellaFase, testo, filtro, oggi]);
-  const conti = useMemo(() => contaFiltri(dellaFase, oggi), [dellaFase, oggi]);
-  const totali = useMemo(() => totaliDistinta(dellaFase), [dellaFase]);
-  const perFase = useMemo(() => {
-    const mappa = new Map<string, ReturnType<typeof totaliDistinta>>();
-    for (const f of fasi) mappa.set(f.id, totaliDistinta(tutte.filter((r) => r.faseId === f.id)));
-    return mappa;
-  }, [fasi, tutte]);
-  const fasiScelte = useMemo(() => (faseId ? fasi.filter((f) => f.id === faseId) : fasi), [fasi, faseId]);
-  const economia = useMemo(() => {
-    if (!economiaDi) return null;
-    return fasiScelte.reduce((t, f) => {
-      const e = economiaDi.get(f.id);
-      return { venduto: t.venduto + (e?.venduto ?? 0), costoPrevisto: t.costoPrevisto + (e?.costoPrevisto ?? 0), costoConsuntivo: t.costoConsuntivo + (e?.costoConsuntivo ?? 0) };
-    }, { venduto: 0, costoPrevisto: 0, costoConsuntivo: 0 });
-  }, [economiaDi, fasiScelte]);
-  const avanzamento = avanzamentoFasi(fasiScelte, economiaDi);
-  const faseAperta = faseId ? fasi.find((f) => f.id === faseId) : undefined;
-  // Senza un venduto sulle fasi, per tutta la commessa vale il contratto: zero sarebbe un numero falso.
-  const vendutoFasi = economia ? economia.venduto : totali.venduto;
-  const venduto = vendutoFasi > 0 || faseId ? vendutoFasi : (iva?.valore_commessa ?? 0);
-  const daRipartire = !faseId && iva ? Math.round((iva.valore_commessa - vendutoFasi) * 100) / 100 : 0;
-  const conCodici = useMemo(() => tutte.some((r) => r.codice), [tutte]);
-  const conQuantita = useMemo(() => tutte.some((r) => r.voceId), [tutte]);
-  const aliquota = iva?.aliquota ?? 0;
-  const vendutoIva = conAliquota(venduto, aliquota);
-  // Solo il venduto cambia: sui costi l'IVA dipende da chi fattura, e col reverse charge non c'è.
-  const importoVenduto = (n: number | null) => euro(n === null ? null : conIva ? conAliquota(n, aliquota).totale : n);
-  const daVersare = iva ? saldoIva(Math.max(iva.debito_previsto, iva.debito_fatturato), iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) : null;
-  const previsto = economia && economia.costoPrevisto > 0 ? economia.costoPrevisto : totali.previsto;
-  const senzaSottofase = dellaFase.filter((r) => r.voceId && !r.sottofaseId).length;
+  const dellaScelta = useMemo(() => (faseId ? tutte.filter((r) => r.faseId === faseId) : tutte), [tutte, faseId]);
+  const conti = useMemo(() => contaFiltri(dellaScelta, oggi), [dellaScelta, oggi]);
+  const righe = useMemo(() => filtraDistinta(dellaScelta, { testo, filtro, oggi }), [dellaScelta, testo, filtro, oggi]);
+  const filtrando = !!testo.trim() || filtro !== "tutte";
 
-  // Con tutte le fasi insieme, il nome della fase separa i suoi gruppi di righe.
+  // Numeri di tutta la commessa.
+  const economia = useMemo(() => fasi.reduce((t, f) => {
+    const e = economiaDi?.get(f.id);
+    return { venduto: t.venduto + (e?.venduto ?? 0), previsto: t.previsto + (e?.costoPrevisto ?? 0), consuntivo: t.consuntivo + (e?.costoConsuntivo ?? 0) };
+  }, { venduto: 0, previsto: 0, consuntivo: 0 }), [fasi, economiaDi]);
+  const sommaVoci = useMemo(() => tutte.reduce((s, r) => s + (r.venduto ?? 0), 0), [tutte]);
+  const vendutoFasi = economia.venduto || sommaVoci;
+  // Senza un venduto sulle fasi vale il contratto: zero sarebbe un numero falso.
+  const venduto = iva?.valore_commessa || vendutoFasi;
+  const daRipartire = iva ? Math.round((iva.valore_commessa - vendutoFasi) * 100) / 100 : 0;
+  const aliquota = iva?.aliquota ?? 0;
+  const conIvaTot = conAliquota(venduto, aliquota);
+  const avanzamento = avanzamentoFasi(fasi, economiaDi);
+  const daVersare = iva ? saldoIva(Math.max(iva.debito_previsto, iva.debito_fatturato), iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) : null;
+  const margine = venduto > 0 && economia.previsto > 0 ? Math.round(((venduto - economia.previsto) / venduto) * 100) : null;
+  const importo = (n: number | null | undefined) => (n ? formatCurrency(conIva ? conAliquota(n, aliquota).totale : n) : "—");
+
   const elementi = useMemo(() => {
-    if (faseId) return righe.map((r) => ({ key: r.key, riga: r as RigaDistinta | null, faseId: r.faseId, titolo: "" }));
-    const lista: Array<{ key: string; riga: RigaDistinta | null; faseId: string; titolo: string }> = [];
-    let corrente: string | null = null;
-    for (const r of righe) {
-      if (r.faseId !== corrente) {
-        corrente = r.faseId;
-        lista.push({ key: `fase:${r.faseId}`, riga: null, faseId: r.faseId, titolo: r.faseNome });
+    const lista: Elemento[] = [];
+    for (const f of fasi) {
+      if (faseId && f.id !== faseId) continue;
+      const dellaFase = righe.filter((r) => r.faseId === f.id);
+      if (!faseId && filtrando && dellaFase.length === 0) continue;
+      lista.push({ tipo: "fase", key: `f:${f.id}`, fase: f, righe: dellaFase });
+      if (faseId || filtrando || aperte.has(f.id)) {
+        for (const r of dellaFase) lista.push({ tipo: "riga", key: r.key, riga: r });
+        if (nuovaIn === f.id) lista.push({ tipo: "nuova", key: `n:${f.id}`, faseId: f.id });
       }
-      lista.push({ key: r.key, riga: r, faseId: r.faseId, titolo: "" });
     }
     return lista;
-  }, [righe, faseId]);
+  }, [fasi, faseId, righe, filtrando, aperte, nuovaIn]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const virtuale = elementi.length > 60;
-  const virtualizer = useVirtualizer({
-    count: elementi.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 26,
-    overscan: 12,
-    enabled: virtuale,
-  });
+  const virtuale = elementi.length > 80;
+  const virtualizer = useVirtualizer({ count: elementi.length, getScrollElement: () => scrollRef.current, estimateSize: () => 30, overscan: 12, enabled: virtuale });
 
-  const selezionate = useMemo(() => righe.filter((r) => scelte.has(r.key)), [righe, scelte]);
-  const conSottofase = selezionate.filter((r) => r.sottofaseId);
-  const inverti = (key: string) => setScelte((ora) => {
+  const inverti = (setter: typeof setScelteRighe, id: string) => setter((ora) => {
     const nuove = new Set(ora);
-    if (nuove.has(key)) nuove.delete(key); else nuove.add(key);
+    if (nuove.has(id)) nuove.delete(id); else nuove.add(id);
     return nuove;
   });
-  const tutteScelte = righe.length > 0 && selezionate.length === righe.length;
-  const invertiTutte = () => setScelte(tutteScelte ? new Set() : new Set(righe.map((r) => r.key)));
+  const azzeraScelte = () => { setScelteRighe(new Set()); setScelteFasi(new Set()); };
+  const apriChiudi = (id: string) => inverti(setAperte, id);
+  const tutteAperte = fasi.length > 0 && fasi.every((f) => aperte.has(f.id));
+
+  const righeScelte = useMemo(() => tutte.filter((r) => scelteRighe.has(r.key)), [tutte, scelteRighe]);
+  const conSottofase = righeScelte.filter((r) => r.sottofaseId);
+  const inSelezione = scelteRighe.size + scelteFasi.size > 0;
+  const fineAzioneDate = () => { azzeraScelte(); setBloccoInizio(""); setBloccoFine(""); setBloccoGiorni(""); };
 
   const applicaDate = () => {
     if (!bloccoInizio && !bloccoFine) return;
     const { passi, incoerenti } = pianoInBlocco(conSottofase, bloccoInizio || null, bloccoFine || null);
-    if (incoerenti.length > 0) {
-      toast.error(`Su ${incoerenti.length === 1 ? "1 riga" : `${incoerenti.length} righe`} la fine verrebbe prima dell'inizio: nessuna data salvata.`, { description: incoerenti[0].slice(0, 120) });
-      return;
-    }
+    if (incoerenti.length > 0) { toast.error(`Su ${incoerenti.length === 1 ? "1 riga" : `${incoerenti.length} righe`} la fine verrebbe prima dell'inizio: nessuna data salvata.`); return; }
     onPianificaTutte(passi);
-    setScelte(new Set());
-    setBloccoInizio("");
-    setBloccoFine("");
+    fineAzioneDate();
   };
-  const giorniScritti = bloccoGiorni === "" ? null : Number(bloccoGiorni);
   const mettiInFila = () => {
-    if (giorniScritti !== null && (!Number.isInteger(giorniScritti) || giorniScritti < 1 || giorniScritti > 3650)) { toast.error("Scrivi i giorni con un numero intero."); return; }
-    const { passi, senzaGiorni: senza } = dateInFila(conSottofase, bloccoInizio || oggi, giorniScritti, lavorativo ?? (() => true));
-    if (senza.length > 0) { toast.error(`${senza.length === 1 ? "1 riga non ha" : `${senza.length} righe non hanno`} i giorni: scrivili qui accanto.`); return; }
+    const giorni = bloccoGiorni === "" ? null : Number(bloccoGiorni);
+    if (giorni !== null && (!Number.isInteger(giorni) || giorni < 1 || giorni > 3650)) { toast.error("Scrivi i giorni con un numero intero."); return; }
+    const { passi, senzaGiorni } = dateInFila(conSottofase, bloccoInizio || oggi, giorni, lavorativo ?? (() => true));
+    if (senzaGiorni.length > 0) { toast.error(`${senzaGiorni.length === 1 ? "1 riga non ha" : `${senzaGiorni.length} righe non hanno`} i giorni: scrivili qui.`); return; }
     if (passi.length === 0) { toast.error("Nessuna riga da mettere in fila: quelle fatte restano dove sono."); return; }
     onPianificaTutte(passi);
-    setScelte(new Set());
-    setBloccoInizio("");
-    setBloccoFine("");
-    setBloccoGiorni("");
+    fineAzioneDate();
+  };
+  const segnaBlocco = (fatta: boolean) => {
+    const ids = conSottofase.filter((r) => r.fatta !== fatta).map((r) => r.sottofaseId!);
+    if (ids.length > 0) onSegnaTutte(ids, fatta);
+    azzeraScelte();
+  };
+  const salvaDataRiga = (r: RigaDistinta, campo: "inizio" | "fine", v: string | null) => {
+    const inizio = campo === "inizio" ? v : r.inizio;
+    const fine = campo === "fine" ? v : r.fine;
+    if (!r.sottofaseId) return;
+    if (!dateValide(inizio, fine)) { toast.error("La fine viene prima dell'inizio."); return; }
+    // Togliendo la fine si tolgono anche i giorni: con quelli il database la ricalcolerebbe.
+    onPianifica(r.sottofaseId, { data_inizio: inizio, data_fine: fine, giorni: fine ? r.giorni : null });
+  };
+  const salvaDataFase = (f: FaseTabella, campo: "inizio" | "fine", v: string | null) => {
+    const start = campo === "inizio" ? v : f.start_date ?? null;
+    const end = campo === "fine" ? v : f.end_date ?? null;
+    if (!dateValide(start, end)) { toast.error("La fine viene prima dell'inizio."); return; }
+    onDateFase(f.id, { start_date: start, end_date: end });
   };
   const sposta = (r: RigaDistinta, verso: -1 | 1) => {
     const ids = (sottofasiDi.get(r.faseId) ?? []).map((s) => s.id);
@@ -202,84 +255,114 @@ export function DistintaLavorazioni({
     setInModifica(null);
     if (nome && nome !== r.descrizione) onRinomina(inModifica.id, nome);
   };
-  const aggiungi = () => {
+  const aggiungi = (faseId: string) => {
     const nome = nuova.trim();
-    if (!faseId || !nome) return;
+    if (!nome) { setNuovaIn(null); return; }
     onAggiungi(faseId, nome);
     setNuova("");
   };
-  const segnaBlocco = (fatta: boolean) => {
-    const ids = conSottofase.filter((r) => r.fatta !== fatta).map((r) => r.sottofaseId!);
-    if (ids.length > 0) onSegnaTutte(ids, fatta);
-    setScelte(new Set());
-  };
-  const salvaData = (r: RigaDistinta, campo: "inizio" | "fine", e: FocusEvent<HTMLInputElement>) => {
-    const salvata = (campo === "inizio" ? r.inizio : r.fine) ?? "";
-    // Una data scritta a metà risulta vuota: non deve cancellare quella salvata.
-    if (e.target.validity.badInput) { e.target.value = salvata; return; }
-    const valore = e.target.value;
-    if (!r.sottofaseId || valore === salvata) return;
-    const inizio = campo === "inizio" ? valore || null : r.inizio;
-    const fine = campo === "fine" ? valore || null : r.fine;
-    if (!dateValide(inizio, fine)) {
-      toast.error("La fine viene prima dell'inizio.");
-      e.target.value = salvata;
-      return;
-    }
-    // Togliendo la fine si tolgono anche i giorni: con quelli il database la ricalcolerebbe.
-    onPianifica(r.sottofaseId, { data_inizio: inizio, data_fine: fine, giorni: fine ? r.giorni : null });
+
+  const classeScelta = cn("transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=checked]:opacity-100", inSelezione && "[@media(hover:hover)]:opacity-100");
+
+  const rigaFase = (f: FaseTabella, dellaFase: RigaDistinta[]) => {
+    const aperta = !!faseId || filtrando || aperte.has(f.id);
+    const e = economiaDi?.get(f.id);
+    const chi = chiDi.get(f.id);
+    const nomi = chi ? [...chi.squadre, ...chi.persone, ...chi.ditte] : [];
+    const pct = Number(f.percentuale) || 0;
+    const finita = f.status === "completata" || pct >= 100;
+    const senzaSottofase = dellaFase.filter((r) => r.voceId && !r.sottofaseId).length;
+    const ritardo = !finita && !!f.end_date && f.end_date < oggi;
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        <div className="flex min-w-0 flex-1 basis-40 items-center gap-1.5">
+          {puoModificare && !faseId && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className={classeScelta} />}
+          <button type="button" onClick={() => (faseId ? undefined : apriChiudi(f.id))} aria-expanded={aperta} className={cn("flex min-w-0 items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", faseId && "cursor-default")}>
+            {!faseId && (aperta ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />)}
+            <span className="truncate text-[13px] font-semibold" title={f.name}>{f.name}</span>
+            <span className="shrink-0 text-[11px] font-normal tabular-nums text-muted-foreground">{dellaFase.length}</span>
+          </button>
+          {!!chi?.mezzi.length && <span title={chi.mezzi.join(", ")} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Truck className="h-3 w-3" aria-hidden="true" />{chi.mezzi.length}</span>}
+          {!!chi?.articoli && <span title={`${chi.articoli} articoli`} className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground"><Package className="h-3 w-3" aria-hidden="true" />{chi.articoli}</span>}
+        </div>
+        <div className="flex items-center gap-1" title={`Avanzamento ${pct}%`}>
+          <span className="h-1 w-7 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
+          <span className="text-[11px] tabular-nums text-muted-foreground">{pct}%</span>
+        </div>
+        <div className="w-28 min-w-0">
+          {puoModificare || puoSquadre ? (
+            <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
+              className={cn("block w-full truncate rounded px-0.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita && "font-medium text-amber-700", nomi.length === 0 && finita && "text-muted-foreground/40")}>
+              {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "—" : "+ Assegna"}
+            </button>
+          ) : <span className="block truncate text-xs" title={nomi.join(", ")}>{nomi.join(", ") || "—"}</span>}
+        </div>
+        <div className="flex items-center gap-1 text-xs max-md:hidden">
+          <CellaData valore={f.start_date} etichetta={`Inizio di ${f.name}`} modificabile={puoModificare} onSalva={(v) => salvaDataFase(f, "inizio", v)} />
+          <span className="text-muted-foreground">→</span>
+          <CellaData valore={f.end_date} etichetta={`Fine di ${f.name}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataFase(f, "fine", v)} />
+        </div>
+        {vedeVenduto && <div className="text-right text-xs font-medium tabular-nums" title={conIva ? "Venduto con IVA" : "Venduto imponibile"}>{importo(e?.venduto)}</div>}
+        {vedeCosti && <div className="text-right text-xs tabular-nums text-muted-foreground" title="Costo previsto">{e?.costoPrevisto ? formatCurrency(e.costoPrevisto) : "—"}</div>}
+        {vedeCosti && <div className={cn("text-right text-xs tabular-nums text-muted-foreground", e && e.costoPrevisto > 0 && e.costoConsuntivo > e.costoPrevisto && "font-medium text-rose-700")} title="Costo consuntivo">{e?.costoConsuntivo ? formatCurrency(e.costoConsuntivo) : "—"}</div>}
+        {puoModificare && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />Aggiungi sottofase</DropdownMenuItem>
+              {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />Crea {senzaSottofase} sottofasi dalle voci</DropdownMenuItem>}
+              <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Apri la scheda</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    );
   };
 
-  const riga = (r: RigaDistinta) => {
-    const aperta = aperte.has(r.key);
+  const rigaVoce = (r: RigaDistinta) => {
+    const espansa = espanse.has(r.key);
     const ritardo = !r.fatta && !!r.fine && r.fine < oggi;
+    const q = quantita(r.quantita, r.unita);
     return (
       <>
-        <div className="flex items-center pt-1.5 sm:pt-0">
-          {puoModificare && <Checkbox checked={scelte.has(r.key)} onCheckedChange={() => inverti(r.key)} aria-label={`Seleziona ${r.descrizione}`} />}
+        <div className="flex items-center">
+          {puoModificare && <Checkbox checked={scelteRighe.has(r.key)} onCheckedChange={() => inverti(setScelteRighe, r.key)} aria-label={`Seleziona ${r.descrizione}`} className={classeScelta} />}
         </div>
-        <div className="flex items-center pt-1.5 sm:pt-0">
-          {r.sottofaseId
-            ? <Checkbox checked={r.fatta} disabled={!puoModificare} onCheckedChange={(v) => onSegna(r.sottofaseId!, v === true)} aria-label={`${r.descrizione}: ${r.fatta ? "fatta" : "da fare"}`} className="data-[state=checked]:border-emerald-600 data-[state=checked]:bg-emerald-600" />
-            : <span title="Non ha ancora una sottofase" className="block h-4 w-4 rounded-sm border border-dashed border-muted-foreground/40" />}
-        </div>
-        {conCodici && <div className="hidden min-w-0 items-center truncate font-mono text-[11px] text-muted-foreground sm:flex" title={r.codice ?? undefined}>{r.codice ?? ""}</div>}
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1.5 pl-3">
+          {r.sottofaseId ? (
+            <button type="button" role="checkbox" aria-checked={r.fatta} disabled={!puoModificare} onClick={() => onSegna(r.sottofaseId!, !r.fatta)} aria-label={`${r.descrizione}: ${r.fatta ? "fatta" : "da fare"}`} className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
+              {r.fatta ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> : <Circle className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-foreground" aria-hidden="true" />}
+            </button>
+          ) : <span title="Non ha ancora una sottofase" className="h-3.5 w-3.5 shrink-0" />}
           {inModifica && inModifica.id === r.sottofaseId ? (
             <Input
-              autoFocus
-              value={inModifica.testo}
-              maxLength={160}
-              aria-label={`Nuovo nome di ${r.descrizione}`}
+              autoFocus value={inModifica.testo} maxLength={160} aria-label={`Nuovo nome di ${r.descrizione}`}
               onChange={(e) => setInModifica({ ...inModifica, testo: e.target.value })}
               onBlur={() => confermaNome(r)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); confermaNome(r); }
-                else if (e.key === "Escape") setInModifica(null);
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confermaNome(r); } else if (e.key === "Escape") setInModifica(null); }}
               className="h-6 min-w-0 flex-1 px-1 text-xs"
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                const nuove = new Set(aperte);
-                if (aperta) nuove.delete(r.key); else nuove.add(r.key);
-                setAperte(nuove);
-              }}
-              aria-expanded={aperta}
-              title={aperta ? undefined : r.descrizione}
-              className={cn("min-w-0 flex-1 rounded text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", !aperta && "truncate", r.fatta && "text-muted-foreground line-through")}
-            >
+            <button type="button" onClick={() => inverti(setEspanse, r.key)} aria-expanded={espansa} title={espansa ? undefined : r.descrizione}
+              className={cn("min-w-0 flex-1 rounded text-left text-xs leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", !espansa && "line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
+              {q && <span className="ml-1 tabular-nums text-muted-foreground">· {q}</span>}
+              {r.giorni ? <span className="ml-1 tabular-nums text-muted-foreground">· {r.giorniLavorati > 0 ? `${r.giorniLavorati}/${r.giorni}` : r.giorni} gg</span> : null}
+              {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
             </button>
           )}
+        </div>
+        <div className="max-md:hidden">{r.sottofaseId ? <CellaData valore={r.inizio} etichetta={`Inizio di ${r.descrizione}`} modificabile={puoModificare} onSalva={(v) => salvaDataRiga(r, "inizio", v)} /> : null}</div>
+        <div className="max-md:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={`Fine di ${r.descrizione}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
+        <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeVenduto && r.venduto ? importo(r.venduto) : ""}</div>
+        <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeCosti && r.previsto !== null ? formatCurrency(r.previsto) : ""}</div>
+        <div className="flex items-center justify-end max-md:col-start-3 max-md:row-start-1">
           {puoModificare && r.sottofaseId && !inModifica && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 shrink-0 text-muted-foreground" aria-label={`Altro per ${r.descrizione}`}>
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </Button>
+                <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label={`Altro per ${r.descrizione}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setInModifica({ id: r.sottofaseId!, testo: r.descrizione.slice(0, 160) })}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
@@ -290,181 +373,155 @@ export function DistintaLavorazioni({
             </DropdownMenu>
           )}
         </div>
-        {vista === "struttura" && conQuantita && <>
-          <div className="self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left">{quantita(r.quantita)} <span className="text-muted-foreground sm:hidden">{r.unita}</span></div>
-          <div className="hidden self-center text-xs text-muted-foreground sm:block">{r.unita ?? ""}</div>
-          {vedeVenduto && <div className="self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left">{importoVenduto(r.venduto)}</div>}
-        </>}
-        {vista === "pianificazione" && (r.sottofaseId ? <>
-          <Input type="date" key={`i${r.inizio ?? ""}`} defaultValue={r.inizio ?? ""} disabled={!puoModificare} aria-label={`Inizio di ${r.descrizione}`} onBlur={(e) => salvaData(r, "inizio", e)} className="h-6 px-1 text-xs max-sm:col-start-3" />
-          <Input type="date" key={`f${r.fine ?? ""}`} defaultValue={r.fine ?? ""} disabled={!puoModificare} aria-label={`Fine di ${r.descrizione}`} onBlur={(e) => salvaData(r, "fine", e)} className={cn("h-6 px-1 text-xs max-sm:col-start-3", ritardo && "border-rose-400 text-rose-700")} />
-          <div className="hidden self-center text-right text-xs tabular-nums text-muted-foreground sm:block" title={r.giorniLavorati > 0 ? "Giorni lavorati dai rapportini approvati, su quelli previsti" : undefined}>{r.giorniLavorati > 0 ? `${r.giorniLavorati}/${r.giorni ?? "—"}` : r.giorni ? `${r.giorni} gg` : ""}</div>
-        </> : <p className="self-center text-xs text-muted-foreground max-sm:col-start-3 sm:col-span-3">Senza sottofase</p>)}
-        {vista === "economia" && <>
-          {vedeVenduto ? <div className="self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left">{importoVenduto(r.venduto)}</div> : <div />}
-          {vedeCosti ? <div className={cn("self-center text-right text-xs tabular-nums max-sm:col-start-3 max-sm:text-left", r.previsto === null && "text-muted-foreground")}>{r.previsto === null ? "Da definire" : euro(r.previsto)}</div> : <div />}
-          <div className="hidden self-center text-right text-xs tabular-nums text-muted-foreground sm:block">
-            {vedeMargini && vedeVenduto && vedeCosti && r.venduto && r.previsto !== null ? `${Math.round(((r.venduto - r.previsto) / r.venduto) * 100)}%` : ""}
-          </div>
-        </>}
       </>
     );
   };
 
-  const titoloFase = (id: string, titolo: string) => (
-    <button type="button" onClick={() => scegliFase(id)} className="block w-full border-b bg-muted/50 px-2 py-0.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground">
-      {titolo}
-    </button>
-  );
-  const classiRiga = cn("grid grid-cols-[1.5rem_1.5rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 border-b px-2 py-0.5 sm:gap-y-0", colonne(vista, conCodici, conQuantita));
+  const griglia = cn("group grid grid-cols-[1.25rem_minmax(0,1fr)_1.5rem] items-center gap-x-2 border-b px-2", COLONNE);
+  const mostra = (e: Elemento) => {
+    if (e.tipo === "fase") return <div className="group border-b bg-muted/40 px-2 py-1 hover:bg-muted/70">{rigaFase(e.fase, e.righe)}</div>;
+    if (e.tipo === "riga") return <div className={cn(griglia, "py-0.5 hover:bg-muted/30")}>{rigaVoce(e.riga)}</div>;
+    return (
+      <div className="border-b px-2 py-1 pl-9">
+        <Input autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder="Nome e Invio per aggiungere, Esc per chiudere" aria-label="Nuova sottofase"
+          onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); aggiungi(e.faseId); } else if (ev.key === "Escape") { setNuovaIn(null); setNuova(""); } }}
+          onBlur={() => { if (!nuova.trim()) setNuovaIn(null); }}
+          className="h-6 max-w-md px-1 text-xs" />
+      </div>
+    );
+  };
 
   return (
-    <section aria-label="Distinta delle lavorazioni" className="grid gap-3 xl:grid-cols-[13rem_minmax(0,1fr)]">
-      {/* Le fasi: sul telefono una tendina, altrimenti l'elenco con i totali. */}
-      <div className="xl:hidden">
-        <Select value={faseId ?? "tutte"} onValueChange={(v) => scegliFase(v === "tutte" ? null : v)}>
-          <SelectTrigger aria-label="Scegli la fase"><SelectValue /></SelectTrigger>
+    <section aria-label="Lavorazioni della commessa" className="space-y-2">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border px-3 py-2 sm:grid-cols-4 lg:grid-cols-7">
+        {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
+        {vedeVenduto && <Stat etichetta="Venduto imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
+        {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
+        {vedeCosti && <Stat etichetta="Previsto">{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
+        {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? `+ ${formatCurrency(consuntivoSenzaFase)} senza fase` : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
+        {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
+        {vedeVenduto && vedeCosti && iva && daVersare && (
+          <div className="min-w-0" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
+            <dt className="truncate text-[11px] text-muted-foreground">{daVersare.verso === "credito" ? "IVA a credito" : "IVA da versare"}</dt>
+            <dd className="text-sm font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
+          </div>
+        )}
+      </dl>
+
+      <div className="grid gap-2 lg:grid-cols-[12rem_minmax(0,1fr)]">
+      <div className="lg:hidden">
+        <Select value={faseId ?? "tutte"} onValueChange={(v) => { setFaseId(v === "tutte" ? null : v); azzeraScelte(); }}>
+          <SelectTrigger aria-label="Scegli la fase" className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="tutte">Tutte le fasi ({tutte.length})</SelectItem>
-            {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({perFase.get(f.id)?.righe ?? 0})</SelectItem>)}
+            {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({Number(f.percentuale) || 0}%)</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
-      <nav aria-label="Fasi" className="hidden max-h-[75vh] space-y-0.5 overflow-y-auto rounded-lg border p-1.5 xl:block">
-        <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => scegliFase(null)}
+      <nav aria-label="Fasi" className="hidden max-h-[78vh] space-y-0.5 self-start overflow-y-auto rounded-lg border p-1 lg:block">
+        <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => { setFaseId(null); azzeraScelte(); }}
           className={cn("w-full rounded-md px-2 py-1 text-left text-xs font-medium hover:bg-muted", faseId === null && "bg-muted")}>
           Tutte le fasi <span className="font-normal text-muted-foreground">{tutte.length}</span>
         </button>
         {fasi.map((f) => {
-          const t = perFase.get(f.id);
           const pct = Number(f.percentuale) || 0;
-          const vendutoFase = economiaDi?.get(f.id)?.venduto ?? t?.venduto ?? 0;
+          const chi = chiDi.get(f.id);
+          const senzaNessuno = pct < 100 && f.status !== "completata" && !(chi && chi.squadre.length + chi.persone.length + chi.ditte.length > 0);
+          const v = economiaDi?.get(f.id)?.venduto ?? 0;
           return (
-            <button key={f.id} type="button" aria-current={faseId === f.id ? "true" : undefined} onClick={() => scegliFase(f.id)}
-              className={cn("w-full rounded-md px-2 py-1 text-left hover:bg-muted", faseId === f.id && "bg-muted")}>
-              <span className="block truncate text-xs font-medium" title={f.name}>{f.name}</span>
-              <span className="mt-0.5 flex items-center justify-between gap-2 text-[11px] tabular-nums text-muted-foreground">
-                <span>{t?.righe ?? 0} voci · {pct}%</span>
-                {vedeVenduto && vendutoFase > 0 && <span>{formatCurrency(conIva ? conAliquota(vendutoFase, aliquota).totale : vendutoFase)}</span>}
-              </span>
-            </button>
+            <div key={f.id} className={cn("group flex items-start gap-1 rounded-md px-1.5 py-1 hover:bg-muted", faseId === f.id && "bg-muted")}>
+              {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} className={cn("mt-0.5", classeScelta)} />}
+              <button type="button" aria-current={faseId === f.id ? "true" : undefined} onClick={() => { setFaseId(f.id); setFiltro("tutte"); setScelteRighe(new Set()); }} className="min-w-0 flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <span className={cn("block truncate text-xs font-medium", senzaNessuno && "text-amber-700")} title={f.name}>{f.name}</span>
+                <span className="mt-0.5 flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground">
+                  <span className="h-1 w-6 shrink-0 overflow-hidden rounded-full bg-background"><span className={cn("block h-full", pct >= 100 ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
+                  {pct}%
+                  {vedeVenduto && v > 0 && <span className="ml-auto truncate">{formatCurrency(conIva ? conAliquota(v, aliquota).totale : v)}</span>}
+                </span>
+              </button>
+            </div>
           );
         })}
       </nav>
-
       <div className="min-w-0 space-y-1.5">
-        <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-xs">
-          {avanzamento !== null && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Avanzamento</dt><dd className="font-semibold tabular-nums">{avanzamento}%</dd></div>}
-          {vedeVenduto && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Venduto imponibile</dt><dd className="font-semibold tabular-nums">{faseId && vendutoFasi === 0 ? "Da ripartire" : formatCurrency(venduto)}{daRipartire > 0.5 && vendutoFasi > 0 && <span className="ml-1 text-[11px] font-normal text-amber-700">{formatCurrency(daRipartire)} da ripartire sulle fasi</span>}</dd></div>}
-          {vedeVenduto && iva && venduto > 0 && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">IVA {aliquota.toLocaleString("it-IT")}%</dt><dd className="font-semibold tabular-nums">{formatCurrency(vendutoIva.iva)}</dd></div>}
-          {vedeVenduto && iva && venduto > 0 && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Con IVA</dt><dd className="font-semibold tabular-nums">{formatCurrency(vendutoIva.totale)}</dd></div>}
-          {vedeCosti && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Previsto</dt><dd className="font-semibold tabular-nums">{previsto > 0 ? formatCurrency(previsto) : "Da definire"}{previsto > 0 && totali.senzaPrevisto > 0 && <span className="ml-1 text-[11px] font-normal text-amber-700">parziale</span>}</dd></div>}
-          {vedeCosti && economia && <div className="flex items-baseline gap-1.5"><dt className="text-muted-foreground">Consuntivo</dt><dd className="font-semibold tabular-nums">{formatCurrency(economia.costoConsuntivo)}{!faseId && consuntivoSenzaFase > 0 && <span className="ml-1 text-[11px] font-normal text-amber-700">+ {formatCurrency(consuntivoSenzaFase)} senza fase</span>}</dd></div>}
-          {vedeCosti && <span className="text-[11px] text-muted-foreground">Previsto e consuntivo in imponibile, IVA esclusa</span>}
-          {faseId && <Button type="button" variant="link" size="sm" className="ml-auto h-auto p-0 text-xs" onClick={() => onApriScheda(faseId)}>Apri la scheda: squadre, ditte, note</Button>}
-        </dl>
-
-        {vedeVenduto && vedeCosti && iva && daVersare && (
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">IVA commessa a fine lavori: </span>
-            <span className="font-semibold tabular-nums text-foreground">{daVersare.verso === "credito" ? `${formatCurrency(daVersare.importo)} a credito` : daVersare.verso === "pari" ? "in pari" : `${formatCurrency(daVersare.importo)} da versare`}</span>
-            {" · "}vendite {formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))}{" · "}credito acquisti {formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}
-            {iva.reverse_charge_imponibile > 0 && <>{" · "}reverse charge {formatCurrency(iva.reverse_charge_imponibile)}</>}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="Vista" className="inline-flex rounded-md border p-0.5">
-            {viste.map((v) => (
-              <Button key={v.value} type="button" size="sm" variant={vista === v.value ? "secondary" : "ghost"} className="h-6 px-2 text-xs" aria-pressed={vista === v.value} onClick={() => setVista(v.value)}>{v.label}</Button>
-            ))}
-          </div>
-          {vedeVenduto && iva && aliquota > 0 && (
-            <div role="group" aria-label="Venduto" className="inline-flex rounded-md border p-0.5">
-              <Button type="button" size="sm" variant={!conIva ? "secondary" : "ghost"} className="h-6 px-2 text-xs" aria-pressed={!conIva} onClick={() => setConIva(false)}>Imponibile</Button>
-              <Button type="button" size="sm" variant={conIva ? "secondary" : "ghost"} className="h-6 px-2 text-xs" aria-pressed={conIva} onClick={() => setConIva(true)}>Con IVA</Button>
-            </div>
-          )}
-          <div className="relative min-w-[12rem] flex-1">
-            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-            <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca per descrizione o codice…" aria-label="Cerca nella distinta" className="h-8 pl-8" />
-          </div>
-          {puoModificare && faseId && (
-            <div className="flex items-center gap-1">
-              <Input value={nuova} maxLength={160} onChange={(e) => setNuova(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aggiungi(); } }} placeholder="Nuova sottofase…" aria-label="Nuova sottofase" className="h-8 w-44 text-xs" />
-              <Button type="button" variant="outline" size="icon" className="h-8 w-8" disabled={!nuova.trim()} onClick={aggiungi} aria-label="Aggiungi la sottofase"><Plus className="h-3.5 w-3.5" /></Button>
-            </div>
-          )}
-          {puoModificare && senzaSottofase > 0 && faseId && (
-            <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => (Number(faseAperta?.percentuale) > 0 ? setDivisione(faseId) : onDalleVoci(faseId))}>
-              <ListChecks className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Crea {senzaSottofase} sottofasi
-            </Button>
-          )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="relative min-w-[11rem] flex-1">
+          <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca una voce o un codice…" aria-label="Cerca nella distinta" className="h-7 pl-7 text-xs" />
         </div>
-
-        <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-1">
-          {FILTRI_DISTINTA.filter((f) => !f.soloCosti || vedeCosti).map((f) => (
-            <Button key={f.value} type="button" size="sm" variant={filtro === f.value ? "secondary" : "ghost"} className="h-6 px-2 text-xs" aria-pressed={filtro === f.value} onClick={() => { setFiltro(f.value); setScelte(new Set()); }}>
-              {f.label} <span className="ml-1 tabular-nums text-muted-foreground">{conti[f.value]}</span>
+        <div role="group" aria-label="Filtri" className="flex flex-wrap items-center gap-0.5">
+          {FILTRI_DISTINTA.filter((f) => (!f.soloCosti || vedeCosti) && (f.value === "tutte" || conti[f.value] > 0 || filtro === f.value)).map((f) => (
+            <Button key={f.value} type="button" size="sm" variant={filtro === f.value ? "secondary" : "ghost"} className="h-7 px-2 text-xs" aria-pressed={filtro === f.value} onClick={() => setFiltro(f.value)}>
+              {f.label}{f.value !== "tutte" && <span className="ml-1 tabular-nums text-muted-foreground">{conti[f.value]}</span>}
             </Button>
           ))}
-          {puoModificare && righe.length > 0 && (
-            <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs sm:hidden" onClick={invertiTutte}>{tutteScelte ? "Togli tutte" : "Scegli tutte"}</Button>
-          )}
         </div>
-
-        {selezionate.length > 0 && (
-          <div role="group" aria-label="Azioni sulle righe scelte" className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-2 py-1 text-xs">
-            <span className="font-medium">{selezionate.length} scelte</span>
-            {conSottofase.length < selezionate.length && <span className="text-amber-700">{selezionate.length - conSottofase.length} senza sottofase: restano fuori</span>}
-            <Button type="button" variant="outline" size="sm" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(true)}>Segna fatte</Button>
-            <Button type="button" variant="outline" size="sm" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(false)}>Segna da fare</Button>
-            <label className="flex items-center gap-1">dal<Input type="date" value={bloccoInizio} onChange={(e) => setBloccoInizio(e.target.value)} aria-label="Inizio per le righe scelte" className="h-6 w-[8.5rem] px-1 text-xs" /></label>
-            <label className="flex items-center gap-1">al<Input type="date" value={bloccoFine} onChange={(e) => setBloccoFine(e.target.value)} aria-label="Fine per le righe scelte" className="h-6 w-[8.5rem] px-1 text-xs" /></label>
-            <Button type="button" size="sm" className="h-6 text-xs" disabled={conSottofase.length === 0 || (!bloccoInizio && !bloccoFine)} onClick={applicaDate}>Applica le date</Button>
-            <label className="flex items-center gap-1">giorni<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label="Giorni per ogni riga scelta" className="h-6 w-14 px-1 text-xs" /></label>
-            <Button type="button" variant="outline" size="sm" className="h-6 text-xs" disabled={conSottofase.length === 0} title="Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro" onClick={mettiInFila}>Metti in fila</Button>
-            <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 text-xs" onClick={() => setScelte(new Set())}>Annulla</Button>
-          </div>
-        )}
-
-        <div ref={scrollRef} className="max-h-[75vh] overflow-y-auto rounded-lg border">
-          <div className={cn("sticky top-0 z-10 hidden gap-x-2 border-b bg-muted px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid", colonne(vista, conCodici, conQuantita))}>
-            <div className="flex items-center">{puoModificare && <Checkbox checked={tutteScelte} onCheckedChange={invertiTutte} aria-label="Seleziona tutte le righe" />}</div>
-            <div title="Fatta">✓</div>
-            {conCodici && <div>Codice</div>}
-            <div>Descrizione</div>
-            {vista === "struttura" && conQuantita && <><div className="text-right">Quantità</div><div>Um</div>{vedeVenduto ? <div className="text-right">{conIva ? "Con IVA" : "Imponibile"}</div> : <div />}</>}
-            {vista === "pianificazione" && <><div>Dal</div><div>Al</div><div className="text-right">Giorni</div></>}
-            {vista === "economia" && <>{vedeVenduto ? <div className="text-right">{conIva ? "Con IVA" : "Imponibile"}</div> : <div />}{vedeCosti ? <div className="text-right">Previsto</div> : <div />}{vedeMargini ? <div className="text-right" title="Margine previsto">Mrg %</div> : <div />}</>}
-          </div>
-          {righe.length === 0 ? (
-            <p role="status" className="p-6 text-center text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>
-          ) : virtuale ? (
-            <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-              {virtualizer.getVirtualItems().map((vr) => {
-                const e = elementi[vr.index];
-                return (
-                  <div key={e.key} ref={virtualizer.measureElement} data-index={vr.index} className={e.riga ? classiRiga : undefined} style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vr.start}px)` }}>
-                    {e.riga ? riga(e.riga) : titoloFase(e.faseId, e.titolo)}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            elementi.map((e) => (e.riga ? <div key={e.key} className={classiRiga}>{riga(e.riga)}</div> : <div key={e.key}>{titoloFase(e.faseId, e.titolo)}</div>))
-          )}
-        </div>
-        {vedeCosti && economia && <p className="text-[11px] text-muted-foreground">Il consuntivo si legge per fase: costi, ore e fatture non sono ancora collegati alle singole voci.</p>}
+        {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
       </div>
+
+      <div ref={scrollRef} className="max-h-[78vh] overflow-y-auto rounded-lg border">
+        <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground md:grid", COLONNE)}>
+          <div /><div>Voce</div><div>Dal</div><div>Al</div>
+          <div className="text-right">
+            {vedeVenduto && (iva && aliquota > 0
+              ? <button type="button" onClick={() => setConIva((v) => !v)} title="Cambia tra imponibile e con IVA" className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground">{conIva ? "Con IVA" : "Imponibile"}</button>
+              : "Imponibile")}
+          </div>
+          <div className="text-right">{vedeCosti && "Previsto"}</div>
+          <div />
+        </div>
+        {elementi.length === 0 ? (
+          <p role="status" className="p-6 text-center text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>
+        ) : virtuale ? (
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+            {virtualizer.getVirtualItems().map((vr) => {
+              const e = elementi[vr.index];
+              return <div key={e.key} ref={virtualizer.measureElement} data-index={vr.index} style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vr.start}px)` }}>{mostra(e)}</div>;
+            })}
+          </div>
+        ) : elementi.map((e) => <div key={e.key}>{mostra(e)}</div>)}
+      </div>
+      </div>
+      </div>
+
+      {inSelezione && (
+        <div role="group" aria-label="Azioni sulle righe scelte" className="sticky bottom-3 z-20 mx-auto flex w-fit max-w-full flex-wrap items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs text-background shadow-lg">
+          <span className="font-medium">{[scelteFasi.size ? `${scelteFasi.size} ${scelteFasi.size === 1 ? "fase" : "fasi"}` : null, scelteRighe.size ? `${scelteRighe.size} ${scelteRighe.size === 1 ? "voce" : "voci"}` : null].filter(Boolean).join(", ")}</span>
+          {scelteFasi.size > 0 && <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 text-xs" onClick={() => setAssegnaA([...scelteFasi])}><Users className="h-3 w-3" aria-hidden="true" />Assegna</Button>}
+          {scelteRighe.size > 0 && <>
+            {conSottofase.length < righeScelte.length && <span className="text-amber-300">{righeScelte.length - conSottofase.length} senza sottofase</span>}
+            <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(true)}>Segna fatte</Button>
+            <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(false)}>Da fare</Button>
+            <Popover>
+              <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>Date</Button></PopoverTrigger>
+              <PopoverContent className="w-64 space-y-2 text-xs">
+                <label className="flex items-center justify-between gap-2">Dal<Input type="date" value={bloccoInizio} onChange={(e) => setBloccoInizio(e.target.value)} aria-label="Inizio per le righe scelte" className="h-7 w-36 px-1 text-xs" /></label>
+                <label className="flex items-center justify-between gap-2">Al<Input type="date" value={bloccoFine} onChange={(e) => setBloccoFine(e.target.value)} aria-label="Fine per le righe scelte" className="h-7 w-36 px-1 text-xs" /></label>
+                <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={!bloccoInizio && !bloccoFine} onClick={applicaDate}>Applica le date</Button>
+                <div className="border-t pt-2">
+                  <label className="flex items-center justify-between gap-2">Giorni ognuna<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label="Giorni per ogni riga scelta" className="h-7 w-20 px-1 text-xs" /></label>
+                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" title="Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro" onClick={mettiInFila}>Metti in fila</Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </>}
+          <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-background hover:bg-background/20 hover:text-background" aria-label="Togli la selezione" onClick={azzeraScelte}><X className="h-3.5 w-3.5" /></Button>
+        </div>
+      )}
+
+      <DialogAssegna
+        fasi={assegnaA ? fasi.filter((f) => assegnaA.includes(f.id)).map((f) => f.name) : null}
+        squadre={squadre} persone={persone} ditte={ditte}
+        puoSquadre={puoSquadre} puoPersoneDitte={puoModificare} inCorso={assegnaInCorso}
+        onChiudi={() => setAssegnaA(null)}
+        onAssegna={(s, fatto) => onAssegna({ fasi: assegnaA ?? [], ...s }, () => { fatto(); setAssegnaA(null); setScelteFasi(new Set()); })}
+      />
 
       <AlertDialog open={!!daEliminare} onOpenChange={(aperto) => { if (!aperto) setDaEliminare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la sottofase?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {daEliminare?.descrizione.slice(0, 160)}{daEliminare?.voceId ? ". La voce con quantità e importo resta nella fase." : ""}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{daEliminare?.descrizione.slice(0, 160)}{daEliminare?.voceId ? ". La voce con quantità e importo resta nella fase." : ""}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
@@ -476,10 +533,8 @@ export function DistintaLavorazioni({
       <AlertDialog open={!!divisione} onOpenChange={(aperto) => { if (!aperto) setDivisione(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>La fase è già al {Number(faseAperta?.percentuale) || 0}%</AlertDialogTitle>
-            <AlertDialogDescription>
-              Con le sottofasi l'avanzamento si calcola da quelle spuntate: la fase ripartirebbe da zero finché non segni quelle già fatte.
-            </AlertDialogDescription>
+            <AlertDialogTitle>La fase è già avviata</AlertDialogTitle>
+            <AlertDialogDescription>Con le sottofasi l'avanzamento si calcola da quelle spuntate: la fase ripartirebbe da zero finché non segni quelle già fatte.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
