@@ -9,6 +9,8 @@ import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salvaColonne, type ColonnaRicevute } from "@/lib/fatturazione/colonneRicevute";
 import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiFattura";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
+import { chiaveEmessa, chiaveRicevuta, errorePassaggero, identitaFattura, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
@@ -100,6 +102,7 @@ import {
   classificaDirezione,
   type EsitoImport,
   type FileScartato,
+  type XmlDaImportare,
 } from "@/lib/fatturazione/bulkXmlImport";
 import { bytesToBase64 } from "../../../../supabase/functions/_shared/base64";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
@@ -319,7 +322,9 @@ export default function FattureRicevutePage() {
   const [esportando, setEsportando] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
-  const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
+  const [progress, setProgress] = useState<{ fatte: number; totale: number; inizio?: number } | null>(null);
+  // Prima di importare si dice cosa c'è nel file: quante nuove, quante già dentro.
+  const [anteprima, setAnteprima] = useState<{ nuove: XmlDaImportare[]; presenti: XmlDaImportare[]; scartati: FileScartato[]; emesse: number; ricevute: number; incerte: number } | null>(null);
   const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
   const [confermaClassifica, setConfermaClassifica] = useState(false);
   const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
@@ -852,24 +857,49 @@ export default function FattureRicevutePage() {
       return;
     }
 
-    setProgress({ fatte: 0, totale: daImportare.length });
-    const esiti: EsitoImport[] = [];
+    // Quello che è già dentro col suo file si salta: così si ricarica lo stesso archivio
+    // dopo un'interruzione e si riparte da dove era.
+    const presentiNoti = new Set<string>();
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [ric, em] = await Promise.all([
+        tutteLePagine<{ cedente_piva: string | null; cedente_cf: string | null; numero_fattura: string; data_fattura: string }>((from, to) => db.from("fatture_ricevute")
+          .select("id, cedente_piva, cedente_cf, numero_fattura, data_fattura").eq("company_id", companyId).not("xml_url", "is", null).order("id").range(from, to)),
+        tutteLePagine<{ invoice_number: string; issue_date: string }>((from, to) => db.from("invoices")
+          .select("id, invoice_number, issue_date").eq("company_id", companyId).eq("external_provider", "xml_import").not("external_xml_url", "is", null).order("id").range(from, to)),
+      ]);
+      for (const r of ric) presentiNoti.add(chiaveRicevuta(r.cedente_piva || r.cedente_cf, r.numero_fattura, r.data_fattura));
+      for (const e of em) presentiNoti.add(`E|${chiaveEmessa(e.invoice_number, e.issue_date)}`);
+    } catch { /* senza il confronto ci pensa il server: i doppioni non si scrivono comunque */ }
 
+    const nuove: XmlDaImportare[] = [];
+    const presenti: XmlDaImportare[] = [];
+    let emesse = 0; let ricevute = 0; let incerte = 0;
     for (const f of daImportare) {
+      const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
+      if (direzione === "attiva") emesse++; else if (direzione === "passiva") ricevute++; else incerte++;
+      const id = identitaFattura(f.contenuto);
+      const chiave = id && (direzione === "attiva" ? `E|${chiaveEmessa(id.numero, id.data)}` : chiaveRicevuta(id.cedente, id.numero, id.data));
+      if (chiave && presentiNoti.has(chiave)) presenti.push(f); else nuove.push(f);
+    }
+    setProgress(null);
+    setAnteprima({ nuove, presenti, scartati, emesse, ricevute, incerte });
+  };
+
+  const importaUna = async (f: XmlDaImportare): Promise<EsitoImport> => {
       // Emessa o ricevuta? Lo dice il confronto fra le partite IVA. Quando non
       // e' chiaro NON si indovina: mandare una fattura nel posto sbagliato
       // falserebbe ricavi o costi, e sistemarlo dopo e' molto piu' caro.
       const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
       if (direzione === "incerta") {
-        esiti.push({
+        return {
           nome: f.nome,
           stato: "errore",
           motivo: partitaIvaAzienda
             ? "Non risulta ne' emessa ne' ricevuta da questa azienda: controlla le partite IVA nel file."
             : "Partita IVA dell'azienda non configurata: impostala in Impostazioni per poter distinguere emesse e ricevute.",
-        });
-        setProgress({ fatte: esiti.length, totale: daImportare.length });
-        continue;
+        };
       }
 
       const funzione = direzione === "attiva" ? "importa-fattura-attiva-xml" : "ricevi-sdi";
@@ -882,7 +912,14 @@ export default function FattureRicevutePage() {
         : { xml_content: f.contenuto, company_id: companyId };
 
       try {
-        const resp = await supabase.functions.invoke(funzione, { body });
+        let resp = await supabase.functions.invoke(funzione, { body });
+        // Errori passeggeri: riprovare è innocuo, un doppione non si scrive due volte.
+        for (let tentativo = 1; tentativo <= 2 && resp.error; tentativo++) {
+          const stato = (resp.error as { context?: Response }).context?.status;
+          if (!errorePassaggero(resp.error.message, stato)) break;
+          await new Promise((ok) => setTimeout(ok, 1500 * tentativo));
+          resp = await supabase.functions.invoke(funzione, { body });
+        }
         if (resp.error) {
           // Il corpo della risposta porta il motivo vero (numero gia' esistente,
           // cedente sbagliato); resp.error.message da solo direbbe solo "non-2xx".
@@ -891,21 +928,37 @@ export default function FattureRicevutePage() {
             const dettaglio = await (resp.error as { context?: Response }).context?.json?.();
             if (dettaglio?.error) motivo = dettaglio.error;
           } catch { /* resta il messaggio generico */ }
-          esiti.push({ nome: f.nome, stato: "errore", motivo, direzione });
+          return { nome: f.nome, stato: "errore", motivo, direzione };
         } else if (resp.data?.duplicate && resp.data?.completed) {
           // Già registrata coi soli dati: ora ha anche il file originale.
-          esiti.push({ nome: f.nome, stato: "importata", direzione });
+          return { nome: f.nome, stato: "importata", direzione };
         } else if (resp.data?.duplicate) {
-          esiti.push({ nome: f.nome, stato: "duplicata", direzione });
+          return { nome: f.nome, stato: "duplicata", direzione };
         } else if (resp.data?.success) {
-          esiti.push({ nome: f.nome, stato: "importata", direzione, ...(resp.data.warning ? {avviso:String(resp.data.warning)} : {}) });
+          return { nome: f.nome, stato: "importata", direzione, ...(resp.data.warning ? {avviso:String(resp.data.warning)} : {}) };
         } else {
-          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione });
+          return { nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione };
         }
       } catch (err) {
-        esiti.push({ nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione });
+        return { nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione };
       }
-      setProgress({ fatte: esiti.length, totale: daImportare.length });
+  };
+
+  const avviaImport = async () => {
+    if (!anteprima) return;
+    const { nuove, presenti, scartati } = anteprima;
+    setAnteprima(null);
+    setReport(null);
+    const inizio = Date.now();
+    setProgress({ fatte: 0, totale: nuove.length, inizio });
+    // Chi chiude la scheda a metà perde solo quelle non ancora partite: basta ricaricare il file.
+    const avvisaUscita = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", avvisaUscita);
+    let esiti: EsitoImport[] = presenti.map((f) => ({ nome: f.nome, stato: "duplicata" as const }));
+    try {
+      esiti = [...esiti, ...await inParallelo(nuove, 4, importaUna, (fatte) => setProgress({ fatte, totale: nuove.length, inizio }))];
+    } finally {
+      window.removeEventListener("beforeunload", avvisaUscita);
     }
 
     setProgress(null);
@@ -1099,7 +1152,7 @@ export default function FattureRicevutePage() {
             )}
             {progress !== null
               ? progress.totale > 0
-                ? `Importazione ${progress.fatte} di ${progress.totale}…`
+                ? `Importazione ${progress.fatte} di ${progress.totale}${progress.inizio && tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio) ? ` · ${tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio)}` : "…"}`
                 : "Lettura file…"
               : "Importa XML"}
           </Button>
@@ -1134,6 +1187,34 @@ export default function FattureRicevutePage() {
 
       {/* Resoconto dell'ultimo import: dice quante sono passate e, soprattutto,
           quali no e per quale motivo — cosi' si sa cosa ricaricare. */}
+      {anteprima && (
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="space-y-3 p-4">
+            <p className="font-medium">Cosa c'è nel file</p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="default">{anteprima.nuove.length} da importare</Badge>
+              {anteprima.presenti.length > 0 && <Badge variant="secondary">{anteprima.presenti.length} già presenti</Badge>}
+              <Badge variant="outline">{anteprima.emesse} emesse</Badge>
+              <Badge variant="outline">{anteprima.ricevute} ricevute</Badge>
+              {anteprima.incerte > 0 && <Badge variant="destructive">{anteprima.incerte} di un'altra azienda</Badge>}
+              {anteprima.scartati.length > 0 && <Badge variant="destructive">{anteprima.scartati.length} scartate</Badge>}
+            </div>
+            {anteprima.scartati.length > 0 && (
+              <ul className="max-h-32 overflow-y-auto text-xs text-muted-foreground">
+                {anteprima.scartati.slice(0, 50).map((x) => <li key={x.nome}>{x.nome}: {x.motivo}</li>)}
+              </ul>
+            )}
+            <p className="text-xs text-muted-foreground">Tieni aperta questa pagina fino alla fine. Se si interrompe, ricarica lo stesso file: riparte da quelle che mancano.</p>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={anteprima.nuove.length === 0} onClick={() => void avviaImport()}>Importa {anteprima.nuove.length} fatture</Button>
+              <Button size="sm" variant="outline" onClick={() => setAnteprima(null)}>Annulla</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {companyId && <CompletezzaFatture companyId={companyId} />}
+
       {report && (
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-3">
