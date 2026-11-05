@@ -1,3 +1,4 @@
+import { classificaBozzeRender } from "@/lib/render/renderDrafts";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/render/renderStatus";
 
 const STATUS_CONFIG: Record<RenderStatusKey, { label: string; color: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }> = {
+  draft: { label: "Da completare", color: "outline", icon: Clock },
   pending: { label: "In coda", color: "secondary", icon: Clock },
   processing: { label: "In elaborazione", color: "default", icon: Zap },
   completed: { label: "Completato", color: "secondary", icon: CheckCircle2 },
@@ -144,7 +146,7 @@ export function RenderModuleHubPage({
         .limit(24);
 
       if (error) throw error;
-      const rows = (data ?? []) as unknown as Omit<RecentRenderRow, "meta">[];
+      const rows = await classificaBozzeRender((data ?? []) as unknown as Omit<RecentRenderRow, "meta">[], companyId);
       const metaMaps = await loadRenderGalleryMeta(rows);
       return rows.map((row) => ({
         ...row,
@@ -434,6 +436,7 @@ export function RenderModuleHubPage({
                   <SelectItem value="completed">Completati</SelectItem>
                   <SelectItem value="processing">In elaborazione</SelectItem>
                   <SelectItem value="pending">In coda</SelectItem>
+                  <SelectItem value="draft">Da completare</SelectItem>
                   <SelectItem value="failed">Errori</SelectItem>
                 </SelectContent>
               </Select>
