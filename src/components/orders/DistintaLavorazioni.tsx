@@ -178,7 +178,7 @@ export function DistintaLavorazioni({
   const aliquota = iva?.aliquota ?? 0;
   const conIvaTot = conAliquota(venduto, aliquota);
   // Lo stesso numero della testata della commessa: una commessa ha un avanzamento solo.
-  const medio = avanzamentoFasi(fasi).avgPct;
+  const medio = avanzamentoFasi(fasi.map((f) => ({ status: f.status ?? "", percentuale: Number(f.percentuale) || 0 }))).avgPct;
   const avanzamento = medio === null ? null : Math.round(medio);
   const daVersare = iva ? saldoIva(Math.max(iva.debito_previsto, iva.debito_fatturato), iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) : null;
   const margine = venduto > 0 && economia.previsto > 0 ? Math.round(((venduto - economia.previsto) / venduto) * 100) : null;
