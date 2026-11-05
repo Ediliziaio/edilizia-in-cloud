@@ -28,7 +28,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { conIva, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
 import {
-  contrattoDellaDitta, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
+  type SottofaseLavoro, contrattoDellaDitta, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
   rigaElencoRicalcolata, schedeSicurezzaDitta,
   type FaseStorica, type SchedaSicurezza,
 } from "@/lib/orders/ditteLavori";
@@ -90,7 +90,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const dati = useQuery({
     queryKey: ["ditte-contratti-commessa", companyId, orderId],
     queryFn: async () => {
-      const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede] = await Promise.all([
+      const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede, sottofasi] = await Promise.all([
         db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
         db.from("order_external_teams").select("id, external_team_id, phase_id, cost_preventivo, vat_rate").eq("order_id", orderId),
         db.from("external_teams").select("id, name, vat_rate, subappaltatore_id, kind, is_active").eq("company_id", companyId).order("name"),
@@ -100,9 +100,11 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, costo, is_default, attivo, sort_order").eq("company_id", companyId),
         db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
+        db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId),
       ]);
-      for (const r of [fasi, assegnazioni, ditte, storico, varianti, contratti, schede]) if (r.error) throw r.error;
+      for (const r of [fasi, assegnazioni, ditte, storico, varianti, contratti, schede, sottofasi]) if (r.error) throw r.error;
       return {
+        sottofasi: ((sottofasi.data ?? []) as Array<{ sottofasi: SottofaseLavoro[] | null }>).flatMap((f) => f.sottofasi ?? []),
         fasi: (fasi.data ?? []) as Fase[],
         assegnazioni: (assegnazioni.data ?? []) as Assegnazione[],
         ditte: ((ditte.data ?? []) as Array<Ditta & { kind: string }>).filter((d) => d.kind !== "interna"),
@@ -282,7 +284,12 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 orderId={orderId}
                 companyId={companyId}
                 ditta={d.ditte.find((t) => t.id === x.id) ?? { id: x.id, name: nomeDitta(x.id), vat_rate: 0, subappaltatore_id: null }}
-                elenco={elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti)}
+                elenco={elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti, {
+                  sottofasi: d.sottofasi,
+                  // Il previsto delle assegnazioni è con l'IVA della ditta: nel contratto va senza.
+                  previstoFase: new Map(d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)
+                    .map((a) => [a.phase_id as string, (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100)])),
+                })}
                 periodo={periodoFasi(d.fasi, x.fasi)}
                 nomiFasi={d.fasi.filter((f) => x.fasi.includes(f.id)).map((f) => f.name)}
                 contratto={contrattoDellaDitta(d.ditte.find((t) => t.id === x.id)?.subappaltatore_id ?? null, d.contratti, d.schede)}

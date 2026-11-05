@@ -34,7 +34,9 @@ export interface VoceLavoro {
   costo_manodopera: number;
   tariffa_id: string | null;
   origine_codice?: string | null;
+  subphase_id?: string | null;
 }
+export interface SottofaseLavoro { id: string; phase_id: string; name: string; position?: number | null }
 
 const centesimi = (n: number) => Math.round(n * 100) / 100;
 
@@ -53,9 +55,10 @@ export function costoFaseDitta(phaseId: string, voci: VoceLavoro[], dittaId: str
 }
 
 /**
- * L'elenco dei lavori di una ditta per il contratto: le voci delle fasi che
- * le sono affidate, nell'ordine delle fasi, col suo prezzo. Le voci a
- * costo zero restano (si vede cosa deve fare anche se è compreso).
+ * L'elenco dei lavori di una ditta per il contratto: tutto quello che deve fare nelle fasi che le
+ * sono affidate, nell'ordine delle fasi, col suo prezzo. Le voci a costo zero restano (si vede cosa
+ * deve fare anche se è compreso). Una sottofase senza voce entra a corpo, compresa nel prezzo; una
+ * fase senza voci né sottofasi entra a corpo col costo previsto della ditta su quella fase.
  */
 export function elencoLavoriDitta(
   fasi: Array<{ id: string; name: string; position?: number | null }>,
@@ -63,13 +66,14 @@ export function elencoLavoriDitta(
   faseIds: string[],
   dittaId: string,
   varianti: ReadonlyArray<VarianteCostoDitta>,
+  altro: { sottofasi?: ReadonlyArray<SottofaseLavoro>; previstoFase?: ReadonlyMap<string, number> } = {},
 ): RigaElencoLavori[] {
   return fasi
     .filter((f) => faseIds.includes(f.id))
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .flatMap((f) =>
-      voci
-        .filter((v) => v.phase_id === f.id)
+    .flatMap((f) => {
+      const delle = voci.filter((v) => v.phase_id === f.id);
+      const righe: RigaElencoLavori[] = [...delle]
         .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
         .map((v) => {
           const prezzo = prezzoVoceDitta(v, dittaId, varianti);
@@ -81,9 +85,22 @@ export function elencoLavoriDitta(
             prezzo,
             importo: centesimi(v.quantita * prezzo),
             codice: v.origine_codice ?? null,
+            fase_id: f.id,
+            sottofase_id: v.subphase_id ?? null,
           };
-        }),
-    );
+        });
+      const conVoce = new Set(delle.map((v) => v.subphase_id).filter(Boolean));
+      const sole = (altro.sottofasi ?? []).filter((s) => s.phase_id === f.id && !conVoce.has(s.id))
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      for (const s of sole) {
+        righe.push({ fase: f.name, descrizione: s.name, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0, codice: null, fase_id: f.id, sottofase_id: s.id });
+      }
+      if (righe.length === 0) {
+        const prezzo = centesimi(Number(altro.previstoFase?.get(f.id)) || 0);
+        righe.push({ fase: f.name, descrizione: f.name, unita: "a corpo", quantita: 1, prezzo, importo: prezzo, codice: null, fase_id: f.id, sottofase_id: null });
+      }
+      return righe;
+    });
 }
 
 /** Dal primo inizio all'ultima fine delle fasi affidate: le date del contratto. */
@@ -150,6 +167,8 @@ export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
     .map((r) => rigaElencoRicalcolata({
       fase: r.fase.trim() || "Altri lavori", descrizione: r.descrizione.trim(), unita: r.unita, quantita: r.quantita, prezzo: r.prezzo, importo: r.importo,
       ...(r.codice != null ? { codice: r.codice } : {}),
+      ...(r.fase_id ? { fase_id: r.fase_id } : {}),
+      ...(r.sottofase_id ? { sottofase_id: r.sottofase_id } : {}),
     }))
     .filter((r) => r.descrizione && r.quantita > 0);
 }
