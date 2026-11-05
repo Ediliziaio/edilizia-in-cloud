@@ -199,8 +199,8 @@ export function useSottofasi(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onMutate: async (ids) => {
-      const posto = new Map(ids.map((id, i) => [id, i]));
-      return subito(new Set(ids), (s) => ({ ...s, position: posto.get(s.id) ?? s.position }));
+      const posto = new Map<string, number>(ids.map((id, i) => [id, i]));
+      return subito(new Set<string>(ids), (s) => ({ ...s, position: posto.get(s.id) ?? s.position }));
     },
     onSuccess: aggiornaLeggero,
     onError: annulla,
