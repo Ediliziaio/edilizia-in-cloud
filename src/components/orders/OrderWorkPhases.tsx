@@ -1,3 +1,4 @@
+import { useChiSottofasi } from "@/hooks/useChiSottofasi";
 import { formatCurrency } from "@/lib/formatters";
 import { useAssegnaFaseCosti, useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
 import { CostiSenzaFaseDialog } from "@/components/orders/CostiSenzaFase";
@@ -261,6 +262,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   );
   const [faseAperta, setFaseAperta] = useState<string | null>(null);
   const [sottofaseDaAprire, setSottofaseDaAprire] = useState<string | null>(null);
+  const chiSottofasi = useChiSottofasi(orderId);
   const [sezioneFase, setSezioneFase] = useState<SezioneFase>("sottofasi");
   const [responsabiliAperti, setResponsabiliAperti] = useState(false);
   const [costiAperti, setCostiAperti] = useState(false);
@@ -789,6 +791,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
                 lavorativo={calendario.lavorativo}
                 onApriScheda={setFaseAperta}
+                chiSottofasi={chiSottofasi.dati}
+                onAggiungiChi={(ids, chi) => chiSottofasi.aggiungi.mutate({ sottofaseIds: ids, ...chi })}
+                onTogliChi={(id) => chiSottofasi.togli.mutate(id)}
                 apriSottofase={sottofaseDaAprire}
                 onSottofaseAperta={() => setSottofaseDaAprire(null)}
                 onCostiSenzaFase={canEditOrders && costiDaSistemare.length > 0 ? () => setCostiAperti(true) : undefined}

@@ -221,6 +221,12 @@ interface Props {
   onSegna: (id: string, fatta: boolean) => void;
   onAvanza: (id: string, avanzamento: { percentuale: number; quantita_fatta: number | null }) => void;
   onSalvaVoce?: (riga: RigaDistinta, dati: DatiVoce) => void;
+  /** Chi fa questa sottofase; disponibile solo quando il database ha la tabella. */
+  chiSottofase?: Array<{ id: string; nome: string }>;
+  chiDisponibile?: boolean;
+  opzioniChi?: { persone: ReadonlyArray<{ id: string; nome: string }>; squadre: ReadonlyArray<{ id: string; nome: string }>; ditte: ReadonlyArray<{ id: string; nome: string }> };
+  onAggiungiChi?: (valore: string) => void;
+  onTogliChi?: (id: string) => void;
   onRisorse?: (id: string, persone: number | null) => void;
   onParallelo?: (id: string, insieme: boolean) => void;
   oggi?: string;
@@ -234,7 +240,7 @@ interface Props {
 }
 
 /** I campi ripartono dai valori salvati con la `key`: cambiando voce, o quando il database completa le date. */
-function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi, onSalvaVoce, onRisorse, onParallelo, onSegna, onAvanza, onPianifica, onAssegna, onCreaSottofasi }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
+function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi, onSalvaVoce, chiSottofase = [], chiDisponibile, opzioniChi, onAggiungiChi, onTogliChi, onRisorse, onParallelo, onSegna, onAvanza, onPianifica, onAssegna, onCreaSottofasi }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
   const [inizio, setInizio] = useState(r.inizio ?? "");
   const [fine, setFine] = useState(r.fine ?? "");
   const [giorni, setGiorni] = useState(r.giorni ? String(r.giorni) : "");
@@ -332,9 +338,30 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
           </Riquadro>
         )}
         <Riquadro titolo="Chi la fa">
+          {chiDisponibile && r.sottofaseId && (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-1">
+                {chiSottofase.length === 0 && <span className="text-xs text-muted-foreground">Nessuno su questa sottofase: vale chi è sulla fase.</span>}
+                {chiSottofase.map((c) => (
+                  <span key={c.id} className="flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-900">
+                    {c.nome}
+                    {puoModificare && onTogliChi && <button type="button" aria-label={`Togli ${c.nome}`} onClick={() => onTogliChi(c.id)} className="rounded-full hover:text-rose-700">×</button>}
+                  </span>
+                ))}
+              </div>
+              {puoModificare && onAggiungiChi && opzioniChi && (
+                <select aria-label="Aggiungi chi fa questa sottofase" value="" onChange={(e) => e.target.value && onAggiungiChi(e.target.value)} className="h-7 w-full rounded border bg-background px-1 text-xs">
+                  <option value="">+ Aggiungi persona, squadra o ditta…</option>
+                  {opzioniChi.squadre.length > 0 && <optgroup label="Squadre">{opzioniChi.squadre.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                  {opzioniChi.persone.length > 0 && <optgroup label="Persone">{opzioniChi.persone.map((o) => <option key={o.id} value={`p:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                  {opzioniChi.ditte.length > 0 && <optgroup label="Ditte">{opzioniChi.ditte.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                </select>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 text-sm">{chiLaFa.join(", ") || <span className="text-amber-700">Nessuno sulla fase</span>}</p>
-            {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => onAssegna(r.faseId)}><Users className="h-3.5 w-3.5" aria-hidden="true" />Assegna</Button>}
+            <p className="min-w-0 text-xs text-muted-foreground">{chiDisponibile ? "Sulla fase: " : ""}<span className="text-sm text-foreground">{chiLaFa.join(", ") || <span className="text-amber-700">nessuno</span>}</span></p>
+            {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => onAssegna(r.faseId)}><Users className="h-3.5 w-3.5" aria-hidden="true" />Assegna alla fase</Button>}
           </div>
         </Riquadro>
         {r.sottofaseId && orderId && (

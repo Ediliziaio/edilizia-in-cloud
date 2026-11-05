@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/hooks/useChiSottofasi", () => ({ useChiSottofasi: () => ({ dati: { disponibile: false, perSottofase: new Map() }, aggiungi: { mutate: vi.fn() }, togli: { mutate: vi.fn() } }) }));
 vi.mock("@/hooks/useCostiDirettiFasi", () => ({
   useCostiDirettiFasi: () => ({ data: undefined as unknown }),
   useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),

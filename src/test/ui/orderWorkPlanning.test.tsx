@@ -26,6 +26,7 @@ vi.mock("@/components/orders/DistintaCommessa", () => ({
     <>{fasi.map((f) => <button key={f.id} type="button" aria-label={`Scheda di ${f.name}`} onClick={() => onApriScheda(f.id)} />)}</>
   ),
 }));
+vi.mock("@/hooks/useChiSottofasi", () => ({ useChiSottofasi: () => ({ dati: { disponibile: false, perSottofase: new Map() }, aggiungi: { mutate: vi.fn() }, togli: { mutate: vi.fn() } }) }));
 vi.mock("@/hooks/useCostiDirettiFasi", () => ({
   useCostiDirettiFasi: () => ({ data: undefined as unknown }),
   useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),

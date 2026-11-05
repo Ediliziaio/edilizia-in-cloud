@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFasi";
 import { SchedaVoce } from "@/components/orders/SchedaVoce";
 import type { DatiVoce } from "@/hooks/useSottofasi";
+import type { DatiChiSottofasi } from "@/hooks/useChiSottofasi";
 import { avanzamentoFasi } from "@/lib/orders/schedaCommessa";
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
@@ -125,6 +126,10 @@ interface Props {
   economiaDi?: ReadonlyMap<string, EconomiaDistinta>;
   /** Costi della commessa che non stanno in una sola fase, come le ore di un rapportino su più fasi. */
   consuntivoSenzaFase?: number;
+  /** Chi fa ogni sottofase (persone, squadre, ditte); senza la tabella nel database non si mostra. */
+  chiSottofasi?: DatiChiSottofasi;
+  onAggiungiChi?: (sottofaseIds: string[], chi: { persona?: string; ditta?: string }) => void;
+  onTogliChi?: (id: string) => void;
   /** Una sottofase da aprire nel popup (arriva dal popup della fase); poi si avvisa che è aperta. */
   apriSottofase?: string | null;
   onSottofaseAperta?: () => void;
@@ -177,7 +182,7 @@ type Elemento =
   | { tipo: "aggiungi"; key: string; faseId: string };
 
 export function DistintaLavorazioni({
-  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, apriSottofase, onSottofaseAperta, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
+  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, apriSottofase, onSottofaseAperta, chiSottofasi, onAggiungiChi, onTogliChi, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
   onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
@@ -265,6 +270,15 @@ export function DistintaLavorazioni({
   const sottofaseAperta = useRef<string | null>(null);
   const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? tutte.find((x) => !!sottofaseAperta.current && x.sottofaseId === sottofaseAperta.current) ?? null : null;
   sottofaseAperta.current = rigaAperta?.sottofaseId ?? null;
+  // Nome di una persona, squadra o ditta, e chi fa ogni sottofase.
+  const nomeDi = useMemo(() => new Map([...persone, ...squadre, ...ditte].map((o) => [o.id, o.nome])), [persone, squadre, ditte]);
+  const chiDellaSottofase = (id: string | null) => (id && chiSottofasi?.disponibile ? (chiSottofasi.perSottofase.get(id) ?? []).map((c) => ({ id: c.id, nome: nomeDi.get(c.employee_id ?? c.external_team_id ?? "") ?? "—" })) : []);
+  const [bloccoChi, setBloccoChi] = useState("");
+  const scegliChi = (valore: string, ids: string[]) => {
+    if (!valore || !onAggiungiChi || ids.length === 0) return;
+    const [tipo, id] = valore.split(":");
+    onAggiungiChi(ids, tipo === "p" ? { persona: id } : { ditta: id });
+  };
   const nomiChi = (id: string) => { const c = chiDi.get(id); return c ? [...c.squadre, ...c.persone, ...c.ditte] : []; };
 
   useEffect(() => {
@@ -474,6 +488,7 @@ export function DistintaLavorazioni({
               className={cn("min-w-0 flex-1 rounded text-left text-xs leading-snug hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
+            {chiDellaSottofase(r.sottofaseId).length > 0 && <span className="block truncate text-[10px] text-sky-800">{chiDellaSottofase(r.sottofaseId).map((c) => c.nome).join(", ")}</span>}
             </button>
           )}
         </div>
@@ -662,6 +677,16 @@ export function DistintaLavorazioni({
                 </div>
               </PopoverContent>
             </Popover>
+            {chiSottofasi?.disponibile && onAggiungiChi && (
+              <select aria-label="Chi fa le righe scelte" value={bloccoChi} disabled={conSottofase.length === 0}
+                onChange={(e) => { scegliChi(e.target.value, conSottofase.map((x) => x.sottofaseId!)); setBloccoChi(""); azzeraScelte(); }}
+                className="h-6 max-w-40 rounded bg-secondary px-1 text-xs text-secondary-foreground">
+                <option value="">Chi la fa…</option>
+                {squadre.length > 0 && <optgroup label="Squadre">{squadre.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                {persone.length > 0 && <optgroup label="Persone">{persone.map((o) => <option key={o.id} value={`p:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                {ditte.length > 0 && <optgroup label="Ditte">{ditte.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
+              </select>
+            )}
             {onAvanzaTante && (
               <Popover>
                 <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>Avanzamento</Button></PopoverTrigger>
@@ -687,6 +712,11 @@ export function DistintaLavorazioni({
         onChiudi={() => setAperta(null)}
         onVicina={(verso) => { const v = righeInElenco[indiceAperta >= 0 ? indiceAperta + verso : verso > 0 ? ultimoIndice.current : ultimoIndice.current - 1]; if (v) setAperta(v.key); }}
         onSalvaVoce={onSalvaVoce} onRisorse={onRisorse} onParallelo={onParallelo}
+        chiSottofase={rigaAperta ? chiDellaSottofase(rigaAperta.sottofaseId) : []}
+        chiDisponibile={!!chiSottofasi?.disponibile && !!onAggiungiChi}
+        opzioniChi={{ persone, squadre, ditte }}
+        onAggiungiChi={(valore) => rigaAperta?.sottofaseId && scegliChi(valore, [rigaAperta.sottofaseId])}
+        onTogliChi={onTogliChi}
         oggi={oggi}
         onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
         onSposta={sposta}
