@@ -89,6 +89,7 @@ export function DDTRigheCard({
   aiAvvisi,
   /** La quantità scritta in testata: se non torna con le righe va detto. */
   quantitaInTestata,
+  ricezioni = 0,
   /** Sola lettura per chi non può modificare la bolla. */
   modificabile = true,
 }: {
@@ -96,6 +97,8 @@ export function DDTRigheCard({
   aiConfidenza?: number | null;
   aiAvvisi?: string[] | null;
   quantitaInTestata?: number | null;
+  /** Articoli già registrati all'arrivo su questa bolla. */
+  ricezioni?: number;
   modificabile?: boolean;
 }) {
   const { data: righe = [], isLoading } = useDDTRighe(ddtId);
@@ -212,8 +215,9 @@ export function DDTRigheCard({
           </div>
         ) : righe.length === 0 && !nuova ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            Nessuna riga registrata per questa bolla. Senza le righe non si può
-            confrontare la bolla con la fattura del fornitore.
+            {ricezioni > 0
+              ? "La merce arrivata è registrata articolo per articolo qui sotto. Le righe della bolla servono per confrontarla con la fattura del fornitore."
+              : "Nessuna riga registrata per questa bolla. Senza le righe non si può confrontare la bolla con la fattura del fornitore."}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-md border">

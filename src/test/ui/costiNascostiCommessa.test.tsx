@@ -52,6 +52,11 @@ describe("uscite di magazzino nel dettaglio commessa", () => {
     avvolgi(<OrderUsciteCard orderId="o1" canViewCosts />);
     expect(screen.getAllByText(/125,00/).length).toBeGreaterThan(0);
   });
+  it("dal numero degli articoli si vede cosa è uscito", () => {
+    avvolgi(<OrderUsciteCard orderId="o1" />);
+    fireEvent.click(screen.getByRole("button", { name: /1 articolo/ }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Cemento");
+  });
   it("senza il permesso mostra numero, data e articoli, senza importi", () => {
     const { container } = avvolgi(<OrderUsciteCard orderId="o1" />);
     expect(screen.getByText("USC-1")).toBeInTheDocument();

@@ -14,15 +14,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-export function IvaCommessa({ orderId }: { orderId: string }) {
-  const q = useQuery({
+export function useIvaCommessa(orderId: string, abilitato = true) {
+  return useQuery({
     queryKey: ["commessa-iva", orderId],
+    enabled: abilitato,
     queryFn: async () => {
       const { data, error } = await db.rpc("commessa_iva", { p_order_id: orderId });
       if (error) throw error;
       return normalizzaIvaCommessa(data);
     },
   });
+}
+
+export function IvaCommessa({ orderId }: { orderId: string }) {
+  const q = useIvaCommessa(orderId);
   if (q.isLoading) return null;
   if (q.isError) return <p role="alert" className="text-sm text-muted-foreground">IVA della commessa non disponibile. <button className="underline" onClick={() => void q.refetch()}>Riprova</button></p>;
   const d = q.data;

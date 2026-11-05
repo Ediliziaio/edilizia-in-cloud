@@ -133,7 +133,7 @@ export default function CampoLayout() {
     // subappaltatore). Puntare a /campo/sub/documenti mostrava all'OPERAIO la
     // pagina documenti del subappaltatore (visura/DURC/SOA, con upload).
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
-    { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
+    { title: "Segnala", url: "/campo/ticket/nuovo", icon: Ticket },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 
@@ -146,7 +146,7 @@ export default function CampoLayout() {
     // Era "SAL" (importi/ritenute): in cantiere serve segnare le fasi fatte.
     { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
-    { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
+    { title: "Segnala", url: "/campo/ticket/nuovo", icon: Ticket },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
 

@@ -5,15 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToCSV } from "@/lib/csvExport";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
+import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEsterno";
+import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 import AdempimentiFiscali from "@/components/scadenzario/AdempimentiFiscali";
+import { IncassiPerSettimanaVista } from "@/components/scadenzario/IncassiPerSettimana";
 import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { useAuth } from "@/contexts/AuthContext";
@@ -134,7 +138,9 @@ export default function Scadenzario() {
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
   }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo]);
 
-  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel, annullaIncasso } = useScadenzario(page, pageSize, serverFilters);
+  const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
+  const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
@@ -223,15 +229,18 @@ export default function Scadenzario() {
           <h1 className="text-2xl font-bold max-sm:text-lg">Scadenzario</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-[140px] font-semibold max-sm:h-8 max-sm:w-[84px] max-sm:text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli anni</SelectItem>
-              {Array.from({ length: 6 }, (_, i) => String(currentYear - i)).map((y) => (
-                <SelectItem key={y} value={y}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* «Per settimana» guarda avanti e tutto lo scaduto: l'anno lì non conta. */}
+          {tab !== "settimane" && (
+            <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-[140px] font-semibold max-sm:h-8 max-sm:w-[84px] max-sm:text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli anni</SelectItem>
+                {Array.from({ length: 6 }, (_, i) => String(currentYear - i)).map((y) => (
+                  <SelectItem key={y} value={y}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button onClick={() => setNewOpen(true)} className="tap-compact bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
             <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Nuova Scadenza</span><span className="sm:hidden">Nuova</span>
           </Button>
@@ -239,8 +248,10 @@ export default function Scadenzario() {
       </div>
 
       {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
-      <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" />
-      {summary && (
+      {/* «Per settimana» ha i suoi numeri, dalla stessa fonte dell'elenco: questi leggono solo la tabella delle
+          scadenze dell'anno scelto, e accanto a quell'elenco dicevano cifre diverse per la stessa domanda. */}
+      {tab !== "settimane" && <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" />}
+      {summary && tab !== "settimane" && (
         <KpiMobili
           className="sm:hidden"
           voci={[
@@ -288,6 +299,7 @@ export default function Scadenzario() {
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>
               <TabsTrigger value="pagate">Pagate<span className="hidden xl:inline">&nbsp;({counts.pagate})</span></TabsTrigger>
+              <TabsTrigger value="settimane">Per settimana</TabsTrigger>
               <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -395,7 +407,9 @@ export default function Scadenzario() {
       </div>
 
       {/* Adempimenti Fiscali tab */}
-      {tab === "adempimenti" ? (
+      {tab === "settimane" ? (
+        <IncassiPerSettimanaVista cerca={search} />
+      ) : tab === "adempimenti" ? (
         <AdempimentiFiscali />
       ) : (
         /* Table */
@@ -409,6 +423,7 @@ export default function Scadenzario() {
               scadenze={filtered}
               onMarkPaid={(s) => setPayDialog(s)}
               onCancel={(id) => cancel.mutate(id)}
+              onAnnullaIncasso={setDaAnnullare}
               onAdd={() => setNewOpen(true)}
               onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/documenti/importata/${s.invoice_id}`); }}
             />
@@ -453,9 +468,10 @@ export default function Scadenzario() {
       >
         <PilloleFiltro
           titolo="Mostra"
-          valore={tab === "adempimenti" ? "tutte" : tab}
+          valore={tab === "adempimenti" || tab === "settimane" ? "tutte" : tab}
           onScegli={(v) => { setTab(v); setPage(1); }}
           scelte={[
+            { value: "settimane", label: "Per settimana" },
             { value: "tutte", label: "Tutte", n: counts.tutte },
             { value: "da_incassare", label: "Da incassare", n: counts.da_incassare },
             { value: "da_pagare", label: "Da pagare", n: counts.da_pagare },
@@ -496,6 +512,17 @@ export default function Scadenzario() {
           markPaid.mutate(p, { onSuccess: () => setPayDialog(null) });
         }}
         isPending={markPaid.isPending}
+      />
+      <AnnullaIncassoDialog
+        scadenza={daAnnullare}
+        onClose={() => setDaAnnullare(null)}
+        isPending={annullaIncasso.isPending}
+        onConfirm={(id) => annullaIncasso.mutate(id, {
+          onSuccess: () => {
+            invalidaFattureImportate(queryClient, effectiveCompany?.id);
+            setDaAnnullare(null);
+          },
+        })}
       />
       <NewScadenzaDialog
         open={newOpen}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bloccoFasi, dayBounds, hours, inchiostroSu, number, oraBreve, oreBrevi, percentage, reportAsset, reportSummary } from "../../../supabase/functions/genera-pdf-rapportino/model";
+import { bloccoFasi, compilatoDa, dayBounds, hours, inchiostroSu, number, oraBreve, oreBrevi, percentage, reportAsset, reportSummary } from "../../../supabase/functions/genera-pdf-rapportino/model";
 
 describe("PDF rapportino - dati non ambigui", () => {
   it("squadra sostituisce ore autore, non le duplica", () => {
@@ -80,7 +80,7 @@ describe("rapportino a blocchi: materiali e foto per fase", () => {
       materiali_usati: [{ nome: "Colla", quantita: 2, unita: "kg" }],
       foto_urls: ["f0"],
     }, nomi);
-    expect(b.fasi).toEqual([{ id: "ph-1", nome: "Demolizioni", percentuale: 40, ore: null, materiali: [], foto: [] }]);
+    expect(b.fasi).toEqual([{ id: "ph-1", nome: "Demolizioni", percentuale: 40, ore: null, materiali: [], foto: [], campi: [] }]);
     expect(b.altriMateriali.map(m => m.nome)).toEqual(["Colla"]);
     expect(b.altreFoto).toEqual(["f0"]);
   });
@@ -139,3 +139,18 @@ describe("rapportino a blocchi: colore e tempi", () => {
     expect(oreBrevi(-3)).toBe("-");
   });
 });
+
+describe("compilatoDa", () => {
+  const r = { created_at: "2026-10-05T15:30:00Z", autore: { first_name: "Marco", last_name: "Ferrari" } };
+  it("dice chi e a che ora, in ora italiana", () => {
+    expect(compilatoDa(r)).toBe("Compilato da Marco Ferrari il 05/10/26 alle 17:30");
+  });
+  it("dall'ufficio dice chi l'ha inserito, anche senza il nome", () => {
+    expect(compilatoDa({ ...r, ufficio_created_by: "u", inserito_da: "Anna Neri" })).toBe("Inserito da Anna Neri (ufficio) per Marco Ferrari il 05/10/26 alle 17:30");
+    expect(compilatoDa({ ...r, ufficio_created_by: "u" })).toBe("Inserito dall'ufficio per Marco Ferrari il 05/10/26 alle 17:30");
+  });
+  it("senza data non scrive un'ora falsa", () => {
+    expect(compilatoDa({ autore: r.autore })).toBe("");
+  });
+});
+

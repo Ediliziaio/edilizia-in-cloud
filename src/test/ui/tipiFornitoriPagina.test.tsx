@@ -10,7 +10,7 @@ const finto = vi.hoisted(() => ({ cedenti: [] as unknown[], chiamate: [] as Arra
 vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string): any => {
     const c: any = {};
-    for (const m of ["select", "eq", "is", "limit", "not", "order"]) c[m] = () => c;
+    for (const m of ["select", "eq", "is", "ilike", "limit", "not", "order"]) c[m] = () => c;
     c.update = (v: unknown) => { finto.chiamate.push([tabella, "update", v]); return c; };
     c.insert = (v: unknown) => { finto.chiamate.push([tabella, "insert", v]); return c; };
     c.single = async () => ({ data: { id: "nuovo" }, error: null as null });
@@ -29,6 +29,7 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "co" }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewSettingsSuppliers: true }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import TipiFornitoriPage from "@/pages/azienda/fatturazione/TipiFornitoriPage";
 
@@ -56,8 +57,8 @@ describe("Tipi dei fornitori", () => {
   it("propone e spiega; i già classificati non stanno tra i da fare", async () => {
     apri();
     expect(await screen.findByText("TIM S.p.A.", {}, { timeout: 5000 })).toBeTruthy();
-    expect(screen.getByText(/Proposta sicura: dal nome/)).toBeTruthy();
-    expect(screen.getByText(/è nell'elenco dei subappaltatori/)).toBeTruthy();
+    expect(screen.getByTitle(/Proposta sicura: dal nome/)).toBeTruthy();
+    expect(screen.getByTitle(/è nell'elenco dei subappaltatori/)).toBeTruthy();
     expect(screen.queryByText("Leroy Merlin Italia srl")).toBeNull();
     expect(screen.getByRole("button", { name: /Conferma le proposte sicure \(2\)/ })).toBeTruthy();
   });
@@ -71,6 +72,28 @@ describe("Tipi dei fornitori", () => {
     expect(finto.chiamate).toContainEqual(["rpc", "collega_fornitore_ricevute", { p_company_id: "co", p_invoice_ids: ["f1", "f2"], p_supplier_id: "nuovo" }]);
   });
 
+  it("con tutto classificato non atterra su una pagina vuota, e il più pesante sta in cima", async () => {
+    finto.cedenti = (finto.cedenti as Array<{ fornitore_tipo?: string | null }>).filter((c) => c.fornitore_tipo);
+    apri();
+    expect(await screen.findByText("Leroy Merlin Italia srl", {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByText(/Da classificare/)).toBeNull();
+    expect(screen.queryByText("Tutti i fornitori hanno un tipo.")).toBeNull();
+    expect(screen.getByRole("link", { name: "Leroy Merlin Italia srl" }).getAttribute("href")).toContain("/azienda/documenti/fatture-ricevute?cerca=");
+  });
+  it("chi non ha la partita IVA si vede, e salvando si collegano solo le sue fatture senza codice", async () => {
+    finto.cedenti = [{ ...base, chiave: "nome:edil", piva: null, cf: null, nome: "Edil 100% Srl", fatture: 2, imponibile: 50, fornitore_id: null, categorie: [] }];
+    apri();
+    expect(await screen.findByText("Senza partita IVA", {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Edil 100% Srl" }).getAttribute("href")).toContain("cerca=Edil%20100%25%20Srl");
+  });
+  it("sta su una riga e porta all'anagrafica del fornitore", async () => {
+    finto.cedenti = [{ ...base, chiave: "x", piva: "01234567890", nome: "Rossi Srl", fatture: 3, imponibile: 900, fornitore_id: "s9", fornitore_nome: "Rossi Srl", fornitore_tipo: "materiali", categorie: [] }];
+    apri();
+    const anagrafica = await screen.findByRole("link", { name: "In anagrafica" }, { timeout: 5000 });
+    expect(anagrafica.getAttribute("href")).toBe("/azienda/impostazioni/fornitori?tab=operativo&fornitore=s9");
+    expect(screen.getByRole("link", { name: /Anagrafica fornitori/ }).getAttribute("href")).toBe("/azienda/impostazioni/fornitori");
+    expect(screen.getByText("Su una commessa")).toBeTruthy();
+  });
   it("senza indizi non propone niente: decide una persona", async () => {
     apri();
     await screen.findByText("Rossi Srl", {}, { timeout: 5000 });

@@ -17,6 +17,19 @@ describe('material card',()=>{
     render(<OrderMaterialUsageCard orderId="job" showCosts={false}/>);
     expect(screen.getByText('8 sacchi')).toBeInTheDocument();expect(screen.queryByText(/€/)).toBeNull();
   });
+  it('uses a dash for zero and brings rows that need a look first, with a filter',()=>{
+    state.data.rows=[
+      {id:'a',name:'Battiscopa',unit:'barre',delivered:5,used:5,returned:0,remaining:0,review:false,estimatedUsedValue:50},
+      {id:'b',name:'Collante',unit:'sacchi',delivered:9,used:6,returned:0,remaining:3,review:false,estimatedUsedValue:60},
+    ];
+    render(<OrderMaterialUsageCard orderId="job" showCosts={true}/>);
+    const righe=screen.getAllByRole('row');
+    expect(righe[1]).toHaveTextContent('Collante');
+    expect(screen.queryByText('0 barre')).toBeNull();
+    expect(screen.getByText(/110,00/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/Con residuo/}));
+    expect(screen.queryByText('Battiscopa')).toBeNull();expect(screen.getByText('Collante')).toBeInTheDocument();
+  });
   it('keeps the initial view short but can reveal all articles',()=>{
     state.data.rows=Array.from({length:24},(_,i)=>({id:String(i),name:'Articolo '+i,unit:'pz',delivered:1,used:1,returned:0,remaining:0,review:false,estimatedUsedValue:10}));
     render(<OrderMaterialUsageCard orderId="job" showCosts={true}/>);

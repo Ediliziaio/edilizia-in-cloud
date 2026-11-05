@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
-import { ChevronRight, ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
+import { Banknote, ChevronRight, ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
 import { useOrderDraft, bozzaHaContenuto, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
@@ -53,6 +53,7 @@ import { fontiDalLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
+import { ScegliPianoPagamento } from "@/components/orders/ScegliPianoPagamento";
 import {SalPlanInfo} from "@/components/orders/SalPlanInfo";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
@@ -247,6 +248,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setNumInstallments(defaultNum);
     setInstallments(createDefaultInstallments(type, defaultNum));
   };
+
+  // «Come si paga questa commessa?»: lo stesso piano che si sceglieva solo dopo averla creata.
+  const [scegliPiano, setScegliPiano] = useState(false);
 
   // Number of installments change handler
   const handleNumInstallmentsChange = (num: number) => {
@@ -1749,6 +1753,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             </div>
           </QuoteCard>
 
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" size="sm" onClick={() => setScegliPiano(true)}>
+              <Banknote className="mr-1.5 h-4 w-4" />
+              {installments.length > 0 ? "Cambia come si paga" : "Come si paga"}
+            </Button>
+          </div>
+          <ScegliPianoPagamento
+            aperto={scegliPiano}
+            totaleLordo={parseDecimalIT(totalAmount || "") * (1 + vat / 100)}
+            sostituisce={installments.length > 0}
+            onChiudi={() => setScegliPiano(false)}
+            onScegli={(rate) => { setInstallments(rate); setNumInstallments(rate.length); }}
+          />
+
           <FinancialSummary
             nuova
             daContratto={!!contrattoImportato}
@@ -1764,7 +1782,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             vatRate={vatRate ?? ""}
             paymentType={paymentType}
             installments={installments}
-            onInstallmentsChange={setInstallments}
+            // Aggiungere o togliere una rata non passa da handleNumInstallmentsChange, che rifà il piano da capo.
+            onInstallmentsChange={(rate) => { setInstallments(rate); setNumInstallments(rate.length); }}
             numInstallments={numInstallments}
             onNumInstallmentsChange={handleNumInstallmentsChange}
             // Le rate che vengono da un modello seguono il totale e l'IVA.

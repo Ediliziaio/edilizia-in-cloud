@@ -1,17 +1,18 @@
 /**
- * «Quanto lavora Silvio» (1/11/2026, fase 5, lotto 5.4): la scheda delle Commesse con i numeri di
- * Silvio negli ultimi 90 giorni: commesse create e completate, il loro punteggio di completezza,
+ * «Quanto lavora Silvio» (1/11/2026, fase 5, lotto 5.4; dal 3/11 sta nelle impostazioni di Silvio,
+ * non più tra le schede delle Commesse): i numeri di Silvio negli ultimi 90 giorni: commesse create e completate, il loro punteggio di completezza,
  * le correzioni, il tempo risparmiato stimato, il costo AI e il piano di volo; sotto, le commesse
- * a pagine. Numeri veri dalla RPC `silvio_quanto_lavora`, o zero con «ancora nessun dato».
+ * a pagine. Numeri veri dalla RPC `silvio_quanto_lavora`; finché Silvio non ha lavorato su nessuna
+ * commessa, una frase al posto dei riquadri a zero.
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Loader2, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  durataInParole, MINUTI_PER_VOCE, minutiRisparmiati, quantoLavoraDaRisposta, quotaTenuta, senzaDati, type QuantoLavora,
+  durataInParole, MINUTI_PER_VOCE, minutiRisparmiati, quantoLavoraDaRisposta, quotaTenuta, type QuantoLavora,
 } from "../../../shared/silvio-commessa/quantoLavora.ts";
 import { NOMI_AREE } from "./presentazione";
 import type { Area } from "../../../shared/silvio-commessa/piano.ts";
@@ -48,7 +49,14 @@ export default function QuantoLavoraSilvio({ companyId, leggi = leggiVero }: { c
   if (q.error || !q.data) return <p role="alert" className="p-6 text-sm text-red-700">Non riesco a leggere i numeri di Silvio: {q.error instanceof Error ? q.error.message : "riprova tra poco"}.</p>;
 
   const d = q.data;
-  const nessuno = senzaDati(d);
+  if (d.totali.commesse_create + d.totali.commesse_completate === 0 && d.correzioni.totale === 0) {
+    return (
+      <p className="p-4 text-sm text-slate-600">
+        Ancora nessuna commessa creata o completata con Silvio dal {dataLunga(d.dal)}: i numeri arrivano con la prima.
+        {d.costo_ai_eur > 0 ? ` Costo AI finora: ${euro(d.costo_ai_eur)}.` : ""}
+      </p>
+    );
+  }
   const quota = quotaTenuta(d.correzioni);
   const minuti = minutiRisparmiati(d.totali.voci_scritte);
   const volo = d.piano_volo;
@@ -58,14 +66,9 @@ export default function QuantoLavoraSilvio({ companyId, leggi = leggiVero }: { c
 
   return (
     <div className="space-y-3 p-3 sm:p-4" aria-label="Quanto lavora Silvio">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-600">
-          Dal {dataLunga(d.dal)} al {dataLunga(d.al)}{nessuno ? " · ancora nessun dato: i numeri arrivano quando si crea o si completa una commessa con Silvio." : ""}
-        </p>
-        <Link to="/azienda/impostazioni/silvio-commesse" className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900">
-          <Settings className="h-3.5 w-3.5" aria-hidden />Cosa fa Silvio da solo
-        </Link>
-      </div>
+      <p className="text-sm text-slate-600">
+        Dal {dataLunga(d.dal)} al {dataLunga(d.al)}
+      </p>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         <Numero titolo="Commesse create" valore={String(d.totali.commesse_create)} nota={`${d.totali.commesse_completate} completate`} />
         <Numero titolo="Completezza media" valore={d.totali.punteggio_medio == null ? "—" : `${d.totali.punteggio_medio} %`}

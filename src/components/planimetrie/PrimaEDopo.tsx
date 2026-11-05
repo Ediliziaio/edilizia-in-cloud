@@ -195,8 +195,8 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
         >
           <img src={svgUrl(piante[1])} alt={`${proposta.nome}`} className="block w-full" draggable={false} />
           <img src={svgUrl(piante[0])} alt="Com'è oggi" className="absolute inset-0 block w-full" style={{ clipPath: `inset(0 ${100 - taglio}% 0 0)` }} draggable={false} />
-          <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-purple-600" style={{ left: `${taglio}%` }}>
-            <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-600 px-2 py-1 text-[11px] font-medium text-white shadow">◀ ▶</div>
+          <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-primary" style={{ left: `${taglio}%` }}>
+            <div className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-2 py-1 text-[11px] font-medium text-white shadow">◀ ▶</div>
           </div>
           <span className="pointer-events-none absolute left-2 top-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium shadow-sm">Com'è oggi</span>
           <span className="pointer-events-none absolute right-2 top-2 rounded bg-white/90 px-2 py-0.5 text-xs font-medium text-red-700 shadow-sm">{proposta.nome}</span>
@@ -277,7 +277,7 @@ export function PrimaEDopo({ documento, titolo, planimetriaId, versione, livello
               <SelectTrigger className="h-9 w-52" aria-label="Stile del progetto"><SelectValue /></SelectTrigger>
               <SelectContent>{IDEE_PRONTE.map((i) => <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>)}</SelectContent>
             </Select>
-            <Button size="sm" className="gap-1.5 bg-purple-600 hover:bg-purple-700" onClick={renderPrimaEDopo} disabled={renderInCorso || !stanzaScelta}>
+            <Button size="sm" className="gap-1.5 bg-primary hover:bg-primary/90" onClick={renderPrimaEDopo} disabled={renderInCorso || !stanzaScelta}>
               {renderInCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               Render prima e dopo (2 crediti)
             </Button>

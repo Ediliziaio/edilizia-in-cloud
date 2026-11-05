@@ -9,12 +9,18 @@ vi.mock("@/hooks/useCatalogItems", () => ({
   useCatalogItems: () => ({ items: [{ source: "article", id: "window", nome: "Finestra PVC", prezzo_base_vendita: 100, modalita_prezzo: "pz" }], isLoading: false }),
 }));
 vi.mock("@/components/marketing/preventivi/configurators/ProductConfigurator", () => ({
-  ProductConfigurator: ({ currentSortOrder, onAddItems, confirmLabel }: { currentSortOrder: number; onAddItems: (items: ConfiguredItem[], next: number) => void; confirmLabel: string }) => (
-    <button onClick={() => onAddItems([
+  ProductConfigurator: ({ currentSortOrder, onAddItems }: { currentSortOrder: number; onAddItems: (items: ConfiguredItem[], next: number, dopo?: "altro" | "duplica" | "chiudi") => void }) => {
+    const righe = [
       { quote_item: { name: "Finestra PVC", sort_order: currentSortOrder, client_temp_id: `product-${currentSortOrder}` } },
       { quote_item: { name: "Posa", sort_order: currentSortOrder + 1, parent_temp_id: `product-${currentSortOrder}` } },
-    ] as ConfiguredItem[], currentSortOrder + 2)}>{confirmLabel}</button>
-  ),
+    ] as ConfiguredItem[];
+    return (
+      <>
+        <button onClick={() => onAddItems(righe, currentSortOrder + 2, "altro")}>Aggiungi e scegli un altro</button>
+        <button onClick={() => onAddItems(righe, currentSortOrder + 2, "chiudi")}>Aggiungi e torna al preventivo</button>
+      </>
+    );
+  },
 }));
 
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
@@ -51,8 +57,7 @@ describe("preventivo classico: inserimento continuo", () => {
     const receive = vi.fn();
     render(<AddItemDialog open onClose={close} tariffe={[]} currentSortOrder={0} onAddItems={receive} />);
     fireEvent.click(screen.getByRole("button", { name: /Finestra PVC/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Aggiungi altri prodotti dopo questo" }));
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi al preventivo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi e torna al preventivo" }));
     expect(receive).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });

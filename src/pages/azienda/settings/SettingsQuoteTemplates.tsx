@@ -45,7 +45,7 @@ import { ShoppingBag, FileSpreadsheet } from "lucide-react";
 import ComputoModelloPanel from "@/components/computo/ComputoModelloPanel";
 // MP-IMP-001 Fase 3 — sezioni estratte in cartella dedicata
 import {
-  LAYOUTS, FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES, SEZIONI_EDITOR_OFFERTA,
+  FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES, SEZIONI_EDITOR_OFFERTA,
   TESTO_SOLA_LETTURA, ID_AVVISO_SOLA_LETTURA,
 } from "./SettingsQuoteTemplates/constants";
 import {
@@ -366,7 +366,7 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, logoLightSrc, effectiveCompa
   // Preview info per kind
   const renderMeta = () => {
     if (kind === 'offerta') {
-      const parts: string[] = [tmpl.layout];
+      const parts: string[] = [];
       if (tmpl.linked_cover_id || tmpl.cover_title || tmpl.cover_subtitle) parts.push("+ copertina");
       if (tmpl.linked_terms_id || tmpl.linked_legal_id || tmpl.contractual_terms_text || tmpl.payment_terms_text || tmpl.delivery_terms_text) parts.push("+ condizioni");
       const productCount = (tmpl.linked_product_ids ?? []).length;
@@ -1524,37 +1524,6 @@ export default function SettingsQuoteTemplates() {
             {/* Le sezioni Layout/Logo/Palette/Tipografia/Tabella/Margini/Elementi/Testi
                 e Termini contrattuali/legali sono SOLO per kind=offerta (estetica
                 generale dell'offerta master). I blocchi standalone hanno editor focalizzati. */}
-            {/* SOLO offerta: Layout master */}
-            {formKind === 'offerta' && (
-            <>
-            {/* B: Layout */}
-            <Card>
-              <CardHeader><CardTitle className="text-base">Layout</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {LAYOUTS.map(l => (
-                    <button
-                      key={l.key}
-                      type="button"
-                      aria-pressed={form.layout === l.key}
-                      onClick={() => updateForm({ layout: l.key })}
-                      className={`border rounded-lg p-3 text-center text-sm transition-all hover:border-primary ${
-                        form.layout === l.key ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border'
-                      }`}
-                    >
-                      <div className="mb-2 flex justify-center">
-                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(form)} logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined} page="detail" scale={0.08} />
-                      </div>
-                      <p className="font-medium">{l.label}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{l.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            </>
-            )}
-
             {/* PERSONALIZZAZIONE UNIVERSALE — Logo + Palette + Tipografia
                 disponibili per ogni kind (Canva-style). Per kind=prodotto/sezione
                 il "logo" viene usato come watermark/header se attivato. */}
@@ -2466,8 +2435,6 @@ export default function SettingsQuoteTemplates() {
               </Button>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 mt-2">
                 {COMPLETE_OFFER_BLUEPRINTS.map((blueprint) => {
-                  const blueprintLayout = blueprint.patch.layout ?? "classic";
-                  const layoutLabel = LAYOUTS.find((layout) => layout.key === blueprintLayout)?.label ?? "Classic";
                   return (
                     <button
                       key={blueprint.key}
@@ -2479,9 +2446,6 @@ export default function SettingsQuoteTemplates() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm">
                           <FileText className="h-5 w-5" />
                         </div>
-                        <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">
-                          {layoutLabel}
-                        </span>
                       </div>
                       <h3 className="font-semibold text-slate-900">{blueprint.name}</h3>
                       <p className="mt-1.5 text-xs leading-relaxed text-slate-600">{blueprint.description}</p>

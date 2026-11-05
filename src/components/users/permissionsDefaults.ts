@@ -38,7 +38,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_formazione: true, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
-  can_view_marketing_dashboard: false, can_view_marketing_contacts: false,
+  can_view_marketing_dashboard: false, can_view_callcenter_dashboard: false, can_view_marketing_contacts: false,
   can_edit_marketing_contacts: false, can_view_marketing_opportunities: false,
   can_edit_marketing_opportunities: false, can_view_marketing_activities: false,
   can_view_marketing_appointments: false,
@@ -189,7 +189,7 @@ export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Interventi",             viewKey: "can_view_interventi",         editKey: null, description: "Gli interventi di assistenza nel Calendario lavori (anche senza i ticket) e la barra in basso del telefono da cantiere" },
   { label: "Manutenzione",           viewKey: "can_view_manutenzione",       editKey: null, description: "Gestisci piani di manutenzione programmata" },
   { label: "Sicurezza Cantiere",     viewKey: "can_view_sicurezza_cantiere", editKey: null, description: "Accesso al modulo sicurezza e PSC" },
-  { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Visualizza e gestisci subappaltatori" },
+  { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Scheda dei subappaltatori con contratti, SAL, verbali, ritenute e fatture collegate, importi compresi, in sola lettura. Registrare o pagare richiede anche Commesse, Costi e Documenti mensili." },
   { label: "Firma Elettronica (FEA)", viewKey: "can_view_firma_elettronica",  editKey: null, description: "Modulo firma elettronica avanzata (cantieri e CRM)" },
   { label: "Validare i materiali",   viewKey: "can_validate_bom",            editKey: null, description: "Il tecnico che controlla i materiali di ogni fase della commessa: corregge quantità e specifiche, li valida o li rimanda indietro con una nota. Approva le scomposizioni proposte dall'AI." },
   { label: "Ufficio acquisti",       viewKey: "can_manage_purchasing",       editKey: null, description: "Vede la scheda «Acquisti» (in Commesse) con i materiali validati di tutte le commesse, le offerte e gli ordini, sceglie i fornitori, chiede offerte e crea gli ordini." },
@@ -219,6 +219,7 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
+  { label: "Dashboard Call Center",   viewKey: "can_view_callcenter_dashboard",     editKey: null, description: "Chi chiamare adesso, appuntamenti fissati e numeri del proprio lavoro" },
   { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null, description: "KPI e panoramica marketing" },
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: null, description: "Contatti e lead: chi li vede li crea e li modifica, salvo «Sola lettura»" },
   { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: null, description: "Pipeline e trattative, Simulatore e moduli di vendita (Serramenti, Bagni…): chi le vede le crea e le sposta, salvo «Sola lettura»" },
@@ -361,9 +362,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_giornale_lavori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
-    can_view_billing: true, can_view_prima_nota: true,
-    can_view_costs: true,
-    can_manage_payments: true, can_manage_suppliers: true,
+    // Costi, fatturazione, prima nota e pagamenti non sono più di serie (03/11/2026): aprono banca,
+    // cassa e margini. L'amministratore li accende a chi serve. Chi esiste già non cambia.
+    can_manage_suppliers: true,
   },
 
   // Le colonne can_edit_* operative non compaiono nei preset: le deriva
@@ -391,10 +392,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
   },
 
   call_center: {
-    can_view_dashboard: true,
-    can_view_calendar: true,
-    can_view_customers: true,
-    can_view_users: true,
+    // Solo la sua dashboard Call Center: niente Dashboard Marketing (spese pubblicitarie, social),
+    // niente dashboard generale, calendario lavori, clienti e utenti.
+    can_view_callcenter_dashboard: true,
     can_view_marketing_contacts: true,
     // Il call center non guarda soltanto: qualifica il contatto e sposta
     // l'opportunita' di fase. La modifica segue la visibilità.
@@ -465,7 +465,7 @@ export function syncLegacyMarketingFlags(input: StaffPermissions): StaffPermissi
     can_view_marketing_automations: !!input.can_view_automazioni,
   };
   const hasAnyView =
-    perms.can_view_marketing_dashboard || perms.can_view_marketing_contacts ||
+    perms.can_view_marketing_dashboard || perms.can_view_callcenter_dashboard || perms.can_view_marketing_contacts ||
     perms.can_view_marketing_opportunities || perms.can_view_marketing_activities ||
     perms.can_view_marketing_appointments || perms.can_view_marketing_automations ||
     perms.can_view_marketing_ai_agent || perms.can_view_marketing_email ||

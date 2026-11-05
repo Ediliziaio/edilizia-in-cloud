@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/formatters";
-import { prepareVariation, variationImpact, variationDecimal, variationDatePreview, VARIATION_KINDS, type VariationDraft, type VariationKind } from "@/lib/orders/variationDraft";
+import { CONDIZIONI_STANDARD_VARIANTE, prepareVariation, variationDocumentParts, variationImpact, variationDecimal, variationDatePreview, VARIATION_KINDS, type VariationDraft, type VariationKind } from "@/lib/orders/variationDraft";
 
 import type {VariationContext} from "@/lib/orders/variationDocumentContext";
 export type {VariationContext} from "@/lib/orders/variationDocumentContext";
@@ -40,7 +40,7 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
         {showPdfPreview && <Button variant="outline" disabled={busy || pdfBusy} onClick={async () => {
           setPdfBusy(true); setPdfError("");
           try { const { variationPreviewPdf } = await import("@/lib/orders/variationPreviewPdf");
-            const doc = await variationPreviewPdf(prepared!, context);
+            const doc = await variationPreviewPdf(prepared!, {...context,parti:variationDocumentParts(draft)});
             setPdfReady({url:doc.output("datauristring"),snapshot:pdfSnapshot});
           } catch { setPdfError("PDF non disponibile. Riprova: la bozza è conservata."); }
           finally { setPdfBusy(false); }
@@ -60,7 +60,7 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
           <option value="">Tutta la commessa</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select><p className="text-xs text-muted-foreground">Il riferimento compare nel documento; non cambia assegnazioni o costi della fase.</p>
       </div>
-      <div className="space-y-1.5"><Label htmlFor="variation-description">Lavori e condizioni *</Label><Textarea id="variation-description" rows={3} value={draft.description} onChange={input("description")} placeholder="Cosa viene aggiunto, sostituito o eliminato?" /></div>
+      <div className="space-y-1.5"><Label htmlFor="variation-description">Descrizione dei lavori *</Label><Textarea id="variation-description" rows={3} value={draft.description} onChange={input("description")} placeholder="Cosa viene aggiunto, sostituito o eliminato?" /></div>
       <div className="space-y-1.5"><Label htmlFor="variation-pricing">Come definisci il prezzo</Label>
         <select id="variation-pricing" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.pricing} onChange={e => set("pricing", e.target.value as "corpo" | "voci")}><option value="corpo">Prezzo a corpo</option><option value="voci">Dettaglio delle voci</option></select>
       </div>
@@ -68,11 +68,19 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
         <Input id="variation-amount" inputMode="decimal" value={draft.amount} onChange={input("amount")} placeholder="Es. 1250,00" />
         <p className="text-xs text-muted-foreground">{draft.kind === "riduzione" ? "Scrivi un valore positivo: sarà sottratto dal contratto." : draft.kind === "modifica" ? "Indica solo la differenza rispetto al contratto. Il segno meno riduce il prezzo." : "Si aggiunge al contratto solo dopo l'approvazione."}</p>
       </div> : <div className="space-y-2">
-        {draft.lines.map((line,i) => <div key={line.id} className="rounded-lg border p-3 space-y-2">
-          <Label htmlFor={`variation-line-${i}`}>Voce {i+1}</Label><Input id={`variation-line-${i}`} value={line.description} placeholder="Materiale, manodopera o lavorazione" onChange={e => set("lines", draft.lines.map(l => l.id === line.id ? {...l,description:e.target.value} : l))} />
-          <div className="grid grid-cols-2 gap-2">{(["quantity","price"] as const).map(key => <div key={key}><Label htmlFor={`variation-${key}-${i}`}>{key === "quantity" ? "Quantità" : "Prezzo unitario netto (€)"}</Label><Input id={`variation-${key}-${i}`} inputMode="decimal" value={line[key]} onChange={e => set("lines",draft.lines.map(l => l.id === line.id ? {...l,[key]:e.target.value} : l))} /></div>)}</div>
-          <Button size="sm" variant="ghost" onClick={() => set("lines",draft.lines.filter(l => l.id !== line.id))}>Rimuovi voce {i+1}</Button>
-        </div>)}
+        <p className="text-xs text-muted-foreground">Le voci diventano la tabella del PDF. Prezzi IVA esclusa.</p>
+        {draft.lines.map((line,i) => {
+          const quantita = variationDecimal(line.quantity), prezzo = variationDecimal(line.price);
+          const setLine = (patch: Partial<typeof line>) => set("lines",draft.lines.map(l => l.id === line.id ? {...l,...patch} : l));
+          return <div key={line.id} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2.5 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_7rem_6.5rem_auto]">
+            <div className="col-span-2 sm:col-span-1"><Label htmlFor={`variation-line-${i}`} className="text-xs">Voce {i+1}</Label><Input id={`variation-line-${i}`} value={line.description} placeholder="Materiale, manodopera o lavorazione" onChange={e => setLine({description:e.target.value})} /></div>
+            <div><Label htmlFor={`variation-quantity-${i}`} className="text-xs">Quantità</Label><Input id={`variation-quantity-${i}`} inputMode="decimal" value={line.quantity} onChange={e => setLine({quantity:e.target.value})} /></div>
+            <div><Label htmlFor={`variation-unit-${i}`} className="text-xs">U.M.</Label><Input id={`variation-unit-${i}`} maxLength={20} value={line.unit ?? ""} placeholder="mq" onChange={e => setLine({unit:e.target.value})} /></div>
+            <div><Label htmlFor={`variation-price-${i}`} className="text-xs">Prezzo unitario netto (€)</Label><Input id={`variation-price-${i}`} inputMode="decimal" value={line.price} onChange={e => setLine({price:e.target.value})} /></div>
+            <p className="pb-2 text-right text-sm font-medium tabular-nums" aria-label={`Importo voce ${i+1}`}>{quantita !== null && prezzo !== null ? formatCurrency(Math.round(quantita*prezzo*100)/100) : "—"}</p>
+            <Button size="sm" variant="ghost" className="col-span-2 sm:col-span-1" onClick={() => set("lines",draft.lines.filter(l => l.id !== line.id))}>Rimuovi voce {i+1}</Button>
+          </div>;
+        })}
         <Button size="sm" variant="outline" onClick={() => set("lines",[...draft.lines,{id:crypto.randomUUID(),description:"",quantity:"1",price:""}])}>Aggiungi voce</Button>
       </div>}
       <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Dati del documento e pagamento</summary><div className="mt-3 space-y-3">
@@ -84,10 +92,12 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
         <Label htmlFor="variation-reference">Preventivo / contratto di riferimento</Label><Input id="variation-reference" value={draft.contractReference ?? ""} onChange={e=>set("contractReference",e.target.value)} placeholder="Es. Preventivo PRE-2026-015 del 10/10/2026"/>
         <Label htmlFor="variation-payment">Pagamento dei lavori extra</Label><Textarea id="variation-payment" rows={2} value={draft.paymentTerms ?? ""} onChange={e=>set("paymentTerms",e.target.value)} placeholder="Condizioni concordate con il cliente; non si generano rate o incassi"/>
       </div></details>
-      <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Testi e condizioni del modello</summary><div className="mt-3 space-y-3">
-        <Label htmlFor="variation-heading">Titolo del documento PDF</Label><Input id="variation-heading" maxLength={120} value={draft.documentHeading ?? ""} onChange={e => set("documentHeading", e.target.value)} placeholder="Proposta di variazione e lavori extra" />
+      <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Condizioni contrattuali</summary><div className="mt-3 space-y-3">
+        <div className="rounded-md bg-muted/30 p-3"><p className="text-xs font-medium">Valgono per ogni variante e stanno già nel PDF</p>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">{CONDIZIONI_STANDARD_VARIANTE.map(c => <li key={c}>{c}</li>)}</ol></div>
+        <Label htmlFor="variation-terms">Condizioni specifiche di questa variante</Label><Textarea id="variation-terms" rows={3} value={draft.additionalTerms ?? ""} onChange={e => set("additionalTerms", e.target.value)} placeholder="Si aggiungono a quelle sopra" />
+        <Label htmlFor="variation-heading">Titolo del documento PDF</Label><Input id="variation-heading" maxLength={120} value={draft.documentHeading ?? ""} onChange={e => set("documentHeading", e.target.value)} placeholder="Variante al contratto" />
         <Label htmlFor="variation-intro">Introduzione del documento</Label><Textarea id="variation-intro" rows={2} value={draft.documentIntro ?? ""} onChange={e => set("documentIntro", e.target.value)} />
-        <Label htmlFor="variation-terms">Condizioni specifiche della variante</Label><Textarea id="variation-terms" rows={3} value={draft.additionalTerms ?? ""} onChange={e => set("additionalTerms", e.target.value)} />
       </div></details>
       <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Tempi e dettagli facoltativi</summary><div className="mt-3 space-y-3">
         <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="variation-days">Giorni aggiuntivi</Label><Input id="variation-days" inputMode="numeric" value={draft.days} onChange={input("days")} /></div><div><Label htmlFor="variation-day-unit">Tipo di giorni</Label><select id="variation-day-unit" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.dayUnit} onChange={e => set("dayUnit",e.target.value as "calendario" | "lavorativi")}><option value="calendario">Calendario</option><option value="lavorativi">Lavorativi</option></select></div></div>

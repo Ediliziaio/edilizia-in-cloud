@@ -8,6 +8,7 @@ import { useAutomationFieldDefinitions } from "@/hooks/useAutomationFieldDefinit
 import { CUSTOM_TRIGGER_OBJECTS,customFieldId,customFilterType } from "../../../../supabase/functions/_shared/automationFieldContract";
 import { ConditionValueInput } from "@/components/marketing/automations/ConditionValueInput";
 import { conditionOperatorAliases } from "../../../../supabase/functions/_shared/automationValidation";
+import { OPERATORI_DATA } from "../../../../supabase/functions/_shared/condizioniData";
 
 const CAMPI = [
   { value: "contatto.first_name", label: "Nome contatto" },
@@ -26,6 +27,9 @@ const CAMPI = [
   { value: "appuntamento.status", label: "Stato appuntamento" },
   { value: "appuntamento.appointment_date", label: "Data appuntamento" },
   { value: "appuntamento.calendar_id", label: "Calendario appuntamento" },
+  // telefonata, cliente (showroom), sopralluogo_preventivo, rilievo_tecnico,
+  // videocall…: chiamata e showroom vogliono promemoria diversi.
+  { value: "appuntamento.appointment_type", label: "Tipo appuntamento" },
   { value: "ordine.total_amount", label: "Importo ordine" },
   { value: "ticket.priority", label: "Priorità ticket" },
 ];
@@ -45,6 +49,8 @@ const OPERATORI = [
   // Per le date (ora italiana): «l'appuntamento è da oggi in poi?»
   { value: "da_oggi", label: "è oggi o dopo (date)" },
   { value: "prima_di_oggi", label: "è prima di oggi (date)" },
+  { value: "oggi", label: "è oggi (date)" },
+  { value: "domani", label: "è domani (date)" },
 ];
 
 interface ConditionRow {
@@ -83,7 +89,7 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
     updateCondizioni([...condizioni, { campo: "", operatore: "uguale", valore: "" }]);
   };
 
-  const noValueOps = ["vuoto", "non_vuoto", "da_oggi", "prima_di_oggi"];
+  const noValueOps = ["vuoto", "non_vuoto", ...OPERATORI_DATA];
 
   return (
     <div className="space-y-4">

@@ -14,6 +14,7 @@
  *   stessa lettura del 3D (`tred/adattatore.ts`, `rotazione3D`);
  * - prende superfici e perimetri dalle quantità della fase 1, con la loro origine.
  */
+import { anteDi, misureOscurante, sistemaDi, zanzarieraDi } from "../../../../shared/planimetrie/serramenti.ts";
 import { curveDiLivello, passoCurve, puntiTerreno, rettangoloPunti, scriviQuota } from "../../../../shared/planimetrie/terreno.ts";
 import type {
   Apertura, Elemento, Livello, Locale, Muro, Planimetria, Punto as PuntoModello, StatoPianta,
@@ -77,7 +78,7 @@ const NOTI = new Set<string>([
   "divano_angolare", "poltrona", "mobile_tv", "libreria", "tavolo_rotondo", "cucina_angolare", "isola_cucina", "lavastoviglie",
   "auto", "scaffale", "banco_lavoro",
   "presa", "interruttore", "punto_luce", "punto_acqua", "scarico", "quadro_elettrico", "termosifone", "split",
-  "unita_esterna", "collettore", "colonna_scarico", "pilastro", "scala", "ascensore",
+  "unita_esterna", "collettore", "colonna_scarico", "pilastro", "muro_contenimento", "trave", "solaio", "scala", "scala_u", "scala_chiocciola", "ascensore",
   "pompa_calore", "bollitore", "inverter", "batteria_accumulo", "wallbox", "termostato", "vmc", "lucernario", "quota_terreno",
   "piscina", "idromassaggio", "pergola", "albero", "siepe", "aiuola", "ombrellone", "lettino", "tavolo_esterno", "barbecue",
   "cancello_pedonale", "cancello_carrabile", "lampione", "faretto_giardino", "irrigatore", "pozzetto",
@@ -99,13 +100,22 @@ function muroVista(m: Muro, modo: ModoVista): MuroVista {
   };
 }
 
+function oscuranteVista(a: Apertura): Pick<AperturaVista, "oscurante" | "zanzariera"> {
+  const z = zanzarieraDi(a);
+  const o = misureOscurante(a);
+  if (!o) return z ? { zanzariera: { tipo: z } } : {};
+  return { ...(z ? { zanzariera: { tipo: z } } : {}), oscurante: { tipo: o.tipo, ante: o.ante, ...(o.cassonetto ? { cassonetto: { tipo: o.cassonetto.tipo, altezza: o.cassonetto.altezza, profondita: o.cassonetto.profondita } } : {}) } };
+}
+
 function aperturaVista(a: Apertura, modo: ModoVista): AperturaVista {
   return {
     id: a.id, muroId: a.muroId, tipo: a.tipo, distanza: a.offset, larghezza: a.larghezza, altezza: a.altezza,
     davanzale: a.davanzale, manovra: a.manovra,
     cerniera: a.verso?.cardine === "p2" ? "fine" : "inizio",
     lato: a.verso?.lato ?? "sinistra",
-    ante: a.tipo === "porta" || a.larghezza < 100 ? 1 : 2,
+    ante: (anteDi(a) || 1) as 1 | 2,
+    sistema: sistemaDi(a),
+    ...oscuranteVista(a),
     stato: modo === "progetto" ? "esistente" : a.stato,
   };
 }

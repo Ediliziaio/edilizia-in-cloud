@@ -82,6 +82,7 @@ function controlliRiconosciuti(testo: string): string[] {
  * nostra. La difesa è un'altra, ed è scritta qui. Censite il 20/09/2026.
  */
 const PUBBLICHE_DI_PROPOSITO: Record<string, string> = {
+  "campo-link-entra": "link d'accesso dell'operaio: serve un token casuale di 256 bit, salvato solo come impronta, valido una volta e con scadenza; apre solo l'account di quel dipendente",
   "accountant-self-signup": "registrazione dal portale commercialisti: limite di 3 per IP al giorno, email da confermare",
   "referral-self-signup": "registrazione dal portale partner: limite di 3 per IP al giorno, email da confermare",
   "public-checkout": "pagina pubblica /offerta/:slug: crea l'azienda bloccata finché Stripe non conferma il pagamento",

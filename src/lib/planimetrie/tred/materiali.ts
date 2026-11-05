@@ -2,6 +2,13 @@ import type { Materiale3D } from "./tipi";
 
 /** Colori dei materiali (sRGB). Giallo e rosso seguono la convenzione italiana: demolizioni e nuove costruzioni. */
 export const MATERIALI: Record<string, Materiale3D> = {
+  // linee degli impianti (stesse tinte del disegno 2D)
+  impianto_elettrica: { nome: "Impianto elettrico", colore: "#dc2626", opacita: 1, ruvidita: 0.5 },
+  impianto_acqua: { nome: "Acqua", colore: "#2563eb", opacita: 1, ruvidita: 0.4 },
+  impianto_scarico: { nome: "Scarichi", colore: "#92400e", opacita: 1, ruvidita: 0.6 },
+  impianto_frigorifera: { nome: "Linea frigorifera (rame)", colore: "#0891b2", opacita: 1, ruvidita: 0.35 },
+  impianto_condensa: { nome: "Scarico condensa", colore: "#65a30d", opacita: 1, ruvidita: 0.5 },
+  impianto_riscaldamento: { nome: "Riscaldamento", colore: "#ea580c", opacita: 1, ruvidita: 0.4 },
   muro: { nome: "Muro", colore: "#ece7df", opacita: 1, ruvidita: 0.9 },
   muro_demolire: { nome: "Muro da demolire", colore: "#f2c200", opacita: 1, ruvidita: 0.8 },
   muro_nuovo: { nome: "Muro nuovo", colore: "#d42a2a", opacita: 1, ruvidita: 0.8 },
@@ -16,6 +23,13 @@ export const MATERIALI: Record<string, Materiale3D> = {
   acqua: { nome: "Acqua", colore: "#3fa7d6", opacita: 0.85, ruvidita: 0.05 },
   fogliame: { nome: "Fogliame", colore: "#4f7f3a", opacita: 1, ruvidita: 1 },
   pietra: { nome: "Pietra", colore: "#d9d2c3", opacita: 1, ruvidita: 0.8 },
+  zoccolo: { nome: "Zoccolatura", colore: "#bdb7ab", opacita: 1, ruvidita: 0.95 },
+  davanzale: { nome: "Davanzali in pietra", colore: "#e9e4da", opacita: 1, ruvidita: 0.6 },
+  marciapiede: { nome: "Marciapiede", colore: "#cfc9bd", opacita: 1, ruvidita: 0.9 },
+  tetto_verde: { nome: "Tetto verde (sedum)", colore: "#7f9c5b", opacita: 1, ruvidita: 1 },
+  tetto_verde_intensivo: { nome: "Giardino pensile", colore: "#6f9a4e", opacita: 1, ruvidita: 1 },
+  lamiera: { nome: "Lamiera (zinco)", colore: "#8e969c", opacita: 1, ruvidita: 0.35 },
+  guaina: { nome: "Guaina", colore: "#4a4d52", opacita: 1, ruvidita: 0.85 },
   tegole: { nome: "Tegole", colore: "#a5523a", opacita: 1, ruvidita: 0.8 },
   terra_rossa: { nome: "Terra rossa", colore: "#c1643b", opacita: 1, ruvidita: 1 },
   terra_rossa_scura: { nome: "Terra rossa (fuori campo)", colore: "#a95431", opacita: 1, ruvidita: 1 },
@@ -42,6 +56,10 @@ export const MATERIALI: Record<string, Materiale3D> = {
   lenzuola: { nome: "Lenzuola", colore: "#eef0f2", opacita: 1, ruvidita: 1 },
   laccato: { nome: "Mobile laccato", colore: "#e3e0da", opacita: 1, ruvidita: 0.4 },
   piano_cucina: { nome: "Piano cucina", colore: "#5f5f5f", opacita: 1, ruvidita: 0.3 },
+  telaio: { nome: "Telaio serramento", colore: "#e9e9e6", opacita: 1, ruvidita: 0.4 },
+  zanzariera: { nome: "Zanzariera", colore: "#4b5058", opacita: 0.35, ruvidita: 0.7 },
+  oscurante: { nome: "Cassonetto e tapparella", colore: "#8d9094", opacita: 1, ruvidita: 0.5 },
+  calcestruzzo: { nome: "Calcestruzzo", colore: "#9a9a96", opacita: 1, ruvidita: 0.95 },
   metallo: { nome: "Metallo", colore: "#b4b8bc", opacita: 1, ruvidita: 0.3 },
 };
 

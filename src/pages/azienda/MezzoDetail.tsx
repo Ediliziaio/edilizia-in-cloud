@@ -30,6 +30,7 @@ import {
 import { MezzoFormDialog } from "@/components/mezzi/MezzoFormDialog";
 import { MezzoDocumentiSection } from "@/components/mezzi/MezzoDocumentiSection";
 import { MezzoManutenzioniSection } from "@/components/mezzi/MezzoManutenzioniSection";
+import { MezzoFattureSection } from "@/components/mezzi/MezzoFattureSection";
 import { MezzoFotoSection } from "@/components/mezzi/MezzoFotoSection";
 import { MezzoStoricoSection } from "@/components/mezzi/MezzoStoricoSection";
 import { MezzoUsoCantieri } from "@/components/mezzi/MezzoUsoCantieri";
@@ -361,6 +362,7 @@ export default function MezzoDetail() {
             {aQuantita && <TabsTrigger value="montaggi">Montaggi</TabsTrigger>}
             <TabsTrigger value="scadenze">{attrezzo ? "Documenti" : "Scadenze"}</TabsTrigger>
             <TabsTrigger value="manutenzioni">{attrezzo ? "Manutenzioni" : "Tagliandi"}</TabsTrigger>
+            {perms.canViewCosts && <TabsTrigger value="fatture">Fatture</TabsTrigger>}
             <TabsTrigger value="foto">Foto</TabsTrigger>
             {mezzo.contatore_unita==="km" && ["furgone","autocarro","autovettura","altro"].includes(mezzo.tipo) && <TabsTrigger value="viaggi">Viaggi e tratte</TabsTrigger>}
             {!aQuantita && <TabsTrigger value="uso" className="max-sm:hidden">{attrezzo ? "Cantieri" : "Cantieri e km"}</TabsTrigger>}
@@ -396,6 +398,11 @@ export default function MezzoDetail() {
             classe={classe}
           />
         </TabsContent>
+        {perms.canViewCosts && (
+          <TabsContent value="fatture" className="mt-3">
+            <MezzoFattureSection mezzoId={mezzo.id} puoModificare={!perms.solaLettura} />
+          </TabsContent>
+        )}
         <TabsContent value="foto" className="mt-3">
           <MezzoFotoSection mezzoId={mezzo.id} copertina={mezzo.foto_path} puoModificare={puoModificare} />
         </TabsContent>

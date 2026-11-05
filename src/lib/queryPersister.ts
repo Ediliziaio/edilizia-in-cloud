@@ -121,6 +121,12 @@ const PERSIST_WHITELIST = new Set<string>([
   "automation-activity",         // 19/09: ultima esecuzione di ogni automazione
   "platform-admin-company-id",   // AdminTeamChat: id quasi statico, sblocca il mount immediato
   "admin-attivita-tasks",        // /admin/attivita: lista task subito dalla cache
+  // 02/11/2026 — timbrare senza campo: con la rete assente la scheda deve sapere
+  // se sei in servizio e dove puoi essere. Il refetch li riallinea appena c'è rete.
+  "campo-time-day",
+  "campo-assignments",
+  "campo-sedi",
+  "campo-mia-giornata",
 ]);
 
 export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {

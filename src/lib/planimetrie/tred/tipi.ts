@@ -30,6 +30,9 @@ export interface MuroPer3D {
   spessore: number;
   altezza: number;
   stato: StatoOggetto;
+  /** Ante e sistema scelti da chi ha fatto la pianta: senza, la finestra resta il solo vetro. */
+  ante?: number;
+  scorrevole?: boolean;
 }
 
 /** `varco` = passaggio senza infisso. */
@@ -45,6 +48,13 @@ export interface AperturaPer3D {
   altezza: number;
   /** Altezza del davanzale dal pavimento (0 per le porte), in cm. */
   davanzale: number;
+  /** Numero di ante e se scorre: assente = telaio non disegnato. */
+  ante?: number;
+  scorrevole?: boolean;
+  /** Oscurante e cassonetto scelti da chi ha fatto la pianta (tapparella, veneziana, persiana, scuri). */
+  oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
+  /** Zanzariera (sul filo interno del vano); `altezzaPersa` = cm presi in testa da un cassonetto monoblocco. */
+  zanzariera?: { tipo: "laterale" | "verticale" | "plisse" | "battente" | "incastro"; altezzaPersa: number };
   /**
    * esistente = c'è e resta; nuovo = da aprire in un muro (demolizione della muratura);
    * demolire = da chiudere (tamponamento, muratura nuova).
@@ -74,6 +84,10 @@ export interface ElementoPer3D {
   profondita?: number;
   altezza?: number;
   localeId?: string;
+  /** Ascensore: senza la cabina (ai piani dove non si ferma, resta il vano con la porta di piano). */
+  senzaCabina?: boolean;
+  /** Altezza fino al pavimento del piano sopra, in cm (travi e solai ci arrivano a filo). */
+  interpiano?: number;
 }
 
 /** Lotto e aree esterne: superfici a terra (y verso il basso, cm). */
@@ -141,6 +155,8 @@ export interface Scena3D {
   limiti: Limiti3D;
   /** Cose della pianta che il 3D ha dovuto correggere o saltare, in parole semplici. */
   avvisi: string[];
+  /** Linee degli impianti disegnate, con i metri stimati (sfrido compreso). Solo con `impianti`. */
+  impianti?: Array<{ linea: string; nome: string; colore: string; metri: number }>;
 }
 
 export interface OpzioniScena {
@@ -154,8 +170,18 @@ export interface OpzioniScena {
    * alberi restano sospesi nel vuoto. I limiti della scena non lo contano. Predefinito: niente.
    */
   terreno?: number;
+  /** Le tubazioni e i cavi stimati dai simboli degli impianti (quadro, prese, collettore, scarichi, clima). Predefinito: no. */
+  impianti?: boolean;
   /** Senza il pavimento del vano scala (piani sopra il primo: la scala sale dal piano sotto). */
   foroScala?: boolean;
+  /** Buchi nel pavimento (la scala e l'ascensore del piano sotto passano di qui): poligoni in cm. */
+  buchiPavimento?: Punto2[][];
+  /** Buchi nel soffitto (la scala e l'ascensore di questo piano salgono): poligoni in cm. */
+  buchiSoffitto?: Punto2[][];
+  /** Zoccolatura alla base dei muri esterni e marciapiede intorno (solo il piano terra). Predefinito: sì. */
+  zoccolo?: boolean;
+  /** Le fondazioni sotto il piano: cordoli sotto le pareti portanti, plinti sotto i pilastri. Predefinito: no. */
+  fondazioni?: boolean;
 }
 
 // ─── Telecamera ─────────────────────────────────────────────────────────────

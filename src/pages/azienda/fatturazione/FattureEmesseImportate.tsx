@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, FileCode, Search } from "lucide-react";
+import { ArrowLeft, Check, CreditCard, FileCode, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
@@ -13,6 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { raggruppaPerMese, type EmessaImportata } from "@/lib/fatturazione/emesseImportate";
 import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
 import { RecuperaClientiImportati } from "@/components/fatturazione/RecuperaClientiImportati";
+import { SegnaPagataImportataDialog, importataPagabile } from "@/components/fatturazione/GestionaleEsterno";
+import { RiportaDaIncassareDialog } from "@/components/fatturazione/RiportaDaIncassare";
+import type { DocumentoFiscale } from "@/types/fatturazione";
 import { importoConSegno, isNotaCredito, isDocumentoEmesso, isTipoVendita, tutteLePagine } from "@/lib/fatturazione/registroVendite";
 
 const dataBreve = (s: string | null) => {
@@ -23,13 +26,15 @@ const dataBreve = (s: string | null) => {
 
 /**
  * Le fatture emesse con un altro programma (Aruba, Fatture in Cloud…) e importate
- * da XML, mese per mese. Sola lettura: servono a consultare lo storico.
+ * da XML, mese per mese: si consultano e si segna se sono state incassate.
  */
 export default function FattureEmesseImportate() {
   const companyId = useEffectiveCompanyId();
   const [cerca, setCerca] = useState("");
   const [selezionata, setSelezionata] = useState<{ id: string; xml: boolean } | null>(null);
   const apriDettaglio = (id: string, xml = false) => setSelezionata({ id, xml });
+  const [daIncassare, setDaIncassare] = useState<DocumentoFiscale | null>(null);
+  const [daRiaprire, setDaRiaprire] = useState<{ id: string; numero: string } | null>(null);
 
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ["fatture-emesse-importate", companyId, "dettagli-elenco"],
@@ -37,7 +42,7 @@ export default function FattureEmesseImportate() {
     queryFn: async () => {
       return await tutteLePagine((from,to) => supabase
         .from("invoices")
-        .select("id, invoice_number, document_type, status, client_id, order_id, client_company_name, client_fiscal_code, client_vat_number, client_address, client_city, client_zip, issue_date, due_date, subtotal, tax_amount, total, paid_amount, external_xml_url, invoice_lines(description, sort_order)")
+        .select("id, invoice_number, document_type, status, client_id, order_id, client_company_name, client_fiscal_code, client_vat_number, client_address, client_city, client_zip, issue_date, due_date, subtotal, tax_amount, total, paid_amount, external_provider, external_xml_url, invoice_lines(description, sort_order)")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .not("external_provider", "is", null)
@@ -49,6 +54,25 @@ export default function FattureEmesseImportate() {
         .range(from,to)) as EmessaImportata[];
     },
   });
+
+  // Cosa si può incassare lo dice la stessa vista del registro incassi: stato e dovuto al
+  // netto delle note di credito collegate, che gli importi dell'elenco non sanno.
+  const { data: daIncassareElenco = [] } = useQuery({
+    queryKey: ["incassi-importate", "aperte", companyId],
+    enabled: !!companyId,
+    queryFn: async () => (await tutteLePagine((from, to) => supabase
+      .from("documenti_fiscali_elenco_con_importate" as never)
+      .select("id, company_id, origine, external_provider, tipo, numero, data_emissione, data_scadenza, cliente_snapshot, elenco_cliente, stato, totale_documento, totale_da_pagare, importo_pagato, deleted_at")
+      .eq("company_id", companyId!)
+      .eq("origine", "importata")
+      .is("deleted_at", null)
+      .in("stato", ["emessa", "parzialmente_pagata"])
+      .not("tipo", "in", "(nota_credito,proforma)")
+      .order("data_scadenza", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(from, to))) as unknown as DocumentoFiscale[],
+  });
+  const aperte = useMemo(() => new Map(daIncassareElenco.filter(importataPagabile).map((d) => [d.id, d])), [daIncassareElenco]);
 
   const filtrate = useMemo(() => {
     const emesse = data.filter(f => isDocumentoEmesso(f.status) && isTipoVendita(f.document_type));
@@ -149,7 +173,33 @@ export default function FattureEmesseImportate() {
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.subtotal))}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.tax_amount))}</TableCell>
                         <TableCell className="text-right text-xs font-medium tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.total))}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : "—"}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">
+                          {f.status === "paid" && !isNotaCredito(f.document_type) && f.external_provider === "xml_import" ? (
+                            <button
+                              type="button"
+                              onClick={() => setDaRiaprire({ id: f.id, numero: f.invoice_number })}
+                              title="Incassata: clic per riportarla da incassare"
+                              aria-label={`Riporta da incassare la fattura ${f.invoice_number}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800 dark:hover:bg-emerald-900"
+                            >
+                              <Check className="h-2.5 w-2.5" /> Incassata
+                            </button>
+                          ) : aperte.get(f.id) ? (
+                            <span className="inline-flex items-center justify-end gap-1">
+                              {Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : <span className="whitespace-nowrap text-amber-700 dark:text-amber-400">Da incassare</span>}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="Segna incassata"
+                                aria-label={`Segna incassata la fattura ${f.invoice_number}`}
+                                onClick={() => setDaIncassare(aperte.get(f.id) ?? null)}
+                              >
+                                <CreditCard className="h-4 w-4" />
+                              </Button>
+                            </span>
+                          ) : Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : "—"}
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {f.external_xml_url ? <Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id, true)} aria-label={`Visualizza XML della fattura ${f.invoice_number}`}><FileCode className="mr-1.5 h-4 w-4" />XML</Button> :
                             <span className="text-xs text-muted-foreground">Non archiviato</span>}
@@ -164,6 +214,8 @@ export default function FattureEmesseImportate() {
           ))}
         </>
       )}
+      {companyId && <SegnaPagataImportataDialog fattura={daIncassare} companyId={companyId} onClose={() => setDaIncassare(null)} />}
+      <RiportaDaIncassareDialog fattura={daRiaprire} onClose={() => setDaRiaprire(null)} />
       {selezionata && companyId && <EmessaImportataDettaglio key={`${companyId}:${selezionata.id}:${selezionata.xml}`} id={selezionata.id} companyId={companyId} apriXml={selezionata.xml} onClose={() => setSelezionata(null)} />}
     </div>
   );

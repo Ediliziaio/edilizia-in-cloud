@@ -101,3 +101,16 @@ export async function pngDaSvg(svg: string, lato = 1024): Promise<Blob> {
     URL.revokeObjectURL(url);
   }
 }
+
+/**
+ * Dal messaggio tecnico del server a una frase per chi usa l'app. Le chiavi dell'AI mancanti o scadute,
+ * i crediti finiti e i tempi lunghi sono le tre cose che possono fermare un render: ognuna dice cosa fare.
+ */
+export function fraseErroreRender(messaggio: string): string {
+  const m = messaggio ?? "";
+  if (/insufficient_credits|crediti/i.test(m)) return "Crediti render finiti: ricaricali per continuare.";
+  if (/API_KEY|non configurata|invalid api key|incorrect api key|401|unauthorized/i.test(m)) return "Il servizio di render non è collegato bene: avvisa l'assistenza, non è un problema della tua pianta.";
+  if (/rate.?limit|429|overload|quota/i.test(m)) return "Il servizio di render è molto richiesto in questo momento: riprova fra un minuto.";
+  if (/timeout|timed out|idle|150s/i.test(m)) return "Il render sta impiegando più del solito: riprova fra poco, il credito non viene addebitato se non arriva.";
+  return m || "Render non avviato: riprova.";
+}

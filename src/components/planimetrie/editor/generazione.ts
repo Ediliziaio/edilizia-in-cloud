@@ -158,6 +158,16 @@ export function luminanzaMedia(dati: Uint8ClampedArray, passo = 16): number {
   return n ? somma / n : 1;
 }
 
+/**
+ * Il modello di visione legge male le coordinate su un'immagine che non è quadrata: con la stessa pianta
+ * e lo stesso disegno, un'immagine larga 1700 × 900 dava stanze grandi la metà del vero (scala 0,66 invece
+ * di 1), una quadrata le dava giuste (prova del 02/11/2026 su una pianta disegnata con misure note: 0,99
+ * quadrata, 0,50 larga; 0,96 la stessa larga resa quadrata con margini bianchi). Conta la forma, non le
+ * dimensioni. Si porta quindi ogni foglio a un quadrato aggiungendo bianco attorno, e il resto
+ * (scala, muri) si calcola sui pixel del quadrato: l'origine non conta.
+ */
+export const serveQuadrato = (larghezza: number, altezza: number) => Math.min(larghezza, altezza) / Math.max(larghezza, altezza, 1) < 0.85;
+
 export interface ImmaginePreparata {
   file: Blob;
   mime: string;
@@ -210,11 +220,30 @@ export async function preparaImmagine(file: Blob, rotazione: Rotazione = 0, sorg
       for (let i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
       ctx.putImageData(pixel, 0, 0);
     }
-    const cambiata = !!sorgente || rotazione !== 0 || ridotta0.larghezza !== w0;
+    const quadrato = serveQuadrato(m.larghezza, m.altezza);
+    const cambiata = !!sorgente || rotazione !== 0 || ridotta0.larghezza !== w0 || quadrato;
     if (!invertita && !cambiata) return { file, mime: file.type, larghezza: w0, altezza: h0, invertita: false };
-    const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/png"));
+    let uscita: HTMLCanvasElement = canvas;
+    let larghezzaFinale = m.larghezza;
+    let altezzaFinale = m.altezza;
+    if (quadrato) {
+      // il bianco si aggiunge DOPO aver deciso l'inversione: un CAD scuro con i margini bianchi non sembrerebbe più scuro
+      const lato = Math.max(m.larghezza, m.altezza);
+      const q = document.createElement("canvas");
+      q.width = lato;
+      q.height = lato;
+      const qc = q.getContext("2d");
+      if (!qc) return null;
+      qc.fillStyle = "#ffffff";
+      qc.fillRect(0, 0, lato, lato);
+      qc.drawImage(canvas, Math.round((lato - m.larghezza) / 2), Math.round((lato - m.altezza) / 2));
+      uscita = q;
+      larghezzaFinale = lato;
+      altezzaFinale = lato;
+    }
+    const blob = await new Promise<Blob | null>((ok) => uscita.toBlob(ok, "image/png"));
     if (!blob || blob.size > MASSIMO_BYTES) return null;
-    return { file: blob, mime: "image/png", larghezza: m.larghezza, altezza: m.altezza, invertita };
+    return { file: blob, mime: "image/png", larghezza: larghezzaFinale, altezza: altezzaFinale, invertita };
   } catch {
     return null;
   } finally {

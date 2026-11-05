@@ -6,6 +6,7 @@ import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
 
 const state = vi.hoisted(() => ({ giornata: null as unknown, chi: null as unknown }));
 
+vi.mock("@/components/campo/ScattaFoto", () => ({ ScattaFoto: () => <span>Foto</span> }));
 vi.mock("@/hooks/campo/useCampoGiornata", async (importOriginal) => {
   const vero = await importOriginal<typeof import("@/hooks/campo/useCampoGiornata")>();
   return {

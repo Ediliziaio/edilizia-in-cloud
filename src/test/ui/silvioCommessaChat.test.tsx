@@ -198,7 +198,7 @@ describe("La chat sulla bozza", () => {
     apri(s);
     await within(commessa()).findByRole("region", { name: "Economia" });
     scrivi("IVA al 10");
-    await within(chat()).findByText("Ti propongo 10 % per «IVA»: entra nella commessa se lo confermi nella bozza.");
+    await within(chat()).findByText("«IVA» ora è 10 %.");
     expect(riga("economia.vat_rate")).not.toBeNull();
 
     scrivi("annulla");
@@ -232,7 +232,7 @@ describe("La chat sulla bozza", () => {
     apri(s, { orderId: COMMESSA, etichettaCommessa: "ORD-2026-034", iniziale: null });
     await within(chat()).findByText(/ci sono già/);
     scrivi("importo 32.000 e IVA al 10");
-    expect(await within(chat()).findByText(/«Importo» è già nella commessa: Silvio non lo cambia\..*Ti propongo 10 % per «IVA»/)).toBeInTheDocument();
+    expect(await within(chat()).findByText(/«Importo» è già nella commessa: Silvio non lo cambia\..*«IVA» ora è 10 %/)).toBeInTheDocument();
     expect(riga("economia.total_amount")!.textContent).toMatch(/30\.000/);
     expect(riga("economia.vat_rate")!.textContent).toMatch(/10/);
   });
@@ -269,7 +269,7 @@ describe("Le porte del popup", () => {
     apri(s, { iniziale: [{ tipo: "documento", documento, nome: "Contratto.pdf", mime: "application/pdf", confermata: true }] });
     await waitFor(() => expect(s.leggiRemoto).toHaveBeenCalledWith(documento, { nome: "Contratto.pdf", mime: "application/pdf" }, expect.objectContaining({ companyId: AZIENDA })));
     expect(s.leggiFile).not.toHaveBeenCalled();
-    expect(await within(commessa()).findByText(/48\.500/)).toBeInTheDocument();
+    expect((await within(commessa()).findAllByText(/48\.500/)).length).toBeGreaterThan(0);
   });
 
   it("un contratto dell'app: a regole, senza costo, e in «Completa» si aggiunge alla commessa", async () => {
@@ -278,7 +278,7 @@ describe("Le porte del popup", () => {
     await waitFor(() => expect(s.frammentoContratto).toHaveBeenCalledWith("c0000000-0000-4000-a000-000000000007"));
     expect(s.frammentiCommessa).toHaveBeenCalledWith(COMMESSA);
     expect(s.saldoAI).not.toHaveBeenCalled();
-    expect(await within(commessa()).findByText(/48\.500/)).toBeInTheDocument();
+    expect((await within(commessa()).findAllByText(/48\.500/)).length).toBeGreaterThan(0);
   });
 
   it("il link della chat (un file già caricato): la stima prima, poi letto da dove sta, senza ricaricarlo", async () => {
@@ -308,7 +308,7 @@ describe("Difetti trovati in revisione (01/11/2026)", () => {
     expect(within(chat()).getByText("IVA al 10")).toBeInTheDocument();
     expect(screen.getByText(/Silvio sta cambiando la bozza/)).toBeInTheDocument();
     await act(async () => { paga({ saldoEur: 5, bloccato: false }); });
-    await within(chat()).findByText("Ti propongo 10 % per «IVA»: entra nella commessa se lo confermi nella bozza.");
+    await within(chat()).findByText("«IVA» ora è 10 %.");
     expect(s.chat).toHaveBeenCalledTimes(1);
   });
 

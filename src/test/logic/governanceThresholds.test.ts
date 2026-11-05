@@ -8,6 +8,7 @@ import {
   valutaScostamentoSal,
   scostamentoSalCommessa,
   valutaMarginalita,
+  valutaRincaro,
   type GovernanceThresholds,
 } from "@/lib/governance/thresholds";
 
@@ -75,6 +76,9 @@ describe("governanceFromRow / governanceToRow", () => {
       sal_tolleranza_perc: 8,
       marginalita_alert_enabled: true,
       marginalita_soglia_perc: 18,
+      rincaro_acquisti_enabled: true,
+      rincaro_soglia_perc: 15,
+      rincaro_minimo_euro: 50,
     });
     expect(governanceFromRow({ ...row, company_id: "c1" })).toEqual(cfg);
   });
@@ -197,5 +201,111 @@ describe("valutaMarginalita", () => {
     const off = cfgWith({ marginalita: { enabled: false, sogliaMinimaPerc: 15 } });
     expect(valutaMarginalita(off, 8).semaforo).toBe("verde");
     expect(valutaMarginalita(off, -1).semaforo).toBe("rosso");
+  });
+});
+
+describe("rincari d'acquisto", () => {
+  // I valori di partenza: 15% sopra il medio e almeno 50 € di spesa in più.
+  const cfg = DEFAULT_GOVERNANCE_THRESHOLDS;
+
+  it("sopra entrambe le soglie è un rincaro, e dice di quanto", () => {
+    // 100 pezzi a 16 € con un medio di 10 €: +60%, 600 € di spesa in più.
+    const e = valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 16, quantita: 100 });
+    expect(e.rincaro).toBe(true);
+    expect(e.scostamentoPerc).toBe(60);
+    expect(e.spesaInPiu).toBe(600);
+    expect(e.messaggio).toContain("60.0%");
+  });
+
+  it("sotto la soglia percentuale non è un rincaro, anche se la spesa in più è grossa", () => {
+    // +10% su 1.000 pezzi: 1.000 € in più, ma il 10% è sotto il 15%.
+    const e = valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 11, quantita: 1000 });
+    expect(e.rincaro).toBe(false);
+    expect(e.spesaInPiu).toBe(1000);
+    expect(e.messaggio).toBeNull();
+  });
+
+  it("sopra la soglia percentuale ma per pochi euro non è un rincaro", () => {
+    // L'esempio del titolare: 2 € che diventano 2,40 € su dieci pezzi = 4 € in più.
+    const e = valutaRincaro(cfg, { medioPrima: 2, prezzoPagato: 2.4, quantita: 10 });
+    expect(e.scostamentoPerc).toBe(20);
+    expect(e.spesaInPiu).toBe(4);
+    expect(e.rincaro).toBe(false);
+  });
+
+  it("lo stesso rincaro su molti pezzi invece conta", () => {
+    const e = valutaRincaro(cfg, { medioPrima: 2, prezzoPagato: 2.4, quantita: 5000 });
+    expect(e.spesaInPiu).toBe(2000);
+    expect(e.rincaro).toBe(true);
+  });
+
+  it("senza un medio di partenza non c'è un «solito» da confrontare", () => {
+    expect(valutaRincaro(cfg, { medioPrima: 0, prezzoPagato: 99, quantita: 100 }).rincaro).toBe(false);
+    expect(valutaRincaro(cfg, { medioPrima: null, prezzoPagato: 99, quantita: 100 }).rincaro).toBe(false);
+    expect(valutaRincaro(cfg, { medioPrima: undefined, prezzoPagato: 99, quantita: 100 }).rincaro).toBe(false);
+  });
+
+  it("prezzo o quantità mancanti o a zero: niente rincaro e niente numeri inventati", () => {
+    const senzaPrezzo = valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 0, quantita: 100 });
+    expect(senzaPrezzo.rincaro).toBe(false);
+    const senzaQta = valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 16, quantita: 0 });
+    expect(senzaQta.rincaro).toBe(false);
+    expect(senzaQta.spesaInPiu).toBe(0);
+  });
+
+  it("un prezzo in CALO non è un rincaro, e lo scostamento è negativo", () => {
+    const e = valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 7, quantita: 100 });
+    expect(e.rincaro).toBe(false);
+    expect(e.scostamentoPerc).toBe(-30);
+    expect(e.spesaInPiu).toBe(-300);
+  });
+
+  it("esattamente sulla soglia non scatta: serve superarla", () => {
+    // 11,50 € è esattamente +15% su 10 €.
+    expect(valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 11.5, quantita: 100 }).rincaro).toBe(false);
+    expect(valutaRincaro(cfg, { medioPrima: 10, prezzoPagato: 11.51, quantita: 100 }).rincaro).toBe(true);
+  });
+
+  it("con l'interruttore spento non segnala nulla, ma i numeri restano leggibili", () => {
+    const off = cfgWith({ rincaroAcquisti: { enabled: false, sogliaPerc: 15, minimoEuro: 50 } });
+    const e = valutaRincaro(off, { medioPrima: 10, prezzoPagato: 99, quantita: 100 });
+    expect(e.rincaro).toBe(false);
+    expect(e.scostamentoPerc).toBe(890);
+    expect(e.spesaInPiu).toBe(8900);
+  });
+
+  it("le soglie si possono allargare: il raddoppio di prezzo è +100%", () => {
+    const severo = cfgWith({ rincaroAcquisti: { enabled: true, sogliaPerc: 200, minimoEuro: 0 } });
+    expect(valutaRincaro(severo, { medioPrima: 10, prezzoPagato: 25, quantita: 10 }).rincaro).toBe(false);
+    expect(valutaRincaro(severo, { medioPrima: 10, prezzoPagato: 31, quantita: 10 }).rincaro).toBe(true);
+  });
+
+  it("i default e la normalizzazione tengono i valori nei limiti", () => {
+    expect(DEFAULT_GOVERNANCE_THRESHOLDS.rincaroAcquisti).toEqual({
+      enabled: true, sogliaPerc: 15, minimoEuro: 50,
+    });
+    const n = normalizeGovernanceThresholds({
+      rincaroAcquisti: { enabled: true, sogliaPerc: -5, minimoEuro: -100 },
+    });
+    expect(n.rincaroAcquisti.sogliaPerc).toBe(0);
+    expect(n.rincaroAcquisti.minimoEuro).toBe(0);
+  });
+
+  it("riga DB ⇄ config: le tre colonne nuove vanno e tornano", () => {
+    const cfgDaRiga = governanceFromRow({
+      rincaro_acquisti_enabled: false,
+      rincaro_soglia_perc: "25",
+      rincaro_minimo_euro: "300",
+    });
+    expect(cfgDaRiga.rincaroAcquisti).toEqual({ enabled: false, sogliaPerc: 25, minimoEuro: 300 });
+    const riga = governanceToRow(cfgDaRiga);
+    expect(riga.rincaro_acquisti_enabled).toBe(false);
+    expect(riga.rincaro_soglia_perc).toBe(25);
+    expect(riga.rincaro_minimo_euro).toBe(300);
+  });
+
+  it("una riga vecchia, senza le colonne nuove, prende i valori di partenza", () => {
+    const cfgVecchia = governanceFromRow({ marginalita_alert_enabled: true, marginalita_soglia_perc: 20 });
+    expect(cfgVecchia.rincaroAcquisti).toEqual({ enabled: true, sogliaPerc: 15, minimoEuro: 50 });
   });
 });

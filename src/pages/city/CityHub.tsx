@@ -357,7 +357,7 @@ export default function CityHub() {
                 title: "Non è un'app di difetti e ispezioni",
                 desc: "Le app di documentazione di cantiere fotografano, segnalano e archiviano benissimo. Non fatturano, non fanno preventivi e non calcolano margini: affiancano il gestionale, non lo sostituiscono.",
                 href: "/blog/migliori-software-gestionali-edilizia-confronto/",
-                label: "Gli 8 software a confronto, con prezzi",
+                label: "Gli 8 strumenti a confronto, con fonti ufficiali",
               },
             ].map((item) => (
               <div key={item.title} className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col">
@@ -531,11 +531,11 @@ export default function CityHub() {
               <Link to="/blog/migliori-software-gestionali-edilizia-confronto/" className="font-semibold text-eic-orange hover:underline">
                 migliori software gestionali per l'edilizia
               </Link>{" "}
-              trovi otto prodotti con pro, contro, matrice delle funzioni, prezzi pubblici a settembre 2026 e la checklist da portare in demo. La guida su{" "}
-              <Link to="/blog/come-scegliere-software-gestionale-edilizia/" className="font-semibold text-eic-orange hover:underline">
-                come scegliere il software gestionale
+              trovi otto strumenti, le funzioni dichiarate sui siti ufficiali e la checklist da portare in demo. Guarda anche le schermate del {" "}
+              <Link to="/per/imprese-edili/" className="font-semibold text-eic-orange hover:underline">
+                gestionale per imprese edili
               </Link>{" "}
-              spiega le dieci domande da fare a ogni fornitore.
+              per seguire una commessa dal preventivo ai costi.
             </p>
           </div>
         </div>

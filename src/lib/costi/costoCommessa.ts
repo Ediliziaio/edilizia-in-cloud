@@ -1,5 +1,5 @@
 /**
- * Costo registrato dalla commessa (Materiali e acquisti → Costi). Serve per i
+ * Costo registrato dalla commessa (Fatture e costi → Altri costi). Serve per i
  * costi che una fattura non l'avranno mai — la tassa del Comune, un bollo, un
  * F24 — e per quelli che la fattura la aspettano ancora. Finisce in
  * company_costs con order_id: v_ordine_marginalita lo conta come costo diretto,
@@ -14,8 +14,28 @@ export function leggiImporto(valore: string): number {
   return Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t);
 }
 
+/** Di che tipo è il costo: decide in quale gruppo compare in Fatture e costi (commessa_quadro_pagamenti). */
+export type TipoCosto = "altro" | "noleggio" | "professionista";
+export const TIPI_COSTO: { value: TipoCosto; label: string; categoria: string | null }[] = [
+  { value: "altro", label: "Altro", categoria: null },
+  { value: "noleggio", label: "Noleggio e mezzi", categoria: "noleggio" },
+  { value: "professionista", label: "Professionista", categoria: "consulenze_professionali" },
+];
+
+export const categoriaDelTipo = (tipo: TipoCosto) => TIPI_COSTO.find((t) => t.value === tipo)?.categoria ?? null;
+
+/** Le stesse regole di commessa_quadro_pagamenti, per le categorie scritte in passato. */
+export function tipoDellaCategoria(categoria: string | null | undefined): TipoCosto {
+  const c = (categoria ?? "").toLowerCase();
+  if (["consulenze_professionali", "progettazione", "direzione lavori"].includes(c)) return "professionista";
+  return /nolegg|noli|nolo/.test(c) ? "noleggio" : "altro";
+}
+
 export interface FormCostoCommessa {
   descrizione: string;
+  tipo: TipoCosto;
+  /** Facoltativo: chi riceve il pagamento. */
+  fornitoreId: string | null;
   /** Quanto si è pagato o si pagherà, IVA compresa. */
   importo: string;
   aliquotaIva: string;
@@ -28,6 +48,8 @@ export interface FormCostoCommessa {
 
 export const formCostoVuoto = (oggi: string): FormCostoCommessa => ({
   descrizione: "",
+  tipo: "altro",
+  fornitoreId: null,
   importo: "",
   // Il caso tipico (tasse, bolli, diritti) non ha IVA.
   aliquotaIva: "0",
@@ -52,6 +74,8 @@ export function rigaCostoCommessa(form: FormCostoCommessa, ids: { companyId: str
     company_id: ids.companyId,
     order_id: ids.orderId,
     name: descrizione,
+    category: categoriaDelTipo(form.tipo),
+    supplier_id: form.fornitoreId,
     // Variabile e una tantum: è un costo di questa commessa, non un fisso che si ripete.
     cost_type: "variable",
     recurrence: "once",
@@ -64,6 +88,36 @@ export function rigaCostoCommessa(form: FormCostoCommessa, ids: { companyId: str
     senza_fattura: form.senzaFattura,
     notes: form.note.trim() || null,
     allocations: [] as Array<{ order_id: string; pct: number }>,
+  };
+}
+
+/** Il costo salvato rimesso nel modulo: l'importo torna con l'IVA, com'è scritto sulla ricevuta. */
+export function formDaCosto(c: {
+  name: string; category: string | null; supplier_id: string | null; amount: number; vat_rate: number | null;
+  due_date: string; order_work_phase_id: string | null; senza_fattura: boolean; notes: string | null; is_paid: boolean;
+}): FormCostoCommessa {
+  const iva = Number(c.vat_rate ?? 0);
+  const lordo = Math.round(Number(c.amount) * (1 + iva / 100) * 100) / 100;
+  return {
+    descrizione: c.name,
+    tipo: tipoDellaCategoria(c.category),
+    fornitoreId: c.supplier_id,
+    importo: lordo.toFixed(2).replace(".", ","),
+    aliquotaIva: String(iva),
+    data: c.due_date,
+    faseId: c.order_work_phase_id ?? "",
+    senzaFattura: c.senza_fattura,
+    pagato: c.is_paid,
+    note: c.notes ?? "",
+  };
+}
+
+/** I campi che una modifica può cambiare: ripartizioni, pagamento e ricorrenza restano dove sono. */
+export function campiModificaCosto(form: FormCostoCommessa, ids: { companyId: string; orderId: string }) {
+  const r = rigaCostoCommessa(form, ids);
+  return {
+    name: r.name, category: r.category, supplier_id: r.supplier_id, amount: r.amount, vat_rate: r.vat_rate,
+    due_date: r.due_date, order_work_phase_id: r.order_work_phase_id, senza_fattura: r.senza_fattura, notes: r.notes,
   };
 }
 
@@ -88,4 +142,15 @@ export type DocumentoCosto = "fattura" | "senza_fattura" | "in_attesa";
 export function documentoDelCosto(c: { senza_fattura: boolean | null }, haFattura: boolean): DocumentoCosto {
   if (haFattura) return "fattura";
   return c.senza_fattura ? "senza_fattura" : "in_attesa";
+}
+
+/** Quanto si esce davvero, IVA compresa: per la riga del costo e i numeri in cima. */
+export const lordoCosto = (c: { amount: number; vat_rate: number | null }) =>
+  Math.round(c.amount * (1 + Number(c.vat_rate ?? 0) / 100) * 100) / 100;
+
+/** I numeri in cima ad «Altri costi». «Da saldare» conta per intero un costo pagato solo in parte. */
+export function totaliAltriCosti(costi: readonly { amount: number; vat_rate: number | null; is_paid: boolean }[]) {
+  const somma = (righe: readonly { amount: number; vat_rate: number | null }[]) =>
+    Math.round(righe.reduce((t, c) => t + lordoCosto(c), 0) * 100) / 100;
+  return { totale: somma(costi), saldati: somma(costi.filter((c) => c.is_paid)), daSaldare: somma(costi.filter((c) => !c.is_paid)) };
 }

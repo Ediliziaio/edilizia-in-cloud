@@ -30,6 +30,7 @@ import { AddToListDropdown } from "@/components/marketing/AddToListDropdown";
 import { BulkTagsDialog, BulkCreateOpportunitiesDialog } from "@/components/contacts/BulkContactActions";
 import { BulkEnrollAutomationDropdown } from "@/components/marketing/BulkEnrollAutomationDropdown";
 import { ImportWizard } from "@/components/shared/ImportWizard";
+import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { syncTagsToOpportunities, removeTagFromOpportunities } from "@/hooks/useTagSync";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
@@ -571,6 +572,8 @@ export default function MarketingContacts() {
   const [deleteLinks, setDeleteLinks] = useState<ContactLinks | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const apriImportazione = useCallback(() => setImportOpen(true), []);
+  useImportaDaUrl(!permissions.isLoading && !!companyId, canEditContacts, apriImportazione);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
   const sortField = normalizedUrl.sortField as SortField;
   const setSortField = useCallback((v: SortField) => setURLParam("sortField", v), [setURLParam]);

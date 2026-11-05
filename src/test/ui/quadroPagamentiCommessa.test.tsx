@@ -27,11 +27,16 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("@/components/orders/ExpensePaymentDialog", () => ({ ExpensePaymentDialog: ({ costId }: { costId: string }) => <div>dialogo costo {costId}</div> }));
 vi.mock("@/components/orders/PurchasePaymentsDialog", () => ({ PurchasePaymentsDialog: ({ orderId }: { orderId: string }) => <div>dialogo ordine {orderId}</div> }));
 
-import { QuadroPagamentiCommessa } from "@/components/orders/QuadroPagamentiCommessa";
+import { QuadroPagamentiCommessa, UsciteCommessa } from "@/components/orders/QuadroPagamentiCommessa";
 
 const mostra = (p: Partial<Parameters<typeof QuadroPagamentiCommessa>[0]> = {}) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <QuadroPagamentiCommessa orderId="o1" mostraIncassi mostraUscite onApriSubappalti={p.onApriSubappalti} {...p} />
+    <QuadroPagamentiCommessa orderId="o1" mostraIncassi mostraUscite {...p} />
+  </QueryClientProvider>,
+);
+const mostraUscite = (p: Partial<Parameters<typeof UsciteCommessa>[0]> = {}) => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <UsciteCommessa orderId="o1" {...p} />
   </QueryClientProvider>,
 );
 afterEach(cleanup);
@@ -48,24 +53,32 @@ describe("Incassi e pagamenti della commessa", () => {
   });
 
   it("elenca le uscite aperte con documento, scadenza e azione; il pagato si vede solo con «Tutti»", async () => {
-    mostra();
-    const elenco = await screen.findByRole("list", { name: "Pagamenti della commessa" });
+    mostraUscite();
+    const elenco = await screen.findByRole("table", { name: "Pagamenti della commessa" });
     expect(within(elenco).getByText(/Senza fattura · ricevuta allegata/)).toBeInTheDocument();
     expect(within(elenco).getByText(/scaduta da 11 giorni/)).toBeInTheDocument();
     expect(within(elenco).getByText(/ancora da maturare/)).toBeInTheDocument();
     expect(within(elenco).queryByText(/FOR-DEMO-2026-N008/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Tutti/ }));
-    expect(within(screen.getByRole("list", { name: "Pagamenti della commessa" })).getByText(/FOR-DEMO-2026-N008/)).toBeInTheDocument();
+    expect(within(screen.getByRole("table", { name: "Pagamenti della commessa" })).getByText(/FOR-DEMO-2026-N008/)).toBeInTheDocument();
   });
 
   it("i pulsanti aprono il registro giusto", async () => {
     const onApriSubappalti = vi.fn();
-    mostra({ onApriSubappalti });
-    const elenco = await screen.findByRole("list", { name: "Pagamenti della commessa" });
+    mostraUscite({ onApriSubappalti });
+    const elenco = await screen.findByRole("table", { name: "Pagamenti della commessa" });
     fireEvent.click(within(elenco).getAllByRole("button", { name: "Registra pagamento" })[0]);
     expect(screen.getByText("dialogo costo t")).toBeInTheDocument();
     fireEvent.click(within(elenco).getByRole("button", { name: "Apri SAL" }));
     expect(onApriSubappalti).toHaveBeenCalledOnce();
+  });
+
+  it("Economia non ripete l'elenco delle uscite: porta a Fatture e costi", async () => {
+    const onApriUscite = vi.fn();
+    mostra({ onApriUscite });
+    fireEvent.click(await screen.findByRole("button", { name: "Vedi le uscite" }));
+    expect(onApriUscite).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("table", { name: "Pagamenti della commessa" })).toBeNull();
   });
 
   it("senza permesso sui costi non mostra le uscite", async () => {

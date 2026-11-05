@@ -66,6 +66,7 @@ function prodotto(id: string, categoria: string | null = "alu"): CatalogItem {
   } as CatalogItem;
 }
 beforeEach(() => {
+  localStorage.clear();
   stato.items = [
     prodotto("ALU-01"),
     prodotto("SAL-01", "sal"),
@@ -150,12 +151,12 @@ describe("Catalogo prodotti nel preventivo", () => {
     }));
     catalogo();
     fireEvent.click(
-      screen.getByRole("button", { name: "Prodotti successivi" }),
+      screen.getByRole("button", { name: "Mostra altri prodotti (1)" }),
     );
     expect(
       screen.getByRole("button", { name: /Prodotto 30/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText("31–31 di 31")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mostra altri/ })).toBeNull();
   });
   it("distingue un errore da un catalogo vuoto e offre Riprova", () => {
     stato.errore = new Error("Connessione interrotta");
@@ -374,9 +375,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
       screen.getByRole("button", { name: "Torna al preventivo" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Apri servizi" }));
-    expect(
-      screen.getByRole("button", { name: "Bagni: 1 prodotto · 1 servizio" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Area di lavoro" })).toHaveValue("area:bagni");
     expect(
       screen.getByRole("tab", { name: /Servizi/ }),
     ).toHaveAttribute("aria-selected", "true");
@@ -385,9 +384,9 @@ describe("Aree condivise fra prodotti e servizi", () => {
   it("mantiene l'area al cambio scheda e dopo l'aggiunta, senza perdere la ricerca prodotti", () => {
     const tariffe = preparaAree();
     const api = dialogo({ tariffe });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Bagni: 1 prodotto · 1 servizio" }),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+      target: { value: "area:bagni" },
+    });
     fireEvent.change(
       screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }),
       { target: { value: "Salamander" } },
@@ -409,9 +408,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi servizio" }));
     expect(api.onAddTariffa).toHaveBeenCalledWith(tariffe[0], 2.5);
-    expect(
-      screen.getByRole("button", { name: "Bagni: 1 prodotto · 1 servizio" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Area di lavoro" })).toHaveValue("area:bagni");
     fireEvent.click(screen.getByRole("tab", { name: "Prodotti" }));
     expect(
       screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }),
@@ -419,9 +416,9 @@ describe("Aree condivise fra prodotti e servizi", () => {
   });
   it("esclude le voci comuni su richiesta e rimuove un servizio selezionato fuori dall'area", () => {
     dialogo({ tariffe: preparaAree(), initialTab: "servizi" });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Bagni: 1 prodotto · 1 servizio" }),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+      target: { value: "area:bagni" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Trasporto comune/ }));
     expect(
       screen.getByRole("button", { name: "Aggiungi servizio" }),
@@ -435,11 +432,9 @@ describe("Aree condivise fra prodotti e servizi", () => {
     expect(
       screen.queryByRole("button", { name: "Aggiungi servizio" }),
     ).toBeNull();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Comuni / senza area: 1 prodotto · 1 servizio",
-      }),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+      target: { value: "common" },
+    });
     expect(
       screen.getByRole("button", { name: /Trasporto comune/ }),
     ).toBeInTheDocument();
@@ -458,9 +453,9 @@ describe("Aree condivise fra prodotti e servizi", () => {
       },
     ] as CatalogItem[];
     dialogo();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Bagni: 1 prodotto · 0 servizi" }),
-    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+      target: { value: "area:bagni" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Doccia 1" }));
     expect(
       screen.getByRole("button", { name: /Box cristallo Doccia/ }),
@@ -475,9 +470,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
     expect(
       screen.getByRole("button", { name: /Finestra 1 Anta PVC Aluplast/ }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Bagni: 1 prodotto · 1 servizio" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("option", { name: "Bagni (1 prodotto · 1 servizio)" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Riprova aree" }));
     expect(stato.refetch).toHaveBeenCalledTimes(2);
   });

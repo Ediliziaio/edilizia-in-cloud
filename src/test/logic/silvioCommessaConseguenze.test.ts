@@ -36,6 +36,24 @@ describe("conConseguenze", () => {
     expect(x.aree.fasi!["fasi.work_start_date"].valore).toBe("2026-12-15");
   });
 
+  it("scegliere l'inizio fra due documenti sposta anche le fasi già datate", () => {
+    const fonte2 = { tipo: "documento" as const, etichetta: "capitolato.pdf" };
+    const fonte1 = { tipo: "documento" as const, etichetta: "contratto.pdf" };
+    const p = piano();
+    p.aree.fasi = {
+      "fasi.work_start_date": { valore: "2026-11-16", fiducia: 0.9, stato: "attenzione", fonte: fonte1 },
+      "fasi.order_work_phases": { valore: [{ name: "Ponteggio", start_date: "2026-11-16", end_date: "2026-11-18" }], fiducia: 0.9, stato: "proposta", fonte: fonte2 },
+    };
+    p.conflitti = [{ area: "fasi", chiave: "fasi.work_start_date", candidati: [
+      { valore: "2026-11-16", fiducia: 0.9, stato: "attenzione", fonte: fonte1 },
+      { valore: "2026-11-23", fiducia: 0.9, stato: "attenzione", fonte: fonte2 },
+    ] }] as never;
+    let ora = p;
+    for (const m of conConseguenze(p, [{ tipo: "scegli_fonte", area: "fasi", chiave: "fasi.work_start_date", fonte: "documento", idFonte: null, etichettaFonte: "capitolato.pdf" }], "2026-11-02")) ora = applica(ora, m).piano;
+    expect(ora.aree.fasi?.["fasi.work_start_date"]?.valore).toBe("2026-11-23");
+    expect((ora.aree.fasi?.["fasi.order_work_phases"]?.valore as { start_date: string }[])[0].start_date).toBe("2026-11-23");
+  });
+
   it("la stessa data non sposta niente", () => {
     const m = conConseguenze(piano(), [{ tipo: "cambia_valore", area: "fasi", chiave: "fasi.work_start_date", valore: "2026-12-01" }]);
     expect(m).toHaveLength(1);

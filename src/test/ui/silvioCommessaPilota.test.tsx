@@ -44,12 +44,12 @@ function dbImpostazioni() {
 }
 
 describe("Impostazioni → Silvio e le commesse", () => {
-  it("tutte le azioni a «Chiede»; «Da solo» spento dove non si può; il salvataggio manda livelli, soglia e calendario", async () => {
+  it("tutte le azioni a «Chiede»; «Da solo» non c'è dove non si può; il salvataggio manda livelli, soglia e calendario", async () => {
     const db = dbImpostazioni();
     avvolgi(<SettingsSilvioCommesse db={db} />);
     const ditte = await screen.findByRole("radiogroup", { name: "Assegnare le ditte alle fasi" });
     expect(within(ditte).getByRole("radio", { name: "Chiede" })).toHaveAttribute("aria-checked", "true");
-    expect(within(ditte).getByRole("radio", { name: "Da solo" })).toBeDisabled();
+    expect(within(ditte).queryByRole("radio", { name: "Da solo" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("radiogroup")).toHaveLength(9);
     expect(screen.getByText(/Sempre tu, mai Silvio da solo: firma dei contratti/)).toBeInTheDocument();
 
@@ -86,13 +86,16 @@ describe("Impostazioni → Silvio e le commesse", () => {
 });
 
 describe("Quanto lavora Silvio", () => {
-  it("senza dati: zero e «ancora nessun dato», mai numeri inventati", async () => {
+  it("senza commesse: una frase al posto dei riquadri a zero, mai numeri inventati", async () => {
     avvolgi(<QuantoLavoraSilvio companyId="c" leggi={async () => quantoLavoraDaRisposta({ dal: "2026-08-04", al: "2026-11-01" })} />);
-    expect(await screen.findByText(/ancora nessun dato: i numeri arrivano/)).toBeInTheDocument();
-    expect(screen.getByText("Commesse create").nextSibling).toHaveTextContent("0");
-    expect(screen.getByText("Completezza media").nextSibling).toHaveTextContent("—");
-    expect(screen.getByText("Proposte tenute così").nextSibling).toHaveTextContent("—");
-    expect(screen.getByText("Tempo risparmiato").nextSibling).toHaveTextContent("0 min");
+    expect(await screen.findByText(/Ancora nessuna commessa creata o completata con Silvio/)).toBeInTheDocument();
+    expect(screen.queryByText("Commesse create")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Costo AI/)).not.toBeInTheDocument();
+  });
+
+  it("senza commesse ma con letture già pagate: il costo si dice comunque", async () => {
+    avvolgi(<QuantoLavoraSilvio companyId="c" leggi={async () => quantoLavoraDaRisposta({ dal: "2026-08-04", al: "2026-11-01", costo_ai_eur: 0.26 })} />);
+    expect(await screen.findByText(/Costo AI finora: 0,26/)).toBeInTheDocument();
   });
 
   it("coi dati: i numeri della RPC, la regola della stima, le commesse a pagine", async () => {

@@ -19,6 +19,7 @@ import { areaDaPercorso, ruoloEffettivoPerArea, areeDisponibili as calcolaAree, 
 import type { AppArea } from "@/lib/auth/aree";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { erroreImpersonazione } from "@/lib/auth/erroreImpersonazione";
+import { avvisaAltreSchede } from "@/lib/auth/aziendaServer";
 
 /**
  * Velocity Protocol — V1/V2
@@ -60,6 +61,10 @@ interface AuthContextType extends AuthState {
   isImpersonationReady: boolean;
   impersonateCompany: (companyId: string, permissions?: { can_manage_companies: boolean; allowed_company_ids: string[] | null }) => Promise<string | null>;
   exitImpersonation: () => Promise<void>;
+  /** Il server torna sull'azienda di questa scheda. true se riuscito. */
+  riportaServerSuAzienda: () => Promise<boolean>;
+  /** Questa scheda passa all'azienda che il server sta già usando. true se riuscito. */
+  passaAdAziendaDelServer: (companyId: string) => Promise<boolean>;
   // Effective company (real or impersonated)
   effectiveCompany: Company | null;
   // Multi-company
@@ -1453,6 +1458,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Wipe the entire React Query cache so the new company's pages always
       // fetch fresh data instead of showing stale results from the previous context.
       queryClient.clear();
+      avvisaAltreSchede();
       return data.token;
     } catch (err) {
       logger.error("Impersonation error:", err);
@@ -1481,6 +1487,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear the cache so the admin panel doesn't show the impersonated
     // company's stale data after returning to the admin view.
     queryClient.clear();
+    avvisaAltreSchede();
   }, [queryClient]);
 
   // 15/09/2026: tolto il keepalive su subscription_plans (una SELECT ogni 4
@@ -1897,6 +1904,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     queryClient.clear();
+    avvisaAltreSchede();
     toast.success("Azienda cambiata", {
       description: found.company?.name ?? "Il contesto aziendale è stato aggiornato.",
     });
@@ -1905,6 +1913,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // TUTTO l'AuthContext ("Compilation Skipped"). L'oggetto cambia solo sugli
   // eventi auth, quindi il callback si ricrea con la stessa frequenza di prima.
   }, [multiCompanyAccesses, queryClient, selectedMultiCompanyId, state.user]);
+
+  // Le due azioni dell'avviso «azienda diversa dal server». Per chi è entrato in
+  // un'azienda, impersonateCompany fa tutte e due: riscrive la riga letta dal
+  // server e dà a questa scheda un token valido (quello vecchio è stato revocato
+  // da chi ha cambiato azienda). set_active_company(null) riporta sull'azienda
+  // primaria; switchMultiCompany qui non serve perché non fa nulla se la scelta
+  // della scheda non cambia, ed è proprio il caso da riallineare.
+  const riportaServerSuAzienda = useCallback(async (): Promise<boolean> => {
+    if (impersonatedCompanyId) {
+      return (await impersonateCompany(impersonatedCompanyId)) !== null;
+    }
+    const { error } = await supabase.rpc("set_active_company", {
+      p_company_id: selectedMultiCompanyId as string,
+    });
+    if (error) {
+      toast.error("Riallineamento non riuscito", { description: userErrorMessage(error) });
+      return false;
+    }
+    // invalidate e non clear: qui il contesto non cambia, e dopo un clear le query
+    // già montate non si rileggerebbero.
+    void queryClient.invalidateQueries();
+    avvisaAltreSchede();
+    return true;
+  }, [impersonatedCompanyId, impersonateCompany, queryClient, selectedMultiCompanyId]);
+
+  const passaAdAziendaDelServer = useCallback(async (companyId: string): Promise<boolean> => {
+    if (impersonatedCompanyId) {
+      return (await impersonateCompany(companyId)) !== null;
+    }
+    // Fra gli accessi c'è anche l'azienda del profilo. Se manca, switchMultiCompany
+    // lo dice all'utente.
+    await switchMultiCompany(companyId);
+    return multiCompanyAccesses.some((a) => a.company_id === companyId);
+  }, [impersonatedCompanyId, impersonateCompany, multiCompanyAccesses, switchMultiCompany]);
 
   // isImpersonating is true as soon as impersonatedCompanyId is set (not waiting for impersonatedCompany
   // to be fetched). This prevents the route guard from redirecting the superadmin to /admin
@@ -1995,6 +2037,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isImpersonationReady,
       impersonateCompany,
       exitImpersonation,
+      riportaServerSuAzienda,
+      passaAdAziendaDelServer,
       effectiveCompany,
       multiCompanyAccesses,
       multiCompanyLoaded,
@@ -2004,7 +2048,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       viewAsUserId,
       setViewAsRole,
     }),
-    [state, impersonationRelayPending, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
+    [state, impersonationRelayPending, ruoloArea, areaCorrente, areeDisponibili, puoCambiareArea, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, riportaServerSuAzienda, passaAdAziendaDelServer, effectiveCompany, multiCompanyAccesses, multiCompanyLoaded, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (

@@ -15,7 +15,9 @@ export { MATERIALI } from "./materiali";
 export {
   ALTEZZA_OCCHI,
   apertureDelLocale,
+  localeAllaPosizione,
   metadatiFotogramma,
+  passoLibero,
   proietta,
   vistaDallAlto,
   vistaDalGiardino,

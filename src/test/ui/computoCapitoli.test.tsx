@@ -3,9 +3,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ComputoNativoEditor from "@/components/computo/ComputoNativoEditor";
 import { bozzaVuota, leggiBozzaComputo, voceVuota } from "@/lib/computo/editorNativo";
 
-vi.mock("@/components/ristrutturazione/ComputoEditor/AddVocePicker", () => ({ default: ({ onPick }: { onPick: (v: unknown) => void }) => <>
-  <button onClick={() => onPick({ descrizione: "Intonaco dal listino", unita_misura: "mq", prezzo_unitario: 24.5, costo_materiali: 5, costo_manodopera: 10, capitolo_nome: "Finiture", fonte: "Prezzario di prova", codice_tariffa: "TEST.123" })}>Scegli voce di prova</button>
-  <button onClick={() => onPick({ descrizione: "Scavo dal prezzario", unita_misura: "corpo", unita_originale: "mc", quantita: 2, prezzo_unitario: 133, capitolo_nome: "Scavi", fonte: "Fonte volume", codice_tariffa: "VOL.1" })}>Scegli voce a volume</button>
+vi.mock("@/components/ristrutturazione/ComputoEditor/AddVocePicker", () => ({ default: ({ onPick }: { onPick: (v: unknown[]) => void }) => <>
+  <button onClick={() => onPick([{ descrizione: "Intonaco dal listino", unita_misura: "mq", prezzo_unitario: 24.5, costo_materiali: 5, costo_manodopera: 10, capitolo_nome: "Finiture", fonte: "Prezzario di prova", codice_tariffa: "TEST.123" }])}>Scegli voce di prova</button>
+  <button onClick={() => onPick([{ descrizione: "Scavo dal prezzario", unita_misura: "corpo", unita_originale: "mc", quantita: 2, prezzo_unitario: 133, capitolo_nome: "Scavi", fonte: "Fonte volume", codice_tariffa: "VOL.1" }])}>Scegli voce a volume</button>
 </> }));
 beforeEach(() => { localStorage.clear(); HTMLElement.prototype.scrollIntoView = vi.fn(); });
 describe("computo a capitoli come il flusso Ristrutturazione", () => {

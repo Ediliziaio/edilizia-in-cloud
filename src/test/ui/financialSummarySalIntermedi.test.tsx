@@ -32,8 +32,9 @@ afterEach(cleanup);
 describe("il modulo della commessa con un SAL intermedio", () => {
   it("mostra tutte le rate: l'acconto e il SAL hanno il loro campo, il saldo è il residuo", () => {
     mostra();
-    expect(screen.getByText("Acconto 30%")).toBeInTheDocument();
-    expect(screen.getByText("SAL 40%")).toBeInTheDocument();
+    // Dal 04/11/2026 il nome della rata si scrive: non è più testo, è il valore di un campo.
+    expect(screen.getByDisplayValue("Acconto 30%")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("SAL 40%")).toBeInTheDocument();
     // campi: totale, acconto, SAL
     expect(campiImporto().slice(1).map((c) => c.value)).toEqual(["300,00", "400,00"]);
     // Saldo da pagare = 1000 − 300 − 400

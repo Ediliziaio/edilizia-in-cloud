@@ -7,7 +7,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { Box, Building, Download, Eye, Map as MappaIcona, Rotate3d } from "lucide-react";
+import { Box, Building, Cable, Download, Eye, Layers, Map as MappaIcona, Rotate3d, Sparkles, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,6 +22,8 @@ import {
   vistaDallAlto,
   vistaDentroLocale,
   vistaGiroIntorno,
+  localeAllaPosizione,
+  passoLibero,
   type PiantaPer3D,
   type PianoPer3D,
   type Scena3D,
@@ -29,7 +31,10 @@ import {
   type Vista3D as VistaLavori,
 } from "@/lib/planimetrie/tred";
 import { catturaFotogramma, type Fotogramma } from "./tred/fotogramma";
+import { esplodiInStrati } from "@/lib/planimetrie/tred/esploso";
 import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./tred/scenaThree";
+import { creaAspetto, FACCIATE, ID_FACCIATE, ID_INFISSI, INFISSI, type Aspetto, type OpzioniAspetto } from "./tred/aspetto";
+import { leggiAspetto, salvaAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
 export type ModoVista = "alto" | "giro" | "dentro";
 
@@ -49,6 +54,8 @@ export interface Vista3DProps {
   localeIniziale?: string;
   /** Tutti i piani (dal più basso): con due o più compare «Tutto l'edificio». */
   piani?: PianoPer3D[];
+  /** Scelte di partenza dell'aspetto realistico (facciata, infissi, ora…). */
+  aspettoIniziale?: Partial<OpzioniAspetto>;
 }
 
 export interface Vista3DHandle {
@@ -65,6 +72,7 @@ interface Motore {
   controlli: OrbitControls | null;
   gruppo: THREE.Group | null;
   ambiente: ReturnType<typeof preparaAmbiente>;
+  aspetto: Aspetto;
   disegna: () => void;
 }
 
@@ -79,7 +87,7 @@ function scarica(dati: BlobPart, nome: string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma, modoIniziale = "giro", vistaIniziale = "progetto", localeIniziale, piani }, ref) {
+const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piante, nomeFile = "planimetria", className, onFotogramma, modoIniziale = "giro", vistaIniziale = "progetto", localeIniziale, piani, aspettoIniziale }, ref) {
   const contenitore = useRef<HTMLDivElement>(null);
   const motore = useRef<Motore | null>(null);
   const [vista, setVista] = useState<VistaLavori>(vistaIniziale);
@@ -91,6 +99,12 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   );
   const [soffitto, setSoffitto] = useState(modoIniziale === "dentro");
   const [arredi, setArredi] = useState(true);
+  const [impianti, setImpianti] = useState(false);
+  const [fondazioni, setFondazioni] = useState(false);
+  // Aspetto realistico: tessiture, cielo, ora del giorno, alberi, ombre negli angoli. Sul telefono gli effetti pesanti partono spenti.
+  // Le scelte si ricordano nel browser: valgono anche per i render esterni con l'AI.
+  const [asp, setAsp] = useState<OpzioniAspetto>(() => ({ ...leggiAspetto(), ...aspettoIniziale }));
+  const cambiaAsp = (campi: Partial<OpzioniAspetto>) => setAsp((a) => { const n = { ...a, ...campi }; salvaAspetto(n); return n; });
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -104,15 +118,20 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   const conPiani = (piani?.length ?? 0) > 1;
   const [edificio, setEdificio] = useState(false);
   const [esploso, setEsploso] = useState(false);
+  // Vista esplosa a strati: platea, pavimenti, pareti, soffitti e tetto staccati lungo l'altezza.
+  const [strati, setStrati] = useState(false);
+  const [distanzaStrati, setDistanzaStrati] = useState(1.6);
   const [finoA, setFinoA] = useState<string>("");
   const tuttiIPiani = conPiani && edificio;
-  const scena: Scena3D = useMemo(
+  const strutturaStrati = strati && modo !== "dentro";
+  const scenaBase: Scena3D = useMemo(
     () =>
       tuttiIPiani
-        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
-        : costruisciScena(pianta, { vista, soffitto, elementi: arredi }),
-    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, esploso, finoA],
+        ? scenaEdificio(piani!, { vista, soffitto, elementi: arredi, impianti, fondazioni, esploso: esploso ? 3 : 0, finoA: finoA || undefined })
+        : costruisciScena(pianta, { vista, soffitto, elementi: arredi, impianti, fondazioni }),
+    [tuttiIPiani, piani, pianta, vista, soffitto, arredi, impianti, fondazioni, esploso, finoA],
   );
+  const scena: Scena3D = useMemo(() => (strutturaStrati ? esplodiInStrati(scenaBase, distanzaStrati) : scenaBase), [scenaBase, strutturaStrati, distanzaStrati]);
 
   // Avvio di three.js, una volta.
   useEffect(() => {
@@ -132,7 +151,8 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     const scene = new THREE.Scene();
     const ambiente = preparaAmbiente(renderer, scene);
     const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
-    const m: Motore = { renderer, scene, camera, controlli: null, gruppo: null, ambiente, disegna: () => renderer.render(scene, camera) };
+    const aspetto = creaAspetto({ renderer, scene, camera });
+    const m: Motore = { renderer, scene, camera, controlli: null, gruppo: null, ambiente, aspetto, disegna: () => aspetto.disegna() };
     motore.current = m;
     const ridimensiona = () => {
       const w = Math.max(1, div.clientWidth);
@@ -142,6 +162,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       renderer.domElement.style.height = "100%";
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      aspetto.dimensiona(w, h);
       m.disegna();
     };
     const ro = new ResizeObserver(ridimensiona);
@@ -151,6 +172,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       ro.disconnect();
       m.controlli?.dispose();
       if (m.gruppo) liberaGruppo(m.gruppo);
+      aspetto.libera();
       ambiente.libera();
       renderer.dispose();
       renderer.domElement.remove();
@@ -171,6 +193,15 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     adattaAmbiente(m.ambiente, scena);
     m.disegna();
   }, [scena]);
+
+  // L'aspetto (materiali, cielo, sole, alberi) si rifà quando cambia la scena, il modo o le sue scelte.
+  useEffect(() => {
+    const m = motore.current;
+    if (!m || !m.gruppo) return;
+    adattaAmbiente(m.ambiente, scena);
+    m.aspetto.applica(m.gruppo, scena, { ...asp, dentro: modo === "dentro" }, m.ambiente);
+    m.disegna();
+  }, [scena, asp, modo]);
 
   // Con tutto l'edificio non si entra nelle stanze (sono del piano scelto): si gira intorno.
   useEffect(() => {
@@ -226,12 +257,22 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
     if (dir.lengthSq() < 1e-6) return;
     dir.normalize();
     const destra = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0));
-    const passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    let passo = dir.multiplyScalar(avanti * PASSO).add(destra.multiplyScalar(lato * PASSO));
+    // i muri bloccano: se il passo li attraversa si prova a scivolare lungo il muro, altrimenti ci si ferma
+    const da = m.camera.position;
+    const verso = (v: THREE.Vector3) => passoLibero(pianta, vista, [da.x, da.y, da.z], [da.x + v.x, da.y, da.z + v.z]);
+    if (!verso(passo)) {
+      const soloX = new THREE.Vector3(passo.x, 0, 0);
+      const soloZ = new THREE.Vector3(0, 0, passo.z);
+      if (verso(soloX)) passo = soloX;
+      else if (verso(soloZ)) passo = soloZ;
+      else return;
+    }
     m.camera.position.add(passo);
     m.controlli.target.add(passo);
     m.controlli.update();
     m.disegna();
-  }, []);
+  }, [pianta, vista]);
 
   useEffect(() => {
     const m = motore.current;
@@ -271,11 +312,15 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
 
   const fotogramma = useCallback(
     async (misure?: { larghezza: number; altezza: number }) => {
-      const id = locali.some((l) => l.id === localeId) ? localeId : locali[0]?.id;
+      const telecamera = telecameraAdesso();
+      // Dentro la casa il render è della stanza dove si trova la telecamera, non di quella scelta nell'elenco:
+      // si cammina da una stanza all'altra e si fa il render da dove si è.
+      const doveSono = modo === "dentro" ? localeAllaPosizione(pianta, telecamera.posizione) : null;
+      const id = doveSono ?? (locali.some((l) => l.id === localeId) ? localeId : locali[0]?.id);
       if (!id) throw new Error("La pianta non ha locali.");
-      return catturaFotogramma({ pianta, localeId: id, telecamera: telecameraAdesso(), vista, elementi: arredi, ...misure });
+      return catturaFotogramma({ pianta, localeId: id, telecamera, vista, elementi: arredi, ...misure });
     },
-    [pianta, locali, localeId, vista, arredi, telecameraAdesso],
+    [pianta, locali, localeId, vista, arredi, telecameraAdesso, modo],
   );
 
   useImperativeHandle(ref, () => ({ telecamera: telecameraAdesso, fotogramma }), [telecameraAdesso, fotogramma]);
@@ -315,18 +360,18 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare">
+        <ToggleGroup type="single" value={modo} onValueChange={cambiaModo} variant="outline" size="sm" aria-label="Come guardare" className="[&>*]:whitespace-nowrap">
           <ToggleGroupItem value="alto" aria-label="Vista dall'alto">
             <MappaIcona className="mr-1 h-4 w-4" />
             Dall'alto
           </ToggleGroupItem>
           <ToggleGroupItem value="giro" aria-label="Gira intorno">
             <Rotate3d className="mr-1 h-4 w-4" />
-            Gira intorno
+            <span className="max-sm:hidden">Gira intorno</span><span className="sm:hidden">Gira</span>
           </ToggleGroupItem>
           <ToggleGroupItem value="dentro" aria-label="Entra nella stanza" disabled={tuttiIPiani}>
             <Eye className="mr-1 h-4 w-4" />
-            Entra nella stanza
+            <span className="max-sm:hidden">Entra nella stanza</span><span className="sm:hidden">Dentro</span>
           </ToggleGroupItem>
         </ToggleGroup>
         {modo === "dentro" && locali.length > 0 && (
@@ -343,7 +388,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             </SelectContent>
           </Select>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2 max-md:hidden">
           <Button variant="outline" size="sm" disabled={occupato} onClick={() => esegui(() => scarica(esportaGlb(scena) as Uint8Array<ArrayBuffer>, `${nomeFile}.glb`, "model/gltf-binary"))}>
             <Download className="mr-1 h-4 w-4" />
             Scarica GLB
@@ -398,6 +443,15 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
             )}
           </div>
         )}
+        {modo !== "dentro" && (
+          <div className="flex items-center gap-2">
+            <Switch id="vista3d-strati" checked={strati} onCheckedChange={(v) => { setStrati(v); if (v) setSoffitto(true); }} />
+            <Label htmlFor="vista3d-strati" className="flex items-center gap-1"><Layers className="h-3.5 w-3.5" />Vista esplosa</Label>
+            {strati && (
+              <input type="range" min={0.5} max={4} step={0.1} value={distanzaStrati} onChange={(e) => setDistanzaStrati(Number(e.target.value))} aria-label="Distanza fra gli strati" className="h-1.5 w-24 accent-primary" />
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Switch id="vista3d-soffitto" checked={soffitto} onCheckedChange={setSoffitto} />
           <Label htmlFor="vista3d-soffitto">Soffitto</Label>
@@ -406,6 +460,47 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           <Switch id="vista3d-arredi" checked={arredi} onCheckedChange={setArredi} />
           <Label htmlFor="vista3d-arredi">Arredi e sanitari</Label>
         </div>
+        <div className="flex items-center gap-2">
+          <Switch id="vista3d-impianti" checked={impianti} onCheckedChange={setImpianti} />
+          <Label htmlFor="vista3d-impianti" className="flex items-center gap-1"><Cable className="h-3.5 w-3.5" />Impianti</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="vista3d-fondazioni" checked={fondazioni} onCheckedChange={setFondazioni} />
+          <Label htmlFor="vista3d-fondazioni">Fondazioni</Label>
+        </div>
+        {modo !== "dentro" && (
+          <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 border-t pt-2">
+            <div className="flex items-center gap-2">
+              <Switch id="vista3d-realistico" checked={asp.realistico} onCheckedChange={(v) => cambiaAsp({ realistico: v })} />
+              <Label htmlFor="vista3d-realistico" className="flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" />Aspetto realistico</Label>
+            </div>
+            {asp.realistico && (
+              <>
+                <Select value={asp.facciata} onValueChange={(v) => cambiaAsp({ facciata: v as OpzioniAspetto["facciata"] })}>
+                  <SelectTrigger className="h-8 w-44" aria-label="Facciata"><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
+                </Select>
+                <Select value={asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
+                  <SelectTrigger className="h-8 w-52" aria-label="Infissi"><SelectValue /></SelectTrigger>
+                  <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>Infissi: {INFISSI[id].nome.toLowerCase()}</SelectItem>)}</SelectContent>
+                </Select>
+                <div className="flex items-center gap-2">
+                  <Sun className="h-3.5 w-3.5" aria-hidden />
+                  <input type="range" min={7} max={19} step={0.25} value={asp.ora} onChange={(e) => cambiaAsp({ ora: Number(e.target.value) })} aria-label="Ora del giorno" className="h-1.5 w-28 accent-primary" />
+                  <span className="w-10 text-xs tabular-nums text-muted-foreground">{String(Math.floor(asp.ora)).padStart(2, "0")}:{String(Math.round((asp.ora % 1) * 60)).padStart(2, "0")}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch id="vista3d-alberi" checked={asp.alberi} onCheckedChange={(v) => cambiaAsp({ alberi: v })} />
+                  <Label htmlFor="vista3d-alberi">Alberi</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch id="vista3d-effetti" checked={asp.effetti} onCheckedChange={(v) => cambiaAsp({ effetti: v })} />
+                  <Label htmlFor="vista3d-effetti" title="Ombre morbide negli angoli: più bello, un po' più pesante">Ombre morbide</Label>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {modo === "dentro" && onFotogramma && (
           <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma()))}>
             Usa questa vista per il render
@@ -421,6 +516,17 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
         aria-label="Vista 3D della pianta"
       >
         {errore && <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">{errore}</div>}
+        {impianti && (scena.impianti?.length ?? 0) > 0 && (
+          <div className="pointer-events-none absolute bottom-3 left-3 max-w-[16rem] space-y-0.5 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
+            <p className="font-semibold">Impianti (percorsi stimati)</p>
+            {scena.impianti!.map((l) => (
+              <p key={l.linea} className="flex items-center gap-1.5">
+                <span className="inline-block h-1 w-4 rounded-full" style={{ background: l.colore }} />
+                {l.nome}: {l.metri.toLocaleString("it-IT")} m
+              </p>
+            ))}
+          </div>
+        )}
         {vista === "confronto" && (
           <div className="pointer-events-none absolute left-3 top-3 flex gap-3 rounded-md bg-white/85 px-2.5 py-1.5 text-xs text-neutral-700 shadow-sm">
             <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#f2c200]" />Da demolire</span>

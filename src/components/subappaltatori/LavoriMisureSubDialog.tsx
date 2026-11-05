@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { puoConsultareSalSub, puoScrivereSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -97,8 +98,8 @@ export function LavoriMisureSubDialog({
 }) {
   const p = usePermissions(),
     qc = useQueryClient();
-  const lettura = p.canViewCosts && p.canViewSubappaltatoriAmministrazione;
-  const scrittura = lettura && p.canEditOrders && !p.solaLettura;
+  const lettura = puoConsultareSalSub(p);
+  const scrittura = puoScrivereSalSub(p);
   const [tab, setTab] = useState<"lavori" | "misure" | "sal">(sezioneIniziale);
   const [modifica, setModifica] = useState(false),
     [bozza, setBozza] = useState<Bozza[]>([]);

@@ -145,7 +145,12 @@ describe("4.1 Proposte gialle", () => {
 
   it("senza fasi non si propone niente; senza date si propone ma lo si dice", () => {
     expect(proposteRisorse(pianoVuoto(AZIENDA), contesto())).toBeNull();
-    const fr = proposteRisorse(pianoConFasi([{ name: "Demolizioni", giorni: 3, giorno_inizio: 1 }]), contesto())!;
+    // Senza l'inizio lavori: con l'inizio, `fondi` dà le date alle fasi che hanno la durata.
+    const senzaInizio = fondi(pianoVuoto(AZIENDA), {
+      fonte: { tipo: "computo", id: "c-1", etichetta: "Computo bagno" },
+      aree: { fasi: { "fasi.order_work_phases": v([{ name: "Demolizioni", giorni: 3, giorno_inizio: 1 }]) } },
+    });
+    const fr = proposteRisorse(senzaInizio, contesto())!;
     const [p] = elenco<PersonaDelPiano>(fr, "persone", "persone.squadra");
     expect(p).toMatchObject({ stato: "proposta", dal: null, avviso: expect.stringMatching(/non hanno ancora le date/) });
   });
@@ -268,7 +273,7 @@ describe("4.3 Bozze rosse, mai inviate", () => {
     expect(dataOrdine("2026-12-07", null)).toBe("2026-12-07");
     expect(dataOrdine(null, 10)).toBeNull();
     const [o] = elenco<OdaDelPiano>(proposteRisorse(pianoConFasi(FASI), contesto({ oggi: "2026-11-30" })), "materiali", "materiali.acquisti");
-    expect(o).toMatchObject({ stato: "proposta", avviso: "andava ordinato il 27/11: chiedi al fornitore se ce la fa" });
+    expect(o).toMatchObject({ stato: "proposta", avviso: "da ordinare subito, andava ordinato entro il 27 nov: chiedi al fornitore se ce la fa" });
   });
 
   it("il contratto c'è per ogni ditta proponibile, con l'elenco dei lavori; la ditta senza subappaltatore è ⚠", () => {

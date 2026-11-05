@@ -111,7 +111,7 @@ export function useMarginData(): MarginData {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
-        .select("amount, category, recurrence, recurrence_end_date, allocations")
+        .select("amount, category, recurrence, recurrence_end_date, allocations, quota_magazzino")
         .eq("company_id", companyId!)
         .eq("cost_type", "fixed")
         // Un costo con order_id è già nel consuntivo diretto della commessa:
@@ -213,7 +213,7 @@ export function useMarginData(): MarginData {
   // lo scorporo IVA di prima SOTTOSTIMAVA i costi fissi del break-even.
   const fixedCostsByCategory = new Map<string, number>();
   (fixedCostsRaw || []).forEach(cost => {
-    const monthly = quotaNonRipartita(cost.amount, cost.allocations) * recurrenceMultiplier(cost.recurrence);
+    const monthly = quotaNonRipartita(cost.amount, cost.allocations, cost.quota_magazzino) * recurrenceMultiplier(cost.recurrence);
     const cat = cost.category || "Altro";
     fixedCostsByCategory.set(cat, (fixedCostsByCategory.get(cat) || 0) + monthly);
   });

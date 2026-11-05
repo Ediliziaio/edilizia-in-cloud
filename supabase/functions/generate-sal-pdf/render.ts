@@ -116,11 +116,33 @@ const STATO_LABELS: Record<string, string> = {
  *   quanto era già maturato e quanto matura con questo SAL.
  * - aliquotaIva: per mostrare IVA e totale della quota nuova.
  * - importoContratto: importo della commessa, per «resta da eseguire».
+ * - foto: le foto di cantiere scelte per questo verbale, con un indirizzo già firmato.
+ * - allegati: i documenti che accompagnano il verbale, per nome.
  */
 export interface SalExtra {
   vociPrecedenti?: Record<string, number> | null;
   aliquotaIva?: number | null;
   importoContratto?: number | null;
+  foto?: FotoVerbale[] | null;
+  allegati?: string[] | null;
+}
+
+export interface FotoVerbale { url: string; data: string | null; didascalia: string | null }
+
+/** Una pagina a sé dopo le firme: il verbale resta leggibile anche senza. */
+export function buildFotoEAllegatiHtml(foto: FotoVerbale[], allegati: string[], colore: string): string {
+  if (!foto.length && !allegati.length) return "";
+  const titolo = (t: string) => `<div style="font-size:9pt;font-weight:700;color:${colore};text-transform:uppercase;letter-spacing:.5px;padding-bottom:4px;border-bottom:1.5px solid ${colore};margin-bottom:10px;">${t}</div>`;
+  const celle = foto.map((f, i) => `
+    <figure style="margin:0;break-inside:avoid;">
+      <img src="${escHtml(f.url)}" alt="Foto ${i + 1}" style="width:100%;height:180px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;display:block;" />
+      <figcaption style="font-size:7.5pt;color:#64748b;margin-top:3px;">${[`Foto ${i + 1}`, f.data ? fmtDate(f.data) : null, f.didascalia ? escHtml(f.didascalia) : null].filter(Boolean).join(" · ")}</figcaption>
+    </figure>`).join("");
+  return `
+  <div style="break-before:page;padding-top:4px;">
+    ${foto.length ? `${titolo("Documentazione fotografica")}<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px;">${celle}</div>` : ""}
+    ${allegati.length ? `${titolo("Allegati al verbale")}<ol style="margin:0 0 14px 18px;font-size:9pt;line-height:1.7;">${allegati.map((a) => `<li>${escHtml(a)}</li>`).join("")}</ol>` : ""}
+  </div>`;
 }
 
 export const chiaveVoce = (d: string | null | undefined) => (d ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -207,14 +229,14 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
 <div class="page">
 
   <!-- Intestazione: impresa e logo -->
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:14px;border-bottom:3px solid ${colore};">
+  <div style="display:flex;align-items:center;gap:16px;padding-bottom:14px;border-bottom:3px solid ${colore};">
+    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ""}
     <div>
       <div style="font-size:13pt;font-weight:700;color:#0f172a;">${escHtml(azienda.ragione_sociale)}</div>
       <div style="font-size:7.5pt;color:#64748b;margin-top:2px;line-height:1.5;">
         ${[azienda.partita_iva ? `P.IVA ${escHtml(azienda.partita_iva)}` : "", escHtml(indirizzo), azienda.telefono ? `Tel. ${escHtml(azienda.telefono)}` : "", escHtml(azienda.email)].filter(Boolean).join(" · ")}
       </div>
     </div>
-    ${azienda.logo_url ? `<img src="${escHtml(azienda.logo_url)}" alt="Logo" style="max-height:56px;max-width:170px;object-fit:contain;" />` : ""}
   </div>
 
   <!-- Titolo -->
@@ -310,6 +332,8 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
       <div style="margin-top:4px;font-size:7pt;color:#94a3b8;">Firma e timbro · luogo e data ____________</div>`}
     </div>`).join("")}
   </div>
+
+  ${buildFotoEAllegatiHtml(extra.foto ?? [], extra.allegati ?? [], colore)}
 
   <!-- Piè di pagina -->
   <div style="margin-top:30px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8;">

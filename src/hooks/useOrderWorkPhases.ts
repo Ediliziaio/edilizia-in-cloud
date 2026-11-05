@@ -757,8 +757,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
 
   const deleteAssignment = useMutation({
     mutationFn: async ({ id, source }: { id: string; source: AssignmentSource }) => {
-      const table = source === "employee" ? "order_employees" : "order_external_teams";
-      const { error } = await db.from(table).delete().eq("id", id);
+      // Da una funzione del database: col DELETE diretto chi non è amministratore non toglieva niente, senza errori.
+      const { error } = await db.rpc("togli_assegnazione", { p_source: source === "employee" ? "employee" : "team", p_id: id });
       if (error) throw error;
     },
     onSuccess: invalidate,

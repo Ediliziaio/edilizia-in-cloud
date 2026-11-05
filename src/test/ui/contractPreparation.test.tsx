@@ -21,7 +21,7 @@ describe("conferme del contratto nel modulo", () => {
   it("IVA e rate assenti non diventano 22%, due rate, saldo o totale ivato", () => {
     render(<FinancialSummary daContratto nuova totalAmount="1000" vatRate="" paymentType="standard" installments={[]} numInstallments={0} balance={0} onInstallmentsChange={vi.fn()} onNumInstallmentsChange={vi.fn()} onTotalAmountChange={vi.fn()} onVatRateChange={vi.fn()} onPaymentTypeChange={vi.fn()} />);
     expect(screen.getByRole("combobox",{name:"Aliquota IVA"})).toHaveTextContent("Da confermare dal contratto");
-    expect(screen.getByText("Da confermare · nessuna rata impostata")).toBeVisible();
+    expect(screen.getByText("Nessuna rata: da confermare dal contratto")).toBeVisible();
     expect(screen.queryByText("Saldo da Pagare")).not.toBeInTheDocument();
     expect(screen.getByText("Da definire dopo conferma IVA")).toBeVisible();
     expect(screen.getByRole("tab",{name:"IVA Inclusa"})).toBeDisabled();

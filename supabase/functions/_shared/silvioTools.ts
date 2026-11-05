@@ -23,6 +23,8 @@ import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts"
 import { normalizzaStatoPreventivo } from "./statoPreventivo.ts";
 import { buildDdtCarico } from "./ddtCarico.ts";
 import { silvioOrderReport } from "./silvioOrderReport.ts";
+import { silvioCalcolaPiano, silvioPrevediRitardi } from "./silvioPianoCantiere.ts";
+import { compattaCarico } from "./allocazioneOperai.ts";
 import { silvioQuadroCommessa } from "./silvioQuadroCommessa.ts";
 import { silvioSiteHealth } from "./silvioSiteHealth.ts";
 import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
@@ -231,13 +233,13 @@ const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
 /**
  * Token-opt: legenda UNICA dei contratti/rischi, da appendere UNA volta al
  * system prompt dei caller che usano `toolsToOpenAISpec`. Le description dei
- * tool portano solo un tag compatto `[contratto:<dominio>|rischio:<livello>]`
- * (~25 char) invece di ~200 char ripetuti su ~185 tool (≈ -9K token/richiesta).
+ * tool portano solo un tag compatto `[<dominio>]`, col `|rischio:<livello>` se non e safe
+ * (~10 char) invece di ~200 char ripetuti su ~185 tool (≈ -9K token/richiesta).
  */
 export const TOOL_CONTRACT_LEGEND = [
   "",
   "## LEGENDA TOOL (tag compatti nelle description)",
-  "Ogni tool ha un tag `[contratto:<dominio>|rischio:<livello>]` (oppure `Contratto: ...` esplicito + `[rischio:...]`).",
+  "Ogni tool ha un tag `[<dominio>]` oppure `[<dominio>|rischio:<livello>]` (o `Contratto: ...` esplicito + `[rischio:...]`). Senza `rischio` il livello e safe.",
   "Contratto per dominio = come interpretare l'output del tool:",
   ...Object.entries(DOMAIN_RESULT_CONTRACTS).map(([d, c]) => `- ${d}: ${c}`),
   "- default: sintetizza dati in decisione operativa con perimetro, limiti e prossima azione.",
@@ -259,7 +261,7 @@ function enrichToolSchemaForLLM(tool: SilvioTool) {
     // restano inline. Per tutti gli altri solo il tag, spiegato in TOOL_CONTRACT_LEGEND.
     tool.resultContract
       ? `Contratto: ${tool.resultContract}\n[rischio:${risk}]`
-      : `[contratto:${contractKey}|rischio:${risk}]`,
+      : risk === "safe" ? `[${contractKey}]` : `[${contractKey}|rischio:${risk}]`,
   ].filter(Boolean).join("\n");
 
   if (schema?.function) {
@@ -950,13 +952,15 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_employees_workload",
-        description: "Ritorna carico di lavoro per ogni operaio attivo: ore lavorate ultimi 30gg, ordini attivi, % utilizzo, stato (libero/leggero/medio/pieno/overload, oppure ore_mancanti se la scheda non ha le ore contrattuali: in quel caso dillo e invita a completarla). Usa per 'chi è libero', 'carico operai', 'chi posso assegnare', 'team in overload'.",
-        parameters: { type: "object", properties: {}, required: [] },
+        description: "Carico di ogni persona attiva: ore da rapportini per data di lavoro negli ultimi 30 giorni, commesse su cui è impegnata (impegni), assenze, stato (libero/leggero/medio/pieno/overload, impegnato se è già su una commessa nel periodo, assente, ore_mancanti se la scheda non ha le ore contrattuali). Senza date guarda oggi: passa dal e al per sapere chi è libero in un periodo. Zero ore può voler dire solo che non scrive rapportini. role_type staff_interno o impiegato è ufficio, subappaltatore è una ditta: non contarli come operai.",
+        parameters: { type: "object", properties: { dal: { type: "string", format: "date", description: "Primo giorno del periodo" }, al: { type: "string", format: "date", description: "Ultimo giorno del periodo" } }, required: [] },
       },
     },
-    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_employees_workload", {
+    executor: async (args, ctx) => compattaCarico(await callRpc(ctx.supabase, "silvio_employees_workload", {
       p_company_id: ctx.companyId,
-    }),
+      p_dal: args?.dal ?? null,
+      p_al: args?.al ?? null,
+    })),
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "hr", "assistente_imprenditore"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
@@ -4513,6 +4517,49 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "cantiere",
   },
 
+  calcola_piano_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "calcola_piano_cantiere",
+        description: "Calcola per UNA commessa quante ore e quanti operai servono per fase per finire entro una data, chi è libero, quali mezzi, quanto margine resta e quando finirà al ritmo attuale, con la fonte di ogni numero. Usalo SEMPRE per 'quanti operai servono', 'chi metto', 'ce la faccio entro', 'quanto margine faccio'. Non assegna nessuno.",
+        parameters: {
+          type: "object",
+          properties: {
+            commessa_codice: { type: "string", description: "Codice della commessa (es. O-0002)" },
+            order_id: { type: "string", description: "Id della commessa aperta nella pagina, se lo conosci" },
+            data_fine: { type: "string", format: "date", description: "Entro quando finire. Se manca vale la fine prevista della commessa" },
+            costo_orario: { type: "number", description: "Solo se l'utente lo dice" },
+            ore_giorno: { type: "number", description: "Solo se l'utente lo dice" },
+          },
+        },
+      },
+    },
+    executor: silvioCalcolaPiano,
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  prevedi_ritardi_cantieri: {
+    schema: {
+      type: "function",
+      function: {
+        name: "prevedi_ritardi_cantieri",
+        description: "Prevede quali commesse aperte finiranno in ritardo al ritmo attuale e dice quali non si possono prevedere e perché. Usalo per 'quali cantieri finiranno in ritardo'. Per i ritardi di oggi usa analizza_stato_commesse.",
+        parameters: { type: "object", properties: {} },
+      },
+    },
+    executor: silvioPrevediRitardi,
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
   report_commessa: {
     schema: {
       type: "function",
@@ -8041,43 +8088,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
-  // MP-HR-03 — Allocazione Operai Ottimale (5 tool)
+  // MP-HR-03 — tolti il 2/11/2026: leggevano employee_skills, sempre vuota, o rimandavano a una funzione mai scritta. Il carico vero è get_employees_workload.
   // ═════════════════════════════════════════════════════════════════════════
 
-  suggerisci_squadra_cantiere: {
-    schema: { type: "function", function: { name: "suggerisci_squadra_cantiere", description: "Suggerisce top-N operai per un cantiere/lavorazione basato su skill + productivity score.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, lavorazione: { type: "string" }, team_size: { type: "integer", default: 3 } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_suggerisci_squadra_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_lavorazione: args?.lavorazione ?? null, p_team_size: args?.team_size ?? 3 }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
-  },
 
-  analizza_competenze_operaio: {
-    schema: { type: "function", function: { name: "analizza_competenze_operaio", description: "Skill matrix di un operaio (proficiency, ore, productivity per skill).", parameters: { type: "object", properties: { employee_id: { type: "string" } }, required: ["employee_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_competenze_operaio", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
-  },
 
-  aggiorna_skill_da_rapportini: {
-    schema: { type: "function", function: { name: "aggiorna_skill_da_rapportini", description: "Aggiorna employee_skills.productivity_score aggregando rapportini periodo.", parameters: { type: "object", properties: { employee_id: { type: "string" }, period_start: { type: "string", format: "date" }, period_end: { type: "string", format: "date" } }, required: ["employee_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_aggiorna_skill_da_rapportini", { p_company_id: ctx.companyId, p_employee_id: args?.employee_id, p_period_start: args?.period_start ?? null, p_period_end: args?.period_end ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "hr"], riskLevel: "yellow", domain: "hr",
-  },
 
-  top_performer_lavorazione: {
-    schema: { type: "function", function: { name: "top_performer_lavorazione", description: "Top-N performer per skill_key.", parameters: { type: "object", properties: { skill_key: { type: "string" }, top_n: { type: "integer", default: 5 } }, required: ["skill_key"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_top_performer_lavorazione", { p_company_id: ctx.companyId, p_skill_key: args?.skill_key, p_top_n: args?.top_n ?? 5 }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "capocantiere", "*"], riskLevel: "safe", domain: "hr",
-  },
 
-  analizza_squadra_storia: {
-    schema: { type: "function", function: { name: "analizza_squadra_storia", description: "Storia performance squadra (employee_ids → media produttività/qualità).", parameters: { type: "object", properties: { employee_ids: { type: "array", items: { type: "string" } } }, required: ["employee_ids"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_squadra_storia", { p_company_id: ctx.companyId, p_employee_ids: args?.employee_ids }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "hr", "*"], riskLevel: "safe", domain: "hr",
-  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // MP-HR-04 — Sicurezza Operai DPI/Formazione/Visite (6 tool)
@@ -8126,43 +8143,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
-  // MP-OPS-07 — Pianificazione Multi-Cantiere (5 tool)
+  // MP-OPS-07 — tolti il 2/11/2026: scrivevano in cantiere_allocations, che nessuna pagina legge. Le assegnazioni vere sono in order_employees.
   // ═════════════════════════════════════════════════════════════════════════
 
-  pianifica_cantiere: {
-    schema: { type: "function", function: { name: "pianifica_cantiere", description: "Crea allocazioni cantiere (employees/subcontractors/mezzi).", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, resources: { type: "array", items: { type: "object" } }, start_date: { type: "string", format: "date" }, end_date: { type: "string", format: "date" } }, required: ["cantiere_id", "resources"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_pianifica_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_resources: args?.resources, p_start_date: args?.start_date ?? null, p_end_date: args?.end_date ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "yellow", domain: "cantiere",
-  },
 
-  ottimizza_allocazioni_settimana: {
-    schema: { type: "function", function: { name: "ottimizza_allocazioni_settimana", description: "AI ottimizza allocazioni per settimana (scenario: balanced|max_throughput|min_overtime).", parameters: { type: "object", properties: { start_date: { type: "string", format: "date" }, scenario: { type: "string" } } } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_ottimizza_allocazioni_settimana", { p_company_id: ctx.companyId, p_start_date: args?.start_date ?? null, p_scenario: args?.scenario ?? "balanced" }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.06,
-  },
 
-  identifica_conflitti_allocazione: {
-    schema: { type: "function", function: { name: "identifica_conflitti_allocazione", description: "Lista conflitti (stesso operaio su 2+ cantieri stesso periodo).", parameters: { type: "object", properties: {} } } },
-    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_identifica_conflitti_allocazione", { p_company_id: ctx.companyId }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  prevedi_impatto_ritardo: {
-    schema: { type: "function", function: { name: "prevedi_impatto_ritardo", description: "Stima allocazioni impattate da ritardo cantiere.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, delay_days: { type: "integer" } }, required: ["cantiere_id", "delay_days"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_prevedi_impatto_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_delay_days: args?.delay_days }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  sposta_allocazione: {
-    schema: { type: "function", function: { name: "sposta_allocazione", description: "Sposta una allocazione su nuove date.", parameters: { type: "object", properties: { allocation_id: { type: "string" }, new_start: { type: "string", format: "date" }, new_end: { type: "string", format: "date" }, reason: { type: "string" } }, required: ["allocation_id", "new_start", "new_end"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_sposta_allocazione", { p_company_id: ctx.companyId, p_allocation_id: args?.allocation_id, p_new_start: args?.new_start, p_new_end: args?.new_end, p_reason: args?.reason ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere",
-  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // MP-OPS-08 — Sicurezza POS Auto (4 tool)
@@ -8197,29 +8184,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
-  // MP-PRED-02 — Cantiere Ritardo Prediction (5 tool)
+  // MP-PRED-02 — tolti il 2/11/2026 predici_data_fine, cause e piano di recupero: nessuno scrive cantiere_risk_predictions.
   // ═════════════════════════════════════════════════════════════════════════
 
-  predici_data_fine_cantiere: {
-    schema: { type: "function", function: { name: "predici_data_fine_cantiere", description: "Ultima previsione data fine cantiere + risk level.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_predici_data_fine_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  analizza_cause_ritardo: {
-    schema: { type: "function", function: { name: "analizza_cause_ritardo", description: "Analizza cause primarie e fattori contribuenti al ritardo.", parameters: { type: "object", properties: { cantiere_id: { type: "string" } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_analizza_cause_ritardo", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere", "*"], riskLevel: "safe", domain: "cantiere",
-  },
 
-  genera_piano_recovery_cantiere: {
-    schema: { type: "function", function: { name: "genera_piano_recovery_cantiere", description: "AI propone piano recovery cantiere a rischio.", parameters: { type: "object", properties: { cantiere_id: { type: "string" }, target_date: { type: "string", format: "date" } }, required: ["cantiere_id"] } } },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_piano_recovery_cantiere", { p_company_id: ctx.companyId, p_cantiere_id: args?.cantiere_id, p_target_date: args?.target_date ?? null }),
-    allowedRoles: ["super_admin", "company_admin", "company_staff"],
-    allowedPersonas: ["silvio", "pm_cantiere"], riskLevel: "yellow", domain: "cantiere", estimatedCostEur: 0.05,
-  },
 
   lista_cantieri_a_rischio: {
     schema: { type: "function", function: { name: "lista_cantieri_a_rischio", description: "SOLO previsioni di rischio registrate (low/medium/high/critical), NON ritardi reali. Un elenco vuoto non dimostra assenza di ritardi o copertura di tutti i cantieri. Per quanti/quali cantieri sono in ritardo usa analizza_stato_commesse.", parameters: { type: "object", properties: { risk_level_min: { type: "string", enum: ["low", "medium", "high", "critical"] } } } } },
@@ -8895,7 +8864,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "carica_strumenti",
-        description: "Carica gli strumenti di un'area che non hai a bordo. Il catalogo completo e troppo grande per essere spedito tutto a ogni messaggio, quindi parti con le aree piu probabili per la domanda: se ti serve qualcosa che non trovi tra i tuoi strumenti, chiama QUESTO e riprova subito dopo — gli strumenti dell'area saranno disponibili. Non dire mai all'utente che una cosa non si puo fare senza aver prima provato a caricare l'area giusta.",
+        description: "Carica gli strumenti di un'area che non hai a bordo: se non trovi quello che ti serve, chiama QUESTO e riprova subito. Non dire mai all'utente che una cosa non si puo fare senza aver prima provato a caricare l'area giusta.",
         parameters: {
           type: "object",
           properties: {
@@ -8905,7 +8874,11 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
                 type: "string",
                 enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "mezzi", "posta", "campagne", "calendario", "contenuti", "assistenza"],
               },
-              description: "Aree da caricare. Puoi chiederne piu di una in una volta sola.",
+              description: "Aree da caricare. Puoi chiederne piu di una in una volta sola. Vuoto se ti servono solo le azioni.",
+            },
+            azioni: {
+              type: "boolean",
+              description: "true per riavere gli strumenti che creano, inviano, registrano o approvano, quando ne hai solo di lettura.",
             },
           },
           required: ["aree"],
@@ -8915,6 +8888,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: (args, _ctx) => {
       const richieste = Array.isArray(args?.aree) ? args.aree.map((a: any) => String(a)) : [];
       const valide = richieste.filter((a: any) => a in AREE_CARICABILI);
+      if (valide.length === 0 && args?.azioni === true) {
+        return Promise.resolve({
+          caricate: [],
+          azioni: true,
+          nota: "Gli strumenti che scrivono sono ora a bordo: richiama subito quello che ti serve. Non ripetere questa chiamata.",
+        });
+      }
       if (valide.length === 0) {
         return Promise.resolve({
           error: `Area non riconosciuta. Aree disponibili: ${Object.keys(AREE_CARICABILI).join(", ")}.`,
@@ -8979,19 +8959,37 @@ export const AREE_CARICABILI: Record<string, { etichetta: string; domini: ToolDo
  * l'unico modo di scoprire le altre aree sarebbe indovinare.
  * Costa ~350 caratteri contro i ~13K token che fa risparmiare.
  */
-export function indiceAreeCaricabili(dominiGiaABordo: ToolDomain[] | null): string {
+export function indiceAreeCaricabili(dominiGiaABordo: ToolDomain[] | null, soloLettura = false): string {
   if (!dominiGiaABordo) return "";
   const presenti = new Set(dominiGiaABordo);
   const mancanti = Object.entries(AREE_CARICABILI)
     .filter(([, v]) => !v.domini.every((d) => presenti.has(d)))
     .map(([k, v]) => `${k} (${v.etichetta})`);
-  if (mancanti.length === 0) return "";
+  if (mancanti.length === 0 && !soloLettura) return "";
   return [
     "",
     "## STRUMENTI NON ANCORA A BORDO",
     "Hai solo gli strumenti delle aree piu probabili per questa domanda. Altre aree disponibili:",
     ...mancanti.map((m) => `- ${m}`),
     "Se ti serve qualcosa che non trovi, chiama `carica_strumenti` con l'area e riprova subito.",
+    ...(soloLettura
+      ? ["Per questa domanda hai solo strumenti di lettura: se l'utente chiede di creare, inviare, registrare, approvare o modificare, chiama `carica_strumenti` con `azioni: true`."]
+      : []),
+    "Non rispondere MAI \"non posso farlo\" prima di aver provato a caricare l'area giusta.",
+  ].join("\n");
+}
+
+/**
+ * L'indice quando la lista e' il gruppo fisso: sempre lo stesso testo, quindi
+ * sta nel blocco statico e si rilegge dalla cache con tutto il resto.
+ */
+export function indiceAreeGruppoFisso(): string {
+  return [
+    "",
+    "## STRUMENTI NON ANCORA A BORDO",
+    "Hai gli strumenti usati piu spesso. Tutti gli altri, di lettura e di azione, si caricano per area:",
+    ...Object.entries(AREE_CARICABILI).map(([k, v]) => `- ${k} (${v.etichetta})`),
+    "Prima di caricare, guarda se basta uno strumento che hai. Se ti serve altro chiama `carica_strumenti` con l'area e riprova subito: caricare costa, quindi carica solo l'area che serve.",
     "Non rispondere MAI \"non posso farlo\" prima di aver provato a caricare l'area giusta.",
   ].join("\n");
 }
@@ -9053,7 +9051,11 @@ const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
   finance: ["anomalie", "banking", "fattura", "finance"],
   fiscal: ["anomalie", "banking", "compliance", "fattura", "finance"],
   // `mezzi` (2 tool): «dov'e il demolitore» e una domanda di cantiere.
-  operations: ["calendar", "cantiere", "filiera", "mezzi", "operations", "warehouse"],
+  // `hr` dal 02/11/2026: in 4 casi su 6 la chat caricava `persone` a meta' di una
+  // domanda sui cantieri («chi c'e su…»), e un ricaricamento riscrive tutta la
+  // cache (~0,10 $). Portarlo sempre costa ~0,008 $ a messaggio: conviene sopra
+  // l'8% di ricaricamenti.
+  operations: ["calendar", "cantiere", "filiera", "hr", "mezzi", "operations", "warehouse"],
   sales: ["calendar", "crm", "preventivi", "sales"],
   marketing: ["crm", "email", "generative", "marketing", "sales"],
   hr: ["calendar", "hr"],
@@ -9154,6 +9156,11 @@ export const DOMAIN_STAFF_PERMISSION_ANCHE: Partial<Record<ToolDomain, string[]>
   calendar: ["can_view_marketing_appointments"],
 };
 
+/** Aree senza dati riservati, aperte di proposito: una nuova va mappata o scritta qui. */
+export const DOMINI_SENZA_PERMESSO: ReadonlySet<ToolDomain> = new Set<ToolDomain>([
+  "ai", "meta", "knowledge", "generative", "titolare",
+]);
+
 /** I permessi che aprono l'area: il principale e le alternative. */
 export function permessiDellArea(domain: ToolDomain | undefined): string[] {
   if (!domain) return [];
@@ -9169,7 +9176,10 @@ export function areaSpentaPerPermessi(
   domain: ToolDomain | undefined,
 ): boolean {
   const chiavi = permessiDellArea(domain);
-  if (!perms || chiavi.length === 0) return false;
+  if (!perms) return false;
+  // Un'area nuova non collegata a un permesso nasce chiusa per gli addetti (03/11/2026):
+  // prima era aperta a tutti finché qualcuno non si ricordava di mapparla.
+  if (chiavi.length === 0) return Boolean(domain) && !DOMINI_SENZA_PERMESSO.has(domain as ToolDomain);
   return chiavi.every((k) => perms[k] === false);
 }
 
@@ -9196,6 +9206,11 @@ export function getToolsForChannel(opts: {
   /** RBAC granulare per-utente (vedi DOMAIN_STAFF_PERMISSION): riga
    *  staff_permissions dell'utente. Se assente/null → nessun filtro extra. */
   staffPermissions?: Record<string, unknown> | null;
+  /** Solo i tool safe (domanda di sola lettura). Toglie e basta: i filtri sopra
+   *  restano tutti, e il resto si riprende con `carica_strumenti` area `azioni`. */
+  soloLettura?: boolean;
+  /** Gruppo fisso: questi nomi piu' i soli domini in `domains` (quelli ricaricati). */
+  gruppoFisso?: ReadonlySet<string>;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
   const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
@@ -9217,10 +9232,14 @@ export function getToolsForChannel(opts: {
     // Domain filter (singolo, back-compat)
     if (opts.domain && tool.domain !== opts.domain) continue;
     // Domain-set filter (token-opt): tool senza domain = sempre incluso
-    if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
+    if (opts.gruppoFisso) {
+      const ricaricato = !!(domainSet && tool.domain && domainSet.has(tool.domain));
+      if (!ricaricato && !opts.gruppoFisso.has(tool.schema.function.name)) continue;
+    } else if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
     // RBAC granulare per-utente (MVP): esclude il tool SOLO se il permesso
     // staff mappato sul suo dominio è esplicitamente false.
     if (opts.staffPermissions && tool.domain && areaSpentaPerPermessi(opts.staffPermissions, tool.domain)) continue;
+    if (opts.soloLettura && (tool.riskLevel ?? "safe") !== "safe") continue;
     out.push(tool);
   }
   return out;

@@ -13,8 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  SelectLabel,
+  SelectGroup,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { GRUPPI_EVENTO, eventiDelGruppo } from "@/lib/orders/rateEventi";
 import { formatCurrency } from "@/lib/formatters";
 import {
   type QuotePaymentPhase,
@@ -55,7 +58,7 @@ export function QuotePaymentTermsCard({
     push(phases.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
 
   const addPhase = () =>
-    push([...phases, { label: `Rata ${phases.length + 1}`, type: "deposit", percent: 0, amount: 0 }]);
+    push([...phases, { label: `Rata ${phases.length + 1}`, type: "deposit", percent: 0, amount: 0, evento: "data_fissa", numero: null }]);
 
   const removePhase = (idx: number) => push(phases.filter((_, i) => i !== idx));
 
@@ -118,7 +121,7 @@ export function QuotePaymentTermsCard({
           </div>
 
           {computed.map((p, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg border bg-slate-50/60 p-3 xl:grid-cols-[minmax(0,1fr)_7rem_5rem_7rem_auto]">
+            <div key={idx} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-lg border bg-slate-50/60 p-3 xl:grid-cols-[minmax(0,1fr)_7rem_minmax(13rem,auto)_5rem_7rem_auto]">
               <div className="col-span-3 min-w-0 space-y-1 xl:col-span-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrizione</span>
                 <Input
@@ -139,6 +142,38 @@ export function QuotePaymentTermsCard({
                     <SelectItem value="financing">{TYPE_LABEL.financing}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              {/* Il «quando» si sceglie qui (04/11/2026): prima viveva solo nel testo della
+                  descrizione e diventando commessa si perdeva. «Al SAL numero…» chiede quale. */}
+              <div className="col-span-2 min-w-0 space-y-1 xl:col-span-1">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Quando</span>
+                <div className="flex items-center gap-1">
+                  <Select
+                    value={p.evento ?? "data_fissa"}
+                    onValueChange={(v) => updatePhase(idx, { evento: v as QuotePaymentPhase["evento"], numero: v === "sal_numero" ? p.numero ?? 1 : null })}
+                  >
+                    <SelectTrigger className="h-8" aria-label={`Quando si incassa la fase ${idx + 1}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {GRUPPI_EVENTO.filter((g) => eventiDelGruppo(g.value).some((e) => e.value !== "stato_commessa")).map((g) => (
+                        <SelectGroup key={g.value}>
+                          <SelectLabel>{g.label}</SelectLabel>
+                          {eventiDelGruppo(g.value).filter((e) => e.value !== "stato_commessa").map((e) => (
+                            <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {p.evento === "sal_numero" && (
+                    <Input
+                      type="number" min={1} max={99} step={1}
+                      aria-label={`Quale SAL per la fase ${idx + 1}`}
+                      value={p.numero ?? 1}
+                      onChange={(e) => updatePhase(idx, { numero: Math.min(99, Math.max(1, Math.trunc(Number(e.target.value)) || 1)) })}
+                      className="h-8 w-16 text-right"
+                    />
+                  )}
+                </div>
               </div>
               <div className="min-w-0 space-y-1">
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground">%</span>

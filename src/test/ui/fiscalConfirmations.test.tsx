@@ -8,6 +8,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { F24Generator } from "@/components/contabilita/F24Generator";
+
+vi.mock("@/components/fatturazione/AllegatiFattura", () => ({ AllegatiFattura: (): null => null }));
 import type { F24Entry } from "@/hooks/useF24";
 import { fiscalToday } from "@/lib/fatturazione/fiscalInsights";
 

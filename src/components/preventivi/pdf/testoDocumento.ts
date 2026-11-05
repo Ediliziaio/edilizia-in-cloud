@@ -42,7 +42,8 @@ export function giorniDellaDurata(durata: string | null | undefined): number | n
   if (!Number.isFinite(medio) || medio <= 0) return null;
   if (m[3].startsWith("sett")) return medio * 7;
   if (m[3].startsWith("mes")) return medio * 30;
-  return medio;
+  // «10 giorni lavorativi» sono due settimane, non dieci giorni di calendario.
+  return s.includes("lavorativ") ? medio * 7 / 5 : medio;
 }
 
 /**

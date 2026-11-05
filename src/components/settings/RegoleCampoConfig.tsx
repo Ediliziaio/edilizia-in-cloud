@@ -19,6 +19,8 @@ import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo"
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
+import { ModuliCantiereConfig, type StatoModulo } from "@/components/settings/ModuliCantiereConfig";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
   GIORNI_INDIETRO_PROPOSTI, REGOLE_COME_OGGI, SCOSTAMENTI_PROPOSTI, SCOSTAMENTO_PREDEFINITO, oreInTesto,
@@ -43,6 +45,12 @@ const SEZIONI = [
   { id: "avviso", etichetta: "Controllo ore" },
   { id: "giorni", etichetta: "Giorni indietro" },
   { id: "in-pratica", etichetta: "Anteprima" },
+];
+// Si configurano da tablet e computer: da telefono queste sezioni non ci sono.
+const SEZIONI_MODULI = [
+  { id: "parti", etichetta: "Parti" },
+  { id: "campi-propri", etichetta: "Campi propri" },
+  { id: "verbali", etichetta: "Verbali" },
 ];
 
 function Opzione({
@@ -116,6 +124,7 @@ function messaggioErroreSalvataggio(errore: unknown): string {
 export default function RegoleCampoConfig() {
   const { effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
+  const mobile = useIsMobile();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
   const companyId = effectiveCompany?.id;
@@ -140,13 +149,25 @@ export default function RegoleCampoConfig() {
     if (!puoModificare || !companyId || !data || salva.isPending) return;
     setBozzaAzienda({ companyId, regole: { ...regole, ...parte } });
   };
-  const annulla = () => setBozzaAzienda(null);
+  // I modelli (rapportino e verbali) si salvano con lo stesso bottone delle regole: uno solo per tutta la pagina.
+  const [statoRapportino, setStatoRapportino] = useState<StatoModulo | null>(null);
+  const [statoVerbale, setStatoVerbale] = useState<StatoModulo | null>(null);
+  const modelliCambiati = [statoRapportino, statoVerbale].filter((m): m is StatoModulo => !!m?.modificato);
+  const inCorso = salva.isPending || !!statoRapportino?.inCorso || !!statoVerbale?.inCorso;
+  const daSalvare = modificato || modelliCambiati.length > 0;
+  const annulla = () => { setBozzaAzienda(null); modelliCambiati.forEach((m) => m.annulla()); };
   useSettingsDraftGuard(modificato || salva.isPending);
 
+  const salvaModelli = async () => {
+    let tutti = true;
+    for (const m of modelliCambiati) tutti = (await m.salva()) && tutti;
+    if (tutti) toast.success("Impostazioni salvate");
+  };
   const conferma = () => {
-    if (!puoModificare || !companyId || !data || !modificato || salva.isPending) return;
+    if (!puoModificare || !companyId || !data || !daSalvare || inCorso) return;
+    if (!modificato) { void salvaModelli(); return; }
     salva.mutate(regole, {
-      onSuccess: () => { setBozzaAzienda((precedente) => precedente?.companyId === companyId ? null : precedente); toast.success("Impostazioni salvate"); },
+      onSuccess: () => { setBozzaAzienda((precedente) => precedente?.companyId === companyId ? null : precedente); void salvaModelli(); },
       onError: (errore) => toast.error(messaggioErroreSalvataggio(errore)),
     });
   };
@@ -197,7 +218,7 @@ export default function RegoleCampoConfig() {
 
       <div ref={contenitore} className="sticky top-2 z-20" style={{ height: altezza }}>
       <div ref={barra} style={stile} className="z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card/95 p-2 shadow-sm backdrop-blur">
-        <IndiceSezioni voci={SEZIONI} onVai={vai} />
+        <IndiceSezioni voci={mobile ? SEZIONI : [...SEZIONI, ...SEZIONI_MODULI]} onVai={vai} />
         {puoModificare && (
           <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:w-auto">
             <p
@@ -205,18 +226,18 @@ export default function RegoleCampoConfig() {
               className={cn(
                 "mr-auto text-xs",
                 "text-muted-foreground",
-                modificato && !salva.isPending && "font-medium text-amber-700 dark:text-amber-400",
+                daSalvare && !inCorso && "font-medium text-amber-700 dark:text-amber-400",
               )}
             >
-              {salva.isPending ? "Salvataggio…" : modificato ? "Modifiche non salvate" : "Nessuna modifica"}
+              {inCorso ? "Salvataggio…" : daSalvare ? "Modifiche non salvate" : "Nessuna modifica"}
             </p>
-            {modificato && (
-              <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={salva.isPending}>
+            {daSalvare && (
+              <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={inCorso}>
                 <span className="hidden sm:inline" aria-hidden="true">Annulla le modifiche</span><span className="sm:hidden" aria-hidden="true">Annulla</span>
               </Button>
             )}
-            <Button size="sm" onClick={conferma} disabled={!modificato || salva.isPending}>
-              {salva.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <Button size="sm" onClick={conferma} disabled={!daSalvare || inCorso}>
+              {inCorso ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salva modifiche
             </Button>
           </div>
@@ -389,6 +410,9 @@ export default function RegoleCampoConfig() {
           {(isAdmin || permissions.canViewSettingsOrders) && <p className="px-1 text-xs text-muted-foreground">Altre regole dell’app: <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">chi può spuntare le sottofasi</Link>.</p>}
         </aside>
       </div>
+
+      <ModuliCantiereConfig tipo="rapportino" onStato={setStatoRapportino} evidenziate={{ parti: evidenziata === "parti", "campi-propri": evidenziata === "campi-propri" }} />
+      <ModuliCantiereConfig tipo="verbale" onStato={setStatoVerbale} evidenziate={{ verbali: evidenziata === "verbali" }} />
     </div>
   );
 }

@@ -28,7 +28,7 @@ describe('Le ricerche Bagni non partono per selettori chiusi', () => {
       K: { vociSearch: (...args: unknown[]) => args }, sb: () => ({ from: () => chain }), termineDiRicerca: () => '' });
     vm.runInContext(ts.transpileModule(`${declaration.getText(source).replace(/^export /, '')}\nglobalThis.runHook = useListinoVociSearch;`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context);
     const query = context.runHook('', 'capitolo-posa', true);
-    expect(query.queryKey).toEqual(['demo2', '', 'capitolo-posa']);
+    expect(query.queryKey).toEqual(['demo2', '', 'capitolo-posa', 40]);
     await query.queryFn();
     expect(filters).toContainEqual(['company_id', 'demo2']);
     expect(filters).toContainEqual(['capitolo_id', 'capitolo-posa']);

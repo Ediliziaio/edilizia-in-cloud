@@ -8,6 +8,7 @@ import {VariationEditor} from "@/components/orders/VariationEditor";
 import {emptyVariationDraft} from "@/lib/orders/variationDraft";
 const mock=vi.hoisted(()=>({request:vi.fn(),open:vi.fn(),canEdit:true,insert:vi.fn(),invoke:vi.fn(),refetch:vi.fn(),rows:[] as unknown[],session:vi.fn(),query:vi.fn()}));
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:mock.canEdit})}));
+vi.mock("@/hooks/useCompanyAnagraficaForTemplate",()=>({useCompanyAnagraficaForTemplate:():null=>null}));
 vi.mock("@/hooks/useVariationTemplates",()=>({useVariationTemplates:()=>({data:[] as unknown[],isError:false,refetch:vi.fn()})}));
 vi.mock("@/hooks/useOrderVariations",()=>({useOrderVariations:()=>({data:mock.rows,isLoading:false,isError:false,refetch:mock.refetch})}));
 vi.mock("@/components/shared/EntityCustomFieldsSection",()=>({EntityCustomFieldsSection:(): null =>null}));
@@ -17,7 +18,7 @@ vi.mock("@/components/shared/PdfBlobLivePreviewPanel",()=>({PdfBlobLivePreviewPa
 beforeEach(()=>{vi.clearAllMocks();mock.canEdit=true;mock.rows=[];mock.session.mockResolvedValue({data:{session:{user:{id:"user"}}}});mock.query.mockImplementation(async payload=>({data:{id:"created",...payload},error:null as null}));});
 afterEach(cleanup);
 const draw=()=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><OdVSection orderId="order" companyId="company" context={{currentNet:1000,vatRate:10,customerName:"Mario",companyName:"Impresa DEMO",orderCode:"ORD-DEMO"}}/></QueryClientProvider>);
-const fill=()=>{fireEvent.change(screen.getByLabelText("Titolo *"),{target:{value:"TEST extra"}});fireEvent.change(screen.getByLabelText("Lavori e condizioni *"),{target:{value:"TEST modifica"}});fireEvent.change(screen.getByLabelText(/IVA esclusa/),{target:{value:"120,50"}});};
+const fill=()=>{fireEvent.change(screen.getByLabelText("Titolo *"),{target:{value:"TEST extra"}});fireEvent.change(screen.getByLabelText("Descrizione dei lavori *"),{target:{value:"TEST modifica"}});fireEvent.change(screen.getByLabelText(/IVA esclusa/),{target:{value:"120,50"}});};
 describe("Composizione della variante",()=>{
   it("salva una bozza sul server senza creare link né inviare email",async()=>{
     mock.request.mockImplementation(async(id,action,payload)=>({success:true,variation:{id,status:"bozza",numero_odv:1},workspace:{revision:1,content:payload.content},document:null}));
@@ -80,7 +81,7 @@ describe("Dettaglio voci e riservatezza",()=>{
     render(<Preview/>);fireEvent.click(screen.getByRole("button",{name:"Prepara anteprima PDF"}));
     const href=(await screen.findByRole("link",{name:"Scarica PDF pronto"})).getAttribute("href")!;
     const pdf=atob(href.split(",")[1]);expect(pdf).toContain("Contenuto cliente");expect(pdf).not.toContain("SEGRETO_NON_ESPORTARE");expect(pdf).not.toContain("123,45");
-    fireEvent.click(screen.getByRole("button",{name:"Modifica bozza"}));fireEvent.change(screen.getByLabelText("Lavori e condizioni *"),{target:{value:"Nuovo contenuto cliente"}});fireEvent.click(screen.getByRole("button",{name:"Rivedi"}));
+    fireEvent.click(screen.getByRole("button",{name:"Modifica bozza"}));fireEvent.change(screen.getByLabelText("Descrizione dei lavori *"),{target:{value:"Nuovo contenuto cliente"}});fireEvent.click(screen.getByRole("button",{name:"Rivedi"}));
     expect(screen.queryByRole("link",{name:"Scarica PDF pronto"})).not.toBeInTheDocument();
   });
 });

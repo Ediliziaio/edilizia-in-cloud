@@ -30,6 +30,8 @@ export interface ForecastMovement {
   source: string;
   href: string;
   estimated: boolean;
+  /** Rata di commessa con già la sua fattura, ancora da incassare. */
+  rataFatturata?: boolean;
   /** Gross amount before the forecast-only bank withholding assumption, never an actual tax receipt. */
   grossCents?: number;
   expectedDate?: string | null;
@@ -138,6 +140,8 @@ export interface DeadlineRow {
   order_id?: string | null;
   notes?: string | null;
   is_previsionale?: boolean | null;
+  /** Numero della rata di una fattura importata: la fattura ha una scadenza per rata. */
+  rata_numero?: number | null;
 }
 export interface SupplierItemRow {
   id: string;
@@ -253,6 +257,7 @@ export interface ReceivedInvoiceRow {
   tipo_documento: string | null;
   stato: string | null;
   storico_esterno?: boolean | null;
+  pagata_il?: string | null;
   company_cost_id: string | null;
   purchase_order_id?: string | null;
   piano_pagamento: { scadenza: string | null; importo: Money | null; modalita?: string | null; pagata_il?: string | null }[] | null;
@@ -582,11 +587,24 @@ export function buildForecastLedger(
       );
   const noteCollegate = (id: string | undefined | null): number =>
     id ? (creditedTo.get(id) ?? 0) : 0;
+  // Una fattura a rate è sempre coperta dalle sue scadenze: a rate tutte chiuse è incassata, anche se
+  // sulla fattura non risulta, e non deve tornare fra gli incassi attesi per l'intero.
   const invoiceDeadlines = new Set(
     s.deadlines
-      .filter((d) => d.invoice_id && !closed(d.status))
+      .filter((d) => d.invoice_id && (!closed(d.status) || d.rata_numero != null))
       .map((d) => d.invoice_id),
   );
+  // Una nota di credito riduce il credito una volta sola: si consuma sulle scadenze aperte della
+  // fattura dalla più vicina, invece di togliere l'intero importo a ciascuna rata.
+  const notaSuScadenza = new Map<string, number>();
+  const notaResidua = new Map(creditedTo);
+  for (const d of [...s.deadlines].sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))) {
+    if (closed(d.status) || !d.invoice_id) continue;
+    const quota = Math.min(notaResidua.get(d.invoice_id) ?? 0, Math.max(0, toCents(d.amount) - toCents(d.paid_amount)));
+    if (quota <= 0) continue;
+    notaSuScadenza.set(d.id, quota);
+    notaResidua.set(d.invoice_id, (notaResidua.get(d.invoice_id) ?? 0) - quota);
+  }
   const costDeadlines = new Set(
     s.deadlines.filter((d) => d.cost_id).map((d) => d.cost_id),
   );
@@ -697,7 +715,7 @@ export function buildForecastLedger(
     // Il dovuto della fattura è al netto delle note di credito collegate.
     const noteFattura =
       invoice && !creditNote(invoice.document_type)
-        ? noteCollegate(invoice.id)
+        ? (notaSuScadenza.get(d.id) ?? 0)
         : 0;
     const amount = Math.max(
       0,
@@ -809,6 +827,7 @@ export function buildForecastLedger(
       orderId: d.order_id,
       estimated: false,
       sourceCategory: rate.get(d.id)?.type ?? null,
+      rataFatturata: !!(rata?.documento_fiscale_id || rata?.invoice_id),
     });
   }
   s.incassiRate.forEach((i, n) => {
@@ -857,7 +876,8 @@ export function buildForecastLedger(
       // Il costo ha le sue rate: esce rata per rata, ognuna alla sua data e col
       // suo importo (lordo, dal documento). Le rate già pagate non escono più.
       const rate = installmentsByCost.get(c.id)!;
-      const aperte = rate.filter((r) => r.stato !== "pagata");
+      // «Stornata»: chiusa da una nota di credito, non esce più dalla cassa.
+      const aperte = rate.filter((r) => r.stato !== "pagata" && r.stato !== "stornata");
       const vat = c.vat_rate ?? c.supplier?.vat_rate;
       // Una rata senza importo: la sua parte del lordo del costo, alla pari con
       // le altre. Capita quando l'XML non lo dice; di solito lo dice.
@@ -1052,6 +1072,8 @@ export function buildForecastLedger(
   );
   for (const f of s.receivedInvoices ?? []) {
     if (f.company_cost_id || f.storico_esterno) continue;
+    // Pagata per intero (data sulla fattura, le rate restano senza): non è più un'uscita da prevedere.
+    if (f.pagata_il) continue;
     if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
     const tipo = f.tipo_documento ?? "";
     if (NOTE_CREDITO_RICEVUTE.includes(tipo) || AUTOFATTURE_RICEVUTE.includes(tipo)) continue;
@@ -1103,7 +1125,7 @@ export function buildForecastLedger(
     if (["rifiutata", "annullata", "scartata"].includes(f.stato ?? "")) continue;
     if (NOTE_CREDITO_RICEVUTE.includes(f.tipo_documento ?? "")) continue;
     const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
-    const pagata = piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
+    const pagata = f.pagata_il ?? piano.map((r) => ("pagata_il" in r ? r.pagata_il : null)).find(Boolean) ?? null;
     const base = validDay(pagata ?? piano[0]?.scadenza ?? f.data_fattura);
     if (!base) continue;
     const date = sediciDelMeseDopo(base);

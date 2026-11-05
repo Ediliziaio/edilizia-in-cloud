@@ -90,6 +90,8 @@ interface Props {
   state: EditorState;
   isSaving: boolean;
   lastSaved: Date | null;
+  /** Ci sono modifiche non ancora salvate: appena aperta, una fattura già salvata non ne ha. */
+  isDirty?: boolean;
   onEmetti: () => void;
   onDelete: () => void;
   onFieldChange: (field: string, value: unknown) => void;
@@ -112,7 +114,7 @@ interface Props {
 }
 
 export function EditorTopBar({
-  state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, validationErrors,
+  state, isSaving, lastSaved, isDirty, onEmetti, onDelete, validationErrorCount, validationErrors,
   onPreview, onBack, onInviaSDI, onAggiornaStatoSdi, onDownloadPDF, onDownloadXML, onSendEmail, onDuplicate,
   onConvertToFattura, isInviaSDILoading, isAggiornaStatoLoading, isConvertLoading, isEmitting,
 }: Props) {
@@ -129,7 +131,7 @@ export function EditorTopBar({
 
   return (
     <>
-      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-6 py-3 border-b bg-card shadow-sm shrink-0">
         {/* Back */}
         <Button aria-label="Torna ai documenti"
           variant="ghost"
@@ -219,17 +221,17 @@ export function EditorTopBar({
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
               </>
-            ) : (
+            ) : isDirty ? (
               <>
                 <Clock className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Non salvata</span>
               </>
-            )}
+            ) : null}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 border-l pl-3 ml-1">
+        <div className="flex items-center gap-2 sm:border-l sm:pl-3 sm:ml-1">
           {/* Preview button */}
           <Button
             variant="outline"

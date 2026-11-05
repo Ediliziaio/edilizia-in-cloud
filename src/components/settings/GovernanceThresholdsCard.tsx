@@ -5,13 +5,14 @@
  *   1. Doppia approvazione preventivi oltre un importo soglia (€).
  *   2. Alert di scostamento SAL (avanzamento dichiarato vs costi, ±%).
  *   3. Soglia di marginalità minima "sana" delle commesse (%).
+ *   4. Rincari d'acquisto: quando un carico di magazzino costa più del solito.
  *
  * Sola lettura per i non-admin (lo scrive solo company_admin/super_admin, e la
  * RLS lo impone comunque lato DB). La logica/clamping è pura in
  * src/lib/governance/thresholds.ts; qui c'è solo lo stato del form + preview.
  */
 import { useEffect, useMemo, useState } from "react";
-import { ShieldCheck, Save, Info, FileSignature, Activity, TrendingUp } from "lucide-react";
+import { ShieldCheck, Save, Info, FileSignature, Activity, TrendingUp, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,7 @@ import {
   DEFAULT_GOVERNANCE_THRESHOLDS,
   normalizeGovernanceThresholds,
   valutaApprovazionePreventivo,
+  valutaRincaro,
   valutaScostamentoSal,
   type GovernanceThresholds,
 } from "@/lib/governance/thresholds";
@@ -38,6 +40,9 @@ interface FormState {
   tolleranzaPerc: string;
   marginalitaEnabled: boolean;
   sogliaMinimaPerc: string;
+  rincaroEnabled: boolean;
+  rincaroSogliaPerc: string;
+  rincaroMinimoEuro: string;
 }
 
 function cfgToForm(cfg: GovernanceThresholds): FormState {
@@ -48,6 +53,9 @@ function cfgToForm(cfg: GovernanceThresholds): FormState {
     tolleranzaPerc: String(cfg.salScostamento.tolleranzaPerc),
     marginalitaEnabled: cfg.marginalita.enabled,
     sogliaMinimaPerc: String(cfg.marginalita.sogliaMinimaPerc),
+    rincaroEnabled: cfg.rincaroAcquisti.enabled,
+    rincaroSogliaPerc: String(cfg.rincaroAcquisti.sogliaPerc),
+    rincaroMinimoEuro: String(cfg.rincaroAcquisti.minimoEuro),
   };
 }
 
@@ -64,6 +72,11 @@ function formToCfg(f: FormState): GovernanceThresholds {
     marginalita: {
       enabled: f.marginalitaEnabled,
       sogliaMinimaPerc: f.sogliaMinimaPerc.trim() === "" ? 0 : Number(f.sogliaMinimaPerc),
+    },
+    rincaroAcquisti: {
+      enabled: f.rincaroEnabled,
+      sogliaPerc: f.rincaroSogliaPerc.trim() === "" ? 0 : Number(f.rincaroSogliaPerc),
+      minimoEuro: f.rincaroMinimoEuro.trim() === "" ? 0 : Number(f.rincaroMinimoEuro),
     },
   });
 }
@@ -124,6 +137,20 @@ export function GovernanceThresholdsCard({
     return esempio.messaggio;
   }, [normalized]);
 
+  // Esempio concreto: 100 pezzi che stavano a 10 €, ricomprati appena oltre la
+  // soglia. Mostra sia la percentuale sia la spesa in più, i due numeri che
+  // decidono se l'avviso parte.
+  const previewRincaro = useMemo(() => {
+    const { enabled, sogliaPerc } = normalized.rincaroAcquisti;
+    if (!enabled) return null;
+    const medio = 10;
+    const prezzo = Math.round(medio * (1 + sogliaPerc / 100) * 100) / 100 + 0.01;
+    const esito = valutaRincaro(normalized, { medioPrima: medio, prezzoPagato: prezzo, quantita: 100 });
+    return esito.rincaro
+      ? `Es. 100 pezzi che stavano a ${formatCurrency(medio)} ricomprati a ${formatCurrency(prezzo)} → ${esito.messaggio}`
+      : `Es. 100 pezzi che stavano a ${formatCurrency(medio)} ricomprati a ${formatCurrency(prezzo)} → nessun avviso: la spesa in più (${formatCurrency(esito.spesaInPiu)}) non arriva al minimo di ${formatCurrency(normalized.rincaroAcquisti.minimoEuro)}.`;
+  }, [normalized]);
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -134,8 +161,9 @@ export function GovernanceThresholdsCard({
           <div className="min-w-0">
             <h2 className="text-lg font-semibold leading-tight">Approvazioni e avvisi</h2>
             <p className="text-sm text-muted-foreground">
-              Quando serve una seconda firma sul preventivo e quando una commessa segnala che costi o margine
-              non tornano. Sono <strong>avvisi</strong>: segnalano, non bloccano.
+              Quando serve una seconda firma sul preventivo, quando una commessa segnala che costi o margine
+              non tornano, e quando un acquisto costa più del solito. Sono <strong>avvisi</strong>:
+              segnalano, non bloccano.
             </p>
           </div>
         </div>
@@ -287,6 +315,68 @@ export function GovernanceThresholdsCard({
           </div>
           <p className="text-xs text-muted-foreground">
             Margine &lt; 0% → rosso (in perdita) · 0…soglia → giallo (a rischio) · ≥ soglia → verde.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 4. Rincari d'acquisto */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ArrowUpRight className="h-4 w-4 text-primary" />
+            Avviso se un acquisto costa più del solito
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={form.rincaroEnabled}
+              disabled={!isAdmin}
+              onCheckedChange={(v) => setField("rincaroEnabled", v)}
+            />
+            <span className="text-sm">
+              Segnala i carichi pagati sopra il costo medio della giacenza
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Label className="whitespace-nowrap text-sm">Sopra il medio di</Label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              className="w-24"
+              placeholder="15"
+              aria-label="Soglia del rincaro in percentuale"
+              value={form.rincaroSogliaPerc}
+              disabled={!isAdmin || !form.rincaroEnabled}
+              onChange={(e) => setField("rincaroSogliaPerc", e.target.value)}
+            />
+            <span className="text-sm text-muted-foreground">%</span>
+            <Label className="whitespace-nowrap text-sm">e almeno</Label>
+            <Input
+              type="number"
+              min="0"
+              step="10"
+              className="w-28"
+              placeholder="50"
+              aria-label="Spesa in più minima in euro"
+              value={form.rincaroMinimoEuro}
+              disabled={!isAdmin || !form.rincaroEnabled}
+              onChange={(e) => setField("rincaroMinimoEuro", e.target.value)}
+            />
+            <span className="text-sm text-muted-foreground">€ di spesa in più</span>
+          </div>
+          {previewRincaro ? (
+            <p className="text-xs text-muted-foreground">{previewRincaro}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Con l&apos;avviso spento i rincari non vengono più annotati.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Il minimo in euro è la spesa in più di quel carico, non il prezzo: un articolo da 2 € che
+            passa a 2,40 € è +20%, ma su dieci pezzi sono 4 € e non serve dirlo. Arriva{" "}
+            <strong>un solo riepilogo al mese</strong>, non un avviso per ogni carico.
           </p>
         </CardContent>
       </Card>

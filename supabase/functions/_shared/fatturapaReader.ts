@@ -19,6 +19,9 @@
  *     IdCodice che si incontra: nell'intestazione ce ne sono fino a quattro e
  *     la prima e' dell'intermediario che trasmette (TeamSystem, Aruba), non
  *     di chi ha emesso.
+ *   - le rate sono TUTTE quelle dell'XML (`rate`), anche su piu' blocchi
+ *     DatiPagamento. `scadenza`, `modalitaPagamento` e `iban` restano quelli della
+ *     prima rata: su quei campi si confrontano le fatture gia' archiviate.
  */
 
 // Interfacce minime: sia il DOM del browser sia deno_dom le soddisfano.
@@ -61,6 +64,15 @@ export interface AnagraficaFattura {
 
 export interface RiepilogoIvaLetto { aliquota: string; natura: string | null; imponibile: number; imposta: number; esigibilita: string }
 
+/** Una rata di DatiPagamento: quello che l'XML non dice resta null, mai inventato. */
+export interface RataLetta {
+  scadenza: string | null;
+  importo: number | null;
+  /** Codice FatturaPA: MP12 = RiBa, MP05 = bonifico… */
+  modalita: string | null;
+  iban: string | null;
+}
+
 export interface FatturaLetta {
   cedentePiva: string;
   cedenteNome: string;
@@ -76,6 +88,9 @@ export interface FatturaLetta {
   scadenza: string | null;
   modalitaPagamento: string | null;
   iban: string | null;
+  rate: RataLetta[];
+  /** TP01 a rate, TP02 completo, TP03 anticipo. */
+  condizioniPagamento: string | null;
   righe: RigaFattura[];
   riepilogoIva?: RiepilogoIvaLetto[];
   tipoDocumentoSdi?: string;
@@ -111,6 +126,20 @@ export function normalizzaPiva(v: string | null | undefined): string {
   return (v ?? "").replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
 }
 
+/**
+ * Il progressivo di un numero «serie/numero» (1/216 è la fattura 216 della serie 1). Quando la parte dopo la
+ * barra è l'anno della fattura (5/2026, 5/26) il numero è quello prima, e lo capisce già la vista dell'elenco:
+ * qui si resta muti. «1/26» del 2026 resta ambiguo e vale come anno: non si indovina.
+ */
+export function progressivoSerieNumero(numero: string, data: string): number | null {
+  const m = numero.trim().match(/^\d{1,6}\s*\/\s*(\d{1,9})$/);
+  if (!m) return null;
+  const anno = data.slice(0, 4);
+  if (m[1] === anno || m[1] === anno.slice(2)) return null;
+  const n = Number(m[1]);
+  return Number.isSafeInteger(n) && n <= 2147483647 ? n : null;
+}
+
 /** TD04 e TD08 sono note di credito: trattarle come fatture gonfia i ricavi. */
 export function tipoDocumento(td: string): "invoice" | "credit_note" {
   return td === "TD04" || td === "TD08" ? "credit_note" : "invoice";
@@ -135,6 +164,68 @@ function leggiAnagrafica(parte: ElementoXml | null): AnagraficaFattura {
     provincia: testo(sede, "Provincia") || null,
     paese: testo(sede, "Nazione") || "IT",
   };
+}
+
+function dataVera(v: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : null;
+}
+
+/** La data scritta, oppure data di riferimento + giorni: come rate_pagamento_da_xml nel database. */
+function scadenzaRata(el: ElementoXml): string | null {
+  const scritta = dataVera(testo(el, "DataScadenzaPagamento"));
+  if (scritta) return scritta;
+  const riferimento = dataVera(testo(el, "DataRiferimentoTerminiPagamento"));
+  const giorni = testo(el, "GiorniTerminiPagamento");
+  if (!riferimento) return null;
+  // Senza giorni i termini sono zero: la data è quella di riferimento.
+  if (giorni && !/^\d{1,3}$/.test(giorni)) return null;
+  const d = new Date(`${riferimento}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + Number(giorni || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+function leggiRate(body: ElementoXml): RataLetta[] {
+  return Array.from(body.getElementsByTagName("DettaglioPagamento")).map((el) => {
+    const importo = testo(el, "ImportoPagamento");
+    return {
+      scadenza: scadenzaRata(el),
+      importo: importo ? arrotonda(numeroXml(importo)) : null,
+      modalita: testo(el, "ModalitaPagamento") || null,
+      iban: testo(el, "IBAN") || null,
+    };
+  });
+}
+
+/** Differenza che si considera arrotondamento: la assorbe l'ultima rata. Stesso valore in rate_scadenze_fattura. */
+export const TOLLERANZA_RATE = 0.02;
+
+/**
+ * Perché le rate dell'XML non possono diventare una scadenza ciascuna, o null se possono.
+ * In quel caso resta una scadenza sola per il totale: un incasso non si perde mai, ma va detto.
+ * Succede con lo split payment, dove le rate non comprendono l'IVA.
+ */
+export function avvisoRate(f: Pick<FatturaLetta, "rate" | "totale" | "documentType">): string | null {
+  if (f.documentType !== "invoice" || f.rate.length === 0) return null;
+  const euro = (n: number) => `${n.toFixed(2).replace(".", ",")} €`;
+  if (f.rate.every((r) => !r.scadenza)) {
+    return "L'XML non dice quando si incassa: la fattura resta senza scadenza, da verificare.";
+  }
+  if (f.rate.some((r) => r.importo == null)) {
+    return f.rate.length > 1 ? "Una rata dell'XML non ha l'importo: scadenza unica per il totale, da verificare." : null;
+  }
+  if (f.rate.length > 1 && f.rate.some((r) => (r.importo ?? 0) <= TOLLERANZA_RATE)) {
+    return "Una rata dell'XML è di pochi centesimi: scadenza unica per il totale, da verificare.";
+  }
+  const somma = arrotonda(f.rate.reduce((s, r) => s + (r.importo ?? 0), 0));
+  if (Math.abs(somma - f.totale) > TOLLERANZA_RATE) {
+    return `Le rate dell'XML sommano ${euro(somma)}, il totale è ${euro(f.totale)}: scadenza unica per il totale, da verificare (split payment o ritenuta?).`;
+  }
+  if (f.rate.length > 1 && f.rate.some((r) => !r.scadenza)) {
+    return "Una rata dell'XML non ha la data: scadenza unica per il totale, da verificare.";
+  }
+  return null;
 }
 
 /**
@@ -185,6 +276,7 @@ export function leggiFatturaPA(xml: string, parser: LettoreXml, indiceCorpo = 0)
 
   const totaleDichiarato = numero(dgd, "ImportoTotaleDocumento");
   const pagamento = primo(body, "DettaglioPagamento");
+  const rate = leggiRate(body);
 
   const righe: RigaFattura[] = Array.from(body.getElementsByTagName("DettaglioLinee")).map((el, i) => {
     const lineNet = numero(el, "PrezzoTotale");
@@ -222,9 +314,12 @@ export function leggiFatturaPA(xml: string, parser: LettoreXml, indiceCorpo = 0)
     imposta: arrotonda(imposta),
     totale: arrotonda(totaleDichiarato || imponibile + imposta),
     bollo: numero(primo(dgd, "DatiBollo"), "ImportoBollo"),
-    scadenza: testo(pagamento, "DataScadenzaPagamento") || null,
+    // La prima rata con una data vera: mai una data impossibile, che farebbe fallire l'import.
+    scadenza: rate.find((r) => r.scadenza)?.scadenza ?? null,
     modalitaPagamento: testo(pagamento, "ModalitaPagamento") || null,
     iban: testo(pagamento, "IBAN") || null,
+    rate,
+    condizioniPagamento: testo(primo(body, "DatiPagamento"), "CondizioniPagamento") || null,
     righe, riepilogoIva, tipoDocumentoSdi: testo(dgd, "TipoDocumento"),
   };
 }

@@ -6,7 +6,7 @@ import type { Verifica } from "../../../shared/planimetrie/verifiche.ts";
 import { riepilogoVerifiche } from "../../../shared/planimetrie/verifiche.ts";
 
 const MM = 72 / 25.4;
-const NOMI = { rai: "Aeroilluminazione", altezza: "Altezza", superficie: "Superficie", bagno: "Bagno", alloggio: "Alloggio" } as const;
+const NOMI = { rai: "Aeroilluminazione", altezza: "Altezza", superficie: "Superficie", bagno: "Bagno", alloggio: "Alloggio", interferenza: "Interferenza", scala: "Scala", contenimento: "Contenimento", serramento: "Serramento", tetto: "Tetto" } as const;
 const ESITI = { ok: "Conforme", attenzione: "Da verificare", non_conforme: "Non conforme" } as const;
 
 export async function pdfVerifiche(d: { titolo: string; stato: string; azienda?: string; verifiche: Verifica[] }): Promise<Uint8Array> {

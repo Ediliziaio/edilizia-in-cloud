@@ -150,8 +150,8 @@ export async function executeToolWithRouting(
     }
   }
   if (usaPermessiStaff(ctx.primaryRole) && tool.domain) {
-    const permKey = DOMAIN_STAFF_PERMISSION[tool.domain];
-    if (permKey) {
+    const permKey = DOMAIN_STAFF_PERMISSION[tool.domain] ?? "area_senza_permesso";
+    {
       // Nessuna riga permessi = nessuna restrizione esplicita (comportamento
       // storico dell'app): si nega solo quando i permessi che aprono l'area
       // sono tutti esplicitamente false.

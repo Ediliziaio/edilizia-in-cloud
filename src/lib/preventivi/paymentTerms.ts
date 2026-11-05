@@ -10,7 +10,13 @@
  * assorbe gli arrotondamenti nell'ultima fase con percentuale positiva.
  */
 
-import { PIANI_DI_PARTENZA } from "@/lib/preventivi/pianoPagamento";
+import { PIANI_DI_PARTENZA, type EventoRataPreventivo } from "@/lib/preventivi/pianoPagamento";
+import { EVENTI_RATA } from "@/lib/orders/rateEventi";
+
+/** Gli eventi che una fase di preventivo può avere: tutti tranne lo stato della commessa. */
+export const EVENTI_RATA_PREVENTIVO: ReadonlySet<string> = new Set(
+  EVENTI_RATA.map((e) => e.value).filter((v) => v !== "stato_commessa"),
+);
 
 export type QuotePaymentPhaseType = "deposit" | "balance" | "financing";
 
@@ -21,6 +27,15 @@ export interface QuotePaymentPhase {
   percent: number;
   /** Importo in euro, derivato da percent × totale (o assorbito dall'ultima fase). */
   amount: number;
+  /**
+   * Quando si incassa (04/11/2026). Prima il «quando» viveva solo nel testo della
+   * descrizione, e diventando commessa si perdeva: le rate nascevano tutte a data fissa,
+   * con scadenze inventate a 30, 60 e 90 giorni, e una rata «al SAL 2» non era più
+   * riconoscibile come tale. Assente sui preventivi vecchi: vale `data_fissa`.
+   */
+  evento?: EventoRataPreventivo;
+  /** Quale SAL, quando l'evento è `sal_numero`. */
+  numero?: number | null;
 }
 
 /** Preset comuni per la modalità (l'utente può comunque scrivere testo libero). */
@@ -59,6 +74,8 @@ export function quotePaymentPresets(): QuotePaymentPreset[] {
       type: i === tutte.length - 1 ? "balance" : "deposit",
       percent: r.percent,
       amount: 0,
+      evento: r.evento,
+      numero: r.numero,
     })),
   }));
 }
@@ -117,11 +134,16 @@ export function parseQuotePaymentPhases(raw: unknown): QuotePaymentPhase[] {
     .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
     .map((x) => {
       const t = String(x.type ?? "deposit");
+      const evento = typeof x.evento === "string" && EVENTI_RATA_PREVENTIVO.has(x.evento)
+        ? (x.evento as EventoRataPreventivo) : "data_fissa";
+      const numero = evento === "sal_numero" ? Math.trunc(Number(x.numero)) || null : null;
       return {
         label: String(x.label ?? ""),
         type: (t === "balance" || t === "financing" ? t : "deposit") as QuotePaymentPhaseType,
         percent: Number(x.percent) || 0,
         amount: Number(x.amount) || 0,
+        evento,
+        numero,
       };
     });
 }

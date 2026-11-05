@@ -3,6 +3,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 const EXECUTIVE_DASHBOARD_PATH = "/azienda/cruscotto/aziendale";
 const MANAGEMENT_DASHBOARD_PATH = "/azienda";
 const MARKETING_DASHBOARD_PATH = "/azienda/marketing";
+const CALL_CENTER_DASHBOARD_PATH = "/azienda/call-center";
 const DASHBOARD_HUB_PATH = "/azienda/cruscotto/gestisci";
 
 type DashboardRoutingPermissions = Pick<
@@ -11,6 +12,7 @@ type DashboardRoutingPermissions = Pick<
   | "canViewDashboard"
   | "canViewMarketing"
   | "canViewMarketingDashboard"
+  | "canViewCallcenterDashboard"
   | "canViewMarketingContacts"
   | "canViewMarketingOpportunities"
   | "canViewMarketingAppointments"
@@ -90,6 +92,11 @@ export function getSmartCruscottoPath(
 
   if (permissions.isAdmin && permissions.canViewCruscotto) {
     return EXECUTIVE_DASHBOARD_PATH;
+  }
+
+  // Il Call Center ha la sua dashboard: quella Marketing non è per lui.
+  if (permissions.canViewCallcenterDashboard && !permissions.canViewMarketingDashboard && !permissions.canViewDashboard) {
+    return CALL_CENTER_DASHBOARD_PATH;
   }
 
   if (looksMarketing && hasMarketingAccess) {

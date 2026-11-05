@@ -47,3 +47,9 @@ export function saldoIva(debito: number, credito: number): { importo: number; ve
   const importo = Math.round((debito - credito) * 100) / 100;
   return { importo: Math.abs(importo), verso: importo > 0.004 ? "versare" : importo < -0.004 ? "credito" : "pari" };
 }
+
+/** Imponibile, IVA e totale di un venduto, all'aliquota della commessa. */
+export function conAliquota(imponibile: number, aliquota: number): { imponibile: number; iva: number; totale: number } {
+  const iva = Math.round(imponibile * aliquota) / 100;
+  return { imponibile, iva, totale: Math.round((imponibile + iva) * 100) / 100 };
+}

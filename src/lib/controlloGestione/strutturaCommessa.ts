@@ -6,21 +6,35 @@ export interface StructureFixedCost {
   amount: number | null;
   recurrence: string | null;
   allocations?: unknown;
+  /** Parte rimasta in magazzino: non è spesa generale, diventa costo all'uscita della merce. */
+  quota_magazzino?: number | string | null;
 }
 
 /**
  * La parte di un costo che resta alla struttura: quella non ripartita sulle commesse.
  * La quota ripartita (company_costs.allocations) è già nel margine delle commesse.
+ *
+ * La quota rimasta in magazzino (company_costs.quota_magazzino) non è né dell'una né
+ * dell'altra: è valore fermo in giacenza, e diventa costo della commessa che userà
+ * quella merce, quando lo scarico ne porterà il costo medio. Contarla qui vorrebbe
+ * dire pagarla due volte, una come spesa generale e una all'uscita dal magazzino.
  */
-export function quotaNonRipartita(amount: number | string | null | undefined, allocations: unknown): number {
+export function quotaNonRipartita(
+  amount: number | string | null | undefined,
+  allocations: unknown,
+  quotaMagazzino?: number | string | null,
+): number {
   const importo = Number(amount ?? 0);
   if (!Number.isFinite(importo)) return 0;
-  if (!Array.isArray(allocations)) return importo;
+  const magazzino = Number(quotaMagazzino ?? 0);
+  const inGiacenza = Number.isFinite(magazzino) && magazzino > 0 ? magazzino : 0;
+  if (!Array.isArray(allocations)) return Math.max(0, importo - inGiacenza);
   const ripartito = allocations.reduce((somma: number, a) => {
     const pct = Number((a as { pct?: unknown } | null)?.pct);
     return somma + (Number.isFinite(pct) && pct > 0 ? pct : 0);
   }, 0);
-  return importo * Math.max(0, 100 - Math.min(ripartito, 100)) / 100;
+  const nonRipartita = importo * Math.max(0, 100 - Math.min(ripartito, 100)) / 100;
+  return Math.max(0, nonRipartita - inGiacenza);
 }
 
 export interface StructureEmployee {
@@ -106,7 +120,10 @@ export function calculateCompanyStructureSnapshot(input: {
 }): CompanyStructureSnapshot {
   const operationalIds = new Set(input.operationalEmployeeIds);
   const fixedCostsMonthly = input.fixedCosts.reduce(
-    (sum, cost) => sum + quotaNonRipartita(finite(cost.amount), cost.allocations) * recurrenceMultiplier(cost.recurrence ?? "monthly"),
+    (sum, cost) =>
+      sum
+      + quotaNonRipartita(finite(cost.amount), cost.allocations, cost.quota_magazzino)
+        * recurrenceMultiplier(cost.recurrence ?? "monthly"),
     0,
   );
 

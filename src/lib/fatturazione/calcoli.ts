@@ -23,7 +23,7 @@ const round2 = arrotondaCentesimi;
  * che ottenuta — e il controllo dello SdI, che verifica imposta = imponibile ×
  * aliquota, confronta esattamente questa.
  */
-function impostaSuImponibile(imponibile: number, aliquota: number): number {
+export function impostaSuImponibile(imponibile: number, aliquota: number): number {
   const centesimi = Math.round(imponibile * 100);
   const segno = centesimi < 0 ? -1 : 1;
   return (segno * Math.round(Math.abs(centesimi) * aliquota / 100)) / 100;

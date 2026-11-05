@@ -36,7 +36,7 @@ export function HrLaborReconciliation({ profiloId }: { profiloId: string }) {
         {summary.pendingHours > 0 && <p className="text-sm">{h(summary.pendingHours)} dichiarate in attesa: non aggiunte al costo approvato.</p>}
         {summary.rows.length === 0 && summary.reportsAvailable && <p className="text-sm text-muted-foreground">Nessun rapportino pertinente trovato per il mese.</p>}
         {summary.rows.map(row => <div key={row.id} className="rounded-lg border p-3 text-sm">
-          <Link className="break-words font-semibold underline underline-offset-4" to={`/azienda/ordini/${row.id}?tab=finanza&vista_economia=manodopera`}>{row.label}</Link>
+          <Link className="break-words font-semibold underline underline-offset-4" to={`/azienda/ordini/${row.id}?tab=costi&vista_costi=manodopera`}>{row.label}</Link>
           <p className="mt-1">{h(row.hours)} approvate · {formatCurrency(row.cost)}{row.unknown ? " · parziale, da verificare" : ""}</p>
           {row.pendingHours > 0 && <p className="text-xs text-muted-foreground">{h(row.pendingHours)} in attesa</p>}
         </div>)}

@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { sal_id, company_id, prepare_signature=false } = await req.json();
+    const { sal_id, company_id, prepare_signature=false, foto_ids, allegati } = await req.json();
     if (!sal_id || !company_id) {
       return new Response(JSON.stringify({ error: "sal_id e company_id obbligatori" }), {
         status: 400,
@@ -97,6 +97,17 @@ Deno.serve(async (req) => {
         extra.vociPrecedenti=mappa;
       }
     }
+    // Le foto scelte per il verbale: solo di questa commessa, firmate per il tempo di stampare.
+    const idFoto=Array.isArray(foto_ids) ? foto_ids.filter((x:unknown):x is string=>typeof x==="string" && /^[0-9a-f-]{36}$/i.test(x)).slice(0,12) : [];
+    if(idFoto.length){
+      const {data:righeFoto,error:fotoError}=await supabase.from("foto_cantiere").select("id,storage_path,taken_at,descrizione").in("id",idFoto).eq("order_id",sal.order_id).eq("company_id",company_id);
+      if(fotoError)throw new Error("Foto del verbale non disponibili");
+      const inOrdine=idFoto.map(id=>(righeFoto??[]).find(f=>f.id===id)).filter((f):f is NonNullable<typeof f>=>!!f);
+      const {data:firmate,error:firmaError}=await supabase.storage.from("foto-cantiere").createSignedUrls(inOrdine.map(f=>f.storage_path),3600);
+      if(firmaError)throw new Error("Foto del verbale non disponibili");
+      extra.foto=inOrdine.flatMap((f,i)=>{const url=firmate?.[i]?.signedUrl;return url ? [{url,data:f.taken_at,didascalia:f.descrizione}] : [];});
+    }
+    if(Array.isArray(allegati))extra.allegati=allegati.filter((x:unknown):x is string=>typeof x==="string" && !!x.trim()).map((x:string)=>x.trim().slice(0,200)).slice(0,20);
     // SAL di contratto di una commessa generale: periodo, ritenuta, anticipazione e netto.
     // Per i SAL di commessa non c'è la riga e il documento resta com'era.
     const {data:contrattoSal,error:contrattoError}=await supabase.from("generale_sal").select("periodo_dal,periodo_al,lordo,ritenuta_pct,ritenuta,recupero_pct,recupero_anticipazione,netto,riferimento_contratto,cig,cup,split_payment,reverse_charge").eq("sal_id",sal_id).eq("company_id",company_id).maybeSingle();

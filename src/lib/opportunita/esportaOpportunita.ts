@@ -13,8 +13,8 @@
 import { neutralizeXlsxCell } from "@/lib/csvExport";
 import { etichettaMotivo, testoMotivoPerdita, type MotivoPerdita } from "@/lib/opportunita/motiviPerdita";
 
-export type StatoOpportunita = "open" | "won" | "lost";
-export const NOMI_STATO: Record<string, string> = { open: "Aperta", won: "Vinta", lost: "Persa" };
+export type StatoOpportunita = "open" | "won" | "lost" | "abandoned";
+export const NOMI_STATO: Record<string, string> = { open: "Aperta", won: "Vinta", lost: "Persa", abandoned: "Abbandonata" };
 
 export interface ColonnaEsportazione { key: string; label: string }
 
@@ -25,7 +25,11 @@ export const COLONNE_OPPORTUNITA: ColonnaEsportazione[] = [
   { key: "contact", label: "Contatto" },
   { key: "email", label: "Email" },
   { key: "phone", label: "Telefono" },
+  { key: "address", label: "Indirizzo" },
   { key: "city", label: "Città" },
+  { key: "province", label: "Provincia" },
+  { key: "postal_code", label: "CAP" },
+  { key: "contact_company", label: "Azienda del contatto" },
   { key: "stage", label: "Fase" },
   { key: "status", label: "Stato" },
   { key: "lost_cause", label: "Motivo della perdita" },
@@ -38,11 +42,27 @@ export const COLONNE_OPPORTUNITA: ColonnaEsportazione[] = [
   { key: "assigned_to", label: "Venditore" },
   { key: "source", label: "Fonte" },
   { key: "tags", label: "Tag" },
+  { key: "next_action", label: "Prossima azione" },
+  { key: "next_action_date", label: "Data prossima azione" },
   { key: "expected_close_date", label: "Chiusura prevista" },
   { key: "closed_at", label: "Data vinta o persa" },
   { key: "stage_changed_at", label: "In questa fase dal" },
   { key: "created_at", label: "Data creazione" },
+  { key: "last_activity_at", label: "Ultima attività" },
   { key: "updated_at", label: "Ultimo aggiornamento" },
+];
+
+/** Le colonne delle note e degli appuntamenti: si leggono e compaiono solo se richieste. */
+export const COLONNE_NOTE: ColonnaEsportazione[] = [
+  { key: "note_numero", label: "Numero di note" },
+  { key: "note_ultima", label: "Ultima nota" },
+  { key: "note_testo", label: "Note" },
+];
+export const COLONNE_APPUNTAMENTI: ColonnaEsportazione[] = [
+  { key: "app_numero", label: "Numero di appuntamenti" },
+  { key: "app_prossimo", label: "Prossimo appuntamento" },
+  { key: "app_ultimo", label: "Ultimo appuntamento" },
+  { key: "app_elenco", label: "Appuntamenti" },
 ];
 
 export interface OpportunitaDaEsportare {
@@ -56,6 +76,9 @@ export interface OpportunitaDaEsportare {
   source?: string | null;
   tags?: string[] | null;
   expected_close_date?: string | null;
+  next_action?: string | null;
+  next_action_date?: string | null;
+  last_activity_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   won_at?: string | null;
@@ -66,7 +89,10 @@ export interface OpportunitaDaEsportare {
   loss_reason?: string | null;
   loss_notes?: string | null;
   competitor_won?: string | null;
-  marketing_contacts?: { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null; city?: string | null } | null;
+  marketing_contacts?: {
+    first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null; city?: string | null;
+    address?: string | null; province?: string | null; postal_code?: string | null; company_name?: string | null;
+  } | null;
 }
 
 export interface ContestoEsportazione {
@@ -96,7 +122,11 @@ export function rigaOpportunita(o: OpportunitaDaEsportare, ctx: ContestoEsportaz
     contact: [c.first_name, c.last_name].filter(Boolean).join(" "),
     email: c.email || "",
     phone: c.phone || "",
+    address: c.address || "",
     city: c.city || "",
+    province: c.province || "",
+    postal_code: c.postal_code || "",
+    contact_company: c.company_name || "",
     stage: (o.stage_id && ctx.fasi[o.stage_id]) || "",
     status: NOMI_STATO[o.status ?? ""] ?? (o.status || ""),
     // la causa scelta dall'elenco dei motivi; se manca (perdite vecchie), il testo libero
@@ -110,10 +140,13 @@ export function rigaOpportunita(o: OpportunitaDaEsportare, ctx: ContestoEsportaz
     assigned_to: (o.assigned_to && ctx.venditori[o.assigned_to]) || "",
     source: o.source || "",
     tags: (o.tags || []).join(", "),
+    next_action: o.next_action || "",
+    next_action_date: data(o.next_action_date),
     expected_close_date: data(o.expected_close_date),
     closed_at: data(o.status === "won" ? o.won_at : persa ? o.lost_at : null),
     stage_changed_at: data(o.stage_changed_at),
     created_at: data(o.created_at),
+    last_activity_at: data(o.last_activity_at),
     updated_at: data(o.updated_at),
   };
   for (const cf of ctx.campi) riga[`cf_${cf.id}`] = ctx.valoriCampi[o.id]?.[cf.id] ?? "";
@@ -180,38 +213,68 @@ export function nomeFoglio(nome: string, usati: Set<string>): string {
   return n;
 }
 
+const COLONNE_NUMERO = new Set(["value", "weighted_value", "probability", "note_numero", "app_numero"]);
+const COLONNE_DATA = new Set(["next_action_date", "expected_close_date", "closed_at", "stage_changed_at", "created_at", "last_activity_at", "updated_at", "data"]);
+const COLONNE_DI_TESTO = new Set(["note_testo", "app_elenco", "testo", "note"]);
+const COLONNE_FOGLIO_NOTE: ColonnaEsportazione[] = [
+  { key: "opportunita", label: "Opportunità" }, { key: "contatto", label: "Contatto" }, { key: "telefono", label: "Telefono" },
+  { key: "quando", label: "Data e ora" }, { key: "autore", label: "Autore" }, { key: "testo", label: "Nota" },
+];
+const COLONNE_FOGLIO_APPUNTAMENTI: ColonnaEsportazione[] = [
+  { key: "opportunita", label: "Opportunità" }, { key: "contatto", label: "Contatto" }, { key: "telefono", label: "Telefono" },
+  { key: "data", label: "Data" }, { key: "ora", label: "Ora" }, { key: "fine", label: "Fine" }, { key: "tipo", label: "Tipo" },
+  { key: "titolo", label: "Titolo" }, { key: "stato", label: "Stato" }, { key: "assegnato", label: "Assegnato a" },
+  { key: "luogo", label: "Luogo" }, { key: "note", label: "Note interne" },
+];
+
 /**
  * Excel: il primo foglio con tutte le opportunità scelte, poi un foglio per fase (nell'ordine
- * della pipeline, solo le fasi con almeno una riga), e un foglio «Motivi di perdita» con il
- * conteggio quando ci sono perse.
+ * della pipeline, solo le fasi con almeno una riga), i fogli «Note» e «Appuntamenti» se chiesti
+ * (una riga per ognuno), e un foglio «Motivi di perdita» con il conteggio quando ci sono perse.
  */
 export async function excelOpportunita(
   righe: Array<{ faseId: string | null; riga: Record<string, string> }>,
   colonne: ColonnaEsportazione[],
   fasiInOrdine: Array<{ id: string; nome: string }>,
+  dettagli?: { note?: Array<Record<string, string>>; appuntamenti?: Array<Record<string, string>> },
 ): Promise<Blob> {
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
   const usati = new Set<string>();
-  const foglio = (nome: string, elenco: Array<Record<string, string>>) => {
+  const foglio = (nome: string, elenco: Array<Record<string, string>>, intestazioni: ColonnaEsportazione[] = colonne) => {
     const ws = wb.addWorksheet(nomeFoglio(nome, usati), { views: [{ state: "frozen", ySplit: 1 }] });
-    ws.columns = colonne.map((c) => ({ header: c.label, key: c.key, width: Math.min(40, Math.max(12, c.label.length + 2)) }));
-    ws.getRow(1).font = { bold: true };
+    // larga quanto serve, ma i testi lunghi vanno a capo invece di allargare il foglio
+    ws.columns = intestazioni.map((c) => {
+      const piuLungo = elenco.reduce((m, r) => Math.max(m, ...(r[c.key] ?? "").split("\n").map((t) => t.length)), c.label.length);
+      return { header: c.label, key: c.key, width: COLONNE_DI_TESTO.has(c.key) ? 60 : Math.min(40, Math.max(12, piuLungo + 2)) };
+    });
+    const testata = ws.getRow(1);
+    testata.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    testata.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
     for (const r of elenco) {
-      ws.addRow(Object.fromEntries(colonne.map((c) => {
+      const riga = ws.addRow(Object.fromEntries(intestazioni.map((c) => {
         const v = r[c.key] ?? "";
         // valori e probabilità come numeri: in Excel si sommano
-        if ((c.key === "value" || c.key === "weighted_value" || c.key === "probability") && v !== "" && Number.isFinite(Number(v))) return [c.key, Number(v)];
+        if (COLONNE_NUMERO.has(c.key) && v !== "" && Number.isFinite(Number(v))) return [c.key, Number(v)];
+        // le date come date: in Excel si ordinano e si filtrano
+        const giorno = COLONNE_DATA.has(c.key) ? /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v) : null;
+        if (giorno) return [c.key, new Date(Date.UTC(Number(giorno[3]), Number(giorno[2]) - 1, Number(giorno[1])))];
         return [c.key, neutralizeXlsxCell(v)];
       })));
+      for (const c of intestazioni) {
+        if (COLONNE_DI_TESTO.has(c.key)) riga.getCell(c.key).alignment = { wrapText: true, vertical: "top" };
+        if (COLONNE_DATA.has(c.key)) riga.getCell(c.key).numFmt = "dd/mm/yyyy";
+      }
     }
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: colonne.length } };
+    if (intestazioni.length) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: intestazioni.length } };
   };
   foglio("Tutte", righe.map((r) => r.riga));
   for (const f of fasiInOrdine) {
     const della = righe.filter((r) => r.faseId === f.id).map((r) => r.riga);
     if (della.length) foglio(f.nome, della);
   }
+  if (dettagli?.note) foglio("Note", dettagli.note, COLONNE_FOGLIO_NOTE);
+  if (dettagli?.appuntamenti) foglio("Appuntamenti", dettagli.appuntamenti, COLONNE_FOGLIO_APPUNTAMENTI);
   const perse = righe.filter((r) => r.riga.status === NOMI_STATO.lost);
   if (perse.length) {
     const conta = new Map<string, number>();

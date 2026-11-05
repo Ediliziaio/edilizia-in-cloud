@@ -60,7 +60,8 @@ import RegistroIncassi from "./RegistroIncassi";
 import CassettoSDI from "./CassettoSDI";
 import FiscalWorkspace from "@/components/fatturazione/FiscalWorkspace";
 import { useBillingMode } from "@/contexts/BillingModeContext";
-import { GestionaleEsternoAzioni, ImportInCorsoBanner, SegnaPagataImportataDialog, importataPagabile } from "@/components/fatturazione/GestionaleEsterno";
+import { GestionaleEsternoAzioni, ImportInCorsoBanner, SegnaIncassateImportateDialog, SegnaPagataImportataDialog, importataPagabile } from "@/components/fatturazione/GestionaleEsterno";
+import { RiportaDaIncassareDialog, siRiportaDaIncassare } from "@/components/fatturazione/RiportaDaIncassare";
 import { CassettoSdiEsterno, RegistroIncassiImportate } from "@/components/fatturazione/HubEsterno";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -238,6 +239,7 @@ function DocumentiFiscaliListInner() {
   const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const puoCreare = !esterna && !isCommercialistaMode;
   const [incassoImportata, setIncassoImportata] = useState<DocumentoFiscale | null>(null);
+  const [daRiaprire, setDaRiaprire] = useState<DocumentoFiscale | null>(null);
   const apriDocumento = (doc: DocumentoFiscale) => {
     // Le importate hanno il loro dettaglio, con la stessa impaginazione e senza azioni che creano.
     navigate(doc.origine === "importata" ? `/azienda/documenti/importata/${doc.id}` : `/azienda/documenti/${doc.id}/dettaglio`);
@@ -429,6 +431,8 @@ function DocumentiFiscaliListInner() {
   // «Segna pagate»: un incasso per fattura (registra_incasso_atomico), solo
   // su quelle che hanno qualcosa da incassare; le altre si dicono nel dialog.
   const pagabiliSelezionate = useMemo(() => selectedDocs.filter(isDocumentoPagabile), [selectedDocs]);
+  const importateDaIncassare = useMemo(() => selectedDocs.filter(importataPagabile), [selectedDocs]);
+  const [bulkIncassaOpen, setBulkIncassaOpen] = useState(false);
 
   const handleBulkDelete = async () => {
     let ok = 0;
@@ -801,6 +805,13 @@ function DocumentiFiscaliListInner() {
             </Button>
           )}
 
+          {!isTrash && esterna && (
+            <Button variant="outline" size="sm" disabled={!importateDaIncassare.length} onClick={() => setBulkIncassaOpen(true)}>
+              <CreditCard className="h-4 w-4 mr-1.5" />
+              Segna incassate{importateDaIncassare.length ? ` (${importateDaIncassare.length})` : ""}
+            </Button>
+          )}
+
           {!esterna && (
             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 className="h-4 w-4 mr-1.5" />
@@ -1126,6 +1137,11 @@ function DocumentiFiscaliListInner() {
                                     <CreditCard className="h-4 w-4 mr-2" /> Segna pagata
                                   </DropdownMenuItem>
                                 )}
+                                {siRiportaDaIncassare(doc) && (
+                                  <DropdownMenuItem onClick={() => setDaRiaprire(doc)}>
+                                    <RotateCcw className="h-4 w-4 mr-2" /> Riporta da incassare
+                                  </DropdownMenuItem>
+                                )}
                               </>
                             ) : isTrash && esterna ? (
                               <DropdownMenuItem disabled>Nel cestino</DropdownMenuItem>
@@ -1385,7 +1401,14 @@ function DocumentiFiscaliListInner() {
     </div>
 
       {effectiveCompany?.id && (
+        <SegnaIncassateImportateDialog open={bulkIncassaOpen} onOpenChange={setBulkIncassaOpen} fatture={importateDaIncassare}
+          escluse={selectedDocs.length - importateDaIncassare.length} companyId={effectiveCompany.id} onFatto={clearSelection} />
+      )}
+      {effectiveCompany?.id && (
         <SegnaPagataImportataDialog fattura={incassoImportata} companyId={effectiveCompany.id} onClose={() => setIncassoImportata(null)} />
+      )}
+      {daRiaprire && (
+        <RiportaDaIncassareDialog fattura={daRiaprire} onClose={() => setDaRiaprire(null)} />
       )}
       {effectiveCompany?.id && (
         <AbbinaFattureCommesseDialog

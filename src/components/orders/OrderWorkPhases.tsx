@@ -39,6 +39,8 @@ import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
+import { DistintaCommessa } from "@/components/orders/DistintaCommessa";
+import { distintaConsigliata } from "@/lib/orders/distintaLavorazioni";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
@@ -225,7 +227,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, avanza: avanzaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -301,6 +303,31 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     return map;
   }, [scheduleHealth]);
 
+  // Oltre una certa quantità di voci si parte dalla tabella; la scelta fatta a mano vale per quella commessa.
+  const [modoScelto, setModoScelto] = useState<"schede" | "tabella" | null>(() => {
+    try {
+      const v = localStorage.getItem(`fasi-lavoro-modo:${orderId}`);
+      return v === "schede" ? "schede" : v === "distinta" || v === "assegnazioni" || v === "tabella" ? "tabella" : null;
+    } catch { return null; }
+  });
+  const scegliModo = (modo: "schede" | "tabella") => {
+    setModoScelto(modo);
+    try { localStorage.setItem(`fasi-lavoro-modo:${orderId}`, modo); } catch { /* resta per questa pagina */ }
+  };
+  const quanteVoci = Math.max(vociPreviste?.length ?? 0, [...sottofasiDi.values()].reduce((n, l) => n + l.length, 0));
+  const modoFasi = modoScelto ?? (distintaConsigliata(quanteVoci) ? "tabella" : "schede");
+  const chiLavoraDi = useMemo(() => {
+    if (modoFasi !== "tabella") return new Map();
+    const nomePersona = new Map(employees.map((e) => [e.id, e.label]));
+    const nomeDitta = new Map(externalTeams.map((t) => [t.id, t.label]));
+    return new Map(phases.map((p) => [p.id, {
+      squadre: (squadrePerFase.get(p.id) ?? []).map((s) => s.nome),
+      persone: p.assignments.filter((a) => a.employee_id).map((a) => nomePersona.get(a.employee_id!) ?? "Persona non attiva"),
+      ditte: p.assignments.filter((a) => a.external_team_id).map((a) => nomeDitta.get(a.external_team_id!) ?? "Ditta non attiva"),
+      mezzi: (mezziPerFase.get(p.id) ?? []).map((m) => m.nome),
+      articoli: (materialsByPhase.get(p.id) ?? []).length,
+    }]));
+  }, [modoFasi, phases, employees, externalTeams, squadrePerFase, mezziPerFase, materialsByPhase]);
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello">("manuale");
   const [filter, setFilter] = useState<WorkFilter>("all");
@@ -514,7 +541,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
               )}
               {!telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
-                setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setModoScelto("schede"); setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}
               {view && azioniCommessa}
             </span>
@@ -547,7 +574,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
         {/* Economia delle lavorazioni (06/10/2026): venduto, costo previsto e
             consuntivo fase per fase, al posto del riepilogo della sola
             manodopera. Solo in Lavorazioni e quando c'è qualcosa da sommare. */}
-        {showWork && (canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
+        {showWork && modoFasi !== "tabella" && (canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
           <RiepilogoEconomicoFasi
             economia={economia}
             fasi={phases}
@@ -606,6 +633,49 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
           null
         ) : (
           <>
+            {phases.length > 0 && (
+              <div role="group" aria-label="Come vedere le fasi" className="flex items-center gap-0.5">
+                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "tabella" ? "secondary" : "ghost"} aria-pressed={modoFasi === "tabella"} onClick={() => scegliModo("tabella")}>Tabella</Button>
+                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "schede" ? "secondary" : "ghost"} aria-pressed={modoFasi === "schede"} onClick={() => scegliModo("schede")}>Schede</Button>
+              </div>
+            )}
+            {modoFasi === "tabella" && phases.length > 0 ? (
+              <DistintaCommessa
+                orderId={orderId}
+                fasi={phases}
+                sottofasiDi={sottofasiDi}
+                voci={vociPreviste ?? []}
+                economiaDi={economia.perFase}
+                consuntivoSenzaFase={economia.senzaFase.costoConsuntivo}
+                chiDi={chiLavoraDi}
+                persone={employees.map((e) => ({ id: e.id, nome: e.label }))}
+                ditte={externalTeams.filter((t) => t.kind !== "interna").map((t) => ({ id: t.id, nome: t.label }))}
+                puoSquadre={puoSquadre}
+                vedeVenduto={canViewOrderAmounts}
+                vedeCosti={canViewCosts}
+                vedeMargini={canViewMargins}
+                puoModificare={canEditOrders}
+                oggi={oggi}
+                onSegna={(id, fatta) => segnaSottofase.mutate({ id, fatta })}
+                onSegnaTutte={(ids, fatta) => segnaSottofasi.mutate({ ids, fatta })}
+                onAvanza={(id, a) => avanzaSottofase.mutate({ id, ...a })}
+                onPianifica={(id, piano) => pianificaSottofase.mutate({ id, ...piano })}
+                onPianificaTutte={(passi) => pianificaSottofasi.mutate(passi)}
+                onDateFase={(id, date) => updatePhase.mutate({ id, ...date })}
+                onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
+                onAggiungi={(phaseId, nome) => aggiungiSottofase.mutate({ phaseId, nome })}
+                onRinomina={(id, nome) => rinominaSottofase.mutate({ id, nome })}
+                onElimina={(id) => eliminaSottofase.mutate(id)}
+                onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
+                lavorativo={calendario.lavorativo}
+                onApriScheda={(faseId) => {
+                  setSearch(phases.find((p) => p.id === faseId)?.name ?? "");
+                  setFilter("all");
+                  // Solo per adesso: la preferenza salvata non cambia.
+                  setModoScelto("schede");
+                }}
+              />
+            ) : <>
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
             {telefono ? (mostraFiltri || attentionCount > 0) && (
@@ -723,6 +793,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 {showCompleted ? "Nascondi le completate" : `Mostra ${completedCount} ${completedCount === 1 ? "fase completata" : "fasi completate"}`}
               </Button>
             )}
+            </>}
 
           </>
         )}

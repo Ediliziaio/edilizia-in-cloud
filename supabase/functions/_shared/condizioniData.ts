@@ -26,13 +26,38 @@ export function giornoRoma(v: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : oggiRoma(d);
 }
 
-export type OperatoreData = "da_oggi" | "prima_di_oggi";
-export const OPERATORI_DATA: readonly OperatoreData[] = ["da_oggi", "prima_di_oggi"];
+export type OperatoreData = "da_oggi" | "prima_di_oggi" | "oggi" | "domani";
+export const OPERATORI_DATA: readonly OperatoreData[] = ["da_oggi", "prima_di_oggi", "oggi", "domani"];
 
-/** «da_oggi»: il giorno è oggi o dopo; «prima_di_oggi»: è già passato. Un valore che non è una data non soddisfa nessuno dei due. */
+/** Il giorno dopo (AAAA-MM-GG), contando sul calendario e non sulle 24 ore. */
+function giornoDopo(giorno: string): string {
+  const [a, m, g] = giorno.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, g + 1)).toISOString().slice(0, 10);
+}
+
+/**
+ * «da_oggi»: il giorno è oggi o dopo; «prima_di_oggi»: è già passato;
+ * «oggi» / «domani»: è esattamente quel giorno, a Roma.
+ *
+ * «domani» serve ai promemoria «ci vediamo domani» (Il Bagno Group, 05/11/2026):
+ * l'attesa «fino a 24 ore prima» va avanti subito se l'appuntamento è preso a
+ * meno di un giorno, e il messaggio partiva lo stesso giorno dell'appuntamento.
+ *
+ * Un valore che non è una data non soddisfa nessuno.
+ */
 export function confrontoConOggi(v: unknown, operatore: OperatoreData, at: Date = new Date()): boolean {
   const giorno = giornoRoma(v);
   if (!giorno) return false;
   const oggi = oggiRoma(at);
-  return operatore === "da_oggi" ? giorno >= oggi : giorno < oggi;
+  switch (operatore) {
+    case "da_oggi": return giorno >= oggi;
+    case "prima_di_oggi": return giorno < oggi;
+    case "oggi": return giorno === oggi;
+    case "domani": return giorno === giornoDopo(oggi);
+    default: return false;
+  }
+}
+
+export function eOperatoreData(op: unknown): op is OperatoreData {
+  return (OPERATORI_DATA as readonly unknown[]).includes(op);
 }

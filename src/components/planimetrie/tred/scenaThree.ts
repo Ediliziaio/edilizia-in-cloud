@@ -14,7 +14,7 @@ function materialeThree(chiave: string, m: Materiale3D): THREE.MeshStandardMater
     name: m.nome,
     color: new THREE.Color(m.colore),
     roughness: m.ruvidita,
-    metalness: chiave === "metallo" ? 0.6 : 0,
+    metalness: chiave === "metallo" ? 0.6 : chiave === "lamiera" ? 0.5 : 0,
     transparent: trasparente,
     opacity: m.opacita,
     side: trasparente ? THREE.DoubleSide : THREE.FrontSide,
@@ -39,7 +39,7 @@ export function creaGruppo(scena: Scena3D): THREE.Group {
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(g, materiali.get(m.materiale) ?? new THREE.MeshStandardMaterial());
     mesh.name = m.nome;
-    mesh.userData = { id: m.id, genere: m.genere, riferimento: m.riferimento };
+    mesh.userData = { id: m.id, genere: m.genere, riferimento: m.riferimento, materiale: m.materiale };
     const trasparente = m.genere === "vetro";
     // le superfici piatte dei campi (fondo, linee) non fanno ombra: su se stesse si righerebbero
     mesh.castShadow = !trasparente && m.genere !== "soffitto" && m.genere !== "pavimento" && !SUPERFICI_A_TERRA.has(m.materiale);
@@ -56,6 +56,8 @@ export function liberaGruppo(gruppo: THREE.Object3D): void {
     if (o instanceof THREE.Mesh) {
       o.geometry.dispose();
       (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => materiali.add(m));
+      // con l'aspetto realistico il materiale in uso è una copia: si libera anche quello di base
+      if (o.userData.materialeBase instanceof THREE.Material) materiali.add(o.userData.materialeBase);
     }
   });
   materiali.forEach((m) => m.dispose());
@@ -66,7 +68,7 @@ export function liberaGruppo(gruppo: THREE.Object3D): void {
  * con ombre morbide. Il soffitto non fa ombra, così la stanza resta chiara anche
  * vista da dentro.
  */
-export function preparaAmbiente(renderer: THREE.WebGLRenderer, scene: THREE.Scene): { sole: THREE.DirectionalLight; terreno: THREE.Mesh; libera: () => void } {
+export function preparaAmbiente(renderer: THREE.WebGLRenderer, scene: THREE.Scene): { sole: THREE.DirectionalLight; terreno: THREE.Mesh; hemi: THREE.HemisphereLight; libera: () => void } {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
@@ -101,6 +103,7 @@ export function preparaAmbiente(renderer: THREE.WebGLRenderer, scene: THREE.Scen
   return {
     sole,
     terreno,
+    hemi: cielo,
     libera: () => {
       ambiente.dispose();
       terreno.geometry.dispose();

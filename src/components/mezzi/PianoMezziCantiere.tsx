@@ -1,7 +1,8 @@
 import { SpesePianoMezzo } from "./SpesePianoMezzo";
 import { ViaggioSelect } from "./ViaggioSelect";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
-import { usePersonePianoMezzi } from "@/hooks/useMezziPianoEconomia";
+import { useMezziPianoEconomia, usePersonePianoMezzi } from "@/hooks/useMezziPianoEconomia";
+import { economiaPianiMezzi, statoCostoMezzo } from "@/lib/mezzi/economiaPiani";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -68,6 +69,7 @@ export function PianoMezziCantiere({
     refetch: refetchMezzi,
   } = useMezzi();
   const { piani, prezzi, salva } = usePianoMezziCantiere(orderId, vede, costi);
+  const { fonti } = useMezziPianoEconomia(orderId, vede && costi);
   const companyId = useEffectiveCompanyId();
   const fasi = useQuery({
     queryKey: ["mezzi-piani-fasi", companyId, orderId],
@@ -119,6 +121,11 @@ export function PianoMezziCantiere({
   const monta = useMontaQuantita();
   const rientro = useRientroQuantita();
   const piniFase = useMemo(() => (piani.data ?? []).filter((p) => pianoPerFase(p, faseId)), [piani.data, faseId]);
+  // Previsto e registrato: gli stessi di Margini e costi. Prima che i dati ci siano, nessuno stato.
+  const economiaCosti = useMemo(
+    () => (costi && piani.data && prezzi.data && fonti.data ? economiaPianiMezzi(piani.data.filter((p) => !p.annullato), prezzi.data, fonti.data) : null),
+    [costi, piani.data, prezzi.data, fonti.data],
+  );
   // Un solo elenco: prenotazioni ancora valide e mezzi che sono sul cantiere adesso.
   const tutte = useMemo(() => {
     const qui: PresenzaMezzo[] = [
@@ -351,6 +358,8 @@ export function PianoMezziCantiere({
               const fuori = p ? pianoDaAllineare(p, fasi.data ?? []) : null;
               const st = statoRiga(r);
               const nome = m?.nome ?? "Risorsa archiviata";
+              const riga = p ? economiaCosti?.righe.find((x) => x.piano.id === p.id) : undefined;
+              const statoCosto = riga ? statoCostoMezzo(riga, oggi) : null;
               return (
                 <li key={r.chiave} className="flex flex-wrap items-start gap-3 p-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
@@ -412,6 +421,10 @@ export function PianoMezziCantiere({
                               : c
                                 ? "Costo: definisci la fine"
                                 : "Costo da valorizzare"}
+                        {riga && riga.registrato !== 0 && ` · registrato ${formatCurrency(riga.registrato)}`}
+                        {statoCosto && ["daRegistrare", "oltre", "verifica"].includes(statoCosto.chiave) && (
+                          <span className="ml-1 font-medium text-amber-800">· {statoCosto.testo}</span>
+                        )}
                       </p>
                     )}
                   </div>
@@ -819,6 +832,7 @@ export function PianoMezziCantiere({
               orderId={orderId}
               pianoId={draft.id}
               supplierId={supplierId}
+              nomeMezzo={mezzi.find((m) => m.id === draft.mezzo_id)?.nome}
             />
           )}
           <DialogFooter>

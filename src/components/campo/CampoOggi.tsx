@@ -6,7 +6,8 @@
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { Navigation, Phone, Users } from "lucide-react";
+import { AlertCircle, Navigation, Phone, Users } from "lucide-react";
+import { ScattaFoto } from "@/components/campo/ScattaFoto";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -85,6 +86,16 @@ function SchedaCantiere({ c }: { c: CantiereDelGiorno }) {
           className="flex h-11 items-center justify-center rounded-xl border text-sm font-semibold active:bg-muted"
         >
           Apri il cantiere
+        </Link>
+      </div>
+      {/* Le due cose che capitano durante il lavoro: si fanno da qui, senza aprire il cantiere. */}
+      <div className="grid grid-cols-2 gap-2">
+        <ScattaFoto orderId={c.order_id} nomeCantiere={c.codice ?? c.titolo ?? undefined} className="h-11 rounded-xl border bg-background text-sm active:bg-muted" />
+        <Link
+          to={`/campo/ticket/nuovo/${c.order_id}`}
+          className="flex h-11 items-center justify-center gap-2 rounded-xl border bg-background text-sm font-semibold active:bg-muted"
+        >
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />Segnala
         </Link>
       </div>
       {vedeSquadra && (

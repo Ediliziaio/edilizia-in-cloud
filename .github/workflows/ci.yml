@@ -99,6 +99,7 @@ jobs:
           src/test/ui/blogSeoMetadata.test.tsx
           src/test/ui/calendarioInPagina.test.tsx
           src/test/ui/marketingVideo.test.tsx
+          src/test/ui/homeVideoGallery.test.tsx
           src/test/ui/editorialVideo.test.tsx
           src/test/logic/marketingPrerenderSlugs.test.ts
           src/test/logic/comparisonCrawlerParity.test.ts
@@ -520,7 +521,7 @@ jobs:
           fi
           echo "Diff range: ${BASE:-<nessuno>} → HEAD"
           if [ -n "$BASE" ]; then
-            CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ \
+            CHANGED=$(git diff --name-only "$BASE" HEAD -- supabase/functions/ shared/ \
               | node scripts/funzioni-da-ripubblicare.mjs)
           else
             CHANGED=""

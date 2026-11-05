@@ -112,6 +112,8 @@ export interface ImageEditParams {
    *  correttivo che finisse li' produrrebbe un'immagine che il chiamante
    *  scartera' comunque per formato sbagliato — pagandola. Meglio non farla. */
   directProviderOnly?: boolean;
+  /** Solo il ripiego su OpenRouter: serve a provarlo da solo (controllo delle chiavi), mai nei render veri. */
+  soloOpenRouter?: boolean;
   /** F1 (audit 16/07) — Max retry per provider (default DEFAULT_RETRIES=2).
    *  I render image-edit durano 60-80s a tentativo: 3 tentativi × 90s
    *  sforavano il cap 150s dell'edge runtime (isolate killata a metà =
@@ -175,9 +177,11 @@ export async function editImage(
   const errors: Array<{ model: string; error: string }> = [];
   const attemptHistory: ImageProviderAttempt[] = [];
 
-  const steps = args.directProviderOnly
-    ? getProviderOrder().filter((step) => step.provider === "openai_direct")
-    : getProviderOrder();
+  const steps = args.soloOpenRouter
+    ? getProviderOrder().filter((step) => step.provider === "openrouter")
+    : args.directProviderOnly
+      ? getProviderOrder().filter((step) => step.provider === "openai_direct")
+      : getProviderOrder();
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const tier = i + 1;

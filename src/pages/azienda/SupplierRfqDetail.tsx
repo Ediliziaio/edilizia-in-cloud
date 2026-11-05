@@ -13,7 +13,8 @@
  * in poi si lavora sull'ordine d'acquisto, non piu' qui.
  */
 import { useMemo, useRef, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,8 +56,10 @@ const dataIt = (iso?: string | null) =>
   iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—";
 
 export default function SupplierRfqDetail() {
-  const { rfqId } = useParams();
-  const navigate = useNavigate();
+  const { rfqId: rfqIdIndirizzo } = useParams();
+  const rfqId = useIdDocumento(rfqIdIndirizzo);
+  const navigate = useNavigaDocumento();
+  const inPopup = useDentroPopupDocumento();
   const { effectiveCompany } = useAuth();
   const {
     rfq, items, fornitori, quotes, isLoading,
@@ -192,13 +195,13 @@ export default function SupplierRfqDetail() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center gap-3">
+      {!inPopup && <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/ordini?tab=offerte")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           <span className="hidden sm:inline">Richieste d'offerta</span>
           <span className="sm:hidden">Indietro</span>
         </Button>
-      </div>
+      </div>}
 
       <QuotePageHeader
         numero={rfq.rfq_number}
@@ -366,7 +369,8 @@ export default function SupplierRfqDetail() {
                                 key={`${q?.id ?? "nuova"}:${q?.prezzo_unitario ?? ""}`}
                                 type="number"
                                 step="0.01"
-                                defaultValue={q?.prezzo_unitario ?? ""}
+                                // a richiesta chiusa si legge soltanto: due decimali, come un prezzo
+                                defaultValue={chiusa && q?.prezzo_unitario != null ? Number(q.prezzo_unitario).toFixed(2) : q?.prezzo_unitario ?? ""}
                                 placeholder="—"
                                 disabled={chiusa}
                                 className={`h-8 text-sm text-right ${vince ? "font-semibold text-emerald-700" : ""}`}
@@ -447,6 +451,32 @@ export default function SupplierRfqDetail() {
 
         {/* ── Fornitori interpellati ───────────────────────────────── */}
         <div className="space-y-4">
+          {/* Chi ha vinto si legge subito, non in fondo alla colonna. */}
+          {rfq.status === "aggiudicata" && (
+            <QuoteCard title="Aggiudicata" icon={<CheckCircle2 className="h-4 w-4" />}>
+              <div className="space-y-2 text-sm">
+                <p className="text-slate-600">
+                  Il {dataIt(rfq.aggiudicata_at)}, fornitore scelto:{" "}
+                  <strong>
+                    {fornitori.find((f) => f.supplier_id === rfq.supplier_id_aggiudicato)?.suppliers?.name ?? "—"}
+                  </strong>
+                </p>
+                {rfq.motivazione_scelta && (
+                  <p className="text-xs text-slate-500 italic">{rfq.motivazione_scelta}</p>
+                )}
+                {rfq.purchase_order_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => navigate(`/azienda/ordini-acquisto/${rfq.purchase_order_id}`)}
+                  >
+                    Apri l'ordine generato <ExternalLink className="h-3 w-3 ml-1.5" />
+                  </Button>
+                )}
+              </div>
+            </QuoteCard>
+          )}
           <QuoteCard title="A chi lo chiedi" icon={<Users className="h-4 w-4" />}>
             <div className="space-y-3">
               {fornitori.length === 0 && (
@@ -735,31 +765,6 @@ export default function SupplierRfqDetail() {
             </div>
           </QuoteCard>
 
-          {rfq.status === "aggiudicata" && (
-            <QuoteCard title="Aggiudicata" icon={<CheckCircle2 className="h-4 w-4" />}>
-              <div className="space-y-2 text-sm">
-                <p className="text-slate-600">
-                  Il {dataIt(rfq.aggiudicata_at)}, fornitore scelto:{" "}
-                  <strong>
-                    {fornitori.find((f) => f.supplier_id === rfq.supplier_id_aggiudicato)?.suppliers?.name ?? "—"}
-                  </strong>
-                </p>
-                {rfq.motivazione_scelta && (
-                  <p className="text-xs text-slate-500 italic">{rfq.motivazione_scelta}</p>
-                )}
-                {rfq.purchase_order_id && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => navigate(`/azienda/ordini-acquisto/${rfq.purchase_order_id}`)}
-                  >
-                    Apri l'ordine generato <ExternalLink className="h-3 w-3 ml-1.5" />
-                  </Button>
-                )}
-              </div>
-            </QuoteCard>
-          )}
         </div>
       </div>
 

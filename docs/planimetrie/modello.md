@@ -47,6 +47,19 @@ Planimetria { schema: 1, unita: "cm", titolo?, scala?, nord?, riferimenti?, live
   `manovra`: `battente` | `scorrevole` | `nessuna`. `verso` (solo battenti):
   `cardine` = verso quale capo del muro stanno le cerniere (`p1` o `p2`);
   `lato` = da che parte si apre l'anta guardando da p1 a p2 (`sinistra` | `destra`).
+  Facoltativi: `ante` (intero 1-6; assente = 1, oppure 2 per finestre e portefinestre più larghe di
+  1,4 m) e `sistema` (`battente` | `anta_ribalta` | `vasistas` | `scorrevole` | `scorrevole_scomparsa` |
+  `alzante_scorrevole` | `libro` | `fisso`; assente = quello che dice `manovra`). La `manovra` resta
+  coerente: ogni sistema a scorrere è `scorrevole`, `fisso` è `nessuna`. Controtelaio e misure dell'anta
+  si calcolano da `shared/planimetrie/serramenti.ts`, non si salvano.
+  Per finestre e portefinestre anche l'oscurante: `oscurante` (`tapparella` | `veneziana` | `persiana` | `scuro`),
+  `cassonetto` (`monoblocco` = dentro il vano, il serramento si accorcia | `a_filo` = murato sopra il vano |
+  `esterno` = a vista sul prospetto; vale solo per tapparella e veneziana, assente = monoblocco),
+  `altezzaCassonetto` (cm; assente = consigliata: 22/25/30/35 secondo il vano, +5 per la veneziana) e
+  `motore` (booleano). Misure di telo, guide e cassonetto, e il muro libero che serve sopra il vano
+  (`misureOscurante`) si calcolano, non si salvano. Persiane (fuori) e scuri (dentro) usano `ante`.
+  Anche `zanzariera` (`laterale` | `verticale` | `plisse` | `battente` | `incastro`; assente = nessuna): telo, guide e
+  ante (`misureZanzariera`) si calcolano; sta sul filo interno e, con un cassonetto monoblocco, arriva sotto di esso.
 - **Locale** = poligono al **filo interno** delle pareti (`contorno`, almeno 3 punti,
   verso qualunque), `altezza`, `destinazione` (soggiorno, cucina, camera, bagno,
   ingresso, disimpegno, corridoio, ripostiglio, studio, lavanderia, balcone, terrazzo,
@@ -306,3 +319,30 @@ salvati (un campo che cambia significato, un'unità diversa) porta la versione a
 aggiunge in `modello.ts` una funzione che porta un documento v1 a v2 prima della
 validazione; le versioni vecchie nel database non si riscrivono. Un documento con una
 versione più nuova di quella del programma viene rifiutato con «ricarica la pagina».
+
+## Prospetti quotati
+
+`prospettoQuotato(piani, lato)` (`src/lib/planimetrie/prospetti.ts`) disegna la facciata da un lato, di tutto l'edificio:
+i piani uno sopra l'altro con il solaio fra l'uno e l'altro, il tetto sopra l'ultimo, ogni serramento con il codice
+dell'abaco (F1, PF1, P2) e le misure, i simboli di apertura (triangolo dei battenti, vasistas, freccia degli scorrevoli),
+cassonetti (nascosti a linea tratteggiata, esterni a vista), tapparelle con le lamelle e persiane chiuse, la catena di quote
+orizzontali (spalle dei vani, filo dei muri) col totale, le quote di piano (±0,00, +3,00…) con gli interpiani e il totale
+a sinistra, davanzale / luce / architrave a destra. Uscita come gli altri disegni: SVG in scala e DXF a layer (`QUOTE`, `APERTURE`).
+
+## Copertura del tetto e aspetto da fuori
+
+`Livello.tetto.finitura` (`tegole` | `verde` | `verde_intensivo` | `ghiaia` | `lamiera` | `guaina`; assente = tegole sulle falde,
+cemento sul tetto piano). Il tetto verde ha un substrato di 10 cm (giardino pensile 25 cm), alza la superficie di quello
+spessore e sul tetto piano ha il cordolo tutto intorno (e, nel giardino pensile, gli arbusti). Il computo dà superficie,
+substrato in m³, strato drenante e telo antiradice; le verifiche segnalano il peso (100–150 kg/m², 300 per il pensile),
+la pendenza oltre il 35% e le coperture sbagliate per il tipo di tetto (ghiaia sulle falde, tegole sul piano o sotto il 25%).
+
+La scena 3D ha anche la zoccolatura (30 cm) alla base dei muri esterni del piano terra, i davanzali di pietra sotto le
+finestre e il marciapiede intorno alla casa (solo se la pianta è più o meno un rettangolo e non ha un lotto disegnato).
+Nel visualizzatore (`Vista3D`) l'«aspetto realistico» è solo di chi guarda e non entra nel file: tessiture (intonaco in
+quattro tinte, mattoni, pietra, legno, cemento), colore degli infissi, ora del giorno (sole, cielo, nebbia, ombre), alberi
+intorno alla casa e ombre morbide negli angoli; nell'esportazione GLB/OBJ e nei render AI non c'è.
+
+I render degli esterni con l'AI (`RenderEsterniDialog`) partono dalla stessa vista: la casa ha la facciata, gli infissi,
+l'ora e gli alberi scelti nel 3D (le scelte si ricordano nel browser, `aspettoOpzioni.ts`), e una frase
+(`descriviAspetto`) li racconta all'AI perché non cambi materiali e colori. Si può spegnere con «Aspetto della casa come nel 3D».

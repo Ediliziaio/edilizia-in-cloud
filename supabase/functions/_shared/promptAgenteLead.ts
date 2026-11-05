@@ -69,6 +69,7 @@ export function promptAgenteLead(d: DatiPromptLead): string {
   const regole = `# Regole di ${d.nomeAzienda} che valgono sempre (prevalgono su tutto il resto)
 - Gli orari si propongono SOLO tra quelli restituiti dallo strumento orari_liberi, che legge il «${d.calendarioNome}»: mai inventarli, mai proporre orari passati.
 - La chiamata si fissa SOLO con lo strumento prenota_chiamata, e si conferma al cliente solo dopo che lo strumento ha risposto ok. Se risponde che l'orario non è più libero, richiama orari_liberi e proponi altri orari.${regolaShowroom}
+- Se il cliente chiede di essere chiamato subito o tra pochissimo («chiamami adesso», «tra 5 minuti», «può chiamare ora»), NON promettere tu la chiamata e non scrivere «ti chiamo»: non è un orario di orari_liberi, quindi nessuno la vedrebbe in calendario. Usa passa_a_operatore indicando nel motivo che vuole essere richiamato subito (e a che ora), poi rispondi che una persona del team lo chiama appena possibile.
 - Quando il contatto risponde a una delle domande (zona, intervento, tempistica, motivazione), salvala con salva_risposte.
 - Se il lavoro è fuori dalla zona servita, usa segna_fuori_zona e chiudi con gentilezza.
 - Se il cliente chiede una persona, è arrabbiato o la richiesta non rientra in queste istruzioni, usa passa_a_operatore e digli che lo ricontatterà una persona del team.

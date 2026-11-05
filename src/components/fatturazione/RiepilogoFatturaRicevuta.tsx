@@ -9,10 +9,18 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
+import { PagamentoRicevutaCella, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
+import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
+import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
+import { usePermissions } from "@/hooks/usePermissions";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
+import { CollegamentiFattura } from "@/components/fatturazione/CollegamentiFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
+import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import {
   etichettaAliquota,
   nomeNatura,
@@ -50,6 +58,8 @@ interface Dettaglio {
 export interface AzioniRiepilogo {
   /** Apre la scelta degli ordini d'acquisto (uno o più, con le quote). */
   onCollegaOrdine?: () => void;
+  /** Apre la scelta di una o più commesse, con le quote. */
+  onCollegaCommesse?: () => void;
   /** Contabilizza: la fattura diventa un costo. */
   onContabilizza?: () => void;
   /** La versione completa dall'XML (stampa, PDF del fornitore): solo se l'XML c'è. */
@@ -76,7 +86,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -111,6 +121,14 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   let daCollegareStessoCedente: string[] = [];
   const piva = chiaveFiscale(f.cedente_piva);
   const cf = chiaveFiscale(f.cedente_cf);
+  // Senza codici si riconosce dal nome, se è di un fornitore solo: niente doppioni con «Aggiungi ai fornitori».
+  if (!f.fornitore_id && !piva && !cf && f.cedente_ragione_sociale) {
+    const { data: idNome } = await db.rpc("fornitore_per_nome", { p_company_id: companyId, p_nome: String(f.cedente_ragione_sociale) });
+    if (idNome) {
+      const { data: scheda } = await db.from("suppliers").select("id, name").eq("id", idNome).eq("company_id", companyId).maybeSingle();
+      if (scheda) candidatiFornitore = [{ id: String(scheda.id), name: String(scheda.name ?? "Fornitore") }];
+    }
+  }
   if (!f.fornitore_id && (piva || cf)) {
     const filtri = [piva && `vat_number.ilike.%${piva}%`, cf && `fiscal_code.ilike.%${cf}%`].filter(Boolean).join(",");
     const [sup, stesse] = await Promise.all([
@@ -171,12 +189,17 @@ export function RiepilogoFatturaRicevuta({
   azioni?: AzioniRiepilogo;
 }) {
   const isMobile = useIsMobile();
+  // In mezzo allo schermo come gli altri documenti; da telefono resta il foglio dal basso.
+  const Radice = isMobile ? Sheet : Dialog;
+  const Contenuto = (isMobile ? SheetContent : DialogContent) as typeof DialogContent;
   const { data: d, isLoading, error } = useQuery({
     queryKey: riepilogoQueryKey(fatturaId),
     enabled: !!fatturaId && !!companyId,
     queryFn: () => leggiDettaglio(fatturaId!, companyId!),
   });
 
+  const permessi = usePermissions();
+  const [pagamenti, setPagamenti] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const aggiorna = () => {
     queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
@@ -263,10 +286,12 @@ export function RiepilogoFatturaRicevuta({
     : "";
 
   return (
-    <Sheet open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent
-        side={isMobile ? "bottom" : "right"}
-        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "w-full sm:max-w-2xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
+    <>
+    {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
+    <Radice open={!!fatturaId} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Contenuto
+        {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
+        className={`${isMobile ? "max-h-[90dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : "block max-h-[92dvh] max-w-3xl overflow-y-auto"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
@@ -290,7 +315,8 @@ export function RiepilogoFatturaRicevuta({
               </SheetDescription>
             </SheetHeader>
 
-            {/* Fornitore */}
+            {/* Fornitore: senza dati non resta un riquadro vuoto. */}
+            {(f.cedente_piva || f.cedente_cf || indirizzo || f.ai_riassunto || f.categoria_ai) ? (
             <section className="rounded-lg border p-3 text-sm space-y-1">
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
                 {f.cedente_piva ? <span>P.IVA {String(f.cedente_piva)}</span> : null}
@@ -304,6 +330,7 @@ export function RiepilogoFatturaRicevuta({
                 <div className="pt-1"><Badge variant="secondary">{String(f.categoria_ai)}{f.sottocategoria_ai ? ` · ${String(f.sottocategoria_ai)}` : ""}</Badge></div>
               ) : null}
             </section>
+            ) : null}
 
             {anomalie.length > 0 && (
               <section className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
@@ -383,12 +410,17 @@ export function RiepilogoFatturaRicevuta({
                     return (
                       <>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {d.costo?.ripartito ? <span>Ripartita su più commesse</span>
+                          {d.costo?.ripartito ? (
+                            <>
+                              <span>Ripartita su più commesse</span>
+                              {azioni.onCollegaCommesse && d.ordini.length === 0 ? <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaCommesse}>Cambia</Button> : null}
+                            </>
+                          )
                             : uniche.length ? uniche.map((c) => (
                               <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
                             )) : <span className="text-muted-foreground">Nessuna</span>}
                           {sceglibile && !scegliCommessa ? (
-                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => setScegliCommessa(true)}>
+                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => (azioni.onCollegaCommesse ? azioni.onCollegaCommesse() : setScegliCommessa(true))}>
                               {uniche.length ? "Cambia" : "Scegli commessa"}
                             </Button>
                           ) : null}
@@ -407,6 +439,7 @@ export function RiepilogoFatturaRicevuta({
                           <div className="flex items-center gap-2">
                             <div className="min-w-0 flex-1">
                               <OrderSelectCombobox
+                                filtroIniziale="all"
                                 companyId={companyId ?? undefined}
                                 value={undefined}
                                 disabled={occupato}
@@ -420,6 +453,31 @@ export function RiepilogoFatturaRicevuta({
                       </>
                     );
                   })()}
+                </dd>
+
+                {permessi.canViewCosts && (
+                  <CollegamentiFattura fatturaId={String(f.id)} companyId={companyId} puoModificare={!permessi.solaLettura}
+                    numeroContratto={d.subappalto?.numero_contratto} contrattoId={f.contratto_subappalto_id ? String(f.contratto_subappalto_id) : null}
+                    salId={f.sal_subappaltatore_id ? String(f.sal_subappaltatore_id) : null} cedentePiva={f.cedente_piva ? String(f.cedente_piva) : null}
+                    notaDiCredito={isNotaCreditoRicevuta(String(f.tipo_documento ?? ""))}
+                    primaNotaId={f.prima_nota_id ? String(f.prima_nota_id) : null} costoId={f.company_cost_id ? String(f.company_cost_id) : null}
+                    vaiPrimaNota={permessi.canViewPrimaNota} vaiTesoreria={permessi.canViewTesoreria} vaiEmail={permessi.canViewMarketingEmail} />
+                )}
+                <dt className="text-muted-foreground">Verifica</dt>
+                <dd>
+                  <VerificaFatturaPill id={String(f.id)} numero={f.numero_fattura ? String(f.numero_fattura) : null} puoCambiare={!!permessi.canViewCosts && !permessi.solaLettura}
+                    verificata={fatturaVerificata({ stato: String(f.stato ?? ""), verifica_manuale: f.verifica_manuale ? String(f.verifica_manuale) : null })}
+                    daRettificare={f.verifica_manuale === "da_rettificare"} motivoRettifica={f.rettifica_motivo ? String(f.rettifica_motivo) : null} />
+                  {f.verifica_manuale === "da_rettificare" && f.rettifica_motivo ? <p className="mt-1 text-xs text-muted-foreground">{String(f.rettifica_motivo)}</p> : null}
+                </dd>
+
+                <dt className="text-muted-foreground">Pagamento</dt>
+                <dd>
+                  {d.costo && permessi.canViewCosts ? (
+                    <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={() => setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button>
+                  ) : (
+                    <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura ?? "")} tipo={String(f.tipo_documento ?? "")} pagataIl={f.pagata_il ? String(f.pagata_il) : null} />
+                  )}
                 </dd>
 
                 <dt className="text-muted-foreground">Nei costi</dt>
@@ -436,18 +494,9 @@ export function RiepilogoFatturaRicevuta({
                   )}
                 </dd>
 
-                {d.subappalto ? (
-                  <>
-                    <dt className="text-muted-foreground">Subappalto</dt>
-                    <dd>Contratto {d.subappalto.numero_contratto || "senza numero"}</dd>
-                  </>
-                ) : null}
               </dl>
               {azioni.extraCollegamenti?.(d)}
             </section>
-
-            {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
-            <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
             {/* Righe */}
             <section className="space-y-2">
@@ -557,7 +606,12 @@ export function RiepilogoFatturaRicevuta({
               );
             })()}
 
+            {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
+            <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
+
             {f.note ? <p className="text-sm"><span className="text-muted-foreground">Note: </span>{String(f.note)}</p> : null}
+            <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={f.note_interne ? String(f.note_interne) : null}
+              puoModificare={!permessi.solaLettura} chiaviDaAggiornare={["fatture-ricevute", "fattura-ricevuta-riepilogo"]} />
 
             <div className="flex flex-wrap gap-2 border-t pt-4">
               {haXml && azioni.onVersioneCompleta ? (
@@ -573,7 +627,8 @@ export function RiepilogoFatturaRicevuta({
             </div>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </Contenuto>
+    </Radice>
+    </>
   );
 }

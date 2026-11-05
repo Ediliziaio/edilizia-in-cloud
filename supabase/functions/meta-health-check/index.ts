@@ -7,7 +7,7 @@ import { completaNomiSocialMancanti, iscriviPaginaMeta, messaggiSocialAttivi, mo
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 // Alert operativo quando un'integrazione si rompe (email best-effort).
-const ALERT_EMAIL = Deno.env.get("INTEGRATIONS_ALERT_EMAIL") || "flo.andriciuc@gmail.com";
+const ALERT_EMAIL = Deno.env.get("INTEGRATIONS_ALERT_EMAIL") || "notificheotm@gmail.com";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

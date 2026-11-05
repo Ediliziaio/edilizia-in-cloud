@@ -42,9 +42,10 @@ import {
   type StatoPianta,
   type TipoArea,
 } from "./modello.ts";
+import { misureOscurante, misureSerramento, misureZanzariera, NOMI_CASSONETTO, NOMI_OSCURANTE, NOMI_ZANZARIERA } from "./serramenti.ts";
 import { TOLLERANZA_LOCALE_CM, apertureDelLocale, areaPoligono, lunghezzaMuro, perimetroPoligono } from "./geometria.ts";
 import { metriConSfrido, percorsiImpianti, type LineaImpianto } from "./impianti.ts";
-import { facceTetto, fotovoltaicoSulTetto, rettangoloTetto, superficieFalde } from "./tetto.ts";
+import { facceTetto, finituraDi, fotovoltaicoSulTetto, rettangoloTetto, SUBSTRATO_VERDE_CM, superficieFalde } from "./tetto.ts";
 import { puntiTerreno, scaviERiporti } from "./terreno.ts";
 
 export type UnitaQuantita = "mq" | "ml" | "mc" | "n";
@@ -146,6 +147,10 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   const aperture = new Map<string, { acc: Accumulo; descrizione: string }>();
   // Arredi, sanitari e punti impianto per tipo (1/11/2026): «elementi:<stato>:<tipo>.numero».
   const elementi = new Map<string, { acc: Accumulo; descrizione: string }>();
+  // Un ascensore è un vano che attraversa i piani: lo stesso vano su più piani si conta una volta, con le sue fermate.
+  // Struttura in c.a. (pilastri, travi, solai): metri e calcestruzzo per stato, «struttura:<stato>:<tipo>.<misura>».
+  const struttura = new Map<string, Accumulo>();
+  const ascensori: Array<{ st: string; x: number; y: number; fermate: number }> = [];
   // Linee stimate degli impianti (shared/planimetrie/impianti.ts), in cm senza sfrido.
   const linee = new Map<LineaImpianto, number>();
   // Lotto e aree esterne: «esterni:<tipo>.superficie_mq», recinzione del lotto in metri.
@@ -153,6 +158,8 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   let recinzioneCm = 0;
   // Tetti: superficie delle falde e fotovoltaico (shared/planimetrie/tetto.ts)
   let coperturaMq = 0, pannelliFv = 0, kWp = 0;
+  // la copertura scelta (solo se il tetto ne dichiara una): superficie e, per il tetto verde, substrato e stratigrafia
+  const finiture = new Map<string, { mq: number; substratoMc: number }>();
 
   for (const livello of p.livelli) {
     const stato = statoDelLivello(livello, ambito);
@@ -164,7 +171,13 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       const r = rettangoloTetto(muri.map((m) => ({ a: { x: m.p1.x, y: -m.p1.y }, b: { x: m.p2.x, y: -m.p2.y }, spessore: m.spessore })), livello.tetto.sporto);
       if (r) {
         const facce = facceTetto(r, Math.max(...muri.map((m) => m.altezza)), livello.tetto);
-        coperturaMq += superficieFalde(facce);
+        const mqFalde = superficieFalde(facce);
+        coperturaMq += mqFalde;
+        if (livello.tetto.finitura) {
+          const f = finituraDi(livello.tetto);
+          const prec = finiture.get(f) ?? { mq: 0, substratoMc: 0 };
+          finiture.set(f, { mq: prec.mq + mqFalde, substratoMc: prec.substratoMc + (f === "verde" || f === "verde_intensivo" ? (mqFalde * SUBSTRATO_VERDE_CM[f]) / 100 : 0) });
+        }
         if (livello.tetto.fotovoltaico) {
           const fv = fotovoltaicoSulTetto(facce, livello.tetto.fotovoltaico);
           pannelliFv += fv.numero;
@@ -217,6 +230,56 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       const nomeTipo = { porta: "Porte", finestra: "Finestre", portafinestra: "Portefinestre", varco: "Varchi" }[a.tipo];
       const nomeStato = { esistente: "esistenti", da_demolire: "da demolire", nuovo: "nuove" }[a.stato];
       const misura = `${Math.round(a.larghezza)}x${Math.round(a.altezza)}`;
+      // Controtelai e superficie dei serramenti: cosa ordinare prima della posa (misure di massima, vedi serramenti.ts)
+      if (a.tipo !== "varco" && a.stato !== "da_demolire") {
+        const ms = misureSerramento(a, stato.muri.find((m) => m.id === a.muroId));
+        const chiave = ms.controtelaioSpeciale ? "controtelaio_scomparsa" : ms.controtelaioMonoblocco ? "controtelaio_monoblocco" : "controtelaio";
+        const nomeCt = ms.controtelaioSpeciale ? "Controtelai per porte scorrevoli a scomparsa" : ms.controtelaioMonoblocco ? "Controtelai monoblocco con cassonetto" : "Controtelai";
+        const orig = [...origini];
+        for (const [soggetto, descrizione, valore] of [
+          [`serramenti:${a.stato}:${chiave}`, `${nomeCt} ${nomeStato}`, 1],
+          [`serramenti:${a.stato}:${chiave}:${Math.round(ms.controtelaio.larghezza)}x${Math.round(ms.controtelaio.altezza)}`, `${nomeCt} ${nomeStato} ${Math.round(ms.controtelaio.larghezza)}×${Math.round(ms.controtelaio.altezza)} cm`, 1],
+        ] as Array<[string, string, number]>) {
+          const prec = aperture.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+          aperture.set(soggetto, { acc: { valore: prec.valore + valore, origini: [...prec.origini, ...orig] }, descrizione });
+        }
+        somma(struttura, `${a.stato}:serramenti.superficie_mq`, { valore: ms.superficieMq, origini: orig });
+        somma(struttura, `${a.stato}:controtelai.perimetro_ml`, { valore: ms.perimetroMl, origini: orig });
+        const mz = misureZanzariera(a);
+        if (mz) {
+          const dimZ = `${Math.round(mz.larghezza)}x${Math.round(mz.altezza)}`;
+          for (const [soggetto, descrizione] of [
+            [`zanzariere:${a.stato}:${mz.tipo}`, `${NOMI_ZANZARIERA[mz.tipo]} ${nomeStato}`],
+            [`zanzariere:${a.stato}:${mz.tipo}:${dimZ}`, `${NOMI_ZANZARIERA[mz.tipo]} ${nomeStato} ${dimZ.replace("x", "×")} cm`],
+          ] as Array<[string, string]>) {
+            const prec = aperture.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+            aperture.set(soggetto, { acc: { valore: prec.valore + 1, origini: [...prec.origini, ...orig] }, descrizione });
+          }
+          somma(struttura, `${a.stato}:zanzariere.superficie_mq`, { valore: mz.superficieMq, origini: orig });
+          somma(struttura, `${a.stato}:zanzariere.guide_ml`, { valore: mz.guideMl, origini: orig });
+        }
+        // Oscuranti e cassonetti: tapparelle, veneziane, persiane, scuri
+        const mo = misureOscurante(a);
+        if (mo) {
+          const conta = (soggetto: string, descrizione: string, valore = 1) => {
+            const prec = aperture.get(soggetto)?.acc ?? { valore: 0, origini: [] };
+            aperture.set(soggetto, { acc: { valore: prec.valore + valore, origini: [...prec.origini, ...orig] }, descrizione });
+          };
+          const nomiPl: Record<string, string> = { tapparella: "Tapparelle", veneziana: "Veneziane esterne", persiana: "Persiane", scuro: "Scuri interni" };
+          const dim = `${Math.round(mo.telo.larghezza)}×${Math.round(mo.telo.altezza)}`;
+          conta(`oscuranti:${a.stato}:${mo.tipo}`, `${nomiPl[mo.tipo]} ${nomeStato}`);
+          conta(`oscuranti:${a.stato}:${mo.tipo}:${dim.replace("×", "x")}`, `${nomiPl[mo.tipo]} ${nomeStato} ${dim} cm`);
+          if (mo.motore) conta(`oscuranti:${a.stato}:motore`, `Motori per ${NOMI_OSCURANTE[mo.tipo].toLowerCase()} ${nomeStato}`);
+          somma(struttura, `${a.stato}:oscuranti.superficie_mq`, { valore: mo.superficieMq, origini: orig });
+          if (mo.guideMl) somma(struttura, `${a.stato}:oscuranti.guide_ml`, { valore: mo.guideMl * 2, origini: orig });
+          if (mo.cassonetto) {
+            const c = mo.cassonetto;
+            conta(`cassonetti:${a.stato}:${c.tipo}`, `Cassonetti ${NOMI_CASSONETTO[c.tipo].toLowerCase()} ${nomeStato}`);
+            conta(`cassonetti:${a.stato}:${c.tipo}:${c.larghezza}x${c.altezza}`, `Cassonetti ${NOMI_CASSONETTO[c.tipo].toLowerCase()} ${nomeStato} ${c.larghezza}×${c.altezza} cm`);
+            somma(struttura, `${a.stato}:cassonetti.lunghezza_ml`, { valore: c.larghezza / 100, origini: orig });
+          }
+        }
+      }
       for (const [soggetto, descrizione] of [
         [`aperture:${a.stato}:${a.tipo}`, `${nomeTipo} ${nomeStato}`],
         [`aperture:${a.stato}:${a.tipo}:${misura}`, `${nomeTipo} ${nomeStato} ${misura.replace("x", "×")} cm`],
@@ -234,6 +297,29 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
       // i punti quotati del terreno sono misure, non cose da comprare o posare
       if (!/^[a-z0-9_]+$/.test(e.tipo) || e.tipo === "quota_terreno") continue;
       const st = e.stato ?? "esistente";
+      if (e.tipo === "ascensore") {
+        const stesso = ascensori.find((a) => a.st === st && Math.hypot(a.x - e.posizione.x, a.y - e.posizione.y) < 60);
+        if (stesso) { stesso.fermate += 1; continue; }
+        ascensori.push({ st, x: e.posizione.x, y: e.posizione.y, fermate: 1 });
+      }
+      if (e.tipo === "muro_contenimento") {
+        // L = lunghezza, B = base della suola, H = fusto: suola 1/8 di H (30–50 cm), fusto medio ≈ 0,4 m
+        const L = (e.larghezza ?? 600) / 100, B = (e.profondita ?? 220) / 100, H = (e.altezza ?? 300) / 100;
+        const suola = Math.min(0.5, Math.max(0.3, H / 8));
+        const orig: Accumulo["origini"] = ["stimata"];
+        somma(struttura, `${st}:muri_contenimento.lunghezza_ml`, { valore: L, origini: orig });
+        somma(struttura, `${st}:muri_contenimento.cls_mc`, { valore: L * (B * suola + 0.4 * H), origini: orig });
+        somma(struttura, `${st}:muri_contenimento.scavo_mc`, { valore: L * (B + 0.6) * (suola + 0.3 + H * 0.5), origini: orig });
+        somma(struttura, `${st}:muri_contenimento.drenaggio_ml`, { valore: L, origini: orig });
+      }
+      if (e.tipo === "pilastro" || e.tipo === "trave" || e.tipo === "solaio") {
+        const l = e.larghezza ?? 30, pr = e.profondita ?? 30;
+        const h = e.altezza ?? (e.tipo === "pilastro" ? 300 : e.tipo === "trave" ? 50 : 25);
+        const orig: Accumulo["origini"] = [e.origine];
+        if (e.tipo === "trave") somma(struttura, `${st}:travi.lunghezza_ml`, { valore: l / 100, origini: orig });
+        if (e.tipo === "solaio") somma(struttura, `${st}:solai.superficie_mq`, { valore: (l * pr) / 10_000, origini: orig });
+        somma(struttura, `${st}:${e.tipo === "pilastro" ? "pilastri" : e.tipo === "trave" ? "travi" : "solai"}.cls_mc`, { valore: (l * pr * h) / 1_000_000, origini: orig });
+      }
       const soggetto = `elementi:${st}:${e.tipo}`;
       const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st];
       const nome = NOMI_ELEMENTI[e.tipo] ?? e.tipo.replace(/_/g, " ");
@@ -255,6 +341,28 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   if (lin("riscaldamento")) metti("impianti:riscaldamento", "tubo_ml", stimata(lin("riscaldamento"), 2), "Tubo riscaldamento, mandata e ritorno (stima dal generatore ai termosifoni)");
   if (lin("condensa")) metti("impianti:clima", "condensa_ml", stimata(lin("condensa")), "Scarico condensa split (stima)");
 
+  // Fondazioni stimate: cordolo (spessore + 40 cm, alto 50 cm) sotto le pareti nuove portanti ed esterne del piano più basso,
+  // scavo largo 20 cm in più per lato e profondo 80 cm. Le pareti esistenti hanno già le loro; i tramezzi non ne hanno.
+  {
+    const basso = [...p.livelli].sort((x, y) => x.quota - y.quota)[0];
+    const sb = basso ? statoDelLivello(basso, ambito) : null;
+    if (sb) {
+      let ml = 0, cls = 0, scavo = 0;
+      for (const m of sb.muri) {
+        if (m.stato !== "nuovo" || m.tipo === "tramezzo") continue;
+        const l = lunghezzaMuro(m) / 100;
+        ml += l;
+        cls += l * ((m.spessore + 40) / 100) * 0.5;
+        scavo += l * ((m.spessore + 80) / 100) * 0.8;
+      }
+      if (ml > 0) {
+        metti("fondazioni:cordolo", "lunghezza_ml", { valore: ml, origini: ["stimata"] }, "Cordolo di fondazione sotto le pareti nuove portanti (stima)");
+        metti("fondazioni:cordolo", "cls_mc", { valore: cls, origini: ["stimata"] }, "Calcestruzzo dei cordoli di fondazione (stima: spessore + 40 cm, alto 50 cm)");
+        metti("fondazioni:cordolo", "scavo_mc", { valore: scavo, origini: ["stimata"] }, "Scavo per i cordoli di fondazione (stima)");
+      }
+    }
+  }
+
   for (const [tipo, acc] of esterni) metti(`esterni:${tipo}`, "superficie_mq", acc, tipo === "lotto" ? "Superficie del lotto" : `Area esterna «${NOMI_AREA[tipo as TipoArea] ?? tipo}»`);
   // Terreno in pendenza o rilievo: scavi e riporti sotto il piano più basso
   const punti = puntiTerreno(p);
@@ -268,6 +376,15 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
     }
   }
   if (coperturaMq > 0) metti("tetto:copertura", "superficie_mq", { valore: coperturaMq, origini: ["stimata"] }, "Copertura: superficie delle falde (o del tetto piano)");
+  const NOMI_COPERTURA: Record<string, string> = { tegole: "tegole", verde: "tetto verde (sedum)", verde_intensivo: "giardino pensile", ghiaia: "ghiaia", lamiera: "lamiera", guaina: "guaina" };
+  for (const [f, v] of finiture) {
+    metti(`tetto:${f}`, "superficie_mq", { valore: v.mq, origini: ["stimata"] }, `Copertura in ${NOMI_COPERTURA[f]}: superficie`);
+    if (f === "verde" || f === "verde_intensivo") {
+      metti(`tetto:${f}`, "substrato_mc", { valore: v.substratoMc, origini: ["stimata"] }, `Tetto verde: substrato di coltivo (${SUBSTRATO_VERDE_CM[f]} cm)`);
+      metti(`tetto:${f}`, "drenaggio_mq", { valore: v.mq, origini: ["stimata"] }, "Tetto verde: strato drenante e di accumulo idrico");
+      metti(`tetto:${f}`, "telo_antiradice_mq", { valore: v.mq, origini: ["stimata"] }, "Tetto verde: telo antiradice e feltro di protezione");
+    }
+  }
   if (pannelliFv > 0) {
     metti("impianti:fotovoltaico", "pannelli", { valore: pannelliFv, origini: ["stimata"] }, "Fotovoltaico: pannelli sul tetto");
     metti("impianti:fotovoltaico", "kwp", { valore: kWp, origini: ["stimata"] }, "Fotovoltaico: potenza di picco (kWp)");
@@ -286,6 +403,19 @@ function calcolaAmbito(p: Planimetria, ambito: Ambito, opz: Required<OpzioniQuan
   for (const [misura, acc] of costruzioni) metti("costruzioni", misura, acc, `Pareti nuove (${nomiMuri[misura]})`);
   for (const [soggetto, { acc, descrizione }] of aperture) metti(soggetto, "numero", acc, descrizione);
   for (const [soggetto, { acc, descrizione }] of elementi) metti(soggetto, "numero", acc, descrizione);
+  const NOMI_STRUTTURA: Record<string, string> = { "serramenti.superficie_mq": "Serramenti (superficie del vano)", "controtelai.perimetro_ml": "Perimetro dei controtelai (per sigillature e nastri)", "oscuranti.superficie_mq": "Oscuranti (superficie dei teli e delle ante)", "oscuranti.guide_ml": "Guide laterali di tapparelle e veneziane", "cassonetti.lunghezza_ml": "Cassonetti (lunghezza)", "zanzariere.superficie_mq": "Zanzariere (superficie del telo)", "zanzariere.guide_ml": "Guide, binari e telai delle zanzariere", "travi.lunghezza_ml": "Travi in c.a. (lunghezza)", "travi.cls_mc": "Calcestruzzo delle travi", "solai.superficie_mq": "Solai in c.a. (superficie)", "solai.cls_mc": "Calcestruzzo dei solai", "pilastri.cls_mc": "Calcestruzzo dei pilastri", "muri_contenimento.lunghezza_ml": "Muri di contenimento (lunghezza)", "muri_contenimento.cls_mc": "Calcestruzzo dei muri di contenimento (suola + fusto)", "muri_contenimento.scavo_mc": "Scavo per i muri di contenimento", "muri_contenimento.drenaggio_ml": "Drenaggio a tergo dei muri di contenimento" };
+  for (const [chiave, acc] of struttura) {
+    const [st, resto] = chiave.split(":");
+    const [soggetto, misura] = resto.split(".");
+    const nomeStato = { esistente: "esistenti", da_demolire: "da demolire", nuovo: "nuovi" }[st as "esistente"] ?? st;
+    metti(`struttura:${st}:${soggetto}`, misura, acc, `${NOMI_STRUTTURA[resto] ?? resto} ${nomeStato} (stima dalle misure)`);
+  }
+  const fermatePerStato = new Map<string, number>();
+  for (const a of ascensori) fermatePerStato.set(a.st, (fermatePerStato.get(a.st) ?? 0) + a.fermate);
+  for (const [st, n] of fermatePerStato) {
+    const nomeStato = { esistente: "esistenti", da_demolire: "da togliere", nuovo: "nuovi" }[st as "esistente"] ?? st;
+    metti(`elementi:${st}:ascensore_fermate`, "numero", { valore: n, origini: ["rilevata"] }, `Fermate degli ascensori ${nomeStato} (piani serviti)`);
+  }
 }
 
 /** La sigla di un appartamento dentro una chiave: «Int. 3» → «int_3». */
@@ -297,7 +427,7 @@ const NOMI_ELEMENTI: Record<string, string> = {
   wc: "WC", bidet: "Bidet", lavabo: "Lavabi", doccia: "Docce", vasca: "Vasche", lavatrice: "Lavatrici",
   cucina: "Cucine", frigorifero: "Frigoriferi", tavolo: "Tavoli", sedia: "Sedie",
   letto_matrimoniale: "Letti matrimoniali", letto_singolo: "Letti singoli", comodino: "Comodini", armadio: "Armadi",
-  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", scala: "Scale (rampe)", ascensore: "Ascensori",
+  scrivania: "Scrivanie", divano: "Divani", caldaia: "Caldaie", pilastro: "Pilastri", muro_contenimento: "Muri di contenimento", trave: "Travi", solaio: "Solai", scala: "Scale (rampe)", scala_u: "Scale a U", scala_chiocciola: "Scale a chiocciola", ascensore: "Ascensori",
   divano_angolare: "Divani angolari", poltrona: "Poltrone", mobile_tv: "Mobili TV", libreria: "Librerie", tavolo_rotondo: "Tavoli rotondi",
   cucina_angolare: "Cucine ad angolo", isola_cucina: "Isole cucina", lavastoviglie: "Lavastoviglie", auto: "Auto", scaffale: "Scaffalature", banco_lavoro: "Banchi da lavoro",
   piscina: "Piscine", idromassaggio: "Minipiscine idromassaggio", pergola: "Pergole", albero: "Alberi", siepe: "Siepi", aiuola: "Aiuole",

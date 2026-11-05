@@ -36,6 +36,7 @@ export const BUCKET_MEDIA_PROGETTI = "progetti-media";
 export const BUCKET_RISERVATI = [
   "campo-rapportini",
   "campo-firme",
+  "foto-cantiere",
   "documenti-sub",
   ...BUCKET_IMMAGINI_MODELLO,
   BUCKET_MEDIA_PROGETTI,

@@ -33,7 +33,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 
 // Destinatario fisso super-admin
-const SUPER_ADMIN_EMAIL = "flo.andriciuc@gmail.com";
+const SUPER_ADMIN_EMAIL = "notificheotm@gmail.com";
 const FROM_EMAIL = "EdiliziaInCloud Alerts <alerts@ediliziaincloud.com>";
 
 interface TicketBody {

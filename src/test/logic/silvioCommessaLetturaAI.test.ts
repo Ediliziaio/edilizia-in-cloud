@@ -166,9 +166,9 @@ describe("i valori: si tengono quelli provati, gli altri restano proposte", () =
     }));
     const rate = val(fr, "pagamenti.rate")!;
     expect(rate.valore).toEqual([
-      { label: "Acconto", type: "deposit", amount: 31903, percent: 50, trigger_evento: "firma_contratto" },
+      { label: "Acconto", type: "deposit", amount: 31903, percent: 50, daPercentuale: true, trigger_evento: "firma_contratto" },
       { label: "SAL 1", type: "deposit", amount: 20000, trigger_evento: "sal_numero", trigger_numero: 1 },
-      { label: "Saldo", type: "balance", amount: 38283.6, percent: 60, trigger_evento: null },
+      { label: "Saldo", type: "balance", amount: 38283.6, percent: 60, daPercentuale: true, trigger_evento: null },
     ] satisfies RataDelPiano[]);
     expect(rate.nota).toMatch(/Rotto/);
     expect(rate.nota).toMatch(/sommano 110 %/);
@@ -233,7 +233,8 @@ describe("i valori: si tengono quelli provati, gli altri restano proposte", () =
       },
     });
     expect(c.stato).toBe("fatto");
-    expect(c.nota).toMatch(/cig, bonus_segreto/);
+    expect(c.nota).toMatch(/CIG/);
+    expect(c.nota).not.toMatch(/bonus_segreto/);
   });
 
   it("condizioni con un campo senza prova: tutto in proposta, e si dice quale", () => {
@@ -243,7 +244,7 @@ describe("i valori: si tengono quelli provati, gli altri restano proposte", () =
     } } } }));
     const c = val(fr, "economia.condizioni_contratto")!;
     expect(c.stato).toBe("proposta");
-    expect(c.nota).toMatch(/Da controllare: ritenuta_garanzia_pct/);
+    expect(c.nota).toMatch(/Da controllare sul documento: ritenuta di garanzia/);
   });
 
   it("immagine: la citazione non si cerca, tutto proposta a 0,6 al massimo", () => {
@@ -278,8 +279,10 @@ describe("risposte malformate: niente si rompe", () => {
 
   it("aree che non sono oggetti, valori senza «valore», avvisi strani: avvisi, niente eccezioni", () => {
     const fr = leggi({ aree: { economia: "tanti soldi", fasi: [1, 2], cliente: { "cliente.nome": "Mario" } }, avvisi: [null, 7, "pagina 3 storta"] });
-    expect(fr.aree).toEqual({});
-    expect(fr.avvisi).toEqual(expect.arrayContaining(["pagina 3 storta", "7", expect.stringMatching(/economia/), expect.stringMatching(/cliente\.nome/)]));
+    // Il valore nudo si tiene, ma senza citazione resta da confermare (2/11/2026, modello vero).
+    expect(Object.keys(fr.aree)).toEqual(["cliente"]);
+    expect(val(fr, "cliente.nome")?.stato).toBe("proposta");
+    expect(fr.avvisi).toEqual(expect.arrayContaining(["pagina 3 storta", "7", expect.stringMatching(/economia/)]));
   });
 
   it("chiave scritta due volte (elenco piatto più aree): vale la prima", () => {

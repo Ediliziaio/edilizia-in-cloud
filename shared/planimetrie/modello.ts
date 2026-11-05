@@ -78,6 +78,40 @@ export type Manovra = "battente" | "scorrevole" | "nessuna";
 export const MANOVRE: readonly Manovra[] = ["battente", "scorrevole", "nessuna"];
 
 /**
+ * Il sistema del serramento, più preciso della manovra (che resta battente / scorrevole / nessuna):
+ * - `battente`: anta o ante su cerniere; `anta_ribalta` e `vasistas`: finestre con ribalta;
+ * - `scorrevole`: anta che scorre davanti al muro su binario; `scorrevole_scomparsa`: porta «scrigno» che scorre dentro il muro
+ *   (serve il controtelaio speciale e un tratto di muro libero accanto); `alzante_scorrevole`: portafinestra a grande luce;
+ * - `libro`: ante che si ripiegano; `fisso`: vetro senza ante apribili.
+ */
+export type SistemaApertura = "battente" | "anta_ribalta" | "vasistas" | "scorrevole" | "scorrevole_scomparsa" | "alzante_scorrevole" | "libro" | "fisso";
+export const SISTEMI_APERTURA: readonly SistemaApertura[] = ["battente", "anta_ribalta", "vasistas", "scorrevole", "scorrevole_scomparsa", "alzante_scorrevole", "libro", "fisso"];
+
+/**
+ * Oscurante della finestra: `tapparella` (telo avvolgibile) e `veneziana` (frangisole a lamelle orientabili) stanno
+ * arrotolate in un cassonetto sopra il vano; `persiana` (ante esterne) e `scuro` (ante interne) si aprono a battente.
+ */
+export type TipoOscurante = "tapparella" | "veneziana" | "persiana" | "scuro";
+export const TIPI_OSCURANTE: readonly TipoOscurante[] = ["tapparella", "veneziana", "persiana", "scuro"];
+
+/**
+ * Dove sta il cassonetto di una tapparella o veneziana:
+ * - `monoblocco`: dentro il vano, integrato nel controtelaio (la luce vetrata si accorcia);
+ * - `a_filo`: murato sopra il vano, sotto l'architrave, a filo dell'intonaco;
+ * - `esterno`: a vista sul prospetto, sopra il vano (si usa quando il muro non basta, spesso in ristrutturazione).
+ */
+export type TipoCassonetto = "monoblocco" | "a_filo" | "esterno";
+export const TIPI_CASSONETTO: readonly TipoCassonetto[] = ["monoblocco", "a_filo", "esterno"];
+
+/**
+ * Zanzariera: `laterale` (anta che scorre di lato su binario), `verticale` (a rullo, in una cassetta sopra),
+ * `plisse` (a pieghe, si apre di lato), `battente` (anta su cerniere, di solito per portefinestre),
+ * `incastro` (telaio fisso a pressione, si toglie).
+ */
+export type TipoZanzariera = "laterale" | "verticale" | "plisse" | "battente" | "incastro";
+export const TIPI_ZANZARIERA: readonly TipoZanzariera[] = ["laterale", "verticale", "plisse", "battente", "incastro"];
+
+/**
  * Verso di un'anta a battente.
  * - `cardine`: l'estremo della parete (verso p1 o verso p2) dove stanno le cerniere.
  * - `lato`: dove si apre l'anta, guardando da p1 verso p2 (sinistra o destra dell'asse).
@@ -99,6 +133,20 @@ export interface Apertura extends ConOrigine {
   /** 0 per porte, portefinestre e varchi. */
   davanzale: number;
   manovra: Manovra;
+  /** Ante (1-6): assente = una per le porte e le finestre fino a 1,4 m, due oltre. */
+  ante?: number;
+  /** Sistema del serramento: assente = quello che dice la manovra (battente o scorrevole semplice). */
+  sistema?: SistemaApertura;
+  /** Oscurante (tapparella, persiana…): assente = nessuno. Solo per finestre e portefinestre. */
+  oscurante?: TipoOscurante;
+  /** Cassonetto di tapparella o veneziana: assente = monoblocco. */
+  cassonetto?: TipoCassonetto;
+  /** Altezza del cassonetto in cm: assente = quella consigliata per l'altezza del vano. */
+  altezzaCassonetto?: number;
+  /** Tapparella o veneziana motorizzata. */
+  motore?: boolean;
+  /** Zanzariera: assente = nessuna. Solo per finestre e portefinestre. */
+  zanzariera?: TipoZanzariera;
   verso?: Verso | null;
   stato: StatoLavori;
 }
@@ -235,8 +283,27 @@ export interface Livello {
 
 export type TipoTetto = "piano" | "una_falda" | "due_falde" | "padiglione" | "shed";
 export const TIPI_TETTO: readonly TipoTetto[] = ["piano", "una_falda", "due_falde", "padiglione", "shed"];
+/**
+ * Cosa copre il tetto: `tegole` (laterizio o cemento), `verde` (tetto verde estensivo: sedum, substrato sottile,
+ * poca manutenzione), `verde_intensivo` (giardino pensile: substrato profondo, arbusti), `ghiaia` (zavorra,
+ * solo tetto piano), `lamiera` (zinco, rame o alluminio a doppia aggraffatura), `guaina` (membrana bituminosa o sintetica).
+ * Assente: tegole per i tetti a falde, guaina per il tetto piano.
+ */
+export type FinituraTetto = "tegole" | "verde" | "verde_intensivo" | "ghiaia" | "lamiera" | "guaina";
+export const FINITURE_TETTO: readonly FinituraTetto[] = ["tegole", "verde", "verde_intensivo", "ghiaia", "lamiera", "guaina"];
+export const NOMI_FINITURA_TETTO: Record<FinituraTetto, string> = {
+  tegole: "Tegole",
+  verde: "Tetto verde (sedum)",
+  verde_intensivo: "Giardino pensile",
+  ghiaia: "Ghiaia",
+  lamiera: "Lamiera (zinco, rame)",
+  guaina: "Guaina",
+};
+
 export interface Tetto {
   tipo: TipoTetto;
+  /** Copertura: vedi FinituraTetto. */
+  finitura?: FinituraTetto;
   /** Pendenza delle falde, in percento (30 = 30%). */
   pendenza: number;
   /** Sporto della gronda oltre i muri, in cm. */
@@ -437,6 +504,8 @@ export function validaPlanimetria(dato: unknown): EsitoValidazione {
       const t = liv.tetto;
       if (!eOggetto(t) || !(TIPI_TETTO as readonly unknown[]).includes(t.tipo) || !eNumero(t.pendenza) || !eNumero(t.sporto) || (t.pendenza as number) < 0 || (t.pendenza as number) > 150) {
         errori.push(`${nomeLiv}: il tetto non è valido.`);
+      } else if (t.finitura !== undefined && !(FINITURE_TETTO as readonly unknown[]).includes(t.finitura)) {
+        errori.push(`${nomeLiv}: la copertura del tetto non è valida.`);
       } else if (t.mansarda !== undefined && !(eOggetto(t.mansarda) && eNumero(t.mansarda.imposta) && t.mansarda.imposta >= 0 && t.mansarda.imposta <= 500)) {
         errori.push(`${nomeLiv}: l'altezza d'imposta della mansarda non è valida.`);
       } else if (t.fotovoltaico !== undefined) {
@@ -539,6 +608,13 @@ function validaStato(
     positivo(o, "altezza", e, "l'altezza");
     nonNegativo(o, "davanzale", e, "l'altezza del davanzale");
     scelta(o.manovra, MANOVRE, e, "il modo di apertura");
+    if (o.ante !== undefined && !(Number.isInteger(o.ante) && (o.ante as number) >= 1 && (o.ante as number) <= 6)) errori.push(`${e}: le ante devono essere da 1 a 6.`);
+    if (o.sistema !== undefined) scelta(o.sistema, SISTEMI_APERTURA, e, "il sistema del serramento");
+    if (o.oscurante !== undefined) scelta(o.oscurante, TIPI_OSCURANTE, e, "l'oscurante");
+    if (o.cassonetto !== undefined) scelta(o.cassonetto, TIPI_CASSONETTO, e, "il cassonetto");
+    if (o.altezzaCassonetto !== undefined) positivo(o, "altezzaCassonetto", e, "l'altezza del cassonetto");
+    if (o.zanzariera !== undefined) scelta(o.zanzariera, TIPI_ZANZARIERA, e, "la zanzariera");
+    if (o.motore !== undefined && typeof o.motore !== "boolean") errori.push(`${e}: il motore dev'essere sì o no.`);
     if (o.verso !== undefined && o.verso !== null) {
       const v = o.verso;
       if (!eOggetto(v) || !["p1", "p2"].includes(v.cardine as string) || !["sinistra", "destra"].includes(v.lato as string)) {

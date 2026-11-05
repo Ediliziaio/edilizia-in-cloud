@@ -2,12 +2,14 @@
  * silvio-commessa — il lettore unico di Silvio per la commessa che nasce (31/10/2026,
  * fase 1, lotto 1.2). Vedi docs/piano-silvio-commessa-ai.md, sezioni 3.3, 3.4, 5.1 e 5.3.
  *
+ * Lettura col modello vero (2/11/2026): valori nudi, null e vuoti si leggono; rate sul totale con IVA, anche se cambia; colonne nude del cliente; «più IVA» non si scorpora; da una foto o senza citazione importo, IVA e rate aspettano «Va bene».
+ * I pagamenti scritti in chat non diventano fasi; valori con i campi vuoti saltati; telefono scritto dalla persona; niente avvisi per ciò che non c'è; «IVA inclusa» si scorpora; un solo indirizzo è il cantiere; il cliente azienda si legge; il conto delle somme nella nota.
  * Le modifiche solo in shared/silvio-commessa non ripubblicano questa funzione: va toccato
  * questo file (riletto il 2/11/2026 con la quarta revisione).
  *
  * Contratti, capitolati, PDF qualsiasi, foto, piantine e testo libero: una sola chiamata
  * al modello, con lo schema di un `Frammento` e la citazione della fonte per ogni valore.
- * Preventivi, computi (XPWE, PDF di PriMus) e offerte delle ditte hanno i loro lettori:
+ * Preventivi, computi (XPWE, PDF di PriMus, Excel) e offerte delle ditte hanno i loro lettori:
  * li sceglie il riconoscitore nel browser (shared/silvio-commessa/riconoscitore.ts).
  *
  * Input:  { company_id, fonte: { tipo, etichetta, id? }, file_path? | documento? | testo?, tentativo? }
@@ -54,6 +56,9 @@
  * Fase 5 (1/11/2026): «sposta» e le fasi nuove della chat seguono il calendario dell'azienda
  * (shared/silvio-commessa/calendario.ts, importato da chat.ts e fondi.ts). Questo commento
  * c'è anche perché il job di deploy ripubblichi la funzione: guarda solo supabase/functions/.
+ *
+ * Simulazioni del 2/11/2026: le fasi con le durate prendono le date in `fondi`, «rifacimento» non
+ * vuol dire ristrutturazione (shared/silvio-commessa/fondi.ts, modelliLavoro.ts, quadratura.ts).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";

@@ -273,6 +273,124 @@ export function costruisciVetro(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh): v
   c.quad(p(v.s0, v.z0), p(v.s1, v.z0), p(v.s1, v.z1), p(v.s0, v.z1), [-n[0], 0, -n[2]]);
 }
 
+/**
+ * Telaio del serramento: cornice, montanti fra le ante e, per i sistemi a scorrere, un'anta davanti al vetro.
+ * Si disegna solo quando chi ha fatto la pianta ha scelto ante o sistema (le altre finestre restano come prima).
+ */
+export function costruisciTelaio(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, ante: number, scorrevole: boolean): void {
+  const rot = Math.atan2(m.d.y, m.d.x);
+  const asta = (s0: number, s1: number, z0: number, z1: number, profondita = 0.07, fuori = 0) => {
+    const mezzo = piu(m.a, per(m.d, (s0 + s1) / 2));
+    const n = { x: -m.d.y, y: m.d.x };
+    c.scatola(mezzo.x + n.x * fuori, mezzo.y + n.y * fuori, z0, s1 - s0, profondita, z1 - z0, rot);
+  };
+  const t = 0.05;
+  asta(v.s0, v.s0 + t, v.z0, v.z1);
+  asta(v.s1 - t, v.s1, v.z0, v.z1);
+  asta(v.s0, v.s1, v.z0, v.z0 + t);
+  asta(v.s0, v.s1, v.z1 - t, v.z1);
+  const n = Math.max(1, ante);
+  for (let i = 1; i < n; i++) {
+    const s = v.s0 + ((v.s1 - v.s0) * i) / n;
+    asta(s - t / 2, s + t / 2, v.z0, v.z1, scorrevole ? 0.09 : 0.07);
+  }
+  if (scorrevole) {
+    // le ante scorrono su binari diversi: ogni anta ha il suo telaio, un po' avanti o indietro
+    for (let i = 0; i < n; i++) {
+      const s0 = v.s0 + ((v.s1 - v.s0) * i) / n, s1 = v.s0 + ((v.s1 - v.s0) * (i + 1)) / n, fuori = i % 2 ? 0.035 : -0.035;
+      asta(s0, s1, v.z0 + t, v.z0 + 2 * t, 0.03, fuori);
+      asta(s0, s1, v.z1 - 2 * t, v.z1 - t, 0.03, fuori);
+    }
+  }
+}
+
+export interface OscuranteVano {
+  tipo: "tapparella" | "veneziana" | "persiana" | "scuro";
+  ante: number;
+  /** Metri; solo per tapparelle e veneziane. */
+  cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number };
+}
+
+/**
+ * Cassonetto, guide e teli di una tapparella o veneziana (`fuori` = +1 se l'esterno sta dalla parte della
+ * normale del muro, −1 dall'altra). Il telo è abbassato di un terzo, così si vede senza nascondere il vetro.
+ * Monoblocco: nel vano, in testa al serramento; murato a filo: solo il pannello d'ispezione dentro; esterno: scatola sul prospetto.
+ */
+export function costruisciCassonetto(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, o: OscuranteVano, fuori: 1 | -1): void {
+  const rot = Math.atan2(m.d.y, m.d.x);
+  const n = { x: -m.d.y, y: m.d.x };
+  const h = m.spessore / 2;
+  const scatola = (s0: number, s1: number, z0: number, z1: number, profondita: number, sporgenza: number) => {
+    const mezzo = piu(m.a, per(m.d, (s0 + s1) / 2));
+    c.scatola(mezzo.x + n.x * fuori * sporgenza, mezzo.y + n.y * fuori * sporgenza, z0, s1 - s0, profondita, z1 - z0, rot);
+  };
+  const k = o.cassonetto;
+  let sopra = v.z1; // quota da cui scende il telo
+  if (k) {
+    if (k.tipo === "monoblocco") {
+      scatola(v.s0, v.s1, v.z1 - k.altezza, v.z1, Math.min(m.spessore * 0.9, Math.max(k.profondita, 0.25)), 0);
+      sopra = v.z1 - k.altezza;
+    } else if (k.tipo === "a_filo") {
+      // dentro, a filo intonaco: solo lo sportello d'ispezione (la scatola è murata)
+      scatola(v.s0, v.s1, v.z1 + 0.02, v.z1 + k.altezza - 0.02, 0.01, -(h + 0.004));
+    } else {
+      scatola(v.s0, v.s1, v.z1, v.z1 + k.altezza, k.profondita, h + k.profondita / 2);
+    }
+  }
+  const luce = sopra - v.z0;
+  if (luce <= 0.2) return;
+  const sp = h + 0.02;
+  const guida = 0.03;
+  scatola(v.s0, v.s0 + guida, v.z0, sopra, 0.04, sp);
+  scatola(v.s1 - guida, v.s1, v.z0, sopra, 0.04, sp);
+  const abbassato = luce / 3, fondo = sopra - abbassato;
+  const passo = o.tipo === "veneziana" ? 0.09 : 0.06, spessoreLamella = o.tipo === "veneziana" ? 0.02 : 0.05;
+  const lamelle = Math.min(24, Math.max(1, Math.floor(abbassato / passo)));
+  for (let i = 0; i < lamelle; i++) {
+    const z = sopra - (i + 1) * passo;
+    scatola(v.s0 + guida, v.s1 - guida, z, z + spessoreLamella, o.tipo === "veneziana" ? 0.05 : 0.014, sp);
+  }
+  scatola(v.s0 + guida, v.s1 - guida, fondo - 0.03, fondo, 0.03, sp);
+}
+
+/**
+ * Zanzariera: cornice sottile e telo (una lastra quasi piatta) sul filo interno del vano, in testa fino alla quota
+ * del cassonetto monoblocco se c'è. Il rullo ha anche la cassetta in alto, il plissé è un po' più spesso a un capo.
+ */
+export function costruisciZanzariera(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, tipo: string, altezzaPersa: number, fuori: 1 | -1): void {
+  const rot = Math.atan2(m.d.y, m.d.x);
+  const n = { x: -m.d.y, y: m.d.x };
+  const interno = -fuori * (m.spessore / 2 + 0.012);
+  const z1 = v.z1 - altezzaPersa;
+  const scatola = (s0: number, s1: number, z0: number, zz1: number, profondita: number) => {
+    const mezzo = piu(m.a, per(m.d, (s0 + s1) / 2));
+    c.scatola(mezzo.x + n.x * interno, mezzo.y + n.y * interno, z0, s1 - s0, profondita, zz1 - z0, rot);
+  };
+  const t = 0.025;
+  scatola(v.s0, v.s0 + t, v.z0, z1, 0.02);
+  scatola(v.s1 - t, v.s1, v.z0, z1, 0.02);
+  scatola(v.s0, v.s1, v.z0, v.z0 + t, 0.02);
+  scatola(v.s0, v.s1, z1 - t, z1, tipo === "verticale" ? 0.05 : 0.02);
+  scatola(v.s0 + t, v.s1 - t, v.z0 + t, z1 - t, 0.004);
+  if (tipo === "plisse") scatola(v.s1 - 0.12, v.s1 - t, v.z0 + t, z1 - t, 0.03);
+}
+
+/** Ante di persiane (fuori) e scuri (dentro), aperte a 90° ai lati del vano. */
+export function costruisciAnteOscuranti(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh, ante: number, fuori: 1 | -1, interno: boolean): void {
+  const rot = Math.atan2(m.d.y, m.d.x);
+  const n = { x: -m.d.y, y: m.d.x };
+  const lato = interno ? -fuori : fuori;
+  const h = m.spessore / 2;
+  const foglia = (v.s1 - v.s0) / Math.max(1, ante);
+  const sinistra = Math.ceil(Math.max(1, ante) / 2), destra = Math.max(1, ante) - sinistra;
+  const anta = (s: number, verso: number, i: number) => {
+    const base = piu(m.a, per(m.d, s + verso * (0.02 + i * 0.035)));
+    c.scatola(base.x + n.x * lato * (h + foglia / 2), base.y + n.y * lato * (h + foglia / 2), v.z0, 0.03, foglia, v.z1 - v.z0, rot);
+  };
+  for (let i = 0; i < sinistra; i++) anta(v.s0, -1, i);
+  for (let i = 0; i < destra; i++) anta(v.s1, 1, i);
+}
+
 /** Muratura che chiude un vano (tamponamento). */
 export function costruisciTamponamento(m: MuroCalc, v: VanoMuro, c: CostruttoreMesh): void {
   const mezzo = piu(m.a, per(m.d, (v.s0 + v.s1) / 2));

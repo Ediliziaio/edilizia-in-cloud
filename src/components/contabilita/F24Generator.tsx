@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus, X, Save } from "lucide-react";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 
 interface Props {
   readOnly?: boolean;
@@ -545,6 +546,11 @@ export function F24Generator({
               validità di una quietanza.
             </DialogDescription>
           </DialogHeader>
+          {detail && (
+            <div className="rounded-md border p-3">
+              <AllegatiFattura companyId={detail.company_id} madre={{ f24Id: detail.id }} sola_lettura={readOnly} titolo="Delega e quietanza" />
+            </div>
+          )}
           {detail && (
             <dl className="space-y-3 text-sm">
               {[

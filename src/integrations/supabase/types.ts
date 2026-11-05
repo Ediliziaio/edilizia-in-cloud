@@ -15336,6 +15336,7 @@ export type Database = {
           id: string
           notes: string | null
           outcome: string
+          richiamo_il: string | null
           started_at: string
           user_id: string
         }
@@ -15347,6 +15348,7 @@ export type Database = {
           id?: string
           notes?: string | null
           outcome?: string
+          richiamo_il?: string | null
           started_at?: string
           user_id: string
         }
@@ -15358,6 +15360,7 @@ export type Database = {
           id?: string
           notes?: string | null
           outcome?: string
+          richiamo_il?: string | null
           started_at?: string
           user_id?: string
         }
@@ -15665,6 +15668,7 @@ export type Database = {
       }
       campo_rapportini: {
         Row: {
+          campi_extra: Json
           approvato: boolean | null
           approvato_at: string | null
           approvato_da: string | null
@@ -15704,6 +15708,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
           approvato_da?: string | null
@@ -15743,6 +15748,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          campi_extra?: Json
           approvato?: boolean | null
           approvato_at?: string | null
           approvato_da?: string | null
@@ -15782,6 +15788,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "campo_rapportini_ufficio_employee_id_fkey"
+            columns: ["ufficio_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campo_rapportini_approvato_da_fkey"
             columns: ["approvato_da"]
@@ -21192,6 +21205,8 @@ export type Database = {
           paid_date: string | null
           payment_method: string | null
           purchase_order_id: string | null
+          quota_magazzino: number | null
+          quota_magazzino_righe: Json | null
           recurrence: string
           recurrence_auto: boolean
           recurrence_end_date: string | null
@@ -21221,6 +21236,8 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           purchase_order_id?: string | null
+          quota_magazzino?: number | null
+          quota_magazzino_righe?: Json | null
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
@@ -21250,6 +21267,8 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           purchase_order_id?: string | null
+          quota_magazzino?: number | null
+          quota_magazzino_righe?: Json | null
           recurrence?: string
           recurrence_auto?: boolean
           recurrence_end_date?: string | null
@@ -27598,6 +27617,20 @@ export type Database = {
           warehouse_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ddt_ricezione_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ddt_ricezione_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ddt_ricezione_company_id_fkey"
             columns: ["company_id"]
@@ -85159,6 +85192,7 @@ export type Database = {
           can_view_marketing_appointments: boolean | null
           can_view_marketing_automations: boolean | null
           can_view_marketing_contacts: boolean | null
+          can_view_callcenter_dashboard: boolean
           can_view_marketing_dashboard: boolean | null
           can_view_marketing_email: boolean | null
           can_view_marketing_opportunities: boolean | null
@@ -85268,6 +85302,7 @@ export type Database = {
           can_view_marketing_appointments?: boolean | null
           can_view_marketing_automations?: boolean | null
           can_view_marketing_contacts?: boolean | null
+          can_view_callcenter_dashboard?: boolean
           can_view_marketing_dashboard?: boolean | null
           can_view_marketing_email?: boolean | null
           can_view_marketing_opportunities?: boolean | null
@@ -85377,6 +85412,7 @@ export type Database = {
           can_view_marketing_appointments?: boolean | null
           can_view_marketing_automations?: boolean | null
           can_view_marketing_contacts?: boolean | null
+          can_view_callcenter_dashboard?: boolean
           can_view_marketing_dashboard?: boolean | null
           can_view_marketing_email?: boolean | null
           can_view_marketing_opportunities?: boolean | null
@@ -94529,6 +94565,8 @@ export type Database = {
           stock_item_id: string
           unit_cost: number | null
           uscita_id: string | null
+          valorizza_medio: boolean
+          medio_prima: number | null
           warehouse_id: string | null
         }
         Insert: {
@@ -94545,6 +94583,8 @@ export type Database = {
           stock_item_id: string
           unit_cost?: number | null
           uscita_id?: string | null
+          valorizza_medio?: boolean
+          medio_prima?: number | null
           warehouse_id?: string | null
         }
         Update: {
@@ -94561,6 +94601,8 @@ export type Database = {
           stock_item_id?: string
           unit_cost?: number | null
           uscita_id?: string | null
+          valorizza_medio?: boolean
+          medio_prima?: number | null
           warehouse_id?: string | null
         }
         Relationships: [
@@ -106559,7 +106601,7 @@ export type Database = {
         Returns: Json
       }
       silvio_employees_workload: {
-        Args: { p_company_id: string }
+        Args: { p_al?: string; p_company_id: string; p_dal?: string; p_escludi_order_id?: string }
         Returns: Json
       }
       silvio_executive_report: { Args: { p_company_id: string }; Returns: Json }

@@ -1,4 +1,5 @@
 import { ElencoContrattiSub, type RigaContrattoSub } from "./ElencoContrattiSub";
+import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { ContrattoCarta } from "./ContrattoCarta";
 import {LavoriMisureSubDialog} from "./LavoriMisureSubDialog";
 import {VerbaleSalSubDialog} from "./VerbaleSalSubDialog";
@@ -113,7 +114,15 @@ export function useContrattiSubappaltatore(subId: string | undefined) {
         .eq("company_id",companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as ContrattoCompleto[];
+      const contratti = (data ?? []) as unknown as ContrattoCompleto[];
+      // Chi ha la scheda Subappaltatori ma non Commesse non legge gli ordini: il contratto dice
+      // comunque a quale cantiere si riferisce.
+      const senzaCommessa = [...new Set(contratti.filter((c) => !c.commessa && c.order_id).map((c) => c.order_id as string))];
+      if (!senzaCommessa.length) return contratti;
+      const { data: etichette, error: erroreEtichette } = await supabase.rpc("subappalto_etichette_commesse" as never, { p_order_ids: senzaCommessa } as never);
+      if (erroreEtichette) throw erroreEtichette;
+      const perOrdine = new Map(((etichette ?? []) as unknown as Array<{ order_id: string } & NonNullable<ContrattoCompleto["commessa"]>>).map((e) => [e.order_id, e]));
+      return contratti.map((c) => (c.commessa ? c : { ...c, commessa: perOrdine.get(c.order_id as string) ?? null }));
     },
     enabled: !!subId && !!companyId,
   });
@@ -723,7 +732,7 @@ export function ContrattiSubappalto({
 
               </details>
               <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                {permessiLavori.canViewCosts && permessiLavori.canViewSubappaltatoriAmministrazione && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
+                {puoConsultareSalSub(permessiLavori) && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
                 <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
                 <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setMotivoVariante(""); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
                 <Button size="sm" variant="ghost" className="gap-1" title="Riscrivi gli articoli del contratto, per questo subappaltatore o come standard dell'azienda" onClick={() => setCondizioni(c)}>

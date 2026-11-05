@@ -25,10 +25,33 @@ export const TIPI_ALLEGATO = [
   { value: "altro", label: "Altro" },
 ] as const;
 
+/** Quanti allegati ha ogni fattura ricevuta dell'azienda: serve alla lista, senza aprire il dettaglio. */
+export function useConteggiAllegatiRicevute(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["fattura-allegati-conteggi", companyId],
+    enabled: !!companyId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const conteggi = new Map<string, number>();
+      for (let from = 0; ; from += 1000) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).from("fattura_allegati").select("id, fattura_ricevuta_id")
+          .eq("company_id", companyId).not("fattura_ricevuta_id", "is", null).order("id").range(from, from + 999);
+        if (error) throw error;
+        const righe = (data ?? []) as Array<{ fattura_ricevuta_id: string }>;
+        for (const r of righe) conteggi.set(r.fattura_ricevuta_id, (conteggi.get(r.fattura_ricevuta_id) ?? 0) + 1);
+        if (righe.length < 1000) return conteggi;
+      }
+    },
+  });
+}
+
 export type MadreAllegato =
   | { invoiceId: string }
   | { documentoFiscaleId: string }
-  | { fatturaRicevutaId: string };
+  | { fatturaRicevutaId: string }
+  | { costoId: string }
+  | { f24Id: string };
 
 interface Allegato {
   id: string;
@@ -49,8 +72,12 @@ const MAX_BYTES = 20 * 1024 * 1024;
  */
 export const MAX_BYTES_INVIO_SDI = 3.5 * 1024 * 1024;
 
-const colonnaMadre = (m: MadreAllegato): ["invoice_id" | "documento_fiscale_id" | "fattura_ricevuta_id", string] =>
-  "invoiceId" in m ? ["invoice_id", m.invoiceId] : "documentoFiscaleId" in m ? ["documento_fiscale_id", m.documentoFiscaleId] : ["fattura_ricevuta_id", m.fatturaRicevutaId];
+const colonnaMadre = (m: MadreAllegato): ["invoice_id" | "documento_fiscale_id" | "fattura_ricevuta_id" | "company_cost_id" | "f24_entry_id", string] =>
+  "invoiceId" in m ? ["invoice_id", m.invoiceId]
+    : "documentoFiscaleId" in m ? ["documento_fiscale_id", m.documentoFiscaleId]
+      : "costoId" in m ? ["company_cost_id", m.costoId]
+        : "f24Id" in m ? ["f24_entry_id", m.f24Id]
+          : ["fattura_ricevuta_id", m.fatturaRicevutaId];
 
 export const allegatiQueryKey = (m: MadreAllegato) => ["fattura-allegati", ...colonnaMadre(m)] as const;
 
@@ -97,7 +124,10 @@ export function AllegatiFattura({
       return (data ?? []) as Allegato[];
     },
   });
-  const aggiorna = () => queryClient.invalidateQueries({ queryKey: allegatiQueryKey(madre) });
+  const aggiorna = () => {
+    void queryClient.invalidateQueries({ queryKey: ["fattura-allegati-conteggi"] });
+    return queryClient.invalidateQueries({ queryKey: allegatiQueryKey(madre) });
+  };
 
   const carica = useMutation({
     mutationFn: async (files: File[]) => {

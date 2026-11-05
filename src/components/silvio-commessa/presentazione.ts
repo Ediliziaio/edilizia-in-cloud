@@ -8,15 +8,18 @@
  */
 import { azioneDellaVariabile, livelloDi, ordineDaSolo, type Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import {
-  AREE, inVigore, type Area, type Conflitto, type CostoDelPiano, type FaseDelPiano, type PianoCommessa,
+  AREE, inVigore, tipoDOrigine, type Area, type Conflitto, type CostoDelPiano, type FaseDelPiano, type PianoCommessa,
   type RataDelPiano, type Stato, type Valore, type CondizioniContratto, type Modifica,
 } from "../../../shared/silvio-commessa/piano.ts";
 import { REGISTRO, variabile, variabiliDellArea, type Variabile } from "../../../shared/silvio-commessa/registro.ts";
 import { completezzaPiano, type Completezza } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Riconosciuto } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import { personaOccupata, type ContestoRisorse, type PersonaDelPiano } from "../../../shared/silvio-commessa/risorse.ts";
-import { annulla, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
-import { COLONNE_SCRIVIBILI, entraNellaScrittura, giaNellaCommessa, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
+import { annulla, applica, type Passo } from "../../../shared/silvio-commessa/fondi.ts";
+import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
+import { eraDaFare, scadenzaPassata } from "../../../shared/silvio-commessa/partenza.ts";
+import { clienteRitrovabile, COLONNE_SCRIVIBILI, entraNellaScrittura, giaNellaCommessa, type ClienteDelGestionale, type ScritturaCommessa } from "@/lib/silvio-commessa/scrittura";
+import { controlliQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
 import { avvisoLettureFallite } from "../../../shared/silvio-commessa/contestoRisorse.ts";
 import type { EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
@@ -120,6 +123,12 @@ function scalare(chiave: string, colonna: string | null, v: unknown): string {
   return "";
 }
 
+/** «quantità 1»: quanto si prenota di un mezzo (un ponteggio si prenota a quantità, e Silvio ne propone 1). */
+export function quantitaMezzo(x: { quantita?: number | null }): string {
+  return `quantità ${Number(x.quantita) > 0 ? Number(x.quantita).toLocaleString("it-IT") : 1}`;
+}
+const quantitaMezzi = (elenco: readonly { quantita?: number | null }[]) => [...new Set(elenco.map(quantitaMezzo))].join(", ");
+
 function condizioni(c: CondizioniContratto): string {
   const parti: string[] = [];
   if (c.numero_contratto) parti.push(`n. ${c.numero_contratto}`);
@@ -145,9 +154,16 @@ export function arcoDelleFasi(fasi: readonly FaseDelPiano[]): { inizio: string |
 }
 
 /** Il testo breve di un valore, come compare nella riga dell'area. Senza `vedeCosti`, gli elenchi non dicono quanto costano. */
-export function testoValore(chiave: string, valore: unknown, vedeCosti = true): string {
+export function testoValore(chiave: string, valore: unknown, vedeCosti = true, oggi: string = oggiInItalia()): string {
   if (vuoto(valore)) return "—";
   switch (chiave) {
+    // Questi arrivano dalla commessa come codici («appaltatore_lavoro», «in_corso»).
+    case "identita.order_type":
+    case "identita.stato": {
+      // Lo stato è un oggetto con le colonne { status, current_status_id }.
+      const codice = typeof valore === "string" ? valore : (valore as { status?: unknown }).status;
+      return typeof codice === "string" && codice ? minuscola(codice).replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "—";
+    }
     case "fasi.order_work_phases": {
       const fasi = valore as FaseDelPiano[];
       const { inizio, fine } = arcoDelleFasi(fasi);
@@ -188,7 +204,7 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true): 
     case "materiali.acquisti":
     case "ditte.contratti": {
       if (!Array.isArray(valore)) break;
-      const elenco = valore as Array<{ stato?: string; costo_previsto?: number; importo?: number; nome?: string; fornitore?: string }>;
+      const elenco = valore as Array<{ stato?: string; costo_previsto?: number; importo?: number; nome?: string; fornitore?: string; quantita?: number | null }>;
       const buoni = elenco.filter((x) => x?.stato !== "attenzione");
       const ko = elenco.length - buoni.length;
       const cosa = ({
@@ -198,7 +214,8 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true): 
       const soldi = !vedeCosti ? 0 : chiave === "ditte.assegnate" ? buoni.reduce((t, x) => t + (Number(x.costo_previsto) || 0), 0)
         : chiave === "ditte.contratti" ? buoni.reduce((t, x) => t + (Number(x.importo) || 0), 0) : 0;
       const nomi = [...new Set(buoni.map((x) => x.nome ?? x.fornitore).filter(Boolean))].slice(0, 3).join(", ");
-      return `${buoni.length} ${buoni.length === 1 ? cosa[0] : cosa[1]}${nomi ? `: ${nomi}` : ""}${soldi > 0 ? ` · ${euro(soldi)}` : ""}`
+      const quante = chiave === "mezzi.allocazioni" && buoni.length ? ` · ${quantitaMezzi(buoni)}` : "";
+      return `${buoni.length} ${buoni.length === 1 ? cosa[0] : cosa[1]}${nomi ? `: ${nomi}` : ""}${quante}${soldi > 0 ? ` · ${euro(soldi)}` : ""}`
         + (ko ? ` · ⚠ ${ko} non ${ko === 1 ? "disponibile" : "disponibili"}` : "");
     }
     case "fasi.avvisi_meteo": {
@@ -210,13 +227,17 @@ export function testoValore(chiave: string, valore: unknown, vedeCosti = true): 
     case "sicurezza.pos_duvri": {
       if (!Array.isArray(valore)) break;
       const p = valore as Array<{ titolo?: string; scadenza?: string | null }>;
-      const entro = p.map((x) => x.scadenza).filter((d): d is string => !!d).sort()[0];
-      return `${p.length} ${p.length === 1 ? "promemoria" : "promemoria"}${entro ? ` · entro ${dataBreve(entro, false)}` : ""}`;
+      const scadenze = p.map((x) => x.scadenza).filter((d): d is string => !!d).sort();
+      const passate = scadenze.filter((d) => scadenzaPassata(d, oggi));
+      // Una scadenza passata non è una data a cui arrivare: la prima di quelle ancora buone sarebbe falsa.
+      const quando = passate.length ? ` · ${passate.length} da fare subito` : scadenze[0] ? ` · entro ${dataBreve(scadenze[0], false)}` : "";
+      return `${p.length} promemoria${quando}`;
     }
     case "comunicazione.avvio_cliente": {
       const m = valore as { canale?: string | null; destinatario?: string | null; scadenza?: string | null };
       const dove = m.canale === "email" ? "per email" : m.canale === "whatsapp" ? "per WhatsApp" : "";
-      return `bozza da mandare ${dove}${m.scadenza ? ` entro ${dataBreve(m.scadenza, false)}` : ""}`.replace(/\s+/g, " ").trim();
+      const quando = !m.scadenza ? "" : scadenzaPassata(m.scadenza, oggi) ? `, da mandare subito: ${eraDaFare(m.scadenza)}` : ` entro ${dataBreve(m.scadenza, false)}`;
+      return `bozza da mandare ${dove}${quando}`.replace(/\s+/g, " ").replace(/ ,/, ",").trim();
     }
   }
   if (Array.isArray(valore)) return `${valore.length} ${valore.length === 1 ? "elemento" : "elementi"}`;
@@ -482,8 +503,9 @@ export function contiDellaBarra(piano: PianoCommessa, scrittura: ScritturaCommes
 /** Il margine previsto, se il piano ha importo e costi: importo − costi, e la percentuale. */
 export function marginePrevisto(piano: PianoCommessa): { euro: number; percento: number } | null {
   // Quelli in vigore: una proposta della chat ancora da confermare non cambia i conti.
-  const importo = Number(inVigore(piano.aree.economia?.["economia.total_amount"])?.valore);
-  if (!(importo > 0)) return null;
+  const vale = inVigore(piano.aree.economia?.["economia.total_amount"]);
+  const importo = Number(vale?.valore);
+  if (!(importo > 0) || vale?.daConfermare) return null;
   const { totale } = costiConosciuti(piano);
   if (!(totale > 0)) return null;
   const margine = importo - totale;
@@ -589,6 +611,16 @@ export function prossimoLunedi(oggi: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Il predefinito di `orders.vat_rate`: l'IVA di una commessa che nasce senza che nessuno l'abbia detta. */
+export const IVA_PREDEFINITA = 22;
+
+/** «Crea» senza un'IVA detta: la colonna scriverebbe il predefinito. */
+export function ivaPredefinita(piano: PianoCommessa, scrittura: Pick<ScritturaCommessa, "modo" | "ordine" | "preventivo_id">): boolean {
+  if (scrittura.modo !== "crea" || scrittura.preventivo_id || scrittura.ordine.vat_rate !== undefined) return false;
+  const x = piano.aree.economia?.["economia.vat_rate"];
+  return !x || x.stato === "manca" || vuoto(x.valore);
+}
+
 function etichettaFonte(v: Valore): string {
   return v.fonte.etichetta.replace(/^(preventivo|computo)\s+/i, (m) => m.toLowerCase());
 }
@@ -597,7 +629,9 @@ function etichettaFonte(v: Valore): string {
  * La domanda del momento, una sola (3.4, punto 4): prima i conflitti, poi i ❓ veri
  * (cliente, inizio, importo, cantiere), poi le proposte da guardare.
  */
-export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommessa, oggi = new Date(), vedeImporti = true, vedeCosti = true): Domanda | null {
+export function domandaDiSilvio(
+  piano: PianoCommessa, scrittura: ScritturaCommessa, oggi = new Date(), vedeImporti = true, vedeCosti = true, clienti?: readonly ClienteDelGestionale[] | null,
+): Domanda | null {
   const conflitto = piano.conflitti[0];
   if (conflitto) {
     const v = variabile(conflitto.chiave);
@@ -622,6 +656,28 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
   };
   if (scrittura.modo === "crea" && !valore("cliente.customer_id") && !scrittura.cliente.nome && !scrittura.cliente.email && !scrittura.preventivo_id) {
     return { testo: "Per chi è il lavoro? Scegli il cliente o crealo.", risposte: [{ etichetta: "Scegli il cliente", apri: "cliente.customer_id" }] };
+  }
+  // Il nome c'è ma nel gestionale non si ritrova: «Crea» è fermo, e senza domanda si vedeva solo una riga piccola in fondo.
+  if (clienteDaScegliere(scrittura, clienti)) {
+    return {
+      testo: `${scrittura.cliente.nome ? `«${scrittura.cliente.nome}»` : "Questo cliente"} non è ancora nel gestionale, o ce n'è più d'uno. Senza non posso creare la commessa.`,
+      risposte: [{ etichetta: "Scegli o crea il cliente", apri: "cliente.customer_id" }],
+    };
+  }
+  // Un conto che non torna toglie il dato dalla commessa: si dice prima di «Crea», non dopo.
+  const nonTorna = contiCheNonTornano(piano, vedeImporti, vedeCosti)[0];
+  if (nonTorna) {
+    return { testo: `${nonTorna.testo} Finché non torna, ${minuscola(nonTorna.etichetta)} restano fuori dalla commessa.`, risposte: [{ etichetta: `Sistema ${ARTICOLO_CONTO[nonTorna.chiave] ?? ""}${minuscola(nonTorna.etichetta)}`, apri: nonTorna.chiave }] };
+  }
+  // Le durate del computo non erano credibili: chiedere solo l'inizio non darebbe le date a nessuna fase.
+  if (fasiSenzaTempi(piano) && (!valore("fasi.work_start_date") || !valore("fasi.work_end_date"))) {
+    return {
+      testo: "Quanto dura il lavoro? Dimmi quando inizia e quando finisce: dal computo i tempi non sono credibili, e non li invento.",
+      risposte: [
+        ...(!valore("fasi.work_start_date") ? [{ etichetta: "Scegli l'inizio", apri: "fasi.work_start_date" }] : []),
+        ...(!valore("fasi.work_end_date") ? [{ etichetta: "Scegli la fine", apri: "fasi.work_end_date" }] : []),
+      ],
+    };
   }
   if (!valore("fasi.work_start_date")) {
     const lunedi = prossimoLunedi(oggi);
@@ -648,12 +704,21 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
       ],
     };
   }
+  // Nessuno l'ha detta: la commessa nascerebbe col predefinito della colonna, senza che la persona lo sappia.
+  if (vedeImporti && ivaPredefinita(piano, scrittura)) {
+    return {
+      testo: `Che IVA applico? Nessun documento la dice: se non scegli, la commessa nasce al ${IVA_PREDEFINITA} %.`,
+      risposte: [22, 10, 4].map((aliquota) => ({
+        etichetta: `${aliquota} %`, modifica: { tipo: "cambia_valore", area: "economia", chiave: "economia.vat_rate", valore: aliquota } as Modifica,
+      })),
+    };
+  }
   const daVedere = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare" && !importoNascosto(e.chiave, vedeImporti, vedeCosti));
   if (daVedere.length) {
     const tutte = accettaProposte(piano, daVedere.map((e) => e.chiave));
     return {
       testo: daVedere.length === 1
-        ? `«${daVedere[0].etichetta}» è una mia proposta: entra solo se mi dici di sì.`
+        ? scrittoInChat(piano, daVedere[0].chiave, daVedere[0].etichetta, vedeCosti) ?? `«${daVedere[0].etichetta}» è una mia proposta: entra solo se mi dici di sì.`
         : `${daVedere.length} mie proposte aspettano un tuo sì (${daVedere.map((e) => minuscola(e.etichetta)).join(", ")}).`,
       risposte: [
         ...(tutte.length ? [{ etichetta: daVedere.length === 1 ? "Va bene" : `Va bene a tutte e ${daVedere.length}`, modifica: tutte }] : []),
@@ -662,6 +727,24 @@ export function domandaDiSilvio(piano: PianoCommessa, scrittura: ScritturaCommes
     };
   }
   return null;
+}
+
+/** Le fasi di un computo restate senza date né durate: le stime erano troppo lunghe (`SOGLIA_GIORNI_STIMATI`). */
+export function fasiSenzaTempi(piano: PianoCommessa): boolean {
+  const v = piano.aree.fasi?.["fasi.order_work_phases"];
+  if (!v || !Array.isArray(v.valore) || !v.valore.length || tipoDOrigine(v) !== "computo") return false;
+  return (v.valore as FaseDelPiano[]).every((f) => !f.start_date && !f.giorni);
+}
+
+/** Un valore scritto dalla persona in chat aspetta il suo sì, ma non è una proposta di Silvio. */
+function scrittoInChat(piano: PianoCommessa, chiave: string, etichetta: string, vedeCosti: boolean): string | null {
+  const v = variabile(chiave);
+  const x = v ? piano.aree[v.area]?.[chiave] : undefined;
+  if (!x?.daConfermare || x.alPostoDi === undefined || x.sopraCommessa) return null;
+  const nuovo = testoValore(chiave, x.valore, vedeCosti);
+  return x.alPostoDi
+    ? `«${etichetta}»: ${nuovo} al posto di ${testoValore(chiave, x.alPostoDi.valore, vedeCosti)}. Entra solo se mi dici di sì.`
+    : `«${etichetta}»: ${nuovo}. Entra solo se mi dici di sì.`;
 }
 
 /** «Dal preventivo PR-0142 ho preso cliente, importo e 6 fasi.» */
@@ -721,6 +804,9 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
           return { ...base, testo: dataBreve(dataDalleFasi), fuori: null, nota: `segue le fasi${proposta}` };
         }
 
+        if (v.chiave === "economia.vat_rate" && !sue.length && !nascosto && ivaPredefinita(piano, scrittura)) {
+          return { ...base, testo: `${IVA_PREDEFINITA} %`, fuori: null, nota: "nessun documento la dice: è quella predefinita, cambiala se è un'altra" };
+        }
         if (!sue.length && (!x || x.stato === "manca" || vuoto(x.valore))) {
           // I costi delle voci entrano con le fasi anche senza la variabile: si dicono lo stesso.
           if (v.chiave !== "costi.previsti" || !entraNellaScrittura(v.chiave, scrittura)) return null;
@@ -733,8 +819,14 @@ export function elencoControlla(piano: PianoCommessa, scrittura: ScritturaCommes
         const restano = sotto ? sue.filter((e) => e.motivo !== PROPOSTA) : sue;
         const mostrato = sotto ?? x;
         const testo = !mostrato ? "—" : nascosto ? TESTO_IMPORTO_NASCOSTO : testoValore(v.chiave, mostrato.valore, vedeCosti);
-        const nota = sotto && x && !nascosto
+        const proposta = sotto && x && !nascosto
           ? `proposta ${testoValore(v.chiave, x.valore, vedeCosti)} al posto di ${testoValore(v.chiave, sotto.valore, vedeCosti)}: entra solo se la confermi` : null;
+        // Un conto che non torna su un valore scelto da una persona: entra, perché l'ha scelto lei, ma si dice.
+        const nonTorna = mostrato?.quadratura && mostrato.nota && !restano.length
+          ? (nascosto || (parlaDiCosti(v.chiave, vedeCosti) && /\d\s*€/.test(mostrato.nota)) ? "⚠ il conto non torna: da controllare con chi vede gli importi" : `⚠ ${mostrato.nota}`) : null;
+        // Letto da una foto o senza prova: «resta fuori» da solo non dice perché, né come farlo entrare.
+        const senzaProva = x?.daConfermare && x.alPostoDi === undefined && !nascosto && x.nota ? x.nota : null;
+        const nota = [proposta, nonTorna, senzaProva].filter(Boolean).join(" ") || null;
         // Il motivo può citare le cifre («le rate fanno 48.500 €»): chi non le vede legge solo che resta fuori.
         const motivi = restano.map((e) => (nascosto && !vedeImporti && CHIAVI_IMPORTI.has(v.chiave) ? "da sistemare, con chi vede gli importi"
           : nascosto || (parlaDiCosti(v.chiave, vedeCosti) && /\d\s*€/.test(e.motivo)) ? "da sistemare, con chi vede i costi" : e.motivo));
@@ -787,6 +879,7 @@ const PAROLE_TABELLE: Record<string, string> = {
   order_notes: "una nota",
   order_status_history: "un cambio di stato",
   company_costs: "un costo",
+  order_costs: "un costo",
   costi_commessa: "un costo",
   campo_rapportini: "un rapportino",
   rapportini: "un rapportino",
@@ -828,20 +921,49 @@ export function rifiutoInParole(messaggio: string): string {
   m = /«(\w+)» è stato cambiato dopo Silvio/.exec(messaggio);
   if (m) {
     const v = REGISTRO.find((x) => x.colonne.includes(m![1]));
-    return `Non si può annullare: «${v?.etichetta ?? nomeColonna(m[1])}» è stato cambiato dopo Silvio.`;
+    return `Non si può annullare: «${v?.etichetta ?? parolaDellaColonna(m[1])}» è stato cambiato dopo Silvio.`;
   }
-  return messaggio;
+  // Quello che dice `_silvio_cosa_e_cambiato`: «si è aggiunto lavoro, righe in «company costs» (company costs)».
+  return messaggio
+    .replace(/righe in «([a-z_ ]+)»/g, (_, t: string) => parolaDellaTabella(t.replace(/ /g, "_")))
+    .replace(/Una riga di «([a-z_ ]+)» creata da Silvio è stata cambiata/g, (_, t: string) => {
+      const parola = parolaDellaTabella(t.replace(/ /g, "_"));
+      return `${parola.charAt(0).toUpperCase()}${parola.slice(1)} preparato da Silvio è stato cambiato`;
+    })
+    .replace(/,\s*([^,()]+?) \(([a-z]+(?: [a-z]+)*)\)(\.|$)/g, (tutto, cosa: string, tecnico: string, fine: string) =>
+      (tecnico.includes(" ") || PAROLE_TABELLE[tecnico] ? `, ${cosa}${fine}` : tutto))
+    .replace(/\(«(\w+)»\)/g, (_, c: string) => `(${parolaDellaColonna(c)})`);
+}
+
+/** Le colonne che un rifiuto può citare, in parole. Mai il nome tecnico: lo legge chi lavora in cantiere. */
+const PAROLE_COLONNE: Readonly<Record<string, string>> = {
+  is_paid: "il pagamento", total_cost: "il costo", cost_preventivo: "il costo previsto", costo_origine: "il costo previsto",
+  vat_rate: "l'IVA", notes: "le note", phase_id: "la fase", hours_worked: "le ore", start_date: "la data d'inizio", end_date: "la data di fine",
+  status: "lo stato", stato: "lo stato", percentuale: "l'avanzamento", percentuale_avanzamento: "l'avanzamento", importo_venduto: "il venduto",
+  name: "il nome", title: "il titolo", due_date: "la scadenza", quantita: "la quantità", dal: "il periodo", al: "il periodo", importo: "l'importo",
+};
+
+function parolaDellaColonna(colonna: string): string {
+  return PAROLE_COLONNE[colonna] ?? REGISTRO.find((x) => x.colonne.includes(colonna))?.etichetta.toLowerCase() ?? "un dato";
 }
 
 // ── Da decidere, suggerimenti della chat, «Crea» (01/11/2026, revisione dell'esperienza) ──
 
 /** «Va bene» a più proposte insieme: confermano il valore che c'è, come il «Va bene» della riga. */
 export function accettaProposte(piano: PianoCommessa, chiavi: string[]): Modifica[] {
-  return chiavi.flatMap((chiave): Modifica[] => {
+  // Le rate per ultime, e lette dopo i «sì» a importo e IVA: in percentuale gli importi nascono da lì.
+  const inOrdine = [...chiavi.filter((c) => c !== "pagamenti.rate"), ...chiavi.filter((c) => c === "pagamenti.rate")];
+  let ora = piano;
+  const out: Modifica[] = [];
+  for (const chiave of inOrdine) {
     const v = variabile(chiave);
-    const x = v ? piano.aree[v.area]?.[chiave] : undefined;
-    return v && x && !vuoto(x.valore) ? [{ tipo: "cambia_valore", area: v.area, chiave, valore: x.valore }] : [];
-  });
+    const x = v ? ora.aree[v.area]?.[chiave] : undefined;
+    if (!v || !x || vuoto(x.valore)) continue;
+    const m: Modifica = { tipo: "cambia_valore", area: v.area, chiave, valore: x.valore };
+    out.push(m);
+    try { ora = applica(ora, m).piano; } catch { /* la ferma il riduttore, col suo messaggio */ }
+  }
+  return out;
 }
 
 /** Una persona, ditta o mezzo proposto ma non disponibile: il ⚠ dentro un elenco. */
@@ -860,10 +982,27 @@ export function nonDisponibili(piano: PianoCommessa): NonDisponibile[] {
   return out;
 }
 
+const ARTICOLO_CONTO: Readonly<Record<string, string>> = { "pagamenti.rate": "le ", "ditte.contratti": "i ", "materiali.acquisti": "gli " };
+
+/** I conti che tengono un dato fuori dalla commessa (⚠ della quadratura), se chi guarda può leggerli. */
+export function contiCheNonTornano(piano: PianoCommessa, vedeImporti = true, vedeCosti = true): { chiave: string; etichetta: string; testo: string }[] {
+  return controlliQuadratura(piano)
+    .filter((p) => piano.aree[p.area]?.[p.chiave]?.stato === "attenzione" && !importoNascosto(p.chiave, vedeImporti, vedeCosti)
+      && !parlaDiCosti(p.chiave, vedeCosti) && (vedeImporti || !/\d\s*€/.test(p.testo)))
+    .map((p) => ({ chiave: p.chiave, etichetta: variabile(p.chiave)?.etichetta ?? "Questo dato", testo: p.testo }));
+}
+
+/** Il cliente ha un nome o un'email ma la RPC non lo ritroverebbe: «Crea» è fermo finché non lo si sceglie. */
+export function clienteDaScegliere(s: ScritturaCommessa, clienti?: readonly ClienteDelGestionale[] | null): boolean {
+  return s.modo === "crea" && !!clienti && !s.cliente.customer_id && !s.preventivo_id && !!(s.cliente.nome || s.cliente.email) && !clienteRitrovabile(s, clienti);
+}
+
 /** Le cose che aspettano la persona, nell'ordine in cui vanno decise: fonti in disaccordo, ⚠, domande, proposte. */
 export interface DaDecidere {
   conflitti: Conflitto[];
   nonDisponibili: NonDisponibile[];
+  /** I conti che non tornano: quel dato resta fuori dalla commessa finché non si sistema. */
+  nonTornano: { chiave: string; etichetta: string; testo: string }[];
   /** I ❓ che chiedono una risposta (cliente, inizio, importo, cantiere). */
   domande: Variabile[];
   /** Le proposte che entrano solo con un sì. */
@@ -875,18 +1014,19 @@ export interface DaDecidere {
 
 export function cosaDecidere(
   piano: PianoCommessa, scrittura: ScritturaCommessa, c: Completezza = completezzaPiano(piano),
-  opz: { vedeImporti?: boolean; vedeCosti?: boolean; contesto?: ContestoRisorse | null } = {},
+  opz: { vedeImporti?: boolean; vedeCosti?: boolean; contesto?: ContestoRisorse | null; clienti?: readonly ClienteDelGestionale[] | null } = {},
 ): DaDecidere {
   const vedeImporti = opz.vedeImporti ?? true;
   const vedeCosti = opz.vedeCosti ?? true;
   const domande = c.mancano.filter((v) => v.livello === "chiede" && siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti)
-    && !(v.chiave === "cliente.customer_id" && (scrittura.cliente.nome || scrittura.cliente.email || scrittura.preventivo_id)));
+    && !(v.chiave === "cliente.customer_id" && (scrittura.cliente.nome || scrittura.cliente.email || scrittura.preventivo_id) && !clienteDaScegliere(scrittura, opz.clienti)));
   const proposte = scrittura.escluse.filter((e) => e.motivo === "proposta da confermare" && !importoNascosto(e.chiave, vedeImporti, vedeCosti))
     .map(({ chiave, etichetta }) => ({ chiave, etichetta }));
   const nd = nonDisponibili(piano);
   const letture = opz.contesto ? avvisoLettureFallite(opz.contesto) : null;
   const avvisi = [...(letture ? [letture] : []), ...avvisiVisibili(piano.avvisi ?? [], vedeImporti, vedeCosti)];
-  return { conflitti: piano.conflitti, nonDisponibili: nd, domande, proposte, totale: piano.conflitti.length + nd.length + domande.length + proposte.length, avvisi };
+  const nonTornano = contiCheNonTornano(piano, vedeImporti, vedeCosti);
+  return { conflitti: piano.conflitti, nonDisponibili: nd, nonTornano, domande, proposte, totale: piano.conflitti.length + nd.length + nonTornano.length + domande.length + proposte.length, avvisi };
 }
 
 /** «1 conflitto, 1 persona non disponibile e 6 proposte»: per la barra e la scheda del telefono. */
@@ -894,10 +1034,132 @@ export function testoDaDecidere(d: DaDecidere): string {
   const parti = [
     d.conflitti.length ? `${d.conflitti.length} ${d.conflitti.length === 1 ? "valore da scegliere" : "valori da scegliere"}` : "",
     d.nonDisponibili.length ? `${d.nonDisponibili.length} non ${d.nonDisponibili.length === 1 ? "disponibile" : "disponibili"}` : "",
+    d.nonTornano.length ? `${d.nonTornano.length} ${d.nonTornano.length === 1 ? "conto che non torna" : "conti che non tornano"}` : "",
     d.domande.length ? `${d.domande.length} ${d.domande.length === 1 ? "dato che manca" : "dati che mancano"}` : "",
     d.proposte.length ? `${d.proposte.length} ${d.proposte.length === 1 ? "proposta" : "proposte"}` : "",
   ].filter(Boolean);
   return parti.length <= 1 ? parti.join("") : `${parti.slice(0, -1).join(", ")} e ${parti[parti.length - 1]}`;
+}
+
+// ── Prima quello che ferma o cambia i soldi (2/11, visto con l'AI vera: 12 voci alla pari) ──
+
+/** I numeri che contano: una proposta su questi non è come una proposta sul capomastro. */
+const CHIAVI_SOLDI: ReadonlySet<string> = new Set(["economia.total_amount", "economia.vat_rate", "pagamenti.rate"]);
+/** Senza cliente «Crea» è fermo; senza importo la commessa nasce a zero. */
+const DOMANDE_CHE_FERMANO: ReadonlySet<string> = new Set(["cliente.customer_id", "economia.total_amount"]);
+
+export interface DaDecidereDiviso {
+  /** Un documento dice un altro importo, un'altra IVA o altre rate: in evidenza. */
+  avvisiSoldi: string[];
+  altriAvvisi: string[];
+  /** In evidenza, e mai nascosti: conflitti e conti che non tornano stanno sempre qui. */
+  domande: Variabile[];
+  proposte: { chiave: string; etichetta: string }[];
+  /** Sotto, chiuso. */
+  altreDomande: Variabile[];
+  altreProposte: { chiave: string; etichetta: string }[];
+  subito: number;
+  /** Quante cose ci sono sotto, avvisi compresi. */
+  altre: number;
+}
+
+export function divisioneDaDecidere(d: DaDecidere): DaDecidereDiviso {
+  const domande = d.domande.filter((v) => DOMANDE_CHE_FERMANO.has(v.chiave));
+  const altreDomande = d.domande.filter((v) => !DOMANDE_CHE_FERMANO.has(v.chiave));
+  const proposte = d.proposte.filter((p) => CHIAVI_SOLDI.has(p.chiave));
+  const altreProposte = d.proposte.filter((p) => !CHIAVI_SOLDI.has(p.chiave));
+  // «Il documento dice 20.000, la commessa ha 18.000»: chiuso sotto «Altre» non lo vede nessuno.
+  const avvisiSoldi = d.avvisi.filter((a) => /«(Importo|IVA|Rate)»/.test(a));
+  const altriAvvisi = d.avvisi.filter((a) => !/«(Importo|IVA|Rate)»/.test(a));
+  return {
+    domande, proposte, altreDomande, altreProposte,
+    avvisiSoldi, altriAvvisi,
+    subito: d.conflitti.length + d.nonTornano.length + domande.length + proposte.length + avvisiSoldi.length,
+    altre: d.nonDisponibili.length + altreDomande.length + altreProposte.length + altriAvvisi.length,
+  };
+}
+
+/** «Altre 8 cose, se vuoi guardarle». */
+export const titoloAltre = (n: number) => (n === 1 ? "Un'altra cosa, se vuoi guardarla" : `Altre ${n} cose, se vuoi guardarle`);
+
+/** La riga della barra: solo quello che ferma o cambia i soldi; il resto si conta. */
+export function testoDecisioniSubito(d: DaDecidere): string {
+  const div = divisioneDaDecidere(d);
+  return testoDaDecidere({ ...d, nonDisponibili: [], domande: div.domande, proposte: div.proposte });
+}
+
+/** Importo, IVA, rate, inizio e fine, come stanno adesso: il riepilogo in testa alla colonna. */
+export interface NumeroDaControllare {
+  chiave: string;
+  testo: string;
+  stato: Stato;
+  /** Per chi non vede il segno. */
+  come: string;
+}
+
+/**
+ * «importo 12.000 €, IVA 10 %, 2 rate, dal 9 nov, al 26 nov». ✓ letto con la prova o scritto dalla
+ * persona, ✋ proposto. Chi non vede gli importi non ha importo, IVA e rate, neanche quante sono.
+ */
+export function numeriDaControllare(
+  piano: PianoCommessa, scrittura: Pick<ScritturaCommessa, "fasi" | "date_fasi">, vedeImporti = true,
+): NumeroDaControllare[] {
+  const leggi = (chiave: string) => {
+    const v = variabile(chiave);
+    const x = v ? piano.aree[v.area]?.[chiave] : undefined;
+    return { x: x && x.stato !== "manca" && !vuoto(x.valore) ? x : undefined, conflitto: piano.conflitti.some((c) => c.chiave === chiave) };
+  };
+  const come: Record<Stato, string> = { fatto: "letto dal documento con la prova", proposta: "proposto, da controllare", manca: "manca", attenzione: "da sistemare" };
+  const voce = (chiave: string, testo: (x: Valore) => string, nome: string, seManca: "mostra" | "salta" = "salta", dalleFasi?: string | null): NumeroDaControllare[] => {
+    const { x, conflitto } = leggi(chiave);
+    if (conflitto) return [{ chiave, testo: `${nome}: da scegliere`, stato: "attenzione", come: come.attenzione }];
+    if (x && giaNellaCommessa(piano, x)) return [];
+    if (!x) {
+      if (dalleFasi) return [{ chiave, testo: `${nome === "inizio" ? "dal" : "al"} ${dataBreve(dalleFasi, false)}`, stato: "proposta", come: "segue le fasi, da controllare" }];
+      return seManca === "mostra" ? [{ chiave, testo: nome, stato: "manca", come: come.manca }] : [];
+    }
+    const stato: Stato = x.stato === "attenzione" ? "attenzione" : x.daConfermare || (x.stato === "proposta" && x.fonte.tipo !== "persona") ? "proposta" : "fatto";
+    return [{ chiave, testo: testo(x), stato, come: stato === "fatto" && x.fonte.tipo === "persona" ? "scritto da te" : come[stato] }];
+  };
+  const dalleFasi = dateDalleFasi(scrittura);
+  const soldi = !vedeImporti ? [] : [
+    ...voce("economia.total_amount", (x) => `importo ${testoValore("economia.total_amount", x.valore)}`, "importo", "mostra"),
+    ...voce("economia.vat_rate", (x) => `IVA ${testoValore("economia.vat_rate", x.valore)}`, "IVA", "mostra"),
+    ...voce("pagamenti.rate", (x) => { const n = Array.isArray(x.valore) ? x.valore.length : 0; return `${n} ${n === 1 ? "rata" : "rate"}`; }, "rate"),
+  ];
+  const data = (prefisso: string) => (x: Valore) => `${prefisso} ${typeof x.valore === "string" ? dataBreve(x.valore, false) : ""}`;
+  return [
+    ...soldi,
+    ...voce("fasi.work_start_date", data("dal"), "inizio", "mostra", dalleFasi.inizio),
+    ...voce("fasi.work_end_date", data("al"), "fine", "salta", dalleFasi.fine),
+  ];
+}
+
+/** Una fase dell'azienda, per dire in quale nasce la commessa. */
+export interface StatoDellAzienda { name: string; position?: number | null; is_default?: boolean | null; is_support_phase?: boolean | null }
+
+/**
+ * Le fasi che vogliono dire «da confermare». La stessa espressione di `_silvio_stato_iniziale`
+ * (migrazione 20281112160000): un test le confronta.
+ */
+export const FASE_DA_CONFERMARE = "da[[:space:]]*conferm|attesa[[:space:]]+(di[[:space:]]+)?conferm|non[[:space:]]+confermat|provvisori";
+const FASE_DA_CONFERMARE_JS = /da\s*conferm|attesa\s+(di\s+)?conferm|non\s+confermat|provvisori/i;
+
+/** La fonte è un contratto o un preventivo accettato? Altrimenti nessuno ha firmato niente. */
+export function nasceDaFirma(piano: PianoCommessa, s: Pick<ScritturaCommessa, "preventivo_id">): boolean {
+  return !!s.preventivo_id || piano.fonti.some((f) => f.tipo === "contratto");
+}
+
+/**
+ * «Contratto Firmato» senza un contratto: la fase predefinita di un'azienda che non ne ha una per le
+ * commesse da confermare. La commessa nasce lì, e chi crea lo deve sapere prima. Null se non serve dirlo.
+ */
+export function avvisoStatoIniziale(piano: PianoCommessa, s: Pick<ScritturaCommessa, "modo" | "preventivo_id">, stati: readonly StatoDellAzienda[] | null | undefined): string | null {
+  if (s.modo !== "crea" || !stati?.length || nasceDaFirma(piano, s)) return null;
+  if (stati.some((x) => !x.is_support_phase && FASE_DA_CONFERMARE_JS.test(x.name))) return null;
+  const prima = [...stati].sort((a, b) => Number(b.is_default ?? false) - Number(a.is_default ?? false) || (a.position ?? 0) - (b.position ?? 0))[0];
+  if (!/contratt|firmat|accettat/i.test(prima.name)) return null;
+  return `Nasce nella fase «${prima.name}» anche senza firma: la tua azienda non ha una fase «Da confermare». Puoi aggiungerla in Impostazioni → Stati ordine.`;
 }
 
 const conta = (n: number, uno: string, tanti: string) => `${n} ${n === 1 ? uno : tanti}`;
@@ -909,8 +1171,9 @@ export function cosaScriveCrea(s: ScritturaCommessa): string {
     s.date_fasi.length ? conta(s.date_fasi.length, "data di fase", "date di fase") : "",
     s.righe.length ? conta(s.righe.length, "riga", "righe") : "",
     s.rate.length ? conta(s.rate.length, "rata", "rate") : "",
-    s.squadra.length ? conta(s.squadra.length, "persona", "persone") : "",
-    s.ditte.length ? conta(s.ditte.length, "ditta", "ditte") : "",
+    // Una persona o una ditta su due fasi sono due righe, ma una persona e una ditta.
+    s.squadra.length ? conta(new Set(s.squadra.map((x) => x.employee_id)).size, "persona", "persone") : "",
+    s.ditte.length ? conta(new Set(s.ditte.map((x) => x.external_team_id)).size, "ditta", "ditte") : "",
     s.mezzi.length ? conta(s.mezzi.length, "mezzo", "mezzi") : "",
     s.oda.length ? conta(s.oda.length, "ordine in bozza", "ordini in bozza") : "",
     s.contratti.length ? conta(s.contratti.length, "contratto in bozza", "contratti in bozza") : "",
@@ -928,6 +1191,7 @@ const TOLTE_PERMESSI: Readonly<Record<string, string>> = {
   condizioni: "le condizioni del contratto (le cambia solo un amministratore)",
   adempimenti: "i promemoria di sicurezza (serve il permesso sulla sicurezza di cantiere)",
   ordini: "gli ordini ai fornitori (serve il permesso sui costi)",
+  costi: "i costi previsti di voci e ditte, che nascono a 0 (serve il permesso sui costi)",
 };
 const TOLTE_AUTONOMIA: Readonly<Record<string, string>> = {
   squadra: "la squadra", mezzi: "i mezzi", ordini: "gli ordini ai fornitori", ditte: "le ditte",

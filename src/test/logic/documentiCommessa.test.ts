@@ -1,164 +1,82 @@
-import { describe, expect, it } from "vitest";
-import {
-  cartellaDocumentiCliente,
-  cartellaSuggerita,
-  cartelleMancanti,
-  contaPerCartella,
-  corrispondeRicerca,
-  percorsoDocumento,
-  problemaFile,
-  type CartellaDocumenti,
-} from "@/lib/commesse/documentiCommessa";
+import { readFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+import { cosaManca, descrizioneFattura, fatturatoOltreOrdine, materialiDaRighe, pagamentoFattura, statoVerificaBolla } from "@/components/orders/OrderDocumentiFornitore";
 
-const c = (id: string, nome: string, extra: Partial<CartellaDocumenti> = {}): CartellaDocumenti => ({
-  id, nome, company_id: "az", posizione: 0, visibile_cliente: false, obbligatoria: false, archiviata_at: null, ...extra,
-});
-
-const greenEnergy = [
-  c("contratti", "Contratti + Doc. cliente + Reddito + Bollette"),
-  c("arch", "Doc. architettonici"),
-  c("catasto", "Doc. catastali e visure"),
-  c("enel", "Enel I-II-GSE"),
-  c("fatture", "Fatture e pagamenti"),
-  c("fotoftv", "Foto installazione + Dico Ftv"),
-  c("mail", "Mail comunicazioni cliente"),
-  c("pos", "Posizionamento"),
-  c("pratica", "Pratica edilizia"),
-  c("prev", "Preventivi"),
-  c("schede", "Schede tecniche"),
-  c("sopr", "Sopralluogo"),
-  c("studio", "Studio Tecnico"),
-  c("varie", "Varie documenti cliente"),
-];
-const base = ["Contratti", "Documenti cliente", "Preventivi", "Foto", "Fatture e pagamenti", "Pratiche", "Varie"]
-  .map((n) => c(n.toLowerCase(), n));
-
-describe("cartella proposta dal nome del file", () => {
-  it("Green Energy", () => {
-    expect(cartellaSuggerita("Visura_catastale_Rossi.pdf", greenEnergy)).toBe("catasto");
-    expect(cartellaSuggerita("fattura 123-2026.pdf", greenEnergy)).toBe("fatture");
-    expect(cartellaSuggerita("Bonifico acconto.pdf", greenEnergy)).toBe("fatture");
-    expect(cartellaSuggerita("TICA_E-Distribuzione.pdf", greenEnergy)).toBe("enel");
-    expect(cartellaSuggerita("Bolletta luce.pdf", greenEnergy)).toBe("contratti");
-    expect(cartellaSuggerita("Planimetria piano terra.dwg", greenEnergy)).toBe("arch");
-    expect(cartellaSuggerita("CILA protocollata.pdf", greenEnergy)).toBe("pratica");
-    expect(cartellaSuggerita("datasheet inverter.pdf", greenEnergy)).toBe("schede");
-    expect(cartellaSuggerita("sopralluogo_rossi.pdf", greenEnergy)).toBe("sopr");
-    expect(cartellaSuggerita("IMG_4412.HEIC", greenEnergy)).toBe("fotoftv");
-    expect(cartellaSuggerita("Re conferma.eml", greenEnergy)).toBe("mail");
-    expect(cartellaSuggerita("Carta identità.jpg", greenEnergy)).toBe("contratti");
+describe("bolle: cosa manca", () => {
+  it("una foto dal cantiere da verificare è da confermare, anche con l'ordine già proposto", () => {
+    expect(cosaManca("cantiere", { stato: "da_verificare" }).daFare).toBe("conferma");
+    expect(cosaManca("cantiere", { stato: "da_verificare", purchase_order_id: "o" }).motivo).toContain("di questo ordine");
+    expect(cosaManca("cantiere", { stato: "registrato" }).daFare).toBeNull();
   });
-
-  it("gruppo base", () => {
-    expect(cartellaSuggerita("Contratto firmato.pdf", base)).toBe("contratti");
-    expect(cartellaSuggerita("carta identità.jpg", base)).toBe("documenti cliente");
-    expect(cartellaSuggerita("foto tetto.jpg", base)).toBe("foto");
-    expect(cartellaSuggerita("CILA.pdf", base)).toBe("pratiche");
+  it("arrivata senza ordine è da confermare; sull'ordine è solo da controllare", () => {
+    expect(cosaManca("fornitore", { stato: "ricevuto" }).daFare).toBe("conferma");
+    expect(cosaManca("fornitore", { stato: "ricevuto", purchase_order_id: "o" }).daFare).toBe("controllo");
   });
-
-  it("senza indizi: la cartella aperta, altrimenti «Varie»", () => {
-    expect(cartellaSuggerita("scansione 0001.pdf", base, "preventivi")).toBe("preventivi");
-    expect(cartellaSuggerita("scansione 0001.pdf", base)).toBe("varie");
-    expect(cartellaSuggerita("scansione 0001.pdf", [...greenEnergy, c("fotovarie", "Foto installazione + Dico Varie")])).toBe("varie");
-    expect(cartellaSuggerita("scansione 0001.pdf", [c("x", "Contratti")])).toBeNull();
-    expect(cartellaSuggerita("x.pdf", [])).toBeNull();
-    expect(cartellaSuggerita("fattura.pdf", [c("f", "Fatture", { archiviata_at: "2026-01-01" })])).toBeNull();
+  it("i dubbi dell'AI chiedono di confermare l'abbinamento", () => {
+    expect(cosaManca("fornitore", { stato: "ricevuto", purchase_order_id: "o", ai_avvisi: ["numero incerto"] }).daFare).toBe("conferma");
+  });
+  it("controllata non chiede niente; danni o non conformità sì, anche se controllata", () => {
+    expect(cosaManca("fornitore", { stato: "verificato", purchase_order_id: "o" }).daFare).toBeNull();
+    expect(cosaManca("fornitore", { stato: "verificato", purchase_order_id: "o", has_damages: true }).daFare).toBe("controllo");
+    expect(cosaManca("fornitore", { stato: "non_conforme" }).daFare).toBe("controllo");
   });
 });
 
-describe("regole sui file", () => {
-  it("formati e peso", () => {
-    expect(problemaFile({ name: "a.PDF", size: 10 })).toBeNull();
-    expect(problemaFile({ name: "foto.heic", size: 10 })).toBeNull();
-    expect(problemaFile({ name: "contratto.pdf.p7m", size: 10 })).toBeNull();
-    expect(problemaFile({ name: "virus.exe", size: 10 })).toMatch(/formato/);
-    expect(problemaFile({ name: "grande.pdf", size: 51 * 1024 * 1024 })).toMatch(/50 MB/);
-    expect(problemaFile({ name: "vuoto.pdf", size: 0 })).toMatch(/vuoto/);
-  });
-
-  it("percorso con prefisso della commessa e nome pulito", () => {
-    expect(percorsoDocumento("ord1", "Visura però (1).pdf", 5, 0.5)).toBe("orders/ord1/5-500000-Visura_pero__1_.pdf");
+describe("fatture: oltre l'ordine", () => {
+  it("meno dell'ordine è normale, l'arrotondamento non conta, di più sì", () => {
+    expect(fatturatoOltreOrdine(500, 1000)).toBe(false);
+    expect(fatturatoOltreOrdine(1000.9, 1000)).toBe(false);
+    expect(fatturatoOltreOrdine(1002, 1000)).toBe(true);
+    expect(fatturatoOltreOrdine(1002, null)).toBe(false);
+    expect(fatturatoOltreOrdine(1002, 0)).toBe(false);
   });
 });
 
-describe("cartelle obbligatorie, conteggi, ricerca", () => {
-  it("mancano solo le obbligatorie vuote", () => {
-    const cartelle = [c("a", "A", { obbligatoria: true }), c("b", "B", { obbligatoria: true }), c("x", "X")];
-    expect(cartelleMancanti(cartelle, [{ folder_id: "a" }]).map((m) => m.id)).toEqual(["b"]);
+describe("fatture: pagamento", () => {
+  it("vale il costo collegato, se sulla fattura non è segnato", () => {
+    expect(pagamentoFattura(null, { is_paid: true, paid_date: "2025-11-18" }, undefined, 100)).toEqual({ pagamento: "pagata", pagato: 100, residuo: 0, pagataIl: "2025-11-18" });
+    expect(pagamentoFattura("2025-10-01", { is_paid: false, paid_date: null }, undefined, 100).pagamento).toBe("pagata");
   });
-  it("conta", () => {
-    expect(contaPerCartella([{ folder_id: "a" }, { folder_id: "a" }, { folder_id: null }])).toEqual({ a: 2, "": 1 });
+  it("in parte: gli importi sono quelli di «Pagamenti e residuo»", () => {
+    expect(pagamentoFattura(null, { is_paid: false, paid_date: null }, { pagato: 30, residuo: 70 }, 100)).toEqual({ pagamento: "parziale", pagato: 30, residuo: 70, pagataIl: null });
   });
-  it("ricerca su nome e cartella, senza accenti", () => {
-    expect(corrispondeRicerca("Visura Rossi.pdf", "Doc. catastali", "rossi catastali")).toBe(true);
-    expect(corrispondeRicerca("Pratica.pdf", "Varie", "citta")).toBe(false);
-    expect(corrispondeRicerca("Città.pdf", "Varie", "citta")).toBe(true);
+  it("su una fattura ripartita conta la quota di questa commessa", () => {
+    expect(pagamentoFattura(null, undefined, { pagato: 30, residuo: 70 }, 40, 40)).toMatchObject({ pagato: 12, residuo: 28 });
   });
-});
-
-import { dimensioniRidotte, fotoDaRidurre } from "@/lib/commesse/riduciFoto";
-import { pdfDaValutare, scalaRender } from "@/lib/commesse/riduciPdf";
-
-describe("riduzione foto", () => {
-  it("JPEG/WebP/PNG pesanti, HEIC sempre (per renderle visibili)", () => {
-    const mb = 1024 * 1024;
-    expect(fotoDaRidurre({ name: "a.jpg", type: "image/jpeg", size: 4 * mb })).toBe(true);
-    expect(fotoDaRidurre({ name: "a.jpg", type: "image/jpeg", size: 0.5 * mb })).toBe(false);
-    expect(fotoDaRidurre({ name: "a.heic", type: "image/heic", size: 0.4 * mb })).toBe(true);
-    expect(fotoDaRidurre({ name: "IMG_1.HEIC", type: "", size: 2 * mb })).toBe(true);
-    expect(fotoDaRidurre({ name: "a.pdf", type: "application/pdf", size: 9 * mb })).toBe(false);
-    expect(fotoDaRidurre({ name: "a.png", type: "image/png", size: 9 * mb })).toBe(true);
-    expect(fotoDaRidurre({ name: "a.png", type: "image/png", size: 0.3 * mb })).toBe(false);
-  });
-  it("PDF da valutare e scala di render a 150 dpi, massimo 2000 px", () => {
-    const mb = 1024 * 1024;
-    expect(pdfDaValutare({ name: "scan.pdf", type: "application/pdf", size: 3 * mb })).toBe(true);
-    expect(pdfDaValutare({ name: "piccolo.pdf", type: "application/pdf", size: 0.5 * mb })).toBe(false);
-    expect(pdfDaValutare({ name: "enorme.pdf", type: "application/pdf", size: 45 * mb })).toBe(false);
-    expect(pdfDaValutare({ name: "foto.jpg", type: "image/jpeg", size: 3 * mb })).toBe(false);
-    // A4 = 595×842 pt → 150 dpi = 1240×1754 px
-    expect(Math.round(842 * scalaRender(595, 842))).toBe(1754);
-    // A1 enorme: il lato lungo si ferma a 2000 px
-    expect(Math.round(2384 * scalaRender(1684, 2384))).toBe(2000);
-  });
-  it("proporzioni", () => {
-    expect(dimensioniRidotte(4032, 3024)).toEqual({ w: 2560, h: 1920 });
-    expect(dimensioniRidotte(3024, 4032)).toEqual({ w: 1920, h: 2560 });
-    expect(dimensioniRidotte(1600, 1200)).toEqual({ w: 1600, h: 1200 });
+  it("senza pagamenti resta tutto da pagare, anche senza costo collegato", () => {
+    expect(pagamentoFattura(null, undefined, undefined, 100)).toEqual({ pagamento: "da_pagare", pagato: 0, residuo: 100, pagataIl: null });
+    expect(pagamentoFattura(null, undefined, { pagato: 0, residuo: 100 }, 100).pagamento).toBe("da_pagare");
   });
 });
 
-import { aggiungiFileCliente, contaFileDocumentiCliente, percorsoDocumentoCliente, togliFileCliente } from "@/lib/clienti/documentiCliente";
-
-describe("documenti personali del cliente", () => {
-  it("nella commessa vanno nella cartella documenti cliente", () => {
-    expect(cartellaDocumentiCliente(greenEnergy)).toBe("contratti");
-    expect(cartellaDocumentiCliente(base)).toBe("documenti cliente");
-    expect(cartellaDocumentiCliente([c("v", "Varie")])).toBe("v");
-    expect(cartellaDocumentiCliente([])).toBeNull();
+describe("bolle: stato di verifica e materiali", () => {
+  it("usa gli stati del documento", () => {
+    expect(statoVerificaBolla("fornitore", { stato: "ricevuto" })).toBe("da_verificare");
+    expect(statoVerificaBolla("fornitore", { stato: "verificato" })).toBe("verificata");
+    expect(statoVerificaBolla("fornitore", { stato: "verificato", has_damages: true })).toBe("non_conforme");
+    expect(statoVerificaBolla("fornitore", { stato: "atteso" })).toBe("attesa");
+    expect(statoVerificaBolla("cantiere", { stato: "da_verificare" })).toBe("da_verificare");
+    expect(statoVerificaBolla("cantiere", { stato: "registrato" })).toBe("verificata");
+    expect(statoVerificaBolla("cantiere", { stato: "rifiutato" })).toBe("rifiutata");
   });
-  it("più file per tipo, niente doppioni, formati controllati", () => {
-    const fronte = new File(["a"], "ci fronte.png", { type: "image/png" });
-    const retro = new File(["bb"], "ci retro.png", { type: "image/png" });
-    let { valore, scartati } = aggiungiFileCliente({}, "identity", [fronte, retro, fronte]);
-    expect(valore.identity?.map((f) => f.name)).toEqual(["ci fronte.png", "ci retro.png"]);
-    expect(scartati).toEqual([]);
-    ({ valore, scartati } = aggiungiFileCliente(valore, "fiscal_code", [new File(["x"], "virus.exe")]));
-    expect(scartati.length).toBe(1);
-    expect(contaFileDocumentiCliente(valore)).toBe(2);
-    expect(togliFileCliente(valore, "identity", 0).identity?.map((f) => f.name)).toEqual(["ci retro.png"]);
+  it("legge le righe scritte da chi le ha scritte, e salta quelle senza nome", () => {
+    expect(materialiDaRighe([{ descrizione: "Cavo", quantita: 3, unita: "m" }, { name: "Vite", quantity: "2" }, { quantita: 1 }, null])).toEqual([
+      { nome: "Cavo", quantita: 3, unita: "m" }, { nome: "Vite", quantita: 2, unita: null },
+    ]);
+    expect(materialiDaRighe(null)).toEqual([]);
   });
-  it("percorso con azienda davanti (lo richiede lo storage)", () => {
-    expect(percorsoDocumentoCliente("az", "cl", "identity", "Carta identità.png", 7, 0.25)).toBe("az/cl/identity/7-250000-Carta_identita.png");
+  it("la descrizione della fattura: riassunto, altrimenti la prima voce", () => {
+    expect(descrizioneFattura(" Noleggio ", [{ descrizione: "X" }])).toBe("Noleggio");
+    expect(descrizioneFattura(null, [{ descrizione: "X" }])).toBe("X");
+    expect(descrizioneFattura(null, null)).toBeNull();
   });
 });
 
-import { percorsoMiniatura } from "@/lib/commesse/miniatura";
-
-describe("miniature salvate accanto al file", () => {
-  it("stessa cartella, sottocartella miniature, sempre .jpg", () => {
-    expect(percorsoMiniatura("orders/abc/123-456-Visura.pdf")).toBe("orders/abc/miniature/123-456-Visura.jpg");
-    expect(percorsoMiniatura("az/cl/identity/1-2-ci.fronte.png")).toBe("az/cl/identity/miniature/1-2-ci.fronte.jpg");
-    expect(percorsoMiniatura("file.heic")).toBe("miniature/file.jpg");
+describe("le letture dei materiali", () => {
+  it("goods_receipts ha due strade verso order_items: la relazione è scritta, altrimenti l'elenco non si legge", () => {
+    const fonte = readFileSync("src/components/orders/OrderDocumentiFornitore.tsx", "utf8");
+    expect(fonte).toContain("order_items!goods_receipts_order_item_id_fkey(");
+    expect(fonte).not.toMatch(/quantity_received, order_items\(/);
   });
 });

@@ -241,6 +241,18 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 
+  const annullaIncassoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("annulla_incasso_scadenza" as never, { p_scadenza_id: id } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refreshFinancialQueries(queryClient);
+      toast.success("Incasso annullato: la scadenza è di nuovo da incassare");
+    },
+    onError: (e) => toast.error("Incasso non annullato", { description: (e as { message?: string }).message ?? String(e) }),
+  });
+
   const totalCount = scadenzeQuery.data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -254,5 +266,6 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     markPaid: markPaidMutation,
     create: createMutation,
     cancel: cancelMutation,
+    annullaIncasso: annullaIncassoMutation,
   };
 }

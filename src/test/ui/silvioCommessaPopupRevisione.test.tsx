@@ -17,7 +17,7 @@ import type { ClientBozze } from "@/lib/silvio-commessa/bozze";
 const permessi = { canViewOrderAmounts: true, canViewMargins: true, canViewCosts: true };
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permessi }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
-vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/hooks/useCompanyCustomers", () => ({ useCompanyCustomers: () => ({ data: [{ id: "cliente-mario", first_name: "Mario", last_name: "Rossi", email: null as string | null }] }) }));
 vi.mock("@/hooks/useVoiceInput", () => ({
   useVoiceInput: () => ({ recording: false, transcribing: false, recordingMs: 0, toggle: vi.fn() }),
 }));
@@ -76,6 +76,8 @@ function dbFinto(o: OpzioniDb = {}) {
       if (k === "update" || k === "delete" || k === "insert") ultimo = k;
       if (k === "insert") inserite.push(a[0]);
       if (k === "eq" && ultimo === "delete" && a[0] === "id") cancellate.push(a[1]);
+      // «Ricomincia» su Nuova commessa: tutte le bozze «crea» dell'utente, per azienda e autore.
+      if (k === "eq" && ultimo === "delete" && a[0] === "created_by") cancellate.push(...(o.bozze ?? []).map((b) => (b as { id: string }).id));
       return q;
     };
     for (const k of ["select", "insert", "update", "delete", "eq", "neq", "gt", "order", "limit"]) q[k] = catena(k);
@@ -519,7 +521,7 @@ describe("Quello che i livelli sotto hanno preparato", () => {
     const { s } = servizi({ chat: vi.fn(async () => ({ testo: "", costoEur: 0, strumenti: [{ nome: "cambia_valore", argomenti: { chiave: "economia.total_amount", valore: 99000 } }] })) } as Partial<ServiziSilvioCommessa>);
     apri(s);
     await pronto();
-    await inChat("l'importo è 99000");
+    await inChat("metti l'importo del documento");
     const riga = (await within(commessa()).findByText("99.000 €")).closest("li")!;
     expect(within(riga).getByRole("button", { name: "Va bene" })).toBeInTheDocument();
   });
@@ -531,7 +533,7 @@ describe("Quello che i livelli sotto hanno preparato", () => {
     await pronto();
     expect(within(commessa()).getAllByText(/Il documento dice 49\.000/)).toHaveLength(1);
     expect(within(commessa()).queryByText(/ignorata/)).toBeNull();
-    expect(within(commessa()).getByRole("heading", { name: /Da decidere|Da sapere/ })).toBeInTheDocument();
+    expect(within(commessa()).getByRole("heading", { name: /Da decidere|Da sapere|Niente di urgente/ })).toBeInTheDocument();
   });
 
   it("G3/G20: la nota dell'inizio lavori si vede anche quando è «fatto»", async () => {
@@ -573,7 +575,7 @@ describe("Quello che i livelli sotto hanno preparato", () => {
     const { s } = servizi({}, [f]);
     apri(s);
     await pronto();
-    expect(within(commessa()).getByText(/la data è già passata/)).toBeInTheDocument();
+    expect(within(commessa()).getByText(/Da fare subito: Notifica preliminare, era da fare entro il 1 gen/)).toBeInTheDocument();
   });
 
   it("le rate in percentuale con importo 0 mostrano la percentuale, e la nota che aspettano l'IVA", async () => {
@@ -659,12 +661,107 @@ describe("Visto a schermo il 2/11: quello che test e classi non dicevano", () =>
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("un avviso solo in più si dice al singolare", async () => {
+  it("gli avvisi stanno sotto, chiusi; nelle fonti uno solo in più si dice al singolare", async () => {
     const avvisi = ["Primo avviso", "Secondo avviso", "Terzo avviso", "Quarto avviso"];
     const { s } = servizi({}, [base({}, { avvisi })]);
     apri(s);
     await pronto();
-    expect(await within(commessa()).findByRole("button", { name: "Un altro avviso" })).toBeInTheDocument();
+    expect(await within(commessa()).findByText(/Altre \d+ cose, se vuoi guardarle/)).toBeInTheDocument();
     expect(within(fontiColonna()).getByText("e un altro avviso")).toBeInTheDocument();
+  });
+});
+
+describe("Le correzioni d'esperienza del 2/11: a schermo", () => {
+  const conTante = () => base({
+    fasi: FASI,
+    persone: { "persone.squadra": { valore: [{ employee_id: "e1", nome: "Mario Prova", fase: "Demolizioni", stato: "attenzione", avviso: "è in ferie" }], fiducia: 0.5, stato: "proposta" as const } },
+  }, { avvisi: ["Pagina 7 illeggibile"] });
+
+  it("1: la persona non libera sta sotto il titolo chiuso, non alla pari del cliente", async () => {
+    const { s } = servizi({}, [conTante()]);
+    apri(s);
+    await pronto();
+    const decidere = within(commessa()).getByRole("region", { name: /Niente di urgente|Da decidere/ });
+    const altre = decidere.querySelector("details[data-silvio-altre]") as HTMLDetailsElement;
+    expect(altre).not.toBeNull();
+    expect(altre.open).toBe(false);
+    expect(within(altre).getByText("Mario Prova")).toBeInTheDocument();
+    expect(within(altre).getByText(/Pagina 7 illeggibile/)).toBeInTheDocument();
+    expect(within(altre).getByText(/Altre \d+ cose, se vuoi guardarle/)).toBeInTheDocument();
+  });
+
+  it("1: un conflitto resta in evidenza, fuori dal gruppo chiuso", async () => {
+    const altro: Frammento = { fonte: { tipo: "contratto", id: "c1", etichetta: "Contratto.pdf" }, aree: { economia: { "economia.total_amount": { valore: 49000, fiducia: 1, stato: "fatto" } } } };
+    const { s } = servizi({}, [conTante(), altro]);
+    apri(s);
+    await pronto();
+    const decidere = await within(commessa()).findByRole("region", { name: /Da decidere/ });
+    const frase = within(decidere).getByText(/i documenti non sono d'accordo/);
+    expect(frase.closest("details")).toBeNull();
+  });
+
+  it("2: il riepilogo in testa porta al dato, anche in «Controlla»; senza permesso niente importi", async () => {
+    const { s } = servizi({}, [base({ fasi: FASI })]);
+    const { unmount } = apri(s);
+    await pronto();
+    const riepilogo = within(commessa()).getByRole("region", { name: "Da controllare" });
+    expect(within(riepilogo).getByRole("button", { name: /^importo 48\.500\s€: / })).toBeInTheDocument();
+    expect(within(riepilogo).getByRole("button", { name: /^dal 7 gen: / })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Controlla" }));
+    expect(within(await screen.findByRole("region", { name: "Da controllare" })).getByRole("button", { name: /^importo 48\.500\s€: / })).toBeInTheDocument();
+    unmount();
+
+    permessi.canViewOrderAmounts = false;
+    const niente = servizi({}, [base({ fasi: FASI })]);
+    apri(niente.s);
+    await pronto();
+    const senza = within(commessa()).getByRole("region", { name: "Da controllare" });
+    expect(senza.textContent).not.toMatch(/48\.500|importo|IVA|rate/i);
+    expect(within(senza).getByRole("button", { name: /^dal 7 gen: / })).toBeInTheDocument();
+  });
+
+  it("3: da una foto l'importo ha «Va bene» in evidenza, e il popup dice perché", async () => {
+    const f = base({ economia: { "economia.total_amount": { valore: 48500, fiducia: 0.6, stato: "proposta", daConfermare: true, nota: "Letto da un'immagine: controlla. Entra nella commessa solo se premi «Va bene»." } } });
+    const { s } = servizi({}, [f]);
+    apri(s);
+    await pronto();
+    const decidere = await within(commessa()).findByRole("region", { name: /Da decidere/ });
+    expect(within(decidere).getAllByText(/Letto da un'immagine.*«Va bene»/).length).toBeGreaterThan(0);
+    fireEvent.click(within(decidere).getByRole("button", { name: "Va bene" }));
+    await waitFor(() => expect(within(commessa()).getByRole("button", { name: /^importo 48\.500\s€: scritto da te/ })).toBeInTheDocument());
+  });
+
+  it("4: partita una bozza nuova le altre si scartano, e la persona lo legge", async () => {
+    const { s, db } = servizi({}, [base()], { bozze: [{ id: "vecchia" }] });
+    apri(s);
+    await pronto();
+    await waitFor(() => expect(db.cancellate).toEqual(["vecchia"]), { timeout: 3000 });
+    await within(screen.getByRole("tabpanel", { name: "Chat con Silvio" })).findByText(/l'ho scartata: ne tengo una sola/);
+  });
+
+  it("5: «il totale è 15.000» non chiede anche «Va bene»; un'altra cifra sì", async () => {
+    const { s } = servizi({ chat: vi.fn(async () => ({ testo: "", costoEur: 0, strumenti: [{ nome: "cambia_valore" as const, argomenti: { chiave: "economia.total_amount", valore: 15000 } }] })) } as Partial<ServiziSilvioCommessa>);
+    apri(s);
+    await pronto();
+    await inChat("il totale è 15.000");
+    const riga = (await within(commessa()).findByText("15.000 €")).closest("li")!;
+    expect(within(riga).queryByRole("button", { name: "Va bene" })).toBeNull();
+  });
+
+  it("6: la scadenza passata si legge «da fare subito», non «entro»", async () => {
+    const f = base({ sicurezza: { "sicurezza.adempimenti": { valore: [{ titolo: "CILA", scadenza: "2020-10-26" }], fiducia: 1, stato: "fatto" } } });
+    const { s } = servizi({}, [f]);
+    apri(s);
+    await pronto();
+    expect(within(commessa()).getByText(/Da fare subito: CILA, era da fare entro il 26 ott/)).toBeInTheDocument();
+    expect(within(commessa()).queryByText(/entro 26 ott/)).toBeNull();
+  });
+
+  it("7: nata da un testo, senza una fase da confermare, il popup dice che finisce in «Contratto Firmato»", async () => {
+    const testo = base({}, { fonte: { tipo: "testo", etichetta: "testo scritto" } });
+    const { s } = servizi({ statiCommessa: vi.fn(async () => [{ name: "Contratto Firmato", position: 0, is_default: true, is_support_phase: false }]) } as Partial<ServiziSilvioCommessa>, [testo]);
+    apri(s);
+    await pronto();
+    expect((await screen.findAllByText(/«Contratto Firmato» anche senza firma/)).length).toBeGreaterThan(0);
   });
 });

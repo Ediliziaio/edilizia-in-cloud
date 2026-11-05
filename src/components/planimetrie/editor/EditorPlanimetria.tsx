@@ -9,16 +9,18 @@
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
 import { RilievoTerreno } from "./RilievoTerreno";
+import { TelaioStrutturale } from "./TelaioStrutturale";
+import { generaTelaio, type ParametriTelaio } from "./telaio";
 import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
 import { altezzeLocale, falde, type AltezzeSottotetto } from "../../../../shared/planimetrie/sottotetto.ts";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
 import type { ArchivioRicalco } from "@/lib/planimetrie/ricalco";
-import type { Ricalco, Tetto } from "../../../../shared/planimetrie/modello.ts";
+import { FINITURE_TETTO, NOMI_FINITURA_TETTO, type FinituraTetto, type Ricalco, type Tetto } from "../../../../shared/planimetrie/modello.ts";
 import { NOMI_AREA, TIPI_AREA, type TipoArea } from "../../../../shared/planimetrie/modello.ts";
 import { STILE_AREA } from "./disegno";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
-import { AppWindow, Armchair, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
+import { AppWindow, Armchair, Grid3x3, Hexagon, ImageIcon, Layers, Trees, DoorOpen, Maximize2, Minus, Mountain, MousePointer2, MoveHorizontal, PanelRightClose, PanelRightOpen, PenLine, Plus, Redo2, Square, Type, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +49,7 @@ import {
   type Punto,
   type TipoApertura,
 } from "./adattatore";
+import { copiaGruppoSuTuttiIPiani, copiaSuTuttiIPiani } from "@/lib/planimetrie/copiaSuiPiani";
 import * as C from "./comandi";
 import { aggancia, angoliEsistenti, direzione, dist, muroPiuVicino } from "./geometria";
 import { contornoIncrociato } from "../../../../shared/planimetrie/geometria.ts";
@@ -134,6 +137,18 @@ const SUGGERIMENTI_TELEFONO: Record<Strumento, string> = {
 
 export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista, className, ricalco: archivio }: Props) {
   const telefono = useIsMobile();
+  // Tablet (sotto 1280 px, iPad in orizzontale compreso): gli strumenti restano tutti, ma la barra scorre su una riga e il pannello delle stanze
+  // sta sopra al disegno solo quando serve, invece di toglierne un terzo.
+  const [compatto, setCompatto] = useState(() => typeof window !== "undefined" && window.innerWidth < 1280);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1279px)");
+    const aggiorna = () => setCompatto(mql.matches);
+    aggiorna();
+    mql.addEventListener("change", aggiorna);
+    return () => mql.removeEventListener("change", aggiorna);
+  }, []);
+  const stretto = telefono || compatto;
+  const [pannelloAperto, setPannelloAperto] = useState(false);
   // Sul telefono di serie si guarda e si correggono le misure; «Modifica» apre tutti gli strumenti
   // (per chi disegna in cantiere, col dito: un tocco per gli angoli, due dita per spostarsi).
   const [modificaTelefono, setModificaTelefono] = useState(false);
@@ -157,6 +172,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const lid = livelloId ?? d.livelli[0]?.id;
     return lid ? impostaRicalco(d, lid, ricalco && !ricalco.percorso.startsWith("blob:") ? ricalco : null) : d;
   }, [pianta, livelloId, propostaId, ricalco]);
+  // l'ultimo stato del documento, per le azioni del pannello che lavorano su tutti i piani
+  const pianiRef = useRef({ documento, livelloId, propostaId });
+  pianiRef.current = { documento, livelloId, propostaId };
+  const vaiAlPianoRef = useRef<(id: string, doc: Planimetria, proposta?: string) => void>(() => {});
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
   const [selezione, setSelezione] = useState<Selezione | null>(null);
@@ -199,6 +218,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const contenitoreRef = useRef<HTMLDivElement>(null);
   const gesto = useRef<Gesto | null>(null);
   const puntatori = useRef(new Map<number, Punto>());
+  /** Pennino (Apple Pencil) appoggiato: il palmo della mano, che arriva come tocco, va ignorato. */
+  const penne = useRef(new Set<number>());
   const ultimoCursore = useRef<Punto | null>(null);
   const spazioPremuto = useRef(false);
 
@@ -296,8 +317,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     const maxY = Math.max(...ys) + margine;
     const { w, h } = dimensioniRef.current;
     const s = Math.max(0.05, Math.min(3, Math.min(w / (maxX - minX), h / (maxY - minY))));
-    setCamera({ s, tx: (w - (maxX - minX) * s) / 2 - minX * s, ty: (h - (maxY - minY) * s) / 2 - minY * s });
+    const inquadrata = { s, tx: (w - (maxX - minX) * s) / 2 - minX * s, ty: (h - (maxY - minY) * s) / 2 - minY * s };
+    cameraAdattata.current = inquadrata;
+    setCamera(inquadrata);
   }, []);
+  const cameraAdattata = useRef<Camera | null>(null);
+  const cameraRef = useRef(camera);
+  cameraRef.current = camera;
   const dimensioniRef = useRef(dimensioni);
   dimensioniRef.current = dimensioni;
   const giaAdattata = useRef(false);
@@ -307,10 +333,19 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     if (storia.presente.muri.length) adatta();
   }, [dimensioni, adatta, storia.presente.muri.length]);
 
-  // Sul telefono il pannello in basso ruba spazio: si reinquadra la pianta.
+  // Sul telefono il pannello in basso ruba spazio: si reinquadra la pianta. Altrove (tablet ruotato, schermo intero)
+  // si reinquadra solo se chi disegna non ha ancora spostato o ingrandito la vista.
   useEffect(() => {
-    if (telefono && giaAdattata.current) adatta();
-  }, [telefono, dimensioni.h, adatta]);
+    if (!giaAdattata.current) return;
+    const c = cameraAdattata.current;
+    const ora = cameraRef.current;
+    const intatta = !!c && c.s === ora.s && c.tx === ora.tx && c.ty === ora.ty;
+    if (telefono || intatta) adatta();
+  }, [telefono, dimensioni.w, dimensioni.h, adatta]);
+  // Sul tablet toccare una stanza o una parete apre il pannello con le sue misure.
+  useEffect(() => {
+    if (compatto && !telefono && selezione) setPannelloAperto(true);
+  }, [selezione, compatto, telefono]);
 
   const zoomAttorno = useCallback((fattore: number, schermo: Punto) => {
     setCamera((c) => {
@@ -439,6 +474,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button === 2) return;
+    if (e.pointerType === "pen") penne.current.add(e.pointerId);
+    else if (e.pointerType === "touch" && penne.current.size > 0) return;
     // Il clic sul disegno chiude le caselle aperte (e ne salva il valore), ma non deve
     // spostare il fuoco dopo: la casella della misura che si apre adesso lo tiene.
     e.preventDefault();
@@ -673,6 +710,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   };
 
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "touch" && penne.current.size > 0) return;
     const s = schermo(e);
     if (puntatori.current.has(e.pointerId)) puntatori.current.set(e.pointerId, s);
     const g = gesto.current;
@@ -787,6 +825,8 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   };
 
   const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    penne.current.delete(e.pointerId);
+    if (e.pointerType === "touch" && !puntatori.current.has(e.pointerId)) return;
     puntatori.current.delete(e.pointerId);
     const g = gesto.current;
     if (g?.tipo === "pinch") {
@@ -1134,6 +1174,14 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         applica(r.pianta);
         if (r.id) setSelezione({ tipo: "elemento", id: r.id });
       },
+      copiaSuiPiani: (id) => {
+        const { documento: d, livelloId: lid, propostaId: pid } = pianiRef.current;
+        const r = copiaSuTuttiIPiani(d, lid ?? d.livelli[0].id, id, () => C.nuovoId("arredo"));
+        if (!r) return;
+        if (!r.aggiunti) { setAvviso(r.giaPresenti ? "È già su tutti i piani." : "Non ci sono altri piani: aggiungine uno dal menu dei piani."); return; }
+        vaiAlPianoRef.current(lid ?? d.livelli[0].id, r.documento, pid);
+        setAvviso(`Messo anche su ${r.aggiunti} ${r.aggiunti === 1 ? "altro piano" : "altri piani"}, nello stesso punto.`);
+      },
       modificaQuota: (id, campi) => applica(C.modificaQuota(p(), id, campi)),
       modificaTesto: (id, campi) => applica(C.modificaTesto(p(), id, campi)),
       riscaldamento: (id) => {
@@ -1214,6 +1262,26 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
     setSelezione(null);
     setStrumento("seleziona");
     setTimeout(adatta, 0);
+  };
+  vaiAlPianoRef.current = vaiAlPiano;
+  const [telaioAperto, setTelaioAperto] = useState(false);
+  const creaTelaio = (par: Omit<ParametriTelaio, "origine" | "stato">, suTuttiIPiani: boolean) => {
+    const muri = stato.current.storia.presente.muri;
+    // la griglia parte dall'angolo in alto a sinistra della casa (o da zero su un foglio vuoto)
+    const origine = muri.length
+      ? { x: Math.min(...muri.flatMap((m) => [m.p1.x, m.p2.x])), y: Math.min(...muri.flatMap((m) => [m.p1.y, m.p2.y])) }
+      : { x: 0, y: 0 };
+    const r = generaTelaio(stato.current.storia.presente, { ...par, origine, stato: C.statoNuovo(stato.current.vista) });
+    if (!suTuttiIPiani) {
+      applica(r.pianta);
+      setAvviso("Telaio creato: ogni pilastro, trave o solaio si sposta e si cambia come un arredo.");
+      return;
+    }
+    const lid = livelloId ?? documento.livelli[0].id;
+    const d = aPlanimetria(r.pianta, documentoBase.current, livelloId, propostaId);
+    const copiato = copiaGruppoSuTuttiIPiani(d, lid, r.elementi, () => C.nuovoId("arredo"));
+    vaiAlPiano(lid, copiato.documento, propostaId);
+    setAvviso(`Telaio creato su ${copiato.documento.livelli.length} piani, nello stesso punto.`);
   };
   const nuovoPiano = (o: { nome: string; quota: number; base: BaseNuovoPiano }) => {
     const r = aggiungiLivello(documento, { ...o, daLivelloId: livelloId });
@@ -1368,7 +1436,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           </Button>
         )}
         {!sola && (
-          <div className={cn("flex items-center gap-1", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
+          <div className={cn("flex items-center gap-1", stretto ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 pb-1 [&>*]:shrink-0" : "flex-wrap")} role="toolbar" aria-label="Cosa vuoi fare">
             <BottoneStrumento attivo={strumento === "seleziona"} onClick={() => setStrumento("seleziona")} icona={<MousePointer2 />} etichetta="Seleziona" />
             <BottoneStrumento attivo={strumento === "stanza"} onClick={() => setStrumento("stanza")} icona={<Square />} etichetta="Stanza" />
             <StanzaDaMisure
@@ -1413,12 +1481,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
                 setStrumento("arredo");
                 setArredoScelto(voce);
               }}
+              onTelaio={() => setTelaioAperto(true)}
             />
             <BottoneStrumento attivo={strumento === "quota"} onClick={() => setStrumento("quota")} icona={<MoveHorizontal />} etichetta="Quota" titolo="Misura fra due punti" />
             <BottoneStrumento attivo={strumento === "testo"} onClick={() => setStrumento("testo")} icona={<Type />} etichetta="Testo" />
           </div>
         )}
-        <div className={cn("flex items-center gap-2", telefono ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
+        <div className={cn("flex items-center gap-2", stretto ? "-mx-2 w-[calc(100%+1rem)] flex-nowrap overflow-x-auto px-2 [&>*]:shrink-0" : "ml-auto flex-wrap")}>
           {!sola && (
             <SfondoDaRicalcare
               ricalco={ricalco}
@@ -1467,10 +1536,15 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
           )}
           {annullaRipeti}
           {!telefono && zoom}
+          {compatto && !telefono && (
+            <Button size="sm" variant={pannelloAperto ? "default" : "outline"} onClick={() => setPannelloAperto((v) => !v)} aria-pressed={pannelloAperto}>
+              {pannelloAperto ? <PanelRightClose /> : <PanelRightOpen />} Stanze
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         {/* disegno */}
         <div ref={contenitoreRef} className="relative min-h-0 min-w-0 flex-1" style={{ cursor: cursore }}>
           <TelaPlanimetria
@@ -1563,8 +1637,13 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
 
         {/* pannello */}
-        {!telefono && (
-          <aside className="w-72 shrink-0 overflow-y-auto border-l p-3 xl:w-80">
+        {!telefono && (!compatto || pannelloAperto) && (
+          <aside className={cn("shrink-0 overflow-y-auto border-l p-3", compatto ? "absolute inset-y-0 right-0 z-10 w-72 bg-background shadow-xl" : "w-72 xl:w-80")}>
+            {compatto && (
+              <div className="mb-2 flex justify-end">
+                <Button size="sm" variant="ghost" onClick={() => setPannelloAperto(false)}>Chiudi</Button>
+              </div>
+            )}
             {C.quantiNelGruppo(gruppo) > 0 ? (
               <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
             ) : (
@@ -1585,6 +1664,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         </div>
       )}
 
+      {telaioAperto && <TelaioStrutturale aperto onChiudi={() => setTelaioAperto(false)} piani={documento.livelli.length} onCrea={creaTelaio} />}
       {rilievoAperto && <RilievoTerreno aperto onChiudi={() => setRilievoAperto(false)} rilievo={documento.rilievo} centroPianta={centroPianta()} angoliPianta={angoliPianta()} onCambia={cambiaRilievo} />}
       {!sola && <div className="border-t bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">{telefono ? SUGGERIMENTI_TELEFONO[strumento] : SUGGERIMENTI[strumento]}</div>}
     </div>
@@ -1704,7 +1784,7 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
               <div className="grid grid-cols-[1fr_6rem] items-end gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Tetto sopra questo piano</Label>
-                  <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50 } })}>
+                  <Select value={attuale.tetto?.tipo ?? "nessuno"} onValueChange={(v) => onModifica({ tetto: v === "nessuno" ? null : { tipo: v as Tetto["tipo"], pendenza: attuale.tetto?.pendenza ?? 30, sporto: attuale.tetto?.sporto ?? 50, ...(attuale.tetto?.finitura ? { finitura: attuale.tetto.finitura } : {}) } })}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="nessuno">Nessuno (c'è un piano sopra)</SelectItem>
@@ -1722,6 +1802,26 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
                 )}
               </div>
               {attuale.tetto && attuale.tetto.tipo !== "piano" && <p className="text-[11px] text-muted-foreground">Pendenza in % (30% è tipica per le tegole). Si vede nel 3D e nei render.</p>}
+              {attuale.tetto && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Copertura</Label>
+                  <Select
+                    value={attuale.tetto.finitura ?? "predefinita"}
+                    onValueChange={(v) => {
+                      if (!attuale.tetto) return;
+                      const { finitura: _f, ...senza } = attuale.tetto;
+                      onModifica({ tetto: v === "predefinita" ? senza : { ...senza, finitura: v as FinituraTetto } });
+                    }}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="predefinita">{attuale.tetto.tipo === "piano" ? "Predefinita (cemento)" : "Predefinita (tegole)"}</SelectItem>
+                      {FINITURE_TETTO.map((f) => <SelectItem key={f} value={f}>{NOMI_FINITURA_TETTO[f]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {(attuale.tetto.finitura === "verde" || attuale.tetto.finitura === "verde_intensivo") && <p className="text-[11px] text-muted-foreground">Substrato {attuale.tetto.finitura === "verde" ? "10" : "25"} cm. Nel computo: coltivo, strato drenante e telo antiradice. Controlla la portata del solaio.</p>}
+                </div>
+              )}
               {attuale.tetto && attuale.tetto.tipo !== "piano" && (
                 <div className="space-y-1 rounded-md border p-2">
                   <label className="flex items-center gap-2 text-xs font-medium">
@@ -1740,7 +1840,7 @@ function BarraPiani({ livelli, livelloId, onScegli, onNuovo, onModifica, onTogli
               {attuale.tetto && (
                 <div className="space-y-1 rounded-md border p-2">
                   <label className="flex items-center gap-2 text-xs font-medium">
-                    <input type="checkbox" checked={!!attuale.tetto.fotovoltaico} onChange={(e) => attuale.tetto && onModifica({ tetto: e.target.checked ? { ...attuale.tetto, fotovoltaico: { potenzaPannelloW: 430 } } : { tipo: attuale.tetto.tipo, pendenza: attuale.tetto.pendenza, sporto: attuale.tetto.sporto } })} />
+                    <input type="checkbox" checked={!!attuale.tetto.fotovoltaico} onChange={(e) => attuale.tetto && onModifica({ tetto: e.target.checked ? { ...attuale.tetto, fotovoltaico: { potenzaPannelloW: 430 } } : { tipo: attuale.tetto.tipo, pendenza: attuale.tetto.pendenza, sporto: attuale.tetto.sporto, ...(attuale.tetto.finitura ? { finitura: attuale.tetto.finitura } : {}), ...(attuale.tetto.mansarda ? { mansarda: attuale.tetto.mansarda } : {}) } })} />
                     Fotovoltaico sul tetto
                   </label>
                   {attuale.tetto.fotovoltaico && (
@@ -1909,7 +2009,7 @@ function StrumentoEsterni({ attivo, tipo, onScegli, onRilievo, conRilievo }: { a
   );
 }
 
-function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce: VoceCatalogo) => void }) {
+function CatalogoArredi({ attivo, onScegli, onTelaio }: { attivo: boolean; onScegli: (voce: VoceCatalogo) => void; onTelaio?: () => void }) {
   const [aperto, setAperto] = useState(false);
   return (
     <Popover open={aperto} onOpenChange={setAperto}>
@@ -1921,6 +2021,12 @@ function CatalogoArredi({ attivo, onScegli }: { attivo: boolean; onScegli: (voce
       </PopoverTrigger>
       <PopoverContent className="w-[22rem] p-2" align="start">
         <p className="px-1 pb-1 text-xs text-muted-foreground">Scegli e poi clicca sul foglio per posarlo.</p>
+        {onTelaio && (
+          <button type="button" onClick={() => { onTelaio(); setAperto(false); }} className="mb-2 flex w-full items-center gap-2 rounded-md border border-dashed p-2 text-left text-xs hover:bg-muted">
+            <Grid3x3 className="h-4 w-4 shrink-0" />
+            <span><span className="font-medium">Telaio strutturale…</span><br /><span className="text-muted-foreground">Griglia di pilastri, travi e solaio dalle campate</span></span>
+          </button>
+        )}
         <div className="max-h-[60vh] space-y-2 overflow-y-auto">
           {GRUPPI_CATALOGO.map((g) => (
             <div key={g}>

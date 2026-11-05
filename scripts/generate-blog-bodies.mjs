@@ -53,6 +53,10 @@ const rich = (text) => esc(text).replace(
 
 function renderPost(post) {
   const parts = [];
+  if (post.video) {
+    const id = esc(post.video.youtubeId);
+    parts.push(`<section aria-label="Video dell’articolo"><h2>Guarda la guida in video</h2><iframe src="https://www.youtube-nocookie.com/embed/${id}" title="${esc(post.title)}" loading="lazy" allowfullscreen></iframe><p><a href="https://www.youtube.com/watch?v=${id}">Apri il video su YouTube</a></p></section>`);
+  }
   for (const block of post.content) {
     switch (block.type) {
       case "intro":
@@ -75,6 +79,10 @@ function renderPost(post) {
               .map((r) => `<tr>${r.map((c) => `<td>${rich(c)}</td>`).join("")}</tr>`)
               .join("")}</tbody></table>`,
           );
+        break;
+      case "image":
+        if (block.src?.startsWith("/") && !block.src.startsWith("//"))
+          parts.push(`<figure><img src="${esc(block.src)}" alt="${esc(block.alt || "")}" loading="lazy">${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ""}</figure>`);
         break;
       case "callout":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);
@@ -119,6 +127,7 @@ function metaFor(post) {
     coverImage: absolute(post.coverImage),
     tags: post.tags ?? [],
     category,
+    ...(post.video ? { video: post.video } : {}),
   };
 }
 

@@ -1,4 +1,6 @@
 /** Operational PDF only: never copy payroll, GPS or costing snapshots into it. */
+import { leggiValori, type ValoreCampo } from "../_shared/moduliCantiere.ts";
+
 export type RecordData = Record<string, unknown>;
 export const record = (value: unknown): RecordData => value && typeof value === "object" && !Array.isArray(value) ? value as RecordData : {};
 export const rows = (value: unknown): RecordData[] => Array.isArray(value) ? value.map(record) : [];
@@ -71,6 +73,23 @@ export function reportSummary(report: RecordData) {
     authorRole: report.role_type === "subcontractor" ? "Subappaltatore" : report.role_type === "employee" ? "Personale interno" : "Ruolo non disponibile",
   };
 }
+/**
+ * Chi ha fatto il rapportino e a che ora: è la firma del giornaliero, la registra l'app all'invio.
+ * La firma del cliente sta solo nel rapporto di fine lavori (il collaudo).
+ */
+export function compilatoDa(report: RecordData): string {
+  const quando = new Date(text(report.created_at));
+  if (!text(report.created_at) || Number.isNaN(quando.getTime())) return "";
+  const data = quando.toLocaleDateString("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", year: "2-digit" });
+  const ora = quando.toLocaleTimeString("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", minute: "2-digit" });
+  const autore = record(report.autore);
+  const nome = [text(autore.first_name), text(autore.last_name)].filter(Boolean).join(" ") || "persona non indicata";
+  const inserito = text(report.inserito_da);
+  const chi = !text(report.ufficio_created_by) ? `Compilato da ${nome}`
+    : inserito ? `Inserito da ${inserito} (ufficio) per ${nome}` : `Inserito dall'ufficio per ${nome}`;
+  return `${chi} il ${data} alle ${ora}`;
+}
+
 /** Recognize only this tenant's storage assets, not arbitrary network URLs. */
 export function reportAsset(value: string, companyId: string, supabaseUrl: string): { bucket: string; path: string } | null {
   try {
@@ -99,6 +118,8 @@ export interface FaseBlocco {
   ore: number | null;
   materiali: MaterialeBlocco[];
   foto: string[];
+  /** I campi propri dell'azienda compilati per questa fase. */
+  campi: ValoreCampo[];
 }
 
 const originiMateriale = (m: RecordData) => m.da_furgone === true ? "Dal furgone" : m.order_item_id ? "Articolo commessa" : "Dichiarato";
@@ -126,6 +147,7 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
   const usate = new Set<string>();
   const materialiTutti = rows(report.materiali_usati);
   const assegnati = new Set<number>();
+  const valori = leggiValori(report.campi_extra);
 
   const fasi: FaseBlocco[] = voci.map((v, indice) => {
     const id = text(v.phase_id) || `senza-id-${indice}`;
@@ -143,6 +165,7 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
       ore: number(v.ore),
       materiali,
       foto,
+      campi: valori.filter(c => !!c.phase_id && c.phase_id === text(v.phase_id)),
     };
   });
   // Un materiale legato a una fase che il rapportino non elenca (fase cancellata o non dichiarata) resta tra gli altri.
@@ -150,6 +173,8 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
   return {
     fasi,
     altriMateriali,
+    // Una fase che il rapportino non elenca più: il valore non si perde e porta con sé il nome salvato.
+    altriCampi: valori.filter(c => !c.phase_id || !idsFasi.has(c.phase_id)),
     altreFoto: tutteLeFoto.filter(u => !usate.has(u)),
     totaleMateriali: materialiTutti.length,
     totaleFoto: tutteLeFoto.length,

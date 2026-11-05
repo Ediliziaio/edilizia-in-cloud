@@ -50,7 +50,7 @@ function prepareVariation(draft) {
       if (draft.kind !== "modifica" && price < 0) throw new Error("Per aggiunte e riduzioni inserisci prezzi positivi.");
       const subtotal = round(quantity * price);
       amount = round(amount + subtotal);
-      detail.push(`${i + 1}. ${line.description.trim()} - ${quantity} x ${euro(price)} = ${euro(subtotal)}`);
+      detail.push(`${i + 1}. ${line.description.trim()} - ${quantity}${line.unit?.trim() ? ` ${line.unit.trim()}` : ""} x ${euro(price)} = ${euro(subtotal)}`);
     }
   }
   if (amount === null || !Number.isFinite(amount) || Math.abs(amount) > 9999999999e-2)
@@ -85,6 +85,31 @@ ${draft.additionalTerms.trim()}` : "",
     // Until private storage is separated server-side, do not persist private draft data here.
     richiesto_da: draft.requester.trim() || null,
     note_interne: null
+  };
+}
+var CONDIZIONI_STANDARD_VARIANTE = [
+  "La presente variante integra il contratto di riferimento: per tutto ci\xF2 che non modifica restano valide le condizioni gi\xE0 concordate.",
+  "Ha effetto solo con la firma delle parti: fino ad allora non cambia n\xE9 l'importo del contratto n\xE9 i tempi dei lavori.",
+  "Sono compresi solo i lavori descritti qui. Ogni ulteriore modifica richiede una nuova variante scritta.",
+  "Gli importi sono IVA esclusa, salvo dove indicato. L'IVA \xE8 applicata con l'aliquota di legge alla data della fattura."
+];
+function variationDocumentParts(draft) {
+  const prepared = prepareVariation(draft);
+  const segno = draft.kind === "riduzione" ? -1 : 1;
+  const righe = draft.pricing === "voci" ? draft.lines.map((line) => {
+    const quantita = variationDecimal(line.quantity), prezzo = variationDecimal(line.price);
+    return { descrizione: line.description.trim(), quantita, unita: line.unit?.trim() ?? "", prezzo, importo: segno * round(quantita * prezzo) };
+  }) : [{ descrizione: draft.title.trim(), quantita: null, unita: "a corpo", prezzo: null, importo: prepared.impatto_economico }];
+  const giorni = prepared.impatto_giorni;
+  return {
+    tipo: VARIATION_KINDS[draft.kind],
+    riferimento: draft.contractReference?.trim() ?? "",
+    fase: draft.phase.trim(),
+    lavori: [draft.documentIntro?.trim(), draft.description.trim()].filter(Boolean).join("\n\n"),
+    righe,
+    condizioni: draft.additionalTerms?.trim() ?? "",
+    pagamento: draft.paymentTerms?.trim() ?? "",
+    tempi: giorni ? `Tempo aggiuntivo richiesto: ${giorni} giorni ${draft.dayUnit}. Le date saranno ripianificate separatamente dopo l'approvazione.` : "Nessuna estensione dei tempi richiesta."
   };
 }
 function variationImpact(currentNet, delta, vatRate) {
@@ -126,124 +151,260 @@ async function buildVariationPdf(variation, context, mode) {
   const impact = variationImpact(context.currentNet, variation.impatto_economico, context.vatRate);
   if (impact?.revisedNet !== null && impact?.revisedNet !== void 0 && (context.currentNet < 0 || impact.revisedNet < 0)) throw new Error("La riduzione supera il valore del contratto: verifica l'importo.");
   const { jsPDF } = await import("npm:jspdf@4.2.1");
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: !!context.logo });
   const colors = { "#1e3a5f": [30, 58, 95], "#14532d": [20, 83, 45], "#9a3412": [154, 52, 18] };
   const navy = colors[context.primaryColor || ""] || [30, 58, 95];
-  let y = 22;
-  const clean = (text) => text.replace(/[\u2010-\u2015\u2212]/g, "-").replace(/[\u00a0\u202f]/g, " ");
-  const money = (amount) => clean(new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(amount));
-  const header = () => {
-    doc.setTextColor(...navy);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(doc.splitTextToSize(clean(context.companyName || "LAVORI EXTRA E VARIANTI"), 105)[0], 19, 13);
-    if (context.orderCode) doc.text(clean(context.orderCode).slice(0, 30), 191, 13, { align: "right" });
-    doc.setDrawColor(...navy);
-    doc.line(19, 17, 191, 17);
-    y = 26;
+  const INK = [35, 45, 60], GREY = [100, 110, 125], LINE = [215, 222, 232], PALE = [245, 247, 250];
+  const LEFT = 15, RIGHT = 195, WIDTH = RIGHT - LEFT, BOTTOM = 272;
+  let y = 14;
+  const clean = (text) => text.replace(/[‐-―−]/g, "-").replace(/[  ]/g, " ");
+  const money = (amount) => clean(new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(amount));
+  const number = (n) => clean(n.toLocaleString("it-IT", { maximumFractionDigits: 2, useGrouping: true }));
+  const font = (size, bold = false, color = INK) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
   };
-  function write(text, heading = false) {
-    if (heading && y > 245) {
-      doc.addPage();
-      header();
+  const lines = (text, width) => doc.splitTextToSize(clean(text), width);
+  const parts = context.parti;
+  const heading = (context.documentHeading?.trim().slice(0, 120) || (mode === "proposta" ? "Variante al contratto" : "Lavori extra e varianti")).toUpperCase();
+  const number_odv = context.proposalNumber;
+  if (number_odv !== void 0 && (!Number.isSafeInteger(number_odv) || number_odv < 1)) throw new Error("Numero OdV non valido.");
+  const registeredDate = variationEventDate(context.proposalRegisteredAt);
+  const continuation = () => {
+    doc.addPage();
+    font(8, true, navy);
+    doc.text(lines(context.companyName || heading, 110)[0], LEFT, 12);
+    font(8, false, GREY);
+    doc.text(clean([context.orderCode, number_odv !== void 0 ? `OdV #${number_odv}` : ""].filter(Boolean).join(" - ")), RIGHT, 12, { align: "right" });
+    doc.setDrawColor(...navy);
+    doc.line(LEFT, 14.5, RIGHT, 14.5);
+    y = 21;
+  };
+  const room = (height) => {
+    if (y + height > BOTTOM) continuation();
+  };
+  function write(text, size = 9, color = INK, bold = false, lineHeight = size * 0.46) {
+    font(size, bold, color);
+    for (const line of lines(text, WIDTH)) {
+      room(lineHeight);
+      font(size, bold, color);
+      doc.text(line, LEFT, y);
+      y += lineHeight;
     }
-    doc.setFont("helvetica", heading ? "bold" : "normal");
-    doc.setFontSize(heading ? 12 : 10);
-    doc.setTextColor(...heading ? navy : [35, 45, 60]);
-    const lines = doc.splitTextToSize(clean(text), 172);
-    for (const line of lines) {
-      if (y > 262) {
-        doc.addPage();
-        header();
-        doc.setFont("helvetica", heading ? "bold" : "normal");
-        doc.setFontSize(heading ? 12 : 10);
-        doc.setTextColor(...heading ? navy : [35, 45, 60]);
-      }
-      doc.text(line, 19, y);
-      y += heading ? 6 : 4.5;
-    }
-    y += heading ? 2.5 : 2;
+    y += 1.5;
   }
-  header();
-  write(context.documentHeading?.trim().slice(0, 120) || (mode === "proposta" ? "PROPOSTA DI VARIAZIONE - LAVORI EXTRA" : "LAVORI EXTRA E VARIANTI"), true);
-  write(mode === "proposta" ? "DA APPROVARE - Documento non firmato" : "ANTEPRIMA BOZZA - Non salvata, non inviata, non firmata");
-  write(`PDF generato il: ${(/* @__PURE__ */ new Date()).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" })}`);
-  if (context.orderCode && !context.archivedOriginal) write(`Commessa di riferimento: ${context.orderCode}`);
-  if (context.proposalNumber !== void 0) {
-    if (!Number.isSafeInteger(context.proposalNumber) || context.proposalNumber < 1) throw new Error("Numero OdV non valido.");
-    const registeredDate = variationEventDate(context.proposalRegisteredAt);
-    if (context.archivedOriginal) {
-      write(`OdV #${context.proposalNumber} | Commessa ${context.orderCode ?? "-"} | Registrata ${registeredDate ?? "data non disponibile"}`);
-      write("Originale conservato in commessa con gli allegati di questa versione.");
-    } else {
-      write(`Variante registrata: OdV #${context.proposalNumber}`);
-      write(registeredDate ? `Proposta registrata il: ${registeredDate}` : "Data di registrazione non disponibile.");
-      write("Ristampa della proposta dai dati registrati e dall'anagrafica attuale. Non e' una copia dell'originale inviato, ne' un documento firmato.");
+  const section = (title) => {
+    room(11);
+    y += 2;
+    font(9, true, navy);
+    doc.text(title.toUpperCase(), LEFT, y);
+    y += 1.5;
+    doc.setDrawColor(...navy);
+    doc.setLineWidth(0.3);
+    doc.line(LEFT, y, RIGHT, y);
+    doc.setLineWidth(0.2);
+    y += 4.5;
+  };
+  let textX = LEFT;
+  if (context.logo) {
+    try {
+      const image = doc.getImageProperties(context.logo);
+      const scale = Math.min(48 / image.width, 15 / image.height), width = image.width * scale, height = image.height * scale;
+      doc.addImage(context.logo, image.fileType, LEFT, y - 4, width, height);
+      textX = LEFT + width + 5;
+    } catch {
     }
   }
-  if (mode === "proposta") {
-    write("Impresa", true);
-    write([context.companyName, context.companyDetails].filter(Boolean).join("\n"));
-    write("Cliente / committente", true);
-    write([context.customerName, context.customerAddress].filter(Boolean).join("\n"));
-    if (context.siteAddress) write(`Cantiere: ${context.siteAddress}`);
-  } else if (context.customerName) write(`Cliente: ${context.customerName}`);
-  write(variation.titolo, true);
-  write(variation.descrizione);
+  font(11, true, navy);
+  doc.text(lines(context.companyName || "Impresa", RIGHT - textX)[0], textX, y + 1);
+  font(7.5, false, GREY);
+  lines(context.companyDetails ?? "", RIGHT - textX).slice(0, 3).forEach((line, i) => doc.text(line, textX, y + 5 + i * 3.3));
+  y += 16;
+  doc.setFillColor(...navy);
+  doc.rect(LEFT, y, WIDTH, 9, "F");
+  font(10, true, [255, 255, 255]);
+  doc.text(lines(heading, 120)[0], LEFT + 3, y + 6);
+  const today = (/* @__PURE__ */ new Date()).toLocaleDateString("it-IT", { timeZone: "Europe/Rome" });
+  font(8.5, true, [255, 255, 255]);
+  doc.text(clean(number_odv !== void 0 ? `OdV #${number_odv} del ${registeredDate ?? today}` : `del ${today}`), RIGHT - 3, y + 6, { align: "right" });
+  y += 13.5;
+  write(mode === "proposta" ? "DA APPROVARE - Documento non firmato" : "ANTEPRIMA BOZZA - Non salvata, non inviata, non firmata", 8, [154, 88, 10], true);
+  if (number_odv !== void 0 && !context.archivedOriginal) {
+    write(registeredDate ? `Proposta registrata il: ${registeredDate}` : "Data di registrazione non disponibile.", 7.5, GREY);
+    write("Ristampa della proposta dai dati registrati e dall'anagrafica attuale. Non e' una copia dell'originale inviato, ne' un documento firmato.", 7.5, GREY);
+  }
+  if (mode === "proposta" || context.customerName) {
+    const box = (x, width, label, name, detail) => {
+      const detailLines = lines(detail, width - 6).slice(0, 4);
+      const height = 12 + detailLines.length * 3.4;
+      doc.setDrawColor(...LINE);
+      doc.roundedRect(x, y, width, height, 1, 1);
+      font(6.5, true, GREY);
+      doc.text(label.toUpperCase(), x + 3, y + 4.2);
+      font(9.5, true);
+      doc.text(lines(name, width - 6)[0] ?? "", x + 3, y + 8.6);
+      font(8, false);
+      detailLines.forEach((line, i) => doc.text(line, x + 3, y + 12.2 + i * 3.4));
+      return height;
+    };
+    const half = (WIDTH - 4) / 2;
+    const a = box(LEFT, half, "Impresa", context.companyName || "-", context.companyDetails ?? "");
+    const b = box(LEFT + half + 4, half, "Committente", context.customerName || "-", context.customerAddress ?? "");
+    y += Math.max(a, b) + 3;
+  }
+  const refs = [["Commessa", context.orderCode], ["Cantiere", context.siteAddress], ["Contratto di riferimento", parts?.riferimento], ["Lavorazione", parts?.fase], ["Richiesto da", variation.richiesto_da]].filter((r) => !!r[1]?.trim());
+  if (refs.length) {
+    const perRow = Math.min(refs.length, 3), cell = WIDTH / perRow, rows2 = Math.ceil(refs.length / perRow);
+    doc.setFillColor(...PALE);
+    doc.rect(LEFT, y, WIDTH, rows2 * 10.5 + 1, "F");
+    refs.forEach(([label, value], i) => {
+      const x = LEFT + 3 + i % perRow * cell, top = y + 4 + Math.floor(i / perRow) * 10.5;
+      font(6.5, false, GREY);
+      doc.text(label, x, top);
+      font(8.5, true);
+      doc.text(lines(value, cell - 5)[0], x, top + 4);
+    });
+    y += rows2 * 10.5 + 5;
+  }
+  section(`Oggetto${parts ? ` - ${parts.tipo}` : ""}`);
+  write(variation.titolo, 10.5, INK, true, 5);
+  write(parts ? parts.lavori : variation.descrizione);
   if (variation.motivazione) {
-    write("Motivazione", true);
+    write("Motivazione", 8, GREY, true);
     write(variation.motivazione);
   }
-  if (variation.richiesto_da) write(`Richiesto da: ${variation.richiesto_da}`);
-  if (variation.impatto_giorni !== void 0 && !/Tempo aggiuntivo richiesto:|Nessuna estensione dei tempi richiesta\./.test(variation.descrizione)) {
-    write(variation.impatto_giorni ? `Tempo aggiuntivo richiesto: ${variation.impatto_giorni} giorni. Il dato registrato non specifica se lavorativi o di calendario: concordare l'unita' prima dell'accettazione.` : "Nessuna estensione dei tempi richiesta.");
+  if (!parts && variation.impatto_giorni !== void 0 && !/Tempo aggiuntivo richiesto:|Nessuna estensione dei tempi richiesta\./.test(variation.descrizione)) {
+    write(variation.impatto_giorni ? `Tempo aggiuntivo richiesto: ${variation.impatto_giorni} giorni. Il dato registrato non specifica se lavorativi o di calendario: concordarlo prima di firmare.` : "Nessuna estensione dei tempi richiesta.");
   }
-  write("Riepilogo economico", true);
-  write(`Variazione netta, IVA esclusa: ${money(variation.impatto_economico)}`);
-  if (impact?.vat !== null && impact?.vat !== void 0) {
-    write(`IVA stimata (${impact.rate}%): ${money(impact.vat)}
-Differenza IVA inclusa: ${money(impact.grossDelta)}`);
+  const rows = parts?.righe ?? [{ descrizione: variation.titolo, quantita: null, unita: "a corpo", prezzo: null, importo: variation.impatto_economico }];
+  const col = { n: LEFT + 2, desc: LEFT + 9, qty: 133, um: 136, price: 167, amount: RIGHT - 2 };
+  const tableHead = () => {
+    doc.setFillColor(...PALE);
+    doc.rect(LEFT, y, WIDTH, 6.5, "F");
+    doc.setDrawColor(...navy);
+    doc.setLineWidth(0.4);
+    doc.line(LEFT, y, RIGHT, y);
+    doc.setLineWidth(0.2);
+    font(7, true, navy);
+    doc.text("N.", col.n, y + 4.4);
+    doc.text("DESCRIZIONE", col.desc, y + 4.4);
+    doc.text("Q.TA", col.qty, y + 4.4, { align: "right" });
+    doc.text("U.M.", col.um, y + 4.4);
+    doc.text("PREZZO", col.price, y + 4.4, { align: "right" });
+    doc.text("IMPORTO", col.amount, y + 4.4, { align: "right" });
+    y += 6.5;
+  };
+  room(22);
+  y += 2;
+  tableHead();
+  rows.forEach((row, i) => {
+    font(8.5);
+    const description = lines(row.descrizione, col.qty - col.desc - 13);
+    const height = Math.max(6.5, description.length * 3.8 + 2.8);
+    if (y + height > BOTTOM) {
+      continuation();
+      tableHead();
+    }
+    font(8, false, GREY);
+    doc.text(String(i + 1), col.n, y + 4.4);
+    font(8.5);
+    description.forEach((line, l) => doc.text(line, col.desc, y + 4.4 + l * 3.8));
+    if (row.quantita !== null) doc.text(number(row.quantita), col.qty, y + 4.4, { align: "right" });
+    font(8, false, GREY);
+    doc.text(clean(row.unita), col.um, y + 4.4);
+    font(8.5);
+    if (row.prezzo !== null) doc.text(money(row.prezzo), col.price, y + 4.4, { align: "right" });
+    font(8.5, true);
+    doc.text(money(row.importo), col.amount, y + 4.4, { align: "right" });
+    y += height;
+    doc.setDrawColor(...LINE);
+    doc.line(LEFT, y, RIGHT, y);
+  });
+  y += 4;
+  const totalRows = [["Variazione netta, IVA esclusa", money(variation.impatto_economico)]];
+  if (impact?.vat !== null && impact?.vat !== void 0) totalRows.push([`IVA stimata (${impact.rate}%)`, money(impact.vat)]);
+  const final = impact?.grossDelta !== null && impact?.grossDelta !== void 0 ? ["Differenza IVA inclusa", money(impact.grossDelta)] : null;
+  room(totalRows.length * 5 + 14);
+  const totalX = 112;
+  let totalY = y;
+  totalRows.forEach(([label, value]) => {
+    font(8.5, false, GREY);
+    doc.text(label, totalX, totalY + 3.5);
+    font(8.5, true);
+    doc.text(value, RIGHT - 2, totalY + 3.5, { align: "right" });
+    totalY += 5;
+  });
+  if (final) {
+    doc.setFillColor(...navy);
+    doc.rect(totalX - 2, totalY, RIGHT - totalX + 2, 7.5, "F");
+    font(9, true, [255, 255, 255]);
+    doc.text(final[0], totalX, totalY + 5);
+    doc.text(final[1], RIGHT - 2, totalY + 5, { align: "right" });
+    totalY += 7.5;
   }
   if (impact?.revisedNet !== null && impact?.revisedNet !== void 0) {
-    write(`Valore concordato prima della proposta, IVA esclusa: ${money(context.currentNet)}`);
-    write(`Nuovo contratto netto, solo se approvata: ${money(impact.revisedNet)}`);
+    font(7.5, false, GREY);
+    doc.text("Valore concordato prima della proposta, IVA esclusa", LEFT, y + 3.5);
+    font(9, true);
+    doc.text(money(context.currentNet), LEFT, y + 8);
+    font(7.5, false, GREY);
+    doc.text("Nuovo contratto netto, solo se approvata", LEFT, y + 13);
+    font(9, true, navy);
+    doc.text(money(impact.revisedNet), LEFT, y + 17.5);
+    totalY = Math.max(totalY, y + 18);
   }
-  write("Gli importi IVA inclusa sono una stima con l'aliquota della commessa. Verificare l'IVA applicabile e precisare nelle condizioni eventuali aliquote diverse prima dell'accettazione.");
+  y = totalY + 4;
+  section("Condizioni contrattuali");
+  const conditions = [
+    ...CONDIZIONI_STANDARD_VARIANTE,
+    ...parts?.condizioni ? [parts.condizioni] : [],
+    ...parts?.pagamento ? [`Pagamento dei lavori extra: ${parts.pagamento}`] : [],
+    ...parts ? [parts.tempi] : []
+  ];
+  conditions.forEach((text, i) => {
+    font(8.5);
+    const wrapped = lines(text, WIDTH - 6);
+    wrapped.forEach((line, l) => {
+      room(3.9);
+      font(8.5);
+      if (l === 0) {
+        font(8.5, true, navy);
+        doc.text(`${i + 1}.`, LEFT, y);
+        font(8.5);
+      }
+      doc.text(line, LEFT + 6, y);
+      y += 3.9;
+    });
+    y += 1;
+  });
   if (mode === "proposta") {
-    const acceptance = "Il cliente dichiara di aver letto la variazione e di accettare i lavori, la variazione economica e le condizioni sopra riportate. La proposta non modifica le altre condizioni del contratto di riferimento.";
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    const approvalHeight = 8.5 + doc.splitTextToSize(clean(acceptance), 172).length * 4.5 + 2 + 46;
-    if (y + approvalHeight > 265) {
-      doc.addPage();
-      header();
-    }
-    write("Approvazione della proposta", true);
-    write(acceptance);
-    if (y + 46 > 265) {
-      doc.addPage();
-      header();
-    }
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(35, 45, 60);
-    doc.text("Luogo e data: __________________________________", 19, y + 4);
-    doc.text("Nome e cognome cliente: __________________________", 19, y + 15);
-    doc.text("Firma cliente per approvazione", 19, y + 29);
-    doc.text("Firma impresa", 111, y + 29);
+    const acceptance = "Il cliente dichiara di aver letto la variazione e di accettare i lavori, la variazione economica e le condizioni sopra riportate. La proposta non modifica il contratto fino all'approvazione.";
+    font(8.5);
+    const approvalHeight = 14 + lines(acceptance, WIDTH).length * 3.9 + 40;
+    if (y + approvalHeight > BOTTOM) continuation();
+    section("Approvazione della proposta");
+    write(acceptance, 8.5, INK, false, 3.9);
+    y += 1;
+    font(8.5);
+    doc.text("Luogo e data: ______________________________", LEFT, y + 3);
+    doc.text("Nome e cognome cliente: ______________________", 110, y + 3);
+    font(8, false, GREY);
+    doc.text("Firma cliente per approvazione", LEFT, y + 13);
+    doc.text("Firma impresa", 110, y + 13);
     doc.setDrawColor(110);
-    doc.line(19, y + 43, 98, y + 43);
-    doc.line(111, y + 43, 190, y + 43);
-  } else write("Nessuna variazione di date, assegnazioni o pagamenti viene eseguita da questa anteprima.");
+    doc.line(LEFT, y + 27, 95, y + 27);
+    doc.line(110, y + 27, RIGHT, y + 27);
+    y += 30;
+  } else write("Nessuna variazione di date, assegnazioni o pagamenti viene eseguita da questa anteprima.", 8, GREY);
   const count = doc.getNumberOfPages();
   for (let page = 1; page <= count; page++) {
     doc.setPage(page);
-    doc.setDrawColor(210);
-    doc.line(19, 280, 191, 280);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100);
-    doc.setFontSize(8);
-    doc.text(`${mode === "proposta" ? "Proposta non firmata" : "Anteprima non firmata"} | ${page} / ${count}`, 19, 286);
+    doc.setDrawColor(...LINE);
+    doc.line(LEFT, 280, RIGHT, 280);
+    font(7.5, false, GREY);
+    doc.text(clean(`${context.companyName ? `${context.companyName} - ` : ""}${mode === "proposta" ? "Proposta non firmata" : "Anteprima non firmata"}`), LEFT, 284);
+    doc.text(`Pagina ${page} di ${count}`, RIGHT, 284, { align: "right" });
   }
   return doc;
 }
@@ -313,7 +474,8 @@ function validateVariationWorkspace(raw, rawContext) {
   if (!Array.isArray(source.lines) || source.lines.length > 100) throw new Error("Aggiungi al massimo 100 voci.");
   content.lines = source.lines.map((line) => {
     if (!line || typeof line !== "object" || !isVariationUuid(line.id) || typeof line.description !== "string" || line.description.length > 1e3 || typeof line.quantity !== "string" || line.quantity.length > 30 || typeof line.price !== "string" || line.price.length > 30) throw new Error("Voce della variante non valida.");
-    return { id: line.id, description: line.description, quantity: line.quantity, price: line.price };
+    if (line.unit !== void 0 && (typeof line.unit !== "string" || line.unit.length > 20)) throw new Error("Unit\xE0 di misura della voce non valida.");
+    return { id: line.id, description: line.description, quantity: line.quantity, price: line.price, ...line.unit ? { unit: line.unit } : {} };
   });
   const ids = source.attachmentIds ?? [];
   if (!Array.isArray(ids) || ids.length > 10 || ids.some((id) => !isVariationUuid(id)) || new Set(ids).size !== ids.length) throw new Error("Seleziona al massimo 10 allegati diversi.");
@@ -339,6 +501,7 @@ function variationDraftPublicTerms(content) {
 export {
   prepareVariation,
   validateVariationWorkspace,
+  variationDocumentParts,
   variationDraftPublicTerms,
   variationPdfFilename,
   variationProposalPdf

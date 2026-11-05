@@ -1,4 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, X } from "lucide-react";
 import { StepIndicator } from "./import-wizard/StepIndicator";
@@ -6,12 +8,15 @@ import { StepStart, type ObjectType } from "./import-wizard/StepStart";
 import { StepUpload, type ImportMode } from "./import-wizard/StepUpload";
 import { StepMap } from "./import-wizard/StepMap";
 import { StepReview } from "./import-wizard/StepReview";
+import { PAGINA_IMPORTAZIONE } from "./import-wizard/useImportaDaUrl";
 import type { ImportField } from "./CSVImportDialog";
 
 export interface ImportWizardProps {
   open: boolean;
   onClose: () => void;
   defaultObjectType: ObjectType;
+  /** Dove finiranno le righe, se non è ovvio: lo si vede in ogni passo. */
+  destinazione?: string;
   contactFields: ImportField[];
   opportunityFields: ImportField[];
   onImportContacts: (rows: Record<string, string>[], options: { mode: ImportMode }) => Promise<{ success: number; errors: string[] }>;
@@ -92,7 +97,7 @@ function parseFileData(file: File): Promise<{ headers: string[]; rows: string[][
 
 export function ImportWizard({
   open, onClose, defaultObjectType, contactFields, opportunityFields,
-  onImportContacts, onImportOpportunities,
+  onImportContacts, onImportOpportunities, destinazione,
 }: ImportWizardProps) {
   const [step, setStep] = useState(0);
   const [objectType, setObjectType] = useState<ObjectType>(defaultObjectType);
@@ -106,7 +111,17 @@ export function ImportWizard({
   const [isImporting, setIsImporting] = useState(false);
   const [result, setResult] = useState<{ success: number; errors: string[] } | null>(null);
 
+  const navigate = useNavigate();
+  const prefissoMarketing = useMarketingRoutePrefix();
   const fields = objectType === "contacts" ? contactFields : opportunityFields;
+
+  // Ogni pagina conosce solo i campi del suo oggetto: per l'altro si va alla sua
+  // importazione, dove ci sono i suoi campi, personalizzati compresi.
+  const scegliOggetto = (tipo: ObjectType) => {
+    const campi = tipo === "contacts" ? contactFields : opportunityFields;
+    if (campi.length > 0) setObjectType(tipo);
+    else navigate(`${prefissoMarketing}/${PAGINA_IMPORTAZIONE[tipo]}`);
+  };
 
   const handleFileChange = useCallback(async (f: File | null) => {
     setFile(f);
@@ -168,7 +183,7 @@ export function ImportWizard({
       <div className="flex items-center justify-between px-6 py-3 border-b bg-background shrink-0">
         <div>
           <h1 className="text-lg font-semibold">Importazioni</h1>
-          <p className="text-sm text-muted-foreground">Importare contatti e lead</p>
+          <p className="text-sm text-muted-foreground">{destinazione || "Importare contatti e lead"}</p>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
           <X className="h-5 w-5" />
@@ -182,7 +197,7 @@ export function ImportWizard({
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-6 py-8 transition-opacity duration-200">
-        {step === 0 && <StepStart objectType={objectType} onObjectTypeChange={setObjectType} />}
+        {step === 0 && <StepStart objectType={objectType} onObjectTypeChange={scegliOggetto} />}
         {step === 1 && (
           <StepUpload
             objectType={objectType}

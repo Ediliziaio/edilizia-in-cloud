@@ -987,3 +987,38 @@ describe("giro 1: numeri giusti", () => {
     expect(buildForecastLedger(s, today).movements.map((m) => m.id)).toEqual(["scadenza:d"]);
   });
 });
+
+describe("Fattura emessa a rate", () => {
+  const today = "2026-11-04";
+  const fattura = (extra = {}) => ({ id: "f1", total: 1000, paid_amount: 0, due_date: "2026-11-30", status: "issued", invoice_number: "FT/14", client_company_name: "Cliente", document_type: "invoice", ...extra });
+  const rata = (numero: number, due_date: string, amount: number, extra = {}) => ({ id: `s${numero}`, description: `Fattura FT/14 · RiBa ${numero} di 2`, amount, paid_amount: 0, due_date, direction: "entrata", status: "da_pagare", invoice_id: "f1", rata_numero: numero, ...extra });
+  const incassi = (s: ReturnType<typeof emptyForecastSources>) => buildForecastLedger(s, today, 1).movements.filter((m) => m.direction === "in");
+
+  it("entra rata per rata, ognuna alla sua data, senza la fattura per l'intero", () => {
+    const s = emptyForecastSources();
+    s.invoices = [fattura()] as never;
+    s.deadlines = [rata(1, "2026-11-30", 400), rata(2, "2026-12-31", 600)] as never;
+    expect(incassi(s).map((m) => [m.date, m.cents])).toEqual([["2026-11-30", 40000], ["2026-12-31", 60000]]);
+  });
+
+  it("una rata incassata esce dal piano, l'altra resta", () => {
+    const s = emptyForecastSources();
+    s.invoices = [fattura()] as never;
+    s.deadlines = [rata(1, "2026-11-30", 400, { status: "pagata", paid_amount: 400 }), rata(2, "2026-12-31", 600)] as never;
+    expect(incassi(s).map((m) => m.cents)).toEqual([60000]);
+  });
+
+  it("a rate tutte incassate la fattura non torna fra gli incassi attesi", () => {
+    const s = emptyForecastSources();
+    s.invoices = [fattura()] as never;
+    s.deadlines = [rata(1, "2026-11-30", 400, { status: "pagata", paid_amount: 400 }), rata(2, "2026-12-31", 600, { status: "pagata", paid_amount: 600 })] as never;
+    expect(incassi(s)).toEqual([]);
+  });
+
+  it("una nota di credito collegata si toglie una volta sola, dalla rata più vicina", () => {
+    const s = emptyForecastSources();
+    s.invoices = [fattura(), { id: "nc1", total: 500, paid_amount: 0, due_date: null, status: "issued", document_type: "credit_note", credited_invoice_id: "f1" }] as never;
+    s.deadlines = [rata(2, "2026-12-31", 600), rata(1, "2026-11-30", 400)] as never;
+    expect(incassi(s).map((m) => [m.date, m.cents]).sort()).toEqual([["2026-12-31", 50000]]);
+  });
+});

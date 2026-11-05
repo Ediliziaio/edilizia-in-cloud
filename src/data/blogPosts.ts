@@ -11,6 +11,7 @@ export interface BlogPost {
   readTime: number;
   author: { name: string; role: string; avatar?: string };
   coverImage: string;
+  video?: { youtubeId: string; duration: string; uploadedAt: string };
   content: Array<{
     type: "intro" | "section" | "quote" | "list" | "cta" | "table" | "image" | "callout";
     heading?: string;
@@ -1311,6 +1312,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "16",
     slug: "subappalto-edilizia-guida",
+    video: { youtubeId: "ASAF7jA5q5c", duration: "PT5M12S", uploadedAt: "2026-11-04T07:59:52+01:00" },
     faqs: [
       { q: "Qual è il limite del subappalto negli appalti pubblici?", a: "Con il D.Lgs 36/2023 non esiste più un limite generale fisso: la stazione appaltante può motivare limiti specifici nel bando. Restano vietati il subappalto integrale dell'opera e il subappalto 'a cascata' non autorizzato. Va sempre letto il capitolato speciale della gara." },
       { q: "Quando serve l'autorizzazione al subappalto?", a: "Negli appalti pubblici il subappalto va dichiarato in sede di offerta e autorizzato dalla stazione appaltante prima dell'ingresso in cantiere del subappaltatore. Nei lavori privati non serve autorizzazione pubblica, ma il contratto con il committente può richiederne il consenso." },
@@ -1322,7 +1324,7 @@ export const blogPosts: BlogPost[] = [
     category: "Finanza",
     tags: ["subappalto edilizia", "codice appalti", "gestione subappaltatori", "appalti pubblici"],
     publishedAt: "2025-12-28",
-    updatedAt: "2026-07-10",
+    updatedAt: "2026-11-04",
     readTime: 8,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
@@ -1686,6 +1688,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "21",
     slug: "computo-metrico-estimativo-guida",
+    video: { youtubeId: "gZdxOaz_YBc", duration: "PT5M3S", uploadedAt: "2026-11-04T07:59:52+01:00" },
     faqs: [
       { q: "Che differenza c'è tra computo metrico e computo metrico estimativo?", a: "Il computo metrico elenca le lavorazioni con le sole quantità misurate; il computo metrico estimativo (CME) aggiunge i prezzi unitari e quindi l'importo economico di ogni voce e dell'opera completa. Il CME è la base del preventivo e del budget di commessa." },
       { q: "Quale prezzario devo usare per il computo?", a: "Per i lavori pubblici è obbligatorio il prezzario ufficiale della Regione dove si esegue l'opera, aggiornato annualmente. Per i lavori privati i prezzari regionali o il DEI sono un riferimento orientativo: conviene sempre verificare i prezzi reali dei propri fornitori." },
@@ -1695,7 +1698,7 @@ export const blogPosts: BlogPost[] = [
     excerpt: "Computo metrico estimativo per imprese edili: struttura, prezzari regionali, esempi numerici, errori da evitare e come compilarlo velocemente.",
     category: "Gestione Cantieri",
     tags: ["computo metrico", "preventivo edile", "prezzario", "cme", "software edilizia", "prezzario regionale", "misurazioni edili"],
-    updatedAt: "2026-07-10",
+    updatedAt: "2026-11-04",
     publishedAt: "2026-01-18",
     readTime: 14,
     author: { name: BLOG_AUTHOR.name, role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
@@ -1899,6 +1902,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "23",
     slug: "cassa-edile-come-funziona",
+    video: { youtubeId: "UMUwmQ2DiDc", duration: "PT5M6S", uploadedAt: "2026-11-04T07:59:52+01:00" },
     faqs: [
       { q: "Quando si prende la Cassa Edile?", a: "Ferie e gratifica natalizia accantonate ogni mese dall'impresa vengono pagate all'operaio dalla Cassa Edile in genere due volte l'anno, mentre l'APE si paga una volta l'anno a chi ha maturato le ore minime. Mesi e giorni li fissa ogni Cassa territoriale e li pubblica sul suo sito: è lì che va controllata la data, non su un calendario nazionale che non esiste." },
       { q: "Quanto si prende di Cassa Edile?", a: "Dipende dalle ore lavorate e denunciate e dalla paga oraria del proprio livello: la Cassa restituisce quanto l'impresa ha accantonato per ferie e gratifica natalizia, più l'APE se maturata. Ogni operaio può vedere il proprio estratto conto nell'area lavoratori della Cassa territoriale; se le ore non tornano con quelle lavorate, va chiesto subito all'impresa." },
@@ -1919,7 +1923,7 @@ export const blogPosts: BlogPost[] = [
     tags: ["cassa edile", "CCNL edilizia", "contributi edili", "CNCE", "busta paga operai"],
     publishedAt: "2026-01-24",
     readTime: 15,
-    updatedAt: "2026-10-18",
+    updatedAt: "2026-11-04",
     author: { name: BLOG_AUTHOR.name, role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/cassa-edile-come-funziona.jpg",
     content: [
@@ -5652,6 +5656,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "63",
     slug: "contabilita-di-cantiere-guida",
+    video: { youtubeId: "ENWw_3JKV8c", duration: "PT5M59S", uploadedAt: "2026-11-04T08:14:15+01:00" },
     faqs: [
       { q: "Cos'è la contabilità di cantiere?", a: "È il sistema che misura produzione, costi e margine di ogni singolo cantiere. Ha due volti: la contabilità ufficiale dei lavori (libretto misure, registro, SAL — obbligatoria negli appalti pubblici) e la contabilità industriale interna, che attribuisce ogni costo alla commessa per conoscere il margine reale." },
       { q: "Chi tiene la contabilità di cantiere?", a: "Negli appalti pubblici la contabilità ufficiale è tenuta dal Direttore dei Lavori. La contabilità industriale interna è dell'impresa: nelle PMI la alimentano capocantiere (ore e avanzamenti) e amministrazione (fatture e DDT), idealmente in un gestionale unico che consolida tutto per commessa." },
@@ -5667,7 +5672,7 @@ export const blogPosts: BlogPost[] = [
     category: "Finanza",
     tags: ["contabilità di cantiere", "contabilità industriale", "SAL", "controllo costi", "commessa", "costo orario operaio", "costi indiretti", "lavori in corso", "margine di commessa"],
     publishedAt: "2026-07-10",
-    updatedAt: "2026-08-03",
+    updatedAt: "2026-11-04",
     readTime: 17,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
@@ -5827,6 +5832,7 @@ export const blogPosts: BlogPost[] = [
   {
     id: "64",
     slug: "ritenuta-di-garanzia-appalti-come-funziona",
+    video: { youtubeId: "K_3_WnrN5Uc", duration: "PT4M14S", uploadedAt: "2026-11-04T07:59:52+01:00" },
     faqs: [
       { q: "Qual è la percentuale della ritenuta di garanzia?", a: "Negli appalti pubblici la legge prevede lo 0,50% su ogni SAL a garanzia dei lavoratori, svincolato al collaudo con DURC regolare. Nei lavori privati la percentuale è contrattuale: tipicamente tra il 5% e il 10% di ogni stato avanzamento." },
       { q: "Quando si svincolano le ritenute di garanzia?", a: "Nei pubblici con l'approvazione del certificato di collaudo o di regolare esecuzione. Nei privati alla data prevista dal contratto: collaudo, fine lavori o decorso del periodo di garanzia. Lo svincolo va richiesto formalmente, con il riepilogo delle ritenute operate." },
@@ -5842,7 +5848,7 @@ export const blogPosts: BlogPost[] = [
     category: "Finanza",
     tags: ["ritenuta di garanzia", "appalti", "SAL", "pagamenti", "collaudo", "fideiussione", "svincolo ritenute", "subappalto"],
     publishedAt: "2026-07-10",
-    updatedAt: "2026-08-03",
+    updatedAt: "2026-11-04",
     readTime: 14,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:

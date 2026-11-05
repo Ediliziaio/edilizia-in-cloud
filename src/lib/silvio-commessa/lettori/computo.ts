@@ -1,6 +1,6 @@
 /**
  * Lettore del computo (31/10/2026, fase 1, lotto 1.1): la bozza nativa del preventivo con
- * computo, e i file di PriMus (XPWE e PDF stampato) letti da `leggiFileComputo`.
+ * computo, e i file (XPWE, PDF stampato da PriMus, foglio Excel) letti da `leggiFileComputo`.
  *
  * Ogni capitolo diventa una fase e ogni voce una sottofase, come nella creazione della
  * commessa dal computo (`crea_commessa_preventivo_atomic`). I tempi vengono dal
@@ -12,6 +12,10 @@
  * eventi del cantiere), fasi e sottofasi, inizio lavori e costi previsti per fase (dal costo
  * stimato delle voci o, se manca, dal listino aziendale col codice: `applicaCostiListino`).
  * Le righe della commessa no: dal computo nascono lavorazioni, non materiali.
+ *
+ * I prezzi di un computo sono prezzi di vendita al cliente: il totale (meno lo sconto) è
+ * l'importo della commessa, e non diventano mai costi. Per un foglio Excel non è scontato che
+ * sia così, perché può essere l'offerta di una ditta: l'importo resta una proposta, e lo si dice.
  */
 import type { FaseDelPiano, Fonte, Frammento, RataDelPiano } from "../../../../shared/silvio-commessa/piano.ts";
 import { dateDelleFasi } from "../../../../shared/silvio-commessa/modelliLavoro.ts";
@@ -42,6 +46,12 @@ export interface DatiComputo {
   /** Il calendario dell'azienda per le date (revisione 1/11, L10): senza, le sole feste nazionali. */
   calendario?: CalendarioCantiere;
 }
+
+/**
+ * Oltre questi giorni lavorativi (circa 9 mesi) una stima dal valore non è un tempo: mette i capitoli
+ * uno dopo l'altro, e un computo grande in Excel veniva 891 giornate in fila. Meglio chiedere.
+ */
+export const SOGLIA_GIORNI_STIMATI = 180;
 
 /** Il momento della rata del computo come evento della rata di commessa. */
 const EVENTO: Readonly<Record<MomentoRata, string>> = {
@@ -122,6 +132,8 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
         label: r.rata.descrizione.trim() || "Rata",
         type: quando === "fine" || quando === "collaudo" || (i === economia.rate.length - 1 && economia.rate.length > 1) ? "balance" : "deposit",
         amount, percent: r.percentuale,
+        // Il computo dice la percentuale: l'importo segue il totale, se la persona lo cambia.
+        ...(r.percentuale != null ? { daPercentuale: true } : {}),
         trigger_evento: EVENTO[quando],
         trigger_numero: quando === "sal" ? ++sal : null,
       };
@@ -133,10 +145,21 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   // ── Fasi ──
   const crono = pianoDaCronoprogrammaComputo({ ...bozza.cronoprogramma, fasi: normalizzaFasi(bozza.cronoprogramma.fasi) });
   const voci = vociDellaBozza(bozza);
-  const { fasi, stimate } = fasiDaCapitoli(voci, crono.piano, giorniDalValore);
-  const inizio = dati.inizio || crono.inizioSuggerito;
+  const capitoli = fasiDaCapitoli(voci, crono.piano, giorniDalValore);
+  const { stimate } = capitoli;
+  const giorniInFila = capitoli.fasi.reduce((max, f) => Math.max(max, (f.giorno_inizio ?? 1) + (f.giorni ?? 1) - 1), 0);
+  const nonCredibile = stimate.length > 0 && giorniInFila > SOGLIA_GIORNI_STIMATI;
+  // Una durata inventata darebbe date inventate: restano i nomi e le voci, senza tempi.
+  const fasi: FaseDelPiano[] = nonCredibile
+    ? capitoli.fasi.map((f) => { const { giorni: _g, giorno_inizio: _i, ...resto } = f; return resto; })
+    : capitoli.fasi;
+  const inizio = nonCredibile ? null : dati.inizio || crono.inizioSuggerito;
   const conDate: FaseDelPiano[] = inizio ? dateDelleFasi(fasi, inizio, dati.calendario) : fasi;
-  if (conDate.length) {
+  if (nonCredibile) {
+    const testo = `Dal valore dei capitoli verrebbero ${giorniInFila} giornate di lavoro in fila: non è un tempo credibile, e le date non le invento. Dimmi quanto dura il lavoro: quando inizia e quando finisce.`;
+    avvisa(fr, testo);
+    metti(fr, "fasi.order_work_phases", conDate, { fiducia: 0.6, stato: "proposta", dove: "capitoli", nota: testo });
+  } else if (conDate.length) {
     metti(fr, "fasi.order_work_phases", conDate, stimate.length
       ? {
         fiducia: crono.piano.length ? 0.8 : 0.6, stato: "proposta", dove: "capitoli",
@@ -146,7 +169,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   }
   if (!dati.inizio && crono.inizioSuggerito) metti(fr, "fasi.work_start_date", crono.inizioSuggerito, { dove: "cronoprogramma" });
   const fine = conDate.reduce<string | null>((max, f) => (f.end_date && (!max || f.end_date > max) ? f.end_date : max), null);
-  if (fine) {
+  if (fine && !nonCredibile) {
     const opz = { fiducia: stimate.length ? 0.6 : 0.9, stato: "proposta" as const, dove: "cronoprogramma" };
     metti(fr, "fasi.work_end_date", fine, opz);
     metti(fr, "fasi.expected_date", fine, opz);
@@ -163,7 +186,7 @@ export function frammentoDaComputo(dati: DatiComputo): Frammento {
   return fr;
 }
 
-/** Un file di PriMus (XPWE o PDF) già letto da `leggiFileComputo`, come frammento. */
+/** Un file (XPWE, PDF di PriMus, foglio Excel) già letto da `leggiFileComputo`, come frammento. */
 export function frammentoDaFileComputo(
   computo: ComputoStrutturato, nomeFile: string, opzioni: Pick<DatiComputo, "listino" | "inizio" | "calendario"> = {},
 ): Frammento {
@@ -175,6 +198,16 @@ export function frammentoDaFileComputo(
   if (esito.totaleDocumento != null && Math.abs(esito.totaleDocumento - esito.totaleRicalcolato) >= 0.01) {
     const euro = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" })} €`;
     avvisi.push(`il totale del documento (${euro(esito.totaleDocumento)}) non torna col ricalcolo (${euro(esito.totaleRicalcolato)})`);
+  }
+  if (computo.formato === "excel") {
+    const importo = fr.aree.economia?.["economia.total_amount"];
+    const nota = "I prezzi del foglio sono letti come prezzi di vendita al cliente: se è l'offerta di una ditta, il totale è un costo, non l'importo della commessa.";
+    if (importo) {
+      importo.stato = "proposta";
+      importo.fiducia = 0.7;
+      importo.nota = nota;
+    }
+    avvisi.push(nota);
   }
   return { ...fr, avvisi: [...(fr.avvisi ?? []), ...avvisi] };
 }

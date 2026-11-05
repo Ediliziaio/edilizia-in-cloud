@@ -267,7 +267,7 @@ export function MobileBottomNav() {
   // center) la Home porta ad Attività invece che a una pagina negata.
   const homeMarketing = permissions.isAdmin || permissions.canViewMarketingDashboard;
   const homeHref = section === "marketing"
-    ? (homeMarketing ? "/azienda/marketing" : "/azienda/attivita")
+    ? (homeMarketing ? "/azienda/marketing" : permissions.canViewCallcenterDashboard ? "/azienda/call-center" : "/azienda/attivita")
     : section === "cruscotto"
       ? (permissions.isLoading ? "/azienda/cruscotto" : getSmartCruscottoPath(permissions, role))
       : "/azienda/attivita";

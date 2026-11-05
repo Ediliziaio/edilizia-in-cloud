@@ -14,14 +14,15 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { limitaSquadre, segnaFasiFuoriComputo } from "../../../shared/piano-cantiere/cronoprogramma.ts";
 
 const SYSTEM_PROMPT = `Sei il direttore tecnico di un'impresa edile italiana. Ricevi il computo metrico di un lavoro (capitoli, voci, quantità, importi) e prepari il cronoprogramma dei lavori da allegare al preventivo.
 
 REGOLE
 - Fasi in GIORNI LAVORATIVI (lun-ven). "inizio" è il primo giorno della fase (1 = primo giorno di cantiere), "durata" quanti giorni lavorativi dura.
 - Segui la sequenza reale di cantiere: allestimento e sicurezza, demolizioni e scavi, opere strutturali e sottofondi, impianti, finiture, collaudi e pulizia. Sovrapponi le fasi che si possono fare insieme con squadre diverse; NON sovrapporre quelle che dipendono una dall'altra (il manto in resina dopo il massetto e dopo la sua stagionatura).
-- Tieni conto dei tempi tecnici che non sono lavoro ma attesa: stagionatura dei getti e dei massetti, asciugatura, consegna dei materiali su ordinazione. Mettili come fasi o nella nota della fase.
-- Durate realistiche per le QUANTITÀ date (mai dedotte dagli importi) e per il numero di squadre indicato. Se non è indicato, ipotizza una squadra per specialità (edile, impiantisti, posatori): la stessa squadra non lavora in parallelo su due fasi. Meglio una stima prudente, e dillo nella nota generale.
+- Tieni conto dei tempi tecnici che non sono lavoro ma attesa: stagionatura dei getti e dei massetti, asciugatura degli intonaci, consegna dei materiali su ordinazione. Mettili come fasi o nella nota della fase. Dopo la posa di pavimenti, sanitari o tinte non serve nessuna attesa.
+- Durate realistiche per le QUANTITÀ date (mai dedotte dagli importi) e per il numero di squadre indicato. Le squadre disponibili sono il totale, non per specialità: mai più fasi di lavoro insieme di quante squadre ci sono. Se non è indicato, ipotizza una squadra per specialità (edile, impiantisti, posatori): la stessa squadra non lavora in parallelo su due fasi. Meglio una stima prudente, e dillo nella nota generale.
 - Una fase per gruppo di lavorazioni sensato (di solito per capitolo, oppure dividi un capitolo in due fasi se ha lavorazioni in momenti diversi). Da 3 a 15 fasi, nomi brevi e chiari per il cliente.
 - "nota": una frase breve solo se serve (attesa, condizione meteo, dipendenza), altrimenti stringa vuota.
 - Non inventare lavorazioni che non sono nel computo, tranne allestimento cantiere, tempi di attesa e pulizia finale.
@@ -87,9 +88,13 @@ Deno.serve(async (req) => {
       return { nome: testo(x.nome, 200), inizio: Math.min(2000, Math.max(1, inizio)), durata: Math.min(2000, Math.max(1, durata)), nota: testo(x.nota, 500) };
     }).filter((f) => f.nome);
     if (!fasi.length) return errorResponse("Silvio non è riuscito a preparare il cronoprogramma: riprova, oppure parti dai capitoli.", 502, cors);
+    // L'AI può sbagliare: le fasi con lavori che il computo non ha si segnalano, le squadre si rispettano.
+    const testoComputo = capitoli.flatMap((c) => [c.nome, ...c.voci.map((v) => v.descrizione)]).join(" ");
+    const { fasi: segnate } = segnaFasiFuoriComputo(fasi, testoComputo);
+    const aderenti = limitaSquadre(segnate, numero(body.squadre));
 
     return jsonResponse({
-      success: true, fasi, nota: testo(parsed.nota, 1000),
+      success: true, fasi: aderenti, nota: testo(parsed.nota, 1000),
       ai_meta: { model_used: ai.modelUsed, tokens: ai.totalTokens, cost_eur: ai.costRealEur, elapsed_ms: Date.now() - t0 },
     }, 200, cors);
   } catch (err) {

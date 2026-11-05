@@ -34,9 +34,35 @@ export function useSottofasi(orderId: string | null | undefined) {
 
   const perFase = useMemo(() => sottofasiPerFase(query.data ?? []), [query.data]);
 
+  // Su una commessa grande il giro di aggiornamento dura secondi: la riga cambia subito, e torna com'era se il database rifiuta.
+  const chiave = ["order_work_subphases", orderId];
+  const subito = async (id: string, cambia: (s: Sottofase) => Sottofase) => {
+    await qc.cancelQueries({ queryKey: chiave });
+    const prima = qc.getQueryData<Sottofase[]>(chiave);
+    qc.setQueryData<Sottofase[]>(chiave, (righe) => righe?.map((s) => (s.id === id ? cambia(s) : s)));
+    return { prima };
+  };
+  const annulla = (e: unknown, _v: unknown, ctx?: { prima?: Sottofase[] }) => {
+    if (ctx?.prima) qc.setQueryData(chiave, ctx.prima);
+    onError(e);
+    // Con due clic ravvicinati la copia di prima può essere vecchia: fa fede il database.
+    void aggiorna();
+  };
+
   const segna = useMutation({
     mutationFn: async ({ id, fatta }: { id: string; fatta: boolean }) => {
       const { error } = await db.from("order_work_subphases").update({ fatta }).eq("id", id);
+      if (error) throw error;
+    },
+    onMutate: ({ id, fatta }) => subito(id, (s) => ({ ...s, fatta, percentuale: fatta ? 100 : (s.percentuale ?? 0) >= 100 ? 0 : s.percentuale })),
+    onSuccess: aggiorna,
+    onError: annulla,
+  });
+
+  // Tante righe insieme: una scrittura sola e un solo aggiornamento alla fine.
+  const segnaTutte = useMutation({
+    mutationFn: async ({ ids, fatta }: { ids: string[]; fatta: boolean }) => {
+      const { error } = await db.from("order_work_subphases").update({ fatta }).in("id", ids);
       if (error) throw error;
     },
     onSuccess: aggiorna,
@@ -63,6 +89,18 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // A che punto è. «fatta» va scritta insieme: le sottofasi fatte prima di questa colonna hanno percentuale 0,
+  // e riportarne una a 0 senza cambiare niente non farebbe scattare l'allineamento nel database.
+  const avanza = useMutation({
+    mutationFn: async ({ id, percentuale, quantita_fatta }: { id: string; percentuale: number; quantita_fatta: number | null }) => {
+      const { error } = await db.from("order_work_subphases").update({ percentuale, quantita_fatta, fatta: percentuale >= 100 }).eq("id", id);
+      if (error) throw error;
+    },
+    onMutate: ({ id, percentuale, quantita_fatta }) => subito(id, (s) => ({ ...s, percentuale, quantita_fatta, fatta: percentuale >= 100 })),
+    onSuccess: aggiorna,
+    onError: annulla,
+  });
+
   // Date e tempo necessario: fine e giorni mancanti li completa il database, e la
   // fase si allarga se la sottofase esce dalle sue date (20281029213000).
   const pianifica = useMutation({
@@ -77,10 +115,9 @@ export function useSottofasi(orderId: string | null | undefined) {
   // Il piano in fila (pianoInSequenza): giorni e date di più sottofasi in una volta.
   const pianificaTutte = useMutation({
     mutationFn: async (passi: ReadonlyArray<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => {
-      for (const { id, data_inizio, data_fine, giorni } of passi) {
-        const { error } = await db.from("order_work_subphases").update({ data_inizio, data_fine, giorni }).eq("id", id);
-        if (error) throw error;
-      }
+      // Una scrittura sola: tutto o niente, anche con centinaia di righe.
+      const { error } = await db.rpc("sottofasi_pianifica_in_blocco", { p_passi: passi });
+      if (error) throw error;
     },
     onSuccess: aggiorna,
     onError,
@@ -89,10 +126,8 @@ export function useSottofasi(orderId: string | null | undefined) {
   // L'ordine conta: il piano in fila le mette una dopo l'altra in quest'ordine.
   const riordina = useMutation({
     mutationFn: async (ids: ReadonlyArray<string>) => {
-      for (const [position, id] of ids.entries()) {
-        const { error } = await db.from("order_work_subphases").update({ position }).eq("id", id);
-        if (error) throw error;
-      }
+      const { error } = await db.rpc("sottofasi_riordina", { p_ids: ids });
+      if (error) throw error;
     },
     onSuccess: aggiorna,
     onError,
@@ -150,5 +185,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, avanza, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

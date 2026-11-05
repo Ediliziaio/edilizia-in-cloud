@@ -65,7 +65,7 @@ export function contabilitaOda(totaleOrdine: number, fatture: FatturaOda[], rate
           : "combacia";
 
   const rateAperte = rate
-    .filter((r) => r.stato !== "pagata")
+    .filter((r) => r.stato !== "pagata" && r.stato !== "stornata")
     .sort((a, b) => (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999") || a.numero - b.numero);
 
   const primaScadenza = rateAperte[0]?.scadenza ?? null;

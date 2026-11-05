@@ -15,11 +15,11 @@ import {
   corpoParete,
   metaParete,
   punti,
-  simboloFinestra,
-  simboloPorta,
+  segniSerramento,
   vanoApertura,
 } from "./disegno";
-import { dist, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
+import { dist, direzione, lunghezzaMuro, puntoSulMuro, sulSegmento, type Aggancio } from "./geometria";
+import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { scriviMetri, scriviMq } from "./misure";
 import { SimboloArredo } from "./SimboloArredo";
 
@@ -253,7 +253,17 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                     riempimento={vista === "progetto" && e.stato === "da_demolire" ? "#fef9c3" : "#ffffff"}
                   />
                   {/* bersaglio pieno: si prende anche cliccando dentro il simbolo */}
-                  <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                  {e.tipo === "solaio" ? (
+                    // il solaio copre tutta la pianta: si prende solo dal bordo, così le stanze sotto restano cliccabili
+                    <>
+                      <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={25} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                      <rect x={-e.larghezza / 2} y={e.profondita / 2 - 25} width={e.larghezza} height={25} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                      <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={25} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                      <rect x={e.larghezza / 2 - 25} y={-e.profondita / 2} width={25} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                    </>
+                  ) : (
+                    <rect x={-e.larghezza / 2} y={-e.profondita / 2} width={e.larghezza} height={e.profondita} fill="transparent" data-tipo="elemento" data-id={e.id} />
+                  )}
                   {Math.min(e.larghezza, e.profondita) * camera.s > 34 && (
                     <text y={e.profondita / 2 - px(3)} textAnchor="middle" fontSize={px(9)} fill="#64748b" pointerEvents="none">
                       {etichetta}
@@ -299,18 +309,12 @@ export const TelaPlanimetria = forwardRef<SVGSVGElement, Props>(function TelaPla
                   data-tipo="apertura"
                   data-id={a.id}
                 />
-                {a.tipo === "finestra" ? (
-                  simboloFinestra(a, m).map(([p, q], i) => (
-                    <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colore} strokeWidth={px(1.2)} data-tipo="apertura" data-id={a.id} />
+                {a.tipo === "varco" || (a.tipo !== "finestra" && a.manovra === "nessuna" && a.sistema !== "fisso") ? null : (
+                  segniSerramento(a, m, latoEsterno(puntoSulMuro(m, a.posizione), { x: -direzione(m).y, y: direzione(m).x }, m.spessore, locali.map((l) => l.contorno)) || 1).map((s, i) => s.tipo === "arco" ? (
+                    <path key={i} d={s.d} fill="none" stroke={colore} strokeWidth={px(1)} strokeDasharray={s.tratteggio ? `${px(4)} ${px(3)}` : undefined} data-tipo="apertura" data-id={a.id} />
+                  ) : (
+                    <line key={i} x1={s.p.x} y1={s.p.y} x2={s.q.x} y2={s.q.y} stroke={colore} strokeWidth={px(s.spesso ? 2 : 1.2)} strokeDasharray={s.tratteggio ? `${px(4)} ${px(3)}` : undefined} data-tipo="apertura" data-id={a.id} />
                   ))
-                ) : a.tipo === "varco" || a.manovra === "nessuna" ? null : a.manovra === "scorrevole" ? (
-                  simboloFinestra(a, m)
-                    .slice(1, 2)
-                    .map(([p, q], i) => (
-                      <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={colore} strokeWidth={px(2)} data-tipo="apertura" data-id={a.id} />
-                    ))
-                ) : (
-                  <SimboloPorta a={a} m={m} colore={colore} px={px} />
                 )}
                 {a.origine === "stimata" && (
                   <circle cx={puntoSulMuro(m, a.posizione).x} cy={puntoSulMuro(m, a.posizione).y} r={px(4)} fill={STIMATA} />
@@ -590,24 +594,6 @@ function puntoVersoCentro(a: Punto, b: Punto, centro: Punto): Punto {
   const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   const verso = (centro.x - m.x) * n.x + (centro.y - m.y) * n.y;
   return verso >= 0 ? n : { x: -n.x, y: -n.y };
-}
-
-function SimboloPorta({ a, m, colore, px }: { a: Parameters<typeof simboloPorta>[0]; m: Parameters<typeof simboloPorta>[1]; colore: string; px: (n: number) => number }) {
-  const { anta, arco } = simboloPorta(a, m);
-  return (
-    <>
-      <line x1={anta[0].x} y1={anta[0].y} x2={anta[1].x} y2={anta[1].y} stroke={colore} strokeWidth={px(2)} data-tipo="apertura" data-id={a.id} />
-      <path
-        d={arco}
-        fill="none"
-        stroke={colore}
-        strokeWidth={px(1)}
-        strokeDasharray={a.tipo === "portafinestra" ? `${px(4)} ${px(3)}` : undefined}
-        data-tipo="apertura"
-        data-id={a.id}
-      />
-    </>
-  );
 }
 
 function EtichettaMisura({

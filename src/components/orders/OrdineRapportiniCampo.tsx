@@ -7,6 +7,10 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
+import { CampiDaCompletare } from "@/components/orders/CampiDaCompletare";
+import { compilatoDa } from "../../../supabase/functions/genera-pdf-rapportino/model";
+import { TotaliCampiCommessa } from "@/components/orders/TotaliCampiCommessa";
+import { useModuloRapportino } from "@/hooks/useModuliCantiere";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { RapportinoStato } from "@/types/rapportino";
 import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
+import { orePersoneRapportino } from "@/lib/campo/orePersone";
 import { messaggioApprovazione } from "@/lib/campo/erroreApprovazione";
 import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
 import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
@@ -95,16 +100,12 @@ function TesseraGiorno({ data, stato }: { data: string | null | undefined; stato
 type RigaOre = { presenze?: unknown; ore_lavorate?: unknown; ore_straordinario?: unknown };
 const presenzeDi = (r: RigaOre) => (Array.isArray(r.presenze) ? (r.presenze as Array<{ ore?: unknown; employee_id?: unknown }>) : []);
 const haPresenze = (r: RigaOre) => presenzeDi(r).length > 0;
-/** Ore delle persone (gemello di campo_presenze_effettive): le presenze con un dipendente, altrimenti l'autore. */
-export function orePersoneRapportino(r: RigaOre): number {
-  const presenze = presenzeDi(r);
-  if (presenze.length > 0) return presenze.reduce((somma, p) => somma + (p.employee_id ? Number(p.ore) || 0 : 0), 0);
-  return (Number(r.ore_lavorate) || 0) + (Number(r.ore_straordinario) || 0);
-}
+export { orePersoneRapportino };
 
 export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApprovare = false }: Props) {
   const isMobile = useIsMobile();
   const qc = useQueryClient();
+  const { schema: moduloCantiere } = useModuloRapportino(orderId);
   const { role, effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const { canEditOrders, canViewCosts } = usePermissions();
@@ -337,6 +338,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <p className="text-sm text-muted-foreground">{soloDaApprovare ? "Nessun rapportino da approvare" : "Nessun rapportino caricato dagli operai"}</p>
         ) : (
           <div className="space-y-4">
+            {!soloDaApprovare && <TotaliCampiCommessa orderId={orderId} rapportini={rapportini} />}
             {gruppi.map((gruppo) => (
               <section key={gruppo.mese} aria-label={gruppo.etichetta} className="space-y-2">
                 {/* Un titolo per mese: con molti rapportini si trova il periodo senza leggerli tutti. */}
@@ -498,6 +500,9 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             })()}
 
                             {/* Lavorazioni con i loro materiali e le loro foto, poi quello che non è legato a una fase */}
+                            {compilatoDa(r as unknown as Record<string, unknown>) && <p className="text-xs text-muted-foreground">{compilatoDa(r as unknown as Record<string, unknown>)}</p>}
+                            <CampiDaCompletare report={r} schema={moduloCantiere} puoModificare={canEditOrders}
+                              onSalvato={() => void qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] })} />
                             <RapportinoBlocchi report={r} nomiFasi={nomiFasi} onFoto={(url) => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }} />
 
                             {/* Firme */}

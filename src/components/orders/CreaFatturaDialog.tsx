@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { impostaSuImponibile } from "@/lib/fatturazione/calcoli";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -56,6 +57,7 @@ import {
   salFatturabili,
   salInFattura,
 } from "@/lib/orders/fatturaDaLavori";
+import { certificatoDelSal } from "@/lib/orders/salCertificato";
 import { parseBonusLines, getPreset, causaleBonificoParlante } from "@/lib/orders/bonusFiscali";
 import {
   CLAUSOLE_FATTURA,
@@ -237,6 +239,28 @@ function freeLineToRiga(fl: FreeLine, defaultVat: number): RigaDocumento {
 
 /** Una riga sola «a corpo» per l'importo della rata, IVA inclusa: l'imponibile
  *  si ricava scorporando l'aliquota. */
+/**
+ * L'imponibile da fatturare per incassare un certo lordo (04/11/2026).
+ *
+ * Con l'IVA non tutti i totali esistono: l'imposta si calcola sull'imponibile in centesimi
+ * interi, quindi al 22% circa un lordo su cinque non è raggiungibile — per 100,01 € si può
+ * fare solo 100,00 o 100,02, e non c'è imponibile che dia 100,01. Misurato su 300.000
+ * importi: nessuno dei casi storti ha una soluzione esatta.
+ *
+ * Quando il lordo chiesto non è raggiungibile si sceglie il totale più vicino che NON lo
+ * supera: una fattura non deve chiedere al cliente più di quanto la rata dice. Prima lo
+ * scorporo arrotondato poteva andare sopra, e la differenza passava in silenzio perché
+ * l'avviso tollera un euro.
+ */
+export function imponibileDalLordo(lordo: number, aliquota: number): number {
+  const base = round2(lordo / (1 + aliquota / 100));
+  const atteso = round2(lordo);
+  const totale = (imponibile: number) => round2(imponibile + impostaSuImponibile(imponibile, aliquota));
+  if (totale(base) <= atteso) return base;
+  const sotto = round2(base - 0.01);
+  return totale(sotto) <= atteso ? sotto : base;
+}
+
 function buildRigaImporto(descrizione: string, lordo: number, aliquota: number): RigaDocumento {
   const al = Math.max(0, aliquota);
   return {
@@ -245,7 +269,7 @@ function buildRigaImporto(descrizione: string, lordo: number, aliquota: number):
     descrizione: descrizione.trim() || "Lavori come da contratto",
     quantita: 1,
     unita_misura: "a corpo",
-    prezzo_unitario: round2(lordo / (1 + al / 100)),
+    prezzo_unitario: imponibileDalLordo(lordo, al),
     imponibile: 0,
     aliquota_iva: String(al),
     imposta: 0,
@@ -430,7 +454,7 @@ export function CreaFatturaDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sal_records")
-        .select("id, numero_sal, stato, importo_totale, installment_id, data_emissione, sal_voci(id, descrizione, importo_sal)")
+        .select("id, numero_sal, stato, importo_totale, installment_id, data_emissione, sal_voci(id, descrizione, importo_sal), sal_certificati(netto)")
         .eq("order_id", orderId)
         .order("numero_sal");
       if (error) throw error;
@@ -679,7 +703,9 @@ export function CreaFatturaDialog({
   const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
   const fonteMostrata = fonteAperta ?? righeFattura.length === 0;
   const totali = composta.totali;
-  const avvisi = avvisiClausole(clausoleAttive);
+  // Il netto del certificato è già senza ritenuta: va detto, o la si toglie due volte.
+  const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
+  const avvisi = avvisiClausole(clausoleAttive, { ritenutaGiaTolta });
 
   const scriviRiga = (id: string, patch: TestiRiga) => setTestiRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   // Cambiare importo dal riquadro di sopra ridà la parola al calcolato per quella riga.
@@ -1105,7 +1131,8 @@ export function CreaFatturaDialog({
             <Separator />
             <div className="space-y-2">
               <p className={sectionTitle}>Rata di riferimento</p>
-              <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-1">
+              {/* A capo anche su telefono: in una fila che scorre, la rata scelta poteva restare fuori dallo schermo. */}
+              <div className="flex flex-wrap gap-2">
                 {installments.map((inst) => {
                   const key = inst.id || `pos-${inst.position}`;
                   const isSelected = selectedInstId === key;
@@ -1216,6 +1243,15 @@ export function CreaFatturaDialog({
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                   Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA fatturati senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
+                </p>
+              )}
+              {/* Le righe di un SAL non dicono quali fasi contenevano: dopo averlo fatturato,
+                  le stesse fasi si ripresentano come da fatturare (04/11/2026). */}
+              {mode === "fasi" && fatturato.salFatturati.size > 0 && (
+                <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  {fatturato.salFatturati.size === 1 ? "Un SAL è già stato fatturato" : `${fatturato.salFatturati.size} SAL sono già stati fatturati`} su
+                  questa commessa: i lavori che c'erano dentro compaiono qui come ancora da fatturare. Controlla di non fatturarli due volte.
                 </p>
               )}
               {mode !== "importo" && contrattoNetto > 0 && round2(fatturato.totale + totali.imponibile_totale) > contrattoNetto + 1 && (

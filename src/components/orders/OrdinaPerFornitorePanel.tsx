@@ -17,7 +17,8 @@
  *    costi manodopera" mentre i soldi c'erano — nel posto sbagliato.
  */
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,7 +46,7 @@ interface PanelProps {
 }
 
 export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProps) {
-  const navigate = useNavigate();
+  const navigate = useNavigaDocumento();
   const queryClient = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const { suppliers } = useOperationalSuppliers();
@@ -131,12 +132,24 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
       const gruppo = (gruppi.find(([sid]) => sid === supplierId)?.[1] ?? [])
         .filter((i) => selezione[i.id!] !== false);
       if (gruppo.length === 0) throw new Error("Nessun articolo selezionato");
-      const user = (await supabase.auth.getUser()).data.user;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
+      const titoloRdo = `Preventivo ${supplierName(supplierId)} — ${orderCode || "commessa"}`;
+      // Senza distinte le voci restano legate agli articoli: l'ordine che nascerà dall'aggiudica li copre,
+      // e non tornano «da acquistare». Le distinte si dividono per posizione, quindi seguono la via di prima.
+      if (!gruppo.some((i) => i.posizioni?.length)) {
+        const { data: idRdo, error: rpcErr } = await db.rpc("acquisti_richiedi_offerta", { p_items: gruppo.map((i) => i.id), p_titolo: titoloRdo, p_fornitori: [supplierId] });
+        if (rpcErr) throw rpcErr;
+        toast.success(`Richiesta d'offerta creata per ${supplierName(supplierId)}`);
+        setSceltaPer(null);
+        queryClient.invalidateQueries({ queryKey: ["supplier-rfqs"] });
+        navigate(`/azienda/richieste-offerta/${idRdo}`);
+        return;
+      }
+      const user = (await supabase.auth.getUser()).data.user;
       const { data: rfq, error: rfqErr } = await db.from("supplier_rfqs").insert({
         company_id: effectiveCompany.id,
-        titolo: `Preventivo ${supplierName(supplierId)} — ${orderCode || "commessa"}`,
+        titolo: titoloRdo,
         order_id: orderId,
         created_by: user?.id,
       }).select().single();
@@ -199,13 +212,20 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
   const totale = pronti.reduce((s2, [, g]) =>
     s2 + g.reduce((x, i) => x + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0), 0), 0);
   const nArticoli = pronti.reduce((s2, [, g]) => s2 + g.length, 0);
+  // Stesso motivo, una riga sola: sei frasi uguali non si leggono.
+  const perMotivo = new Map<string, typeof daVerificare>();
+  for (const p of daVerificare) {
+    const motivo = p.review ?? "Quantità ordinata superiore al previsto";
+    perMotivo.set(motivo, [...(perMotivo.get(motivo) ?? []), p]);
+  }
 
   return (
     <div className="overflow-hidden rounded-lg border">
       {/* Testata: il quadro e l'azione che risparmia piu' tempo. Prima erano
           quattro bottoni primari identici in colonna: nessuna gerarchia e
           nessun modo di ordinare tutto insieme. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
+      {/* Con niente da comprare la testata direbbe solo «0 articoli · 0 fornitori». */}
+      {(gruppi.length > 0 || senzaFornitore.length > 0) && <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2 text-sm">
           <Package className="h-4 w-4 shrink-0 text-blue-600" />
           <span className="font-semibold">Acquisti per fornitore</span>
@@ -219,7 +239,7 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
             Prepara tutte le bozze ({gruppi.length})
           </Button>
         )}
-      </div>
+      </div>}
 
       {/* Una riga per fornitore: nome, articoli e totale sulla stessa linea,
           azione secondaria a destra. Il dettaglio delle righe sta gia'
@@ -267,7 +287,21 @@ export function OrdinaPerFornitorePanel({ orderId, orderCode, items }: PanelProp
         )}
         {daVerificare.length > 0 && <div className="px-3 py-3 text-sm bg-amber-50/60 dark:bg-amber-950/20">
           <p className="font-medium">Da verificare prima di acquistare</p>
-          <ul className="mt-1 space-y-1 text-xs text-muted-foreground">{daVerificare.map(p => <li key={p.item.id ?? p.item.name}>{p.item.name}: {p.review ?? "quantità in OdA superiore al previsto"}.</li>)}</ul>
+          <div className="mt-1 space-y-1">
+            {[...perMotivo].map(([motivo, piani]) => (
+              <details key={motivo} className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer">{piani.length} {piani.length === 1 ? "articolo" : "articoli"}: {motivo}</summary>
+                <ul className="mt-1 space-y-0.5 pl-4">
+                  {piani.map(p => (
+                    <li key={p.item.id ?? p.item.name}>
+                      {p.item.name}
+                      {p.ordini.map(o => <Link key={o.id} to={`/azienda/ordini-acquisto/${o.id}`} className="ml-2 font-mono underline underline-offset-2">{o.oda_number}</Link>)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
         </div>}
       </div>
 

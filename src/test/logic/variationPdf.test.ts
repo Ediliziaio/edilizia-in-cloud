@@ -1,8 +1,9 @@
 /// <reference types="node" />
 import {describe,it,expect} from "vitest";
 import {writeFileSync} from "node:fs";
+import {dettagliImpresa} from "@/lib/orders/variationDocumentContext";
 import {variationPreviewPdf,variationProposalPdf,variationPdfFilename} from "@/lib/orders/variationPreviewPdf";
-import {prepareVariation,emptyVariationDraft} from "@/lib/orders/variationDraft";
+import {prepareVariation,emptyVariationDraft,variationDocumentParts,CONDIZIONI_STANDARD_VARIANTE} from "@/lib/orders/variationDraft";
 describe("Documento di anteprima variante",()=>{
   it("gestisce più pagine e non include note riservate o una firma inesistente",async()=>{
     const prepared=prepareVariation({...emptyVariationDraft(),kind:"riduzione",title:"DEMO - Riduzione e sostituzione pavimento",phase:"Pavimenti e rivestimenti",description:"Il cliente richiede una superficie ridotta rispetto al contratto originario.\n\n"+Array.from({length:18},(_,i)=>`${i+1}. Area ${i+1}: rimozione della voce prevista, mantenendo la preparazione del sottofondo. La posa e le superfici effettive saranno concordate prima dell'avvio.`).join("\n\n"),amount:"1250,50",days:"2",dayUnit:"lavorativi",requester:"Cliente DEMO",internalNotes:"SEGRETO_NON_ESPORTARE"});
@@ -15,6 +16,27 @@ describe("Documento di anteprima variante",()=>{
     const pdf=await variationProposalPdf(prepared,{companyName:"Impresa Edile DEMO S.r.l.",companyDetails:"Via Esempio 10, 20100 Milano\nP.IVA: DATO DIMOSTRATIVO - non valido",customerName:"Cliente DEMO",customerAddress:"Via Prova 20, 40100 Bologna",siteAddress:"Via Cantiere 12, Bologna",orderCode:"ORD-DEMO-001",currentNet:22000,vatRate:10});
     const s=pdf.output();expect(s).toContain("DA APPROVARE");expect(s).not.toContain("ANTEPRIMA BOZZA");expect(s).toContain("Firma cliente per approvazione");expect(s).toContain("Preventivo PRE-DEMO-015");expect(s).not.toContain("SEGRETO_NON_ESPORTARE");expect(s).not.toContain("firma-odv");
     if(process.env.VARIATION_OFFLINE_PDF_PROOF)writeFileSync(process.env.VARIATION_OFFLINE_PDF_PROOF,Buffer.from(pdf.output("arraybuffer")));
+  });
+  it("la variante a voci è una tabella con totali, condizioni contrattuali e firme",async()=>{
+    const draft={...emptyVariationDraft(),title:"Rifacimento bagno piano primo",description:"Demolizione del pavimento esistente e posa del nuovo gres.",pricing:"voci" as const,
+      lines:[{id:"a",description:"Demolizione pavimento",quantity:"12",price:"18,50",unit:"mq"},{id:"b",description:"Fornitura e posa gres 60x60",quantity:"12",price:"55",unit:"mq"}],
+      days:"3",contractReference:"Preventivo PRE-2026-015",additionalTerms:"Materiali scelti dal committente in showroom.",paymentTerms:"50% all'avvio, saldo a fine lavori."};
+    const parti=variationDocumentParts(draft);
+    expect(parti.righe.map(r=>r.importo)).toEqual([222,660]);
+    const pdf=await variationProposalPdf(prepareVariation(draft),{companyName:"Impresa Vulcano S.r.l.",companyDetails:"Via Marconi 35, Lonate Pozzolo\nP.IVA 06923340969",customerName:"Giulia Longo",customerAddress:"Via Mazzolari 3, Magnago",siteAddress:"Via Mazzolari 3, Magnago",orderCode:"ORD-2026-034",currentNet:22133,vatRate:22,proposalNumber:7,proposalRegisteredAt:"2026-11-03T08:30:00Z",archivedOriginal:true,parti});
+    const t=pdf.output();
+    for(const x of ["Demolizione pavimento","IMPORTO","222,00","Materiali scelti dal committente","Pagamento dei lavori extra","Firma cliente per approvazione","OdV #7","VARIANTE AL CONTRATTO","Preventivo PRE-2026-015"])expect(t).toContain(x);
+    expect(t).toContain(CONDIZIONI_STANDARD_VARIANTE[0].slice(0,40));
+    expect(t).not.toContain("Dettaglio economico");
+    if(process.env.VARIATION_TABLE_PDF_PROOF)writeFileSync(process.env.VARIATION_TABLE_PDF_PROOF,Buffer.from(pdf.output("arraybuffer")));
+  });
+  it("i dati dell'impresa vengono dal profilo, se ci sono",()=>{
+    expect(dettagliImpresa({indirizzo_completo:"Via Roma 1, 20100 Milano",partita_iva:"01234567890",telefono:null,email:"a@b.it"})).toBe("Via Roma 1, 20100 Milano\nP.IVA 01234567890 - a@b.it");
+    expect(dettagliImpresa({})).toBeUndefined();expect(dettagliImpresa(null)).toBeUndefined();
+  });
+  it("una riduzione mostra importi negativi coerenti col totale",()=>{
+    const parti=variationDocumentParts({...emptyVariationDraft(),kind:"riduzione",title:"Meno opere",description:"Tolta la tinteggiatura",pricing:"voci",lines:[{id:"a",description:"Tinteggiatura",quantity:"10",price:"8"}]});
+    expect(parti.righe[0].importo).toBe(-80);
   });
   it("richiede le parti per il documento da inviare, ma mantiene l'anteprima disponibile",async()=>{
     const p=prepareVariation({...emptyVariationDraft(),title:"Prova",description:"Lavori",amount:"10"});

@@ -66,9 +66,12 @@ in due grafie diverse **nella stessa lista** (`src/lib/impostazioni/
 pagamentiFornitori.ts`: `riba` e `ri.ba`), più `ri.ba` nello scadenzario e
 nella prima nota. Un filtro «pagati con RiBa» oggi ne troverebbe metà.
 
-Lato clienti la RiBa non la usa nessuno: le aziende vere incassano solo con
-bonifico — scritto in cinque modi diversi («Bonifico Vista Fattura»,
-«Bonifico vista fattura», «BONIFICO», «Bonifico», «MP05»).
+Lato clienti la RiBa non era usata da nessuno fino a novembre 2026, quando è comparsa
+negli XML emessi di due imprese. Dalla migrazione `20281121100000_fatture_emesse_rate_dall_xml` la RiBa
+attiva è un metodo sulla scadenza di ogni rata (`riba`), niente di più: portafoglio,
+presentazione in banca, anticipo salvo buon fine e insoluti non esistono. Le altre
+aziende incassano con bonifico, scritto in cinque modi diversi («Bonifico Vista
+Fattura», «Bonifico vista fattura», «BONIFICO», «Bonifico», «MP05»).
 
 ---
 
@@ -291,11 +294,31 @@ questo ramo è predisposto. Il pagamento segue il SAL, non la consegna.
 ### F. Reso, merce difettosa, nota di credito del fornitore
 
 Due finestre arrivano col vetro rotto. Il fornitore emette una **nota di
-credito** (TD04) che riduce il debito. Oggi le note di credito ricevute sono
-escluse dall'aggancio fattura→ODA (giusto) ma non riducono nessun debito,
-perché il debito non c'è. Serve: nota di credito → riduce le rate ancora da
-pagare della fattura che storna (sul lato clienti questo esiste dal 23/10:
-«le note di credito stornano la fattura»).
+credito** (TD04) che riduce il debito. Le note di credito ricevute restano
+escluse dall'aggancio automatico fattura→ODA (giusto).
+
+**Dal 04/11/2026** (`20281119100000_nota_credito_riduce_debito`): da Fatture
+ricevute, «Collega alla fattura». Il riferimento in `DatiFattureCollegate` si
+trova già spuntato se indica una sola fattura dello stesso fornitore e le date non
+lo contraddicono; se non c'è, non è univoco o la data non torna lo si dice e si
+sceglie a mano. Conferma sempre una persona.
+`nota_credito_collega` scrive in `note_credito_storni` e:
+- abbassa il costo dell'imponibile della quota;
+- riduce le rate aperte dalla più vicina, lasciando in fondo gli addebiti
+  bancari (RiBa, RID): prima quelli avvisati o in scadenza entro 7 giorni, per
+  ultimi quelli già scaduti, che possono essere partiti anche se nessuno li ha
+  segnati pagati. La banca addebita l'importo pieno finché nessuno la blocca, e
+  l'esito lo dice;
+- una rata azzerata diventa `stornata`: né pagata né da pagare. Tutte chiuse, il
+  costo risulta saldato;
+- quel che non trova rate aperte è un credito verso il fornitore
+  (`credito_residuo`): se la fattura era già pagata, non sparisce.
+
+Una nota può coprire più fatture e una fattura ricevere più note. L'importo è il
+valore assoluto del totale meno la ritenuta: lo SDI ammette entrambi i segni, e
+`netto_a_pagare` su una nota può essere negativo o zero. `nota_credito_scollega`
+rimette tutto com'era, e si ferma se una rata ridotta è stata pagata nel frattempo.
+Lo storico importato ha solo il collegamento: costo e rate non ci sono.
 
 ### G. Il prezzo in fattura non è quello dell'ordine
 

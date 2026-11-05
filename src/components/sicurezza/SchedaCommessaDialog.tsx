@@ -201,7 +201,7 @@ export function SchedaCommessaDialog({
             if (origine?.isConnected) origine.focus({ preventScroll: true });
           }}
         >
-          <DialogHeader className="shrink-0 border-b p-4 pr-12">
+          <DialogHeader className="shrink-0 border-b px-4 py-2.5 pr-12">
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 variant="outline"
@@ -223,7 +223,8 @@ export function SchedaCommessaDialog({
                 Operazione in corso: attendi il completamento prima di chiudere.
               </p>
             )}
-            <DialogDescription>
+            {/* «Torna alla commessa» e la X dicono già come si esce: a schermo era una riga in più. */}
+            <DialogDescription className="sr-only">
               {contestoOrigine === "impresa"
                 ? "La scheda dell’impresa resta aperta. Chiudi per tornare al punto da cui sei partito."
                 : "Sei nella commessa. Chiudi questa scheda per ritrovare il punto da cui l’hai aperta."}

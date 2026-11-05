@@ -36,7 +36,8 @@ export function validateVariationWorkspace(raw: unknown, rawContext: unknown) {
   if (!Array.isArray(source.lines) || source.lines.length > 100) throw new Error("Aggiungi al massimo 100 voci.");
   content.lines = source.lines.map(line => {
     if (!line || typeof line !== "object" || !isVariationUuid(line.id) || typeof line.description !== "string" || line.description.length > 1000 || typeof line.quantity !== "string" || line.quantity.length > 30 || typeof line.price !== "string" || line.price.length > 30) throw new Error("Voce della variante non valida.");
-    return { id: line.id, description: line.description, quantity: line.quantity, price: line.price };
+    if (line.unit !== undefined && (typeof line.unit !== "string" || line.unit.length > 20)) throw new Error("Unità di misura della voce non valida.");
+    return { id: line.id, description: line.description, quantity: line.quantity, price: line.price, ...(line.unit ? { unit: line.unit } : {}) };
   });
   const ids = source.attachmentIds ?? [];
   if (!Array.isArray(ids) || ids.length > 10 || ids.some(id => !isVariationUuid(id)) || new Set(ids).size !== ids.length) throw new Error("Seleziona al massimo 10 allegati diversi.");

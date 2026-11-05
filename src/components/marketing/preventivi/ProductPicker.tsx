@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
 import {
   descrizioneCommerciale,
@@ -8,9 +8,6 @@ import { MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDiseg
 import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import {
   ArrowLeft,
-  ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   Package,
   Search,
   X,
@@ -42,6 +39,8 @@ interface Props {
   nomeArea?: string;
   selectedIds?: Set<string>;
   onToggleItem?: (item: CatalogItem) => void;
+  /** Se l'elenco è limitato a un'area: la toglie, tenendo la ricerca scritta. */
+  onTutteLeAree?: () => void;
 }
 const DIMENSIONE_PAGINA = 30;
 const CATEGORIE_VUOTE: CatalogCategory[] = [];
@@ -56,6 +55,7 @@ export function ProductPicker({
   nomeArea,
   selectedIds,
   onToggleItem,
+  onTutteLeAree,
 }: Props) {
   const [cerca, setCerca] = useState("");
   const [filtroLinea, setFiltroLinea] = useState({ambito, nome:''});
@@ -87,10 +87,19 @@ export function ProductPicker({
     pagina,
     Math.max(0, Math.ceil(filtrate.length / DIMENSIONE_PAGINA) - 1),
   );
-  const visibili = filtrate.slice(
-    paginaCorrente * DIMENSIONE_PAGINA,
-    (paginaCorrente + 1) * DIMENSIONE_PAGINA,
-  );
+  // Si scende senza pagine: i prodotti si aggiungono man mano, per non disegnarne mille insieme.
+  const visibili = filtrate.slice(0, (paginaCorrente + 1) * DIMENSIONE_PAGINA);
+  const ancoraDaMostrare = filtrate.length - visibili.length;
+  const lista = useRef<HTMLDivElement>(null);
+  const posizione = useRef(0);
+  useEffect(() => {
+    posizione.current = 0;
+    if (lista.current) lista.current.scrollTop = 0;
+  }, [categoriaId, cerca, linea, ambito]);
+  // Quando si nasconde il browser perde il punto: tornando dalla configurazione si riprende da lì.
+  useEffect(() => {
+    if (attivo && lista.current) lista.current.scrollTop = posizione.current;
+  }, [attivo]);
   const cambiaCategoria = (id: string) => {
     setFiltroCategoria({ ambito, id });
     setPagina(0);
@@ -137,7 +146,7 @@ export function ProductPicker({
         {!category && (
           <aside className="hidden min-h-0 overflow-y-auto border-r bg-muted/20 p-3 md:block">
             <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Categorie e linee
+              Categorie
             </p>
             <nav
               aria-label="Categorie dei prodotti"
@@ -176,7 +185,8 @@ export function ProductPicker({
           )}
         >
           <div className="shrink-0 space-y-2 border-b bg-background p-3">
-            <div className="relative">
+            <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-[220px] flex-1">
               <Search
                 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
                 aria-hidden
@@ -200,16 +210,17 @@ export function ProductPicker({
                     setCerca("");
                     setPagina(0);
                   }}
-                  className="absolute right-3 top-3 text-muted-foreground"
+                  className="absolute right-3 top-1/2 flex -translate-y-1/2 text-muted-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
-            {linee.length > 0 && <select aria-label="Filtra per linea" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
+            {linee.length > 0 && <select aria-label="Filtra per linea" className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
               <option value="">Tutte le linee</option>
               {linee.map(nome=><option key={nome} value={nome}>{nome}</option>)}
             </select>}
+            </div>
             {!category && (
               <select
                 aria-label="Filtra per categoria"
@@ -251,8 +262,15 @@ export function ProductPicker({
             </div>
           </div>
           <div
+            ref={lista}
             className="min-h-0 flex-1 overflow-y-auto p-3"
             aria-label="Prodotti del catalogo"
+            onScroll={(e) => {
+              const l = e.currentTarget;
+              if (l.clientHeight > 0) posizione.current = l.scrollTop;
+              if (ancoraDaMostrare > 0 && l.scrollTop + l.clientHeight >= l.scrollHeight - 300)
+                setPagina(paginaCorrente + 1);
+            }}
           >
             {error ? (
               <div role="alert" className="rounded-lg border p-5 text-sm">
@@ -278,9 +296,20 @@ export function ProductPicker({
                 <p className="text-sm text-muted-foreground">
                   Nessun prodotto corrisponde a categoria e ricerca.
                 </p>
+                {onTutteLeAree && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 block w-full sm:mx-auto sm:w-auto"
+                    onClick={onTutteLeAree}
+                  >
+                    Cerca in tutte le aree
+                  </Button>
+                )}
                 <Button
                   variant="link"
                   onClick={() => {
+                    onTutteLeAree?.();
                     setCerca("");
                     setFiltroLinea({ambito,nome:''});
                     cambiaCategoria("");
@@ -297,29 +326,6 @@ export function ProductPicker({
               </div>
             ) : (
               <div className="space-y-2">
-                {onToggleItem && (
-                  <div className="flex items-center justify-between gap-2 px-1 py-2 text-xs text-muted-foreground">
-                    <span>
-                      Spunta più prodotti per modificarli insieme. Le voci con
-                      varianti si configurano singolarmente.
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        visibili
-                          .filter(prodottoSemplice)
-                          .filter(
-                            (item) =>
-                              !selectedIds?.has(`${item.source}:${item.id}`),
-                          )
-                          .forEach(onToggleItem)
-                      }
-                    >
-                      Seleziona questa pagina
-                    </Button>
-                  </div>
-                )}
                 {visibili.map((item) => {
                   const d = dettagliProdottoCatalogo(item, categorie, macros);
                   return (
@@ -327,19 +333,22 @@ export function ProductPicker({
                       key={`${item.source}-${item.id}`}
                       className="flex items-center gap-2"
                     >
-                      {onToggleItem && (
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 shrink-0 accent-orange-500"
-                          aria-label={`Seleziona ${item.nome}`}
-                          disabled={!prodottoSemplice(item)}
-                          checked={
-                            selectedIds?.has(`${item.source}:${item.id}`) ??
-                            false
-                          }
-                          onChange={() => onToggleItem(item)}
-                        />
-                      )}
+                      {onToggleItem &&
+                        (prodottoSemplice(item) ? (
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 accent-orange-500"
+                            aria-label={`Seleziona ${item.nome}`}
+                            checked={
+                              selectedIds?.has(`${item.source}:${item.id}`) ??
+                              false
+                            }
+                            onChange={() => onToggleItem(item)}
+                          />
+                        ) : (
+                          // Le voci con misure e varianti si configurano una alla volta.
+                          <span className="h-4 w-4 shrink-0" aria-hidden />
+                        ))}
                       <button
                         type="button"
                         key={`${item.source}-${item.id}`}
@@ -351,9 +360,9 @@ export function ProductPicker({
                               .join(" · "),
                           )
                         }
-                        className="group grid w-full grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[56px_minmax(0,1fr)_160px_20px]"
+                        className="group grid w-full grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background px-3 py-2 text-left transition hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[44px_minmax(0,1fr)_auto]"
                       >
-                        <div className="h-14 w-14 overflow-hidden rounded-md bg-muted">
+                        <div className="h-11 w-11 overflow-hidden rounded-md bg-muted">
                           {item.source === "family" &&
                           item.family &&
                           haDisegno(item.family) ? (
@@ -380,28 +389,21 @@ export function ProductPicker({
                           <p className="text-sm font-semibold leading-snug">
                             {item.nome}
                           </p>
-                          {haManodoperaConfigurata(item) && (
-                            <span className="mt-1 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                              Manodopera / montaggio previsto
-                            </span>
-                          )}
-                          {[d.categoria, d.linea, d.marca].some(Boolean) && (
-                            <p className="mt-1 text-xs font-medium text-primary">
-                              {[d.categoria, d.linea, d.marca]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
-                          )}
-                          {d.codice && (
-                            <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                              {d.codice}
+                          {([d.categoria, d.linea, d.marca].some(Boolean) || d.codice) && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              <span className="font-medium text-primary">
+                                {[d.categoria, d.linea, d.marca]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>{" "}
+                              <span className="font-mono text-[11px]">{d.codice}</span>
                             </p>
                           )}
                           {descrizioneCommerciale(item.descrizione) &&
                             descrizioneCommerciale(item.descrizione) !==
                               item.nome && (
                               <p
-                                className="mt-1 line-clamp-1 text-xs text-muted-foreground"
+                                className="mt-0.5 line-clamp-1 text-xs text-muted-foreground"
                                 title={descrizioneCommerciale(item.descrizione)}
                               >
                                 {descrizioneCommerciale(item.descrizione)}
@@ -420,53 +422,27 @@ export function ProductPicker({
                           >
                             {prezzoProdottoCatalogo(item)}
                           </p>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {prodottoSemplice(item)
-                              ? "Quantità e prezzo cliente"
-                              : item.source === "family"
-                                ? "Configura misure e varianti"
-                                : "Imposta la quantità"}
-                          </p>
+                          {haManodoperaConfigurata(item) && (
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              Con manodopera
+                            </p>
+                          )}
                         </div>
-                        <ArrowRight
-                          className="hidden h-4 w-4 text-muted-foreground group-hover:text-primary sm:block"
-                          aria-hidden
-                        />
                       </button>
                     </div>
                   );
                 })}
+                {ancoraDaMostrare > 0 && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setPagina(paginaCorrente + 1)}
+                  >
+                    Mostra altri prodotti ({ancoraDaMostrare})
+                  </Button>
+                )}
               </div>
             )}
-          </div>
-          <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-background px-4 py-2">
-            <span className="text-xs text-muted-foreground">
-              {filtrate.length
-                ? `${paginaCorrente * DIMENSIONE_PAGINA + 1}–${Math.min((paginaCorrente + 1) * DIMENSIONE_PAGINA, filtrate.length)} di ${filtrate.length}`
-                : "0 prodotti"}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Prodotti precedenti"
-                disabled={paginaCorrente === 0}
-                onClick={() => setPagina(paginaCorrente - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Prodotti successivi"
-                disabled={
-                  (paginaCorrente + 1) * DIMENSIONE_PAGINA >= filtrate.length
-                }
-                onClick={() => setPagina(paginaCorrente + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
         </div>
       </div>

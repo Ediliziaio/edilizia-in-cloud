@@ -60,7 +60,7 @@ export const DESIGN_PRESETS: Array<{ name: string; desc: string; patch: Partial<
     name: "Executive",
     desc: "Look premium, ideale per offerte ad alto valore.",
     patch: {
-      layout: "modern",
+      layout: "classic",
       font_family: "helvetica",
       font_size_base: 10,
       heading_size_scale: 1.9,
@@ -90,7 +90,7 @@ export const DESIGN_PRESETS: Array<{ name: string; desc: string; patch: Partial<
     name: "Cantiere premium",
     desc: "Impatto forte e margini chiari per clienti retail.",
     patch: {
-      layout: "bold",
+      layout: "classic",
       font_family: "helvetica",
       font_size_base: 10,
       heading_size_scale: 2.0,
@@ -122,7 +122,7 @@ export const COMPLETE_OFFER_BLUEPRINTS: CompleteOfferBlueprint[] = [
     description: "Copertina navy, gerarchia editoriale ariosa e chiusura elegante per lavori ad alto valore.",
     patch: {
       kind: "offerta",
-      layout: "modern",
+      layout: "classic",
       primary_color: "#1E3A5F",
       secondary_color: "#2563EB",
       accent_color: "#EFF6FF",
@@ -196,7 +196,7 @@ export const COMPLETE_OFFER_BLUEPRINTS: CompleteOfferBlueprint[] = [
     description: "Impatto più deciso, sidebar colorata e messaggi brevi per offerte retail facili da capire e ricordare.",
     patch: {
       kind: "offerta",
-      layout: "bold",
+      layout: "classic",
       primary_color: "#EA580C",
       secondary_color: "#F97316",
       accent_color: "#FFF7ED",

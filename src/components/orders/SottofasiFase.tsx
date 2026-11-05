@@ -10,7 +10,7 @@ import type { CalendarioCantiere } from "@/hooks/useCalendarioCantiere";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  avanzamentoDaSottofasi, dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, fasiDaSpostare, pesiDaGiorni, pianoInSequenza, realeSottofase, riepilogoSottofasi, type Sottofase, type VoceSottofase,
+  dateFaseConSottofasi, fineDaGiorni, giorniFinestra, intervalloSottofase, fasiDaSpostare, pesiDaGiorni, pianoInSequenza, realeSottofase, riepilogoSottofasi, type Sottofase, type VoceSottofase,
 } from "@/lib/orders/sottofasi";
 
 export interface PianoSottofase {
@@ -154,8 +154,8 @@ export function SottofasiFase({
         </h4>
         <div className="flex items-center gap-2">
           {totale > 0 && (
-            <span className="text-xs tabular-nums text-muted-foreground" title="L'avanzamento della fase si calcola dalle sottofasi fatte">
-              {fatte} di {totale} · {avanzamentoDaSottofasi(sottofasi)}%
+            <span className="text-xs tabular-nums text-muted-foreground" title="L'avanzamento della fase si calcola dalle sottofasi, pesate sull'importo">
+              {fatte} di {totale}
             </span>
           )}
           {puoModificare && onPianificaTutte && totale > 0 && (

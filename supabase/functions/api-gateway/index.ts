@@ -30,6 +30,25 @@ Deno.serve(async (req) => {
     if (!profile?.company_id) return errorResponse("Profilo non trovato", 403);
     const companyId = profile.company_id;
 
+    // Stesso permesso della pagina Impostazioni > API (03/11/2026): prima bastava avere un
+    // profilo in azienda, quindi anche un operaio o un cliente poteva creare una chiave.
+    const azioniGestione: Record<string, string> = {
+      generate_key: "can_edit_settings_integrations",
+      revoke_key: "can_edit_settings_integrations",
+      update_key: "can_edit_settings_integrations",
+      list_keys: "can_view_settings_integrations",
+      get_usage_stats: "can_view_settings_integrations",
+    };
+    const permesso = azioniGestione[action];
+    if (permesso) {
+      const { data: consentito, error: permessoErr } = await admin.rpc("has_permission_for_company", {
+        _user_id: user.id,
+        _permission: permesso,
+        _company_id: companyId,
+      });
+      if (permessoErr || consentito !== true) return errorResponse("Permesso insufficiente", 403);
+    }
+
     switch (action) {
       case "generate_key": {
         const { name, scopes, rate_limit_per_minute, rate_limit_per_day, expires_at } = params;

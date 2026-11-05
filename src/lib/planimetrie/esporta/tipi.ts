@@ -47,6 +47,8 @@ export interface AperturaVista {
   davanzale?: number;
   /** Di serie a battente; «nessuna» è un vano senza anta. */
   manovra?: "battente" | "scorrevole" | "nessuna";
+  /** Sistema del serramento (scorrevole a scomparsa, a libro, fisso…): vedi shared/planimetrie/serramenti.ts. */
+  sistema?: "battente" | "anta_ribalta" | "vasistas" | "scorrevole" | "scorrevole_scomparsa" | "alzante_scorrevole" | "libro" | "fisso";
   /**
    * Da che parte sta la cerniera guardando da p1 verso p2 («inizio» = vicino a
    * p1) e su quale lato del muro si apre l'anta («sinistra» = a sinistra di chi
@@ -55,6 +57,10 @@ export interface AperturaVista {
   cerniera?: "inizio" | "fine";
   lato?: "sinistra" | "destra";
   ante?: 1 | 2;
+  /** Oscurante di una finestra (tapparella, veneziana, persiana, scuri) e relativo cassonetto, cm. */
+  oscurante?: { tipo: "tapparella" | "veneziana" | "persiana" | "scuro"; ante: number; cassonetto?: { tipo: "monoblocco" | "a_filo" | "esterno"; altezza: number; profondita: number } };
+  /** Zanzariera di una finestra. */
+  zanzariera?: { tipo: "laterale" | "verticale" | "plisse" | "battente" | "incastro" };
   stato: StatoCostruttivo;
 }
 
@@ -83,7 +89,7 @@ export type TipoElemento =
   | "divano_angolare" | "poltrona" | "mobile_tv" | "libreria" | "tavolo_rotondo" | "cucina_angolare" | "isola_cucina" | "lavastoviglie"
   | "auto" | "scaffale" | "banco_lavoro"
   | "presa" | "interruttore" | "punto_luce" | "punto_acqua" | "scarico" | "quadro_elettrico" | "termosifone" | "split"
-  | "unita_esterna" | "collettore" | "colonna_scarico" | "pilastro" | "scala" | "ascensore"
+  | "unita_esterna" | "collettore" | "colonna_scarico" | "pilastro" | "muro_contenimento" | "trave" | "solaio" | "scala" | "scala_u" | "scala_chiocciola" | "ascensore"
   | "pompa_calore" | "bollitore" | "inverter" | "batteria_accumulo" | "wallbox" | "termostato" | "vmc" | "lucernario" | "quota_terreno"
   | "piscina" | "idromassaggio" | "pergola" | "albero" | "siepe" | "aiuola" | "ombrellone" | "lettino" | "tavolo_esterno" | "barbecue"
   | "cancello_pedonale" | "cancello_carrabile" | "lampione" | "faretto_giardino" | "irrigatore" | "pozzetto"

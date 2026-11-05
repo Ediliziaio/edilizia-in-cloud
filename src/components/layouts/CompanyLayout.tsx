@@ -23,6 +23,7 @@ import { SchedaPassaggioChiamata } from "@/components/telephony/SchedaPassaggioC
 import { SubscriptionBanner } from "@/components/layouts/SubscriptionBanner";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { useImpersonationClientView, setImpersonationClientView } from "@/hooks/useImpersonationView";
+import { AvvisoAziendaServer } from "@/components/layouts/AvvisoAziendaServer";
 import { 
   HeadphonesIcon,
   Settings,
@@ -1113,7 +1114,8 @@ const CompanySidebar = memo(function CompanySidebar() {
         if (
           !permissions.canViewCruscotto &&
           !permissions.canViewDashboard &&
-          !permissions.canViewMarketingDashboard
+          !permissions.canViewMarketingDashboard &&
+          !permissions.canViewCallcenterDashboard
         ) {
           return false;
         }
@@ -1680,6 +1682,7 @@ export function CompanyLayout() {
             Vai al contenuto principale
           </a>
           <QuickLoginReturnBanner />
+          <AvvisoAziendaServer commercialista={isCommercialistaMode} />
           <ImpersonationBanner />
           <ViewAsBanner />
           {isCommercialistaMode && (

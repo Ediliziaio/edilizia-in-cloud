@@ -54,9 +54,6 @@ export function RapportiniDaCompilareOggi() {
           <ClipboardList className="h-4 w-4" />
           {cantieri.length === 1 ? "Rapportino da inviare" : `${cantieri.length} rapportini da inviare`}
         </CardTitle>
-        <p className="text-xs text-violet-700 dark:text-violet-300 mt-1">
-          Oggi e ieri: invia entro il giorno successivo al lavoro. La timbratura di uscita va fatta separatamente.
-        </p>
       </CardHeader>
       <CardContent className="space-y-2">
         {cantieri.slice(0, 5).map((c) => (

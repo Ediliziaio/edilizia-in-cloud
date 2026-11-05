@@ -2,6 +2,11 @@ import { AlertTriangle, CalendarClock, Clock, TrendingDown, TrendingUp } from "l
 import type { ScadenzarioSummary } from "@/hooks/useScadenzario";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { queryKeys } from "@/lib/queryKeys";
+import { domenicaDi } from "@/lib/finance/incassiSettimanali";
 
 // Nei KPI di testata niente centesimi: piu' leggibili, mai troncati
 // (stessa scelta del riepilogo Commesse e dei Costi).
@@ -15,9 +20,30 @@ interface Props {
   className?: string;
 }
 
+/** Da oggi a domenica, con le stesse settimane della vista «Per settimana». */
+function useSettimanaScadenzario() {
+  const companyId = useEffectiveCompanyId();
+  const oggi = new Date().toLocaleDateString("en-CA");
+  const { data } = useQuery({
+    queryKey: [...queryKeys.scadenzario.all, "settimana", companyId, oggi],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data: righe, error } = await supabase.from("scadenze").select("direction, amount, paid_amount")
+        .eq("company_id", companyId!).in("status", ["da_pagare", "parziale"])
+        .gte("due_date", oggi).lte("due_date", domenicaDi(oggi)).limit(1000);
+      if (error) throw error;
+      const somma = (verso: string) => (righe ?? []).filter((r) => r.direction === verso)
+        .reduce((t, r) => t + Number(r.amount ?? 0) - Number(r.paid_amount ?? 0), 0);
+      return { incassare: somma("entrata"), pagare: somma("uscita") };
+    },
+  });
+  return data;
+}
+
 export default function ScadenzarioKPIs({ summary, isLoading, className }: Props) {
   // I due versi separati arrivano dalla RPC. Se una risposta vecchia non li
   // porta ancora, si ricade sul totale: meglio il numero di prima che nessuno.
+  const settimana = useSettimanaScadenzario();
   const scadutoEntrata = summary?.scadute_entrata_amount ?? summary?.scadute_amount ?? 0;
   const scadutoUscita = summary?.scadute_uscita_amount ?? 0;
   const entrataCount = summary?.scadute_entrata_count ?? summary?.scadute_count ?? 0;
@@ -62,9 +88,10 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
             tone={entrataCount > 0 ? "text-orange-300" : "text-emerald-200"}
           />
           <NavyStatCard
-            label="Questa settimana"
-            value={fmtEur(summary.questa_settimana_amount)}
-            sub={`${summary.questa_settimana_count} scadenz${summary.questa_settimana_count === 1 ? "a" : "e"}`}
+            // Prima sommava incassi e pagamenti in un numero solo, che non diceva né l'uno né l'altro.
+            label="Da incassare questa settimana"
+            value={settimana ? fmtEur(settimana.incassare) : "—"}
+            sub={settimana ? `e ${fmtEur(settimana.pagare)} da pagare` : "Non caricato"}
             icon={CalendarClock}
             tone="text-amber-200"
           />

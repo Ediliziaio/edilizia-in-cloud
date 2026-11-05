@@ -201,11 +201,13 @@ export const blogPostsNormativa: BlogPost[] = [
   {
     id: "n3",
     slug: "pos-piano-operativo-sicurezza-fac-simile",
+    video: { youtubeId: "7ERyfY8sPKY", duration: "PT5M3S", uploadedAt: "2026-11-04T08:21:09+01:00" },
     title: "POS piano operativo di sicurezza: guida e fac simile",
     excerpt:
       "Il POS è il primo documento che l'ispettore chiede: chi deve redigerlo, i 10 capitoli dell'Allegato XV, le sanzioni e come evitare il piano fotocopia.",
     category: "Normativa",
     tags: ["POS", "sicurezza cantiere", "D.Lgs 81/08", "Allegato XV"],
+    updatedAt: "2026-11-04",
     publishedAt: "2026-07-25",
     readTime: 9,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
@@ -219,12 +221,12 @@ export const blogPostsNormativa: BlogPost[] = [
       {
         type: "section",
         heading: "Chi deve redigere il POS (e chi no)",
-        body: "Il POS lo firma chi ne risponde: tu, datore di lavoro. Lo redige il datore di lavoro di ogni impresa esecutrice, per ogni singolo cantiere, prima dell'inizio dei propri lavori. Vale anche per l'impresa affidataria quando esegue lavorazioni con proprio personale. E vale anche se in cantiere c'è una sola impresa: il POS non dipende dalla presenza del coordinatore. Chi invece NON deve redigerlo: i lavoratori autonomi senza dipendenti (l'art. 21 D.Lgs 81/08 assegna loro altri obblighi, come tessera e attrezzature conformi, ma non il POS). Puoi farti aiutare dall'RSPP o da un consulente, ma la responsabilità del documento resta tua: la firma in calce non è una formalità. Ricorda anche l'art. 102: il rappresentante dei lavoratori per la sicurezza deve poter consultare il piano, con copia consegnata almeno 10 giorni prima dell'inizio dei lavori. Salti questo passaggio e la prima contestazione è già pronta.",
+        body: "Il POS è redatto dal datore di lavoro dell’impresa esecutrice per il singolo cantiere, prima dei propri lavori, nel campo di applicazione del Titolo IV del D.Lgs. 81/2008. L’assistenza di RSPP o consulenti non trasferisce automaticamente le responsabilità. Il ruolo del lavoratore autonomo va distinto da quello dell’impresa in base all’organizzazione effettiva, non soltanto all’etichetta contrattuale. Per i rappresentanti per la sicurezza, l’art. 100, comma 4, prevede la disponibilità di copia di PSC e POS almeno dieci giorni prima dell’inizio dei lavori; l’art. 102 disciplina la consultazione sul PSC e sulle sue modifiche significative. Verifica contenuti, consegna e consultazione con le figure della sicurezza del cantiere.",
       },
       {
         type: "section",
         heading: "POS, PSC e PSS: chi fa cosa",
-        body: "Tre sigle, tre documenti, tre responsabili diversi. Confonderli costa. Il PSC (piano di sicurezza e coordinamento) lo redige il coordinatore per la sicurezza in progettazione, incaricato dal committente, quando in cantiere sono previste più imprese anche non contemporanee: fotografa i rischi dell'intero cantiere e le regole di coordinamento tra le imprese. Il PSS (piano sostitutivo di sicurezza) riguarda gli appalti pubblici nei casi in cui il PSC non è obbligatorio: lo redige l'appaltatore e sostituisce il PSC, senza però contenere la stima dei costi della sicurezza. Il POS è invece sempre dovuto da ogni impresa esecutrice e funziona come piano complementare e di dettaglio del PSC. Dove il PSC dice «in questo cantiere si lavora così», il POS dice «la mia impresa, con questi uomini e questi mezzi, lavora così». L'impresa affidataria verifica la congruenza dei POS dei subappaltatori rispetto al proprio prima di trasmetterli al coordinatore per l'esecuzione. E i lavori di ciascuna impresa iniziano solo dopo l'esito positivo di quelle verifiche: un POS incoerente tiene fermo il subappalto al palo.",
+        body: "PSC e POS hanno perimetri diversi. Il PSC riguarda sicurezza e coordinamento del cantiere quando previsto; il POS descrive l’attività della singola impresa ed è complementare e di dettaglio rispetto al PSC. Il PSS compare in modelli e riferimenti di precedenti discipline: non va presentato come un obbligo sostitutivo universale per ogni appalto pubblico senza PSC. Occorre verificare la disciplina applicabile al rapporto. L’art. 101 prevede che ciascuna esecutrice trasmetta il POS all’affidataria prima dei propri lavori; l’affidataria ne verifica la congruenza rispetto al proprio e lo trasmette al coordinatore per l’esecuzione secondo il percorso applicabile. I lavori iniziano dopo l’esito positivo delle verifiche, da svolgere tempestivamente e comunque non oltre quindici giorni dalla ricezione.",
       },
       {
         type: "list",
@@ -293,11 +295,13 @@ export const blogPostsNormativa: BlogPost[] = [
   {
     id: "n4",
     slug: "prezzario-regionale-edilizia",
+    video: { youtubeId: "QttCZYmALfk", duration: "PT4M50S", uploadedAt: "2026-11-04T08:21:09+01:00" },
     title: "Prezzario regionale edilizia: cos'è e come si usa davvero",
     excerpt:
-      "Il prezzario regionale contiene già spese generali e utile: come leggerlo, usarlo in preventivi e computi, e quando scostarsi senza lavorare in perdita.",
+      "Prezzario regionale edilizia: leggi voci e inclusioni, verifica l’edizione e confronta i prezzi di riferimento con i costi reali del cantiere.",
     category: "Normativa",
     tags: ["prezzario regionale", "computo metrico", "preventivi", "appalti pubblici"],
+    updatedAt: "2026-11-04",
     publishedAt: "2026-07-25",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
@@ -306,22 +310,22 @@ export const blogPostsNormativa: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Firmi un ribasso del 30% per prendere il lavoro. Quello che nessuno ti ha detto: il prezzo di partenza conteneva già il 10% di utile. Hai appena firmato una perdita. Il prezzario regionale edilizia è il listino ufficiale dei prezzi delle lavorazioni edili pubblicato da ogni Regione e aggiornato ogni anno, come previsto dall'art. 41, comma 13, del Codice appalti (D.Lgs 36/2023). È la base di computi metrici e preventivi: obbligatorio come riferimento negli appalti pubblici, metro di paragone nei lavori privati, riferimento di congruità nei bonus fiscali. Imparare a leggerlo è la differenza tra prezzi difendibili e lavori in perdita.",
+        body: "Il prezzario regionale edilizia è un riferimento da leggere prima di usarlo nel preventivo: descrizione della voce, unità di misura, inclusioni e regole di applicazione contano quanto il prezzo. Un ribasso non dimostra da solo che lavorerai in perdita, così come il prezzo di listino non garantisce il margine. Devi confrontare il ricavo contrattuale con i costi previsti della tua lavorazione. Nei lavori pubblici, negli interventi privati e nelle verifiche per agevolazioni possono valere criteri diversi: individua il quadro applicabile, poi usa edizione e voce pertinenti.",
       },
       {
         type: "section",
         heading: "Cos'è il prezzario regionale e chi lo pubblica",
-        body: "Migliaia di voci, ognuna con codice, descrizione, unità di misura e prezzo unitario. Organizzate per capitoli: scavi, strutture, murature, impianti, finiture. Ogni Regione pubblica così il proprio prezzario delle opere edili. Il Codice appalti impone alle Regioni l'aggiornamento annuale, con possibilità di aggiornamenti infrannuali quando i prezzi dei materiali si muovono in modo significativo — come nel biennio 2022-2023, quando alcuni prezzari sono stati riemessi anche due volte l'anno. Accanto ai prezzari regionali esistono listini privati di riferimento, come quelli DEI, molto usati nel privato e nelle perizie: non sono ufficiali, ma spesso più aggiornati su lavorazioni particolari. Occhio alla data dell'edizione: preventivare su un prezzario vecchio significa usare prezzi che il mercato ha già superato.",
+        body: "Il prezzario organizza voci con codice, descrizione, unità di misura e prezzo unitario, raggruppate per lavorazioni. Il Codice dei contratti pubblici prevede l’aggiornamento dei prezzari regionali; per il tuo elaborato controlla anche validità, disposizioni transitorie e avvertenze della versione scelta. I listini DEI sono pubblicazioni private: non considerarli automaticamente più aggiornati o sufficienti in ogni situazione. Consulta le fonti richieste dalla disciplina applicabile e conserva il riferimento all’edizione effettivamente utilizzata.",
       },
       {
         type: "section",
         heading: "Come è costruita una voce di prezzario",
-        body: "Quel 28 €/mq per l'intonaco non è un numero buttato lì. Nasce da un'analisi che somma materiali, noli, trasporti e manodopera, più le spese generali (di norma tra il 13% e il 17%) e l'utile d'impresa (di norma il 10%). Due conseguenze pratiche, tutte e due da soldi. Prima: il prezzo di prezzario è già un prezzo «finito». Se ci applichi sopra il tuo ricarico pieno, conti l'utile due volte. Se accetti un ribasso del 30%, stai quasi certamente lavorando sotto costo. Seconda: molte voci riportano l'incidenza percentuale della manodopera, dato prezioso per stimare le ore e per la verifica di congruità. Impara a leggere l'analisi di una voce: è il modo più rapido per capire se su quella lavorazione la tua impresa guadagna o perde.",
+        body: "Un prezzo al metro quadrato senza codice, edizione e descrizione della voce è soltanto un esempio, non un riferimento ufficiale. Prima di usare il prezzario, leggi analisi, inclusioni, esclusioni e norme di misurazione: materiali, manodopera, mezzi, spese generali e utile possono essere già compresi secondo la composizione prevista. Evita di aggiungere due volte la stessa componente. Non si può dedurre una perdita dalla sola percentuale di utile del listino o da un ribasso isolato: confronta ricavo contrattuale e costo previsto della lavorazione. Anche l’incidenza della manodopera richiede interpretazione e dati coerenti per stimare ore e verificare la congruità.",
       },
       {
         type: "section",
         heading: "Come si usa nei preventivi e nei computi",
-        body: "Negli appalti pubblici non scegli: il prezzario regionale è il riferimento per progetto e stima dei costi. Il computo metrico estimativo si costruisce con le voci regionali e il ribasso d'asta si applica su quelle. Nei lavori privati nessuno ti obbliga, ma partire dalla voce di prezzario e adattarla ai tuoi costi reali produce preventivi difendibili davanti al cliente: «questo è il prezzo ufficiale della Regione, il mio è questo perché...». Il salto di qualità è collegare listino e consuntivi. Il prezzario dice 28 €/mq per l'intonaco e i tuoi cantieri chiudono a 34 €/mq? O hai un problema di produttività, o stai facendo preventivi in perdita. Chi produce preventivi professionali con un listino personale costruito sui prezzari e corretto con i propri dati reali chiude offerte più velocemente. E con margini che reggono fino a fine cantiere.",
+        body: "Nei lavori pubblici fonti, criteri e voci seguono il Codice, gli allegati pertinenti e gli atti della procedura. Nel privato verifica contratto, intervento e finalità del documento: il prezzario non va dichiarato sempre facoltativo in assoluto. Nel [computo metrico estimativo](/blog/computo-metrico-estimativo-guida/) controlla descrizioni, quantità e misurazioni prima del riepilogo. Confronta poi il ricavo offerto con la previsione dei costi reali, distinguendo produttività, materiali, condizioni operative e dati mancanti. Collegare il listino ai [preventivi professionali](/funzionalita/preventivi-edilizia/) e ai consuntivi aiuta il controllo: non sostituisce la verifica economica della singola commessa.",
       },
       {
         type: "list",
@@ -340,23 +344,23 @@ export const blogPostsNormativa: BlogPost[] = [
       {
         type: "section",
         heading: "Prezzario e bonus fiscali: la congruità delle spese",
-        body: "Il tuo preventivo per il cappotto sfora i valori di riferimento senza una riga di spiegazione. L'asseverazione si complica e la detrazione del cliente trema. Per detrazioni come bonus casa, ecobonus e bonus barriere, i tecnici asseverano la congruità delle spese confrontandole con i prezzari regionali, i listini DEI e, per gli interventi con massimali specifici, i valori dei decreti ministeriali sui costi massimi. La mossa giusta: imposta i preventivi dei lavori agevolati già sulle voci di prezzario e documenta gli eventuali scostamenti — accessi difficili, lavorazioni particolari, forniture premium — con un'analisi scritta. Su questi importi la precisione paga due volte: cliente più sereno, contestazioni quasi azzerate.",
+        body: "Per gli interventi agevolati, verifica con il professionista quale beneficio, periodo e disciplina si applicano. Prezzari regionali, listini DEI e massimali specifici possono avere ruoli diversi nelle verifiche richieste. Il superamento di un limite pertinente non diventa automaticamente agevolabile perché accompagnato da una relazione: occorre distinguere costo contrattuale, congruità e spesa ammessa. Prima di promettere una detrazione al cliente, controlla documentazione, condizioni e importi con il tecnico e il consulente fiscale.",
       },
       {
         type: "section",
         heading: "I limiti del prezzario (e quando è giusto scostarsi)",
-        body: "Il prezzario riporta prezzi medi regionali in condizioni standard. Il tuo cantiere non è mai standard. Quantità minime antieconomiche, centri storici con accessi impossibili, lavorazioni in quota, urgenze, bonifiche impreviste: lì il prezzo medio non copre i costi reali. Lo strumento corretto per scostarsi è l'analisi del nuovo prezzo (NP): scomponi la lavorazione in materiali, noli e ore di manodopera ai costi correnti, aggiungi spese generali e utile, documenti tutto. Negli appalti pubblici ricordati anche della revisione prezzi: il D.Lgs 36/2023 (art. 60) la rende obbligatoria nei contratti, con attivazione quando la variazione dei costi supera il 5% e riconoscimento dell'80% dell'eccedenza. Tradotto: il prezzario è il punto di partenza del discorso sui prezzi, quasi mai il punto di arrivo. Chi lo tratta da vangelo lascia margine sul tavolo a ogni offerta.",
+        body: "Il prezzario è un riferimento da confrontare con le condizioni dell’intervento. Se manca una voce adeguata, valuta l’analisi del nuovo prezzo secondo le regole applicabili, documentando materiali, mezzi, manodopera e maggiorazioni pertinenti. La revisione prezzi è un tema distinto: l’art. 60 del D.Lgs. 36/2023 e l’Allegato II.2-bis prevedono meccanismi da verificare rispetto a procedura, periodo e contratto. Nel quadro risultante dal correttivo, per i lavori la soglia è del 3% e il riconoscimento riguarda il 90% dell’eccedenza, mentre servizi e forniture seguono regole diverse. Non estendere automaticamente il precedente schema 5%/80% a tutti i lavori. Verifica regime transitorio, clausola, indici e prestazioni da eseguire con il professionista che segue il contratto.",
       },
       {
         type: "cta",
-        heading: "Dal prezzario al preventivo in pochi minuti",
+        heading: "Dal prezzario al preventivo, con dati verificati",
         body: "Il preventivo in perdita non si vede quando lo firmi: si vede a fine cantiere, quando mancano i soldi. Con Edilizia in Cloud costruisci il tuo listino dalle voci che usi davvero, lo colleghi a computi e preventivi e confronti i prezzi offerti con i costi reali di cantiere. Prova gratis 31 giorni e fai il prossimo preventivo con i numeri giusti.",
       },
     ],
     faqs: [
       {
         q: "Il prezzario regionale è obbligatorio nei lavori privati?",
-        a: "No. Nei lavori privati il prezzo lo fanno le parti: il prezzario è solo un riferimento autorevole, utile per giustificare il preventivo verso il cliente e per le perizie. Diventa invece rilevante nei lavori con bonus fiscali, dove i tecnici verificano la congruità delle spese proprio sui prezzari regionali, sui listini DEI o sui massimali ministeriali.",
+        a: "Nei lavori privati bisogna verificare contratto, intervento e finalità dell’elaborato. Il prezzario può essere un riferimento utile, ma non va dichiarato sempre facoltativo in assoluto: pratiche, agevolazioni e verifiche specifiche possono richiedere criteri dedicati. Confronta la voce con i costi reali e verifica le regole del tuo caso.",
       },
       {
         q: "Ogni quanto viene aggiornato il prezzario regionale?",
@@ -364,25 +368,27 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         q: "Posso fare un preventivo con prezzi più alti del prezzario?",
-        a: "Sì: nei lavori privati il prezzo lo decidi tu, conta solo che il cliente accetti. La mossa intelligente è motivare lo scostamento con un'analisi (condizioni di cantiere, qualità delle forniture, garanzie) invece di presentare un numero secco. Nei lavori con bonus fiscali gli scostamenti vanno documentati bene, perché il tecnico deve asseverare la congruità della spesa.",
+        a: "Il prezzo contrattuale va distinto dai criteri eventualmente richiesti per asseverazioni, agevolazioni e altre verifiche. Nel privato si valutano accordi e regole applicabili; un’analisi può rendere trasparente il calcolo, ma non rende automaticamente agevolabile un importo che supera un limite pertinente. Verifica il caso con il professionista prima di promettere al cliente una detrazione.",
       },
       {
         q: "Come gestisco una lavorazione che nel prezzario non esiste?",
-        a: "Con l'analisi del nuovo prezzo (NP): scomponi la lavorazione in materiali, noli, trasporti e ore di manodopera ai costi correnti, poi aggiungi spese generali (13-17%) e utile d'impresa (10%). Negli appalti pubblici i nuovi prezzi vanno concordati e approvati secondo le regole del contratto; nei privati l'analisi allegata al preventivo rende il prezzo trasparente e difficile da contestare.",
+        a: "Valuta un’analisi del nuovo prezzo secondo le regole applicabili, documentando quantità di materiali, impiego dei mezzi, tempi e costi della manodopera e le altre componenti pertinenti. Spese generali e utile devono seguire un criterio esplicito: evita percentuali universali presunte. Negli appalti pubblici verifica anche il percorso di determinazione e approvazione previsto per il contratto.",
       },
       {
         q: "Che differenza c'è tra prezzario regionale e listino DEI?",
-        a: "Il prezzario regionale è pubblicato dalla Regione, gratuito e ufficiale: fa fede negli appalti pubblici. I listini DEI sono pubblicazioni private a pagamento, molto usate nel mercato privato, nelle perizie e per la congruità dei bonus: spesso coprono più lavorazioni e vengono aggiornati più di frequente. Nella pratica molte imprese li usano insieme, prendendo da ciascuno le voci più realistiche.",
+        a: "Il prezzario regionale è predisposto dall’amministrazione competente; i listini DEI sono pubblicazioni private con proprie edizioni e condizioni di accesso. Hanno origine e perimetro differenti. Per scegliere quale riferimento utilizzare, verifica la finalità dell’elaborato e le fonti ammesse o richieste nel caso concreto, senza presumere che una sia sempre più aggiornata o prevalga sull’altra.",
       },
       {
         q: "I prezzi del prezzario includono già l'utile dell'impresa?",
-        a: "Sì. Le voci dei prezzari regionali comprendono di norma le spese generali (tra il 13% e il 17%) e l'utile d'impresa (10%). Per questo un ribasso d'asta molto forte erode prima l'utile e poi entra nei costi vivi: accettare il 30% di sconto su un prezzo che contiene il 10% di utile significa quasi certamente lavorare in perdita su quella voce.",
+        a: "Le componenti comprese vanno verificate nella singola voce e nelle avvertenze del prezzario utilizzato. Spese generali e utile non sono percentuali universali da sommare automaticamente. Prima di applicare ricarichi o ribassi, confronta la composizione della voce con il costo previsto della tua lavorazione: la perdita non si deduce da una percentuale isolata.",
       },
     ],
   },
   {
     id: "n5",
     slug: "cartello-di-cantiere-obbligatorio",
+    updatedAt: "2026-11-04",
+    video: { youtubeId: "tHdqM_ncn50", duration: "PT3M32S", uploadedAt: "2026-11-04T07:59:52+01:00" },
     title: "Cartello di cantiere: cosa scrivere, quando serve, sanzioni",
     excerpt:
       "Cartello di cantiere obbligatorio anche con CILA e SCIA? Cosa deve contenere, modello di testo pronto, dimensioni, chi risponde e sanzioni.",
@@ -482,13 +488,14 @@ export const blogPostsNormativa: BlogPost[] = [
   {
     id: "n6",
     slug: "notifica-preliminare-cantiere",
+    video: { youtubeId: "MjlWZJTEZRA", duration: "PT4M11S", uploadedAt: "2026-11-04T08:21:09+01:00" },
     title: "Notifica preliminare: quando serve e come inviarla",
     excerpt:
-      "Quando serve e quando no la notifica preliminare: più imprese o almeno 200 uomini-giorno. Chi la invia, come si fa online e la sanzione fino a 1.800 €.",
+      "Notifica preliminare: quando è dovuta, chi la trasmette, destinatari, ricevuta e aggiornamenti da verificare prima di iniziare il cantiere.",
     category: "Normativa",
     tags: ["notifica preliminare", "art. 99 D.Lgs 81/08", "apertura cantiere", "adempimenti cantiere"],
     publishedAt: "2026-07-25",
-    updatedAt: "2026-10-18",
+    updatedAt: "2026-11-04",
     readTime: 7,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
@@ -496,7 +503,7 @@ export const blogPostsNormativa: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Il cantiere parte lunedì. La notifica preliminare non è partita. Se dentro entrano due imprese, quel documento mancante può costare al committente da 500 a 1.800 € — e il primo che l'ispettore chiama sei tu. La notifica preliminare cantiere è la comunicazione che il committente o il responsabile dei lavori deve inviare ad ASL e Ispettorato territoriale del lavoro prima dell'inizio dei lavori, nei casi previsti dall'art. 99 del D.Lgs 81/08: cantieri in cui opera più di un'impresa, anche non contemporaneamente, e cantieri con una sola impresa ma entità di lavoro pari o superiore a 200 uomini-giorno. Ecco quando è obbligatoria e come si invia in dieci minuti.",
+        body: "La notifica preliminare cantiere è la comunicazione che il committente o il responsabile dei lavori deve trasmettere prima dell’inizio nei casi dell’art. 99 del D.Lgs. 81/2008. I destinatari sono ASL e ufficio del lavoro territorialmente competenti e, limitatamente ai lavori pubblici, anche il prefetto. I presupposti comprendono più imprese esecutrici anche non contemporanee, le varianti che fanno ricadere in tale situazione e l’unica impresa con entità presunta non inferiore a 200 uomini-giorno. Non sostituisce titolo edilizio, PSC o POS: prima dell’ingresso verifica se è dovuta e acquisisci copia e ricevuta dal soggetto competente.",
       },
       {
         type: "callout",
@@ -517,7 +524,7 @@ export const blogPostsNormativa: BlogPost[] = [
       {
         type: "section",
         heading: "Come si invia: i portali regionali",
-        body: "Dieci minuti, costo zero: l'invio è tutto qui. La trasmissione oggi è telematica praticamente ovunque: quasi tutte le Regioni hanno un portale dedicato alle notifiche preliminari (in Lombardia il sistema GE.CA, altrove le piattaforme regionali per i cantieri), che smista in automatico la comunicazione ad ASL e Ispettorato. La compilazione online segue i campi dell'Allegato XII e rilascia una ricevuta con numero identificativo. Conservala nel fascicolo di commessa: è la prova dell'adempimento e viene richiesta per accedere ai portali bonus e nelle verifiche degli enti. Dove il portale non è ancora attivo, resta la trasmissione via PEC ai due enti. Servono solo i dati giusti sotto mano. Chi rimanda l'invio non sta risparmiando tempo: sta accumulando rischio.",
+        body: "La trasmissione segue le modalità previste dagli enti del territorio: non esiste una procedura unica né un tempo garantito per ogni pratica. In Lombardia la Regione indica il servizio telematico cantieri per l’invio. Negli altri territori consulta le istruzioni ufficiali prima di scegliere portale, destinatari o PEC. Compila i contenuti dell’Allegato XII con dati coerenti e conserva la ricevuta e gli eventuali aggiornamenti nel fascicolo della commessa. Per incentivi e altre pratiche, verifica separatamente quali documenti e requisiti sono richiesti.",
       },
       {
         type: "list",
@@ -542,7 +549,7 @@ export const blogPostsNormativa: BlogPost[] = [
       {
         type: "section",
         heading: "Sanzioni e conseguenze pratiche",
-        body: "Da 500 a 1.800 €: questa la sanzione amministrativa dell'art. 157 del D.Lgs 81/08 per il committente o responsabile dei lavori che omette la notifica dovuta. Ma il numero da solo non racconta il danno. La notifica mancante emerge quasi sempre durante un'ispezione o dopo un infortunio — nei momenti peggiori — e trascina verifiche su coordinatore, PSC, POS, DURC e congruità della manodopera. In più, la copia della notifica è richiesta in pratiche e piattaforme (bonus fiscali, portali degli enti): scoprire a consuntivo che manca significa bloccare pratiche e pagamenti. La regola d'oro per l'impresa: prima di aprire qualsiasi cantiere con più imprese o sopra i 200 uomini-giorno, chiedi al committente copia della notifica e mettila nel fascicolo di commessa. Un PDF oggi vale più di una spiegazione domani.",
+        body: "Non è corretto attribuire una multa unica di 500–1.800 euro a ogni omissione della notifica richiamando genericamente l’art. 157. Devono essere individuate le violazioni effettive e i soggetti responsabili. L’art. 90, comma 10, prevede conseguenze sull’efficacia del titolo abilitativo anche in assenza della notifica quando dovuta. Coordinamento, piani, regolarità e requisiti di eventuali agevolazioni vanno verificati nel caso concreto con i professionisti competenti. Per l’impresa il controllo pratico resta questo: prima di iniziare chiedi se la notifica è dovuta, acquisisci la versione corretta e conserva invio, ricevuta e aggiornamenti.",
       },
       {
         type: "cta",
@@ -557,7 +564,7 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         q: "Come si fa la notifica preliminare in Lombardia?",
-        a: "In Lombardia si invia online dal sistema regionale GE.CA (Gestione Cantieri), che la trasmette ad ATS e Ispettorato del lavoro e rilascia la ricevuta. Le altre Regioni hanno piattaforme simili; dove manca il portale si usa la PEC verso ASL e Ispettorato territoriale del lavoro.",
+        a: "In Lombardia la Regione indica la trasmissione telematica attraverso il servizio cantieri. In altri territori vanno consultate le istruzioni ufficiali degli enti competenti: portale, destinatari e modalità non devono essere presunti. Conserva sempre ricevuta e aggiornamenti nel fascicolo di commessa.",
       },
       {
         q: "Quando è obbligatoria la notifica preliminare?",
@@ -565,7 +572,7 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         q: "Chi deve inviare la notifica preliminare?",
-        a: "Il committente o, se nominato, il responsabile dei lavori: mai l'impresa esecutrice. L'impresa fa però bene a pretenderne copia prima di iniziare, perché lavorare in un cantiere privo di notifica obbligatoria espone tutti a verifiche e contestazioni. La copia va anche affissa in cantiere in modo visibile e custodita a disposizione degli organi di vigilanza.",
+        a: "Il soggetto obbligato è il committente o il responsabile dei lavori. L’eventuale assistenza tecnica nella trasmissione non va confusa con la titolarità dell’obbligo. L’impresa verifica prima dell’ingresso se la notifica è dovuta e ne acquisisce copia e ricevuta. La copia deve essere affissa in modo visibile in cantiere e custodita per gli organi di vigilanza.",
       },
       {
         q: "Come si calcolano gli uomini-giorno?",
@@ -573,7 +580,7 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         q: "Come si invia la notifica preliminare?",
-        a: "Tramite i portali telematici regionali dedicati ai cantieri, che trasmettono in automatico ad ASL e Ispettorato territoriale del lavoro e rilasciano una ricevuta con numero identificativo; dove il portale non c'è, via PEC ai due enti. L'invio è gratuito. La ricevuta va conservata nel fascicolo di commessa: viene richiesta in molte pratiche, bonus fiscali compresi.",
+        a: "Segui le istruzioni ufficiali degli enti territorialmente competenti. In Lombardia la Regione indica il servizio telematico cantieri. In altri territori non presumere portale o PEC: verifica canale e destinatari, compreso il prefetto per i lavori pubblici, e conserva ricevuta e aggiornamenti.",
       },
       {
         q: "Cosa succede se entra una seconda impresa a cantiere già aperto?",
@@ -581,7 +588,7 @@ export const blogPostsNormativa: BlogPost[] = [
       },
       {
         q: "Quali sanzioni rischia chi non invia la notifica?",
-        a: "Da 500 a 1.800 € di sanzione amministrativa pecuniaria per il committente o responsabile dei lavori (art. 157 D.Lgs 81/08). Il danno maggiore è indiretto: la mancanza emerge in ispezioni o dopo infortuni e innesca controlli a catena su coordinatore, piani di sicurezza, DURC e presenze, oltre a bloccare le pratiche che richiedono copia della notifica.",
+        a: "Non esiste una multa unica da attribuire automaticamente a ogni omissione richiamando l’art. 157. Occorre individuare violazione, obblighi e soggetti responsabili. L’art. 90, comma 10, prevede conseguenze sull’efficacia del titolo abilitativo quando manca la notifica dovuta. Verifica tempestivamente il caso con i professionisti competenti.",
       },
     ],
   },

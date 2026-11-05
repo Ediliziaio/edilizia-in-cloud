@@ -28,7 +28,8 @@ import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare
 describe("fatture registrate senza commessa", () => {
   it("conferma la commessa proposta in un clic; le spese generali non si chiedono", async () => {
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><FattureDaAssegnare companyId="a" puoModificare /></QueryClientProvider>);
-    expect(await screen.findByText(/2 fatture registrate senza commessa/)).toBeTruthy();
+    // Di norma chiuso: è un promemoria, non deve spingere via la tabella.
+    fireEvent.click(await screen.findByText(/2 fatture registrate senza commessa/));
     expect(screen.queryByText("TIM")).toBeNull();
     expect(screen.getByText(/1 senza proposta/)).toBeTruthy();
     fireEvent.click(screen.getByText(/Assegna a O-0012/));

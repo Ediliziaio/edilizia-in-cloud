@@ -23,6 +23,7 @@ import { escapeEmailValue, emailContentEmpty } from "../../../supabase/functions
 import { readAutomationCustomField, resolveAutomationCustomConfig, writeAutomationCustomField } from "../../../supabase/functions/_shared/automationCustomFields";
 import { AUTOMATION_NATIVE_FIELDS,customFieldId } from "../../../supabase/functions/_shared/automationFieldContract";
 import { platformSubscriptionPlan } from "../../../supabase/functions/_shared/platformSubscriptionPlan";
+import { confrontoConOggi, eOperatoreData } from "../../../supabase/functions/_shared/condizioniData";
 
 const engine = fs.readFileSync("supabase/functions/process-automation/index.ts", "utf8");
 const scheduler = fs.readFileSync("supabase/functions/check-scheduled-triggers/index.ts", "utf8");
@@ -47,7 +48,7 @@ function load(name: string, globals: Record<string, any> = {}, source = engine):
     completeEnrollmentIfIdle: (...args: any[]) => load("completeEnrollmentIfIdle")(...args),
     markQueueItem: (...args: any[]) => load("markQueueItem")(...args),
     failWaitingTransition: (...args: any[]) => load("failWaitingTransition")(...args),
-    canaleDelFreno, LIMITE_AL_MINUTO, riprovaDopoFreno, ...globals,
+    canaleDelFreno, LIMITE_AL_MINUTO, riprovaDopoFreno, confrontoConOggi, eOperatoreData, ...globals,
   });
 }
 type Call = { table: string; steps: any[][] };

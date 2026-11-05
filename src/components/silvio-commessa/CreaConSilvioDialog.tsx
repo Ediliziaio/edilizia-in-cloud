@@ -12,7 +12,7 @@
  *
  * Con `orderId` è «Completa con Silvio» (fase 2, lotto 2.1): parte dalla commessa, mostra
  * chiuso quello che ha già, propone il resto (anche dai suoi documenti) e «Completa» aggiunge
- * senza toccare niente. Con `sequenza` è un passo di «Completa le prossime 5» (lotto 2.3).
+ * senza toccare niente.
  *
  * Fase 3: la chat scrive sulla bozza (anche a voce), la ⓘ apre il documento alla pagina
  * citata (`VisoreFonte`), e il popup si apre con più fonti insieme (gli allegati di un'email,
@@ -31,7 +31,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, SkipForward, Sparkles, Undo2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, RotateCcw, Sparkles, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,17 +42,18 @@ import { cn } from "@/lib/utils";
 import { completezzaPiano } from "../../../shared/silvio-commessa/completezza.ts";
 import type { Fonte, Modifica } from "../../../shared/silvio-commessa/piano.ts";
 import { prontaPerScrivere } from "@/lib/silvio-commessa/scrittura";
-import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { bozzeDaRiprendere, ErroreBozza, messaggioErrore, scartaAltreBozzeCrea, scartaBozza, type Bozza, type EsitoCommessa } from "@/lib/silvio-commessa/bozze";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ColonnaFonti } from "./ColonnaFonti";
 import { ColonnaChat } from "./ColonnaChat";
-import { ColonnaCommessa } from "./ColonnaCommessa";
+import { ColonnaCommessa, NomeSede, NomeStaff, RiepilogoNumeri } from "./ColonnaCommessa";
 import {
-  contiDellaBarra, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
-  minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat, testoDaDecidere,
+  avvisoStatoIniziale, clienteDaScegliere, contiDellaBarra, divisioneDaDecidere, numeriDaControllare, testoDecisioniSubito, titoloAltre, cosaDecidere, cosaScriveCrea, dataBreve, domandaDiSilvio, elencoControlla, euro, euroAI, dateDalleFasi, fineLavori, importoNascosto, margineDaMostrare,
+  minuscola, NOMI_AREE, pianoDellaCommessa, restatoFuori, siRiempieOra, STIMA_DETTATURA_EUR, suggerimentiChat,
 } from "./presentazione";
-import { useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
+import { messaggioDaLeggere, useBozzaSilvio, type FonteDaAggiungere } from "./useBozzaSilvio";
 import { serviziVeri, type ServiziSilvioCommessa } from "./servizi";
 import { VisoreFonte, type DocumentoDelVisore } from "./VisoreFonte";
 import { comeSiApre, paginaCitata, tipoDelDocumento } from "./documentoCitato";
@@ -75,8 +76,6 @@ export interface CreaConSilvioDialogProps {
   etichettaCommessa?: string | null;
   /** Dopo «Completa». Di serie chiude il popup e ricarica la pagina della commessa. */
   onCompletata?: (orderId: string) => void;
-  /** «Completa le prossime 5»: a che punto siamo, e come saltare questa commessa. */
-  sequenza?: { posizione: number; totale: number; onSalta: () => void } | null;
 }
 
 /** Il nome di una bozza da riprendere: il cliente, o il titolo. */
@@ -113,7 +112,7 @@ const campoDiTesto = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
-  const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null, sequenza = null } = props;
+  const { open, onOpenChange, companyId, userId, servizi = serviziVeri, orderId = null } = props;
   const completa = !!orderId;
   const { etichettaCommessa, iniziale: daFuori } = props;
   const iniziale = useMemo((): FonteDaAggiungere[] | null => {
@@ -126,6 +125,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   // «Importi di vendita» decide anche qui; il margine ha il suo permesso, e dagli importi si ricava.
   const { canViewOrderAmounts: vedeImporti, canViewMargins, canViewCosts: vedeCosti } = usePermissions();
   const b = useBozzaSilvio({ companyId, userId, servizi, orderId, vedeImporti, vedeCosti });
+  // Per dire prima di «Crea» se il cliente si ritrova: la stessa ricerca della RPC.
+  const { data: clientiDelGestionale } = useCompanyCustomers(companyId, open && !orderId);
   // La chat è la scheda principale del telefono: lì Silvio dice cosa legge e cosa chiede.
   const [scheda, setScheda] = useState<Scheda>("chat");
   const [campoAttivo, setCampoAttivo] = useState(false);
@@ -190,25 +191,40 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   // Prima di caricare qualcosa non si chiede niente: la chat dice cosa fare, la commessa aspetta.
   const vuota = !completa && !b.fonti.length && !b.messaggi.length;
   const legge = b.fonti.some((f) => f.stato === "in_lettura" || f.stato === "in_coda");
+  // Un documento che aspetta il via è come uno che si legge: la risposta può arrivare da lì.
+  const leggeraPoi = legge || b.fonti.some((f) => f.stato === "da_confermare");
   // Una domanda alla volta, e non mentre legge: la risposta può arrivare dal documento.
-  const domanda = vuota || (legge && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti, vedeCosti);
+  const domanda = vuota || (leggeraPoi && !b.piano.conflitti.length) ? null : domandaDiSilvio(b.piano, b.scrittura, new Date(), vedeImporti, vedeCosti, clientiDelGestionale);
   const margine = vedeImporti && canViewMargins ? margineDaMostrare(b.piano) : null;
   const fine = fineLavori(b.piano, b.scrittura);
   const inAttesa = b.fonti.filter((f) => f.stato === "da_confermare").map((f) => f.etichetta);
   const nonLetti = b.fonti.filter((f) => f.stato === "errore" || f.stato === "da_collegare").map((f) => f.etichetta);
   const motivi = [
-    ...prontaPerScrivere(b.scrittura),
+    ...prontaPerScrivere(b.scrittura, clientiDelGestionale),
     ...(legge ? ["Aspetta che finiscano le letture"] : []),
     ...(b.scrivendo ? ["Aspetta la risposta di Silvio"] : []),
     ...(inAttesa.length ? [`Leggi o togli ${inAttesa.join(", ")}`] : []),
   ];
   const ultimo = b.messaggi[b.messaggi.length - 1];
+  const statiAzienda = useQuery({
+    queryKey: ["silvio-commessa", "stati", companyId],
+    enabled: open && !completa && !!servizi.statiCommessa,
+    retry: false,
+    queryFn: () => servizi.statiCommessa!(companyId),
+  });
+  const avvisoStato = vuota ? null : avvisoStatoIniziale(b.piano, b.scrittura, statiAzienda.data);
   const daDecidere = useMemo(() => {
-    const d = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto });
-    return vuota ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
-  }, [b.piano, b.scrittura, completezza, vuota, vedeImporti, vedeCosti, b.contesto]);
+    const trovato = cosaDecidere(b.piano, b.scrittura, completezza, { vedeImporti, vedeCosti, contesto: b.contesto, clienti: clientiDelGestionale });
+    const d = avvisoStato ? { ...trovato, avvisi: [...trovato.avvisi, avvisoStato] } : trovato;
+    return vuota || leggeraPoi ? { ...d, domande: [], totale: d.totale - d.domande.length } : d;
+  }, [b.piano, b.scrittura, completezza, vuota, leggeraPoi, vedeImporti, vedeCosti, b.contesto, clientiDelGestionale, avvisoStato]);
+  const diviso = divisioneDaDecidere(daDecidere);
+  const numeri = useMemo(() => (vuota ? [] : numeriDaControllare(b.piano, b.scrittura, vedeImporti)), [vuota, b.piano, b.scrittura, vedeImporti]);
   const suggerimenti = useMemo(() => suggerimentiChat(b.piano, completezza), [b.piano, completezza]);
-  const mancano = useMemo(() => completezza.mancano.filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti)).map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti, vedeCosti]);
+  const fineDalleFasi = dateDalleFasi(b.scrittura).fine;
+  const mancano = useMemo(() => completezza.mancano
+    .filter((v) => siRiempieOra(v) && !importoNascosto(v.chiave, vedeImporti, vedeCosti) && !(v.chiave === "fasi.work_end_date" && fineDalleFasi))
+    .map((v) => ({ chiave: v.chiave, etichetta: v.etichetta })), [completezza, vedeImporti, vedeCosti, fineDalleFasi]);
   const scrive = cosaScriveCrea(b.scrittura);
 
   const apri = (chiave: string | null) => {
@@ -223,7 +239,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
    */
   const scrivi = useCallback(async (t: string) => {
     setErrore(null);
-    if (!completa && !b.fonti.length) { b.aggiungi([{ tipo: "testo", testo: t }]); return true; }
+    // Un messaggio lungo dice più cose (importo, pagamenti, fasi): si legge come un documento. Alla
+    // chat, che fa una correzione alla volta, i pagamenti diventavano fasi (prova online del 2/11).
+    if ((!completa && !b.fonti.length) || messaggioDaLeggere(t)) { b.aggiungi([{ tipo: "testo", testo: t }]); return true; }
     return b.scrivi(t);
   }, [b, completa]);
 
@@ -301,7 +319,6 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     onOpenChange(false);
     (props.onCreata ?? ((x: string) => navigate(`/azienda/ordini/${x}`)))(id);
   };
-  const avanti = sequenza && sequenza.posizione < sequenza.totale;
 
   /**
    * Chiudere mentre Silvio legge o scrive vuol dire pagare la lettura e perderne il
@@ -331,7 +348,9 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
     setScartare(false);
     if (!via) return;
     try {
-      await scartaBozza(via.id, servizi.db);
+      // Nuova commessa: tutte quelle lasciate a metà, altrimenti al prossimo giro ricompare la più vecchia.
+      if (completa) await scartaBozza(via.id, servizi.db);
+      else await scartaAltreBozzeCrea({ companyId, userId }, servizi.db);
       setRifiutoRipresa(true);
       void daRiprendere.refetch();
     } catch (e) {
@@ -342,8 +361,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
   const schede: { id: Scheda; nome: string; conta?: string; avviso?: boolean; etichetta?: string }[] = [
     { id: "chat", nome: "Chat", conta: b.scrivendo || legge ? "…" : undefined },
     {
-      id: "commessa", nome: "Commessa", conta: daDecidere.totale ? String(daDecidere.totale) : undefined, avviso: daDecidere.totale > 0,
-      etichetta: daDecidere.totale ? `Commessa, ${daDecidere.totale} da decidere` : undefined,
+      id: "commessa", nome: "Commessa", conta: diviso.subito ? String(diviso.subito) : undefined, avviso: diviso.subito > 0,
+      etichetta: diviso.subito ? `Commessa, ${diviso.subito} da decidere` : undefined,
     },
     { id: "fonti", nome: "Fonti", conta: b.fonti.length ? String(b.fonti.length) : undefined },
   ];
@@ -391,11 +410,6 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   </>
                   : "Nuova commessa con Silvio"}
               </span>
-              {sequenza && (
-                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
-                  {sequenza.posizione} di {sequenza.totale}
-                </span>
-              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 max-sm:sr-only">
               {completa
@@ -512,7 +526,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                   </Button>
                 )}
                 <Button type="button" className="h-11 lg:h-10" onClick={() => dopo(esito.order_id)}>
-                  {completa ? (avanti ? "Vai alla prossima" : "Chiudi") : "Apri la commessa"}
+                  {completa ? "Chiudi" : "Apri la commessa"}
                 </Button>
               </div>
             </div>
@@ -526,6 +540,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </Button>
                 <h3 id="titolo-controlla" className="text-base font-semibold text-slate-900">{completa ? "Cosa si aggiunge" : "Cosa nascerà"}</h3>
               </div>
+              <RiepilogoNumeri numeri={numeri} onTocca={(n) => (n.stato === "manca" ? apri(n.chiave) : vedi([n.chiave]))} />
+              {avvisoStato && <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{avvisoStato}</p>}
               {elencoControlla(b.piano, b.scrittura, vedeImporti, vedeCosti).map((g) => (
                 <section key={g.area} className="rounded-xl border bg-white p-3 shadow-sm" aria-label={NOMI_AREE[g.area]}>
                   <h4 className="text-sm font-semibold text-slate-900">{NOMI_AREE[g.area]}</h4>
@@ -533,7 +549,10 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                     {g.voci.map((v) => (
                       <li key={v.chiave} className="flex flex-wrap items-baseline gap-x-3 py-1.5 text-sm">
                         <span className="w-full text-xs text-slate-500 sm:w-44 sm:shrink-0">{v.etichetta}</span>
-                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori && !v.parziale ? "text-slate-400 line-through" : "text-slate-900")}>{v.testo}</span>
+                        <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", v.fuori && !v.parziale ? "text-slate-400 line-through" : "text-slate-900")}>
+                          {/* Il valore è l'id: «Controlla» mostrava il codice al posto del nome. */}
+                          {v.chiave === "persone.capomastro" || v.chiave === "persone.assigned_to" ? <NomeStaff companyId={companyId} id={v.testo} /> : v.chiave === "identita.sede_id" ? <NomeSede id={v.testo} /> : v.testo}
+                        </span>
                         {v.fuori && <span className="w-full text-xs text-amber-800 sm:w-auto">{v.parziale ? "entra in parte, resta fuori" : "resta fuori"}: {v.fuori}</span>}
                         {v.nota && <span className="w-full text-xs text-slate-500 sm:w-auto">{v.nota}</span>}
                       </li>
@@ -562,7 +581,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
               <h3 className="mb-1.5 hidden text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:block">Chat con Silvio</h3>
               <ColonnaChat messaggi={b.messaggi} domanda={domanda} legge={legge} onModifica={modifica} onApri={apri}
                 onScrivi={scrivi} scrivendo={b.scrivendo} onVedi={vedi}
-                annullabile={b.storia.length > 0} onAnnulla={b.indietro}
+                annullabile={b.storia.length > 0} passiStoria={b.storia.length} onAnnulla={b.indietro}
                 trascrivi={servizi.trascrivi} primaDiDettare={() => b.controllaCrediti(STIMA_DETTATURA_EUR)}
                 fonti={b.fonti} onAllega={(f) => b.aggiungi(f.map((file) => ({ tipo: "file" as const, file })))} onConferma={b.confermaLetture}
                 suggerimenti={suggerimenti} daDecidere={daDecidere} mancano={mancano} onFonti={() => setScheda("fonti")} tastiera={tastiera} />
@@ -574,7 +593,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 aperta={aperta} onApri={apri} onModifica={modifica}
                 daGuardare={b.daGuardare} onVisto={b.visto} apriFonte={apriFonte} autonomia={b.autonomia}
                 daDecidere={daDecidere} onVai={(c) => vedi([c])} vuota={vuota} contesto={b.contesto} vedeImporti={vedeImporti} vedeCosti={vedeCosti}
-                fineDalleFasi={dateDalleFasi(b.scrittura).fine} />
+                fineDalleFasi={fineDalleFasi} clienteDaScegliere={clienteDaScegliere(b.scrittura, clientiDelGestionale)} numeri={numeri} />
             </section>
           </div>
         )}
@@ -592,30 +611,26 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 </p>
                 <p className="text-xs text-slate-500">
                   {daDecidere.totale > 0
-                    ? <button type="button" className="min-h-11 text-left font-medium text-amber-700 underline-offset-2 hover:underline max-lg:-my-2.5 lg:min-h-0" onClick={() => vedi(["silvio-da-decidere"])}>
-                      Da decidere: {testoDaDecidere(daDecidere)}
+                    ? <button type="button" className={cn("min-h-11 text-left underline-offset-2 hover:underline max-lg:-my-2.5 lg:min-h-0", diviso.subito ? "font-medium text-amber-700" : "text-slate-600")} onClick={() => vedi(["silvio-da-decidere"])}>
+                      {diviso.subito
+                        ? <>Da decidere: {testoDecisioniSubito(daDecidere)}{diviso.altre > 0 ? ` · altre ${diviso.altre}` : ""}</>
+                        : `Niente di urgente. ${titoloAltre(diviso.altre)}.`}
                     </button>
                     : vuota ? "Carica un documento o scrivi il lavoro nella chat." : "Niente da decidere."}
                   <span className="max-sm:hidden">{" · "}costo AI {euroAI(conti.costoEur)}</span>
                 </p>
               </div>
               <div className="flex gap-2 max-sm:w-full">
-                {sequenza && (
-                  <Button type="button" variant="ghost" className="h-11 gap-1 max-sm:flex-1 lg:h-10" disabled={creando} onClick={() => chiudiSeSicuro(sequenza.onSalta)}>
-                    <SkipForward className="h-4 w-4" aria-hidden />Salta
-                  </Button>
-                )}
                 <Button type="button" variant="outline" className="h-11 gap-1 max-sm:flex-1 lg:h-10" aria-pressed={controlla}
                   onClick={() => setControlla(!controlla)}>
                   <ClipboardCheck className="h-4 w-4" aria-hidden />Controlla
                 </Button>
                 <Button type="button" className="h-11 gap-1 bg-orange-700 hover:bg-orange-800 max-sm:flex-1 lg:h-10"
                   disabled={creando || motivi.length > 0} aria-describedby={motivi.length ? "silvio-crea-motivi" : undefined}
-                  aria-label={completa && avanti && !creando ? "Completa e vai alla prossima" : undefined}
                   onClick={() => void crea()}>
                   {creando && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
                   {completa
-                    ? (creando ? "Completo…" : avanti ? <><span className="sm:hidden" aria-hidden>Completa ▸</span><span className="max-sm:hidden" aria-hidden>Completa e vai alla prossima ▸</span></> : "Completa ▸")
+                    ? (creando ? "Completo…" : "Completa ▸")
                     : (creando ? "Creo…" : "Crea la commessa ▸")}
                 </Button>
               </div>
@@ -625,6 +640,8 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 {completa ? "Per completare" : "Per creare"}: {motivi.map(minuscola).join("; ")}.
               </p>
             )}
+            {/* Sul telefono la barra deve restare bassa: lì si legge in «Controlla» e tra le altre cose della colonna. */}
+            {avvisoStato && !controlla && <p className="mt-1 text-xs text-amber-800 max-lg:hidden">{avvisoStato}</p>}
             {nonLetti.length > 0 && (
               <p className="mt-1 break-words text-xs text-amber-800">Non letti, restano fuori: {nonLetti.join(", ")}.</p>
             )}

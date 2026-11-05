@@ -1,4 +1,5 @@
 import { RuoloCantiereCampo } from "@/components/campo/RuoloCantiereCampo";
+import { BottoneCollaudo } from "@/components/campo/BottoneCollaudo";
 import { leggiRuoloOperativoCampo } from "@/lib/campo/ruoloOperativo";
 /**
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
@@ -468,16 +469,15 @@ export default function CampoLavoroDetail() {
       if (error) throw error;
       const righe = ((data ?? []) as (Omit<CampoOrderItem, "inCantiere"> & { natura_riga: string | null })[])
         .filter((r) => (r.natura_riga ?? "materiale") === "materiale");
-      // Le righe d'ordine si leggono senza l'ordine (che il campo non vede): se non si leggono, conta lo stato della riga.
+      // Quantità e stato dell'ordine dalla funzione del cantiere: ordini e prezzi restano
+      // chiusi. Se non risponde, conta lo stato della riga.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: ordini } = righe.length ? await (supabase as any)
-        .from("purchase_order_items")
-        .select("order_item_id, quantity, quantity_received, purchase_orders(status)")
-        .in("order_item_id", righe.map((r) => r.id)) : { data: [] };
+        .rpc("campo_righe_ordine_stato", { p_order_item_ids: righe.map((r) => r.id) }) : { data: [] };
       const perRiga = new Map<string, { quantity: number | null; quantity_received: number | null }[]>();
-      for (const o of (ordini ?? []) as { order_item_id: string; quantity: number | null; quantity_received: number | null; purchase_orders?: { status?: string | null } | null }[]) {
+      for (const o of (ordini ?? []) as { order_item_id: string; quantity: number | null; quantity_received: number | null; status: string | null }[]) {
         // Un ordine annullato o ancora in bozza non porta merce in cantiere.
-        if (["annullato", "bozza"].includes(o.purchase_orders?.status ?? "")) continue;
+        if (["annullato", "bozza"].includes(o.status ?? "")) continue;
         perRiga.set(o.order_item_id, [...(perRiga.get(o.order_item_id) ?? []), o]);
       }
       return righe.map((r) => ({ ...r, inCantiere: statoInCantiere(r, perRiga.get(r.id) ?? []) }));
@@ -912,14 +912,15 @@ export default function CampoLavoroDetail() {
           </button>
         )}
 
-        <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
+        <div className="mt-2 grid auto-cols-fr grid-flow-col gap-1.5 md:mt-3 md:gap-2">
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la
               sera dentro al rapportino (dove la galleria è irraggiungibile). */}
           {/* Bolla: parte da QUI (cantiere già impostato), non più dal menu "App".
               Giornaliero resta nella card "Chiudi giornata" e nella barra sticky. */}
           <QuickAction icon={Receipt} label="Bolla" onClick={() => navigate(`/campo/merce?order=${orderId}`)} />
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
-          <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          <QuickAction icon={AlertCircle} label="Segnala" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
+          {orderId && <BottoneCollaudo orderId={orderId} />}
         </div>
         </>}
 

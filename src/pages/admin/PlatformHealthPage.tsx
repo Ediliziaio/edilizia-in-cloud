@@ -1,3 +1,4 @@
+import { RenderAiChiavi } from "@/components/admin/RenderAiChiavi";
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -136,6 +137,8 @@ export default function PlatformHealthPage() {
           <span className="hidden md:inline">Aggiorna</span>
         </Button>
       </div>
+
+      <RenderAiChiavi />
 
       {error && (
         <Card><CardContent className="p-6">

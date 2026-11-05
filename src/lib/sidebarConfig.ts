@@ -237,6 +237,9 @@ export const macroAreas: MacroArea[] = [
     icon: Megaphone,
     items: [
       // ─── CRM & Vendita ───
+      // Call Center NON è una voce di sidebar: è un cruscotto, raggiungibile dal
+      // selettore dei cruscotti in /azienda/cruscotto/aziendale («Cruscotto Call
+      // Center»). La rotta /azienda/call-center resta (redirect di ruolo + selettore).
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       // Flag dedicato (non crm_modulo): il Piano Marketing tiene il CRM ma spegne i preventivi.

@@ -13,6 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 vi.setConfig({ testTimeout: 30_000 });
 
+// «Sotto la ricerca» è diventato «a sinistra» il 2/11/2026: l'elenco resta diviso per capitolo.
 const { db } = vi.hoisted(() => ({
   db: {
     capitoli: [
@@ -103,25 +104,28 @@ describe.each(MODULI)("computo di $slug: il listino per capitolo", ({ slug }) =>
   it("senza scegliere, le voci escono divise per capitolo", async () => {
     await monta(slug);
     const dialogo = await apriSelettore();
-    expect(await within(dialogo).findByText("Demolizioni (2)")).toBeInTheDocument();
-    expect(within(dialogo).getByText("Pavimenti e rivestimenti (1)")).toBeInTheDocument();
-    const capitoli = within(dialogo).getByRole("group", { name: "Capitoli del listino" });
-    expect(within(capitoli).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tutto", "Demolizioni", "Pavimenti e rivestimenti"]);
-    expect(within(capitoli).getByRole("button", { name: "Tutto" })).toHaveAttribute("aria-pressed", "true");
+    const elenco = await within(dialogo).findByRole("list");
+    expect(await within(elenco).findByText("Demolizioni")).toBeInTheDocument();
+    expect(within(elenco).getByText("Pavimenti e rivestimenti")).toBeInTheDocument();
+    const capitoli = within(dialogo).getByRole("navigation", { name: "Gruppi del listino" });
+    expect(await within(capitoli).findByRole("button", { name: "Demolizioni" })).toBeInTheDocument();
+    expect(within(capitoli).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tutte le voci", "Demolizioni", "Pavimenti e rivestimenti", "Prodotti"]);
+    expect(within(capitoli).getByRole("button", { name: "Tutte le voci" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("scelto un capitolo, si chiedono al database solo le sue voci, e si vedono solo quelle", async () => {
     const m = await monta(slug);
     const dialogo = await apriSelettore();
-    const capitoli = await within(dialogo).findByRole("group", { name: "Capitoli del listino" });
-    fireEvent.click(within(capitoli).getByRole("button", { name: "Pavimenti e rivestimenti" }));
+    const capitoli = await within(dialogo).findByRole("navigation", { name: "Gruppi del listino" });
+    fireEvent.click(await within(capitoli).findByRole("button", { name: "Pavimenti e rivestimenti" }));
 
-    expect(await within(dialogo).findByText("Pavimenti e rivestimenti (1)")).toBeInTheDocument();
+    expect(await within(dialogo).findByText("Posa gres porcellanato")).toBeInTheDocument();
     await waitFor(() => expect(within(dialogo).queryByText("Demolizione tramezzi")).toBeNull());
     expect(db.richiesteVoci.some((f) => f.capitolo_id === "cap-pav")).toBe(true);
 
     // La voce scelta entra nel computo nel suo capitolo, coi suoi prezzi.
-    fireEvent.click(within(dialogo).getByText("Posa gres porcellanato").closest("[cmdk-item]") as HTMLElement);
+    fireEvent.click(within(dialogo).getByRole("checkbox", { name: "Scegli: Posa gres porcellanato" }));
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Aggiungi al computo" }));
     await waitFor(() => expect(m.voci()).toHaveLength(1));
     expect(m.voci()[0]).toMatchObject({ descrizione: "Posa gres porcellanato", capitolo_nome: "Pavimenti e rivestimenti", prezzo_unitario: 35, costo_manodopera: 20 });
   });
@@ -129,10 +133,10 @@ describe.each(MODULI)("computo di $slug: il listino per capitolo", ({ slug }) =>
   it("«Tutto» torna a tutte le voci", async () => {
     await monta(slug);
     const dialogo = await apriSelettore();
-    const capitoli = await within(dialogo).findByRole("group", { name: "Capitoli del listino" });
-    fireEvent.click(within(capitoli).getByRole("button", { name: "Demolizioni" }));
+    const capitoli = await within(dialogo).findByRole("navigation", { name: "Gruppi del listino" });
+    fireEvent.click(await within(capitoli).findByRole("button", { name: "Demolizioni" }));
     await waitFor(() => expect(within(dialogo).queryByText("Posa gres porcellanato")).toBeNull());
-    fireEvent.click(within(capitoli).getByRole("button", { name: "Tutto" }));
+    fireEvent.click(within(capitoli).getByRole("button", { name: "Tutte le voci" }));
     expect(await within(dialogo).findByText("Posa gres porcellanato")).toBeInTheDocument();
   });
 });

@@ -91,12 +91,12 @@ export function riepilogoIvaLeggibile(riepilogo: unknown, righe: RigaLeggibile[]
   if (Array.isArray(riepilogo) && riepilogo.length > 0) {
     return riepilogo
       .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
-      .map((r) => ({
-        aliquota: numero(r.aliquota),
-        natura: testo(r.natura) || null,
-        imponibile: numero(r.imponibile) ?? 0,
-        imposta: numero(r.imposta) ?? 0,
-      }));
+      .map((r) => {
+        const imponibile = numero(r.imponibile) ?? 0, imposta = numero(r.imposta) ?? 0;
+        // Un riepilogo senza aliquota ma con l'imposta non è «IVA 0%»: l'aliquota si ricava.
+        const aliquota = numero(r.aliquota) || (imposta > 0 && imponibile > 0 ? Math.round((imposta / imponibile) * 1000) / 10 : numero(r.aliquota));
+        return { aliquota, natura: testo(r.natura) || null, imponibile, imposta };
+      });
   }
   const gruppi = new Map<string, AliquotaLeggibile>();
   for (const r of righe) {

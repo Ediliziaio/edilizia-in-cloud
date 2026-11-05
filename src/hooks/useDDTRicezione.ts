@@ -542,6 +542,8 @@ export function useDDTRicezioneMutations(poId?: string | null) {
     queryClient.invalidateQueries({ queryKey: ["warehouse-movements-registry"] });
     queryClient.invalidateQueries({ queryKey: ["magazzino-live"] });
     queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
+    // La bolla dentro la commessa: stato di verifica e materiali.
+    queryClient.invalidateQueries({ queryKey: ["commessa-bolle-ddt"] });
     if (poId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
@@ -550,6 +552,8 @@ export function useDDTRicezioneMutations(poId?: string | null) {
 
   const createDDT = useMutation({
     mutationFn: async (params: {
+      /** Caricando tante bolle insieme l'esito lo dice la finestra: niente messaggio per ognuna. */
+      silenzioso?: boolean;
       /** Facoltativo: in cantiere la merce arriva anche senza ordine. */
       purchase_order_id?: string | null;
       /** La commessa su cui va la merce, quando l'ODA non c'è. */
@@ -740,11 +744,14 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       }
       return data as unknown as DDTRicezione;
     },
-    onSuccess: () => {
+    onSuccess: (_d, params) => {
+      if (params.silenzioso) return;
       toast.success("DDT registrato");
       invalidateAll();
     },
-    onError: (err: Error) => toast.error(messaggioBolla(err, "Errore registrazione DDT")),
+    onError: (err: Error, params) => {
+      if (!params.silenzioso) toast.error(messaggioBolla(err, "Errore registrazione DDT"));
+    },
   });
 
   const updateDDT = useMutation({
@@ -981,7 +988,7 @@ export function useDDTAttachments(ddtId?: string | null) {
    * Usato nel wizard o nel detail "sostituisci documento DDT".
    */
   const uploadMainDDT = useMutation({
-    mutationFn: async (params: { ddtId: string; file: File }) => {
+    mutationFn: async (params: { ddtId: string; file: File; silenzioso?: boolean }) => {
       const uploaded = await uploadToStorage(params.file, params.ddtId);
       const { error } = await supabase
         .from("ddt_ricezione")
@@ -994,11 +1001,14 @@ export function useDDTAttachments(ddtId?: string | null) {
       if (error) throw error;
       return uploaded;
     },
-    onSuccess: () => {
+    onSuccess: (_d, params) => {
+      if (params.silenzioso) return;
       toast.success("Documento DDT caricato");
       invalidate();
     },
-    onError: (err: Error) => toast.error(err.message || "Errore upload DDT"),
+    onError: (err: Error, params) => {
+      if (!params.silenzioso) toast.error(err.message || "Errore upload DDT");
+    },
   });
 
   /**
@@ -1052,7 +1062,7 @@ export function useDDTAttachments(ddtId?: string | null) {
    * Upload firma digitale (dataURL da SignaturePad o file).
    */
   const uploadSignature = useMutation({
-    mutationFn: async (params: { ddtId: string; file: File }) => {
+    mutationFn: async (params: { ddtId: string; file: File; silenzioso?: boolean }) => {
       const uploaded = await uploadToStorage(params.file, params.ddtId);
       const { error } = await supabase
         .from("ddt_ricezione")

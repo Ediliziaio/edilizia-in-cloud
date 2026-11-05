@@ -32,7 +32,7 @@ import { Vista3DPigra, type Fotogramma } from "@/components/planimetrie/Vista3DP
 import { pianteDaPlanimetria } from "@/lib/planimetrie/tred";
 import { usePlanimetria } from "@/lib/planimetrie/archivio";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
-import { chiaviRenderPianta, pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "@/lib/planimetrie/render/renderDallaPianta";
+import { chiaviRenderPianta, fraseErroreRender, pngDaSvg, tipoStanzaDaDestinazione, type PlanimetriaNelRender } from "@/lib/planimetrie/render/renderDallaPianta";
 import { preloadImage } from "@/lib/render/preloadImage";
 import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
@@ -277,7 +277,7 @@ export default function RenderPlanimetriaStanza() {
       setInCorso(false);
       setPreparo(false);
       setPasso(2);
-      toast.error(e instanceof Error ? e.message : "Render non avviato: riprova.");
+      toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
   }, [anteprima, companyId, config, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, partenza, scelta, sessione, user, vincoli]);
 
@@ -292,7 +292,10 @@ export default function RenderPlanimetriaStanza() {
       return;
     }
     setSalvato(true);
-    toast.success("Salvato in galleria.");
+    void queryClient.invalidateQueries({ queryKey: chiaviRenderPianta.dellaPianta(id) });
+    toast.success(`Salvato nella galleria di «${vincoli?.locale.nome ?? "questa stanza"}»`, {
+      action: { label: "Apri", onClick: () => navigate(`${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}`) },
+    });
   };
 
   if (isLoading) {
@@ -334,22 +337,22 @@ export default function RenderPlanimetriaStanza() {
         badgeLabel="Render AI — Planimetrie"
         stepLabels={["Da dove parti", "Stile", "Elaborazione", "Risultato"]}
         currentStep={passo}
-        accent="violet"
+        accent="blue"
       />
 
       {/* La stanza come la vede il render: misure e aperture con i loro nomi. */}
       {passo <= 2 && (
         <Card>
-          <CardContent className="flex gap-4 p-4 max-md:flex-col">
-            <img src={svgUrl(svgPiantaStanza(vincoli, { lato: 360 }))} alt={`Pianta di ${vincoli.locale.nome}`} className="h-40 w-40 shrink-0 rounded border bg-white object-contain max-md:mx-auto" />
+          <CardContent className="flex gap-4 p-4 max-md:gap-3 max-md:p-3">
+            <img src={svgUrl(svgPiantaStanza(vincoli, { lato: 360 }))} alt={`Pianta di ${vincoli.locale.nome}`} className="h-40 w-40 shrink-0 rounded border bg-white object-contain max-md:h-20 max-md:w-20" />
             <div className="min-w-0 space-y-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{vincoli.locale.nome}</p>
-                {misureStimate && <Badge variant="outline" className="border-violet-300 text-violet-700">Misure stimate</Badge>}
+                {misureStimate && <Badge variant="outline" className="border-primary/40 text-primary">Misure stimate</Badge>}
               </div>
               <p className="text-muted-foreground">{riepilogoStanza(vincoli)}</p>
               {vincoli.aperture.length > 0 && (
-                <ul className="space-y-0.5 text-xs text-muted-foreground">
+                <ul className="space-y-0.5 text-xs text-muted-foreground max-md:hidden">
                   {vincoli.aperture.map((a) => (
                     <li key={a.id}>
                       <span className="font-medium text-foreground">{a.etichetta}</span> sulla parete {a.parete}: {metri(a.larghezza_cm)} × {metri(a.altezza_cm)}
@@ -360,7 +363,7 @@ export default function RenderPlanimetriaStanza() {
                 </ul>
               )}
               {misureStimate && (
-                <p className="text-xs text-violet-700">
+                <p className="text-xs text-primary">
                   Alcune misure sono state dedotte dall'AI e nessuno le ha ancora controllate: il render le usa come indicative. Confermale nella pianta per un risultato più fedele.
                 </p>
               )}
@@ -424,10 +427,10 @@ export default function RenderPlanimetriaStanza() {
                 ) : (
                   <button
                     type="button"
-                    className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/30 p-10 transition-colors hover:border-purple-500/50"
+                    className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/30 p-10 transition-colors hover:border-primary/50"
                     onClick={() => fileRef.current?.click()}
                   >
-                    <Upload className="h-8 w-8 text-purple-500/70" />
+                    <Upload className="h-8 w-8 text-primary/70" />
                     <span className="font-semibold">Carica una foto di questa stanza</span>
                     <span className="text-sm text-muted-foreground">JPG, PNG o WEBP fino a 20 MB. Meglio frontale e luminosa.</span>
                   </button>
@@ -437,7 +440,7 @@ export default function RenderPlanimetriaStanza() {
             </Card>
           )}
 
-          <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" size="lg" disabled={!pronto} onClick={() => setPasso(2)}>
+          <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={!pronto} onClick={() => setPasso(2)}>
             <Wand2 className="h-4 w-4" />
             Avanti: scegli lo stile
           </Button>
@@ -466,7 +469,7 @@ export default function RenderPlanimetriaStanza() {
           </Card>
           {/* Senza crediti avvisa e blocca, come negli altri render. */}
           <RenderCreditGate hardBlock>
-            <Button className="w-full gap-2 bg-purple-600 hover:bg-purple-700" size="lg" disabled={inCorso} onClick={genera}>
+            <Button className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg" disabled={inCorso} onClick={genera}>
               {preparo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
               {preparo ? "Preparo il render…" : "Genera il render"}
             </Button>
@@ -475,14 +478,14 @@ export default function RenderPlanimetriaStanza() {
       )}
 
       {passo === 3 && (
-        <RenderProcessingCard photoPreview={anteprima} elapsedSec={trascorsi} dots={puntini} accent="violet" subjectLabel={`L'AI sta facendo il render di «${vincoli.locale.nome}»`} />
+        <RenderProcessingCard photoPreview={anteprima} elapsedSec={trascorsi} dots={puntini} accent="blue" subjectLabel={`L'AI sta facendo il render di «${vincoli.locale.nome}»`} />
       )}
 
       {passo === 4 && risultato && (
         <div className="space-y-4 max-md:space-y-3">
           <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 max-md:hidden">
             <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-            <p className="text-sm font-semibold text-green-800">Render pronto: è già tra i render di questa pianta.</p>
+            <p className="text-sm font-semibold text-green-800">Render pronto. Salvalo nella galleria della stanza per ritrovarlo nella scheda della pianta.</p>
           </div>
           <Card className="overflow-hidden">
             <CardContent className="p-0">
@@ -496,7 +499,7 @@ export default function RenderPlanimetriaStanza() {
             </Button>
             <Button variant={salvato ? "secondary" : "default"} className="gap-2" disabled={salvato} onClick={salvaInGalleria}>
               <CheckCircle2 className="h-4 w-4" />
-              {salvato ? "Salvato in galleria" : "Salva in galleria"}
+              {salvato ? "Salvato nella galleria" : `Salva nella galleria di ${vincoli.locale.nome}`}
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -505,7 +508,7 @@ export default function RenderPlanimetriaStanza() {
               Un'altra variante
             </Button>
             <Button asChild variant="outline">
-              <Link to={percorsiPlanimetrie.pianta(id)}>Torna alla pianta</Link>
+              <Link to={salvato ? `${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}` : percorsiPlanimetrie.pianta(id)}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
             </Button>
           </div>
         </div>

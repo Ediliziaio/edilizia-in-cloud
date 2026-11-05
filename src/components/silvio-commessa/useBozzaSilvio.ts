@@ -38,11 +38,11 @@ import type { Autonomia } from "../../../shared/silvio-commessa/autonomia.ts";
 import { eAnnulla, eseguiRisposta, pianoPerLaChat, STIMA_CHAT_EUR } from "../../../shared/silvio-commessa/chat.ts";
 import type { FonteDaLink, RifDocumento } from "../../../shared/silvio-commessa/ingressi.ts";
 import {
-  annulla, applica, conScartatiDiNuovoInGioco, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, storiaDopoRilettura, type Passo,
+  annulla, applica, conInizioUtile, conScartatiDiNuovoInGioco, fondi, giaNellaCommessa, modificaBloccata, pianoVuoto, stessoValore, storiaDopoRilettura, type Passo,
 } from "../../../shared/silvio-commessa/fondi.ts";
 import { riconosciDocumento } from "../../../shared/silvio-commessa/riconoscitore.ts";
 import {
-  contrattoSenzaFase, fasiDiLavoro, frammentoDaOfferta, proposteRisorse, riassuntoRisorse,
+  contrattoSenzaFase, FONTE_RISORSE, fasiDiLavoro, frammentoDaOfferta, proposteRisorse, riassuntoRisorse,
   type ContestoRisorse, type ContrattoDelPiano, type RichiestaOfferta,
 } from "../../../shared/silvio-commessa/risorse.ts";
 import { oggiInItalia } from "../../../shared/silvio-commessa/date.ts";
@@ -55,16 +55,21 @@ import { calendarioAzienda, inizioUtile, lavorativiTra, type CalendarioCantiere 
 import type { AllegatoCommessa } from "@/lib/silvio-commessa/lettori";
 import type { OrigineDocumento } from "@/lib/silvio-commessa/leggiDocumento";
 import {
-  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti,
+  BOZZA_GIA_SCRITTA, completaCommessa, creaBozza, creaCommessa, ErroreBozza, messaggioErrore, salvaBozza, salvataggioConAttesa, allegaFonti, scartaAltreBozzeCrea,
   type Bozza, type EsitoCommessa, type FonteCaricata, type SalvataggioConAttesa,
 } from "@/lib/silvio-commessa/bozze";
 import { correzioniDalPiano } from "@/lib/silvio-commessa/correzioni";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
-import { conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
+import { avvisiDiRipresa, conQuadratura } from "../../../shared/silvio-commessa/quadratura.ts";
 import { euroAI, pianoProposto, riassuntoFrammento, riservataPerProfilo, stimaLettura, testoValore, vistaPerLaChat } from "./presentazione";
 import type { ServiziSilvioCommessa } from "./servizi";
 
 export const LETTURE_INSIEME = 3;
+
+/** Un messaggio che dice più cose, da leggere come un documento e non come una correzione della chat. */
+export function messaggioDaLeggere(testo: string): boolean {
+  return testo.trim().length >= 120;
+}
 
 type FonteLetta = Pick<Fonte, "etichetta"> & { id?: string | null };
 
@@ -130,6 +135,24 @@ export function pianoSenzaFonte(
   return { tolti, piano: conQuadratura(nuovo), storia: storia.map((p) => passoSenzaFonte(p, sua, daTogliere)) };
 }
 
+const FASI = "fasi.order_work_phases";
+const eModello = (f: Fonte) => f.tipo === "modello" && f.id !== FONTE_RISORSE.id;
+
+/**
+ * Il modello per tipo di lavoro serve quando nessun documento dice le fasi (prova cliccata del 2/11).
+ * Un capitolato senza fasi se lo porta dietro: letto con un contratto che le fasi le ha, proponeva
+ * «fine lavori 9 dicembre» contro il 21 del contratto, e «manca la misura» su fasi che non venivano
+ * dal modello. Vale in tutti e due gli ordini, perché le letture finiscono quando capita.
+ */
+function senzaModelloContro(piano: PianoCommessa, storia: Passo[], frammenti: Frammento[]): { piano: PianoCommessa; storia: Passo[]; frammenti: Frammento[] } {
+  const fasi = piano.aree.fasi?.[FASI];
+  const portaFasi = frammenti.some((fr) => !eModello(fr.fonte) && fr.aree.fasi?.[FASI]);
+  if (!portaFasi && (!fasi || eModello(fasi.fonte))) return { piano, storia, frammenti };
+  const modelli = piano.fonti.filter(eModello);
+  const senza = portaFasi && modelli.length ? pianoSenzaFonte(piano, modelli, storia) : { piano, storia };
+  return { piano: senza.piano, storia: senza.storia, frammenti: frammenti.filter((fr) => !eModello(fr.fonte)) };
+}
+
 /**
  * Lo stesso per la storia (quarta revisione, 2): l'annulla non deve far rientrare dalla finestra
  * il valore di un documento tolto dalla porta. Un valore che resta senza niente diventa «non c'era».
@@ -175,7 +198,26 @@ export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi
     try { ora = applica(ora, m).piano; } catch { /* resta com'è */ }
   };
   for (const m of modifiche) {
-    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string") {
+    // Scelta fra due documenti: le fasi senza date le prendono, come se la data l'avesse scritta la persona.
+    if (m.tipo === "scegli_fonte" && m.chiave === "fasi.work_start_date") {
+      metti(m);
+      const scelta = ora.aree.fasi?.[m.chiave]?.valore;
+      const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
+      // Quelle che le date le hanno già si spostano con l'inizio scelto, o partirebbero prima dei lavori
+      // (visto online: inizio scelto il 23/11, fasi ancora dal 16/11).
+      const giaDatate = Array.isArray(fasi?.valore) ? (fasi!.valore as FaseDelPiano[]).map((f) => f.start_date).filter((d): d is string => !!d).sort()[0] : undefined;
+      if (typeof scelta === "string" && giaDatate && !giaNellaCommessa(ora, fasi)) {
+        const scarto = lavorativiTra(giaDatate, scelta, ora.calendario);
+        const spostate = scarto ? applica(ora, { tipo: "sposta_date", giorniLavorativi: scarto, daFase: null }).piano.aree.fasi?.["fasi.order_work_phases"]?.valore : null;
+        if (spostate) metti({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: spostate, conservaStato: true });
+      }
+      if (typeof scelta === "string" && !giaNellaCommessa(ora, fasi) && Array.isArray(fasi?.valore) && (fasi!.valore as FaseDelPiano[]).some((f) => !f.start_date && f.giorni)) {
+        metti({ tipo: "cambia_valore", area: "fasi", chiave: "fasi.order_work_phases", valore: dateDelleFasi(fasi!.valore as FaseDelPiano[], scelta, ora.calendario), conservaStato: true });
+      }
+      continue;
+    }
+    // Una proposta non sposta niente: lo fa il suo «Va bene», che ripassa di qui.
+    if (m.tipo === "cambia_valore" && m.chiave === "fasi.work_start_date" && typeof m.valore === "string" && !m.proposta) {
       const { data, avviso } = inizioUtile(m.valore, ora.calendario, oggi);
       const fasi = ora.aree.fasi?.["fasi.order_work_phases"];
       const bloccate = giaNellaCommessa(ora, fasi);
@@ -222,6 +264,8 @@ export function conConseguenze(piano: PianoCommessa, modifiche: Modifica[], oggi
 }
 /** Una lettura di un'offerta con `rdo-ai-estrai-offerta`: una pagina o due, come un documento. */
 export const STIMA_OFFERTA_EUR = 0.03;
+/** Come `MAX_BYTE` della funzione `silvio-commessa`: oltre, caricarlo è solo tempo e traffico perso. */
+export const MASSIMO_FILE_AI_BYTE = 20 * 1024 * 1024;
 
 export type StatoFonte = "da_confermare" | "in_coda" | "in_lettura" | "fatta" | "errore" | "da_collegare";
 
@@ -265,6 +309,8 @@ export interface Messaggio {
   tono: "silvio" | "avviso" | "errore" | "persona";
   /** Le variabili che questa risposta ha cambiato: «Vedi» le mostra. */
   chiavi?: string[];
+  /** Quanti passi aveva la storia dopo questa risposta: «Annulla» vale finché non ce ne sono altri. */
+  passi?: number;
 }
 
 interface Stato {
@@ -280,6 +326,8 @@ interface Stato {
   base: Frammento[];
   /** Cambiate dalla chat e non ancora guardate: restano segnate. */
   daGuardare: string[];
+  /** Una bozza ripresa: la commessa riletta dopo può far saltare i suoi conti. */
+  ripresa?: boolean;
 }
 
 type Azione =
@@ -366,25 +414,31 @@ function riduttore(s: Stato, a: Azione): Stato {
       };
     }
     case "frammenti": {
-      const piano = a.frammenti.reduce((p, fr) => fondi(p, fr), s.piano);
-      const cambiate = chiaviCambiate(s.piano, piano);
+      const { piano: partenza, storia: storiaDiPartenza, frammenti } = senzaModelloContro(s.piano, s.storia, a.frammenti);
+      const piano = frammenti.reduce((p, fr) => fondi(p, fr), partenza);
+      const cambiate = chiaviCambiate(partenza, piano);
       const fonte = s.fonti.find((f) => f.id === a.id);
       let messaggi = s.messaggi;
       const conMessaggio = (t: string, tono: Messaggio["tono"] = "silvio") => { messaggi = messaggio({ ...s, messaggi }, t, tono); };
-      if (!a.muto) conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? a.frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
+      if (!a.muto) conMessaggio(a.messaggio ?? riassuntoFrammento(fonte?.etichetta ?? frammenti[0]?.fonte.etichetta ?? "la fonte", cambiate));
       const nuoviConflitti = piano.conflitti.length - s.piano.conflitti.length;
       if (nuoviConflitti > 0) {
         conMessaggio(nuoviConflitti === 1
           ? "Su un valore le fonti non sono d'accordo: l'ho segnato con ⚠, scegli tu."
           : `Su ${nuoviConflitti} valori le fonti non sono d'accordo: li ho segnati con ⚠, scegli tu.`, "avviso");
       }
-      const avvisi = a.frammenti.flatMap((f) => f.avvisi ?? []);
+      // La commessa riletta dopo una ripresa può far saltare i conti della bozza: lo si dice.
+      if (a.base && s.ripresa) {
+        const gia = new Set(avvisiDiRipresa(s.piano));
+        for (const t of avvisiDiRipresa(piano)) if (!gia.has(t)) conMessaggio(t, "avviso");
+      }
+      const avvisi = frammenti.flatMap((f) => f.avvisi ?? []);
       return {
         ...s,
         piano,
         // La commessa riletta vince anche sull'annulla, se arriva dopo una ripresa.
-        storia: a.base ? storiaDopoRilettura(piano, s.storia) : s.storia,
-        fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, fontiLette: a.frammenti.map((x) => x.fonte), ...a.patch } : f)),
+        storia: a.base ? storiaDopoRilettura(piano, storiaDiPartenza) : storiaDiPartenza,
+        fonti: s.fonti.map((f) => (f.id === a.id ? { ...f, stato: "fatta", avvisi, valori: cambiate.length, fontiLette: frammenti.map((x) => x.fonte), ...a.patch } : f)),
         caricate: a.caricata ? [...s.caricate.filter((c) => chiaveCaricata(c) !== chiaveCaricata(a.caricata!)), a.caricata] : s.caricate,
         evidenziate: a.base || a.muto ? s.evidenziate : [...new Set([...s.evidenziate, ...cambiate])],
         messaggi,
@@ -413,7 +467,7 @@ function riduttore(s: Stato, a: Azione): Stato {
         versione: s.versione + 1,
         ...(a.dallaChat ? {
           daGuardare: [...new Set([...s.daGuardare, ...cambiate])],
-          messaggi: messaggio(s, a.dallaChat.righe.join(" "), "silvio", cambiate),
+          messaggi: messaggio(s, a.dallaChat.righe.join(" "), "silvio", cambiate).map((m, i, tutti) => (i === tutti.length - 1 ? { ...m, passi: bozza.storia.length } : m)),
         } : {}),
       };
     }
@@ -422,9 +476,13 @@ function riduttore(s: Stato, a: Azione): Stato {
     case "annulla": {
       if (!s.storia.length) return s;
       const bozza = annulla(s.piano, s.storia);
+      const tornate = chiaviCambiate(s.piano, bozza.piano);
+      const sparite = chiaviCambiate(bozza.piano, s.piano);
       return {
         ...s, ...bozza,
-        evidenziate: [...new Set([...s.evidenziate, ...chiaviCambiate(s.piano, bozza.piano)])],
+        evidenziate: [...new Set([...s.evidenziate, ...tornate])],
+        // Tornato com'era, o sparito: «cambiato in chat» non è più vero.
+        daGuardare: s.daGuardare.filter((k) => !tornate.includes(k) && !sparite.includes(k)),
         versione: s.versione + 1,
       };
     }
@@ -440,16 +498,19 @@ function riduttore(s: Stato, a: Azione): Stato {
       const ripresa = s.base.reduce((p, fr) => fondi(p, fr), a.bozza.piano);
       // Il calendario è quello di adesso, non quello salvato con la bozza.
       const piano = s.piano.calendario ? { ...ripresa, calendario: s.piano.calendario } : ripresa;
+      const ripresaDetta = messaggio(s, "Ho ripreso la bozza com'era: puoi continuare da dove eri rimasto. I documenti che non avevo ancora letto non si salvano: se ne manca uno, ricaricalo.");
       return {
         ...s,
         piano,
+        ripresa: true,
         storia: storiaDopoRilettura(piano, (a.bozza.storia ?? []) as Passo[]),
         caricate: a.bozza.fonti ?? [],
-        fonti: piano.fonti.map((f) => ({
+        // Le proposte di Silvio non sono una fonte da togliere: si rifanno da sole.
+        fonti: piano.fonti.filter((f) => f.id !== FONTE_RISORSE.id).map((f) => ({
           id: nuovoId(), tipo: "ripresa", etichetta: f.etichetta, stato: "fatta", stimaEur: 0, avvisi: [] as string[], tentativo: 0,
           ...(f.id ? { idFonte: f.id } : {}),
         })),
-        messaggi: messaggio(s, "Ho ripreso la bozza com'era: puoi continuare da dove eri rimasto. I documenti che non avevo ancora letto non si salvano: se ne manca uno, ricaricalo."),
+        messaggi: avvisiDiRipresa(piano).reduce((m, t) => messaggio({ ...s, messaggi: m }, t, "avviso"), ripresaDetta),
         versione: s.versione,
       };
     }
@@ -523,6 +584,12 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
   /** L'ultimo salvataggio non riuscito: «Crea» non parte da una bozza vecchia (P1). */
   const erroreSalvataggio = useRef<ErroreBozza | null>(null);
 
+  // Non ferma niente: se non riesce, la bozza nuova c'è comunque.
+  const scartaVecchie = useCallback(
+    (tieni: string) => scartaAltreBozzeCrea({ companyId, userId, tieni }, servizi.db).catch(() => 0),
+    [companyId, userId, servizi.db],
+  );
+
   // Uno per popup, nato al primo uso (mai durante il render): azienda e client non cambiano.
   const salvaRef = useRef<SalvataggioConAttesa<DatiBozza> | null>(null);
   const salvatore = useCallback(() => (salvaRef.current ??= salvataggioConAttesa<DatiBozza>(
@@ -532,6 +599,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
         const b = await creaBozza({ companyId, orderId, piano: d.piano, fonti: d.caricate, autonomia: d.autonomia }, servizi.db);
         bozzaId.current = b.id;
         setIdBozza(b.id);
+        // La nuova c'è: quelle lasciate a metà si scartano, e chi le ignorava lo sa.
+        if (!orderId) void scartaVecchie(b.id).then((n) => {
+          if (n) invia({ tipo: "messaggio", tono: "avviso", testo: n === 1 ? "La commessa a metà che avevi lasciato l'ho scartata: ne tengo una sola alla volta." : `Le ${n} commesse a metà che avevi lasciato le ho scartate: ne tengo una sola alla volta.` });
+        });
         if (d.storia.length) await salvaBozza(b.id, { piano: d.piano, fonti: d.caricate, storia: d.storia, autonomia: d.autonomia }, servizi.db);
         return;
       }
@@ -542,7 +613,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       quandoSalvato: () => { erroreSalvataggio.current = null; setSalvataggio({ tipo: "salvata" }); },
       quandoSbaglia: (e) => { erroreSalvataggio.current = e; setSalvataggio({ tipo: "errore", messaggio: e.message }); },
     },
-  )), [companyId, orderId, servizi.db, attesaMs]);
+  )), [companyId, orderId, servizi.db, attesaMs, scartaVecchie]);
 
   // Cosa fa Silvio da solo: decide la scrittura che si salva, e serve anche alla chat, per non
   // scrivere quello che l'azienda ha vietato (G19).
@@ -587,8 +658,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       }
       saldo.current = { letto: Date.now(), esito };
     }
-    if (esito.bloccato) return "Le chiamate AI dell'azienda sono ferme per credito: ricarica i crediti e riprova.";
+    // Quello che non basta non si ricorda: chi ha appena ricaricato preme «Riprova» subito.
+    if (esito.bloccato) { saldo.current = null; return "Le chiamate AI dell'azienda sono ferme per credito: ricarica i crediti e riprova."; }
     if (esito.saldoEur != null && esito.saldoEur < stimaEur) {
+      saldo.current = null;
       return `I crediti AI non bastano (servono circa ${euroAI(stimaEur)}, ne restano ${euroAI(Math.max(0, esito.saldoEur))}): ricarica e riprova.`;
     }
     return null;
@@ -607,7 +680,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       const crediti = f.stimaEur > 0 ? await controllaCrediti(f.stimaEur) : null;
       if (crediti) throw new ErroreBozza(crediti);
       if (f.tipo === "contratto") {
-        const fr = await servizi.frammentoContratto(f.refId!);
+        const fr = conInizioUtile(await servizi.frammentoContratto(f.refId!), opz.calendario);
         invia({ tipo: "frammenti", id: f.id, frammenti: [fr], patch: { etichetta: fr.fonte.etichetta, costoEur: 0, idFonte: fr.fonte.id ?? undefined } });
         return;
       }
@@ -678,7 +751,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     } catch (e) {
       const testo = erroreLeggibile(e, "il servizio non ha risposto.");
       invia({ tipo: "aggiorna_fonte", id: f.id, patch: { stato: "errore", errore: testo } });
-      invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere «${f.etichetta}»: ${testo} Il resto va avanti; puoi riprovare.` });
+      invia({ tipo: "messaggio", tono: "errore", testo: `Non sono riuscito a leggere «${f.etichetta}»: ${/[.!?…]$/.test(testo) ? testo : `${testo}.`} Il resto va avanti; puoi riprovare.` });
     } finally {
       avviate.current.delete(f.id);
     }
@@ -735,6 +808,10 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
           if (r.lettore === "non_letto") {
             return { ...base, tipo: "file", file: n.file, etichetta: n.file.name, stato: "errore", errore: r.motivo, stimaEur: 0 };
           }
+          if (r.ai && n.file.size > MASSIMO_FILE_AI_BYTE) {
+            return { ...base, tipo: "file", file: n.file, etichetta: n.file.name, stato: "errore", stimaEur: 0,
+              errore: `troppo grande (${Math.ceil(n.file.size / (1024 * 1024))} MB, il massimo è 20 MB): caricane uno più leggero` };
+          }
           const stima = stimaLettura(r, n.file.size);
           return { ...base, tipo: "file", file: n.file, etichetta: n.file.name, stato: stima > 0 ? "da_confermare" : "in_coda", stimaEur: stima };
         }
@@ -743,6 +820,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     invia({ tipo: "aggiungi_fonti", fonti });
     // Quello che la persona ha scritto si vede come suo messaggio, anche quando diventa una fonte.
     for (const n of nuove) if (n.tipo === "testo" && !n.daLink) invia({ tipo: "messaggio", tono: "persona", testo: n.testo });
+    // Sul telefono si parte dalla chat: un file rifiutato non può dirlo solo la scheda Fonti.
+    for (const f of fonti) if (f.stato === "errore") invia({ tipo: "messaggio", tono: "errore", testo: `«${f.etichetta}»: ${f.errore}.` });
   }, []);
 
   /** «Leggi»: le fonti che aspettavano il via per il costo entrano in coda. */
@@ -812,7 +891,7 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
       setCostoChat((c) => c + risposta.costoEur);
       // Sulla bozza di adesso: nel frattempo può essere arrivata una lettura.
       const esito = eseguiRisposta(ultimo.current.piano, risposta.strumenti, (c, x) => testoValore(c, x, vedeCosti), {
-        autonomia, riservata: (c) => riservataPerProfilo(c, vedeImporti, vedeCosti),
+        autonomia, riservata: (c) => riservataPerProfilo(c, vedeImporti, vedeCosti), messaggioPersona: t,
       });
       const righe = esito.righe.length ? esito.righe : [risposta.testo || "Non ho capito cosa cambiare: prova a dirlo in un altro modo."];
       invia({ tipo: "modifiche", modifiche: conConseguenze(ultimo.current.piano, esito.modifiche), dallaChat: { righe } });
@@ -847,7 +926,8 @@ export function useBozzaSilvio({ companyId, userId, servizi, orderId = null, att
     setIdBozza(b.id);
     setSalvataggio({ tipo: "salvata" });
     invia({ tipo: "riprendi", bozza: b });
-  }, []);
+    if (b.modo === "crea") void scartaVecchie(b.id);
+  }, [scartaVecchie]);
 
   /** «Crea» (o «Completa»): salva quello che aspetta, scrive, registra le correzioni. */
   const crea = useCallback(async (): Promise<EsitoCommessa> => {

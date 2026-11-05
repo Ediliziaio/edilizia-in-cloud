@@ -34,6 +34,30 @@ describe("Materiali e acquisti: percorso guidato", () => {
     state.data = [row("bozza", 2), row("inviato", 3, 1)]; draw(<OrderMaterialsSummary orderId="order" items={[item]} />);
     expect(screen.getByText("In bozza OdA").parentElement).toHaveTextContent("1"); expect(screen.getByText("In attesa di ricezione").parentElement).toHaveTextContent("1"); expect(screen.getByText(/ricezione non è il consumo/)).toBeInTheDocument();
   });
+  it("tutto ricevuto: lo dice, senza avvisi e senza la testata vuota degli acquisti", () => {
+    const voce = { ...item, quantity: 1 };
+    state.data = [{ ...row("ricevuto", 1, 1), unit_of_measure: "corpo" }];
+    const { container } = draw(<><OrderMaterialsSummary orderId="order" items={[voce]} /><OrdinaPerFornitorePanel orderId="order" items={[voce]} /></>);
+    expect(screen.getByText("Ricevuti").parentElement).toHaveTextContent("1");
+    expect(screen.getByText("Da verificare").parentElement).toHaveTextContent("0");
+    expect(container).not.toHaveTextContent("Acquisti per fornitore");
+  });
+  it("un numero apre gli articoli che conta, con il loro ordine", () => {
+    state.data = [row("inviato", 3)];
+    draw(<OrderMaterialsSummary orderId="order" items={[item]} />);
+    fireEvent.click(screen.getByText("In attesa di ricezione").closest("button")!);
+    const elenco = screen.getByRole("list", { name: "Articoli: In attesa di ricezione" });
+    expect(elenco).toHaveTextContent("Pavimento");
+    expect(elenco.querySelector("a")).toHaveAttribute("href", "/azienda/ordini-acquisto/inviato");
+    expect(screen.getByText("In bozza OdA").closest("button")).toBeDisabled();
+  });
+  it("lo stesso motivo su più articoli è una riga sola", () => {
+    const due = [{ ...item, id: "a", unita_misura: "m" }, { ...item, id: "b", name: "Battiscopa", unita_misura: "m" }];
+    state.data = [{ ...row("inviato", 1), unit_of_measure: "corpo" }, { ...row("inviato", 1), order_item_id: "b", unit_of_measure: "corpo" }];
+    draw(<OrdinaPerFornitorePanel orderId="order" items={due} />);
+    expect(screen.getAllByText(/Unità di misura diversa/)).toHaveLength(1);
+    expect(screen.getByText(/2 articoli: Unità di misura diversa: ordine in «corpo», articolo in «m»/)).toBeInTheDocument();
+  });
   it("anteprima e creazione usano solo il residuo", async () => {
     state.data = [row("confermato", 4)]; draw(<OrdinaPerFornitorePanel orderId="order" items={[item]} />);
     fireEvent.click(screen.getByRole("button", { name: "Prepara acquisto…" }));

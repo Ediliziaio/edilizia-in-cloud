@@ -111,8 +111,10 @@ describe("quote payment terms", () => {
   it("parse is defensive against junk", () => {
     expect(parseQuotePaymentPhases(null)).toEqual([]);
     expect(parseQuotePaymentPhases("nope")).toEqual([]);
+    // Dal 04/11/2026 ogni fase porta anche il suo momento d'incasso: senza, vale «a una
+    // data precisa», e il numero del SAL resta vuoto.
     expect(parseQuotePaymentPhases([{ label: "x", type: "weird", percent: "50", amount: null }])).toEqual([
-      { label: "x", type: "deposit", percent: 50, amount: 0 },
+      { label: "x", type: "deposit", percent: 50, amount: 0, evento: "data_fissa", numero: null },
     ]);
   });
 });

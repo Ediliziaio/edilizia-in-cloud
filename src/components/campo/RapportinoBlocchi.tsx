@@ -9,10 +9,11 @@
 import { useMemo } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { cn } from "@/lib/utils";
+import { CampiModuloLettura } from "@/components/campo/CampiModuloLettura";
 import { bloccoFasi, oreBrevi, type FaseBlocco, type MaterialeBlocco } from "../../../supabase/functions/genera-pdf-rapportino/model";
 
 interface Props {
-  report: { fasi_lavorate?: unknown; materiali_usati?: unknown; foto_urls?: unknown };
+  report: { fasi_lavorate?: unknown; materiali_usati?: unknown; foto_urls?: unknown; campi_extra?: unknown };
   /** Apre una foto a tutto schermo; riceve l'indirizzo com'è salvato nel rapportino. */
   onFoto?: (url: string) => void;
   compatto?: boolean;
@@ -106,7 +107,12 @@ function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: bo
           <GrigliaFoto foto={fase.foto} alt={`Foto di ${fase.nome}`} onFoto={onFoto} />
         </div>
       )}
-      {fase.materiali.length === 0 && fase.foto.length === 0 && (
+      {fase.campi.length > 0 && (
+        <div className="px-3 pb-3 pt-2">
+          <CampiModuloLettura titolo="Dati della lavorazione" valori={fase.campi.map(c => ({ ...c, fase_nome: undefined as string | undefined }))} />
+        </div>
+      )}
+      {fase.materiali.length === 0 && fase.foto.length === 0 && fase.campi.length === 0 && (
         <p className="px-3 py-2 text-xs text-slate-500">Nessun materiale né foto legati a questa lavorazione.</p>
       )}
     </section>
@@ -115,8 +121,8 @@ function SchedaFase({ fase, compatto, onFoto }: { fase: FaseBlocco; compatto: bo
 
 export function RapportinoBlocchi({ report, onFoto, compatto = false, className, nomiFasi = NESSUN_NOME }: Props) {
   const b = useMemo(
-    () => bloccoFasi({ fasi_lavorate: report.fasi_lavorate, materiali_usati: report.materiali_usati, foto_urls: report.foto_urls }, nomiFasi),
-    [report.fasi_lavorate, report.materiali_usati, report.foto_urls, nomiFasi],
+    () => bloccoFasi({ fasi_lavorate: report.fasi_lavorate, materiali_usati: report.materiali_usati, foto_urls: report.foto_urls, campi_extra: report.campi_extra }, nomiFasi),
+    [report.fasi_lavorate, report.materiali_usati, report.foto_urls, report.campi_extra, nomiFasi],
   );
   const conFasi = b.fasi.length > 0;
   if (compatto) {
@@ -133,7 +139,7 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
       </div>
     );
   }
-  if (!conFasi && !b.altriMateriali.length && !b.altreFoto.length) return null;
+  if (!conFasi && !b.altriMateriali.length && !b.altreFoto.length && !b.altriCampi.length) return null;
   return (
     <div className={cn("space-y-4", className)}>
       {conFasi && (
@@ -144,6 +150,7 @@ export function RapportinoBlocchi({ report, onFoto, compatto = false, className,
           </div>
         </div>
       )}
+      <CampiModuloLettura valori={b.altriCampi} />
       {b.altriMateriali.length > 0 && (
         <div>
           <p className={ETICHETTA}>{conFasi ? "Altri materiali" : "Materiali usati"} ({b.altriMateriali.length})</p>

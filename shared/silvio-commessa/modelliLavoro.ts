@@ -27,7 +27,9 @@
  * Senza dipendenze, compatibile con Deno.
  */
 import type { FaseDelPiano, Frammento } from "./piano.ts";
-import { spostaGiorniLavorativi } from "./fondi.ts";
+import { dateDelleFasi } from "./fondi.ts";
+
+export { dateDelleFasi };
 import { CALENDARIO_NAZIONALE, primoGiornoUtile, type CalendarioCantiere } from "./calendario.ts";
 
 export const TIPI_LAVORO = [
@@ -165,21 +167,6 @@ export function primoLavorativo(data: string, cal: CalendarioCantiere = CALENDAR
   return primoGiornoUtile(data, cal);
 }
 
-/**
- * Le date di ogni fase con i lavori che partono il giorno `inizio` (AAAA-MM-GG), saltando
- * sabati, domeniche e feste (fase 5: col calendario dell'azienda, anche patrono e chiusure).
- * Le fasi senza giorno d'inizio o durata restano come sono.
- */
-export function dateDelleFasi(fasi: readonly FaseDelPiano[], inizio: string, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): FaseDelPiano[] {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(inizio)) return fasi.map((x) => ({ ...x }));
-  const giorno1 = primoLavorativo(inizio, cal);
-  return fasi.map((x) => {
-    if (!x.giorno_inizio || !x.giorni) return { ...x };
-    const start = spostaGiorniLavorativi(giorno1, x.giorno_inizio - 1, cal);
-    return { ...x, start_date: start, end_date: spostaGiorniLavorativi(start, x.giorni - 1, cal) };
-  });
-}
-
 /** L'ultimo giorno lavorativo delle fasi (giorno 1 = inizio lavori). */
 export function giorniTotali(fasi: readonly FaseDelPiano[]): number {
   return fasi.reduce((max, x) => Math.max(max, (x.giorno_inizio ?? 1) + (x.giorni ?? 1) - 1), 0);
@@ -240,19 +227,32 @@ export function durateDalModello(
   return { fasi: out, completate };
 }
 
-const PAROLE: ReadonlyArray<[TipoLavoro, RegExp]> = [
+/**
+ * Lavori che nessun modello descrive: meglio nessuna fase che le fasi di un altro lavoro, che
+ * entrerebbero senza conferma (simulazioni del 2/11: «Rifacimento facciata» dava Impianti e
+ * Pavimenti). Una facciata o un cappotto restano tali anche se il testo dice «villetta» o «finestre».
+ */
+const SENZA_MODELLO = /facciat|cappott/;
+const RISTRUTTURAZIONE_INTERA = /ristrutturazione (?:completa|totale|integrale)|ristruttur\w*.*(?:appartament|villett)|(?:appartament|villett).*ristruttur/;
+
+// null: si è capito che è un lavoro senza modello, e non si cerca oltre.
+const PAROLE: ReadonlyArray<[TipoLavoro | null, RegExp]> = [
+  // Dice che è tutta la casa: serramenti, bagno e facciata ne sono solo una parte.
+  ["ristrutturazione", RISTRUTTURAZIONE_INTERA],
+  [null, SENZA_MODELLO],
   ["fotovoltaico", /fotovolt|pannelli solari|\bfv\b|\bkwp?\b/],
   ["serramenti", /serrament|infiss|finestr|portefinestr/],
   ["climatizzazione", /climatizz|condizionator|split|pompa di calore aria/],
   ["piscina", /piscin/],
-  // Un appartamento intero ha anche il bagno: prima del bagno.
-  ["ristrutturazione", /appartament|villett|ristrutturazione (?:completa|totale|integrale)/],
   ["tetto", /\btett|copertur|\bmanto\b/],
   ["bagno", /\bbagn/],
   ["elettrico", /elettric/],
   ["termoidraulica", /termoidraul|idraulic|caldaia|riscaldament/],
   ["pavimenti", /pavimen|parquet/],
-  ["ristrutturazione", /ristruttur|rifacimento/],
+  // Dopo i lavori che hanno un modello: «cucina in appartamento» non è una ristrutturazione.
+  [null, /cucin|tinteggi|imbianc|intonac|cartongess/],
+  // «Rifacimento» da solo non dice cosa si rifà: il tetto e il bagno li prendono le righe sopra.
+  ["ristrutturazione", /ristruttur|appartament|villett/],
 ];
 
 /** Il tipo di lavoro da un testo libero («rifare bagno 6 mq»), o null se non si capisce. */

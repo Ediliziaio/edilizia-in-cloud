@@ -29,7 +29,7 @@ import type { FonteNelPopup, Messaggio } from "./useBozzaSilvio";
 import { useDettatura, type Dettatura } from "./useDettatura";
 
 /** I file che il popup sa leggere: gli stessi della colonna Fonti. */
-export const FILE_LEGGIBILI = ".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,application/pdf,image/jpeg,image/png,image/webp,text/plain";
+export const FILE_LEGGIBILI = ".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,.xls,application/pdf,image/jpeg,image/png,image/webp,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel";
 
 export interface ColonnaChatProps {
   messaggi: Messaggio[];
@@ -46,6 +46,8 @@ export interface ColonnaChatProps {
   onVedi?: (chiavi: string[]) => void;
   /** C'è qualcosa da annullare. */
   annullabile?: boolean;
+  /** Quanti passi ha la storia adesso: «Annulla» sta sulla risposta che toglierebbe davvero. */
+  passiStoria?: number;
   onAnnulla?: () => void;
   /** L'audio diventa testo; senza, niente microfono. */
   trascrivi?: (audio: Blob) => Promise<string>;
@@ -123,7 +125,7 @@ function Pillola({ children, onClick, disabled, primaria }: { children: ReactNod
 }
 
 export function ColonnaChat({
-  messaggi, domanda, legge, onModifica, onApri, onScrivi, scrivendo = false, onVedi, annullabile = false, onAnnulla, trascrivi, primaDiDettare,
+  messaggi, domanda, legge, onModifica, onApri, onScrivi, scrivendo = false, onVedi, annullabile = false, passiStoria, onAnnulla, trascrivi, primaDiDettare,
   fonti = [], onAllega, onConferma, suggerimenti = [], daDecidere = null, mancano = [], onFonti, tastiera = false,
 }: ColonnaChatProps) {
   const fondo = useRef<HTMLDivElement>(null);
@@ -143,7 +145,8 @@ export function ColonnaChat({
     (t) => { setTesto((p) => (p.trim() ? `${p.trim()} ${t}` : t)); campo.current?.focus(); },
     primaDiDettare,
   );
-  const ultimaConModifiche = [...messaggi].reverse().find((m) => m.chiavi?.length)?.id;
+  // Dopo un annulla, o una modifica a mano, «Annulla» sull'ultima risposta toglierebbe un'altra cosa.
+  const ultimaConModifiche = [...messaggi].reverse().find((m) => m.chiavi?.length && (passiStoria == null || m.passi === passiStoria))?.id;
 
   const manda = async (t = testo.trim()) => {
     if (!t || !onScrivi || scrivendo) return;
@@ -260,9 +263,13 @@ export function ColonnaChat({
               : (
                 <>
                   {daDecidere && daDecidere.totale > 0 && (
-                    <p>Prima di creare: {daDecidere.conflitti.length ? `${daDecidere.conflitti.length === 1 ? "un valore" : `${daDecidere.conflitti.length} valori`} su cui i documenti non sono d'accordo, ` : ""}
-                      {daDecidere.nonDisponibili.length ? `${daDecidere.nonDisponibili.map((n) => n.nome).join(", ")} non ${daDecidere.nonDisponibili.length === 1 ? "è libero" : "sono liberi"}, ` : ""}
-                      {daDecidere.proposte.length ? `${daDecidere.proposte.length} ${daDecidere.proposte.length === 1 ? "mia proposta" : "mie proposte"} da guardare` : ""}.
+                    <p>Prima di creare: {[
+                      daDecidere.conflitti.length ? `${daDecidere.conflitti.length === 1 ? "un valore" : `${daDecidere.conflitti.length} valori`} su cui i documenti non sono d'accordo` : "",
+                      daDecidere.nonDisponibili.length ? `${daDecidere.nonDisponibili.map((n) => n.nome).join(", ")} non ${daDecidere.nonDisponibili.length === 1 ? "è libero" : "sono liberi"}` : "",
+                      daDecidere.nonTornano.length ? `${daDecidere.nonTornano.length === 1 ? "un conto che non torna" : `${daDecidere.nonTornano.length} conti che non tornano`}` : "",
+                      daDecidere.domande.length ? `${daDecidere.domande.length} ${daDecidere.domande.length === 1 ? "dato da chiedere" : "dati da chiedere"}` : "",
+                      daDecidere.proposte.length ? `${daDecidere.proposte.length} ${daDecidere.proposte.length === 1 ? "mia proposta" : "mie proposte"} da guardare` : "",
+                    ].filter(Boolean).join(", ")}.
                       {" "}Le trovi in cima a «La commessa».</p>
                   )}
                   {mancano.length > 0 && (

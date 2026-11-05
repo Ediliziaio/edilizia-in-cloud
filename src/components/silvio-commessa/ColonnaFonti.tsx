@@ -120,7 +120,7 @@ function SchedaFonte({ f, onRiprova, onTogli, collega, onComeDocumento }: {
       {f.stato === "errore" && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 text-xs lg:text-[11px] text-red-700">{f.errore}</p>
-          {(f.tipo !== "file" || f.file) && !/formato|foglio di calcolo/.test(f.errore ?? "") && (
+          {(f.tipo !== "file" || f.file) && !/formato|foglio di calcolo|foglio Excel|Non sembra un computo|troppo grande/.test(f.errore ?? "") && (
             <Button type="button" size="sm" variant="outline" className="h-11 gap-1 lg:h-8" onClick={onRiprova}>
               <RotateCcw className="h-3.5 w-3.5" aria-hidden />Riprova
             </Button>
@@ -317,12 +317,12 @@ export function ColonnaFonti({
           sopra ? "border-orange-400 bg-orange-50" : "border-slate-300 bg-white")}
       >
         <p className="flex items-center justify-center gap-1.5 text-sm lg:text-[13px] font-medium text-slate-900"><Upload className="h-4 w-4 shrink-0 text-orange-600" aria-hidden /><span className="sm:hidden">Carica i documenti</span><span className="max-sm:hidden">Trascina qui i documenti</span></p>
-        <p className="text-xs lg:text-[11px] text-slate-500">Contratti, capitolati, PDF, foto: un PDF circa 0,01 €.</p>
+        <p className="text-xs lg:text-[11px] text-slate-500">Contratti, capitolati, PDF, foto, Excel: un PDF circa 0,01 €, un computo in Excel gratis.</p>
         <Button type="button" variant="outline" size="sm" className="mt-2 h-11 gap-1 lg:h-9" onClick={() => inputFile.current?.click()}>
           <Plus className="h-4 w-4" aria-hidden />Scegli i file
         </Button>
         <input ref={inputFile} type="file" multiple className="sr-only" tabIndex={-1} aria-label="Scegli i file da far leggere a Silvio"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,application/pdf,image/jpeg,image/png,image/webp,text/plain"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.xpwe,.dcf,.xml,.xlsx,.xlsm,.xls,application/pdf,image/jpeg,image/png,image/webp,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           onChange={(e) => { file(e.target.files); e.target.value = ""; }} />
       </div>
 

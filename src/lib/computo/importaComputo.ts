@@ -56,6 +56,8 @@ export interface EsitoImportComputo {
    */
   descrizioniTroncate: number;
   avvisi: string[];
+  /** Lo sconto del documento, già in euro: entra nella bozza solo se è una bozza nuova. */
+  sconto?: { importo: number; descrizione: string } | null;
 }
 
 /** Numero come lo scrive l'editor: virgola, niente separatori delle migliaia. */
@@ -160,7 +162,7 @@ export function bozzaDaComputoStrutturato(c: ComputoStrutturato): EsitoImportCom
   if (m.data_computo?.trim()) intestazione.dataDocumento = dataItaliana(m.data_computo).slice(0, 40);
 
   const descrizioniTroncate = c.voci.filter(v => v.descrizione_troncata).length;
-  return { voci, intestazione, totaleDocumento: c.totale_dichiarato, totaleRicalcolato, scostamenti, descrizioniTroncate, avvisi };
+  return { voci, intestazione, totaleDocumento: c.totale_dichiarato, totaleRicalcolato, scostamenti, descrizioniTroncate, avvisi, sconto: c.sconto ?? null };
 }
 
 /**
@@ -213,6 +215,10 @@ export function applicaImportComputo(bozza: BozzaComputo, esito: EsitoImportComp
     committente: i.committente && vuoto(bozza.committente) ? i.committente : bozza.committente,
     oggetto: i.oggetto && vuoto(bozza.oggetto) ? i.oggetto : bozza.oggetto,
     dataDocumento: i.dataDocumento && vuoto(bozza.dataDocumento) ? i.dataDocumento : bozza.dataDocumento,
+    // Lo sconto del documento vale per le sue voci: su una bozza con altre voci non si applica da solo.
+    sconto: esito.sconto && !bozza.voci.length && bozza.sconto?.tipo !== "percentuale" && bozza.sconto?.tipo !== "importo"
+      ? { tipo: "importo", valore: cifra(esito.sconto.importo), descrizione: esito.sconto.descrizione.slice(0, 120) }
+      : bozza.sconto,
     voci: [...bozza.voci, ...esito.voci],
   };
 }

@@ -4,6 +4,8 @@
  * Lo stato viene da `stato` (non dal vecchio `approvato`): un rapportino RESPINTO si riconosce subito, mostra
  * il motivo scritto dall'ufficio e ha il bottone per correggerlo e rimandarlo.
  */
+import { leggiValori, valoreInTesto } from "../../../supabase/functions/_shared/moduliCantiere";
+import { compilatoDa } from "../../../supabase/functions/genera-pdf-rapportino/model";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { AlertCircle, CheckCircle, Clock, Download, FileText, Loader2, PenLine } from "lucide-react";
@@ -25,6 +27,10 @@ export interface RapportinoCardRiga {
   foto_urls?: string[] | null;
   materiali_usati?: unknown;
   fasi_lavorate?: unknown;
+  campi_extra?: unknown;
+  created_at?: string | null;
+  autore?: unknown;
+  ufficio_created_by?: string | null;
   pdf_url?: string | null;
   firma_operaio_url?: string | null;
   lavoro_completato?: boolean | null;
@@ -59,6 +65,8 @@ export function RapportinoCardCampo({ r, autore, pdfOccupato, onPdf, onFirma, on
   const daRifare = rapportinoDaRifare(stato);
   const giorno = parseISO(r.data_lavoro);
   const foto = Array.isArray(r.foto_urls) ? r.foto_urls : [];
+  const valoriPropri = leggiValori(r.campi_extra);
+  const chiEQuando = compilatoDa(r as unknown as Record<string, unknown>);
   const cliente = isClientReport(r);
   return (
     <div className={cn("rounded-2xl border bg-muted p-4", stato === "rifiutato" ? "border-red-300" : "border-border")}>
@@ -90,6 +98,13 @@ export function RapportinoCardCampo({ r, autore, pdfOccupato, onPdf, onFirma, on
       {cliente && <p className="mt-2 text-sm font-semibold">{r.firma_cliente_url
         ? `Firma cliente presente${r.firma_cliente_nome?.trim() ? ` · ${r.firma_cliente_nome.trim()}` : ""}`
         : "Firma cliente non presente nell’archivio"}</p>}
+
+      {chiEQuando && <p className="mt-1 text-xs text-muted-foreground">{chiEQuando}</p>}
+      {valoriPropri.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {valoriPropri.map(v => `${v.etichetta}${v.fase_nome ? ` (${v.fase_nome})` : ""}: ${valoreInTesto(v)}`).join(" · ")}
+        </p>
+      )}
 
       {/* Su che fasi si è lavorato, con quanti materiali e quante foto: una riga per fase */}
       <RapportinoBlocchi report={r} compatto nomiFasi={nomiFasi} className="mt-2 rounded-xl bg-background/70 px-3 py-1.5" />

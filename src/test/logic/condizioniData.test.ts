@@ -41,3 +41,34 @@ describe("confrontoConOggi", () => {
     expect(confrontoConOggi(undefined, "prima_di_oggi", ORA)).toBe(false);
   });
 });
+
+describe("oggi e domani", () => {
+  // Venerdì 25 settembre 2026, 14:30 a Roma.
+  it("«oggi» è solo il giorno di oggi, a Roma", () => {
+    expect(confrontoConOggi("2026-09-25", "oggi", ORA)).toBe(true);
+    expect(confrontoConOggi("2026-09-26", "oggi", ORA)).toBe(false);
+    expect(confrontoConOggi("2026-09-24", "oggi", ORA)).toBe(false);
+  });
+  it("«domani» è il giorno dopo sul calendario, non fra 24 ore", () => {
+    expect(confrontoConOggi("2026-09-26", "domani", ORA)).toBe(true);
+    expect(confrontoConOggi("2026-09-25", "domani", ORA)).toBe(false);
+    expect(confrontoConOggi("2026-09-27", "domani", ORA)).toBe(false);
+  });
+  it("a fine mese e a fine anno «domani» cambia mese e anno", () => {
+    expect(confrontoConOggi("2026-10-01", "domani", new Date("2026-09-30T10:00:00Z"))).toBe(true);
+    expect(confrontoConOggi("2027-01-01", "domani", new Date("2026-12-31T10:00:00Z"))).toBe(true);
+  });
+  it("alle 23:30 di Roma «domani» è già il giorno dopo di Roma, non di UTC", () => {
+    // 30 settembre, 23:30 a Roma = 21:30 UTC.
+    expect(confrontoConOggi("2026-10-01", "domani", new Date("2026-09-30T21:30:00Z"))).toBe(true);
+    // 1 ottobre, 00:30 a Roma = 30 settembre 22:30 UTC: domani è il 2.
+    expect(confrontoConOggi("2026-10-02", "domani", new Date("2026-09-30T22:30:00Z"))).toBe(true);
+  });
+  it("il caso del promemoria: appuntamento preso oggi per oggi non è «domani»", () => {
+    expect(confrontoConOggi("2026-09-25", "domani", ORA)).toBe(false);
+  });
+  it("un valore che non è una data non è né oggi né domani", () => {
+    expect(confrontoConOggi(undefined, "oggi", ORA)).toBe(false);
+    expect(confrontoConOggi("telefonata", "domani", ORA)).toBe(false);
+  });
+});

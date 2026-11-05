@@ -1,5 +1,5 @@
 export type VariationKind = "aggiunta" | "modifica" | "riduzione";
-export interface VariationLine { id: string; description: string; quantity: string; price: string }
+export interface VariationLine { id: string; description: string; quantity: string; price: string; unit?: string }
 export interface VariationDraft {
   kind: VariationKind; title: string; description: string; phase: string;
   phaseId?: string;
@@ -48,7 +48,7 @@ export function prepareVariation(draft: VariationDraft): PreparedVariation {
       if (draft.kind !== "modifica" && price < 0) throw new Error("Per aggiunte e riduzioni inserisci prezzi positivi.");
       const subtotal = round(quantity * price);
       amount = round(amount + subtotal);
-      detail.push(`${i + 1}. ${line.description.trim()} - ${quantity} x ${euro(price)} = ${euro(subtotal)}`);
+      detail.push(`${i + 1}. ${line.description.trim()} - ${quantity}${line.unit?.trim() ? ` ${line.unit.trim()}` : ""} x ${euro(price)} = ${euro(subtotal)}`);
     }
   }
   if (amount === null || !Number.isFinite(amount) || Math.abs(amount) > 99_999_999.99)
@@ -72,6 +72,36 @@ export function prepareVariation(draft: VariationDraft): PreparedVariation {
     // Existing customer SELECT policy exposes the whole row, including note_interne.
     // Until private storage is separated server-side, do not persist private draft data here.
     richiesto_da: draft.requester.trim() || null, note_interne: null };
+}
+/** Valgono per ogni variante: stanno nel PDF prima delle condizioni scritte dall'impresa. */
+export const CONDIZIONI_STANDARD_VARIANTE = [
+  "La presente variante integra il contratto di riferimento: per tutto ciò che non modifica restano valide le condizioni già concordate.",
+  "Ha effetto solo con la firma delle parti: fino ad allora non cambia né l'importo del contratto né i tempi dei lavori.",
+  "Sono compresi solo i lavori descritti qui. Ogni ulteriore modifica richiede una nuova variante scritta.",
+  "Gli importi sono IVA esclusa, salvo dove indicato. L'IVA è applicata con l'aliquota di legge alla data della fattura.",
+] as const;
+export interface VariationDocumentRow { descrizione: string; quantita: number | null; unita: string; prezzo: number | null; importo: number }
+export interface VariationDocumentParts {
+  tipo: string; riferimento: string; fase: string; lavori: string; righe: VariationDocumentRow[];
+  condizioni: string; pagamento: string; tempi: string;
+}
+/** Le stesse cose di `prepareVariation`, separate: nel PDF ognuna sta al suo posto. Da chiamare dopo la validazione. */
+export function variationDocumentParts(draft: VariationDraft): VariationDocumentParts {
+  const prepared = prepareVariation(draft);
+  const segno = draft.kind === "riduzione" ? -1 : 1;
+  const righe: VariationDocumentRow[] = draft.pricing === "voci"
+    ? draft.lines.map(line => {
+      const quantita = variationDecimal(line.quantity) as number, prezzo = variationDecimal(line.price) as number;
+      return { descrizione: line.description.trim(), quantita, unita: line.unit?.trim() ?? "", prezzo, importo: segno * round(quantita * prezzo) };
+    })
+    : [{ descrizione: draft.title.trim(), quantita: null, unita: "a corpo", prezzo: null, importo: prepared.impatto_economico }];
+  const giorni = prepared.impatto_giorni;
+  return {
+    tipo: VARIATION_KINDS[draft.kind], riferimento: draft.contractReference?.trim() ?? "", fase: draft.phase.trim(),
+    lavori: [draft.documentIntro?.trim(), draft.description.trim()].filter(Boolean).join("\n\n"), righe,
+    condizioni: draft.additionalTerms?.trim() ?? "", pagamento: draft.paymentTerms?.trim() ?? "",
+    tempi: giorni ? `Tempo aggiuntivo richiesto: ${giorni} giorni ${draft.dayUnit}. Le date saranno ripianificate separatamente dopo l'approvazione.` : "Nessuna estensione dei tempi richiesta.",
+  };
 }
 /** Preview only. Working-day projection excludes weekends, NOT public holidays or company closures. */
 export function variationDatePreview(endDate: string | null | undefined, days: string, unit: VariationDraft["dayUnit"]) {

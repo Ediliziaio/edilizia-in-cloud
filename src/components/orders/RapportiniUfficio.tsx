@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { CampiModulo } from "@/components/campo/CampiModulo";
+import { useModuloRapportino } from "@/hooks/useModuliCantiere";
+import { campiPerContesto } from "../../../supabase/functions/_shared/moduliCantiere";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrderWorkPhases } from "@/hooks/useOrderWorkPhases";
 import { useSottofasi } from "@/hooks/useSottofasi";
@@ -18,7 +21,7 @@ import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import { compressImage } from "@/lib/campo/compressImage";
-import {
+import { applicaParti, fasiDelGiorno,
   METEO, caricoRapportini, erroriGiorni, giornoDaLetto, giorniDaPeriodo, giornoVuoto,
   type GiornoUfficio, type PersonaPresenza, type RapportinoLetto,
 } from "@/lib/campo/rapportiniUfficio";
@@ -92,6 +95,10 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  // Le parti e i campi che l'azienda usa: l'ufficio vede tutti i campi, anche quelli solo del capo.
+  const { schema: moduloCantiere } = useModuloRapportino(orderId);
+  const parti = moduloCantiere.blocchi;
+  const campiModulo = useMemo(() => campiPerContesto(moduloCantiere, { ruolo: "ufficio", momento: "giornaliero", subappaltatore: false, soloOre: false }), [moduloCantiere]);
   const oggi = giornoLocale(new Date().toISOString());
   const { phases, unassigned, employees } = useOrderWorkPhases(orderId);
   const { perFase: sottofasiDi } = useSottofasi(orderId);
@@ -145,7 +152,9 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
   const [lettura, setLettura] = useState<{ stato: "legge" } | { stato: "letto"; n: number; avvisi: string[] } | null>(null);
   // Il primo giorno ancora vuoto si sostituisce, invece di restare lì in cima.
   const soloVuoto = giorni.length === 1 && !giorni[0].descrizione.trim() && !Object.keys(giorni[0].presenze ?? {}).length;
-  const errori = erroriGiorni(giorni, oggi);
+  const nomiFasi = useMemo(() => new Map(phases.map((p) => [p.id, p.name])), [phases]);
+  const giorniDaSalvare = useMemo(() => giorni.map((g) => applicaParti(g, parti)), [giorni, parti]);
+  const errori = erroriGiorni(giorniDaSalvare, oggi, campiModulo, nomiFasi);
   const cambia = (chiave: string, patch: Partial<GiornoUfficio>) => setGiorni((gs) => gs.map((g) => (g.chiave === chiave ? { ...g, ...patch } : g)));
 
   const caricaFoto = async (g: GiornoUfficio, files: FileList | null) => {
@@ -220,8 +229,8 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
 
   const salva = useMutation({
     mutationFn: async () => {
-      const carico = caricoRapportini(giorni, phases.map((p) => ({ id: p.id, percentuale: p.percentuale })), sottofasiDi,
-        { persone, mezzi, materiali: articoli.data ?? [] });
+      const carico = caricoRapportini(giorniDaSalvare, phases.map((p) => ({ id: p.id, percentuale: p.percentuale })), sottofasiDi,
+        { persone, mezzi, materiali: articoli.data ?? [], campi: campiModulo, nomiFasi });
       const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(
         "ufficio_crea_rapportini", { p_order_id: orderId, p_rapportini: carico });
       if (error) throw error;
@@ -316,7 +325,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                 placeholder="Es. smontaggio manto lato nord, posa guaina" aria-label={`Cosa si è fatto, rapportino ${i + 1}`} />
             </label>
 
-            {phases.length > 0 && (
+            {parti.fasi && phases.length > 0 && (
               <Blocco titolo="Fasi lavorate">
                 <div className="flex flex-wrap gap-1.5">
                   {phases.map((p) => {
@@ -393,19 +402,33 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
               />
             </Blocco>
 
-            <Blocco titolo="Mezzi e attrezzi usati">
+            {parti.mezzi && <Blocco titolo="Mezzi e attrezzi usati">
               <RigheConValore etichetta="mezzo" voci={mezzi.map((m) => ({ id: m.id, nome: m.nome, gruppo: m.qui ? "Su questo cantiere" : "Altri del parco" }))}
                 valori={g.mezzi ?? {}} segnaposto="ore (facolt.)" valoreNuovo="" onCambia={(v) => cambia(g.chiave, { mezzi: v })} />
-            </Blocco>
+            </Blocco>}
 
-            {(articoli.data?.length ?? 0) > 0 && (
+            {parti.materiali && (articoli.data?.length ?? 0) > 0 && (
               <Blocco titolo="Materiali usati">
                 <RigheConValore etichetta="materiale" voci={(articoli.data ?? []).map((a) => ({ id: a.id, nome: a.nome, coda: a.unita ?? undefined }))}
                   valori={g.materiali ?? {}} segnaposto="quantità" valoreNuovo="1" onCambia={(v) => cambia(g.chiave, { materiali: v })} />
               </Blocco>
             )}
 
-            <Blocco titolo="Foto">
+            {campiModulo.length > 0 && <Blocco titolo="Altre informazioni">
+              <div className="space-y-3">
+                <CampiModulo campi={campiModulo.filter((c) => c.livello !== "fase" || !parti.fasi || g.fasi.length === 0)} valori={g.campi ?? {}} mostraErrori={tentato}
+                  onChange={(k, v) => cambia(g.chiave, { campi: { ...(g.campi ?? {}), [k]: v } })} />
+                {campiModulo.some((c) => c.livello === "fase") && fasiDelGiorno(applicaParti(g, parti), nomiFasi).map((f) => (
+                  <div key={f.id} className="space-y-1.5 rounded-md border p-2">
+                    <p className="text-xs font-medium">{f.nome}</p>
+                    <CampiModulo campi={campiModulo.filter((c) => c.livello === "fase")} phaseId={f.id} valori={g.campi ?? {}} mostraErrori={tentato}
+                      onChange={(k, v) => cambia(g.chiave, { campi: { ...(g.campi ?? {}), [k]: v } })} />
+                  </div>
+                ))}
+              </div>
+            </Blocco>}
+
+            {parti.foto && <Blocco titolo="Foto">
               <div className="flex flex-wrap items-center gap-2">
                 {(g.foto ?? []).map((u) => (
                   <div key={u} className="relative h-16 w-16 overflow-hidden rounded-md border">
@@ -421,7 +444,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
                     onChange={(e) => { void caricaFoto(g, e.target.files); e.target.value = ""; }} />
                 </label>
               </div>
-            </Blocco>
+            </Blocco>}
 
             <label className="grid gap-1 text-xs text-muted-foreground">Note (facoltative)
               <Input value={g.note} maxLength={4000} onChange={(e) => cambia(g.chiave, { note: e.target.value })} aria-label={`Note, rapportino ${i + 1}`} />

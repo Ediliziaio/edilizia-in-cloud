@@ -21,7 +21,8 @@ import {
   type Area, type Conflitto, type FaseDelPiano, type Fonte, type Frammento, type Modifica, type PianoCommessa, type Valore,
 } from "./piano.ts";
 import { variabile } from "./registro.ts";
-import { CALENDARIO_NAZIONALE, spostaLavorativi, type CalendarioCantiere } from "./calendario.ts";
+import { CALENDARIO_NAZIONALE, inizioUtile, primoGiornoUtile, spostaLavorativi, type CalendarioCantiere } from "./calendario.ts";
+import { dataVera, oggiInItalia } from "./date.ts";
 import { conQuadratura } from "./quadratura.ts";
 
 /** Un piano vuoto, da cui parte la bozza. */
@@ -223,6 +224,7 @@ function commessaSotto(piano: Pick<PianoCommessa, "orderId">, v: Valore | null |
 const CHIAVE_FASI = "fasi.order_work_phases";
 /** Le date proposte per le fasi che la commessa ha già senza date (fase 3). */
 const CHIAVE_DATE_FASI = "fasi.date_fasi";
+const CHIAVE_INIZIO = "fasi.work_start_date";
 
 const nomeFase = (f: unknown) => String((f as { name?: unknown } | null)?.name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 const datata = (f: FaseDelPiano | null | undefined) => !!f?.start_date;
@@ -352,8 +354,83 @@ function fondiValore(piano: PianoCommessa, area: Area, chiave: string, arrivato:
   };
 }
 
+/**
+ * L'inizio lavori detto da un documento segue le regole di quello chiesto da una persona
+ * (`conConseguenze`): su un giorno chiuso va al primo giorno utile, e una data già passata si
+ * dice. Simulazioni del 2/11: il 15/08/2027, domenica e Ferragosto, entrava come inizio con la
+ * prima fase il 16, e una data passata entrava senza avviso.
+ */
+export function conInizioUtile(fr: Frammento, calendario?: CalendarioCantiere, oggi: string = oggiInItalia()): Frammento {
+  const v = fr.aree.fasi?.["fasi.work_start_date"];
+  if (!v || typeof v.valore !== "string" || !dataVera(v.valore)) return fr;
+  const { data, avviso } = inizioUtile(v.valore, calendario, oggi);
+  if (!avviso) return fr;
+  return {
+    ...fr,
+    avvisi: [...(fr.avvisi ?? []), avviso],
+    aree: { ...fr.aree, fasi: { ...fr.aree.fasi, "fasi.work_start_date": { ...v, valore: data, nota: [v.nota, avviso].filter(Boolean).join(" ") } } },
+  };
+}
+
+/**
+ * Le date di ogni fase con i lavori che partono il giorno `inizio` (AAAA-MM-GG), saltando
+ * sabati, domeniche e feste (fase 5: col calendario dell'azienda, anche patrono e chiusure).
+ * Le fasi senza giorno d'inizio o durata restano come sono.
+ */
+export function dateDelleFasi(fasi: readonly FaseDelPiano[], inizio: string, cal: CalendarioCantiere = CALENDARIO_NAZIONALE): FaseDelPiano[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inizio)) return fasi.map((x) => ({ ...x }));
+  const giorno1 = primoGiornoUtile(inizio, cal);
+  return fasi.map((x) => {
+    if (!x.giorno_inizio || !x.giorni) return { ...x };
+    const start = spostaGiorniLavorativi(giorno1, x.giorno_inizio - 1, cal);
+    return { ...x, start_date: start, end_date: spostaGiorniLavorativi(start, x.giorni - 1, cal) };
+  });
+}
+
+/** Le fasi con la durata e senza date le prendono; quelle che le hanno non si toccano. Null se non cambia niente. */
+function fasiDatate(valore: unknown, inizio: string, cal?: CalendarioCantiere): FaseDelPiano[] | null {
+  if (!Array.isArray(valore)) return null;
+  const fasi = valore as FaseDelPiano[];
+  if (!fasi.some((f) => f && !f.start_date && f.giorni && f.giorno_inizio)) return null;
+  const datate = dateDelleFasi(fasi, inizio, cal);
+  return fasi.map((f, i) => (f.start_date ? f : datate[i]));
+}
+
+/** L'inizio lavori su cui si possono calcolare le date: mai uno ancora in discussione. */
+function inizioDecisoDi(piano: PianoCommessa, frammento?: Frammento): string | null {
+  if (piano.conflitti.some((c) => c.chiave === CHIAVE_INIZIO)) return null;
+  const v = inVigore(piano.aree.fasi?.[CHIAVE_INIZIO]);
+  const d = (v && !v.daConfermare ? v.valore : null) ?? frammento?.aree.fasi?.[CHIAVE_INIZIO]?.valore;
+  return typeof d === "string" && dataVera(d) ? d : null;
+}
+
+/**
+ * Simulazioni del 2/11: contratto con inizio 16/11 e durate, il popup diceva «circa 22 giorni» e
+ * nel database le fasi e la fine lavori restavano vuote; senza date niente meteo, ponteggio
+ * non prenotato, contratto della ditta senza periodo. Qui c'è il calendario dell'azienda,
+ * e le proposte delle risorse si rifanno da sole quando le fasi cambiano. Vale anche per
+ * l'inizio che arriva da un secondo documento o quando le fasi sono già nel piano.
+ */
+function conDateAlleFasi(piano: PianoCommessa): PianoCommessa {
+  const fasi = piano.aree.fasi?.[CHIAVE_FASI];
+  const inizio = inizioDecisoDi(piano);
+  if (!fasi || !inizio || giaNellaCommessa(piano, fasi) || piano.conflitti.some((c) => c.chiave === CHIAVE_FASI)) return piano;
+  const datate = fasiDatate(fasi.valore, inizio, piano.calendario);
+  return datate ? conValore(piano, "fasi", CHIAVE_FASI, { ...fasi, valore: datate }) : piano;
+}
+
+/** Il frammento con le fasi datate prima di fondersi: stesse fasi di due documenti non fanno un conflitto. */
+function frammentoConDate(piano: PianoCommessa, frammento: Frammento): Frammento {
+  const fasi = frammento.aree.fasi?.[CHIAVE_FASI];
+  const inizio = fasi ? inizioDecisoDi(piano, frammento) : null;
+  const datate = fasi && inizio ? fasiDatate(fasi.valore, inizio, piano.calendario) : null;
+  if (!datate) return frammento;
+  return { ...frammento, aree: { ...frammento.aree, fasi: { ...frammento.aree.fasi, [CHIAVE_FASI]: { ...fasi!, valore: datate } } } };
+}
+
 /** Unisce un frammento al piano. Le chiavi che il registro non conosce diventano avvisi. */
-export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa {
+export function fondi(piano: PianoCommessa, grezzo: Frammento): PianoCommessa {
+  const frammento = frammentoConDate(piano, grezzo);
   const etichetta = frammento.fonte.etichetta;
   const avvisi = [...(piano.avvisi ?? []), ...(frammento.avvisi ?? []).map((a) => `${etichetta}: ${a}`)];
   let out: PianoCommessa = { ...piano, avvisi };
@@ -374,7 +451,7 @@ export function fondi(piano: PianoCommessa, frammento: Frammento): PianoCommessa
   }
 
   const fonti = out.fonti.some((f) => stessaFonte(f, frammento.fonte)) ? out.fonti : [...out.fonti, frammento.fonte];
-  return conQuadratura(conNotaImponibile({ ...out, fonti }));
+  return conQuadratura(conNotaImponibile(conDateAlleFasi({ ...out, fonti })));
 }
 
 /**

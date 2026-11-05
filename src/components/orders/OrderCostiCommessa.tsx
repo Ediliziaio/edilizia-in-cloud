@@ -1,8 +1,9 @@
 /**
- * Materiali e acquisti → Fatture e costi → «Costi della commessa».
+ * Fatture e costi → «Altri costi».
  *
  * I costi registrati direttamente sulla commessa (company_costs.order_id, senza
- * ordine d'acquisto né squadra esterna: quelli hanno la loro scheda). Qui si
+ * ordine d'acquisto né squadra esterna: quelli hanno la loro scheda) e senza una
+ * fattura collegata, che sta in «Fornitori». Qui si
  * aggiungono anche i costi che una fattura non l'avranno mai — la tassa del
  * Comune, un bollo, un F24 — con la ricevuta allegata e, se serve, la fase.
  * Entrano nel margine come costo diretto (v_ordine_marginalita), con l'imponibile.
@@ -12,7 +13,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Paperclip, Plus, Loader2, Wallet, Trash2 } from "lucide-react";
+import { ChevronDown, Paperclip, Pencil, Plus, Loader2, Wallet, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
@@ -21,14 +22,17 @@ import { formatCurrency } from "@/lib/formatters";
 import { VAT_RATES, calculateNetFromGross } from "@/lib/vatUtils";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import {
-  controllaRicevuta, documentoDelCosto, formCostoVuoto, leggiImporto, percorsoRicevuta, rigaCostoCommessa,
-  type DocumentoCosto, type FormCostoCommessa,
+  TIPI_COSTO, campiModificaCosto, lordoCosto, totaliAltriCosti, controllaRicevuta, documentoDelCosto, formCostoVuoto, formDaCosto, leggiImporto, percorsoRicevuta, rigaCostoCommessa, tipoDellaCategoria,
+  type DocumentoCosto, type FormCostoCommessa, type TipoCosto,
 } from "@/lib/costi/costoCommessa";
 import { dataIt } from "./OrderDocumentiFornitore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ContatoriFiltro } from "./ContatoriFiltro";
+import { RiquadroCommessa, StatoPill, TabellaCommessa } from "./TabellaCommessa";
+import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SupplierSelect } from "./SupplierSelect";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,23 +47,33 @@ const db = supabase as any;
 const BUCKET = "order-attachments";
 
 /**
- * I costi di cantiere senza fattura più comuni, pronti con un clic (01/11/2026, G3 del piano costi):
- * compilano descrizione, IVA e «senza fattura». Le assicurazioni e le fideiussioni sono esenti IVA;
- * lo smaltimento ha la sua fattura.
+ * I costi di cantiere più comuni, pronti con un clic (01/11/2026, G3 del piano costi): compilano
+ * descrizione, tipo, IVA e «senza fattura». Le assicurazioni e le fideiussioni sono esenti IVA;
+ * smaltimento, noleggio e tecnico hanno la loro fattura.
  */
-export const COSTI_PRONTI: { descrizione: string; aliquotaIva: string; senzaFattura: boolean }[] = [
-  { descrizione: "Oneri e diritti comunali della pratica", aliquotaIva: "0", senzaFattura: true },
-  { descrizione: "Occupazione suolo pubblico", aliquotaIva: "0", senzaFattura: true },
-  { descrizione: "Marche da bollo", aliquotaIva: "0", senzaFattura: true },
-  { descrizione: "Polizza CAR del cantiere", aliquotaIva: "0", senzaFattura: true },
-  { descrizione: "Fideiussione", aliquotaIva: "0", senzaFattura: true },
-  { descrizione: "Smaltimento rifiuti", aliquotaIva: "22", senzaFattura: false },
-  { descrizione: "Trasferta e vitto della squadra", aliquotaIva: "0", senzaFattura: true },
+export const COSTI_PRONTI: { descrizione: string; breve: string; aliquotaIva: string; senzaFattura: boolean; tipo?: TipoCosto }[] = [
+  { descrizione: "Oneri e diritti comunali della pratica", breve: "Oneri comunali", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Occupazione suolo pubblico", breve: "Suolo pubblico", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Marche da bollo", breve: "Marche da bollo", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Polizza CAR del cantiere", breve: "Polizza CAR", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Fideiussione", breve: "Fideiussione", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Smaltimento rifiuti", breve: "Smaltimento", aliquotaIva: "22", senzaFattura: false },
+  { descrizione: "Trasferta e vitto della squadra", breve: "Trasferta e vitto", aliquotaIva: "0", senzaFattura: true },
+  { descrizione: "Noleggio", breve: "Noleggio", aliquotaIva: "22", senzaFattura: false, tipo: "noleggio" },
+  { descrizione: "Tecnico o professionista", breve: "Professionista", aliquotaIva: "22", senzaFattura: false, tipo: "professionista" },
 ];
+
+const dalPronto = (c: typeof COSTI_PRONTI[number]): Partial<FormCostoCommessa> => ({
+  descrizione: c.descrizione, aliquotaIva: c.aliquotaIva, senzaFattura: c.senzaFattura, tipo: c.tipo ?? "altro",
+  pagato: c.senzaFattura,
+});
 
 export interface CostoCommessa {
   id: string;
   name: string;
+  category: string | null;
+  supplier_id: string | null;
+  tipo: TipoCosto;
   amount: number;
   vat_rate: number | null;
   due_date: string;
@@ -89,7 +103,7 @@ export function useCostiCommessa(orderId: string) {
     queryFn: async (): Promise<{ costi: CostoCommessa[]; fasi: Fase[] }> => {
       const [costi, fasi] = await Promise.all([
         allPaymentRows((da, a) => db.from("company_costs")
-          .select("id, name, amount, vat_rate, due_date, is_paid, paid_date, senza_fattura, allegato_path, allegato_nome, order_work_phase_id, notes")
+          .select("id, name, category, supplier_id, amount, vat_rate, due_date, is_paid, paid_date, senza_fattura, allegato_path, allegato_nome, order_work_phase_id, notes")
           .eq("company_id", companyId).eq("order_id", orderId)
           // Ordini d'acquisto e squadre esterne hanno la loro scheda e la loro regola nel margine.
           .is("purchase_order_id", null).is("order_external_team_id", null)
@@ -108,8 +122,9 @@ export function useCostiCommessa(orderId: string) {
       const perFase = new Map((fasi as Fase[]).map((f) => [f.id, f.name]));
       return {
         fasi: fasi as Fase[],
-        costi: (costi as Omit<CostoCommessa, "fase" | "fattura" | "documento">[]).map((c) => ({
+        costi: (costi as (Omit<CostoCommessa, "fase" | "fattura" | "documento" | "tipo"> & { category: string | null })[]).map((c) => ({
           ...c,
+          tipo: tipoDellaCategoria(c.category),
           amount: Number(c.amount ?? 0),
           fase: c.order_work_phase_id ? perFase.get(c.order_work_phase_id) ?? null : null,
           fattura: fatture.get(c.id) ?? null,
@@ -144,11 +159,24 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useCostiCommessa(orderId);
-  const [aperto, setAperto] = useState(false);
+  // Il modulo: nuovo (con o senza un costo pronto) o su un costo da modificare.
+  const [modulo, setModulo] = useState<{ iniziale?: Partial<FormCostoCommessa>; costo?: CostoCommessa } | null>(null);
+  const [filtro, setFiltro] = useState<string | null>(null);
+  const [pagamentiDi, setPagamentiDi] = useState<string | null>(null);
   const [allegaA, setAllegaA] = useState<string | null>(null);
   const inputAllega = useRef<HTMLInputElement>(null);
-  const costi = data?.costi ?? [];
+  // Quelli con una fattura stanno in «Fornitori».
+  const costi = (data?.costi ?? []).filter((c) => c.documento !== "fattura");
   const totale = costi.reduce((s, c) => s + c.amount, 0);
+  const groups: Record<string, (c: CostoCommessa) => boolean> = {
+    pagare: (c) => !c.is_paid,
+    pagati: (c) => c.is_paid,
+    ricevuta: (c) => !c.allegato_path,
+    attesa: (c) => c.documento === "in_attesa",
+  };
+  const conta = (chiave: string) => costi.filter(groups[chiave]).length;
+  const visibili = filtro ? costi.filter(groups[filtro]) : costi;
+  const totali = totaliAltriCosti(costi);
 
   const aggiorna = () => {
     refreshFinancialQueries(queryClient);
@@ -178,21 +206,30 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
   });
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-          <Wallet className="h-5 w-5 text-primary" aria-hidden="true" />Costi della commessa
-          {costi.length > 0 && <Badge variant="outline">{costi.length}</Badge>}
-          {costi.length > 0 && <span className="text-sm font-normal text-muted-foreground">· {formatCurrency(totale)} nel margine</span>}
-          {puoModificare && (
-            <Button size="sm" className="ml-auto" onClick={() => setAperto(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />Aggiungi costo
-            </Button>
-          )}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">Le spese registrate su questa commessa, anche senza fattura: tasse comunali, bolli, F24, diritti. Nel margine entra l’imponibile.</p>
-      </CardHeader>
-      <CardContent>
+    <>
+    {pagamentiDi && <ExpensePaymentDialog key={pagamentiDi} costId={pagamentiDi} onClose={() => { setPagamentiDi(null); aggiorna(); }} />}
+    <RiquadroCommessa id="costi-commessa"
+      icona={<Wallet className="h-5 w-5 text-primary" aria-hidden="true" />}
+      titolo="Altri costi" conteggio={costi.length}
+      riassunto={costi.length > 0 ? `${formatCurrency(totale)} nel margine` : undefined}
+      numeri={!isLoading && !isError ? <>
+        <dl className="grid grid-cols-3 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl" aria-label="Totali degli altri costi, IVA compresa">
+          {([["Totale", totali.totale, false], ["Saldati", totali.saldati, false], ["Da saldare", totali.daSaldare, totali.daSaldare > 0]] as const).map(([titolo, valore, evidenza]) => (
+            <div key={titolo}>
+              <dt className="text-xs text-muted-foreground">{titolo}</dt>
+              <dd className={`mt-1 text-sm font-semibold tabular-nums ${evidenza ? "text-amber-700" : ""}`}>{formatCurrency(valore)}</dd>
+            </div>
+          ))}
+        </dl>
+        <ContatoriFiltro etichetta="Altri costi per stato" attivo={filtro} onScegli={setFiltro} voci={[
+          { chiave: "pagare", etichetta: "Da pagare", valore: conta("pagare"), avviso: true },
+          { chiave: "pagati", etichetta: "Pagati", valore: conta("pagati") },
+          { chiave: "ricevuta", etichetta: "Senza ricevuta", valore: conta("ricevuta"), avviso: true },
+          { chiave: "attesa", etichetta: "Fattura da arrivare", valore: conta("attesa") },
+        ]} />
+      </> : undefined}
+      azioni={puoModificare ? <Button size="sm" onClick={() => setModulo({})}><Plus className="mr-1.5 h-4 w-4" />Aggiungi costo</Button> : undefined}
+    >
         <input
           ref={inputAllega}
           type="file"
@@ -211,66 +248,96 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
         ) : isLoading ? (
           <Skeleton className="h-20 w-full" />
         ) : costi.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun costo registrato direttamente su questa commessa.</p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Nessun costo senza fattura su questa commessa.</p>
+            {puoModificare && (
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Aggiungine uno con un clic</p>
+                <div className="flex flex-wrap gap-1.5" aria-label="Costi pronti">
+                  {COSTI_PRONTI.map((c) => (
+                    <Button key={c.descrizione} size="sm" variant="outline" onClick={() => setModulo({ iniziale: dalPronto(c) })}><Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />{c.breve}</Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
-          <ul className="divide-y" aria-label="Costi della commessa">
-            {costi.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{c.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {dataIt(c.due_date)}{c.fase ? ` · ${c.fase}` : ""}{c.vat_rate ? ` · IVA ${c.vat_rate}%` : ""}
-                  </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{DOCUMENTO[c.documento].testo(c)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.is_paid ? "bg-green-50 text-green-800" : "bg-muted text-muted-foreground"}`}>
-                      {c.is_paid ? `Pagato${c.paid_date ? ` il ${dataIt(c.paid_date)}` : ""}` : "Da pagare"}
-                    </span>
-                    {c.allegato_path ? (
-                      <button type="button" className="inline-flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!)}>
-                        <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? "Ricevuta"}
-                      </button>
-                    ) : puoModificare && c.documento !== "fattura" ? (
-                      <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2" disabled={allega.isPending}
-                        onClick={() => { setAllegaA(c.id); inputAllega.current?.click(); }}>
-                        <Paperclip className="h-3 w-3" aria-hidden="true" />Allega ricevuta
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <p className="text-sm font-semibold tabular-nums">{formatCurrency(c.amount)}</p>
-                  {/* Un costo pagato ha già scritto in cassa: si toglie da Economia → Costi, che storna il pagamento. */}
-                  {puoModificare && !c.is_paid && c.documento !== "fattura" && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Elimina ${c.name}`} disabled={elimina.isPending}
-                      onClick={() => { if (window.confirm(`Eliminare «${c.name}»?`)) elimina.mutate(c); }}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <TabellaCommessa etichetta="Altri costi" righe={visibili} chiave={(c) => c.id} colonne={[
+            { titolo: "Costo", principale: true, cella: (c) => <>
+              <span className="font-medium">{c.name}</span>
+              {c.notes && <span className="block text-xs text-muted-foreground">{c.notes}</span>}
+            </> },
+            { titolo: "Tipo", cella: (c) => TIPI_COSTO.find((t) => t.value === c.tipo)?.label },
+            { titolo: "Data", cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
+            { titolo: "Fase", cella: (c) => c.fase ?? "—" },
+            { titolo: "Documento", cella: (c) => (
+              <div className="space-y-0.5">
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{DOCUMENTO[c.documento].testo(c)}</span>
+                {c.allegato_path ? (
+                  <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary underline underline-offset-2" onClick={() => void apriRicevuta(c.allegato_path!)}>
+                    <Paperclip className="h-3 w-3" aria-hidden="true" />{c.allegato_nome ?? "Ricevuta"}
+                  </button>
+                ) : puoModificare && c.documento !== "fattura" ? (
+                  <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2" disabled={allega.isPending}
+                    onClick={() => { setAllegaA(c.id); inputAllega.current?.click(); }}>
+                    <Paperclip className="h-3 w-3" aria-hidden="true" />Allega ricevuta
+                  </button>
+                ) : null}
+              </div>
+            ) },
+            { titolo: "Pagamento", cella: (c) => (
+              <div className="space-y-0.5">
+                <button type="button" title="Pagamenti e residuo" aria-label={`Pagamenti di ${c.name}`} onClick={() => setPagamentiDi(c.id)}>
+                  <StatoPill tono={c.is_paid ? "verde" : "ambra"}>{c.is_paid ? "Pagato" : "Da pagare"}<ChevronDown className="ml-1 inline h-3 w-3" aria-hidden="true" /></StatoPill>
+                </button>
+                {c.is_paid && c.paid_date && <p className="whitespace-nowrap text-xs text-muted-foreground">il {dataIt(c.paid_date)}</p>}
+              </div>
+            ) },
+            { titolo: "Importo", destra: true, cella: (c) => <>
+              <span className="font-medium">{formatCurrency(lordoCosto(c))}</span>
+              {!!c.vat_rate && <span className="block whitespace-nowrap text-xs text-muted-foreground">{formatCurrency(c.amount)} + IVA {c.vat_rate}%</span>}
+            </> },
+            { titolo: "Azioni", destra: true, cella: (c) => puoModificare && !c.is_paid && c.documento !== "fattura" ? (
+              /* Un costo pagato ha già scritto in cassa: si toglie da Economia → Costi, che storna il pagamento. */
+              <div className="flex justify-end gap-0.5">
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Modifica ${c.name}`} onClick={() => setModulo({ costo: c })}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Elimina ${c.name}`} disabled={elimina.isPending}
+                  onClick={() => { if (window.confirm(`Eliminare «${c.name}»?`)) elimina.mutate(c); }}>
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            ) : null },
+          ]} />
         )}
-      </CardContent>
-      {aperto && companyId && (
+      {modulo && companyId && (
         <NuovoCostoDialog
           orderId={orderId}
           companyId={companyId}
           fasi={data?.fasi ?? []}
-          onClose={() => setAperto(false)}
+          iniziale={modulo.iniziale}
+          costo={modulo.costo}
+          onClose={() => setModulo(null)}
           onSalvato={aggiorna}
         />
       )}
-    </Card>
+    </RiquadroCommessa>
+    </>
   );
 }
 
-function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
-  orderId: string; companyId: string; fasi: Fase[]; onClose: () => void; onSalvato: () => void;
+export function NuovoCostoDialog({ orderId, companyId, fasi, iniziale, costo, onClose, onSalvato, onCreato }: {
+  orderId: string; companyId: string; fasi: Fase[];
+  /** Un costo già salvato, da modificare. */
+  costo?: CostoCommessa;
+  /** Il modulo già compilato, per chi aggiunge un costo da un'altra vista. */
+  iniziale?: Partial<FormCostoCommessa>;
+  onClose: () => void; onSalvato: () => void;
+  onCreato?: (costo: { id: string; imponibile: number }) => void;
 }) {
   const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
-  const [form, setForm] = useState<FormCostoCommessa>(() => formCostoVuoto(oggi));
+  const [form, setForm] = useState<FormCostoCommessa>(() => (costo ? formDaCosto(costo) : { ...formCostoVuoto(oggi), ...iniziale }));
   const [file, setFile] = useState<File | null>(null);
   const set = <K extends keyof FormCostoCommessa>(k: K, v: FormCostoCommessa[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -283,6 +350,19 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
       const riga = rigaCostoCommessa(form, { companyId, orderId });
       if (file) { const errore = controllaRicevuta(file); if (errore) throw new Error(errore); }
       const path = file ? await caricaRicevuta(orderId, file) : null;
+      if (costo) {
+        const { error } = await db.from("company_costs").update({
+          ...campiModificaCosto(form, { companyId, orderId }),
+          ...(path ? { allegato_path: path, allegato_nome: file?.name ?? null } : {}),
+        }).eq("id", costo.id).eq("company_id", companyId);
+        if (error) {
+          if (path) await supabase.storage.from(BUCKET).remove([path]);
+          throw error;
+        }
+        // La ricevuta sostituita non serve più: se la pulizia fallisce resta solo un file in più.
+        if (path && costo.allegato_path) await supabase.storage.from(BUCKET).remove([costo.allegato_path]);
+        return { pagamento: null as string | null };
+      }
       const { data: creato, error } = await db.from("company_costs")
         .insert({ ...riga, allegato_path: path, allegato_nome: file?.name ?? null })
         .select("id").single();
@@ -290,6 +370,7 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
         if (path) await supabase.storage.from(BUCKET).remove([path]);
         throw error ?? new Error("Costo non salvato.");
       }
+      onCreato?.({ id: creato.id, imponibile: riga.amount });
       if (!form.pagato) return { pagamento: null as string | null };
       // Stessa strada di Economia → Costi: stato, cassa e scadenze insieme.
       const { error: payErr } = await db.rpc("registra_pagamenti_costi", { p_ids: [creato.id], p_data: form.data });
@@ -297,7 +378,7 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
     },
     onSuccess: ({ pagamento }) => {
       if (pagamento) toast.warning("Costo salvato, ma il pagamento non è registrato", { description: pagamento });
-      else toast.success("Costo aggiunto alla commessa");
+      else toast.success(costo ? "Costo aggiornato" : "Costo aggiunto alla commessa");
       onSalvato();
       onClose();
     },
@@ -306,9 +387,9 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !salva.isPending) onClose(); }}>
-      <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Aggiungi costo alla commessa</DialogTitle>
+          <DialogTitle>{costo ? "Modifica costo" : "Aggiungi costo alla commessa"}</DialogTitle>
           <DialogDescription>Per le spese senza fattura (tassa comunale, bolli, F24) o quelle che aspettano ancora la fattura.</DialogDescription>
         </DialogHeader>
         <form
@@ -318,22 +399,24 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
           <div>
             <Label htmlFor="costo-descrizione">Che costo è *</Label>
             <Input id="costo-descrizione" value={form.descrizione} onChange={(e) => set("descrizione", e.target.value)} placeholder="es. Tassa comunale occupazione suolo" maxLength={200} autoFocus />
-            <div className="mt-1.5 flex flex-wrap gap-1" aria-label="Costi pronti">
-              {COSTI_PRONTI.map((c) => (
-                <button
-                  key={c.descrizione}
-                  type="button"
-                  className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary"
-                  onClick={() => setForm((f) => ({ ...f, descrizione: c.descrizione, aliquotaIva: c.aliquotaIva, senzaFattura: c.senzaFattura }))}
-                >
-                  {c.descrizione}
-                </button>
-              ))}
-            </div>
+            {!costo && !form.descrizione && (
+              <div className="mt-1.5 flex flex-wrap gap-1" aria-label="Costi pronti">
+                {COSTI_PRONTI.map((c) => (
+                  <button
+                    key={c.descrizione}
+                    type="button"
+                    className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary"
+                    onClick={() => setForm((f) => ({ ...f, ...dalPronto(c) }))}
+                  >
+                    {c.breve}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="costo-importo">Importo pagato (€) *</Label>
+              <Label htmlFor="costo-importo">Importo (€) *</Label>
               <Input id="costo-importo" inputMode="decimal" value={form.importo} onChange={(e) => set("importo", e.target.value)} placeholder="350,00" />
             </div>
             <div>
@@ -366,17 +449,36 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
               </Select>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="costo-tipo">Di che tipo è</Label>
+              <Select value={form.tipo} onValueChange={(v) => set("tipo", v as TipoCosto)}>
+                <SelectTrigger id="costo-tipo"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIPI_COSTO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Fornitore</Label>
+              <SupplierSelect value={form.fornitoreId ?? ""} onValueChange={(v) => set("fornitoreId", v || null)} placeholder="Nessuno" searchable allowCreate={false} />
+            </div>
+          </div>
           <div>
-            <Label htmlFor="costo-ricevuta">Ricevuta o F24</Label>
+            <Label htmlFor="costo-ricevuta">{costo?.allegato_path ? "Sostituisci la ricevuta" : "Ricevuta o F24"}</Label>
             <Input id="costo-ricevuta" type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
-          <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-            <Label htmlFor="costo-senza-fattura" className="text-sm font-normal">Senza fattura<span className="block text-xs text-muted-foreground">Nessuno manderà una fattura per questo costo.</span></Label>
-            <Switch id="costo-senza-fattura" checked={form.senzaFattura} onCheckedChange={(v) => set("senzaFattura", v)} />
-          </div>
-          <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
-            <Label htmlFor="costo-pagato" className="text-sm font-normal">Già pagato<span className="block text-xs text-muted-foreground">Registra l’uscita alla data del costo.</span></Label>
-            <Switch id="costo-pagato" checked={form.pagato} onCheckedChange={(v) => set("pagato", v)} />
+          <div className={`grid gap-3 ${costo ? "" : "sm:grid-cols-2"}`}>
+            <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
+              <Label htmlFor="costo-senza-fattura" className="text-sm font-normal">Senza fattura<span className="block text-xs text-muted-foreground">Nessuno la manderà.</span></Label>
+              <Switch id="costo-senza-fattura" checked={form.senzaFattura} onCheckedChange={(v) => set("senzaFattura", v)} />
+            </div>
+            {!costo && (
+              <div className="flex items-center justify-between gap-3 rounded-md border p-2.5">
+                <Label htmlFor="costo-pagato" className="text-sm font-normal">Già pagato<span className="block text-xs text-muted-foreground">Uscita alla data del costo.</span></Label>
+                <Switch id="costo-pagato" checked={form.pagato} onCheckedChange={(v) => set("pagato", v)} />
+              </div>
+            )}
           </div>
           <div>
             <Label htmlFor="costo-note">Note</Label>
@@ -385,7 +487,7 @@ function NuovoCostoDialog({ orderId, companyId, fasi, onClose, onSalvato }: {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={salva.isPending}>Annulla</Button>
             <Button type="submit" disabled={salva.isPending || !form.descrizione.trim() || !form.importo}>
-              {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Aggiungi
+              {salva.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}{costo ? "Salva" : "Aggiungi"}
             </Button>
           </DialogFooter>
         </form>

@@ -4,8 +4,9 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle2, CreditCard, Ban, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, Ban, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus, Undo2 } from "lucide-react";
 import type { Scadenza } from "@/hooks/useScadenzario";
+import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
 import { formatCurrency } from "@/lib/formatters";
 
 const fmtEur = (n: number) => formatCurrency(n);
@@ -21,6 +22,8 @@ interface Props {
   scadenze: Scadenza[];
   onMarkPaid: (s: Scadenza) => void;
   onCancel: (id: string) => void;
+  /** Annulla l'incasso registrato dallo scadenzario: le righe di prima nota automatiche non si eliminano altrove. */
+  onAnnullaIncasso?: (s: Scadenza) => void;
   onAdd?: () => void;
   /** Click su una riga (es. apri la fattura/commessa collegata). */
   onRowClick?: (s: Scadenza) => void;
@@ -31,7 +34,7 @@ const monthLabel = (d: Date) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd, onRowClick }: Props) {
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick }: Props) {
   if (scadenze.length === 0) {
     return (
       // Mobile: una riga di testo, senza icona, spiegazione e bottone (c'è «Nuova» in testata).
@@ -110,6 +113,16 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                     onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                   >
                     Paga
+                  </button>
+                )}
+                {onAnnullaIncasso && siAnnullaIncasso(s) && (
+                  <button
+                    type="button"
+                    className="tap-compact mt-0.5 block w-full text-right text-[11px] font-medium leading-tight text-primary"
+                    aria-label={`Annulla l'incasso di ${s.description}`}
+                    onClick={(e) => { e.stopPropagation(); onAnnullaIncasso(s); }}
+                  >
+                    Annulla incasso
                   </button>
                 )}
               </div>
@@ -243,8 +256,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                   </Badge>
                 </td>
                 <td className="p-3">
-                  {!isPaid && !isCancelled && (
-                    <div className="flex gap-1">
+                  <div className="flex flex-col items-start gap-1">
+                    {!isPaid && !isCancelled && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -253,8 +266,19 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                       >
                         <CreditCard className="h-3.5 w-3.5 mr-1" /> Paga
                       </Button>
-                    </div>
-                  )}
+                    )}
+                    {onAnnullaIncasso && siAnnullaIncasso(s) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2 whitespace-nowrap"
+                        aria-label={`Annulla l'incasso di ${s.description}`}
+                        onClick={(e) => { e.stopPropagation(); onAnnullaIncasso(s); }}
+                      >
+                        <Undo2 className="h-3.5 w-3.5 mr-1" /> Annulla incasso
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
               </Fragment>

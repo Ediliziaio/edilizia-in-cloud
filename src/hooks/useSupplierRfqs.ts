@@ -111,6 +111,22 @@ export interface ContatoriRichiesta {
   fornitori: string[];
 }
 
+/** Il numero accanto alla vista «Richieste d'offerta»: da solo, senza leggere tutte le richieste dell'azienda. */
+export function useConteggioRichiesteCommessa(orderId: string | undefined, companyId: string | undefined, abilitato = true) {
+  return useQuery<number | null>({
+    queryKey: [...rfqKeys.all, "conteggio", orderId, companyId],
+    enabled: !!orderId && !!companyId && abilitato,
+    staleTime: 30_000,
+    retry: false,
+    queryFn: async () => {
+      const { count, error } = await (supabase as any).from("supplier_rfqs")
+        .select("id", { count: "exact", head: true })
+        .eq("order_id", orderId!).eq("company_id", companyId!);
+      return error ? null : count;
+    },
+  });
+}
+
 export function useSupplierRfqs() {
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();

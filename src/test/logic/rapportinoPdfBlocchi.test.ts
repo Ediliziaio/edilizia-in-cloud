@@ -199,7 +199,7 @@ describe("rapportino a blocchi: i rapportini di sempre", () => {
       expect(testi.filter(t => t === titolo), titolo).toHaveLength(titolo === "LAVORAZIONI" ? 1 : 0); // «LAVORAZIONI» è anche il contatore
     }
     expect(testi).toContain("COSA È STATO FATTO");
-    expect(testi).toContain("NOTE DEL DOCUMENTO");
+    expect(testi.join(" ")).toContain("Nessuna timbratura");
     expect(risultato.pageCount).toBe(1);
   });
 
@@ -416,3 +416,121 @@ describe("rapportino a blocchi: il salto pagina", () => {
     }
   });
 });
+
+describe("campi propri nel PDF", () => {
+  const valori = [
+    { chiave: "a", etichetta: "Solo interno", tipo: "text", valore: "dentro", stampa: "interno" },
+    { chiave: "b", etichetta: "Per il cliente", tipo: "number", valore: 12, unita: "pz", stampa: "cliente" },
+    { chiave: "c", etichetta: "Mai stampato", tipo: "text", valore: "segreto", stampa: "mai" },
+  ];
+  const scritto = (testi: string[]) => testi.join(" ");
+
+  it("il giornaliero stampa interni e cliente, mai i «mai»", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: valori });
+    expect(testi).toContain("ALTRE INFORMAZIONI");
+    expect(scritto(testi)).toContain("Solo interno dentro");
+    expect(scritto(testi)).toContain("Per il cliente 12 pz");
+    expect(scritto(testi)).not.toContain("segreto");
+  });
+  it("il documento di fine lavori stampa solo i valori per il cliente", async () => {
+    const { testi } = await disegna({ ...base, lavoro_completato: true, campi_extra: valori });
+    expect(scritto(testi)).toContain("Per il cliente 12 pz");
+    expect(scritto(testi)).not.toContain("dentro");
+  });
+  it("un rapportino con la firma del cliente è un documento per il cliente anche senza fine lavori", async () => {
+    const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", campi_extra: valori });
+    expect(scritto(testi)).not.toContain("dentro");
+  });
+  it("senza valori la sezione non c'è", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: [] });
+    expect(testi).not.toContain("ALTRE INFORMAZIONI");
+  });
+  it("un testo lungo va a capo e continua sulla pagina dopo senza perdersi", async () => {
+    const lunghissimo = Array.from({ length: 400 }, (_, i) => `parola${i}`).join(" ");
+    const { testi, risultato } = await disegna({ ...base, campi_extra: [{ chiave: "l", etichetta: "Lungo", tipo: "textarea", valore: lunghissimo, stampa: "interno" }] });
+    expect(risultato.pageCount).toBeGreaterThan(1);
+    expect(scritto(testi)).toContain("parola399");
+  });
+  it("un valore per fase sta nella scheda della sua fase, e rispetta la stampa", async () => {
+    const { testi } = await disegna({ ...base,
+      fasi_lavorate: [{ phase_id: "ph-1", percentuale: 50, nome: "Demolizioni e allestimento" }],
+      campi_extra: [
+        { chiave: "p", etichetta: "Pezzi posati", tipo: "number", valore: 3, stampa: "interno", phase_id: "ph-1", fase_nome: "Vecchio nome" },
+        { chiave: "q", etichetta: "Da non stampare", tipo: "number", valore: 9, stampa: "mai", phase_id: "ph-1", fase_nome: "Vecchio nome" },
+      ] });
+    expect(testi).not.toContain("ALTRE INFORMAZIONI");
+    expect(posizione(testi, "Pezzi posati  ")).toBeGreaterThan(posizione(testi, "Demolizioni e allestimento"));
+    expect(valoreDopo(testi, "Pezzi posati  ")).toBe("3");
+    expect(testi.join(" ")).not.toContain("Da non stampare");
+  });
+  it("un valore di una fase non più nel rapportino non si perde, col nome salvato", async () => {
+    const { testi } = await disegna({ ...base, campi_extra: [{ chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 3, stampa: "interno", phase_id: "x", fase_nome: "Vecchio nome" }] });
+    expect(testi.join(" ")).toContain("Pezzi (Vecchio nome) 3");
+  });
+  it("le precisazioni per l'ufficio non vanno nel documento per il cliente, l'avanzamento generale sì", async () => {
+    const fine = await disegna({ ...base, lavoro_completato: true, percentuale_avanzamento: 80 });
+    expect(fine.testi.join(" ")).not.toContain("non attestano");
+    expect(fine.testi.join(" ")).not.toContain("Nessuna timbratura");
+    expect(fine.testi.join(" ")).toContain("Avanzamento generale dichiarato della commessa: 80%");
+    const interno = await disegna({ ...base, materiali_usati: [{ nome: "Colla", quantita: 1, unita: "pz" }] });
+    expect(interno.testi.join(" ")).toContain("non attestano");
+  });
+  it("il fine lavori dice l'esito in alto, e senza ore né materiali non mostra quattro zeri", async () => {
+    const firmato = await disegna({ ...base, lavoro_completato: true, ore_lavorate: 0, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria Bianchi" });
+    expect(firmato.testi).toContain("LAVORI CONFERMATI DAL CLIENTE");
+    expect(firmato.testi).not.toContain("MATERIALI");
+    expect(firmato.testi).toContain("RAPPORTO DI FINE LAVORI");
+    const senza = await disegna({ ...base, lavoro_completato: true, ore_lavorate: 0 });
+    expect(senza.testi).toContain("CONFERMA DEL CLIENTE NON ACQUISITA");
+    const giornaliero = await disegna({ ...base });
+    expect(giornaliero.testi).toContain("MATERIALI");
+    expect(giornaliero.testi).not.toContain("LAVORI CONFERMATI DAL CLIENTE");
+  });
+  it("un giornaliero semplice sta in una pagina", async () => {
+    const { risultato } = await disegna({ ...base, foto_urls: ["foto:0"], fasi_lavorate: [{ phase_id: "ph-1", percentuale: 60, nome: "Posa", foto: ["foto:0"] }, { phase_id: "ph-2", percentuale: 20, nome: "Sigillature" }],
+      materiali_usati: [{ nome: "Colla", quantita: 1, unita: "pz", fase_id: "ph-1" }],
+      campi_extra: [{ chiave: "a", etichetta: "Misure", tipo: "text", valore: "ok", stampa: "interno" }, { chiave: "p", etichetta: "Pezzi", tipo: "number", valore: 5, stampa: "interno", phase_id: "ph-1", fase_nome: "Posa" }] });
+    expect(risultato.pageCount).toBe(1);
+  });
+  it("il giornaliero dice chi l'ha compilato e a che ora, senza firma del cliente", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z" });
+    expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
+    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+  });
+  it("con la firma di chi compila la mostra, con nome e ora", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2" });
+    expect(testi).toContain("FIRMA DEL COMPILATORE");
+    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+    expect(testi.join(" ")).toContain("Compilato da Marco Operaio il 05/10/26 alle 17:30");
+  });
+  it("chi ha compilato e la firma stanno in un riquadro solo, senza il titolo Firme", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2" });
+    expect(testi).not.toContain("FIRME");
+  });
+  it("le precisazioni in fondo non restano mai da sole su una pagina", async () => {
+    for (let righe = 0; righe < 70; righe += 1) {
+      const { scritti } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", firma_operaio_url: "firma:2", descrizione_lavori: Array.from({ length: righe }, (_, i) => `Riga ${i}`).join("\n") });
+      const pagina = (pezzo: string) => scritti.find(s => s.testo.includes(pezzo))?.pagina;
+      expect(pagina("Compilato da"), `${righe} righe`).toBe(pagina("timbratura"));
+    }
+  });
+  it("il documento per il cliente non dice «da approvare», quello interno sì", async () => {
+    const cliente = await disegna({ ...base, stato: "inviato", lavoro_completato: true });
+    expect(cliente.testi).not.toContain("DA APPROVARE");
+    const interno = await disegna({ ...base, stato: "inviato" });
+    expect(interno.testi).toContain("DA APPROVARE");
+  });
+  it("un giornaliero non stampa mai una firma del cliente, nemmeno se ne ha una vecchia", async () => {
+    const { testi } = await disegna({ ...base, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
+    expect(testi).not.toContain("FIRMA DEL CLIENTE");
+  });
+  it("se l'ha inserito l'ufficio lo dice", async () => {
+    const { testi } = await disegna({ ...base, created_at: "2026-10-05T15:30:00Z", ufficio_created_by: "u1", inserito_da: "Anna Neri" });
+    expect(testi.join(" ")).toContain("Inserito da Anna Neri (ufficio) per Marco Operaio il 05/10/26 alle 17:30");
+  });
+  it("il collaudo ha ancora la firma del cliente", async () => {
+    const { testi } = await disegna({ ...base, lavoro_completato: true, firma_cliente_url: "firma:1", firma_cliente_nome: "Maria" });
+    expect(testi).toContain("FIRMA DEL CLIENTE");
+  });
+});
+

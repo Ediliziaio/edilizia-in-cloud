@@ -131,13 +131,12 @@ Deno.serve(async (req) => {
     if (qiErr) return errorResponse("Non riesco a verificare le voci del preventivo.", 500);
     if (separaVoci(quoteItems ?? []).daVerificare.length) return errorResponse("Ci sono voci da classificare: rivedi il preventivo.", 409);
     const rows = righeCommessaDaPreventivo(quoteItems ?? []).map((r, position) => ({...r, status:"da_ordinare",position}));
-    // Stessi importi e stessa proporzione del flusso precedente: cambia soltanto la transazione.
+    // Le rate sono quello che il cliente paga, IVA compresa: l'ultima chiude il totale al centesimo.
     const fasiPagamento = Array.isArray(quote.payment_phases) ? quote.payment_phases : [];
     let assegnato = 0;
-    const fattore = totaleIvato > 0 ? imponibile / totaleIvato : 1;
     const rate = fasiPagamento.map((p: Record<string, unknown>, idx: number) => {
       const ultima = idx === fasiPagamento.length-1;
-      const amount = ultima && fattore !== 1 ? round2(imponibile-assegnato) : round2((Number(p.amount)||0)*fattore);
+      const amount = ultima && totaleIvato > 0 ? round2(totaleIvato-assegnato) : round2(Number(p.amount)||0);
       assegnato = round2(assegnato+amount);
       return {position:idx,label:String(p.label ?? "").trim() || (ultima ? "Saldo" : `Acconto ${idx+1}`),
         type:["deposit","balance","financing"].includes(String(p.type)) ? p.type : ultima ? "balance" : "deposit",amount,is_paid:false};

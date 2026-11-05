@@ -24,11 +24,14 @@
 // ============================================================================
 
 import { useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
+import { DDTCaricoMagazzinoCard } from "@/components/ddt/DDTCaricoMagazzinoCard";
+import { usePermissions } from "@/hooks/usePermissions";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,9 +92,12 @@ const QUALITY_COLORS: Record<string, string> = {
 };
 
 export default function DDTRicezioneDetail() {
-  const { ddtId } = useParams();
-  const navigate = useNavigate();
+  const { ddtId: ddtIdIndirizzo } = useParams();
+  const ddtId = useIdDocumento(ddtIdIndirizzo);
+  const navigate = useNavigaDocumento();
+  const inPopup = useDentroPopupDocumento();
   const { ddt, isLoading, receipts, isReceiptsLoading } = useDDTRicezioneDetail(ddtId);
+  const permessiCarico = usePermissions();
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
     useDDTRicezioneMutations(ddt?.purchase_order_id ?? null);
   const {
@@ -479,14 +485,14 @@ export default function DDTRicezioneDetail() {
           ═══════════════════════════════════════════════════════════ */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Button
+          {!inPopup && <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate("/azienda/ordini?tab=ddt")}
             className="shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
-          </Button>
+          </Button>}
           <div
             className={cn(
               "h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0",
@@ -632,6 +638,8 @@ export default function DDTRicezioneDetail() {
                     <span>
                       {righeMerce.length} {righeMerce.length === 1 ? "riga" : "righe"}
                     </span>
+                  ) : receipts.length > 0 ? (
+                    <span>{receipts.length} {receipts.length === 1 ? "articolo ricevuto" : "articoli ricevuti"}</span>
                   ) : (
                     <span className="text-amber-600">nessuna riga</span>
                   )
@@ -768,10 +776,16 @@ export default function DDTRicezioneDetail() {
             ddtId={ddtId}
             aiConfidenza={ddt?.ai_confidenza}
             aiAvvisi={ddt?.ai_avvisi}
+            ricezioni={receipts.length}
             quantitaInTestata={
               ddt?.quantita_ricevuta != null ? Number(ddt.quantita_ricevuta) : null
             }
           />
+
+          {/* Senza ordine d'acquisto la merce entra in giacenza da qui. In cantiere non entra: il costo arriva dalla fattura. */}
+          {ddt && !ddt.purchase_order_id && ddt.destinazione !== "cantiere" && (
+            <DDTCaricoMagazzinoCard ddtId={ddtId} companyId={ddt.company_id} warehouseId={ddt.warehouse_id} puoCaricare={!permessiCarico.solaLettura} />
+          )}
 
           {/* ─── 2. IL DOCUMENTO: la foto accanto alle righe, per correggerle ─── */}
           <Card>
@@ -1173,7 +1187,7 @@ export default function DDTRicezioneDetail() {
         </div>
 
           {/* ─── 4. CHI L'HA PORTATA: corriere, mezzo, autista, orari ─── */}
-          <Card>
+          <Card className="self-start">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">

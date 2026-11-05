@@ -1,21 +1,24 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CreditCard, Download, ExternalLink, FileCode, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Download, ExternalLink, FileCode, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { leggiOriginaleEmessa, scaricaFileOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
 import { CollegamentiEmessaImportata } from "@/components/fatturazione/CollegamentiEmessaImportata";
 import { PROVIDER_LABELS, SegnaPagataImportataDialog, importataPagabile, residuoImportata } from "@/components/fatturazione/GestionaleEsterno";
+import { RiportaDaIncassareDialog, siRiportaDaIncassare } from "@/components/fatturazione/RiportaDaIncassare";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { IncassiFatturaImportata } from "@/components/fatturazione/IncassiFattura";
 import { AzioniInvioImportata } from "@/components/fatturazione/AzioniInvioImportata";
+import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,10 +49,11 @@ interface FatturaImportata {
   client_company_name: string | null; client_fiscal_code: string | null; client_vat_number: string | null;
   client_email: string | null; client_address: string | null; client_city: string | null; client_zip: string | null;
   client_country: string | null; payment_method: string | null; bank_iban: string | null;
+  piano_pagamento: unknown; condizioni_pagamento: string | null; note_interne: string | null;
   invoice_lines: RigaImportata[] | null;
 }
 
-const COLONNE = "id, company_id, invoice_number, document_type, order_id, external_provider, external_sdi_id, external_xml_url, client_company_name, client_fiscal_code, client_vat_number, client_email, client_address, client_city, client_zip, client_country, payment_method, bank_iban, invoice_lines(id, description, quantity, unit, unit_price, discount_percent, tax_rate, tax_nature, line_net, line_tax, line_gross, product_code, sort_order)";
+const COLONNE = "id, note_interne, company_id, invoice_number, document_type, order_id, external_provider, external_sdi_id, external_xml_url, client_company_name, client_fiscal_code, client_vat_number, client_email, client_address, client_city, client_zip, client_country, payment_method, bank_iban, piano_pagamento, condizioni_pagamento, invoice_lines(id, description, quantity, unit, unit_price, discount_percent, tax_rate, tax_nature, line_net, line_tax, line_gross, product_code, sort_order)";
 
 /** Le righe e il riepilogo IVA dell'importata nella forma che l'anteprima nativa disegna. */
 function documentoPerAnteprima(riga: DocumentoFiscale, f: FatturaImportata): DocumentoFiscale {
@@ -88,6 +92,7 @@ export default function DettaglioFatturaImportata() {
   const companyId = effectiveCompany?.id;
   const { data: azienda } = useAnagraficaAzienda();
   const [incasso, setIncasso] = useState<DocumentoFiscale | null>(null);
+  const [daRiaprire, setDaRiaprire] = useState(false);
   const [xmlAperto, setXmlAperto] = useState(false);
   const [scarico, setScarico] = useState(false);
 
@@ -136,6 +141,7 @@ export default function DettaglioFatturaImportata() {
   const f = fattura.data;
   const tipoLabel = TIPO_LABELS[doc.tipo] ?? "Fattura";
   const residuo = residuoImportata(doc);
+  const rateFattura = pagamentoDaMostrare(f as unknown as Record<string, unknown>)?.rate ?? [];
   const progresso = doc.totale_da_pagare > 0 ? Math.min(100, (doc.importo_pagato / doc.totale_da_pagare) * 100) : 0;
   const gestionale = f.external_provider ? (PROVIDER_LABELS[f.external_provider] ?? f.external_provider) : "un altro programma";
 
@@ -191,6 +197,11 @@ export default function DettaglioFatturaImportata() {
         {importataPagabile(doc) && (
           <Button variant="outline" size="sm" onClick={() => setIncasso(doc)} className="gap-1.5">
             <CreditCard className="h-4 w-4" /> Segna pagata
+          </Button>
+        )}
+        {siRiportaDaIncassare(doc) && (
+          <Button variant="outline" size="sm" onClick={() => setDaRiaprire(true)} className="gap-1.5">
+            <RotateCcw className="h-4 w-4" /> Riporta da incassare
           </Button>
         )}
       </div>
@@ -278,6 +289,23 @@ export default function DettaglioFatturaImportata() {
           </Card>
         )}
 
+        {/* Le rate scritte nell'XML: data, importo e metodo di ciascuna. */}
+        {rateFattura.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
+              <CardTitle className="text-sm">{rateFattura.length > 1 ? `Rate (${rateFattura.length})` : "Scadenza dall'XML"}</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-border text-sm max-sm:px-3 max-sm:pb-3">
+              {rateFattura.map((r, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
+                  <span>{r.scadenza ? formatDateShort(r.scadenza) : "Senza data"}{r.metodo ? <span className="text-muted-foreground"> · {r.metodo}</span> : null}</span>
+                  <span className="font-medium tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Commessa e cliente collegati (si nasconde da solo se non c'è niente da dire). */}
         <CollegamentiEmessaImportata companyId={companyId} fattura={f} />
 
@@ -285,6 +313,9 @@ export default function DettaglioFatturaImportata() {
         <Card>
           <CardContent className="pt-4 max-sm:p-3">
             <AllegatiFattura companyId={companyId} madre={{ invoiceId: f.id }} />
+            <div className="mt-4 border-t pt-4">
+              <NoteInterneFattura tabella="invoices" id={f.id} companyId={companyId} valore={f.note_interne} puoModificare chiaviDaAggiornare={["emessa-importata-dettaglio"]} />
+            </div>
           </CardContent>
         </Card>
 
@@ -313,6 +344,7 @@ export default function DettaglioFatturaImportata() {
 
       {xmlAperto && <EmessaImportataDettaglio id={f.id} companyId={companyId} apriXml onClose={() => setXmlAperto(false)} />}
       <SegnaPagataImportataDialog fattura={incasso} companyId={companyId} onClose={() => setIncasso(null)} />
+      <RiportaDaIncassareDialog fattura={daRiaprire ? doc : null} onClose={() => setDaRiaprire(false)} />
     </div>
   );
 }

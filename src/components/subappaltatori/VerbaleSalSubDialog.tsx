@@ -1,4 +1,5 @@
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { puoConsultareSalSub, puoScrivereSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import {
   createPdfPreviewUrl,
   readPdfPreviewBlob,
@@ -89,7 +90,7 @@ export function VerbaleSalSubDialog({
 }) {
   const p = usePermissions();
   const qc = useQueryClient();
-  const consentito = p.canViewSubappaltatoriAmministrazione && p.canViewCosts;
+  const consentito = puoConsultareSalSub(p);
   const [pannello, setPannello] = useState<"dati" | "pdf">("dati");
   const [periodo, setPeriodo] = useState<{ dal: string; al: string } | null>(
     null,
@@ -509,7 +510,7 @@ export function VerbaleSalSubDialog({
                           </Button>
                           <AccettazioneVerbale
                             verbale={r}
-                            puoRegistrare={consentito && p.canEditOrders}
+                            puoRegistrare={puoScrivereSalSub(p)}
                             onSalvata={() => void storico.refetch()}
                           />
                         </div>
@@ -617,7 +618,7 @@ export function VerbaleSalSubDialog({
                           busy ||
                           !anteprima ||
                           p.solaLettura ||
-                          !p.canEditOrders
+                          !puoScrivereSalSub(p)
                         }
                         onClick={() => void prepara(true)}
                       >

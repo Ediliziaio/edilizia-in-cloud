@@ -1,14 +1,32 @@
-import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
+import { AzioniInBloccoRicevute } from "@/components/fatturazione/AzioniInBloccoRicevute";
+import type { RicevutaInBlocco } from "@/lib/fatturazione/azioniInBlocco";
+import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
+import { imponibileIvaFornitori, importoFornitori, nonSiPaga, testoRatePagate } from "@/lib/fatturazione/noteDiCredito";
+import { importoNotaCredito } from "@/lib/fatturazione/notaCreditoStorno";
+import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
+import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salvaColonne, type ColonnaRicevute } from "@/lib/fatturazione/colonneRicevute";
+import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiFattura";
+import { Checkbox } from "@/components/ui/checkbox";
+import { UsciteSenzaFattura } from "@/components/fatturazione/UsciteSenzaFattura";
+import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
+import { chiaveEmessa, chiaveRicevuta, errorePassaggero, identitaFattura, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
 import { CollegaOrdineFatturaDialog } from "@/components/fatturazione/CollegaOrdineFatturaDialog";
+import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
+import { CollegaNotaCreditoDialog } from "@/components/fatturazione/CollegaNotaCreditoDialog";
+import { useStorniNoteCredito } from "@/hooks/useStorniNoteCredito";
+import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
+import { StatoPill } from "@/components/orders/TabellaCommessa";
+import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 import { etichettaTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
@@ -54,9 +72,13 @@ import {
   Eye,
   FileText,
   CheckCircle2,
+  Columns3,
+  Paperclip,
   Inbox,
   Loader2,
   Link2,
+  RotateCcw,
+  SlidersHorizontal,
   X,
   AlertTriangle,
   Euro,
@@ -83,6 +105,7 @@ import {
   classificaDirezione,
   type EsitoImport,
   type FileScartato,
+  type XmlDaImportare,
 } from "@/lib/fatturazione/bulkXmlImport";
 import { bytesToBase64 } from "../../../../supabase/functions/_shared/base64";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
@@ -104,15 +127,13 @@ export function giorniDallaFattura(f: { data_fattura: string; data_ricezione_sdi
   return Number.isFinite(giorni) ? giorni : null;
 }
 
-function ArrivataIl({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
-  if (!f.data_ricezione_sdi) return <span className="text-muted-foreground" title="Data di arrivo non disponibile: fattura caricata a mano o importata">—</span>;
-  const giorni = giorniDallaFattura(f);
+/** La data della fattura. L'arrivo dallo SDI si legge passando il mouse; se è arrivata dopo, lo dice un piccolo «+3 gg». */
+function DataFattura({ f }: { f: { data_fattura: string; data_ricezione_sdi: string | null } }) {
+  const giorni = f.data_ricezione_sdi ? giorniDallaFattura(f) : null;
   return (
-    <span title={`Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}`}>
-      {formatDateShort(f.data_ricezione_sdi)}
-      {giorni != null && giorni > 0 && (
-        <span className="block text-[11px] leading-tight text-muted-foreground">{giorni === 1 ? "1 giorno dopo" : `${giorni} giorni dopo`}</span>
-      )}
+    <span title={f.data_ricezione_sdi ? `Consegnata dallo SDI il ${formatDateTime(f.data_ricezione_sdi)}` : "Data di arrivo non disponibile"}>
+      {formatDateShort(f.data_fattura)}
+      {giorni != null && giorni > 0 && <span className="ml-1 text-[11px] text-muted-foreground">+{giorni} gg</span>}
     </span>
   );
 }
@@ -135,6 +156,7 @@ interface FatturaRicevuta {
   imponibile_totale: number | null;
   iva_totale: number | null;
   totale_documento: number | null;
+  ritenuta_importo: number | null;
   xml_url: string | null;
   /** Costo generato contabilizzando: c'è = la fattura è nei conti. */
   company_cost_id: string | null;
@@ -144,6 +166,10 @@ interface FatturaRicevuta {
   /** Importata come storico già registrato nel gestionale di prima (data di taglio). */
   storico_esterno?: boolean | null;
   note: string | null;
+  note_interne?: string | null;
+  piano_pagamento?: unknown;
+  netto_a_pagare?: number | null;
+  rettifica_motivo?: string | null;
   created_at: string;
   /** Ordine d'acquisto collegato: dal trigger automatico o a mano da qui. */
   purchase_order_id: string | null;
@@ -243,16 +269,45 @@ export default function FattureRicevutePage() {
   const companyId = useEffectiveCompanyId();
   const permessiCosti = usePermissions();
   const { data: pagate } = usePagamentiRicevute(companyId);
+  const { data: storni } = useStorniNoteCredito(companyId);
+  const [collegaNota, setCollegaNota] = useState<FatturaRicevuta | null>(null);
+  // Una nota di credito senza ordine non si contabilizza da sola: va detto quale fattura storna.
+  const apriContabilizza = useCallback((f: FatturaRicevuta) => {
+    if (isNotaCreditoRicevuta(f.tipo_documento) && !f.purchase_order_id) setCollegaNota(f);
+    else setContabilizzaFattura(f);
+  }, []);
+  const stornataDelTutto = useCallback((f: FatturaRicevuta) => {
+    const s = storni?.perFattura.get(f.id);
+    // Quello che si deve al fornitore è al netto della ritenuta: con la ritenuta la nota non arriva al totale.
+    return !!s && s.importo >= importoNotaCredito(f) - 0.01;
+  }, [storni]);
   const pagataIl = useCallback((id: string) => pagate?.get(id) ?? null, [pagate]);
+  const { data: parziali } = usePagamentiParzialiRicevute(companyId);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState("");
+  // Dai Tipi dei fornitori si arriva qui con le fatture di quel fornitore già cercate.
+  const [parametri] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => parametri.get("cerca") ?? "");
   const [statoFilter, setStatoFilter] = useState("all");
   const [tipoFilter, setTipoFilter] = useState("all");
   // «__nessuna__» = mai classificata dall'AI.
   const [categoriaFilter, setCategoriaFilter] = useState("all");
   const [ordineFilter, setOrdineFilter] = useState<"all" | "con" | "senza">("all");
+  const [soloDaVerificare, setSoloDaVerificare] = useState(false);
+  const [soloDaRettificare, setSoloDaRettificare] = useState(false);
+  const [metodoFilter, setMetodoFilter] = useState("all");
+  const [allegatiFilter, setAllegatiFilter] = useState<"all" | "con" | "senza">("all");
+  const [colonne, setColonne] = useState<Set<ColonnaRicevute>>(() => leggiColonne());
+  const cambiaColonna = (c: ColonnaRicevute, attiva: boolean) => setColonne((prima) => {
+    const dopo = new Set(prima);
+    if (attiva) dopo.add(c); else dopo.delete(c);
+    salvaColonne(dopo);
+    return dopo;
+  });
+  const { data: conteggiAllegati } = useConteggiAllegatiRicevute(companyId);
+  const oggiIso = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
+  const [collegaCommesse, setCollegaCommesse] = useState<FatturaRicevuta | null>(null);
   const [contabFilter, setContabFilter] = useState<"all" | "da_contabilizzare">("all");
   const [ordinamento, setOrdinamento] = useState<{ campo: "data" | "fornitore" | "totale"; dir: "asc" | "desc" }>({
     campo: "data",
@@ -270,7 +325,9 @@ export default function FattureRicevutePage() {
   const [esportando, setEsportando] = useState<string | null>(null);
   const [contabilizzaFattura, setContabilizzaFattura] = useState<FatturaRicevuta | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
-  const [progress, setProgress] = useState<{ fatte: number; totale: number } | null>(null);
+  const [progress, setProgress] = useState<{ fatte: number; totale: number; inizio?: number } | null>(null);
+  // Prima di importare si dice cosa c'è nel file: quante nuove, quante già dentro.
+  const [anteprima, setAnteprima] = useState<{ nuove: XmlDaImportare[]; presenti: XmlDaImportare[]; scartati: FileScartato[]; emesse: number; ricevute: number; incerte: number } | null>(null);
   const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
   const [confermaClassifica, setConfermaClassifica] = useState(false);
   const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
@@ -335,20 +392,25 @@ export default function FattureRicevutePage() {
       // per fattura) più righe e riepilogo_iva, per disegnare una tabella che
       // non li usa. Con qualche centinaio di fatture erano decine di MB a ogni
       // apertura. L'XML si carica quando lo si chiede davvero.
+      // A pagine: PostgREST ne restituisce al massimo mille per volta, e oltre
+      // quelle la lista e i numeri in alto erano tagliati senza dirlo.
+      const pagina = (from: number, to: number) => {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id" as never,
+          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo" as never,
         )
         .eq("company_id", companyId!)
-        .order("data_fattura", { ascending: false });
+        .order("data_fattura", { ascending: false })
+        .order("id", { ascending: true });
       if (annoFilter !== "all") {
         q = q
           .gte("data_fattura", `${annoFilter}-01-01`)
           .lte("data_fattura", `${annoFilter}-12-31`);
       }
-      const { data, error } = await q;
-      return (data as unknown as FatturaRicevuta[]) ?? [];
+      return q.range(from, to) as unknown as PromiseLike<{ data: FatturaRicevuta[] | null; error: unknown }>;
+      };
+      return tutteLePagine<FatturaRicevuta>(pagina);
     },
   });
 
@@ -384,6 +446,47 @@ export default function FattureRicevutePage() {
     (f: FatturaRicevuta) => !!f.purchase_order_id || (quoteOrdini[f.id]?.length ?? 0) > 0,
     [quoteOrdini],
   );
+  // La verifica scelta a mano: a parte, solo le poche scelte; finché la colonna non c'è vale la contabilità.
+  const { data: verifiche = {} } = useQuery({
+    queryKey: ["fatture-ricevute", "verifiche", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("fatture_ricevute").select("id, verifica_manuale").eq("company_id", companyId!).not("verifica_manuale", "is", null);
+      if (error) return {} as Record<string, string>;
+      return Object.fromEntries(((data ?? []) as Array<{ id: string; verifica_manuale: string }>).map((v) => [v.id, v.verifica_manuale])) as Record<string, string>;
+    },
+  });
+  const verificata = useCallback((f: FatturaRicevuta) => fatturaVerificata({ stato: f.stato, verifica_manuale: verifiche[f.id] }), [verifiche]);
+  // Le commesse di ogni fattura: stanno sul suo costo, una o più di una.
+  const idCosti = useMemo(() => [...new Set(fatture.map((f) => f.company_cost_id).filter(Boolean))].sort() as string[], [fatture]);
+  const { data: datiCosti } = useQuery({
+    queryKey: ["fatture-costi-commesse", companyId, idCosti],
+    enabled: !!companyId && idCosti.length > 0,
+    queryFn: async () => {
+      const costi: Array<{ id: string; order_id: string | null; allocations: unknown; is_paid: boolean | null; paid_date: string | null }> = [];
+      for (let i = 0; i < idCosti.length; i += 100) {
+        const { data, error } = await (supabase as any).from("company_costs").select("id, order_id, allocations, is_paid, paid_date").eq("company_id", companyId!).in("id", idCosti.slice(i, i + 100));
+        if (error) throw error;
+        costi.push(...(data ?? []));
+      }
+      const quote = Object.fromEntries(costi.map((c) => [c.id, quoteDelCosto(c)]));
+      const idOrdini = [...new Set(Object.values(quote).flat().map((q) => q.order_id))];
+      const codici = new Map<string, string>();
+      for (let i = 0; i < idOrdini.length; i += 100) {
+        const { data, error } = await (supabase as any).from("orders").select("id, order_code").eq("company_id", companyId!).in("id", idOrdini.slice(i, i + 100));
+        if (error) throw error;
+        for (const o of (data ?? []) as Array<{ id: string; order_code: string | null }>) codici.set(o.id, o.order_code ?? "Commessa");
+      }
+      return {
+        quote: Object.fromEntries(Object.entries(quote).map(([id, q]) => [id, q.map((x) => ({ ...x, codice: codici.get(x.order_id) ?? "Commessa" }))])),
+        // Il pagamento vero sta sul costo: una fattura può essere pagata senza che sia segnato su di lei.
+        pagati: Object.fromEntries(costi.filter((c) => c.is_paid).map((c) => [c.id, c.paid_date])) as Record<string, string | null>,
+      };
+    },
+  });
+  const commesseDi = useCallback((f: FatturaRicevuta) => (f.company_cost_id ? datiCosti?.quote[f.company_cost_id] ?? [] : []), [datiCosti]);
+  const pagataSulCosto = useCallback((f: FatturaRicevuta) => !!f.company_cost_id && !!datiCosti && f.company_cost_id in datiCosti.pagati, [datiCosti]);
+  const haCollegamento = useCallback((f: FatturaRicevuta) => haOrdine(f) || commesseDi(f).length > 0, [haOrdine, commesseDi]);
 
   // I numeri OdA degli ordini collegati: una query sola per tutta la lista,
   // così il badge mostra "ODA-2026-028" e non un uuid.
@@ -437,12 +540,15 @@ export default function FattureRicevutePage() {
     const totale = fatture.length;
     const nonLette = fatture.filter((f) => f.stato === "non_letta").length;
     const contabilizzate = fatture.filter((f) => f.stato === "contabilizzata").length;
-    const importoTotale = fatture.reduce((s, f) => s + (f.totale_documento ?? 0), 0);
+    const importoTotale = importoFornitori(fatture);
+    const { imponibile, iva } = imponibileIvaFornitori(fatture);
     // Fatture importate senza importi (es. cassetto SDI Aruba): il totale le
     // conta come 0 → lo dichiariamo, così il KPI non sembra falsato.
     const senzaImporto = fatture.filter((f) => f.totale_documento == null).length;
     const daClassificare = fatture.filter((f) => !f.categoria_ai).length;
-    return { totale, nonLette, contabilizzate, importoTotale, senzaImporto, daClassificare };
+    // Bollo, cassa o dati incompleti: quello che imponibile e IVA non spiegano si dice, non si nasconde.
+    const altro = Math.round((importoTotale - imponibile - iva) * 100) / 100;
+    return { totale, nonLette, contabilizzate, importoTotale, imponibile, iva, altro, senzaImporto, daClassificare };
   }, [fatture]);
 
   // ─── Filters ────────────────────────────────────────────
@@ -459,12 +565,17 @@ export default function FattureRicevutePage() {
   // Conteggi dei chip rapidi, sull'intero anno (non sul risultato dei filtri).
   const conteggi = useMemo(
     () => ({
-      daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata").length,
-      senzaOrdine: fatture.filter((f) => !haOrdine(f)).length,
-      daPagare: fatture.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataIl(f.id)).length,
+      daContabilizzare: fatture.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id)).length,
+      senzaOrdine: fatture.filter((f) => !haCollegamento(f)).length,
+      daVerificare: fatture.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare").length,
+      daRettificare: fatture.filter((f) => verifiche[f.id] === "da_rettificare").length,
+      daPagare: fatture.filter((f) => !nonSiPaga(f.tipo_documento) && !stornataDelTutto(f) && !pagataSulCosto(f) && !pagataIl(f.id)).length,
     }),
-    [fatture, haOrdine, pagataIl],
+    [fatture, haCollegamento, verificata, verifiche, pagataIl, pagataSulCosto, stornataDelTutto, storni],
   );
+  // Quelli dentro «Altri filtri»: si contano sul bottone, altrimenti non si vedono.
+  const opzioniMetodo = useMemo(() => [...new Set(fatture.flatMap((f) => metodiPagamento(f.piano_pagamento)))].sort(), [fatture]);
+  const altriFiltriAttivi = (metodoFilter !== "all" ? 1 : 0) + (allegatiFilter !== "all" ? 1 : 0) + (statoFilter !== "all" ? 1 : 0) + (tipoFilter !== "all" ? 1 : 0) + (categoriaFilter !== "all" ? 1 : 0) + (ordineFilter !== "all" ? 1 : 0);
   const filtriAttivi =
     (statoFilter !== "all" ? 1 : 0) +
     (tipoFilter !== "all" ? 1 : 0) +
@@ -472,9 +583,16 @@ export default function FattureRicevutePage() {
     (ordineFilter !== "all" ? 1 : 0) +
     (contabFilter !== "all" ? 1 : 0) +
     (pagamentoFilter !== "all" ? 1 : 0) +
-    (searchQuery.trim() ? 1 : 0);
-
+    (searchQuery.trim() ? 1 : 0) +
+    (soloDaVerificare ? 1 : 0) +
+    (soloDaRettificare ? 1 : 0) +
+    (metodoFilter !== "all" ? 1 : 0) +
+    (allegatiFilter !== "all" ? 1 : 0);
   const azzeraFiltri = () => {
+    setSoloDaVerificare(false);
+    setSoloDaRettificare(false);
+    setMetodoFilter("all");
+    setAllegatiFilter("all");
     setSearchQuery("");
     setStatoFilter("all");
     setTipoFilter("all");
@@ -505,15 +623,19 @@ export default function FattureRicevutePage() {
       result = result.filter((f) => f.categoria_ai === categoriaFilter);
     }
     if (ordineFilter === "con") {
-      result = result.filter((f) => haOrdine(f));
+      result = result.filter((f) => haCollegamento(f));
     } else if (ordineFilter === "senza") {
-      result = result.filter((f) => !haOrdine(f));
+      result = result.filter((f) => !haCollegamento(f));
     }
+    if (soloDaVerificare) result = result.filter((f) => f.stato !== "rifiutata" && !verificata(f) && verifiche[f.id] !== "da_rettificare");
+    if (soloDaRettificare) result = result.filter((f) => verifiche[f.id] === "da_rettificare");
+    if (metodoFilter !== "all") result = result.filter((f) => metodiPagamento(f.piano_pagamento).includes(metodoFilter));
+    if (allegatiFilter !== "all") result = result.filter((f) => ((conteggiAllegati?.get(f.id) ?? 0) > 0) === (allegatiFilter === "con"));
     if (contabFilter === "da_contabilizzare") {
-      result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata");
+      result = result.filter((f) => !f.company_cost_id && f.stato !== "rifiutata" && !storni?.perNota.has(f.id));
     }
     if (pagamentoFilter === "da_pagare") {
-      result = result.filter((f) => !isNotaCreditoRicevuta(f.tipo_documento) && !pagataIl(f.id));
+      result = result.filter((f) => !nonSiPaga(f.tipo_documento) && !stornataDelTutto(f) && !pagataSulCosto(f) && !pagataIl(f.id));
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -521,7 +643,10 @@ export default function FattureRicevutePage() {
         (f) =>
           f.cedente_ragione_sociale?.toLowerCase().includes(q) ||
           f.numero_fattura?.toLowerCase().includes(q) ||
-          f.cedente_piva?.includes(q)
+          f.cedente_piva?.includes(q) ||
+          f.note_interne?.toLowerCase().includes(q) ||
+          f.note?.toLowerCase().includes(q) ||
+          f.rettifica_motivo?.toLowerCase().includes(q)
       );
     }
     const segno = ordinamento.dir === "asc" ? 1 : -1;
@@ -534,7 +659,36 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, searchQuery, ordinamento, haOrdine]);
+  }, [fatture, haCollegamento, verificata, verifiche, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
+
+  // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
+  const puoInBlocco = !permessiCosti.solaLettura;
+  const [selezionate, setSelezionate] = useState<Set<string>>(new Set());
+  useEffect(() => setSelezionate(new Set()), [companyId]);
+  const cambiaSelezione = useCallback((id: string, dentro: boolean) => {
+    setSelezionate((prima) => {
+      const dopo = new Set(prima);
+      if (dentro) dopo.add(id); else dopo.delete(id);
+      return dopo;
+    });
+  }, []);
+  const righeInBlocco = useMemo<RicevutaInBlocco[]>(() => filtered.filter((f) => selezionate.has(f.id)).map((f) => ({
+    id: f.id,
+    numero: f.numero_fattura,
+    totale: f.totale_documento,
+    stato: f.stato,
+    tipo: f.tipo_documento,
+    pagataIl: pagataIl(f.id),
+    pagataSulCosto: pagataSulCosto(f),
+    verificata: verificata(f),
+    stornata: stornataDelTutto(f),
+    storico: !!f.storico_esterno,
+    notaSenzaOrdine: isNotaCreditoRicevuta(f.tipo_documento) && !f.purchase_order_id,
+    conOrdine: !!f.purchase_order_id,
+    scadenze: Array.isArray(f.piano_pagamento) ? (f.piano_pagamento as Array<{ scadenza?: string | null }>).map((r) => r.scadenza ?? null) : [],
+  })), [filtered, selezionate, pagataIl, pagataSulCosto, verificata, stornataDelTutto]);
+  const tutteSelezionate = filtered.length > 0 && righeInBlocco.length === filtered.length;
+  const selezionaTutte = useCallback(() => setSelezionate(new Set(filtered.map((f) => f.id))), [filtered]);
 
   // ─── Mutations ──────────────────────────────────────────
 
@@ -738,24 +892,49 @@ export default function FattureRicevutePage() {
       return;
     }
 
-    setProgress({ fatte: 0, totale: daImportare.length });
-    const esiti: EsitoImport[] = [];
+    // Quello che è già dentro col suo file si salta: così si ricarica lo stesso archivio
+    // dopo un'interruzione e si riparte da dove era.
+    const presentiNoti = new Set<string>();
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [ric, em] = await Promise.all([
+        tutteLePagine<{ cedente_piva: string | null; cedente_cf: string | null; numero_fattura: string; data_fattura: string }>((from, to) => db.from("fatture_ricevute")
+          .select("id, cedente_piva, cedente_cf, numero_fattura, data_fattura").eq("company_id", companyId).not("xml_url", "is", null).order("id").range(from, to)),
+        tutteLePagine<{ invoice_number: string; issue_date: string }>((from, to) => db.from("invoices")
+          .select("id, invoice_number, issue_date").eq("company_id", companyId).eq("external_provider", "xml_import").not("external_xml_url", "is", null).order("id").range(from, to)),
+      ]);
+      for (const r of ric) presentiNoti.add(chiaveRicevuta(r.cedente_piva || r.cedente_cf, r.numero_fattura, r.data_fattura));
+      for (const e of em) presentiNoti.add(`E|${chiaveEmessa(e.invoice_number, e.issue_date)}`);
+    } catch { /* senza il confronto ci pensa il server: i doppioni non si scrivono comunque */ }
 
+    const nuove: XmlDaImportare[] = [];
+    const presenti: XmlDaImportare[] = [];
+    let emesse = 0; let ricevute = 0; let incerte = 0;
     for (const f of daImportare) {
+      const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
+      if (direzione === "attiva") emesse++; else if (direzione === "passiva") ricevute++; else incerte++;
+      const id = identitaFattura(f.contenuto);
+      const chiave = id && (direzione === "attiva" ? `E|${chiaveEmessa(id.numero, id.data)}` : chiaveRicevuta(id.cedente, id.numero, id.data));
+      if (chiave && presentiNoti.has(chiave)) presenti.push(f); else nuove.push(f);
+    }
+    setProgress(null);
+    setAnteprima({ nuove, presenti, scartati, emesse, ricevute, incerte });
+  };
+
+  const importaUna = async (f: XmlDaImportare): Promise<EsitoImport> => {
       // Emessa o ricevuta? Lo dice il confronto fra le partite IVA. Quando non
       // e' chiaro NON si indovina: mandare una fattura nel posto sbagliato
       // falserebbe ricavi o costi, e sistemarlo dopo e' molto piu' caro.
       const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
       if (direzione === "incerta") {
-        esiti.push({
+        return {
           nome: f.nome,
           stato: "errore",
           motivo: partitaIvaAzienda
             ? "Non risulta ne' emessa ne' ricevuta da questa azienda: controlla le partite IVA nel file."
             : "Partita IVA dell'azienda non configurata: impostala in Impostazioni per poter distinguere emesse e ricevute.",
-        });
-        setProgress({ fatte: esiti.length, totale: daImportare.length });
-        continue;
+        };
       }
 
       const funzione = direzione === "attiva" ? "importa-fattura-attiva-xml" : "ricevi-sdi";
@@ -768,7 +947,14 @@ export default function FattureRicevutePage() {
         : { xml_content: f.contenuto, company_id: companyId };
 
       try {
-        const resp = await supabase.functions.invoke(funzione, { body });
+        let resp = await supabase.functions.invoke(funzione, { body });
+        // Errori passeggeri: riprovare è innocuo, un doppione non si scrive due volte.
+        for (let tentativo = 1; tentativo <= 2 && resp.error; tentativo++) {
+          const stato = (resp.error as { context?: Response }).context?.status;
+          if (!errorePassaggero(resp.error.message, stato)) break;
+          await new Promise((ok) => setTimeout(ok, 1500 * tentativo));
+          resp = await supabase.functions.invoke(funzione, { body });
+        }
         if (resp.error) {
           // Il corpo della risposta porta il motivo vero (numero gia' esistente,
           // cedente sbagliato); resp.error.message da solo direbbe solo "non-2xx".
@@ -777,21 +963,37 @@ export default function FattureRicevutePage() {
             const dettaglio = await (resp.error as { context?: Response }).context?.json?.();
             if (dettaglio?.error) motivo = dettaglio.error;
           } catch { /* resta il messaggio generico */ }
-          esiti.push({ nome: f.nome, stato: "errore", motivo, direzione });
+          return { nome: f.nome, stato: "errore", motivo, direzione };
         } else if (resp.data?.duplicate && resp.data?.completed) {
           // Già registrata coi soli dati: ora ha anche il file originale.
-          esiti.push({ nome: f.nome, stato: "importata", direzione });
+          return { nome: f.nome, stato: "importata", direzione };
         } else if (resp.data?.duplicate) {
-          esiti.push({ nome: f.nome, stato: "duplicata", direzione });
+          return { nome: f.nome, stato: "duplicata", direzione };
         } else if (resp.data?.success) {
-          esiti.push({ nome: f.nome, stato: "importata", direzione, ...(resp.data.warning ? {avviso:String(resp.data.warning)} : {}) });
+          return { nome: f.nome, stato: "importata", direzione, ...(resp.data.warning ? {avviso:String(resp.data.warning)} : {}) };
         } else {
-          esiti.push({ nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione });
+          return { nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione };
         }
       } catch (err) {
-        esiti.push({ nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione });
+        return { nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione };
       }
-      setProgress({ fatte: esiti.length, totale: daImportare.length });
+  };
+
+  const avviaImport = async () => {
+    if (!anteprima) return;
+    const { nuove, presenti, scartati } = anteprima;
+    setAnteprima(null);
+    setReport(null);
+    const inizio = Date.now();
+    setProgress({ fatte: 0, totale: nuove.length, inizio });
+    // Chi chiude la scheda a metà perde solo quelle non ancora partite: basta ricaricare il file.
+    const avvisaUscita = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", avvisaUscita);
+    let esiti: EsitoImport[] = presenti.map((f) => ({ nome: f.nome, stato: "duplicata" as const }));
+    try {
+      esiti = [...esiti, ...await inParallelo(nuove, 4, importaUna, (fatte) => setProgress({ fatte, totale: nuove.length, inizio }))];
+    } finally {
+      window.removeEventListener("beforeunload", avvisaUscita);
     }
 
     setProgress(null);
@@ -985,7 +1187,7 @@ export default function FattureRicevutePage() {
             )}
             {progress !== null
               ? progress.totale > 0
-                ? `Importazione ${progress.fatte} di ${progress.totale}…`
+                ? `Importazione ${progress.fatte} di ${progress.totale}${progress.inizio && tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio) ? ` · ${tempoRimanente(progress.fatte, progress.totale, Date.now() - progress.inizio)}` : "…"}`
                 : "Lettura file…"
               : "Importa XML"}
           </Button>
@@ -1020,6 +1222,35 @@ export default function FattureRicevutePage() {
 
       {/* Resoconto dell'ultimo import: dice quante sono passate e, soprattutto,
           quali no e per quale motivo — cosi' si sa cosa ricaricare. */}
+      {anteprima && (
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="space-y-3 p-4">
+            <p className="font-medium">Cosa c'è nel file</p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="default">{anteprima.nuove.length} da importare</Badge>
+              {anteprima.presenti.length > 0 && <Badge variant="secondary">{anteprima.presenti.length} già presenti</Badge>}
+              <Badge variant="outline">{anteprima.emesse} emesse</Badge>
+              <Badge variant="outline">{anteprima.ricevute} ricevute</Badge>
+              {anteprima.incerte > 0 && <Badge variant="destructive">{anteprima.incerte} di un'altra azienda</Badge>}
+              {anteprima.scartati.length > 0 && <Badge variant="destructive">{anteprima.scartati.length} scartate</Badge>}
+            </div>
+            {anteprima.scartati.length > 0 && (
+              <ul className="max-h-32 overflow-y-auto text-xs text-muted-foreground">
+                {anteprima.scartati.slice(0, 50).map((x) => <li key={x.nome}>{x.nome}: {x.motivo}</li>)}
+              </ul>
+            )}
+            <p className="text-xs text-muted-foreground">Tieni aperta questa pagina fino alla fine. Se si interrompe, ricarica lo stesso file: riparte da quelle che mancano.</p>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={anteprima.nuove.length === 0} onClick={() => void avviaImport()}>Importa {anteprima.nuove.length} fatture</Button>
+              <Button size="sm" variant="outline" onClick={() => setAnteprima(null)}>Annulla</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {companyId && <CompletezzaFatture companyId={companyId} />}
+      {companyId && permessiCosti.canViewCosts && <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} />}
+
       {report && (
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-3">
@@ -1095,10 +1326,11 @@ export default function FattureRicevutePage() {
               tone={kpi.nonLette > 0 ? "text-orange-300" : "text-emerald-200"}
             />
             <NavyStatCard label="Contabilizzate" value={String(kpi.contabilizzate)} icon={CheckCircle2} tone="text-emerald-200" />
+            {/* Il totale è quello che si paga ai fornitori; sotto, di quanto è merce e quanta IVA. */}
             <NavyStatCard
               label="Importo totale"
               value={formatCurrency(kpi.importoTotale)}
-              sub={kpi.senzaImporto > 0 ? `${kpi.senzaImporto} senza importo (non conteggiate)` : undefined}
+              sub={`Imponibile ${formatCurrency(kpi.imponibile)} + IVA ${formatCurrency(kpi.iva)}${Math.abs(kpi.altro) >= 0.01 ? ` + altro ${formatCurrency(kpi.altro)}` : ""}${kpi.senzaImporto > 0 ? ` · ${kpi.senzaImporto} senza importo` : ""}`}
               icon={Euro}
             />
           </div>
@@ -1143,55 +1375,11 @@ export default function FattureRicevutePage() {
       {/* Filtri: chip rapidi con il conteggio, poi ricerca e tendine. */}
       <div className="space-y-3 max-sm:hidden">
         <div className="flex flex-wrap items-center gap-2">
-          <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>
-            Tutte
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={statoFilter === "non_letta"}
-            onClick={() => setStatoFilter((s) => (s === "non_letta" ? "all" : "non_letta"))}
-            conteggio={kpi.nonLette}
-          >
-            Da leggere
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={contabFilter === "da_contabilizzare"}
-            onClick={() => setContabFilter((c) => (c === "all" ? "da_contabilizzare" : "all"))}
-            conteggio={conteggi.daContabilizzare}
-          >
-            Da contabilizzare
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={pagamentoFilter === "da_pagare"}
-            onClick={() => setPagamentoFilter((p) => (p === "da_pagare" ? "all" : "da_pagare"))}
-            conteggio={conteggi.daPagare}
-          >
-            Da pagare
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={ordineFilter === "senza"}
-            onClick={() => setOrdineFilter((o) => (o === "senza" ? "all" : "senza"))}
-            conteggio={conteggi.senzaOrdine}
-          >
-            Senza ordine
-          </ChipFiltro>
-          <ChipFiltro
-            attivo={categoriaFilter === "__nessuna__"}
-            onClick={() => setCategoriaFilter((c) => (c === "__nessuna__" ? "all" : "__nessuna__"))}
-            conteggio={kpi.daClassificare}
-          >
-            Da classificare
-          </ChipFiltro>
-          <p className="ml-auto text-xs text-muted-foreground tabular-nums">
-            Mostrando <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Cerca per fornitore, numero fattura, P.IVA..."
-              className="border-0 bg-slate-50 pl-9 shadow-none focus-visible:ring-1"
+              className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1207,60 +1395,119 @@ export default function FattureRicevutePage() {
               <SelectItem value="all">Tutti gli anni</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={statoFilter} onValueChange={setStatoFilter}>
-            <SelectTrigger className="w-[150px]" aria-label="Stato">
-              <SelectValue placeholder="Stato" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="non_letta">Non lette</SelectItem>
-              <SelectItem value="letta">Lette</SelectItem>
-              <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
-            </SelectContent>
-          </Select>
-          {opzioniTipo.length > 0 && (
-            <Select value={tipoFilter} onValueChange={setTipoFilter}>
-              <SelectTrigger className="w-[150px]" aria-label="Tipo documento">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti i tipi</SelectItem>
-                {opzioniTipo.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {opzioniCategoria.length > 0 && (
-            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-              <SelectTrigger className="w-[170px]" aria-label="Categoria">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutte le categorie</SelectItem>
-                <SelectItem value="__nessuna__">Non classificate</SelectItem>
-                {opzioniCategoria.map((c) => (
-                  <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <Select value={ordineFilter} onValueChange={(v) => setOrdineFilter(v as "all" | "con" | "senza")}>
-            <SelectTrigger className="w-[150px]" aria-label="Ordine d'acquisto">
-              <SelectValue placeholder="Ordine" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Ordine: tutti</SelectItem>
-              <SelectItem value="con">Con ordine</SelectItem>
-              <SelectItem value="senza">Senza ordine</SelectItem>
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-1.5">
+                <SlidersHorizontal className="h-4 w-4" />Altri filtri
+                {altriFiltriAttivi > 0 && <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">{altriFiltriAttivi}</Badge>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 space-y-3">
+              {opzioniMetodo.length > 0 && (
+                <label className="block space-y-1 text-sm"><span className="font-medium">Modalità di pagamento</span>
+                  <Select value={metodoFilter} onValueChange={setMetodoFilter}>
+                    <SelectTrigger aria-label="Modalità di pagamento"><SelectValue placeholder="Modalità" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutte</SelectItem>
+                      {opzioniMetodo.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              <label className="block space-y-1 text-sm"><span className="font-medium">Allegati</span>
+                <Select value={allegatiFilter} onValueChange={(v) => setAllegatiFilter(v as "all" | "con" | "senza")}>
+                  <SelectTrigger aria-label="Allegati"><SelectValue placeholder="Allegati" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte</SelectItem>
+                    <SelectItem value="con">Con allegati</SelectItem>
+                    <SelectItem value="senza">Senza allegati</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="block space-y-1 text-sm"><span className="font-medium">Stato</span>
+                <Select value={statoFilter} onValueChange={setStatoFilter}>
+                  <SelectTrigger aria-label="Stato"><SelectValue placeholder="Stato" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti</SelectItem>
+                    <SelectItem value="non_letta">Non lette</SelectItem>
+                    <SelectItem value="letta">Lette</SelectItem>
+                    <SelectItem value="contabilizzata">Contabilizzate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              {opzioniTipo.length > 0 && (
+                <label className="block space-y-1 text-sm"><span className="font-medium">Tipo di documento</span>
+                  <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                    <SelectTrigger aria-label="Tipo documento"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti</SelectItem>
+                      {opzioniTipo.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              {opzioniCategoria.length > 0 && (
+                <label className="block space-y-1 text-sm"><span className="font-medium">Categoria</span>
+                  <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+                    <SelectTrigger aria-label="Categoria"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutte</SelectItem>
+                      <SelectItem value="__nessuna__">Non classificate</SelectItem>
+                      {opzioniCategoria.map((c) => <SelectItem key={c} value={c}>{etichettaCategoria(c)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              <label className="block space-y-1 text-sm"><span className="font-medium">Collegamento</span>
+                <Select value={ordineFilter} onValueChange={(v) => setOrdineFilter(v as "all" | "con" | "senza")}>
+                  <SelectTrigger aria-label="Collegamento"><SelectValue placeholder="Collegamento" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte</SelectItem>
+                    <SelectItem value="con">Collegate</SelectItem>
+                    <SelectItem value="senza">Da collegare</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-1.5 max-sm:hidden"><Columns3 className="h-4 w-4" />Colonne</Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-60 space-y-2">
+              {COLONNE_RICEVUTE.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={colonne.has(c.id)} onCheckedChange={(v) => cambiaColonna(c.id, v === true)} />
+                  {c.etichetta}
+                </label>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </div>
+        {/* Cosa c'è da fare: a zero non serve vederlo. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <ChipFiltro attivo={filtriAttivi === 0} onClick={azzeraFiltri} conteggio={fatture.length}>
+            Tutte
+          </ChipFiltro>
+          {([
+            { attivo: statoFilter === "non_letta", fai: () => setStatoFilter((v) => (v === "non_letta" ? "all" : "non_letta")), n: kpi.nonLette, testo: "Da leggere" },
+            { attivo: soloDaVerificare, fai: () => setSoloDaVerificare((v) => !v), n: conteggi.daVerificare, testo: "Da verificare" },
+            { attivo: soloDaRettificare, fai: () => setSoloDaRettificare((v) => !v), n: conteggi.daRettificare, testo: "Da rettificare" },
+            { attivo: ordineFilter === "senza", fai: () => setOrdineFilter((v) => (v === "senza" ? "all" : "senza")), n: conteggi.senzaOrdine, testo: "Da collegare" },
+            { attivo: contabFilter === "da_contabilizzare", fai: () => setContabFilter((v) => (v === "all" ? "da_contabilizzare" : "all")), n: conteggi.daContabilizzare, testo: "Da contabilizzare" },
+            { attivo: pagamentoFilter === "da_pagare", fai: () => setPagamentoFilter((v) => (v === "da_pagare" ? "all" : "da_pagare")), n: conteggi.daPagare, testo: "Da pagare" },
+            { attivo: categoriaFilter === "__nessuna__", fai: () => setCategoriaFilter((v) => (v === "__nessuna__" ? "all" : "__nessuna__")), n: kpi.daClassificare, testo: "Da classificare" },
+          ]).filter((c) => c.n > 0 || c.attivo).map((c) => (
+            <ChipFiltro key={c.testo} attivo={c.attivo} onClick={c.fai} conteggio={c.n}>{c.testo}</ChipFiltro>
+          ))}
           {filtriAttivi > 0 && (
-            <Button variant="ghost" size="sm" onClick={azzeraFiltri} className="text-muted-foreground">
-              <X className="mr-1 h-3.5 w-3.5" />
-              Azzera ({filtriAttivi})
+            <Button variant="ghost" size="sm" onClick={azzeraFiltri} className="h-7 text-muted-foreground">
+              <X className="mr-1 h-3.5 w-3.5" />Azzera
             </Button>
           )}
+          <p className="ml-auto text-xs tabular-nums text-muted-foreground">
+            <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
+          </p>
         </div>
       </div>
 
@@ -1288,15 +1535,23 @@ export default function FattureRicevutePage() {
         </div>
       ) : (
         <>
+        {puoInBlocco && companyId && righeInBlocco.length > 0 && (
+          <AzioniInBloccoRicevute companyId={companyId} righe={righeInBlocco} filtrate={filtered.length} onSelezionaTutte={selezionaTutte} onSvuota={() => setSelezionate(new Set())} />
+        )}
         {/* Mobile: una riga per fattura (fornitore, numero · data, totale e
             stato); si apre un riquadro dal basso. Via la tabella a dieci colonne. */}
         <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
           {filtered.map((f) => (
+            <div key={f.id} className="flex items-center">
+            {puoInBlocco && (
+              <label className="flex shrink-0 items-center self-stretch pl-3 pr-1">
+                <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={`Seleziona la fattura ${f.numero_fattura}`} />
+              </label>
+            )}
             <button
-              key={f.id}
               type="button"
               onClick={() => setDettaglioMobile(f)}
-              className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+              className="tap-compact flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
             >
               {f.stato === "non_letta" && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Da leggere" />}
               <div className="min-w-0 flex-1">
@@ -1311,27 +1566,38 @@ export default function FattureRicevutePage() {
                 <div className="text-[13px] font-semibold leading-tight tabular-nums">
                   {f.totale_documento != null ? formatCurrency(f.totale_documento) : "—"}
                 </div>
-                <div className={`mt-0.5 text-[11px] leading-tight ${pagataIl(f.id) ? "text-emerald-600" : f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
-                  {isNotaCreditoRicevuta(f.tipo_documento) ? etichettaStato(f) : pagataIl(f.id) ? "Pagata" : "Da pagare"}
+                <div className={`mt-0.5 text-[11px] leading-tight ${pagataIl(f.id) || pagataSulCosto(f) ? "text-emerald-600" : f.stato === "contabilizzata" ? "text-green-600" : "text-muted-foreground"}`}>
+                  {isNotaCreditoRicevuta(f.tipo_documento) ? (storni?.perNota.has(f.id) ? "Collegata" : etichettaStato(f)) : nonSiPaga(f.tipo_documento) ? etichettaStato(f) : stornataDelTutto(f) ? "Stornata" : pagataIl(f.id) || pagataSulCosto(f) ? "Pagata" : parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}
                 </div>
               </div>
             </button>
+            </div>
           ))}
         </div>
         <Card className="max-sm:hidden">
           <Table>
             <TableHeader>
               <TableRow>
+                {puoInBlocco && (
+                  <TableHead className="w-8 pr-0">
+                    <Checkbox aria-label="Seleziona tutte le fatture dell'elenco" checked={tutteSelezionate ? true : righeInBlocco.length ? "indeterminate" : false}
+                      onCheckedChange={(v) => (v === true ? selezionaTutte() : setSelezionate(new Set()))} />
+                  </TableHead>
+                )}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
-                <TableHead>Tipo</TableHead>
                 <TableHead>Numero</TableHead>
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Data</IntestazioneOrdinabile>
-                <TableHead>Arrivata il</TableHead>
-                <TableHead className="text-right">Imponibile</TableHead>
-                <TableHead className="text-right">IVA</TableHead>
+                {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
                 <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
-                <TableHead>Stato</TableHead>
-                <TableHead>Ordine</TableHead>
+                {colonne.has("netto") && <TableHead className="text-right">Netto</TableHead>}
+                {colonne.has("stato") && <TableHead>Stato</TableHead>}
+                {colonne.has("verifica") && <TableHead>Verifica</TableHead>}
+                {colonne.has("pagamento") && <TableHead>Pagamento</TableHead>}
+                {colonne.has("metodo") && <TableHead>Modalità</TableHead>}
+                {colonne.has("scadenza") && <TableHead>Scadenza</TableHead>}
+                {colonne.has("collegata") && <TableHead>Collegata a</TableHead>}
+                {colonne.has("allegati") && <TableHead>Allegati</TableHead>}
+                {colonne.has("note") && <TableHead>Note</TableHead>}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -1339,57 +1605,68 @@ export default function FattureRicevutePage() {
               {filtered.map((f) => (
                 <TableRow
                   key={f.id}
-                  className={f.stato === "non_letta" ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}
+                  className={`[&>td]:py-1.5 ${f.stato === "non_letta" ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
                 >
+                  {puoInBlocco && (
+                    <TableCell className="w-8 pr-0">
+                      <Checkbox checked={selezionate.has(f.id)} onCheckedChange={(v) => cambiaSelezione(f.id, v === true)} aria-label={`Seleziona la fattura ${f.numero_fattura}`} />
+                    </TableCell>
+                  )}
                   <TableCell>
-                    <div>
-                      <button type="button" className="text-left font-medium hover:underline underline-offset-2" onClick={() => setRiepilogoId(f.id)}>
-                        {f.cedente_ragione_sociale}
-                      </button>
-                      {f.fornitore_id && etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) ? (
-                        <div className="text-[11px] text-muted-foreground">{etichettaTipoFornitore(tipiFornitori[f.fornitore_id])}</div>
-                      ) : null}
-                      <div className="text-xs text-muted-foreground">
-                        {f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf}
-                      </div>
-                      {f.categoria_ai && (
-                        <Badge
-                          variant="outline"
-                          className="mt-1 text-[10px] font-normal"
-                          title={
-                            f.sottocategoria_ai
-                              ? `${f.sottocategoria_ai}${f.categoria_confidenza != null ? ` · sicurezza ${Math.round(f.categoria_confidenza * 100)}%` : ""}`
-                              : undefined
-                          }
-                        >
-                          {etichettaCategoria(f.categoria_ai)}
-                        </Badge>
-                      )}
+                    {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
+                    <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
+                      title={[
+                        f.cedente_ragione_sociale,
+                        f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf,
+                        f.fornitore_id ? etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) : null,
+                        f.categoria_ai ? `${etichettaCategoria(f.categoria_ai)}${f.sottocategoria_ai ? ` · ${f.sottocategoria_ai}` : ""}` : null,
+                      ].filter(Boolean).join("\n")}>
+                      {f.cedente_ragione_sociale}
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <span className="block max-w-[190px] truncate font-mono text-sm" title={f.numero_fattura}>{f.numero_fattura}</span>
+                      {etichettaTipoRicevuta(f.tipo_documento) !== "Fattura" && <span className="whitespace-nowrap text-xs text-muted-foreground">{etichettaTipoRicevuta(f.tipo_documento)}</span>}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <span className="text-xs">{etichettaTipoRicevuta(f.tipo_documento)}</span>
+                  <TableCell className="whitespace-nowrap">
+                    <DataFattura f={f} />
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{f.numero_fattura}</TableCell>
-                  <TableCell>{formatDateShort(f.data_fattura)}</TableCell>
-                  <TableCell className="whitespace-nowrap text-sm"><ArrivataIl f={f} /></TableCell>
-                  <TableCell className="text-right">
-                    {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground" title="Importo non incluso nella lista del provider: apri l'XML per il dettaglio">—</span>}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {f.iva_totale != null ? formatCurrency(f.iva_totale) : <span className="text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
+                  {colonne.has("imponibile") && <TableCell className="text-right">
+                    {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>}
+                  <TableCell className="whitespace-nowrap text-right font-medium" title={f.iva_totale != null ? `IVA ${formatCurrency(f.iva_totale)}` : undefined}>
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
-                  <TableCell>
-                    {/* Letta / contabilizzata e, se è pagata, un chip piccolo sotto. */}
-                    <div className="flex flex-col items-start gap-1">
-                      <StatoBadge stato={f.stato} storico={f.storico_esterno} />
+                  {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right">{f.netto_a_pagare != null ? formatCurrency(f.netto_a_pagare) : <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} /></TableCell>}
+                  {colonne.has("verifica") && <TableCell>
+                    {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
+                  </TableCell>}
+                  {colonne.has("pagamento") && <TableCell>
+                    {isNotaCreditoRicevuta(f.tipo_documento) ? (
+                      f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : (
+                        <button type="button" className="whitespace-nowrap text-xs underline underline-offset-2 hover:text-foreground" onClick={() => setCollegaNota(f)}>
+                          {storni?.perNota.has(f.id)
+                            ? `Storna ${fatture.filter((x) => storni.perNota.get(f.id)!.fatture.includes(x.id)).map((x) => x.numero_fattura).join(", ") || "una fattura"}`
+                            : <span className="text-amber-700 dark:text-amber-400">Collega alla fattura</span>}
+                        </button>
+                      )
+                    ) : nonSiPaga(f.tipo_documento) ? <span className="text-muted-foreground">—</span> : stornataDelTutto(f) ? (
+                      <StatoPill tono="grigio">Stornata</StatoPill>
+                    ) : pagataSulCosto(f) && !pagataIl(f.id) ? (
+                      <StatoPill tono="verde">Pagata{datiCosti?.pagati[f.company_cost_id!] ? ` ${formatDateShort(datiCosti.pagati[f.company_cost_id!]!)}` : ""}</StatoPill>
+                    ) : pagataIl(f.id) ? (
                       <PagamentoRicevutaCella forma="chip" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
-                    </div>
-                  </TableCell>
-                  <TableCell>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-amber-700 dark:text-amber-400">{parziali?.has(f.id) ? testoRatePagate(parziali.get(f.id)!.pagate, parziali.get(f.id)!.totali) : "Da pagare"}<PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} /></span>
+                    )}
+                  </TableCell>}
+                  {colonne.has("metodo") && <TableCell className="whitespace-nowrap text-xs">{metodiPagamento(f.piano_pagamento).join(", ") || <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("scadenza") && <TableCell className="whitespace-nowrap text-xs">{prossimaScadenza(f.piano_pagamento, oggiIso) ? formatDateShort(prossimaScadenza(f.piano_pagamento, oggiIso)!) : <span className="text-muted-foreground">—</span>}</TableCell>}
+                  {colonne.has("collegata") && <TableCell>
+                    <div className="flex flex-nowrap items-center gap-1">
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (
                       <div className="flex flex-wrap items-center gap-0.5">
                         {quoteOrdini[f.id].map((q) => (
@@ -1439,39 +1716,48 @@ export default function FattureRicevutePage() {
                         </Button>
                       </div>
                     ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        title="Collega a un ordine d'acquisto"
-                        onClick={() => setCollegaFattura(f)}
-                      >
-                        <Link2 className="h-3.5 w-3.5 mr-1" />
-                        Collega
+                      <div className="flex flex-nowrap items-center gap-1">
+                        {commesseDi(f).slice(0, 2).map((q) => (
+                          <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? `Quota ${q.pct.toLocaleString("it-IT")}%: ${formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100)}` : undefined}>
+                            <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300">{q.codice}</Badge>
+                          </Link>
+                        ))}
+                        {commesseDi(f).length > 2 && <span className="text-xs text-muted-foreground" title={commesseDi(f).slice(2).map((q) => q.codice).join(", ")}>+{commesseDi(f).length - 2}</span>}
+                        {commesseDi(f).length ? (
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Cambia il collegamento" aria-label={`Cambia il collegamento della fattura ${f.numero_fattura}`} onClick={() => setCollegaCommesse(f)}>
+                            <Link2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            title="Collega a una o più commesse, o a un ordine d'acquisto" onClick={() => setCollegaCommesse(f)}>
+                            <Link2 className="mr-1 h-3.5 w-3.5" />Collega
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {/* Chi ha deciso l'aggancio si vede, e si può tornare indietro: senza questo, "scollegata
+                        a mano" era uno stato invisibile che spiegava perché il sistema non riagganciava più. */}
+                    {f.aggancio_oda_manuale && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        title="Scelto a mano: il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela." aria-label="Riattiva l'aggancio automatico"
+                        onClick={() => riattivaAutomaticoMutation.mutate(f.id)}>
+                        <RotateCcw className="h-3 w-3" />
                       </Button>
                     )}
-                    {/* Chi ha deciso l'aggancio si vede, e si può tornare
-                        indietro: senza questo, "scollegata a mano" era uno
-                        stato invisibile che spiegava perché il sistema non
-                        riagganciava più. */}
-                    {f.aggancio_oda_manuale && (
-                      <button
-                        type="button"
-                        className="mt-1 block text-[10px] text-muted-foreground underline-offset-2 hover:underline"
-                        title="Il sistema non riaggancia più questa fattura da solo. Clicca per restituirgliela."
-                        onClick={() => riattivaAutomaticoMutation.mutate(f.id)}
-                      >
-                        scelto a mano · riattiva automatico
-                      </button>
-                    )}
-                  </TableCell>
+                    </div>
+                  </TableCell>}
+                  {colonne.has("allegati") && <TableCell>
+                    <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" title="Apri la fattura per vedere o aggiungere allegati" aria-label={`Allegati della fattura ${f.numero_fattura}`} onClick={() => setRiepilogoId(f.id)}>
+                      <Paperclip className="h-3.5 w-3.5" />{conteggiAllegati?.get(f.id) ?? 0}
+                    </button>
+                  </TableCell>}
+                  {colonne.has("note") && <TableCell className="max-w-[220px] truncate text-xs" title={f.note_interne ?? undefined}>{f.note_interne || <span className="text-muted-foreground">—</span>}</TableCell>}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {/* Da pagare: una spunta tra le azioni, non un pulsante in ogni riga. */}
-                      <PagamentoRicevutaCella forma="icona" id={f.id} numero={f.numero_fattura} tipo={f.tipo_documento} pagataIl={pagataIl(f.id)} />
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
                         title="Apri la fattura: righe, totali e collegamenti" aria-label="Apri la fattura"
                         onClick={() => setRiepilogoId(f.id)}
                       >
@@ -1482,6 +1768,7 @@ export default function FattureRicevutePage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           title="Scarica il file originale" aria-label="Scarica il file originale"
                           onClick={() => void handleScaricaOriginale(f)}
                         >
@@ -1497,13 +1784,12 @@ export default function FattureRicevutePage() {
                       {f.stato !== "contabilizzata" && (
                         <Button
                           variant="ghost"
-                          size="sm"
-                          className="text-xs text-green-700 hover:text-green-800 hover:bg-green-50"
-                          title="Contabilizza"
-                          onClick={() => setContabilizzaFattura(f)}
+                          size="icon"
+                          className="h-8 w-8 text-green-700 hover:bg-green-50 hover:text-green-800"
+                          title="Contabilizza" aria-label={`Contabilizza la fattura ${f.numero_fattura}`}
+                          onClick={() => apriContabilizza(f)}
                         >
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Contabilizza
+                          <CheckCircle2 className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
@@ -1513,6 +1799,8 @@ export default function FattureRicevutePage() {
             </TableBody>
           </Table>
         </Card>
+        {/* La barra delle modifiche in blocco è fissa: senza questo spazio coprirebbe le ultime righe. */}
+        {righeInBlocco.length > 0 && <div aria-hidden="true" className="h-28" />}
         </>
       )}
 
@@ -1577,7 +1865,7 @@ export default function FattureRicevutePage() {
                   ? ` · divisa tra ${quoteOrdini[dettaglioMobile.id].map((q) => odaNumbers[q.purchase_order_id] ?? "OdA").join(", ")}`
                   : ""}
               </p>
-              {!isNotaCreditoRicevuta(dettaglioMobile.tipo_documento) && (
+              {!nonSiPaga(dettaglioMobile.tipo_documento) && (
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Pagamento</span>
                   <PagamentoRicevutaCella id={dettaglioMobile.id} numero={dettaglioMobile.numero_fattura} tipo={dettaglioMobile.tipo_documento} pagataIl={pagataIl(dettaglioMobile.id)} />
@@ -1593,9 +1881,18 @@ export default function FattureRicevutePage() {
               {dettaglioMobile.stato !== "contabilizzata" && (
                 <Button
                   className="mt-2 h-10 w-full bg-green-600 hover:bg-green-700"
-                  onClick={() => { setContabilizzaFattura(dettaglioMobile); setDettaglioMobile(null); }}
+                  onClick={() => { apriContabilizza(dettaglioMobile); setDettaglioMobile(null); }}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Contabilizza
+                </Button>
+              )}
+              {isNotaCreditoRicevuta(dettaglioMobile.tipo_documento) && dettaglioMobile.stato !== "rifiutata" && (dettaglioMobile.stato === "contabilizzata" || !!dettaglioMobile.purchase_order_id) && (
+                <Button
+                  variant="outline"
+                  className="mt-2 h-10 w-full"
+                  onClick={() => { setCollegaNota(dettaglioMobile); setDettaglioMobile(null); }}
+                >
+                  {storni?.perNota.has(dettaglioMobile.id) ? "Cambia la fattura stornata" : "Collega alla fattura"}
                 </Button>
               )}
             </>
@@ -1692,6 +1989,13 @@ export default function FattureRicevutePage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {collegaCommesse && companyId && (
+        <CollegaFatturaCommesseDialog companyId={companyId} onChiudi={() => setCollegaCommesse(null)}
+          onScegliOrdine={collegaCommesse.stato !== "contabilizzata" ? () => { setCollegaFattura(collegaCommesse); setCollegaCommesse(null); } : undefined}
+          fattura={{ id: collegaCommesse.id, numero: collegaCommesse.numero_fattura, fornitore: collegaCommesse.cedente_ragione_sociale, imponibile: collegaCommesse.imponibile_totale, totale: collegaCommesse.totale_documento, companyCostId: collegaCommesse.company_cost_id, purchaseOrderId: collegaCommesse.purchase_order_id, suOrdini: (quoteOrdini[collegaCommesse.id]?.length ?? 0) > 0 }} />
+      )}
+      {collegaNota && <CollegaNotaCreditoDialog nota={collegaNota} onChiudi={() => setCollegaNota(null)} />}
+
       {/* Collega ordine Dialog */}
       <CollegaOrdineFatturaDialog
         open={!!collegaFattura}
@@ -1767,7 +2071,8 @@ export default function FattureRicevutePage() {
           if (!f) return {};
           return {
             onCollegaOrdine: () => setCollegaFattura(f),
-            onContabilizza: () => setContabilizzaFattura(f),
+            onCollegaCommesse: () => { setRiepilogoId(null); setCollegaCommesse(f); },
+            onContabilizza: () => apriContabilizza(f),
             onVersioneCompleta: () => void handleViewFattura(f),
             onScaricaOriginale: () => void handleScaricaOriginale(f),
           };

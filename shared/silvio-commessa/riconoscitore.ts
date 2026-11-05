@@ -3,7 +3,7 @@
  * docs/piano-silvio-commessa-ai.md, sezione 3.3: «nessun lettore nuovo dove ce n'è già uno».
  *
  * Guarda nome, tipo MIME e prime righe del file e sceglie chi lo legge:
- * - XPWE e PDF stampati da PriMus → i lettori dei computi, senza AI (`leggiFileComputo`);
+ * - XPWE, PDF stampati da PriMus e fogli Excel → i lettori dei computi, senza AI (`leggiFileComputo`);
  * - offerte delle ditte e dei fornitori → `rdo-ai-estrai-offerta`;
  * - tutto il resto (contratti, capitolati, PDF qualsiasi, foto, piantine, testo) → il
  *   lettore unico `silvio-commessa`, con il tipo di fonte che decide la fiducia.
@@ -16,7 +16,7 @@
  */
 import type { FonteLetturaAI } from "./letturaAI.ts";
 
-export type Lettore = "computo_xpwe" | "computo_primus" | "offerta_ditta" | "silvio_commessa" | "non_letto";
+export type Lettore = "computo_xpwe" | "computo_primus" | "computo_excel" | "offerta_ditta" | "silvio_commessa" | "non_letto";
 
 export interface DocumentoDaRiconoscere {
   nome: string;
@@ -40,7 +40,7 @@ export interface Riconosciuto {
 const estensione = (nome: string) => /\.([a-z0-9]+)$/i.exec(nome.trim())?.[1]?.toLowerCase() ?? "";
 
 const IMMAGINI = new Set(["jpg", "jpeg", "png", "webp"]);
-const NON_LETTI = new Set(["doc", "docx", "odt", "xls", "xlsx", "ods", "csv", "zip", "rar", "7z", "dwg", "dxf", "heic", "mp4", "mov"]);
+const NON_LETTI = new Set(["doc", "docx", "odt", "xls", "xlsb", "ods", "csv", "zip", "rar", "7z", "dwg", "dxf", "heic", "mp4", "mov"]);
 
 /** I segni di un computo stampato da PriMus (gli stessi che cerca `eComputoPrimus`). */
 const PRIMUS = [/\bprimus\b/i, /designazione dei lavori/i, /\bsommano\b/i, /num\.?\s*ord\.?/i, /\btariffa\b/i];
@@ -75,6 +75,10 @@ export function riconosciDocumento(doc: DocumentoDaRiconoscere): Riconosciuto {
     return { lettore: "computo_xpwe", fonte: "computo", ai: false, immagine: false, motivo: "computo di PriMus (XPWE): lettore del computo, senza AI" };
   }
 
+  if (ext === "xlsx" || ext === "xlsm" || (!ext && mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
+    return { lettore: "computo_excel", fonte: "computo", ai: false, immagine: false, motivo: "foglio di calcolo: lettore del computo, senza AI" };
+  }
+
   const pdf = ext === "pdf" || mime === "application/pdf";
   if (pdf && PRIMUS.filter((re) => re.test(inizio)).length >= 2 && /computo|sommano|tariffa/i.test(inizio)) {
     return { lettore: "computo_primus", fonte: "computo", ai: false, immagine: false, motivo: "computo stampato da PriMus: lettore del computo, senza AI" };
@@ -84,8 +88,8 @@ export function riconosciDocumento(doc: DocumentoDaRiconoscere): Riconosciuto {
   if (!pdf && !immagine && (NON_LETTI.has(ext) || (mime && !/^text\//.test(mime) && !/^image\//.test(mime)))) {
     return {
       lettore: "non_letto", fonte: "documento", ai: false, immagine: false,
-      motivo: /^(xls|xlsx|ods|csv)$/.test(ext)
-        ? "foglio di calcolo: per un computo usa «Importa computo», per il resto salvalo in PDF"
+      motivo: /^(xls|xlsb|ods|csv)$/.test(ext) || mime === "application/vnd.ms-excel"
+        ? "foglio di calcolo in un formato vecchio o diverso: aprilo in Excel e salvalo come .xlsx"
         : "formato non letto: carica un PDF, una foto (JPG, PNG, WEBP) o un testo",
     };
   }

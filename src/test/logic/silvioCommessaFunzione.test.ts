@@ -166,7 +166,7 @@ describe("silvio-commessa: otto documenti inventati", () => {
 
     // L'anticipo del 20 % sul totale con l'IVA: 184.500 × 1,10 × 20 %.
     expect(valore(fr, "pagamenti.rate")!.valore).toEqual([
-      { label: "Anticipazione", type: "deposit", amount: 40590, percent: 20, trigger_evento: "firma_contratto" },
+      { label: "Anticipazione", type: "deposit", amount: 40590, percent: 20, daPercentuale: true, trigger_evento: "firma_contratto" },
     ] satisfies RataDelPiano[]);
     expect(valore(fr, "sal_scadenze.sal")!.valore).toEqual({ cadenza: "a importo", importo_minimo_eur: 40000 });
     expect(valore(fr, "cliente.nome")!.valore).toEqual({ client_company: "Condominio Via dei Tigli 12" });

@@ -6,8 +6,14 @@
  * rapportino. Le timbrature altrui sono chiuse dalla RLS: passa dalla funzione.
  */
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Users, Clock, FileText, RefreshCw, HardHat } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowLeft, BellRing, Check, Users, Clock, FileText, Loader2, Phone, RefreshCw, HardHat } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { linkTelefono } from "@/hooks/campo/useCampoGiornata";
+import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
+import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +34,8 @@ interface RigaSquadra {
   in_cantiere: boolean;
   ore: number;
   rapportino_inviato: boolean;
+  /** Il telefono di lavoro, mai quello privato. */
+  telefono?: string | null;
 }
 
 const ora = (iso: string | null) =>
@@ -36,6 +44,22 @@ const ora = (iso: string | null) =>
 export default function CampoSquadra() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [sollecitati, setSollecitati] = useState<Set<string>>(new Set());
+  // Dove il rapportino lo fa il capo, gli operai non hanno niente da mandare.
+  const { data: regole } = useRegoleCampoOrdine(orderId);
+  const sollecita = useMutation({
+    mutationFn: async (userId: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("campo_sollecita_rapportino", { p_order_id: orderId, p_user_id: userId });
+      if (error) throw error;
+    },
+    onSuccess: (_, userId) => {
+      setSollecitati((s) => new Set(s).add(userId));
+      toast.success("Sollecito mandato");
+    },
+    onError: (e) => toast.error(messaggioErrore(e, "Non sono riuscito a mandare il sollecito. Riprova.")),
+  });
 
   const { data: order } = useQuery({
     queryKey: ["campo-squadra-ordine", orderId],
@@ -99,45 +123,72 @@ export default function CampoSquadra() {
           ) : squadra.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Oggi qui non è previsto nessuno.</p>
           ) : (
-            squadra.map((r, i) => (
+            squadra.map((r, i) => {
+              const tel = linkTelefono(r.telefono ?? null);
+              const uid = r.user_id;
+              const puoSollecitare = !!uid && uid !== user?.id && !r.rapportino_inviato && !!regole && regole.chiCompila !== "capo";
+              const sollecitato = !!uid && sollecitati.has(uid);
+              return (
               <div key={r.user_id ?? `senza-app-${i}`} className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3">
-                <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
                   r.in_cantiere ? "bg-emerald-100 text-emerald-700" : r.uscita ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-700")}>
                   {r.nome.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() || <HardHat className="h-4 w-4" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="truncate text-sm font-semibold">{r.nome || "Senza nome"}</p>
+                    <p className="min-w-0 truncate text-sm font-semibold">{r.nome || "Senza nome"}</p>
                     {r.is_capocantiere && <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-primary/30 text-primary">Capo</Badge>}
                     {r.ruolo === "sub" && <Badge variant="outline" className="h-4 px-1.5 text-[10px]">Sub</Badge>}
                     {r.squadra && <span className="text-[11px] text-muted-foreground">{r.squadra}</span>}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {r.in_cantiere
-                      ? `In cantiere dalle ${ora(r.entrata)}`
-                      : r.uscita
-                        ? `${ora(r.entrata)} → ${ora(r.uscita)}`
-                        : "Non ha timbrato oggi"}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="flex items-center justify-end gap-1 text-sm font-semibold tabular-nums">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />{Number(r.ore).toLocaleString("it-IT")} h
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                    <span>
+                      {r.in_cantiere
+                        ? `In cantiere dalle ${ora(r.entrata)}`
+                        : r.uscita
+                          ? `${ora(r.entrata)} → ${ora(r.uscita)}`
+                          : "Non ha timbrato oggi"}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-semibold tabular-nums text-foreground">
+                      <Clock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />{Number(r.ore).toLocaleString("it-IT")} h
+                    </span>
                   </p>
                   {r.user_id ? (
-                    <p className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", r.rapportino_inviato ? "text-emerald-600" : "text-muted-foreground")}>
-                      <FileText className="h-3 w-3" />{r.rapportino_inviato ? "rapportino ok" : "senza rapportino"}
+                    <p className={cn("mt-0.5 flex items-center gap-1 text-[11px]", r.rapportino_inviato ? "text-emerald-600" : "text-muted-foreground")}>
+                      <FileText className="h-3 w-3" aria-hidden="true" />{r.rapportino_inviato ? "rapportino ok" : "senza rapportino"}
                     </p>
                   ) : (
                     <p className="mt-0.5 text-[11px] text-muted-foreground">senza app</p>
                   )}
                 </div>
+                {(tel || puoSollecitare) && (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {tel && (
+                      <a href={tel} aria-label={`Chiama ${r.nome}`} className="tap-compact flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-foreground active:bg-muted">
+                        <Phone className="h-4 w-4" aria-hidden="true" />
+                      </a>
+                    )}
+                    {puoSollecitare && (
+                      <button
+                        type="button"
+                        aria-label={sollecitato ? `Sollecito mandato a ${r.nome}` : `Sollecita il rapportino a ${r.nome}`}
+                        disabled={sollecitato || (sollecita.isPending && sollecita.variables === uid)}
+                        onClick={() => sollecita.mutate(uid!)}
+                        className="tap-compact flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-foreground active:bg-muted disabled:opacity-60"
+                      >
+                        {sollecitato ? <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                          : sollecita.isPending && sollecita.variables === uid ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          : <BellRing className="h-4 w-4" aria-hidden="true" />}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>
-      <p className="px-1 text-center text-[11px] text-muted-foreground">Le ore contano dalle timbrature di oggi; chi è ancora dentro conta fino ad adesso.</p>
     </div>
   );
 }

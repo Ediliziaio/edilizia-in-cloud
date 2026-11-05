@@ -37,7 +37,8 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
   useEffect(() => {
     if (open && scadenza) {
       setAmount(String(scadenza.amount - scadenza.paid_amount));
-      setMethod(scadenza.payment_method || "bonifico");
+      // Un codice solo per la RiBa: le scadenze vecchie possono dire ancora «ri.ba».
+      setMethod(scadenza.payment_method === "ri.ba" ? "riba" : scadenza.payment_method || "bonifico");
       setDate(new Date().toLocaleDateString("en-CA"));
       setNotes("");
     }
@@ -85,7 +86,8 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
                   <SelectItem value="contanti">Contanti</SelectItem>
                   <SelectItem value="carta">Carta</SelectItem>
                   <SelectItem value="assegno">Assegno</SelectItem>
-                  <SelectItem value="ri.ba">Ri.Ba.</SelectItem>
+                  <SelectItem value="riba">RiBa</SelectItem>
+                  <SelectItem value="rid">RID / SDD</SelectItem>
                   <SelectItem value="altro">Altro</SelectItem>
                 </SelectContent>
               </Select>

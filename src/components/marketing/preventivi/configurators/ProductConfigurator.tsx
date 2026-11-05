@@ -15,6 +15,7 @@ import { FamilyConfigurator } from "./FamilyConfigurator";
 import { ArticleConfigurator } from "./ArticleConfigurator";
 import { SimpleProductConfigurator } from "./SimpleProductConfigurator";
 import { prodottoSemplice } from "@/lib/preventivi/configurazioneSemplice";
+import type { DopoAggiunta } from "./LayoutConfigurazione";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { CatalogItem, ConfiguredItem } from "@/types/catalogItem";
 
@@ -24,7 +25,9 @@ interface ProductConfiguratorProps {
   tariffe: TariffaPro[];
   currentSortOrder: number;
   onBack: () => void;
-  onAddItems: (items: ConfiguredItem[], nextSortOrder: number) => void;
+  onAddItems: (items: ConfiguredItem[], nextSortOrder: number, dopo?: DopoAggiunta) => void;
+  inserimentoContinuo?: boolean;
+  nuovaMisura?: number;
 }
 
 export function ProductConfigurator(props: ProductConfiguratorProps) {
@@ -40,6 +43,8 @@ export function ProductConfigurator(props: ProductConfiguratorProps) {
         currentSortOrder={props.currentSortOrder}
         onBack={props.onBack}
         onAddItems={props.onAddItems}
+        inserimentoContinuo={props.inserimentoContinuo}
+        nuovaMisura={props.nuovaMisura}
       />
     );
   }
@@ -52,6 +57,8 @@ export function ProductConfigurator(props: ProductConfiguratorProps) {
       currentSortOrder={props.currentSortOrder}
       onBack={props.onBack}
       onAddItems={props.onAddItems}
+      inserimentoContinuo={props.inserimentoContinuo}
+      nuovaMisura={props.nuovaMisura}
     />
   );
 }

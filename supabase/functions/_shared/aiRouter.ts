@@ -63,9 +63,23 @@ export interface AiRouterParams {
   top_p?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
+  /**
+   * Tempo massimo per ogni chiamata al modello, in ms (tetto 140 s). Senza, valgono i 30 s dei modelli
+   * veloci: troppo pochi per chi risponde con un JSON lungo, come la pianta letta da un disegno.
+   */
+  timeoutMs?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tools?: Array<any>;
   tool_choice?: "auto" | "none" | { type: "function"; function: { name: string } };
+  /**
+   * Cache del prompt, solo per chi la chiede (oggi silvio-chat). Non finisce nel
+   * body cosi' com'e': la legge `cachePromptAnthropic`.
+   *  - ttl: durata del blocco statico; senza, resta il comportamento storico.
+   *  - coda: aggiunge il `cache_control` a livello di richiesta, il breakpoint
+   *    che Anthropic sposta da solo sull'ultimo blocco. Serve ai passaggi dello
+   *    stesso messaggio: rileggono anche storico e risultati degli strumenti.
+   */
+  promptCache?: { ttl?: "5m" | "1h"; coda?: boolean };
 }
 
 export interface AiRouterCompleteOptions {
@@ -594,6 +608,98 @@ async function leggiStreamOpenRouter(
   return rispostaDaAccumulatore(acc);
 }
 
+/**
+ * Prepara i messaggi per il prompt caching. NON muta l'array in ingresso (lo
+ * riusa il giro di ripiego su altri modelli). Su Anthropic ogni system in testa
+ * riceve il suo breakpoint; altrove i system vengono fusi in una sola stringa.
+ *
+ * Kill-switch senza redeploy: AI_PROMPT_CACHE_DISABLED=true spegne tutto,
+ * AI_PROMPT_CACHE_TAIL_DISABLED=true solo il breakpoint di coda,
+ * AI_PROMPT_CACHE_TTL=5m forza i 5 minuti a tutti.
+ */
+export function cachePromptAnthropic(
+  model: string,
+  messages: AiRouterMessage[],
+  promptCache?: AiRouterParams["promptCache"],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): { messages: any[]; cacheCoda: boolean } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let finalMessages: any[] = messages;
+  const promptCacheEnabled = Deno.env.get("AI_PROMPT_CACHE_DISABLED") !== "true";
+  const isAnthropic = model.startsWith("anthropic/");
+  const cacheCoda = promptCache?.coda === true && promptCacheEnabled && isAnthropic &&
+    Deno.env.get("AI_PROMPT_CACHE_TAIL_DISABLED") !== "true";
+  let leadingSystemCount = 0;
+  while (
+    leadingSystemCount < messages.length &&
+    messages[leadingSystemCount]?.role === "system" &&
+    typeof messages[leadingSystemCount]?.content === "string"
+  ) {
+    leadingSystemCount++;
+  }
+  const totalSystemLen = messages
+    .slice(0, leadingSystemCount)
+    .reduce((acc, m) => acc + (m.content as string).length, 0);
+  if (promptCacheEnabled && isAnthropic && leadingSystemCount >= 1 && totalSystemLen > 800) {
+    // Max 4 breakpoint per richiesta Anthropic, compreso quello di coda: i
+    // system in eccesso vengono fusi nell'ultimo (caso teorico, oggi sono 1-2).
+    const maxSystem = cacheCoda ? 3 : 4;
+    const sysMsgs = messages.slice(0, leadingSystemCount);
+    const capped = sysMsgs.length > maxSystem
+      ? [
+        ...sysMsgs.slice(0, maxSystem - 1),
+        { role: "system", content: sysMsgs.slice(maxSystem - 1).map((m) => m.content).join("\n\n") },
+      ]
+      : sysMsgs;
+    // TTL: scrivere a 1h costa 2x invece di 1,25x, rileggere sempre 0,1x. Rende
+    // solo se oltre il 65% delle scritture viene riletto fra i 5 e i 60 minuti.
+    // Chi conosce il proprio traffico lo dice con `promptCache.ttl`: silvio-chat
+    // chiede 5m (misurato il 02/11/2026). Senza, resta l'ora storica.
+    const ttlLungo = Deno.env.get("AI_PROMPT_CACHE_TTL") !== "5m" && promptCache?.ttl !== "5m";
+    finalMessages = [
+      ...capped.map((m, idx) => ({
+        role: "system",
+        content: [{
+          type: "text",
+          text: m.content,
+          cache_control: idx === 0 && ttlLungo
+            ? { type: "ephemeral", ttl: "1h" }
+            : { type: "ephemeral" },
+        }],
+      })),
+      ...messages.slice(leadingSystemCount),
+    ];
+  } else if (leadingSystemCount > 1) {
+    // Provider non-Anthropic (o cache disabilitata): un solo system string,
+    // formato universalmente accettato.
+    finalMessages = [
+      {
+        role: "system",
+        content: messages.slice(0, leadingSystemCount).map((m) => m.content).join("\n\n"),
+      },
+      ...messages.slice(leadingSystemCount),
+    ];
+  }
+  return { messages: finalMessages, cacheCoda };
+}
+
+/**
+ * Token letti e scritti in cache da una risposta OpenRouter. I nomi cambiano col
+ * provider a monte, quindi si provano tutti. `prompt_tokens` li comprende gia'.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function tokenCacheDaUsage(usage: any): { cachedTokens: number; cacheWriteTokens: number } {
+  const dettagli = usage?.prompt_tokens_details ?? {};
+  return {
+    cachedTokens: Number(
+      dettagli.cached_tokens ?? usage?.cache_read_input_tokens ?? dettagli.cache_read_input_tokens ?? 0,
+    ) || 0,
+    cacheWriteTokens: Number(
+      dettagli.cache_write_tokens ?? usage?.cache_creation_input_tokens ?? dettagli.cache_creation_input_tokens ?? 0,
+    ) || 0,
+  };
+}
+
 /** Chiama OpenRouter una volta con un modello specifico. */
 async function callOpenRouter(
   apiKey: string,
@@ -657,69 +763,7 @@ async function callOpenRouter(
   // altri provider (che rifiutano il content-array e/o i system multipli) i
   // blocchi vengono fusi in un'unica stringa system → comportamento identico.
   // NON muta l'array in ingresso (riusato dal loop di fallback su altri modelli).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let finalMessages: any[] = messages;
-  // Kill-switch: imposta AI_PROMPT_CACHE_DISABLED=true per disattivare al volo
-  // (senza redeploy) se un provider dovesse rifiutare il formato content-array.
-  const promptCacheEnabled = Deno.env.get("AI_PROMPT_CACHE_DISABLED") !== "true";
-  let leadingSystemCount = 0;
-  while (
-    leadingSystemCount < messages.length &&
-    messages[leadingSystemCount]?.role === "system" &&
-    typeof messages[leadingSystemCount]?.content === "string"
-  ) {
-    leadingSystemCount++;
-  }
-  const totalSystemLen = messages
-    .slice(0, leadingSystemCount)
-    .reduce((acc, m) => acc + (m.content as string).length, 0);
-  if (
-    promptCacheEnabled &&
-    model.startsWith("anthropic/") &&
-    leadingSystemCount >= 1 &&
-    totalSystemLen > 800
-  ) {
-    // Max 4 breakpoint cache_control per richiesta Anthropic: i system oltre
-    // il 4° vengono fusi nel 4° (caso teorico, oggi i caller ne mandano 1-2).
-    const sysMsgs = messages.slice(0, leadingSystemCount);
-    const capped = sysMsgs.length > 4
-      ? [...sysMsgs.slice(0, 3), { role: "system", content: sysMsgs.slice(3).map((m) => m.content).join("\n\n") }]
-      : sysMsgs;
-    // TTL della cache. Il primo blocco (preambolo + persona + regole) e'
-    // identico per tutta la conversazione e resta in cache UN'ORA invece di
-    // cinque minuti: chi parla con Silvio riprende dopo dieci o venti minuti,
-    // e con il TTL corto ogni ripresa riscriveva tutto il prefisso a prezzo
-    // pieno (misurato su ai_router_usage_log: riuso 30%). La scrittura a 1h
-    // costa 2x invece di 1,25x, la rilettura resta 0,1x: basta UN messaggio
-    // fra i 5 e i 60 minuti dopo perche' convenga. I blocchi successivi
-    // cambiano a ogni messaggio (memoria, RAG) e restano a 5 minuti —
-    // Anthropic vuole i blocchi 1h PRIMA di quelli 5m, ed e' cosi'.
-    // Kill-switch senza redeploy: AI_PROMPT_CACHE_TTL=5m.
-    const ttlLungo = Deno.env.get("AI_PROMPT_CACHE_TTL") !== "5m";
-    finalMessages = [
-      ...capped.map((m, idx) => ({
-        role: "system",
-        content: [{
-          type: "text",
-          text: m.content,
-          cache_control: idx === 0 && ttlLungo
-            ? { type: "ephemeral", ttl: "1h" }
-            : { type: "ephemeral" },
-        }],
-      })),
-      ...messages.slice(leadingSystemCount),
-    ];
-  } else if (leadingSystemCount > 1) {
-    // Provider non-Anthropic (o cache disabilitata): un solo system string,
-    // formato universalmente accettato.
-    finalMessages = [
-      {
-        role: "system",
-        content: messages.slice(0, leadingSystemCount).map((m) => m.content).join("\n\n"),
-      },
-      ...messages.slice(leadingSystemCount),
-    ];
-  }
+  const { messages: finalMessages, cacheCoda } = cachePromptAnthropic(model, messages, params.promptCache);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: Record<string, any> = {
@@ -733,6 +777,7 @@ async function callOpenRouter(
   if (params.top_p != null && !skipTemperature) body.top_p = params.top_p;
   if (params.tools) body.tools = params.tools;
   if (params.tool_choice) body.tool_choice = params.tool_choice;
+  if (cacheCoda) body.cache_control = { type: "ephemeral" };
   // Legacy include flag; current OpenRouter responses include usage by default.
   // The last SSE event remains necessary to collect the full usage/cost.
   body.usage = { include: true };
@@ -763,13 +808,16 @@ async function callOpenRouter(
   // timeout corto da 30s e i 16 "Signal timed out" a registro erano tutti suoi.
   const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai", "moonshotai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
-  const FETCH_TIMEOUT_MS = isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
+  const FETCH_TIMEOUT_MS = params.timeoutMs && params.timeoutMs > 0
+    ? Math.min(params.timeoutMs, 140_000)
+    : isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
   // Retry su errori TRANSITORI (timeout / 429 / 5xx) prima di passare al modello
   // di fallback. I reasoning model hanno già budget 120s → 1 solo tentativo;
   // i modelli veloci ne fanno fino a 2 con
   // backoff breve. Gli errori 4xx (≠429) NON si ritentano (config/input errati).
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const MAX_ATTEMPTS = isReasoningModel ? 1 : 2;
+  // Con un tempo scelto da chi chiama (`timeoutMs`) un solo tentativo: il tempo totale lo decide lui.
+  const MAX_ATTEMPTS = isReasoningModel || params.timeoutMs ? 1 : 2;
   let lastErr: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -1340,18 +1388,7 @@ export async function aiRouterComplete(
       // `usage.prompt_tokens_details.cached_tokens` (nomi diversi a seconda
       // del provider a monte, quindi li proviamo tutti) e i token SCRITTI in
       // cache in `cache_creation_input_tokens`.
-      const usageDetails = usage.prompt_tokens_details ?? {};
-      const cachedTokens = Number(
-        usageDetails.cached_tokens ??
-          usage.cache_read_input_tokens ??
-          usageDetails.cache_read_input_tokens ??
-          0,
-      ) || 0;
-      const cacheWriteTokens = Number(
-        usageDetails.cache_write_tokens ?? usage.cache_creation_input_tokens ??
-          usageDetails.cache_creation_input_tokens ??
-          0,
-      ) || 0;
+      const { cachedTokens, cacheWriteTokens } = tokenCacheDaUsage(usage);
       // OpenRouter ritorna `usage.cost` in USD se disponibile; se manca, stimiamo dal tier wholesale.
       const reportedCostUsd = usage.cost;
       const hasProviderCost = typeof reportedCostUsd === "number" && Number.isFinite(reportedCostUsd) && reportedCostUsd >= 0;

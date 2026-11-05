@@ -36,6 +36,7 @@ const COLORE: Record<StatoPagamento, string> = {
   da_pagare: "bg-amber-100 text-amber-800",
   da_registrare: "bg-slate-100 text-slate-700",
   nota_credito: "bg-violet-100 text-violet-800",
+  stornata: "bg-slate-100 text-slate-700",
 };
 
 const METODO: Record<string, string> = { riba: "RiBa", bonifico: "Bonifico", carta: "Carta", contanti: "Contanti" };
@@ -99,7 +100,7 @@ export function FattureDebitiFornitore({ supplierId, partitaIva }: { supplierId:
   const totali = useMemo(() => totaliFornitore(righe, giorno), [righe, giorno]);
   const conto = useMemo(() => estrattoConto(righe), [righe]);
   const aperte = useMemo(
-    () => (q.data?.rate ?? []).filter((r) => r.stato !== "pagata").sort((a, b) => (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999")),
+    () => (q.data?.rate ?? []).filter((r) => r.stato !== "pagata" && r.stato !== "stornata").sort((a, b) => (a.scadenza ?? "9999").localeCompare(b.scadenza ?? "9999")),
     [q.data],
   );
 

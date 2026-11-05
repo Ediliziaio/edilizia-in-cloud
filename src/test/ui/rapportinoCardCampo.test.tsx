@@ -131,3 +131,29 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
     expect(screen.getByText("Firma cliente non presente nell’archivio")).toBeInTheDocument();
   });
 });
+
+describe("Campi propri nella scheda", () => {
+  it("si leggono in una riga, con la fase", () => {
+    disegna({ campi_extra: [
+      { chiave: "p", etichetta: "Pezzi posati", tipo: "number", valore: 12, unita: "pz", stampa: "interno", phase_id: "f", fase_nome: "Posa" },
+      { chiave: "s", etichetta: "Sicurezza", tipo: "boolean", valore: true, stampa: "mai" },
+    ] });
+    expect(screen.getByText("Pezzi posati (Posa): 12 pz · Sicurezza: Sì")).toBeInTheDocument();
+  });
+  it("senza valori non aggiunge nulla", () => {
+    disegna({ campi_extra: [] });
+    expect(screen.queryByText(/:.*·/)).toBeNull();
+  });
+});
+
+describe("Chi l'ha compilato", () => {
+  it("nella scheda si legge l'ora di invio", () => {
+    disegna({ created_at: "2026-10-05T15:30:00Z", autore: { first_name: "Marco", last_name: "Ferrari" } });
+    expect(screen.getByText("Compilato da Marco Ferrari il 05/10/26 alle 17:30")).toBeInTheDocument();
+  });
+  it("senza dati non inventa nulla", () => {
+    disegna({});
+    expect(screen.queryByText(/Compilato da/)).toBeNull();
+  });
+});
+

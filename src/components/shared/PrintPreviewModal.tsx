@@ -22,6 +22,24 @@ interface Props {
   title?: string;
   /** Se c'è, «Scarica» dà il PDF costruito da qui (non l'HTML). */
   onDownloadPdf?: () => Promise<Blob>;
+  /**
+   * Il documento si tiene come PDF, dalla stampa del browser: niente «Scarica», che salverebbe
+   * un file HTML con le foto a indirizzo temporaneo.
+   */
+  soloPdf?: boolean;
+}
+
+/** Aspetta le immagini del documento, ma non per sempre: una foto che non arriva non blocca la stampa. */
+export async function immaginiCaricate(doc: Pick<Document, "images">, massimoMs = 8000): Promise<void> {
+  const inAttesa = Array.from(doc.images).filter((img) => !img.complete);
+  if (!inAttesa.length) return;
+  await Promise.race([
+    Promise.allSettled(inAttesa.map((img) => new Promise<void>((fatto) => {
+      img.addEventListener("load", () => fatto(), { once: true });
+      img.addEventListener("error", () => fatto(), { once: true });
+    }))),
+    new Promise<void>((fatto) => setTimeout(fatto, massimoMs)),
+  ]);
 }
 
 export function PrintPreviewModal({
@@ -31,6 +49,7 @@ export function PrintPreviewModal({
   onOpenChange,
   title = "Anteprima documento",
   onDownloadPdf,
+  soloPdf = false,
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // L'iframe nasce dentro il portale del Dialog DOPO il primo effetto: col solo
@@ -43,6 +62,7 @@ export function PrintPreviewModal({
     setIframeEl(el);
   }, []);
   const [ready, setReady] = useState(false);
+  const [attesaImmagini, setAttesaImmagini] = useState(false);
 
   // Inject HTML into iframe when content changes or dialog opens
   useEffect(() => {
@@ -71,9 +91,13 @@ export function PrintPreviewModal({
     };
   }, [open, htmlContent, iframeEl]);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
+    setAttesaImmagini(true);
+    // Una foto non ancora arrivata uscirebbe come un riquadro vuoto.
+    await immaginiCaricate(win.document);
+    setAttesaImmagini(false);
     win.focus();
     win.print();
   };
@@ -108,7 +132,7 @@ export function PrintPreviewModal({
         <DialogHeader className="flex flex-row items-center justify-between px-4 py-3 border-b shrink-0">
           <DialogTitle className="text-base">{title}</DialogTitle>
           <div className="flex items-center gap-2">
-            <Button
+            {!soloPdf && <Button
               size="sm"
               variant="outline"
               onClick={handleDownload}
@@ -117,15 +141,15 @@ export function PrintPreviewModal({
             >
               <Download className="h-4 w-4 mr-1.5" aria-hidden="true" />
               Scarica
-            </Button>
+            </Button>}
             <Button
               size="sm"
-              onClick={handlePrint}
-              disabled={!ready}
-              aria-label="Stampa documento"
+              onClick={() => void handlePrint()}
+              disabled={!ready || attesaImmagini}
+              aria-label={soloPdf ? "Stampa o salva PDF" : "Stampa documento"}
             >
               <Printer className="h-4 w-4 mr-1.5" aria-hidden="true" />
-              Stampa
+              {attesaImmagini ? "Carico le foto…" : soloPdf ? "Stampa o salva PDF" : "Stampa"}
             </Button>
             <Button
               size="icon"

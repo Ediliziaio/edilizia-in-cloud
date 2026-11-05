@@ -46,7 +46,7 @@ export const STAFF_PERMISSION_DEFAULTS: Record<string, boolean | string[]> = {
   can_view_formazione: true, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
-  can_view_marketing_dashboard: false, can_view_marketing_contacts: false,
+  can_view_marketing_dashboard: false, can_view_callcenter_dashboard: false, can_view_marketing_contacts: false,
   can_edit_marketing_contacts: false, can_view_marketing_opportunities: false,
   can_edit_marketing_opportunities: false, can_view_marketing_activities: false,
   can_view_marketing_appointments: false,
@@ -110,9 +110,7 @@ export const STAFF_ROLE_PRESETS: Record<string, Record<string, boolean | string[
     can_view_giornale_lavori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
-    can_view_billing: true, can_view_prima_nota: true,
-    can_view_costs: true,
-    can_manage_payments: true, can_manage_suppliers: true,
+    can_manage_suppliers: true,
   },
   // Il venditore, di serie, vede solo Marketing & Vendita (25/09/2026).
   salesperson: {
@@ -131,10 +129,9 @@ export const STAFF_ROLE_PRESETS: Record<string, Record<string, boolean | string[
     visible_areas: ["commerciale"],
   },
   call_center: {
-    can_view_dashboard: true,
-    can_view_calendar: true,
-    can_view_customers: true,
-    can_view_users: true,
+    // Solo la sua dashboard Call Center: niente Dashboard Marketing (spese pubblicitarie, social),
+    // niente dashboard generale, calendario lavori, clienti e utenti.
+    can_view_callcenter_dashboard: true,
     can_view_marketing_contacts: true,
     can_view_marketing_opportunities: true,
     can_view_preventivi: true,

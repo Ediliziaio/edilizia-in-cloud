@@ -44,13 +44,13 @@ describe("Viste materiali ed economia", () => {
   });
   it("mantiene selezione, descrizione e cronologia economica", () => {
     mount("?tab=finanza");
-    fireEvent.click(screen.getByRole("button", { name: "Incassi e pagamenti" }));
-    expect(screen.getByRole("button", { name: "Incassi e pagamenti" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: "Incassi" }));
+    expect(screen.getByRole("button", { name: "Incassi" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "pagamenti")!.description)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
     expect(screen.getByRole("button", { name: "Margini e costi" })).toHaveAttribute("aria-current", "page");
-    fireEvent.click(screen.getByRole("button", { name: "Manodopera e subappalti" }));
-    expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "manodopera")!.description)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Varianti" }));
+    expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "varianti")!.description)).toBeVisible();
   });
   it("mostra il numero accanto alla vista solo se maggiore di zero", () => {
     render(<OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value="articoli" onChange={() => {}} counts={{ articoli: 7, acquisti: 0 }} />);
@@ -66,7 +66,7 @@ describe("Viste materiali ed economia", () => {
   });
   it("il collegamento SAL apre la vista documenti e il dettaglio senza click aggiuntivi", async () => {
     mount("?tab=articoli&vista_economia=margini#section-sal");
-    expect(screen.getByRole("button", { name: "SAL" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "SAL al cliente" })).toHaveAttribute("aria-current", "page");
     await waitFor(() => expect(screen.getByText("Verbali SAL")).toBeVisible());
     fireEvent.click(screen.getByRole("button", { name: "Margini e costi" }));
     expect(screen.queryByText("Verbali SAL")).not.toBeInTheDocument();

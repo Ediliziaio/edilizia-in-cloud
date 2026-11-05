@@ -17,6 +17,7 @@ export const blogPostsPillarGestione: BlogPost[] = [
   {
     id: "p1",
     slug: "chi-gestisce-i-numeri-impresa-edile",
+    video: { youtubeId: "M6qECgflApQ", duration: "PT6M12S", uploadedAt: "2026-11-03T20:20:00+01:00" },
     title: "Chi controlla davvero i numeri della tua impresa edile?",
     excerpt:
       "Il commercialista chiude i bilanci, non controlla i margini a cantieri aperti. I 4 numeri che ti servono ogni settimana e come tenerli da solo.",
@@ -33,6 +34,7 @@ export const blogPostsPillarGestione: BlogPost[] = [
     coverImage:
       "/blog/covers/chi-gestisce-i-numeri-impresa-edile.jpg",
     content: [
+      { type: "callout", heading: "Dal controllo dei numeri al lavoro quotidiano", body: "Nella pagina del [gestionale per imprese edili](/per/imprese-edili/) trovi schermate del portale e un percorso da verificare sul tuo lavoro: preventivo, squadra, materiali e costi della commessa. Se stai valutando più strumenti, usa la stessa prova descritta nel [confronto tra gestionali per imprese edili](/blog/migliori-software-gestionali-edilizia-confronto/)." },
       {
         type: "intro",
         body: "Chiedi al commercialista come sta andando l'anno. Ti risponde a maggio, con il bilancio di quello prima. E intanto tu hai quattro cantieri aperti.\n\nIl controllo di gestione di un'impresa edile non lo fa il commercialista. Lui certifica il passato per il fisco. Il controllo di gestione guarda il presente. Margine di ogni commessa aperta, cassa dei prossimi 90 giorni, ore mai fatturate. Se non se ne occupa nessuno in azienda, non lo fa nessuno.",
@@ -257,6 +259,7 @@ export const blogPostsPillarGestione: BlogPost[] = [
     coverImage:
       "/blog/covers/excel-whatsapp-carta-gestione-impresa-edile.jpg",
     content: [
+      { type: "callout", heading: "Dal controllo dei numeri al lavoro quotidiano", body: "Nella pagina del [gestionale per imprese edili](/per/imprese-edili/) trovi schermate del portale e un percorso da verificare sul tuo lavoro: preventivo, squadra, materiali e costi della commessa. Se stai valutando più strumenti, usa la stessa prova descritta nel [confronto tra gestionali per imprese edili](/blog/migliori-software-gestionali-edilizia-confronto/)." },
       {
         type: "intro",
         body: "Sono le 19:40 e sei fermo in furgone col telefono in mano. Un capo squadra ti manda la foto di un muro. Tu la giri al cliente e poi non la ritrovi più.\n\nGestire un'impresa edile con Excel, WhatsApp e carta funziona finché i pezzi sono pochi. Il problema non è nessuno dei tre. È che non si parlano. Il dato nasce in chat, muore in un foglio, in fattura non arriva. Il conto lo paghi in ore di ricostruzione e in margine perso.",
