@@ -5,10 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { exportToCSV } from "@/lib/csvExport";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
+import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEsterno";
+import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
@@ -135,7 +138,9 @@ export default function Scadenzario() {
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
   }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo]);
 
-  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel, annullaIncasso } = useScadenzario(page, pageSize, serverFilters);
+  const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
+  const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
@@ -413,6 +418,7 @@ export default function Scadenzario() {
               scadenze={filtered}
               onMarkPaid={(s) => setPayDialog(s)}
               onCancel={(id) => cancel.mutate(id)}
+              onAnnullaIncasso={setDaAnnullare}
               onAdd={() => setNewOpen(true)}
               onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/documenti/importata/${s.invoice_id}`); }}
             />
@@ -501,6 +507,17 @@ export default function Scadenzario() {
           markPaid.mutate(p, { onSuccess: () => setPayDialog(null) });
         }}
         isPending={markPaid.isPending}
+      />
+      <AnnullaIncassoDialog
+        scadenza={daAnnullare}
+        onClose={() => setDaAnnullare(null)}
+        isPending={annullaIncasso.isPending}
+        onConfirm={(id) => annullaIncasso.mutate(id, {
+          onSuccess: () => {
+            invalidaFattureImportate(queryClient, effectiveCompany?.id);
+            setDaAnnullare(null);
+          },
+        })}
       />
       <NewScadenzaDialog
         open={newOpen}

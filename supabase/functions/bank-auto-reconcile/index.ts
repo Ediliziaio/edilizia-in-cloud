@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
+import { abbinamentoAnnullato, chiaviAbbinamentiAnnullati, type RigaAbbinamentoAnnullato } from "./abbinamentiAnnullati.ts";
 
 /**
  * bank-auto-reconcile: Riconciliazione automatica batch
@@ -8,6 +9,7 @@ import { requireCompanyAccess } from "../_shared/auth.ts";
  * gestionali esterni (invoices) e della fatturazione interna (documenti_fiscali,
  * via riconcilia_bonifico_fattura) — e transazioni debit con scadenze fornitori.
  * Usa scoring (n° fattura 60pt, importo 50pt, IBAN 30pt, nome 20pt). Soglia auto: score >= 80.
+ * Un abbinamento annullato da una persona non si ripropone: resta possibile solo a mano.
  */
 
 // Data "di oggi" nel fuso italiano: le edge girano in UTC e a mezzanotte
@@ -225,8 +227,30 @@ Deno.serve(async (req) => {
       return uid;
     }
 
+    // A pagine: PostgREST taglia a mille righe, e una coppia persa ripagherebbe la fattura.
+    async function leggiAbbinamentiAnnullati(cId: string): Promise<Set<string>> {
+      const righe: RigaAbbinamentoAnnullato[] = [];
+      for (let da = 0; ; da += 1000) {
+        const { data, error } = await supabase
+          .from("bank_reconciliations")
+          .select("transaction_id, invoice_id, documento_id, scadenza_id, scadenze:scadenza_id(invoice_id)")
+          .eq("company_id", cId)
+          .not("unmatched_at", "is", null)
+          .order("id")
+          .range(da, da + 999);
+        if (error) throw new Error(`Abbinamenti annullati non letti: ${error.message}`);
+        righe.push(...((data ?? []) as unknown as RigaAbbinamentoAnnullato[]));
+        if (!data || data.length < 1000) break;
+      }
+      return chiaviAbbinamentiAnnullati(righe);
+    }
+
     for (const cId of companyIds) {
       try {
+        // Se non si riesce a leggerli l'azienda salta il giro (l'errore finisce nella risposta):
+        // meglio un abbinamento in meno che un incasso contato due volte.
+        const annullati = await leggiAbbinamentiAnnullati(cId);
+
         // ── USCITE: transazioni debit → scadenze fornitori (uscita, da_pagare) ──
         // Prima delle entrate: i «continue» del ramo entrate (nessun accredito
         // libero, nessuna fattura aperta) saltavano anche questo ramo, e gli
@@ -258,6 +282,7 @@ Deno.serve(async (req) => {
             for (const sc of (openScadenze || []) as any[]) {
               const remaining = (sc.amount || 0) - (sc.paid_amount || 0);
               if (remaining <= 0) continue;
+              if (abbinamentoAnnullato(annullati, tx.id, "scadenza", sc.id)) continue;
               const sup = (sc.suppliers || {}) as any;
               const score = computeScadenzaScore(tx, { remaining, supplier_iban: sup.iban ?? null, supplier_name: sup.name ?? null, description: sc.description });
               if (score < 50) continue;
@@ -353,6 +378,7 @@ Deno.serve(async (req) => {
           for (const inv of esterne) {
             const remaining = (inv.total || 0) - (inv.paid_amount || 0);
             if (remaining <= 0) continue;
+            if (abbinamentoAnnullato(annullati, tx.id, "fattura", inv.id)) continue;
 
             const score = computeMatchScore(tx, {
               remaining,
@@ -365,6 +391,7 @@ Deno.serve(async (req) => {
           for (const doc of interne) {
             const remaining = residuoFatturaInterna(doc);
             if (remaining <= 0) continue;
+            if (abbinamentoAnnullato(annullati, tx.id, "documento", doc.id)) continue;
 
             const score = computeMatchScore(tx, {
               remaining,

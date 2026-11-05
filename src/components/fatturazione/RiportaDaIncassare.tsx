@@ -47,7 +47,7 @@ export function RiportaDaIncassareDialog({ fattura, onClose }: { fattura: { id: 
         <AlertDialogHeader>
           <AlertDialogTitle>Riportare da incassare la fattura {fattura?.numero}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Tolgo gli incassi registrati: anche la scadenza e la rata della commessa tornano aperte. Se c'era un bonifico abbinato viene sganciato, ma il controllo automatico della banca potrebbe riabbinarlo.
+            Tolgo gli incassi registrati: anche la scadenza e la rata della commessa tornano aperte. Se c'era un bonifico abbinato viene sganciato e torna libero.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
