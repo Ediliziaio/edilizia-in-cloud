@@ -3,16 +3,44 @@ import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { applicaMaterialiProgetto, cambiaFormatoPavimento, materialiDelProgetto, pavimentoDaCampione, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { pianteDaPlanimetria, costruisciScena } from "@/lib/planimetrie/tred";
+import { pianiDaPlanimetria } from "@/lib/planimetrie/tred/edificio";
 import { aPlanimetria, daPlanimetria } from "@/components/planimetrie/editor/adattatore";
 import { selectedRoomVisuals, roomVisualSignature } from "../../../shared/render-references/roomVisualCatalog.ts";
 import { configPerStanza } from "@/lib/planimetrie/render/renderInSerie";
 import { IDEE_PRONTE } from "@/modules/render-stanza/lib/ideePronte";
 import { vincoloSostituzionePavimento } from "../../../shared/render-room/roomRenderConfig.ts";
+import { caricaPiantaDelRender } from "../../../supabase/functions/generate-room-render/pianta.ts";
 
 const documento = () => structuredClone(bilocale) as unknown as Planimetria;
 const comuni = () => ({ pavimento: pavimentoDaCampione("rovere"), infissi: { profilo: "pvc", colore: "bianco" } as const });
 
 describe("materiali comuni a tutto il progetto", () => {
+  it("una villa usa gli stessi materiali anche sul piano senza opere della proposta", () => {
+    const doc = documento(); const primo = doc.livelli[0];
+    primo.proposte = [{ ...structuredClone(primo.fatto), id: "rinnovo", nome: "Rinnovo" }];
+    doc.livelli.push({ ...structuredClone(primo), id: "piano-1", nome: "Piano primo", quota: 300, proposte: [] });
+    doc.materialiProgetto = { "progetto:rinnovo": comuni() };
+    const piani = pianiDaPlanimetria(doc, "rinnovo");
+    expect(piani).toHaveLength(2);
+    for (const piano of piani) {
+      expect(piano.piante.progetto.infissiProgetto).toEqual(comuni().infissi);
+      expect(piano.piante.progetto.locali.every((l) => l.finiture?.pavimento?.includes("rovere naturale"))).toBe(true);
+    }
+  });
+  it("il server rilegge la scelta comune anche se la geometria di quel piano resta nello stato di fatto", async () => {
+    const doc = documento(); const primo = doc.livelli[0];
+    primo.proposte = [{ ...structuredClone(primo.fatto), id: "rinnovo", nome: "Rinnovo" }];
+    doc.materialiProgetto = { "progetto:rinnovo": comuni() };
+    const company = "22222222-2222-4222-8222-222222222222";
+    const db = { from: (table: string) => {
+      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ error: null, data: table === "planimetrie" ? { company_id: company, deleted_at: null } : { documento: doc } }) };
+      return q;
+    } };
+    const ref = { planimetria_id: "11111111-1111-4111-8111-111111111111", versione: 1, livello_id: primo.id, locale_id: primo.fatto.locali[0].id, ambito: "fatto", materiali_ambito: "progetto:rinnovo" };
+    const result = await caricaPiantaDelRender(db as never, company, ref, () => undefined);
+    expect(result?.materiali).toEqual(comuni());
+    await expect(caricaPiantaDelRender(db as never, company, { ...ref, materiali_ambito: "progetto:inesistente" }, () => undefined)).rejects.toThrow(/Materiali del progetto non trovati/);
+  });
   it("tutte le stanze e tutti gli stili ereditano lo stesso pavimento completo", () => {
     const m = comuni();
     m.pavimento.pattern = "spina_pesce";

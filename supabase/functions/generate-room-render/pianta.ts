@@ -12,7 +12,7 @@ import { materialiDelProgetto, type MaterialiProgetto } from "../../../shared/pl
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
-import { validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
+import { ambitiDi, validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
 import { vincoliDellaStanza, statoPerAmbito, type VincoliStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { inquadrateValide, type AperturaInquadrata, type PartenzaRender } from "../../../shared/render-planimetria/prompt.ts";
 
@@ -80,6 +80,8 @@ export async function caricaPiantaDelRender(
   const esito = validaPlanimetria(ver.documento);
   if (esito.ok === false) throw new Error("La pianta salvata non si legge: aprila e salvala di nuovo.");
 
+  const materialiAmbito = typeof rif.materiali_ambito === "string" ? rif.materiali_ambito : ambito;
+  if (!ambitiDi(esito.planimetria).some((a) => a.chiave === materialiAmbito)) throw new Error("Materiali del progetto non trovati: riapri la pianta e riprova.");
   const vincoli = vincoliDellaStanza(esito.planimetria, { livello_id: livelloId, ambito, locale_id: localeId });
   if (!vincoli) throw new Error("La stanza non c'è più in questa versione della pianta.");
 
@@ -121,7 +123,7 @@ export async function caricaPiantaDelRender(
   return {
     vincoli,
     inventario,
-    materiali: materialiDelProgetto(esito.planimetria, ambito),
+    materiali: materialiDelProgetto(esito.planimetria, materialiAmbito),
     partenza,
     inquadrate,
     immagine,
@@ -130,6 +132,7 @@ export async function caricaPiantaDelRender(
       versione,
       livello_id: livelloId,
       ambito,
+      materiali_ambito: materialiAmbito,
       locale_id: localeId,
       partenza,
       locale: vincoli.locale,

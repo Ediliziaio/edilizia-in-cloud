@@ -69,7 +69,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
   const vincoli = vincoliDellaStanza(ctx.documento, { livello_id: ctx.livelloId, ambito: ctx.ambito, locale_id: lavoro.localeId });
   if (!vincoli) throw new Error("Stanza non trovata nella pianta.");
   const propostaId = ctx.ambito.startsWith("progetto:") ? ctx.ambito.slice("progetto:".length) : undefined;
-  const piante = pianteDaPlanimetria(ctx.documento, { livelloId: ctx.livelloId, propostaId });
+  const piante = pianteDaPlanimetria(ctx.documento, { livelloId: ctx.livelloId, propostaId, materialiAmbito: contesto.ambito });
   const pianta = ctx.ambito === "fatto" ? piante.fatto : piante.progetto;
   const locale3D = pianta.locali.find((l) => l.id === lavoro.localeId);
   if (!locale3D) throw new Error("Stanza non trovata nel 3D.");
@@ -89,6 +89,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     versione: ctx.versione,
     livello_id: ctx.livelloId,
     ambito: ctx.ambito,
+    materiali_ambito: contesto.ambito,
     locale_id: lavoro.localeId,
     locale_nome: vincoli.locale.nome,
     partenza: "vista_3d",
@@ -102,7 +103,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     if (!error) rif.pianta_path = percorso;
   } catch { /* si va avanti con misure e aperture scritte */ }
 
-  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), qualita_render: ctx.qualita_render ?? "standard" }, materialiDelProgetto(ctx.documento, ctx.ambito)), ctx.companyId);
+  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), qualita_render: ctx.qualita_render ?? "standard" }, materialiDelProgetto(ctx.documento, contesto.ambito)), ctx.companyId);
   const { data: nuova, error: errSessione } = await supabase
     .from("render_stanza_sessions")
     .insert({ company_id: ctx.companyId, created_by: ctx.userId, status: "pending", original_photo_url: storagePath, config: { ...config, planimetria: rif } as never })

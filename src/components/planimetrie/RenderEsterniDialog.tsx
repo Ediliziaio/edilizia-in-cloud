@@ -108,7 +108,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const continua = () => {
     if (!anteprima) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
-    const nota = [MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto(asp, pianta.tetto), vincoloInfissiProgetto(pianta.infissiProgetto)].filter(Boolean).join(" ");
+    const nota = [MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: pianta.infissiProgetto?.colore ?? asp.infissi }, pianta.tetto), vincoloInfissiProgetto(pianta.infissiProgetto)].filter(Boolean).join(" ");
     lasciaFotoDaPianta(modulo, anteprima.file, nota || undefined);
     onChiudi();
     toast.success("Vista 3D caricata come foto di partenza");
@@ -165,8 +165,8 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
                   <SelectTrigger className="h-8 w-48" aria-label="Facciata"><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
                 </Select>
-                <Select value={asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
-                  <SelectTrigger className="h-8 w-52" aria-label="Infissi"><SelectValue /></SelectTrigger>
+                <Select disabled={!!pianta.infissiProgetto} value={pianta.infissiProgetto?.colore ?? asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
+                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? "Infissi comuni del progetto" : "Infissi"}><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>Infissi: {INFISSI[id].nome.toLowerCase()}</SelectItem>)}</SelectContent>
                 </Select>
                 <div className="flex items-center gap-2">

@@ -78,17 +78,17 @@ function daElemento(e: Elemento) {
  * Le due piante che il visore mostra: lo stato di fatto e il progetto (la proposta
  * scelta, o la prima; senza proposte il progetto è il fatto).
  */
-export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string; propostaId?: string } = {}): { fatto: PiantaPer3D; progetto: PiantaPer3D; livello: Livello | null } {
+export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string; propostaId?: string; materialiAmbito?: string } = {}): { fatto: PiantaPer3D; progetto: PiantaPer3D; livello: Livello | null } {
   const livello = (scelta.livelloId ? p.livelli.find((l) => l.id === scelta.livelloId) : undefined) ?? p.livelli[0] ?? null;
   if (!livello) {
     const vuota: PiantaPer3D = { muri: [], aperture: [], locali: [], elementi: [] };
     return { fatto: vuota, progetto: vuota, livello: null };
   }
-  const materialiFatto = materialiDelProgetto(p, "fatto");
+  const materialiFatto = materialiDelProgetto(p, scelta.materialiAmbito ?? "fatto");
   const fatto = { ...daStatoPianta(statoConMateriali(livello.fatto, materialiFatto)), infissiProgetto: materialiFatto.infissi };
   const proposta = (scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : undefined) ?? livello.proposte[0];
   // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
-  const materialiProposta = proposta ? materialiDelProgetto(p, `progetto:${proposta.id}`) : materialiFatto;
+  const materialiProposta = proposta ? materialiDelProgetto(p, scelta.materialiAmbito ?? `progetto:${proposta.id}`) : materialiFatto;
   const statoProposta = proposta ? (proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : livello.fatto;
   const progetto = { ...daStatoPianta(statoConMateriali(statoProposta, materialiProposta)), infissiProgetto: materialiProposta.infissi };
   // il tetto è del piano, uguale oggi e nel progetto; il terreno è di tutta la pianta
