@@ -300,7 +300,8 @@ export function LavoriMisureSubDialog({
   };
   const voci = bozza.map((v) => ({
     ...v,
-    fase_id: v.fase_id || null,
+    // Una fase cancellata dopo il contratto non esiste più: la voce resta, senza fase (altrimenti il quadro si rifiuta).
+    fase_id: v.fase_id && (!fasi.data || fasi.data.some((f) => f.id === v.fase_id)) ? v.fase_id : null,
     quantita: parseDecimalIT(v.quantita),
     prezzo: parseDecimalIT(v.prezzo),
   }));

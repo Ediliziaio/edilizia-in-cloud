@@ -569,8 +569,13 @@ export function CreaFatturaDialog({
   const fuoriFasi = fuoriDalleFasi(contrattoNetto, fasiVendute);
 
   // L'importo «ora» di una voce: scritto a mano, o il suo maturato al netto del già fatturato.
-  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) =>
-    round2(quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0) * (f.maturato > 0 ? f.calcolato / f.maturato : 0));
+  // Le voci aperte non superano mai la quota della fase: il SAL già fatturato e il tetto del contratto stanno lì.
+  const quotaVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0);
+  const fattoreVoci = (f: (typeof fasiVendute)[number]) => {
+    const somma = vociDiFase(f.id).reduce((t, v) => t + quotaVoce(v, f), 0);
+    return somma > 0 ? Math.min(1, f.calcolato / somma) : 0;
+  };
+  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) => round2(quotaVoce(v, f) * fattoreVoci(f));
   const importoVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => {
     const s = scelta(v.id);
     if (s.esclusa) return 0;

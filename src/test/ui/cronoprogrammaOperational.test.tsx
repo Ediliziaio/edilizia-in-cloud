@@ -3,6 +3,7 @@ import {cleanup, fireEvent, render, screen, within} from "@testing-library/react
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {CronoprogrammaCommessa} from "@/components/orders/CronoprogrammaCommessa";
 const m = vi.hoisted(() => ({mobile: false, costs: false, amounts: false, loading: false, phaseError: false, reportError: false, phases: [] as object[], reports: [] as object[], refetchPhases: vi.fn(), refetchReports: vi.fn()}));
+vi.mock("@/hooks/useCostiDirettiFasi", () => ({ useCostiDirettiFasi: () => ({ data: undefined as unknown }) }));
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => m.mobile}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewCosts: m.costs, canViewOrderAmounts: m.amounts})}));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({useOrderWorkPhases: () => ({phases: m.phases, materials: [] as unknown[], allAssignments: [] as unknown[], isLoading: m.loading, isError: m.phaseError, refetch: m.refetchPhases})}));

@@ -1,6 +1,7 @@
 // src/hooks/useCostiDirettiFasi.ts
 // Fatture e spese della commessa, con quello che serve a dire su quale fase stanno: stesse regole di v_ordine_marginalita.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
@@ -25,20 +26,22 @@ export function quotaDellaCommessa(r: Pick<RigaCosto, "amount" | "order_id" | "a
 }
 
 export function useCostiDirettiFasi(orderId: string | null | undefined, abilitato: boolean) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   return useQuery({
-    queryKey: ["company-costs", "commessa-fasi", orderId],
-    enabled: !!orderId && abilitato,
+    queryKey: ["company-costs", "commessa-fasi", companyId, orderId],
+    enabled: !!orderId && !!companyId && abilitato,
     staleTime: 30_000,
     queryFn: async (): Promise<DatiCostiDiretti> => {
       const id = orderId!;
       // Il filtro jsonb va passato come testo: con un array il client lo manda come array Postgres e torna un 400.
       const senzaCollegati = (q: ReturnType<typeof db.from>) => q.is("purchase_order_id", null).is("order_external_team_id", null);
       const [diretti, ripartiti, assegnate, contratti, schede] = await Promise.all([
-        allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).eq("order_id", id).order("id").range(da, a)),
-        allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).contains("allocations", JSON.stringify([{ order_id: id }])).order("id").range(da, a)),
-        db.from("order_external_teams").select("phase_id, cost_preventivo, team:external_teams(subappaltatore_id)").eq("order_id", id),
+        allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).eq("company_id", companyId).eq("order_id", id).order("id").range(da, a)),
+        allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).eq("company_id", companyId).contains("allocations", JSON.stringify([{ order_id: id }])).order("id").range(da, a)),
+        db.from("order_external_teams").select("phase_id, cost_preventivo, team:external_teams!order_external_teams_external_team_id_fkey(subappaltatore_id)").eq("order_id", id),
         db.from("contratti_subappalto").select("subappaltatore_id, stato, elenco_lavori").eq("order_id", id),
-        db.from("subappaltatori_sicurezza").select("id, campo_subappaltatore_id"),
+        db.from("subappaltatori_sicurezza").select("id, campo_subappaltatore_id").eq("company_id", companyId),
       ]);
       // I contratti hanno il loro permesso: senza, i costi restano «senza fase», non si perde la pagina.
       const schedaACampo = new Map(((schede.data ?? []) as Array<{ id: string; campo_subappaltatore_id: string | null }>).map((s) => [s.id, s.campo_subappaltatore_id]));
@@ -52,7 +55,7 @@ export function useCostiDirettiFasi(orderId: string | null | undefined, abilitat
         costi.push({
           id: r.id, importo, phase_id: r.order_work_phase_id ?? null,
           subappaltatore_id: r.fornitore?.subappaltatore_id ?? null, tipo_fornitore: r.fornitore?.tipo ?? null,
-          nome: r.name ?? "Costo", data: r.due_date ?? null, fornitore: r.fornitore?.name ?? null,
+          nome: r.name ?? "Costo", ripartito: Array.isArray(r.allocations) && r.allocations.length > 0, data: r.due_date ?? null, fornitore: r.fornitore?.name ?? null,
         });
       }
       return {

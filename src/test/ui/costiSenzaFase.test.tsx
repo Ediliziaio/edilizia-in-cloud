@@ -28,4 +28,8 @@ describe("Costi senza fase", () => {
     fireEvent.change(screen.getByLabelText("Fase di Fattura c"), { target: { value: "f1" } });
     expect(onAssegna).toHaveBeenCalledExactlyOnceWith(["c"], "f1");
   });
+  it("i costi ripartiti su più commesse si dicono, ma non si assegnano", () => {
+    render(<CostiSenzaFaseDialog aperto onChiudi={vi.fn()} costi={[]} fasi={fasi} inCorso={false} onAssegna={vi.fn()} ripartiti={250} />);
+    expect(screen.getByText(/ripartiti su più commesse/)).toHaveTextContent("250,00");
+  });
 });

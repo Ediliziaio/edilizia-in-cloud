@@ -78,3 +78,35 @@ export function anteprimaAvanzamento(
 export function fasiAperte(fasi: ReadonlyArray<Pick<FaseDellaCommessa, "name" | "status">>): string[] {
   return fasi.filter((f) => f.status !== "completata").map((f) => f.name);
 }
+
+/** Una sottofase portata avanti dal rapportino, come la legge chi approva. */
+export interface AvanzataInAnteprima { id: string; nome: string; testo: string; oltre: boolean }
+
+/**
+ * Quanto dichiara il rapportino, sottofase per sottofase: «+76,5 mq» o «fino al 50%». `oltre` se la quantità
+ * supera quello che manca: approvando la sottofase si chiude (un 1000 al posto di 10 si vede prima).
+ */
+export function avanzateInAnteprima(
+  sottofasi: ReadonlyArray<Pick<Sottofase, "id" | "name" | "fatta" | "percentuale" | "quantita_fatta">>,
+  fasiLavorate: unknown,
+  quantitaDi: ReadonlyMap<string, { quantita: number; unita: string | null }> = new Map(),
+): AvanzataInAnteprima[] {
+  if (!Array.isArray(fasiLavorate)) return [];
+  const perId = new Map(sottofasi.map((s) => [s.id, s]));
+  const esito: AvanzataInAnteprima[] = [];
+  for (const f of fasiLavorate as Array<{ sottofasi_avanzate?: unknown }>) {
+    if (!Array.isArray(f?.sottofasi_avanzate)) continue;
+    for (const a of f.sottofasi_avanzate as Array<{ id?: string; quantita?: number; percentuale?: number }>) {
+      const s = a?.id ? perId.get(a.id) : undefined;
+      if (!s || s.fatta) continue;
+      const q = quantitaDi.get(s.id);
+      if (a.quantita && q) {
+        const gia = Number(s.quantita_fatta) || (q.quantita * (Number(s.percentuale) || 0)) / 100;
+        esito.push({ id: s.id, nome: s.name, testo: `+${a.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${q.unita ? ` ${q.unita}` : ""}`, oltre: gia + a.quantita > q.quantita });
+      } else if (a.percentuale) {
+        esito.push({ id: s.id, nome: s.name, testo: `fino al ${a.percentuale}%`, oltre: false });
+      }
+    }
+  }
+  return esito;
+}

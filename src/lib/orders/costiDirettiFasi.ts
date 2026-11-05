@@ -14,6 +14,8 @@ export interface CostoDiretto {
   subappaltatore_id: string | null;
   tipo_fornitore: string | null;
   nome?: string;
+  /** Ripartito su più commesse: la fase non si può scegliere (il costo non è di una commessa sola). */
+  ripartito?: boolean;
   data?: string | null;
   fornitore?: string | null;
 }

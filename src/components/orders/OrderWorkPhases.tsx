@@ -265,7 +265,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const assegnaFaseCosti = useAssegnaFaseCosti();
   const costiDaSistemare = useMemo(() => {
     const senza = new Set(quoteCosti.filter((q) => q.phase_id === null).map((q) => q.costoId));
-    return (costiDiretti?.costi ?? []).filter((c) => senza.has(c.id)).map((c) => ({ id: c.id, importo: c.importo, nome: c.nome ?? "Costo", data: c.data ?? null, fornitore: c.fornitore ?? null }));
+    return (costiDiretti?.costi ?? []).filter((c) => senza.has(c.id) && !c.ripartito).map((c) => ({ id: c.id, importo: c.importo, nome: c.nome ?? "Costo", data: c.data ?? null, fornitore: c.fornitore ?? null }));
   }, [costiDiretti, quoteCosti]);
   const economia = useMemo(
     () => economiaFasi({
@@ -808,6 +808,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 aperto={costiAperti}
                 onChiudi={() => setCostiAperti(false)}
                 costi={costiDaSistemare}
+                ripartiti={(costiDiretti?.costi ?? []).filter((c) => c.ripartito && !c.phase_id).reduce((t, c) => t + c.importo, 0)}
                 fasi={phases}
                 inCorso={assegnaFaseCosti.isPending}
                 onAssegna={(ids, faseId) => assegnaFaseCosti.mutate({ ids, faseId })}

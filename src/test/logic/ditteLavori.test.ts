@@ -125,6 +125,12 @@ describe("Elenco lavori: tutto quello che la ditta deve fare", () => {
       ["Finiture", "Finiture", "a corpo", 500, "b", null],
     ]);
   });
+  it("una fase con sole sottofasi porta il previsto in testa, a corpo, e le sottofasi comprese", () => {
+    const elenco = elencoLavoriDitta(fasi, [], ["b"], "d", [], {
+      sottofasi: [{ id: "s3", phase_id: "b", name: "Stuccatura" }], previstoFase: new Map([["b", 500]]),
+    });
+    expect(elenco.map((r) => [r.descrizione, r.importo])).toEqual([["Finiture", 500], ["Stuccatura", 0]]);
+  });
   it("salvando l'elenco i collegamenti restano", () => {
     const [r] = elencoDaSalvare([{ fase: "A", descrizione: "X", unita: "m", quantita: 1, prezzo: 1, importo: 1, fase_id: "a", sottofase_id: "s" }]);
     expect(r).toMatchObject({ fase_id: "a", sottofase_id: "s" });

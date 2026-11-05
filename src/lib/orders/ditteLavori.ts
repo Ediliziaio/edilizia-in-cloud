@@ -89,6 +89,11 @@ export function elencoLavoriDitta(
             sottofase_id: v.subphase_id ?? null,
           };
         });
+      // Una fase senza voci ha il prezzo nel previsto della ditta: va in testa, a corpo; le sottofasi seguono, comprese.
+      const previsto = centesimi(Number(altro.previstoFase?.get(f.id)) || 0);
+      if (delle.length === 0 && previsto > 0) {
+        righe.push({ fase: f.name, descrizione: f.name, unita: "a corpo", quantita: 1, prezzo: previsto, importo: previsto, codice: null, fase_id: f.id, sottofase_id: null });
+      }
       const conVoce = new Set(delle.map((v) => v.subphase_id).filter(Boolean));
       const sole = (altro.sottofasi ?? []).filter((s) => s.phase_id === f.id && !conVoce.has(s.id))
         .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
@@ -96,8 +101,7 @@ export function elencoLavoriDitta(
         righe.push({ fase: f.name, descrizione: s.name, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0, codice: null, fase_id: f.id, sottofase_id: s.id });
       }
       if (righe.length === 0) {
-        const prezzo = centesimi(Number(altro.previstoFase?.get(f.id)) || 0);
-        righe.push({ fase: f.name, descrizione: f.name, unita: "a corpo", quantita: 1, prezzo, importo: prezzo, codice: null, fase_id: f.id, sottofase_id: null });
+        righe.push({ fase: f.name, descrizione: f.name, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0, codice: null, fase_id: f.id, sottofase_id: null });
       }
       return righe;
     });

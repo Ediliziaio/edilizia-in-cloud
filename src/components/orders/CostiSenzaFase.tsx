@@ -71,7 +71,9 @@ function Gruppo({ gruppo, fasi, inCorso, onAssegna }: {
   );
 }
 
-export function CostiSenzaFaseDialog({ aperto, onChiudi, costi, fasi, inCorso, onAssegna }: {
+export function CostiSenzaFaseDialog({ aperto, onChiudi, costi, fasi, inCorso, onAssegna, ripartiti = 0 }: {
+  /** Costi ripartiti su più commesse: contano nel consuntivo ma la fase non si sceglie. */
+  ripartiti?: number;
   aperto: boolean;
   onChiudi: () => void;
   costi: ReadonlyArray<CostoDaSistemare>;
@@ -91,6 +93,7 @@ export function CostiSenzaFaseDialog({ aperto, onChiudi, costi, fasi, inCorso, o
         {gruppi.length === 0
           ? <p role="status" className="py-4 text-sm text-muted-foreground">Tutti i costi stanno su una fase.</p>
           : <ul className="divide-y">{gruppi.map((g) => <Gruppo key={g.chiave} gruppo={g} fasi={fasi} inCorso={inCorso} onAssegna={onAssegna} />)}</ul>}
+        {ripartiti > 0 && <p className="text-xs text-muted-foreground">Più {formatCurrency(ripartiti)} di costi ripartiti su più commesse: restano senza fase.</p>}
       </DialogContent>
     </Dialog>
   );
