@@ -1,3 +1,5 @@
+import { useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
+import { ripartisciCostiDiretti } from "@/lib/orders/costiDirettiFasi";
 import { MezziFaseCantiere } from "@/components/mezzi/PianoMezziCantiere";
 import { PianoDalPreventivo } from "@/components/orders/PianoDalPreventivo";
 import { NewPhaseMaterial } from "./NewPhaseMaterial";
@@ -247,6 +249,12 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     for (const v of vociPreviste ?? []) m.set(v.phase_id, (m.get(v.phase_id) ?? 0) + v.quantita * v.costo_manodopera);
     return m;
   }, [vociPreviste]);
+  // Fatture e spese della commessa: le ditte hanno il consuntivo dalle loro fatture, non da un numero scritto a mano.
+  const { data: costiDiretti } = useCostiDirettiFasi(orderId, canViewCosts || canViewMargins);
+  const quoteCosti = useMemo(
+    () => (costiDiretti?.costi ? ripartisciCostiDiretti({ costi: costiDiretti.costi, fasi: phases, ditte: costiDiretti.ditte, contratti: costiDiretti.contratti }) : []),
+    [costiDiretti, phases],
+  );
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -256,8 +264,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
       movimenti: costiMateriali?.movimenti,
       posaPerFase,
       vociPreviste,
+      costiDiretti: quoteCosti,
     }),
-    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste],
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste, quoteCosti],
   );
 
   // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo

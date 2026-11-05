@@ -20,9 +20,11 @@
  *   magazzino delle righe della fase, con la regola di v_ordine_marginalita:
  *   lo scarico di una riga già coperta da un ordine d'acquisto non si conta
  *   due volte.
+ *   Con `costiDiretti` anche fatture e spese della commessa, ripartite da
+ *   costiDirettiFasi: il consuntivo delle ditte arriva dalle loro fatture.
  * Quello che non sta in una fase (righe e persone senza fase) va in
- * `senzaFase`; provvigioni, errori, costi diretti e rimborsi restano del conto
- * economico della commessa.
+ * `senzaFase`; provvigioni, errori e rimborsi restano del conto economico
+ * della commessa.
  */
 
 export interface RigaContrattoFase {
@@ -75,6 +77,8 @@ export interface VociCosto {
   ditte: number;
   materiali: number;
 }
+/** Il sostenuto ha anche gli altri costi diretti: noli, professionisti, spese. */
+export interface VociConsuntivo extends VociCosto { altri: number }
 
 /** Da dove viene il venduto: scritto sulla fase, dalle righe del contratto, o non c'è. */
 export type FonteVenduto = "fase" | "righe" | null;
@@ -97,7 +101,7 @@ export interface EconomiaFase {
   costoPrevisto: number;
   costoConsuntivo: number;
   previsto: VociCosto;
-  consuntivo: VociCosto;
+  consuntivo: VociConsuntivo;
   fontePrevisto: FontePrevisto;
   /** Voci del preventivo collegate alla fase. */
   vociPreviste: number;
@@ -132,7 +136,7 @@ interface Somme {
   vendutoRighe: number;
   righePrezzate: number;
   previsto: VociCosto;
-  consuntivo: VociCosto;
+  consuntivo: VociConsuntivo;
   righe: number;
   fonte: FontePrevisto;
   /** La fase ha almeno una ditta: il lavoro del preventivo va alle ditte. */
@@ -145,7 +149,7 @@ const vuote = (importo: number | null = null): Somme => ({
   vendutoRighe: 0,
   righePrezzate: 0,
   previsto: { manodopera: 0, ditte: 0, materiali: 0 },
-  consuntivo: { manodopera: 0, ditte: 0, materiali: 0 },
+  consuntivo: { manodopera: 0, ditte: 0, materiali: 0, altri: 0 },
   righe: 0,
   fonte: { lavoro: null, materiali: null },
   haDitta: false,
@@ -236,9 +240,9 @@ export function costoConsuntivoRighe(
 
 function chiudi(s: Somme, { venduto: lordo, fonte }: { venduto: number; fonte: FonteVenduto }): EconomiaFase {
   const previsto = { manodopera: centesimi(s.previsto.manodopera), ditte: centesimi(s.previsto.ditte), materiali: centesimi(s.previsto.materiali) };
-  const consuntivo = { manodopera: centesimi(s.consuntivo.manodopera), ditte: centesimi(s.consuntivo.ditte), materiali: centesimi(s.consuntivo.materiali) };
+  const consuntivo = { manodopera: centesimi(s.consuntivo.manodopera), ditte: centesimi(s.consuntivo.ditte), materiali: centesimi(s.consuntivo.materiali), altri: centesimi(s.consuntivo.altri) };
   const costoPrevisto = centesimi(s.previsto.manodopera + s.previsto.ditte + s.previsto.materiali);
-  const costoConsuntivo = centesimi(s.consuntivo.manodopera + s.consuntivo.ditte + s.consuntivo.materiali);
+  const costoConsuntivo = centesimi(s.consuntivo.manodopera + s.consuntivo.ditte + s.consuntivo.materiali + s.consuntivo.altri);
   const venduto = centesimi(lordo);
   const margine = (costo: number) => (venduto > 0 ? Math.round(((venduto - costo) / venduto) * 1000) / 10 : null);
   return {
@@ -273,6 +277,8 @@ export function economiaFasi(input: {
   posaPerFase?: ReadonlyMap<string, ReadonlyMap<string | null, number>>;
   /** Voci del preventivo da cui sono nate le fasi: il previsto dove le assegnazioni non ne hanno. */
   vociPreviste?: ReadonlyArray<VocePrevistaFase>;
+  /** Fatture e spese della commessa già ripartite sulle fasi (costiDirettiFasi); senza, restano fuori dal conto. */
+  costiDiretti?: ReadonlyArray<{ phase_id: string | null; voce: "ditte" | "altri"; importo: number }>;
 }): EconomiaFasi {
   const somme = new Map<string, Somme>();
   for (const f of input.fasi) somme.set(f.id, vuote(importoFase(f.importo_venduto)));
@@ -334,6 +340,7 @@ export function economiaFasi(input: {
     s.consuntivo[voce] += numero(a.cost_consuntivo) / iva;
     if (a.source === "team") s.haDitta = true;
   }
+  for (const c of input.costiDiretti ?? []) di(c.phase_id).consuntivo[c.voce] += numero(c.importo);
   for (const v of input.vociPreviste ?? []) {
     const s = somme.get(v.phase_id);
     if (!s) continue;
@@ -376,6 +383,7 @@ export function economiaFasi(input: {
       totale.previsto[voce] += s.previsto[voce];
       totale.consuntivo[voce] += s.consuntivo[voce];
     }
+    totale.consuntivo.altri += s.consuntivo.altri;
   }
   const fonteTotale: FonteVenduto = fonti.has("fase") ? "fase" : fonti.has("righe") ? "righe" : null;
   return {
