@@ -1,6 +1,6 @@
 // src/hooks/useChiSottofasi.ts
 // Chi fa ogni sottofase: una persona, una squadra o una ditta. Finché la tabella non c'è (migrazione
-// 20281214100000 non applicata) la lettura fallisce in silenzio e lo schermo resta quello di prima.
+// 20281213160000 non applicata) la lettura fallisce in silenzio e lo schermo resta quello di prima.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";

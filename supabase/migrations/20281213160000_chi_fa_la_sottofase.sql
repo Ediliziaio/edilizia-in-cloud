@@ -1,3 +1,8 @@
+-- Chi fa ogni sottofase (05/11/2026, richiesta di Florin). Prima «chi la fa» stava solo sulla fase: in una fase
+-- con persone diverse non si poteva dire prima che le tracce le fa uno e i sanitari un altro; si vedeva dopo, dai
+-- rapportini. Qui si scrive: una persona (employees) oppure una ditta o una squadra (external_teams), per sottofase.
+-- Non cambia costi né accessi: quelli restano sulla fase (order_employees, order_external_teams, squadre_commesse).
+-- Idempotente.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
@@ -19,6 +24,7 @@ alter table public.order_work_subphase_chi enable row level security;
 revoke all on table public.order_work_subphase_chi from public, anon;
 grant select, insert, delete on table public.order_work_subphase_chi to authenticated;
 
+-- La sottofase deve essere della commessa, e persona o ditta della stessa azienda della commessa.
 create or replace function public.sottofase_chi_coerente(p_order uuid, p_sottofase uuid, p_persona uuid, p_ditta uuid)
 returns boolean language sql stable security definer set search_path = ''
 as $$
