@@ -21,7 +21,7 @@ import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shar
 import { collectRoomReferenceImages } from "../../../shared/render-references/roomReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
-import { qualitaImmagineStanza } from "../../../shared/render-room/roomRenderConfig.ts";
+import { qualitaImmagineStanza, vincoloColoriSoffitto } from "../../../shared/render-room/roomRenderConfig.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
@@ -322,6 +322,9 @@ Deno.serve(async (req: Request) => {
         }));
       }
 
+      const ceilingColourLock = vincoloColoriSoffitto(cfg);
+      if (ceilingColourLock) fullPrompt = `${fullPrompt}\n\n${ceilingColourLock}`;
+
       // Foto prodotto del catalogo dell'azienda: dichiarate qui perche' nella stanza
       // il prompt viene salvato PRIMA di generare, quindi la legenda va appesa ora.
       let catalogReferences: ImageReferenceInput[] = materialBoards ? [...materialBoards] : [];
@@ -532,6 +535,7 @@ Deno.serve(async (req: Request) => {
             ? "Image 1 = SOURCE: a 3D model of the real room, possibly with selected finish textures from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
             : "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
           `Customer furniture request: ${JSON.stringify(cfg.arredo ?? {})}. Customer brief: ${String(cfg.note_libere ?? "").replace(/[\r\n]/g, " ").slice(0, 3000)}`,
+          ...(ceilingColourLock ? [ceilingColourLock] : []),
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations:",
           ...(materialBoards ? ["Images 3 onward are the selected-material boards. Compare the CANDIDATE with every numbered panel ONLY on the panel's named target.", "- selected_material_mismatch: an explicitly selected wallpaper motif, floor/wood grain, cladding, furniture material, curtain, ceiling or fixture is clearly missing or substituted by a different one. Respect explicit colour overrides and dimensions; do not fail for minor lighting differences."] : []),

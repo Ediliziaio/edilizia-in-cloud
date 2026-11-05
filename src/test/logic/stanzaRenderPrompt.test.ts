@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_STANZA_CONFIG, StanzaConfigForm } from "@/components/render-stanza/StanzaConfigForm";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
+import { vincoloColoriSoffitto } from "../../../shared/render-room/roomRenderConfig.ts";
 import type { ConfigurazioneStanza } from "@/modules/render-stanza/lib/types";
 
 function config(): ConfigurazioneStanza {
@@ -11,6 +12,23 @@ function config(): ConfigurazioneStanza {
 }
 
 describe("room render prompt pipeline", () => {
+  it("keeps a white ceiling background separate from natural oak beams", () => {
+    const cfg = config();
+    cfg.soffitto = { ...cfg.soffitto, attivo: true, tipo: "travi_legno", colore_hex: "#FFFFFF", colore_travi: "Rovere naturale a vista" };
+    const lock = vincoloColoriSoffitto(cfg);
+    expect(lock).toContain("BETWEEN the beams only: #FFFFFF");
+    expect(lock).toContain("BEAMS finish only: Rovere naturale a vista");
+    expect(lock).toContain("Never transfer the infill/background paint to the beams");
+    expect(buildRoomPrompt(cfg).userPrompt).toContain(lock);
+  });
+
+  it("allows explicitly painted beams and supplies wood when older configs omit beam colour", () => {
+    expect(vincoloColoriSoffitto({ soffitto: { attivo: true, tipo: "travi_legno", colore_hex: "#FFFFFF", colore_travi: "Legno verniciato bianco" } })).toContain("BEAMS finish only: Legno verniciato bianco");
+    expect(vincoloColoriSoffitto({ soffitto: { attivo: true, tipo: "travi_legno" } })).toContain("natural unpainted oak wood with visible grain");
+    expect(vincoloColoriSoffitto({ soffitto: { attivo: false, tipo: "travi_legno" } })).toBe("");
+    expect(vincoloColoriSoffitto({ soffitto: { attivo: true, tipo: "piano" } })).toBe("");
+  });
+
   it("uses the advanced floor rules when room floor replacement is active", () => {
     const cfg = config();
     cfg.pavimento = {

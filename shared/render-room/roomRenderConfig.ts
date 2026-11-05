@@ -37,6 +37,18 @@ function bool(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+/** Restano dopo la riscrittura AI: fondo e travi sono due superfici distinte. */
+export function vincoloColoriSoffitto(config: unknown): string {
+  const ceiling = asRecord(asRecord(config).soffitto);
+  if (!bool(ceiling.attivo) || ceiling.tipo !== "travi_legno") return "";
+  return [
+    "CEILING SURFACE COLOUR LOCK — overrides any conflicting prose above:",
+    `Ceiling infill/background BETWEEN the beams only: ${str(ceiling.colore_hex, "existing ceiling colour")}.`,
+    `Exposed WOODEN BEAMS finish only: ${str(ceiling.colore_travi, "natural unpainted oak wood with visible grain")}.`,
+    "These are independent surfaces. Never transfer the infill/background paint to the beams. Preserve visible wood grain and the selected beam finish, unless that beam finish itself explicitly requests painted wood.",
+  ].join("\n");
+}
+
 function hexName(record: Record<string, unknown>, nameKey: string, hexKey: string, fallback: string): string {
   const name = str(record[nameKey]);
   const hex = str(record[hexKey]);
@@ -431,7 +443,9 @@ export function buildRoomReplacementManifest(
     active.push(buildSimpleIntervention(
       "ceiling",
       "Ceiling",
-      `Ceiling: ${str(ceiling.tipo, "piano").replace(/_/g, " ")} with color ${str(ceiling.colore_hex, "existing/selected")}${str(ceiling.colore_travi) ? `, beams ${str(ceiling.colore_travi)}` : ""}.`,
+      ceiling.tipo === "travi_legno"
+        ? vincoloColoriSoffitto(cfg)
+        : `Ceiling: ${str(ceiling.tipo, "piano").replace(/_/g, " ")} with color ${str(ceiling.colore_hex, "existing/selected")}.`,
       ["Keep ceiling height and room geometry plausible; no floating fixtures or warped planes."],
     ));
   }
