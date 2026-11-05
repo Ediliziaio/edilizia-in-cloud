@@ -33,7 +33,7 @@ describe("materiali comuni a tutto il progetto", () => {
     doc.materialiProgetto = { "progetto:rinnovo": comuni() };
     const company = "22222222-2222-4222-8222-222222222222";
     const db = { from: (table: string) => {
-      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ error: null, data: table === "planimetrie" ? { company_id: company, deleted_at: null } : { documento: doc } }) };
+      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ error: null as null, data: table === "planimetrie" ? { company_id: company, deleted_at: null as string | null } : { documento: doc } }) };
       return q;
     } };
     const ref = { planimetria_id: "11111111-1111-4111-8111-111111111111", versione: 1, livello_id: primo.id, locale_id: primo.fatto.locali[0].id, ambito: "fatto", materiali_ambito: "progetto:rinnovo" };

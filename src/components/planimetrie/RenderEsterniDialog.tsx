@@ -1,4 +1,4 @@
-import { vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
  * Render degli esterni dalla pianta: piscina, pergola, giardino, facciata, pavimento esterno.
  *
@@ -108,7 +108,9 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const continua = () => {
     if (!anteprima) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
-    const nota = ["La sorgente è una vista 3D del progetto: trasformala in una fotografia realistica mantenendo edificio, aperture e inquadratura.", MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: pianta.infissiProgetto?.colore ?? asp.infissi }, pianta.tetto), vincoloInfissiProgetto(pianta.infissiProgetto)].filter(Boolean).join(" ");
+    const infissi = pianta.infissiProgetto;
+    const notaInfissi = infissi ? `Infissi comuni del progetto: ${PROFILI_PROGETTO[infissi.profilo]}, ${COLORI_INFISSI_PROGETTO[infissi.colore].nome}. Usa lo stesso materiale e colore in tutte le viste. Conserva per ogni apertura dimensioni, posizione, davanzale, numero di ante e meccanismo di apertura. Non cambiare persiane o porte.` : "";
+    const nota = ["La sorgente è una vista 3D del progetto: trasformala in una fotografia realistica mantenendo edificio, aperture e inquadratura.", MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: infissi?.colore ?? asp.infissi }, pianta.tetto), notaInfissi].filter(Boolean).join(" ");
     lasciaFotoDaPianta(modulo, anteprima.file, nota || undefined);
     onChiudi();
     toast.success("Vista 3D caricata come foto di partenza");
