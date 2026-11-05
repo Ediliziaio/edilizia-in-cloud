@@ -93,7 +93,6 @@ export interface PhaseMaterial {
   readiness: MaterialReadiness;
   odaNumber: string | null;
   unita_misura?: string | null;
-  stock_item_id?: string | null;
 }
 
 // Fasi standard di una ristrutturazione (template "1 clic")

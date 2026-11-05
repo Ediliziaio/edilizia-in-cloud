@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
+import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
 
 // I nomi veri delle fasi di Dimora Torino (O-0001 e O-0002).
 const storico = [
@@ -113,7 +113,7 @@ describe("elenco dei lavori del contratto, modificabile", () => {
 
 describe("Elenco lavori: tutto quello che la ditta deve fare", () => {
   const fasi = [{ id: "a", name: "Impianti", position: 1 }, { id: "b", name: "Finiture", position: 2 }];
-  const voce = { id: "v", phase_id: "a", descrizione: "Tracce", unita: "m", quantita: 2, costo_manodopera: 10, tariffa_id: null, subphase_id: "s1" };
+  const voce = { id: "v", phase_id: "a", descrizione: "Tracce", unita: "m", quantita: 2, costo_manodopera: 10, tariffa_id: null as string | null, subphase_id: "s1" };
   it("la voce porta fase e sottofase; la sottofase senza voce entra a corpo; la fase vuota col suo previsto", () => {
     const elenco = elencoLavoriDitta(fasi, [voce], ["a", "b"], "d", [], {
       sottofasi: [{ id: "s1", phase_id: "a", name: "Tracce" }, { id: "s2", phase_id: "a", name: "Collaudo" }],
