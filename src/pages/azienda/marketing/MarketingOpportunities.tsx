@@ -22,7 +22,8 @@ import {
 } from "@/hooks/useOpportunitiesData";
 import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityDetailDialog";
 import { OpportunitaCestinoDialog } from "@/components/opportunities/OpportunitaCestinoDialog";
-import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
+import { useContactCustomFields, useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
+import { campiContattoImport, datiContattoDaRiga, valoriCustomContatto } from "@/lib/marketing/importaOpportunita";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
@@ -257,6 +258,7 @@ function MarketingOpportunitiesContent() {
     onError: () => toast.error("Errore nell'eliminazione"),
   });
   const { data: oppCustomFields = [] } = useOpportunityCustomFields();
+  const { data: contactCustomFields = [] } = useContactCustomFields();
   const customFieldDefs: FieldDefinition[] = useMemo(() =>
     oppCustomFields.map((f) => ({ key: `custom_${f.id}`, label: f.name, section: "opportunity" })),
     [oppCustomFields]
@@ -268,8 +270,8 @@ function MarketingOpportunitiesContent() {
       required: false,
       type: "text" as const,
     }));
-    return [...OPP_IMPORT_FIELDS, ...customImportFields];
-  }, [oppCustomFields]);
+    return [...OPP_IMPORT_FIELDS, ...customImportFields, ...campiContattoImport(contactCustomFields)];
+  }, [oppCustomFields, contactCustomFields]);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -647,9 +649,18 @@ function MarketingOpportunitiesContent() {
                 if (found) contactId = found.id;
               }
               if (!contactId) {
-                const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone }).select("id").single();
+                const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone, ...datiContattoDaRiga(r) }).select("id").single();
                 if (cErr) throw cErr;
                 contactId = newContact!.id;
+                // Uno alla volta: un valore rifiutato non deve far perdere gli altri, né
+                // l'opportunità. Chi importa lo vede fra gli errori, col nome del campo.
+                for (const valore of valoriCustomContatto(r, contactId!)) {
+                  const { error: vErr } = await supabase.from("marketing_contact_field_values").insert(valore);
+                  if (vErr) {
+                    const campo = contactCustomFields.find((f) => f.id === valore.field_id)?.name ?? "personalizzato";
+                    errors.push(`Riga ${i + 2}: campo «${campo}» del contatto non salvato: ${vErr.message}`);
+                  }
+                }
               }
               const tags = r.tags ? normalizeTagList(r.tags.split(",")) : [];
               const { data: oppData, error: oErr } = await supabase.from("marketing_opportunities").insert({
