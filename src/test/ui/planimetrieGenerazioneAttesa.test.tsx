@@ -14,7 +14,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   const BaseURL = URL;
   class URLConBlob extends BaseURL {}
-  Object.assign(URLConBlob, { createObjectURL: () => "blob:test-pianta", revokeObjectURL: () => undefined });
+  Object.assign(URLConBlob, { createObjectURL: (): string => "blob:test-pianta", revokeObjectURL: (): void => {} });
   vi.stubGlobal("URL", URLConBlob);
   api.invoke.mockResolvedValue({ data: { success: false, codice: "non_leggibile" }, error: null as Error | null });
 });

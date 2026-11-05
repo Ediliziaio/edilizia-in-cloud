@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { generaPlanimetria } from "../../../supabase/functions/planimetria-genera/genera";
 import { costruisciPlanimetria } from "../../../supabase/functions/planimetria-genera/costruisci";
-import { leggiRispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
+import { leggiRispostaAI, type RispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
 import { area } from "../../../supabase/functions/planimetria-genera/geometria";
 
 const risposta = (sulMuro: boolean, doppia = false) => ({
   sistema: "metri", leggibile: true, altezza_m: 2.7,
   locali: [{ nome: "Studio", destinazione: "studio", contorno: [[0, 0], [4, 0], [4, 4], [0, 4]] }],
   aperture: Array.from({ length: doppia ? 2 : 1 }, () => ({ tipo: "finestra", da: [1, sulMuro ? 0 : 1], a: [2, sulMuro ? 0 : 1] })),
-  quote: [],
+  quote: [] as RispostaAI["quote"],
 });
 const richiesta = { ingresso: "descrizione" as const, testo: "Studio di 4 per 4 metri con una finestra" };
 describe("aperture nella pianta generata", () => {
