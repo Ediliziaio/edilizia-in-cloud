@@ -130,7 +130,9 @@ const testoDi = (n: number | null | undefined) => (n ? String(n) : "");
 function DatiLavorazione({ riga: r, vedeVenduto, puoModificare, onSalva }: { riga: RigaDistinta; vedeVenduto: boolean; puoModificare: boolean; onSalva?: Props["onSalvaVoce"] }) {
   const inizio = { q: testoDi(r.quantita), u: r.unita ?? "", i: testoDi(r.venduto), l: testoDi(r.costoManodopera), m: testoDi(r.costoMateriali) };
   const [c, setC] = useState(inizio);
-  const cambia = (k: keyof typeof c) => (e: { target: { value: string } }) => setC((x) => ({ ...x, [k]: e.target.value }));
+  // Su una commessa grande il dato torna dopo qualche secondo: il secondo clic creerebbe una voce doppia.
+  const [inviato, setInviato] = useState(false);
+  const cambia = (k: keyof typeof c) => (e: { target: { value: string } }) => { setInviato(false); setC((x) => ({ ...x, [k]: e.target.value })); };
   const q = numero(c.q), i = numero(c.i), l = numero(c.l), m = numero(c.m);
   const valido = q !== null && i !== null && l !== null && m !== null;
   const cambiato = (Object.keys(c) as Array<keyof typeof c>).some((k) => c[k] !== inizio[k]);
@@ -152,9 +154,9 @@ function DatiLavorazione({ riga: r, vedeVenduto, puoModificare, onSalva }: { rig
       {previsto > 0 && <p className="text-xs text-muted-foreground">Costo previsto: {formatCurrency(previsto)}</p>}
       {!valido && <p role="alert" className="text-xs text-rose-700">Scrivi numeri non negativi.</p>}
       {puoModificare && cambiato && onSalva && (
-        <Button type="button" size="sm" className="h-7 text-xs" disabled={!valido}
-          onClick={() => onSalva(r, { quantita: q ?? 0, unita: c.u.trim() || null, costoManodopera: l ?? 0, costoMateriali: m ?? 0, ...(vedeVenduto ? { importo: i || null } : {}) })}>
-          Salva quantità e prezzi
+        <Button type="button" size="sm" className="h-7 text-xs" disabled={!valido || inviato}
+          onClick={() => { setInviato(true); onSalva(r, { quantita: q ?? 0, unita: c.u.trim() || null, costoManodopera: l ?? 0, costoMateriali: m ?? 0, ...(vedeVenduto ? { importo: i || null } : {}) }); }}>
+          {inviato ? "Salvataggio…" : "Salva quantità e prezzi"}
         </Button>
       )}
     </div>

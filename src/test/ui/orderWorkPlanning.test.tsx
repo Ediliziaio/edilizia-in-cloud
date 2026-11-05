@@ -208,6 +208,7 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.queryByRole("group", { name: "Come vedere le fasi" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Scheda di Opere murarie" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Opere murarie");
+    expect(screen.getByRole("navigation", { name: "Parti della fase" })).toBeInTheDocument();
   });
   it("gli avvisi aprono e portano alla sezione giusta senza scrivere dati", () => {
     state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []})];

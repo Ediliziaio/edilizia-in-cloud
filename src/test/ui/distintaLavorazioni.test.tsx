@@ -217,6 +217,24 @@ describe("Tabella delle lavorazioni", () => {
     fireEvent.click(within(riepilogo()).getByRole("button", { name: /senza fase/ }));
     expect(onCostiSenzaFase).toHaveBeenCalledOnce();
   });
+  it("«Aggiungi sottofase» è sempre in vista e un elenco incollato crea una riga per voce", () => {
+    const onAggiungiTante = vi.fn();
+    mostra({ onAggiungiTante });
+    fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi sottofase" })[0]);
+    fireEvent.paste(screen.getByPlaceholderText(/Nome e Invio/), { clipboardData: { getData: () => "Tracce\n\n  Cavi \nCollaudo" } });
+    expect(onAggiungiTante).toHaveBeenCalledExactlyOnceWith("f1", ["Tracce", "Cavi", "Collaudo"]);
+  });
+  it("nel popup una sottofase riceve quantità e prezzi, e non si salva due volte", () => {
+    const onSalvaVoce = vi.fn();
+    mostra({ onSalvaVoce });
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.change(within(popup).getByLabelText("Quantità"), { target: { value: "12" } });
+    const salva = within(popup).getByRole("button", { name: "Salva quantità e prezzi" });
+    fireEvent.click(salva);
+    expect(onSalvaVoce.mock.calls[0][1]).toMatchObject({ quantita: 12 });
+    expect(within(popup).getByRole("button", { name: "Salvataggio…" })).toBeDisabled();
+  });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });
     expect(screen.queryByRole("checkbox", { name: /Seleziona/ })).toBeNull();

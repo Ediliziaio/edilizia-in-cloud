@@ -222,7 +222,10 @@ export function DistintaLavorazioni({
   // Con un filtro attivo una voce appena segnata esce dall'elenco: il popup resta su di lei, e «dopo» è quella che ne ha preso il posto.
   const ultimoIndice = useRef(0);
   if (indiceAperta >= 0) ultimoIndice.current = indiceAperta;
-  const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? null : null;
+  // Una sottofase scritta a mano, quando riceve i prezzi, diventa una riga con la sua voce: resta la stessa.
+  const sottofaseAperta = useRef<string | null>(null);
+  const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? tutte.find((x) => !!sottofaseAperta.current && x.sottofaseId === sottofaseAperta.current) ?? null : null;
+  sottofaseAperta.current = rigaAperta?.sottofaseId ?? null;
   const nomiChi = (id: string) => { const c = chiDi.get(id); return c ? [...c.squadre, ...c.persone, ...c.ditte] : []; };
 
   const scrollRef = useRef<HTMLDivElement>(null);

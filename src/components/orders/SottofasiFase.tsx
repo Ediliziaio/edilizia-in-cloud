@@ -211,7 +211,10 @@ export function SottofasiFase({
                 />
               ) : (
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</p>
+                  <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>
+                    {s.name}
+                    {!s.fatta && !!s.percentuale && <span className="ml-1.5 text-xs font-medium tabular-nums text-primary">{s.percentuale}%</span>}
+                  </p>
                   {info && <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>}
                   {reale && intervalloSottofase(s) && <p className={cn("text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
                     finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}

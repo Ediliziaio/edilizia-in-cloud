@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/lib/formatters";
 import { useAssegnaFaseCosti, useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
 import { CostiSenzaFaseDialog } from "@/components/orders/CostiSenzaFase";
 import { ripartisciCostiDiretti } from "@/lib/orders/costiDirettiFasi";
