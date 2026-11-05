@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
 import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
 import {
-  contestoCompatto, proposteDaStrumenti, type ChiamataStrumentoFasi, type ContestoFasi, type PropostaFasi,
+  acquistiCompatti, contestoCompatto, proposteDaStrumenti, type ContestoAcquisti, type ChiamataStrumentoFasi, type ContestoFasi, type PropostaFasi,
 } from "../../../shared/silvio-commessa/chatFasi";
 import type { AllegatoSilvio, RispostaSilvio } from "@/components/silvio/SilvioConversazione";
 
@@ -78,6 +78,31 @@ export function contestoFasiPerSilvio(a: {
   };
 }
 
+/** Silvio in Materiali e acquisti: risponde soltanto, nel popup. */
+export async function chiediSilvioAcquisti(
+  orderId: string,
+  messaggio: string,
+  contesto: ContestoAcquisti,
+  storia: ReadonlyArray<{ ruolo: "persona" | "silvio"; testo: string }>,
+  allegati: ReadonlyArray<AllegatoSilvio> = [],
+): Promise<RispostaSilvio> {
+  const data = await invocaPopup({ ambito: "acquisti", order_id: orderId, messaggio, contesto: acquistiCompatti(contesto), storia, allegati });
+  const testo = typeof (data as { testo?: unknown }).testo === "string" ? (data as { testo: string }).testo : "";
+  return { testo: testo || "Non ho una risposta su questo: prova a chiederlo in un altro modo.", proposte: [], scartate: [] };
+}
+
+async function invocaPopup(corpo: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.functions.invoke("silvio-commessa", {
+    body: { modo: "fasi", richiesta_id: crypto.randomUUID(), ...corpo },
+  });
+  if (error) {
+    const { status, testo } = await messaggioDellaFunzione(error);
+    if (status === 402) segnalaCreditoEsaurito({ portafoglio: "ai" });
+    throw new Error(testo ? erroreLeggibile(testo) : erroreLeggibile(error, "Silvio non risponde: riprova tra poco."));
+  }
+  return (data ?? {}) as Record<string, unknown>;
+}
+
 /** Dal corpo di una risposta d'errore della funzione, la frase in italiano che ha scritto. */
 async function messaggioDellaFunzione(error: unknown): Promise<{ status: number | null; testo: string | null }> {
   const ctx = (error as { context?: Response } | null)?.context;
@@ -99,15 +124,7 @@ export async function chiediSilvioFasi(
   allegati: ReadonlyArray<AllegatoSilvio> = [],
 ): Promise<RispostaSilvio> {
   contesto = contestoCompatto(contesto);
-  const { data, error } = await supabase.functions.invoke("silvio-commessa", {
-    body: { modo: "fasi", order_id: orderId, messaggio, contesto, storia, allegati, richiesta_id: crypto.randomUUID() },
-  });
-  if (error) {
-    const { status, testo } = await messaggioDellaFunzione(error);
-    if (status === 402) segnalaCreditoEsaurito({ portafoglio: "ai" });
-    throw new Error(testo ? erroreLeggibile(testo) : erroreLeggibile(error, "Silvio non risponde: riprova tra poco."));
-  }
-  const r = (data ?? {}) as { testo?: unknown; strumenti?: unknown };
+  const r = await invocaPopup({ ambito: "fasi", order_id: orderId, messaggio, contesto, storia, allegati }) as { testo?: unknown; strumenti?: unknown };
   const strumenti = (Array.isArray(r.strumenti) ? r.strumenti : []) as ChiamataStrumentoFasi[];
   const { proposte, scartate } = proposteDaStrumenti(strumenti, contesto);
   const testo = typeof r.testo === "string" ? r.testo : "";

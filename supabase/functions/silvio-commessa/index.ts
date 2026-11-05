@@ -77,7 +77,7 @@ import {
   istruzioniChat, MAX_MESSAGGIO_CHAT, rispostaDelModello, STIMA_CHAT_EUR, STRUMENTI_CHAT,
 } from "../../../shared/silvio-commessa/chat.ts";
 import {
-  istruzioniFasi, MAX_CONTESTO_FASI, MAX_MESSAGGIO_FASI, rispostaFasi, STIMA_FASI_EUR, STRUMENTI_FASI,
+  istruzioniAcquisti, istruzioniFasi, MAX_CONTESTO_FASI, MAX_MESSAGGIO_FASI, rispostaFasi, STIMA_FASI_EUR, STRUMENTI_FASI,
 } from "../../../shared/silvio-commessa/chatFasi.ts";
 import { AiTurnControl, AiTurnLimitError } from "../_shared/aiTurnControl.ts";
 import { creaConSilvioAcceso } from "../_shared/creaConSilvio.ts";
@@ -460,10 +460,12 @@ async function chatFasi(body: any, userId: string, admin: any, cors: Record<stri
   const messaggio = typeof body?.messaggio === "string" ? body.messaggio.trim() : "";
   if (!messaggio) return errorResponse("Scrivi qualcosa a Silvio", 400, cors);
   if (messaggio.length > MAX_MESSAGGIO_FASI) return errorResponse("Messaggio troppo lungo", 413, cors);
+  // «acquisti»: Materiali e acquisti, solo risposte; altrimenti le fasi, con le proposte.
+  const acquisti = body?.ambito === "acquisti";
   const contesto = body?.contesto && typeof body.contesto === "object" ? body.contesto : null;
-  if (!contesto) return errorResponse("Mancano le fasi", 400, cors);
+  if (!contesto) return errorResponse(acquisti ? "Mancano i materiali" : "Mancano le fasi", 400, cors);
   const testoContesto = JSON.stringify(contesto);
-  if (testoContesto.length > MAX_CONTESTO_FASI) return errorResponse("Troppe fasi per Silvio: chiedi di una fase alla volta", 413, cors);
+  if (testoContesto.length > MAX_CONTESTO_FASI) return errorResponse("Troppi dati per Silvio: chiedi di una parte alla volta", 413, cors);
   const storia = (Array.isArray(body?.storia) ? body.storia : [])
     .filter((m: unknown) => m && typeof m === "object" && typeof (m as { testo?: unknown }).testo === "string")
     .slice(-8)
@@ -513,12 +515,14 @@ async function chatFasi(body: any, userId: string, admin: any, cors: Record<stri
       supabase: admin,
       taskKey: TASK_CHAT,
       messages: [
-        { role: "system", content: istruzioniFasi(oggi) },
-        { role: "user", content: `Le fasi della commessa adesso:\n${testoContesto}` },
+        { role: "system", content: acquisti ? istruzioniAcquisti(oggi) : istruzioniFasi(oggi) },
+        { role: "user", content: `${acquisti ? "I materiali" : "Le fasi"} della commessa adesso:\n${testoContesto}` },
         ...storia,
         { role: "user", content: parti.length ? [...parti, { type: "text", text: messaggio }] : messaggio },
       ],
-      params: { temperature: 0, max_tokens: 3000, tools: [...STRUMENTI_FASI], tool_choice: "auto" },
+      params: acquisti
+        ? { temperature: 0, max_tokens: 1500 }
+        : { temperature: 0, max_tokens: 3000, tools: [...STRUMENTI_FASI], tool_choice: "auto" },
       companyId, userId,
       idempotencyKey: await buildStableAiIdempotencyKey(TASK_CHAT, [companyId, userId, "fasi", richiesta]),
       estimatedCostEur: STIMA_FASI_EUR,
@@ -531,7 +535,9 @@ async function chatFasi(body: any, userId: string, admin: any, cors: Record<stri
     console.error("[silvio-commessa] fasi non riuscita:", msg.slice(0, 300));
     return errorResponse("Silvio non risponde: riprova tra poco", 502, cors);
   }
-  const { testo, strumenti } = rispostaFasi(risposta.rawResponse?.choices?.[0]?.message ?? { content: risposta.content });
+  const letta = rispostaFasi(risposta.rawResponse?.choices?.[0]?.message ?? { content: risposta.content });
+  const testo = letta.testo;
+  const strumenti = acquisti ? [] : letta.strumenti;
   return jsonResponse({
     ok: true, testo, strumenti,
     costo_eur: Math.round((risposta.costBilledEur ?? 0) * 10000) / 10000,

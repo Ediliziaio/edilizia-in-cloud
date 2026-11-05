@@ -20,8 +20,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 const segnala = vi.fn();
 vi.mock("@/lib/creditoEsaurito", () => ({ segnalaCreditoEsaurito: (...a: unknown[]) => segnala(...a) }));
 
-import { applicaProposte, caricaAllegatoFasi, chiediSilvioFasi, contestoFasiPerSilvio } from "@/lib/orders/silvioFasi";
-import { contestoCompatto, MAX_CONTESTO_FASI, proposteDaStrumenti, type ContestoFasi } from "../../../shared/silvio-commessa/chatFasi";
+import { applicaProposte, caricaAllegatoFasi, chiediSilvioAcquisti, chiediSilvioFasi, contestoFasiPerSilvio } from "@/lib/orders/silvioFasi";
+import { acquistiCompatti, contestoCompatto, MAX_CONTESTO_FASI, proposteDaStrumenti, type ContestoFasi } from "../../../shared/silvio-commessa/chatFasi";
 
 const OGGI = "2026-11-05";
 const chiamata = (name: string, args: unknown) => ({ function: { name, arguments: JSON.stringify(args) } });
@@ -255,5 +255,26 @@ describe("Simulazione 8 — Applica si ferma al primo errore", () => {
       dateSottofasi: date, dateFase: date, chiFa: date,
     })).rejects.toThrow("Non salvato");
     expect(date).not.toHaveBeenCalled();
+  });
+});
+
+describe("Simulazione 9 — Materiali e acquisti: Silvio risponde e basta", () => {
+  const materiale = (i: number, stato: string) => ({ nome: `Materiale ${i}`, quantita: 10, unita: "pz", fase: "Impianti", serve_dal: "2026-11-24", fornitore: i % 2 ? "Edil Rossi" : null, prezzo: i % 3 ? 4.5 : null, stato });
+
+  it("ambito acquisti, nessuna proposta da applicare anche se arrivassero strumenti", async () => {
+    invoke.mockResolvedValue({ data: { testo: "Ordina da Edil Rossi entro il 17.", strumenti: [{ nome: "date_lavori", argomenti: { righe: [{ id: "f1", dal: "2026-11-09", al: "2026-11-10" }] } }] }, error: null });
+    const r = await chiediSilvioAcquisti("o1", "Cosa devo ordinare?", { oggi: OGGI, commessa: "P", materiali: [materiale(1, "da_ordinare")], fasi: [] }, []);
+    expect(r).toEqual({ testo: "Ordina da Edil Rossi entro il 17.", proposte: [], scartate: [] });
+    expect(invoke.mock.calls[0][1].body).toMatchObject({ modo: "fasi", ambito: "acquisti", order_id: "o1" });
+  });
+
+  it("oltre 300 materiali, prima quelli da ordinare, e lo si dice", () => {
+    const c = acquistiCompatti({ oggi: OGGI, commessa: "P", fasi: [], materiali: [
+      ...Array.from({ length: 280 }, (_, i) => materiale(i, "magazzino")),
+      ...Array.from({ length: 50 }, (_, i) => materiale(1000 + i, "da_ordinare")),
+    ] });
+    expect(c.materiali).toHaveLength(300);
+    expect(c.materiali.filter((m) => m.stato === "da_ordinare")).toHaveLength(50);
+    expect(c.ridotto).toMatch(/300 materiali su 330/);
   });
 });
