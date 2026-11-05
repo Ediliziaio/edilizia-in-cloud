@@ -1,3 +1,4 @@
+import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * «Fai il render di questa stanza» da una pianta (Planimetrie, fase 5b).
  *
@@ -205,6 +206,7 @@ export default function RenderPlanimetriaStanza() {
     setRisultato(null);
     setSalvato(false);
     try {
+      const configRender = await preparaMaterialiStanza(config, companyId);
       let sid = sessione;
       const rif: PlanimetriaNelRender = {
         planimetria_id: id,
@@ -238,7 +240,7 @@ export default function RenderPlanimetriaStanza() {
             created_by: user.id,
             status: "pending",
             original_photo_url: storagePath,
-            config: { ...config, planimetria: rif } as never,
+            config: { ...configRender, planimetria: rif } as never,
           })
           .select("id")
           .single();
@@ -250,7 +252,7 @@ export default function RenderPlanimetriaStanza() {
         rif.pianta_path = ((vecchia as { config?: { planimetria?: PlanimetriaNelRender } } | null)?.config?.planimetria?.pianta_path) ?? null;
         await supabase
           .from("render_stanza_sessions")
-          .update({ config: { ...config, planimetria: rif } as never, status: "pending", result_urls: null, error_message: null })
+          .update({ config: { ...configRender, planimetria: rif } as never, status: "pending", result_urls: null, error_message: null })
           .eq("id", sid);
       }
 
@@ -261,7 +263,7 @@ export default function RenderPlanimetriaStanza() {
       controlla(sid);
       const headers = await getEdgeFunctionAuthHeaders();
       const { data: risposta, error: errFn } = await supabase.functions.invoke("generate-room-render", {
-        body: { session_id: sid, config: { ...config, planimetria: rif }, ...(dim ? { target_width: dim.w, target_height: dim.h } : {}) },
+        body: { session_id: sid, config: { ...configRender, planimetria: rif }, ...(dim ? { target_width: dim.w, target_height: dim.h } : {}) },
         headers,
       });
       if (errFn || risposta?.error) {

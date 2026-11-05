@@ -102,9 +102,12 @@ export interface ConfigSpaziDettagli {
 }
 
 export interface ConfigurazioneStanza {
+  /** Tavole private dei campioni scelti, lette e verificate dal server prima del credito. */
+  materiali_visivi?: import("../../../../shared/render-references/roomVisualCatalog.ts").RoomVisualBoards;
   tipo_stanza: TipoStanza;
   stile_target: StileTarget;
   intensita: IntensitaTrasformazione;
+  qualita_render?: "standard" | "alta";
   verniciatura: ConfigVerniciatura;
   pavimento: ConfigPavimentoStanza;
   arredo: ConfigArredo;

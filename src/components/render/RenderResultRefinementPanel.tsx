@@ -55,6 +55,7 @@ const SKIP_KEYS = new Set([
   "result_urls",
   "image_url",
   "original_photo_url",
+  "materiali_visivi",
 ]);
 
 function humanize(value: string) {

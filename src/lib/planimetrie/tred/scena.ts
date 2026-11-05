@@ -3,6 +3,7 @@
  * locali, sanitari e arredi. Funzione pura: nessuna dipendenza da three.js, così
  * la stessa scena serve al visore, alle esportazioni (GLB, OBJ) e ai test.
  */
+import { finiturePareti } from "./finiturePareti";
 import { CostruttoreMesh } from "./costruttore";
 import { costruisciElemento, modelloElemento } from "./elementi";
 import { poligonoConBuchi, pulisciPoligono, puntoNelPoligono, v2 } from "./geometria2d";
@@ -10,7 +11,7 @@ import { latoEsterno } from "../../../../shared/planimetrie/serramenti.ts";
 import { quotaTerreno, type PuntoQuotato } from "../../../../shared/planimetrie/terreno.ts";
 import { baseTetto, facceTetto, finituraDi, fotovoltaicoSulTetto, quotaFalde, rettangoloTetto, SUBSTRATO_VERDE_CM, type Faccia, type P3 } from "../../../../shared/planimetrie/tetto.ts";
 import { meshImpianti } from "./impianti3d";
-import { MATERIALE_AREA, MATERIALI, materialeMuro, materialePavimento } from "./materiali";
+import { MATERIALE_AREA, MATERIALI, materialeFinitura, materialeMuro, materialePavimento } from "./materiali";
 import { calcolaIncroci, costruisciAnteOscuranti, costruisciZanzariera, costruisciCassonetto, costruisciMuro, costruisciTelaio, costruisciTamponamento, costruisciVetro, preparaMuro, sistemaVani, type MuroCalc, type VanoMuro } from "./muri";
 import type { AperturaPer3D, Mesh3D, OpzioniScena, PiantaPer3D, Scena3D, StatoOggetto, V3, Vista3D } from "./tipi";
 
@@ -366,14 +367,16 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
     if (!foro) {
       const pav = new CostruttoreMesh();
       pav.orizzontale(buchiPav.length ? poligonoConBuchi(contorno, buchiPav) : contorno, 0, true);
-      mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialePavimento(l.destinazione), riferimento: l.id }));
+      mesh.push(pav.mesh({ id: `pavimento:${l.id}`, nome: `Pavimento ${l.nome}`, genere: "pavimento", materiale: materialeFinitura(l.finiture?.pavimento, "pavimento", materialePavimento(l.destinazione)), riferimento: l.id }));
     }
+    // Le finiture sono della stanza, non dell'intero muro (l'esterno resta invariato).
+    if (!colori) mesh.push(...finiturePareti(l, muri, pianta.aperture.filter((a) => comeApertura(a.stato, vista) === "aperta"), falde ? (x, z) => quotaIn(falde, x, z) : undefined));
     // all'aperto non c'è soffitto
     if (conSoffitto && !falde && !/balcon|terrazz|giardino|cortile/.test(l.destinazione)) {
       const sof = new CostruttoreMesh();
       const buchiSof = bucoDi(opzioni.buchiSoffitto);
       sof.orizzontale(buchiSof.length ? poligonoConBuchi(contorno, buchiSof) : contorno, l.altezza * CM, false);
-      mesh.push(sof.mesh({ id: `soffitto:${l.id}`, nome: `Soffitto ${l.nome}`, genere: "soffitto", materiale: "soffitto", riferimento: l.id }));
+      mesh.push(sof.mesh({ id: `soffitto:${l.id}`, nome: `Soffitto ${l.nome}`, genere: "soffitto", materiale: materialeFinitura(l.finiture?.soffitto, "soffitto", "soffitto"), riferimento: l.id }));
     }
   }
 

@@ -63,6 +63,7 @@ export interface AperturaPer3D {
 }
 
 export interface LocalePer3D {
+  finiture?: import("../../../../shared/planimetrie/modello.ts").Finiture;
   id: string;
   nome: string;
   destinazione: string;
@@ -142,6 +143,8 @@ export interface Materiale3D {
   /** 1 = opaco. */
   opacita: number;
   ruvidita: number;
+  /** Campione reale, ripetuto in metri (non dipende dalle dimensioni della stanza). */
+  tessitura?: { trama: string; metri: [number, number]; tinta?: string };
 }
 
 export interface Limiti3D {

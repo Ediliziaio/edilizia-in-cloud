@@ -24,6 +24,11 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Qualità esplicita, mantenendo il comportamento delle configurazioni precedenti. */
+export function qualitaImmagineStanza(config: unknown): "medium" | "high" {
+  return asRecord(config).qualita_render === "alta" ? "high" : "medium";
+}
+
 function str(value: unknown, fallback = ""): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
@@ -108,6 +113,7 @@ function mapRoomFloorType(value: unknown): TipoPavimento {
     marmo: "marmo",
     resina: "resina_continua",
     cemento_spatolato: "microcemento",
+    microcemento: "microcemento",
     mosaico: "ceramica",
     pietra_naturale: "pietra_naturale",
     vinile_lvt: "vinile_lvt",

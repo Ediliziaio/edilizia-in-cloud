@@ -1139,6 +1139,10 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
         const nome = automatico && etichetta && d !== "altro" ? nomeUnico(altri, etichetta) : undefined;
         applica(C.rinominaStanza(p(), id, l, nome ? { destinazione: d, nome } : { destinazione: d }, stato.current.vista));
       },
+      finitureStanza: (id, finiture) => {
+        const l = stato.current.dati.locali.find((x) => x.id === id);
+        if (l) applica(C.rinominaStanza(p(), id, l, { finiture }, stato.current.vista));
+      },
       latoStanza: (id, lato, cm) => applica(C.impostaLatoStanza(p(), id, lato, cm)),
       lunghezzaParete: (id, cm) => applica(C.impostaLunghezzaParete(p(), id, cm)),
       spessoreParete: (id, cm) => applica(C.modificaMuro(p(), id, { spessore: cm, tipo: cm >= 20 ? "portante" : "tramezzo" })),

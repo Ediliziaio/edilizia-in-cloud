@@ -188,7 +188,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
       m.scene.remove(m.gruppo);
       liberaGruppo(m.gruppo);
     }
-    m.gruppo = creaGruppo(scena);
+    m.gruppo = creaGruppo(scena, { onTextureReady: () => m.disegna() });
     m.scene.add(m.gruppo);
     adattaAmbiente(m.ambiente, scena);
     m.disegna();

@@ -1,3 +1,4 @@
+import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -246,11 +247,12 @@ export default function RenderStanzaNew() {
     setPollState({ dots: 0, elapsedSec: 0, status: "pending" });
 
     try {
+    const configRender = await preparaMaterialiStanza(config, companyId);
     // Update config on session
     await supabase
       .from("render_stanza_sessions")
       .update({
-        config: config,
+        config: configRender,
         status: "pending",
         result_urls: null,
         error_message: null,
@@ -280,7 +282,7 @@ export default function RenderStanzaNew() {
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-room-render", {
       body: {
         session_id: sessionId,
-        config: config,
+        config: configRender,
         ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
       },
       headers,

@@ -4,6 +4,8 @@
  */
 import { useEffect, useState } from "react";
 import { AlertTriangle, Armchair, Check, Copy, Layers, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
+import { FinitureStanza } from "./FinitureStanza";
+import type { Finiture } from "../../../../shared/planimetrie/modello.ts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +30,7 @@ import { leggiQuota, scriviQuota, TIPO_PUNTO_QUOTA } from "../../../../shared/pl
 
 export interface AzioniPannello {
   nomeStanza: (id: string, nome: string) => void;
+  finitureStanza: (id: string, finiture: Finiture) => void;
   destinazioneStanza: (id: string, d: Destinazione) => void;
   latoStanza: (id: string, lato: number, cm: number) => void;
   lunghezzaParete: (id: string, cm: number) => void;
@@ -440,6 +443,7 @@ function DettaglioStanza({
           </SelectContent>
         </Select>
       </div>
+      <FinitureStanza value={locale.finiture ?? {}} onChange={(f) => azioni.finitureStanza(locale.id, f)} />
       {!essenziale && diLavoro && (
         <div className="space-y-1">
           <Label htmlFor="pl-unita">Appartamento (condominio, bifamiliare)</Label>

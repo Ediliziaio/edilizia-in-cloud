@@ -1,3 +1,4 @@
+import { caricaTavoleMateriali } from "./materiali.ts";
 // generate-room-render — Edge Function EiC
 // Render Stanza (Room/Interiors) AI — Provider unificato OpenRouter + fallback
 // Prompt Engine stanza-v1.0.0
@@ -20,6 +21,7 @@ import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shar
 import { collectRoomReferenceImages } from "../../../shared/render-references/roomReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
+import { qualitaImmagineStanza } from "../../../shared/render-room/roomRenderConfig.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
@@ -127,6 +129,8 @@ Deno.serve(async (req: Request) => {
   let refundableCompanyId: string | null = null;
   let refundableUserId: string | null = null;
   let creditDeducted = false;
+  let sessionAutorizzata = false;
+  const requestStartedAt = Date.now();
 
   try {
     const auth = await requireAuth(req, corsHeaders);
@@ -163,6 +167,7 @@ Deno.serve(async (req: Request) => {
       throw new Error("forbidden: accesso negato alla sessione render stanza");
     }
 
+    sessionAutorizzata = true;
     const existingResults = Array.isArray(session.result_urls)
       ? session.result_urls
       : [];
@@ -184,6 +189,8 @@ Deno.serve(async (req: Request) => {
       ((config || session.config) as Record<string, unknown> | null)?.planimetria,
       (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
     );
+
+    const materialBoards = await caricaTavoleMateriali(supabase, companyId as string, config || session.config);
 
     // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
     // Il guard read-then-act ("status === processing → accepted") lasciava
@@ -317,11 +324,13 @@ Deno.serve(async (req: Request) => {
 
       // Foto prodotto del catalogo dell'azienda: dichiarate qui perche' nella stanza
       // il prompt viene salvato PRIMA di generare, quindi la legenda va appesa ora.
-      let catalogReferences: ImageReferenceInput[] = [];
+      let catalogReferences: ImageReferenceInput[] = materialBoards ? [...materialBoards] : [];
+      if (materialBoards) fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(materialBoards, 2)}`;
       // CATALOGO RENDER — le foto dei prodotti dell'azienda scelte nel wizard
       // diventano immagini di riferimento per il modello, con una legenda appesa
       // DOPO la prosa (come le liste di preservazione).
       try {
+        if (!materialBoards) {
         const catalogo = await loadCatalogReferences({
           supabase,
           companyId: companyId as string,
@@ -337,6 +346,7 @@ Deno.serve(async (req: Request) => {
             lvl: "warn", fn: "generate-room-render", session_id,
             msg: "catalog_references_mancanti", mancanti: catalogo.missing,
           }));
+        }
         }
       } catch (catErr) {
         console.warn(JSON.stringify({
@@ -356,7 +366,7 @@ Deno.serve(async (req: Request) => {
       // liberi dal catalogo dell'azienda (al massimo 4 immagini in tutto) e PRIMA dello
       // store, perche' prompt_used deve contenere la legenda che il modello legge.
       try {
-        const refsCondivise = collectRoomReferenceImages(cfg);
+        const refsCondivise = materialBoards ? [] : collectRoomReferenceImages(cfg);
         // Uno slot resta alla pianta della stanza, se c'e': conta piu' di un campione.
         const slotLiberi = 4 - catalogReferences.length - (pianta?.immagine ? 1 : 0);
         if (refsCondivise.length > 0 && slotLiberi > 0) {
@@ -395,6 +405,7 @@ Deno.serve(async (req: Request) => {
           partenza: pianta.partenza,
           inquadrate: pianta.inquadrate,
           immaginePianta,
+          interventi: cfg,
         })}`;
       }
 
@@ -453,22 +464,23 @@ Deno.serve(async (req: Request) => {
       // sessione zombie + credito perso. 1 tentativo per tier, timeout
       // dal budget residuo.
       const STANZA_BUDGET_MS = 140_000;
-      const jobStartMs = Date.now();
+      const jobStartMs = requestStartedAt;
       const jobElapsed = () => Date.now() - jobStartMs;
+      const qualita = qualitaImmagineStanza(cfg);
+      const qualitaAlta = qualita === "high";
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = STANZA_BUDGET_MS - jobElapsed() - 20_000;
-        const perAttemptTimeout = Math.max(
-          30_000,
-          Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
-        );
+        if (remaining < 10_000) throw new Error("Tempo disponibile esaurito: riprova il render. Il credito viene restituito.");
+        const soloDiretto = soloProviderDiretto || qualitaAlta;
+        const perAttemptTimeout = Math.min(remaining, Math.max(10_000, Math.min(qualitaAlta ? 90_000 : 75_000, Math.floor(remaining / (soloDiretto ? 1 : 2)))));
         return editImage({
           prompt,
           sourceImageBlob: imgBlob,
           effectiveWidth: srcW,
           effectiveHeight: srcH,
-          openaiQuality: "medium",
+          openaiQuality: qualita,
           timeoutMs: perAttemptTimeout,
-          directProviderOnly: soloProviderDiretto,
+          directProviderOnly: soloDiretto,
           maxRetries: 0,
           referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
           metadata: {
@@ -495,6 +507,7 @@ Deno.serve(async (req: Request) => {
       try {
         providerResult = await generateCandidate(fullPrompt, true);
       } catch (primoErr) {
+        if (qualitaAlta) throw primoErr;
         console.warn(JSON.stringify({
           lvl: "warn", fn: "generate-room-render", session_id,
           msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -510,21 +523,23 @@ Deno.serve(async (req: Request) => {
       // due letti nella stessa camera), porte/finestre inventate o sparite,
       // prospettiva cambiata. Check ~€0.002, 1 retry correttivo budget-gated.
       // Graceful: se il vision provider fallisce, il render passa comunque.
+      let materialMismatch = false;
       try {
         const qaPrompt = [
           "You are a LENIENT quality inspector for an interior room restyling render.",
           pianta?.partenza === "vista_3d"
-            ? "Image 1 = SOURCE: a plain grey 3D model of the real room from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
+            ? "Image 1 = SOURCE: a 3D model of the real room, possibly with selected finish textures from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
             : "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations:",
+          ...(materialBoards ? ["Images 3 onward are the selected-material boards. Compare the CANDIDATE with every numbered panel ONLY on the panel's named target.", "- selected_material_mismatch: an explicitly selected wallpaper motif, floor/wood grain, cladding, furniture material, curtain, ceiling or fixture is clearly missing or substituted by a different one. Respect explicit colour overrides and dimensions; do not fail for minor lighting differences."] : []),
           "- duplicated_furniture: the candidate shows TWO of a fixture that exists once (two beds in one bedroom, two identical sofas, two dining tables).",
           "- invented_openings: windows or doors added, removed or relocated compared to the source walls.",
           "- geometry_change: camera angle, perspective or crop clearly different from the source.",
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
           ...QA_BLOCCO_RICOMPOSIZIONE_RESTYLING,
           ...(pianta ? righeQaPianta(pianta.vincoli, { partenza: pianta.partenza, inquadrate: pianta.inquadrate }) : []),
-          "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
+          materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 
         const sourceBytes = new Uint8Array(await imgBlob.arrayBuffer());
@@ -536,6 +551,7 @@ Deno.serve(async (req: Request) => {
           sourceImageDataUrl: sourceDataUrl,
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
+          referenceImages: materialBoards ?? undefined,
           metadata: {
             task_kind: "render_image_qa",
             company_id: companyId as string,
@@ -549,7 +565,8 @@ Deno.serve(async (req: Request) => {
           return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
         });
 
-        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+        materialMismatch = !!materialBoards && qaResult.checked && !qaResult.pass && qaIssues.some((i) => i.category === "selected_material_mismatch");
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (qualitaAlta ? 40_000 : 95_000)) {
           console.log(JSON.stringify({
             fn: "generate-room-render",
             msg: "qa_failed_retry_corrective",
@@ -629,12 +646,18 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             elapsed_ms: jobElapsed(),
           }));
         }
+        if (materialMismatch && generationAttempts > 1) {
+          const verifica = await callVisionQa({ sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
+          materialMismatch = !verifica.checked || (!verifica.pass && verifica.issues.some((i) => typeof i === "object" && i.category === "selected_material_mismatch"));
+        }
+
       } catch (qaErr) {
         console.warn(
           "[generate-room-render] QA vision error (ignored):",
           qaErr instanceof Error ? qaErr.message : String(qaErr),
         );
       }
+      if (materialMismatch) throw new Error("Il render non ha rispettato i campioni selezionati: riprova. Il credito viene restituito.");
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";
@@ -766,8 +789,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, serviceKey);
-      const body = await req.clone().json().catch(() => ({}));
-      if (body.session_id) {
+      if (sessionAutorizzata && refundableSessionId && refundableCompanyId) {
         if (creditDeducted && refundableCompanyId && refundableSessionId) {
           await supabase.rpc("refund_render_credit_all", {
             _company_id: refundableCompanyId,
@@ -786,14 +808,15 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             error_message: message,
             processing_completed_at: new Date().toISOString(),
           })
-          .eq("id", body.session_id);
+          .eq("id", refundableSessionId)
+          .eq("company_id", refundableCompanyId);
       }
     } catch { /* best effort */ }
 
     return new Response(
       JSON.stringify({ error: message }),
       {
-        status: message.includes("insufficient_credits") ? 402 : 500,
+        status: message.includes("insufficient_credits") ? 402 : message.startsWith("forbidden:") ? 403 : 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

@@ -345,6 +345,8 @@ export function creaAspetto({ renderer, scene, camera }: Avvio): Aspetto {
   };
 
   const materialeAspetto = (chiave: string, base: THREE.MeshStandardMaterial, opz: OpzioniAspetto): THREE.MeshStandardMaterial | null => {
+    // Un campione scelto per la stanza resta lo stesso anche girando intorno.
+    if (base.userData.finitura) return base;
     const faccia = chiave === "muro" ? FACCIATE[opz.facciata] : null;
     const look = faccia ? { trama: faccia.trama, metri: faccia.metri } : LOOK[chiave];
     const colorePerInfissi = chiave === "telaio" || chiave === "oscurante" ? INFISSI[opz.infissi].colore : null;

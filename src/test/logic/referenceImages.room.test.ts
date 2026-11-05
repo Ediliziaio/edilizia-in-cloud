@@ -53,7 +53,7 @@ describe("foto della stanza: la libreria", () => {
     expect(await fotoColoriInGrigio([], ROOM_CLADDING_PHOTOS)).toEqual([]);
     expect(etichetteDiFormaConColore(ROOM_CLADDING_PHOTOS)).toEqual([]);
     for (const [k, e] of Object.entries(ROOM_CLADDING_PHOTOS)) {
-      expect(e.folder, k).toBe("facades");
+      expect(["facades", "room-catalog-v1"], k).toContain(e.folder);
       expect(e.text.length, k).toBeLessThanOrEqual(160);
     }
   });
@@ -90,8 +90,10 @@ describe("foto della stanza: cosa riceve il render", () => {
     expect(refs[0].label).toMatch(/^WALL CLADDING TARGET — stucco_veneziano: polished Venetian stucco/);
     expect(refs[0].label).toMatch(/Copy the wall surface only: texture, relief, joint pattern and scale/);
     expect(refs[0].url).toMatch(/\/render-references\/facades\/Intonaco-Veneziano-Levigato-E-Luminoso\.webp$/);
-    // boiserie e pannelli 3D non hanno foto: nessuna immagine sbagliata al loro posto
-    expect(collectRoomReferenceImages(stanza({ rivestimento_pareti: { attivo: true, tipo: "boiserie_legno" } }))).toEqual([]);
+    // Anche boiserie e pannelli 3D hanno il proprio campione, senza sostituzioni.
+    for (const tipo of ["boiserie_legno", "pannelli_3d"] as const) {
+      expect(collectRoomReferenceImages(stanza({ rivestimento_pareti: { attivo: true, tipo } }))[0].filename).toBe(ROOM_CLADDING_PHOTOS[tipo].filename);
+    }
   });
 
   it("pavimento attivo: le chiavi della stanza si traducono come nel prompt (parquet_legno, spina_pesce…)", () => {
@@ -152,27 +154,27 @@ describe("foto della stanza: l'illuminazione a binario", () => {
   const illuminazione = (patch: Partial<ConfigurazioneStanza["illuminazione"]>) =>
     stanza({ illuminazione: { ...DEFAULT_STANZA_CONFIG.illuminazione, ...patch } });
 
-  it("il file sta in lighting/, con la miniatura, in bianco e nero, con un testo breve e senza colori", async () => {
+  it("i file hanno la miniatura, in bianco e nero, con un testo breve e senza colori", async () => {
     expect(fileMancanti(ROOM_LIGHTING_PHOTOS)).toEqual([]);
     expect(miniatureMancanti(ROOM_LIGHTING_PHOTOS)).toEqual([]);
     expect(await fotoBnADColori(ROOM_LIGHTING_PHOTOS)).toEqual([]);
     expect(etichetteDiFormaConColore(ROOM_LIGHTING_PHOTOS)).toEqual([]);
     for (const [k, e] of Object.entries(ROOM_LIGHTING_PHOTOS)) {
-      expect(e.folder, k).toBe("lighting");
+      expect(["lighting", "room-catalog-v1"], k).toContain(e.folder);
       expect(e.filename, k).toMatch(/-BN\.webp$/);
       expect(e.text.length, k).toBeLessThanOrEqual(160);
     }
     expect(listRoomReferencePaths()).toContain("lighting/Binario-Con-Faretti-Orientabili-BN.webp");
   });
 
-  it("la foto parte solo con l'illuminazione attiva e il tipo «binario»", () => {
+  it("ogni illuminazione attiva invia il proprio campione", () => {
     // spenta, anche se il tipo è scelto
     expect(collectRoomReferenceImages(illuminazione({ attivo: false, tipo: "binario" }))).toEqual([]);
-    // accesa ma di un altro tipo (quello di partenza è «misto»): nessuna foto sbagliata al suo posto
+    // Tutti i tipi ora hanno un campione, con il modello corretto.
     expect(DEFAULT_STANZA_CONFIG.illuminazione.tipo).toBe("misto");
-    expect(collectRoomReferenceImages(illuminazione({ attivo: true }))).toEqual([]);
+    expect(collectRoomReferenceImages(illuminazione({ attivo: true }))[0].filename).toBe(ROOM_LIGHTING_PHOTOS.misto.filename);
     for (const tipo of ["faretti_incassati", "lampadario_centrale", "led_strip_perimetrale", "lampade_sospensione", "applique_parete", "misto"] as const) {
-      expect(collectRoomReferenceImages(illuminazione({ attivo: true, tipo })), tipo).toEqual([]);
+      expect(collectRoomReferenceImages(illuminazione({ attivo: true, tipo }))[0].filename, tipo).toBe(ROOM_LIGHTING_PHOTOS[tipo].filename);
     }
     const [ref] = collectRoomReferenceImages(illuminazione({ attivo: true, tipo: "binario" }));
     expect(ref.folder).toBe("lighting");
@@ -229,7 +231,7 @@ function montaForm(value: ConfigurazioneStanza, sezioni: string[]) {
 const miniatura = (e: { folder: string; filename: string }) => referenceThumbUrl(e.folder, e.filename);
 
 describe("miniature nel form della stanza: la stessa foto che il render riceve", () => {
-  it("rivestimento: la miniatura accanto al tipo è la foto del render; boiserie e pannelli 3D senza foto", () => {
+  it("rivestimento: tutti i tipi mostrano la stessa foto che il render riceve", () => {
     for (const tipo of Object.keys(TIPI_RIVESTIMENTO) as Array<keyof typeof TIPI_RIVESTIMENTO>) {
       const cfg = stanza({ rivestimento_pareti: { attivo: true, tipo, applica_a: "parete_principale" } });
       const { container, smonta } = montaForm(cfg, ["Rivestimento pareti"]);

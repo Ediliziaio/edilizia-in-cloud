@@ -166,7 +166,7 @@ export interface Pianta {
   /** Lotto e aree esterne. */
   aree?: AreaLavoro[];
   /** Nome e destinazione dei locali del progetto, quando sono diversi da quelli di oggi. */
-  nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione }>;
+  nomiProgetto?: Record<string, { nome: string; destinazione: Destinazione; finiture?: Finiture }>;
 }
 
 export const DESTINAZIONI: ReadonlyArray<{ valore: Destinazione; etichetta: string }> = [
@@ -427,8 +427,8 @@ export function daPlanimetria(doc: Planimetria, livelloId?: string, propostaId: 
     }
     for (const l of proposta.locali) {
       const oggi = fatto.locali.find((x) => x.id === l.id);
-      if (!oggi || oggi.nome !== l.nome || oggi.destinazione !== l.destinazione) {
-        nomiProgetto[l.id] = { nome: l.nome, destinazione: l.destinazione };
+      if (!oggi || oggi.nome !== l.nome || oggi.destinazione !== l.destinazione || JSON.stringify(oggi.finiture) !== JSON.stringify(l.finiture)) {
+        nomiProgetto[l.id] = { nome: l.nome, destinazione: l.destinazione, finiture: l.finiture ?? {} };
       }
     }
   }
@@ -611,6 +611,7 @@ export function aPlanimetria(pianta: Pianta, base: Planimetria = nuovaPlanimetri
 
   const serveProposta =
     !!propostaBase ||
+    Object.keys(pianta.nomiProgetto ?? {}).length > 0 ||
     pianta.muri.some((m) => m.stato !== "esistente") ||
     pianta.aperture.some((a) => a.stato !== "esistente") ||
     pianta.locali.some((l) => l.stato === "nuovo") ||
@@ -687,7 +688,7 @@ function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase?: P
       destinazione: nomi?.destinazione ?? fonte?.destinazione ?? "altro",
       contorno: f.contorno.map((p) => ({ x: arrotonda2(p.x), y: arrotonda2(p.y) })),
       altezza: fonte?.altezza ?? ALTEZZA_PIANO,
-      ...(fonte?.finiture ? { finiture: fonte.finiture } : {}),
+      ...((nomi?.finiture ?? fonte?.finiture) ? { finiture: nomi?.finiture ?? fonte?.finiture } : {}),
       ...(fonte?.unita ? { unita: fonte.unita } : {}),
       origine: originePeggiore(...origini),
     });
@@ -706,6 +707,7 @@ function localiDelProgetto(pianta: Pianta, muri: MuroModello[], propostaBase?: P
 // ─── Quel che l'editor mostra, letto dal documento ───────────────────────────
 
 export interface LocaleVista {
+  finiture?: Finiture;
   id: string;
   nome: string;
   destinazione: Destinazione;
@@ -762,6 +764,7 @@ export function datiVista(pianta: Pianta, documento: Planimetria, vista: "fatto"
       nome: l.nome,
       destinazione: l.destinazione,
       contorno,
+      finiture: l.finiture,
       mq: pavimento?.valore ?? areaPoligono(l.contorno) / 10_000,
       perimetro: perimetro?.valore ?? 0,
       lati: contorno.map((a, i) => lunghezza(a, contorno[(i + 1) % contorno.length])),

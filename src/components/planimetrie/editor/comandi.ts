@@ -180,7 +180,7 @@ export function aggiungiStanzaDaMisure(
   return aggiungiStanza(pianta, contorno, { ...o, spessore });
 }
 
-export function modificaLocale(pianta: Pianta, id: string, campi: Partial<Pick<Locale, "nome" | "destinazione" | "altezza" | "origine" | "unita">>): Pianta {
+export function modificaLocale(pianta: Pianta, id: string, campi: Partial<Pick<Locale, "nome" | "destinazione" | "altezza" | "origine" | "unita" | "finiture">>): Pianta {
   return { ...pianta, locali: pianta.locali.map((l) => (l.id === id ? { ...l, ...campi } : l)) };
 }
 
@@ -577,8 +577,8 @@ export function chiudiStanze(pianta: Pianta, vista: Vista = "fatto"): Pianta {
 export function rinominaStanza(
   pianta: Pianta,
   id: string,
-  attuale: { nome: string; destinazione: Destinazione },
-  campi: Partial<{ nome: string; destinazione: Destinazione }>,
+  attuale: Pick<Locale, "nome" | "destinazione" | "finiture">,
+  campi: Partial<Pick<Locale, "nome" | "destinazione" | "finiture">>,
   vista: Vista,
 ): Pianta {
   const diLavoro = pianta.locali.find((l) => l.id === id);

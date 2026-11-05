@@ -8,7 +8,7 @@
  */
 import * as THREE from "three";
 import { costruisciScena, scenaEdificio, metadatiFotogramma, type PianoPer3D, type MetadatiFotogramma, type PiantaPer3D, type Telecamera3D, type Vista3D } from "@/lib/planimetrie/tred";
-import { adattaAmbiente, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
+import { adattaAmbiente, attendiTexture, applicaTelecamera, creaGruppo, liberaGruppo, preparaAmbiente } from "./scenaThree";
 import { creaAspetto } from "./aspetto";
 import type { OpzioniAspetto } from "@/lib/planimetrie/tred/aspettoOpzioni";
 
@@ -60,6 +60,7 @@ export async function catturaFotogramma(r: RichiestaFotogramma): Promise<Fotogra
   // con l'aspetto scelto (facciata, infissi, cielo, ora, alberi) la vista è quella del 3D realistico
   const aspetto = r.aspetto?.realistico ? creaAspetto({ renderer, scene, camera }) : null;
   try {
+    await attendiTexture(gruppo);
     if (aspetto && r.aspetto) {
       aspetto.dimensiona(larghezza, altezza);
       aspetto.applica(gruppo, scena, { ...r.aspetto, dentro: false }, ambiente);

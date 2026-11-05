@@ -44,6 +44,7 @@ export interface VisionQaArgs {
   sourceImageDataUrl: string;
   candidateImageDataUrl: string;
   qaPrompt: string;
+  referenceImages?: Array<{ label: string; dataUrl: string }>;
   metadata: {
     task_kind: string;
     company_id?: string | null;
@@ -82,6 +83,10 @@ export async function callVisionQa(
         { type: "text", text: args.qaPrompt },
         { type: "image_url", image_url: { url: args.sourceImageDataUrl } },
         { type: "image_url", image_url: { url: args.candidateImageDataUrl } },
+        ...(args.referenceImages ?? []).slice(0, 3).flatMap((r) => [
+          { type: "text" as const, text: r.label },
+          { type: "image_url" as const, image_url: { url: r.dataUrl } },
+        ]),
       ],
     },
   ];

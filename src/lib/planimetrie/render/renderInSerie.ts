@@ -1,3 +1,4 @@
+import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * Render in serie dalla pianta: più stanze, o più stili per la stessa stanza, con un clic.
  *
@@ -99,7 +100,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     if (!error) rif.pianta_path = percorso;
   } catch { /* si va avanti con misure e aperture scritte */ }
 
-  const config = configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota);
+  const config = await preparaMaterialiStanza(configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), ctx.companyId);
   const { data: nuova, error: errSessione } = await supabase
     .from("render_stanza_sessions")
     .insert({ company_id: ctx.companyId, created_by: ctx.userId, status: "pending", original_photo_url: storagePath, config: { ...config, planimetria: rif } as never })
