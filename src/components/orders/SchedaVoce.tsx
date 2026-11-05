@@ -38,32 +38,62 @@ function Dato({ etichetta, valore, forte }: { etichetta: string; valore: React.R
   );
 }
 
-/** I rapportini approvati o inviati che dichiarano questa voce: i rifiutati non contano. */
-function RapportiniVoce({ orderId, sottofaseId }: { orderId: string; sottofaseId: string }) {
+interface RapportinoVoce { id: string; data: string; stato: string; chi: string; ore: number | null; cosa: string }
+
+/**
+ * Chi ci ha lavorato, quando e quanto: dai rapportini (inviati o approvati, i rifiutati no) che nominano questa
+ * sottofase. Il nome è di chi ha scritto il rapportino; la squadra si legge dalle sue presenze.
+ */
+function RapportiniVoce({ orderId, sottofaseId, unita }: { orderId: string; sottofaseId: string; unita?: string | null }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["rapportini-sottofase", orderId, sottofaseId],
     staleTime: 60_000,
-    queryFn: async () => {
+    queryFn: async (): Promise<RapportinoVoce[]> => {
       const { data: righe, error } = await db
         .from("campo_rapportini")
-        .select("id, data_lavoro, stato, fasi_lavorate")
+        .select("id, data_lavoro, stato, user_id, ore_lavorate, presenze, fasi_lavorate")
         .eq("order_id", orderId)
         .neq("stato", "rifiutato")
         .order("data_lavoro", { ascending: false })
         .limit(500);
       if (error) throw error;
-      const dichiara = (r: { fasi_lavorate: unknown }) => Array.isArray(r.fasi_lavorate) && r.fasi_lavorate.some((f: { sottofasi_fatte?: string[]; sottofasi_lavorate?: string[] }) =>
-        f?.sottofasi_fatte?.includes(sottofaseId) || f?.sottofasi_lavorate?.includes(sottofaseId));
-      return ((righe ?? []) as Array<{ id: string; data_lavoro: string; stato: string; fasi_lavorate: unknown }>).filter(dichiara).slice(0, 8);
+      type Riga = { id: string; data_lavoro: string; stato: string; user_id: string | null; ore_lavorate: number | null; presenze: unknown; fasi_lavorate: unknown };
+      type Voce = { sottofasi_fatte?: string[]; sottofasi_lavorate?: string[]; sottofasi_avanzate?: Array<{ id: string; quantita?: number; percentuale?: number }> };
+      const della = (r: Riga): Voce | undefined => (Array.isArray(r.fasi_lavorate) ? (r.fasi_lavorate as Voce[]) : []).find((f) =>
+        f?.sottofasi_fatte?.includes(sottofaseId) || f?.sottofasi_lavorate?.includes(sottofaseId) || f?.sottofasi_avanzate?.some((a) => a.id === sottofaseId));
+      const scelte = ((righe ?? []) as Riga[]).filter((r) => della(r)).slice(0, 20);
+      const ids = [...new Set(scelte.map((r) => r.user_id).filter((x): x is string => !!x))];
+      const nomi = new Map<string, string>();
+      if (ids.length) {
+        const { data: profili } = await db.from("profiles").select("id, first_name, last_name").in("id", ids);
+        for (const p of (profili ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>) nomi.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(" ") || "Senza nome");
+      }
+      return scelte.map((r) => {
+        const v = della(r)!;
+        const avanzata = v.sottofasi_avanzate?.find((a) => a.id === sottofaseId);
+        const presenze = Array.isArray(r.presenze) ? (r.presenze as Array<{ nome?: string }>).map((x) => x?.nome).filter(Boolean) : [];
+        const cosa = v.sottofasi_fatte?.includes(sottofaseId) ? "finita" : avanzata?.quantita ? `+${avanzata.quantita.toLocaleString("it-IT")}${unita ? ` ${unita}` : ""}` : avanzata?.percentuale ? `fino al ${avanzata.percentuale}%` : "ci ha lavorato";
+        return { id: r.id, data: r.data_lavoro, stato: r.stato, chi: presenze.length > 1 ? `${nomi.get(r.user_id ?? "") ?? "—"} e squadra (${presenze.length})` : nomi.get(r.user_id ?? "") ?? "—", ore: r.ore_lavorate, cosa };
+      });
     },
   });
   if (isLoading) return <p className="text-xs text-muted-foreground">Carico i rapportini…</p>;
   if (isError) return <p role="alert" className="text-xs text-muted-foreground">Rapportini non disponibili.</p>;
   if (!data?.length) return <p className="text-xs text-muted-foreground">Nessun rapportino dichiara questa voce.</p>;
+  const persone = [...new Set(data.map((r) => r.chi))];
   return (
-    <ul className="space-y-0.5">
-      {data.map((r) => <li key={r.id} className="flex justify-between gap-2 text-xs"><span className="tabular-nums">{giorno(r.data_lavoro)}</span><span className="text-muted-foreground">{r.stato}</span></li>)}
-    </ul>
+    <div className="space-y-1">
+      <p className="text-xs">Ci hanno lavorato: <span className="font-medium">{persone.join(", ")}</span></p>
+      <ul className="divide-y">
+        {data.map((r) => (
+          <li key={r.id} className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] gap-2 py-0.5 text-xs">
+            <span className="tabular-nums">{giorno(r.data)}</span>
+            <span className="min-w-0 truncate" title={r.chi}>{r.chi}{r.ore ? ` · ${r.ore} h` : ""}</span>
+            <span className={r.stato === "approvato" ? "text-muted-foreground" : "text-amber-700"}>{r.cosa}{r.stato === "approvato" ? "" : " · da approvare"}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -306,7 +336,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
           </div>
         </Riquadro>
         {r.sottofaseId && orderId && (
-          <Riquadro titolo="Rapportini"><RapportiniVoce orderId={orderId} sottofaseId={r.sottofaseId} /></Riquadro>
+          <Riquadro titolo="Chi ci ha lavorato"><RapportiniVoce orderId={orderId} sottofaseId={r.sottofaseId} unita={r.unita} /></Riquadro>
         )}
       </div>
     </div>

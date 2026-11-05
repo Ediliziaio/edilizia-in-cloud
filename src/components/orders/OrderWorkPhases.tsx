@@ -807,6 +807,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                       vedeMargini={canViewMargins}
                       sezione={sezioneFase}
                       onSezione={setSezioneFase}
+                      oreSenzaCosto={faseInPopup.assignments.filter((a) => a.source === "employee" && (a.hours ?? 0) > 0 && !(a.cost_consuntivo > 0)).reduce((t, a) => t + (a.hours ?? 0), 0)}
                       posizione={{ numero: phases.findIndex((p) => p.id === faseInPopup.id) + 1, totale: phases.length }}
                       onVicina={(verso) => setFaseAperta(phases[phases.findIndex((p) => p.id === faseInPopup.id) + verso]?.id ?? faseInPopup.id)}
                     />
@@ -1025,8 +1026,10 @@ export type SezioneFase = "sottofasi" | "economia" | "chi" | "mezzi" | "note" | 
 const SCHEDE_FASE: Array<[SezioneFase, string]> = [["sottofasi", "Sottofasi e date"], ["economia", "Economia"], ["chi", "Chi la fa"], ["mezzi", "Mezzi"], ["materiali", "Materiali"], ["note", "Note"]];
 
 /** In cima al popup della fase: i numeri della fase, le schede e la fase prima e dopo. */
-function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onSezione, posizione, onVicina }: {
+function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onSezione, posizione, onVicina, oreSenzaCosto = 0 }: {
   economia?: EconomiaFase;
+  /** Ore registrate da persone senza costo orario: valgono 0 € e lo «Speso finora» è più basso del vero. */
+  oreSenzaCosto?: number;
   vedeVenduto: boolean;
   vedeCosti: boolean;
   vedeMargini: boolean;
@@ -1042,7 +1045,7 @@ function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onS
     numeri.push({ etichetta: "Costo previsto", valore: economia?.costoPrevisto ? formatCurrency(economia.costoPrevisto) : "—" });
     numeri.push({ etichetta: "Speso finora", valore: economia?.costoConsuntivo ? formatCurrency(economia.costoConsuntivo) : "—", rosso: sforato, nota: sforato ? "oltre il previsto" : undefined });
   }
-  if (vedeVenduto && vedeCosti && vedeMargini) numeri.push({ etichetta: "Margine previsto", valore: economia?.marginePrevistoPct != null ? `${economia.marginePrevistoPct}%` : "—" });
+  if (vedeVenduto && vedeCosti && vedeMargini) numeri.push({ etichetta: "Margine previsto", valore: economia?.marginePrevistoPct != null ? `${economia.marginePrevistoPct.toLocaleString("it-IT")}%` : "—" });
   return (
     <div className="space-y-2 pr-8">
       <div className="flex flex-wrap items-start gap-2">
@@ -1063,6 +1066,11 @@ function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onS
           <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
         </span>
       </div>
+      {vedeCosti && oreSenzaCosto > 0 && (
+        <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">
+          {oreSenzaCosto.toLocaleString("it-IT")} ore di persone senza costo orario: nello «Speso finora» valgono 0 €. Il costo orario si mette nella scheda della persona.
+        </p>
+      )}
       <div role="tablist" aria-label="Parti della fase" className="flex flex-wrap gap-1 border-b">
         {SCHEDE_FASE.map(([chiave, testo]) => (
           <button key={chiave} type="button" role="tab" aria-selected={sezione === chiave} onClick={() => onSezione(chiave)}
@@ -1277,7 +1285,7 @@ function PhaseCard({
             type="button"
             aria-expanded={open}
             aria-controls={`phase-body-${phase.id}`}
-            onClick={() => setOpen((o) => !o)}
+            onClick={() => setOpen((o) => (apertaSubito ? true : !o))}
             className="tap-compact flex min-h-[52px] w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
           >
             <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dot, phase.status === "in_corso" && "animate-pulse")} />
