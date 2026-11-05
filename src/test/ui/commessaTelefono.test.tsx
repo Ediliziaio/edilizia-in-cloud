@@ -101,7 +101,7 @@ afterEach(cleanup);
 
 describe("Lavorazioni dal telefono", () => {
   it("conteggio e «Aggiungi fasi» su una riga; niente rapportini né «Verifica» (stanno in Diario e nei filtri)", () => {
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" onOpenReports={vi.fn()} />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" onOpenReports={vi.fn()} />);
     expect(document.body.textContent).toContain("7 fasi · 1 in corso");
     expect(screen.getByRole("button", { name: /Aggiungi fasi/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Vai ai rapportini" })).not.toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("Lavorazioni dal telefono", () => {
   });
 
   it("ogni fase è una riga: nome, date e chi la fa, avanzamento; aperta mostra stato e menu", () => {
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     const riga = screen.getByRole("button", { name: /^Opere murarie/ });
     expect(riga).toHaveTextContent("Opere murarie20/09–30/09 · Mario Rossi40%");
     // in corso: aperta di serie, con stato e menu sotto la riga
@@ -125,7 +125,7 @@ describe("Lavorazioni dal telefono", () => {
   });
 
   it("i filtri stanno nel pannello dal basso, accanto alla ricerca, coi numeri", () => {
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.click(screen.getByRole("button", { name: "Filtri" }));
     const pannello = screen.getByRole("dialog");
     expect(within(pannello).getByRole("button", { name: /^Completate/ })).toHaveTextContent("Completate1");
@@ -137,7 +137,7 @@ describe("Lavorazioni dal telefono", () => {
   });
 
   it("le completate si aprono in fondo all'elenco", () => {
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("button", { name: /^Collaudo/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mostra 1 fase completata" }));
     expect(screen.getByRole("button", { name: /^Collaudo/ })).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe("Lavorazioni dal telefono", () => {
 
   it("dal computer resta tutto com'era", () => {
     state.mobile = false;
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" onOpenReports={vi.fn()} />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" onOpenReports={vi.fn()} />);
     // I rapportini stanno nella vista Rapportini, anche dal computer (31/10/2026).
     expect(screen.queryByRole("button", { name: "Vai ai rapportini" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dettagli Opere murarie" })).toBeInTheDocument();

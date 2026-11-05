@@ -92,7 +92,7 @@ beforeEach(() => {
   state.update.mockResolvedValue(undefined); state.remove.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
-const draw = () => render(<OrderWorkPhases orderId="order" />);
+const draw = () => render(<OrderWorkPhases modo="schede" orderId="order" />);
 const chooseEmployee = () => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
   fireEvent.keyDown(screen.getByRole("combobox", { name: "Scegli chi" }), { key: "ArrowDown" });
@@ -103,7 +103,7 @@ describe("Lavorazioni e squadra", () => {
   it.each(["pronto", "caricamento", "errore"])("raccoglie le figure nella stessa organizzazione, anche con fasi in stato %s", status => {
     state.loading = status === "caricamento";
     state.error = status === "errore";
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" organizationContent={<div>Figure e responsabilità della commessa</div>} />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" organizationContent={<div>Figure e responsabilità della commessa</div>} />);
     const organization = screen.getByRole("region",{name:"Responsabili e assegnazioni generali"});
     expect(within(organization).getByText("Figure e responsabilità della commessa")).toBeVisible();
     expect(screen.getAllByText("Figure e responsabilità della commessa")).toHaveLength(1);
@@ -113,7 +113,7 @@ describe("Lavorazioni e squadra", () => {
     state.phases = [phase({status: "da_iniziare", assignments: [], start_date: "2026-10-20", end_date: "2026-10-23"})];
     state.crews = [{squadra_id: "crew", nome: "Muratori", colore: null, attiva: true, phase_id: null, fase: null, segue_fase: false, dal: "2026-10-14", al: null, capocantiere: false, finita: false, responsabile: null, componenti: []}];
     const before = JSON.stringify(state.crews);
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.getByText(/Squadra della commessa/, {selector: "span"})).toBeInTheDocument();
     expect(screen.queryByText(/nessuno la fa ancora/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name: mobile ? /Opere murarie/ : "Opere murarie"}));
@@ -123,7 +123,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("su mobile un solo Assegna apre il modulo comune senza menu o salvataggi", async () => {
     state.mobile = true;
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("button", {name: "Assegna squadra"})).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name: "Assegna"}));
     expect(await screen.findByRole("dialog", {name: "Assegna chi lavora"})).toBeInTheDocument();
@@ -147,7 +147,7 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.getByRole("button", { name: /Avanzamento Opere murarie/ })).toBeDisabled();
   });
   it("Lavorazioni riunisce responsabili e assegnazioni, con logistica e istruzioni a richiesta", () => {
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByText("Nell'app capocantiere modificabile")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name: "Gestisci"}));
     expect(screen.getByRole("button", { name: "Opere murarie" })).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("le assegnazioni generali compaiono una volta e prima delle fasi", () => {
     state.unassigned = [assignment({id: "general"})];
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     const panel = screen.getByRole("region", {name: "Responsabili e assegnazioni generali"});
     expect(screen.queryByText("Assegnazioni all'intera commessa")).not.toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", {name: "Gestisci"}));
@@ -169,13 +169,13 @@ describe("Lavorazioni e squadra", () => {
   });
   it("la fase chiusa conserva il nome dell'operaio storico, non la sola etichetta Dipendente", () => {
     state.phases = [phase({status: "completata", assignments: [assignment({phase_id: "p1", employee_id: "inactive", executor_label: "Giacomo Storico", executor_inactive: true})]})];
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.click(screen.getByRole("button", {name: "Mostra 1 fase completata"}));
     expect(screen.getByText("Giacomo Storico (storico)")).toBeInTheDocument();
     expect(screen.queryByText("Dipendente")).not.toBeInTheDocument();
   });
   it("raggruppa le fasi concluse senza perderne l'accesso", () => {
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("button", { name: "Collaudo" })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: "Mostra 1 fase completata" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -186,20 +186,27 @@ describe("Lavorazioni e squadra", () => {
   });
   it("la ricerca trova anche una fase conclusa non espansa", () => {
     state.phases = setteFasi();
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.change(screen.getByLabelText("Cerca lavorazione"), { target: { value: "Collaudo" } });
     expect(screen.getByRole("button", { name: "Collaudo" })).toBeInTheDocument();
   });
   it("non confonde fasi concluse con collaudo concluso", () => {
     state.phases = [phase({ status: "completata" })];
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.getByRole("status")).toHaveTextContent("Verifica eventuali attività aperte e il collaudo prima della consegna");
     expect(screen.queryByRole("button", {name: "Opere murarie"})).not.toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Mostra 1 fase completata"})).toHaveAttribute("aria-expanded", "false");
   });
-  it("gli avvisi aprono e portano alla sezione giusta senza scrivere dati", () => {
+  it("dal computer c'è solo la tabella: nessuna scelta, e la scheda si apre nel popup della fase", () => {
     state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []})];
     render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    expect(screen.queryByRole("group", { name: "Come vedere le fasi" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Scheda di Opere murarie" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Opere murarie");
+  });
+  it("gli avvisi aprono e portano alla sezione giusta senza scrivere dati", () => {
+    state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []})];
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.click(screen.getByRole("button", {name: "Completa le date: Opere murarie"}));
     expect(screen.getByLabelText("Date di Opere murarie")).toHaveFocus();
     fireEvent.click(screen.getByRole("button", {name: "Assegna chi lavora: Opere murarie"}));
@@ -212,7 +219,7 @@ describe("Lavorazioni e squadra", () => {
     state.mobile = mobile;
     state.phases = setteFasi();
     state.materials = new Map([["p1", [{id: "m1", name: "Collante", quantity: 1, phase_id: "p1", supplier_id: null, purchase_price: null, vat_rate: null, unit_price: null, discount_percent: null, standard_cost: null, readiness: "da_ordinare", odaNumber: null}]]]);
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     if (!mobile) fireEvent.click(screen.getByRole("button", {name: "Da organizzare"}));
     fireEvent.click(screen.getByRole("button", {name: "1 materiale da ordinare: Opere murarie"}));
     expect(screen.getByLabelText("Materiali di Opere murarie")).toHaveFocus();
@@ -221,7 +228,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("una fase chiusa non riceve avvisi di organizzazione anche senza date e persone", () => {
     state.phases = [phase({status: "completata", start_date: null, end_date: null, assignments: []})];
-    render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     fireEvent.click(screen.getByRole("button", {name: "Mostra 1 fase completata"}));
     expect(screen.queryByLabelText("Da organizzare: Opere murarie")).not.toBeInTheDocument();
   });
@@ -253,7 +260,7 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.getByText(/Assegnare non registra una spesa/)).toBeInTheDocument();
   });
   it("i rapportini non stanno in Lavorazioni: si leggono e si scrivono nella vista Rapportini", () => {
-    render(<OrderWorkPhases orderId="order" onOpenReports={vi.fn()} />);
+    render(<OrderWorkPhases modo="schede" orderId="order" onOpenReports={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Vai ai rapportini" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Scrivi rapportini" })).not.toBeInTheDocument();
   });

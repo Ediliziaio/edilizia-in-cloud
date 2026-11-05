@@ -44,7 +44,6 @@ import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useSottofasi } from "@/hooks/useSottofasi";
 import { DistintaCommessa } from "@/components/orders/DistintaCommessa";
-import { distintaConsigliata } from "@/lib/orders/distintaLavorazioni";
 import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
@@ -158,13 +157,15 @@ interface OrderWorkPhasesProps {
   /** Silvio delle fasi: date e ritardi si sistemano nel cronoprogramma. */
   onApriCronoprogramma?: () => void;
   view?: "lavorazioni";
+  /** L'elenco delle schede al posto della tabella: serve solo a provare la scheda da sola. */
+  modo?: "tabella" | "schede";
   /** Valore del contratto (imponibile, varianti approvate comprese): quanto resta da ripartire sulle lavorazioni. */
   importoContratto?: number | null;
   /** Le figure della commessa condividono l'organizzazione, senza duplicare anagrafiche o permessi. */
   organizationContent?: ReactNode;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, organizationContent, onApriCronoprogramma }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
@@ -322,19 +323,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     return map;
   }, [scheduleHealth]);
 
-  // Oltre una certa quantità di voci si parte dalla tabella; la scelta fatta a mano vale per quella commessa.
-  const [modoScelto, setModoScelto] = useState<"schede" | "tabella" | null>(() => {
-    try {
-      const v = localStorage.getItem(`fasi-lavoro-modo:${orderId}`);
-      return v === "schede" ? "schede" : v === "distinta" || v === "assegnazioni" || v === "tabella" ? "tabella" : null;
-    } catch { return null; }
-  });
-  const scegliModo = (modo: "schede" | "tabella") => {
-    setModoScelto(modo);
-    try { localStorage.setItem(`fasi-lavoro-modo:${orderId}`, modo); } catch { /* resta per questa pagina */ }
-  };
-  const quanteVoci = Math.max(vociPreviste?.length ?? 0, [...sottofasiDi.values()].reduce((n, l) => n + l.length, 0));
-  const modoFasi = modoScelto ?? (distintaConsigliata(quanteVoci) ? "tabella" : "schede");
+  const isMobile = useIsMobile();
+  const telefono = isMobile && view === "lavorazioni";
+  // Dal computer le fasi si gestiscono da una tabella sola, col popup di ogni fase (05/11/2026).
+  // Sul telefono restano le righe a tutta larghezza, pensate per il dito.
+  const modoFasi: "schede" | "tabella" = telefono || modo === "schede" ? "schede" : "tabella";
   const chiLavoraDi = useMemo(() => {
     if (modoFasi !== "tabella") return new Map();
     const nomePersona = new Map(employees.map((e) => [e.id, e.label]));
@@ -356,8 +349,6 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   // Telefono (06/10/2026): in Lavorazioni conteggio e «Aggiungi fasi» su una
   // riga, ricerca col bottone dei filtri (pannello dal basso), le fasi come
   // righe e le completate in fondo. Sotto i 768px, come il resto della commessa.
-  const isMobile = useIsMobile();
-  const telefono = isMobile && view === "lavorazioni";
   const [filtriAperti, setFiltriAperti] = useState(false);
   const today = format(new Date(), "yyyy-MM-dd");
   const squadreGeneraliPerFase = useMemo(() => new Map(phases.map(p => [p.id, generalCrewsForPhase(p, squadre)])), [phases, squadre]);
@@ -636,7 +627,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
               )}
               {!telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />}
               {!telefono && showWork && attentionCount > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
-                setModoScelto("schede"); setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Si comincia dalla prima da sistemare: chiuso il popup, il conteggio dice quante ne restano.
+                setFaseAperta(phases.find((p) => matchesFilter(p, "attention"))?.id ?? null);
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {attentionCount} lavorazioni</Button>}
               {view && azioniCommessa}
             </span>
@@ -736,12 +728,6 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
           null
         ) : (
           <>
-            {phases.length > 0 && (
-              <div role="group" aria-label="Come vedere le fasi" className="flex items-center gap-0.5">
-                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "tabella" ? "secondary" : "ghost"} aria-pressed={modoFasi === "tabella"} onClick={() => scegliModo("tabella")}>Tabella</Button>
-                <Button type="button" size="sm" className="h-7 px-2.5 text-xs" variant={modoFasi === "schede" ? "secondary" : "ghost"} aria-pressed={modoFasi === "schede"} onClick={() => scegliModo("schede")}>Schede</Button>
-              </div>
-            )}
             {modoFasi === "tabella" && phases.length > 0 ? (
               <>
               <DistintaCommessa
