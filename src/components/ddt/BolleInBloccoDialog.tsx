@@ -20,8 +20,10 @@ import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { inParallelo } from "@/lib/fatturazione/importMassivo";
 import type { FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
+import { contaPagine, leggiPerDividere, MAX_BYTE_DA_DIVIDERE, MAX_PAGINE_DIVISIONE, type PdfDaDividere } from "@/lib/ddt/dividiPdf";
+import { DividiPdfPannello } from "@/components/ddt/DividiPdfPannello";
 import {
-  bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte, scelteCerte,
+  bollaDaFile, chiaveBolla, eUnPdf, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte, scelteCerte,
   type ArticoloMagazzino, type BollaLetta, type RigaDaCaricare,
 } from "@/lib/ddt/importBolle";
 
@@ -74,6 +76,8 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
   const [bolle, setBolle] = useState<BollaLetta[]>([]);
   const [scartati, setScartati] = useState<{ nome: string; motivo: string }[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [daDividere, setDaDividere] = useState<{ id: string; pdf: PdfDaDividere }[]>([]);
+  const [preparando, setPreparando] = useState(0);
   const annullato = useRef(false);
   const daAbbinare = useRef(0);
 
@@ -110,7 +114,7 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
   });
 
   useEffect(() => {
-    if (!open) { annullato.current = true; setBolle([]); setScartati([]); return; }
+    if (!open) { annullato.current = true; setBolle([]); setScartati([]); setDaDividere([]); return; }
     annullato.current = false;
   }, [open]);
 
@@ -131,14 +135,41 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
     });
   };
 
-  const aggiungi = (lista: FileList | File[]) => {
-    const file = Array.from(lista);
+  const entra = (file: File[]) => {
     const scarti = file.flatMap((f) => { const motivo = motivoScartoFile(f); return motivo ? [{ nome: f.name, motivo }] : []; });
     setScartati((p) => [...p, ...scarti]);
     const nuove = file.filter((f) => !motivoScartoFile(f)).map((f) => bollaDaFile(f, crypto.randomUUID(), { orderId, destinazione }));
     if (!nuove.length) return;
     setBolle((p) => [...p, ...nuove]);
     void leggiTutte(nuove);
+  };
+
+  // Un PDF con più pagine può avere più bolle: prima si guarda dove tagliare, poi si legge.
+  const aggiungi = async (lista: FileList | File[]) => {
+    const file = Array.from(lista);
+    setPreparando((n) => n + 1);
+    try {
+      const diretti: File[] = [];
+      for (const f of file) {
+        const pdfAdattoADivisione = eUnPdf(f) && f.size > 0 && f.size <= MAX_BYTE_DA_DIVIDERE;
+        const pagine = pdfAdattoADivisione ? await contaPagine(f) : null;
+        if (pagine == null || pagine <= 1) { diretti.push(f); continue; }
+        if (pagine > MAX_PAGINE_DIVISIONE) {
+          setScartati((p) => [...p, { nome: f.name, motivo: `ha ${pagine} pagine: dividilo in file fino a ${MAX_PAGINE_DIVISIONE}` }]);
+          continue;
+        }
+        try {
+          const letto = await leggiPerDividere(f);
+          if (annullato.current) return;
+          setDaDividere((p) => [...p, { id: crypto.randomUUID(), pdf: letto }]);
+        } catch {
+          diretti.push(f);
+        }
+      }
+      if (!annullato.current) entra(diretti);
+    } finally {
+      setPreparando((n) => n - 1);
+    }
   };
 
   const doppi = useMemo(() => doppioni(bolle, esistenti), [bolle, esistenti]);
@@ -213,18 +244,30 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
         <div
           className="rounded-lg border-2 border-dashed p-6 text-center"
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); aggiungi(e.dataTransfer.files); }}
+          onDrop={(e) => { e.preventDefault(); void aggiungi(Array.from(e.dataTransfer.files)); }}
         >
           <FileUp aria-hidden="true" className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Trascina qui PDF e foto, una bolla per file.</p>
+          <p className="text-sm text-muted-foreground">Trascina qui PDF e foto: una bolla per file, o un PDF con tante bolle.</p>
           <Button type="button" variant="outline" size="sm" className="mt-2" disabled={salvando} onClick={() => inputRef.current?.click()}>Scegli i file</Button>
           <input ref={inputRef} type="file" multiple hidden aria-label="File delle bolle" accept="application/pdf,image/*"
-            onChange={(e) => { if (e.target.files) aggiungi(e.target.files); e.target.value = ""; }} />
+            onChange={(e) => { if (e.target.files) void aggiungi(Array.from(e.target.files)); e.target.value = ""; }} />
         </div>
 
         {scartati.length > 0 && (
           <p className="text-xs text-muted-foreground">Non presi: {scartati.map((s) => `${s.nome} (${s.motivo})`).join(", ")}.</p>
         )}
+
+        {preparando > 0 && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />Sto guardando le pagine…</p>
+        )}
+        {daDividere.map((d) => (
+          <DividiPdfPannello
+            key={d.id}
+            pdf={d.pdf}
+            onTogli={() => setDaDividere((p) => p.filter((x) => x.id !== d.id))}
+            onDiviso={(pezzi) => { setDaDividere((p) => p.filter((x) => x.id !== d.id)); entra(pezzi); }}
+          />
+        ))}
 
         {elenco.length > 0 && (
           <ul aria-label="Bolle da confermare" className="space-y-2">
@@ -308,9 +351,9 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
 
         <DialogFooter>
           <Button type="button" variant="outline" disabled={salvando} onClick={() => onOpenChange(false)}>{salvate > 0 ? "Chiudi" : "Annulla"}</Button>
-          <Button type="button" disabled={salvando || inLettura || daSalvare.length === 0} onClick={() => void conferma()}>
+          <Button type="button" disabled={salvando || inLettura || preparando > 0 || daDividere.length > 0 || daSalvare.length === 0} onClick={() => void conferma()}>
             {salvando && <Loader2 aria-hidden="true" className="mr-1.5 h-4 w-4 animate-spin" />}
-            {inLettura ? "Sto leggendo…" : `Registra ${daSalvare.length} ${daSalvare.length === 1 ? "bolla" : "bolle"}`}
+            {daDividere.length > 0 ? "Prima controlla dove tagliare" : inLettura ? "Sto leggendo…" : `Registra ${daSalvare.length} ${daSalvare.length === 1 ? "bolla" : "bolle"}`}
           </Button>
         </DialogFooter>
       </DialogContent>

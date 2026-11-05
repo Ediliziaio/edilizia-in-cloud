@@ -22,6 +22,8 @@ export function motivoScartoFile(file: Pick<File, "name" | "type" | "size">): st
   return null;
 }
 
+export const eUnPdf = (file: Pick<File, "name" | "type">) => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+
 export interface BollaLetta {
   /** Identifica la riga nella finestra, non la bolla. */
   id: string;

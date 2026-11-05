@@ -11,6 +11,11 @@ Da leggere prima: `docs/piano-ddt-bolle-fatture.md` (fasi 1-3 fatte, 4 e 5 no),
 
 # Parte A — Caricare tante bolle insieme
 
+> **Stato al 05/11/2026: A1, A2 e A3 fatte.** Decisioni del titolare: in **cantiere** la bolla non
+> genera costi, il costo nasce dalla fattura (per non contare due volte la stessa spesa); in
+> **magazzino** entra subito ciò che si abbina con certezza, il resto aspetta una scelta riga per riga.
+> Quanto scritto sotto su «bolla cantiere → costo sulla commessa» è quindi superato.
+
 **La richiesta.** Nelle bolle, sia nell'elenco generale sia dentro una commessa sia in
 magazzino, poter caricare più bolle in un colpo: tanti file insieme, oppure un PDF solo
 con dentro tante bolle, che il sistema deve saper separare e smistare.
