@@ -236,7 +236,7 @@ export async function excelOpportunita(
   righe: Array<{ faseId: string | null; riga: Record<string, string> }>,
   colonne: ColonnaEsportazione[],
   fasiInOrdine: Array<{ id: string; nome: string }>,
-  dettagli?: { note?: Array<Record<string, string>>; appuntamenti?: Array<Record<string, string>> },
+  dettagli?: { note?: Array<Record<string, string>>; appuntamenti?: Array<Record<string, string>>; parzialeNote?: boolean; parzialeAppuntamenti?: boolean },
 ): Promise<Blob> {
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
@@ -273,8 +273,8 @@ export async function excelOpportunita(
     const della = righe.filter((r) => r.faseId === f.id).map((r) => r.riga);
     if (della.length) foglio(f.nome, della);
   }
-  if (dettagli?.note) foglio("Note", dettagli.note, COLONNE_FOGLIO_NOTE);
-  if (dettagli?.appuntamenti) foglio("Appuntamenti", dettagli.appuntamenti, COLONNE_FOGLIO_APPUNTAMENTI);
+  if (dettagli?.note) foglio(dettagli.parzialeNote ? "Note (solo visibili a te)" : "Note", dettagli.note, COLONNE_FOGLIO_NOTE);
+  if (dettagli?.appuntamenti) foglio(dettagli.parzialeAppuntamenti ? "Appuntamenti (solo visibili)" : "Appuntamenti", dettagli.appuntamenti, COLONNE_FOGLIO_APPUNTAMENTI);
   const perse = righe.filter((r) => r.riga.status === NOMI_STATO.lost);
   if (perse.length) {
     const conta = new Map<string, number>();

@@ -63,7 +63,7 @@ import {
 import { normalizeTagList } from "@/lib/marketingTags";
 import { useLossReasons } from "@/hooks/useLossReasons";
 import { EsportaOpportunitaDialog, type SceltaDialog } from "@/components/opportunities/EsportaOpportunitaDialog";
-import { celleAppuntamenti, celleNote, leggiAppuntamentiEsportazione, leggiNoteEsportazione, leggiPerBlocchi, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote } from "@/lib/opportunita/dettagliEsportazione";
+import { accessoDettagli, celleAppuntamenti, celleNote, leggiAppuntamentiEsportazione, leggiNomiPersone, leggiNoteEsportazione, leggiPerBlocchi, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote } from "@/lib/opportunita/dettagliEsportazione";
 import { COLONNE_APPUNTAMENTI, COLONNE_NOTE, colonneConCampi, excelOpportunita, giornoItaliano, NOMI_DATA_PERIODO, NOMI_STATO, rigaOpportunita, scegliOpportunita, soloColonne } from "@/lib/opportunita/esportaOpportunita";
 
 export default function MarketingOpportunities() {
@@ -555,22 +555,29 @@ function MarketingOpportunitiesContent() {
       const noteDi = scelta.note ? perOpportunita(await leggiNoteEsportazione(companyId, exportRows), exportRows) : null;
       const appuntamentiDi = scelta.appuntamenti ? perOpportunita(await leggiAppuntamentiEsportazione(companyId, exportRows), exportRows) : null;
       const oggi = giornoItaliano(new Date().toISOString());
+      const perExcel = scelta.formato === "xlsx";
+      const persone = await leggiNomiPersone([
+        ...Object.values(noteDi ?? {}).flat().map((n) => n.created_by),
+        ...Object.values(appuntamentiDi ?? {}).flat().map((a) => a.assigned_to),
+      ], venditori);
+      const { parzialeNote, parzialeAppuntamenti } = accessoDettagli(permissions);
+      const conAvviso = (parziale: boolean) => (c: { key: string; label: string }) => (parziale ? { ...c, label: `${c.label} (solo visibili a te)` } : c);
 
       const ctx = { fasi, pipelineDellaFase, venditori, motivi: motiviPerdita, campi, valoriCampi };
       const righe = exportRows.map((o: any) => ({
         faseId: (o.stage_id as string | null) ?? null,
         riga: {
           ...rigaOpportunita(o, ctx),
-          ...(noteDi ? celleNote(noteDi[o.id], venditori) : {}),
-          ...(appuntamentiDi ? celleAppuntamenti(appuntamentiDi[o.id], oggi) : {}),
+          ...(noteDi ? celleNote(noteDi[o.id], persone, perExcel) : {}),
+          ...(appuntamentiDi ? celleAppuntamenti(appuntamentiDi[o.id], oggi, perExcel) : {}),
         },
       }));
       // colonne scelte: «cf» vuol dire tutti i campi personalizzati
       const scelte = scelta.colonne.size ? new Set([...scelta.colonne, ...(scelta.colonne.has("cf") ? campi.map((c) => `cf_${c.id}`) : [])]) : null;
       const colonne = [
         ...soloColonne(colonneConCampi(campi).filter((c) => c.key !== "pipeline" || scelta.tuttePipeline), scelte),
-        ...(noteDi ? COLONNE_NOTE : []),
-        ...(appuntamentiDi ? COLONNE_APPUNTAMENTI : []),
+        ...(noteDi ? COLONNE_NOTE.map(conAvviso(parzialeNote)) : []),
+        ...(appuntamentiDi ? COLONNE_APPUNTAMENTI.map(conAvviso(parzialeAppuntamenti)) : []),
       ];
       const today = new Date().toISOString().slice(0, 10);
       const nomiFasi = scelta.fasi.size ? stages.filter((s: any) => scelta.fasi.has(s.id)).map((s: any) => s.name) : [];
@@ -605,8 +612,10 @@ function MarketingOpportunitiesContent() {
           telefono: (o.marketing_contacts?.phone as string | null) ?? "",
         }));
         const blob = await excelOpportunita(righe, colonne, fogli, {
-          note: noteDi ? righeFoglioNote(noteDi, intestate, venditori) : undefined,
-          appuntamenti: appuntamentiDi ? righeFoglioAppuntamenti(appuntamentiDi, intestate, venditori) : undefined,
+          note: noteDi ? righeFoglioNote(noteDi, intestate, persone) : undefined,
+          appuntamenti: appuntamentiDi ? righeFoglioAppuntamenti(appuntamentiDi, intestate, persone) : undefined,
+          parzialeNote,
+          parzialeAppuntamenti,
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -664,6 +673,7 @@ function MarketingOpportunitiesContent() {
                 throw new Error("Valore economico non valido");
               }
               let contactId: string | null = null;
+              let contattoNuovo = false;
               if (email) {
                 const { data: found } = await supabase.from("marketing_contacts").select("id").eq("company_id", companyId).eq("email", email).limit(1).maybeSingle();
                 if (found) contactId = found.id;
@@ -676,15 +686,7 @@ function MarketingOpportunitiesContent() {
                 const { data: newContact, error: cErr } = await supabase.from("marketing_contacts").insert({ company_id: companyId, first_name: firstName, last_name: lastName, email, phone, ...datiContattoDaRiga(r) }).select("id").single();
                 if (cErr) throw cErr;
                 contactId = newContact!.id;
-                // Uno alla volta: un valore rifiutato non deve far perdere gli altri, né
-                // l'opportunità. Chi importa lo vede fra gli errori, col nome del campo.
-                for (const valore of valoriCustomContatto(r, contactId!)) {
-                  const { error: vErr } = await supabase.from("marketing_contact_field_values").insert(valore);
-                  if (vErr) {
-                    const campo = contactCustomFields.find((f) => f.id === valore.field_id)?.name ?? "personalizzato";
-                    errors.push(`Riga ${i + 2}: campo «${campo}» del contatto non salvato: ${vErr.message}`);
-                  }
-                }
+                contattoNuovo = true;
               }
               const tags = r.tags ? normalizeTagList(r.tags.split(",")) : [];
               const { data: oppData, error: oErr } = await supabase.from("marketing_opportunities").insert({
@@ -693,6 +695,17 @@ function MarketingOpportunitiesContent() {
                 value, source: r.source?.trim() || "importazione", tags, notes: r.notes?.trim() || null,
               }).select("id").single();
               if (oErr) throw oErr;
+              // Dopo l'opportunità, uno alla volta: un valore rifiutato non deve far perdere
+              // gli altri, e l'avviso può dire con certezza che l'opportunità esiste.
+              if (contattoNuovo) {
+                for (const valore of valoriCustomContatto(r, contactId!)) {
+                  const { error: vErr } = await supabase.from("marketing_contact_field_values").insert(valore);
+                  if (vErr) {
+                    const campo = contactCustomFields.find((f) => f.id === valore.field_id)?.name ?? "personalizzato";
+                    errors.push(`Riga ${i + 2}: campo «${campo}» del contatto non salvato (${vErr.message}). L'opportunità è creata: non reimportare il file o la creeresti due volte.`);
+                  }
+                }
+              }
               // Save custom field values
               if (oppData && customKeys.length > 0) {
                 const fieldValues = customKeys
@@ -1286,6 +1299,7 @@ function MarketingOpportunitiesContent() {
           filtriAttivi={activeFilterCount + (safeSearchQuery ? 1 : 0)}
           inCorso={isExporting}
           onEsporta={handleExportOpportunities}
+          accesso={accessoDettagli(permissions)}
         />
       )}
       <CreateListDialog
