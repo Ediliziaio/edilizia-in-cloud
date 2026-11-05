@@ -22,7 +22,7 @@ vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => state.mobile}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/useCostiDirettiFasi", () => ({
-  useCostiDirettiFasi: () => ({ data: undefined }),
+  useCostiDirettiFasi: () => ({ data: undefined as unknown }),
   useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
