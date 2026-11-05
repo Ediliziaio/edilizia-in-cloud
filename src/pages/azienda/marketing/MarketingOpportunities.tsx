@@ -63,7 +63,8 @@ import {
 import { normalizeTagList } from "@/lib/marketingTags";
 import { useLossReasons } from "@/hooks/useLossReasons";
 import { EsportaOpportunitaDialog, type SceltaDialog } from "@/components/opportunities/EsportaOpportunitaDialog";
-import { colonneConCampi, excelOpportunita, NOMI_DATA_PERIODO, NOMI_STATO, rigaOpportunita, scegliOpportunita, soloColonne } from "@/lib/opportunita/esportaOpportunita";
+import { celleAppuntamenti, celleNote, leggiAppuntamentiEsportazione, leggiNoteEsportazione, leggiPerBlocchi, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote } from "@/lib/opportunita/dettagliEsportazione";
+import { COLONNE_APPUNTAMENTI, COLONNE_NOTE, colonneConCampi, excelOpportunita, giornoItaliano, NOMI_DATA_PERIODO, NOMI_STATO, rigaOpportunita, scegliOpportunita, soloColonne } from "@/lib/opportunita/esportaOpportunita";
 
 export default function MarketingOpportunities() {
   return (
@@ -535,30 +536,42 @@ function MarketingOpportunitiesContent() {
         .from("marketing_custom_fields")
         .select("id, name")
         .eq("company_id", companyId!)
-        .eq("object_type", "opportunity");
+        .eq("object_type", "opportunity")
+        .is("deleted_at", null)
+        .order("position");
       const campi = (cfDefs ?? []) as Array<{ id: string; name: string }>;
       const valoriCampi: Record<string, Record<string, string>> = {};
       if (campi.length > 0) {
-        const oppIds = exportRows.map((o: any) => o.id);
-        const CHUNK_SIZE = 2000;
-        for (let i = 0; i < oppIds.length; i += CHUNK_SIZE) {
-          const chunk = oppIds.slice(i, i + CHUNK_SIZE);
-          const { data: vals } = await supabase
-            .from("marketing_opportunity_field_values")
-            .select("opportunity_id, field_id, value")
-            .in("opportunity_id", chunk);
-          for (const v of (vals ?? []) as Array<{ opportunity_id: string; field_id: string; value: string | null }>) {
-            if (!valoriCampi[v.opportunity_id]) valoriCampi[v.opportunity_id] = {};
-            if (v.value) valoriCampi[v.opportunity_id][v.field_id] = v.value;
-          }
+        const vals = await leggiPerBlocchi<{ opportunity_id: string; field_id: string; value: string | null }>(
+          "marketing_opportunity_field_values", "id, opportunity_id, field_id, value", "opportunity_id", exportRows.map((o: any) => o.id),
+        );
+        for (const v of vals) {
+          if (!valoriCampi[v.opportunity_id]) valoriCampi[v.opportunity_id] = {};
+          if (v.value) valoriCampi[v.opportunity_id][v.field_id] = v.value;
         }
       }
 
+      // Note e appuntamenti solo se chiesti: sono le letture più pesanti.
+      const noteDi = scelta.note ? perOpportunita(await leggiNoteEsportazione(companyId, exportRows), exportRows) : null;
+      const appuntamentiDi = scelta.appuntamenti ? perOpportunita(await leggiAppuntamentiEsportazione(companyId, exportRows), exportRows) : null;
+      const oggi = giornoItaliano(new Date().toISOString());
+
       const ctx = { fasi, pipelineDellaFase, venditori, motivi: motiviPerdita, campi, valoriCampi };
-      const righe = exportRows.map((o: any) => ({ faseId: (o.stage_id as string | null) ?? null, riga: rigaOpportunita(o, ctx) }));
+      const righe = exportRows.map((o: any) => ({
+        faseId: (o.stage_id as string | null) ?? null,
+        riga: {
+          ...rigaOpportunita(o, ctx),
+          ...(noteDi ? celleNote(noteDi[o.id], venditori) : {}),
+          ...(appuntamentiDi ? celleAppuntamenti(appuntamentiDi[o.id], oggi) : {}),
+        },
+      }));
       // colonne scelte: «cf» vuol dire tutti i campi personalizzati
       const scelte = scelta.colonne.size ? new Set([...scelta.colonne, ...(scelta.colonne.has("cf") ? campi.map((c) => `cf_${c.id}`) : [])]) : null;
-      const colonne = soloColonne(colonneConCampi(campi).filter((c) => c.key !== "pipeline" || scelta.tuttePipeline), scelte);
+      const colonne = [
+        ...soloColonne(colonneConCampi(campi).filter((c) => c.key !== "pipeline" || scelta.tuttePipeline), scelte),
+        ...(noteDi ? COLONNE_NOTE : []),
+        ...(appuntamentiDi ? COLONNE_APPUNTAMENTI : []),
+      ];
       const today = new Date().toISOString().slice(0, 10);
       const nomiFasi = scelta.fasi.size ? stages.filter((s: any) => scelta.fasi.has(s.id)).map((s: any) => s.name) : [];
       // Prima il registro, poi il file: senza registrazione non parte.
@@ -571,6 +584,9 @@ function MarketingOpportunitiesContent() {
           pipeline: scelta.tuttePipeline ? "tutte" : selectedPipeline?.name ?? selectedPipelineId,
           periodo: scelta.periodo ? `${scelta.periodo.da || "…"} – ${scelta.periodo.a || "…"} (${NOMI_DATA_PERIODO[scelta.periodo.data]})` : undefined,
           colonne: scelta.colonne.size ? `${colonne.length} scelte` : undefined,
+          // nel registro si vede che sono uscite anche note e appuntamenti
+          note: scelta.note || undefined,
+          appuntamenti: scelta.appuntamenti || undefined,
           ricerca: safeSearchQuery,
           filtri: filters,
           // solo se scelti: senza, sono tutte le fasi e tutti gli stati
@@ -583,7 +599,15 @@ function MarketingOpportunitiesContent() {
       const parteNome = nomiFasi.length === 1 ? `_${nomiFasi[0].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-")}` : "";
       if (scelta.formato === "xlsx") {
         const fogli = scelta.tuttePipeline ? tutteLeFasi.map((s) => ({ id: s.id, nome: `${s.pipeline} · ${s.name}` })) : stages.map((s: any) => ({ id: s.id, nome: s.name }));
-        const blob = await excelOpportunita(righe, colonne, fogli);
+        const intestate = exportRows.map((o: any) => ({
+          id: o.id as string, name: o.name as string | null,
+          contatto: [o.marketing_contacts?.first_name, o.marketing_contacts?.last_name].filter(Boolean).join(" "),
+          telefono: (o.marketing_contacts?.phone as string | null) ?? "",
+        }));
+        const blob = await excelOpportunita(righe, colonne, fogli, {
+          note: noteDi ? righeFoglioNote(noteDi, intestate, venditori) : undefined,
+          appuntamenti: appuntamentiDi ? righeFoglioAppuntamenti(appuntamentiDi, intestate, venditori) : undefined,
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
