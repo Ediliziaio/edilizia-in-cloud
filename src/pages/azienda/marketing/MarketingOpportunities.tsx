@@ -24,6 +24,7 @@ import { OpportunityDetailDialog } from "@/components/opportunities/OpportunityD
 import { OpportunitaCestinoDialog } from "@/components/opportunities/OpportunitaCestinoDialog";
 import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ImportWizard } from "@/components/shared/ImportWizard";
+import { useImportaDaUrl } from "@/components/shared/import-wizard/useImportaDaUrl";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { exportToCSV } from "@/lib/csvExport";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
@@ -349,6 +350,11 @@ function MarketingOpportunitiesContent() {
     [pipelines, selectedPipelineId]
   );
   const stages = useMemo(() => selectedPipeline?.marketing_pipeline_stages || [], [selectedPipeline]);
+  // Come il pulsante «Importa»: senza una pipeline con le sue fasi non si apre.
+  const apriImportazione = useCallback(() => setImportOpen(true), []);
+  // La pipeline scelta arriva un giro dopo le pipeline: prima di allora non si decide.
+  const pipelinePronta = !loadingPipelines && (pipelines.length === 0 || !!selectedPipeline);
+  useImportaDaUrl(!permissions.isLoading && !!companyId && pipelinePronta, canEditOpportunities && stages.length > 0, apriImportazione);
   // Filtro azionabile della strip: "Da fare" (prossime azioni scadute) o
   // "In stallo" (ferme oltre la soglia della fase). Un click sul KPI.
   const [filtroStrip, setFiltroStrip] = useState<FiltroStrip>(null);
@@ -605,6 +611,7 @@ function MarketingOpportunitiesContent() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         defaultObjectType="opportunities"
+        destinazione={selectedPipeline ? `Nella pipeline «${selectedPipeline.name}», prima fase` : undefined}
         contactFields={[]}
         opportunityFields={oppImportFields}
         onImportContacts={async () => ({ success: 0, errors: [] })}
