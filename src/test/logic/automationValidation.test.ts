@@ -33,7 +33,7 @@ describe("shared builder/runtime validation", () => {
   it.each(["uguale", "diverso", "contiene", "non_contiene", "inizia_con", "finisce_con"])("accepts configured %s", operatore => {
     expect(conditionConfigErrors({ condizioni: [{ campo: "contatto.email", operatore, valore: "@esempio.it" }] })).toEqual([]);
   });
-  it.each(["vuoto", "non_vuoto", "da_oggi", "prima_di_oggi"])("unary %s does not need a value", operatore => {
+  it.each(["vuoto", "non_vuoto", "da_oggi", "prima_di_oggi", "oggi", "domani"])("unary %s does not need a value", operatore => {
     expect(conditionConfigErrors({ condizioni: [{ campo: "contatto.email", operatore }] })).toEqual([]);
   });
   it.each([{}, { condizioni: [] }, { condizioni: [{}] }, { condizioni: [null] }, { condizioni: [{ campo: "email", operatore: "uguale" }] }])("rejects incomplete conditions %j", cfg => {

@@ -1,6 +1,7 @@
 import { ACTION_MAP, campiObbligatoriMancanti } from "./flow-node-catalog";
 import { actionConfigErrors, conditionConfigErrors, conditionOperatorAliases, delayConfigErrors, graphHasCycle } from "../../supabase/functions/_shared/automationValidation";
 import { evaluateAutomationFilters, filterErrors, matchesAutomationTriggerConfig, automationTriggerConfigErrors } from "../../supabase/functions/_shared/automationFilters";
+import { eOperatoreData } from "../../supabase/functions/_shared/condizioniData";
 
 export type PreviewNode = { id: string; type?: string; data: Record<string, any> };
 export type PreviewEdge = { source: string; target: string; label?: unknown };
@@ -72,7 +73,7 @@ export function previewAutomationPath(nodes: PreviewNode[], edges: PreviewEdge[]
       else {
         const rows = Array.isArray(cfg.condizioni) ? cfg.condizioni : [{ campo: cfg.condition_field ?? cfg.variabile, operatore: cfg.condition_operator ?? cfg.operatore, valore: cfg.condition_value ?? cfg.valore }];
         const conditionFields = rows.map((row: any) => String(row.campo ?? row.variabile ?? "").replace(/^\{\{\s*|\s*\}\}$/g, ""));
-        if (conditionFields.some((field: string) => scenario ? !Object.hasOwn(fields, field) : field.includes(".") && !/^(contatto|contact)\./.test(field)) || rows.some((row: any) => ["da_oggi", "prima_di_oggi"].includes(row.operatore))) {
+        if (conditionFields.some((field: string) => scenario ? !Object.hasOwn(fields, field) : field.includes(".") && !/^(contatto|contact)\./.test(field)) || rows.some((row: any) => eOperatoreData(row.operatore))) {
           step.status = "unverified"; step.detail = "Questo criterio richiede dati aggiuntivi o il calendario: ramo non simulato."; outgoing = [];
         } else {
           const matched = evaluateAutomationFilters({ logic: cfg.operatore_logico ?? "AND", conditions: rows.map((row: any, index: number) => ({ field: scenario ? conditionFields[index] : conditionFields[index].replace(/^(contatto|contact)\./, ""), operator: conditionOperatorAliases[row.operatore ?? "uguale"] ?? row.operatore, value: row.valore })) }, fields, { timeZone });

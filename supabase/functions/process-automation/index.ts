@@ -28,7 +28,7 @@ import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiPeriodi, leggiSettimane } from "../_shared/attesaCalendario.ts";
 import { classificaRispostaNutrimento, TAG_NUTRIMENTO_MENO } from "../_shared/nutrimentoRisposte.ts";
-import { confrontoConOggi } from "../_shared/condizioniData.ts";
+import { confrontoConOggi, eOperatoreData } from "../_shared/condizioniData.ts";
 import { actionConfigErrors, conditionConfigErrors, delayConfigErrors } from "../_shared/automationValidation.ts";
 import { automationWebhookUrl } from "../_shared/automationWebhook.ts";
 import { automationNextContext } from "../_shared/automationNextContext.ts";
@@ -1293,7 +1293,7 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
     const rec = customId ? null : await load(prefix);
     const actual = customId ? await readAutomationCustomField(supabase, companyId, entityId, queueItem, customId) : rec ? rec[field] : undefined;
     const operator = String(r.operatore ?? "uguale");
-    if (operator === "da_oggi" || operator === "prima_di_oggi") return confrontoConOggi(actual, operator);
+    if (eOperatoreData(operator)) return confrontoConOggi(actual, operator);
     const aliases: Record<string, string> = { uguale: "equals", diverso: "not_equals", contiene: "contains",
       non_contiene: "not_contains", inizia_con: "starts_with", finisce_con: "ends_with", vuoto: "is_empty", non_vuoto: "is_not_empty",
       maggiore: "gt", minore: "lt", maggiore_uguale: "gte", minore_uguale: "lte" };

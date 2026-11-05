@@ -1,4 +1,5 @@
 import { filterErrors } from "./automationFilters.ts";
+import { eOperatoreData } from "./condizioniData.ts";
 import { automationWebhookUrl } from "./automationWebhook.ts";
 import { AUTOMATION_NATIVE_FIELDS,customFieldId } from "./automationFieldContract.ts";
 
@@ -21,7 +22,7 @@ export function conditionConfigErrors(config: Record<string, any>): string[] {
     const field = String(row.campo ?? row.variabile ?? "").trim();
     if(field.startsWith("custom_field.")&&!customFieldId(field))errors.push(`Criterio ${index+1}: identificatore del campo personalizzato non valido.`);
     const operator = String(row.operatore ?? "uguale");
-    if (["da_oggi", "prima_di_oggi"].includes(operator)) {
+    if (eOperatoreData(operator)) {
       if (!field) errors.push(`Criterio ${index + 1}: scegli un campo.`);
       return;
     }
