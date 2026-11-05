@@ -509,9 +509,10 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
   ) : null;
 
 
-  const schedaDi = (phase: (typeof phases)[number]) => (
+  const schedaDi = (phase: (typeof phases)[number], apertaSubito = false) => (
               <PhaseCard
                 key={phase.id}
+                apertaSubito={apertaSubito}
                 phase={phase}
                 health={healthByPhaseId.get(phase.id)}
                 employees={employees}
@@ -776,11 +777,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
               />
               <Dialog open={!!faseInPopup} onOpenChange={(a) => { if (!a) setFaseAperta(null); }}>
                 <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-                  <DialogHeader>
-                    <DialogTitle>{faseInPopup?.name}</DialogTitle>
+                  <DialogHeader className="pr-8">
+                    <DialogTitle className="sr-only">{faseInPopup?.name}</DialogTitle>
                     <DialogDescription className="sr-only">Venduto, chi la fa, materiali, mezzi, note e sottofasi di questa fase.</DialogDescription>
                   </DialogHeader>
-                  {faseInPopup && schedaDi(faseInPopup)}
+                  {faseInPopup && schedaDi(faseInPopup, true)}
                 </DialogContent>
               </Dialog>
               <CostiSenzaFaseDialog
@@ -832,7 +833,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
             )}
             {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? "Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna." : "Nessuna lavorazione corrisponde ai filtri."}</p>}
             {view === "lavorazioni" && phases.length > 0 && completedCount === phases.length && visiblePhases.length > 0 && <p role="status" className="text-xs text-muted-foreground">Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna.</p>}
-            {visiblePhases.map(schedaDi)}
+            {visiblePhases.map((phase) => schedaDi(phase))}
             {/* Da telefono le completate si aprono in fondo, dopo quelle da fare */}
             {telefono && view && groupCompleted && completedCount > 0 && (
               <Button variant="ghost" size="sm" className="tap-compact h-9 w-full text-slate-600" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>
@@ -950,6 +951,8 @@ interface PhaseCardProps {
     opts?: { onSuccess?: () => void; onError?: () => void }
   ) => void;
   onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => Promise<unknown>;
+  /** Nel popup della fase: aperta anche se non è in corso. */
+  apertaSubito?: boolean;
   onDeleteAssignment: (id: string, source: AssignmentSource) => Promise<unknown>;
   /** Squadre che fanno questa fase. */
   squadreFase: SquadraInCommessa[];
@@ -1018,6 +1021,7 @@ function PhaseCard({
   fasiOpzioni,
   sottofasi,
   azioniSottofasi,
+  apertaSubito = false,
 }: PhaseCardProps) {
   const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins, canViewMezzi } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
@@ -1026,7 +1030,7 @@ function PhaseCard({
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressDraft, setProgressDraft] = useState("");
   // Aperta di default solo se i lavori sono in corso: è la fase su cui si opera
-  const [open, setOpen] = useState(() => phase.status === "in_corso");
+  const [open, setOpen] = useState(() => apertaSubito || phase.status === "in_corso");
   const [targetSection, setTargetSection] = useState<{ section: PlanningSection } | null>(null);
   const consumedTarget = useRef<typeof targetSection>(null);
   const datesRef = useRef<HTMLDivElement>(null);
