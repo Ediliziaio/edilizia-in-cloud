@@ -229,6 +229,7 @@ describe("Tabella delle lavorazioni", () => {
     mostra({ onSalvaVoce });
     fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
     const popup = screen.getByRole("dialog");
+    fireEvent.click(within(popup).getByRole("button", { name: /quantità e prezzi/ }));
     fireEvent.change(within(popup).getByLabelText("Quantità"), { target: { value: "12" } });
     const salva = within(popup).getByRole("button", { name: "Salva quantità e prezzi" });
     fireEvent.click(salva);

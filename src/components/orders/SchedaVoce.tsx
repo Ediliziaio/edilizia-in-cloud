@@ -2,7 +2,8 @@
 // Tutto di una voce in una finestra grande: si apre dalla riga e si scorre alla voce dopo senza chiuderla.
 import { useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Circle, ListChecks, Pencil, Trash2, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronLeft, ChevronRight, ListChecks, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -66,8 +67,8 @@ function RapportiniVoce({ orderId, sottofaseId }: { orderId: string; sottofaseId
   );
 }
 
-/** A che punto è la voce: i pulsanti salvano subito, i campi col «Salva». */
-function Avanzamento({ riga: r, puoModificare, onAvanza }: { riga: RigaDistinta; puoModificare: boolean; onAvanza: Props["onAvanza"] }) {
+/** A che punto è la voce: i pulsanti salvano subito, il campo col «Salva» che compare solo se si cambia. */
+function Avanzamento({ riga: r, puoModificare, onAvanza, onSegna }: { riga: RigaDistinta; puoModificare: boolean; onAvanza: Props["onAvanza"]; onSegna: Props["onSegna"] }) {
   const eseguita = quantitaEseguita(r);
   const [quantita, setQuantita] = useState(eseguita === null ? "" : String(eseguita));
   const [pct, setPct] = useState(String(r.percentuale));
@@ -77,41 +78,49 @@ function Avanzamento({ riga: r, puoModificare, onAvanza }: { riga: RigaDistinta;
   const pctValida = pct !== "" && Number.isInteger(nPct) && nPct >= 0 && nPct <= 100;
   const quantitaValida = nQuantita !== null && Number.isFinite(nQuantita) && nQuantita >= 0;
   const cambiata = misurabile && quantita !== (eseguita === null ? "" : String(eseguita));
-  const cambiataPct = pct !== String(r.percentuale);
+  const cambiataPct = !misurabile && pct !== String(r.percentuale);
   const scegli = (p: number) => onAvanza(r.sottofaseId!, { percentuale: p, quantita_fatta: misurabile ? Math.round((r.quantita! * p) / 100 * 1000) / 1000 : null });
   const salva = () => {
     if (cambiata && quantitaValida) onAvanza(r.sottofaseId!, { percentuale: percentualeDaQuantita(nQuantita!, r.quantita)!, quantita_fatta: nQuantita });
     else if (cambiataPct && pctValida) scegli(nPct);
   };
   const valido = cambiata ? quantitaValida : cambiataPct && pctValida;
+  if (r.fatta) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Fatta</p>
+        {puoModificare && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSegna(r.sottofaseId!, false)}>Riapri</Button>}
+      </div>
+    );
+  }
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <div role="progressbar" aria-label="Avanzamento della voce" aria-valuenow={r.percentuale} aria-valuemin={0} aria-valuemax={100} className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-          <div className={r.percentuale >= 100 ? "h-full bg-emerald-600" : "h-full bg-primary"} style={{ width: `${r.percentuale}%` }} />
+          <div className="h-full bg-primary" style={{ width: `${r.percentuale}%` }} />
         </div>
         <span className="w-10 text-right text-sm font-semibold tabular-nums">{r.percentuale}%</span>
       </div>
       {puoModificare && (
         <>
           <div className="flex gap-1">
-            {[0, 25, 50, 75, 100].map((p) => (
+            {[0, 25, 50, 75].map((p) => (
               <Button key={p} type="button" size="sm" variant={r.percentuale === p ? "secondary" : "outline"} aria-pressed={r.percentuale === p} className="h-7 flex-1 px-0 text-xs tabular-nums" onClick={() => scegli(p)}>{p}%</Button>
             ))}
+            <Button type="button" size="sm" variant="outline" className="h-7 flex-1 gap-1 px-0 text-xs text-emerald-700" onClick={() => onSegna(r.sottofaseId!, true)}><Check className="h-3.5 w-3.5" aria-hidden="true" />Fatta</Button>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {misurabile ? (
-              <label className="min-w-0 flex-1 space-y-0.5 text-xs text-muted-foreground">
-                Fatti, su {r.quantita!.toLocaleString("it-IT", { maximumFractionDigits: 2 })}{r.unita ? ` ${r.unita}` : ""}
-                <Input type="number" min={0} step="any" value={quantita} onChange={(e) => setQuantita(e.target.value)} className="h-8 px-2 text-xs" />
+              <label className="flex min-w-0 flex-1 items-center gap-1.5">Fatti
+                <Input type="number" min={0} step="any" value={quantita} onChange={(e) => setQuantita(e.target.value)} aria-label={`Fatti, su ${r.quantita}`} className="h-7 w-24 px-1.5 text-xs" />
+                <span className="truncate">su {r.quantita!.toLocaleString("it-IT", { maximumFractionDigits: 2 })}{r.unita ? ` ${r.unita}` : ""}</span>
               </label>
             ) : (
-              <label className="min-w-0 flex-1 space-y-0.5 text-xs text-muted-foreground">
-                Percentuale
-                <Input type="number" min={0} max={100} value={pct} onChange={(e) => setPct(e.target.value)} className="h-8 px-2 text-xs" />
+              <label className="flex min-w-0 flex-1 items-center gap-1.5">Percentuale
+                <Input type="number" min={0} max={100} value={pct} onChange={(e) => setPct(e.target.value)} className="h-7 w-20 px-1.5 text-xs" />%
               </label>
             )}
-            <Button type="button" size="sm" className="h-8 text-xs" disabled={!valido} onClick={salva}>Salva</Button>
+            {valido && <Button type="button" size="sm" className="h-7 text-xs" onClick={salva}>Salva</Button>}
           </div>
           {cambiata && quantitaValida && nQuantita! > r.quantita! && <p className="text-xs text-amber-700">Più del previsto: la voce risulterà finita.</p>}
         </>
@@ -193,11 +202,11 @@ interface Props {
 }
 
 /** I campi ripartono dai valori salvati con la `key`: cambiando voce, o quando il database completa le date. */
-function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi, onSalvaVoce, onRisorse, onParallelo, onSegna, onAvanza, onPianifica, onRinomina, onSposta, onElimina, onAssegna, onCreaSottofasi, onApriScheda }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
+function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi, onSalvaVoce, onRisorse, onParallelo, onSegna, onAvanza, onPianifica, onAssegna, onCreaSottofasi }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
   const [inizio, setInizio] = useState(r.inizio ?? "");
   const [fine, setFine] = useState(r.fine ?? "");
   const [giorni, setGiorni] = useState(r.giorni ? String(r.giorni) : "");
-  const [nome, setNome] = useState<string | null>(null);
+  const [prezzi, setPrezzi] = useState(false);
   const cambiato = inizio !== (r.inizio ?? "") || fine !== (r.fine ?? "") || giorni !== (r.giorni ? String(r.giorni) : "");
   const nGiorni = giorni === "" ? null : Number(giorni);
   const giorniValidi = nGiorni === null || (Number.isInteger(nGiorni) && nGiorni >= 1 && nGiorni <= 3650);
@@ -214,6 +223,9 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
     });
   };
   const margine = r.venduto && r.previsto !== null ? r.venduto - r.previsto : null;
+  const quantita = r.quantita !== null ? `${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${r.unita ? ` ${r.unita}` : ""}` : null;
+  const ritardo = !r.fatta && !!r.fine && !!oggi && r.fine < oggi;
+  const lavoro = [r.iniziataIl ? `iniziata il ${giorno(r.iniziataIl)}` : null, r.giorniLavorati > 0 ? `${r.giorniLavorati} ${r.giorniLavorati === 1 ? "giorno" : "giorni"} dai rapportini` : null].filter(Boolean).join(" · ");
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
@@ -221,20 +233,11 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
         <Riquadro titolo="Stato dei lavori">
           {r.sottofaseId ? (
             <>
-              <button type="button" role="checkbox" aria-checked={r.fatta} disabled={!puoModificare} onClick={() => onSegna(r.sottofaseId!, !r.fatta)}
-                className="flex items-center gap-2 rounded text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
-                {r.fatta ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" /> : <Circle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
-                {r.fatta ? "Fatta" : "Da fare"}
-              </button>
-              <Avanzamento key={`${r.percentuale}|${r.quantitaFatta}`} riga={r} puoModificare={puoModificare} onAvanza={onAvanza} />
-              <dl className="space-y-0.5">
-                {r.iniziataIl && <Dato etichetta="Iniziata il" valore={giorno(r.iniziataIl)} />}
-                <Dato etichetta="Giorni dai rapportini" valore={r.giorniLavorati > 0 ? `${r.giorniLavorati}${r.giorni ? ` su ${r.giorni}` : ""}` : "—"} />
-              </dl>
+              <Avanzamento key={`${r.percentuale}|${r.quantitaFatta}|${r.fatta}`} riga={r} puoModificare={puoModificare} onAvanza={onAvanza} onSegna={onSegna} />
+              {lavoro && <p className="text-xs text-muted-foreground">{lavoro}</p>}
             </>
           ) : (
             <div className="space-y-2">
-              <dl>{r.quantita !== null && <Dato etichetta="Quantità" valore={`${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${r.unita ? ` ${r.unita}` : ""}`} />}</dl>
               <p className="text-xs text-muted-foreground">Questa voce non ha ancora una sottofase: senza, non ha date né stato.</p>
               {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => onCreaSottofasi(r.faseId)}><ListChecks className="h-3.5 w-3.5" aria-hidden="true" />Crea le sottofasi della fase</Button>}
             </div>
@@ -243,15 +246,15 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
 
         {r.sottofaseId && (
           <Riquadro titolo="Quando">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-[1fr_1fr_4.5rem] gap-2">
               <label className="space-y-0.5 text-xs text-muted-foreground">Dal<Input type="date" value={inizio} disabled={!puoModificare} onChange={(e) => setInizio(e.target.value)} className="h-8 px-1 text-xs" /></label>
               <label className="space-y-0.5 text-xs text-muted-foreground">Al<Input type="date" value={fine} disabled={!puoModificare} onChange={(e) => setFine(e.target.value)} className="h-8 px-1 text-xs" /></label>
               <label className="space-y-0.5 text-xs text-muted-foreground">Giorni<Input type="number" min={1} max={3650} value={giorni} disabled={!puoModificare} onChange={(e) => setGiorni(e.target.value)} className="h-8 px-1 text-xs" /></label>
             </div>
             {!dateOk && <p role="alert" className="text-xs text-rose-700">La fine viene prima dell'inizio.</p>}
-            {!r.fatta && !!r.fine && !!oggi && r.fine < oggi && <p className="text-xs font-medium text-rose-700">In ritardo: doveva finire il {giorno(r.fine)}</p>}
+            {ritardo && <p className="text-xs font-medium text-rose-700">In ritardo: doveva finire il {giorno(r.fine!)}</p>}
             {(onRisorse || onParallelo) && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 {onRisorse && (
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Persone
                     <Input key={String(r.risorse)} type="number" min={1} max={999} defaultValue={r.risorse ?? ""} disabled={!puoModificare} aria-label="Persone che ci lavorano"
@@ -266,7 +269,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
                 {onParallelo && (
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <input type="checkbox" checked={r.inParallelo} disabled={!puoModificare} onChange={(e) => onParallelo(r.sottofaseId!, e.target.checked)} />
-                    Parte insieme alla precedente
+                    Insieme alla precedente
                   </label>
                 )}
               </div>
@@ -276,58 +279,42 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
             )}
           </Riquadro>
         )}
-
-        <Riquadro titolo="Chi la fa">
-          <p className="text-sm">{chiLaFa.join(", ") || <span className="text-amber-700">Nessuno assegnato alla fase</span>}</p>
-          {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => onAssegna(r.faseId)}><Users className="h-3.5 w-3.5" aria-hidden="true" />Assegna alla fase</Button>}
-        </Riquadro>
       </div>
 
       <div className="space-y-3">
-        {vedeCosti && (r.sottofaseId || r.voceId) && (
-          <Riquadro titolo="Quantità e prezzi">
-            <DatiLavorazione key={`${r.voceId}|${r.quantita}|${r.unita}|${r.venduto}|${r.costoManodopera}|${r.costoMateriali}`} riga={r} vedeVenduto={vedeVenduto} puoModificare={puoModificare} onSalva={onSalvaVoce} />
-          </Riquadro>
-        )}
         {(vedeVenduto || vedeCosti) && (
           <Riquadro titolo="Economia">
             <dl className="space-y-0.5">
+              <Dato etichetta="Quantità" valore={quantita ?? "—"} />
               {vedeVenduto && <Dato etichetta="Imponibile" valore={r.venduto ? formatCurrency(r.venduto) : "—"} forte />}
               {vedeVenduto && r.venduto ? <Dato etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`} valore={formatCurrency(conAliquota(r.venduto, aliquota).totale)} /> : null}
               {vedeCosti && <Dato etichetta="Costo previsto" valore={r.previsto !== null ? formatCurrency(r.previsto) : "Da definire"} />}
               {vedeMargini && vedeVenduto && vedeCosti && margine !== null && <Dato etichetta="Margine previsto" valore={`${formatCurrency(margine)} · ${Math.round((margine / r.venduto!) * 100)}%`} />}
-              {vedeCosti && <Dato etichetta="Consuntivo della fase" valore={consuntivoFase ? formatCurrency(consuntivoFase) : "—"} />}
+              {vedeCosti && !!consuntivoFase && <Dato etichetta="Speso sulla fase" valore={formatCurrency(consuntivoFase)} />}
             </dl>
-          </Riquadro>
-        )}
-        {r.sottofaseId && orderId && (
-          <Riquadro titolo="Rapportini"><RapportiniVoce orderId={orderId} sottofaseId={r.sottofaseId} /></Riquadro>
-        )}
-        {puoModificare && r.sottofaseId && (
-          <Riquadro titolo="Modifica">
-            {nome !== null ? (
-              <div className="flex items-center gap-1.5">
-                <Input autoFocus value={nome} maxLength={160} aria-label="Nuovo nome" onChange={(e) => setNome(e.target.value)} className="h-8 text-xs" />
-                <Button type="button" size="sm" className="h-8 text-xs" disabled={!nome.trim()} onClick={() => { onRinomina(r.sottofaseId!, nome.trim()); setNome(null); }}>Salva</Button>
-                <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setNome(null)}>Annulla</Button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setNome(r.descrizione.slice(0, 160))}><Pencil className="h-3 w-3" aria-hidden="true" />Rinomina</Button>
-                <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => onSposta(r, -1)}><ArrowUp className="h-3 w-3" aria-hidden="true" />Su</Button>
-                <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => onSposta(r, 1)}><ArrowDown className="h-3 w-3" aria-hidden="true" />Giù</Button>
-                <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs text-rose-700" onClick={() => onElimina(r)}><Trash2 className="h-3 w-3" aria-hidden="true" />Elimina</Button>
-              </div>
+            {vedeCosti && (r.sottofaseId || r.voceId) && puoModificare && (
+              prezzi
+                ? <DatiLavorazione key={`${r.voceId}|${r.quantita}|${r.unita}|${r.venduto}|${r.costoManodopera}|${r.costoMateriali}`} riga={r} vedeVenduto={vedeVenduto} puoModificare={puoModificare} onSalva={onSalvaVoce} />
+                : <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setPrezzi(true)}><Pencil className="h-3 w-3" aria-hidden="true" />{r.voceId ? "Modifica quantità e prezzi" : "Aggiungi quantità e prezzi"}</Button>
             )}
           </Riquadro>
         )}
-        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => onApriScheda(r.faseId)}>Materiali, mezzi e note: scheda della fase</Button>
+        <Riquadro titolo="Chi la fa">
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 text-sm">{chiLaFa.join(", ") || <span className="text-amber-700">Nessuno sulla fase</span>}</p>
+            {puoModificare && <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-xs" onClick={() => onAssegna(r.faseId)}><Users className="h-3.5 w-3.5" aria-hidden="true" />Assegna</Button>}
+          </div>
+        </Riquadro>
+        {r.sottofaseId && orderId && (
+          <Riquadro titolo="Rapportini"><RapportiniVoce orderId={orderId} sottofaseId={r.sottofaseId} /></Riquadro>
+        )}
       </div>
     </div>
   );
 }
 
 export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Props) {
+  const [nome, setNome] = useState<string | null>(null);
   // Le frecce passano alla voce vicina, se non si sta scrivendo in un campo.
   const frecce = (e: KeyboardEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("input, textarea, select")) return;
@@ -336,19 +323,40 @@ export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Pr
   };
   return (
     <Dialog open={!!riga} onOpenChange={(a) => { if (!a) onChiudi(); }}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl" onKeyDown={frecce}>
+      <DialogContent className="max-h-[92vh] gap-3 overflow-y-auto sm:max-w-4xl" onKeyDown={frecce}>
         {riga && (
           <>
-            <DialogHeader>
+            <DialogHeader className="space-y-1">
               <div className="flex items-center justify-between gap-2 pr-6 text-xs text-muted-foreground">
-                <span className="min-w-0 truncate">{riga.faseNome}{riga.codice ? ` · ${riga.codice}` : ""}</span>
+                <span className="min-w-0 truncate uppercase tracking-wide">{riga.faseNome}{riga.codice ? ` · ${riga.codice}` : ""}</span>
                 <span className="flex shrink-0 items-center gap-1 tabular-nums">
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => resto.onApriScheda(riga.faseId)}>Apri la fase</Button>
+                  {resto.puoModificare && riga.sottofaseId && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label="Altro per questa voce"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setNome(riga.descrizione.slice(0, 160))}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => resto.onSposta(riga, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />Sposta su</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => resto.onSposta(riga, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />Sposta giù</DropdownMenuItem>
+                        <DropdownMenuItem className="text-rose-700" onClick={() => resto.onElimina(riga)}><Trash2 className="mr-2 h-3.5 w-3.5" />Elimina</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Voce prima" onClick={() => onVicina(-1)}><ChevronLeft className="h-4 w-4" /></Button>
                   {posizione.numero} di {posizione.totale}
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Voce dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
                 </span>
               </div>
-              <DialogTitle className="text-base font-semibold leading-snug">{riga.descrizione}</DialogTitle>
+              {nome !== null ? (
+                <div className="flex items-center gap-1.5">
+                  <Input autoFocus value={nome} maxLength={160} aria-label="Nuovo nome" onChange={(e) => setNome(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && nome.trim()) { resto.onRinomina(riga.sottofaseId!, nome.trim()); setNome(null); } else if (e.key === "Escape") setNome(null); }}
+                    className="h-8 text-sm" />
+                  <Button type="button" size="sm" className="h-8 text-xs" disabled={!nome.trim()} onClick={() => { resto.onRinomina(riga.sottofaseId!, nome.trim()); setNome(null); }}>Salva</Button>
+                </div>
+              ) : (
+                <DialogTitle className="line-clamp-3 text-base font-semibold leading-snug" title={riga.descrizione}>{riga.descrizione}</DialogTitle>
+              )}
               <DialogDescription className="sr-only">Stato, date, importi e rapportini di questa voce.</DialogDescription>
             </DialogHeader>
             <Contenuto key={`${riga.key}|${riga.inizio}|${riga.fine}|${riga.giorni}`} riga={riga} {...resto} />

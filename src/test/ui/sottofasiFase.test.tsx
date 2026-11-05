@@ -235,4 +235,13 @@ describe("SottofasiFase", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pesa per giorni" }));
     expect(a.onPesa).toHaveBeenCalledWith([{ id: "s1", peso: 10 }, { id: "s2", peso: 2 }]);
   });
+  it("con tante sottofasi si cerca, partono quelle da fare, e un clic apre il popup", () => {
+    const onApri = vi.fn();
+    const tante = Array.from({ length: 10 }, (_, i) => ({ id: `x${i}`, phase_id: "f", name: `Voce ${i}`, position: i, peso: 1, fatta: i === 0, fatta_il: null }));
+    render(<SottofasiFase nomeFase="F" sottofasi={tante} puoModificare puoSegnare onSegna={vi.fn()} onAggiungi={vi.fn()} onRinomina={vi.fn()} onElimina={vi.fn()} onApri={onApri} />);
+    expect(screen.queryByText("Voce 0")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Cerca nelle sottofasi di F"), { target: { value: "voce 3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Voce 3" }));
+    expect(onApri).toHaveBeenCalledExactlyOnceWith("x3");
+  });
 });

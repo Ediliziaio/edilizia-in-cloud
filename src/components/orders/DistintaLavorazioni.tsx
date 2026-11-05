@@ -125,6 +125,9 @@ interface Props {
   economiaDi?: ReadonlyMap<string, EconomiaDistinta>;
   /** Costi della commessa che non stanno in una sola fase, come le ore di un rapportino su più fasi. */
   consuntivoSenzaFase?: number;
+  /** Una sottofase da aprire nel popup (arriva dal popup della fase); poi si avvisa che è aperta. */
+  apriSottofase?: string | null;
+  onSottofaseAperta?: () => void;
   /** Apre l'elenco dei costi da mettere su una fase. */
   onCostiSenzaFase?: () => void;
   /** Il conto dell'IVA della commessa: aliquota, debito, credito e reverse charge. */
@@ -174,7 +177,7 @@ type Elemento =
   | { tipo: "aggiungi"; key: string; faseId: string };
 
 export function DistintaLavorazioni({
-  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
+  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, apriSottofase, onSottofaseAperta, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
   onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
@@ -263,6 +266,13 @@ export function DistintaLavorazioni({
   const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? tutte.find((x) => !!sottofaseAperta.current && x.sottofaseId === sottofaseAperta.current) ?? null : null;
   sottofaseAperta.current = rigaAperta?.sottofaseId ?? null;
   const nomiChi = (id: string) => { const c = chiDi.get(id); return c ? [...c.squadre, ...c.persone, ...c.ditte] : []; };
+
+  useEffect(() => {
+    if (!apriSottofase) return;
+    const riga = tutte.find((x) => x.sottofaseId === apriSottofase);
+    if (riga) setAperta(riga.key);
+    onSottofaseAperta?.();
+  }, [apriSottofase, tutte, onSottofaseAperta]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtuale = elementi.length > 80;

@@ -68,12 +68,14 @@ interface SottofasiFaseProps {
   /** Pesa le sottofasi per i loro giorni. */
   onPesa?: (pesi: Array<{ id: string; peso: number }>) => void;
   onElimina: (id: string) => void;
+  /** Apre il popup della sottofase (dal popup della fase). */
+  onApri?: (id: string) => void;
   className?: string;
 }
 
 /** I passi di una fase: spuntati, ne decidono l'avanzamento. */
 export function SottofasiFase({
-  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, voci, vediVenduto = false, vociSenzaSottofase = 0, onSottofasiDalleVoci, onRisorse, onPesa, onElimina, className,
+  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, voci, vediVenduto = false, vociSenzaSottofase = 0, onSottofasiDalleVoci, onRisorse, onPesa, onElimina, className, onApri
 }: SottofasiFaseProps) {
   const [nuova, setNuova] = useState("");
   const [aperta, setAperta] = useState(false);
@@ -83,7 +85,11 @@ export function SottofasiFase({
   // Semplice di base (31/10/2026): i comandi di una riga dietro «⋯», giorni e persone solo in «Pianifica».
   const [menu, setMenu] = useState<string | null>(null);
   const [pianifica, setPianifica] = useState(false);
+  // Con tante sottofasi: ricerca e solo quelle da fare, come nel rapportino.
+  const [cerca, setCerca] = useState("");
+  const [soloDaFare, setSoloDaFare] = useState(true);
   const { fatte, totale } = riepilogoSottofasi(sottofasi);
+  const tante = sottofasi.length > 8;
   const pesi = pesiDaGiorni(sottofasi);
   // I giorni scritti sulle righe e non ancora salvati.
   const [giorniBozza, setGiorniBozza] = useState<Record<string, string>>({});
@@ -173,8 +179,18 @@ export function SottofasiFase({
             : `Questa fase è già al ${avviata.percentuale}%. Dividendola in sottofasi, l'avanzamento si calcola da quelle fatte: segna subito quelle già completate.`}
         </p>
       )}
+      {tante && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca una sottofase…" aria-label={`Cerca nelle sottofasi di ${nomeFase}`} className="h-8 max-w-xs text-sm" />
+          <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" aria-pressed={!soloDaFare} onClick={() => setSoloDaFare((v) => !v)}>
+            {soloDaFare ? `Mostra anche le fatte (${fatte})` : `Solo da fare (${totale - fatte})`}
+          </Button>
+        </div>
+      )}
       <ul className="divide-y rounded-md border">
         {sottofasi.map((s, i) => {
+          const q = cerca.trim().toLocaleLowerCase("it-IT");
+          if (q ? !s.name.toLocaleLowerCase("it-IT").includes(q) : tante && soloDaFare && s.fatta) return null;
           const p = passoDi.get(s.id);
           const testo = p ? testoPiano(p) : testoPiano(s);
           const reale = realeSottofase(s);
@@ -212,10 +228,11 @@ export function SottofasiFase({
               ) : (
                 <div className="min-w-0 flex-1 text-sm">
                   <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>
-                    {s.name}
+                    {onApri ? <button type="button" onClick={() => onApri(s.id)} className="rounded text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{s.name}</button> : s.name}
                     {!s.fatta && !!s.percentuale && <span className="ml-1.5 text-xs font-medium tabular-nums text-primary">{s.percentuale}%</span>}
                   </p>
-                  {info && <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>}
+                  {info ? <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>
+                    : onApri && !s.fatta && <p className="text-[11px] text-muted-foreground">Senza date</p>}
                   {reale && intervalloSottofase(s) && <p className={cn("text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
                     finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
                   </p>}

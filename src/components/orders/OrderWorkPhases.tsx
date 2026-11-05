@@ -260,6 +260,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     [costiDiretti, phases],
   );
   const [faseAperta, setFaseAperta] = useState<string | null>(null);
+  const [sottofaseDaAprire, setSottofaseDaAprire] = useState<string | null>(null);
   const [responsabiliAperti, setResponsabiliAperti] = useState(false);
   const [costiAperti, setCostiAperti] = useState(false);
   const assegnaFaseCosti = useAssegnaFaseCosti();
@@ -569,6 +570,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                   voci: vociSottofasi.perSottofase,
                   vediVenduto: canViewOrderAmounts,
                   vociSenzaSottofase: vociSottofasi.senzaSottofase.get(phase.id) ?? 0,
+                  // Dal popup della fase, un clic sulla sottofase apre il suo popup.
+                  onApri: apertaSubito ? (id: string) => { setFaseAperta(null); setSottofaseDaAprire(id); } : undefined,
                   onSottofasiDalleVoci: () => sottofasiDalleVoci.mutate(phase.id),
                   onRisorse: (id, n) => risorseSottofase.mutate({ id, risorse: n }),
                   fasiDopo: phases.filter((p) => p.position > phase.position).map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date })),
@@ -784,20 +787,18 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
                 lavorativo={calendario.lavorativo}
                 onApriScheda={setFaseAperta}
+                apriSottofase={sottofaseDaAprire}
+                onSottofaseAperta={() => setSottofaseDaAprire(null)}
                 onCostiSenzaFase={canEditOrders && costiDaSistemare.length > 0 ? () => setCostiAperti(true) : undefined}
               />
               <Dialog open={!!faseInPopup} onOpenChange={(a) => { if (!a) setFaseAperta(null); }}>
                 <DialogContent className="max-h-[92vh] gap-2 overflow-y-auto sm:max-w-5xl">
-                  <DialogHeader>
+                  <DialogHeader className="sr-only">
                     <DialogTitle className="sr-only">{faseInPopup?.name}</DialogTitle>
                     <DialogDescription className="sr-only">Venduto, chi la fa, materiali, mezzi, note e sottofasi di questa fase.</DialogDescription>
                   </DialogHeader>
                   {faseInPopup && (
                     <BarraFase
-                      fase={faseInPopup}
-                      economia={economia.perFase.get(faseInPopup.id)}
-                      vedeVenduto={canViewOrderAmounts}
-                      vedeCosti={canViewCosts}
                       posizione={{ numero: phases.findIndex((p) => p.id === faseInPopup.id) + 1, totale: phases.length }}
                       onVicina={(verso) => setFaseAperta(phases[phases.findIndex((p) => p.id === faseInPopup.id) + verso]?.id ?? faseInPopup.id)}
                     />
@@ -997,6 +998,7 @@ interface PhaseCardProps {
     onPianificaTutte: (passi: Array<{ id: string } & PianoSottofase>) => void;
     onRiordina: (ids: string[]) => void;
     onParallelo: (id: string, inParallelo: boolean) => void;
+    onApri?: (id: string) => void;
     onElimina: (id: string) => void;
     calendario: CalendarioCantiere;
     voci: Map<string, VoceSottofase>;
@@ -1009,46 +1011,13 @@ interface PhaseCardProps {
   };
 }
 
-/** In cima al popup della fase: i numeri, la fase vicina e i salti alle parti della scheda. */
-function BarraFase({ fase, economia, vedeVenduto, vedeCosti, posizione, onVicina }: {
-  fase: { id: string; name: string; percentuale?: number | null };
-  economia?: EconomiaFase;
-  vedeVenduto: boolean;
-  vedeCosti: boolean;
-  posizione: { numero: number; totale: number };
-  onVicina: (verso: -1 | 1) => void;
-}) {
-  const vai = (parte: string) => document.getElementById(`fase-${fase.id}-${parte}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const sforato = !!economia && economia.costoPrevisto > 0 && economia.costoConsuntivo > economia.costoPrevisto;
-  const numeri: Array<[string, string, boolean?]> = [
-    ["Avanzamento", `${Math.round(Number(fase.percentuale) || 0)}%`],
-    ...(vedeVenduto ? [["Venduto", economia?.venduto ? formatCurrency(economia.venduto) : "—"] as [string, string]] : []),
-    ...(vedeCosti ? [
-      ["Previsto", economia?.costoPrevisto ? formatCurrency(economia.costoPrevisto) : "—"] as [string, string],
-      ["Consuntivo", economia?.costoConsuntivo ? formatCurrency(economia.costoConsuntivo) : "—", sforato] as [string, string, boolean],
-    ] : []),
-    ...(vedeVenduto && vedeCosti && economia?.marginePrevistoPct != null ? [["Margine", `${economia.marginePrevistoPct}%`] as [string, string]] : []),
-  ];
+/** In cima al popup della fase: solo la fase prima e dopo. I numeri stanno nella scheda, una volta sola. */
+function BarraFase({ posizione, onVicina }: { posizione: { numero: number; totale: number }; onVicina: (verso: -1 | 1) => void }) {
   return (
-    <div className="sticky -top-6 z-10 -mx-1 space-y-1.5 border-b bg-background px-1 pb-2 pt-1">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pr-6">
-        {numeri.map(([etichetta, valore, rosso]) => (
-          <div key={etichetta}>
-            <p className="text-[11px] text-muted-foreground">{etichetta}</p>
-            <p className={cn("text-[13px] font-semibold tabular-nums", rosso && "text-rose-700")}>{valore}</p>
-          </div>
-        ))}
-        <span className="ml-auto flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Fase prima" onClick={() => onVicina(-1)}><ChevronRight className="h-4 w-4 rotate-180" /></Button>
-          {posizione.numero} di {posizione.totale}
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
-        </span>
-      </div>
-      <nav aria-label="Parti della fase" className="flex flex-wrap gap-1">
-        {([["sottofasi", "Sottofasi"], ["economia", "Economia"], ["chi", "Chi la fa"], ["mezzi", "Mezzi"], ["materiali", "Materiali"]] as const).map(([parte, testo]) => (
-          <Button key={parte} type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => vai(parte)}>{testo}</Button>
-        ))}
-      </nav>
+    <div className="flex items-center justify-end gap-1 pr-8 text-xs tabular-nums text-muted-foreground">
+      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Fase prima" onClick={() => onVicina(-1)}><ChevronRight className="h-4 w-4 rotate-180" /></Button>
+      Fase {posizione.numero} di {posizione.totale}
+      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
     </div>
   );
 }
