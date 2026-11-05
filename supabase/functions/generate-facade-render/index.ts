@@ -1,4 +1,5 @@
 import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
+import { vincoloFonte3d } from "../../../shared/render-planimetria/fonte3d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
@@ -609,6 +610,7 @@ Deno.serve(async (req) => {
       console.warn(JSON.stringify({ lvl: "warn", fn: "generate-facade-render", session_id: requestSessionId, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
     }
 
+    prompt = [prompt, vincoloFonte3d(normalizedConfig)].filter(Boolean).join("\n\n");
     const idSessione = requestSessionId;
     const primoTentativo = async () => {
       try {

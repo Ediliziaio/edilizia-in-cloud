@@ -886,6 +886,7 @@ Deno.serve(async (req) => {
         console.warn(JSON.stringify({ lvl: "warn", fn: "generate-technical-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
       }
 
+      finalPrompt = [finalPrompt, vincoloFonte3d(rawConfig)].filter(Boolean).join("\n\n");
       let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         providerResult = await generateCandidate(finalPrompt, true);
@@ -1136,3 +1137,4 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate elements, sa
     return jsonResponse({ error: "render_failed", message: msg }, 500);
   }
 });
+import { vincoloFonte3d } from "../../../shared/render-planimetria/fonte3d.ts";

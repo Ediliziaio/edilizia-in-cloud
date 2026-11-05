@@ -394,6 +394,7 @@ Deno.serve(async (req) => {
         console.warn(JSON.stringify({ lvl: "warn", fn: "generate-pool-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
       }
 
+      finalProviderPrompt = [finalProviderPrompt, vincoloFonte3d(rawConfig)].filter(Boolean).join("\n\n");
       let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         providerResult = await generateCandidate(finalProviderPrompt, true);
@@ -683,3 +684,4 @@ Regenerate applying the FULL brief. ABSOLUTE rules: exactly ONE pool with a perf
     );
   }
 });
+import { vincoloFonte3d } from "../../../shared/render-planimetria/fonte3d.ts";
