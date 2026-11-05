@@ -233,7 +233,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, avanza: avanzaSottofase, aggiungi: aggiungiSottofase, aggiungiTante: aggiungiSottofasi, salvaVoce, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, avanza: avanzaSottofase, avanzaTante: avanzaSottofasi, aggiungi: aggiungiSottofase, aggiungiTante: aggiungiSottofasi, salvaVoce, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -764,6 +764,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
                 onAggiungi={(phaseId, nome) => aggiungiSottofase.mutate({ phaseId, nome })}
                 onAggiungiTante={(phaseId, nomi) => aggiungiSottofasi.mutate({ phaseId, nomi })}
+                onAvanzaTante={(passi) => avanzaSottofasi.mutate(passi)}
                 onSalvaVoce={(riga, dati) => salvaVoce.mutate({ riga, dati }, {
                   onSuccess: () => {
                     // Il venduto della fase segue le voci, finché nessuno l'ha scritto diverso: lo leggono SAL e fatture.

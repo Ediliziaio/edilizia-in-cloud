@@ -17,6 +17,8 @@ export function useSottofasi(orderId: string | null | undefined) {
   const qc = useQueryClient();
   // Cambiare una sottofase cambia la fase (e la commessa): si aggiorna tutto il giro.
   const aggiorna = () => refreshWorkQueries(qc, orderId);
+  // Fasi e sottofasi soltanto: voci, costi e rapportini non cambiano.
+  const aggiornaLeggero = () => refreshWorkQueries(qc, orderId, null, { leggero: true });
   const onError = (e: unknown) => toast.error(messaggioErrore(e));
 
   const query = useQuery({
@@ -40,10 +42,11 @@ export function useSottofasi(orderId: string | null | undefined) {
 
   // Su una commessa grande il giro di aggiornamento dura secondi: la riga cambia subito, e torna com'era se il database rifiuta.
   const chiave = ["order_work_subphases", orderId];
-  const subito = async (id: string, cambia: (s: Sottofase) => Sottofase) => {
+  const subito = async (id: string | ReadonlySet<string>, cambia: (s: Sottofase) => Sottofase) => {
     await qc.cancelQueries({ queryKey: chiave });
     const prima = qc.getQueryData<Sottofase[]>(chiave);
-    qc.setQueryData<Sottofase[]>(chiave, (righe) => righe?.map((s) => (s.id === id ? cambia(s) : s)));
+    const tocca = (x: string) => (typeof id === "string" ? x === id : id.has(x));
+    qc.setQueryData<Sottofase[]>(chiave, (righe) => righe?.map((s) => (tocca(s.id) ? cambia(s) : s)));
     return { prima };
   };
   const annulla = (e: unknown, _v: unknown, ctx?: { prima?: Sottofase[] }) => {
@@ -59,7 +62,7 @@ export function useSottofasi(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onMutate: ({ id, fatta }) => subito(id, (s) => ({ ...s, fatta, percentuale: fatta ? 100 : (s.percentuale ?? 0) >= 100 ? 0 : s.percentuale })),
-    onSuccess: aggiorna,
+    onSuccess: aggiornaLeggero,
     onError: annulla,
   });
 
@@ -69,8 +72,9 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.from("order_work_subphases").update({ fatta }).in("id", ids);
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    onMutate: ({ ids, fatta }) => subito(new Set(ids), (s) => ({ ...s, fatta, percentuale: fatta ? 100 : (s.percentuale ?? 0) >= 100 ? 0 : s.percentuale })),
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   const aggiungi = useMutation({
@@ -80,7 +84,7 @@ export function useSottofasi(orderId: string | null | undefined) {
       });
       if (error) throw error;
     },
-    onSuccess: aggiorna,
+    onSuccess: aggiornaLeggero,
     onError,
   });
 
@@ -92,7 +96,7 @@ export function useSottofasi(orderId: string | null | undefined) {
       if (error) throw error;
       return nomi.length;
     },
-    onSuccess: (n) => { aggiorna(); toast.success(`${n} sottofasi aggiunte`); },
+    onSuccess: (n) => { aggiornaLeggero(); toast.success(`${n} sottofasi aggiunte`); },
     onError,
   });
 
@@ -127,8 +131,9 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.from("order_work_subphases").update({ name: nome }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    onMutate: ({ id, nome }) => subito(id, (s) => ({ ...s, name: nome })),
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   // A che punto è. «fatta» va scritta insieme: le sottofasi fatte prima di questa colonna hanno percentuale 0,
@@ -139,7 +144,23 @@ export function useSottofasi(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onMutate: ({ id, percentuale, quantita_fatta }) => subito(id, (s) => ({ ...s, percentuale, quantita_fatta, fatta: percentuale >= 100 })),
-    onSuccess: aggiorna,
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
+  });
+
+  // Più sottofasi allo stesso punto (o ognuna al suo, per annullare): subito sullo schermo, poi una scrittura per riga.
+  const avanzaTante = useMutation({
+    mutationFn: async (passi: ReadonlyArray<{ id: string; percentuale: number; quantita_fatta: number | null }>) => {
+      const esiti = await Promise.all(passi.map((p) => db.from("order_work_subphases")
+        .update({ percentuale: p.percentuale, quantita_fatta: p.quantita_fatta, fatta: p.percentuale >= 100 }).eq("id", p.id)));
+      const errore = esiti.find((e: { error: unknown }) => e.error);
+      if (errore) throw errore.error;
+    },
+    onMutate: async (passi) => {
+      const per = new Map(passi.map((p) => [p.id, p]));
+      return subito(new Set(per.keys()), (s) => { const p = per.get(s.id)!; return { ...s, percentuale: p.percentuale, quantita_fatta: p.quantita_fatta, fatta: p.percentuale >= 100 }; });
+    },
+    onSuccess: aggiornaLeggero,
     onError: annulla,
   });
 
@@ -150,8 +171,10 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.from("order_work_subphases").update({ data_inizio, data_fine, giorni }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    // Fine o giorni mancanti li completa il database: arrivano col giro dopo.
+    onMutate: ({ id, data_inizio, data_fine, giorni }) => subito(id, (s) => ({ ...s, data_inizio, data_fine, giorni })),
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   // Il piano in fila (pianoInSequenza): giorni e date di più sottofasi in una volta.
@@ -161,8 +184,12 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.rpc("sottofasi_pianifica_in_blocco", { p_passi: passi });
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    onMutate: async (passi) => {
+      const per = new Map(passi.map((p) => [p.id, p]));
+      return subito(new Set(per.keys()), (s) => { const p = per.get(s.id)!; return { ...s, data_inizio: p.data_inizio, data_fine: p.data_fine, giorni: p.giorni }; });
+    },
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   // L'ordine conta: il piano in fila le mette una dopo l'altra in quest'ordine.
@@ -171,8 +198,12 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.rpc("sottofasi_riordina", { p_ids: ids });
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    onMutate: async (ids) => {
+      const posto = new Map(ids.map((id, i) => [id, i]));
+      return subito(new Set(ids), (s) => ({ ...s, position: posto.get(s.id) ?? s.position }));
+    },
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   // Insieme alla precedente invece che dopo.
@@ -181,8 +212,9 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.from("order_work_subphases").update({ in_parallelo }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    onMutate: ({ id, in_parallelo }) => subito(id, (s) => ({ ...s, in_parallelo })),
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   // Quante persone ci lavorano.
@@ -191,8 +223,9 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.from("order_work_subphases").update({ risorse: n }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: aggiorna,
-    onError,
+    onMutate: ({ id, risorse: n }) => subito(id, (s) => ({ ...s, risorse: n })),
+    onSuccess: aggiornaLeggero,
+    onError: annulla,
   });
 
   // Una sottofase per ogni voce del computo che non ce l'ha (sottofasi_dalle_voci).
@@ -234,5 +267,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, avanza, aggiungi, aggiungiTante, salvaVoce, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, avanza, avanzaTante, aggiungi, aggiungiTante, salvaVoce, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

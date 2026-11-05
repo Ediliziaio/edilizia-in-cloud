@@ -22,11 +22,11 @@ import { avanzamentoFasi } from "@/lib/orders/schedaCommessa";
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
+  contaFiltri, dateInFila, dateSpostate, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
   type EconomiaDistinta, type FaseDistinta, type FiltroDistinta, type RigaDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
-import type { GiornoLavorativo, Sottofase } from "@/lib/orders/sottofasi";
+import { percentualeDaQuantita, quantitaEseguita, type GiornoLavorativo, type Sottofase } from "@/lib/orders/sottofasi";
 import { cn } from "@/lib/utils";
 
 export interface ChiLavora {
@@ -73,6 +73,36 @@ function CellaData({ valore, etichetta, modificabile, rossa, onSalva }: {
       className={cn("rounded px-0.5 text-left text-xs tabular-nums hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", rossa ? "font-medium text-rose-700" : valore ? "" : "text-muted-foreground/40")}>
       {breve(valore) || "—"}
     </button>
+  );
+}
+
+/** Aggiornamento rapido: il totale fatto (quantità se la voce ne ha una, altrimenti %), salvato uscendo dal campo. */
+function CampoRapido({ riga: r, onAvanza }: { riga: RigaDistinta; onAvanza: Props["onAvanza"] }) {
+  const misurabile = !!r.quantita && r.quantita > 0;
+  const attuale = misurabile ? quantitaEseguita(r) ?? 0 : r.percentuale;
+  const [valore, setValore] = useState(attuale ? String(attuale) : "");
+  // Invio e uscita dal campo salvano entrambi: lo stesso numero una volta sola.
+  const salvato = useRef<number>(attuale);
+  const salva = () => {
+    const n = Number(valore.replace(",", "."));
+    if (valore.trim() === "" || !Number.isFinite(n) || n < 0 || n === salvato.current) return;
+    salvato.current = n;
+    if (misurabile) onAvanza(r.sottofaseId!, { percentuale: percentualeDaQuantita(n, r.quantita) ?? 0, quantita_fatta: n });
+    else onAvanza(r.sottofaseId!, { percentuale: Math.min(100, Math.round(n)), quantita_fatta: null });
+  };
+  return (
+    <input type="text" inputMode="decimal" data-rapido value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
+      placeholder={misurabile ? r.unita ?? "q.tà" : "%"} aria-label={`${r.descrizione}: ${misurabile ? `fatti su ${r.quantita}` : "percentuale"}`}
+      title={misurabile ? `Fatti su ${r.quantita?.toLocaleString("it-IT")}${r.unita ? ` ${r.unita}` : ""}` : "Percentuale fatta"}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        salva();
+        const campi = [...document.querySelectorAll<HTMLInputElement>("input[data-rapido]")];
+        const dopo = campi[campi.indexOf(e.currentTarget) + 1];
+        if (dopo) { dopo.focus(); dopo.select(); dopo.scrollIntoView({ block: "nearest" }); }
+      }}
+      className="h-6 w-full rounded border border-sky-300 bg-background px-1 text-right text-[11px] tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-500" />
   );
 }
 
@@ -123,6 +153,8 @@ interface Props {
   onAggiungi: (faseId: string, nome: string) => void;
   /** Un elenco incollato, una sottofase per riga. */
   onAggiungiTante?: (faseId: string, nomi: string[]) => void;
+  /** Più sottofasi insieme, ognuna col suo punto: l'avanzamento in blocco e il suo «Annulla». */
+  onAvanzaTante?: (passi: Array<{ id: string; percentuale: number; quantita_fatta: number | null }>) => void;
   onSalvaVoce?: (riga: RigaDistinta, dati: DatiVoce) => void;
   onRisorse?: (id: string, persone: number | null) => void;
   onParallelo?: (id: string, insieme: boolean) => void;
@@ -143,7 +175,7 @@ type Elemento =
 
 export function DistintaLavorazioni({
   orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
+  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
   const [faseId, setFaseId] = useState<string | null>(() => {
@@ -174,6 +206,10 @@ export function DistintaLavorazioni({
   const [bloccoInizio, setBloccoInizio] = useState("");
   const [bloccoFine, setBloccoFine] = useState("");
   const [bloccoGiorni, setBloccoGiorni] = useState("");
+  const [bloccoSposta, setBloccoSposta] = useState("");
+  const [bloccoPct, setBloccoPct] = useState("");
+  // Aggiornamento rapido: un campo per riga, Invio passa alla dopo.
+  const [rapido, setRapido] = useState(false);
 
   const tutte = useMemo(() => righeDistinta(fasi, sottofasiDi, voci), [fasi, sottofasiDi, voci]);
   const dellaScelta = useMemo(() => (faseId ? tutte.filter((r) => r.faseId === faseId) : tutte), [tutte, faseId]);
@@ -246,12 +282,39 @@ export function DistintaLavorazioni({
   const inSelezione = scelteRighe.size + scelteFasi.size > 0;
   const fineAzioneDate = () => { azzeraScelte(); setBloccoInizio(""); setBloccoFine(""); setBloccoGiorni(""); };
 
+  // Dopo un'azione su tante righe, qualche secondo per tornare indietro.
+  const conAnnulla = (testo: string, indietro: () => void) => toast.success(testo, { action: { label: "Annulla", onClick: indietro }, duration: 8000 });
+  const dateDiPrima = () => conSottofase.map((r) => ({ id: r.sottofaseId!, data_inizio: r.inizio, data_fine: r.fine, giorni: r.giorni }));
   const applicaDate = () => {
     if (!bloccoInizio && !bloccoFine) return;
     const { passi, incoerenti } = pianoInBlocco(conSottofase, bloccoInizio || null, bloccoFine || null);
     if (incoerenti.length > 0) { toast.error(`Su ${incoerenti.length === 1 ? "1 riga" : `${incoerenti.length} righe`} la fine verrebbe prima dell'inizio: nessuna data salvata.`); return; }
+    const prima = dateDiPrima();
     onPianificaTutte(passi);
+    conAnnulla(`Date su ${passi.length} ${passi.length === 1 ? "riga" : "righe"}`, () => onPianificaTutte(prima));
     fineAzioneDate();
+  };
+  const spostaDate = () => {
+    const n = Number(bloccoSposta);
+    if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 3650) { toast.error("Scrivi di quanti giorni, anche negativo."); return; }
+    const passi = dateSpostate(conSottofase, n);
+    if (passi.length === 0) { toast.error("Nessuna riga con date da spostare: quelle fatte restano dove sono."); return; }
+    const prima = dateDiPrima();
+    onPianificaTutte(passi);
+    conAnnulla(`${passi.length} ${passi.length === 1 ? "riga spostata" : "righe spostate"} di ${n} giorni`, () => onPianificaTutte(prima));
+    setBloccoSposta("");
+    azzeraScelte();
+  };
+  const avanzaBlocco = () => {
+    const p = Number(bloccoPct);
+    if (!onAvanzaTante || !Number.isInteger(p) || p < 0 || p > 100) { toast.error("Scrivi una percentuale da 0 a 100."); return; }
+    const righe = conSottofase.filter((r) => !r.fatta || p < 100);
+    if (righe.length === 0) return;
+    const prima = righe.map((r) => ({ id: r.sottofaseId!, percentuale: r.percentuale, quantita_fatta: r.quantitaFatta }));
+    onAvanzaTante(righe.map((r) => ({ id: r.sottofaseId!, percentuale: p, quantita_fatta: r.quantita ? Math.round((r.quantita * p) / 100 * 1000) / 1000 : null })));
+    conAnnulla(`${righe.length} ${righe.length === 1 ? "riga" : "righe"} al ${p}%`, () => onAvanzaTante(prima));
+    setBloccoPct("");
+    azzeraScelte();
   };
   const mettiInFila = () => {
     const giorni = bloccoGiorni === "" ? null : Number(bloccoGiorni);
@@ -259,12 +322,20 @@ export function DistintaLavorazioni({
     const { passi, senzaGiorni } = dateInFila(conSottofase, bloccoInizio || oggi, giorni, lavorativo ?? (() => true));
     if (senzaGiorni.length > 0) { toast.error(`${senzaGiorni.length === 1 ? "1 riga non ha" : `${senzaGiorni.length} righe non hanno`} i giorni: scrivili qui.`); return; }
     if (passi.length === 0) { toast.error("Nessuna riga da mettere in fila: quelle fatte restano dove sono."); return; }
+    const prima = dateDiPrima();
     onPianificaTutte(passi);
+    conAnnulla(`${passi.length} ${passi.length === 1 ? "riga messa" : "righe messe"} in fila`, () => onPianificaTutte(prima));
     fineAzioneDate();
   };
   const segnaBlocco = (fatta: boolean) => {
-    const ids = conSottofase.filter((r) => r.fatta !== fatta).map((r) => r.sottofaseId!);
-    if (ids.length > 0) onSegnaTutte(ids, fatta);
+    const cambiano = conSottofase.filter((r) => r.fatta !== fatta);
+    const ids = cambiano.map((r) => r.sottofaseId!);
+    if (ids.length > 0) {
+      // Indietro: ognuna torna al suo punto, non solo «da fare».
+      const prima = cambiano.map((r) => ({ id: r.sottofaseId!, percentuale: r.percentuale, quantita_fatta: r.quantitaFatta }));
+      onSegnaTutte(ids, fatta);
+      conAnnulla(`${ids.length} ${ids.length === 1 ? "riga" : "righe"} ${fatta ? "segnate fatte" : "da fare"}`, () => (onAvanzaTante ? onAvanzaTante(prima) : onSegnaTutte(ids, !fatta)));
+    }
     azzeraScelte();
   };
   const salvaDataRiga = (r: RigaDistinta, campo: "inizio" | "fine", v: string | null) => {
@@ -395,7 +466,9 @@ export function DistintaLavorazioni({
           )}
         </div>
         <div className="whitespace-nowrap text-right text-xs tabular-nums max-md:col-start-2 max-md:text-left">{q}</div>
-        <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>
+        {rapido && r.sottofaseId && !r.fatta && puoModificare
+          ? <div className="max-md:hidden"><CampoRapido riga={r} onAvanza={onAvanza} /></div>
+          : <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>}
         <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.inizio} etichetta={`Inizio di ${r.descrizione}`} modificabile={puoModificare} onSalva={(v) => salvaDataRiga(r, "inizio", v)} /> : null}</div>
         <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={`Fine di ${r.descrizione}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeVenduto && r.venduto ? importo(r.venduto) : ""}</div>
@@ -516,9 +589,16 @@ export function DistintaLavorazioni({
             </Button>
           ))}
         </div>
+        {puoModificare && (
+          <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-7 px-2 text-xs" aria-pressed={rapido}
+            onClick={() => { const si = !rapido; setRapido(si); if (si && filtro === "tutte") setFiltro(conti.settimana > 0 ? "settimana" : "da_fare"); }}>
+            {rapido ? "Fine aggiornamento" : "Aggiorna avanzamento"}
+          </Button>
+        )}
         {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
       </div>
 
+      {rapido && <p role="status" className="rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-900">Scrivi nella colonna Stato quanto è fatto in totale (quantità o %), Invio passa alla riga dopo. Ogni riga si salva da sola.</p>}
       <div ref={scrollRef} className="max-h-[78vh] overflow-y-auto rounded-lg border">
         <div>
         <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground md:grid", COLONNE)}>
@@ -564,8 +644,21 @@ export function DistintaLavorazioni({
                   <label className="flex items-center justify-between gap-2">Giorni ognuna<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label="Giorni per ogni riga scelta" className="h-7 w-20 px-1 text-xs" /></label>
                   <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" title="Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro" onClick={mettiInFila}>Metti in fila</Button>
                 </div>
+                <div className="border-t pt-2">
+                  <label className="flex items-center justify-between gap-2">Sposta di giorni<Input type="number" inputMode="numeric" min={-3650} max={3650} value={bloccoSposta} onChange={(e) => setBloccoSposta(e.target.value)} aria-label="Giorni di cui spostare le righe scelte" placeholder="es. 7 o -3" className="h-7 w-20 px-1 text-xs" /></label>
+                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" disabled={!bloccoSposta} onClick={spostaDate}>Sposta le date</Button>
+                </div>
               </PopoverContent>
             </Popover>
+            {onAvanzaTante && (
+              <Popover>
+                <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>Avanzamento</Button></PopoverTrigger>
+                <PopoverContent className="w-56 space-y-2 text-xs">
+                  <label className="flex items-center justify-between gap-2">Tutte al<span className="flex items-center gap-1"><Input type="number" inputMode="numeric" min={0} max={100} value={bloccoPct} onChange={(e) => setBloccoPct(e.target.value)} aria-label="Percentuale per le righe scelte" className="h-7 w-16 px-1 text-xs" />%</span></label>
+                  <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={bloccoPct === ""} onClick={avanzaBlocco}>Applica</Button>
+                </PopoverContent>
+              </Popover>
+            )}
           </>}
           <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-background hover:bg-background/20 hover:text-background" aria-label="Togli la selezione" onClick={azzeraScelte}><X className="h-3.5 w-3.5" /></Button>
         </div>

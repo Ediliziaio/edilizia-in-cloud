@@ -235,6 +235,17 @@ describe("Tabella delle lavorazioni", () => {
     expect(onSalvaVoce.mock.calls[0][1]).toMatchObject({ quantita: 12 });
     expect(within(popup).getByRole("button", { name: "Salvataggio…" })).toBeDisabled();
   });
+  it("aggiornamento rapido: si scrive il totale fatto e Invio passa alla riga dopo", () => {
+    mostra({ fasi: [{ ...fasi[0], status: "in_corso" }, { ...fasi[1], status: "in_corso" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiorna avanzamento" }));
+    const campi = document.querySelectorAll<HTMLInputElement>("input[data-rapido]");
+    expect(campi.length).toBeGreaterThan(0);
+    fireEvent.change(campi[0], { target: { value: "40" } });
+    fireEvent.keyDown(campi[0], { key: "Enter" });
+    expect(azioni.onAvanza).toHaveBeenCalledTimes(1);
+    expect(azioni.onAvanza.mock.calls[0][0]).toBe("s1");
+    expect(screen.getByRole("button", { name: "Fine aggiornamento" })).toHaveAttribute("aria-pressed", "true");
+  });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });
     expect(screen.queryByRole("checkbox", { name: /Seleziona/ })).toBeNull();
