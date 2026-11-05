@@ -44,6 +44,7 @@ import {
   type SalPerFattura,
   documentiDaArchivio,
   fatturatoDaDocumenti,
+  giaFatturatoFase,
   fuoriDalleFasi,
   modoSuggerito,
   primaRataDaFatturare,
@@ -540,7 +541,7 @@ export function CreaFatturaDialog({
   );
 
   // ── Da fasi, voci e SAL ──────────────────────────────────────
-  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa), [documentiCommessa]);
+  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa, fasi), [documentiCommessa, fasi]);
   const scelta = (id: string): SceltaRiga => scelteRighe[id] ?? {};
   const cambiaScelta = (id: string, patch: SceltaRiga) => {
     setScelteRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -551,12 +552,13 @@ export function CreaFatturaDialog({
   // Senza contratto scritto non c'è un tetto: si propone il maturato.
   const residuoContratto = contrattoNetto > 0 ? Math.max(0, round2(contrattoNetto - fatturato.totale)) : Infinity;
   const fasiVendute = useMemo(() => {
-    const righe = fasi
-      .filter((f) => Number(f.importo_venduto) > 0)
+    const vendute = fasi.filter((f) => Number(f.importo_venduto) > 0);
+    const vendutoTotale = vendute.reduce((t, f) => t + Number(f.importo_venduto), 0);
+    const righe = vendute
       .map((f) => {
         const venduto = Number(f.importo_venduto);
         const avanzamento = avanzamentoFase({ status: f.status, percentuale: f.percentuale });
-        const gia = fatturato.perFase.get(f.id) ?? 0;
+        const gia = giaFatturatoFase(fatturato, f.id, venduto, vendutoTotale);
         return { id: f.id, nome: f.name, venduto, avanzamento, gia, maturato: quotaDaFatturare(venduto, avanzamento, gia) };
       });
     const dentro = quoteDentroIlContratto(righe.map((r) => r.maturato), residuoContratto);

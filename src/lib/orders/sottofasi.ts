@@ -246,14 +246,25 @@ export function fasiLavorateDelRapportino(
   sottofasi: ReadonlyMap<string, ReadonlyArray<Pick<Sottofase, "id" | "peso" | "fatta" | "percentuale">>>,
   spunte: ReadonlyArray<string>,
   lavorate: ReadonlyArray<string> = [],
+  avanzate: Readonly<Record<string, { quantita?: number; percentuale?: number }>> = {},
 ): FaseLavorata[] {
   return Object.entries(dichiarate).map(([phase_id, percentuale]): FaseLavorata => {
     const delle = sottofasi.get(phase_id) ?? [];
     if (delle.length === 0) return { phase_id, percentuale };
     const nuove = delle.filter((s) => !s.fatta && spunte.includes(s.id)).map((s) => s.id);
-    const anteprima = avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s.id), percentuale: s.percentuale }))) ?? percentuale;
-    const inCorso = delle.filter((s) => !s.fatta && !nuove.includes(s.id) && lavorate.includes(s.id)).map((s) => s.id);
-    return { phase_id, percentuale: anteprima, sottofasi_fatte: nuove, ...(inCorso.length ? { sottofasi_lavorate: inCorso } : {}) };
+    const anteprima = avanzamentoDaSottofasi(delle.map((s) => ({
+      peso: s.peso, fatta: s.fatta || nuove.includes(s.id), percentuale: Math.max(Number(s.percentuale) || 0, avanzate[s.id]?.percentuale ?? 0),
+    }))) ?? percentuale;
+    const aperte = delle.filter((s) => !s.fatta && !nuove.includes(s.id));
+    // Chi scrive quanto ha fatto ci ha anche lavorato: un gesto solo.
+    const conDato = (id: string) => avanzate[id] && (avanzate[id].quantita || avanzate[id].percentuale);
+    const inCorso = aperte.filter((s) => lavorate.includes(s.id) || conDato(s.id)).map((s) => s.id);
+    const conAvanzamento = aperte.filter((s) => conDato(s.id)).map((s) => ({ id: s.id, ...avanzate[s.id] }));
+    return {
+      phase_id, percentuale: anteprima, sottofasi_fatte: nuove,
+      ...(inCorso.length ? { sottofasi_lavorate: inCorso } : {}),
+      ...(conAvanzamento.length ? { sottofasi_avanzate: conAvanzamento } : {}),
+    };
   });
 }
 
@@ -434,4 +445,17 @@ export function vociDelleSottofasi(voci: ReadonlyArray<{
     }
   }
   return { perSottofase, senzaSottofase };
+}
+
+/** Le sottofasi avanzate salvate in un rapportino, rimesse nel modulo quando lo si riapre. */
+export function avanzateDelRapportino(fasi: unknown): Record<string, { quantita?: number; percentuale?: number }> {
+  const esito: Record<string, { quantita?: number; percentuale?: number }> = {};
+  if (!Array.isArray(fasi)) return esito;
+  for (const f of fasi as Array<{ sottofasi_avanzate?: unknown }>) {
+    if (!Array.isArray(f?.sottofasi_avanzate)) continue;
+    for (const a of f.sottofasi_avanzate as Array<{ id?: string; quantita?: number; percentuale?: number }>) {
+      if (a?.id) esito[a.id] = { ...(a.quantita ? { quantita: a.quantita } : {}), ...(a.percentuale ? { percentuale: a.percentuale } : {}) };
+    }
+  }
+  return esito;
 }

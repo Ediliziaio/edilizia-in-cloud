@@ -156,9 +156,16 @@ export function useSottofasi(orderId: string | null | undefined) {
   // Una sottofase per ogni voce del computo che non ce l'ha (sottofasi_dalle_voci).
   const dalleVoci = useMutation({
     mutationFn: async (phaseId: string) => {
-      const { data, error } = await db.rpc("sottofasi_dalle_voci", { p_phase_id: phaseId });
-      if (error) throw error;
-      return Number(data) || 0;
+      // Il database ne crea al massimo 100 per volta: si continua finché le voci non sono finite.
+      let totale = 0;
+      for (let giro = 0; giro < 100; giro += 1) {
+        const { data, error } = await db.rpc("sottofasi_dalle_voci", { p_phase_id: phaseId });
+        if (error) throw error;
+        const fatte = Number(data) || 0;
+        totale += fatte;
+        if (fatte < 100) break;
+      }
+      return totale;
     },
     onSuccess: () => { aggiorna(); void qc.invalidateQueries({ queryKey: ["voci-previste-fasi"] }); },
     onError,
