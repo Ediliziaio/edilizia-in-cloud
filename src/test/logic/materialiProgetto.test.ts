@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import bilocale from "../../../shared/planimetrie/esempi/bilocale.json";
 import { validaPlanimetria, type Planimetria } from "../../../shared/planimetrie/modello.ts";
-import { applicaMaterialiProgetto, materialiDelProgetto, pavimentoDaCampione, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
+import { applicaMaterialiProgetto, cambiaFormatoPavimento, materialiDelProgetto, pavimentoDaCampione, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { pianteDaPlanimetria, costruisciScena } from "@/lib/planimetrie/tred";
 import { aPlanimetria, daPlanimetria } from "@/components/planimetrie/editor/adattatore";
 import { selectedRoomVisuals, roomVisualSignature } from "../../../shared/render-references/roomVisualCatalog.ts";
@@ -21,6 +21,11 @@ describe("materiali comuni a tutto il progetto", () => {
       expect(cfg.pavimento).toEqual(m.pavimento);
       expect(cfg.infissi_progetto).toEqual(m.infissi);
     }
+  });
+  it("cambiare il formato comune aggiorna davvero larghezza e lunghezza dei listoni", () => {
+    const p = cambiaFormatoPavimento(pavimentoDaCampione("rovere"), "15×90");
+    expect(p.larghezza_listello_mm).toBe(150); expect(p.lunghezza_listello_mm).toBe(900);
+    expect(applicaMaterialiProgetto({ pavimento: pavimentoDaCampione("marmo") }, { pavimento: p }).pavimento).toEqual(p);
   });
   it("solo una scelta esplicita permette un pavimento diverso per un render", () => {
     const cfg = { pavimento: pavimentoDaCampione("marmo"), eccezioni_materiali_progetto: { pavimento: true } };

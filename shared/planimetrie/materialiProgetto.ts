@@ -39,6 +39,13 @@ export function descrizionePavimento(p: ConfigPavimentoStanza): string {
   return [nome, essenza && !nome.toLowerCase().includes(essenza) ? essenza : "", (p.formato_piastrella ?? p.dimensione) ? `${p.formato_piastrella ?? p.dimensione} cm` : "", clean(p.pattern), clean(p.finitura)].filter(Boolean).join(" · ");
 }
 
+/** Un formato in centimetri aggiorna anche le misure dei listoni in millimetri. */
+export function cambiaFormatoPavimento(p: ConfigPavimentoStanza, formato: string): ConfigPavimentoStanza {
+  const parsed = formato.trim().replace(/,/g, ".").match(/^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)$/i);
+  const parquet = p.tipo?.startsWith("parquet_");
+  return { ...p, formato_piastrella: formato, ...(parquet && parsed && Number(parsed[1]) > 0 && Number(parsed[2]) > 0 ? { larghezza_listello_mm: Number(parsed[1]) * 10, lunghezza_listello_mm: Number(parsed[2]) * 10 } : {}) };
+}
+
 export function statoConMateriali(s: StatoPianta, materiali: MaterialiProgetto): StatoPianta {
   return materiali.pavimento ? { ...s, locali: s.locali.map((l) => ({ ...l, finiture: { ...l.finiture, pavimento: descrizionePavimento(materiali.pavimento!) } })) } : s;
 }
@@ -51,5 +58,5 @@ export function vincoloInfissiProgetto(infissi: InfissiProgetto | undefined): st
 export function pavimentoDaCampione(id: string): ConfigPavimentoStanza {
   const c = PAVIMENTI_STANZA.find((x) => x.id === id) ?? PAVIMENTI_STANZA[0];
   const wood = ["rovere", "noce", "gres_legno"].includes(c.id);
-  return { attivo: true, tipo: c.id === "noce" || c.id === "rovere" ? "parquet_legno" : c.id === "marmo" ? "marmo" : c.id === "pietra" ? "pietra_naturale" : c.id === "cotto" ? "cotto" : "gres_porcellanato", effetto_visivo: wood ? "legno" : c.id === "cemento" ? "cemento" : c.id === "marmo" ? "marmo" : c.id === "pietra" ? "pietra" : c.id === "cotto" ? "cotto" : "pietra", ...(wood ? { essenza_legno: c.id === "noce" ? "noce" : "rovere_naturale", larghezza_listello_mm: 180, lunghezza_listello_mm: 1200 } : {}), colore_nome: c.nome, colore_hex: c.colore === "#ffffff" ? (wood ? c.id === "noce" ? "#876548" : "#C4A882" : "#F2F0EA") : c.colore, pattern: "dritto", formato_piastrella: wood ? "20x120" : c.id === "cotto" ? "30x30" : "60x60", finitura: c.id === "marmo" ? "levigato" : "opaco", fuga_larghezza_mm: 2, fuga_colore: "tono_su_tono", battiscopa_azione: "mantieni" };
+  return { attivo: true, tipo: c.id === "noce" || c.id === "rovere" ? "parquet_legno" : c.id === "marmo" ? "marmo" : c.id === "pietra" ? "pietra_naturale" : c.id === "cotto" ? "cotto" : "gres_porcellanato", effetto_visivo: wood ? "legno" : c.id === "cemento" ? "cemento" : c.id === "marmo" ? "marmo" : c.id === "pietra" ? "pietra" : c.id === "cotto" ? "cotto" : "pietra", ...(wood ? { essenza_legno: c.id === "noce" ? "noce" : "rovere_naturale", larghezza_listello_mm: 180, lunghezza_listello_mm: 1200 } : {}), colore_nome: c.nome, colore_hex: c.colore === "#ffffff" ? (wood ? c.id === "noce" ? "#876548" : "#C4A882" : "#F2F0EA") : c.colore, pattern: "dritto", formato_piastrella: ["rovere", "noce"].includes(c.id) ? "18x120" : wood ? "20x120" : c.id === "cotto" ? "30x30" : "60x60", finitura: c.id === "marmo" ? "levigato" : "opaco", fuga_larghezza_mm: 2, fuga_colore: "tono_su_tono", battiscopa_azione: "mantieni" };
 }
