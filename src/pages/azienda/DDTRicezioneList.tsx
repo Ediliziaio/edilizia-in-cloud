@@ -73,6 +73,7 @@ import {
   DDT_STATO_META,
 } from "@/components/ddt/DDTStatusBadge";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
 import { OperationalViewSwitch } from "@/components/orders/OperationalViewSwitch";
@@ -249,6 +250,7 @@ export default function DDTRicezioneList() {
   const setFilterSupplier = (v: string) => update({ fornitore: v });
   const setFilterPeriodo = (v: string) => update({ periodo: v });
   const [newOpen, setNewOpen] = useState(false);
+  const [bloccoOpen, setBloccoOpen] = useState(false);
   const movement = usePipelineTransition({ kind: "ddt", enabled: canCreate });
 
   const [sort, setSort] = useState<{
@@ -728,6 +730,13 @@ export default function DDTRicezioneList() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {canCreate && (
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setBloccoOpen(true)}>
+              <span className="hidden sm:inline">Carica più bolle</span>
+              <span className="sm:hidden">Più bolle</span>
+            </Button>
+          )}
+
           <Button
             onClick={() => {
               if (canCreate) setNewOpen(true);
@@ -1173,6 +1182,7 @@ export default function DDTRicezioneList() {
       {/* ─── New DDT Wizard ─────────────────────────────────── */}
       {movement.dialog}
       {canCreate && <NewDDTDialog open={newOpen} onOpenChange={setNewOpen} />}
+      {canCreate && bloccoOpen && <BolleInBloccoDialog open onOpenChange={setBloccoOpen} />}
     </div>
   );
 }

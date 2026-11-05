@@ -26,6 +26,7 @@ import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaF
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
 import { fatturaVerificata, quoteDelCosto, vociFattura } from "@/lib/fatturazione/ripartizioneFattura";
 import { NewDDTDialog } from "@/components/ddt/NewDDTDialog";
+import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
@@ -294,6 +295,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
   const puoCaricare = !permessi.solaLettura
     && (permessi.canEditWarehouse || permessi.canManagePurchasing || permessi.canEditOrders || permessi.isAdmin);
   const [carica, setCarica] = useState(false);
+  const [caricaPiu, setCaricaPiu] = useState(false);
   const { updateDDT } = useDDTRicezioneMutations(null);
   const linkDi = (r: RigaBolla) => (r.origine === "cliente" && !puoAprireDocumenti ? undefined : r.link);
   const colonne: ColonnaTabella<RigaBolla>[] = [
@@ -318,7 +320,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
     <RiquadroCommessa
       icona={<Truck className="h-5 w-5 text-primary" aria-hidden="true" />}
       titolo="Bolle e DDT" conteggio={data.length}
-      azioni={puoCaricare ? <Button size="sm" onClick={() => setCarica(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />Carica bolla</Button> : undefined}
+      azioni={puoCaricare ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setCaricaPiu(true)}>Più bolle</Button><Button size="sm" onClick={() => setCarica(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />Carica bolla</Button></div> : undefined}
       numeri={data.length > 0 ? (
         <ContatoriFiltro etichetta="Bolle per stato e provenienza" attivo={filtro} onScegli={setFiltro} voci={[
           { chiave: "daVerificare", etichetta: "Da verificare", valore: conta("daVerificare"), avviso: true },
@@ -342,6 +344,7 @@ export function OrderBolleDdtCard({ orderId, puoAprireDocumenti = true }: { orde
           <p className="mt-2 text-xs text-muted-foreground">Le bolle dal cantiere si verificano in Cantiere → Diario, nel riquadro «Da approvare dal cantiere».</p>
         )}
     </RiquadroCommessa>
+      {caricaPiu && <BolleInBloccoDialog open onOpenChange={setCaricaPiu} orderId={orderId} destinazione="cantiere" />}
       {carica && (
         <NewDDTDialog
           open={carica}

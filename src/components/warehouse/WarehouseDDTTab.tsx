@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -5,6 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BolleInBloccoDialog } from "@/components/ddt/BolleInBloccoDialog";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -75,6 +78,8 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permessi = usePermissions();
+  const [caricaPiu, setCaricaPiu] = useState(false);
   const navigate = useNavigate();
   // DDT in uscita: il PDF si genera dal record documenti_fiscali e funziona in
   // QUALSIASI modalità fatturazione (l'editor /azienda/documenti/:id è invece
@@ -146,6 +151,12 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
 
       {/* ───────────────── In entrata ───────────────── */}
       <TabsContent value="entrata">
+        {!permessi.solaLettura && (
+          <div className="mb-3 flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => setCaricaPiu(true)}>Carica più bolle</Button>
+          </div>
+        )}
+        {caricaPiu && <BolleInBloccoDialog open onOpenChange={setCaricaPiu} destinazione="magazzino" warehouseId={warehouseFilter} />}
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
             Caricamento DDT…
