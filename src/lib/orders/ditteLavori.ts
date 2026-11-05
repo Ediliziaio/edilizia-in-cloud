@@ -176,3 +176,25 @@ export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
     }))
     .filter((r) => r.descrizione && r.quantita > 0);
 }
+
+/**
+ * Il contratto diviso per fase: quanto vale ogni fase nell'elenco pattuito (senza IVA). La fase si riconosce
+ * dall'id scritto sulla riga o, nei contratti vecchi, dal nome. Le righe che non trovano una fase restano fuori
+ * e si contano: il previsto non le può mettere da nessuna parte.
+ */
+export function contrattoPerFase(
+  elenco: ReadonlyArray<Pick<RigaElencoLavori, "fase" | "importo" | "fase_id">>,
+  fasi: ReadonlyArray<{ id: string; name: string }>,
+): { perFase: Map<string, number>; senzaFase: number } {
+  const esistenti = new Set(fasi.map((f) => f.id));
+  const perNome = new Map(fasi.map((f) => [f.name.trim().toLocaleLowerCase("it-IT"), f.id]));
+  const perFase = new Map<string, number>();
+  let senzaFase = 0;
+  for (const r of elenco) {
+    const id = r.fase_id && esistenti.has(r.fase_id) ? r.fase_id : perNome.get(String(r.fase ?? "").trim().toLocaleLowerCase("it-IT"));
+    const importo = Number(r.importo) || 0;
+    if (id) perFase.set(id, centesimi((perFase.get(id) ?? 0) + importo));
+    else senzaFase = centesimi(senzaFase + importo);
+  }
+  return { perFase, senzaFase };
+}

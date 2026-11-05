@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
+import { contrattoPerFase, costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
 
 // I nomi veri delle fasi di Dimora Torino (O-0001 e O-0002).
 const storico = [
@@ -134,5 +134,18 @@ describe("Elenco lavori: tutto quello che la ditta deve fare", () => {
   it("salvando l'elenco i collegamenti restano", () => {
     const [r] = elencoDaSalvare([{ fase: "A", descrizione: "X", unita: "m", quantita: 1, prezzo: 1, importo: 1, fase_id: "a", sottofase_id: "s" }]);
     expect(r).toMatchObject({ fase_id: "a", sottofase_id: "s" });
+  });
+});
+
+describe("Contratto firmato e previsto delle fasi", () => {
+  it("divide il pattuito per fase, per id o per nome, e conta quello che non ha fase", () => {
+    const { perFase, senzaFase } = contrattoPerFase([
+      { fase: "Impianti", importo: 300, fase_id: "a" },
+      { fase: " IMPIANTI ", importo: 200 },
+      { fase: "Finiture", importo: 100 },
+      { fase: "Cancellata", importo: 50, fase_id: "x" },
+    ], [{ id: "a", name: "Impianti" }, { id: "b", name: "Finiture" }]);
+    expect([...perFase]).toEqual([["a", 500], ["b", 100]]);
+    expect(senzaFase).toBe(50);
   });
 });

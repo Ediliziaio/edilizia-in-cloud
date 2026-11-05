@@ -417,7 +417,7 @@ export function DistintaLavorazioni({
           </div>
         </div>
         <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{dellaFase.length} voci</div>
-        <div className="flex items-center gap-1 max-md:col-start-2" title={`Avanzamento ${pct}%`}>
+        <div className="flex items-center gap-1 max-md:col-start-2" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? `Avanzamento ${pct}%: dalle sottofasi, pesate sull'importo` : `Avanzamento ${pct}%: scritto a mano o dai rapportini (la fase non ha sottofasi)`}>
           <span className="h-1 w-6 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
           <span className="text-[11px] font-medium tabular-nums">{pct}%</span>
         </div>
