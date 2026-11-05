@@ -21,8 +21,8 @@ describe("SottofasiFase", () => {
         sottofasi={[riga({ fatta: true }), riga({ id: "s2", name: "Cavi" }), riga({ id: "s3", name: "Quadro" })]}
       />,
     );
-    expect(screen.getByText("1 di 3 · 33%")).toBeInTheDocument();
-    expect(screen.getByText("1 di 3 · 33%")).toHaveAttribute("title", "L'avanzamento della fase si calcola dalle sottofasi fatte");
+    expect(screen.getByText("1 di 3")).toBeInTheDocument();
+    expect(screen.getByText("1 di 3")).toHaveAttribute("title", "L'avanzamento della fase si calcola dalle sottofasi, pesate sull'importo");
   });
 
   it("segna e toglie la spunta", () => {

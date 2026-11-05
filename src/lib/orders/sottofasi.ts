@@ -19,6 +19,10 @@ export interface Sottofase {
   peso: number;
   fatta: boolean;
   fatta_il: string | null;
+  /** A che punto è, 0–100; 100 equivale a fatta (07/12/2028, il database le tiene allineate). */
+  percentuale?: number;
+  /** La quantità già eseguita, se la voce si misura. */
+  quantita_fatta?: number | null;
   /** Finestra prevista, giorni «yyyy-MM-dd» (29/10/2026). */
   data_inizio?: string | null;
   data_fine?: string | null;
@@ -36,16 +40,38 @@ export interface Sottofase {
 const pesoValido = (peso: number): number => (Number.isFinite(peso) && peso >= 1 ? peso : 1);
 
 /** Avanzamento 0–100 di una fase dalle sue sottofasi; `null` se non ne ha. */
-export function avanzamentoDaSottofasi(sottofasi: ReadonlyArray<Pick<Sottofase, "peso" | "fatta">>): number | null {
+export function avanzamentoDaSottofasi(sottofasi: ReadonlyArray<Pick<Sottofase, "peso" | "fatta" | "percentuale">>): number | null {
   if (sottofasi.length === 0) return null;
   let totale = 0;
   let fatto = 0;
+  let finite = true;
   for (const s of sottofasi) {
     const peso = pesoValido(s.peso);
     totale += peso;
-    if (s.fatta) fatto += peso;
+    const pct = s.fatta ? 100 : Number(s.percentuale) || 0;
+    if (pct < 100) finite = false;
+    fatto += (peso * pct) / 100;
   }
-  return Math.round((100 * fatto) / totale);
+  // Come il database: finché una sottofase non è finita la fase non arriva al 100 per un arrotondamento.
+  return finite ? 100 : Math.min(99, Math.round((100 * fatto) / totale));
+}
+
+/** La percentuale di una quantità eseguita: 100 solo se è tutta, mai 0 se qualcosa è stato fatto. Null senza un totale. */
+export function percentualeDaQuantita(fatta: number, totale: number | null | undefined): number | null {
+  if (!totale || totale <= 0 || !Number.isFinite(fatta) || fatta < 0) return null;
+  if (fatta >= totale) return 100;
+  if (fatta === 0) return 0;
+  return Math.max(1, Math.min(99, Math.round((100 * fatta) / totale)));
+}
+
+/**
+ * Quanto risulta eseguito. La quantità scritta vale finché dice la stessa cosa della percentuale:
+ * la spunta e i rapportini cambiano solo la percentuale, e allora si ricava da quella.
+ */
+export function quantitaEseguita(r: { percentuale: number; quantitaFatta: number | null; quantita: number | null }): number | null {
+  if (!r.quantita || r.quantita <= 0) return null;
+  if (r.quantitaFatta !== null && percentualeDaQuantita(r.quantitaFatta, r.quantita) === r.percentuale) return r.quantitaFatta;
+  return Math.round((r.quantita * r.percentuale) / 100 * 1000) / 1000;
 }
 
 /**
@@ -89,7 +115,7 @@ export function sottofasiPerFase<T extends Pick<Sottofase, "phase_id" | "positio
  * annidate. Così le regole di accesso si valutano solo sulle fasi richieste e
  * sulle loro sottofasi: pochi millisecondi anche con molte commesse.
  */
-export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo, risorse, iniziata_il, giorni_lavorati)";
+export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, percentuale, quantita_fatta, data_inizio, data_fine, giorni, in_parallelo, risorse, iniziata_il, giorni_lavorati)";
 
 /** Le sottofasi annidate nelle fasi (vedi SOTTOFASI_NELLA_FASE), in ordine di posizione. */
 export function sottofasiDalleFasi(fasi: ReadonlyArray<Record<string, unknown>> | null | undefined): Sottofase[] {

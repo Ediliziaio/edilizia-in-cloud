@@ -136,7 +136,7 @@ describe("Lavorazioni e squadra", () => {
     ]]]);
     // la fase «in corso» si apre da sola: la checklist è già visibile
     draw();
-    expect(screen.getByText("1 di 2 · 50%")).toBeInTheDocument();
+    expect(screen.getByText("1 di 2")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
     expect(state.segnaSottofase).toHaveBeenCalledWith({ id: "s2", fatta: true });
     // la percentuale non si corregge a mano: la decidono le sottofasi

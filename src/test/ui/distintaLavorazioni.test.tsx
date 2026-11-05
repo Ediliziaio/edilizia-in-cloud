@@ -12,7 +12,7 @@ const voci = [
   { id: "v1", phase_id: "f1", position: 0, descrizione: "Controparete", unita: "mq", quantita: 10, costo_manodopera: 5, costo_materiali: 5, importo: 200, origine_codice: "A1", subphase_id: "s1" as string | null },
   { id: "v2", phase_id: "f2", position: 0, descrizione: "Tubazione", unita: "m", quantita: 2, costo_manodopera: 0, costo_materiali: 0, importo: 50, origine_codice: "B2", subphase_id: null as string | null },
 ];
-const azioni = { onAssegna: vi.fn(), onSegna: vi.fn(), onSegnaTutte: vi.fn(), onPianifica: vi.fn(), onPianificaTutte: vi.fn(), onDateFase: vi.fn(), onDalleVoci: vi.fn(), onAggiungi: vi.fn(), onRinomina: vi.fn(), onElimina: vi.fn(), onRiordina: vi.fn(), onApriScheda: vi.fn() };
+const azioni = { onAssegna: vi.fn(), onSegna: vi.fn(), onAvanza: vi.fn(), onSegnaTutte: vi.fn(), onPianifica: vi.fn(), onPianificaTutte: vi.fn(), onDateFase: vi.fn(), onDalleVoci: vi.fn(), onAggiungi: vi.fn(), onRinomina: vi.fn(), onElimina: vi.fn(), onRiordina: vi.fn(), onApriScheda: vi.fn() };
 const iva = { aliquota: 10, valore_commessa: 1000, debito_fatturato: 0, imponibile_fatturato: 0, fatture_emesse: 0, debito_previsto: 100, debito_da_fatturare: 100, split_payment: 0, credito_fatture: 30, imponibile_acquisti: 300, fatture_ricevute: 1, credito_previsto_costi: 0, costi_senza_fattura_elettronica: 0, credito_previsto_ditte: 0, reverse_charge_imponibile: 500, reverse_charge_iva: 50, saldo_ad_oggi: -30, saldo_previsto: 70 };
 const chiDi = new Map([["f1", { squadre: ["Squadra A"], persone: ["Mario"], ditte: [], mezzi: ["Gru"], articoli: 4 }]]);
 const mostra = (extra: Partial<React.ComponentProps<typeof DistintaLavorazioni>> = {}) => render(
@@ -131,9 +131,9 @@ describe("Tabella delle lavorazioni", () => {
     expect(azioni.onSegnaTutte).toHaveBeenCalledExactlyOnceWith(["s1"], true);
     expect(azioni.onSegna).not.toHaveBeenCalled();
   });
-  it("mostra l'avanzamento pesato sul venduto", () => {
+  it("mostra lo stesso avanzamento della testata della commessa", () => {
     mostra();
-    expect(riepilogo()).toHaveTextContent("58%");
+    expect(riepilogo()).toHaveTextContent("32%");
   });
   it("distingue imponibile e con IVA, e dice quanta IVA resta da versare", () => {
     mostra({ iva });
@@ -188,6 +188,14 @@ describe("Tabella delle lavorazioni", () => {
     fireEvent.change(within(popup).getByLabelText("Giorni"), { target: { value: "7" } });
     fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
     expect(azioni.onPianifica.mock.calls[0][1]).toMatchObject({ data_fine: null, giorni: 7 });
+  });
+  it("nel popup un pulsante salva subito la percentuale", () => {
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.click(within(popup).getByRole("button", { name: "50%" }));
+    expect(azioni.onAvanza.mock.calls[0][0]).toBe("s1");
+    expect(azioni.onAvanza.mock.calls[0][1].percentuale).toBe(50);
   });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });

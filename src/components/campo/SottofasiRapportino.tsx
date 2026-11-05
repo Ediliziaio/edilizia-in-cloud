@@ -22,7 +22,7 @@ interface SottofasiRapportinoProps {
  */
 export function SottofasiRapportino({ nomeFase, sottofasi, spunte, onSpunta, lavorate = [], onLavorata }: SottofasiRapportinoProps) {
   const fatta = (s: Sottofase) => s.fatta || spunte.includes(s.id);
-  const anteprima = avanzamentoDaSottofasi(sottofasi.map((s) => ({ peso: s.peso, fatta: fatta(s) }))) ?? 0;
+  const anteprima = avanzamentoDaSottofasi(sottofasi.map((s) => ({ peso: s.peso, fatta: fatta(s), percentuale: s.percentuale }))) ?? 0;
   const oggi = giornoLocale(new Date().toISOString());
   const inRitardo = (s: Sottofase) => { const i = intervalloSottofase(s); return !fatta(s) && !!i && i[1] < oggi; };
   const scegli = (s: Sottofase, cosa: "lavorata" | "finita") => {

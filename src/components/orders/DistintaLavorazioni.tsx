@@ -17,10 +17,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFasi";
 import { SchedaVoce } from "@/components/orders/SchedaVoce";
+import { avanzamentoFasi } from "@/lib/orders/schedaCommessa";
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  avanzamentoFasi, contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
+  contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
   type EconomiaDistinta, type FaseDistinta, type FiltroDistinta, type RigaDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
@@ -111,6 +112,7 @@ interface Props {
   onSegna: (id: string, fatta: boolean) => void;
   /** Una scrittura sola per tante righe: con centinaia di voci non si manda una richiesta per riga. */
   onSegnaTutte: (ids: string[], fatta: boolean) => void;
+  onAvanza: (id: string, avanzamento: { percentuale: number; quantita_fatta: number | null }) => void;
   onPianifica: (id: string, piano: { data_inizio: string | null; data_fine: string | null; giorni: number | null }) => void;
   onPianificaTutte: (passi: Array<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => void;
   onDateFase: (id: string, date: { start_date: string | null; end_date: string | null }) => void;
@@ -132,7 +134,7 @@ type Elemento =
 
 export function DistintaLavorazioni({
   orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
+  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
   const [faseId, setFaseId] = useState<string | null>(() => {
@@ -175,7 +177,9 @@ export function DistintaLavorazioni({
   const daRipartire = iva ? Math.round((iva.valore_commessa - vendutoFasi) * 100) / 100 : 0;
   const aliquota = iva?.aliquota ?? 0;
   const conIvaTot = conAliquota(venduto, aliquota);
-  const avanzamento = avanzamentoFasi(fasi, economiaDi);
+  // Lo stesso numero della testata della commessa: una commessa ha un avanzamento solo.
+  const medio = avanzamentoFasi(fasi).avgPct;
+  const avanzamento = medio === null ? null : Math.round(medio);
   const daVersare = iva ? saldoIva(Math.max(iva.debito_previsto, iva.debito_fatturato), iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) : null;
   const margine = venduto > 0 && economia.previsto > 0 ? Math.round(((venduto - economia.previsto) / venduto) * 100) : null;
   const importo = (n: number | null | undefined) => (n ? formatCurrency(conIva ? conAliquota(n, aliquota).totale : n) : "—");
@@ -533,7 +537,7 @@ export function DistintaLavorazioni({
         vedeVenduto={vedeVenduto} vedeCosti={vedeCosti} vedeMargini={vedeMargini} puoModificare={puoModificare}
         onChiudi={() => setAperta(null)}
         onVicina={(verso) => { const v = righeInElenco[indiceAperta + verso]; if (v) setAperta(v.key); }}
-        onSegna={onSegna} onPianifica={onPianifica} onRinomina={onRinomina}
+        onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
         onSposta={sposta}
         onElimina={(x) => { setAperta(null); setDaEliminare(x); }}
         onAssegna={(id) => { setAperta(null); setAssegnaA([id]); }}

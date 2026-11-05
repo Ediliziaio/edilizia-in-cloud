@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  statoVoce, avanzamentoFasi, contaFiltri, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
+  statoVoce, contaFiltri, dateInFila, dateValide, ordineSpostando, distintaConsigliata, filtraDistinta, pianoInBlocco, righeDistinta, totaliDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import type { Sottofase } from "@/lib/orders/sottofasi";
 
@@ -118,12 +118,6 @@ describe("date in blocco", () => {
 });
 
 describe("totali e soglie", () => {
-  it("l'avanzamento di più fasi pesa sul venduto, o è la media se manca", () => {
-    const f = [{ id: "a", name: "A", percentuale: 100 }, { id: "b", name: "B", percentuale: 0 }];
-    expect(avanzamentoFasi(f, new Map([["a", { venduto: 300, costoPrevisto: 0, costoConsuntivo: 0 }], ["b", { venduto: 100, costoPrevisto: 0, costoConsuntivo: 0 }]]))).toBe(75);
-    expect(avanzamentoFasi(f)).toBe(50);
-    expect(avanzamentoFasi([])).toBeNull();
-  });
   it("somma venduto e previsto e dice se il previsto è parziale", () => {
     const t = totaliDistinta(righeDistinta(fasi, new Map(), [voce("a", { costo_materiali: 1.5 }), voce("b")]));
     expect(t).toMatchObject({ righe: 2, venduto: 200, previsto: 15, senzaPrevisto: 1 });

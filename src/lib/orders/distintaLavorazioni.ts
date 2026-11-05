@@ -55,6 +55,9 @@ export interface RigaDistinta {
   /** Dal primo rapportino approvato che la dichiara. */
   iniziata: boolean;
   fatta: boolean;
+  /** A che punto è, 0–100. */
+  percentuale: number;
+  quantitaFatta: number | null;
   venduto: number | null;
   /** Null se la riga non ha una voce o la voce non ha costi: non è un costo zero. */
   previsto: number | null;
@@ -118,6 +121,8 @@ export function righeDistinta(
         iniziata: !!s?.iniziata_il,
         // Una voce senza sottofase segue la fase: con la fase finita non resta «da fare».
         fatta: s?.fatta ?? (fase.status === "completata" || Number(fase.percentuale) >= 100),
+        percentuale: s ? (s.fatta ? 100 : Number(s.percentuale) || 0) : fase.status === "completata" || Number(fase.percentuale) >= 100 ? 100 : 0,
+        quantitaFatta: s?.quantita_fatta ?? null,
         venduto: v.importo,
         previsto: costo > 0 ? costo : null,
       };
@@ -138,6 +143,8 @@ export function righeDistinta(
       giorniLavorati: s.giorni_lavorati ?? 0,
       iniziata: !!s.iniziata_il,
       fatta: s.fatta,
+      percentuale: s.fatta ? 100 : Number(s.percentuale) || 0,
+      quantitaFatta: s.quantita_fatta ?? null,
       venduto: null,
       previsto: null,
     }));
@@ -240,22 +247,6 @@ export function pianoInBlocco(
 }
 
 /**
- * L'avanzamento di più fasi insieme: pesato sul venduto, se ogni fase ne ha uno;
- * altrimenti la media semplice. Null se non ci sono fasi.
- */
-export function avanzamentoFasi(
-  fasi: ReadonlyArray<FaseDistinta>,
-  economiaDi?: ReadonlyMap<string, EconomiaDistinta>,
-): number | null {
-  if (fasi.length === 0) return null;
-  const pesi = fasi.map((f) => economiaDi?.get(f.id)?.venduto ?? 0);
-  const pesato = pesi.every((p) => p > 0);
-  const totale = pesato ? pesi.reduce((s, p) => s + p, 0) : fasi.length;
-  const somma = fasi.reduce((s, f, i) => s + (Number(f.percentuale) || 0) * (pesato ? pesi[i] : 1), 0);
-  return Math.round(somma / totale);
-}
-
-/**
  * Le righe scelte una dopo l'altra, dalla data indicata, contando solo i giorni di lavoro. I giorni
  * scritti valgono per tutte; altrimenti quelli della riga. Le righe già fatte e quelle senza giorni restano fuori.
  */
@@ -290,8 +281,9 @@ export function ordineSpostando(ids: ReadonlyArray<string>, id: string, verso: -
 }
 
 /** Lo stato di una voce in parole: quello che ne dicono spunta e rapportini. */
-export function statoVoce(r: Pick<RigaDistinta, "fatta" | "iniziata" | "giorniLavorati" | "giorni">): { testo: string; tono: "fatta" | "corso" | "fare" } {
+export function statoVoce(r: Pick<RigaDistinta, "fatta" | "iniziata" | "giorniLavorati" | "giorni"> & { percentuale?: number }): { testo: string; tono: "fatta" | "corso" | "fare" } {
   if (r.fatta) return { testo: "Fatta", tono: "fatta" };
+  if (r.percentuale) return { testo: `${r.percentuale}%`, tono: "corso" };
   if (r.iniziata || r.giorniLavorati > 0) return { testo: r.giorni ? `${r.giorniLavorati}/${r.giorni} gg` : `${r.giorniLavorati} gg`, tono: "corso" };
   return { testo: r.giorni ? `${r.giorni} gg` : "Da fare", tono: "fare" };
 }

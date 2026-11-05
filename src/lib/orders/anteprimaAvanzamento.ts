@@ -50,7 +50,8 @@ export function anteprimaAvanzamento(
         if (fase.status === "da_iniziare") righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo: prima, chiude: false, sottofasiNuove: [], dichiarata: null, inizia: true });
         continue;
       }
-      const dopo = avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s) }))) ?? prima;
+      // Il database pesa anche sugli importi, che qui non ci sono: una spunta in più non fa mai scendere la stima.
+      const dopo = Math.max(prima, avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s), percentuale: s.percentuale }))) ?? prima);
       righe.push({ phaseId: fase.id, nome: fase.name, prima, dopo, chiude: dopo >= 100 && prima < 100, sottofasiNuove: nuove.map((s) => s.name), dichiarata: null });
       continue;
     }

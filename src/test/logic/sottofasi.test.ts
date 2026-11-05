@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import {
   avanzamentoDaSottofasi,
+  percentualeDaQuantita,
+  quantitaEseguita,
   faseHaSottofasi,
   fasiLavorateDelRapportino,
   messaggioErrore,
@@ -121,7 +123,31 @@ describe("sottofasiDalleFasi", () => {
     expect(sottofasiDalleFasi([{ id: "p1" }])).toEqual([]);
   });
   it("la lettura parte dalle fasi con le sottofasi annidate", () => {
-    expect(SOTTOFASI_NELLA_FASE).toBe("sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, data_inizio, data_fine, giorni, in_parallelo, risorse, iniziata_il, giorni_lavorati)");
+    expect(SOTTOFASI_NELLA_FASE).toBe("sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il, percentuale, quantita_fatta, data_inizio, data_fine, giorni, in_parallelo, risorse, iniziata_il, giorni_lavorati)");
+  });
+});
+
+describe("avanzamento della singola sottofase", () => {
+  it("una voce a metà conta per metà", () => {
+    expect(avanzamentoDaSottofasi([{ peso: 1, fatta: false, percentuale: 50 }, { peso: 1, fatta: false, percentuale: 0 }])).toBe(25);
+  });
+  it("non arriva al 100 per un arrotondamento", () => {
+    expect(avanzamentoDaSottofasi([{ peso: 100, fatta: true }, { peso: 1, fatta: false, percentuale: 99 }])).toBe(99);
+    expect(avanzamentoDaSottofasi([{ peso: 1, fatta: true }, { peso: 1, fatta: false, percentuale: 100 }])).toBe(100);
+  });
+  it("dalla quantità: 100 solo se è tutta, mai 0 se qualcosa è fatto", () => {
+    expect(percentualeDaQuantita(120, 306)).toBe(39);
+    expect(percentualeDaQuantita(305.9, 306)).toBe(99);
+    expect(percentualeDaQuantita(0.1, 306)).toBe(1);
+    expect(percentualeDaQuantita(306, 306)).toBe(100);
+    expect(percentualeDaQuantita(400, 306)).toBe(100);
+    expect(percentualeDaQuantita(5, null)).toBeNull();
+  });
+  it("la quantità scritta vale finché dice lo stesso della percentuale", () => {
+    expect(quantitaEseguita({ percentuale: 39, quantitaFatta: 120, quantita: 306 })).toBe(120);
+    expect(quantitaEseguita({ percentuale: 100, quantitaFatta: 120, quantita: 306 })).toBe(306);
+    expect(quantitaEseguita({ percentuale: 0, quantitaFatta: 120, quantita: 306 })).toBe(0);
+    expect(quantitaEseguita({ percentuale: 50, quantitaFatta: null, quantita: null })).toBeNull();
   });
 });
 

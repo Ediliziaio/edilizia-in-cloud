@@ -227,7 +227,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, avanza: avanzaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -658,6 +658,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 oggi={oggi}
                 onSegna={(id, fatta) => segnaSottofase.mutate({ id, fatta })}
                 onSegnaTutte={(ids, fatta) => segnaSottofasi.mutate({ ids, fatta })}
+                onAvanza={(id, a) => avanzaSottofase.mutate({ id, ...a })}
                 onPianifica={(id, piano) => pianificaSottofase.mutate({ id, ...piano })}
                 onPianificaTutte={(passi) => pianificaSottofasi.mutate(passi)}
                 onDateFase={(id, date) => updatePhase.mutate({ id, ...date })}

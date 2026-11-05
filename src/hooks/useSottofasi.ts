@@ -73,6 +73,16 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
+  // A che punto è: con la percentuale il database allinea anche «fatta» e ricalcola la fase.
+  const avanza = useMutation({
+    mutationFn: async ({ id, percentuale, quantita_fatta }: { id: string; percentuale: number; quantita_fatta: number | null }) => {
+      const { error } = await db.from("order_work_subphases").update({ percentuale, quantita_fatta }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: aggiorna,
+    onError,
+  });
+
   // Date e tempo necessario: fine e giorni mancanti li completa il database, e la
   // fase si allarga se la sottofase esce dalle sue date (20281029213000).
   const pianifica = useMutation({
@@ -157,5 +167,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, avanza, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

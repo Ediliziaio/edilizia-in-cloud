@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { dateValide, type RigaDistinta } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota } from "@/lib/orders/ivaCommessa";
+import { percentualeDaQuantita, quantitaEseguita } from "@/lib/orders/sottofasi";
 
 // La tabella non è nei tipi generati con le colonne usate qui.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,6 +64,60 @@ function RapportiniVoce({ orderId, sottofaseId }: { orderId: string; sottofaseId
   );
 }
 
+/** A che punto è la voce: i pulsanti salvano subito, i campi col «Salva». */
+function Avanzamento({ riga: r, puoModificare, onAvanza }: { riga: RigaDistinta; puoModificare: boolean; onAvanza: Props["onAvanza"] }) {
+  const eseguita = quantitaEseguita(r);
+  const [quantita, setQuantita] = useState(eseguita === null ? "" : String(eseguita));
+  const [pct, setPct] = useState(String(r.percentuale));
+  const misurabile = !!r.quantita && r.quantita > 0;
+  const nQuantita = quantita === "" ? null : Number(quantita);
+  const nPct = Number(pct);
+  const pctValida = pct !== "" && Number.isInteger(nPct) && nPct >= 0 && nPct <= 100;
+  const quantitaValida = nQuantita !== null && Number.isFinite(nQuantita) && nQuantita >= 0;
+  const cambiata = misurabile && quantita !== (eseguita === null ? "" : String(eseguita));
+  const cambiataPct = pct !== String(r.percentuale);
+  const scegli = (p: number) => onAvanza(r.sottofaseId!, { percentuale: p, quantita_fatta: misurabile ? Math.round((r.quantita! * p) / 100 * 1000) / 1000 : null });
+  const salva = () => {
+    if (cambiata && quantitaValida) onAvanza(r.sottofaseId!, { percentuale: percentualeDaQuantita(nQuantita!, r.quantita)!, quantita_fatta: nQuantita });
+    else if (cambiataPct && pctValida) scegli(nPct);
+  };
+  const valido = cambiata ? quantitaValida : cambiataPct && pctValida;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div role="progressbar" aria-label="Avanzamento della voce" aria-valuenow={r.percentuale} aria-valuemin={0} aria-valuemax={100} className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+          <div className={r.percentuale >= 100 ? "h-full bg-emerald-600" : "h-full bg-primary"} style={{ width: `${r.percentuale}%` }} />
+        </div>
+        <span className="w-10 text-right text-sm font-semibold tabular-nums">{r.percentuale}%</span>
+      </div>
+      {puoModificare && (
+        <>
+          <div className="flex gap-1">
+            {[0, 25, 50, 75, 100].map((p) => (
+              <Button key={p} type="button" size="sm" variant={r.percentuale === p ? "secondary" : "outline"} aria-pressed={r.percentuale === p} className="h-7 flex-1 px-0 text-xs tabular-nums" onClick={() => scegli(p)}>{p}%</Button>
+            ))}
+          </div>
+          <div className="flex items-end gap-2">
+            {misurabile ? (
+              <label className="min-w-0 flex-1 space-y-0.5 text-xs text-muted-foreground">
+                Fatti, su {r.quantita!.toLocaleString("it-IT", { maximumFractionDigits: 2 })}{r.unita ? ` ${r.unita}` : ""}
+                <Input type="number" min={0} step="any" value={quantita} onChange={(e) => setQuantita(e.target.value)} className="h-8 px-2 text-xs" />
+              </label>
+            ) : (
+              <label className="min-w-0 flex-1 space-y-0.5 text-xs text-muted-foreground">
+                Percentuale
+                <Input type="number" min={0} max={100} value={pct} onChange={(e) => setPct(e.target.value)} className="h-8 px-2 text-xs" />
+              </label>
+            )}
+            <Button type="button" size="sm" className="h-8 text-xs" disabled={!valido} onClick={salva}>Salva</Button>
+          </div>
+          {cambiata && quantitaValida && nQuantita! > r.quantita! && <p className="text-xs text-amber-700">Più del previsto: la voce risulterà finita.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   riga: RigaDistinta | null;
   /** Dove sta nell'elenco visibile: serve a passare alla voce vicina. */
@@ -78,6 +133,7 @@ interface Props {
   onChiudi: () => void;
   onVicina: (verso: -1 | 1) => void;
   onSegna: (id: string, fatta: boolean) => void;
+  onAvanza: (id: string, avanzamento: { percentuale: number; quantita_fatta: number | null }) => void;
   onPianifica: (id: string, piano: { data_inizio: string | null; data_fine: string | null; giorni: number | null }) => void;
   onRinomina: (id: string, nome: string) => void;
   onSposta: (riga: RigaDistinta, verso: -1 | 1) => void;
@@ -88,7 +144,7 @@ interface Props {
 }
 
 /** I campi ripartono dai valori salvati con la `key`: cambiando voce, o quando il database completa le date. */
-function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, onSegna, onPianifica, onRinomina, onSposta, onElimina, onAssegna, onCreaSottofasi, onApriScheda }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
+function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, onSegna, onAvanza, onPianifica, onRinomina, onSposta, onElimina, onAssegna, onCreaSottofasi, onApriScheda }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
   const [inizio, setInizio] = useState(r.inizio ?? "");
   const [fine, setFine] = useState(r.fine ?? "");
   const [giorni, setGiorni] = useState(r.giorni ? String(r.giorni) : "");
@@ -120,6 +176,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
                 {r.fatta ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" /> : <Circle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
                 {r.fatta ? "Fatta" : "Da fare"}
               </button>
+              <Avanzamento key={`${r.percentuale}|${r.quantitaFatta}`} riga={r} puoModificare={puoModificare} onAvanza={onAvanza} />
               <dl className="space-y-0.5">
                 {r.quantita !== null && <Dato etichetta="Quantità" valore={`${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${r.unita ? ` ${r.unita}` : ""}`} />}
                 <Dato etichetta="Giorni dai rapportini" valore={r.giorniLavorati > 0 ? `${r.giorniLavorati}${r.giorni ? ` su ${r.giorni}` : ""}` : "—"} />
