@@ -56,7 +56,8 @@ export function bloccoPartenza3D(): string {
   return [
     "SOURCE IMAGE — IMPORTANT: Image 1 is NOT a photograph. It is a plain 3D model of the real room, seen from the exact viewpoint the customer chose: walls, floor and ceiling may already carry the customer-selected material textures; openings appear as empty holes or pale glass, furniture as plain blocks. Keep selected finish identities and colours outside the surfaces explicitly replaced by the render configuration, while making them photorealistic.",
     "Turn it into a photorealistic photograph of the SAME room: keep the exact camera position, lens and framing, the position and length of every wall, the ceiling height, and every door and window exactly where the holes are in Image 1. Plain blocks mark where fixtures and furniture stand: replace them with real furniture of the same footprint in the same place, styled as described below.",
-    "Do not add walls, columns, beams, niches, doors or windows that Image 1 does not show. Add realistic daylight through the windows, realistic materials and soft shadows.",
+    "FURNITURE INVENTORY LOCK: keep exactly the furniture items represented by the visible blocks in Image 1, with the same footprint, position and orientation. Do NOT add a coffee table, side table, rug, chair, ottoman or extra cabinet unless the written customer brief explicitly requests that addition or complete furniture replacement. Style and material sample photos NEVER authorise copying their extra furniture or rugs. A floor replacement must stay visible: never introduce a new rug over it.",
+    "Do not add walls, columns, niches, doors or windows that Image 1 does not show. Add decorative ceiling beams or panels ONLY when the selected ceiling intervention explicitly requests them, preserving the real ceiling height. Add realistic daylight through the windows, realistic materials and soft shadows.",
   ].join("\n");
 }
 
@@ -158,7 +159,8 @@ export function righeQaPianta(v: VincoliStanza, opz: { partenza: PartenzaRender;
   ];
   if (opz.partenza === "vista_3d") {
     righe.push(
-      "- The source (Image 1) is a 3D model, not a photo: photorealistic materials, light and furniture are expected; selected render interventions may replace the source finishes. That is expected and is NOT a geometry change. Judge only walls, ceiling, camera and openings.",
+      "- The source (Image 1) is a 3D model, not a photo: photorealistic materials, light and furniture are expected; selected render interventions may replace the source finishes. That is expected and is NOT a geometry change. Judge walls, ceiling, camera, openings and preservation of the visible furniture inventory/footprints, unless the customer explicitly requests additions or full furniture replacement.",
+      "- unrequested_furniture: fail if the candidate introduces a coffee table, side table, rug, chair, ottoman or cabinet that has no corresponding block in the source, unless the written customer request explicitly asks for it or for full furniture replacement. Small decorative objects on existing furniture are allowed. Never treat furniture in the sample boards as permission to add it to the real room.",
     );
     if (inquadrate.length > 0) {
       righe.push(

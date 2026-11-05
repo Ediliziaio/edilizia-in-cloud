@@ -502,7 +502,7 @@ const Vista3D = forwardRef<Vista3DHandle, Vista3DProps>(function Vista3D({ piant
           </div>
         )}
         {modo === "dentro" && onFotogramma && (
-          <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma()))}>
+          <Button size="sm" disabled={occupato} onClick={() => esegui(async () => onFotogramma(await fotogramma({ larghezza: 1536, altezza: 1024 })))}>
             Usa questa vista per il render
           </Button>
         )}

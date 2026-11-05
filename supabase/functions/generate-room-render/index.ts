@@ -472,7 +472,7 @@ Deno.serve(async (req: Request) => {
         const remaining = STANZA_BUDGET_MS - jobElapsed() - 20_000;
         if (remaining < 10_000) throw new Error("Tempo disponibile esaurito: riprova il render. Il credito viene restituito.");
         const soloDiretto = soloProviderDiretto || qualitaAlta;
-        const perAttemptTimeout = Math.min(remaining, Math.max(10_000, Math.min(qualitaAlta ? 90_000 : 75_000, Math.floor(remaining / (soloDiretto ? 1 : 2)))));
+        const perAttemptTimeout = Math.min(remaining, Math.max(10_000, Math.min(qualitaAlta ? 110_000 : 75_000, Math.floor(remaining / (soloDiretto ? 1 : 2)))));
         return editImage({
           prompt,
           sourceImageBlob: imgBlob,
@@ -523,13 +523,15 @@ Deno.serve(async (req: Request) => {
       // due letti nella stessa camera), porte/finestre inventate o sparite,
       // prospettiva cambiata. Check ~€0.002, 1 retry correttivo budget-gated.
       // Graceful: se il vision provider fallisce, il render passa comunque.
-      let materialMismatch = false;
+      let selectionMismatch = false;
+      const violazioneScelte = (issue: { category: string }) => (!!materialBoards && issue.category === "selected_material_mismatch") || (pianta?.partenza === "vista_3d" && issue.category === "unrequested_furniture");
       try {
         const qaPrompt = [
           "You are a LENIENT quality inspector for an interior room restyling render.",
           pianta?.partenza === "vista_3d"
             ? "Image 1 = SOURCE: a 3D model of the real room, possibly with selected finish textures from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
             : "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
+          `Customer furniture request: ${JSON.stringify(cfg.arredo ?? {})}. Customer brief: ${String(cfg.note_libere ?? "").replace(/[\r\n]/g, " ").slice(0, 3000)}`,
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations:",
           ...(materialBoards ? ["Images 3 onward are the selected-material boards. Compare the CANDIDATE with every numbered panel ONLY on the panel's named target.", "- selected_material_mismatch: an explicitly selected wallpaper motif, floor/wood grain, cladding, furniture material, curtain, ceiling or fixture is clearly missing or substituted by a different one. Respect explicit colour overrides and dimensions; do not fail for minor lighting differences."] : []),
@@ -539,7 +541,7 @@ Deno.serve(async (req: Request) => {
           "- unrealistic_scale: furniture rendered at impossible size for the room.",
           ...QA_BLOCCO_RICOMPOSIZIONE_RESTYLING,
           ...(pianta ? righeQaPianta(pianta.vincoli, { partenza: pianta.partenza, inquadrate: pianta.inquadrate }) : []),
-          materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
+          pianta?.partenza === "vista_3d" ? "When in doubt, PASS. Fail clear geometry violations, substitutions of selected materials, or unrequested furniture/rugs violating the source inventory. Explicitly requested additions, furniture replacement, ceiling details and colour overrides are allowed." : materialBoards ? "When in doubt, PASS. Fail only clear geometry violations or clear substitutions of the selected material/pattern/fixture shown in the boards. An intentional colour override from the brief is allowed." : "When in doubt, PASS. Style and furniture CHANGES are expected and fine — only duplications, invented openings and geometry breaks fail.",
         ].join("\n");
 
         const sourceBytes = new Uint8Array(await imgBlob.arrayBuffer());
@@ -552,6 +554,7 @@ Deno.serve(async (req: Request) => {
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
           referenceImages: materialBoards ?? undefined,
+          timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)),
           metadata: {
             task_kind: "render_image_qa",
             company_id: companyId as string,
@@ -565,7 +568,7 @@ Deno.serve(async (req: Request) => {
           return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
         });
 
-        materialMismatch = !!materialBoards && qaResult.checked && !qaResult.pass && qaIssues.some((i) => i.category === "selected_material_mismatch");
+        selectionMismatch = qaResult.checked && !qaResult.pass && qaIssues.some(violazioneScelte);
         if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (qualitaAlta ? 40_000 : 95_000)) {
           console.log(JSON.stringify({
             fn: "generate-room-render",
@@ -646,9 +649,9 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             elapsed_ms: jobElapsed(),
           }));
         }
-        if (materialMismatch && generationAttempts > 1) {
-          const verifica = await callVisionQa({ sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
-          materialMismatch = !verifica.checked || (!verifica.pass && verifica.issues.some((i) => typeof i === "object" && i.category === "selected_material_mismatch"));
+        if (selectionMismatch && generationAttempts > 1) {
+          const verifica = await callVisionQa({ sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)), metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
+          selectionMismatch = !verifica.checked || (!verifica.pass && verifica.issues.some((i) => typeof i === "object" && violazioneScelte(i)));
         }
 
       } catch (qaErr) {
@@ -657,7 +660,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
           qaErr instanceof Error ? qaErr.message : String(qaErr),
         );
       }
-      if (materialMismatch) throw new Error("Il render non ha rispettato i campioni selezionati: riprova. Il credito viene restituito.");
+      if (selectionMismatch) throw new Error("Il render non ha rispettato i campioni o gli arredi richiesti: riprova. Il credito viene restituito.");
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";

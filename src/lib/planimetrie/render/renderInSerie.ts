@@ -73,7 +73,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
   if (!locale3D) throw new Error("Stanza non trovata nel 3D.");
 
   const cattura = await caricaFotogramma();
-  const f = await cattura({ pianta, localeId: lavoro.localeId, telecamera: vistaDentroLocale(locale3D), vista: ctx.ambito === "fatto" ? "fatto" : "progetto" });
+  const f = await cattura({ pianta, localeId: lavoro.localeId, telecamera: vistaDentroLocale(locale3D), vista: ctx.ambito === "fatto" ? "fatto" : "progetto", larghezza: 1536, altezza: 1024 });
 
   const ora = Date.now();
   const casuale = Math.random().toString(36).slice(2, 7);

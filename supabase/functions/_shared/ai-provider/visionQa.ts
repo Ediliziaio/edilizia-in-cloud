@@ -10,6 +10,7 @@
 
 import { callOpenRouter } from "./openrouter.ts";
 import type { ChatMessage } from "./types.ts";
+import { AiTurnControl } from "../aiTurnControl.ts";
 
 // v8.6.32 — Gemini eliminato. Chain: Claude Haiku + GPT-4o-mini.
 /**
@@ -92,7 +93,12 @@ export async function callVisionQa(
   ];
 
   let lastError: Error | null = null;
+  const durata = args.timeoutMs && Number.isFinite(args.timeoutMs) ? Math.max(1_000, Math.min(25_000, args.timeoutMs)) : undefined;
+  // Il budget è unico per tutti i modelli e i retry HTTP. Le immagini in base64
+  // pesano nella stima a caratteri: il limite è proporzionato al payload reale.
+  const turnControl = durata ? new AiTurnControl({ durationMs: durata, providerTimeoutMs: durata, maxAttempts: 3, maxEstimatedInputTokens: Math.max(240_000, Math.ceil(JSON.stringify(messages).length / 3) * 3) }) : undefined;
   for (const model of (args.models ?? VISION_MODELS_CHAIN)) {
+    if (turnControl && turnControl.remainingMs() < 1_000) break;
     try {
       const result = await callOpenRouter(
         {
@@ -105,6 +111,7 @@ export async function callVisionQa(
         {
           task_kind: args.metadata.task_kind,
           company_id: args.metadata.company_id,
+          ...(turnControl ? { turnControl } : {}),
         },
       );
 
