@@ -21,7 +21,8 @@ import { inParallelo } from "@/lib/fatturazione/importMassivo";
 import type { FornitoreInRubrica } from "@/lib/ddt/abbinaFornitore";
 import { leggiDDTdaAI, quantitaTotale } from "@/lib/ddt/letturaAI";
 import {
-  bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte, type BollaLetta,
+  bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte, scelteCerte,
+  type ArticoloMagazzino, type BollaLetta, type RigaDaCaricare,
 } from "@/lib/ddt/importBolle";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,6 +39,19 @@ async function leggiFile(file: File, companyId: string): Promise<unknown> {
   if (error) throw new Error(await edgeErrorMessage(error, "Lettura non riuscita"));
   if (!data?.success) throw new Error(data?.error ?? "Lettura non riuscita");
   return data.ddt ?? {};
+}
+
+/** Carica le righe certe della bolla e dice quante restano da abbinare. Un carico non riuscito non annulla la bolla. */
+async function caricaICerti(companyId: string, ddtId: string, warehouseId: string | null): Promise<number> {
+  const [{ data: righe }, { data: articoli }] = await Promise.all([
+    db.from("ddt_righe").select("id, codice_articolo, descrizione, unita_misura, quantita").eq("ddt_ricezione_id", ddtId),
+    supabase.from("warehouse_stock").select("id, name, internal_code, barcode").eq("company_id", companyId).eq("warehouse_id", warehouseId ?? "").limit(2000),
+  ]);
+  const lista = (righe ?? []) as RigaDaCaricare[];
+  const scelte = scelteCerte(lista, (articoli ?? []) as ArticoloMagazzino[]);
+  if (scelte.length === 0) return lista.length;
+  const { data, error } = await db.rpc("bolla_carica_magazzino", { p_ddt: ddtId, p_scelte: scelte });
+  return error ? lista.length : Number((data as { restano?: number } | null)?.restano ?? 0);
 }
 
 const testoErrore = (e: unknown, riserva: string) =>
@@ -61,6 +75,7 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
   const [scartati, setScartati] = useState<{ nome: string; motivo: string }[]>([]);
   const [salvando, setSalvando] = useState(false);
   const annullato = useRef(false);
+  const daAbbinare = useRef(0);
 
   const { data: rubrica = [] } = useQuery<FornitoreInRubrica[]>({
     queryKey: ["ddt-fornitori-abbinamento", companyId],
@@ -134,6 +149,7 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
 
   const conferma = async () => {
     setSalvando(true);
+    daAbbinare.current = 0;
     await inParallelo(daSalvare, QUANTE_INSIEME, async (b) => {
       try {
         const creata = await createDDT.mutateAsync({
@@ -158,6 +174,11 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
           autista_nome: b.autistaNome,
         });
         await uploadMainDDT.mutateAsync({ ddtId: creata.id, file: b.file, silenzioso: true });
+        // In magazzino entra subito ciò che si abbina con certezza; il resto si sceglie dalla scheda della bolla.
+        if (b.destinazione === "magazzino") {
+          const nonEntrate = await caricaICerti(companyId!, creata.id, creata.warehouse_id);
+          daAbbinare.current += nonEntrate;
+        }
         cambia(b.id, { esito: "salvata", motivoEsito: null });
       } catch (e) {
         cambia(b.id, { esito: "errore", motivoEsito: testoErrore(e, "Non salvata") });
@@ -173,7 +194,9 @@ export function BolleInBloccoDialog({ open, onOpenChange, orderId, destinazione 
   const finite = bolle.length > 0 && bolle.every((b) => b.esito === "salvata");
   useEffect(() => {
     if (finite && !salvando) {
-      toast.success(`${salvate} ${salvate === 1 ? "bolla registrata" : "bolle registrate"}`);
+      toast.success(`${salvate} ${salvate === 1 ? "bolla registrata" : "bolle registrate"}`, daAbbinare.current > 0
+        ? { description: `${daAbbinare.current} righe aspettano che tu scelga l'articolo: le trovi nella scheda di ogni bolla.` }
+        : undefined);
       onOpenChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

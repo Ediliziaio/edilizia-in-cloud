@@ -150,3 +150,70 @@ export function pronte(bolle: ReadonlyArray<BollaLetta>, doppi: ReadonlyMap<stri
   return bolle.filter((b) =>
     b.esito !== "salvata" && b.stato === "letta" && problemiBloccanti(b).length === 0 && (!doppi.get(b.id) || b.caricaComunque));
 }
+
+// ── Dalla riga della bolla all'articolo di magazzino ─────────────────────────────────────────
+
+export interface ArticoloMagazzino {
+  id: string;
+  name: string;
+  internal_code: string | null;
+  barcode: string | null;
+}
+
+export interface RigaDaCaricare {
+  id: string;
+  codice_articolo: string | null;
+  descrizione: string;
+  unita_misura: string | null;
+  quantita: number | null;
+}
+
+const pulito = (t: string | null | undefined) => (t ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const parole = (t: string) => new Set(pulito(t).split(/[^a-z0-9àèéìòù]+/).filter((p) => p.length >= 3));
+
+/** Il magazzino conta a pezzi interi: solo così una riga può entrare senza chiedere. */
+export function quantitaAPezzi(r: Pick<RigaDaCaricare, "quantita" | "unita_misura">): boolean {
+  const q = Number(r.quantita);
+  if (!Number.isInteger(q) || q <= 0) return false;
+  return ["", "pz", "pz.", "n", "n.", "nr", "nr.", "pezzi", "pezzo"].includes(pulito(r.unita_misura));
+}
+
+/**
+ * L'articolo certo: stesso codice o barcode, oppure stesso nome esatto, e uno solo. Una riga
+ * certa ma non a pezzi interi non entra da sola: la quantità non sarebbe di pezzi.
+ */
+export function articoloCerto(r: RigaDaCaricare, articoli: ReadonlyArray<ArticoloMagazzino>): ArticoloMagazzino | null {
+  const codice = pulito(r.codice_articolo);
+  if (codice) {
+    const perCodice = articoli.filter((a) => pulito(a.internal_code) === codice || pulito(a.barcode) === codice);
+    if (perCodice.length === 1) return perCodice[0];
+    if (perCodice.length > 1) return null;
+  }
+  const perNome = articoli.filter((a) => pulito(a.name) === pulito(r.descrizione));
+  return perNome.length === 1 ? perNome[0] : null;
+}
+
+/** Il più simile per parole in comune, da proporre e non da applicare: decide la persona. */
+export function articoloSimile(r: RigaDaCaricare, articoli: ReadonlyArray<ArticoloMagazzino>): ArticoloMagazzino | null {
+  const cercate = parole(r.descrizione);
+  if (cercate.size === 0) return null;
+  let migliore: ArticoloMagazzino | null = null;
+  let punti = 0;
+  for (const a of articoli) {
+    const suo = parole(a.name);
+    const comuni = [...cercate].filter((p) => suo.has(p)).length;
+    const p = comuni / Math.max(cercate.size, suo.size || 1);
+    if (p > punti) { punti = p; migliore = a; }
+  }
+  return punti >= 0.5 ? migliore : null;
+}
+
+export interface SceltaCarico { riga_id: string; stock_item_id?: string; nuovo?: boolean }
+
+/** Quello che entra subito, senza chiedere. */
+export function scelteCerte(righe: ReadonlyArray<RigaDaCaricare>, articoli: ReadonlyArray<ArticoloMagazzino>): SceltaCarico[] {
+  return righe.flatMap((r) => {
+    const a = quantitaAPezzi(r) ? articoloCerto(r, articoli) : null;
+    return a ? [{ riga_id: r.id, stock_item_id: a.id }] : [];
+  });
+}

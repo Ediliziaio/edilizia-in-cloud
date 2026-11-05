@@ -30,6 +30,8 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DDTRigheCard } from "@/components/ddt/DDTRigheCard";
+import { DDTCaricoMagazzinoCard } from "@/components/ddt/DDTCaricoMagazzinoCard";
+import { usePermissions } from "@/hooks/usePermissions";
 import { importoRiga } from "@/lib/ddt/letturaAI";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,6 +97,7 @@ export default function DDTRicezioneDetail() {
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
   const { ddt, isLoading, receipts, isReceiptsLoading } = useDDTRicezioneDetail(ddtId);
+  const permessiCarico = usePermissions();
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
     useDDTRicezioneMutations(ddt?.purchase_order_id ?? null);
   const {
@@ -778,6 +781,11 @@ export default function DDTRicezioneDetail() {
               ddt?.quantita_ricevuta != null ? Number(ddt.quantita_ricevuta) : null
             }
           />
+
+          {/* Senza ordine d'acquisto la merce entra in giacenza da qui. In cantiere non entra: il costo arriva dalla fattura. */}
+          {ddt && !ddt.purchase_order_id && ddt.destinazione !== "cantiere" && (
+            <DDTCaricoMagazzinoCard ddtId={ddtId} companyId={ddt.company_id} warehouseId={ddt.warehouse_id} puoCaricare={!permessiCarico.solaLettura} />
+          )}
 
           {/* ─── 2. IL DOCUMENTO: la foto accanto alle righe, per correggerle ─── */}
           <Card>

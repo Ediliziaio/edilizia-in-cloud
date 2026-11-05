@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte, type BollaLetta,
+  articoloCerto, articoloSimile, bollaDaFile, chiaveBolla, conLettura, doppioni, dubbi, motivoScartoFile, perAttenzione, problemiBloccanti, pronte,
+  quantitaAPezzi, scelteCerte, type BollaLetta, type RigaDaCaricare,
 } from "@/lib/ddt/importBolle";
 import { leggiDDTdaAI } from "@/lib/ddt/letturaAI";
 
@@ -88,5 +89,35 @@ describe("dalla lettura alla riga", () => {
     expect(conP).toMatchObject({ stato: "letta", supplierId: "s", orderId: "o1", destinazione: "cantiere" });
     const senza = conLettura(partenza, { ...letta, fornitorePiva: null, fornitoreNome: "Ignoto" }, grezzo, []);
     expect(senza.supplierId).toBeNull();
+  });
+});
+
+describe("dalla riga della bolla all'articolo", () => {
+  const art = (id: string, name: string, internal_code: string | null = null, barcode: string | null = null) => ({ id, name, internal_code, barcode });
+  const riga = (patch: Partial<RigaDaCaricare> = {}): RigaDaCaricare => ({ id: "r", codice_articolo: null, descrizione: "Cemento 32.5", unita_misura: "pz", quantita: 10, ...patch });
+
+  it("è certo con lo stesso codice o barcode, o lo stesso nome, e uno solo", () => {
+    const a = art("a", "Altro nome", "CEM32");
+    expect(articoloCerto(riga({ codice_articolo: "cem32" }), [a])?.id).toBe("a");
+    expect(articoloCerto(riga({ codice_articolo: "800" }), [art("b", "X", null, "800")])?.id).toBe("b");
+    expect(articoloCerto(riga(), [art("c", "cemento  32.5")])?.id).toBe("c");
+    expect(articoloCerto(riga(), [art("c", "Cemento 32.5"), art("d", "Cemento 32.5")])).toBeNull();
+    expect(articoloCerto(riga({ descrizione: "Cemento" }), [art("c", "Cemento 32.5")])).toBeNull();
+  });
+
+  it("il simile si propone, non entra da solo", () => {
+    const articoli = [art("c", "Cemento 32.5 sacco 25kg")];
+    expect(articoloSimile(riga({ descrizione: "Cemento sacco 25kg" }), articoli)?.id).toBe("c");
+    expect(articoloSimile(riga({ descrizione: "Mattoni forati" }), articoli)).toBeNull();
+    expect(scelteCerte([riga({ descrizione: "Cemento sacco 25kg" })], articoli)).toEqual([]);
+  });
+
+  it("solo pezzi interi entrano senza chiedere", () => {
+    const articoli = [art("c", "Cemento 32.5")];
+    expect(scelteCerte([riga()], articoli)).toEqual([{ riga_id: "r", stock_item_id: "c" }]);
+    expect(scelteCerte([riga({ quantita: 12.5 })], articoli)).toEqual([]);
+    expect(scelteCerte([riga({ unita_misura: "kg" })], articoli)).toEqual([]);
+    expect(scelteCerte([riga({ quantita: null })], articoli)).toEqual([]);
+    expect(quantitaAPezzi({ quantita: 3, unita_misura: null })).toBe(true);
   });
 });
