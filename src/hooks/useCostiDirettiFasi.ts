@@ -31,10 +31,11 @@ export function useCostiDirettiFasi(orderId: string | null | undefined, abilitat
     staleTime: 30_000,
     queryFn: async (): Promise<DatiCostiDiretti> => {
       const id = orderId!;
+      // Il filtro jsonb va passato come testo: con un array il client lo manda come array Postgres e torna un 400.
       const senzaCollegati = (q: ReturnType<typeof db.from>) => q.is("purchase_order_id", null).is("order_external_team_id", null);
       const [diretti, ripartiti, assegnate, contratti, schede] = await Promise.all([
         allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).eq("order_id", id).order("id").range(da, a)),
-        allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).contains("allocations", [{ order_id: id }]).order("id").range(da, a)),
+        allPaymentRows((da, a) => senzaCollegati(db.from("company_costs").select(COLONNE)).contains("allocations", JSON.stringify([{ order_id: id }])).order("id").range(da, a)),
         db.from("order_external_teams").select("phase_id, cost_preventivo, team:external_teams(subappaltatore_id)").eq("order_id", id),
         db.from("contratti_subappalto").select("subappaltatore_id, stato, elenco_lavori").eq("order_id", id),
         db.from("subappaltatori_sicurezza").select("id, campo_subappaltatore_id"),
