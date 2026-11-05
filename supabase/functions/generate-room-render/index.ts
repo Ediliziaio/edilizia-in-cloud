@@ -678,13 +678,15 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
         _latency_ms: providerResult.latencyMs,
       };
       const uploadPayload = dataUrlToBytes(providerResult.imageDataUrl);
+      // Ogni variante ha un URL immutabile: riusare lo stesso percorso lascia
+      // nel browser/CDN la foto della generazione precedente.
       const resultPath =
-        `${companyId}/${session_id}_result.${uploadPayload.extension}`;
+        `${companyId}/${session_id}_${crypto.randomUUID()}_result.${uploadPayload.extension}`;
       const { error: uploadErr } = await supabase.storage
         .from("stanza-results")
         .upload(resultPath, uploadPayload.bytes, {
           contentType: uploadPayload.mimeType,
-          upsert: true,
+          upsert: false,
         });
       if (uploadErr) {
         throw new Error(`Upload result failed: ${uploadErr.message}`);
