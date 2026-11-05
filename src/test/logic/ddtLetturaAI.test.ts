@@ -222,6 +222,12 @@ describe("Il fornitore riconosciuto dalla bolla", () => {
 
   it("il nome si riduce all'osso: via forma sociale e punteggiatura", () => {
     expect(normalizzaNome("Edilmix S.r.l.")).toBe("edilmix");
+    // La scansione scambia la «l» con «I» o «1»: la bolla è dello stesso fornitore.
+    expect(normalizzaNome("Edilmix S.r.I.")).toBe("edilmix");
+    expect(normalizzaNome("Edilmix S.R.1")).toBe("edilmix");
+    expect(normalizzaNome("Edilmix S.r.l.s.")).toBe("edilmix");
+    // Solo in fondo al nome: dentro resta com'è.
+    expect(normalizzaNome("S.R.I. Costruzioni")).toBe("s r i costruzioni");
     expect(normalizzaNome("EDIL ROSSI snc")).toBe("edil rossi");
     expect(normalizzaNome(null)).toBe("");
   });

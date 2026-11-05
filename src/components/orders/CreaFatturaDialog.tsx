@@ -1131,7 +1131,8 @@ export function CreaFatturaDialog({
             <Separator />
             <div className="space-y-2">
               <p className={sectionTitle}>Rata di riferimento</p>
-              <div className="flex flex-wrap gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:pb-1">
+              {/* A capo anche su telefono: in una fila che scorre, la rata scelta poteva restare fuori dallo schermo. */}
+              <div className="flex flex-wrap gap-2">
                 {installments.map((inst) => {
                   const key = inst.id || `pos-${inst.position}`;
                   const isSelected = selectedInstId === key;

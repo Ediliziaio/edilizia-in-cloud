@@ -56,6 +56,18 @@ describe("gli incassi settimana per settimana", () => {
     expect(r.settimane[0].cents).toBe(0);
   });
 
+  it("i prossimi 30 giorni partono da oggi: niente scaduto, niente doppioni, niente oltre il trentesimo giorno", () => {
+    const r = incassiPerSettimana([
+      mov({ id: "fattura:scaduta", date: "2026-11-03", cents: 1 }),
+      mov({ id: "fattura:oggi", date: OGGI, cents: 10 }),
+      mov({ id: "rata:trentesimo", date: "2026-12-04", cents: 100 }),
+      mov({ id: "fattura:dopo", date: "2026-12-05", cents: 1000 }),
+      mov({ id: "rata:senza", date: null, cents: 10_000 }),
+      mov({ id: "scadenza:doppia", date: OGGI, cents: 100_000, possibleDuplicate: true }),
+    ], OGGI);
+    expect(r.prossimi30Cents).toBe(110);
+  });
+
   it("l'ultimo giorno mostrato è dentro, quello dopo è più avanti", () => {
     const r = incassiPerSettimana([mov({ id: "fattura:a", date: "2026-12-27" }), mov({ id: "fattura:b", date: "2026-12-28" })], OGGI, 8);
     expect(r.settimane[7]).toMatchObject({ fine: "2026-12-27", cents: 10_000 });

@@ -34,6 +34,8 @@ export interface IncassiPerSettimana {
   senzaData: GruppoIncassi;
   /** Possibili doppioni: restano fuori dai totali finché non si collegano alla rata. */
   daControllare: GruppoIncassi;
+  /** Da oggi ai prossimi 30 giorni compresi: lo scaduto non c'è, è già nel suo gruppo. */
+  prossimi30Cents: number;
 }
 
 const gruppoVuoto = (): GruppoIncassi => ({ cents: 0, fattureCents: 0, rateCents: 0, righe: [] });
@@ -85,11 +87,14 @@ export function incassiPerSettimana(
     piuAvanti: gruppoVuoto(),
     senzaData: gruppoVuoto(),
     daControllare: gruppoVuoto(),
+    prossimi30Cents: 0,
   };
   const ultimo = settimane[settimane.length - 1]?.fine ?? oggi;
+  const fra30 = piuGiorni(oggi, 30);
 
   for (const m of movimenti) {
     if (m.direction !== "in" || m.cents <= 0) continue;
+    if (!m.possibleDuplicate && m.date && m.date >= oggi && m.date <= fra30) esito.prossimi30Cents += m.cents;
     if (m.possibleDuplicate) metti(esito.daControllare, m);
     else if (!m.date) metti(esito.senzaData, m);
     else if (m.date < oggi) metti(esito.scaduto, m);

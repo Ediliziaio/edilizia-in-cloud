@@ -373,6 +373,7 @@ export default function EditorDocumento() {
         state={state}
         isSaving={isSaving}
         lastSaved={lastSaved}
+        isDirty={isDirty}
         onEmetti={async () => {
           if (!state.id || emittiMutation.isPending) return;
           // Il salvataggio automatico aspetta 2 secondi. Chi correggeva un

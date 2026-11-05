@@ -130,21 +130,24 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
 
   return (
     <>
-      <div role="toolbar" aria-label="Modifiche in blocco" className="fixed bottom-4 left-1/2 z-40 flex w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg">
+      <div role="toolbar" aria-label="Modifiche in blocco" className="fixed bottom-4 left-1/2 z-40 flex w-[min(60rem,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg max-md:bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
         <span className="text-sm font-medium">{righe.length} selezionat{righe.length === 1 ? "a" : "e"}</span>
         {righe.length < filtrate && (
           <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onSelezionaTutte}>Seleziona tutte le {filtrate}</Button>
         )}
         <span className="hidden h-5 w-px bg-border sm:block" />
-        {ORDINE.map((a) => {
-          const quante = dividiPerAzione(a, righe).idonee.length;
-          const Icona = AZIONI[a].icona;
-          return (
-            <Button key={a} variant="outline" size="sm" disabled={!quante} onClick={() => apri(a)}>
-              <Icona className="mr-1.5 h-3.5 w-3.5" />{AZIONI[a].etichetta}{quante ? ` (${quante})` : ""}
-            </Button>
-          );
-        })}
+        {/* Su telefono una fila sola che scorre: a capo la barra copriva mezzo schermo e finiva sotto il menu dell'app. */}
+        <div className="flex w-full gap-2 overflow-x-auto pb-0.5 max-sm:order-last sm:contents">
+          {ORDINE.map((a) => {
+            const quante = dividiPerAzione(a, righe).idonee.length;
+            const Icona = AZIONI[a].icona;
+            return (
+              <Button key={a} variant="outline" size="sm" className="shrink-0" disabled={!quante} onClick={() => apri(a)}>
+                <Icona className="mr-1.5 h-3.5 w-3.5" />{AZIONI[a].etichetta}{quante ? ` (${quante})` : ""}
+              </Button>
+            );
+          })}
+        </div>
         <Button variant="ghost" size="sm" className="ml-auto" aria-label="Togli la selezione" onClick={onSvuota}><X className="h-4 w-4" /></Button>
       </div>
 

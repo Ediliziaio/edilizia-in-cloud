@@ -50,10 +50,26 @@ function Gruppo({ titolo, gruppo, sotto, tono, aperto }: {
   );
 }
 
-export function IncassiPerSettimanaVista() {
+function Numero({ titolo, cents, rosso }: { titolo: string; cents: number; rosso?: boolean }) {
+  return (
+    <div className="rounded-lg border bg-card px-3 py-2.5">
+      <p className="text-xs text-muted-foreground">{titolo}</p>
+      <p className={`mt-0.5 text-lg font-bold tabular-nums ${rosso ? "text-rose-700 dark:text-rose-400" : ""}`}>{euro(cents)}</p>
+    </div>
+  );
+}
+
+/** Con `cerca` si guardano solo gli incassi di quel cliente, fattura o commessa: anche i totali. */
+export function IncassiPerSettimanaVista({ cerca = "" }: { cerca?: string }) {
   const query = useForecastLedger();
   const oggi = new Date().toLocaleDateString("en-CA");
-  const dati = useMemo(() => (query.data ? incassiPerSettimana(query.data.movements, oggi) : null), [query.data, oggi]);
+  const dati = useMemo(() => {
+    if (!query.data) return null;
+    const q = cerca.trim().toLowerCase();
+    const movimenti = !q ? query.data.movements : query.data.movements.filter((m) =>
+      [m.description, m.counterparty, m.orderLabel].some((t) => t?.toLowerCase().includes(q)));
+    return incassiPerSettimana(movimenti, oggi);
+  }, [query.data, oggi, cerca]);
 
   if (query.isPending) return <Skeleton className="h-64 rounded-lg" />;
   if (query.isError || !dati) {
@@ -76,6 +92,12 @@ export function IncassiPerSettimanaVista() {
           Non si sono caricati: {mancanti.join(", ")}. I totali potrebbero essere incompleti.
         </p>
       )}
+      {/* Gli stessi numeri dell'elenco: fatture, rate e scadenze, di tutti gli anni. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+        <Numero titolo="Scaduto da incassare" cents={dati.scaduto.cents} rosso={dati.scaduto.cents > 0} />
+        <Numero titolo="Questa settimana" cents={corrente.cents} />
+        <div className="max-sm:col-span-2"><Numero titolo="Prossimi 30 giorni" cents={dati.prossimi30Cents} /></div>
+      </div>
       {dati.scaduto.righe.length > 0 && <Gruppo titolo="Scaduto, ancora da incassare" gruppo={dati.scaduto} tono="rosso" />}
       <Gruppo titolo={`Questa settimana · fino al ${formatDateShort(corrente.fine)}`} gruppo={corrente} aperto />
       {prossime.map((s) => <Gruppo key={s.inizio} titolo={`${formatDateShort(s.inizio)} – ${formatDateShort(s.fine)}`} gruppo={s} />)}

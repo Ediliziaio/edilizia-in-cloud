@@ -38,6 +38,8 @@ export function normalizzaNome(v: string | null | undefined): string {
   return String(v ?? "")
     .toLowerCase()
     .replace(/[.,'"()]/g, " ")
+    // In fondo al nome: «S.r.I.» o «S.r.1» sono una «l» letta male dalla scansione, e «S.r.l.s.» è una forma sola.
+    .replace(/\bs\s*r\s*[li1](\s*s)?\s*$/, " ")
     .replace(/\b(s\s*r\s*l|s\s*p\s*a|s\s*n\s*c|s\s*a\s*s|societa|soc|snc|sas|srls|spa|srl)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
