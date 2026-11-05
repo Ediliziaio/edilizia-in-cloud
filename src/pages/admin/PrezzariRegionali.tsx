@@ -64,6 +64,9 @@ import {
   type PrezzarioField,
 } from "@/lib/prezzario/import";
 import { usePrezzarioFontiAdmin } from "@/lib/prezzario/queries";
+import { readInvokeError } from "@/lib/readInvokeError";
+import { Checkbox } from "@/components/ui/checkbox";
+import { controlloUnitaMisura, messaggioUnitaMancanti } from "../../../supabase/functions/_shared/prezzarioUnita";
 
 // prezzario_* non rigenerato nei tipi Supabase → client non tipizzato (stesso
 // pattern di queries.ts / useListinoLavorazioni).
@@ -198,6 +201,14 @@ export default function PrezzariRegionali() {
     [result],
   );
 
+  // Unità di misura (05/11/2026): 16 prezzari sono entrati senza, perché il
+  // parser la considerava facoltativa. Sotto il 90% l'import si ferma, salvo una
+  // conferma esplicita che vale solo per l'anteprima corrente.
+  const controlloUnita = useMemo(() => (result ? controlloUnitaMisura(result.voci) : null), [result]);
+  // La conferma è legata all'anteprima a cui è stata data: un altro file la fa decadere da sola.
+  const [confermaPer, setConfermaPer] = useState<ParsePrezzarioResult | null>(null);
+  const consentiSenzaUnita = result !== null && confermaPer === result;
+
   const detectedFields = useMemo(() => {
     if (!result) return [];
     return (Object.keys(result.detectedColumns) as PrezzarioField[]).filter(
@@ -316,9 +327,11 @@ export default function PrezzariRegionali() {
           // Scarta in import le righe-voce non valide (es. header di capitolo
           // senza prezzo): l'edge accetta solo voci con descrizione+prezzo>0.
           voci: result.voci.filter((v) => v.errors.length === 0),
+          consenti_senza_unita: consentiSenzaUnita,
         },
       });
-      if (error) throw new Error(error.message);
+      // Il motivo vero (es. «Import fermato: … senza unità») sta nel corpo della risposta.
+      if (error) throw new Error(await readInvokeError(error));
       if (!data) throw new Error("Risposta vuota dalla funzione di import.");
       return data;
     },
@@ -368,7 +381,8 @@ export default function PrezzariRegionali() {
   // Commercialisti). La route è già protetta da RequireSuperAdmin.
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
-  const canImport = Boolean(result) && (summary?.valid ?? 0) > 0 && !importMutation.isPending;
+  const bloccoUnita = Boolean(controlloUnita?.bloccante) && !consentiSenzaUnita;
+  const canImport = Boolean(result) && (summary?.valid ?? 0) > 0 && !bloccoUnita && !importMutation.isPending;
 
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-[1600px]">
@@ -618,6 +632,28 @@ export default function PrezzariRegionali() {
               </Alert>
             )}
 
+            {/* Unità di misura mancanti: blocca l'import salvo conferma esplicita */}
+            {controlloUnita?.bloccante && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Manca l&apos;unità di misura</AlertTitle>
+                <AlertDescription className="space-y-3">
+                  <p>{messaggioUnitaMancanti(controlloUnita)}</p>
+                  <label className="flex items-start gap-2 text-sm">
+                    <Checkbox
+                      checked={consentiSenzaUnita}
+                      onCheckedChange={(v) => setConfermaPer(v === true ? result : null)}
+                      aria-label="Importa comunque le voci senza unità di misura"
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Importa comunque: so che queste voci non hanno l&apos;unità e che chi le userà dovrà ricavarla dalla descrizione.
+                    </span>
+                  </label>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Avviso troncamento estrazione AI (testo oltre 30k caratteri) */}
             {aiTroncato && (
               <Alert>
@@ -725,6 +761,11 @@ export default function PrezzariRegionali() {
               {(summary?.valid ?? 0) === 0 && (
                 <span className="text-sm text-muted-foreground">
                   Nessuna voce valida da importare.
+                </span>
+              )}
+              {bloccoUnita && (summary?.valid ?? 0) > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  Import fermo: manca l&apos;unità di misura (vedi sopra).
                 </span>
               )}
             </div>

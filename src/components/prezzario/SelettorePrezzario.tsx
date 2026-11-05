@@ -26,6 +26,7 @@ import {
 import type { PrezzarioCapitolo, PrezzarioVoce } from "@/lib/prezzario/tipi";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { fraseDiMisura } from "../../../supabase/functions/_shared/prezzarioUnita";
 
 export type SelezionePrezzario = Record<string, PrezzarioVoce>;
 interface Props {
@@ -454,6 +455,13 @@ export function SelettorePrezzario({
                               ? ` · Manodopera ${(v.incidenza_manodopera_pct * 100).toLocaleString("it-IT")}%`
                               : ""}
                           </p>
+                          {/* Senza unità, la regola di misura sta nel testo (es. «al m² per ogni cm di
+                              spessore»): mostrarla prima della scelta evita l'errore ×20. */}
+                          {!unitaOriginale?.trim() && fraseDiMisura(v.descrizione) && (
+                            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                              Come si misura: «{fraseDiMisura(v.descrizione)}»
+                            </p>
+                          )}
                           {errore && (
                             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                               {errore}

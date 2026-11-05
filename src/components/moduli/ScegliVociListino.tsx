@@ -24,7 +24,8 @@ import { usePrezzarioVociGlobalSearch } from "@/lib/prezzario/queries";
 import { GRUPPI_LAVORAZIONE, gruppoLavorazione } from "@/lib/tariffe/costoLavorazione";
 import { costoTariffa, unitaTariffa, type CostiTariffa } from "@/lib/listino/costoTariffa";
 import { cn } from "@/lib/utils";
-import { insiemeVoci, prezzoInCampo, rigaVoceLibera, totaleScelte, voceGiaPresente, type RigaScelta, type VoceScelta } from "@/lib/moduli/scegliVoci";
+import { insiemeVoci, prezzoInCampo, rigaVoceLibera, totaleScelte, UNITA_A_MANO, voceGiaPresente, type RigaScelta, type VoceScelta } from "@/lib/moduli/scegliVoci";
+import { fraseDiMisura } from "../../../supabase/functions/_shared/prezzarioUnita";
 import { leggiVociRecenti, registraVociRecenti, type VoceRecente } from "@/lib/moduli/vociRecenti";
 
 export type { VoceScelta } from "@/lib/moduli/scegliVoci";
@@ -93,9 +94,9 @@ function useVociAzienda(attivo: boolean) {
   });
 }
 
-function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuantita, onPrezzo, onConferma }: {
-  riga: RigaScelta; scelta?: { quantita: string; prezzo: string }; presente: boolean; conFocus: boolean; onFocusPreso: () => void;
-  onCambia: () => void; onQuantita: (q: string) => void; onPrezzo: (p: string) => void; onConferma: () => void;
+function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuantita, onPrezzo, onUnita, onConferma }: {
+  riga: RigaScelta; scelta?: { quantita: string; prezzo: string; unita?: string }; presente: boolean; conFocus: boolean; onFocusPreso: () => void;
+  onCambia: () => void; onQuantita: (q: string) => void; onPrezzo: (p: string) => void; onUnita: (u: string) => void; onConferma: () => void;
 }) {
   const [aperta, setAperta] = useState(false);
   // Telefono: il prezzo si tocca solo se serve.
@@ -152,6 +153,19 @@ function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuan
           </label>
         </span>
       )}
+      {/* Il prezzario non dice l'unità: si sceglie leggendo come la misura il prezzario. */}
+      {scelta && riga.unitaDaScegliere && (
+        <span className="flex w-full flex-wrap items-center justify-end gap-2 text-xs">
+          {riga.comeSiMisura && <span className="min-w-0 flex-1 basis-60 text-amber-700 dark:text-amber-400">Come si misura: «{riga.comeSiMisura}»</span>}
+          <select
+            aria-label={`Unità: ${riga.descrizione}`} value={scelta.unita ?? ""} onChange={(e) => onUnita(e.target.value)}
+            className={cn("h-8 rounded-md border bg-background px-2", !scelta.unita && "border-amber-400")}
+          >
+            <option value="" disabled>Scegli l&apos;unità</option>
+            {UNITA_A_MANO.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </span>
+      )}
       {aperta && (
         <span className="w-full whitespace-pre-line pl-7 text-xs text-muted-foreground">
           {[riga.descrizione, estesa].filter((t, n, tutti) => !!t && tutti.indexOf(t) === n).join("\n")}
@@ -197,7 +211,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
   const [termine, setTermine] = useState("");
   const [fonte, setFonte] = useState<"listino" | "prezzario">("listino");
   const [scheda, setScheda] = useState<Scheda>({ tipo: "tutto" });
-  const [scelte, setScelte] = useState<Map<string, { riga: RigaScelta; quantita: string; prezzo: string }>>(new Map());
+  const [scelte, setScelte] = useState<Map<string, { riga: RigaScelta; quantita: string; prezzo: string; unita?: string }>>(new Map());
   const [capitoloScelto, setCapitoloScelto] = useState("");
   const companyId = useEffectiveCompanyId();
   const [recenti, setRecenti] = useState<VoceRecente[]>([]);
@@ -250,8 +264,10 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
         const prezzo = Number(v.prezzo) || 0;
         const quota = v.incidenza_manodopera_pct ?? 0;
         const costoMano = Math.round(prezzo * quota * 100) / 100;
+        const senzaUnita = !v.unita_misura?.trim();
         return {
-          chiave: `prezzario-${v.id}`, descrizione: v.descrizione, prezzo, unitaLabel: v.unita_misura ? `/ ${v.unita_misura}` : "",
+          chiave: `prezzario-${v.id}`, descrizione: v.descrizione, prezzo, unitaLabel: senzaUnita ? "unità non indicata" : `/ ${v.unita_misura}`,
+          ...(senzaUnita ? { unitaDaScegliere: true, comeSiMisura: fraseDiMisura(v.descrizione) } : {}),
           meta: [v.codice, v.fonteLabel, quota > 0 ? `manodopera ${Math.round(quota * 100)}%` : null].filter(Boolean).join(" · "),
           voce: { descrizione: v.descrizione, unita_misura: mapUnita(v.unita_misura), unita_originale: v.unita_misura, prezzo_unitario: prezzo, costo_materiali: Math.round((prezzo - costoMano) * 100) / 100, costo_manodopera: costoMano, capitolo_nome: targetCapitolo, fonte: v.fonteLabel, codice_tariffa: v.codice, sourceUnit: v.unita_misura },
         };
@@ -304,7 +320,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
   const chiaveElenco = JSON.stringify([fonte, schedaVista.tipo, schedaId, cercato]);
   const quanteMostrate = filtroMostrate.elenco === chiaveElenco ? filtroMostrate.quante : RIGHE_MOSTRATE;
   const elenco = righe.slice(0, quanteMostrate);
-  const conto = totaleScelte([...scelte.values()]);
+  const conto = totaleScelte([...scelte.values()], mapUnita);
   const nScelte = scelte.size;
   // Le fonti danno al massimo 40 voci: se si tocca il tetto, sfogliando non si vedrebbe tutto.
   const elencoParziale = fonte === "listino" && schedaVista.tipo !== "scelte" && schedaVista.tipo !== "recenti" && schedaVista.tipo !== "gruppo" && schedaVista.tipo !== "capitolo"
@@ -332,6 +348,11 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
     const c = prima.get(chiave);
     if (!c) return prima;
     return new Map(prima).set(chiave, { ...c, prezzo: p });
+  });
+  const unita = (chiave: string, u: string) => setScelte((prima) => {
+    const c = prima.get(chiave);
+    if (!c) return prima;
+    return new Map(prima).set(chiave, { ...c, unita: u });
   });
   const nelCapitolo = (voci: VoceScelta[]) => (capitoloScelto ? voci.map((v) => ({ ...v, capitolo_nome: capitoloScelto })) : voci);
   const invia = (voci: VoceScelta[]) => {
@@ -402,7 +423,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
                     <Voce
                       riga={r} scelta={scelte.get(r.chiave)} presente={voceGiaPresente(r.descrizione, presenti)}
                       conFocus={conFocus === r.chiave} onFocusPreso={() => setConFocus(null)}
-                      onCambia={() => cambia(r)} onQuantita={(q) => quantita(r.chiave, q)} onPrezzo={(p) => prezzo(r.chiave, p)} onConferma={conferma}
+                      onCambia={() => cambia(r)} onQuantita={(q) => quantita(r.chiave, q)} onPrezzo={(p) => prezzo(r.chiave, p)} onUnita={(u) => unita(r.chiave, u)} onConferma={conferma}
                     />
                   </Fragment>
                 ))}
@@ -440,7 +461,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
             {nScelte > 0 && (
               <button type="button" className="text-left text-sm hover:underline" title="Vedi le voci che hai scelto" onClick={() => { setFonte("listino"); setTermine(""); setScheda({ tipo: "scelte" }); }}>
                 <strong>{nScelte} {nScelte === 1 ? "voce" : "voci"}</strong> · {formatCurrency(conto.totale)}
-                {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">{conto.prezziDaCorreggere > 0 ? "controlla il prezzo" : "scrivi la quantità"}</Badge>}
+                {conto.mancanti > 0 && <Badge variant="outline" className="ml-2 border-amber-300 text-amber-700">{conto.unitaDaScegliere > 0 ? "scegli l'unità" : conto.prezziDaCorreggere > 0 ? "controlla il prezzo" : "scrivi la quantità"}</Badge>}
               </button>
             )}
             <Button type="button" onClick={conferma} disabled={!conto.voci.length || conto.mancanti > 0}>Aggiungi al computo</Button>
