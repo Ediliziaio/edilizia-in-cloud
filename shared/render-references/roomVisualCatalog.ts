@@ -1,4 +1,5 @@
 import { PROJECT_WINDOW_PHOTOS } from "./projectWindowReferences.ts";
+import { paintColourPhoto } from "./paintColourPhotos.ts";
 import { PROFILI_PROGETTO } from "../planimetrie/materialiProgetto.ts";
 import { normalizeRoomFloorConfig } from "../render-room/roomRenderConfig.ts";
 import { FLOOR_EFFECT_PHOTOS, FLOOR_ESSENCE_PHOTOS, FLOOR_FINISH_PHOTOS, FLOOR_LAYOUT_PHOTOS, FLOOR_SKIRTING_PHOTOS, floorSurfacePhoto } from "./floorReferences.ts";
@@ -48,7 +49,7 @@ export function roomVisualChoices(group: RoomVisualGroup, config?: unknown): Roo
   };
   const photos: Partial<Record<RoomVisualGroup, PhotoTable>> = {
     window_profile: PROJECT_WINDOW_PHOTOS,
-    style: table("style"), paint_finish: { ...table("paint"), lavabile: table("paint").opaco },
+    style: table("style"), paint_finish: { ...table("paint"), opaco: paintColourPhoto(record(cfg.verniciatura).colore_hex, "opaco") ?? table("paint").opaco, lavabile: paintColourPhoto(record(cfg.verniciatura).colore_hex, "lavabile") ?? table("paint").opaco },
     floor_effect: FLOOR_EFFECT_PHOTOS, floor_essence: FLOOR_ESSENCE_PHOTOS, floor_pattern: pattern,
     floor_finish: { ...FLOOR_FINISH_PHOTOS, strutturato: FLOOR_FINISH_PHOTOS.boccardato, naturale: surface ?? FLOOR_FINISH_PHOTOS.opaco },
     floor_skirting: { ...FLOOR_SKIRTING_PHOTOS, coordinato_pavimento: surface ?? FLOOR_SKIRTING_PHOTOS.bianco },

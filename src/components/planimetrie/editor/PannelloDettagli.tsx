@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Armchair, Check, Copy, Layers, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { FinitureStanza } from "./FinitureStanza";
+import type { ConfigPavimentoStanza } from "../../../../shared/render-room/floorSelection.ts";
 import type { Finiture } from "../../../../shared/planimetrie/modello.ts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,7 @@ export interface AzioniPannello {
 }
 
 interface Props {
+  pavimentoComune?: ConfigPavimentoStanza;
   pianta: Pianta;
   /** Stanze, mq e problemi della vista, letti dal documento. */
   dati: DatiVista;
@@ -81,7 +83,7 @@ interface Props {
   sottotetto?: ReadonlyMap<string, AltezzeSottotetto>;
 }
 
-export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, vista, selezione, azioni, essenziale, focusNome }: Props) {
+export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, vista, selezione, azioni, essenziale, focusNome, pavimentoComune }: Props) {
   if (selezione?.tipo === "locale") {
     const l = dati.locali.find((x) => x.id === selezione.id);
     if (l) {
@@ -95,6 +97,7 @@ export function PannelloDettagli({ pianta, dati, sottotetto, latiModificabili, v
           azioni={azioni}
           essenziale={essenziale}
           focusNome={focusNome}
+          pavimentoComune={pavimentoComune}
           sottotetto={sottotetto?.get(l.id)}
         />
       );
@@ -399,7 +402,9 @@ function DettaglioStanza({
   essenziale,
   focusNome,
   sottotetto,
+  pavimentoComune,
 }: {
+  pavimentoComune?: ConfigPavimentoStanza;
   sottotetto?: AltezzeSottotetto;
   pianta: Pianta;
   vista: Vista;
@@ -443,7 +448,7 @@ function DettaglioStanza({
           </SelectContent>
         </Select>
       </div>
-      <FinitureStanza value={locale.finiture ?? {}} onChange={(f) => azioni.finitureStanza(locale.id, f)} />
+      <FinitureStanza value={locale.finiture ?? {}} onChange={(f) => azioni.finitureStanza(locale.id, f)} pavimentoComune={pavimentoComune} />
       {!essenziale && diLavoro && (
         <div className="space-y-1">
           <Label htmlFor="pl-unita">Appartamento (condominio, bifamiliare)</Label>

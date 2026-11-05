@@ -19,6 +19,14 @@ function monta(config: ConfigurazioneStanza) {
 }
 
 describe("scelte fotografiche nel modulo del render", () => {
+  it("il pavimento comune nasconde le scelte locali finché non si abilita un'eccezione", () => {
+    const { rerender } = render(<StanzaConfigForm value={DEFAULT_STANZA_CONFIG} onChange={() => {}} pavimentoBloccato />);
+    expect(screen.queryByRole("region", { name: "Materiali realistici del render" })).toBeNull();
+    expect(screen.getByRole("switch", { name: "Attiva Pavimento" })).toBeDisabled();
+    rerender(<StanzaConfigForm value={DEFAULT_STANZA_CONFIG} onChange={() => {}} />);
+    expect(screen.getByRole("region", { name: "Materiali realistici del render" })).toBeInTheDocument();
+  });
+
   it("la carta scelta sostituisce il vecchio motivo e il riepilogo usa la stessa foto del motore", () => {
     const iniziale = structuredClone(DEFAULT_STANZA_CONFIG);
     iniziale.carta_da_parati = { ...iniziale.carta_da_parati, attivo: true, colore_base: "#ff0000", descrizione: "vecchio motivo a righe" };

@@ -149,7 +149,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId, pavimen
 
   return (
     <div className="space-y-6 max-md:space-y-4">
-      <CampioniFinitureStanza value={value} onChange={onChange} disabled={disabled} onPersonalizza={personalizzaPavimento} />
+      {!pavimentoBloccato && <CampioniFinitureStanza value={value} onChange={onChange} disabled={disabled} onPersonalizza={personalizzaPavimento} />}
       {/* ── Tipo Stanza ────────────────────────────────────────────── */}
       <div>
         <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">Tipo di stanza</Label>

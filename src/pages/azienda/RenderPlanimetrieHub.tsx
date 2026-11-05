@@ -9,13 +9,16 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import esempioTrilocale from "../../../shared/planimetrie/esempi/trilocale.json";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
-import { ChevronRight, ClipboardList, FileUp, LayoutPanelTop, MessageSquareText, PenLine } from "lucide-react";
+import { ChevronRight, ClipboardList, FileUp, LayoutPanelTop, MessageSquareText, PenLine, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AnteprimaPianta } from "@/components/planimetrie/AnteprimaPianta";
+import { PIANTE_PER_PAGINA, useAnteprimePlanimetrie } from "@/lib/planimetrie/anteprime";
 import { TestataPlanimetrie } from "@/components/planimetrie/render/TestataPlanimetrie";
 import { RenderCreditsWidget } from "@/components/render/RenderCreditsWidget";
 import { useCreaPlanimetria, useElencoPlanimetrie, type RigaPlanimetria } from "@/lib/planimetrie/archivio";
@@ -44,6 +47,13 @@ export default function RenderPlanimetrieHub() {
   const crea = useCreaPlanimetria();
   const navigate = useNavigate();
   const [esempio, setEsempio] = useState(false);
+  const [ricerca, setRicerca] = useState("");
+  const [pagina, setPagina] = useState(0);
+  const filtrate = piante.filter((p) => p.titolo.toLocaleLowerCase("it-IT").includes(ricerca.trim().toLocaleLowerCase("it-IT")));
+  const ultimaPagina = Math.max(0, Math.ceil(filtrate.length / PIANTE_PER_PAGINA) - 1);
+  const paginaCorrente = Math.min(pagina, ultimaPagina);
+  const visibili = filtrate.slice(paginaCorrente * PIANTE_PER_PAGINA, (paginaCorrente + 1) * PIANTE_PER_PAGINA);
+  const anteprime = useAnteprimePlanimetrie(effectiveCompany?.id, visibili);
   // Prima volta: una pianta d'esempio già pronta (trilocale con il progetto), da guardare e modificare.
   const apriEsempio = async () => {
     if (!effectiveCompany?.id) return;
@@ -66,6 +76,10 @@ export default function RenderPlanimetrieHub() {
         sottotitolo="La pianta con le misure vere: da lì il 3D e il render di ogni stanza, con porte e finestre al loro posto."
         azioni={<div className="max-md:hidden"><RenderCreditsWidget /></div>}
       />
+
+      <ol aria-label="Dalla pianta al render" className="grid grid-cols-2 gap-2 rounded-2xl border bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-4 sm:grid-cols-4">
+        {[['Crea la pianta', 'Disegna, carica o descrivi'], ['Controlla le misure', 'Stanze, porte e finestre'], ['Scegli i materiali', 'Finiture comuni e arredi'], ['Genera i render', 'Interni, esterni e varianti']].map(([nome, testo], i) => <li key={nome} className="flex items-start gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-primary shadow-sm">{i + 1}</span><div><p className="text-sm font-semibold">{nome}</p><p className="mt-0.5 text-xs text-muted-foreground">{testo}</p></div></li>)}
+      </ol>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
@@ -91,9 +105,12 @@ export default function RenderPlanimetrieHub() {
       </section>
 
       <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
           Le tue piante
         </h2>
+        {piante.length > 0 && <div className="relative w-full sm:w-72"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Cerca una pianta" placeholder="Cerca per nome…" value={ricerca} onChange={(e) => { setRicerca(e.target.value); setPagina(0); }} className="pl-9" /></div>}
+        </div>
         {isLoading ? (
           <div className="space-y-2">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
@@ -134,24 +151,25 @@ export default function RenderPlanimetrieHub() {
               </ol>
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-2">
-            {piante.map((p) => (
-              <Link key={p.id} to={percorsiPlanimetrie.pianta(p.id)} className="block">
-                <Card className="transition-colors hover:border-primary/50">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <LayoutPanelTop className="h-5 w-5 shrink-0 text-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{p.titolo}</p>
-                      <p className="text-xs text-muted-foreground">Versione {p.versione_corrente} · aggiornata il {data(p.updated_at)}</p>
-                    </div>
-                    {p.stato !== "bozza" && <Badge variant="secondary">{STATO[p.stato]}</Badge>}
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        ) : filtrate.length === 0 ? <Card><CardContent className="space-y-2 p-6 text-sm"><p>Nessuna pianta corrisponde alla ricerca.</p><Button variant="outline" size="sm" onClick={() => setRicerca("")}>Mostra tutte le piante</Button></CardContent></Card> : (
+          <>
+          <p className="text-xs text-muted-foreground">{filtrate.length} {filtrate.length === 1 ? "pianta" : "piante"} · anteprime dell'ultima versione salvata</p>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visibili.map((p) => { const a = anteprime.data?.[p.id]; return (
+              <Link key={p.id} to={percorsiPlanimetrie.pianta(p.id)} aria-label={`Apri ${p.titolo}`} className="group block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <Card className="h-full overflow-hidden rounded-2xl transition-all group-hover:border-primary/50 group-hover:shadow-md">
+                  <AnteprimaPianta anteprima={a} titolo={p.titolo} caricando={anteprime.isLoading} className="h-48 border-b transition-colors group-hover:bg-blue-50/40" />
+                  <CardContent className="space-y-2 p-4">
+                    <div className="flex items-start justify-between gap-2"><h3 className="line-clamp-2 text-sm font-semibold">{p.titolo}</h3><ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /></div>
+                    {a && <p className="text-xs text-muted-foreground">{a.piano} · {a.stanze} {a.stanze === 1 ? "stanza" : "stanze"} · {a.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²{a.piani > 1 ? ` · ${a.piani} piani` : ""}</p>}
+                    <div className="flex items-center justify-between gap-2"><p className="text-xs text-muted-foreground">Versione {p.versione_corrente} · {data(p.updated_at)}</p>{p.stato !== "bozza" && <Badge variant="secondary">{STATO[p.stato]}</Badge>}</div>
                   </CardContent>
                 </Card>
               </Link>
-            ))}
+            ); })}
           </div>
+          {ultimaPagina > 0 && <nav aria-label="Pagine dell'archivio" className="flex items-center justify-between gap-3"><Button variant="outline" disabled={paginaCorrente === 0} onClick={() => setPagina(paginaCorrente - 1)}>Precedenti</Button><span className="text-sm text-muted-foreground">Pagina {paginaCorrente + 1} di {ultimaPagina + 1}</span><Button variant="outline" disabled={paginaCorrente === ultimaPagina} onClick={() => setPagina(paginaCorrente + 1)}>Successive</Button></nav>}
+          </>
         )}
       </section>
     </div>

@@ -47,6 +47,7 @@ import { VERSIONE_PROMPT } from "./prompt.ts";
 import { origineVersione, type PiantaGenerata } from "./generazione.ts";
 
 const NOME = "planimetria-genera";
+// Seconda lettura delle aperture non agganciate, conservando la migliore pianta modificabile.
 const BUCKET = "planimetrie";
 /** Scelti col banco di prova (docs/planimetrie/fase3-esito.md). */
 // Claude per primo: Gemini 2.5 Pro non finiva mai nei 30 s del router (02/11/2026, prova su 15 piante reali)

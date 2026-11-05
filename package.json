@@ -44,7 +44,7 @@
     "mobile:dev": "VITE_APP_MODE=mobile vite build --watch & npx cap sync --inline",
     "test:billing-itala": "vitest run --maxWorkers=2 src/test/logic/recuperoMassivoAdE.test.ts src/test/ui/recuperoMassivoAdE.test.tsx src/test/ui/italaCentrale.test.tsx src/test/logic/italaPreferenzeIva.test.ts src/test/logic/italaDatabase.test.ts src/test/logic/italaRecuperoStato.test.ts",
     "test:render-credits": "node scripts/test-render-refunds.mjs",
-    "test:render": "vitest run src/test/logic/renderDrafts.test.ts src/test/logic/renderRequestTimeout.test.ts src/test/logic/renderFonte3d.test.ts src/test/ui/renderRefinementChoices.test.tsx src/test/ui/renderProcessingTimer.test.tsx src/test/logic/materialiProgetto.test.ts src/test/logic/qualitaRender.test.ts src/test/logic/roomVisualCatalog.test.ts src/test/logic/persianeRenderPrompt.test.ts src/test/ui/renderInSerieStato.test.tsx && npm run test:render-credits"
+    "test:render": "vitest run src/test/ui/scelteVisiveStanzaRender.test.tsx src/test/logic/renderDrafts.test.ts src/test/logic/planimetrieAnteprime.test.ts src/test/logic/planimetriaApertureDaDescrizione.test.ts src/test/ui/planimetrieGenerazioneAttesa.test.tsx src/test/logic/planimetrieCampioniFoto.test.ts src/test/ui/planimetrieEditorPagine.test.tsx src/test/logic/renderRequestTimeout.test.ts src/test/logic/renderFonte3d.test.ts src/test/ui/renderRefinementChoices.test.tsx src/test/ui/renderProcessingTimer.test.tsx src/test/logic/materialiProgetto.test.ts src/test/logic/qualitaRender.test.ts src/test/logic/roomVisualCatalog.test.ts src/test/logic/persianeRenderPrompt.test.ts src/test/ui/renderInSerieStato.test.tsx && npm run test:render-credits"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",

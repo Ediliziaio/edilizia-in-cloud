@@ -144,19 +144,33 @@ export async function generaPlanimetria(
   // La migliore lettura con la sola colpa di avere stanze sovrapposte: meglio mostrarla da sistemare a mano
   // che non mostrare niente (bifamiliari speculari, portici sopra i giardini: 02/11/2026).
   let primaSospetta: PiantaGenerata | null = null;
+  let daCompletare: PiantaGenerata | null = null;
   let daSistemare: { pianta: PiantaGenerata; dettagli: string[] } | null = null;
   for (let n = 1; n <= 2; n++) {
     const t0 = ora();
-    const r = await chiama(messaggi, n);
+    let r: Awaited<ReturnType<ChiamaModello>>;
+    try { r = await chiama(messaggi, n); } catch (e) {
+      if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
+      throw e;
+    }
     const lettura = leggi(r.testo, req);
     tentativi.push({ modello: r.modello, costoUsd: r.costoUsd ?? 0, durataMs: ora() - t0, errori: lettura.errori.map((e) => e.codice) });
     if (lettura.nonLeggibile) {
+      if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
       return { ok: false, codice: "non_leggibile", messaggio: MESSAGGI_UTENTE.non_leggibile, tentativi };
     }
     if (lettura.pianta && !lettura.errori.length) {
       // Pianta valida ma scala sospetta: una seconda lettura, se c'è tempo, con l'invito a cercare una misura scritta.
       const sospetta = lettura.pianta.generazione.avvisi.find((a) => a.startsWith("La scala letta dal disegno non sembra giusta"));
       const tempoPerRileggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs / 2;
+      const apertureDaRivedere = lettura.pianta.generazione.aperture_da_rivedere ?? 0;
+      if (apertureDaRivedere > 0 && n === 1 && tempoPerRileggere) {
+        daCompletare = lettura.pianta;
+        messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
+        messaggi.push({ role: "user", content: promptCorrezione([`${apertureDaRivedere} porte o finestre non si agganciano ai muri o si sovrappongono. Mantieni tutte le aperture richieste, senza eliminarle: metti i due estremi di ogni vano direttamente su un lato di una stanza, senza sovrapporre vani diversi. Conserva le stanze e le loro misure.`]) });
+        continue;
+      }
+      if (daCompletare && apertureDaRivedere >= (daCompletare.generazione.aperture_da_rivedere ?? 0)) return { ok: true, pianta: daCompletare, tentativi };
       if (sospetta && n === 1 && tempoPerRileggere) {
         primaSospetta = lettura.pianta;
         messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
@@ -175,6 +189,7 @@ export async function generaPlanimetria(
     messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
     messaggi.push({ role: "user", content: promptCorrezione(lettura.errori.map((e) => e.dettaglio).slice(0, 15)) });
   }
+  if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
   if (daSistemare) {
     const { pianta, dettagli } = daSistemare;
     pianta.generazione.avvisi.push(`${dettagli.length === 1 ? "Una stanza si sovrappone" : `${dettagli.length} coppie di stanze si sovrappongono`} a un'altra: sistemale nell'editor. ${dettagli.slice(0, 3).join(" ")}`);

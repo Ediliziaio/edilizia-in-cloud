@@ -73,12 +73,13 @@ export default function RenderPlanimetriaStanza() {
   // La stanza e lo stato possono cambiare se nel 3D si sceglie un'altra stanza o
   // «com'è oggi» invece del progetto: il render segue l'inquadratura scelta.
   const [scelta, setScelta] = useState<{ ambito: string; localeId: string }>({ ambito: params.get("ambito") ?? "fatto", localeId: localeParam });
+  const materialiAmbito = params.get("materiali_ambito") ?? scelta.ambito;
   const vincoli = useMemo(
     () => (documento ? vincoliDellaStanza(documento, { livello_id: livelloId, ambito: scelta.ambito, locale_id: scelta.localeId }) : null),
     [documento, livelloId, scelta],
   );
   const propostaId = scelta.ambito.startsWith("progetto:") ? scelta.ambito.slice("progetto:".length) : undefined;
-  const piante3D = useMemo(() => (documento ? pianteDaPlanimetria(documento, { livelloId, propostaId }) : null), [documento, livelloId, propostaId]);
+  const piante3D = useMemo(() => (documento ? pianteDaPlanimetria(documento, { livelloId, propostaId, ...(params.get("materiali_ambito") ? { materialiAmbito } : {}) }) : null), [documento, livelloId, propostaId, params, materialiAmbito]);
 
   const [passo, setPasso] = useState<Passo>(1);
   const [partenza, setPartenza] = useState<PartenzaRender>("vista_3d");
@@ -89,7 +90,7 @@ export default function RenderPlanimetriaStanza() {
 
   const [config, setConfig] = useState<ConfigurazioneStanza>(DEFAULT_STANZA_CONFIG);
   const [eccezionePavimento, setEccezionePavimento] = useState(false);
-  const materialiComuni = documento ? materialiDelProgetto(documento, scelta.ambito) : {};
+  const materialiComuni = documento ? materialiDelProgetto(documento, materialiAmbito) : {};
   const configEffettiva = applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiComuni);
   const configIniziale = useRef(false);
   useEffect(() => {
@@ -210,13 +211,14 @@ export default function RenderPlanimetriaStanza() {
     setRisultato(null);
     setSalvato(false);
     try {
-      const configRender = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiDelProgetto(data.versione.documento, scelta.ambito)), companyId);
+      const configRender = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiDelProgetto(data.versione.documento, materialiAmbito)), companyId);
       let sid = sessione;
       const rif: PlanimetriaNelRender = {
         planimetria_id: id,
         versione: data.versione.numero,
         livello_id: livelloId,
         ambito: scelta.ambito,
+        ...(materialiAmbito !== scelta.ambito ? { materiali_ambito: materialiAmbito } : {}),
         locale_id: scelta.localeId,
         locale_nome: vincoli.locale.nome,
         partenza,
@@ -285,7 +287,7 @@ export default function RenderPlanimetriaStanza() {
       setPasso(2);
       toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
-  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, partenza, scelta, sessione, user, vincoli]);
+  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, materialiAmbito, partenza, scelta, sessione, user, vincoli]);
 
   const salvaInGalleria = async () => {
     if (!sessione) return;

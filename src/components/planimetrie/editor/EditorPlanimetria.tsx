@@ -9,6 +9,7 @@
  * comandi puri di comandi.ts, annulla/ripeti in storia.ts.
  */
 import { RilievoTerreno } from "./RilievoTerreno";
+import { materialiDelProgetto } from "../../../../shared/planimetrie/materialiProgetto.ts";
 import { TelaioStrutturale } from "./TelaioStrutturale";
 import { generaTelaio, type ParametriTelaio } from "./telaio";
 import type { Rilievo } from "../../../../shared/planimetrie/rilievo.ts";
@@ -178,6 +179,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
   const vaiAlPianoRef = useRef<(id: string, doc: Planimetria, proposta?: string) => void>(() => {});
   const [strumento, setStrumentoStato] = useState<Strumento>("seleziona");
   const [vista, setVista] = useState<C.Vista>("fatto");
+  const pavimentoComune = materialiDelProgetto(documento, vista === "fatto" ? "fatto" : `progetto:${propostaId}`).pavimento;
   const [selezione, setSelezione] = useState<Selezione | null>(null);
   // Più arredi, quote e testi insieme (Maiusc+clic o Maiusc+trascina).
   const [gruppo, setGruppo] = useState<C.Gruppo>(C.gruppoVuoto);
@@ -1448,6 +1450,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
                 const r = C.aggiungiStanzaDaMisure(storia.presente, w, l, { nome, destinazione, stato: C.statoNuovo(vista) });
                 applica(r.pianta);
                 setStrumento("seleziona");
+                setGruppo(C.gruppoVuoto());
                 setSelezione({ tipo: "locale", id: r.id });
                 setTimeout(adatta, 0);
               }}
@@ -1651,7 +1654,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
             {C.quantiNelGruppo(gruppo) > 0 ? (
               <PannelloGruppo gruppo={gruppo} onAzione={azioneGruppo} />
             ) : (
-              <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} />
+              <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} focusNome={selezione?.tipo === "locale" && selezione.id === stanzaNuova} essenziale={sola} pavimentoComune={pavimentoComune} />
             )}
           </aside>
         )}
@@ -1664,7 +1667,7 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
               Chiudi
             </Button>
           </div>
-          <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale />
+          <PannelloDettagli pianta={pianta} dati={dati} sottotetto={sottotetto} latiModificabili={latiModificabili} vista={vista} selezione={selezione} azioni={azioni} essenziale pavimentoComune={pavimentoComune} />
         </div>
       )}
 

@@ -13,6 +13,11 @@ export function materialiDelProgetto(doc: Planimetria, ambito: string): Material
   return doc.materialiProgetto?.[ambito] ?? {};
 }
 
+/** Un piano senza opere nuove conserva il disegno esistente e i materiali del progetto. */
+export function ambitoGeometriaDelPiano(doc: Planimetria, livelloId: string, ambito: string): string {
+  return ambito === "fatto" || doc.livelli.find((l) => l.id === livelloId)?.proposte.some((p) => `progetto:${p.id}` === ambito) ? ambito : "fatto";
+}
+
 export function materialiProgettoValidi(value: unknown): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   return Object.entries(value).every(([ambito, raw]) => {

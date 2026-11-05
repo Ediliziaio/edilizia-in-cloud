@@ -1,6 +1,7 @@
 import { applicaMaterialiProgetto, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { caricaTavoleMateriali } from "./materiali.ts";
 // generate-room-render — Edge Function EiC
+// Campioni pittura dell'editor e tavole visive condivise: salvia e sabbia.
 // Render Stanza (Room/Interiors) AI — Provider unificato OpenRouter + fallback
 // Prompt Engine stanza-v1.0.0
 // Dalla pianta arrivano anche le finiture della stanza (pavimento, pareti, rivestimento): vedi righeFiniture.

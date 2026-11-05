@@ -241,22 +241,32 @@ function separaStanzeAccostate(contorni: Punto[][]): void {
   const facce = contorni.flatMap((c, i) => facceDiLocale(c, i).facce);
   for (const asse of [0, 1] as const) {
     const k = asse === 0 ? "y" : "x";
-    const linee: number[] = [];
+    // Lo spazio di una parete riguarda solo le stanze che la condividono.
+    // Spostare ogni vertice oltre una linea allungava anche stanze lontane:
+    // ad esempio un soggiorno 5×4 diventava 5,10×4 per una parete del bagno.
+    const dopo = contorni.map(() => new Set<number>());
     for (const g of raggruppa(facce.filter((f) => f.asse === asse))) {
       const piu = g.filter((f) => f.lato === 1);
       const meno = g.filter((f) => f.lato === -1);
       if (!piu.length || !meno.length) continue;
-      const q = g.reduce((s, f) => s + f.quota, 0) / g.length;
-      if (Math.max(...g.map((f) => f.quota)) - Math.min(...g.map((f) => f.quota)) < 4 && !linee.some((l) => Math.abs(l - q) < 1)) linee.push(q);
-    }
-    if (!linee.length) continue;
-    for (const c of contorni) {
-      const minimo = Math.min(...c.map((p) => p[k]));
-      for (const p of c) {
-        const passate = linee.filter((q) => q < p[k] - 1 || (Math.abs(q - p[k]) <= 1 && minimo >= q - 1)).length;
-        p[k] += passate * SPESSORE_INTERNO;
+      if (Math.max(...g.map((f) => f.quota)) - Math.min(...g.map((f) => f.quota)) >= 4) continue;
+      for (const a of meno) for (const b of piu) {
+        if (a.locale !== b.locale && Math.min(a.a, b.a) - Math.max(a.da, b.da) > 20) dopo[a.locale].add(b.locale);
       }
     }
+    const ingressi = contorni.map(() => 0);
+    for (const vicini of dopo) for (const i of vicini) ingressi[i]++;
+    const coda = ingressi.flatMap((n, i) => n === 0 ? [i] : []);
+    const sposta = contorni.map(() => 0);
+    const visitati = new Set<number>();
+    for (let j = 0; j < coda.length; j++) {
+      const i = coda[j]; visitati.add(i);
+      for (const vicino of dopo[i]) {
+        sposta[vicino] = Math.max(sposta[vicino], sposta[i] + SPESSORE_INTERNO);
+        if (--ingressi[vicino] === 0) coda.push(vicino);
+      }
+    }
+    contorni.forEach((c, i) => { if (visitati.has(i)) for (const p of c) p[k] += sposta[i]; });
   }
 }
 
@@ -333,7 +343,18 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   // Locali (ancora con y verso il basso)
   const altezzaGenerale = r.altezza_m && r.altezza_m > 1.5 && r.altezza_m <= ALTEZZA_MASSIMA_M ? r.altezza_m * 100 : null;
   const contorni = locali3.map((l) => l.contorno.map(conv));
+  const contorniOriginali = contorni.map((c) => c.map((p) => ({ ...p })));
   if (r.sistema === "metri") separaStanzeAccostate(contorni);
+  const traslazioni = contorni.map((c, i) => ({ x: c[0].x - contorniOriginali[i][0].x, y: c[0].y - contorniOriginali[i][0].y }));
+  // Anche vani e arredi seguono la stanza quando si apre lo spazio del muro.
+  // Su una parete condivisa il vano si porta a metà delle due facce.
+  const traslazionePer = (p: Punto, sulMuro = false): Punto => {
+    const locali = contorniOriginali.flatMap((c, i) => {
+      if (!sulMuro) return puntoDentro(p, c) ? [i] : [];
+      return c.some((a, j) => { const pr = proiezione(p, a, c[(j + 1) % c.length]); return pr.t >= 0 && pr.t <= 1 && pr.distanza < 4; }) ? [i] : [];
+    });
+    return locali.length ? { x: locali.reduce((s, i) => s + traslazioni[i].x, 0) / locali.length, y: locali.reduce((s, i) => s + traslazioni[i].y, 0) / locali.length } : { x: 0, y: 0 };
+  };
   const altezze = locali3.map((l) => {
     const hScritta = l.altezza_scritta_m && l.altezza_scritta_m > 1.5 && l.altezza_scritta_m <= ALTEZZA_MASSIMA_M ? l.altezza_scritta_m * 100 : null;
     if (hScritta) return { valore: hScritta, origine: "da_documento" as Origine };
@@ -370,6 +391,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   interface ApInt { muro: number; tipo: Apertura["tipo"]; inizio: number; larghezza: number }
   const vani: ApInt[] = [];
   let scartate = 0;
+  let daRivedere = 0;
   for (const ap of r.aperture) {
     const a = conv(ap.da);
     const b = conv(ap.a);
@@ -379,6 +401,8 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
       continue;
     }
     const mezzo = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const spostamento = traslazionePer(mezzo, true);
+    mezzo.x += spostamento.x; mezzo.y += spostamento.y;
     const dir = { x: (b.x - a.x) / larghezza, y: (b.y - a.y) / larghezza };
     let migliore: { muro: number; t: number; d: number } | null = null;
     muriBuoni.forEach((w, i) => {
@@ -391,15 +415,19 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     });
     if (!migliore) {
       scartate++;
+      daRivedere++;
       continue;
     }
     const { muro, t } = migliore as { muro: number; t: number };
     const lw = distanza(muriBuoni[muro].p1, muriBuoni[muro].p2);
     const larg = arr(Math.min(larghezza, lw - 10));
     const inizio = arr(Math.min(Math.max(t * lw - larg / 2, 0), lw - larg));
-    const occupato = vani.some((x) => x.muro === muro && inizio < x.inizio + x.larghezza && x.inizio < inizio + larg);
+    const occupato = vani.find((x) => x.muro === muro && inizio < x.inizio + x.larghezza && x.inizio < inizio + larg);
+    // Due tratti identici della stessa apertura non sono due serramenti.
+    if (occupato && occupato.tipo === ap.tipo && Math.abs(occupato.inizio - inizio) < 5 && Math.abs(occupato.larghezza - larg) < 5) continue;
     if (occupato || larg < 30) {
       scartate++;
+      if (occupato) daRivedere++;
       continue;
     }
     vani.push({ muro, tipo: ap.tipo, inizio, larghezza: larg });
@@ -462,7 +490,9 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     if (w < 10 || h < 10 || w > max || h > max) continue;
     const giro = e.tipo === "pilastro" ? 0 : ROT_LATO[e.lato_muro ?? "alto"];
     const traverso = giro === 90 || giro === 270;
-    const centro = su({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const puntoMedio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const spostamento = traslazionePer(puntoMedio);
+    const centro = su({ x: puntoMedio.x + spostamento.x, y: puntoMedio.y + spostamento.y });
     elementi.push({
       id: `e${elementi.length + 1}`,
       tipo: e.tipo,
@@ -496,6 +526,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi, quote: [], testi: [], ...(aree.length ? { aree } : {}) }, proposte: [] }],
   };
   const generazione: InfoGenerazione = {
+    ...(daRivedere ? { aperture_da_rivedere: daRivedere } : {}),
     ingresso: opz.ingresso,
     scala,
     avvisi,
@@ -588,7 +619,7 @@ export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaG
   avvisi.push(`Sul foglio c'erano ${piani.length} piani: li trovi come piani separati (${piani.map((p, i) => p || `Piano ${i + 1}`).join(", ")}). Controlla la quota di ognuno.`);
   return {
     planimetria: { ...generate[0].planimetria, livelli: [...livelli].sort((a, b) => a.quota - b.quota) },
-    generazione: { ...generate[0].generazione, avvisi, superfici_scritte: superfici },
+    generazione: { ...generate[0].generazione, aperture_da_rivedere: generate.reduce((n, g) => n + (g.generazione.aperture_da_rivedere ?? 0), 0), avvisi, superfici_scritte: superfici },
   };
 }
 
