@@ -403,7 +403,9 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   const modificabile = !contratto || (contratto.stato === "bozza" && !contratto.firmato_il);
   // Dopo la firma conta il prezzo pattuito, non le voci: il previsto delle fasi si porta al contratto.
   const pattuito = contratto && !modificabile && Array.isArray(contratto.elenco_lavori) ? contrattoPerFase(contratto.elenco_lavori as RigaElencoLavori[], fasi) : null;
-  const previstoOra = assegnazioni.reduce((t, a) => t + (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100), 0);
+  // Il confronto è sulle sole fasi del contratto: le altre fasi della ditta non c'entrano.
+  const previstoOra = assegnazioni.filter((a) => !!a.phase_id && !!pattuito?.perFase.has(a.phase_id))
+    .reduce((t, a) => t + (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100), 0);
   const fasiSenzaDitta = pattuito ? [...pattuito.perFase.keys()].filter((id) => !assegnazioni.some((a) => a.phase_id === id)) : [];
   const totalePattuito = pattuito ? [...pattuito.perFase.values()].reduce((t, v) => t + v, 0) : 0;
   const daAllineare = !!pattuito && pattuito.perFase.size > 0 && Math.abs(totalePattuito - previstoOra) >= 1;
@@ -413,14 +415,16 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     mutationFn: async () => {
       let n = 0;
       for (const [faseId, importo] of pattuito!.perFase) {
-        const a = assegnazioni.find((x) => x.phase_id === faseId);
-        if (!a) continue;
-        // «manuale»: il ricalcolo dalle voci non lo riporta indietro.
-        const { data, error } = await db.from("order_external_teams")
-          .update({ cost_preventivo: conIva(importo, Number(a.vat_rate) || 0), costo_origine: "manuale" }).eq("id", a.id).select("id");
-        if (error) throw error;
-        if (!data?.length) throw new Error("Non puoi modificare il costo previsto delle ditte.");
-        n += 1;
+        // Due righe della stessa ditta sulla stessa fase: il pattuito va sulla prima, le altre a 0, altrimenti conta doppio.
+        const righe = assegnazioni.filter((x) => x.phase_id === faseId);
+        for (const [k, a] of righe.entries()) {
+          // «manuale»: il ricalcolo dalle voci non lo riporta indietro.
+          const { data, error } = await db.from("order_external_teams")
+            .update({ cost_preventivo: k === 0 ? conIva(importo, Number(a.vat_rate) || 0) : 0, costo_origine: "manuale" }).eq("id", a.id).select("id");
+          if (error) throw error;
+          if (!data?.length) throw new Error("Non puoi modificare il costo previsto delle ditte.");
+        }
+        if (righe.length) n += 1;
       }
       return n;
     },

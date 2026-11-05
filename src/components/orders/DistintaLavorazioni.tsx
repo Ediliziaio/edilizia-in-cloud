@@ -270,7 +270,9 @@ export function DistintaLavorazioni({
   useEffect(() => {
     if (!apriSottofase) return;
     const riga = tutte.find((x) => x.sottofaseId === apriSottofase);
-    if (riga) setAperta(riga.key);
+    // Se la riga non è ancora arrivata la richiesta resta, e si apre appena c'è.
+    if (!riga) return;
+    setAperta(riga.key);
     onSottofaseAperta?.();
   }, [apriSottofase, tutte, onSottofaseAperta]);
 

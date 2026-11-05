@@ -253,7 +253,8 @@ export function SottofasiFase({
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground" aria-label={`Altro per ${s.name}`}><MoreHorizontal className="h-4 w-4" /></Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  {/* Chiudendosi il menu rimetterebbe il cursore su di sé: il campo del nome si chiuderebbe subito. */}
+                  <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
                     {onPianifica && <DropdownMenuItem onClick={() => setInPiano(s.id)}><CalendarDays className="mr-2 h-3.5 w-3.5" />Date e giorni</DropdownMenuItem>}
                     <DropdownMenuItem onClick={() => { setBozza(s.name); setInModifica(s.id); }}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
                     {onRiordina && sottofasi.length > 1 && <>

@@ -156,8 +156,8 @@ export function useSottofasi(orderId: string | null | undefined) {
       const errore = esiti.find((e: { error: unknown }) => e.error);
       if (errore) throw errore.error;
     },
-    onMutate: async (passi) => {
-      const per = new Map(passi.map((p) => [p.id, p]));
+    onMutate: async (passi: ReadonlyArray<{ id: string; percentuale: number; quantita_fatta: number | null }>) => {
+      const per = new Map(passi.map((p) => [p.id, p] as const));
       return subito(new Set(per.keys()), (s) => { const p = per.get(s.id)!; return { ...s, percentuale: p.percentuale, quantita_fatta: p.quantita_fatta, fatta: p.percentuale >= 100 }; });
     },
     onSuccess: aggiornaLeggero,
@@ -184,8 +184,8 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.rpc("sottofasi_pianifica_in_blocco", { p_passi: passi });
       if (error) throw error;
     },
-    onMutate: async (passi) => {
-      const per = new Map(passi.map((p) => [p.id, p]));
+    onMutate: async (passi: ReadonlyArray<{ id: string; data_inizio: string | null; data_fine: string | null; giorni: number | null }>) => {
+      const per = new Map(passi.map((p) => [p.id, p] as const));
       return subito(new Set(per.keys()), (s) => { const p = per.get(s.id)!; return { ...s, data_inizio: p.data_inizio, data_fine: p.data_fine, giorni: p.giorni }; });
     },
     onSuccess: aggiornaLeggero,
@@ -198,7 +198,7 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.rpc("sottofasi_riordina", { p_ids: ids });
       if (error) throw error;
     },
-    onMutate: async (ids) => {
+    onMutate: async (ids: ReadonlyArray<string>) => {
       const posto = new Map<string, number>(ids.map((id, i) => [id, i]));
       return subito(new Set<string>(ids), (s) => ({ ...s, position: posto.get(s.id) ?? s.position }));
     },

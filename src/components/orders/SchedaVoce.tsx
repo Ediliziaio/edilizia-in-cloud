@@ -1,6 +1,6 @@
 // src/components/orders/SchedaVoce.tsx
 // Tutto di una voce in una finestra grande: si apre dalla riga e si scorre alla voce dopo senza chiuderla.
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Check, CheckCircle2, ChevronLeft, ChevronRight, ListChecks, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -171,6 +171,8 @@ function DatiLavorazione({ riga: r, vedeVenduto, puoModificare, onSalva }: { rig
   const [c, setC] = useState(inizio);
   // Su una commessa grande il dato torna dopo qualche secondo: il secondo clic creerebbe una voce doppia.
   const [inviato, setInviato] = useState(false);
+  // Se il salvataggio non va, il pulsante torna disponibile dopo qualche secondo.
+  useEffect(() => { if (!inviato) return undefined; const t = window.setTimeout(() => setInviato(false), 8000); return () => window.clearTimeout(t); }, [inviato]);
   const cambia = (k: keyof typeof c) => (e: { target: { value: string } }) => { setInviato(false); setC((x) => ({ ...x, [k]: e.target.value })); };
   const q = numero(c.q), i = numero(c.i), l = numero(c.l), m = numero(c.m);
   const valido = q !== null && i !== null && l !== null && m !== null;
