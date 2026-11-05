@@ -1,3 +1,4 @@
+import { applicaMaterialiProgetto, materialiDelProgetto, descrizionePavimento, PROFILI_PROGETTO, COLORI_INFISSI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * «Fai il render di questa stanza» da una pianta (Planimetrie, fase 5b).
@@ -87,6 +88,9 @@ export default function RenderPlanimetriaStanza() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [config, setConfig] = useState<ConfigurazioneStanza>(DEFAULT_STANZA_CONFIG);
+  const [eccezionePavimento, setEccezionePavimento] = useState(false);
+  const materialiComuni = documento ? materialiDelProgetto(documento, scelta.ambito) : {};
+  const configEffettiva = applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiComuni);
   const configIniziale = useRef(false);
   useEffect(() => {
     if (!vincoli || configIniziale.current) return;
@@ -206,7 +210,7 @@ export default function RenderPlanimetriaStanza() {
     setRisultato(null);
     setSalvato(false);
     try {
-      const configRender = await preparaMaterialiStanza(config, companyId);
+      const configRender = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiDelProgetto(data.versione.documento, scelta.ambito)), companyId);
       let sid = sessione;
       const rif: PlanimetriaNelRender = {
         planimetria_id: id,
@@ -281,7 +285,7 @@ export default function RenderPlanimetriaStanza() {
       setPasso(2);
       toast.error(fraseErroreRender(e instanceof Error ? e.message : ""));
     }
-  }, [anteprima, companyId, config, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, partenza, scelta, sessione, user, vincoli]);
+  }, [anteprima, companyId, config, eccezionePavimento, controlla, data, fermaAttesa, foto, fotogramma, id, inCorso, livelloId, partenza, scelta, sessione, user, vincoli]);
 
   const salvaInGalleria = async () => {
     if (!sessione) return;
@@ -466,7 +470,8 @@ export default function RenderPlanimetriaStanza() {
               </CardTitle>
             </CardHeader>
             <CardContent className="max-md:p-0">
-              <StanzaConfigForm value={config} onChange={setConfig} companyId={companyId} />
+              {(materialiComuni.pavimento || materialiComuni.infissi) && <div className="mb-4 space-y-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">Materiali comuni del progetto</p>{materialiComuni.pavimento && <><p>{descrizionePavimento(materialiComuni.pavimento)}</p><label className="flex items-center gap-2"><input type="checkbox" checked={eccezionePavimento} onChange={(e) => setEccezionePavimento(e.target.checked)} />Usa un pavimento diverso solo per questo render</label></>}{materialiComuni.infissi && <p>Infissi: {PROFILI_PROGETTO[materialiComuni.infissi.profilo]}, {COLORI_INFISSI_PROGETTO[materialiComuni.infissi.colore].nome}. Stesso materiale, misure proprie di ogni apertura.</p>}<Link className="inline-block underline" to={percorsiPlanimetrie.pianta(id)}>Modifica i materiali per tutte le stanze</Link></div>}
+              <StanzaConfigForm value={configEffettiva} onChange={setConfig} pavimentoBloccato={!!materialiComuni.pavimento && !eccezionePavimento} companyId={companyId} />
             </CardContent>
           </Card>
           {/* Senza crediti avvisa e blocca, come negli altri render. */}

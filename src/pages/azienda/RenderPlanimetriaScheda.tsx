@@ -1,3 +1,4 @@
+import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
 /**
  * Render AI → Planimetrie → una pianta: le sue stanze, il 3D e i render fatti.
  *
@@ -112,10 +113,10 @@ export default function RenderPlanimetriaScheda() {
     const m = new Map<string, string>();
     for (const r of [...completati].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))) {
       const k = r.planimetria?.locale_id;
-      if (k && !m.has(k)) m.set(k, r.result_urls![0]);
+      if (k && r.planimetria?.versione === data?.versione.numero && r.planimetria?.ambito === ambito && !m.has(k)) m.set(k, r.result_urls![0]);
     }
     return m;
-  }, [completati]);
+  }, [completati, data?.versione.numero, ambito]);
   // la sezione delle unità c'è solo con due appartamenti o più (condomini, bifamiliari)
   const piuUnita = useMemo(() => {
     if (!documento) return false;
@@ -176,6 +177,8 @@ export default function RenderPlanimetriaScheda() {
           <span className="max-md:hidden">Esporta</span>
         </Button>
       </div>
+
+      <MaterialiProgetto key={`${ambito}:${data.versione.numero}`} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={permessi.solaLettura} />
 
       {(ambiti.length > 1 || documento.livelli.length > 1) && (
         <div className="flex flex-wrap items-center gap-3">
@@ -413,13 +416,14 @@ export default function RenderPlanimetriaScheda() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground max-md:text-[13px] max-md:normal-case max-md:tracking-normal max-md:text-foreground">
             Render di questa pianta
           </h2>
+          <p className="text-xs text-muted-foreground">Le immagini delle versioni precedenti conservano i materiali scelti allora. Genera nuovi render per applicare le ultime scelte del progetto.</p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {completati.map((r) => (
               <Link key={r.id} to={`/azienda/render/stanza/gallery/${r.id}`} className="group overflow-hidden rounded-lg border">
                 <img loading="lazy" src={r.result_urls![0]} alt={`Render di ${r.planimetria?.locale_nome ?? "una stanza"}`} className="aspect-[4/3] w-full object-cover transition-transform group-hover:scale-[1.02]" />
                 <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs">
                   <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{r.planimetria?.locale_nome ?? "Stanza"}</span>
+                  <span className="min-w-0 flex-1"><span className="block truncate">{r.planimetria?.locale_nome ?? "Stanza"}</span>{r.planimetria?.versione !== data.versione.numero ? <span className="text-[10px] text-amber-700">Versione precedente</span> : r.planimetria?.ambito !== ambito ? <span className="text-[10px] text-muted-foreground">Altro stato della pianta</span> : null}</span>
                   {r.planimetria?.partenza === "vista_3d" && <span className="ml-auto shrink-0 text-muted-foreground">dal 3D</span>}
                 </div>
               </Link>

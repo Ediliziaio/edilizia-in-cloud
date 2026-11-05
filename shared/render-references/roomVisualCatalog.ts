@@ -1,3 +1,5 @@
+import { PROJECT_WINDOW_PHOTOS } from "./projectWindowReferences.ts";
+import { PROFILI_PROGETTO } from "../planimetrie/materialiProgetto.ts";
 import { normalizeRoomFloorConfig } from "../render-room/roomRenderConfig.ts";
 import { FLOOR_EFFECT_PHOTOS, FLOOR_ESSENCE_PHOTOS, FLOOR_FINISH_PHOTOS, FLOOR_LAYOUT_PHOTOS, FLOOR_SKIRTING_PHOTOS, floorSurfacePhoto } from "./floorReferences.ts";
 import { ROOM_CLADDING_PHOTOS, ROOM_LIGHTING_PHOTOS } from "./roomReferences.ts";
@@ -5,12 +7,13 @@ import { ROOM_VISUAL_PHOTOS } from "./roomVisualPhotos.ts";
 import { TILE_EFFECT_PHOTOS } from "./bathroomReferences.ts";
 import type { PhotoEntry, PhotoTable } from "./referencePicker.ts";
 
-export type RoomVisualGroup = "style" | "paint_finish" | "floor_type" | "floor_effect" | "floor_essence" | "floor_pattern" | "floor_finish" | "floor_skirting" | "furniture_material" | "ceiling_type" | "lighting_type" | "wallpaper_pattern" | "cladding_type" | "curtain_type" | "kitchen_front" | "kitchen_worktop" | "kitchen_handle";
+export type RoomVisualGroup = "window_profile" | "style" | "paint_finish" | "floor_type" | "floor_effect" | "floor_essence" | "floor_pattern" | "floor_finish" | "floor_skirting" | "furniture_material" | "ceiling_type" | "lighting_type" | "wallpaper_pattern" | "cladding_type" | "curtain_type" | "kitchen_front" | "kitchen_worktop" | "kitchen_handle";
 export interface RoomVisualChoice { value: string; label: string; photo?: PhotoEntry; removal?: boolean }
 export interface RoomVisualSelection extends RoomVisualChoice { id: string; group: RoomVisualGroup; target: string; instruction: string }
 export interface RoomVisualBoards { version: 1; signature: string; paths: string[]; ids: string[] }
 
 export const ROOM_VISUAL_LABELS: Record<RoomVisualGroup, Record<string, string>> = {
+  window_profile: PROFILI_PROGETTO,
   style: { moderno: "Moderno", scandinavo: "Scandinavo", industriale: "Industriale", classico: "Classico", rustico: "Rustico", minimalista: "Minimalista", mediterraneo: "Mediterraneo", art_deco: "Art Deco", giapponese: "Giapponese", provenzale: "Provenzale", eclettico: "Eclettico", luxe_contemporaneo: "Luxe contemporaneo" },
   paint_finish: { opaco: "Opaco", satinato: "Satinato", lucido: "Lucido", lavabile: "Lavabile" },
   floor_type: { gres_porcellanato: "Gres porcellanato", parquet_legno: "Parquet legno", parquet_laminato: "Laminato effetto legno", vinile_lvt: "Vinile LVT/SPC", cotto: "Cotto", marmo: "Marmo", resina: "Resina", cemento_spatolato: "Cemento spatolato", microcemento: "Microcemento", moquette: "Moquette", terrazzo_veneziano: "Terrazzo veneziano", mosaico: "Mosaico", pietra_naturale: "Pietra naturale" },
@@ -44,6 +47,7 @@ export function roomVisualChoices(group: RoomVisualGroup, config?: unknown): Roo
     ...table("floor-layout"),
   };
   const photos: Partial<Record<RoomVisualGroup, PhotoTable>> = {
+    window_profile: PROJECT_WINDOW_PHOTOS,
     style: table("style"), paint_finish: { ...table("paint"), lavabile: table("paint").opaco },
     floor_effect: FLOOR_EFFECT_PHOTOS, floor_essence: FLOOR_ESSENCE_PHOTOS, floor_pattern: pattern,
     floor_finish: { ...FLOOR_FINISH_PHOTOS, strutturato: FLOOR_FINISH_PHOTOS.boccardato, naturale: surface ?? FLOOR_FINISH_PHOTOS.opaco },
@@ -99,6 +103,8 @@ export function selectedRoomVisuals(config: unknown): RoomVisualSelection[] {
     add("kitchen_worktop", cucina.piano_lavoro_materiale ?? "quarzo", "KITCHEN WORKTOP", { colour: cucina.colore_piano_lavoro_hex }, "Copy the selected slab material, grain/mineral pattern and edge finish only, at realistic worktop scale.");
     add("kitchen_handle", cucina.maniglie ?? "senza_maniglia", "KITCHEN HANDLES", {}, "Copy this kitchen handle model and finish only. For handle-free fronts remove old handles and do not add any.");
   }
+  const infissi = section("infissi_progetto");
+  if (infissi.profilo) add("window_profile", infissi.profilo, "PROJECT WINDOW FRAME MATERIAL ONLY", infissi, "Use this SAME window frame material and the written project finish in every room and exterior view. Preserve each opening geometry, sill height and sash count. The product photo is never a replacement opening layout.");
   return out;
 }
 

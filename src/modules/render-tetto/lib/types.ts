@@ -93,6 +93,7 @@ export interface ConfigTargetTetto {
 }
 
 export interface ConfigurazioneTetto {
+  qualita_render?: "standard" | "alta";
   tipo_intervento?: TipoInterventoTetto;
   target?: ConfigTargetTetto;
   manto: ConfigManto;

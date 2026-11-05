@@ -1,3 +1,4 @@
+import { applicaMaterialiProgetto, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { caricaTavoleMateriali } from "./materiali.ts";
 // generate-room-render — Edge Function EiC
 // Render Stanza (Room/Interiors) AI — Provider unificato OpenRouter + fallback
@@ -21,7 +22,7 @@ import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shar
 import { collectRoomReferenceImages } from "../../../shared/render-references/roomReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
-import { qualitaImmagineStanza, vincoloColoriSoffitto } from "../../../shared/render-room/roomRenderConfig.ts";
+import { contrattoModificheQaStanza, qualitaImmagineStanza, vincoloColoriSoffitto, vincoloSostituzionePavimento } from "../../../shared/render-room/roomRenderConfig.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { ROOM_REWRITER_PROFILE } from "../_shared/ai-provider/roomRewriterProfile.ts";
 import type { RoomPhotoMeta } from "../../../shared/render-room/types.ts";
@@ -139,7 +140,8 @@ Deno.serve(async (req: Request) => {
     refundableUserId = user.id;
 
     const body = await req.json();
-    const { session_id, config, target_width, target_height } = body;
+    const { session_id, target_width, target_height } = body;
+    let config = body.config;
     if (!session_id) throw new Error("session_id required");
     refundableSessionId = session_id;
 
@@ -189,6 +191,8 @@ Deno.serve(async (req: Request) => {
       ((config || session.config) as Record<string, unknown> | null)?.planimetria,
       (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
     );
+
+    if (pianta) config = applicaMaterialiProgetto(config || session.config, pianta.materiali);
 
     const materialBoards = await caricaTavoleMateriali(supabase, companyId as string, config || session.config);
 
@@ -322,6 +326,10 @@ Deno.serve(async (req: Request) => {
         }));
       }
 
+      const projectWindowsLock = vincoloInfissiProgetto(cfg?.infissi_progetto);
+      if (projectWindowsLock) fullPrompt += `\n\n${projectWindowsLock}`;
+      const floorReplacementLock = vincoloSostituzionePavimento(cfg);
+      if (floorReplacementLock) fullPrompt = `${fullPrompt}\n\n${floorReplacementLock}`;
       const ceilingColourLock = vincoloColoriSoffitto(cfg);
       if (ceilingColourLock) fullPrompt = `${fullPrompt}\n\n${ceilingColourLock}`;
 
@@ -411,6 +419,11 @@ Deno.serve(async (req: Request) => {
           interventi: cfg,
         })}`;
       }
+
+      if (pianta?.partenza === "vista_3d") {
+        fullPrompt += `\n\nFINAL INVENTORY CONTRACT — floorplan furniture counts in this room: ${JSON.stringify(pianta.inventario)}. Render ONLY the existing items visible in Image 1, at the same footprints. ${pianta.inventario.mobile_tv ? "The saved mobile_tv item is an EXISTING low media cabinet PLUS its TV screen, not just a screen. Render that cabinet and screen in their original footprint; it is not an added piece of furniture." : "Never add a media cabinet or console beneath a screen when no such item is in the saved inventory or visibly present in the source."} Do not furnish empty adjoining rooms visible through doorways. Material and style panels never authorize additional furniture. Explicit user additions or full furniture replacement may override this inventory; a request to preserve the layout does not.`;
+      }
+      if (pianta?.materiali.pavimento || pianta?.materiali.infissi) fullPrompt += "\n\nPROJECT MATERIALS TAKE PRIORITY over ready-made style descriptions. Keep the selected common floor and window material/finish identical across rooms; never replace them to match a style example.";
 
       // Store prompt
       await supabase
@@ -527,6 +540,7 @@ Deno.serve(async (req: Request) => {
       // prospettiva cambiata. Check ~€0.002, 1 retry correttivo budget-gated.
       // Graceful: se il vision provider fallisce, il render passa comunque.
       let selectionMismatch = false;
+      let qaAudit: { checked: boolean; pass: boolean; model: string; issues: Array<{ category: string; detail: string }> } | null = null;
       const violazioneScelte = (issue: { category: string }) => (!!materialBoards && issue.category === "selected_material_mismatch") || (pianta?.partenza === "vista_3d" && issue.category === "unrequested_furniture");
       try {
         const qaPrompt = [
@@ -535,6 +549,9 @@ Deno.serve(async (req: Request) => {
             ? "Image 1 = SOURCE: a 3D model of the real room, possibly with selected finish textures from the chosen viewpoint. Image 2 = CANDIDATE render (the same room as a photograph, with finishes/furniture per brief)."
             : "Image 1 = SOURCE photo of the real room. Image 2 = CANDIDATE render (same room, new finishes/furniture per brief).",
           `Customer furniture request: ${JSON.stringify(cfg.arredo ?? {})}. Customer brief: ${String(cfg.note_libere ?? "").replace(/[\r\n]/g, " ").slice(0, 3000)}`,
+          ...contrattoModificheQaStanza(cfg),
+          ...(pianta?.partenza === "vista_3d" ? [`AUTHORITATIVE FURNITURE INVENTORY from the saved floorplan for this room: ${JSON.stringify(pianta.inventario)}. The Italian item mobile_tv means an EXISTING LOW MEDIA CABINET AND TV SCREEN. Its cabinet is not an unrequested addition. It can look plainer or be partly hidden in the 3D source. Check additional furniture against this inventory as well as the visible blocks, not the photo style panels.`] : []),
+          "Marble and marble-effect porcelain can have delicate, low-contrast grey veins. PASS when that material identity is present; do not demand the same vein intensity, vein placement or warm/cool lighting as the sample. The exact selected colour overrides the sample background colour.",
           ...(ceilingColourLock ? [ceilingColourLock] : []),
           'Answer STRICT JSON only: {"pass": boolean, "issues": [{"category": string, "detail": string}]}.',
           "Fail ONLY on clear, unambiguous violations:",
@@ -558,6 +575,7 @@ Deno.serve(async (req: Request) => {
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
           referenceImages: materialBoards ?? undefined,
+          ...(qualitaAlta ? { models: ["anthropic/claude-sonnet-4.5", "anthropic/claude-haiku-4.5"] } : {}),
           timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)),
           metadata: {
             task_kind: "render_image_qa",
@@ -573,6 +591,7 @@ Deno.serve(async (req: Request) => {
         });
 
         selectionMismatch = qaResult.checked && !qaResult.pass && qaIssues.some(violazioneScelte);
+        qaAudit = { checked: qaResult.checked, pass: qaResult.pass, model: qaResult.modelUsed, issues: qaIssues };
         if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (qualitaAlta ? 40_000 : 95_000)) {
           console.log(JSON.stringify({
             fn: "generate-room-render",
@@ -625,6 +644,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
               providerResult = primoTentativo;
             } else {
               providerResult = retryResult;
+
             }
           } catch (retryErr) {
             console.warn(JSON.stringify({
@@ -656,6 +676,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
         if (selectionMismatch && generationAttempts > 1) {
           const verifica = await callVisionQa({ sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)), metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
           selectionMismatch = !verifica.checked || (!verifica.pass && verifica.issues.some((i) => typeof i === "object" && violazioneScelte(i)));
+          qaAudit = { checked: verifica.checked, pass: verifica.pass, model: verifica.modelUsed, issues: verifica.issues.map((issue) => typeof issue === "string" ? { category: "unspecified", detail: issue } : issue) };
         }
 
       } catch (qaErr) {
@@ -664,7 +685,19 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
           qaErr instanceof Error ? qaErr.message : String(qaErr),
         );
       }
-      if (selectionMismatch) throw new Error("Il render non ha rispettato i campioni o gli arredi richiesti: riprova. Il credito viene restituito.");
+      if (selectionMismatch) {
+        // Campione rifiutato conservato PRIVATO per distinguere un difetto reale da un falso positivo QA.
+        let rejectedPath: string | null = null;
+        try {
+          const rejected = dataUrlToBytes(providerResult.imageDataUrl);
+          const path = `${companyId}/qa/${session_id}-${crypto.randomUUID()}.${rejected.extension}`;
+          const { error } = await supabase.storage.from("stanza-originals").upload(path, rejected.bytes, { contentType: rejected.mimeType, upsert: false });
+          if (!error) rejectedPath = path;
+        } catch { /* La diagnostica non deve impedire il rimborso. */ }
+        const { data: current } = await supabase.from("render_stanza_sessions").select("config_snapshot").eq("id", session_id).eq("company_id", companyId).single();
+        await supabase.from("render_stanza_sessions").update({ config_snapshot: { ...(current?.config_snapshot ?? {}), qa_audit: qaAudit, qa_rejected_path: rejectedPath } }).eq("id", session_id).eq("company_id", companyId);
+        throw new Error("Il render non ha rispettato i campioni o gli arredi richiesti: riprova. Il credito viene restituito.");
+      }
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"
         : "openai";
@@ -728,6 +761,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             prompt_validation: validation,
             input_image_meta: prepared.meta,
             provider_model_used: modelUsed,
+            qa_audit: qaAudit,
             provider_attempts: providerResult.attempts,
             generation_attempts: generationAttempts,
             ...(pianta ? { planimetria: pianta.traccia } : {}),

@@ -1,3 +1,4 @@
+import { COLORI_INFISSI_PROGETTO } from "../../../../shared/planimetrie/materialiProgetto.ts";
 /**
  * Dalla pianta alla scena 3D: muri estrusi con i vani, pavimenti e soffitti dei
  * locali, sanitari e arredi. Funzione pura: nessuna dipendenza da three.js, così
@@ -464,6 +465,7 @@ export function costruisciScena(pianta: PiantaPer3D, opzioni: OpzioniScena = {})
   if (opzioni.terreno && opzioni.terreno > 0 && mesh.length) mesh.push(meshTerreno(limiti, opzioni.terreno, pianta.terreno, limitiDi(mesh, (g) => g === "muro")));
   const usati = new Set(mesh.map((m) => m.materiale));
   const materiali = Object.fromEntries(Object.entries(MATERIALI).filter(([k]) => usati.has(k)));
+  if (pianta.infissiProgetto && materiali.telaio) materiali.telaio = { ...materiali.telaio, colore: COLORI_INFISSI_PROGETTO[pianta.infissiProgetto.colore].hex, finituraProgetto: true };
   return { mesh: mesh.filter((m) => m.indici.length > 0), materiali, limiti, avvisi, ...(impianti ? { impianti } : {}) };
 }
 

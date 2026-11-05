@@ -227,6 +227,7 @@ export interface ConfigTermoarredo {
 export type BathroomLightingType = "faretti_incasso" | "led_lineare" | "applique_specchio" | "plafoniera";
 
 export interface ConfigurazioneBagno {
+  qualita_render?: "standard" | "alta";
   tipo_intervento: TipoIntervento;
   sostituzione: SostituzioneElementi;
   piastrelle_parete: ConfigPiastrella;

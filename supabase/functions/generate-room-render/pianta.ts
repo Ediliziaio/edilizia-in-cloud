@@ -1,3 +1,5 @@
+import { puntoNelPoligono } from "../../../shared/planimetrie/geometria.ts";
+import { materialiDelProgetto, type MaterialiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 // generate-room-render — render della stanza partendo dalla pianta (Planimetrie, fase 5b).
 //
 // Quando la sessione ha `config.planimetria`, il render conosce la stanza vera: misure,
@@ -11,11 +13,13 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
 import { validaPlanimetria } from "../../../shared/planimetrie/modello.ts";
-import { vincoliDellaStanza, type VincoliStanza } from "../../../shared/render-planimetria/vincoli.ts";
+import { vincoliDellaStanza, statoPerAmbito, type VincoliStanza } from "../../../shared/render-planimetria/vincoli.ts";
 import { inquadrateValide, type AperturaInquadrata, type PartenzaRender } from "../../../shared/render-planimetria/prompt.ts";
 
 export interface PiantaDelRender {
   vincoli: VincoliStanza;
+  materiali: MaterialiProgetto;
+  inventario: Record<string, number>;
   partenza: PartenzaRender;
   inquadrate: AperturaInquadrata[];
   /** La pianta della stanza vista dall'alto, da allegare al modello (null se manca). */
@@ -107,8 +111,17 @@ export async function caricaPiantaDelRender(
     }
   }
 
+  const stato = statoPerAmbito(esito.planimetria, livelloId, ambito);
+  const locale = stato?.locali.find((l) => l.id === localeId);
+  const inventario: Record<string, number> = {};
+  for (const e of stato?.elementi ?? []) {
+    if (e.stato === "da_demolire" || !(e.localeId === localeId || (!e.localeId && locale && puntoNelPoligono(e.posizione, locale.contorno)))) continue;
+    inventario[e.tipo] = (inventario[e.tipo] ?? 0) + 1;
+  }
   return {
     vincoli,
+    inventario,
+    materiali: materialiDelProgetto(esito.planimetria, ambito),
     partenza,
     inquadrate,
     immagine,

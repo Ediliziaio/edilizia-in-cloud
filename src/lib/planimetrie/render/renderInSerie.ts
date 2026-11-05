@@ -1,3 +1,4 @@
+import { applicaMaterialiProgetto, materialiDelProgetto } from "../../../../shared/planimetrie/materialiProgetto.ts";
 import { preparaMaterialiStanza } from "@/lib/render/roomMaterialsBoard";
 /**
  * Render in serie dalla pianta: più stanze, o più stili per la stessa stanza, con un clic.
@@ -52,6 +53,7 @@ export interface ContestoSerie {
   /** «fatto» oppure «progetto:<id proposta>». */
   ambito: string;
   nota?: string;
+  qualita_render?: "standard" | "alta";
 }
 
 /**
@@ -100,7 +102,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     if (!error) rif.pianta_path = percorso;
   } catch { /* si va avanti con misure e aperture scritte */ }
 
-  const config = await preparaMaterialiStanza(configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), ctx.companyId);
+  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), qualita_render: ctx.qualita_render ?? "standard" }, materialiDelProgetto(ctx.documento, ctx.ambito)), ctx.companyId);
   const { data: nuova, error: errSessione } = await supabase
     .from("render_stanza_sessions")
     .insert({ company_id: ctx.companyId, created_by: ctx.userId, status: "pending", original_photo_url: storagePath, config: { ...config, planimetria: rif } as never })
@@ -111,7 +113,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
 
   const headers = await getEdgeFunctionAuthHeaders();
   const { data: risposta, error: errFn } = await supabase.functions.invoke("generate-room-render", {
-    body: { session_id: sid, config: { ...config, planimetria: rif }, target_width: 1024, target_height: 768 },
+    body: { session_id: sid, config: { ...config, planimetria: rif }, target_width: 1536, target_height: 1024 },
     headers,
   });
   if (errFn || risposta?.error) {

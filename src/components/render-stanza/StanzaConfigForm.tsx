@@ -100,12 +100,13 @@ interface Props {
   value: ConfigurazioneStanza;
   onChange: (v: ConfigurazioneStanza) => void;
   disabled?: boolean;
+  pavimentoBloccato?: boolean;
   /** Se presente, mostra "Dal tuo catalogo" con le foto prodotto dell'azienda. */
   companyId?: string;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props) {
+export function StanzaConfigForm({ value, onChange, disabled, companyId, pavimentoBloccato }: Props) {
   const [sezioniAperte, setSezioniAperte] = useState<string[]>([]);
   const personalizzaPavimento = () => {
     setSezioniAperte((sezioni) => sezioni.includes("pavimento") ? sezioni : [...sezioni, "pavimento"]);
@@ -363,17 +364,17 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
             <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Grid3X3 className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium max-md:text-[13px]">Pavimento</span>
+                <span className="text-sm font-medium max-md:text-[13px]">Pavimento{pavimentoBloccato ? " · comune al progetto" : ""}</span>
 
               </div>
             </AccordionTrigger>
                   <Switch aria-label="Attiva Pavimento"
                     checked={value.pavimento.attivo}
                     onCheckedChange={(v) => set("pavimento", { ...value.pavimento, attivo: v })}
-                    disabled={disabled}
+                    disabled={disabled || pavimentoBloccato}
                   />
                 </div>
-            {value.pavimento.attivo && (
+            {value.pavimento.attivo && !pavimentoBloccato && (
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["pavimento"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -384,7 +385,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       <div className="min-w-0 flex-1">
                         <ScelteVisiveStanza gruppo="floor_type" config={value} value={value.pavimento.tipo ?? "gres_porcellanato"}
                           onValueChange={(v) => set("pavimento", { ...value.pavimento, tipo: v })}
-                          disabled={disabled}
+                          disabled={disabled || pavimentoBloccato}
                          />
                       </div>
                     </div>
@@ -396,14 +397,14 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       className="w-full h-8 p-0.5 cursor-pointer"
                       value={value.pavimento.colore_hex ?? DEFAULT_STANZA_CONFIG.pavimento.colore_hex}
                       onChange={(e) => set("pavimento", { ...value.pavimento, colore_hex: e.target.value })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     />
                   </div>
                 </div>
                 {usaEssenzaPavimento && (
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Essenza legno</Label>
-                    <ScelteVisiveStanza gruppo="floor_essence" config={value} value={value.pavimento.essenza_legno} disabled={disabled} onValueChange={(v) => {
+                    <ScelteVisiveStanza gruppo="floor_essence" config={value} value={value.pavimento.essenza_legno} disabled={disabled || pavimentoBloccato} onValueChange={(v) => {
                       const legno = WOOD_ESSENCES.find((w) => w.value === v);
                       if (legno) set("pavimento", { ...value.pavimento, essenza_legno: v, colore_nome: legno.label, colore_hex: legno.color });
                     }} />
@@ -422,7 +423,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Select
                       value={value.pavimento.formato_piastrella ?? "60x60"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, formato_piastrella: v })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -458,7 +459,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Label className="text-xs max-md:text-[11px]">Finitura</Label>
                     <ScelteVisiveStanza gruppo="floor_finish" config={value} value={value.pavimento.finitura ?? "opaco"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, finitura: v })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                      />
                   </div>
                 </div>
@@ -468,7 +469,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Select
                       value={String(value.pavimento.fuga_larghezza_mm ?? 2)}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_larghezza_mm: Number(v) })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -485,7 +486,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Select
                       value={value.pavimento.fuga_colore ?? "tono_su_tono"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_colore: v as never })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -504,7 +505,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   <Select
                     value={value.pavimento.battiscopa_azione ?? "mantieni"}
                     onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_azione: v as never })}
-                    disabled={disabled}
+                    disabled={disabled || pavimentoBloccato}
                   >
                     <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -523,7 +524,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                         <div className="min-w-0 flex-1">
                           <ScelteVisiveStanza gruppo="floor_skirting" config={value} value={value.pavimento.battiscopa_tipo ?? "coordinato_pavimento"}
                             onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_tipo: v as never })}
-                            disabled={disabled}
+                            disabled={disabled || pavimentoBloccato}
                            />
                         </div>
                       </div>
@@ -533,7 +534,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       <Select
                         value={String(value.pavimento.battiscopa_altezza_cm ?? 8)}
                         onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_altezza_cm: Number(v) as 6 | 8 | 10 })}
-                        disabled={disabled}
+                        disabled={disabled || pavimentoBloccato}
                       >
                         <SelectTrigger className="text-xs" aria-label="Altezza battiscopa"><SelectValue /></SelectTrigger>
                         <SelectContent>

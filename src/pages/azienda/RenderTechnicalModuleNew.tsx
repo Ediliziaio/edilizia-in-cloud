@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { prendiDaPianta } from "@/lib/planimetrie/render/fotoDaPianta";
 import { useNavigate } from "react-router-dom";
@@ -192,19 +193,20 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [opportunityId, setOpportunityId] = useState<string | null>(null);
+  const [config, setConfig] = useState<TechnicalRenderConfig>(spec.defaultConfig);
   // Arrivati dalla pianta («Render esterni»): la vista 3D è già la foto di partenza.
   useEffect(() => {
     if (moduleId !== "giardini" && moduleId !== "pavimenti-esterni") return;
     const d = prendiDaPianta(moduleId);
     if (!d) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- La foto è una consegna esterna consumata una sola volta dalla pianta.
     setPhoto(d.file);
     setPhotoPreview(URL.createObjectURL(d.file));
     if (d.nota) setConfig((c) => ({ ...c, technicalDetails: [c.technicalDetails, d.nota].filter(Boolean).join("\n") }));
   }, [moduleId]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [contactId, setContactId] = useState<string | null>(null);
-  const [opportunityId, setOpportunityId] = useState<string | null>(null);
-  const [config, setConfig] = useState<TechnicalRenderConfig>(spec.defaultConfig);
   const presetCorrente = spec.presets.find((preset) => preset.value === config.interventionPreset);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -372,6 +374,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
       const { data, error } = await supabase.functions.invoke("generate-technical-render", {
         body: {
           session_id: sessionId,
+          qualita_render: config.qualita_render,
           config,
           ...(dims.width && dims.height ? { target_width: dims.width, target_height: dims.height } : {}),
         },
@@ -580,7 +583,8 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
                 </div>
               </div>
 
-              <OpzioniModuloTecnico
+              <QualitaRender value={config.qualita_render} onChange={(qualita_render) => setConfig({ ...config, qualita_render })} disabled={generating} />
+                  <OpzioniModuloTecnico
                 spec={spec}
                 config={config}
                 onScelta={(chiave, valore) => setConfig((prev) => cambiaOpzioneTecnica(spec, prev, chiave, valore))}

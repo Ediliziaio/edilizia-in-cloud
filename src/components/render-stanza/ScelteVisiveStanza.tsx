@@ -3,6 +3,7 @@ import { ReferenceThumb } from "@/components/render/ReferenceThumb";
 import { roomVisualChoices, selectedRoomVisuals, type RoomVisualGroup } from "../../../shared/render-references/roomVisualCatalog.ts";
 
 const NOMI: Record<RoomVisualGroup, string> = {
+  window_profile: "Profilo comune degli infissi",
   style: "Stile del render", paint_finish: "Finitura della pittura", floor_type: "Materiale del pavimento", floor_effect: "Effetto del pavimento", floor_essence: "Essenza del legno", floor_pattern: "Posa del pavimento", floor_finish: "Finitura del pavimento", floor_skirting: "Tipo battiscopa", furniture_material: "Materiale degli arredi", ceiling_type: "Tipo di soffitto", lighting_type: "Tipo di illuminazione", wallpaper_pattern: "Carta da parati", cladding_type: "Rivestimento delle pareti", curtain_type: "Tende", kitchen_front: "Frontali cucina", kitchen_worktop: "Piano di lavoro", kitchen_handle: "Maniglie cucina",
 };
 

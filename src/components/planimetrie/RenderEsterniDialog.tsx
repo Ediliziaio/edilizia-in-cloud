@@ -1,3 +1,4 @@
+import { vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
  * Render degli esterni dalla pianta: piscina, pergola, giardino, facciata, pavimento esterno.
  *
@@ -107,7 +108,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const continua = () => {
     if (!anteprima) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
-    const nota = [MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto(asp, pianta.tetto)].filter(Boolean).join(" ");
+    const nota = [MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto(asp, pianta.tetto), vincoloInfissiProgetto(pianta.infissiProgetto)].filter(Boolean).join(" ");
     lasciaFotoDaPianta(modulo, anteprima.file, nota || undefined);
     onChiudi();
     toast.success("Vista 3D caricata come foto di partenza");

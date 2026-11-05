@@ -1,3 +1,4 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
 // generate-shutter-render — Edge Function EiC
 // Render Persiane AI — Provider unificato OpenRouter + fallback
 
@@ -25,7 +26,7 @@ import {
 } from "../../../shared/render-references/shutterReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
-import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
+import { buildPersianePrompt, vincoloAperturePersiane } from "../../../shared/render-persiane/persianePromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { SHUTTER_REWRITER_PROFILE } from "../_shared/ai-provider/shutterRewriterProfile.ts";
 import { normalizePersianeSceneAnalysis } from "../../../shared/render-persiane/persianeSceneAnalysis.ts";
@@ -255,6 +256,8 @@ Deno.serve(async (req) => {
     user = { id: auth.userId };
 
     const body = await req.json().catch(() => ({}));
+    const requestStartedAt = Date.now();
+    const highQuality = qualitaImmagineRender(body) === "high";
     const {
       action,
       session_id,
@@ -457,7 +460,7 @@ Deno.serve(async (req) => {
 
     const promptResult = buildPersianePrompt(
       (config || session.config || {}) as Record<string, unknown>,
-      undefined,
+      config?.scene_analysis ?? session.config?.scene_analysis,
       photoMeta,
     );
 
@@ -492,6 +495,8 @@ Deno.serve(async (req) => {
       console.warn(JSON.stringify({ lvl: "warn", fn: "generate-shutter-render", session_id, msg: "meta_prompt_rewriter_threw", error: String((e as Error)?.message ?? e) }));
     }
 
+    combinedPrompt += `\n\n${vincoloAperturePersiane(promptResult.normalizedConfig)}`;
+
     await supabase
       .from("render_persiane_sessions")
       .update({
@@ -511,7 +516,7 @@ Deno.serve(async (req) => {
 
     // F1-parity (audit 16/07) — 1 tentativo per tier: 75s × 3 retry interni
     // arrivava a ~225s contro il cap 150s. Il fallback è il Tier 2.
-    const jobStartMs = Date.now();
+    const jobStartMs = requestStartedAt;
     const jobElapsed = () => Date.now() - jobStartMs;
     // Foto reali di riferimento (libreria condivisa, uguale per tutti): riempite
     // PRIMA del primo tentativo e allegate al modello.
@@ -522,9 +527,9 @@ Deno.serve(async (req) => {
         sourceImageBlob: imageBlob,
         effectiveWidth: sourceDimensions?.width,
         effectiveHeight: sourceDimensions?.height,
-        openaiQuality: "medium",
-        timeoutMs: 70_000,
-        directProviderOnly: soloProviderDiretto,
+        ...parametriQualitaRender(body, requestStartedAt, soloProviderDiretto),
+
+
         maxRetries: 0,
         referenceImages: sharedReferences.length > 0 ? sharedReferences : undefined,
         metadata: {
@@ -569,6 +574,7 @@ Deno.serve(async (req) => {
     try {
       providerResult = await generateCandidate(combinedPrompt, true);
     } catch (primoErr) {
+        if (highQuality) throw primoErr;
       console.warn(JSON.stringify({
         lvl: "warn", fn: "generate-shutter-render", session_id,
         msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -582,6 +588,8 @@ Deno.serve(async (req) => {
     // Difetti tipici: persiane su finestre che non ne avevano (o mancanti
     // su finestre che dovevano averle), numero ante sbagliato, facciata
     // ridipinta quando erano richieste SOLO le persiane, geometria cambiata.
+    let shutterMismatch = false;
+    const criticalShutterIssue = (i: { category: string }) => ["invented_openings", "geometry_change", "opening_shape_changed", "selected_finish_omitted", "shutter_count_mismatch"].includes(i.category);
     try {
       const qaPrompt = [
         "You are a LENIENT quality inspector for a window-shutter (persiane) replacement render.",
@@ -592,6 +600,9 @@ Deno.serve(async (req) => {
         "- invented_openings: windows or doors added, removed or relocated compared to the source.",
         "- non_target_change: the facade wall clearly repainted/replastered even though only the SHUTTERS had to change.",
         "- geometry_change: camera angle, perspective or crop clearly different from the source.",
+        vincoloAperturePersiane(promptResult.normalizedConfig),
+        "- selected_finish_omitted: a clearly targeted shutter retains its old colour/material while the other target shutters receive the new selection.",
+        "- opening_shape_changed: a window sill is removed or lowered, a window becomes a door, or an opening changes its dimensions.",
         ...QA_BLOCCO_RICOMPOSIZIONE,
         "When in doubt, PASS. Shutter color/style CHANGES are expected — only count errors, non-target changes and geometry breaks fail.",
       ].join("\n");
@@ -601,6 +612,7 @@ Deno.serve(async (req) => {
       };base64,${originalImage.base64}`;
 
       const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
         sourceImageDataUrl: sourceDataUrl,
         candidateImageDataUrl: providerResult.imageDataUrl,
         qaPrompt,
@@ -617,7 +629,8 @@ Deno.serve(async (req) => {
         return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
       });
 
-      if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+      shutterMismatch = qaResult.checked && !qaResult.pass && qaIssues.some(criticalShutterIssue);
+      if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (highQuality ? 40_000 : 95_000)) {
         console.log(JSON.stringify({
           fn: "generate-shutter-render",
           msg: "qa_failed_retry_corrective",
@@ -667,6 +680,8 @@ Regenerate applying the FULL brief. ABSOLUTE rules: shutters ONLY on the windows
             providerResult = primoTentativo;
           } else {
             providerResult = retryResult;
+            const correctedQa = await callVisionQa({ sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, timeoutMs: tempoQaRender(requestStartedAt), metadata: { task_kind: "render_image_qa", company_id: session.company_id, session_id } });
+            shutterMismatch = !correctedQa.checked || (!correctedQa.pass && correctedQa.issues.some((i) => typeof i === "object" && criticalShutterIssue(i)));
           }
         } catch (retryErr) {
           console.warn(JSON.stringify({
@@ -700,6 +715,8 @@ Regenerate applying the FULL brief. ABSOLUTE rules: shutters ONLY on the windows
         qaErr instanceof Error ? qaErr.message : String(qaErr),
       );
     }
+
+    if (shutterMismatch) throw new Error("Il render non ha rispettato tutte le aperture o le finiture richieste. Riprova: il credito viene restituito.");
 
     const providerKey = providerResult.providerUsed === "openrouter"
       ? "openrouter_image"

@@ -36,6 +36,7 @@ export function creaGruppo(scena: Scena3D, opzioni: { onTextureReady?: () => voi
   gruppo.userData.texturePronte = tessiture.pronte;
   const materiali = new Map(Object.entries(scena.materiali).map(([k, m]) => {
     const mat = materialeThree(k, m);
+    if (m.finituraProgetto) mat.userData.finitura = true;
     if (m.tessitura) {
       mat.map = tessiture.carica(m.tessitura.trama);
       mat.userData.finitura = true;
