@@ -1,0 +1,142 @@
+/**
+ * Silvio nel popup delle fasi (05/11/2026): cosa gli si fa vedere della commessa e la chiamata
+ * a `silvio-commessa` (modo «fasi»). Le proposte che tornano si controllano qui, contro lo
+ * stesso contesto mandato: id che esistono, date vere, niente doppioni.
+ */
+import { supabase } from "@/integrations/supabase/client";
+import { erroreLeggibile } from "@/lib/silvio-commessa/testoErrore";
+import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
+import {
+  contestoCompatto, proposteDaStrumenti, type ChiamataStrumentoFasi, type ContestoFasi, type PropostaFasi,
+} from "../../../shared/silvio-commessa/chatFasi";
+import type { AllegatoSilvio, RispostaSilvio } from "@/components/silvio/SilvioConversazione";
+
+/** Come nomePerLoStorage di leggiDocumento, senza portarsi dietro i lettori dei computi. */
+function nomePerLoStorage(nome: string): string {
+  const pulito = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_").replace(/^[._]+/, "");
+  return (pulito || "documento").slice(-80);
+}
+
+/** Carica un allegato nella cartella che la policy di silvio-uploads concede: <azienda>/<utente>/… */
+export async function caricaAllegatoFasi(orderId: string, file: File): Promise<AllegatoSilvio> {
+  const [{ data: ordine, error: e1 }, { data: utente }] = await Promise.all([
+    supabase.from("orders").select("company_id").eq("id", orderId).maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
+  const companyId = (ordine as { company_id?: string } | null)?.company_id;
+  const userId = utente?.user?.id;
+  if (e1 || !companyId || !userId) throw new Error("Non riesco a caricare il file: ricarica la pagina.");
+  const path = `${companyId}/${userId}/commessa-${Date.now()}-${nomePerLoStorage(file.name)}`;
+  const { error } = await supabase.storage.from("silvio-uploads").upload(path, file, { contentType: file.type || undefined, upsert: false });
+  if (error) throw new Error(erroreLeggibile(error, "File non caricato: riprova."));
+  return { path, nome: file.name };
+}
+
+interface FaseIn {
+  id: string; name: string; status: string; percentuale: number;
+  start_date: string | null; end_date: string | null;
+  assignments: ReadonlyArray<{ executor_label?: string | null }>;
+}
+interface SottofaseIn {
+  id: string; name: string; fatta: boolean; percentuale?: number;
+  data_inizio?: string | null; data_fine?: string | null; giorni?: number | null;
+}
+
+export function contestoFasiPerSilvio(a: {
+  oggi: string;
+  commessa: string;
+  fasi: ReadonlyArray<FaseIn>;
+  sottofasiDi: ReadonlyMap<string, ReadonlyArray<SottofaseIn>>;
+  quantita?: ReadonlyMap<string, { quantita: number; unita: string | null }>;
+  chiDi?: (sottofaseId: string) => string[];
+  persone: ReadonlyArray<{ id: string; nome: string }>;
+  squadre: ReadonlyArray<{ id: string; nome: string }>;
+  ditte: ReadonlyArray<{ id: string; nome: string }>;
+}): ContestoFasi {
+  return {
+    oggi: a.oggi,
+    commessa: a.commessa,
+    fasi: a.fasi.map((f) => ({
+      id: f.id, nome: f.name, stato: f.status, percentuale: f.percentuale ?? 0,
+      dal: f.start_date, al: f.end_date,
+      chi: [...new Set(f.assignments.map((x) => x.executor_label).filter((x): x is string => !!x))],
+      sottofasi: (a.sottofasiDi.get(f.id) ?? []).map((s) => {
+        const q = a.quantita?.get(s.id);
+        const chi = a.chiDi?.(s.id) ?? [];
+        return {
+          id: s.id, nome: s.name, fatta: s.fatta, percentuale: s.fatta ? 100 : s.percentuale ?? 0,
+          dal: s.data_inizio ?? null, al: s.data_fine ?? null, giorni: s.giorni ?? null,
+          ...(q?.quantita ? { quantita: `${q.quantita} ${q.unita ?? ""}`.trim() } : {}),
+          ...(chi.length ? { chi } : {}),
+        };
+      }),
+    })),
+    persone: [...a.persone],
+    squadre: [...a.squadre],
+    ditte: [...a.ditte],
+  };
+}
+
+/** Dal corpo di una risposta d'errore della funzione, la frase in italiano che ha scritto. */
+async function messaggioDellaFunzione(error: unknown): Promise<{ status: number | null; testo: string | null }> {
+  const ctx = (error as { context?: Response } | null)?.context;
+  if (!ctx || typeof ctx.json !== "function") return { status: null, testo: null };
+  try {
+    const corpo = await ctx.clone().json() as { error?: unknown; message?: unknown };
+    const t = typeof corpo.error === "string" ? corpo.error : typeof corpo.message === "string" ? corpo.message : null;
+    return { status: ctx.status ?? null, testo: t };
+  } catch {
+    return { status: ctx.status ?? null, testo: null };
+  }
+}
+
+export async function chiediSilvioFasi(
+  orderId: string,
+  messaggio: string,
+  contesto: ContestoFasi,
+  storia: ReadonlyArray<{ ruolo: "persona" | "silvio"; testo: string }>,
+  allegati: ReadonlyArray<AllegatoSilvio> = [],
+): Promise<RispostaSilvio> {
+  contesto = contestoCompatto(contesto);
+  const { data, error } = await supabase.functions.invoke("silvio-commessa", {
+    body: { modo: "fasi", order_id: orderId, messaggio, contesto, storia, allegati, richiesta_id: crypto.randomUUID() },
+  });
+  if (error) {
+    const { status, testo } = await messaggioDellaFunzione(error);
+    if (status === 402) segnalaCreditoEsaurito({ portafoglio: "ai" });
+    throw new Error(testo ? erroreLeggibile(testo) : erroreLeggibile(error, "Silvio non risponde: riprova tra poco."));
+  }
+  const r = (data ?? {}) as { testo?: unknown; strumenti?: unknown };
+  const strumenti = (Array.isArray(r.strumenti) ? r.strumenti : []) as ChiamataStrumentoFasi[];
+  const { proposte, scartate } = proposteDaStrumenti(strumenti, contesto);
+  const testo = typeof r.testo === "string" ? r.testo : "";
+  return { testo: testo || (proposte.length ? "Ecco cosa propongo:" : "Non ho trovato niente da cambiare."), proposte, scartate };
+}
+
+export interface AzioniFasi {
+  aggiungiSottofasi: (a: { phaseId: string; nomi: string[] }) => Promise<unknown>;
+  dateSottofasi: (passi: Array<{ id: string; data_inizio: string; data_fine: string; giorni: null }>) => Promise<unknown>;
+  dateFase: (a: { id: string; start_date: string; end_date: string }) => Promise<unknown>;
+  chiFa: (a: { sottofaseIds: string[]; persona?: string; ditta?: string }) => Promise<unknown>;
+}
+
+/**
+ * Applica le proposte scelte, con le stesse funzioni della tabella: prima le sottofasi nuove,
+ * poi le date delle sottofasi (in un colpo), poi quelle delle fasi, poi chi le fa (una
+ * chiamata per persona, squadra o ditta). Se un passo fallisce, i successivi non partono.
+ */
+export async function applicaProposte(proposte: ReadonlyArray<PropostaFasi>, az: AzioniFasi): Promise<void> {
+  for (const p of proposte) if (p.tipo === "sottofasi") await az.aggiungiSottofasi({ phaseId: p.faseId, nomi: p.nomi });
+  const dateSottofasi = proposte.flatMap((p) => (p.tipo === "date" && p.livello === "sottofase" ? [{ id: p.id, data_inizio: p.dal, data_fine: p.al, giorni: null as null }] : []));
+  if (dateSottofasi.length) await az.dateSottofasi(dateSottofasi);
+  for (const p of proposte) if (p.tipo === "date" && p.livello === "fase") await az.dateFase({ id: p.id, start_date: p.dal, end_date: p.al });
+  const gruppi = new Map<string, { persona: boolean; ids: string[] }>();
+  for (const p of proposte) {
+    if (p.tipo !== "chi") continue;
+    const g = gruppi.get(p.chiId) ?? { persona: p.genere === "persona", ids: [] };
+    g.ids.push(p.sottofaseId);
+    gruppi.set(p.chiId, g);
+  }
+  for (const [chi, g] of gruppi) await az.chiFa({ sottofaseIds: g.ids, ...(g.persona ? { persona: chi } : { ditta: chi }) });
+}

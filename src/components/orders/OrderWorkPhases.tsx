@@ -1,4 +1,6 @@
 import { useChiSottofasi } from "@/hooks/useChiSottofasi";
+import { applicaProposte, caricaAllegatoFasi, chiediSilvioFasi, contestoFasiPerSilvio } from "@/lib/orders/silvioFasi";
+import type { ConversazioneSilvio } from "@/components/silvio/SilvioConversazione";
 import { formatCurrency } from "@/lib/formatters";
 import { useAssegnaFaseCosti, useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
 import { CostiSenzaFaseDialog } from "@/components/orders/CostiSenzaFase";
@@ -305,6 +307,32 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     for (const v of vociPreviste ?? []) voci.set(v.phase_id, (voci.get(v.phase_id) ?? 0) + 1);
     return controlliFasi(phases, voci, oggi);
   }, [phases, vociPreviste, oggi]);
+  // Silvio risponde nel suo popup e propone; si applica con le stesse funzioni della tabella (05/11/2026).
+  const conversazioneFasi: ConversazioneSilvio = {
+    carica: (file) => caricaAllegatoFasi(orderId, file),
+    chiedi: (messaggio, storia, allegati) => {
+      const nomi = new Map<string, string>([...employees.map((e) => [e.id, e.label] as const), ...externalTeams.map((t) => [t.id, t.label] as const)]);
+      const perSottofase = chiSottofasi.dati.disponibile ? chiSottofasi.dati.perSottofase : new Map();
+      const contesto = contestoFasiPerSilvio({
+        oggi, commessa: orderCode ?? "",
+        fasi: phases, sottofasiDi,
+        quantita: vociSottofasi.perSottofase,
+        chiDi: (id) => (perSottofase.get(id) ?? []).map((c: { employee_id: string | null; external_team_id: string | null }) => nomi.get(c.employee_id ?? c.external_team_id ?? "") ?? "").filter(Boolean),
+        persone: employees.map((e) => ({ id: e.id, nome: e.label })),
+        squadre: chiSottofasi.dati.disponibile ? externalTeams.filter((t) => t.kind === "interna").map((t) => ({ id: t.id, nome: t.label })) : [],
+        ditte: chiSottofasi.dati.disponibile ? externalTeams.filter((t) => t.kind !== "interna").map((t) => ({ id: t.id, nome: t.label })) : [],
+      });
+      // Senza la tabella di chi fa la sottofase, Silvio non propone assegnazioni.
+      if (!chiSottofasi.dati.disponibile) contesto.persone = [];
+      return chiediSilvioFasi(orderId, messaggio, contesto, storia, allegati);
+    },
+    applica: (proposte) => applicaProposte(proposte, {
+      aggiungiSottofasi: (a) => aggiungiSottofasi.mutateAsync(a),
+      dateSottofasi: (passi) => pianificaSottofasi.mutateAsync(passi),
+      dateFase: (a) => updatePhase.mutateAsync(a),
+      chiFa: (a) => chiSottofasi.aggiungi.mutateAsync(a),
+    }),
+  };
   const azioneSilvio = (a: AzioneSilvio) => {
     if (a === "ditte") setDitteAperto(true);
     else if (a === "assegna") setAssegnaPersona(true);
@@ -638,7 +666,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                   punti={puntiFasi}
                   onAzione={azioneSilvio}
                   intestazioneChat={`Commessa ${orderCode ?? ""}: fasi ${phases.map((p) => `«${p.name}» (${p.start_date ?? "senza inizio"} → ${p.end_date ?? "senza fine"}, ${p.percentuale}%)`).join(", ")}.`}
-                  domande={["In che ordine vanno fatte le fasi?", "Quante persone servono per finire in tempo?", "Cosa manca per partire?", "Dividi le fasi in sottofasi"]}
+                  domande={["Pianifica le date di fasi e sottofasi", "Dividi le fasi in sottofasi", "Chi fa ogni sottofase?", "Cosa manca per partire?"]}
+                  conversazione={conversazioneFasi}
                 />
               )}
               {!telefono && <DitteContrattiCommessa orderId={orderId} aperto={ditteAperto} onAperto={setDitteAperto} />}
