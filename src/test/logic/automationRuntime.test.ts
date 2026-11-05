@@ -369,6 +369,26 @@ describe("automation runtime regressions (isolated)", () => {
     expect(result.success).toBe(true);
     expect(Math.abs(new Date(result.output.execute_at).getTime() - romaVersoUtc("2060-09-30","11:00").getTime())).toBeLessThan(100);
   });
+  it("appointment delay follows the appointment that started the flow, not the contact's earliest", async () => {
+    const evento = "11111111-2222-4333-8444-555555555555";
+    const mock = db(q => eq(q, "id") === evento
+      ? { data: { appointment_date: "2060-10-05", appointment_time: "15:00", status: "confermato" } }
+      : { data: { appointment_date: "2060-10-01", appointment_time: "09:00" } });
+    const result = await load("executeDelay", { romaVersoUtc })({ delay_tipo: "prima_appuntamento", delay_ore: 3 }, mock, id, "company", { context_json: { payload: { appointment_id: evento } } });
+    expect(result.output.ancorata_a).toBe("appuntamento_evento");
+    expect(Math.abs(new Date(result.output.execute_at).getTime() - (romaVersoUtc("2060-10-05", "15:00").getTime() - 3 * 3_600_000))).toBeLessThan(100);
+    expect(mock.calls.filter(q => q.table === "appointments")).toHaveLength(1);
+  });
+  it.each([["annullato", "2060-10-05"], ["confermato", "2001-01-01"]])("a %s / past triggering appointment does not wait for another one", async (status, data) => {
+    const evento = "11111111-2222-4333-8444-555555555555";
+    const mock = db(q => eq(q, "id") === evento
+      ? { data: { appointment_date: data, appointment_time: "15:00", status } }
+      : { data: { appointment_date: "2060-10-01", appointment_time: "09:00" } });
+    const result = await load("executeDelay", { romaVersoUtc })({ delay_tipo: "prima_appuntamento", delay_ore: 1 }, mock, id, "company", { context_json: { payload: { appointment_id: evento } } });
+    expect(result.success).toBe(true);
+    expect(result.delayMs).toBe(0);
+    expect(result.output.ancorata_a).toMatch(/appuntamento_(annullato|passato)/);
+  });
   it("appointment read failure cannot bypass its delay", async () => {
     const mock = db(() => ({ error: { message: "temporary database failure" } }));
     const result = await load("executeDelay", { romaVersoUtc })({ delay_tipo: "prima_appuntamento" }, mock, id, "company");

@@ -23,6 +23,9 @@ export interface SceltaDialog {
   periodo: { da: string; a: string; data: DataPeriodo } | null;
   /** Chiavi delle colonne; vuoto = tutte. Le colonne dei campi personalizzati: «cf». */
   colonne: Set<string>;
+  /** Aggiunge le note e gli appuntamenti: colonne e, nell'Excel, un foglio per ciascuno. */
+  note: boolean;
+  appuntamenti: boolean;
 }
 
 interface Props {
@@ -37,9 +40,11 @@ interface Props {
   /** Per ricordare colonne ed esportazioni salvate (per azienda). */
   chiaveMemoria: string;
   onEsporta: (s: SceltaDialog) => void;
+  /** Cosa può leggere chi esporta: senza permesso la casella è spenta, non una colonna a zero. */
+  accesso?: { note: boolean; appuntamenti: boolean; parzialeNote: boolean; parzialeAppuntamenti: boolean };
 }
 
-interface Salvata { nome: string; stati: string[]; fasiNomi: string[]; tuttePipeline: boolean; periodo: { tipo: "mese_scorso" | "settimana_scorsa" | "anno" | "nessuno"; data: DataPeriodo }; colonne: string[]; formato: FormatoEsportazioneOpportunita }
+interface Salvata { nome: string; note?: boolean; appuntamenti?: boolean; stati: string[]; fasiNomi: string[]; tuttePipeline: boolean; periodo: { tipo: "mese_scorso" | "settimana_scorsa" | "anno" | "nessuno"; data: DataPeriodo }; colonne: string[]; formato: FormatoEsportazioneOpportunita }
 
 const leggiMemoria = <T,>(k: string, d: T): T => { try { const v = localStorage.getItem(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; } };
 const scriviMemoria = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* memoria del browser non disponibile: pazienza */ } };
@@ -60,7 +65,7 @@ export function periodoRelativo(tipo: Salvata["periodo"]["tipo"], oggi = new Dat
   return { da: iso(lun), a: iso(dom) };
 }
 
-export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline, piuPipeline, filtriAttivi, inCorso, chiaveMemoria, onEsporta }: Props) {
+export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline, piuPipeline, filtriAttivi, inCorso, chiaveMemoria, onEsporta, accesso = { note: true, appuntamenti: true, parzialeNote: false, parzialeAppuntamenti: false } }: Props) {
   const [scelteFasi, setScelteFasi] = useState<Set<string>>(new Set());
   const [stati, setStati] = useState<Set<string>>(new Set());
   const [formato, setFormato] = useState<FormatoEsportazioneOpportunita>("xlsx");
@@ -72,25 +77,33 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
   const [mostraColonne, setMostraColonne] = useState(false);
   const [salvate, setSalvate] = useState<Salvata[]>([]);
   const [nomeSalvata, setNomeSalvata] = useState("");
+  const [note, setNote] = useState(false);
+  const [appuntamenti, setAppuntamenti] = useState(false);
   const kColonne = `eic.esportaOpportunita.colonne.${chiaveMemoria}`;
   const kSalvate = `eic.esportaOpportunita.salvate.${chiaveMemoria}`;
+  const kDettagli = `eic.esportaOpportunita.dettagli.${chiaveMemoria}`;
 
   useEffect(() => {
     if (!aperto) return;
     setScelteFasi(new Set()); setStati(new Set()); setDa(""); setA(""); setTuttePipeline(false);
     setColonne(new Set(leggiMemoria<string[]>(kColonne, [])));
     setSalvate(leggiMemoria<Salvata[]>(kSalvate, []));
-  }, [aperto, kColonne, kSalvate]);
+    const dettagli = leggiMemoria<{ note?: boolean; appuntamenti?: boolean }>(kDettagli, {});
+    setNote(!!dettagli.note); setAppuntamenti(!!dettagli.appuntamenti);
+  }, [aperto, kColonne, kSalvate, kDettagli]);
 
   const alterna = (s: Set<string>, v: string, on: boolean) => { const n = new Set(s); if (on) n.add(v); else n.delete(v); return n; };
   const tutteLeColonne = useMemo(() => [...COLONNE_OPPORTUNITA.filter((c) => c.key !== "pipeline" || piuPipeline), { key: "cf", label: "Campi personalizzati" }], [piuPipeline]);
 
-  const scelta = (): SceltaDialog => ({ fasi: tuttePipeline ? new Set() : scelteFasi, stati, formato, tuttePipeline, periodo: da || a ? { da, a, data: dataPeriodo } : null, colonne });
-  const esporta = () => { scriviMemoria(kColonne, [...colonne]); onEsporta(scelta()); };
+  const conNote = note && accesso.note;
+  const conAppuntamenti = appuntamenti && accesso.appuntamenti;
+  const scelta = (): SceltaDialog => ({ note: conNote, appuntamenti: conAppuntamenti, fasi: tuttePipeline ? new Set() : scelteFasi, stati, formato, tuttePipeline, periodo: da || a ? { da, a, data: dataPeriodo } : null, colonne });
+  const esporta = () => { scriviMemoria(kColonne, [...colonne]); scriviMemoria(kDettagli, { note, appuntamenti }); onEsporta(scelta()); };
   const applica = (sv: Salvata) => {
     setStati(new Set(sv.stati)); setFormato(sv.formato); setTuttePipeline(sv.tuttePipeline && piuPipeline);
     setScelteFasi(new Set(fasi.filter((f) => sv.fasiNomi.includes(f.name)).map((f) => f.id)));
     setColonne(new Set(sv.colonne));
+    setNote(!!sv.note); setAppuntamenti(!!sv.appuntamenti);
     const p = periodoRelativo(sv.periodo.tipo);
     setDa(p?.da ?? ""); setA(p?.a ?? ""); setDataPeriodo(sv.periodo.data);
   };
@@ -100,7 +113,7 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
     // il periodo si salva come «relativo»: «mese scorso» resta il mese scorso anche fra un anno
     const oggi = new Date();
     const tipo = (["mese_scorso", "settimana_scorsa", "anno"] as const).find((t) => { const p = periodoRelativo(t, oggi); return p && p.da === da && p.a === a; }) ?? "nessuno";
-    const nuova: Salvata = { nome, stati: [...stati], fasiNomi: fasi.filter((f) => scelteFasi.has(f.id)).map((f) => f.name), tuttePipeline, periodo: { tipo, data: dataPeriodo }, colonne: [...colonne], formato };
+    const nuova: Salvata = { nome, note, appuntamenti, stati: [...stati], fasiNomi: fasi.filter((f) => scelteFasi.has(f.id)).map((f) => f.name), tuttePipeline, periodo: { tipo, data: dataPeriodo }, colonne: [...colonne], formato };
     const elenco = [...salvate.filter((x) => x.nome !== nome), nuova].slice(-12);
     setSalvate(elenco); scriviMemoria(kSalvate, elenco); setNomeSalvata("");
   };
@@ -112,7 +125,7 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Esporta opportunità</DialogTitle>
-          <DialogDescription>Scegli cosa portare fuori. Per le perse il file ha motivo, dettaglio, concorrente e note.</DialogDescription>
+          <DialogDescription>Scegli cosa portare fuori: fasi, periodo, colonne, note e appuntamenti.</DialogDescription>
         </DialogHeader>
 
         {salvate.length > 0 && (
@@ -162,7 +175,7 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
         <div className="space-y-2">
           <Label>Stato</Label>
           <div className="flex flex-wrap gap-3">
-            {([["open", "Aperte"], ["won", "Vinte"], ["lost", "Perse"]] as const).map(([s, nome]) => (
+            {([["open", "Aperte"], ["won", "Vinte"], ["lost", "Perse"], ["abandoned", "Abbandonate"]] as const).map(([s, nome]) => (
               <label key={s} className="flex items-center gap-2 text-sm">
                 <Checkbox checked={stati.has(s)} onCheckedChange={(v) => setStati((x) => alterna(x, s, !!v))} />
                 {nome}
@@ -213,6 +226,16 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
               <p className="text-[11px] text-muted-foreground">Le colonne scelte si ricordano per la prossima volta.</p>
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Aggiungi al file</Label>
+          <div className="flex flex-wrap gap-4">
+            <label className={`flex items-center gap-2 text-sm ${accesso.note ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.note} checked={note && accesso.note} onCheckedChange={(v) => setNote(!!v)} />Note{accesso.note ? "" : " (non hai il permesso di vederle)"}</label>
+            <label className={`flex items-center gap-2 text-sm ${accesso.appuntamenti ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.appuntamenti} checked={appuntamenti && accesso.appuntamenti} onCheckedChange={(v) => setAppuntamenti(!!v)} />Appuntamenti{accesso.appuntamenti ? "" : " (non hai il permesso di vederli)"}</label>
+          </div>
+          {(conNote || conAppuntamenti) && <p className="text-xs text-muted-foreground">Colonne con il riepilogo{formato === "xlsx" ? " e un foglio con una riga per ognuno" : ""}. Le note automatiche del sistema restano fuori.</p>}
+          {((conNote && accesso.parzialeNote) || (conAppuntamenti && accesso.parzialeAppuntamenti)) && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Vedi solo una parte: nel file ci sono solo {conNote && accesso.parzialeNote && conAppuntamenti && accesso.parzialeAppuntamenti ? "le note e gli appuntamenti" : conNote && accesso.parzialeNote ? "le note" : "gli appuntamenti"} che puoi vedere, e le colonne lo dicono.</p>}
         </div>
 
         <div className="space-y-2">
