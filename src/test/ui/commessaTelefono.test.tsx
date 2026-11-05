@@ -22,6 +22,10 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/hooks/useCostiDirettiFasi", () => ({
+  useCostiDirettiFasi: () => ({ data: undefined }),
+  useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 // Il riquadro «Tempi dal preventivo firmato» ha i suoi test (pianoDalCronoprogramma): qui non serve.
 vi.mock("@/components/orders/PianoDalPreventivo", () => ({ PianoDalPreventivo: (): null => null }));

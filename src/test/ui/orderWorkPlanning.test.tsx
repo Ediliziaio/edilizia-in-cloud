@@ -21,6 +21,10 @@ vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => state.mobile}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/hooks/useCostiDirettiFasi", () => ({
+  useCostiDirettiFasi: () => ({ data: undefined }),
+  useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
 // Il riquadro «Tempi dal preventivo firmato» ha i suoi test (pianoDalCronoprogramma): qui non serve.
 vi.mock("@/components/orders/PianoDalPreventivo", () => ({ PianoDalPreventivo: (): null => null }));

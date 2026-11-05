@@ -1,4 +1,5 @@
-import { useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
+import { useAssegnaFaseCosti, useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
+import { CostiSenzaFaseDialog } from "@/components/orders/CostiSenzaFase";
 import { ripartisciCostiDiretti } from "@/lib/orders/costiDirettiFasi";
 import { MezziFaseCantiere } from "@/components/mezzi/PianoMezziCantiere";
 import { PianoDalPreventivo } from "@/components/orders/PianoDalPreventivo";
@@ -18,6 +19,7 @@ import {
   X,
   ListPlus,
   ChevronDown,
+  ChevronRight,
   Split,
   Search,
   CalendarDays,
@@ -255,6 +257,14 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
     () => (costiDiretti?.costi ? ripartisciCostiDiretti({ costi: costiDiretti.costi, fasi: phases, ditte: costiDiretti.ditte, contratti: costiDiretti.contratti }) : []),
     [costiDiretti, phases],
   );
+  const [faseAperta, setFaseAperta] = useState<string | null>(null);
+  const [responsabiliAperti, setResponsabiliAperti] = useState(false);
+  const [costiAperti, setCostiAperti] = useState(false);
+  const assegnaFaseCosti = useAssegnaFaseCosti();
+  const costiDaSistemare = useMemo(() => {
+    const senza = new Set(quoteCosti.filter((q) => q.phase_id === null).map((q) => q.costoId));
+    return (costiDiretti?.costi ?? []).filter((c) => senza.has(c.id)).map((c) => ({ id: c.id, importo: c.importo, nome: c.nome ?? "Costo", data: c.data ?? null, fornitore: c.fornitore ?? null }));
+  }, [costiDiretti, quoteCosti]);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -498,6 +508,81 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
           </>
   ) : null;
 
+
+  const schedaDi = (phase: (typeof phases)[number]) => (
+              <PhaseCard
+                key={phase.id}
+                phase={phase}
+                health={healthByPhaseId.get(phase.id)}
+                employees={employees}
+                externalTeams={externalTeams}
+                materials={materialsByPhase.get(phase.id) ?? []}
+                economia={economia.perFase.get(phase.id)}
+                costoVoci={Math.round((costoVociFase.get(phase.id) ?? 0) * 100) / 100}
+                tempi={tempiFasi.get(phase.id)}
+                oggi={oggi}
+                unassignedMaterials={unassignedMaterials}
+                allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
+                allAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
+                orderId={orderId}
+                orderCode={orderCode}
+                onAssignMaterial={(itemId, phaseId) => setMaterialPhase.mutate({ itemId, phaseId })}
+                onSplitMaterial={(itemId, parts, opts) =>
+                  splitMaterial.mutate({ itemId, parts }, opts)
+                }
+                onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
+                onDeletePhase={() => deletePhase.mutate(phase.id)}
+                primaFase={phases[0]?.id === phase.id}
+                ultimaFase={phases[phases.length - 1]?.id === phase.id}
+                onSposta={(verso) => {
+                  const ids = phases.map((p) => p.id);
+                  const i = ids.indexOf(phase.id), j = i + verso;
+                  if (i < 0 || j < 0 || j >= ids.length) return;
+                  [ids[i], ids[j]] = [ids[j], ids[i]];
+                  riordinaFasi.mutate(ids);
+                }}
+                onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
+                onUpdateAssignment={(id, source, patch) =>
+                  saveAssignment(id, source, patch)
+                }
+                onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })}
+                squadreFase={squadrePerFase.get(phase.id) ?? []}
+                squadreGenerali={(squadreGeneraliPerFase.get(phase.id) ?? []).filter(s => !squadrePerFase.get(phase.id)?.some(q => q.squadra_id === s.squadra_id))}
+                onManageGeneral={() => { setFaseAperta(null); setResponsabiliAperti(true); setOrganizzazioneOrdine(orderId); organizationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                noteFase={notePerFase.get(phase.id)?.length ?? 0}
+                mezziFase={mezziPerFase.get(phase.id) ?? []}
+                puoSquadre={puoSquadre}
+                fasiOpzioni={phaseOptions}
+                sottofasi={sottofasiDi.get(phase.id) ?? []}
+                azioniSottofasi={{
+                  onSegna: (id, fatta) => segnaSottofase.mutate({ id, fatta }),
+                  onAggiungi: (nome) => aggiungiSottofase.mutate({ phaseId: phase.id, nome }),
+                  onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
+                  onPianifica: (id, piano) => pianificaSottofase.mutate({ id, ...piano }),
+                  onPesa: (pesi) => pesaSottofasi.mutate(pesi),
+                  onPianificaTutte: (passi) => pianificaSottofasi.mutate(passi),
+                  onRiordina: (ids) => riordinaSottofasi.mutate(ids),
+                  onParallelo: (id, inParallelo) => paralleloSottofase.mutate({ id, in_parallelo: inParallelo }),
+                  onElimina: (id) => eliminaSottofase.mutate(id),
+                  calendario,
+                  voci: vociSottofasi.perSottofase,
+                  vediVenduto: canViewOrderAmounts,
+                  vociSenzaSottofase: vociSottofasi.senzaSottofase.get(phase.id) ?? 0,
+                  onSottofasiDalleVoci: () => sottofasiDalleVoci.mutate(phase.id),
+                  onRisorse: (id, n) => risorseSottofase.mutate({ id, risorse: n }),
+                  fasiDopo: phases.filter((p) => p.position > phase.position).map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date })),
+                  // Le fasi dopo scorrono tutte dello stesso tanto: le squadre che le seguono con loro.
+                  onSpostaFasiDopo: (giorni, ids) => {
+                    for (const p of phases) {
+                      if (!ids.includes(p.id) || !p.start_date) continue;
+                      updatePhase.mutate({ id: p.id, start_date: fineDaGiorni(p.start_date, giorni + 1), end_date: p.end_date ? fineDaGiorni(p.end_date, giorni + 1) : null });
+                    }
+                  },
+                }}
+              />
+  );
+  const faseInPopup = phases.find((p) => p.id === faseAperta) ?? null;
+
   return (
     // Da telefono niente riquadro attorno: le fasi sono già righe-riquadro
     // (niente card dentro card), e la larghezza va alle fasi.
@@ -557,7 +642,15 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
           </div>
         )}
 
-        {showTeam && <section ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
+        {/* In tabella contano le righe: capocantiere, squadre e figure stanno dietro una riga, a un clic. */}
+        {showTeam && modoFasi === "tabella" && !telefono && (
+          <button type="button" aria-expanded={responsabiliAperti} onClick={() => setResponsabiliAperti((v) => !v)}
+            className="flex w-full items-center gap-1 rounded-lg border px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {responsabiliAperti ? <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+            Capocantiere, squadre e figure di sicurezza
+          </button>
+        )}
+        {showTeam && <section hidden={modoFasi === "tabella" && !telefono && !responsabiliAperti} ref={organizationRef} id="section-squadra" aria-label="Responsabili e assegnazioni generali" className="space-y-3 scroll-mt-24">
           {!isLoading && !isError && <>
           <AppCantiere orderId={orderId} modificabile={puoSquadre} nomiSquadre={nomiSquadre} compact gestione organizzazione={{
             aperta: organizzazioneAperta,
@@ -649,6 +742,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
               </div>
             )}
             {modoFasi === "tabella" && phases.length > 0 ? (
+              <>
               <DistintaCommessa
                 orderId={orderId}
                 fasi={phases}
@@ -677,13 +771,27 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
                 onElimina={(id) => eliminaSottofase.mutate(id)}
                 onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
                 lavorativo={calendario.lavorativo}
-                onApriScheda={(faseId) => {
-                  setSearch(phases.find((p) => p.id === faseId)?.name ?? "");
-                  setFilter("all");
-                  // Solo per adesso: la preferenza salvata non cambia.
-                  setModoScelto("schede");
-                }}
+                onApriScheda={setFaseAperta}
+                onCostiSenzaFase={canEditOrders && costiDaSistemare.length > 0 ? () => setCostiAperti(true) : undefined}
               />
+              <Dialog open={!!faseInPopup} onOpenChange={(a) => { if (!a) setFaseAperta(null); }}>
+                <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+                  <DialogHeader>
+                    <DialogTitle>{faseInPopup?.name}</DialogTitle>
+                    <DialogDescription className="sr-only">Venduto, chi la fa, materiali, mezzi, note e sottofasi di questa fase.</DialogDescription>
+                  </DialogHeader>
+                  {faseInPopup && schedaDi(faseInPopup)}
+                </DialogContent>
+              </Dialog>
+              <CostiSenzaFaseDialog
+                aperto={costiAperti}
+                onChiudi={() => setCostiAperti(false)}
+                costi={costiDaSistemare}
+                fasi={phases}
+                inCorso={assegnaFaseCosti.isPending}
+                onAssegna={(ids, faseId) => assegnaFaseCosti.mutate({ ids, faseId })}
+              />
+              </>
             ) : <>
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
@@ -724,78 +832,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, importoContratto, or
             )}
             {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? "Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna." : "Nessuna lavorazione corrisponde ai filtri."}</p>}
             {view === "lavorazioni" && phases.length > 0 && completedCount === phases.length && visiblePhases.length > 0 && <p role="status" className="text-xs text-muted-foreground">Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna.</p>}
-            {visiblePhases.map((phase) => (
-              <PhaseCard
-                key={phase.id}
-                phase={phase}
-                health={healthByPhaseId.get(phase.id)}
-                employees={employees}
-                externalTeams={externalTeams}
-                materials={materialsByPhase.get(phase.id) ?? []}
-                economia={economia.perFase.get(phase.id)}
-                costoVoci={Math.round((costoVociFase.get(phase.id) ?? 0) * 100) / 100}
-                tempi={tempiFasi.get(phase.id)}
-                oggi={oggi}
-                unassignedMaterials={unassignedMaterials}
-                allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
-                allAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
-                orderId={orderId}
-                orderCode={orderCode}
-                onAssignMaterial={(itemId, phaseId) => setMaterialPhase.mutate({ itemId, phaseId })}
-                onSplitMaterial={(itemId, parts, opts) =>
-                  splitMaterial.mutate({ itemId, parts }, opts)
-                }
-                onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
-                onDeletePhase={() => deletePhase.mutate(phase.id)}
-                primaFase={phases[0]?.id === phase.id}
-                ultimaFase={phases[phases.length - 1]?.id === phase.id}
-                onSposta={(verso) => {
-                  const ids = phases.map((p) => p.id);
-                  const i = ids.indexOf(phase.id), j = i + verso;
-                  if (i < 0 || j < 0 || j >= ids.length) return;
-                  [ids[i], ids[j]] = [ids[j], ids[i]];
-                  riordinaFasi.mutate(ids);
-                }}
-                onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
-                onUpdateAssignment={(id, source, patch) =>
-                  saveAssignment(id, source, patch)
-                }
-                onDeleteAssignment={(id, source) => deleteAssignment.mutateAsync({ id, source })}
-                squadreFase={squadrePerFase.get(phase.id) ?? []}
-                squadreGenerali={(squadreGeneraliPerFase.get(phase.id) ?? []).filter(s => !squadrePerFase.get(phase.id)?.some(q => q.squadra_id === s.squadra_id))}
-                onManageGeneral={() => { setOrganizzazioneOrdine(orderId); organizationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-                noteFase={notePerFase.get(phase.id)?.length ?? 0}
-                mezziFase={mezziPerFase.get(phase.id) ?? []}
-                puoSquadre={puoSquadre}
-                fasiOpzioni={phaseOptions}
-                sottofasi={sottofasiDi.get(phase.id) ?? []}
-                azioniSottofasi={{
-                  onSegna: (id, fatta) => segnaSottofase.mutate({ id, fatta }),
-                  onAggiungi: (nome) => aggiungiSottofase.mutate({ phaseId: phase.id, nome }),
-                  onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
-                  onPianifica: (id, piano) => pianificaSottofase.mutate({ id, ...piano }),
-                  onPesa: (pesi) => pesaSottofasi.mutate(pesi),
-                  onPianificaTutte: (passi) => pianificaSottofasi.mutate(passi),
-                  onRiordina: (ids) => riordinaSottofasi.mutate(ids),
-                  onParallelo: (id, inParallelo) => paralleloSottofase.mutate({ id, in_parallelo: inParallelo }),
-                  onElimina: (id) => eliminaSottofase.mutate(id),
-                  calendario,
-                  voci: vociSottofasi.perSottofase,
-                  vediVenduto: canViewOrderAmounts,
-                  vociSenzaSottofase: vociSottofasi.senzaSottofase.get(phase.id) ?? 0,
-                  onSottofasiDalleVoci: () => sottofasiDalleVoci.mutate(phase.id),
-                  onRisorse: (id, n) => risorseSottofase.mutate({ id, risorse: n }),
-                  fasiDopo: phases.filter((p) => p.position > phase.position).map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date })),
-                  // Le fasi dopo scorrono tutte dello stesso tanto: le squadre che le seguono con loro.
-                  onSpostaFasiDopo: (giorni, ids) => {
-                    for (const p of phases) {
-                      if (!ids.includes(p.id) || !p.start_date) continue;
-                      updatePhase.mutate({ id: p.id, start_date: fineDaGiorni(p.start_date, giorni + 1), end_date: p.end_date ? fineDaGiorni(p.end_date, giorni + 1) : null });
-                    }
-                  },
-                }}
-              />
-            ))}
+            {visiblePhases.map(schedaDi)}
             {/* Da telefono le completate si aprono in fondo, dopo quelle da fare */}
             {telefono && view && groupCompleted && completedCount > 0 && (
               <Button variant="ghost" size="sm" className="tap-compact h-9 w-full text-slate-600" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>

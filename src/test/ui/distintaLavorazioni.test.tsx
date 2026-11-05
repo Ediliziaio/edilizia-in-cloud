@@ -26,7 +26,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("Tabella delle lavorazioni", () => {
   const elenco = () => within(screen.getByRole("navigation", { name: "Fasi" }));
-  const apriImpianti = () => fireEvent.click(screen.getAllByRole("button", { name: /^Impianti/ }).find((b) => !b.closest("nav"))!);
+  const apriImpianti = () => fireEvent.click(screen.getByRole("button", { name: "Apri le voci di Impianti" }));
   it("una fase si apre sulle sue voci: quelle in corso partono aperte", () => {
     mostra();
     expect(screen.getByRole("button", { name: /^Controparete/ })).toBeInTheDocument();
@@ -205,6 +205,17 @@ describe("Tabella delle lavorazioni", () => {
     fireEvent.change(within(popup).getByLabelText("Al"), { target: { value: "2026-01-23" } });
     fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
     expect(azioni.onPianifica).toHaveBeenCalledExactlyOnceWith(s.id, { data_inizio: "2026-01-05", data_fine: "2026-01-23", giorni: 3 });
+  });
+  it("un clic sul nome della fase apre la sua scheda", () => {
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Scheda di Murature" }));
+    expect(azioni.onApriScheda).toHaveBeenCalledExactlyOnceWith("f1");
+  });
+  it("il consuntivo senza fase porta ai costi da sistemare", () => {
+    const onCostiSenzaFase = vi.fn();
+    mostra({ consuntivoSenzaFase: 1200, onCostiSenzaFase });
+    fireEvent.click(within(riepilogo()).getByRole("button", { name: /senza fase/ }));
+    expect(onCostiSenzaFase).toHaveBeenCalledOnce();
   });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });

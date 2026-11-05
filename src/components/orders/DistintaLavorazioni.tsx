@@ -94,6 +94,8 @@ interface Props {
   economiaDi?: ReadonlyMap<string, EconomiaDistinta>;
   /** Costi della commessa che non stanno in una sola fase, come le ore di un rapportino su più fasi. */
   consuntivoSenzaFase?: number;
+  /** Apre l'elenco dei costi da mettere su una fase. */
+  onCostiSenzaFase?: () => void;
   /** Il conto dell'IVA della commessa: aliquota, debito, credito e reverse charge. */
   iva?: IvaCommessa | null;
   chiDi: ReadonlyMap<string, ChiLavora>;
@@ -133,7 +135,7 @@ type Elemento =
   | { tipo: "nuova"; key: string; faseId: string };
 
 export function DistintaLavorazioni({
-  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
+  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
   onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
@@ -295,10 +297,14 @@ export function DistintaLavorazioni({
           {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} />}
         </div>
         <div className="min-w-0">
-          <button type="button" onClick={() => (faseId ? undefined : apriChiudi(f.id))} aria-expanded={aperta} className={cn("flex max-w-full items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", faseId && "cursor-default")}>
-            {!faseId && (aperta ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />)}
-            <span className="truncate text-[13px] font-semibold" title={f.name}>{f.name}</span>
-          </button>
+          <div className="flex max-w-full items-center gap-1">
+            {!faseId && (
+              <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={aperta} aria-label={`${aperta ? "Chiudi" : "Apri"} le voci di ${f.name}`} className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {aperta ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
+              </button>
+            )}
+            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="min-w-0 truncate rounded text-left text-[13px] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
+          </div>
           <div className="flex items-center gap-2">
             {puoModificare || puoSquadre ? (
               <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
@@ -410,13 +416,16 @@ export function DistintaLavorazioni({
 
   return (
     <section aria-label="Lavorazioni della commessa" className="space-y-2">
-      <div>
+      {/* I numeri restano in vista mentre si scorre la pagina. */}
+      <div className="sticky top-0 z-20 bg-background">
       <dl className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5 rounded-lg border px-3 py-1.5">
         {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
         {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
         {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
         {vedeCosti && <Stat etichetta="Previsto">{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
-        {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? `+ ${formatCurrency(consuntivoSenzaFase)} senza fase` : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
+        {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? (onCostiSenzaFase
+          ? <button type="button" onClick={onCostiSenzaFase} className="rounded font-medium text-amber-800 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">+ {formatCurrency(consuntivoSenzaFase)} senza fase</button>
+          : `+ ${formatCurrency(consuntivoSenzaFase)} senza fase`) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
         {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
         {vedeVenduto && vedeCosti && iva && daVersare && (
           <div className="shrink-0" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>

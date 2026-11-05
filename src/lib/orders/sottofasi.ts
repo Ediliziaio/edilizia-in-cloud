@@ -226,6 +226,7 @@ export function messaggioErrore(e: unknown, predefinito = "Operazione non riusci
 
 // `type` e non `interface`: il campo del database è un Json, e un'interfaccia non è assegnabile a una firma d'indice.
 export type FaseLavorata = {
+  sottofasi_avanzate?: Array<{ id: string; quantita?: number; percentuale?: number }>;
   phase_id: string;
   percentuale: number;
   /** Solo per le fasi con sottofasi: quelle spuntate in questo rapportino. */

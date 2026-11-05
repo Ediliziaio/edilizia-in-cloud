@@ -13,6 +13,9 @@ export interface CostoDiretto {
   phase_id: string | null;
   subappaltatore_id: string | null;
   tipo_fornitore: string | null;
+  nome?: string;
+  data?: string | null;
+  fornitore?: string | null;
 }
 export interface DittaSuFase { phase_id: string | null; subappaltatore_id: string | null; peso: number }
 export interface ContrattoDitta { subappaltatore_id: string | null; righe: ReadonlyArray<{ fase: string; importo: number }> }

@@ -1,6 +1,7 @@
 // src/hooks/useCostiDirettiFasi.ts
 // Fatture e spese della commessa, con quello che serve a dire su quale fase stanno: stesse regole di v_ordine_marginalita.
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
 import type { ContrattoDitta, CostoDiretto, DittaSuFase } from "@/lib/orders/costiDirettiFasi";
@@ -10,10 +11,10 @@ const db = supabase as any;
 
 export interface DatiCostiDiretti { costi: CostoDiretto[]; ditte: DittaSuFase[]; contratti: ContrattoDitta[] }
 type RigaCosto = {
-  id: string; amount: number; order_id: string | null; order_work_phase_id: string | null; allocations: unknown;
-  fornitore: { tipo: string | null; subappaltatore_id: string | null } | null;
+  id: string; name: string | null; due_date: string | null; amount: number; order_id: string | null; order_work_phase_id: string | null; allocations: unknown;
+  fornitore: { name: string | null; tipo: string | null; subappaltatore_id: string | null } | null;
 };
-const COLONNE = "id, amount, order_id, order_work_phase_id, allocations, fornitore:suppliers(tipo, subappaltatore_id)";
+const COLONNE = "id, name, due_date, amount, order_id, order_work_phase_id, allocations, fornitore:suppliers(name, tipo, subappaltatore_id)";
 
 /** La parte del costo che tocca a questa commessa: tutto, o la quota scritta nelle ripartizioni. Mai negativa. */
 export function quotaDellaCommessa(r: Pick<RigaCosto, "amount" | "order_id" | "allocations">, orderId: string): number {
@@ -50,6 +51,7 @@ export function useCostiDirettiFasi(orderId: string | null | undefined, abilitat
         costi.push({
           id: r.id, importo, phase_id: r.order_work_phase_id ?? null,
           subappaltatore_id: r.fornitore?.subappaltatore_id ?? null, tipo_fornitore: r.fornitore?.tipo ?? null,
+          nome: r.name ?? "Costo", data: r.due_date ?? null, fornitore: r.fornitore?.name ?? null,
         });
       }
       return {
@@ -64,5 +66,25 @@ export function useCostiDirettiFasi(orderId: string | null | undefined, abilitat
           })),
       };
     },
+  });
+}
+
+/** Mette più costi su una fase. Si controlla quante righe sono cambiate: senza permesso l'aggiornamento non dà errore. */
+export function useAssegnaFaseCosti() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, faseId }: { ids: string[]; faseId: string }) => {
+      let fatti = 0;
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await db.from("company_costs").update({ order_work_phase_id: faseId }).in("id", ids.slice(i, i + 100)).select("id");
+        if (error) throw error;
+        fatti += data?.length ?? 0;
+      }
+      if (fatti < ids.length) throw new Error(fatti ? `Assegnati ${fatti} costi su ${ids.length}: gli altri non puoi modificarli.` : "Non puoi modificare questi costi.");
+      return fatti;
+    },
+    onSuccess: (n) => toast.success(n === 1 ? "Costo assegnato" : `${n} costi assegnati`),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Costi non assegnati"),
+    onSettled: () => { void qc.invalidateQueries({ queryKey: ["company-costs"] }); },
   });
 }
