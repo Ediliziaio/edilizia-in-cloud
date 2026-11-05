@@ -93,13 +93,13 @@ describe("sottofasiPerFase", () => {
 describe("sottofaseDaRiga", () => {
   it("normalizza una riga del database e ignora l'incorporato della fase", () => {
     expect(sottofaseDaRiga({ id: "s1", phase_id: "p1", name: "Tracce", position: 2, peso: 3, fatta: true, fatta_il: "2026-10-07T08:00:00Z", fase: { order_id: "o1" } })).toEqual({
-      id: "s1", phase_id: "p1", name: "Tracce", position: 2, peso: 3, fatta: true, fatta_il: "2026-10-07T08:00:00Z",
+      id: "s1", phase_id: "p1", name: "Tracce", position: 2, peso: 3, fatta: true, fatta_il: "2026-10-07T08:00:00Z", percentuale: 0, quantita_fatta: null,
       data_inizio: null, data_fine: null, giorni: null, in_parallelo: false, iniziata_il: null, giorni_lavorati: 0, risorse: null,
     });
   });
   it("riempie i vuoti: peso 1, non fatta", () => {
     expect(sottofaseDaRiga({ id: "s1", phase_id: "p1" })).toEqual({
-      id: "s1", phase_id: "p1", name: "", position: 0, peso: 1, fatta: false, fatta_il: null,
+      id: "s1", phase_id: "p1", name: "", position: 0, peso: 1, fatta: false, fatta_il: null, percentuale: 0, quantita_fatta: null,
       data_inizio: null, data_fine: null, giorni: null, in_parallelo: false, iniziata_il: null, giorni_lavorati: 0, risorse: null,
     });
   });
@@ -114,7 +114,7 @@ describe("sottofasiDalleFasi", () => {
     ];
     expect(sottofasiDalleFasi(fasi).map((x) => x.id)).toEqual(["s1", "s2"]);
     expect(sottofasiDalleFasi(fasi)[0]).toEqual({
-      id: "s1", phase_id: "p3", name: "Tracce", position: 0, peso: 2, fatta: true, fatta_il: "2026-10-12T08:00:00Z",
+      id: "s1", phase_id: "p3", name: "Tracce", position: 0, peso: 2, fatta: true, fatta_il: "2026-10-12T08:00:00Z", percentuale: 0, quantita_fatta: null,
       data_inizio: null, data_fine: null, giorni: null, in_parallelo: false, iniziata_il: null, giorni_lavorati: 0, risorse: null,
     });
   });
@@ -142,6 +142,11 @@ describe("avanzamento della singola sottofase", () => {
     expect(percentualeDaQuantita(306, 306)).toBe(100);
     expect(percentualeDaQuantita(400, 306)).toBe(100);
     expect(percentualeDaQuantita(5, null)).toBeNull();
+  });
+  it("la lettura dal database porta percentuale e quantità", () => {
+    const [letta] = sottofasiDalleFasi([{ sottofasi: [{ id: "s", phase_id: "p", percentuale: 41, quantita_fatta: "7.000" }] }]);
+    expect(letta.percentuale).toBe(41);
+    expect(letta.quantita_fatta).toBe(7);
   });
   it("la quantità scritta vale finché dice lo stesso della percentuale", () => {
     expect(quantitaEseguita({ percentuale: 39, quantitaFatta: 120, quantita: 306 })).toBe(120);

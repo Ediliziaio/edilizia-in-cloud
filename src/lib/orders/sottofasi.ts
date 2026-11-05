@@ -133,6 +133,8 @@ export function sottofaseDaRiga(r: Record<string, unknown>): Sottofase {
     position: Number(r.position) || 0,
     peso: pesoValido(Number(r.peso)),
     fatta: r.fatta === true,
+    percentuale: Number(r.percentuale) || 0,
+    quantita_fatta: r.quantita_fatta === null || r.quantita_fatta === undefined ? null : Number(r.quantita_fatta),
     fatta_il: typeof r.fatta_il === "string" ? r.fatta_il : null,
     data_inizio: giornoValido(r.data_inizio),
     data_fine: giornoValido(r.data_fine),

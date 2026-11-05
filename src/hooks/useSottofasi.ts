@@ -34,13 +34,27 @@ export function useSottofasi(orderId: string | null | undefined) {
 
   const perFase = useMemo(() => sottofasiPerFase(query.data ?? []), [query.data]);
 
+  // Su una commessa grande il giro di aggiornamento dura secondi: la riga cambia subito, e torna com'era se il database rifiuta.
+  const chiave = ["order_work_subphases", orderId];
+  const subito = async (id: string, cambia: (s: Sottofase) => Sottofase) => {
+    await qc.cancelQueries({ queryKey: chiave });
+    const prima = qc.getQueryData<Sottofase[]>(chiave);
+    qc.setQueryData<Sottofase[]>(chiave, (righe) => righe?.map((s) => (s.id === id ? cambia(s) : s)));
+    return { prima };
+  };
+  const annulla = (e: unknown, _v: unknown, ctx?: { prima?: Sottofase[] }) => {
+    if (ctx?.prima) qc.setQueryData(chiave, ctx.prima);
+    onError(e);
+  };
+
   const segna = useMutation({
     mutationFn: async ({ id, fatta }: { id: string; fatta: boolean }) => {
       const { error } = await db.from("order_work_subphases").update({ fatta }).eq("id", id);
       if (error) throw error;
     },
+    onMutate: ({ id, fatta }) => subito(id, (s) => ({ ...s, fatta, percentuale: fatta ? 100 : (s.percentuale ?? 0) >= 100 ? 0 : s.percentuale })),
     onSuccess: aggiorna,
-    onError,
+    onError: annulla,
   });
 
   // Tante righe insieme: una scrittura sola e un solo aggiornamento alla fine.
@@ -79,8 +93,9 @@ export function useSottofasi(orderId: string | null | undefined) {
       const { error } = await db.from("order_work_subphases").update({ percentuale, quantita_fatta }).eq("id", id);
       if (error) throw error;
     },
+    onMutate: ({ id, percentuale, quantita_fatta }) => subito(id, (s) => ({ ...s, percentuale, quantita_fatta, fatta: percentuale >= 100 })),
     onSuccess: aggiorna,
-    onError,
+    onError: annulla,
   });
 
   // Date e tempo necessario: fine e giorni mancanti li completa il database, e la
