@@ -45,6 +45,8 @@ export function useSottofasi(orderId: string | null | undefined) {
   const annulla = (e: unknown, _v: unknown, ctx?: { prima?: Sottofase[] }) => {
     if (ctx?.prima) qc.setQueryData(chiave, ctx.prima);
     onError(e);
+    // Con due clic ravvicinati la copia di prima può essere vecchia: fa fede il database.
+    void aggiorna();
   };
 
   const segna = useMutation({
@@ -87,10 +89,11 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  // A che punto è: con la percentuale il database allinea anche «fatta» e ricalcola la fase.
+  // A che punto è. «fatta» va scritta insieme: le sottofasi fatte prima di questa colonna hanno percentuale 0,
+  // e riportarne una a 0 senza cambiare niente non farebbe scattare l'allineamento nel database.
   const avanza = useMutation({
     mutationFn: async ({ id, percentuale, quantita_fatta }: { id: string; percentuale: number; quantita_fatta: number | null }) => {
-      const { error } = await db.from("order_work_subphases").update({ percentuale, quantita_fatta }).eq("id", id);
+      const { error } = await db.from("order_work_subphases").update({ percentuale, quantita_fatta, fatta: percentuale >= 100 }).eq("id", id);
       if (error) throw error;
     },
     onMutate: ({ id, percentuale, quantita_fatta }) => subito(id, (s) => ({ ...s, percentuale, quantita_fatta, fatta: percentuale >= 100 })),

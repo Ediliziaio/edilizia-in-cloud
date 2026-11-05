@@ -36,7 +36,7 @@ function Dato({ etichetta, valore, forte }: { etichetta: string; valore: React.R
   );
 }
 
-/** I rapportini approvati o inviati che dichiarano questa voce. */
+/** I rapportini approvati o inviati che dichiarano questa voce: i rifiutati non contano. */
 function RapportiniVoce({ orderId, sottofaseId }: { orderId: string; sottofaseId: string }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["rapportini-sottofase", orderId, sottofaseId],
@@ -46,6 +46,7 @@ function RapportiniVoce({ orderId, sottofaseId }: { orderId: string; sottofaseId
         .from("campo_rapportini")
         .select("id, data_lavoro, stato, fasi_lavorate")
         .eq("order_id", orderId)
+        .neq("stato", "rifiutato")
         .order("data_lavoro", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -153,14 +154,15 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
   const nGiorni = giorni === "" ? null : Number(giorni);
   const giorniValidi = nGiorni === null || (Number.isInteger(nGiorni) && nGiorni >= 1 && nGiorni <= 3650);
   const dateOk = dateValide(inizio || null, fine || null);
-  // Il dato non toccato si lascia calcolare al database, altrimenti date e giorni si contraddicono.
+  // Cambiando i giorni la fine la ricalcola il database, che riempie solo ciò che manca.
   const salvaDate = () => {
     const giorniCambiati = giorni !== (r.giorni ? String(r.giorni) : "");
     const fineCambiata = fine !== (r.fine ?? "");
     onPianifica(r.sottofaseId!, {
       data_inizio: inizio || null,
-      data_fine: giorniCambiati && !fineCambiata && inizio ? null : fine || null,
-      giorni: giorniCambiati ? nGiorni : null,
+      data_fine: giorniCambiati && nGiorni !== null && !fineCambiata && inizio ? null : fine || null,
+      // I giorni scritti valgono anche cambiando le date (3 giorni in una settimana); se si toglie la fine, tornerebbero a calcolarla.
+      giorni: giorniCambiati ? nGiorni : fineCambiata && !fine ? null : r.giorni,
     });
   };
   const margine = r.venduto && r.previsto !== null ? r.venduto - r.previsto : null;

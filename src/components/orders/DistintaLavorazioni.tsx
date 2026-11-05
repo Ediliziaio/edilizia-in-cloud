@@ -202,7 +202,10 @@ export function DistintaLavorazioni({
   // Il popup segue l'elenco visibile: con la voce aperta si passa a quella prima o dopo.
   const righeInElenco = useMemo(() => elementi.flatMap((e) => (e.tipo === "riga" ? [e.riga] : [])), [elementi]);
   const indiceAperta = righeInElenco.findIndex((x) => x.key === aperta);
-  const rigaAperta = indiceAperta >= 0 ? righeInElenco[indiceAperta] : null;
+  // Con un filtro attivo una voce appena segnata esce dall'elenco: il popup resta su di lei, e «dopo» è quella che ne ha preso il posto.
+  const ultimoIndice = useRef(0);
+  if (indiceAperta >= 0) ultimoIndice.current = indiceAperta;
+  const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? null : null;
   const nomiChi = (id: string) => { const c = chiDi.get(id); return c ? [...c.squadre, ...c.persone, ...c.ditte] : []; };
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -529,14 +532,14 @@ export function DistintaLavorazioni({
 
       <SchedaVoce
         riga={rigaAperta}
-        posizione={{ numero: indiceAperta + 1, totale: righeInElenco.length }}
+        posizione={{ numero: (indiceAperta >= 0 ? indiceAperta : ultimoIndice.current) + 1, totale: righeInElenco.length }}
         orderId={orderId}
         aliquota={aliquota}
         chiLaFa={rigaAperta ? nomiChi(rigaAperta.faseId) : []}
         consuntivoFase={rigaAperta ? economiaDi?.get(rigaAperta.faseId)?.costoConsuntivo ?? null : null}
         vedeVenduto={vedeVenduto} vedeCosti={vedeCosti} vedeMargini={vedeMargini} puoModificare={puoModificare}
         onChiudi={() => setAperta(null)}
-        onVicina={(verso) => { const v = righeInElenco[indiceAperta + verso]; if (v) setAperta(v.key); }}
+        onVicina={(verso) => { const v = righeInElenco[indiceAperta >= 0 ? indiceAperta + verso : verso > 0 ? ultimoIndice.current : ultimoIndice.current - 1]; if (v) setAperta(v.key); }}
         onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
         onSposta={sposta}
         onElimina={(x) => { setAperta(null); setDaEliminare(x); }}

@@ -243,7 +243,7 @@ export type FaseLavorata = {
  */
 export function fasiLavorateDelRapportino(
   dichiarate: Readonly<Record<string, number>>,
-  sottofasi: ReadonlyMap<string, ReadonlyArray<Pick<Sottofase, "id" | "peso" | "fatta">>>,
+  sottofasi: ReadonlyMap<string, ReadonlyArray<Pick<Sottofase, "id" | "peso" | "fatta" | "percentuale">>>,
   spunte: ReadonlyArray<string>,
   lavorate: ReadonlyArray<string> = [],
 ): FaseLavorata[] {
@@ -251,7 +251,7 @@ export function fasiLavorateDelRapportino(
     const delle = sottofasi.get(phase_id) ?? [];
     if (delle.length === 0) return { phase_id, percentuale };
     const nuove = delle.filter((s) => !s.fatta && spunte.includes(s.id)).map((s) => s.id);
-    const anteprima = avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s.id) }))) ?? percentuale;
+    const anteprima = avanzamentoDaSottofasi(delle.map((s) => ({ peso: s.peso, fatta: s.fatta || nuove.includes(s.id), percentuale: s.percentuale }))) ?? percentuale;
     const inCorso = delle.filter((s) => !s.fatta && !nuove.includes(s.id) && lavorate.includes(s.id)).map((s) => s.id);
     return { phase_id, percentuale: anteprima, sottofasi_fatte: nuove, ...(inCorso.length ? { sottofasi_lavorate: inCorso } : {}) };
   });

@@ -197,6 +197,15 @@ describe("Tabella delle lavorazioni", () => {
     expect(azioni.onAvanza.mock.calls[0][0]).toBe("s1");
     expect(azioni.onAvanza.mock.calls[0][1].percentuale).toBe(50);
   });
+  it("nel popup i giorni scritti restano cambiando solo le date", () => {
+    const s = sottofase;
+    mostra({ sottofasiDi: new Map([["f1", [{ ...s, data_inizio: "2026-01-05", data_fine: "2026-01-16", giorni: 3 }]]]) });
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.change(within(popup).getByLabelText("Al"), { target: { value: "2026-01-23" } });
+    fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
+    expect(azioni.onPianifica).toHaveBeenCalledExactlyOnceWith(s.id, { data_inizio: "2026-01-05", data_fine: "2026-01-23", giorni: 3 });
+  });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });
     expect(screen.queryByRole("checkbox", { name: /Seleziona/ })).toBeNull();
