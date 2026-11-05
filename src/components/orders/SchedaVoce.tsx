@@ -1,6 +1,6 @@
 // src/components/orders/SchedaVoce.tsx
 // Tutto di una voce in una finestra grande: si apre dalla riga e si scorre alla voce dopo senza chiuderla.
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Circle, ListChecks, Pencil, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { dateValide, type RigaDistinta } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota } from "@/lib/orders/ivaCommessa";
+import type { DatiVoce } from "@/hooks/useSottofasi";
 import { percentualeDaQuantita, quantitaEseguita } from "@/lib/orders/sottofasi";
 
 // La tabella non è nei tipi generati con le colonne usate qui.
@@ -119,6 +120,47 @@ function Avanzamento({ riga: r, puoModificare, onAvanza }: { riga: RigaDistinta;
   );
 }
 
+const numero = (t: string) => {
+  const n = Number(t.replace(",", "."));
+  return t.trim() === "" ? 0 : Number.isFinite(n) && n >= 0 ? n : null;
+};
+const testoDi = (n: number | null | undefined) => (n ? String(n) : "");
+
+/** Quantità e prezzi: una sottofase scritta a mano parte vuota, e con questi campi nasce la sua voce. */
+function DatiLavorazione({ riga: r, vedeVenduto, puoModificare, onSalva }: { riga: RigaDistinta; vedeVenduto: boolean; puoModificare: boolean; onSalva?: Props["onSalvaVoce"] }) {
+  const inizio = { q: testoDi(r.quantita), u: r.unita ?? "", i: testoDi(r.venduto), l: testoDi(r.costoManodopera), m: testoDi(r.costoMateriali) };
+  const [c, setC] = useState(inizio);
+  const cambia = (k: keyof typeof c) => (e: { target: { value: string } }) => setC((x) => ({ ...x, [k]: e.target.value }));
+  const q = numero(c.q), i = numero(c.i), l = numero(c.l), m = numero(c.m);
+  const valido = q !== null && i !== null && l !== null && m !== null;
+  const cambiato = (Object.keys(c) as Array<keyof typeof c>).some((k) => c[k] !== inizio[k]);
+  const previsto = valido ? (q ?? 0) * ((l ?? 0) + (m ?? 0)) : 0;
+  const campo = (k: keyof typeof c, etichetta: string, tipo: "number" | "text" = "number") => (
+    <label className="min-w-0 space-y-0.5 text-xs text-muted-foreground">{etichetta}
+      <Input type={tipo} min={tipo === "number" ? 0 : undefined} step="any" value={c[k]} disabled={!puoModificare} onChange={cambia(k)} maxLength={tipo === "text" ? 15 : undefined} className="h-8 px-1.5 text-xs" />
+    </label>
+  );
+  return (
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {campo("q", "Quantità")}
+        {campo("u", "Unità", "text")}
+        {vedeVenduto && campo("i", "Imponibile totale €")}
+        {campo("l", "Lavoro €/unità")}
+        {campo("m", "Materiali €/unità")}
+      </div>
+      {previsto > 0 && <p className="text-xs text-muted-foreground">Costo previsto: {formatCurrency(previsto)}</p>}
+      {!valido && <p role="alert" className="text-xs text-rose-700">Scrivi numeri non negativi.</p>}
+      {puoModificare && cambiato && onSalva && (
+        <Button type="button" size="sm" className="h-7 text-xs" disabled={!valido}
+          onClick={() => onSalva(r, { quantita: q ?? 0, unita: c.u.trim() || null, costoManodopera: l ?? 0, costoMateriali: m ?? 0, ...(vedeVenduto ? { importo: i || null } : {}) })}>
+          Salva quantità e prezzi
+        </Button>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   riga: RigaDistinta | null;
   /** Dove sta nell'elenco visibile: serve a passare alla voce vicina. */
@@ -135,6 +177,10 @@ interface Props {
   onVicina: (verso: -1 | 1) => void;
   onSegna: (id: string, fatta: boolean) => void;
   onAvanza: (id: string, avanzamento: { percentuale: number; quantita_fatta: number | null }) => void;
+  onSalvaVoce?: (riga: RigaDistinta, dati: DatiVoce) => void;
+  onRisorse?: (id: string, persone: number | null) => void;
+  onParallelo?: (id: string, insieme: boolean) => void;
+  oggi?: string;
   onPianifica: (id: string, piano: { data_inizio: string | null; data_fine: string | null; giorni: number | null }) => void;
   onRinomina: (id: string, nome: string) => void;
   onSposta: (riga: RigaDistinta, verso: -1 | 1) => void;
@@ -145,7 +191,7 @@ interface Props {
 }
 
 /** I campi ripartono dai valori salvati con la `key`: cambiando voce, o quando il database completa le date. */
-function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, onSegna, onAvanza, onPianifica, onRinomina, onSposta, onElimina, onAssegna, onCreaSottofasi, onApriScheda }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
+function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi, onSalvaVoce, onRisorse, onParallelo, onSegna, onAvanza, onPianifica, onRinomina, onSposta, onElimina, onAssegna, onCreaSottofasi, onApriScheda }: Omit<Props, "riga" | "posizione" | "onChiudi" | "onVicina"> & { riga: RigaDistinta }) {
   const [inizio, setInizio] = useState(r.inizio ?? "");
   const [fine, setFine] = useState(r.fine ?? "");
   const [giorni, setGiorni] = useState(r.giorni ? String(r.giorni) : "");
@@ -180,7 +226,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
               </button>
               <Avanzamento key={`${r.percentuale}|${r.quantitaFatta}`} riga={r} puoModificare={puoModificare} onAvanza={onAvanza} />
               <dl className="space-y-0.5">
-                {r.quantita !== null && <Dato etichetta="Quantità" valore={`${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 2 })}${r.unita ? ` ${r.unita}` : ""}`} />}
+                {r.iniziataIl && <Dato etichetta="Iniziata il" valore={giorno(r.iniziataIl)} />}
                 <Dato etichetta="Giorni dai rapportini" valore={r.giorniLavorati > 0 ? `${r.giorniLavorati}${r.giorni ? ` su ${r.giorni}` : ""}` : "—"} />
               </dl>
             </>
@@ -201,6 +247,28 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
               <label className="space-y-0.5 text-xs text-muted-foreground">Giorni<Input type="number" min={1} max={3650} value={giorni} disabled={!puoModificare} onChange={(e) => setGiorni(e.target.value)} className="h-8 px-1 text-xs" /></label>
             </div>
             {!dateOk && <p role="alert" className="text-xs text-rose-700">La fine viene prima dell'inizio.</p>}
+            {!r.fatta && !!r.fine && !!oggi && r.fine < oggi && <p className="text-xs font-medium text-rose-700">In ritardo: doveva finire il {giorno(r.fine)}</p>}
+            {(onRisorse || onParallelo) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+                {onRisorse && (
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">Persone
+                    <Input key={String(r.risorse)} type="number" min={1} max={999} defaultValue={r.risorse ?? ""} disabled={!puoModificare} aria-label="Persone che ci lavorano"
+                      onBlur={(e) => {
+                        const n = e.target.value === "" ? null : Number(e.target.value);
+                        if (n === (r.risorse ?? null) || (n !== null && (!Number.isInteger(n) || n < 1))) return;
+                        onRisorse(r.sottofaseId!, n);
+                      }}
+                      className="h-7 w-14 px-1 text-xs" />
+                  </label>
+                )}
+                {onParallelo && (
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <input type="checkbox" checked={r.inParallelo} disabled={!puoModificare} onChange={(e) => onParallelo(r.sottofaseId!, e.target.checked)} />
+                    Parte insieme alla precedente
+                  </label>
+                )}
+              </div>
+            )}
             {puoModificare && cambiato && (
               <Button type="button" size="sm" className="h-7 text-xs" disabled={!dateOk || !giorniValidi} onClick={salvaDate}>Salva le date</Button>
             )}
@@ -214,6 +282,11 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
       </div>
 
       <div className="space-y-3">
+        {vedeCosti && (r.sottofaseId || r.voceId) && (
+          <Riquadro titolo="Quantità e prezzi">
+            <DatiLavorazione key={`${r.voceId}|${r.quantita}|${r.unita}|${r.venduto}|${r.costoManodopera}|${r.costoMateriali}`} riga={r} vedeVenduto={vedeVenduto} puoModificare={puoModificare} onSalva={onSalvaVoce} />
+          </Riquadro>
+        )}
         {(vedeVenduto || vedeCosti) && (
           <Riquadro titolo="Economia">
             <dl className="space-y-0.5">
@@ -246,16 +319,22 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
             )}
           </Riquadro>
         )}
-        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => onApriScheda(r.faseId)}>Materiali, mezzi e note: apri la scheda della fase</Button>
+        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => onApriScheda(r.faseId)}>Materiali, mezzi e note: scheda della fase</Button>
       </div>
     </div>
   );
 }
 
 export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Props) {
+  // Le frecce passano alla voce vicina, se non si sta scrivendo in un campo.
+  const frecce = (e: KeyboardEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("input, textarea, select")) return;
+    if (e.key === "ArrowLeft" && posizione.numero > 1) onVicina(-1);
+    if (e.key === "ArrowRight" && posizione.numero < posizione.totale) onVicina(1);
+  };
   return (
     <Dialog open={!!riga} onOpenChange={(a) => { if (!a) onChiudi(); }}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl" onKeyDown={frecce}>
         {riga && (
           <>
             <DialogHeader>

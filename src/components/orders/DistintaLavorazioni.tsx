@@ -1,7 +1,7 @@
 // src/components/orders/DistintaLavorazioni.tsx
 // Le lavorazioni in una tabella sola: ogni fase si apre sulle sue voci, tutto sulla stessa riga,
 // e si cambia cliccando sul dato. Per i cantieri con centinaia di voci.
-import { useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFasi";
 import { SchedaVoce } from "@/components/orders/SchedaVoce";
+import type { DatiVoce } from "@/hooks/useSottofasi";
 import { avanzamentoFasi } from "@/lib/orders/schedaCommessa";
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
@@ -120,6 +121,11 @@ interface Props {
   onDateFase: (id: string, date: { start_date: string | null; end_date: string | null }) => void;
   onDalleVoci: (faseId: string) => void;
   onAggiungi: (faseId: string, nome: string) => void;
+  /** Un elenco incollato, una sottofase per riga. */
+  onAggiungiTante?: (faseId: string, nomi: string[]) => void;
+  onSalvaVoce?: (riga: RigaDistinta, dati: DatiVoce) => void;
+  onRisorse?: (id: string, persone: number | null) => void;
+  onParallelo?: (id: string, insieme: boolean) => void;
   onRinomina: (id: string, nome: string) => void;
   onElimina: (id: string) => void;
   onRiordina: (ids: string[]) => void;
@@ -132,11 +138,12 @@ interface Props {
 type Elemento =
   | { tipo: "fase"; key: string; fase: FaseTabella; righe: RigaDistinta[] }
   | { tipo: "riga"; key: string; riga: RigaDistinta }
-  | { tipo: "nuova"; key: string; faseId: string };
+  | { tipo: "nuova"; key: string; faseId: string }
+  | { tipo: "aggiungi"; key: string; faseId: string };
 
 export function DistintaLavorazioni({
   orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
+  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
   const [faseId, setFaseId] = useState<string | null>(() => {
@@ -153,6 +160,13 @@ export function DistintaLavorazioni({
   const [scelteFasi, setScelteFasi] = useState<ReadonlySet<string>>(new Set());
   const [inModifica, setInModifica] = useState<{ id: string; testo: string } | null>(null);
   const [nuovaIn, setNuovaIn] = useState<string | null>(null);
+  const campoNuova = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!nuovaIn) return undefined;
+    // Dopo la chiusura del menu e dopo che la riga è entrata nell'elenco.
+    const t = window.setTimeout(() => campoNuova.current?.focus(), 80);
+    return () => window.clearTimeout(t);
+  }, [nuovaIn]);
   const [nuova, setNuova] = useState("");
   const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
   const [divisione, setDivisione] = useState<string | null>(null);
@@ -196,10 +210,11 @@ export function DistintaLavorazioni({
       if (faseId || filtrando || aperte.has(f.id)) {
         for (const r of dellaFase) lista.push({ tipo: "riga", key: r.key, riga: r });
         if (nuovaIn === f.id) lista.push({ tipo: "nuova", key: `n:${f.id}`, faseId: f.id });
+        else if (puoModificare && !filtrando) lista.push({ tipo: "aggiungi", key: `a:${f.id}`, faseId: f.id });
       }
     }
     return lista;
-  }, [fasi, faseId, righe, filtrando, aperte, nuovaIn]);
+  }, [fasi, faseId, righe, filtrando, aperte, nuovaIn, puoModificare]);
 
   // Il popup segue l'elenco visibile: con la voce aperta si passa a quella prima o dopo.
   const righeInElenco = useMemo(() => elementi.flatMap((e) => (e.tipo === "riga" ? [e.riga] : [])), [elementi]);
@@ -332,7 +347,8 @@ export function DistintaLavorazioni({
               <DropdownMenuTrigger asChild>
                 <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              {/* Il menu, chiudendosi, rimetterebbe il cursore su di sé: il nome scritto andava perso. */}
+              <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => { if (campoNuova.current) ev.preventDefault(); }}>
                 <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />Aggiungi sottofase</DropdownMenuItem>
                 {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />Crea {senzaSottofase} sottofasi dalle voci</DropdownMenuItem>}
                 <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Apri la scheda</DropdownMenuItem>
@@ -404,9 +420,22 @@ export function DistintaLavorazioni({
   const mostra = (e: Elemento) => {
     if (e.tipo === "fase") return <div className={cn(griglia, "bg-muted/50 py-1")}>{rigaFase(e.fase, e.righe)}</div>;
     if (e.tipo === "riga") return <div className={cn(griglia, "py-0.5 hover:bg-muted/30")}>{rigaVoce(e.riga)}</div>;
+    if (e.tipo === "aggiungi") {
+      return (
+        <div className="border-b px-2 py-0.5 pl-9">
+          <button type="button" onClick={() => setNuovaIn(e.faseId)} className="flex items-center gap-1 rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Plus className="h-3 w-3" aria-hidden="true" />Aggiungi sottofase
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="border-b px-2 py-1 pl-9">
-        <Input autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder="Nome e Invio per aggiungere, Esc per chiudere" aria-label="Nuova sottofase"
+        <Input ref={campoNuova} autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder="Nome e Invio, Esc per chiudere. Puoi incollare un elenco." aria-label="Nuova sottofase"
+          onPaste={(ev) => {
+            const nomi = ev.clipboardData.getData("text").split(/\r?\n/).map((x) => x.trim().slice(0, 160)).filter(Boolean);
+            if (nomi.length > 1 && onAggiungiTante) { ev.preventDefault(); onAggiungiTante(e.faseId, nomi); setNuova(""); }
+          }}
           onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); aggiungi(e.faseId); } else if (ev.key === "Escape") { setNuovaIn(null); setNuova(""); } }}
           onBlur={() => { if (!nuova.trim()) setNuovaIn(null); }}
           className="h-6 max-w-md px-1 text-xs" />
@@ -549,6 +578,8 @@ export function DistintaLavorazioni({
         vedeVenduto={vedeVenduto} vedeCosti={vedeCosti} vedeMargini={vedeMargini} puoModificare={puoModificare}
         onChiudi={() => setAperta(null)}
         onVicina={(verso) => { const v = righeInElenco[indiceAperta >= 0 ? indiceAperta + verso : verso > 0 ? ultimoIndice.current : ultimoIndice.current - 1]; if (v) setAperta(v.key); }}
+        onSalvaVoce={onSalvaVoce} onRisorse={onRisorse} onParallelo={onParallelo}
+        oggi={oggi}
         onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
         onSposta={sposta}
         onElimina={(x) => { setAperta(null); setDaEliminare(x); }}

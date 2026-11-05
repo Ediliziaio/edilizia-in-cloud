@@ -232,7 +232,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
-  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, avanza: avanzaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, segnaTutte: segnaSottofasi, avanza: avanzaSottofase, aggiungi: aggiungiSottofase, aggiungiTante: aggiungiSottofasi, salvaVoce, rinomina: rinominaSottofase, pianifica: pianificaSottofase, pianificaTutte: pianificaSottofasi, riordina: riordinaSottofasi, parallelo: paralleloSottofase, risorse: risorseSottofase, dalleVoci: sottofasiDalleVoci, pesa: pesaSottofasi, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -367,10 +367,12 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const mostraFiltri = phases.length > 6 || filter !== "all" || !!search.trim();
   const visiblePhases = phases.filter(p => matchesFilter(p, filter) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")) && (!view || !groupCompleted || showCompleted || p.status !== "completata"));
   const [newPhaseName, setNewPhaseName] = useState("");
+  const [fasiAggiunte, setFasiAggiunte] = useState<string[]>([]);
 
   const closePhaseDialog = () => {
     setNewPhaseOpen(false);
     setNewPhaseName("");
+    setFasiAggiunte([]);
     setPhaseCreationMode("manuale");
   };
 
@@ -383,7 +385,10 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     }
     addPhase.mutate(name, {
       onSuccess: () => {
-        closePhaseDialog();
+        // Resta aperto: di solito le fasi si scrivono una dopo l'altra.
+        setNewPhaseName("");
+        setFasiAggiunte((prima) => [...prima, name]);
+        document.getElementById("new-phase-name")?.focus();
         toast.success("Fase aggiunta");
       },
     });
@@ -484,6 +489,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                         <span className="ml-1">Aggiungi</span>
                       </Button>
                     </div>
+                    {fasiAggiunte.length > 0 && (
+                      <p role="status" className="text-xs text-muted-foreground">Aggiunte: {fasiAggiunte.join(", ")}</p>
+                    )}
                   </div>}
 
                   {/* Un modello dalle fasi di questa commessa: solo da computer e solo a chi gestisce le impostazioni */}
@@ -754,6 +762,21 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 onDateFase={(id, date) => updatePhase.mutate({ id, ...date })}
                 onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
                 onAggiungi={(phaseId, nome) => aggiungiSottofase.mutate({ phaseId, nome })}
+                onAggiungiTante={(phaseId, nomi) => aggiungiSottofasi.mutate({ phaseId, nomi })}
+                onSalvaVoce={(riga, dati) => salvaVoce.mutate({ riga, dati }, {
+                  onSuccess: () => {
+                    // Il venduto della fase segue le voci, finché nessuno l'ha scritto diverso: lo leggono SAL e fatture.
+                    if (dati.importo === undefined || !canEditOrders || !canViewOrderAmounts) return;
+                    const delleVoci = (vociPreviste ?? []).filter((v) => v.phase_id === riga.faseId);
+                    const prima = delleVoci.reduce((t, v) => t + (Number(v.importo) || 0), 0);
+                    const dopo = prima - (Number(riga.venduto) || 0) + (Number(dati.importo) || 0);
+                    const fase = phases.find((p) => p.id === riga.faseId);
+                    const scritto = fase?.importo_venduto == null ? null : Number(fase.importo_venduto);
+                    if (scritto === null || Math.abs(scritto - prima) < 0.01) updatePhase.mutate({ id: riga.faseId, importo_venduto: dopo > 0 ? Math.round(dopo * 100) / 100 : null });
+                  },
+                })}
+                onRisorse={(id, n) => risorseSottofase.mutate({ id, risorse: n })}
+                onParallelo={(id, insieme) => paralleloSottofase.mutate({ id, in_parallelo: insieme })}
                 onRinomina={(id, nome) => rinominaSottofase.mutate({ id, nome })}
                 onElimina={(id) => eliminaSottofase.mutate(id)}
                 onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
@@ -762,11 +785,21 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 onCostiSenzaFase={canEditOrders && costiDaSistemare.length > 0 ? () => setCostiAperti(true) : undefined}
               />
               <Dialog open={!!faseInPopup} onOpenChange={(a) => { if (!a) setFaseAperta(null); }}>
-                <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-                  <DialogHeader className="pr-8">
+                <DialogContent className="max-h-[92vh] gap-2 overflow-y-auto sm:max-w-5xl">
+                  <DialogHeader>
                     <DialogTitle className="sr-only">{faseInPopup?.name}</DialogTitle>
                     <DialogDescription className="sr-only">Venduto, chi la fa, materiali, mezzi, note e sottofasi di questa fase.</DialogDescription>
                   </DialogHeader>
+                  {faseInPopup && (
+                    <BarraFase
+                      fase={faseInPopup}
+                      economia={economia.perFase.get(faseInPopup.id)}
+                      vedeVenduto={canViewOrderAmounts}
+                      vedeCosti={canViewCosts}
+                      posizione={{ numero: phases.findIndex((p) => p.id === faseInPopup.id) + 1, totale: phases.length }}
+                      onVicina={(verso) => setFaseAperta(phases[phases.findIndex((p) => p.id === faseInPopup.id) + verso]?.id ?? faseInPopup.id)}
+                    />
+                  )}
                   {faseInPopup && schedaDi(faseInPopup, true)}
                 </DialogContent>
               </Dialog>
@@ -971,6 +1004,50 @@ interface PhaseCardProps {
     fasiDopo: Array<{ id: string; name: string; start_date: string | null; end_date: string | null }>;
     onSpostaFasiDopo: (giorni: number, ids: string[]) => void;
   };
+}
+
+/** In cima al popup della fase: i numeri, la fase vicina e i salti alle parti della scheda. */
+function BarraFase({ fase, economia, vedeVenduto, vedeCosti, posizione, onVicina }: {
+  fase: { id: string; name: string; percentuale?: number | null };
+  economia?: EconomiaFase;
+  vedeVenduto: boolean;
+  vedeCosti: boolean;
+  posizione: { numero: number; totale: number };
+  onVicina: (verso: -1 | 1) => void;
+}) {
+  const vai = (parte: string) => document.getElementById(`fase-${fase.id}-${parte}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const sforato = !!economia && economia.costoPrevisto > 0 && economia.costoConsuntivo > economia.costoPrevisto;
+  const numeri: Array<[string, string, boolean?]> = [
+    ["Avanzamento", `${Math.round(Number(fase.percentuale) || 0)}%`],
+    ...(vedeVenduto ? [["Venduto", economia?.venduto ? formatCurrency(economia.venduto) : "—"] as [string, string]] : []),
+    ...(vedeCosti ? [
+      ["Previsto", economia?.costoPrevisto ? formatCurrency(economia.costoPrevisto) : "—"] as [string, string],
+      ["Consuntivo", economia?.costoConsuntivo ? formatCurrency(economia.costoConsuntivo) : "—", sforato] as [string, string, boolean],
+    ] : []),
+    ...(vedeVenduto && vedeCosti && economia?.marginePrevistoPct != null ? [["Margine", `${economia.marginePrevistoPct}%`] as [string, string]] : []),
+  ];
+  return (
+    <div className="sticky -top-6 z-10 -mx-1 space-y-1.5 border-b bg-background px-1 pb-2 pt-1">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pr-6">
+        {numeri.map(([etichetta, valore, rosso]) => (
+          <div key={etichetta}>
+            <p className="text-[11px] text-muted-foreground">{etichetta}</p>
+            <p className={cn("text-[13px] font-semibold tabular-nums", rosso && "text-rose-700")}>{valore}</p>
+          </div>
+        ))}
+        <span className="ml-auto flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Fase prima" onClick={() => onVicina(-1)}><ChevronRight className="h-4 w-4 rotate-180" /></Button>
+          {posizione.numero} di {posizione.totale}
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
+        </span>
+      </div>
+      <nav aria-label="Parti della fase" className="flex flex-wrap gap-1">
+        {([["sottofasi", "Sottofasi"], ["economia", "Economia"], ["chi", "Chi la fa"], ["mezzi", "Mezzi"], ["materiali", "Materiali"]] as const).map(([parte, testo]) => (
+          <Button key={parte} type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => vai(parte)}>{testo}</Button>
+        ))}
+      </nav>
+    </div>
+  );
 }
 
 function PhaseCard({
@@ -1436,6 +1513,7 @@ function PhaseCard({
                 )}
               </div>
 
+              <div id={`fase-${phase.id}-sottofasi`} className="scroll-mt-24" />
               {/* ── Sottofasi: i passi che decidono l'avanzamento ── */}
               <SottofasiFase
                 nomeFase={phase.name}
@@ -1448,6 +1526,7 @@ function PhaseCard({
                 {...azioniSottofasi}
               />
 
+              <div id={`fase-${phase.id}-economia`} className="scroll-mt-24" />
               {/* ── Economia: venduto, costo previsto, consuntivo, margine ── */}
               {economia && (
                 <EconomiaFaseRiga
@@ -1461,6 +1540,7 @@ function PhaseCard({
                 />
               )}
 
+              <div id={`fase-${phase.id}-chi`} className="scroll-mt-24" />
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
               <div ref={peopleRef} tabIndex={-1} aria-label={`Assegnazioni di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1502,6 +1582,7 @@ function PhaseCard({
                 </div>
               </div>
 
+              <div id={`fase-${phase.id}-mezzi`} className="scroll-mt-24" />
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {(mezziFase.length > 0 || canEditOrders || canViewMezzi) && (
                 <div className="flex flex-wrap items-start gap-2">
@@ -1530,6 +1611,7 @@ function PhaseCard({
                 </div>
               </div>
 
+              <div id={`fase-${phase.id}-materiali`} className="scroll-mt-24" />
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">

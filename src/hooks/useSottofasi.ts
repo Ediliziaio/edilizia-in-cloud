@@ -10,6 +10,8 @@ import { messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPer
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+export interface DatiVoce { quantita: number; unita: string | null; costoManodopera: number; costoMateriali: number; importo?: number | null }
+
 /** Le sottofasi di una commessa e i comandi per cambiarle. */
 export function useSottofasi(orderId: string | null | undefined) {
   const qc = useQueryClient();
@@ -33,6 +35,8 @@ export function useSottofasi(orderId: string | null | undefined) {
   });
 
   const perFase = useMemo(() => sottofasiPerFase(query.data ?? []), [query.data]);
+  // In fondo: dopo un'eliminazione «quante sono» ripeterebbe una posizione già usata.
+  const prossimaPosizione = (phaseId: string) => (perFase.get(phaseId) ?? []).reduce((m, s) => Math.max(m, s.position + 1), 0);
 
   // Su una commessa grande il giro di aggiornamento dura secondi: la riga cambia subito, e torna com'era se il database rifiuta.
   const chiave = ["order_work_subphases", orderId];
@@ -72,11 +76,49 @@ export function useSottofasi(orderId: string | null | undefined) {
   const aggiungi = useMutation({
     mutationFn: async ({ phaseId, nome }: { phaseId: string; nome: string }) => {
       const { error } = await db.from("order_work_subphases").insert({
-        phase_id: phaseId, name: nome, position: (perFase.get(phaseId) ?? []).length,
+        phase_id: phaseId, name: nome, position: prossimaPosizione(phaseId),
       });
       if (error) throw error;
     },
     onSuccess: aggiorna,
+    onError,
+  });
+
+  // Un elenco incollato: tutte insieme, nell'ordine in cui sono scritte.
+  const aggiungiTante = useMutation({
+    mutationFn: async ({ phaseId, nomi }: { phaseId: string; nomi: string[] }) => {
+      const base = prossimaPosizione(phaseId);
+      const { error } = await db.from("order_work_subphases").insert(nomi.map((name, i) => ({ phase_id: phaseId, name, position: base + i })));
+      if (error) throw error;
+      return nomi.length;
+    },
+    onSuccess: (n) => { aggiorna(); toast.success(`${n} sottofasi aggiunte`); },
+    onError,
+  });
+
+  // Quantità, unità e prezzi stanno sulla voce: una sottofase scritta a mano non ne ha una, e nasce qui.
+  const salvaVoce = useMutation({
+    mutationFn: async ({ riga, dati }: { riga: { voceId: string | null; sottofaseId: string | null; faseId: string; descrizione: string }; dati: DatiVoce }) => {
+      const valori = {
+        quantita: dati.quantita, unita: dati.unita, costo_manodopera: dati.costoManodopera, costo_materiali: dati.costoMateriali,
+        ...(dati.importo !== undefined ? { importo: dati.importo } : {}),
+      };
+      if (riga.voceId) {
+        const { data, error } = await db.from("order_work_phase_voci").update(valori).eq("id", riga.voceId).select("id");
+        if (error) throw error;
+        if (!data?.length) throw new Error("Non puoi modificare questa voce.");
+        return;
+      }
+      if (!riga.sottofaseId) throw new Error("Crea prima la sottofase.");
+      const { data: fase, error: erroreFase } = await db.from("order_work_phases").select("company_id").eq("id", riga.faseId).single();
+      if (erroreFase) throw erroreFase;
+      const { error } = await db.from("order_work_phase_voci").insert({
+        ...valori, company_id: fase.company_id, order_id: orderId, phase_id: riga.faseId, subphase_id: riga.sottofaseId,
+        descrizione: riga.descrizione, position: prossimaPosizione(riga.faseId), origine: "listino", origine_id: riga.sottofaseId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { aggiorna(); void qc.invalidateQueries({ queryKey: ["voci-previste-fasi"] }); toast.success("Salvato"); },
     onError,
   });
 
@@ -192,5 +234,5 @@ export function useSottofasi(orderId: string | null | undefined) {
     onError,
   });
 
-  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, avanza, aggiungi, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
+  return { sottofasi: query.data ?? [], perFase, isLoading: query.isLoading, isError: query.isError, segna, segnaTutte, avanza, aggiungi, aggiungiTante, salvaVoce, rinomina, pianifica, pianificaTutte, riordina, parallelo, risorse, dalleVoci, pesa, elimina };
 }

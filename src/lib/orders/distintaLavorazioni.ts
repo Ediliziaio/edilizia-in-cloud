@@ -58,6 +58,13 @@ export interface RigaDistinta {
   /** A che punto è, 0–100. */
   percentuale: number;
   quantitaFatta: number | null;
+  /** Costi unitari scritti sulla voce; 0 se non ha una voce. */
+  costoManodopera: number;
+  costoMateriali: number;
+  /** Primo giorno di lavoro dai rapportini approvati. */
+  iniziataIl: string | null;
+  risorse: number | null;
+  inParallelo: boolean;
   venduto: number | null;
   /** Null se la riga non ha una voce o la voce non ha costi: non è un costo zero. */
   previsto: number | null;
@@ -123,6 +130,11 @@ export function righeDistinta(
         fatta: s?.fatta ?? (fase.status === "completata" || Number(fase.percentuale) >= 100),
         percentuale: s ? (s.fatta ? 100 : Number(s.percentuale) || 0) : fase.status === "completata" || Number(fase.percentuale) >= 100 ? 100 : 0,
         quantitaFatta: s?.quantita_fatta ?? null,
+        costoManodopera: Number(v.costo_manodopera) || 0,
+        costoMateriali: Number(v.costo_materiali) || 0,
+        iniziataIl: s?.iniziata_il ?? null,
+        risorse: s?.risorse ?? null,
+        inParallelo: !!s?.in_parallelo,
         venduto: v.importo,
         previsto: costo > 0 ? costo : null,
       };
@@ -145,6 +157,11 @@ export function righeDistinta(
       fatta: s.fatta,
       percentuale: s.fatta ? 100 : Number(s.percentuale) || 0,
       quantitaFatta: s.quantita_fatta ?? null,
+      costoManodopera: 0,
+      costoMateriali: 0,
+      iniziataIl: s.iniziata_il ?? null,
+      risorse: s.risorse ?? null,
+      inParallelo: !!s.in_parallelo,
       venduto: null,
       previsto: null,
     }));
