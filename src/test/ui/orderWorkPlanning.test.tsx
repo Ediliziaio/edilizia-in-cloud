@@ -21,6 +21,11 @@ vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => state.mobile}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/components/orders/DistintaCommessa", () => ({
+  DistintaCommessa: ({ fasi, onApriScheda }: { fasi: Array<{ id: string; name: string }>; onApriScheda: (id: string) => void }) => (
+    <>{fasi.map((f) => <button key={f.id} type="button" aria-label={`Scheda di ${f.name}`} onClick={() => onApriScheda(f.id)} />)}</>
+  ),
+}));
 vi.mock("@/hooks/useCostiDirettiFasi", () => ({
   useCostiDirettiFasi: () => ({ data: undefined as unknown }),
   useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),
