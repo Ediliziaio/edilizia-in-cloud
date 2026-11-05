@@ -1028,7 +1028,7 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
 
   switch (node.node_type) {
     case "delay":
-      return await executeDelay(cfg, supabase, entityId, companyId);
+      return await executeDelay(cfg, supabase, entityId, companyId, queueItem);
 
     case "condition":
       return await executeCondition(supabase, cfg, entityId, companyId, queueItem);
@@ -1092,6 +1092,7 @@ async function executeDelay(
   supabase?: any,
   entityId?: string,
   companyId?: string,
+  queueItem?: any,
 ) {
   const invalidDelay = delayConfigErrors(cfg);
   if (invalidDelay.length) return { success: false, error: invalidDelay.join(" ") };
@@ -1110,6 +1111,41 @@ async function executeDelay(
     if (!Number.isFinite(ore) || ore < 0) return { success: false, error: "Le ore prima dell’appuntamento devono essere un numero maggiore o uguale a zero" };
     try {
       const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+      // L'appuntamento che ha fatto partire il flusso, se l'evento lo porta
+      // (05/11/2026). Prima si prendeva sempre il primo appuntamento futuro del
+      // contatto: con una chiamata e uno showroom in calendario, i promemoria
+      // dello showroom si allineavano alla chiamata.
+      const appuntamentoEvento = String(queueItem?.context_json?.payload?.appointment_id ?? "");
+      if (UUID_RE.test(appuntamentoEvento)) {
+        const { data: proprio, error: erroreProprio } = await supabase
+          .from("appointments")
+          .select("appointment_date, appointment_time, status")
+          .eq("id", appuntamentoEvento).eq("company_id", companyId)
+          .maybeSingle();
+        if (erroreProprio) throw erroreProprio;
+        if (proprio?.appointment_date) {
+          const annullato = ["cancelled", "canceled", "annullato"].includes(String(proprio.status ?? "").toLowerCase());
+          if (annullato || String(proprio.appointment_date) < oggi) {
+            // Annullato o passato: non si aspetta un appuntamento che non c'è.
+            // La condizione dopo l'attesa («è ancora valido?») ferma i promemoria.
+            return {
+              success: true,
+              output: { delay_ms: 0, execute_at: new Date().toISOString(), ancorata_a: annullato ? "appuntamento_annullato" : "appuntamento_passato" },
+              isDelay: true,
+              delayMs: 0,
+            };
+          }
+          const quando = romaVersoUtc(String(proprio.appointment_date), String(proprio.appointment_time ?? "09:00").slice(0, 5));
+          const attesa = Math.max(0, quando.getTime() - ore * 3_600_000 - Date.now());
+          return {
+            success: true,
+            output: { delay_ms: attesa, execute_at: new Date(Date.now() + attesa).toISOString(), ancorata_a: "appuntamento_evento" },
+            isDelay: true,
+            delayMs: attesa,
+          };
+        }
+        // Appuntamento cancellato dal database: si ripiega sul prossimo del contatto.
+      }
       const { data: app, error } = await supabase
         .from("appointments")
         .select("appointment_date, appointment_time")
@@ -3169,7 +3205,7 @@ Istruzione: ${aiPrompt}`;
       // dal catalogo sbagliato): prima cadeva nel default "Not implemented"
       // e l'attesa non avveniva mai (il flusso proseguiva subito). Delega la
       // semantica al delay: queueNextNodes gestisce result.isDelay.
-      return await executeDelay(ncfg, supabase, entityId, companyId);
+      return await executeDelay(ncfg, supabase, entityId, companyId, queueItem);
 
     case "sync_google":
       return await executeSyncGoogle(supabase, ncfg, entityId, companyId);
