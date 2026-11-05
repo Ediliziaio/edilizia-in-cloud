@@ -83,8 +83,8 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
     const attesa = setTimeout(() => (async () => {
       try {
         const cattura = await caricaFotogramma();
-        const telecamera = inquadratura === "tre_quarti" ? vistaGiroIntorno(limiti, 4 / 3) : vistaDalGiardino(limiti, inquadratura, 60, casa);
-        const f = await cattura({ pianta, localeId, telecamera, vista, larghezza: 1280, altezza: 960, terreno: 40, piani, aspetto: asp });
+        const telecamera = inquadratura === "tre_quarti" ? vistaGiroIntorno(limiti, 3 / 2) : vistaDalGiardino(limiti, inquadratura, 60, casa);
+        const f = await cattura({ pianta, localeId, telecamera, vista, larghezza: 1536, altezza: 1024, terreno: 40, piani, aspetto: asp });
         if (annullato) return;
         url = URL.createObjectURL(f.png);
         const chiave = JSON.stringify(asp);
@@ -108,7 +108,7 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const continua = () => {
     if (!anteprima) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
-    const nota = [MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: pianta.infissiProgetto?.colore ?? asp.infissi }, pianta.tetto), vincoloInfissiProgetto(pianta.infissiProgetto)].filter(Boolean).join(" ");
+    const nota = ["La sorgente è una vista 3D del progetto: trasformala in una fotografia realistica mantenendo edificio, aperture e inquadratura.", MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: pianta.infissiProgetto?.colore ?? asp.infissi }, pianta.tetto), vincoloInfissiProgetto(pianta.infissiProgetto)].filter(Boolean).join(" ");
     lasciaFotoDaPianta(modulo, anteprima.file, nota || undefined);
     onChiudi();
     toast.success("Vista 3D caricata come foto di partenza");
