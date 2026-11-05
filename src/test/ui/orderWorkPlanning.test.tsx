@@ -209,6 +209,10 @@ describe("Lavorazioni e squadra", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scheda di Opere murarie" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Opere murarie");
     expect(screen.getByRole("button", { name: "Fase dopo" })).toBeInTheDocument();
+    // Le schede mostrano una parte sola della fase.
+    expect(screen.getByRole("tab", { name: "Sottofasi e date" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("tab", { name: "Note" }));
+    expect(screen.getByRole("tab", { name: "Note" })).toHaveAttribute("aria-selected", "true");
   });
   it("gli avvisi aprono e portano alla sezione giusta senza scrivere dati", () => {
     state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []})];

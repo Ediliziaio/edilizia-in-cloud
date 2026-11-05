@@ -261,6 +261,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   );
   const [faseAperta, setFaseAperta] = useState<string | null>(null);
   const [sottofaseDaAprire, setSottofaseDaAprire] = useState<string | null>(null);
+  const [sezioneFase, setSezioneFase] = useState<SezioneFase>("sottofasi");
   const [responsabiliAperti, setResponsabiliAperti] = useState(false);
   const [costiAperti, setCostiAperti] = useState(false);
   const assegnaFaseCosti = useAssegnaFaseCosti();
@@ -510,10 +511,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   ) : null;
 
 
-  const schedaDi = (phase: (typeof phases)[number], apertaSubito = false) => (
+  const schedaDi = (phase: (typeof phases)[number], apertaSubito = false, sezione?: SezioneFase) => (
               <PhaseCard
                 key={phase.id}
                 apertaSubito={apertaSubito}
+                sezione={sezione}
                 phase={phase}
                 health={healthByPhaseId.get(phase.id)}
                 employees={employees}
@@ -799,11 +801,17 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                   </DialogHeader>
                   {faseInPopup && (
                     <BarraFase
+                      economia={economia.perFase.get(faseInPopup.id)}
+                      vedeVenduto={canViewOrderAmounts}
+                      vedeCosti={canViewCosts}
+                      vedeMargini={canViewMargins}
+                      sezione={sezioneFase}
+                      onSezione={setSezioneFase}
                       posizione={{ numero: phases.findIndex((p) => p.id === faseInPopup.id) + 1, totale: phases.length }}
                       onVicina={(verso) => setFaseAperta(phases[phases.findIndex((p) => p.id === faseInPopup.id) + verso]?.id ?? faseInPopup.id)}
                     />
                   )}
-                  {faseInPopup && schedaDi(faseInPopup, true)}
+                  {faseInPopup && schedaDi(faseInPopup, true, sezioneFase)}
                 </DialogContent>
               </Dialog>
               <CostiSenzaFaseDialog
@@ -974,6 +982,8 @@ interface PhaseCardProps {
     opts?: { onSuccess?: () => void; onError?: () => void }
   ) => void;
   onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => Promise<unknown>;
+  /** Nel popup della fase: la scheda scelta in alto; senza, tutto. */
+  sezione?: SezioneFase;
   /** Nel popup della fase: aperta anche se non è in corso. */
   apertaSubito?: boolean;
   onDeleteAssignment: (id: string, source: AssignmentSource) => Promise<unknown>;
@@ -1011,13 +1021,56 @@ interface PhaseCardProps {
   };
 }
 
-/** In cima al popup della fase: solo la fase prima e dopo. I numeri stanno nella scheda, una volta sola. */
-function BarraFase({ posizione, onVicina }: { posizione: { numero: number; totale: number }; onVicina: (verso: -1 | 1) => void }) {
+export type SezioneFase = "sottofasi" | "economia" | "chi" | "mezzi" | "note" | "materiali";
+const SCHEDE_FASE: Array<[SezioneFase, string]> = [["sottofasi", "Sottofasi e date"], ["economia", "Economia"], ["chi", "Chi la fa"], ["mezzi", "Mezzi"], ["materiali", "Materiali"], ["note", "Note"]];
+
+/** In cima al popup della fase: i numeri della fase, le schede e la fase prima e dopo. */
+function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onSezione, posizione, onVicina }: {
+  economia?: EconomiaFase;
+  vedeVenduto: boolean;
+  vedeCosti: boolean;
+  vedeMargini: boolean;
+  sezione: SezioneFase;
+  onSezione: (s: SezioneFase) => void;
+  posizione: { numero: number; totale: number };
+  onVicina: (verso: -1 | 1) => void;
+}) {
+  const sforato = !!economia && economia.costoPrevisto > 0 && economia.costoConsuntivo > economia.costoPrevisto;
+  const numeri: Array<{ etichetta: string; valore: string; nota?: string; rosso?: boolean }> = [];
+  if (vedeVenduto) numeri.push({ etichetta: "Venduto", valore: economia?.venduto ? formatCurrency(economia.venduto) : "—", nota: "imponibile" });
+  if (vedeCosti) {
+    numeri.push({ etichetta: "Costo previsto", valore: economia?.costoPrevisto ? formatCurrency(economia.costoPrevisto) : "—" });
+    numeri.push({ etichetta: "Speso finora", valore: economia?.costoConsuntivo ? formatCurrency(economia.costoConsuntivo) : "—", rosso: sforato, nota: sforato ? "oltre il previsto" : undefined });
+  }
+  if (vedeVenduto && vedeCosti && vedeMargini) numeri.push({ etichetta: "Margine previsto", valore: economia?.marginePrevistoPct != null ? `${economia.marginePrevistoPct}%` : "—" });
   return (
-    <div className="flex items-center justify-end gap-1 pr-8 text-xs tabular-nums text-muted-foreground">
-      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Fase prima" onClick={() => onVicina(-1)}><ChevronRight className="h-4 w-4 rotate-180" /></Button>
-      Fase {posizione.numero} di {posizione.totale}
-      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
+    <div className="space-y-2 pr-8">
+      <div className="flex flex-wrap items-start gap-2">
+        {numeri.length > 0 && (
+          <dl className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+            {numeri.map((n) => (
+              <div key={n.etichetta} className="rounded-md border bg-muted/30 px-2.5 py-1.5">
+                <dt className="text-[11px] text-muted-foreground">{n.etichetta}</dt>
+                <dd className={cn("text-sm font-semibold tabular-nums", n.rosso && "text-rose-700")}>{n.valore}</dd>
+                {n.nota && <dd className={cn("text-[10px]", n.rosso ? "text-rose-700" : "text-muted-foreground")}>{n.nota}</dd>}
+              </div>
+            ))}
+          </dl>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-1 pt-1 text-xs tabular-nums text-muted-foreground">
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Fase prima" onClick={() => onVicina(-1)}><ChevronRight className="h-4 w-4 rotate-180" /></Button>
+          Fase {posizione.numero} di {posizione.totale}
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
+        </span>
+      </div>
+      <div role="tablist" aria-label="Parti della fase" className="flex flex-wrap gap-1 border-b">
+        {SCHEDE_FASE.map(([chiave, testo]) => (
+          <button key={chiave} type="button" role="tab" aria-selected={sezione === chiave} onClick={() => onSezione(chiave)}
+            className={cn("-mb-px border-b-2 px-3 py-1.5 text-sm", sezione === chiave ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            {testo}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1057,6 +1110,7 @@ function PhaseCard({
   sottofasi,
   azioniSottofasi,
   apertaSubito = false,
+  sezione,
 }: PhaseCardProps) {
   const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins, canViewMezzi } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
@@ -1066,6 +1120,7 @@ function PhaseCard({
   const [progressDraft, setProgressDraft] = useState("");
   // Aperta di default solo se i lavori sono in corso: è la fase su cui si opera
   const [open, setOpen] = useState(() => apertaSubito || phase.status === "in_corso");
+  const vedi = (parte: SezioneFase) => !sezione || sezione === parte;
   const [targetSection, setTargetSection] = useState<{ section: PlanningSection } | null>(null);
   const consumedTarget = useRef<typeof targetSection>(null);
   const datesRef = useRef<HTMLDivElement>(null);
@@ -1440,6 +1495,7 @@ function PhaseCard({
                 <summary className="cursor-pointer">Descrizione</summary>
                 <p className="mt-2 whitespace-pre-wrap leading-relaxed">{phase.notes}</p>
               </details>}
+              {vedi("sottofasi") && <>
               {/* ── Quando ── */}
               <div ref={datesRef} tabIndex={-1} aria-label={`Date di ${phase.name}`} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1485,7 +1541,6 @@ function PhaseCard({
                 )}
               </div>
 
-              <div id={`fase-${phase.id}-sottofasi`} className="scroll-mt-24" />
               {/* ── Sottofasi: i passi che decidono l'avanzamento ── */}
               <SottofasiFase
                 nomeFase={phase.name}
@@ -1498,7 +1553,7 @@ function PhaseCard({
                 {...azioniSottofasi}
               />
 
-              <div id={`fase-${phase.id}-economia`} className="scroll-mt-24" />
+              </>}{vedi("economia") && <>
               {/* ── Economia: venduto, costo previsto, consuntivo, margine ── */}
               {economia && (
                 <EconomiaFaseRiga
@@ -1512,7 +1567,7 @@ function PhaseCard({
                 />
               )}
 
-              <div id={`fase-${phase.id}-chi`} className="scroll-mt-24" />
+              </>}{vedi("chi") && <>
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
               <div ref={peopleRef} tabIndex={-1} aria-label={`Assegnazioni di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1554,7 +1609,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              <div id={`fase-${phase.id}-mezzi`} className="scroll-mt-24" />
+              </>}{vedi("mezzi") && <>
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {(mezziFase.length > 0 || canEditOrders || canViewMezzi) && (
                 <div className="flex flex-wrap items-start gap-2">
@@ -1573,6 +1628,7 @@ function PhaseCard({
                 </div>
               )}
 
+              </>}{vedi("note") && <>
               {/* ── Note per gli operai di questa fase ── */}
               <div className="flex flex-wrap items-start gap-2">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
@@ -1583,7 +1639,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              <div id={`fase-${phase.id}-materiali`} className="scroll-mt-24" />
+              </>}{vedi("materiali") && <>
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
@@ -1714,6 +1770,7 @@ function PhaseCard({
                   </div>
                 </div>
               )}
+              </>}
             </CardContent>
           </motion.div>
         )}
