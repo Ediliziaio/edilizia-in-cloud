@@ -1126,7 +1126,11 @@ export default function DDTRicezioneDetail() {
                             )}
                           </div>
 
-                          {po && !["inviato", "confermato", "parziale"].includes(po.status) && <p className="mt-2 text-sm text-amber-700" role="status">Ordine in stato {po.status}: verifica e conferma l’ordine prima di registrare nuove ricezioni.</p>}
+                          {po && !["inviato", "confermato", "parziale"].includes(po.status) && <p className="mt-2 text-sm text-amber-700" role="status">{po.status === "ricevuto"
+                            ? "Ordine già ricevuto: consulta le ricezioni e i movimenti registrati prima di effettuare altre operazioni."
+                            : po.status === "annullato"
+                              ? "Ordine annullato: non è possibile registrare nuove ricezioni."
+                              : `Ordine in stato ${po.status}: verifica e conferma l’ordine prima di registrare nuove ricezioni.`}</p>}
                           {nonAllineata && <p className="mt-2 text-sm text-amber-700" role="status">La ricezione è già registrata, ma il riepilogo OdA non è allineato{po?.status === "bozza" ? " perché l’ordine è ancora in bozza" : ""}. Controlla le ricezioni qui sopra e lo stato dell’ordine prima di aggiungere altra merce: ripetere la ricezione può duplicare la giacenza.</p>}
                           {isReceiptsError && <p className="mt-2 text-sm text-destructive" role="alert">Impossibile verificare le ricezioni esistenti. Ricarica la pagina prima di registrare altra merce.</p>}
                           {isReceiving && (
