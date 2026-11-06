@@ -970,8 +970,8 @@ export default function DDTRicezioneDetail() {
                       {scostamenti.righeNonAbbinate === 1 ? "riga" : "righe"} della bolla
                       non {scostamenti.righeNonAbbinate === 1 ? "è" : "sono"} abbinat
                       {scostamenti.righeNonAbbinate === 1 ? "a" : "e"} a un articolo
-                      dell'ordine. Non è un errore: il fornitore manda anche quello che
-                      non era a preventivo.
+                      dell'ordine. Verifica se è merce aggiuntiva oppure una riga da
+                      abbinare prima di registrare altre ricezioni.
                     </p>
                   )}
                 </div>
@@ -1046,7 +1046,7 @@ export default function DDTRicezioneDetail() {
               <div className="pt-2 border-t">
                 <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
                   <FilePlus2 className="h-3.5 w-3.5" />
-                  Articoli ODA · registra ricezione
+                  Articoli OdA · quantità ricevute complessive
                 </p>
                 {isItemsLoading ? (
                   <div className="flex justify-center py-4">
@@ -1080,6 +1080,7 @@ export default function DDTRicezioneDetail() {
                                   </span>
                                 )}
                                 <span className="text-xs text-muted-foreground">
+                                  Registrato sull’OdA:{" "}
                                   {recv.toLocaleString("it-IT", {
                                     maximumFractionDigits: 2,
                                   })}{" "}
@@ -1104,7 +1105,7 @@ export default function DDTRicezioneDetail() {
                                     variant="outline"
                                     className="text-[10px] text-amber-700 border-amber-300"
                                   >
-                                    non legato a ordine
+                                    non collegato a un articolo della commessa
                                   </Badge>
                                 )}
                               </div>
