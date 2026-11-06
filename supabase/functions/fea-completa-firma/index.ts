@@ -124,6 +124,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // Solo il browser che ha inserito il codice giusto, entro 15 minuti.
+    // Il lavoro extra può essere stato annullato, rifiutato o accettato su carta mentre il link era
+    // aperto: senza questo controllo il cliente vedeva «approvato» e in EiC non cambiava niente
+    // (06/11/2026, revisione). Si ferma PRIMA di registrare la firma.
+    if (sigReq.odv_id) {
+      const { data: v } = await supabaseAdmin.from("ordini_variazione")
+        .select("status").eq("id", sigReq.odv_id).eq("company_id", sigReq.company_id).maybeSingle();
+      if (v?.status !== "in_attesa") {
+        return errore(409, v?.status === "approvato"
+          ? "Questo lavoro extra risulta già accettato: non serve firmarlo di nuovo."
+          : "Questo lavoro extra non è più da firmare: l'impresa l'ha annullato o modificato. Chiedile il link nuovo.");
+      }
+    }
     if (!(await controllaSessioneFirma(sigReq, sessione_firma))) {
       return new Response(JSON.stringify({ error: "Il tempo per firmare è scaduto: richiedi un nuovo codice.", code: "sessione_scaduta" }), {
         status: 401, headers: { ...corsH, "Content-Type": "application/json" },
@@ -281,6 +293,8 @@ Deno.serve(async (req: Request) => {
     // fase nelle Lavorazioni. Non blocca: la firma è già registrata, e dalla scheda si può creare a mano.
     if (chiudeDocumento && sigReq.odv_id) {
       const { data: fatto, error: odvErr } = await supabaseAdmin.rpc("odv_approva_da_firma_fea", { p_request: sigReq.id });
+      // Quasi irraggiungibile: poco sopra si è già controllato che il lavoro extra sia in attesa.
+      // Resta la corsa di chi annulla mentre il cliente firma: la firma vale, il lavoro extra no.
       if (odvErr || fatto !== true) console.error("Lavoro extra non approvato dopo la firma:", odvErr ?? "variante non più in attesa");
     }
     if (chiudeDocumento && sigReq.quote_id) {

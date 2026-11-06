@@ -6,14 +6,18 @@
  * (controlla «%PDF-» e lo apre con pdf-lib). Qui la foto diventa una pagina PDF prima di partire,
  * così si carica quello che si ha in mano senza convertirlo a parte.
  *
- * Una pagina per foto, orientata come lo scatto, rimpicciolita se è più grande di un A4: le foto da
- * 12 megapixel pesano più del tetto di 10 MB.
+ * UNA foto diventa UNA pagina: un contratto firmato su più fogli va caricato come PDF unico, se no
+ * si conserva come prova solo il foglio fotografato. La pagina è orientata come lo scatto e
+ * rimpicciolita quanto basta: le foto da 12 megapixel sforano il tetto di 10 MB.
  */
 
-/** Il lato lungo massimo in punti PDF: un A4 è 595 × 842. Oltre, si rimpicciolisce. */
-const LATO_MAX = 1600;
+/**
+ * Il lato lungo massimo in pixel. Su un A4 fotografato fanno circa 200 punti per pollice: la firma
+ * si legge e il file resta sotto i 10 MB. Più in basso (1600, 135 dpi) i tratti sottili sbavavano.
+ */
+const LATO_MAX = 2400;
 /** Oltre questa qualità il file cresce senza che la firma si legga meglio. */
-const QUALITA = 0.82;
+const QUALITA = 0.85;
 
 export const eUnaFoto = (file: File): boolean =>
   file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);

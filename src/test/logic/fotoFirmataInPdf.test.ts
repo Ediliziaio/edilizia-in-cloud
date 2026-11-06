@@ -17,8 +17,8 @@ describe("La copia firmata fotografata col telefono", () => {
   });
 
   it("una foto da 12 megapixel si rimpicciolisce tenendo le proporzioni", () => {
-    expect(misuraPagina(4032, 3024)).toEqual({ w: 1600, h: 1200 });
-    expect(misuraPagina(3024, 4032)).toEqual({ w: 1200, h: 1600 });
+    expect(misuraPagina(4032, 3024)).toEqual({ w: 2400, h: 1800 });
+    expect(misuraPagina(3024, 4032)).toEqual({ w: 1800, h: 2400 });
   });
 
   it("una foto piccola resta com'è", () => {

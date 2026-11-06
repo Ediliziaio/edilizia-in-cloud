@@ -166,8 +166,10 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const vaiARivedi = (): void => void run("Preparo il PDF…", async () => {
     prepareVariation(form); // fermo qui se manca qualcosa: il messaggio è già in italiano
     const data = dirty || !receipt ? await save() : receipt;
+    const revisione = data.workspace?.revision;
+    if (revisione === undefined) throw new Error("Questo lavoro extra è stato scritto prima e non si può rifare da qui: aprilo da Economia → Documenti.");
     if (!fresh || dirty) {
-      const next = await workflow.request(id,"document",{revision:data.workspace!.revision});
+      const next = await workflow.request(id,"document",{revision:revisione});
       absorb(next);
     }
     await showDocument();
@@ -184,13 +186,19 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Scrivi l'email del cliente: è lì che arriva il link per firmare.");
     if (nomeCliente.trim().length < 2) throw new Error("Scrivi il nome di chi firma.");
     let dati = receipt!;
+    const revisione = dati.workspace?.revision;
+    if (revisione === undefined || !dati.document) throw new Error("Prepara prima il PDF: torna a «Rivedi».");
     if (!pending) {
-      dati = await workflow.request(id,"publish",{revision:dati.workspace!.revision,document_hash:dati.document!.document_hash,reviewed:true});
+      dati = await workflow.request(id,"publish",{revision:revisione,document_hash:dati.document.document_hash,reviewed:true});
       absorb(dati);
     }
+    // Da qui il lavoro extra è «in attesa» e non si modifica più: se la firma non parte lo si dice,
+    // così non sembra che non sia successo niente (06/11/2026, revisione).
     const esito = await richiediFirma({
       tipo_documento: "odv", documento_id: id, tipo_firmatario: "b2c",
       signer_email: email, signer_name: nomeCliente.trim(), scadenza_giorni: 30,
+    }).catch((e: unknown) => {
+      throw new Error(`Il lavoro extra è pronto e in attesa, ma la richiesta di firma non è partita. Riprova da qui. (${e instanceof Error && e.message && !/non-2xx/i.test(e.message) ? e.message : "controlla l'email del cliente e la connessione"})`);
     });
     if (alive.current) {
       await firmaEsistente.refetch();

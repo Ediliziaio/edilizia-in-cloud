@@ -152,6 +152,22 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "Non hai il permesso di inviare il preventivo per la firma." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
       }
     }
+    if (tipo_documento === "odv") {
+      // Mandare un lavoro extra in firma impegna il cliente e cambia il contratto: serve il permesso,
+      // come per il preventivo fotovoltaico (06/11/2026, revisione).
+      try {
+        await verificaPermessoAzienda(supabaseAdmin, userId, company_id, ["can_edit_orders"], "inviare il lavoro extra per la firma");
+      } catch {
+        return new Response(JSON.stringify({ error: "Non hai il permesso di mandare in firma i lavori extra." }), { status: 403, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+      // Solo un lavoro extra già pubblicato: in bozza le condizioni possono ancora cambiare e il
+      // cliente firmerebbe un documento diverso da quello che poi entra nel contratto.
+      const { data: v } = await supabaseAdmin.from("ordini_variazione")
+        .select("status").eq("id", documento_id).eq("company_id", company_id).maybeSingle();
+      if (v?.status !== "in_attesa") {
+        return new Response(JSON.stringify({ error: "Prepara il PDF e manda il lavoro extra prima di chiederne la firma." }), { status: 409, headers: { ...corsH, "Content-Type": "application/json" } });
+      }
+    }
 
     // Gate "carta obbligatoria": la firma digitale (FEA + OTP SMS/email) ha un costo.
     const pmCheck = await checkPaymentMethod(supabaseAdmin, company_id);
