@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, CalendarDays, CalendarRange, Layers,
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 import type { CalendarioCantiere } from "@/hooks/useCalendarioCantiere";
@@ -68,12 +69,14 @@ interface SottofasiFaseProps {
   /** Pesa le sottofasi per i loro giorni. */
   onPesa?: (pesi: Array<{ id: string; peso: number }>) => void;
   onElimina: (id: string) => void;
+  /** Apre il popup della sottofase (dal popup della fase). */
+  onApri?: (id: string) => void;
   className?: string;
 }
 
 /** I passi di una fase: spuntati, ne decidono l'avanzamento. */
 export function SottofasiFase({
-  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, voci, vediVenduto = false, vociSenzaSottofase = 0, onSottofasiDalleVoci, onRisorse, onPesa, onElimina, className,
+  nomeFase, sottofasi, dateFase, avviata, puoModificare, puoSegnare, onSegna, onAggiungi, onRinomina, onPianifica, onPianificaTutte, calendario, onRiordina, onParallelo, fasiDopo, onSpostaFasiDopo, voci, vediVenduto = false, vociSenzaSottofase = 0, onSottofasiDalleVoci, onRisorse, onPesa, onElimina, className, onApri
 }: SottofasiFaseProps) {
   const [nuova, setNuova] = useState("");
   const [aperta, setAperta] = useState(false);
@@ -81,9 +84,12 @@ export function SottofasiFase({
   const [bozza, setBozza] = useState("");
   const [inPiano, setInPiano] = useState<string | null>(null);
   // Semplice di base (31/10/2026): i comandi di una riga dietro «⋯», giorni e persone solo in «Pianifica».
-  const [menu, setMenu] = useState<string | null>(null);
   const [pianifica, setPianifica] = useState(false);
+  // Con tante sottofasi: ricerca e solo quelle da fare, come nel rapportino.
+  const [cerca, setCerca] = useState("");
+  const [soloDaFare, setSoloDaFare] = useState(true);
   const { fatte, totale } = riepilogoSottofasi(sottofasi);
+  const tante = sottofasi.length > 8;
   const pesi = pesiDaGiorni(sottofasi);
   // I giorni scritti sulle righe e non ancora salvati.
   const [giorniBozza, setGiorniBozza] = useState<Record<string, string>>({});
@@ -173,8 +179,18 @@ export function SottofasiFase({
             : `Questa fase è già al ${avviata.percentuale}%. Dividendola in sottofasi, l'avanzamento si calcola da quelle fatte: segna subito quelle già completate.`}
         </p>
       )}
+      {tante && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input type="search" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca una sottofase…" aria-label={`Cerca nelle sottofasi di ${nomeFase}`} className="h-8 max-w-xs text-sm" />
+          <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" aria-pressed={!soloDaFare} onClick={() => setSoloDaFare((v) => !v)}>
+            {soloDaFare ? `Mostra anche le fatte (${fatte})` : `Solo da fare (${totale - fatte})`}
+          </Button>
+        </div>
+      )}
       <ul className="divide-y rounded-md border">
         {sottofasi.map((s, i) => {
+          const q = cerca.trim().toLocaleLowerCase("it-IT");
+          if (q ? !s.name.toLocaleLowerCase("it-IT").includes(q) : tante && soloDaFare && s.fatta) return null;
           const p = passoDi.get(s.id);
           const testo = p ? testoPiano(p) : testoPiano(s);
           const reale = realeSottofase(s);
@@ -211,8 +227,17 @@ export function SottofasiFase({
                 />
               ) : (
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>{s.name}</p>
-                  {info && <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>}
+                  <p className={cn("break-words", s.fatta && "text-muted-foreground line-through")}>
+                    {onApri ? <button type="button" onClick={() => onApri(s.id)} className="rounded text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{s.name}</button> : s.name}
+                    {!s.fatta && !!s.percentuale && <span className="ml-1.5 text-xs font-medium tabular-nums text-primary">{s.percentuale}%</span>}
+                  </p>
+                  {puoModificare && onPianifica && !s.fatta && inPiano !== s.id ? (
+                    <button type="button" onClick={() => setInPiano(s.id)} aria-label={`Date di ${s.name}`}
+                      className={cn("block rounded text-left text-[11px] tabular-nums hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>
+                      {info || "Senza date · aggiungi"}
+                    </button>
+                  ) : info ? <p className={cn("text-[11px] tabular-nums", p?.oltreLaFase ? "font-medium text-amber-700" : "text-muted-foreground")}>{info}</p>
+                    : onApri && !s.fatta && <p className="text-[11px] text-muted-foreground">Senza date</p>}
                   {reale && intervalloSottofase(s) && <p className={cn("text-[11px] tabular-nums", reale.scarto > 0 ? "text-rose-700" : "text-emerald-700")}>
                     finita il {breve(reale.finita)}{reale.scarto !== 0 ? ` (${reale.scarto > 0 ? "+" : ""}${reale.scarto} gg)` : ", in tempo"}
                   </p>}
@@ -224,10 +249,21 @@ export function SottofasiFase({
                 </div>
               )}
               {puoModificare && inModifica !== s.id && (
-                <Button variant="ghost" size="icon" className={cn("h-8 w-8 shrink-0 text-muted-foreground", menu === s.id && "bg-slate-100")}
-                  aria-label={`Altro per ${s.name}`} aria-expanded={menu === s.id} onClick={() => setMenu(menu === s.id ? null : s.id)}>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground" aria-label={`Altro per ${s.name}`}><MoreHorizontal className="h-4 w-4" /></Button>
+                  </DropdownMenuTrigger>
+                  {/* Chiudendosi il menu rimetterebbe il cursore su di sé: il campo del nome si chiuderebbe subito. */}
+                  <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+                    {onPianifica && <DropdownMenuItem onClick={() => setInPiano(s.id)}><CalendarDays className="mr-2 h-3.5 w-3.5" />Date e giorni</DropdownMenuItem>}
+                    <DropdownMenuItem onClick={() => { setBozza(s.name); setInModifica(s.id); }}><Pencil className="mr-2 h-3.5 w-3.5" />Rinomina</DropdownMenuItem>
+                    {onRiordina && sottofasi.length > 1 && <>
+                      <DropdownMenuItem disabled={i === 0} onClick={() => sposta(i, -1)}><ArrowUp className="mr-2 h-3.5 w-3.5" />Sposta su</DropdownMenuItem>
+                      <DropdownMenuItem disabled={i === sottofasi.length - 1} onClick={() => sposta(i, 1)}><ArrowDown className="mr-2 h-3.5 w-3.5" />Sposta giù</DropdownMenuItem>
+                    </>}
+                    <DropdownMenuItem className="text-rose-700" onClick={() => onElimina(s.id)}><Trash2 className="mr-2 h-3.5 w-3.5" />Elimina</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
             {pianoAttivo && !p?.ferma && (
@@ -257,31 +293,6 @@ export function SottofasiFase({
                     <Layers className="h-3.5 w-3.5" aria-hidden="true" />Insieme alla precedente
                   </button>
                 )}
-              </div>
-            )}
-            {menu === s.id && puoModificare && inModifica !== s.id && (
-              <div role="group" aria-label={`Comandi di ${s.name}`} className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
-                {onRiordina && sottofasi.length > 1 && <>
-                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Sposta su ${s.name}`} disabled={i === 0} onClick={() => sposta(i, -1)}>
-                    <ArrowUp className="mr-1 h-3.5 w-3.5" />Su
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Sposta giù ${s.name}`} disabled={i === sottofasi.length - 1} onClick={() => sposta(i, 1)}>
-                    <ArrowDown className="mr-1 h-3.5 w-3.5" />Giù
-                  </Button>
-                </>}
-                {onPianifica && (
-                  <Button size="sm" variant="outline" className={cn("h-8 px-2 text-xs", inPiano === s.id && "bg-slate-100")} aria-label={`Date e giorni di ${s.name}`}
-                    aria-expanded={inPiano === s.id} onClick={() => setInPiano(inPiano === s.id ? null : s.id)}>
-                    <CalendarDays className="mr-1 h-3.5 w-3.5" />Date
-                  </Button>
-                )}
-                <Button size="sm" variant="outline" className="h-8 px-2 text-xs" aria-label={`Rinomina ${s.name}`}
-                  onClick={() => { setBozza(s.name); setInModifica(s.id); setMenu(null); }}>
-                  <Pencil className="mr-1 h-3.5 w-3.5" />Rinomina
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 px-2 text-xs text-rose-700" aria-label={`Elimina ${s.name}`} onClick={() => { onElimina(s.id); setMenu(null); }}>
-                  <Trash2 className="mr-1 h-3.5 w-3.5" />Elimina
-                </Button>
               </div>
             )}
             {inPiano === s.id && onPianifica && (

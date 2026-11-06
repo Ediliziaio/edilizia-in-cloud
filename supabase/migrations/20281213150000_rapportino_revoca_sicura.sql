@@ -1,3 +1,14 @@
+-- Correzioni alla 20281212100000 dopo la revisione (05/11/2026). Nessuna riga riscritta, idempotente.
+--  · La revoca non ricalcola più dai valori attuali: all'approvazione si annota com'era la sottofase prima e com'è
+--    diventata (sottofasi_dal_rapportino). Alla revoca si torna al «prima» solo se nel frattempo nessuno l'ha cambiata;
+--    se qualcuno l'ha rettificata a mano, vince la rettifica. Prima: una rettifica al 40% tornava a 0, e una sottofase
+--    chiusa a mano dopo l'approvazione si riapriva.
+--  · Una sottofase già fatta non viene riaperta da una quantità (all'approvazione restava sotto il totale e si riapriva).
+--  · I rapportini di fine lavori (lavoro_completato o firma del cliente) non muovono le sottofasi: né all'approvazione
+--    né alla revoca. Prima la revoca toglieva quantità mai aggiunte.
+--  · Alla revoca la sottofase deve stare nella fase e nella commessa del rapportino, come all'approvazione.
+--  · Quantità di voci con unità diverse non si sommano: senza un totale si dichiara la percentuale.
+--  · Una sottofase finita per quantità prende come giorno quello del lavoro.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
@@ -14,6 +25,7 @@ create table if not exists public.sottofasi_dal_rapportino (
 alter table public.sottofasi_dal_rapportino enable row level security;
 revoke all on table public.sottofasi_dal_rapportino from public, anon, authenticated;
 
+-- Il totale di una sottofase si somma solo se le sue voci hanno la stessa unità.
 create or replace function public.sottofase_quantita_totale(p_id uuid)
 returns numeric language sql stable security definer set search_path to 'public'
 as $function$
@@ -22,6 +34,7 @@ as $function$
 $function$;
 revoke all on function public.sottofase_quantita_totale(uuid) from public, anon, authenticated;
 
+-- Approvazione: porta avanti la sottofase e annota com'era. Una sottofase già fatta non si tocca.
 create or replace function public.sottofase_applica_avanzata(p_rapportino uuid, p_id uuid, p_quantita numeric, p_percentuale numeric, p_giorno date)
 returns void language plpgsql security definer set search_path to 'public'
 as $function$
@@ -59,6 +72,7 @@ end;
 $function$;
 revoke all on function public.sottofase_applica_avanzata(uuid, uuid, numeric, numeric, date) from public, anon, authenticated;
 
+-- Revoca: si torna a com'era, solo se è ancora come l'aveva lasciata questo rapportino.
 create or replace function public.sottofase_revoca_avanzata(p_rapportino uuid)
 returns void language plpgsql security definer set search_path to 'public'
 as $function$
@@ -97,6 +111,7 @@ declare
   v_fatte uuid[];
   v_toccate uuid[] := '{}';
 begin
+  -- Revoca: si torna indietro solo per i rapportini giornalieri, e solo sulle sottofasi della loro commessa.
   if old.stato = 'approvato' and new.stato is distinct from 'approvato' then
     if coalesce(old.lavoro_completato, false) or nullif(btrim(old.firma_cliente_url), '') is not null then
       return new;
@@ -105,6 +120,7 @@ begin
     if jsonb_typeof(old.fasi_lavorate) = 'array' then
       for v in select value from jsonb_array_elements(old.fasi_lavorate) loop
         if jsonb_typeof(v->'sottofasi_fatte') = 'array' then
+          -- Solo se nessun altro rapportino approvato dice che è finita, e nessuno l'ha segnata a mano.
           update public.order_work_subphases s set fatta = false
             from public.order_work_phases fp
            where fp.id = s.phase_id and fp.order_id = old.order_id
@@ -129,6 +145,7 @@ begin
   if not (new.stato = 'approvato' and old.stato is distinct from 'approvato') then
     return new;
   end if;
+  -- La conferma cliente resta distinta dal giornaliero operativo.
   if coalesce(new.lavoro_completato, false) or nullif(btrim(new.firma_cliente_url), '') is not null then
     return new;
   end if;
@@ -145,6 +162,7 @@ begin
     return new;
   end if;
 
+  -- Ordinamento stabile e lock: due approvazioni concorrenti non abbassano il progresso.
   for v in select value from jsonb_array_elements(new.fasi_lavorate) order by value->>'phase_id' loop
     select * into f from public.order_work_phases
      where id=nullif(v->>'phase_id','')::uuid and order_id=new.order_id and company_id=new.company_id
@@ -167,6 +185,7 @@ begin
              and s.id::text in (select lower(value) from jsonb_array_elements_text(v->'sottofasi_fatte'))
           returning s.id
         ) select coalesce(array_agg(id), '{}') into v_fatte from fatte;
+        -- Finita il giorno del lavoro, non quello dell'approvazione (31/10/2026).
         if new.data_lavoro is not null and cardinality(v_fatte) > 0 then
           update public.order_work_subphases
              set fatta_il = ((new.data_lavoro::timestamp + interval '12 hours') at time zone 'Europe/Rome'),
@@ -178,6 +197,7 @@ begin
              and fp.completata_il > (select max(s.fatta_il) from public.order_work_subphases s where s.phase_id = f.id);
         end if;
       end if;
+      -- Le sottofasi su cui si è lavorato (le finite comprese): primo giorno e GIORNI di lavoro, dai rapportini approvati.
       if new.data_lavoro is not null then
         select coalesce(array_agg(s.id), '{}') into v_toccate from public.order_work_subphases s
          where s.phase_id = f.id and s.id::text in (
@@ -186,9 +206,11 @@ begin
              select lower(value) from jsonb_array_elements_text(case when jsonb_typeof(v->'sottofasi_fatte') = 'array' then v->'sottofasi_fatte' else '[]'::jsonb end));
         perform public.sottofase_lavoro_dai_rapportini(v_toccate);
       end if;
+      -- La percentuale viene esclusivamente dalle sottofasi, mai dal valore aggregato del rapporto.
       update public.order_work_phases set status='in_corso', updated_at=now() where id=f.id and status='da_iniziare';
       continue;
     end if;
+    -- Sottofasi rimosse nel frattempo: la fase ora libera usa la percentuale dichiarata, come l'anteprima.
     p:=coalesce(nullif(v->>'percentuale','')::numeric,0);
     if p::text in ('NaN','Infinity','-Infinity') then
       raise exception 'Percentuale dichiarata non valida' using errcode='22023';
@@ -208,6 +230,7 @@ begin
   return new;
 end $function$;
 
+-- Quantità per il cantiere: solo dove le voci della sottofase hanno la stessa unità.
 create or replace function public.campo_quantita_sottofasi(p_order_id uuid)
 returns table(subphase_id uuid, quantita numeric, unita text)
 language plpgsql stable security definer set search_path to 'public'

@@ -82,7 +82,7 @@ describe("economia di ogni fase", () => {
     const f1 = perFase.get("f1")!;
     expect(f1.venduto).toBe(1000);
     expect(f1.previsto).toEqual({ manodopera: 200, ditte: 150, materiali: 400 });
-    expect(f1.consuntivo).toEqual({ manodopera: 260, ditte: 100, materiali: 420 });
+    expect(f1.consuntivo).toEqual({ manodopera: 260, ditte: 100, materiali: 420, altri: 0 });
     expect(f1.costoPrevisto).toBe(750);
     expect(f1.costoConsuntivo).toBe(780);
     expect(f1.scostamento).toBe(30);

@@ -44,6 +44,7 @@ import {
   type SalPerFattura,
   documentiDaArchivio,
   fatturatoDaDocumenti,
+  giaFatturatoFase,
   fuoriDalleFasi,
   modoSuggerito,
   primaRataDaFatturare,
@@ -540,7 +541,7 @@ export function CreaFatturaDialog({
   );
 
   // ── Da fasi, voci e SAL ──────────────────────────────────────
-  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa), [documentiCommessa]);
+  const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa, fasi), [documentiCommessa, fasi]);
   const scelta = (id: string): SceltaRiga => scelteRighe[id] ?? {};
   const cambiaScelta = (id: string, patch: SceltaRiga) => {
     setScelteRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -551,12 +552,13 @@ export function CreaFatturaDialog({
   // Senza contratto scritto non c'è un tetto: si propone il maturato.
   const residuoContratto = contrattoNetto > 0 ? Math.max(0, round2(contrattoNetto - fatturato.totale)) : Infinity;
   const fasiVendute = useMemo(() => {
-    const righe = fasi
-      .filter((f) => Number(f.importo_venduto) > 0)
+    const vendute = fasi.filter((f) => Number(f.importo_venduto) > 0);
+    const vendutoTotale = vendute.reduce((t, f) => t + Number(f.importo_venduto), 0);
+    const righe = vendute
       .map((f) => {
         const venduto = Number(f.importo_venduto);
         const avanzamento = avanzamentoFase({ status: f.status, percentuale: f.percentuale });
-        const gia = fatturato.perFase.get(f.id) ?? 0;
+        const gia = giaFatturatoFase(fatturato, f.id, venduto, vendutoTotale);
         return { id: f.id, nome: f.name, venduto, avanzamento, gia, maturato: quotaDaFatturare(venduto, avanzamento, gia) };
       });
     const dentro = quoteDentroIlContratto(righe.map((r) => r.maturato), residuoContratto);
@@ -567,8 +569,13 @@ export function CreaFatturaDialog({
   const fuoriFasi = fuoriDalleFasi(contrattoNetto, fasiVendute);
 
   // L'importo «ora» di una voce: scritto a mano, o il suo maturato al netto del già fatturato.
-  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) =>
-    round2(quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0) * (f.maturato > 0 ? f.calcolato / f.maturato : 0));
+  // Le voci aperte non superano mai la quota della fase: il SAL già fatturato e il tetto del contratto stanno lì.
+  const quotaVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => quotaDaFatturare(Number(v.importo), f.avanzamento, fatturato.perVoce.get(v.id) ?? 0);
+  const fattoreVoci = (f: (typeof fasiVendute)[number]) => {
+    const somma = vociDiFase(f.id).reduce((t, v) => t + quotaVoce(v, f), 0);
+    return somma > 0 ? Math.min(1, f.calcolato / somma) : 0;
+  };
+  const voceCalcolata = (v: VoceRow, f: (typeof fasiVendute)[number]) => round2(quotaVoce(v, f) * fattoreVoci(f));
   const importoVoce = (v: VoceRow, f: (typeof fasiVendute)[number]) => {
     const s = scelta(v.id);
     if (s.esclusa) return 0;

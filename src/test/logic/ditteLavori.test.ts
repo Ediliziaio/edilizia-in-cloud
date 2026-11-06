@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
+import { contrattoPerFase, costoFaseDitta, dittaProposta, elencoLavoriDitta, paroleFase, periodoFasi, somiglianzaFasi, contrattoDellaDitta, schedeSicurezzaDitta, prezzoListinoPerDitta, elencoDaSalvare } from "@/lib/orders/ditteLavori";
 
 // I nomi veri delle fasi di Dimora Torino (O-0001 e O-0002).
 const storico = [
@@ -108,5 +108,44 @@ describe("elenco dei lavori del contratto, modificabile", () => {
       { fase: "Demolizione", descrizione: "Tramezzi", unita: "mq", quantita: 14.55, prezzo: 15, importo: 218.25 },
       { fase: "Altri lavori", descrizione: "Extra", unita: "cad", quantita: 1, prezzo: 99.999, importo: 100 },
     ]);
+  });
+});
+
+describe("Elenco lavori: tutto quello che la ditta deve fare", () => {
+  const fasi = [{ id: "a", name: "Impianti", position: 1 }, { id: "b", name: "Finiture", position: 2 }];
+  const voce = { id: "v", phase_id: "a", descrizione: "Tracce", unita: "m", quantita: 2, costo_manodopera: 10, tariffa_id: null as string | null, subphase_id: "s1" };
+  it("la voce porta fase e sottofase; la sottofase senza voce entra a corpo; la fase vuota col suo previsto", () => {
+    const elenco = elencoLavoriDitta(fasi, [voce], ["a", "b"], "d", [], {
+      sottofasi: [{ id: "s1", phase_id: "a", name: "Tracce" }, { id: "s2", phase_id: "a", name: "Collaudo" }],
+      previstoFase: new Map([["b", 500]]),
+    });
+    expect(elenco.map((r) => [r.fase, r.descrizione, r.unita, r.importo, r.fase_id, r.sottofase_id])).toEqual([
+      ["Impianti", "Tracce", "m", 20, "a", "s1"],
+      ["Impianti", "Collaudo", "a corpo", 0, "a", "s2"],
+      ["Finiture", "Finiture", "a corpo", 500, "b", null],
+    ]);
+  });
+  it("una fase con sole sottofasi porta il previsto in testa, a corpo, e le sottofasi comprese", () => {
+    const elenco = elencoLavoriDitta(fasi, [], ["b"], "d", [], {
+      sottofasi: [{ id: "s3", phase_id: "b", name: "Stuccatura" }], previstoFase: new Map([["b", 500]]),
+    });
+    expect(elenco.map((r) => [r.descrizione, r.importo])).toEqual([["Finiture", 500], ["Stuccatura", 0]]);
+  });
+  it("salvando l'elenco i collegamenti restano", () => {
+    const [r] = elencoDaSalvare([{ fase: "A", descrizione: "X", unita: "m", quantita: 1, prezzo: 1, importo: 1, fase_id: "a", sottofase_id: "s" }]);
+    expect(r).toMatchObject({ fase_id: "a", sottofase_id: "s" });
+  });
+});
+
+describe("Contratto firmato e previsto delle fasi", () => {
+  it("divide il pattuito per fase, per id o per nome, e conta quello che non ha fase", () => {
+    const { perFase, senzaFase } = contrattoPerFase([
+      { fase: "Impianti", importo: 300, fase_id: "a" },
+      { fase: " IMPIANTI ", importo: 200 },
+      { fase: "Finiture", importo: 100 },
+      { fase: "Cancellata", importo: 50, fase_id: "x" },
+    ], [{ id: "a", name: "Impianti" }, { id: "b", name: "Finiture" }]);
+    expect([...perFase]).toEqual([["a", 500], ["b", 100]]);
+    expect(senzaFase).toBe(50);
   });
 });

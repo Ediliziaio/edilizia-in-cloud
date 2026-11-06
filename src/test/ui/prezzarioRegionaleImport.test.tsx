@@ -182,6 +182,15 @@ describe("Importazione regionale: selezione e categorie", () => {
     expect(screen.getByText("101–101 di 101")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Seleziona COD-100" })).toBeInTheDocument();
   });
+  it("una voce senza unità mostra come la misura il prezzario prima della scelta; con l'unità no", () => {
+    stato.voci = [
+      voce(0, { unita_misura: null, descrizione: "Demolizione di solaio misto. La misurazione sarà eseguita al m² per ogni cm di spessore del solaio." }),
+      voce(1, { descrizione: "Scavo di sbancamento. Valutato al m³." }),
+    ];
+    render(<Browser />);
+    expect(screen.getByText("Come si misura: «La misurazione sarà eseguita al m² per ogni cm di spessore del solaio.»")).toBeInTheDocument();
+    expect(screen.getAllByText(/Come si misura/)).toHaveLength(1);
+  });
   it("torna alla prima pagina della selezione quando si toglie l'unica voce della seconda", () => {
     render(<Browser />);
     fireEvent.click(screen.getByRole("button", { name: "Seleziona questa pagina" }));

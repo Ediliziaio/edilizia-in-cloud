@@ -34,7 +34,9 @@ export interface VoceLavoro {
   costo_manodopera: number;
   tariffa_id: string | null;
   origine_codice?: string | null;
+  subphase_id?: string | null;
 }
+export interface SottofaseLavoro { id: string; phase_id: string; name: string; position?: number | null }
 
 const centesimi = (n: number) => Math.round(n * 100) / 100;
 
@@ -53,9 +55,10 @@ export function costoFaseDitta(phaseId: string, voci: VoceLavoro[], dittaId: str
 }
 
 /**
- * L'elenco dei lavori di una ditta per il contratto: le voci delle fasi che
- * le sono affidate, nell'ordine delle fasi, col suo prezzo. Le voci a
- * costo zero restano (si vede cosa deve fare anche se è compreso).
+ * L'elenco dei lavori di una ditta per il contratto: tutto quello che deve fare nelle fasi che le
+ * sono affidate, nell'ordine delle fasi, col suo prezzo. Le voci a costo zero restano (si vede cosa
+ * deve fare anche se è compreso). Una sottofase senza voce entra a corpo, compresa nel prezzo; una
+ * fase senza voci né sottofasi entra a corpo col costo previsto della ditta su quella fase.
  */
 export function elencoLavoriDitta(
   fasi: Array<{ id: string; name: string; position?: number | null }>,
@@ -63,13 +66,14 @@ export function elencoLavoriDitta(
   faseIds: string[],
   dittaId: string,
   varianti: ReadonlyArray<VarianteCostoDitta>,
+  altro: { sottofasi?: ReadonlyArray<SottofaseLavoro>; previstoFase?: ReadonlyMap<string, number> } = {},
 ): RigaElencoLavori[] {
   return fasi
     .filter((f) => faseIds.includes(f.id))
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .flatMap((f) =>
-      voci
-        .filter((v) => v.phase_id === f.id)
+    .flatMap((f) => {
+      const delle = voci.filter((v) => v.phase_id === f.id);
+      const righe: RigaElencoLavori[] = [...delle]
         .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
         .map((v) => {
           const prezzo = prezzoVoceDitta(v, dittaId, varianti);
@@ -81,9 +85,26 @@ export function elencoLavoriDitta(
             prezzo,
             importo: centesimi(v.quantita * prezzo),
             codice: v.origine_codice ?? null,
+            fase_id: f.id,
+            sottofase_id: v.subphase_id ?? null,
           };
-        }),
-    );
+        });
+      // Una fase senza voci ha il prezzo nel previsto della ditta: va in testa, a corpo; le sottofasi seguono, comprese.
+      const previsto = centesimi(Number(altro.previstoFase?.get(f.id)) || 0);
+      if (delle.length === 0 && previsto > 0) {
+        righe.push({ fase: f.name, descrizione: f.name, unita: "a corpo", quantita: 1, prezzo: previsto, importo: previsto, codice: null, fase_id: f.id, sottofase_id: null });
+      }
+      const conVoce = new Set(delle.map((v) => v.subphase_id).filter(Boolean));
+      const sole = (altro.sottofasi ?? []).filter((s) => s.phase_id === f.id && !conVoce.has(s.id))
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      for (const s of sole) {
+        righe.push({ fase: f.name, descrizione: s.name, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0, codice: null, fase_id: f.id, sottofase_id: s.id });
+      }
+      if (righe.length === 0) {
+        righe.push({ fase: f.name, descrizione: f.name, unita: "a corpo", quantita: 1, prezzo: 0, importo: 0, codice: null, fase_id: f.id, sottofase_id: null });
+      }
+      return righe;
+    });
 }
 
 /** Dal primo inizio all'ultima fine delle fasi affidate: le date del contratto. */
@@ -150,6 +171,30 @@ export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
     .map((r) => rigaElencoRicalcolata({
       fase: r.fase.trim() || "Altri lavori", descrizione: r.descrizione.trim(), unita: r.unita, quantita: r.quantita, prezzo: r.prezzo, importo: r.importo,
       ...(r.codice != null ? { codice: r.codice } : {}),
+      ...(r.fase_id ? { fase_id: r.fase_id } : {}),
+      ...(r.sottofase_id ? { sottofase_id: r.sottofase_id } : {}),
     }))
     .filter((r) => r.descrizione && r.quantita > 0);
+}
+
+/**
+ * Il contratto diviso per fase: quanto vale ogni fase nell'elenco pattuito (senza IVA). La fase si riconosce
+ * dall'id scritto sulla riga o, nei contratti vecchi, dal nome. Le righe che non trovano una fase restano fuori
+ * e si contano: il previsto non le può mettere da nessuna parte.
+ */
+export function contrattoPerFase(
+  elenco: ReadonlyArray<Pick<RigaElencoLavori, "fase" | "importo" | "fase_id">>,
+  fasi: ReadonlyArray<{ id: string; name: string }>,
+): { perFase: Map<string, number>; senzaFase: number } {
+  const esistenti = new Set(fasi.map((f) => f.id));
+  const perNome = new Map(fasi.map((f) => [f.name.trim().toLocaleLowerCase("it-IT"), f.id]));
+  const perFase = new Map<string, number>();
+  let senzaFase = 0;
+  for (const r of elenco) {
+    const id = r.fase_id && esistenti.has(r.fase_id) ? r.fase_id : perNome.get(String(r.fase ?? "").trim().toLocaleLowerCase("it-IT"));
+    const importo = Number(r.importo) || 0;
+    if (id) perFase.set(id, centesimi((perFase.get(id) ?? 0) + importo));
+    else senzaFase = centesimi(senzaFase + importo);
+  }
+  return { perFase, senzaFase };
 }

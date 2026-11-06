@@ -46,6 +46,8 @@ export interface Fatturato {
   perFase: Map<string, number>;
   perVoce: Map<string, number>;
   salFatturati: Set<string>;
+  /** Imponibile fatturato con un SAL che non si riconosce in una fase (a corpo, certificato): pesa su tutte. */
+  salSenzaFase: number;
   /** Fatturato sulla commessa non attribuibile a una fase (senza IVA). */
   senzaDettaglio: number;
   /** Tutto il fatturato sulla commessa (senza IVA). */
@@ -90,8 +92,10 @@ function imponibileRiga(r: Partial<RigaDocumento>): number {
   return arrotonda(numero(r.quantita) * numero(r.prezzo_unitario));
 }
 
-export function fatturatoDaDocumenti(documenti: ReadonlyArray<DocumentoPerFatturato>): Fatturato {
-  const esito: Fatturato = { perFase: new Map(), perVoce: new Map(), salFatturati: new Set(), senzaDettaglio: 0, totale: 0 };
+export function fatturatoDaDocumenti(documenti: ReadonlyArray<DocumentoPerFatturato>, fasi: ReadonlyArray<{ id: string; name: string }> = []): Fatturato {
+  const esito: Fatturato = { perFase: new Map(), perVoce: new Map(), salFatturati: new Set(), salSenzaFase: 0, senzaDettaglio: 0, totale: 0 };
+  // Una riga di SAL si chiama «SAL n. 3 — Nome della voce»: il SAL nasce dalle fasi col loro nome.
+  const faseDiNome = new Map(fasi.map((f) => [f.name.trim().toLocaleLowerCase("it-IT"), f.id]));
   const somma = (m: Map<string, number>, k: string, v: number) => m.set(k, arrotonda((m.get(k) ?? 0) + v));
 
   for (const d of documenti) {
@@ -116,6 +120,10 @@ export function fatturatoDaDocumenti(documenti: ReadonlyArray<DocumentoPerFattur
         somma(esito.perFase, fase[1], imponibile);
       } else if (sal) {
         esito.salFatturati.add(sal[1]);
+        const nome = String(r.descrizione ?? "").split(" — ").slice(1).join(" — ").trim().toLocaleLowerCase("it-IT");
+        const faseSal = faseDiNome.get(nome);
+        if (faseSal) somma(esito.perFase, faseSal, imponibile);
+        else esito.salSenzaFase = arrotonda(esito.salSenzaFase + imponibile);
       } else {
         esito.senzaDettaglio = arrotonda(esito.senzaDettaglio + imponibile * quota);
       }
@@ -123,6 +131,13 @@ export function fatturatoDaDocumenti(documenti: ReadonlyArray<DocumentoPerFattur
     }
   }
   return esito;
+}
+
+/** Il già fatturato di una fase: il suo, più la parte dei SAL a corpo in proporzione al venduto. */
+export function giaFatturatoFase(fatturato: Pick<Fatturato, "perFase" | "salSenzaFase">, faseId: string, venduto: number, vendutoTotale: number): number {
+  const suo = fatturato.perFase.get(faseId) ?? 0;
+  if (!(fatturato.salSenzaFase > 0) || !(vendutoTotale > 0)) return suo;
+  return arrotonda(suo + (fatturato.salSenzaFase * numero(venduto)) / vendutoTotale);
 }
 
 /** Quanto c'è da fatturare ora di una fase o di una voce: il maturato col suo avanzamento, meno il già fatturato. */

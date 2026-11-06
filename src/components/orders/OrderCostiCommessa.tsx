@@ -195,6 +195,15 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
     onError: (e) => toast.error(userErrorMessage(e, "Ricevuta non allegata.")),
   });
 
+  const scegliFase = useMutation({
+    mutationFn: async ({ id, faseId }: { id: string; faseId: string | null }) => {
+      const { error, data: righe } = await db.from("company_costs").update({ order_work_phase_id: faseId }).eq("id", id).select("id");
+      if (error) throw error;
+      if (!righe?.length) throw new Error("Non puoi modificare questo costo.");
+    },
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["company-costs"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Fase non salvata"),
+  });
   const elimina = useMutation({
     mutationFn: async (c: CostoCommessa) => {
       const { error } = await db.from("company_costs").delete().eq("id", c.id);
@@ -269,7 +278,14 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
             </> },
             { titolo: "Tipo", cella: (c) => TIPI_COSTO.find((t) => t.value === c.tipo)?.label },
             { titolo: "Data", cella: (c) => <span className="whitespace-nowrap">{dataIt(c.due_date)}</span> },
-            { titolo: "Fase", cella: (c) => c.fase ?? "—" },
+            { titolo: "Fase", cella: (c) => puoModificare && (data?.fasi.length ?? 0) > 0 ? (
+              <select aria-label={`Fase di ${c.name}`} value={c.order_work_phase_id ?? ""} disabled={scegliFase.isPending}
+                onChange={(e) => scegliFase.mutate({ id: c.id, faseId: e.target.value || null })}
+                className="h-7 max-w-44 rounded border bg-background px-1 text-xs">
+                <option value="">Senza fase</option>
+                {data!.fasi.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            ) : c.fase ?? "—" },
             { titolo: "Documento", cella: (c) => (
               <div className="space-y-0.5">
                 <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${DOCUMENTO[c.documento].classe}`}>{DOCUMENTO[c.documento].testo(c)}</span>

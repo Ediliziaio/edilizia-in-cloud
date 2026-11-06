@@ -26,7 +26,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("Tabella delle lavorazioni", () => {
   const elenco = () => within(screen.getByRole("navigation", { name: "Fasi" }));
-  const apriImpianti = () => fireEvent.click(screen.getAllByRole("button", { name: /^Impianti/ }).find((b) => !b.closest("nav"))!);
+  const apriImpianti = () => fireEvent.click(screen.getByRole("button", { name: "Apri le voci di Impianti" }));
   it("una fase si apre sulle sue voci: quelle in corso partono aperte", () => {
     mostra();
     expect(screen.getByRole("button", { name: /^Controparete/ })).toBeInTheDocument();
@@ -205,6 +205,56 @@ describe("Tabella delle lavorazioni", () => {
     fireEvent.change(within(popup).getByLabelText("Al"), { target: { value: "2026-01-23" } });
     fireEvent.click(within(popup).getByRole("button", { name: "Salva le date" }));
     expect(azioni.onPianifica).toHaveBeenCalledExactlyOnceWith(s.id, { data_inizio: "2026-01-05", data_fine: "2026-01-23", giorni: 3 });
+  });
+  it("un clic sul nome della fase apre la sua scheda", () => {
+    mostra();
+    fireEvent.click(screen.getByRole("button", { name: "Scheda di Murature" }));
+    expect(azioni.onApriScheda).toHaveBeenCalledExactlyOnceWith("f1");
+  });
+  it("il consuntivo senza fase porta ai costi da sistemare", () => {
+    const onCostiSenzaFase = vi.fn();
+    mostra({ consuntivoSenzaFase: 1200, onCostiSenzaFase });
+    fireEvent.click(within(riepilogo()).getByRole("button", { name: /senza fase/ }));
+    expect(onCostiSenzaFase).toHaveBeenCalledOnce();
+  });
+  it("«Aggiungi sottofase» è sempre in vista e un elenco incollato crea una riga per voce", () => {
+    const onAggiungiTante = vi.fn();
+    mostra({ onAggiungiTante });
+    fireEvent.click(screen.getAllByRole("button", { name: "Aggiungi sottofase" })[0]);
+    fireEvent.paste(screen.getByPlaceholderText(/Nome e Invio/), { clipboardData: { getData: () => "Tracce\n\n  Cavi \nCollaudo" } });
+    expect(onAggiungiTante).toHaveBeenCalledExactlyOnceWith("f1", ["Tracce", "Cavi", "Collaudo"]);
+  });
+  it("nel popup una sottofase riceve quantità e prezzi, e non si salva due volte", () => {
+    const onSalvaVoce = vi.fn();
+    mostra({ onSalvaVoce });
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.click(within(popup).getByRole("button", { name: /quantità e prezzi/ }));
+    fireEvent.change(within(popup).getByLabelText("Quantità"), { target: { value: "12" } });
+    const salva = within(popup).getByRole("button", { name: "Salva quantità e prezzi" });
+    fireEvent.click(salva);
+    expect(onSalvaVoce.mock.calls[0][1]).toMatchObject({ quantita: 12 });
+    expect(within(popup).getByRole("button", { name: "Salvataggio…" })).toBeDisabled();
+  });
+  it("aggiornamento rapido: si scrive il totale fatto e Invio passa alla riga dopo", () => {
+    mostra({ fasi: [{ ...fasi[0], status: "in_corso" }, { ...fasi[1], status: "in_corso" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiorna avanzamento" }));
+    const campi = document.querySelectorAll<HTMLInputElement>("input[data-rapido]");
+    expect(campi.length).toBeGreaterThan(0);
+    fireEvent.change(campi[0], { target: { value: "40" } });
+    fireEvent.keyDown(campi[0], { key: "Enter" });
+    expect(azioni.onAvanza).toHaveBeenCalledTimes(1);
+    expect(azioni.onAvanza.mock.calls[0][0]).toBe("s1");
+    expect(screen.getByRole("button", { name: "Fine aggiornamento" })).toHaveAttribute("aria-pressed", "true");
+  });
+  it("chi fa la sottofase: si vede sulla riga e si aggiunge dal popup", () => {
+    const onAggiungiChi = vi.fn();
+    mostra({ persone: [{ id: "p1", nome: "Mario Rossi" }], chiSottofasi: { disponibile: true, perSottofase: new Map([["s1", [{ id: "c1", subphase_id: "s1", employee_id: "p1", external_team_id: null }]]]) }, onAggiungiChi });
+    expect(screen.getAllByText("Mario Rossi").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /^Controparete/ }));
+    const popup = screen.getByRole("dialog");
+    fireEvent.change(within(popup).getByLabelText("Aggiungi chi fa questa sottofase"), { target: { value: "p:p1" } });
+    expect(onAggiungiChi).toHaveBeenCalledExactlyOnceWith(["s1"], { persona: "p1" });
   });
   it("in sola lettura non si sceglie e non si spunta", () => {
     mostra({ puoModificare: false, puoSquadre: false });
