@@ -20,7 +20,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 const segnala = vi.fn();
 vi.mock("@/lib/creditoEsaurito", () => ({ segnalaCreditoEsaurito: (...a: unknown[]) => segnala(...a) }));
 
-import { applicaProposte, caricaAllegatoFasi, chiediSilvioAcquisti, chiediSilvioFasi, contestoFasiPerSilvio } from "@/lib/orders/silvioFasi";
+import { applicaProposte, caricaAllegatoFasi, chiediSilvioAcquisti, chiediSilvioFasi, contestoFasiPerSilvio, riassuntoProposte } from "@/lib/orders/silvioFasi";
 import { acquistiCompatti, contestoCompatto, MAX_CONTESTO_FASI, proposteDaStrumenti, type ContestoFasi } from "../../../shared/silvio-commessa/chatFasi";
 
 const OGGI = "2026-11-05";
@@ -305,5 +305,22 @@ describe("Simulazione 10 — la risposta vera del 06/11: sabati, domeniche e fas
     const conSabato = (d: string) => new Date(`${d}T12:00:00Z`).getUTCDay() !== 0 && d !== "2026-11-09";
     const { proposte } = proposteDaStrumenti([{ nome: "date_lavori", argomenti: { righe: [{ id: "s12", dal: "2026-11-07", al: "2026-11-09" }] } }], ctx, conSabato);
     expect(proposte[0]).toMatchObject({ id: "s12", dal: "2026-11-07", al: "2026-11-07" });
+  });
+});
+
+describe("Simulazione 11 — la seconda risposta vera del 06/11: niente spiegazione, una sottofase dimenticata", () => {
+  it("la spiegazione la scrive il codice e dice cosa resta senza date", async () => {
+    invoke.mockResolvedValue({ data: { testo: "", strumenti: [{ nome: "date_lavori", argomenti: { righe: [
+      { id: "s12", dal: "2026-11-09", al: "2026-11-09" }, { id: "s13", dal: "2026-11-10", al: "2026-11-11" },
+      { id: "s21", dal: "2026-11-16", al: "2026-11-25" }, { id: "s22", dal: "2026-11-30", al: "2026-12-09" },
+      { id: "s32", dal: "2026-11-30", al: "2026-11-30" }, { id: "s33", dal: "2026-11-30", al: "2026-12-01" },
+    ] } }] }, error: null });
+    const r = await chiediSilvioFasi("o1", "Pianifica", commessaProva(), []);
+    expect(r.testo).toMatch(/^Lavori da lunedì 9 novembre a mercoledì 9 dicembre: 3 fasi e 6 sottofasi/);
+    expect(r.testo).toMatch(/Restano senza date: Rasatura pareti/);
+  });
+
+  it("se Silvio scrive, si tiene il suo testo; senza proposte lo si dice", () => {
+    expect(riassuntoProposte(commessaProva(), [])).toBe("Non ho trovato niente da cambiare.");
   });
 });
