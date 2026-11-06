@@ -68084,6 +68084,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           created_by: string | null
+          document_details: Json
           delivery_address: string | null
           delivery_warehouse_id: string | null
           expected_delivery_date: string | null
@@ -68116,6 +68117,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           created_by?: string | null
+          document_details?: Json
           delivery_address?: string | null
           delivery_warehouse_id?: string | null
           expected_delivery_date?: string | null
@@ -68148,6 +68150,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           created_by?: string | null
+          document_details?: Json
           delivery_address?: string | null
           delivery_warehouse_id?: string | null
           expected_delivery_date?: string | null

@@ -1,3 +1,6 @@
+import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
+import { OdaDettagliCard } from "@/components/orders/OdaDettagliCard";
+import { applicaDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
 import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
 import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
 import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
@@ -14,13 +17,10 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
-  ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package,
-  Truck, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
+  ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
   AlertTriangle, ScanLine, ClipboardList, CalendarClock,
-  PackageCheck, Pencil,
+  PackageCheck, Pencil, FileDown, Mail,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -43,15 +43,15 @@ import { DDTStatusBadge } from "@/components/ddt/DDTStatusBadge";
 import { OdaAccountingCard } from "@/components/orders/OdaAccountingCard";
 import { OdaImpattoCommessaCard } from "@/components/orders/OdaImpattoCommessaCard";
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
-import { calcolaScadenza, TERMINI_PRESET } from "@/lib/terminiPagamento";
 import { OdaDocumentoCard } from "@/components/orders/OdaDocumentoCard";
 import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/odaOrigine";
 import { type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
-import { emailPerOrdini, terminiPagamentoTesto } from "@/lib/suppliers/anagraficaFornitore";
+import { emailPerOrdini } from "@/lib/suppliers/anagraficaFornitore";
 import { buildOdaEmailBody, buildOdaEmailSubject } from "@/lib/odaEmail";
 import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoInvioDialog";
 import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
-import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { nomeFileDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { scaricaBlob } from "@/components/orders/generali/vendita/scarica";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -86,6 +86,7 @@ export default function PurchaseOrderDetail() {
   );
   const { updateStatus, update } = usePurchaseOrders();
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // AI Verification
@@ -101,6 +102,9 @@ export default function PurchaseOrderDetail() {
   // aziendale, il testo si puo' modificare e la risposta del fornitore torna
   // nella posta invece che in un buco nero.
   const [sendOpen, setSendOpen] = useState(false);
+  const [sendMode, setSendMode] = useState<"testo" | "pdf">("testo");
+  const [editingDetailsId, setEditingDetailsId] = useState<string | null>(null);
+  const openSend = (mode: "testo" | "pdf") => {setSendMode(mode);setSendOpen(true);};
   const queryClient = useQueryClient();
   // Incidenza acquisti/vendita = dato di margine; costi e fatture = dato di
   // costo. Chi lavora solo sugli ordini (magazzino) non deve vederli.
@@ -142,9 +146,8 @@ export default function PurchaseOrderDetail() {
     );
   }
 
-  const supplier = order.suppliers as any;
+  const supplier = order.suppliers;
   const condizioniFornitore = recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}).pagamento;
-  const pagamentoEffettivo = order.payment_terms?.trim() || condizioniFornitore;
   const totaliRighe = totaliRigheOda(items);
   const importiInAttesa = items.length > 0 && totaliRighe.daConfermare === items.length;
   const origine = (order as { origine?: string }).origine ?? "email";
@@ -184,7 +187,7 @@ export default function PurchaseOrderDetail() {
     initialSubject: buildOdaEmailSubject(datiEmail),
     initialBodyHtml: buildOdaEmailBody(datiEmail),
   };
-  const documentoInvio: DocumentoOperativo = {
+  const documentoInvio: DocumentoOperativo = applicaDettagliOda({
     tipo: "materiali", numero: order.oda_number, data: order.issue_date,
     prezziDaConfermare: items.length > 0 && items.some(i => i.price_pending),
     ...recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}),
@@ -193,10 +196,63 @@ export default function PurchaseOrderDetail() {
     consegna:order.expected_delivery_date,pagamento:order.payment_terms || recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}).pagamento,note:order.notes,
     righe:items.map(i=>({descrizione:i.description,nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
     totali:{imponibile:totaliRighe.imponibile,iva:totaliRighe.iva,totale:totaliRighe.totale},
-  };
+  }, order.document_details);
   const canEdit = permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
   const isEditable = canEdit && (order.status === "bozza" || editingOrderId === order.id);
   const righeInSalvataggio = addItem.isPending || updateItem.isPending || deleteItem.isPending || update.isPending;
+  const editingDetails = editingDetailsId === order.id;
+  const documentBusy = righeInSalvataggio || isItemsLoading || editingDetails;
+
+  const downloadPdf = async () => {
+    if (!effectiveCompany || downloadingPdf || documentBusy) return;
+    setDownloadingPdf(true);
+    try {
+      const { generaPdfOperativo } = await import("@/lib/documentiOperativi/pdf");
+      const blob = await generaPdfOperativo(documentoInvio, effectiveCompany);
+      scaricaBlob(blob, nomeFileDocumento(documentoInvio));
+    } catch (error) {
+      toast.error("Impossibile scaricare il PDF", {
+        description: error instanceof Error ? error.message : "Riprova tra qualche secondo.",
+      });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleCommessaChange = (nuovaCommessa: string | null) => {
+    if (nuovaCommessa === order.order_id) return;
+    update.mutate(
+      { id: order.id, updates: {
+        order_id: nuovaCommessa,
+        ...(!nuovaCommessa && documentoInvio.destinazioneTipo === "cantiere" ? {
+          delivery_address: null,
+          document_details: {
+            ...(order.document_details && typeof order.document_details === "object" && !Array.isArray(order.document_details) ? order.document_details : {}),
+            destinazioneTipo: "magazzino",
+          },
+        } : {}),
+      } },
+      {
+        onSuccess: async () => {
+          // Coerenza finanziaria: il costo nato da questo
+          // ordine deve stare sulla stessa commessa, altrimenti
+          // la marginalita' del cantiere legge un dato vecchio.
+          const { error } = await supabase
+            .from("company_costs")
+            .update({ order_id: nuovaCommessa })
+            .eq("purchase_order_id", order.id).eq("company_id", order.company_id);
+          if (error) {
+            toast.error("Commessa aggiornata, ma il costo collegato no", {
+              description: error.message,
+            });
+          } else {
+            queryClient.invalidateQueries({ queryKey: ["oda-impatto-commessa"] });
+            queryClient.invalidateQueries({ queryKey: ["oda-contabilita", order.id] });
+          }
+        },
+      },
+    );
+  };
 
   const handleStatusChange = async (ns: string) => {
     updateStatus.mutate({
@@ -301,15 +357,6 @@ export default function PurchaseOrderDetail() {
                 Ricevi via scansione
               </Button>
             )}
-            {/* Reinvio: capita di dover rimandare l'ordine (email persa, referente
-                cambiato). Non tocca lo stato, manda solo di nuovo la mail.
-                Non ha senso su cio' che si e' comprati di persona. */}
-            {origine !== "negozio" && ["inviato", "confermato", "parziale"].includes(order.status) && (
-              <Button variant="outline" size="sm" disabled={righeInSalvataggio} onClick={() => setSendOpen(true)}>
-                <Send className="h-3.5 w-3.5 mr-1" />
-                Reinvia
-              </Button>
-            )}
             {nextStatuses.map((ns) =>
               // "Inviato" non e' un cambio di stato come gli altri: l'ordine deve
               // partire davvero al fornitore. Si apre il compositore email e lo
@@ -320,10 +367,6 @@ export default function PurchaseOrderDetail() {
               // cosa fare davvero, senza fingere un invio.
               ns === "inviato" && origine === "email" ? (
                 <div key={ns} className="flex items-center gap-1">
-                  <QuotePrimaryButton size="sm" disabled={righeInSalvataggio} onClick={() => setSendOpen(true)}>
-                    {STATUS_ICONS[ns]}
-                    Invia al fornitore
-                  </QuotePrimaryButton>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -365,6 +408,21 @@ export default function PurchaseOrderDetail() {
         }
       />
 
+      <section aria-label="Azioni rapide ordine" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div><h2 className="text-sm font-bold text-slate-900">Documenti e invio</h2><p className="mt-0.5 text-xs text-slate-500">Scarica anche in bozza, oppure prepara l’email da controllare prima dell’invio.</p></div>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" size="sm" disabled={downloadingPdf || documentBusy || !effectiveCompany} onClick={downloadPdf}>
+              {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+              {downloadingPdf ? "Preparazione PDF…" : "Scarica PDF"}
+            </Button>
+            <Button size="sm" variant="outline" disabled={documentBusy} onClick={() => openSend("testo")}><Mail className="mr-1.5 h-4 w-4" />Email con testo</Button>
+            <Button size="sm" disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />Email con PDF</Button>
+          </div>
+        </div>
+        {editingDetails && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla i dettagli aperti prima di preparare il PDF o l’email.</p>}
+      </section>
+
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-6">
         {/* Left: Editor */}
         <div className="min-w-0 space-y-4">
@@ -399,7 +457,7 @@ export default function PurchaseOrderDetail() {
             {isEditable && (
               <p className="px-5 sm:px-6 pb-3 text-xs text-muted-foreground" role="status">
                 Le modifiche si salvano automaticamente uscendo dal campo. Le righe già ricevute non possono essere eliminate o sostituite.
-                {order.status !== "bozza" && " Se l’ordine cambia, reinvialo al fornitore con il pulsante Reinvia."}
+                {order.status !== "bozza" && " Se l’ordine cambia, prepara una nuova email dalle azioni rapide."}
               </p>
             )}
             <div className="border-t border-slate-100">
@@ -464,38 +522,14 @@ export default function PurchaseOrderDetail() {
             </div>
           </QuoteCard>
 
+          <OdaDettagliCard key={order.id} documento={documentoInvio} orderId={order.order_id} internalNotes={order.internal_notes} condizioniFornitore={condizioniFornitore} paymentMethod={order.payment_method || supplier?.payment_method} canEdit={permissions.canEditOrders} onEditingChange={editing=>setEditingDetailsId(editing ? order.id : null)} onSave={patch=>update.mutateAsync({id:order.id,updates:patch})} />
+
           <OdaNoteCard notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
         </div>
 
         {/* Right: Preview / Info */}
         <div className="space-y-4">
-          <QuoteCard title="Fornitore" icon={<Truck className="h-4 w-4" />}>
-            <div className="space-y-2">
-              <p className="font-semibold text-slate-900">{supplier?.name || "—"}</p>
-              {emailPerOrdini(supplier) && <p className="text-sm text-slate-500">{emailPerOrdini(supplier)}</p>}
-              {supplier?.codice_cliente && <p className="text-xs text-slate-500">Nostro codice cliente: {supplier.codice_cliente}</p>}
-              {(terminiPagamentoTesto(supplier ?? {}) || supplier?.sconto_percentuale != null) && (
-                <p className="text-xs text-slate-500">
-                  {[
-                    terminiPagamentoTesto(supplier ?? {}) && `Pagamento concordato: ${terminiPagamentoTesto(supplier ?? {})}`,
-                    supplier?.sconto_percentuale != null && `sconto ${String(supplier.sconto_percentuale).replace(".", ",")}%`,
-                  ].filter(Boolean).join(" · ")}
-                </p>
-              )}
-              {supplier?.address && <p className="text-xs text-slate-500">{supplier.address}, {supplier.city} {supplier.province}</p>}
-              {supplier?.vat_number && <p className="text-xs text-slate-500">P.IVA: {supplier.vat_number}</p>}
-              {supplier?.iban && (
-                <>
-                  <Separator className="my-2" />
-                  <div>
-                    <p className="text-xs text-slate-500">IBAN</p>
-                    <p className="text-xs font-mono">{supplier.iban}</p>
-                    {supplier.bank_name && <p className="text-xs text-slate-500">{supplier.bank_name}</p>}
-                  </div>
-                </>
-              )}
-            </div>
-          </QuoteCard>
+          <OdaFornitoreCard key={order.supplier_id} supplier={supplier} />
 
           <QuoteCard title="Info ordine" icon={<CalendarClock className="h-4 w-4" />}>
             <div className="space-y-2 text-sm">
@@ -515,80 +549,20 @@ export default function PurchaseOrderDetail() {
                   <span className="font-medium text-slate-900">{format(new Date(order.actual_delivery_date), "dd/MM/yyyy", { locale: it })}</span>
                 </div>
               )}
-              {/* Termini di pagamento: prima si vedevano solo se gia' scritti,
-                  e non li scriveva nessuno (0 su 82 in produzione) perche' non
-                  c'era NESSUN posto per farlo. Sono il dato che decide QUANDO
-                  esce la cassa. */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-slate-500">Pagamento</span>
-                  <Input
-                    list="termini-pagamento-preset"
-                    key={`${order.id}:${pagamentoEffettivo}`}
-                    defaultValue={pagamentoEffettivo === "Da definire con il fornitore" ? "" : pagamentoEffettivo}
-                    placeholder="Da definire con il fornitore"
-                    aria-label="Condizioni di pagamento dell’ordine"
-                    className="h-7 w-52 text-right text-sm"
-                    onBlur={(e) => {
-                      const v = e.target.value.trim() || null;
-                      if (v !== order.payment_terms) {
-                        update.mutate({ id: order.id, updates: { payment_terms: v } });
-                      }
-                    }}
-                  />
-                  <datalist id="termini-pagamento-preset">
-                    {TERMINI_PRESET.map((tp) => <option key={tp} value={tp} />)}
-                  </datalist>
-                </div>
-                <p className="text-xs text-slate-500">Concordato in Impostazioni → Fornitori: <strong>{condizioniFornitore}</strong></p>
-                {order.payment_terms?.trim() && order.payment_terms.trim() !== condizioniFornitore && <Button variant="ghost" size="sm" onClick={()=>update.mutate({id:order.id,updates:{payment_terms:condizioniFornitore === "Da definire con il fornitore" ? null : condizioniFornitore,payment_method:supplier?.payment_method ?? null}})}>Usa condizioni del fornitore</Button>}
-                {(() => {
-                  // Solo finché la merce non è arrivata: dopo, una scadenza calcolata su oggi è sbagliata.
-                  const anteprima = calcolaScadenza(pagamentoEffettivo);
-                  if (!anteprima || order.actual_delivery_date || ["ricevuto", "annullato"].includes(order.status)) return null;
-                  return (
-                    <p className="text-[11px] text-slate-400 text-right">
-                      Se ricevi oggi, il pagamento scade il {anteprima.split("-").reverse().join("/")}
-                    </p>
-                  );
-                })()}
-              </div>
-
               {/* Commessa: collegabile e cambiabile anche DOPO la creazione —
                   gli ordini dimenticati "generici" sono la regola, non
                   l'eccezione. Cambiandola, il costo gia' generato la segue. */}
               <div className="space-y-1 pt-1">
-                <span className="text-slate-500">Commessa</span>
+                <span className="text-slate-500">Commessa (facoltativa)</span>
+                {!order.order_id && <div className="rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-900"><p className="font-semibold">Acquisto per magazzino / materiali di consumo</p><p className="mt-1">Nessuna commessa necessaria. Potrai collegarla anche in seguito.</p></div>}
                 <CommessaCombobox
                   value={order.order_id}
-                  onChange={async (nuovaCommessa) => {
-                    if (nuovaCommessa === order.order_id) return;
-                    update.mutate(
-                      { id: order.id, updates: { order_id: nuovaCommessa } },
-                      {
-                        onSuccess: async () => {
-                          // Coerenza finanziaria: il costo nato da questo
-                          // ordine deve stare sulla stessa commessa, altrimenti
-                          // la marginalita' del cantiere legge un dato vecchio.
-                          const { error } = await (supabase as any)
-                            .from("company_costs")
-                            .update({ order_id: nuovaCommessa })
-                            .eq("purchase_order_id", order.id);
-                          if (error) {
-                            toast.error("Commessa aggiornata, ma il costo collegato no", {
-                              description: error.message,
-                            });
-                          } else {
-                            queryClient.invalidateQueries({ queryKey: ["oda-impatto-commessa"] });
-                            queryClient.invalidateQueries({ queryKey: ["oda-contabilita", order.id] });
-                          }
-                        },
-                      },
-                    );
-                  }}
-                  nessunaLabel="Acquisto generico"
+                  disabled={!permissions.canEditOrders || update.isPending || editingDetails}
+                  onChange={handleCommessaChange}
+                  nessunaLabel="Magazzino / consumo (senza commessa)"
                   className="h-8 text-xs"
                 />
+                {order.order_id && permissions.canEditOrders && <Button size="sm" variant="ghost" className="h-auto w-full justify-start whitespace-normal py-2 text-xs text-slate-600" disabled={update.isPending || editingDetails} onClick={()=>handleCommessaChange(null)}><Package className="mr-1.5 h-3.5 w-3.5 shrink-0" />Acquisto per magazzino / materiali di consumo</Button>}
               </div>
 
               <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
@@ -806,7 +780,8 @@ export default function PurchaseOrderDetail() {
           oggetto e corpo arrivano precompilati ma restano modificabili, si
           possono allegare i documenti della commessa e scegliere il mittente. */}
       <DocumentoInvioDialog
-        key={effectiveCompany?.id}
+        key={`${effectiveCompany?.id}:${sendMode}`}
+        initialMode={sendMode}
         documento={documentoInvio}
         tipi={["materiali", "servizi"]}
         open={sendOpen}

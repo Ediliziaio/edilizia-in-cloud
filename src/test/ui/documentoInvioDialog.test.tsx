@@ -260,3 +260,10 @@ it("il testo email usa le condizioni del modello della stessa azienda",async()=>
  expect(ctx.initialBodyHtml).toContain("Condizione aziendale personalizzata");
  expect(mock.modello).toHaveBeenCalledWith("c1","materiali");
 });
+
+it("l’azione rapida PDF apre direttamente la modalità allegato", () => {
+ render(<DocumentoInvioDialog {...props} initialMode="pdf" />);
+ expect(screen.getByRole("radio", {name:"PDF allegato con messaggio breve"})).toHaveAttribute("aria-checked","true");
+ expect(screen.getByRole("radio", {name:"Testo completo nell’email"})).toHaveAttribute("aria-checked","false");
+ expect(mock.upload).not.toHaveBeenCalled();
+});

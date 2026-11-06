@@ -54,6 +54,7 @@ type Props = {
   onSent?: () => void;
   tipi?: TipoDocumentoOperativo[];
   modificaRighe?: boolean;
+  initialMode?: "testo" | "pdf";
 };
 export function DocumentoInvioDialog(props: Props) {
   const { effectiveCompany } = useAuth();
@@ -73,6 +74,7 @@ function DocumentoInvioContent({
   onSent,
   tipi,
   modificaRighe = false,
+  initialMode = "testo",
 }: Props) {
   const { effectiveCompany, user } = useAuth();
   const [d, setD] = useState(() =>
@@ -85,7 +87,7 @@ function DocumentoInvioContent({
       : documento,
   );
   const [commessaId, setCommessaId] = useState<string | null>(orderId ?? null);
-  const [modo, setModo] = useState<"testo" | "pdf">("testo");
+  const [modo, setModo] = useState<"testo" | "pdf">(initialMode);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<{
     blob: Blob;

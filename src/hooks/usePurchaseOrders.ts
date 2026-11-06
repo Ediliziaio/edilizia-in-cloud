@@ -1,6 +1,7 @@
+import type { Supplier } from "@/lib/suppliers/anagraficaFornitore";
 import { condizioniPagamentoFornitore } from "@/lib/documentiOperativi/fornitore";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { TablesUpdate } from "@/integrations/supabase/types";
+import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -36,8 +37,9 @@ export interface PurchaseOrder {
   created_at: string;
   updated_at: string;
   last_verification_id: string | null;
+  document_details?: Json;
   // joined
-  suppliers?: { name: string; email: string | null } | null;
+  suppliers?: Supplier | null;
   orders?: { work_address?: string | null; order_code: string; description?: string | null; deleted_at?: string | null } | null;
   /** solo nell'elenco: per «quanto è arrivato» senza aprire l'ordine */
   purchase_order_items?: Array<{ quantity: number | null; quantity_received: number | null; unit_price?: number | null }>;
@@ -203,7 +205,8 @@ export function usePurchaseOrders() {
 
   const updateMutation = useMutation({
     mutationFn: async (params: { id: string; updates: TablesUpdate<"purchase_orders"> }) => {
-      const { error } = await supabase.from("purchase_orders").update(params.updates).eq("id", params.id);
+      if (!companyId) throw new Error("Sessione aziendale non disponibile. Accedi di nuovo.");
+      const { error } = await supabase.from("purchase_orders").update(params.updates).eq("id", params.id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: async (_data, variables) => {
@@ -236,7 +239,7 @@ export function usePurchaseOrderDetail(poId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("*, suppliers(id, name, email, contact_name, contact_role, contact_email, contact_phone, ritiro_indirizzo, ritiro_citta, ritiro_note, email_ordini, altri_referenti, codice_cliente, termini_giorni, termini_fine_mese, sconto_percentuale, iban, bank_name, payment_method, address, city, province, postal_code, vat_number), orders(order_code, work_address)")
+        .select("*, suppliers(*), orders(order_code, work_address)")
         .eq("id", poId!)
         .single();
       if (error) throw error;
