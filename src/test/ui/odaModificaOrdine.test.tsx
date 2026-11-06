@@ -5,8 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({status:"confermato", canEdit:true, update:vi.fn().mockResolvedValue(undefined)}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany:{id:"vulcano",name:"Impresa Vulcano"}})}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders:m.canEdit})}));
-vi.mock("@/hooks/useListinoFornitore", () => ({useVociListinoFornitore: () => ({voci:[]})}));
-vi.mock("@tanstack/react-query", () => ({useQuery: () => ({data:[]}),useQueryClient: () => ({invalidateQueries:vi.fn()})}));
+vi.mock("@/hooks/useListinoFornitore", () => ({useVociListinoFornitore: () => ({voci:[] as unknown[]})}));
+vi.mock("@tanstack/react-query", () => ({useQuery: () => ({data:[] as unknown[]}),useQueryClient: () => ({invalidateQueries:vi.fn()})}));
 vi.mock("@/hooks/usePurchaseOrders", () => ({
  usePurchaseOrders: () => ({updateStatus:{mutate:vi.fn()},update:{mutate:vi.fn(),mutateAsync:vi.fn()}}),
  usePurchaseOrderDetail: () => ({order:{id:"oda-vulcano",status:m.status,oda_number:"ODA-2026-0005",issue_date:"2026-11-06",suppliers:{name:"KLASSE SRL"},subtotal:5198.4,total:6342.05},isLoading:false,isItemsLoading:false,
@@ -14,16 +14,16 @@ vi.mock("@/hooks/usePurchaseOrders", () => ({
  addItem:{mutate:vi.fn()},updateItem:{mutateAsync:m.update},deleteItem:{mutate:vi.fn()}})
 }));
 vi.mock("@/components/orders/ArticleCombobox", () => ({ArticleCombobox: () => <span>Selettore articolo</span>}));
-vi.mock("@/components/orders/OdaNoteCard", () => ({OdaNoteCard: () => null}));
-vi.mock("@/components/orders/VerifyPurchaseOrderDialog", () => ({VerifyPurchaseOrderDialog: () => null}));
-vi.mock("@/components/orders/VerificationHistoryCard", () => ({VerificationHistoryCard: () => null}));
-vi.mock("@/components/ddt/NewDDTDialog", () => ({NewDDTDialog: () => null}));
-vi.mock("@/components/ddt/DDTStatusBadge", () => ({DDTStatusBadge: () => null}));
-vi.mock("@/components/orders/OdaAccountingCard", () => ({OdaAccountingCard: () => null}));
-vi.mock("@/components/orders/OdaImpattoCommessaCard", () => ({OdaImpattoCommessaCard: () => null}));
-vi.mock("@/components/orders/CommessaCombobox", () => ({CommessaCombobox: () => null}));
-vi.mock("@/components/orders/OdaDocumentoCard", () => ({OdaDocumentoCard: () => null}));
-vi.mock("@/components/documentiOperativi/DocumentoInvioDialog", () => ({DocumentoInvioDialog: () => null}));
+vi.mock("@/components/orders/OdaNoteCard", () => ({OdaNoteCard: (): null => null}));
+vi.mock("@/components/orders/VerifyPurchaseOrderDialog", () => ({VerifyPurchaseOrderDialog: (): null => null}));
+vi.mock("@/components/orders/VerificationHistoryCard", () => ({VerificationHistoryCard: (): null => null}));
+vi.mock("@/components/ddt/NewDDTDialog", () => ({NewDDTDialog: (): null => null}));
+vi.mock("@/components/ddt/DDTStatusBadge", () => ({DDTStatusBadge: (): null => null}));
+vi.mock("@/components/orders/OdaAccountingCard", () => ({OdaAccountingCard: (): null => null}));
+vi.mock("@/components/orders/OdaImpattoCommessaCard", () => ({OdaImpattoCommessaCard: (): null => null}));
+vi.mock("@/components/orders/CommessaCombobox", () => ({CommessaCombobox: (): null => null}));
+vi.mock("@/components/orders/OdaDocumentoCard", () => ({OdaDocumentoCard: (): null => null}));
+vi.mock("@/components/documentiOperativi/DocumentoInvioDialog", () => ({DocumentoInvioDialog: (): null => null}));
 import PurchaseOrderDetail from "@/pages/azienda/PurchaseOrderDetail";
 afterEach(cleanup);
 beforeEach(() => {m.status="confermato";m.canEdit=true;m.update.mockClear();});
