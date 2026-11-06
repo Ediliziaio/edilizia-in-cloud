@@ -1479,17 +1479,22 @@ export function SerramentoRow({
                 cambia (a m² / da griglia) e quando NO (a pezzo / a corpo).
                 Senza, modificare L/H su un articolo "a pezzo" sembrava
                 un bug ("ho cambiato la larghezza ma il prezzo non cambia"). */}
-            {modalitaPrezzo === "pz" && (
+            {isListinoManualPrice && (
+              <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 max-md:hidden">
+                prezzo manuale
+              </span>
+            )}
+            {!isListinoManualPrice && modalitaPrezzo === "pz" && (
               <span className="text-[9px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 max-md:hidden">
                 a pezzo (prezzo fisso)
               </span>
             )}
-            {modalitaPrezzo === "mq" && (
+            {!isListinoManualPrice && modalitaPrezzo === "mq" && (
               <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 max-md:hidden">
                 a m²
               </span>
             )}
-            {modalitaPrezzo === "griglia" && (
+            {!isListinoManualPrice && modalitaPrezzo === "griglia" && (
               <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 max-md:hidden">
                 da griglia
               </span>

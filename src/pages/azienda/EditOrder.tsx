@@ -127,7 +127,7 @@ const EMPTY_DB_INSTALLMENTS: (Installment & { id: string })[] = [];
 const EMPTY_ORDER_ITEMS: OrderItemData[] = [];
 const EMPTY_BONUS_LINES: BonusLine[] = [];
 
-function EditOrderInner() {
+function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
@@ -572,40 +572,11 @@ function EditOrderInner() {
 
   const handleClearDraft = useCallback(() => {
     clearDraft();
-    if (order) {
-      setCustomerId(order.customer_id);
-      setOrderCode(order.order_code || "");
-      setDescription(order.description);
-      setTotalAmount(formatDecimalIT(order.total_amount));
-      setPaymentType((order.payment_type as PaymentType) || 'standard');
-      setInternalNotes(order.internal_notes || "");
-      setVatRate(order.vat_rate == null ? (order.workflow_kind === "contratto" ? "" : "22") : String(order.vat_rate));
-      setExpectedDate(order.expected_date ? new Date(order.expected_date) : undefined);
-      setWarehouseArrivalDate(order.warehouse_arrival_date ? new Date(order.warehouse_arrival_date) : undefined);
-      setWorkStartDate(order.work_start_date ? new Date(order.work_start_date) : undefined);
-      setWorkEndDate(order.work_end_date ? new Date(order.work_end_date) : undefined);
-      setFinancingCost(order.financing_cost > 0 ? formatDecimalIT(order.financing_cost) : "");
-    setFinancingCostMode(modalitaCostoFinanziaria(order.financing_cost_mode));
-      setHasBuildingBonus(order.has_building_bonus || false);
-      setBonusLines(dbBonusLines);
-      // Restore installments from DB or legacy
-      if (dbInstallments.length > 0) {
-        setInstallments(dbInstallments.map(i => ({
-          id: i.id, position: i.position, label: i.label,
-          type: i.type as Installment['type'], amount: i.amount,
-          is_paid: i.is_paid, paid_date: i.paid_date, expected_date: i.expected_date,
-        })));
-        setNumInstallments(dbInstallments.length);
-      } else {
-        const legacyInstallments = order.workflow_kind === "contratto" && !order.deposit_amount && !order.deposit_2_amount && !order.balance_amount && !order.financing_amount ? [] : buildInstallmentsFromLegacy(order);
-        setInstallments(legacyInstallments);
-        setNumInstallments(legacyInstallments.length);
-      }
-    }
-    if (existingItems.length > 0) {
-      setOrderItems(existingItems.map(mapDbItemToOrderItem));
-    }
-  }, [clearDraft, order, existingItems, dbInstallments, dbBonusLines]);
+    // Ricostruisci tutto il modulo dal database, come alla prima apertura.
+    // Il reset parziale ometteva assegnazione, magazzino e trigger delle rate;
+    // l'autosave con l'impronta precedente ricreava subito la bozza eliminata.
+    onRestoreOriginal();
+  }, [clearDraft, onRestoreOriginal]);
 
   const { data: customers = [], isLoading: isLoadingCustomers } = useCompanyCustomers(effectiveCompany?.id);
 
@@ -1410,9 +1381,11 @@ function EditOrderInner() {
 }
 
 export default function EditOrder() {
+  const [revision, setRevision] = useState(0);
+  const restoreOriginal = useCallback(() => setRevision((value) => value + 1), []);
   return (
     <ErrorBoundary title="Errore nella modifica commessa">
-      <EditOrderInner />
+      <EditOrderInner key={revision} onRestoreOriginal={restoreOriginal} />
     </ErrorBoundary>
   );
 }

@@ -34,3 +34,13 @@ it("impedisce un prelievo senza matricole e indica l’uscita merce", async () =
  expect(screen.getByRole("button", {name:"Preleva"})).toBeDisabled();
  expect(change).not.toHaveBeenCalled();
 });
+
+it("accompagna al flusso di uscita senza aggiungere una riga consegnata", async () => {
+ vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+ Element.prototype.scrollIntoView = vi.fn();
+ const change=vi.fn(), open=vi.fn();
+ render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><OrderItemsList items={[]} onItemsChange={change} stockPickBlockedReason="Usa il flusso completo con matricole" onOpenWarehouseExit={open} soloFinestra richiesta={{tipo:"nuovo",phaseId:null,nonce:1}} /></MemoryRouter></QueryClientProvider>);
+ const tab=await screen.findByRole("tab",{name:"Da Magazzino"});fireEvent.mouseDown(tab,{button:0});fireEvent.keyDown(tab,{key:"Enter"});
+ fireEvent.click(await screen.findByRole("button",{name:"Apri uscita merce per questa commessa"}));
+ expect(open).toHaveBeenCalledTimes(1);expect(change).not.toHaveBeenCalled();
+});

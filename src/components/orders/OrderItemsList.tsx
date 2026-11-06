@@ -157,6 +157,7 @@ interface OrderItemsListProps {
   onAttachmentsRefresh?: () => void;
   onStockPick?: (stockItemId: string, quantity: number) => void;
   stockPickBlockedReason?: string;
+  onOpenWarehouseExit?: () => void;
   onItemUpdate?: (item: OrderItem) => void;
   /**
    * v8.6.34 — Company id della commessa.
@@ -275,6 +276,7 @@ export function OrderItemsList({
   onAttachmentsRefresh,
   onStockPick,
   stockPickBlockedReason,
+  onOpenWarehouseExit,
   onItemUpdate,
   showOdaCoverage = false,
   fallbackCompanyId,
@@ -1672,7 +1674,10 @@ export function OrderItemsList({
               </TabsContent>
 
               <TabsContent value="stock">
-                {stockPickBlockedReason && <p role="alert" className="mb-3 text-sm text-amber-800">{stockPickBlockedReason}</p>}
+                {stockPickBlockedReason && <div className="mb-3 space-y-2">
+                  <p role="alert" className="text-sm text-amber-800">{stockPickBlockedReason}</p>
+                  {onOpenWarehouseExit && <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); onOpenWarehouseExit(); }}>Apri uscita merce per questa commessa</Button>}
+                </div>}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Articolo da Magazzino *</Label>

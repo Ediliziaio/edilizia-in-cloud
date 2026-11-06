@@ -60,6 +60,8 @@ import { COLORE_BARRA, COLORE_STATO } from "./coloriStato";
 import { bilancioPosa, consumiPerArticolo, type ConsumoArticolo } from "@/lib/distinta/consumiMateriali";
 import { useConsumiMateriali } from "@/hooks/useConsumiMateriali";
 
+const UscitaCommessaDialog = lazy(() => import("@/components/warehouse/UscitaCommessaDialog"));
+
 const GeneraMaterialiDialog = lazy(() => import("./GeneraMaterialiDialog"));
 const PlanimetrieDialog = lazy(() => import("./PlanimetrieDialog"));
 const RientroMagazzinoDialog = lazy(() => import("./RientroMagazzinoDialog"));
@@ -630,6 +632,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   silvio?: ReactNode;
 }) {
   const perm = usePermissions();
+  const [uscitaMerce, setUscitaMerce] = useState(false);
   const permessi: PermessiMateriali = {
     canEditOrders: !!perm.canEditOrders, canValidateBom: !!perm.canValidateBom, canManagePurchasing: !!perm.canManagePurchasing,
   };
@@ -1104,7 +1107,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         {editor && (
           <OrderItemsList
             soloFinestra
-            stockPickBlockedReason="Per scaricare materiale sulla commessa usa Magazzino → Uscita merce e scegli questo cantiere. Il prelievo da questa finestra non registra il movimento di magazzino."
+            stockPickBlockedReason="Il prelievo va registrato con Uscita merce: scegli magazzino, quantità e matricole. La riga della commessa da sola non scarica la giacenza."
+            onOpenWarehouseExit={perm.canViewWarehouse && perm.canEditWarehouse ? () => setUscitaMerce(true) : undefined}
             richiesta={richiesta}
             items={editor.items}
             onItemsChange={editor.onItemsChange}
@@ -1119,6 +1123,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
         )}
 
         <Suspense fallback={null}>
+          {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
           {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
           {rientroDi && <RientroMagazzinoDialog orderId={orderId} riga={rientroDi} onClose={() => setRientroDi(null)} />}

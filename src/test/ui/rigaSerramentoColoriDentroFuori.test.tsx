@@ -586,3 +586,16 @@ describe("barra «Stesse scelte per tutte le righe»", () => {
     expect(onColore).toHaveBeenCalledTimes(2);
   });
 });
+
+it('il badge distingue il prezzo manuale dal listino a metro quadro', () => {
+  const famiglia = { ...finestraSalamander('f2a'), prezzo_base_vendita: 0 };
+  monta(posizione(), { famiglia });
+  expect(screen.getByText('prezzo manuale', { exact: true })).toBeVisible();
+  expect(screen.queryByText('a m²', { exact: true })).not.toBeInTheDocument();
+});
+
+it('il badge resta a metro quadro quando il listino ha un prezzo', () => {
+  monta(posizione());
+  expect(screen.getByText('a m²', { exact: true })).toBeVisible();
+  expect(screen.queryByText('prezzo manuale', { exact: true })).not.toBeInTheDocument();
+});

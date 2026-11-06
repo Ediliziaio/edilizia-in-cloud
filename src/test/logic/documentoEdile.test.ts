@@ -385,8 +385,15 @@ it("nel PDF distingue la pergola dal codice tecnico condiviso con le ristruttura
   const base: Omit<Parameters<typeof costruisciDatiEdile>[0], "template"> = { modulo: MODULI_EDILI.ristrutturazione, progetto: { ...PROGETTO, tipo_intervento: "ristrutturazione_parziale" }, azienda: null, capitoli: [], totali: TOTALI, media: [] };
   const pergola = costruisciDatiEdile({ ...base, template: { pdf_blocchi: { modulo_intervento: "pergola-bioclimatica" } } });
   expect(pergola.tipoIntervento).toBe("Pergola bioclimatica");
+  expect(pergola.modulo.etichetta).toBe("Pergola bioclimatica");
   const legacy = costruisciDatiEdile({ ...base, template: {} });
   expect(legacy.tipoIntervento).toBe("Ristrutturazione parziale");
   const estraneo = costruisciDatiEdile({ ...base, template: { pdf_blocchi: { modulo_intervento: "giardino" } } });
   expect(estraneo.tipoIntervento).toBe("Ristrutturazione parziale");
+});
+
+it("usa l’intervento giardino anche nell’intestazione delle pagine interne", () => {
+ const dati = costruisciDatiEdile({ modulo: MODULI_EDILI.pavimenti, progetto: { ...PROGETTO, tipo_intervento: "nuova_posa" }, azienda: null, capitoli: [], totali: TOTALI, media: [], template: { pdf_blocchi: { modulo_intervento: "giardino" } } });
+ expect(dati.modulo.etichetta).toBe("Realizzazione giardino");
+ expect(dati.tipoIntervento).toBe("Realizzazione giardino");
 });
