@@ -158,7 +158,11 @@ export async function generaPlanimetria(
   const consegna = async (pianta: PiantaGenerata, providerDisponibile = true): Promise<EsitoGenerazione> => {
     const verifica = await verificaApertureDocumento(pianta, req, chiama, providerDisponibile ? (opzioni.tempoMassimoMs ?? 140_000) - (ora() - inizio) : 0, ora);
     if (verifica.tentativo) tentativi.push(verifica.tentativo);
-    return { ok: true, pianta: verifica.pianta, tentativi };
+    const p = verifica.pianta;
+    const planimetria = ["documento", "schizzo"].includes(req.ingresso)
+      ? { ...p.planimetria, letturaDocumento: { avvisiIniziali: p.generazione.avvisi.slice(0, 100).map((s) => s.slice(0, 4000)), superficiScritteMq: { ...p.generazione.superfici_scritte } } }
+      : p.planimetria;
+    return { ok: true, pianta: { ...p, planimetria }, tentativi };
   };
 
   // La migliore lettura con la sola colpa di avere stanze sovrapposte: meglio mostrarla da sistemare a mano

@@ -22,6 +22,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { EffettoPrezzo } from "../EffettoPrezzo";
 import { effettoSulPrezzo, useRigheCollegate } from "@/lib/planimetrie/effettoPrezzo";
 import { calcolaQuantita } from "../../../../shared/planimetrie/quantita.ts";
+import { controlliDalDocumento } from "../../../../shared/planimetrie/letturaDocumento.ts";
 
 interface Props {
   companyId: string;
@@ -54,10 +55,11 @@ export function EditorConSalvataggio({
   titoloProposto = "",
   collegamenti,
   origine = "manuale",
-  avvisi = [],
+  avvisi: avvisiPassati,
   sopra,
 }: Props) {
   const navigate = useNavigate();
+  const avvisi = avvisiPassati ?? (iniziale ? controlliDalDocumento(iniziale) : []);
   const queryClient = useQueryClient();
   const ricalcoArchivio = useMemo(() => archivioRicalco(companyId), [companyId]);
   const [titolo, setTitolo] = useState(titoloProposto);

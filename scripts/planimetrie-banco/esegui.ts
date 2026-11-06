@@ -147,6 +147,7 @@ async function main() {
         // L'oracolo ha già fornito SOLO i segmenti della verità nota: il terzo
         // passaggio simula il revisore, non misura la capacità visiva di un'AI.
         if (tentativo === 3) {
+          if (v.ingresso === "documento") return { testo: JSON.stringify({ aperture: JSON.parse(rispostaOracolo(v)).aperture.map((a: Verita) => ({ ...a, evidenza: "vano_interrotto" })) }), modello: "oracolo" };
           const contenuto = messaggi[1].content;
           const testo = Array.isArray(contenuto) && contenuto[0].type === "text" ? contenuto[0].text : "";
           const candidati = JSON.parse(testo.slice(testo.indexOf("["), testo.indexOf("\nStanze"))) as Array<{ id: string }>;

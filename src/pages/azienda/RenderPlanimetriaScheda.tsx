@@ -1,4 +1,5 @@
 import { MaterialiProgetto } from "@/components/planimetrie/MaterialiProgetto";
+import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
 import { AnteprimaPianta } from "@/components/planimetrie/AnteprimaPianta";
 import { creaAnteprimaPianta } from "@/lib/planimetrie/anteprime";
 import { ambitoGeometriaDelPiano } from "../../../shared/planimetrie/materialiProgetto.ts";
@@ -222,6 +223,7 @@ export default function RenderPlanimetriaScheda() {
       {ambitoGeometria !== ambito && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">Questo piano mantiene il disegno esistente. I render seguono i materiali comuni del progetto selezionato.</p>}
 
       <MaterialiProgetto key={`${ambito}:${data.versione.numero}`} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={permessi.solaLettura} />
+      {controlliDalDocumento(documento).length > 0 && <section aria-label="Controlli dal documento originale" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><h2 className="mb-2 font-semibold">Controlli dal documento originale</h2><p className="mb-2">Confronta il disegno con il documento prima di generare i render. Le segnalazioni della lettura iniziale restano disponibili anche dopo le correzioni manuali.</p><ul className="list-disc space-y-1 pl-5">{controlliDalDocumento(documento).map((s, i) => <li key={i}>{s}</li>)}</ul></section>}
 
       <EsportaPiantaDialog
         key={`${ambito}:${data.versione.numero}`}

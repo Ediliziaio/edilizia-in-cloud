@@ -1,4 +1,5 @@
 import type { PDFImage, PDFPage } from "pdf-lib";
+import { controlliDalDocumento } from "../../../shared/planimetrie/letturaDocumento.ts";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
 import { coloriContraddittori } from "../../../shared/render-room/colours.ts";
@@ -257,6 +258,8 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
     await aggiungiPdf((await accodaTavole(null, disegni, { formato: "A4", scala, intestazione: d.titolo })).dati);
   }
   nuovaPagina("Riepilogo e punti da verificare", nomeAmbito, true);
+  const dalDocumento = controlliDalDocumento(d.documento);
+  if (dalDocumento.length) { testo("Controlli dal documento originale", 12, true); for (const avviso of dalDocumento) testo(avviso); y -= 10; }
   for (const p of piani) {
     testo(`${p.livello.nome}: ${p.stanze.length} ambienti, ${num(p.stanze.reduce((n, s) => n + s.pavimentoMq, 0))} m², ${p.serramenti.length} aperture.`, 11, true);
     for (const a of p.stato.aree ?? []) testo(`Area esterna: ${a.nome || a.tipo.replace(/_/g, " ")}.`);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { generaPlanimetria, type RichiestaGenerazione } from "../../../supabase/functions/planimetria-genera/genera.ts";
 import { costruisciPiani } from "../../../supabase/functions/planimetria-genera/costruisci.ts";
 import { leggiRispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI.ts";
-import { applicaVerificaAperture } from "../../../supabase/functions/planimetria-genera/verificaAperture.ts";
+import { applicaVerificaAperture, confrontaRilievoAperture } from "../../../supabase/functions/planimetria-genera/verificaAperture.ts";
 import { rifiutaRenderStanza } from "../../../shared/render-planimetria/controlloRender.ts";
 
 const ipotesi = {
@@ -29,8 +29,9 @@ describe("aperture confrontate con il documento originale", () => {
       if (n === 3) {
         expect(messaggi).toHaveLength(2); // nessuna precedente risposta dell'AI
         expect(JSON.stringify(messaggi)).toContain("base64,ORIGINALE");
-        expect(messaggi[1].content[0].text).toContain('"da":[300,100]');
-        return { testo: JSON.stringify({ verifiche }), modello: "revisore" };
+        expect(JSON.stringify(messaggi)).not.toContain('"da":[300,100]');
+        expect(JSON.stringify(messaggi)).not.toContain('"id":"a1"');
+        return { testo: JSON.stringify({ aperture: ipotesi.aperture.slice(0, 2).map((a) => ({ ...a, evidenza: a.tipo === "porta" ? "simbolo_porta" : "simbolo_finestra" })) }), modello: "revisore" };
       }
       return { testo: JSON.stringify(ipotesi), modello: "lettore" };
     });
@@ -40,6 +41,21 @@ describe("aperture confrontate con il documento originale", () => {
     expect(esito.pianta.planimetria.livelli[0].fatto.aperture).toEqual(pianta().planimetria.livelli[0].fatto.aperture.slice(0, 2));
     expect(esito.pianta.generazione.verifica_aperture).toEqual({ controllate: true, confermate: 2, escluse: 1, dubbie: 0 });
     expect(esito.pianta.generazione.avvisi.join(" ")).toContain("non è stata inserita");
+    expect(esito.pianta.planimetria.letturaDocumento?.avvisiIniziali.join(" ")).toContain("non è stata inserita");
+  });
+  it("lo stesso numero di finestre non basta se il riscontro è su un'altra parete", () => {
+    const g = pianta();
+    const rilievo = { aperture: [{ tipo: "finestra", da: [300, 100], a: [400, 100], evidenza: "simbolo_finestra" }] };
+    const out = applicaVerificaAperture(g, confrontaRilievoAperture(g, rilievo), true);
+    expect(out.planimetria.livelli[0].fatto.aperture.map((a) => a.id)).toEqual(["a3"]);
+  });
+  it("accetta gli stipiti in ordine inverso ma non riusa un solo riscontro per due ipotesi", () => {
+    const g = pianta();
+    const reale = { ...ipotesi.aperture[1], da: ipotesi.aperture[1].a, a: ipotesi.aperture[1].da, evidenza: "simbolo_finestra" };
+    expect(applicaVerificaAperture(g, confrontaRilievoAperture(g, { aperture: [reale] }), true).planimetria.livelli[0].fatto.aperture.map((a) => a.id)).toEqual(["a2"]);
+    g.generazione.aperture_sorgente!.push({ ...g.generazione.aperture_sorgente![1], id: "duplicata" });
+    expect(applicaVerificaAperture(g, confrontaRilievoAperture(g, { aperture: [reale] }), true).planimetria.livelli[0].fatto.aperture).toHaveLength(0);
+    expect(confrontaRilievoAperture(g, { verifiche })).toBeNull();
   });
   it("un id omesso, duplicato o inventato non autorizza nuove aperture", () => {
     const g = pianta();

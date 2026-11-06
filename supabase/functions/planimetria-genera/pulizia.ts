@@ -157,7 +157,7 @@ export function controllaSuperfici(g: PiantaGenerata): PiantaGenerata {
   const scarti = regolata.planimetria.livelli.flatMap((l) => l.fatto.locali.flatMap((locale) => {
     const scritta = scritte[locale.id];
     const calcolata = area(locale.contorno) / 10_000;
-    return scritta > 0.5 && Math.abs(calcolata - scritta) > Math.max(0.3, scritta * 0.1)
+    return scritta > 0.5 && Math.abs(calcolata - scritta) > Math.max(0.1, scritta * 0.05)
       ? [{ locale_id: locale.id, nome: locale.nome, scritta, calcolata: Math.round(calcolata * 100) / 100 }]
       : [];
   }));
