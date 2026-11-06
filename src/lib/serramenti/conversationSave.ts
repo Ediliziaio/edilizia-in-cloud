@@ -40,7 +40,7 @@ export async function saveLocalSrConversation(
   const { data, error } = await rpc("sr_apply_ai_bom_atomic", payload);
   if (error)
     throw new Error(
-      error.code === "40001"
+      ["PT409", "40001"].includes(error.code ?? "")
         ? "Preventivo modificato altrove: riapri la chat."
         : error.code === "PGRST202" || error.code === "42883"
           ? "Migrazione atomica non installata nel database. Nessuna modifica parziale eseguita."

@@ -73,7 +73,7 @@ Deno.test("JSON canonico: ordinamento stabile e valori non serializzabili respin
  assert.throws(()=>jsonCanonico({a:new Date()}),/non serializzabile/);
 });
 
-function memoria(opzioni:{corrompi?:boolean;completaErrore?:boolean;giaCompleta?:boolean;prodotti?:FontiProdottiPos;tecniche?:FontiTecnicheEmissione;mezzi?:FontiMezziEmissione;documentiMezzi?:FontiDocumentiMezziEmissione;requisiti?:FontiRequisitiAddettiEmissione}={}) {
+function memoria(opzioni:{corrompi?:boolean;completaErrore?:boolean;completaCodice?:string;giaCompleta?:boolean;prodotti?:FontiProdottiPos;tecniche?:FontiTecnicheEmissione;mezzi?:FontiMezziEmissione;documentiMezzi?:FontiDocumentiMezziEmissione;requisiti?:FontiRequisitiAddettiEmissione}={}) {
  const store=new Map<string,Uint8Array>();let completamenti=0;let erroreRegistrato=false;const scritture:Array<[string,unknown]>=[];
  const db={
   rpc:async(nome:string)=>{
@@ -84,7 +84,7 @@ function memoria(opzioni:{corrompi?:boolean;completaErrore?:boolean;giaCompleta?
    if(nome==='pos_prodotti_fonti_emissione')return opzioni.prodotti?{data:opzioni.prodotti,error:null}:{data:null,error:{code:'40001',message:'Fonte prodotto cambiata'}};
    if(nome==='pos_prenota_emissione')return {data:{...e,stato:opzioni.giaCompleta?'completa':'preparazione'},error:null};
    completamenti++;
-   if(opzioni.completaErrore)return {data:null,error:{code:'40001',message:'Il POS è cambiato durante la preparazione'}};
+   if(opzioni.completaErrore)return {data:null,error:{code:opzioni.completaCodice??'40001',message:'Il POS è cambiato durante la preparazione'}};
    assert.ok(store.size>=7);return {data:{...e,stato:'completa'},error:null};
   },
   from:()=>({update:(r:{stato:string})=>{erroreRegistrato=r.stato==='errore';const chain={eq:(k:string,v:unknown)=>{scritture.push([k,v]);return chain;},select:()=>chain,maybeSingle:async()=>({data:{id},error:null})};return chain;}}),
@@ -383,4 +383,10 @@ Deno.test("PDF: sopra i 90 KB di HTML i sottotitoli non entrano nella regola di 
  const html=costruisciHtmlPos(grande);assert.ok(html.length>90_000,`serve un HTML grande, è ${html.length}`);
  const lg=livelli(html);
  assert.ok(lg.h3.length>0);assert.ok(lg.h3.every(x=>x===2),"documento grande: i sottotitoli fuori dalla regola");assert.equal(lg.sezioni,11);
+});
+
+Deno.test("Conservazione: PT409 mantiene il conflitto HTTP 409 senza completamento",async()=>{
+ const m=memoria({completaErrore:true,completaCodice:'PT409'});
+ await assert.rejects(()=>conservaEmissionePos(m.db,'utente-test',sorgente()),(e:unknown)=>e instanceof Error&&'status'in e&&e.status===409);
+ assert.equal(m.errore(),true);
 });

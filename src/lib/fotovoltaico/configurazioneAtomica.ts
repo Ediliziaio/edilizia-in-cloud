@@ -99,7 +99,7 @@ export async function saveLocalFvConfiguration(
   const { data, error } = await rpc("fv_save_configuration_atomic", payload);
   if (error)
     throw new Error(
-      error.code === "40001"
+      ["PT409", "40001"].includes(error.code ?? "")
         ? "Il preventivo è cambiato altrove. Ricaricalo prima di applicare le modifiche."
         : error.code === "PGRST202" || error.code === "42883"
           ? "Funzione atomica non installata nel database. Nessuna scrittura parziale eseguita."

@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
         ? e.status
         : errore?.code === "42501"
           ? 403
-          : errore?.code === "40001" || errore?.code === "55P03"
+          : ["PT409", "40001"].includes(errore?.code ?? "") || errore?.code === "55P03"
             ? 409
             : 400;
     return errorResponse(

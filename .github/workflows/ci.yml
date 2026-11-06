@@ -78,6 +78,15 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run definitive conflict and database memory regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/conflittiSenzaRetrySql.test.ts
+          src/test/logic/sentinellaMemoria.test.ts
+          src/test/logic/sentinellaDatabase.test.ts
+          src/test/logic/planimetrieArchivio.test.ts
+          src/test/wizard-audit/verticalConversation.test.ts
+
       - name: Run purchase order and supplier request workflow regressions
         run: >-
           bunx vitest run --maxWorkers=2

@@ -80,6 +80,7 @@ const COLONNE_INFO = "id, planimetria_id, numero, schema_versione, origine, nota
 /** Messaggio per il titolare, a partire dall'errore del database. */
 export function messaggioErrorePlanimetria(errore: { code?: string; message?: string } | null | undefined): string {
   switch (errore?.code) {
+    case "PT409":
     case "40001": return "Qualcun altro ha salvato la pianta nel frattempo: ricarica per vedere le sue modifiche.";
     case "42501": return "Non hai il permesso di modificare le piante di questa azienda.";
     case "P0002": return "Pianta non trovata: forse è stata cancellata.";

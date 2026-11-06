@@ -796,9 +796,9 @@ function EditOrderInner() {
       });
 
       if (error) {
-        // 40001 è il conflitto di versione: lo diciamo con il messaggio che la
+        // PT409 è il conflitto di versione (40001 resta compatibile coi vecchi server): lo diciamo con il messaggio che la
         // pagina sa già mostrare, non con l'errore grezzo di Postgres.
-        if (error.code === "40001") throw new ConflittoModifica("commessa");
+        if (["PT409", "40001"].includes(error.code ?? "")) throw new ConflittoModifica("commessa");
         // La funzione rifiuta con messaggi in italiano che servono a chi salva
         // («campo non scrivibile da qui», «una delle voci non appartiene a
         // questa commessa»). Vanno incartati in un Error: il gestore mostra il

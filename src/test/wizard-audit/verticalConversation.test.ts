@@ -893,3 +893,13 @@ describe("atomic save clients use the configured backend and fail closed", () =>
     expect(rpc.mock.calls.at(-1)).toEqual(['sr_apply_ai_bom_atomic',srPayload]);
   });
 });
+
+describe("conflitti definitivi senza retry nei client atomici",()=>{
+ it.each(["PT409","40001"])("riconosce %s e conserva la protezione dalle sovrascritture",async(code)=>{
+ const rpc=vi.fn().mockResolvedValue({data:null,error:{code,message:"Versione modificata"}});
+ const payload=fvConfigurationPayload(fv(),fvCatalogue,{projectId:project,companyId:company,updatedAt:"2026-10-24T08:00:00Z"});
+ await expect(saveLocalFvConfiguration(rpc,payload,"https://configured.supabase.co")).rejects.toThrow(/cambiato altrove/);
+ await expect(saveLocalSrConversation(rpc,srConversationPayload(sr(),sr()),"https://configured.supabase.co")).rejects.toThrow(/modificato altrove/);
+ expect(rpc).toHaveBeenCalledTimes(2);
+ });
+});
