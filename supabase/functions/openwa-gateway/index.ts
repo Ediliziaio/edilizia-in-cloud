@@ -9,7 +9,7 @@
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { leggiImpostazionePiattaformaEsito } from "../_shared/getPlatformSetting.ts";
 import {
   getOwaConfig, owaFetch, OWA_PATHS, sendOpenWaMessage, romeToday,
   type OwaConfig,
@@ -42,7 +42,20 @@ async function assicuraWebhook(cfg: OwaConfig, sessionId: string): Promise<void>
     });
     if (giaRegistrato) return;
   }
-  const secret = (await getPlatformSetting("openwa_webhook_secret")).trim();
+  // Il segreto va passato a OpenWA adesso: è con quello che firmerà ogni
+  // webhook futuro. Se non si riesce a leggerlo NON si registra il webhook —
+  // registrarlo senza segreto significherebbe che da quel momento OpenWA manda
+  // messaggi non firmati, e openwa-webhook (che la firma la pretende) li
+  // rifiuta tutti: un intoppo di un istante diventa un guasto permanente, che
+  // si ripara solo registrando di nuovo il webhook a mano.
+  const esitoSegreto = await leggiImpostazionePiattaformaEsito("openwa_webhook_secret");
+  const secret = esitoSegreto.valore.trim();
+  if (!secret && !esitoSegreto.letturaRiuscita) {
+    console.error(
+      `[openwa-gateway] openwa_webhook_secret non leggibile (${esitoSegreto.errore ?? "motivo ignoto"}): webhook NON registrato per la sessione ${sessionId}, si riprova al prossimo giro`,
+    );
+    return;
+  }
   await owaFetch(cfg, OWA_PATHS.createWebhook(sessionId), {
     method: "POST",
     body: JSON.stringify({

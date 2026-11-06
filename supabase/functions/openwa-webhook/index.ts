@@ -9,7 +9,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { avvisaSuperAdmin } from "../_shared/avvisaSuperAdmin.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { leggiImpostazionePiattaformaEsito } from "../_shared/getPlatformSetting.ts";
 import { romeToday, outsideQuietHours, sendOpenWaMessage } from "../_shared/openwaSend.ts";
 import { isLid, lidDaMessageId, risolviLid, registraLid, numeroDalPayload } from "../_shared/openwaLid.ts";
 import { applicaRegole, type MessaggioInArrivo } from "../_shared/openwa-regole-motore.ts";
@@ -140,7 +140,23 @@ Deno.serve(async (req) => {
 
     // Firma OBBLIGATORIA: senza secret configurato il webhook viene rifiutato
     // (nessun bypass — impedisce l'iniezione di messaggi falsi).
-    const secret = (await getPlatformSetting("openwa_webhook_secret")).trim();
+    //
+    // Ma «non riesco a leggere il segreto» non è «il segreto non c'è». Il
+    // 06/11/2026 sono stati rifiutati 25 webhook con «non configurato» mentre
+    // il segreto c'era: la lettura era fallita per un intoppo di PostgREST, e
+    // un 401 dice al mittente che il messaggio è rifiutato per sempre. Un 503
+    // gli dice di riprovare, che è la verità.
+    const esitoSegreto = await leggiImpostazionePiattaformaEsito("openwa_webhook_secret");
+    const secret = esitoSegreto.valore.trim();
+    if (!secret && !esitoSegreto.letturaRiuscita) {
+      console.error(
+        `[openwa-webhook] openwa_webhook_secret non leggibile (${esitoSegreto.errore ?? "motivo ignoto"}): rispondo 503, il mittente riprovi`,
+      );
+      return new Response(
+        JSON.stringify({ error: "webhook secret temporarily unreadable, retry" }),
+        { status: 503, headers: { ...jsonH, "Retry-After": "30" } },
+      );
+    }
     if (!secret) {
       console.error("[openwa-webhook] openwa_webhook_secret non configurato: webhook rifiutato");
       return new Response(JSON.stringify({ error: "webhook secret not configured" }), { status: 401, headers: jsonH });

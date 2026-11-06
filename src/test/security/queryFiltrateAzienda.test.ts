@@ -39,6 +39,12 @@ const CARTELLE_ESCLUSE = [
 
 /** Eccezioni legittime: `file|tabella` → perché va bene così. */
 const ECCEZIONI: Record<string, string> = {
+  // Il costo ripartito su più commesse tiene la commessa DENTRO il json:
+  // `.contains("allocations", [{ order_id }])`. La lettura è legata alla
+  // commessa come la sua gemella `.eq("order_id", …)` due righe sopra, ma il
+  // nome della colonna filtrata è "allocations", non un *_id.
+  "src/hooks/useCostiDirettiPerTipo.ts|company_costs": "costi ripartiti: la commessa è dentro allocations",
+  "src/lib/orders/dossierEconomico.ts|company_costs": "costi ripartiti: la commessa è dentro allocations",
   "src/components/settings/MarketingCalendarsConfig.tsx|marketing_calendars": "lo slug di prenotazione è unico in tutta la piattaforma",
   "src/components/users/UserActivityLogTab.tsx|user_audit_log": "registro di un utente preciso",
   "src/components/orders/BloccaPrezzoCard.tsx|blocca_prezzo": "filtrata per commessa o preventivo subito dopo",
@@ -76,7 +82,11 @@ const ECCEZIONI: Record<string, string> = {
 // `.from("tabella")` e i piccoli aiuti con cui certi file la chiamano.
 const LETTURA = /(?:\.from|\b(?:fromTable|metaTable|gTable|table|reputationTable|fromT|tbl|sbFrom))\(\s*["'`]([a-zA-Z0-9_]+)["'`]\s*(?:as [a-zA-Z]+)?\)/g;
 // Filtri che legano la lettura a un record preciso (quindi già a un'azienda).
-const FILTRO_SU_RECORD = /\.(eq|in|match|contains|filter|neq|is)\(\s*["'`]([a-z_]*id|id|token|slug|signature_token|email)["'`]/;
+// Il nome della colonna può essere puntato quando il filtro è su una tabella
+// agganciata: `.eq("purchase_orders.order_id", orderId)` lega la lettura alla
+// commessa esattamente come `.eq("order_id", …)`, e senza il punto nel regex
+// risultava una lettura non filtrata.
+const FILTRO_SU_RECORD = /\.(eq|in|match|contains|filter|neq|is)\(\s*["'`]([a-z_.]*id|id|token|slug|signature_token|email)["'`]/;
 
 function sorgenti(dir: string): string[] {
   const out: string[] = [];
