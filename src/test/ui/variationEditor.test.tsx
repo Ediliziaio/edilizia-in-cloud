@@ -24,29 +24,28 @@ describe("Composizione della variante",()=>{
     mock.request.mockImplementation(async(id,action,payload)=>({success:true,variation:{id,status:"bozza",numero_odv:1},workspace:{revision:1,content:payload.content},document:null}));
     draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
     fireEvent.change(screen.getByLabelText(/Note interne/),{target:{value:"INTERNO"}});
-    fireEvent.click(screen.getByRole("button",{name:"Salva bozza"}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva bozza e chiudi"}));
     await waitFor(()=>expect(mock.request).toHaveBeenCalledOnce());
     expect(mock.request.mock.calls[0][1]).toBe("save");
     expect(mock.request.mock.calls[0][2].content).toMatchObject({title:"TEST extra",internalNotes:"INTERNO",amount:"120,50"});
     expect(mock.insert).not.toHaveBeenCalled();expect(mock.invoke).not.toHaveBeenCalled();
-    expect(await screen.findByRole("status")).toHaveTextContent("Bozza salvata");
   });
   it("permessi di sola lettura non espongono la creazione",()=>{mock.canEdit=false;draw();expect(screen.queryByRole("button",{name:"Nuova variante"})).not.toBeInTheDocument();});
   it("un conflitto mantiene i dati digitati e non prepara il PDF",async()=>{
     mock.request.mockRejectedValue(new Error("Bozza modificata da un altro utente. Riaprila"));
     draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.click(screen.getByRole("button",{name:"Prepara PDF da inviare"}));
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
     expect(await screen.findByRole("alert")).toHaveTextContent("altro utente");
     expect(screen.getByLabelText("Titolo *")).toHaveValue("TEST extra");
     expect(mock.open).not.toHaveBeenCalled();expect(mock.insert).not.toHaveBeenCalled();
   });
   it("il doppio clic non produce due salvataggi concorrenti",async()=>{
     mock.request.mockReturnValue(new Promise(()=>{}));draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.click(screen.getByRole("button",{name:"Salva bozza"}));fireEvent.click(screen.getByRole("button",{name:"Salva bozza"}));
-    expect(mock.request).toHaveBeenCalledOnce();expect(screen.getAllByRole("button",{name:"Chiudi"}).some(button=>(button as HTMLButtonElement).disabled)).toBe(true);
+    fireEvent.click(screen.getByRole("button",{name:"Salva bozza e chiudi"}));fireEvent.click(screen.getByRole("button",{name:"Salva bozza e chiudi"}));
+    expect(mock.request).toHaveBeenCalledOnce();expect(screen.getByRole("button",{name:"Salva bozza e chiudi"})).toBeDisabled();
   });
   it("rifiuta una proposta incompleta prima di inviare al server",async()=>{
-    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fireEvent.click(screen.getByRole("button",{name:"Prepara PDF da inviare"}));
+    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
     expect(await screen.findByRole("alert")).toBeInTheDocument();expect(mock.request).not.toHaveBeenCalled();
   });
   it("le bozze già salvate si riaprono senza alterare lo stato",async()=>{
@@ -92,10 +91,10 @@ describe("Dettaglio voci e riservatezza",()=>{
         <output data-testid="stato">{JSON.stringify({ destinazione: draft.destinazione ?? null, chi: draft.chi ?? [] })}</output></>;
     }
     const { unmount } = render(<Prova kind="aggiunta" />);
-    expect(screen.getByRole("button", { name: /Una fase nuova «Lavoro extra · Pavimento cucina»/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /Dentro la lavorazione di riferimento/ })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Lavorazione di riferimento"), { target: { value: "f1" } });
-    fireEvent.click(screen.getByRole("button", { name: /Dentro «Pavimenti»/ }));
+    expect(screen.getByRole("button", { name: "In una fase nuova" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/Si chiamerà «Lavoro extra · Pavimento cucina»/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dentro una fase che c'è già" }));
+    expect(screen.getByLabelText("In quale fase")).toHaveValue("f1");
     fireEvent.change(screen.getByLabelText("Chi lo farà"), { target: { value: "p:p1" } });
     fireEvent.change(screen.getByLabelText("Chi lo farà"), { target: { value: "d:d1" } });
     expect(JSON.parse(screen.getByTestId("stato").textContent!)).toEqual({ destinazione: "fase", chi: [{ tipo: "persona", id: "p1", nome: "Mario Rossi" }, { tipo: "ditta", id: "d1", nome: "Squadra A" }] });
@@ -104,5 +103,60 @@ describe("Dettaglio voci e riservatezza",()=>{
     unmount();
     render(<Prova kind="riduzione" />);
     expect(screen.queryByRole("group", { name: "Nelle Lavorazioni" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Lavoro extra in tre passi (06/11/2026)",()=>{
+  const docFinto={id:"doc",source_revision:1,document_hash:"h".repeat(64),attachments:[] as unknown[]};
+  const rispondi=(stato="bozza",token:string|null=null)=>mock.request.mockImplementation(async(id,action,payload)=>({
+    success:true,
+    variation:{id,status:action==="publish"?"in_attesa":stato,numero_odv:7,firma_token:action==="publish"?"tok":token,link_expires_at:null},
+    workspace:{revision:1,content:action==="save"?payload.content:{...emptyVariationDraft(),title:"TEST extra",description:"TEST modifica",amount:"120,50"}},
+    document:action==="save"?null:docFinto,
+  }));
+
+  it("«Avanti» salva, prepara il PDF e porta al passo Rivedi: niente link, niente email",async()=>{
+    rispondi();mock.open.mockResolvedValue({blob:new Blob(["x"]),name:"p.pdf",url:"blob:x"});
+    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
+    await waitFor(()=>expect(mock.open).toHaveBeenCalled());
+    expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["save","document"]);
+    expect(mock.invoke).not.toHaveBeenCalled();
+    expect(await screen.findByText("Contratto se accetta")).toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"Avanti: mandalo"})).toBeEnabled();
+  });
+
+  it("«Mandalo al cliente» è un clic solo: blocca il PDF, crea il link e manda l'email",async()=>{
+    rispondi();mock.open.mockResolvedValue({blob:new Blob(["x"]),name:"p.pdf",url:"blob:x"});
+    mock.invoke.mockResolvedValue({data:{success:true},error:null});
+    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
+    await screen.findByRole("button",{name:"Avanti: mandalo"});
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: mandalo"}));
+    fireEvent.click(await screen.findByRole("button",{name:/Mandalo al cliente da firmare/}));
+    await waitFor(()=>expect(mock.invoke).toHaveBeenCalledWith("invia-odv",{body:{odv_id:expect.any(String)}}));
+    expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["save","document","publish"]);
+    expect((await screen.findByLabelText("Link di firma") as HTMLInputElement).value).toContain("/firma-odv/tok");
+  });
+
+  it("se l'email non parte, il link resta e lo si copia a mano",async()=>{
+    rispondi();mock.open.mockResolvedValue({blob:new Blob(["x"]),name:"p.pdf",url:"blob:x"});
+    mock.invoke.mockResolvedValue({data:null,error:{message:"smtp"}});
+    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
+    await screen.findByRole("button",{name:"Avanti: mandalo"});
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: mandalo"}));
+    fireEvent.click(await screen.findByRole("button",{name:/Mandalo al cliente da firmare/}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("copia il link");
+    expect((screen.getByLabelText("Link di firma") as HTMLInputElement).value).toContain("/firma-odv/tok");
+  });
+
+  it("una variante già mandata si apre sul passo Manda, senza ricreare niente",async()=>{
+    mock.rows=[{id:"odv",status:"in_attesa",titolo:"Extra",descrizione:"x",impatto_economico:75,numero_odv:4}];
+    rispondi("in_attesa","tok");
+    draw();fireEvent.click(screen.getByRole("button",{name:"Documento e approvazione"}));
+    expect((await screen.findByLabelText("Link di firma") as HTMLInputElement).value).toContain("/firma-odv/tok");
+    expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["load"]);
+    expect(screen.getByText(/Mandato al cliente: aspetta la firma/)).toBeInTheDocument();
   });
 });
