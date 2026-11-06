@@ -195,7 +195,9 @@ function ChiediPianta({ companyId, modo, onPronta }: { companyId: string; modo: 
         return;
       }
       const titolo = esito.planimetria.titolo ?? (modo === "sopralluogo" ? "Pianta dal sopralluogo" : file ? file.name.replace(/\.[^.]+$/, "") : "Pianta da descrizione");
-      onPronta({ ...esito, ingresso, titolo });
+      // Il PDF viene rasterizzato per la lettura, ma l'origine resta il file scelto.
+      const origine = ingresso === "documento" && file?.type === "application/pdf" ? "ai_pdf" : esito.origine;
+      onPronta({ ...esito, origine, ingresso, titolo });
     } catch {
       setErrore("Non riesco a preparare il documento: controlla il file e riprova.");
     } finally {

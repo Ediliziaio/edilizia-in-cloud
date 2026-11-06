@@ -39,6 +39,8 @@ export interface InfoGenerazione {
   avvisi: string[];
   /** Aperture leggibili ma fuori dai muri o sovrapposte: da correggere in una seconda lettura. */
   aperture_da_rivedere?: number;
+  /** Contorni che non tornano con i metri quadri scritti nella stanza. */
+  superfici_da_rivedere?: Array<{ locale_id: string; nome: string; scritta: number; calcolata: number }>;
   sorgente_path: string | null;
   sfondo_dxf: SfondoDxf | null;
   /** Superficie scritta sul documento per locale (id → mq), per il confronto. */

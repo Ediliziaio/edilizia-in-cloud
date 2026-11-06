@@ -20,6 +20,7 @@ import {
 import type { Coppia, LocaleAI, RispostaAI } from "./rispostaAI.ts";
 import type { IngressoGenerazione, InfoGenerazione, PiantaGenerata, ScalaPianta } from "./generazione.ts";
 import { area, distanza, mediana, proiezione, puntoDentro } from "./geometria.ts";
+import { controllaSuperfici } from "./pulizia.ts";
 
 export interface OpzioniCostruzione {
   ingresso: IngressoGenerazione;
@@ -642,7 +643,7 @@ function dopoScala<T extends { origine: Origine; origineMisure?: OrigineMisure }
 function ridimensiona(g: PiantaGenerata, f: number): PiantaGenerata {
   const s = (pt: Punto): Punto => ({ x: arr(pt.x * f), y: arr(pt.y * f) });
   const p = g.planimetria;
-  return {
+  return controllaSuperfici({
     planimetria: {
       ...p,
       livelli: p.livelli.map((l) => ({
@@ -664,7 +665,7 @@ function ridimensiona(g: PiantaGenerata, f: number): PiantaGenerata {
       scala: g.generazione.scala ? { ...g.generazione.scala, metodo: "misura_utente", cm_per_unita: Math.round(g.generazione.scala.cm_per_unita * f * 10000) / 10000, da_confermare: false } : null,
       avvisi: g.generazione.avvisi.filter((a) => !/misura vera|scala|indicative|una sola misura/i.test(a)),
     },
-  };
+  });
 }
 
 function soloInScala(g: PiantaGenerata) {

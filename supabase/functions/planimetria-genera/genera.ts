@@ -100,6 +100,20 @@ interface Lettura {
   nonLeggibile: string | null;
 }
 
+const scartiDaRivedere = (p: PiantaGenerata) => (p.generazione.aperture_da_rivedere ?? 0)
+  + (p.generazione.superfici_da_rivedere ?? []).reduce((tot, s) => tot + Math.abs(s.calcolata - s.scritta) / s.scritta, 0);
+
+function conservaSuperficiScritte(prima: PiantaGenerata, dopo: PiantaGenerata): PiantaGenerata {
+  const note = new Map(prima.planimetria.livelli.flatMap((l) => l.fatto.locali.map((c) => [`${l.id}|${c.nome.toLowerCase()}`, prima.generazione.superfici_scritte[c.id]] as const)));
+  const superfici = { ...dopo.generazione.superfici_scritte };
+  let aggiunte = false;
+  for (const l of dopo.planimetria.livelli) for (const c of l.fatto.locali) {
+    const mq = note.get(`${l.id}|${c.nome.toLowerCase()}`);
+    if (!superfici[c.id] && mq) { superfici[c.id] = mq; aggiunte = true; }
+  }
+  return aggiunte ? controllaScala(controllaSuperfici({ ...dopo, generazione: { ...dopo.generazione, superfici_scritte: superfici } })) : dopo;
+}
+
 function leggi(testo: string, req: RichiestaGenerazione): Lettura {
   let grezza: unknown;
   try {
@@ -154,6 +168,7 @@ export async function generaPlanimetria(
       throw e;
     }
     const lettura = leggi(r.testo, req);
+    if (daCompletare && lettura.pianta) lettura.pianta = conservaSuperficiScritte(daCompletare, lettura.pianta);
     tentativi.push({ modello: r.modello, costoUsd: r.costoUsd ?? 0, durataMs: ora() - t0, errori: lettura.errori.map((e) => e.codice) });
     if (lettura.nonLeggibile) {
       if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
@@ -164,13 +179,17 @@ export async function generaPlanimetria(
       const sospetta = lettura.pianta.generazione.avvisi.find((a) => a.startsWith("La scala letta dal disegno non sembra giusta"));
       const tempoPerRileggere = !opzioni.tempoMassimoMs || ora() - inizio <= opzioni.tempoMassimoMs / 2;
       const apertureDaRivedere = lettura.pianta.generazione.aperture_da_rivedere ?? 0;
-      if (apertureDaRivedere > 0 && n === 1 && tempoPerRileggere) {
+      const superficiDaRivedere = lettura.pianta.generazione.superfici_da_rivedere ?? [];
+      if ((apertureDaRivedere > 0 || superficiDaRivedere.length > 0) && n === 1 && tempoPerRileggere) {
         daCompletare = lettura.pianta;
         messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
-        messaggi.push({ role: "user", content: promptCorrezione([`${apertureDaRivedere} porte o finestre non si agganciano ai muri o si sovrappongono. Mantieni tutte le aperture richieste, senza eliminarle: metti i due estremi di ogni vano direttamente su un lato di una stanza, senza sovrapporre vani diversi. Conserva le stanze e le loro misure.`]) });
+        messaggi.push({ role: "user", content: promptCorrezione([
+          ...(apertureDaRivedere > 0 ? [`${apertureDaRivedere} porte o finestre non si agganciano ai muri o si sovrappongono. Mantieni tutte le aperture richieste, senza eliminarle: metti i due estremi di ogni vano direttamente su un lato di una stanza, senza sovrapporre vani diversi. Conserva le stanze e le loro misure.`] : []),
+          ...superficiDaRivedere.slice(0, 6).map((s) => `La stanza «${s.nome}» ha ${s.scritta} m² scritti sul foglio ma il contorno produce ${s.calcolata} m². Rileggi il filo interno dei muri e le quote: le dimensioni esterne comprendono lo spessore e non sono quelle interne della stanza. Controlla anche che mobili e sanitari non siano scambiati per finestre.`),
+        ]) });
         continue;
       }
-      if (daCompletare && apertureDaRivedere >= (daCompletare.generazione.aperture_da_rivedere ?? 0)) return { ok: true, pianta: daCompletare, tentativi };
+      if (daCompletare && scartiDaRivedere(lettura.pianta) >= scartiDaRivedere(daCompletare)) return { ok: true, pianta: daCompletare, tentativi };
       if (sospetta && n === 1 && tempoPerRileggere) {
         primaSospetta = lettura.pianta;
         messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });

@@ -109,7 +109,7 @@ function scalaLivelli(p: Planimetria, f: number): Planimetria {
  * - Se sbagliano in modo diverso (stanze lette male, non solo scala): non si tocca nulla,
  *   si avvisa e la scala resta da confermare.
  */
-export function controllaSuperfici(g: PiantaGenerata): PiantaGenerata {
+function regolaScalaConSuperfici(g: PiantaGenerata): PiantaGenerata {
   const scritte = g.generazione.superfici_scritte ?? {};
   const calcolate = new Map<string, number>();
   for (const l of g.planimetria.livelli) for (const x of l.fatto.locali) calcolate.set(x.id, area(x.contorno) / 10_000);
@@ -144,6 +144,36 @@ export function controllaSuperfici(g: PiantaGenerata): PiantaGenerata {
       ...g.generazione,
       scala: g.generazione.scala ? { ...g.generazione.scala, da_confermare: true } : g.generazione.scala,
       avvisi: [...g.generazione.avvisi, `I metri quadri scritti sul disegno non tornano con le stanze ricavate (${rapporti.slice(0, 3).map((r) => `${r.rapporto.toFixed(1)}×`).join(", ")}): controlla la scala e il disegno delle stanze prima di usarla.`],
+    },
+  };
+}
+
+/** Un bagno letto male non deve sparire nella mediana delle altre stanze. */
+export function controllaSuperfici(g: PiantaGenerata): PiantaGenerata {
+  // Una misura confermata dalla persona prevale sulla scala dedotta dall'AI.
+  const regolata = g.generazione.scala?.metodo === "misura_utente" ? g : regolaScalaConSuperfici(g);
+  const avvisi = regolata.generazione.avvisi.filter((a) => !a.startsWith("Alcune superfici non corrispondono ai metri quadri scritti:"));
+  const scritte = regolata.generazione.superfici_scritte ?? {};
+  const scarti = regolata.planimetria.livelli.flatMap((l) => l.fatto.locali.flatMap((locale) => {
+    const scritta = scritte[locale.id];
+    const calcolata = area(locale.contorno) / 10_000;
+    return scritta > 0.5 && Math.abs(calcolata - scritta) > Math.max(0.3, scritta * 0.1)
+      ? [{ locale_id: locale.id, nome: locale.nome, scritta, calcolata: Math.round(calcolata * 100) / 100 }]
+      : [];
+  }));
+  if (!scarti.length) {
+    if (!regolata.generazione.superfici_da_rivedere) return regolata;
+    const { superfici_da_rivedere: _scarti, ...generazione } = regolata.generazione;
+    return { ...regolata, generazione: { ...generazione, avvisi } };
+  }
+  const ids = new Set(scarti.map((s) => s.locale_id));
+  return {
+    planimetria: { ...regolata.planimetria, livelli: regolata.planimetria.livelli.map((l) => ({ ...l, fatto: { ...l.fatto, locali: l.fatto.locali.map((locale) => ids.has(locale.id) ? { ...locale, origineMisure: { ...locale.origineMisure, contorno: "stimata" as const } } : locale) } })) },
+    generazione: {
+      ...regolata.generazione,
+      superfici_da_rivedere: scarti,
+      scala: regolata.generazione.scala ? { ...regolata.generazione.scala, da_confermare: regolata.generazione.scala.metodo !== "misura_utente" } : null,
+      avvisi: [...avvisi, `Alcune superfici non corrispondono ai metri quadri scritti: ${scarti.slice(0, 3).map((s) => `${s.nome}: ${s.scritta} m² scritti, ${s.calcolata} m² ricavati`).join("; ")}. Controlla il contorno di queste stanze prima di usare le misure.`],
     },
   };
 }
