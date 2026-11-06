@@ -6,6 +6,8 @@
  * I pagamenti scritti in chat non diventano fasi; valori con i campi vuoti saltati; telefono scritto dalla persona; niente avvisi per ciò che non c'è; «IVA inclusa» si scorpora; un solo indirizzo è il cantiere; il cliente azienda si legge; il conto delle somme nella nota.
  * Le modifiche solo in shared/silvio-commessa non ripubblicano questa funzione: va toccato
  * questo file (riletto il 2/11/2026 con la quarta revisione).
+ * 06/11/2026: istruzioni del popup delle fasi (shared/silvio-commessa/chatFasi.ts) con giorni di lavoro,
+ * ordine delle fasi e spiegazione sempre scritta: ripubblicata per questo.
  *
  * Contratti, capitolati, PDF qualsiasi, foto, piantine e testo libero: una sola chiamata
  * al modello, con lo schema di un `Frammento` e la citazione della fonte per ogni valore.
