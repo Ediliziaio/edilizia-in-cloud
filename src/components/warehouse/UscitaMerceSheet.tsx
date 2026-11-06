@@ -67,6 +67,7 @@ const BatchBarcodeScanner = lazy(() =>
 );
 
 interface UscitaMerceSheetProps {
+  initialOrder?: OrderOption;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -124,7 +125,7 @@ function StepHead({ n, label }: { n: number; label: string }) {
   );
 }
 
-export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) {
+export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMerceSheetProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const register = useRegisterUscita();
@@ -142,15 +143,15 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   const [anagraficaId, setAnagraficaId] = useState<string | undefined>();
   const [selectedAnagrafica, setSelectedAnagrafica] = useState<AnagraficaOption | null>(null);
   // cantiere
-  const [orderId, setOrderId] = useState<string | undefined>();
-  const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(null);
+  const [orderId, setOrderId] = useState<string | undefined>(initialOrder?.id);
+  const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(initialOrder ?? null);
   // libero
   const [liberoRagione, setLiberoRagione] = useState("");
   const [liberoIndirizzo, setLiberoIndirizzo] = useState("");
   const [liberoPiva, setLiberoPiva] = useState("");
 
   // ── Magazzino + articoli ──────────────────────────────────────
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [warehouseId, setWarehouseId] = useState<string | undefined>(initialOrder?.default_warehouse_id ?? undefined);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [note, setNote] = useState("");
   // Sezione "Trasportatore e note" collassata di default (mobile pulito)
@@ -330,7 +331,7 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
     destTipo === "cliente"
       ? !!anagraficaId
       : destTipo === "cantiere"
-        ? !!orderId
+        ? !!orderId && selectedOrder?.id === orderId
         : liberoRagione.trim().length > 0;
 
   const erroreRighe = validaRigheUscita(entries);
