@@ -1,4 +1,5 @@
 import { useChiSottofasi } from "@/hooks/useChiSottofasi";
+import { chiusureProssime } from "../../../shared/silvio-commessa/chatFasi";
 import { applicaProposte, caricaAllegatoFasi, chiediSilvioFasi, contestoFasiPerSilvio } from "@/lib/orders/silvioFasi";
 import type { ConversazioneSilvio } from "@/components/silvio/SilvioConversazione";
 import { formatCurrency } from "@/lib/formatters";
@@ -160,6 +161,8 @@ interface OrderWorkPhasesProps {
   onOpenReports?: () => void;
   /** Silvio delle fasi: date e ritardi si sistemano nel cronoprogramma. */
   onApriCronoprogramma?: () => void;
+  /** «Lavori extra e varianti», accanto ad «Assegna» (06/11/2026). */
+  lavoriExtra?: React.ReactNode;
   view?: "lavorazioni";
   /** L'elenco delle schede al posto della tabella: serve solo a provare la scheda da sola. */
   modo?: "tabella" | "schede";
@@ -169,7 +172,7 @@ interface OrderWorkPhasesProps {
   organizationContent?: ReactNode;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
@@ -324,7 +327,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
       });
       // Senza la tabella di chi fa la sottofase, Silvio non propone assegnazioni.
       if (!chiSottofasi.dati.disponibile) contesto.persone = [];
-      return chiediSilvioFasi(orderId, messaggio, contesto, storia, allegati);
+      contesto.calendario = { sabato: calendario.sabato, chiusure: chiusureProssime(oggi, calendario.lavorativo) };
+      return chiediSilvioFasi(orderId, messaggio, contesto, storia, allegati, calendario.lavorativo);
     },
     applica: (proposte) => applicaProposte(proposte, {
       aggiungiSottofasi: (a) => aggiungiSottofasi.mutateAsync(a),
@@ -464,6 +468,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               triggerClassName={view ? "border border-slate-200 bg-white text-slate-700 shadow-none hover:bg-slate-50" : AZIONE_PIENA.persona}
               onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
             /></>}
+            {lavoriExtra}
             {canEditOrders && <>
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
