@@ -148,3 +148,30 @@ describe("Totali di una riga bloccata", () => {
     expect(screen.getByText(/3\.800,00/)).toBeInTheDocument();
   });
 });
+
+
+describe("Modifica di un ordine parzialmente ricevuto", () => {
+  it("non salva quantità inferiori alla merce già ricevuta", () => {
+    const save = apri({ ...item, quantity_received: 12 });
+    fireEvent.change(screen.getByLabelText("Quantità"), {target: {value: "11"}});
+    fireEvent.blur(screen.getByLabelText("Quantità"));
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Quantità")).toHaveValue(40);
+  });
+  it("permette di correggere quantità e prezzo preservando la ricezione", async () => {
+    const save = apri({ ...item, quantity_received: 12 });
+    fireEvent.change(screen.getByLabelText("Quantità"), {target: {value: "50"}});
+    fireEvent.blur(screen.getByLabelText("Quantità"));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({quantity: 50}));
+    fireEvent.change(screen.getByLabelText("Prezzo di acquisto"), {target: {value: "18"}});
+    fireEvent.blur(screen.getByLabelText("Prezzo di acquisto"));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({unit_price: 18, price_pending: false}));
+    expect(save.mock.calls.every(([patch]) => !("quantity_received" in patch))).toBe(true);
+  });
+  it("protegge articolo, unità di misura ed eliminazione dopo la prima ricezione", () => {
+    apri({ ...item, quantity_received: 12 });
+    expect(screen.queryByRole("button", {name: "Scrivi nuovo articolo"})).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Unità di misura")).toBeDisabled();
+    expect(screen.getByRole("button", {name: "Rimuovi Materiale"})).toBeDisabled();
+  });
+});
