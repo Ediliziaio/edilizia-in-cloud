@@ -14,10 +14,10 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
     query.then = (resolve: (value: unknown) => unknown) => {
       if (table === "rate_fornitori" && start > 0 && scenario.erroreSecondaPagina)
         return Promise.resolve({ data: null, error: new Error("Pagina rate non disponibile") }).then(resolve);
-      const rows = table === "fatture_ricevute" ? [{
+      const rows: Record<string, unknown>[] = table === "fatture_ricevute" ? [{
         id: "fattura", numero_fattura: "REGRESSIONE", data_fattura: "2020-01-01", tipo_documento: "TD01",
         totale_documento: 1001, netto_a_pagare: 1001, stato: "non_letta", company_cost_id: null, costo: null,
-      }] : Array.from({ length: 1001 }, (_, i) => ({
+      }] : Array.from({ length: 1001 }, (_, i): Record<string, unknown> => ({
         id: `rata-${i}`, fattura_ricevuta_id: "fattura", company_cost_id: null, numero: i + 1,
         scadenza: "2020-02-01", importo: 1, metodo: "bonifico",
         stato: i < 1000 ? "pagata" : "da_pagare", pagata_il: i < 1000 ? "2020-02-01" : null,
