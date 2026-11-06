@@ -60,10 +60,13 @@ export default function RenderPlanimetriaScheda() {
   const { data, isLoading, error } = usePlanimetria(id);
   const { data: renders = [] } = useRenderDellaPianta(id);
   const documento = data?.versione.documento;
-  const [livelloId, setLivelloId] = useState<string | null>(null);
-  const [ambito, setAmbito] = useState("fatto");
+  const livelloId = params.get("livello");
+  const richiesto = params.get("ambito") ?? "fatto";
+  const ambito = documento && ambitiDi(documento).some((a) => a.chiave === richiesto) ? richiesto : "fatto";
+  const setLivelloId = (v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set("livello", v); return n; }, { replace: true });
+  const setAmbito = (v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set("ambito", v); return n; }, { replace: true });
   const [mostra3D, setMostra3D] = useState(false);
-  const [esporta, setEsporta] = useState(false);
+  const [esporta, setEsporta] = useState(params.get("esporta") === "fascicolo");
   const [prospetti, setProspetti] = useState(false);
   const [esterni, setEsterni] = useState(false);
   // Render in serie: null chiuso, "" tutte le stanze, altrimenti più stili per quella stanza.
@@ -214,21 +217,23 @@ export default function RenderPlanimetriaScheda() {
 
       <section aria-label="Panoramica della pianta" className="overflow-hidden rounded-2xl border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><div><h2 className="font-semibold">La tua pianta</h2><p className="text-xs text-muted-foreground">{livello.nome} · {ambito === "fatto" ? "Com'è oggi" : ambiti.find((a) => a.chiave === ambito)?.nome || "Progetto"}</p></div><div role="group" aria-label="Vista della pianta" className="flex gap-1 rounded-lg bg-muted p-1"><Button size="sm" variant={mostra3D ? "ghost" : "secondary"} aria-pressed={!mostra3D} onClick={() => setMostra3D(false)}>Pianta 2D</Button><Button size="sm" variant={mostra3D ? "secondary" : "ghost"} aria-pressed={mostra3D} disabled={stanze.length === 0} onClick={() => setMostra3D(true)}>Vista 3D</Button></div></div>
-        {mostra3D && piante3D ? <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} /> : <div className="grid lg:grid-cols-[minmax(0,1fr)_240px]"><AnteprimaPianta anteprima={anteprima2D} titolo={data.riga.titolo} className="h-64 sm:h-80" /><div className="space-y-4 border-t p-4 lg:border-l lg:border-t-0"><p className="text-sm"><strong>{stanze.length} {stanze.length === 1 ? "stanza" : "stanze"}</strong>{anteprima2D ? ` · ${anteprima2D.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²` : ""}</p><ol className="space-y-3 text-sm text-muted-foreground"><li><strong className="text-foreground">1. Controlla il disegno</strong><br />Misure, porte, finestre e arredi.</li><li><a href="#materiali-progetto" className="font-semibold text-primary underline-offset-4 hover:underline">2. Scegli i materiali comuni</a><br />Una scelta per tutta la casa.</li><li><a href="#stanze" className="font-semibold text-primary underline-offset-4 hover:underline">3. Genera il render</a><br />Apri una stanza o avvia tutte le stanze.</li></ol></div></div>}
+        {mostra3D && piante3D ? <Vista3DPigra key={`${livello.id}:${ambito}`} piante={piante3D} piani={documento.livelli.length > 1 ? pianiDaPlanimetria(documento, ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined) : undefined} nomeFile={data.riga.titolo} vistaIniziale={ambito === "fatto" ? "fatto" : "progetto"} /> : <div className="grid lg:grid-cols-[minmax(0,1fr)_240px]"><AnteprimaPianta anteprima={anteprima2D} titolo={data.riga.titolo} className="h-64 sm:h-80" /><div className="space-y-4 border-t p-4 lg:border-l lg:border-t-0"><p className="text-sm"><strong>{stanze.length} {stanze.length === 1 ? "stanza" : "stanze"}</strong>{anteprima2D ? ` · ${anteprima2D.superficie.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²` : ""}</p><ol className="space-y-3 text-sm text-muted-foreground"><li><strong className="text-foreground">1. Controlla il disegno</strong><br />Misure, porte, finestre e arredi.</li><li><a href="#materiali-progetto" className="font-semibold text-primary underline-offset-4 hover:underline">2. Scegli i materiali comuni</a><br />Una scelta per tutta la casa.</li><li><a href="#stanze" className="font-semibold text-primary underline-offset-4 hover:underline">3. Genera il render</a><br />Apri una stanza o avvia tutte le stanze.</li><li><button type="button" onClick={() => setEsporta(true)} className="font-semibold text-primary underline-offset-4 hover:underline">4. Prepara il fascicolo PDF</button><br />Disegni, 3D, materiali e render insieme.</li></ol></div></div>}
       </section>
       {ambitoGeometria !== ambito && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">Questo piano mantiene il disegno esistente. I render seguono i materiali comuni del progetto selezionato.</p>}
 
       <MaterialiProgetto key={`${ambito}:${data.versione.numero}`} documento={documento} ambito={ambito} planimetriaId={id} versione={data.versione.numero} solaLettura={permessi.solaLettura} />
 
       <EsportaPiantaDialog
+        key={`${ambito}:${data.versione.numero}`}
         aperto={esporta}
-        onChiudi={() => setEsporta(false)}
+        onChiudi={() => { setEsporta(false); if (params.has("esporta")) setParams((p) => { const n = new URLSearchParams(p); n.delete("esporta"); return n; }, { replace: true }); }}
         documento={documento}
         titolo={data.riga.titolo}
         versione={data.versione.numero}
         livelloId={livello.id}
         propostaId={ambito.startsWith("progetto:") ? ambito.slice("progetto:".length) : undefined}
-        haProgetto={livello.proposte.length > 0}
+        haProgetto={documento.livelli.some((l) => l.proposte.length > 0)}
+        ambitoIniziale={ambito}
         planimetriaId={id}
       />
 

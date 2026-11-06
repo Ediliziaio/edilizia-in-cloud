@@ -52,8 +52,37 @@ l'esportazione con un messaggio, invece di produrre un fascicolo incompleto.
 Il fascicolo può anche essere allegato al preventivo; la singola tavola in scala,
 il DXF, l'SVG e il PNG restano disponibili come formati distinti.
 
-Verifiche: 633 test planimetrie e 168 test render passati, controlli Deno delle due
+Verifiche iniziali: 633 test planimetrie e 168 test render passati, controlli Deno delle due
 funzioni passati, banco oracolo 16/16. Fascicolo scaricato dall'interfaccia sulla
 pianta demo con soggiorno e bagno, due render Alta già presenti, controllato con
 Poppler e revisione visiva delle pagine. L'allegato a un preventivo reale non è
 stato creato durante la verifica.
+
+## Revisione del flusso e della presentazione
+
+La scheda collega esplicitamente disegno, materiali, render e fascicolo. Dal
+risultato della stanza si può aprire il fascicolo conservando piano e variante;
+l'URL conserva queste scelte. Il PDF non torna allo stato di fatto quando la
+variante selezionata non ha opere su quel piano. La qualità iniziale dei render
+da planimetria, singoli e in serie, è Alta; Standard resta selezionabile.
+
+Il fascicolo ha una copertina fotografica, schede più compatte e il confronto
+con la vera sorgente privata usata per ciascun render, nella stessa inquadratura.
+I prodotti aziendali vengono documentati con le tavole fotografiche salvate con
+quel render, evitando di sostituirle con foto di un catalogo modificato dopo.
+Le scelte sono descritte per campo in italiano, compresi accento, colori cucina,
+travi, luci, battiscopa e disposizione. Le tavole tecniche rimangono vettoriali e
+in scala dichiarata; una scala 1:100 viene usata quando evita almeno due fogli
+quasi vuoti rispetto all'impaginazione normale.
+
+Inserire un esadecimale nel nome della pittura, dell'accento o delle tende
+aggiorna il selettore. Cambiare il selettore elimina i nomi rimasti dal vecchio
+colore, o sincronizza un nome esadecimale. Client e server fermano due codici
+contraddittori prima di campioni, credito e provider; le modalità inattive sono
+ignorate. Nel vecchio test del soggiorno il nome verde e il selettore bianco
+erano incongruenti: la configurazione storica è segnalata, non riscritta.
+
+Verifiche della revisione: 639 test planimetrie e 179 test render passati,
+compresi ambito del fascicolo su un altro piano, colore e foto effettiva,
+qualità Alta in serie e isolamento delle sorgenti e dei campioni privati.
+Nessuna nuova chiamata AI sul provider ancora privo di credito.

@@ -1,22 +1,26 @@
 import type { PDFImage, PDFPage } from "pdf-lib";
 import type { Planimetria } from "../../../shared/planimetrie/modello.ts";
 import { areaPoligono } from "../../../shared/planimetrie/geometria.ts";
+import { coloriContraddittori } from "../../../shared/render-room/colours.ts";
 import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO, descrizionePavimento, statoConMateriali } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { svgPiantaStanza } from "../../../shared/render-planimetria/piantaStanza.ts";
 import { verificaPianta } from "../../../shared/planimetrie/verifiche.ts";
 import { selectedRoomVisuals } from "../../../shared/render-references/roomVisualCatalog.ts";
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
 import { contenutoFascicolo } from "./fascicoloModello";
+import { descriviScelteFascicolo } from "./fascicoloScelte";
 import { caricaLogo, esportaPdf, vistaDaPlanimetria, type DatiCartiglio } from "./esporta";
 import { pianteDaPlanimetria, pianiDaPlanimetria, costruisciScena, scenaEdificio, vistaGiroIntorno, vistaDentroLocale } from "./tred";
 import { pianiProspetto, prospettoQuotato, sezione } from "./prospetti";
-import { accodaTavole, accodaFoglioImpianti } from "./tavole";
+import { accodaTavole, accodaFoglioImpianti, impaginaDisegni } from "./tavole";
 import type { RenderDellaPianta } from "./render/renderDallaPianta";
 
 export interface DatiFascicolo {
   documento: Planimetria; titolo: string; versione: number; ambito: string;
   cartiglio: DatiCartiglio; renders: RenderDellaPianta[];
   progresso?: (fase: string) => void;
+  leggiSorgente?: (render: RenderDellaPianta) => Promise<Uint8Array | null>;
+  leggiCampioniPersonali?: (render: RenderDellaPianta) => Promise<Uint8Array[]>;
 }
 
 /** Un fascicolo usa solo geometrie salvate, viste vere del modello e render già generati. Nessuna chiamata AI. */
@@ -92,6 +96,15 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
   testo(mancanti.length ? `Render ancora da generare: ${mancanti.map((s) => s.nome).join(", ")}. Le relative stanze sono comunque documentate.` : "Tutti gli ambienti di questa versione hanno almeno un render.");
   testo("Le immagini 3D sono viste del disegno. I render AI sono presentazioni fotorealistiche. Le misure indicate come stimate restano da verificare sul posto.");
   testo("Sono inclusi i render completati della versione e del progetto selezionati. Le versioni precedenti rimangono nello storico.");
+  const anteprime = stanze.filter((s) => s.renders.length).slice(0, 2);
+  const topCopertina = y - 12, altezzaCopertina = Math.min(190, topCopertina - M - 18);
+  if (altezzaCopertina > 90) for (const [i, s] of anteprime.entries()) {
+    const img = await caricaFoto(s.renders.at(-1)!.result_urls![0], 20_000);
+    if (!img) throw new Error(`Render di ${s.nome} non disponibile: riprova l'esportazione.`);
+    const w = utile / anteprime.length - 16, x = M + i * utile / anteprime.length;
+    await immagine(img.dati, x, topCopertina, w, altezzaCopertina);
+    pagina.drawText(pulito(s.nome).slice(0, 60), { x, y: topCopertina - altezzaCopertina - 14, size: 9, font: bold, color: nero });
+  }
 
   avanza("Materiali e campioni");
   nuovaPagina("Materiali della casa", nomeAmbito, true);
@@ -111,7 +124,7 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
   const cattura = await caricaFotogramma();
   const propostaId = d.ambito.startsWith("progetto:") ? d.ambito.slice(9) : undefined;
   const edificio = pianiDaPlanimetria(d.documento, propostaId);
-  if (piani.some((p) => p.stanze.length)) {
+  if (piani.length > 1 && piani.some((p) => p.stanze.length)) {
     avanza("Vista 3D dell'edificio");
     const primo = piani.find((p) => p.stanze.length)!;
     const coppia = pianteDaPlanimetria(d.documento, { livelloId: primo.livello.id, propostaId, materialiAmbito: d.ambito });
@@ -136,14 +149,15 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
       nuovaPagina(`${piano.livello.nome} - vista 3D aperta`, "Distribuzione delle stanze, arredi, pavimenti e aperture", true);
       await immagine(new Uint8Array(await foto.png.arrayBuffer()), M, y, utile, y - M);
     }
-    nuovaPagina(`${piano.livello.nome} - porte e finestre`, `${piano.serramenti.length} aperture disegnate`, true);
+    nuovaPagina(`${piano.livello.nome} - abaco del piano`, `${piano.serramenti.length} aperture disegnate / quota ${num(piano.livello.quota / 100)} m`, true);
+    testo("PORTE E FINESTRE", 12, true);
     for (const a of piano.serramenti) {
       testo(`${a.codice} - ${a.tipo} ${num(a.larghezza)} x ${num(a.altezza)} cm | ${a.stanze}`, 11, true);
       testo(`${a.sistema}; ${a.ante} ante; davanzale ${num(a.davanzale)} cm; ${a.stato}${a.stimata ? "; misure stimate" : ""}. Oscurante: ${a.oscurante}. Cassonetto: ${a.cassonetto}. Zanzariera: ${a.zanzariera}.`);
       y -= 7;
     }
     if (!piano.serramenti.length) testo("Nessuna apertura disegnata in questo piano.");
-    nuovaPagina(`${piano.livello.nome} - muri ed elementi`, `Quota del piano: ${num(piano.livello.quota / 100)} m`, true);
+    y -= 10; testo("MURI ED ELEMENTI", 12, true);
     for (const [i, m] of piano.stato.muri.entries()) {
       testo(`Parete ${i + 1}: lunghezza ${num(Math.hypot(m.p2.x - m.p1.x, m.p2.y - m.p1.y) / 100)} m; spessore ${num(m.spessore)} cm; altezza ${num(m.altezza / 100)} m; ${m.tipo}; ${(m.stato ?? "esistente").replace(/_/g, " ")}${m.origine === "stimata" ? "; misure stimate" : ""}.`);
     }
@@ -173,36 +187,56 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
         if (render.scelte) {
           nuovaPagina(`${stanza.nome} - scelte del render ${nRender + 1}`, `${piano.livello.nome} / ${new Date(render.created_at).toLocaleDateString("it-IT")}`);
           const cfg = render.scelte;
+          testo(`Qualità del render: ${cfg.qualita_render === "alta" ? "Alta" : "Standard"}.`, 10, true);
+          if (coloriContraddittori(cfg).length) testo("Configurazione storica da verificare: il nome colore contiene un codice diverso dal selettore. I valori originali sono riportati sotto; questa incongruenza viene ora fermata prima di generare un nuovo render.", 10, true);
           const leggi = (k: string) => cfg[k] && typeof cfg[k] === "object" ? cfg[k] as Record<string, unknown> : {};
           const pavimento = leggi("pavimento"), infissi = leggi("infissi_progetto");
           const eccezione = leggi("eccezioni_materiali_progetto").pavimento === true;
           if (pavimento.attivo) testo(`${eccezione ? "Eccezione al pavimento comune per questo render" : "Pavimento"}: ${descrizionePavimento(pavimento as never)}.`, 11, true);
           if (infissi.profilo && infissi.colore) testo(`Infissi: ${PROFILI_PROGETTO[infissi.profilo as keyof typeof PROFILI_PROGETTO] ?? ""} - ${COLORI_INFISSI_PROGETTO[infissi.colore as keyof typeof COLORI_INFISSI_PROGETTO]?.nome ?? ""}.`);
-          for (const [chiave, nome] of [["verniciatura", "Pittura pareti"], ["carta_da_parati", "Carta da parati"], ["rivestimento_pareti", "Rivestimento pareti"], ["arredo", "Arredo"], ["soffitto", "Soffitto"], ["illuminazione", "Illuminazione"], ["tende", "Tende"], ["restyling_cucina", "Restyling cucina"]]) {
-            const s = leggi(chiave); if (s.attivo !== true) continue;
-            const valori = [s.colore_nome, s.colore_hex, s.tipo, s.materiale, s.stile_pattern, s.finitura, s.applica_a].filter((v): v is string => typeof v === "string" && !!v).map((v) => v.replace(/_/g, " "));
-            testo(`${nome}: ${valori.join("; ") || "intervento selezionato"}.`);
-          }
+          for (const riga of descriviScelteFascicolo(cfg)) testo(riga);
           if (typeof cfg.note_libere === "string" && cfg.note_libere.trim()) testo(`Richieste: ${cfg.note_libere}`);
           const campioni = selectedRoomVisuals(cfg).filter((s) => !["style", "floor_pattern", "floor_finish", "floor_skirting"].includes(s.group));
           const nomi: Record<string, string> = { floor_type: "Pavimento", window_profile: "Infissi", paint_finish: "Pittura", wallpaper_pattern: "Carta da parati", cladding_type: "Rivestimento", furniture_material: "Arredo", ceiling_type: "Soffitto", lighting_type: "Illuminazione", curtain_type: "Tende", kitchen_front: "Frontali cucina", kitchen_worktop: "Piano cucina", kitchen_handle: "Maniglie" };
+          let topCampioni = y - 22, primaRiga = 0;
           for (let c = 0; c < campioni.length; c++) {
-            if (c % 6 === 0) nuovaPagina(`${stanza.nome} - campioni del render ${nRender + 1}`, "Materiali scelti per questa immagine");
-            const s = campioni[c], colonna = c % 3, riga = Math.floor((c % 6) / 3);
+            if (c % 3 === 0 && topCampioni - Math.floor((c - primaRiga) / 3) * 200 < M + 185) {
+              nuovaPagina(`${stanza.nome} - campioni del render ${nRender + 1}`, "Materiali scelti per questa immagine");
+              topCampioni = y - 8; primaRiga = c;
+            }
+            const s = campioni[c], colonna = c % 3, riga = Math.floor((c - primaRiga) / 3);
             const foto = makeReferenceImage(s.photo!.folder, s.photo!.filename, s.label);
             const img = await caricaFoto(foto.url, 15_000);
             if (!img) throw new Error(`Campione ${s.label} non disponibile: riprova l'esportazione.`);
-            const x = M + colonna * utile / 3, top = H - 110 - riga * 220;
-            await immagine(img.dati, x, top, utile / 3 - 18, 180);
-            pagina.drawText(pulito(`${nomi[s.group] ?? "Campione"}: ${s.label}`).slice(0, 40), { x, y: top - 200, size: 9, font: bold, color: nero });
+            const x = M + colonna * utile / 3, top = topCampioni - riga * 200;
+            await immagine(img.dati, x, top, utile / 3 - 18, 155);
+            pagina.drawText(pulito(`${nomi[s.group] ?? "Campione"}: ${s.label}`).slice(0, 40), { x, y: top - 176, size: 9, font: bold, color: nero });
           }
+        }
+        const sorgente = d.leggiSorgente ? await d.leggiSorgente(render) : null;
+        const personali = d.leggiCampioniPersonali ? await d.leggiCampioniPersonali(render) : [];
+        for (const [i, tavola] of personali.entries()) {
+          nuovaPagina(`${stanza.nome} - prodotti selezionati`, `Campioni fotografici utilizzati per il render ${nRender + 1} / tavola ${i + 1}`);
+          await immagine(tavola, M, y, utile, y - M);
         }
         for (const [i, url] of (render.result_urls ?? []).entries()) {
         avanza(`Render AI - ${stanza.nome}`);
         const img = await caricaFoto(url, 20_000);
         if (!img) throw new Error(`Immagine render di ${stanza.nome} non disponibile: riprova per ottenere il fascicolo completo.`);
-        nuovaPagina(`${stanza.nome} - render AI`, `${piano.livello.nome} / ${nomeAmbito} / ${new Date(render.created_at).toLocaleDateString("it-IT")}${(render.result_urls?.length ?? 0) > 1 ? ` / Variante ${i + 1}` : ""}`);
-        await immagine(img.dati, M, y, utile, y - M);
+        nuovaPagina(`${stanza.nome} - render AI`, `${piano.livello.nome} / ${nomeAmbito} / ${new Date(render.created_at).toLocaleDateString("it-IT")}${(render.result_urls?.length ?? 0) > 1 ? ` / Variante ${i + 1}` : ""}`, true);
+        if (sorgente) {
+          const colonna = 230, top = y - 22;
+          pagina.drawText(render.planimetria?.partenza === "vista_3d" ? "MODELLO 3D DI PARTENZA" : "FOTO DI PARTENZA", { x: M, y, size: 9, font: bold, color: blu });
+          pagina.drawText("RISULTATO AI", { x: M + colonna + 22, y, size: 9, font: bold, color: blu });
+          await immagine(sorgente, M, top, colonna, 170);
+          await immagine(img.dati, M + colonna + 22, top, utile - colonna - 22, top - M);
+          y = top - 196;
+          testo("La stessa inquadratura", 11, true, colonna);
+          testo("La sorgente qui accanto è quella realmente usata per questo render. Puoi confrontare aperture, arredi e disposizione.", 10, false, colonna);
+          testo(`${num(stanza.pavimentoMq)} m² | h ${num(stanza.altezzaCm / 100)} m`, 10, true, colonna);
+        } else {
+          await immagine(img.dati, M, y, utile, y - M);
+        }
         }
       }
     }
@@ -218,7 +252,9 @@ export async function esportaFascicolo(d: DatiFascicolo): Promise<{ dati: Uint8A
       const pts = p.stato.muri.flatMap((m) => [m.p1, m.p2]);
       disegni.push(sezione(p.stato, { asse: "verticale", valore: (Math.min(...pts.map((p) => p.x)) + Math.max(...pts.map((p) => p.x))) / 2 }, `Sezione - ${p.livello.nome}`, p.livello.tetto));
     }
-    await aggiungiPdf((await accodaTavole(null, disegni, { formato: "A4", intestazione: d.titolo })).dati);
+    const normale = impaginaDisegni(disegni, "A4"), compatto = impaginaDisegni(disegni, "A4", 100);
+    const scala = normale.fogli - compatto.fogli >= 2 ? compatto.scala : normale.scala;
+    await aggiungiPdf((await accodaTavole(null, disegni, { formato: "A4", scala, intestazione: d.titolo })).dati);
   }
   nuovaPagina("Riepilogo e punti da verificare", nomeAmbito, true);
   for (const p of piani) {

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { validaColoriStanza } from "../../../shared/render-room/colours.ts";
 import { listRenderCatalogAssets, signRenderCatalogUrls } from "./renderCatalog";
 import { makeReferenceImage } from "../../../shared/render-references/referenceUrl.ts";
 import { roomVisualSignature, selectedRoomVisuals } from "../../../shared/render-references/roomVisualCatalog.ts";
@@ -51,6 +52,7 @@ export async function disegnaTavoleMateriali(campioni: CampioneTavola[]): Promis
 }
 
 export async function preparaMaterialiStanza(config: ConfigurazioneStanza, companyId: string): Promise<ConfigurazioneStanza> {
+  validaColoriStanza(config);
   const scelte = selectedRoomVisuals(config);
   const campioni: CampioneTavola[] = scelte.map((s) => ({ id: s.id, label: `${s.target}: ${s.label}`, url: makeReferenceImage(s.photo!.folder, s.photo!.filename, s.label).url }));
   const catalogoIds = [...new Set(config.catalogo_reference_ids ?? [])];

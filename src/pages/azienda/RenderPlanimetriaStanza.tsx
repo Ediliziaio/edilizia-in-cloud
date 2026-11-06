@@ -88,7 +88,7 @@ export default function RenderPlanimetriaStanza() {
   const [anteprima, setAnteprima] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [config, setConfig] = useState<ConfigurazioneStanza>(DEFAULT_STANZA_CONFIG);
+  const [config, setConfig] = useState<ConfigurazioneStanza>(() => ({ ...structuredClone(DEFAULT_STANZA_CONFIG), qualita_render: "alta" }));
   const [eccezionePavimento, setEccezionePavimento] = useState(false);
   const materialiComuni = documento ? materialiDelProgetto(documento, materialiAmbito) : {};
   const configEffettiva = applicaMaterialiProgetto({ ...config, eccezioni_materiali_progetto: { pavimento: eccezionePavimento } }, materialiComuni);
@@ -520,6 +520,7 @@ export default function RenderPlanimetriaStanza() {
               <Link to={salvato ? `${percorsiPlanimetrie.pianta(id)}?galleria=${encodeURIComponent(scelta.localeId)}` : percorsiPlanimetrie.pianta(id)}>{salvato ? "Apri la galleria della stanza" : "Torna alla pianta"}</Link>
             </Button>
           </div>
+          <Button asChild className="w-full gap-2"><Link to={`${percorsiPlanimetrie.pianta(id)}?esporta=fascicolo&ambito=${encodeURIComponent(materialiAmbito)}&livello=${encodeURIComponent(livelloId)}`}><Download className="h-4 w-4" />Prepara il fascicolo completo della casa</Link></Button>
         </div>
       )}
     </div>

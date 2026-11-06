@@ -85,7 +85,7 @@ export async function unisciPdf(parti: Uint8Array[]): Promise<Uint8Array> {
 const nomeFile = (t: string) => (t || "pianta").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "pianta";
 
 export function EsportaPiantaDialog({
-  aperto, onChiudi, documento, titolo, versione, livelloId, propostaId, haProgetto, planimetriaId,
+  aperto, onChiudi, documento, titolo, versione, livelloId, propostaId, haProgetto, planimetriaId, ambitoIniziale,
 }: {
   aperto: boolean;
   /** Per allegare la pianta a un preventivo (fase 8): il file prende l'id e la versione. */
@@ -98,11 +98,13 @@ export function EsportaPiantaDialog({
   propostaId?: string;
   /** La pianta ha uno stato di progetto: si può scegliere progetto o confronto. */
   haProgetto: boolean;
+  /** Stato scelto nella scheda, anche su un piano senza opere della proposta. */
+  ambitoIniziale?: string;
 }) {
   const { effectiveCompany } = useAuth();
   const { branding } = useBranding();
   const [formato, setFormato] = useState<Formato>("fascicolo");
-  const [modo, setModo] = useState<ModoVista>(haProgetto ? "progetto" : "fatto");
+  const [modo, setModo] = useState<ModoVista>(ambitoIniziale ? ambitoIniziale.startsWith("progetto:") ? "progetto" : "fatto" : haProgetto ? "progetto" : "fatto");
   const [stile, setStile] = useState<Stile>("tecnico");
   const [foglio, setFoglio] = useState<FormatoFoglio>("A4");
   const [orientamento, setOrientamento] = useState<Orientamento>("orizzontale");
@@ -151,7 +153,9 @@ export function EsportaPiantaDialog({
 
   const vista = useMemo(() => {
     try {
-      const v = vistaDaPlanimetria(documento, { modo: haProgetto ? modo : "fatto", livelloId, propostaId });
+      const l = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
+      const modoPiano = propostaId && !l?.proposte.some((p) => p.id === propostaId) ? "fatto" : haProgetto ? modo : "fatto";
+      const v = vistaDaPlanimetria(documento, { modo: modoPiano, livelloId, propostaId });
       return numera ? numeraLocali(v) : v;
     } catch {
       return null;
@@ -163,7 +167,7 @@ export function EsportaPiantaDialog({
     const liv = documento.livelli.find((l) => l.id === livelloId) ?? documento.livelli[0];
     if (!liv) return null;
     if (!haProgetto || modo === "fatto") return liv.fatto;
-    return liv.proposte.find((p) => p.id === propostaId) ?? liv.proposte[0] ?? liv.fatto;
+    return propostaId ? liv.proposte.find((p) => p.id === propostaId) ?? liv.fatto : liv.proposte[0] ?? liv.fatto;
   }, [documento, livelloId, propostaId, haProgetto, modo]);
 
   const anteprima = useMemo(() => {
@@ -192,13 +196,20 @@ export function EsportaPiantaDialog({
   };
 
   const preparaFascicolo = async (cartiglio: DatiCartiglio) => {
-    const { renderPerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
+    const { renderPerFascicolo, sorgentePerFascicolo, campioniPersonaliPerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
     const { esportaFascicolo } = await import("@/lib/planimetrie/fascicoloPdf");
     setFaseFascicolo("Leggo i render del progetto");
     const renders = planimetriaId && effectiveCompany?.id ? await renderPerFascicolo(effectiveCompany.id, planimetriaId) : [];
     const proposta = propostaId ?? documento.livelli.flatMap((l) => l.proposte)[0]?.id;
-    const ambito = haProgetto && modo !== "fatto" && proposta ? `progetto:${proposta}` : "fatto";
-    return esportaFascicolo({ documento, titolo, versione, ambito, cartiglio, renders, progresso: setFaseFascicolo });
+    const ambito = modo !== "fatto" && proposta ? `progetto:${proposta}` : "fatto";
+    const sorgenti = new Map<string, Promise<Uint8Array | null>>();
+    const leggiSorgente = (render: { original_photo_url?: string | null }) => {
+      const path = render.original_photo_url;
+      if (!path || !effectiveCompany?.id) return Promise.resolve(null);
+      if (!sorgenti.has(path)) sorgenti.set(path, sorgentePerFascicolo(effectiveCompany.id, path));
+      return sorgenti.get(path)!;
+    };
+    return esportaFascicolo({ documento, titolo, versione, ambito, cartiglio, renders, progresso: setFaseFascicolo, leggiSorgente, leggiCampioniPersonali: (render) => effectiveCompany?.id ? campioniPersonaliPerFascicolo(effectiveCompany.id, render.scelte) : Promise.resolve([]) });
   };
 
   /** La pianta in A4 come scheda del preventivo: si accoda al PDF che parte al cliente. */
@@ -248,7 +259,7 @@ export function EsportaPiantaDialog({
           const parti: Uint8Array[] = [];
           let n = 1;
           for (const l of [...documento.livelli].sort((a, b) => a.quota - b.quota)) {
-            const pr = l.proposte.find((p) => p.id === propostaId) ?? l.proposte[0];
+            const pr = propostaId ? l.proposte.find((p) => p.id === propostaId) : l.proposte[0];
             const grezza = vistaDaPlanimetria(documento, { modo: haProgetto && pr ? modo : "fatto", livelloId: l.id, propostaId: pr?.id });
             // numerazione continua su tutti i piani
             const v = numera ? numeraLocali(grezza, n) : grezza;

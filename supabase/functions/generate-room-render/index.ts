@@ -1,4 +1,5 @@
 import { rifiutaRenderStanza } from "../../../shared/render-planimetria/controlloRender.ts";
+import { validaColoriStanza } from "../../../shared/render-room/colours.ts";
 import { applicaMaterialiProgetto, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { caricaTavoleMateriali } from "./materiali.ts";
 // generate-room-render — Edge Function EiC
@@ -196,6 +197,7 @@ Deno.serve(async (req: Request) => {
 
     if (pianta) config = applicaMaterialiProgetto(config || session.config, pianta.materiali);
 
+    validaColoriStanza(config || session.config);
     const materialBoards = await caricaTavoleMateriali(supabase, companyId as string, config || session.config);
 
     // ── F1-parity (audit 16/07) — CLAIM ATOMICO prima del deduct ─────────
@@ -540,7 +542,7 @@ Deno.serve(async (req: Request) => {
       // I difetti tipici del restyling stanza: mobili DUPLICATI (due divani,
       // due letti nella stessa camera), porte/finestre inventate o sparite,
       // prospettiva cambiata. Check ~€0.002, 1 retry correttivo budget-gated.
-      // Graceful: se il vision provider fallisce, il render passa comunque.
+      // Le foto restano compatibili; i render vincolati alla pianta richiedono un QA positivo.
       let renderNonConforme = false;
       let qaAudit: { checked: boolean; pass: boolean; model: string; issues: Array<{ category: string; detail: string }> } | null = null;
       const contestoQa = { daPianta: !!pianta, materiali: !!materialBoards, da3D: pianta?.partenza === "vista_3d" };

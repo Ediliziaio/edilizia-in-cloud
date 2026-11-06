@@ -6,13 +6,14 @@ import { contenutoFascicolo } from "@/lib/planimetrie/fascicoloModello";
 import { pianteDaPlanimetria, pianiDaPlanimetria } from "@/lib/planimetrie/tred";
 import type { RenderDellaPianta } from "@/lib/planimetrie/render/renderDallaPianta";
 
-const query = vi.hoisted(() => ({ tabelle: [] as string[], aziende: [] as string[], range: [] as number[], errore: false }));
+const query = vi.hoisted(() => ({ tabelle: [] as string[], aziende: [] as string[], range: [] as number[], errore: false, firmate: [] as string[] }));
+vi.mock("@/lib/planimetrie/esporta/cartiglio", () => ({ caricaLogo: async () => ({ dati: new Uint8Array([1, 2, 3]), tipo: "png" }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (tabella: string) => {
   query.tabelle.push(tabella);
   const q = { select: () => q, eq: (k: string, v: string) => { if (k === "company_id") query.aziende.push(v); return q; }, order: () => q,
     range: async (da: number) => { query.range.push(da); return { data: Array.from({ length: da ? 25 : 100 }, (_, i) => ({ id: `r${da + i}` })), error: query.errore ? new Error("interrotto") : null }; } };
   return q;
-} } }));
+}, storage: { from: (bucket: string) => ({ createSignedUrl: async (path: string) => { query.firmate.push(`${bucket}/${path}`); return { data: { signedUrl: "https://esempio.invalid/foto-firmata" }, error: null as null }; } }) } } }));
 
 describe("fascicolo completo della casa", () => {
   it("mantiene tutte le stanze anche senza render e non mescola versioni o progetti", () => {
@@ -47,5 +48,25 @@ describe("fascicolo completo della casa", () => {
     const { renderPerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
     await expect(renderPerFascicolo("azienda", "casa")).rejects.toThrow(/tutti i render/);
     query.errore = false;
+  });
+  it("il confronto usa la sorgente privata della stessa azienda e non espone il link nel documento", async () => {
+    query.firmate = [];
+    const { sorgentePerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
+    expect(await sorgentePerFascicolo("azienda", "azienda/originale.png")).toEqual(new Uint8Array([1, 2, 3]));
+    expect(query.firmate).toEqual(["stanza-originals/azienda/originale.png"]);
+    await expect(sorgentePerFascicolo("azienda", "altra/originale.png")).rejects.toThrow(/questa azienda/);
+    await expect(sorgentePerFascicolo("azienda", "azienda/../altra.png")).rejects.toThrow(/questa azienda/);
+    expect(query.firmate).toHaveLength(1);
+    expect(await sorgentePerFascicolo("azienda", null)).toBeNull();
+  });
+  it("i prodotti aziendali usano i campioni salvati con il render e rifiutano cartelle estranee", async () => {
+    query.firmate = [];
+    const { campioniPersonaliPerFascicolo } = await import("@/lib/planimetrie/fascicoloDati");
+    expect(await campioniPersonaliPerFascicolo("azienda", {})).toEqual([]);
+    const cfg = { catalogo_reference_ids: ["prodotto"], materiali_visivi: { paths: ["azienda/materiali/tavola.jpg"] } };
+    expect(await campioniPersonaliPerFascicolo("azienda", cfg)).toEqual([new Uint8Array([1, 2, 3])]);
+    await expect(campioniPersonaliPerFascicolo("azienda", { ...cfg, materiali_visivi: { paths: ["altra/materiali/tavola.jpg"] } })).rejects.toThrow(/campioni personali/);
+    await expect(campioniPersonaliPerFascicolo("azienda", { catalogo_reference_ids: ["prodotto"] })).rejects.toThrow(/campioni personali/);
+    expect(query.firmate).toEqual(["stanza-originals/azienda/materiali/tavola.jpg"]);
   });
 });

@@ -19,6 +19,19 @@ function monta(config: ConfigurazioneStanza) {
 }
 
 describe("scelte fotografiche nel modulo del render", () => {
+  it("scrivere un codice nel nome aggiorna il selettore e il campione effettivamente inviato", () => {
+    const iniziale = structuredClone(DEFAULT_STANZA_CONFIG);
+    iniziale.verniciatura = { ...iniziale.verniciatura, attivo: true, finitura: "opaco" };
+    const configurazione = monta(iniziale);
+    fireEvent.click(screen.getByRole("button", { name: "Verniciatura pareti" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Nome o codice colore pareti" }), { target: { value: "#A6B49E" } });
+    expect(configurazione().verniciatura.colore_hex).toBe("#A6B49E");
+    expect(screen.getByLabelText("Codice colore pareti")).toHaveValue("#a6b49e");
+    expect(selectedRoomVisuals(configurazione()).find((s) => s.group === "paint_finish")?.photo?.filename).toBe("paint-salvia.webp");
+    fireEvent.change(screen.getByLabelText("Codice colore pareti"), { target: { value: "#dbc6a6" } });
+    expect(configurazione().verniciatura.colore_nome).toBe("#DBC6A6");
+    expect(selectedRoomVisuals(configurazione()).find((s) => s.group === "paint_finish")?.photo?.filename).toBe("paint-sabbia.webp");
+  });
   it("il pavimento comune nasconde le scelte locali finché non si abilita un'eccezione", () => {
     const { rerender } = render(<StanzaConfigForm value={DEFAULT_STANZA_CONFIG} onChange={() => {}} pavimentoBloccato />);
     expect(screen.queryByRole("region", { name: "Materiali realistici del render" })).toBeNull();
