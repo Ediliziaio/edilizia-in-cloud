@@ -146,7 +146,9 @@ export function PurchaseOrderItemRow({
       set(String(item[campo]));
       toast.error(
         campo === "quantity"
-          ? "Indica una quantità maggiore di zero."
+          ? item.quantity_received > 0
+            ? `La quantità non può essere inferiore ai ${item.quantity_received} pezzi già ricevuti.`
+            : "Indica una quantità maggiore di zero."
           : "Indica una percentuale tra 0 e 100.",
       );
       return;
@@ -165,7 +167,7 @@ export function PurchaseOrderItemRow({
   return (
     <tr className="border-b align-top" aria-label={`Articolo ${desc}`}>
       <td className="min-w-[260px] p-1 pl-2">
-        {isEditable ? (
+        {isEditable && !(item.quantity_received > 0) ? (
           <ArticleCombobox
             value={desc}
             modalita="acquisto"
@@ -191,11 +193,11 @@ export function PurchaseOrderItemRow({
           <Input
             aria-label="Quantità"
             type="number"
-            min="0.001"
+            min={Math.max(0.001, item.quantity_received || 0)}
             step="any"
             value={qty}
             onChange={(e) => setQty(e.target.value)}
-            onBlur={() => salvaNumero("quantity", qty, setQty, 0.001)}
+            onBlur={() => salvaNumero("quantity", qty, setQty, Math.max(0.001, item.quantity_received || 0))}
             className="h-8 w-16 text-right text-sm"
           />
         ) : (
@@ -206,6 +208,7 @@ export function PurchaseOrderItemRow({
         {isEditable ? (
           <Input
             aria-label="Unità di misura"
+            disabled={item.quantity_received > 0}
             value={um}
             onChange={(e) => setUm(e.target.value)}
             onBlur={() => {
@@ -332,7 +335,8 @@ export function PurchaseOrderItemRow({
             aria-label={`Rimuovi ${desc}`}
             variant="ghost"
             size="sm"
-            disabled={saving}
+            disabled={saving || item.quantity_received > 0}
+            title={item.quantity_received > 0 ? "La riga contiene merce già ricevuta" : undefined}
             className="h-7 w-7 p-0"
             onClick={onDelete}
           >

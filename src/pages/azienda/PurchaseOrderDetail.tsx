@@ -20,7 +20,7 @@ import {
   ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package,
   Truck, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
   AlertTriangle, ScanLine, ClipboardList, CalendarClock,
-  PackageCheck,
+  PackageCheck, Pencil,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -85,6 +85,8 @@ export default function PurchaseOrderDetail() {
     (order as { supplier_id?: string | null } | undefined)?.supplier_id ?? null,
   );
   const { updateStatus, update } = usePurchaseOrders();
+
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // AI Verification
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
@@ -192,7 +194,8 @@ export default function PurchaseOrderDetail() {
     righe:items.map(i=>({descrizione:i.description,nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
     totali:{imponibile:totaliRighe.imponibile,iva:totaliRighe.iva,totale:totaliRighe.totale},
   };
-  const isEditable = order.status === "bozza";
+  const canEdit = permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
+  const isEditable = canEdit && (order.status === "bozza" || editingOrderId === order.id);
   const righeInSalvataggio = addItem.isPending || updateItem.isPending || deleteItem.isPending || update.isPending;
 
   const handleStatusChange = async (ns: string) => {
@@ -266,6 +269,12 @@ export default function PurchaseOrderDetail() {
         icon={<ClipboardList className="h-5 w-5" />}
         actions={
           <>
+            {canEdit && order.status !== "bozza" && (
+              <Button variant="outline" size="sm" disabled={righeInSalvataggio} onClick={() => setEditingOrderId(isEditable ? null : order.id)}>
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                {isEditable ? "Termina modifica" : "Modifica ordine"}
+              </Button>
+            )}
             {order.status !== "bozza" && order.status !== "annullato" && (
               <Button
                 variant="outline"
@@ -387,6 +396,12 @@ export default function PurchaseOrderDetail() {
             </div>
             <p className="px-5 pb-3 text-xs text-slate-500">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>
             {totaliRighe.daConfermare > 0 && <p role="status" className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{totaliRighe.daConfermare} {totaliRighe.daConfermare === 1 ? "voce con prezzo da confermare" : "voci con prezzi da confermare"}. Gli importi visibili comprendono solo le voci già valorizzate.</p>}
+            {isEditable && (
+              <p className="px-5 sm:px-6 pb-3 text-xs text-muted-foreground" role="status">
+                Le modifiche si salvano automaticamente uscendo dal campo. Le righe già ricevute non possono essere eliminate o sostituite.
+                {order.status !== "bozza" && " Se l’ordine cambia, reinvialo al fornitore con il pulsante Reinvia."}
+              </p>
+            )}
             <div className="border-t border-slate-100">
               {isItemsLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
