@@ -27,6 +27,7 @@ describe("la finestra dei render in serie conserva lo stato", () => {
     vi.useFakeTimers();
     const view = render(vista());
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Fai 2 render" })); });
+    expect(mocks.avvia).toHaveBeenCalledWith(expect.objectContaining({ qualita_render: "alta" }), expect.anything());
     await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
     expect(screen.getByText(/2 di 2 pronti/)).toBeInTheDocument();
     view.rerender(vista());

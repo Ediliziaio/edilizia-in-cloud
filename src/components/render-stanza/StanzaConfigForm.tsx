@@ -1,4 +1,5 @@
 import { ScelteVisiveStanza, RiepilogoCampioniStanza } from "./ScelteVisiveStanza";
+import { cambiaCodiceColore, cambiaNomeColore } from "../../../shared/render-room/colours.ts";
 import { useState } from "react";
 import { CampioniFinitureStanza } from "./CampioniFinitureStanza";
 import { Label } from "@/components/ui/label";
@@ -289,13 +290,15 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId, pavimen
                         type="color"
                         className="w-10 h-8 p-0.5 cursor-pointer"
                         value={value.verniciatura.colore_hex ?? DEFAULT_STANZA_CONFIG.verniciatura.colore_hex}
-                        onChange={(e) => set("verniciatura", { ...value.verniciatura, colore_hex: e.target.value })}
+                        aria-label="Codice colore pareti"
+                        onChange={(e) => set("verniciatura", cambiaCodiceColore(value.verniciatura, "colore_nome", "colore_hex", e.target.value))}
                         disabled={disabled}
                       />
                       <Input
                         placeholder="Nome colore"
                         value={value.verniciatura.colore_nome ?? ""}
-                        onChange={(e) => set("verniciatura", { ...value.verniciatura, colore_nome: e.target.value })}
+                        aria-label="Nome o codice colore pareti"
+                        onChange={(e) => set("verniciatura", cambiaNomeColore(value.verniciatura, "colore_nome", "colore_hex", e.target.value))}
                         disabled={disabled}
                         className="text-xs"
                       />
@@ -343,13 +346,13 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId, pavimen
                       type="color"
                       className="w-10 h-8 p-0.5 cursor-pointer"
                       value={value.verniciatura.colore_accento_hex ?? DEFAULT_STANZA_CONFIG.verniciatura.colore_accento_hex}
-                      onChange={(e) => set("verniciatura", { ...value.verniciatura, colore_accento_hex: e.target.value })}
+                      onChange={(e) => set("verniciatura", cambiaCodiceColore(value.verniciatura, "colore_accento_nome", "colore_accento_hex", e.target.value))}
                       disabled={disabled}
                     />
                     <Input
                       placeholder="Colore accento"
                       value={value.verniciatura.colore_accento_nome ?? ""}
-                      onChange={(e) => set("verniciatura", { ...value.verniciatura, colore_accento_nome: e.target.value })}
+                      onChange={(e) => set("verniciatura", cambiaNomeColore(value.verniciatura, "colore_accento_nome", "colore_accento_hex", e.target.value))}
                       disabled={disabled}
                       className="text-xs"
                     />
@@ -883,13 +886,13 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId, pavimen
                     type="color"
                     className="w-10 h-8 p-0.5 cursor-pointer"
                     value={value.tende.colore_hex ?? DEFAULT_STANZA_CONFIG.tende.colore_hex}
-                    onChange={(e) => set("tende", { ...value.tende, colore_hex: e.target.value })}
+                    onChange={(e) => set("tende", cambiaCodiceColore(value.tende, "colore_nome", "colore_hex", e.target.value))}
                     disabled={disabled}
                   />
                   <Input
                     placeholder="Nome colore"
                     value={value.tende.colore_nome ?? ""}
-                    onChange={(e) => set("tende", { ...value.tende, colore_nome: e.target.value })}
+                    onChange={(e) => set("tende", cambiaNomeColore(value.tende, "colore_nome", "colore_hex", e.target.value))}
                     disabled={disabled}
                     className="text-xs"
                   />

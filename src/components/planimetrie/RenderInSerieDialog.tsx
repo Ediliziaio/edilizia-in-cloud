@@ -52,7 +52,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
   const [scelte, setScelte] = useState<Set<string>>(new Set());
   const [idee, setIdee] = useState<string[]>([IDEE_PRONTE[0].id]);
   const [nota, setNota] = useState("");
-  const [qualita, setQualita] = useState<"standard" | "alta">("standard");
+  const [qualita, setQualita] = useState<"standard" | "alta">("alta");
   const comuni = materialiDelProgetto(documento, ambito);
   const [righe, setRighe] = useState<Riga[] | null>(null);
   const annullato = useRef(false);

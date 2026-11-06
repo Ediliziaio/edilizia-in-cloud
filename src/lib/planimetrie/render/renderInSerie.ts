@@ -103,7 +103,7 @@ export async function avviaRenderStanza(contesto: ContestoSerie, lavoro: LavoroR
     if (!error) rif.pianta_path = percorso;
   } catch { /* si va avanti con misure e aperture scritte */ }
 
-  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), qualita_render: ctx.qualita_render ?? "standard" }, materialiDelProgetto(ctx.documento, contesto.ambito)), ctx.companyId);
+  const config = await preparaMaterialiStanza(applicaMaterialiProgetto({ ...configPerStanza(vincoli.locale.destinazione, lavoro.idea, ctx.nota), qualita_render: ctx.qualita_render ?? "alta" }, materialiDelProgetto(ctx.documento, contesto.ambito)), ctx.companyId);
   const { data: nuova, error: errSessione } = await supabase
     .from("render_stanza_sessions")
     .insert({ company_id: ctx.companyId, created_by: ctx.userId, status: "pending", original_photo_url: storagePath, config: { ...config, planimetria: rif } as never })
