@@ -1,3 +1,4 @@
+import { emailDaMostrare, nomeCliente } from "@/lib/orders/nuovaCommessaProposte";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -1021,7 +1022,7 @@ function EditOrderInner() {
                       {(() => {
                         const c = allCustomers.find((x) => x.id === (customerId || order?.customer_id));
                         return c
-                          ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.email
+                          ? nomeCliente(c)
                           : "Committente";
                       })()}
                     </span>
@@ -1047,14 +1048,14 @@ function EditOrderInner() {
                     value={customerId && allCustomers.some(c => c.id === customerId) ? customerId : "__none__"}
                     onValueChange={(value) => setCustomerId(value === "__none__" ? "" : value)}
                   >
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger id="customer" className="flex-1">
                       <SelectValue placeholder={isLoadingCustomers ? "Caricamento..." : "Seleziona un cliente"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__" disabled>Seleziona un cliente</SelectItem>
                       {allCustomers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
-                          {customer.first_name} {customer.last_name} ({customer.email})
+                          {nomeCliente(customer)}{emailDaMostrare(customer.email) ? ` (${emailDaMostrare(customer.email)})` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
