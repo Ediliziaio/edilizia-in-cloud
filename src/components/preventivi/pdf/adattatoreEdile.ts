@@ -478,7 +478,7 @@ export function costruisciDatiEdile(input: {
   // solo l'alfabeto WinAnsi, e una freccia o un'emoji incollate dall'azienda
   // uscivano come caratteri a caso (e in copertina si mangiavano il resto del titolo).
   return testiPerPdf({
-    modulo,
+    modulo: modelTitle ? { ...modulo, etichetta: modelTitle } : modulo,
     codice: p.code,
     // Un'azienda si intesta con la ragione sociale; il saluto resta per nome a chi la rappresenta.
     cliente: (intestatoAdEnte(tipoCliente(p.cliente_tipo)) && stringa(p.cliente_ragione_sociale)) || [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim() || "Gentile Cliente",

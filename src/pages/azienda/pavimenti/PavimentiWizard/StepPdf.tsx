@@ -1,4 +1,5 @@
 import { readPdfPreviewBlob, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
+import { leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
 /**
  * StepPdf — step "PDF" del wizard Pavimenti (Task 22).
@@ -37,7 +38,7 @@ import {
 import {
   usePavimentiPDF,
   type PavPdfCompany, renderPavPreviewBlobUrl } from "@/hooks/usePavimentiPDF";
-import type { PavProgetto, PavComputoVoce, PavProgettoMedia } from "@/types/pavimenti";
+import type { PavProgetto, PavComputoVoce, PavProgettoMedia, PavTemplatePdf } from "@/types/pavimenti";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 import { CondizioniDelPreventivoCard } from "@/components/moduli/CondizioniDelPreventivoCard";
 
@@ -66,7 +67,8 @@ interface ChecklistItem {
 export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso, onCondizioni }: Props) {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
-  const { data: template } = usePavTemplatePdf();
+  const { data: templateAzienda } = usePavTemplatePdf();
+  const template = useMemo(() => leggiModelloPreventivo<PavTemplatePdf>("pavimenti", progetto.modello_snapshot, progetto.company_id)?.template ?? templateAzienda, [progetto.modello_snapshot, progetto.company_id, templateAzienda]);
   const { downloadPDF, previewPDF, isGenerating } = usePavimentiPDF();
 
   // Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
@@ -275,7 +277,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             {/* Titolo cover + destinatario */}
             <div className="px-4 py-3">
               <p className="text-sm font-semibold text-slate-900">
-                {template?.cover_title?.trim() || "Preventivo di pavimenti"}
+                {template?.pdf_cover_hero?.trim() || template?.cover_title?.trim() || "Preventivo di pavimenti"}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Preparato per <span className="font-medium text-slate-700">{clienteLabel}</span>
