@@ -4,7 +4,7 @@ import StepPdf from '@/pages/azienda/pavimenti/PavimentiWizard/StepPdf';
 import type {PavProgetto} from '@/types/pavimenti';
 vi.mock('@/hooks/use-mobile',()=>({useIsMobile:()=>false}));
 vi.mock('@tanstack/react-query',()=>({useQuery:()=>({data:null as null})}));
-vi.mock('@/hooks/usePavimentiProgetto',()=>({useEffectiveCompanyId:()=> 'azienda',usePavTemplatePdf:()=>({data:{cover_title:'I tuoi pavimenti',usp:[],chi_siamo:''}})}));
+vi.mock('@/hooks/usePavimentiProgetto',()=>({useEffectiveCompanyId:()=> 'azienda',usePavTemplatePdf:()=>({data:{cover_title:'I tuoi pavimenti',usp:[] as never[],chi_siamo:''}})}));
 vi.mock('@/hooks/usePavimentiPDF',()=>({usePavimentiPDF:()=>({downloadPDF:vi.fn(),previewPDF:vi.fn(),isGenerating:false}),renderPavPreviewBlobUrl:vi.fn()}));
 vi.mock('@/components/moduli/InviaFirmaCard',()=>({InviaFirmaCard:(): null=>null}));
 vi.mock('@/components/moduli/CondizioniDelPreventivoCard',()=>({CondizioniDelPreventivoCard:(): null=>null}));

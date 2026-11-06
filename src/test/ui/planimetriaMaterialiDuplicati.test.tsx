@@ -23,7 +23,7 @@ it('mantiene un solo pannello materiali dopo aperture e chiusure dell’esportaz
  const errors=vi.spyOn(console,'error').mockImplementation(()=>undefined);
  render(<MemoryRouter><Scheda/></MemoryRouter>);
  for(let i=0;i<3;i++) {
-  fireEvent.click(screen.getByRole('button',{name:'Esporta',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Esporta'}));
   fireEvent.click(screen.getByRole('button',{name:'Chiudi esportazione'}));
   expect(screen.getAllByRole('region',{name:'Materiali comuni'})).toHaveLength(1);
  }
