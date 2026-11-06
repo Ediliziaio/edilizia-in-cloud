@@ -82,6 +82,8 @@ jobs:
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/conflittiSenzaRetrySql.test.ts
+          src/test/logic/ricicloPostgrestListener.test.ts
+          src/test/ui/rdoCampoVoce.test.tsx
           src/test/logic/sentinellaMemoria.test.ts
           src/test/logic/sentinellaDatabase.test.ts
           src/test/logic/planimetrieArchivio.test.ts

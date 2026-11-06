@@ -31,7 +31,7 @@ export function attivitaOda(d: {
     a.push({
       id: "prezzi",
       titolo: "Completa i prezzi",
-      dettaglio: `${d.prezziPendenti} voci con prezzo da confermare: i totali sono parziali.`,
+      dettaglio: `${d.prezziPendenti} ${d.prezziPendenti === 1 ? "voce" : "voci"} con prezzo da confermare: i totali sono parziali.`,
       priorita: "attenzione",
     });
   if (aperto && !d.email)

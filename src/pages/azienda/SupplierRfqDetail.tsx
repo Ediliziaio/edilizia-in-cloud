@@ -1,3 +1,4 @@
+import { CampoVoceRdo } from "@/components/rdo/CampoVoceRdo";
 import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAnteprimaDialog";
 import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
 import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
@@ -298,6 +299,7 @@ export default function SupplierRfqDetail() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={addItem.isPending}
                   onClick={() => addItem.mutate({ posizione: items.length })}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi voce
@@ -313,50 +315,16 @@ export default function SupplierRfqDetail() {
               <div className="space-y-2">
                 {items.map((it) => (
                   <div key={it.id} className="flex items-center gap-2">
-                    <Input
-                      aria-label="Descrizione voce richiesta"
-                      defaultValue={it.descrizione}
-                      disabled={!modificabile}
-                      onBlur={(e) => {
-                        if (e.target.value !== it.descrizione) {
-                          updateItem.mutate({ id: it.id, updates: { descrizione: e.target.value } });
-                        }
-                      }}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      aria-label="Quantità richiesta"
-                      min="0.01"
-                      defaultValue={String(it.quantita)}
-                      disabled={!modificabile}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (!Number.isFinite(v) || v <= 0) {
-                          e.target.value = String(it.quantita);
-                          toast.error("Indica una quantità maggiore di zero.");
-                          return;
-                        }
-                        if (v !== Number(it.quantita)) updateItem.mutate({ id: it.id, updates: { quantita: v } });
-                      }}
-                      className="w-20 text-right"
-                    />
-                    <Input
-                      aria-label="Unità di misura richiesta"
-                      defaultValue={it.unita_misura ?? "pz"}
-                      disabled={!modificabile}
-                      onBlur={(e) => {
-                        if (e.target.value !== it.unita_misura) {
-                          updateItem.mutate({ id: it.id, updates: { unita_misura: e.target.value } });
-                        }
-                      }}
-                      className="w-16"
-                    />
+                    <CampoVoceRdo campo="descrizione" valore={it.descrizione} disabled={!modificabile} onSave={value=>updateItem.mutateAsync({id:it.id,updates:{descrizione:value}})} />
+                    <CampoVoceRdo campo="quantita" valore={Number(it.quantita)} disabled={!modificabile} onSave={value=>updateItem.mutateAsync({id:it.id,updates:{quantita:value}})} />
+                    <CampoVoceRdo campo="unita_misura" valore={it.unita_misura ?? "pz"} disabled={!modificabile} onSave={value=>updateItem.mutateAsync({id:it.id,updates:{unita_misura:value}})} />
                     {modificabile && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        aria-label={`Elimina voce ${it.descrizione}`}
+                        disabled={deleteItem.isPending}
                         onClick={() => deleteItem.mutate(it.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
