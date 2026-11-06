@@ -201,7 +201,7 @@ export default function SupplierRfqDetail() {
     pagamento:f.condizioni_pagamento || recapitiFornitore({...suppliers.find(s=>s.id===f.supplier_id),id:f.supplier_id,name:f.suppliers?.name || "Fornitore"}).pagamento,
     commessa:rfq.orders?.order_code,luogo:rfq.orders?.work_address,indirizzoCantiere:rfq.orders?.work_address,destinazioneTipo:rfq.order_id ? "cantiere" : "magazzino", consegna:rfq.data_fabbisogno,scadenzaOfferta:rfq.scadenza_offerte,
     note:[rfq.descrizione,rfq.note].filter(Boolean).join("\n"),
-    righe:items.map(i=>({descrizione:[i.descrizione,i.note].filter(Boolean).join("\n"),unita:i.unita_misura || "pz",quantita:Number(i.quantita),prezzo:null})),
+    righe:items.map(i=>({descrizione:[i.descrizione,i.note].filter(Boolean).join("\n"),unita:i.unita_misura || "pz",quantita:Number(i.quantita),prezzo: null as number | null})),
   });
   return (
     <div className="space-y-4 sm:space-y-6">

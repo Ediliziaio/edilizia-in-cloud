@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { margineVoce } from "@/lib/marginalita/margineVoce";
-const base = { quantity: 2, unit_price: 100, purchase_price: null, standard_cost: null };
+const base = { quantity: 2, unit_price: 100, purchase_price: null as number | null, standard_cost: null as number | null };
 describe("Stime di margine per voce", () => {
   it("un costo mancante non genera un margine del 100%", () => {
     expect(margineVoce(base)).toEqual({ricavo:200,costo:null,margineVoce:null,margineVocePerc:null});

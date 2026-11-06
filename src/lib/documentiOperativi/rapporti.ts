@@ -28,8 +28,8 @@ export function rapportoEconomiaDaRapportini(
           descrizione: `Manodopera - ${p.nome}`,
           unita: "h",
           quantita: p.ore,
-          prezzo: null,
-          iva: null,
+          prezzo: null as number | null,
+          iva: null as number | null,
         }));
       const oggetti = (v: unknown): Record<string, unknown>[] =>
         Array.isArray(v)
@@ -44,8 +44,8 @@ export function rapportoEconomiaDaRapportini(
           descrizione: `Materiale - ${String(m.nome)}`,
           unita: String(m.unita || "pz"),
           quantita: Number(m.quantita),
-          prezzo: null,
-          iva: null,
+          prezzo: null as number | null,
+          iva: null as number | null,
         }));
       const mezzi = oggetti(r.mezzi_usati)
         .filter((m) => m.nome && Number(m.ore) > 0)
@@ -54,8 +54,8 @@ export function rapportoEconomiaDaRapportini(
           descrizione: `Mezzo - ${String(m.nome)}`,
           unita: "h",
           quantita: Number(m.ore),
-          prezzo: null,
-          iva: null,
+          prezzo: null as number | null,
+          iva: null as number | null,
         }));
       return [...manodopera, ...materiali, ...mezzi];
     }),

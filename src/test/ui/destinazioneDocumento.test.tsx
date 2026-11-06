@@ -17,7 +17,7 @@ vi.mock("@/hooks/useWarehouses", () => ({
       },
     ],
     isLoading: false,
-    error: null,
+    error: null as Error | null,
   }),
 }));
 import { DestinazioneDocumento } from "@/components/documentiOperativi/DestinazioneDocumento";

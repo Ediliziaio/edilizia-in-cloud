@@ -1,6 +1,6 @@
 import {describe,it,expect} from "vitest";
 import {erroreVerificaDDT} from "@/lib/ddt/verificaNuovoDDT";
-const base={data:"2026-11-05",stato:"ricevuto",quantita:"",righe:[],haDocumento:false};
+const base={data:"2026-11-05",stato:"ricevuto",quantita:"",righe:[] as {descrizione:string;quantita:number | null}[],haDocumento:false};
 describe("Riepilogo nuovo DDT",()=>{
  it("blocca una ricezione senza documento, righe o quantità",()=>expect(erroreVerificaDDT(base)).toMatch(/Aggiungi il documento/));
  it("ammette una bolla attesa e una foto/PDF da completare",()=>{expect(erroreVerificaDDT({...base,stato:"atteso"})).toBeNull();expect(erroreVerificaDDT({...base,haDocumento:true})).toBeNull();});

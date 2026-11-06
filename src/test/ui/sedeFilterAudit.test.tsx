@@ -10,7 +10,7 @@ describe("Pulsanti dei filtri sedi",()=>{
  it("i tre tipi sono pulsanti selezionabili e deselezionabili",()=>{
   render(<MemoryRouter><SedeFilterBar/></MemoryRouter>);
   for(const tipo of ["showroom","magazzino","ufficio"]){
-   const b=screen.getByRole("button",{name:tipo,exact:true});fireEvent.click(b);
+   const b=screen.getByRole("button",{name:tipo});fireEvent.click(b);
    expect(b).toHaveAttribute("aria-pressed","true");expect(useSedeFilter.getState().tipoSede).toBe(tipo);
    fireEvent.click(b);expect(b).toHaveAttribute("aria-pressed","false");
   }
@@ -18,7 +18,7 @@ describe("Pulsanti dei filtri sedi",()=>{
  it("Reset rimuove insieme tipo e selezione sedi",()=>{
   useSedeFilter.setState({sediSelezionate:["s1"],tipoSede:"ufficio"});
   render(<MemoryRouter><SedeFilterBar/></MemoryRouter>);
-  fireEvent.click(screen.getByRole("button",{name:"Reset",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"Reset"}));
   expect(useSedeFilter.getState().sediSelezionate).toEqual([]);expect(useSedeFilter.getState().tipoSede).toBeNull();
   expect(screen.getByRole("button",{name:"Tutte le sedi"})).toBeTruthy();
  });
@@ -37,6 +37,6 @@ it("il menu permette selezione multipla e ritorno a tutte le sedi",async()=>{
  fireEvent.click(await screen.findByRole("menuitemcheckbox",{name:/Magazzino demo/}));
  expect(useSedeFilter.getState().sediSelezionate).toEqual(["s1","s2"]);
  fireEvent.keyDown(screen.getByRole("button",{name:"2 sedi"}),{key:"ArrowDown"});
- fireEvent.click(await screen.findByRole("menuitemcheckbox",{name:"Tutte le sedi",exact:true}));
+ fireEvent.click(await screen.findByRole("menuitemcheckbox",{name:"Tutte le sedi"}));
  expect(useSedeFilter.getState().sediSelezionate).toEqual([]);
 });
