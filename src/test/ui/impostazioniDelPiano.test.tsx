@@ -63,7 +63,7 @@ describe("ogni pagina delle impostazioni ha una regola per il piano", () => {
 describe("piano Marketing (Ener Italia)", () => {
   it("niente commesse, magazzino, costi, preventivi, fatture, firma, render", () => {
     for (const sezione of [
-      "stati-ordine", "cartelle-documenti", "calendari-lavori", "qr-codici", "fornitori", "categorie-costi",
+      "stati-ordine", "modelli-pdf", "cartelle-documenti", "calendari-lavori", "qr-codici", "fornitori", "categorie-costi",
       "automazioni-finanza", "fatturazione", "listino", "tariffe", "bundle", "margini", "scontistica", "approvazioni",
       "template-preventivi", "condizioni-firma", "firma-elettronica", "catalogo-render", "sopralluoghi",
     ]) {
