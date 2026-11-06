@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useWarehouses, type Warehouse } from "@/hooks/useWarehouses";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 
 type Props = {
@@ -136,10 +137,10 @@ export function DestinazioneDocumento({
       <Label htmlFor="doc-luogo">
         Indirizzo completo di destinazione / ritiro
       </Label>
-      <Input
+      <CampoIndirizzo
         id="doc-luogo"
         value={d.luogo ?? ""}
-        onChange={(e) => onChange({ luogo: e.target.value })}
+        onChange={(luogo) => onChange({ luogo })}
         placeholder="Via, numero civico, CAP, città e provincia"
       />
       <Label htmlFor="doc-referente-consegna">

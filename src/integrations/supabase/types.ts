@@ -21214,6 +21214,7 @@ export type Database = {
           giorni_preavviso: number
           id: string
           is_paid: boolean
+          mezzo_id: string | null
           name: string
           notes: string | null
           order_id: string | null
@@ -21245,6 +21246,7 @@ export type Database = {
           giorni_preavviso?: number
           id?: string
           is_paid?: boolean
+          mezzo_id?: string | null
           name: string
           notes?: string | null
           order_id?: string | null
@@ -21276,6 +21278,7 @@ export type Database = {
           giorni_preavviso?: number
           id?: string
           is_paid?: boolean
+          mezzo_id?: string | null
           name?: string
           notes?: string | null
           order_id?: string | null
@@ -21296,6 +21299,13 @@ export type Database = {
           vat_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "company_costs_mezzo_id_fkey"
+            columns: ["mezzo_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "company_costs_company_id_fkey"
             columns: ["company_id"]
