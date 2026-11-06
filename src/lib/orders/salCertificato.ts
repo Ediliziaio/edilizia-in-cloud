@@ -44,6 +44,9 @@ export function nettoCertificato(c: Pick<SalCertificato, "lavori_contrattuali" |
  * Il certificato nuovo parte da quello prima: stessa ritenuta, acconti pari a ciò che era già maturato.
  * Senza un certificato prima, gli acconti sono il cumulativo dei SAL già emessi (giaMaturato):
  * con zero si riproporrebbe in fattura tutto il già fatturato.
+ * Con SAL senza certificato fra quello prima e questo (06/11/2026): quei SAL hanno fatturato la differenza
+ * dei cumulativi, quindi agli acconti si aggiunge quanto è maturato dopo il certificato (giaMaturato − il suo
+ * lordo). Prima si ripartiva dal certificato e quei SAL si fatturavano due volte.
  */
 export function certificatoProposto(cumulativo: number, precedente: SalCertificato | null, giaMaturato = 0): SalCertificato {
   const lavori = arrotonda(numero(cumulativo) - numero(precedente?.varianti));
@@ -56,7 +59,9 @@ export function certificatoProposto(cumulativo: number, precedente: SalCertifica
     recupero_anticipazione: numero(precedente?.recupero_anticipazione),
     altre_detrazioni: numero(precedente?.altre_detrazioni),
     altre_detrazioni_nota: precedente?.altre_detrazioni_nota ?? null,
-    acconti_precedenti: precedente ? restanoCertificato(precedente) : numero(giaMaturato),
+    acconti_precedenti: precedente
+      ? arrotonda(restanoCertificato(precedente) + Math.max(0, numero(giaMaturato) - lordoCertificato(precedente)))
+      : numero(giaMaturato),
   };
   return { ...bozza, netto: nettoCertificato(bozza) };
 }
@@ -68,6 +73,23 @@ export function leggiImportoItaliano(testo: string): number {
   if (t.includes(",")) return /^\d{1,3}(\.\d{3})*,\d*$|^\d+,\d*$/.test(t) ? Number(t.replace(/\./g, "").replace(",", ".")) : NaN;
   if (/^\d{1,3}(\.\d{3})+$/.test(t)) return Number(t.replace(/\./g, ""));
   return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+}
+
+/**
+ * Perché un certificato non si cambia più (06/11/2026): la sua rata è già fatturata o incassata, oppure un
+ * certificato dopo parte dai suoi numeri. Cambiarlo vorrebbe dire una fattura che non torna più col certificato.
+ */
+export function certificatoBloccato(
+  sal: { numero_sal: number; installment_id?: string | null },
+  tutti: ReadonlyArray<{ numero_sal: number; stato: string; sal_certificati?: unknown }>,
+  rate: ReadonlyArray<{ id?: string | null; documento_fiscale_id?: string | null; is_paid?: boolean | null }> = [],
+): string | null {
+  const rata = sal.installment_id ? rate.find((r) => r.id === sal.installment_id) : undefined;
+  if (rata?.documento_fiscale_id) return "La rata di questo SAL è già fatturata: il certificato resta com'è.";
+  if (rata?.is_paid) return "La rata di questo SAL è già incassata: il certificato resta com'è.";
+  const dopo = tutti.find((s) => s.numero_sal > sal.numero_sal && s.stato !== "bozza" && certificatoDelSal(s.sal_certificati));
+  if (dopo) return `Il certificato del SAL n. ${dopo.numero_sal} parte da questo: per cambiarlo, cambia prima quello.`;
+  return null;
 }
 
 /** Il certificato da cui parte quello nuovo: l'ultimo di un SAL emesso prima di questo. */

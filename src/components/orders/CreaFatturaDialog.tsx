@@ -65,6 +65,7 @@ import {
   PROFILI_FATTURA,
   type ProfiloFattura,
   avvisiClausole,
+  clausoleApplicabili,
   clausola,
   clausolePerProfilo,
   clausolePredefinite,
@@ -672,7 +673,9 @@ export function CreaFatturaDialog({
   );
   const profilo = profiloScelto ?? profiloSuggerito;
   const clausoleCatalogo = clausoleScelte ?? clausolePredefinite(profilo, defaultVat);
-  const clausoleAttive = [...clausoleCatalogo, ...clausoleMie.map((c) => c.id)];
+  // Il netto del certificato è già senza ritenuta: la trattenuta a garanzia non si applica di nuovo.
+  const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
+  const clausoleAttive = clausoleApplicabili([...clausoleCatalogo, ...clausoleMie.map((c) => c.id)], { ritenutaGiaTolta });
   const testoClausola = (id: string) => {
     if (clausola(id)?.effetto === "trattenuta") {
       const t = composta.trattenute.find((x) => x.id === id);
@@ -710,8 +713,6 @@ export function CreaFatturaDialog({
   const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
   const fonteMostrata = fonteAperta ?? righeFattura.length === 0;
   const totali = composta.totali;
-  // Il netto del certificato è già senza ritenuta: va detto, o la si toglie due volte.
-  const ritenutaGiaTolta = mode === "sal" && !!salAttivo && !!certificatoDelSal(salAttivo.sal_certificati);
   const avvisi = avvisiClausole(clausoleAttive, { ritenutaGiaTolta });
 
   const scriviRiga = (id: string, patch: TestiRiga) => setTestiRighe((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -990,13 +991,15 @@ export function CreaFatturaDialog({
     const attiva = clausoleAttive.includes(id);
     const testo = testoClausola(id);
     const c = clausola(id);
+    const giaNelCertificato = ritenutaGiaTolta && c?.effetto === "trattenuta";
+    if (giaNelCertificato) aiuto = "Già tolta dal certificato di pagamento del SAL: qui non si toglie una seconda volta.";
     return (
       <div key={id} className={`px-3 py-2 space-y-1.5 ${attiva ? "" : "opacity-70"}`}>
         <div className="flex items-start gap-2">
           {rimuovibile ? (
             <Check className="h-4 w-4 mt-0.5 text-primary shrink-0" />
           ) : (
-            <Checkbox id={`cl-${id}`} checked={attiva} onCheckedChange={() => toggleClausola(id)} className="mt-0.5" />
+            <Checkbox id={`cl-${id}`} checked={attiva} disabled={giaNelCertificato} onCheckedChange={() => toggleClausola(id)} className="mt-0.5" />
           )}
           <label htmlFor={`cl-${id}`} className="flex-1 min-w-0 cursor-pointer">
             <span className="text-xs font-medium">{titolo}</span>

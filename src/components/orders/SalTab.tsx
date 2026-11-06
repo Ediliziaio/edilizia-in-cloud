@@ -31,7 +31,7 @@ import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
 import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
-import {certificatoDelSal,certificatoPrecedente} from "@/lib/orders/salCertificato";
+import {certificatoDelSal,certificatoBloccato, certificatoPrecedente} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
 
 interface SalVoce {
@@ -546,6 +546,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       certificato={certificatoDelSal(sal.sal_certificati)}
                       precedente={certificatoPrecedente(sal,salList)}
                       giaMaturato={maturatoPrecedente(sal,salList)}
+                      bloccato={certificatoBloccato(sal,salList,installments ?? [])}
                       puoModificare={permissions.canEditOrders && !blocked}/>
                     {(() => {
                       const precedente = maturatoPrecedente(sal, salList);

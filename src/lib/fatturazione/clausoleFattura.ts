@@ -313,6 +313,15 @@ export function componiFattura(
   };
 }
 
+/**
+ * Le clausole che si applicano davvero (06/11/2026): con il certificato di pagamento la ritenuta è già
+ * fuori dal netto, e una trattenuta a garanzia la toglierebbe una seconda volta. Prima era solo un avviso.
+ */
+export function clausoleApplicabili(clausoleAttive: string[], contesto?: { ritenutaGiaTolta?: boolean }): string[] {
+  if (!contesto?.ritenutaGiaTolta) return clausoleAttive;
+  return clausoleAttive.filter((id) => clausola(id)?.effetto !== "trattenuta");
+}
+
 /** Le clausole che si contraddicono. */
 /**
  * `ritenutaGiaTolta`: la fattura nasce da un SAL con il certificato di pagamento, dove il
