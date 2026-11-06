@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  giaFatturatoFase,
   documentiDaArchivio,
   fatturatoDaDocumenti,
   fuoriDalleFasi,
@@ -171,5 +172,24 @@ describe("Da dove parte il popup", () => {
     expect(modoSuggerito({ ...nessuno, fasiConQuota: true, rataDaFatturare: true })).toBe("importo");
     expect(modoSuggerito({ ...nessuno, fasiConQuota: true })).toBe("fasi");
     expect(modoSuggerito(nessuno)).toBe("importo");
+  });
+});
+
+describe("Il SAL fatturato scala le fasi", () => {
+  const fasi = [{ id: "a", name: "Murature" }, { id: "b", name: "Impianti" }];
+  const doc = (righe: unknown[]) => ({ tipo: "fattura", stato: "emessa", deleted_at: null, totale_documento: 0, importo_associato: 0, righe }) as never;
+  const riga = (id: string, descrizione: string, imponibile: number) => ({ id, descrizione, quantita: 1, prezzo_unitario: imponibile, sconto_percentuale: 0, aliquota_iva: 22 });
+  it("una riga col nome della fase va su quella fase", () => {
+    const f = fatturatoDaDocumenti([doc([riga("sal:s1:0", "SAL n. 1 — Murature", 300)])], fasi);
+    expect(f.perFase.get("a")).toBe(300);
+    expect(f.salSenzaFase).toBe(0);
+    expect(f.salFatturati.has("s1")).toBe(true);
+  });
+  it("a corpo pesa su tutte in proporzione al venduto, e la fase non ripropone la stessa quota", () => {
+    const f = fatturatoDaDocumenti([doc([riga("sal:s1:0", "SAL n. 1 — lavori eseguiti", 100)])], fasi);
+    expect(f.salSenzaFase).toBe(100);
+    expect(giaFatturatoFase(f, "a", 750, 1000)).toBe(75);
+    expect(giaFatturatoFase(f, "b", 250, 1000)).toBe(25);
+    expect(quotaDaFatturare(750, 10, giaFatturatoFase(f, "a", 750, 1000))).toBe(0);
   });
 });

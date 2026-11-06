@@ -50,7 +50,7 @@ import { compressImage } from "@/lib/campo/compressImage";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
-import { fasiLavorateDelRapportino, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
+import { avanzateDelRapportino, fasiLavorateDelRapportino, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
 import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
@@ -151,7 +151,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     percentuale: 0, fasiDichiarate: {} as Record<string, number>, materialiSel: {} as Record<string, RapportinoMaterialDraft>,
     mezziSel: {} as Record<string, RigaMezzoGiornata>, fotoUrls: [] as string[], fotoFase: {} as Record<string, string>,
     campiValori: {} as Record<string, unknown>,
-    sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
+    sottofasiSpunte: [] as string[], sottofasiLavorate: [] as string[], sottofasiAvanzate: {} as Record<string, { quantita?: number; percentuale?: number }>, presenzeSel: {} as Record<string, CampoHoursDraft>, firmaClienteNome: "",
   });
   const [ripresaDecisa, setRipresaDecisa] = useState(!bozza.hasSavedDraft);
   const bozzaAttivata = useRef(false);
@@ -215,10 +215,24 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const [sottofasiSpunte, setSottofasiSpunte] = useState<string[]>([]);
   // Quelle su cui si è lavorato oggi senza finirle: danno l'inizio reale della sottofase.
   const [sottofasiLavorate, setSottofasiLavorate] = useState<string[]>([]);
+  const [sottofasiAvanzate, setSottofasiAvanzate] = useState<Record<string, { quantita?: number; percentuale?: number }>>({});
+  // Quantità e unità delle sottofasi, senza i costi: chi è in cantiere dichiara quanto ha fatto. Senza, si dice la percentuale.
+  const quantitaSottofasi = useQuery({
+    queryKey: ["campo-quantita-sottofasi", orderId],
+    enabled: !!orderId,
+    staleTime: 300_000,
+    retry: false,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("campo_quantita_sottofasi", { p_order_id: orderId });
+      if (error) return new Map<string, { quantita: number; unita: string | null }>();
+      return new Map(((data ?? []) as Array<{ subphase_id: string; quantita: number; unita: string | null }>).map((r) => [r.subphase_id, { quantita: Number(r.quantita), unita: r.unita }]));
+    },
+  });
   // Cosa direbbe il rapportino per ogni fase dichiarata, sottofasi comprese (anche per il riepilogo).
   const percentualiFinali = useMemo(
-    () => new Map(fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate).map((v) => [v.phase_id, v.percentuale] as const)),
-    [fasiDichiarate, sottofasiDi, sottofasiSpunte],
+    () => new Map(fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate).map((v) => [v.phase_id, v.percentuale] as const)),
+    [fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate],
   );
 
   // Chi dichiara l'avanzamento? L'OPERAIO racconta la giornata (ore, foto,
@@ -286,8 +300,8 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome, campiValori }),
-    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, presenzeSel, firmaClienteNome, campiValori]);
+  const bozzaCorrente = useMemo(() => ({ descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori }),
+    [descrizione, meteo, oreLavorate, oreStraordinario, percentuale, fasiDichiarate, materialiSel, mezziSel, fotoUrls, fotoFase, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate, presenzeSel, firmaClienteNome, campiValori]);
   useEffect(() => {
     if (!ripresaDecisa || !companyId || !user?.id) return;
     if (bozzaAttivata.current || Object.keys(bozzaCorrente.campiValori).length || bozzaCorrente.descrizione.trim() || oreModificate.current || bozzaCorrente.fotoUrls.length || Object.keys(bozzaCorrente.materialiSel).length || Object.keys(bozzaCorrente.presenzeSel).length || Object.keys(bozzaCorrente.fasiDichiarate).length || Object.keys(bozzaCorrente.mezziSel).length || bozzaCorrente.sottofasiSpunte.length || bozzaCorrente.sottofasiLavorate.length || bozzaCorrente.firmaClienteNome.trim()) {
@@ -302,7 +316,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     setOreStraordinario(Number(b.oreStraordinario) || 0); setMeteo(b.meteo || ""); setPercentuale(Number(b.percentuale) || 0);
     setFasiDichiarate(b.fasiDichiarate || {}); setMaterialiSel(b.materialiSel || {}); setMezziSel(b.mezziSel || {});
     setFotoUrls(Array.isArray(b.fotoUrls) ? b.fotoUrls : []); setFotoPreviews(Array.isArray(b.fotoUrls) ? b.fotoUrls : []);
-    setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []);
+    setFotoFase(b.fotoFase || {}); setSottofasiSpunte(Array.isArray(b.sottofasiSpunte) ? b.sottofasiSpunte : []); setSottofasiLavorate(Array.isArray(b.sottofasiLavorate) ? b.sottofasiLavorate : []); setSottofasiAvanzate(b.sottofasiAvanzate && typeof b.sottofasiAvanzate === "object" ? b.sottofasiAvanzate : {});
     setPresenzeSel(b.presenzeSel || {}); setFirmaClienteNome(b.firmaClienteNome || ""); setCampiValori(b.campiValori || {});
     // Le firme non vengono conservate né riutilizzate da una bozza.
     setFirmaCliente(null); setFirmaOperaio(null); setRipresaDecisa(true);
@@ -441,6 +455,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
         setSottofasiSpunte(sottofasiSpuntate(r.fasi_lavorate));
         setSottofasiLavorate(sottofasiSpuntate(r.fasi_lavorate, "sottofasi_lavorate"));
+        setSottofasiAvanzate(avanzateDelRapportino(r.fasi_lavorate));
         setFotoFase(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).flatMap(f => (Array.isArray(f.foto) ? f.foto : []).map((u): [string, string] => [u, f.phase_id]))));
       }
       if (Array.isArray(r.materiali_usati)) {
@@ -756,7 +771,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
         },
         fotoUrls,
         fotoFase,
-        base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate),
+        base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte, sottofasiLavorate, sottofasiAvanzate),
       });
 
       // Il bottone dice «Invia e chiudi la giornata»: prima l'uscita, così un invio fallito lascia
@@ -1219,6 +1234,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                         onLavorata={(id, si) =>
                           setSottofasiLavorate(prev => (si ? [...new Set([...prev, id])] : prev.filter(x => x !== id)))
                         }
+                        quantitaDi={quantitaSottofasi.data}
+                        avanzate={sottofasiAvanzate}
+                        onAvanzata={(id, dato) => setSottofasiAvanzate(prev => {
+                          const { [id]: _via, ...resto } = prev;
+                          return dato ? { ...resto, [id]: dato } : resto;
+                        })}
                       />
                     );
                   }

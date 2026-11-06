@@ -1,3 +1,4 @@
+import { ROOM_VISUAL_PHOTOS } from "./roomVisualPhotos.ts";
 /**
  * Foto di riferimento condivise del render stanza.
  *
@@ -39,6 +40,7 @@ export const ROOM_CLADDING_FOLDER = "facades";
 
 /** Rivestimento pareti (`rivestimento_pareti.tipo`) — MATERIA, a colori. */
 export const ROOM_CLADDING_PHOTOS: PhotoTable = {
+  ...ROOM_VISUAL_PHOTOS.cladding,
   mattone_vista: { folder: ROOM_CLADDING_FOLDER, filename: "Parete-In-Mattoni-Antichi.webp", text: "exposed brick: tumbled clay bricks in running bond with recessed mortar joints and natural brick-to-brick variation" },
   pietra_naturale: { folder: ROOM_CLADDING_FOLDER, filename: "Muro-Rustico-In-Pietra-Naturale.webp", text: "natural stone cladding: irregular split stones of mixed sizes in rough courses, recessed joints and real relief" },
   intonaco_spatolato: { folder: ROOM_CLADDING_FOLDER, filename: "Intonaco-Rustico-Spatolato-In-Primo-Piano.webp", text: "hand-trowelled textured plaster: thick spatula strokes and raised ridges that catch grazing light, no joints" },
@@ -46,10 +48,7 @@ export const ROOM_CLADDING_PHOTOS: PhotoTable = {
 };
 
 /** Opzioni del rivestimento senza foto, col motivo. */
-export const ROOM_SENZA_FOTO: Record<string, string> = {
-  "rivestimento_pareti.boiserie_legno": "nessuna foto nel set (da generare, vedi docs/render-foto-da-generare/pavimento-stanza.md)",
-  "rivestimento_pareti.pannelli_3d": "nessuna foto nel set (da generare, vedi docs/render-foto-da-generare/pavimento-stanza.md)",
-};
+export const ROOM_SENZA_FOTO: Record<string, string> = {};
 
 export const ROOM_LIGHTING_FOLDER = "lighting";
 
@@ -58,11 +57,12 @@ export const ROOM_LIGHTING_FOLDER = "lighting";
  * binario ha una foto; gli altri tipi (faretti incassati, lampadario, applique…) restano al testo.
  */
 export const ROOM_LIGHTING_PHOTOS: PhotoTable = {
+  ...ROOM_VISUAL_PHOTOS.lighting,
   binario: { folder: ROOM_LIGHTING_FOLDER, filename: "Binario-Con-Faretti-Orientabili-BN.webp", text: "slim surface-mounted ceiling track with several cylindrical spot heads on short swivel stems, each aimed in a different direction" },
 };
 
 const COPY_CLADDING = `Copy the wall surface only: texture, relief, joint pattern and scale; never copy this sample's framing or light; ${COLOUR_RULE}`;
-const COPY_LIGHTING = `Copy only the light fitting: the slim track and how its spot heads are hung and aimed; ignore the room, the walls and the daylight of this sample — the track length, its position and the number of heads come from the written specification; ${BLACK_AND_WHITE_RULE}`;
+const COPY_LIGHTING = `Copy only the selected light fitting and its mounting construction; ignore the room, the walls and the daylight of this sample — the track length, its position and the number of heads come from the written specification; ${BLACK_AND_WHITE_RULE}`;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

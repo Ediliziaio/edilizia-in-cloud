@@ -5,16 +5,12 @@ import type { Database } from './types';
 import { traduciErrorePostgrest } from "@/lib/userErrorMessage";
 import { segnalaBloccoDaRisposta } from "@/lib/creditoEsaurito";
 import { authStorage } from "./authStorage";
+import { supabaseRequestTimeout } from "./requestTimeout";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const SUPABASE_REST_TIMEOUT_MS = 25_000;
-// v8.5 — Edge function generate-render ora risponde 202 in 2-3s e prosegue
-// in background (EdgeRuntime.waitUntil). 60s e' abbondante per la parte
-// sync (auth + validation + deduct credit + idempotency check + mark
-// processing). Il render finale arriva via polling su render_sessions —
-// nessun timeout long-running piu' sul client.
-const SUPABASE_FUNCTION_TIMEOUT_MS = 60_000;
+// I job asincroni rispondono rapidamente; i motori dedicati Alta possono
+// restare sincroni fino a 140s. Le scadenze sono distinte in requestTimeout.
 
 // Sicurezza: le variabili d'ambiente sono obbligatorie — nessun fallback hardcoded
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
@@ -27,17 +23,7 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 // import { supabase } from "@/integrations/supabase/client";
 
 function getRequestTimeout(input: RequestInfo | URL): number {
-  const url = typeof input === "string"
-    ? input
-    : input instanceof URL
-      ? input.toString()
-      : input.url;
-
-  // Le edge function AI possono legittimamente impiegare piu tempo.
-  // Le query REST/RPC invece non devono lasciare il portale bloccato per un minuto.
-  return url.includes("/functions/v1/")
-    ? SUPABASE_FUNCTION_TIMEOUT_MS
-    : SUPABASE_REST_TIMEOUT_MS;
+  return supabaseRequestTimeout(input);
 }
 
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {

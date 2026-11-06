@@ -14,12 +14,16 @@
  *   · una fase tolta dall'elenco scioglie i suoi collegamenti: finiscono tra le cose generali (se resta una
  *     fase sola, passano a quella).
  */
+export type AvanzataRapportino = { id: string; quantita?: number; percentuale?: number };
+
 // Un `type` e non un'interface: finisce in una colonna jsonb, e solo un type letterale è assegnabile a `Json`.
 export type FaseLavorataRapportino = {
   phase_id: string;
   percentuale: number;
   /** Solo per le fasi con sottofasi: quelle spuntate in questo rapportino (le scrive `fasiLavorateDelRapportino`). */
   sottofasi_fatte?: string[];
+  /** A che punto è arrivata una sottofase non finita: quanto è stato fatto oggi, o la percentuale raggiunta. */
+  sottofasi_avanzate?: AvanzataRapportino[];
   /** Il nome com'era al momento del rapportino: resta leggibile anche se la fase viene rinominata. */
   nome: string;
   foto?: string[];

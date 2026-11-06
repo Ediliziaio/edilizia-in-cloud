@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { controlloUnitaMisura, messaggioUnitaMancanti } from "../_shared/prezzarioUnita.ts";
 
 /**
  * prezzario-import — ingestione di un prezzario regionale ufficiale nelle
@@ -20,7 +21,13 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
  *     capitoli: [{ codice, titolo, livello, ordine, parentCodice }],
  *     voci:     [{ codice, descrizione, unita_misura, prezzo,
  *                  incidenza_manodopera_pct, incidenza_sicurezza_pct,
- *                  capitoloCodice, ordine }] }
+ *                  capitoloCodice, ordine }],
+ *     consenti_senza_unita?: boolean }
+ *
+ * Unità di misura (05/11/2026): se meno del 90% delle voci valide ha l'unità,
+ * risponde 422 PRIMA di toccare il prezzario esistente, salvo
+ * `consenti_senza_unita: true` (conferma esplicita dell'admin). Così sono
+ * entrati 16 prezzari senza unità: vedi `_shared/prezzarioUnita.ts`.
  *
  * Risposta: { fonte_id, capitoli_inseriti, voci_inserite, voci_scartate }
  */
@@ -57,6 +64,7 @@ interface ImportPayload {
   fonte?: Partial<FonteInput>;
   capitoli?: CapitoloInput[];
   voci?: VoceInput[];
+  consenti_senza_unita?: boolean;
 }
 
 // Chunk per bulk insert: sta sotto i limiti di payload/righe di PostgREST.
@@ -100,6 +108,13 @@ Deno.serve(async (req: Request) => {
     const vociIn = Array.isArray(body.voci) ? body.voci : [];
     if (vociIn.length === 0) {
       return errorResponse("voci deve essere un array non vuoto", 400, corsHeaders);
+    }
+
+    // Prima di qualunque scrittura: un re-import CANCELLA le voci esistenti
+    // (punto 3), e un file senza unità rovinerebbe un prezzario buono.
+    const unita = controlloUnitaMisura(vociIn);
+    if (unita.bloccante && body.consenti_senza_unita !== true) {
+      return errorResponse(`Import fermato: ${messaggioUnitaMancanti(unita)}`, 422, corsHeaders);
     }
 
     const versione =

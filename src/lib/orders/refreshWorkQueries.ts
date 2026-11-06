@@ -1,13 +1,30 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { refreshRapportinoQueries } from "./refreshRapportinoQueries";
 
+const SUBITO = ["order_work_phases", "order_work_subphases", "order-phases-progress", "order-avanzamento"];
+
 /** Read models shared by office and Campo. Prefixes preserve user/company suffixes. */
+/**
+ * Con `leggero` (un cambio a fasi e sottofasi che non tocca voci, costi e rapportini) si ricaricano subito solo
+ * fasi, sottofasi e avanzamento; il resto si segna da rileggere quando serve. Su una commessa da 600 voci
+ * ricaricare tutto a ogni clic voleva dire secondi di attesa (05/11/2026).
+ */
 export function refreshWorkQueries(
   qc: QueryClient,
   orderId: string | null | undefined,
   companyId?: string | null,
+  opzioni: { leggero?: boolean } = {},
 ) {
   if (!orderId) return;
+  if (opzioni.leggero) {
+    for (const key of SUBITO) void qc.invalidateQueries({ queryKey: [key, orderId] });
+    void qc.invalidateQueries({ predicate: ({ queryKey }) => queryKey[1] === orderId && !SUBITO.includes(String(queryKey[0])), refetchType: "none" });
+    // Le date delle sottofasi spostano quelle della fase: calendario dei cantieri, testata e app di cantiere.
+    void qc.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
+    void qc.invalidateQueries({ predicate: ({ queryKey }) => queryKey[0] === "calendar-orders" && (!companyId || queryKey[2] === companyId) });
+    void qc.invalidateQueries({ predicate: ({ queryKey }) => String(queryKey[0]).startsWith("campo-"), refetchType: "none" });
+    return;
+  }
   refreshRapportinoQueries(qc, orderId, companyId);
   void qc.invalidateQueries({
     predicate: ({ queryKey }) =>

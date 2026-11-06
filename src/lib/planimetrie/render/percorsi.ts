@@ -21,6 +21,6 @@ export const percorsiPlanimetrie = {
     return `${BASE}/nuova?${q.toString()}`;
   },
   /** Render di una stanza della pianta. */
-  renderStanza: (id: string, localeId: string, scelta: { livelloId: string; ambito: string }) =>
-    `${BASE}/${id}/stanza/${encodeURIComponent(localeId)}?livello=${encodeURIComponent(scelta.livelloId)}&ambito=${encodeURIComponent(scelta.ambito)}`,
+  renderStanza: (id: string, localeId: string, scelta: { livelloId: string; ambito: string; materialiAmbito?: string }) =>
+    `${BASE}/${id}/stanza/${encodeURIComponent(localeId)}?livello=${encodeURIComponent(scelta.livelloId)}&ambito=${encodeURIComponent(scelta.ambito)}${scelta.materialiAmbito && scelta.materialiAmbito !== scelta.ambito ? `&materiali_ambito=${encodeURIComponent(scelta.materialiAmbito)}` : ""}`,
 };

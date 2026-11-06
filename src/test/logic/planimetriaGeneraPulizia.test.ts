@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costruisciPiani } from "../../../supabase/functions/planimetria-genera/costruisci";
+import { applicaMisuraLocale, costruisciPiani } from "../../../supabase/functions/planimetria-genera/costruisci";
 import { controllaScala, controllaSuperfici, pulisciLocali } from "../../../supabase/functions/planimetria-genera/pulizia";
 import type { RispostaAI } from "../../../supabase/functions/planimetria-genera/rispostaAI";
 import { generaPlanimetria } from "../../../supabase/functions/planimetria-genera/genera";
@@ -65,9 +65,62 @@ describe("controllo dei metri quadri scritti", () => {
   it("se le stanze sbagliano in modo diverso avvisa e lascia la scala da confermare, senza muovere nulla", () => {
     const g = base(100, 13, 1);
     const c = controllaSuperfici(g);
-    expect(c.planimetria).toBe(g.planimetria);
+    expect(c.planimetria.livelli[0].fatto.locali.map((l) => l.contorno)).toEqual(g.planimetria.livelli[0].fatto.locali.map((l) => l.contorno));
     expect(c.generazione.scala?.da_confermare).toBe(true);
     expect(c.generazione.avvisi.some((a) => /non tornano/.test(a))).toBe(true);
+  });
+
+  it("segnala una sola stanza sbagliata anche se la mediana non richiede di cambiare scala", () => {
+    const g = base(25, 6, 1);
+    const c = controllaSuperfici(g);
+    expect(c.generazione.superfici_da_rivedere?.map((s) => s.nome)).toEqual(["Camera"]);
+    expect(c.generazione.scala?.da_confermare).toBe(true);
+    expect(c.planimetria.livelli[0].fatto.locali[1].origineMisure?.contorno).toBe("stimata");
+    expect(c.planimetria.livelli[0].fatto.locali.map((l) => l.contorno)).toEqual(g.planimetria.livelli[0].fatto.locali.map((l) => l.contorno));
+  });
+
+  it("due errori opposti non si annullano nella media e restano da verificare", () => {
+    const c = controllaSuperfici(base(50, 6, 1));
+    expect(c.generazione.superfici_da_rivedere).toHaveLength(2);
+  });
+
+  it("confermare una parete non promuove il contorno discordante di un'altra stanza", () => {
+    const g = controllaSuperfici(base(25, 6, 1));
+    const c = applicaMisuraLocale(g, "l1", "x", 500);
+    expect(c.generazione.scala).toMatchObject({ metodo: "misura_utente", da_confermare: false });
+    expect(c.planimetria.livelli[0].fatto.locali[1].origineMisure?.contorno).toBe("stimata");
+    expect(c.generazione.superfici_da_rivedere?.map((s) => s.nome)).toEqual(["Camera"]);
+    expect(c.generazione.avvisi.filter((a) => a.startsWith("Alcune superfici"))).toHaveLength(1);
+  });
+
+  it("rilegge i contorni discordanti e consegna la lettura che torna con i metri quadri", async () => {
+    let chiamate = 0;
+    const esito = await generaPlanimetria({ ingresso: "documento", file: { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", larghezza: 1000, altezza: 1000 } }, async () => {
+      chiamate++;
+      return { modello: "prova", testo: JSON.stringify(risposta([
+        stanza("Soggiorno", 100, 100, 600, 600, { superficie_scritta_mq: 25 }),
+        stanza("Camera", 620, 100, chiamate === 1 ? 1020 : 820, 400, { superficie_scritta_mq: 6 }),
+      ], { quote: [{ da: [100, 100], a: [600, 100], valore_m: 5 }] })) };
+    });
+    expect(chiamate).toBe(2);
+    expect(esito.ok).toBe(true);
+    if (esito.ok) expect(esito.pianta.generazione.superfici_da_rivedere ?? []).toHaveLength(0);
+  });
+
+  it("omettere i metri quadri nella seconda lettura non nasconde lo stesso contorno sbagliato", async () => {
+    let chiamate = 0;
+    const esito = await generaPlanimetria({ ingresso: "documento", file: { dataUrl: "data:image/png;base64,AAAA", mime: "image/png", larghezza: 1000, altezza: 1000 } }, async () => {
+      chiamate++;
+      return { modello: "prova", testo: JSON.stringify(risposta([
+        stanza("Soggiorno", 100, 100, 600, 600, { superficie_scritta_mq: chiamate === 1 ? 25 : null }),
+        stanza("Camera", 620, 100, 1020, 400, { superficie_scritta_mq: chiamate === 1 ? 6 : null }),
+      ], { quote: [{ da: [100, 100], a: [600, 100], valore_m: 5 }] })) };
+    });
+    expect(chiamate).toBe(2);
+    if (!esito.ok) throw new Error("La pianta deve restare modificabile");
+    expect(esito.pianta.generazione.superfici_scritte.l2).toBe(6);
+    expect(esito.pianta.generazione.superfici_da_rivedere?.map((s) => s.nome)).toEqual(["Camera"]);
+    expect(esito.pianta.planimetria.livelli[0].fatto.locali[1].origineMisure?.contorno).toBe("stimata");
   });
 });
 
@@ -149,7 +202,7 @@ describe("seconda lettura se la scala è sospetta", () => {
     const risposte = [lettura(12), lettura(4)];
     let n = 0;
     const esito = await generaPlanimetria(req, async () => ({ testo: risposte[n++], modello: "prova" }));
-    expect(n).toBe(2);
+    expect(n).toBe(3);
     expect(esito.ok).toBe(true);
     if (esito.ok) expect(esito.pianta.generazione.scala?.da_confermare).toBeFalsy();
   });
@@ -157,7 +210,7 @@ describe("seconda lettura se la scala è sospetta", () => {
   it("se la seconda è ancora sospetta tiene la prima, da confermare", async () => {
     let n = 0;
     const esito = await generaPlanimetria(req, async () => { n++; return { testo: lettura(12), modello: "prova" }; });
-    expect(n).toBe(2);
+    expect(n).toBe(3);
     expect(esito.ok).toBe(true);
     if (esito.ok) expect(esito.pianta.generazione.scala?.da_confermare).toBe(true);
   });
@@ -165,6 +218,6 @@ describe("seconda lettura se la scala è sospetta", () => {
   it("non rilegge se la scala è buona", async () => {
     let n = 0;
     await generaPlanimetria(req, async () => { n++; return { testo: lettura(4), modello: "prova" }; });
-    expect(n).toBe(1);
+    expect(n).toBe(2);
   });
 });

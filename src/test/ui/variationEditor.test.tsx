@@ -84,4 +84,25 @@ describe("Dettaglio voci e riservatezza",()=>{
     fireEvent.click(screen.getByRole("button",{name:"Modifica bozza"}));fireEvent.change(screen.getByLabelText("Descrizione dei lavori *"),{target:{value:"Nuovo contenuto cliente"}});fireEvent.click(screen.getByRole("button",{name:"Rivedi"}));
     expect(screen.queryByRole("link",{name:"Scarica PDF pronto"})).not.toBeInTheDocument();
   });
+  it("lavoro extra: si sceglie dove va nelle Lavorazioni e chi lo farà; la riduzione non lo chiede", () => {
+    function Prova({ kind }: { kind: "aggiunta" | "riduzione" }) {
+      const [draft, setDraft] = useState<ReturnType<typeof emptyVariationDraft>>({ ...emptyVariationDraft(), kind, title: "Pavimento cucina" });
+      return <><VariationEditor draft={draft} setDraft={setDraft} phases={[{ id: "f1", name: "Pavimenti" }]} context={{}} busy={false} review={false} onBack={() => {}}
+        chiPuo={{ persone: [{ id: "p1", nome: "Mario Rossi" }], ditte: [{ id: "d1", nome: "Squadra A", squadra: true }, { id: "d2", nome: "Ditta B" }] }} />
+        <output data-testid="stato">{JSON.stringify({ destinazione: draft.destinazione ?? null, chi: draft.chi ?? [] })}</output></>;
+    }
+    const { unmount } = render(<Prova kind="aggiunta" />);
+    expect(screen.getByRole("button", { name: /Una fase nuova «Lavoro extra · Pavimento cucina»/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Dentro la lavorazione di riferimento/ })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Lavorazione di riferimento"), { target: { value: "f1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Dentro «Pavimenti»/ }));
+    fireEvent.change(screen.getByLabelText("Chi lo farà"), { target: { value: "p:p1" } });
+    fireEvent.change(screen.getByLabelText("Chi lo farà"), { target: { value: "d:d1" } });
+    expect(JSON.parse(screen.getByTestId("stato").textContent!)).toEqual({ destinazione: "fase", chi: [{ tipo: "persona", id: "p1", nome: "Mario Rossi" }, { tipo: "ditta", id: "d1", nome: "Squadra A" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Togli Mario Rossi" }));
+    expect(JSON.parse(screen.getByTestId("stato").textContent!).chi).toHaveLength(1);
+    unmount();
+    render(<Prova kind="riduzione" />);
+    expect(screen.queryByRole("group", { name: "Nelle Lavorazioni" })).not.toBeInTheDocument();
+  });
 });

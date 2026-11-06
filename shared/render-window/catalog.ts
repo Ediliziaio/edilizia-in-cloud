@@ -105,8 +105,8 @@ export const WIZARD_TIPI = [
 
 export const WIZARD_PROFILI = [
   { id: "pvc", referenceImage: "Profilo-PVC-5-Camere-Sezione-Bianco.webp", label: "PVC", desc: "Profilo isolante classico 70-80 mm, adatto a sostituzione residenziale." },
-  { id: "alluminio", label: "Alluminio", desc: "Estruso 55 mm, proporzioni più snelle, thermal break a vista." },
-  { id: "minimal", label: "Alluminio Minimal", desc: "Profilo architettonico ultra-sottile 45 mm con sightline minimale (look premium)." },
+  { id: "alluminio", referenceImage: "Profilo-Alluminio-2ante-Nodo-Asimmetrico-Bianco.jpeg", label: "Alluminio", desc: "Estruso 55 mm, proporzioni più snelle, thermal break a vista." },
+  { id: "minimal", referenceImage: "Profilo-Alluminio-Minimal-Angolo-Vetrocamera.webp", label: "Alluminio Minimal", desc: "Profilo architettonico ultra-sottile 45 mm con sightline minimale (look premium)." },
   { id: "legno", referenceImage: "Profilo-Legno-Euro68-Sezione-Vetrocamera.webp", label: "Legno", desc: "Resa calda e tradizionale con profilo 82 mm più materico." },
   { id: "legno_alluminio", referenceImage: "Profilo-Legno-Alluminio-Sezione-Tripla-Vetrata.webp", label: "Legno-Alluminio", desc: "Legno interno 82 mm + protezione alluminio esterna." },
 ] as const;
@@ -748,6 +748,7 @@ export type WizardCerniere = (typeof WIZARD_CERNIERE_OPTIONS)[number]["id"];
 export type WizardNodo = (typeof WIZARD_NODO_OPTIONS)[number]["id"];
 
 export interface WizardState {
+  qualita_render?: "standard" | "alta";
   tipo: WizardTipo | "";
   profilo: WizardProfilo | "";
   /** @deprecated v8.1 — usa `nodo: "maniglia_centrale"`. */

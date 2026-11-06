@@ -106,6 +106,7 @@ export const TIPI_CON_LAMELLE = new Set<TipoPersiana>([
 ]);
 
 export interface ConfigurazionePersiane {
+  qualita_render?: "standard" | "alta";
   operazione: TipoOperazione;
   tipo: TipoPersiana;
   materiale: MaterialePersiana;

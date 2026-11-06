@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { SilvioConversazione, type ConversazioneSilvio } from "@/components/silvio/SilvioConversazione";
 import { quadroPerSilvio, type AzioneSilvio, type PuntoSilvio } from "@/lib/orders/silvioControlli";
 
 /** Apre la chat di Silvio sopra la pagina (SilvioFAB ascolta «silvio:open-chat»). */
@@ -29,7 +30,7 @@ export const SilvioBottone = forwardRef<HTMLButtonElement, ComponentProps<typeof
 );
 SilvioBottone.displayName = "SilvioBottone";
 
-export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, intestazioneChat, etichetta, className }: {
+export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, intestazioneChat, etichetta, className, conversazione }: {
   titolo: string;
   descrizione: string;
   punti: PuntoSilvio[];
@@ -40,6 +41,8 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
   intestazioneChat: string;
   etichetta?: string;
   className?: string;
+  /** Con questo Silvio risponde dentro il popup e propone modifiche da applicare; senza, si apre la chat. */
+  conversazione?: ConversazioneSilvio;
 }) {
   const [aperto, setAperto] = useState(false);
   const [testo, setTesto] = useState("");
@@ -55,7 +58,7 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
       <SilvioBottone etichetta={etichetta} className={className} onClick={() => setAperto(true)}
         aria-label={punti.length ? `${etichetta ?? "Silvio"}: ${punti.length} cose da sistemare` : etichetta ?? "Silvio"} />
       <Dialog open={aperto} onOpenChange={setAperto}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className={cn("max-h-[90dvh] overflow-y-auto", conversazione ? "sm:max-w-2xl" : "sm:max-w-xl")}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Brain className="h-5 w-5 text-orange-600" />{titolo}</DialogTitle>
             <DialogDescription>{descrizione}</DialogDescription>
@@ -81,6 +84,12 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
             </p>
           )}
           {alti > 0 && <p className="text-xs text-muted-foreground">Prima i punti in arancione: bloccano il cantiere o il conto della commessa.</p>}
+          {conversazione ? (
+            <div className="space-y-2 border-t pt-3">
+              <p className="text-sm font-medium">Chiedi a Silvio</p>
+              <SilvioConversazione conversazione={conversazione} domande={domande} />
+            </div>
+          ) : (
           <div className="space-y-2 border-t pt-3">
             <p className="text-sm font-medium">Chiedi a Silvio</p>
             <div className="flex flex-wrap gap-1.5">
@@ -100,6 +109,7 @@ export function SilvioAiuto({ titolo, descrizione, punti, onAzione, domande, int
             </div>
             <p className="text-xs text-muted-foreground">La chat si apre sopra la commessa, con quello che Silvio ha già visto qui.</p>
           </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

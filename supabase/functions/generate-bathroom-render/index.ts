@@ -1,3 +1,4 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
 // generate-bathroom-render — Edge Function EiC
 // Render Bagno AI — pipeline unificata via OpenRouter + fallback OpenAI.
 
@@ -391,6 +392,8 @@ Deno.serve(async (req) => {
     user = { id: auth.userId };
 
     const body = await req.json().catch(() => ({}));
+    const requestStartedAt = Date.now();
+    const highQuality = qualitaImmagineRender(body) === "high";
     const {
       action,
       session_id,
@@ -600,7 +603,7 @@ Deno.serve(async (req) => {
       // cap 150s dell'isolate → morte a metà, sessione zombie, credito perso.
       // Ora: 1 tentativo per tier, timeout ricavato dal budget residuo.
       const BAGNO_BUDGET_MS = 140_000;
-      const jobStartMs = Date.now();
+      const jobStartMs = requestStartedAt;
       const jobElapsed = () => Date.now() - jobStartMs;
       // Foto prodotto del catalogo dell'azienda (scelte nel wizard, max 4):
       // riempite piu' sotto, PRIMA del primo tentativo, e passate al modello
@@ -611,18 +614,15 @@ Deno.serve(async (req) => {
       let categorieCatalogo: string[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
-        const perAttemptTimeout = Math.max(
-          30_000,
-          Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
-        );
+        const qualityParams = parametriQualitaRender(body, requestStartedAt, soloProviderDiretto);
         return editImage({
           prompt,
           sourceImageBlob,
           effectiveWidth: sourceDimensions?.width ?? undefined,
           effectiveHeight: sourceDimensions?.height ?? undefined,
-          openaiQuality: "medium",
-          timeoutMs: perAttemptTimeout,
-          directProviderOnly: soloProviderDiretto,
+
+          ...qualityParams,
+
           maxRetries: 0,
           referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
           metadata: {
@@ -778,6 +778,7 @@ Deno.serve(async (req) => {
       try {
         renderResult = await generateCandidate(composedPrompt, true);
       } catch (primoErr) {
+        if (highQuality) throw primoErr;
         console.warn(JSON.stringify({
           lvl: "warn", fn: "generate-bathroom-render", session_id,
           msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -806,6 +807,7 @@ Deno.serve(async (req) => {
       );
 
       if (firstMismatch) {
+        if (highQuality && jobElapsed() >= 40_000) throw new Error("Formato del render non rispettato: riprova. Il credito viene restituito.");
         composedPrompt = `${composedPrompt}
 
 [FORMAT CORRECTION]
@@ -882,6 +884,7 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         };base64,${arrayBufferToBase64(sourceBuf)}`;
 
         const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
           sourceImageDataUrl: sourceDataUrl,
           candidateImageDataUrl: renderResult.imageDataUrl,
           qaPrompt,
@@ -913,7 +916,7 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
         // primo tentativo viene consegnato. Per gli interventi leggeri il retry
         // resta, perche' li' le bocciature colgono difetti veri.
         const qaConsultivo = String(session.tipo_intervento ?? "") === "restyling_completo";
-        if (!qaConsultivo && qaResult.checked && !qaResult.pass && qaIssues.length > 0 && budgetPerRetry >= 45_000) {
+        if (!qaConsultivo && qaResult.checked && !qaResult.pass && qaIssues.length > 0 && budgetPerRetry >= (highQuality ? 100_000 : 45_000)) {
           console.log(JSON.stringify({
             fn: "generate-bathroom-render",
             msg: "qa_failed_retry_corrective",

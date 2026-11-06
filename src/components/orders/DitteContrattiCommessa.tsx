@@ -27,8 +27,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatCurrency } from "@/lib/formatters";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { conIva, type VarianteCostoDitta } from "@/lib/orders/costoDitta";
+import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
 import {
-  contrattoDellaDitta, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
+  type SottofaseLavoro, contrattoDellaDitta, contrattoPerFase, costoFaseDitta, dittaProposta, elencoDaSalvare, elencoLavoriDitta, periodoFasi, prezzoListinoPerDitta,
   rigaElencoRicalcolata, schedeSicurezzaDitta,
   type FaseStorica, type SchedaSicurezza,
 } from "@/lib/orders/ditteLavori";
@@ -90,7 +91,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   const dati = useQuery({
     queryKey: ["ditte-contratti-commessa", companyId, orderId],
     queryFn: async () => {
-      const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede] = await Promise.all([
+      const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede, sottofasi] = await Promise.all([
         db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
         db.from("order_external_teams").select("id, external_team_id, phase_id, cost_preventivo, vat_rate").eq("order_id", orderId),
         db.from("external_teams").select("id, name, vat_rate, subappaltatore_id, kind, is_active").eq("company_id", companyId).order("name"),
@@ -100,9 +101,11 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, costo, is_default, attivo, sort_order").eq("company_id", companyId),
         db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
+        db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId),
       ]);
-      for (const r of [fasi, assegnazioni, ditte, storico, varianti, contratti, schede]) if (r.error) throw r.error;
+      for (const r of [fasi, assegnazioni, ditte, storico, varianti, contratti, schede, sottofasi]) if (r.error) throw r.error;
       return {
+        sottofasi: ((sottofasi.data ?? []) as Array<{ sottofasi: SottofaseLavoro[] | null }>).flatMap((f) => f.sottofasi ?? []),
         fasi: (fasi.data ?? []) as Fase[],
         assegnazioni: (assegnazioni.data ?? []) as Assegnazione[],
         ditte: ((ditte.data ?? []) as Array<Ditta & { kind: string }>).filter((d) => d.kind !== "interna"),
@@ -282,7 +285,14 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 orderId={orderId}
                 companyId={companyId}
                 ditta={d.ditte.find((t) => t.id === x.id) ?? { id: x.id, name: nomeDitta(x.id), vat_rate: 0, subappaltatore_id: null }}
-                elenco={elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti)}
+                fasi={d.fasi}
+                assegnazioni={d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)}
+                elenco={elencoLavoriDitta(d.fasi, listaVoci, x.fasi, x.id, d.varianti, {
+                  sottofasi: d.sottofasi,
+                  // Il previsto delle assegnazioni è con l'IVA della ditta: nel contratto va senza.
+                  previstoFase: new Map(d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)
+                    .map((a) => [a.phase_id as string, (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100)])),
+                })}
                 periodo={periodoFasi(d.fasi, x.fasi)}
                 nomiFasi={d.fasi.filter((f) => x.fasi.includes(f.id)).map((f) => f.name)}
                 contratto={contrattoDellaDitta(d.ditte.find((t) => t.id === x.id)?.subappaltatore_id ?? null, d.contratti, d.schede)}
@@ -382,13 +392,45 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
 }
 
 /** Il contratto di una ditta: crearlo in bozza con l'elenco dei lavori, aggiornarlo, scaricare il PDF. */
-function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio }: {
+function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [] }: {
   orderId: string; companyId: string; ditta: Ditta; elenco: RigaElencoLavori[];
+  /** Tutte le fasi della commessa e le assegnazioni di questa ditta: il contratto firmato diventa il loro previsto. */
+  fasi?: Fase[]; assegnazioni?: Assegnazione[];
   periodo: { dal: string | null; al: string | null }; nomiFasi: string[]; contratto: Contratto | null; schede: SchedaSic[];
   tariffe: Tariffa[]; varianti: VarianteCostoDitta[]; onCambio: () => void;
 }) {
   const totale = totaleElencoLavori(elenco);
   const modificabile = !contratto || (contratto.stato === "bozza" && !contratto.firmato_il);
+  // Dopo la firma conta il prezzo pattuito, non le voci: il previsto delle fasi si porta al contratto.
+  const pattuito = contratto && !modificabile && Array.isArray(contratto.elenco_lavori) ? contrattoPerFase(contratto.elenco_lavori as RigaElencoLavori[], fasi) : null;
+  // Il confronto è sulle sole fasi del contratto: le altre fasi della ditta non c'entrano.
+  const previstoOra = assegnazioni.filter((a) => !!a.phase_id && !!pattuito?.perFase.has(a.phase_id))
+    .reduce((t, a) => t + (Number(a.cost_preventivo) || 0) / (1 + (Number(a.vat_rate) || 0) / 100), 0);
+  const fasiSenzaDitta = pattuito ? [...pattuito.perFase.keys()].filter((id) => !assegnazioni.some((a) => a.phase_id === id)) : [];
+  const totalePattuito = pattuito ? [...pattuito.perFase.values()].reduce((t, v) => t + v, 0) : 0;
+  const daAllineare = !!pattuito && pattuito.perFase.size > 0 && Math.abs(totalePattuito - previstoOra) >= 1;
+  const qcRiga = useQueryClient();
+  const assegnaFasi = useAssegnaAlleFasi(orderId);
+  const allinea = useMutation({
+    mutationFn: async () => {
+      let n = 0;
+      for (const [faseId, importo] of pattuito!.perFase) {
+        // Due righe della stessa ditta sulla stessa fase: il pattuito va sulla prima, le altre a 0, altrimenti conta doppio.
+        const righe = assegnazioni.filter((x) => x.phase_id === faseId);
+        for (const [k, a] of righe.entries()) {
+          // «manuale»: il ricalcolo dalle voci non lo riporta indietro.
+          const { data, error } = await db.from("order_external_teams")
+            .update({ cost_preventivo: k === 0 ? conIva(importo, Number(a.vat_rate) || 0) : 0, costo_origine: "manuale" }).eq("id", a.id).select("id");
+          if (error) throw error;
+          if (!data?.length) throw new Error("Non puoi modificare il costo previsto delle ditte.");
+        }
+        if (righe.length) n += 1;
+      }
+      return n;
+    },
+    onSuccess: (n) => { toast.success(`Previsto portato al contratto su ${n} ${n === 1 ? "fase" : "fasi"}`); onCambio(); void qcRiga.invalidateQueries({ queryKey: ["order_work_phases"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
   // Un contratto già attivo ma non firmato: l'elenco dei lavori si può ancora rivedere, l'importo pattuito no.
   const senzaElenco = !!contratto && !modificabile && !contratto.firmato_il;
   const elencoSalvato = contratto && Array.isArray(contratto.elenco_lavori) ? (contratto.elenco_lavori as RigaElencoLavori[]) : [];
@@ -549,6 +591,20 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         )}
         {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. Per cambiare l'importo usa «Variante» da «Condizioni e firma».</p>}
         {!ditta.subappaltatore_id && <p className="mt-0.5 text-xs text-amber-800">Collega la ditta a un subappaltatore per fare il contratto.</p>}
+        {daAllineare && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800">
+            Previsto sulle fasi {formatCurrency(previstoOra)}, contratto {formatCurrency(totalePattuito)}.
+            <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={allinea.isPending} onClick={() => allinea.mutate()}>Porta il previsto al contratto</Button>
+          </p>
+        )}
+        {fasiSenzaDitta.length > 0 && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-amber-800">
+            {fasiSenzaDitta.length === 1 ? "Una fase del contratto non ha" : `${fasiSenzaDitta.length} fasi del contratto non hanno`} questa ditta assegnata.
+            <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={assegnaFasi.isPending}
+              onClick={() => assegnaFasi.mutate({ fasi: fasiSenzaDitta, squadre: [], persone: [], ditte: [ditta.id] }, { onSuccess: onCambio })}>Assegna alle fasi del contratto</Button>
+          </p>
+        )}
+        {!!pattuito?.senzaFase && <p className="mt-0.5 text-xs text-muted-foreground">{formatCurrency(pattuito.senzaFase)} del contratto non stanno in nessuna fase della commessa.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
         {(modificabile || senzaElenco) && (
@@ -637,6 +693,8 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
     setCerca("");
   };
   const totale = totaleElencoLavori(elencoDaSalvare(righe));
+  // Una voce misurata a 0 € entra nel contratto gratis: lo si dice prima di salvare. Le sottofasi «a corpo» a 0 sono comprese.
+  const senzaPrezzo = righe.filter((x) => Number(x.quantita) > 0 && !(Number(x.prezzo) > 0) && !/corpo/i.test(x.unita ?? "")).length;
   const fasiScelta = [...new Set([...fasi, ...righe.map((r) => r.fase), "Altri lavori"])];
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onChiudi(); }}>
@@ -647,6 +705,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
             Lavori, quantità e prezzi che la ditta accetta (Allegato A del contratto), senza IVA. Le voci della commessa non cambiano.
           </DialogDescription>
         </DialogHeader>
+        {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{senzaPrezzo === 1 ? "Una riga è" : `${senzaPrezzo} righe sono`} senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.</p>}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">

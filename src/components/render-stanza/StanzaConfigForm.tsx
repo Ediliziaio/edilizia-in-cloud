@@ -1,3 +1,6 @@
+import { ScelteVisiveStanza, RiepilogoCampioniStanza } from "./ScelteVisiveStanza";
+import { useState } from "react";
+import { CampioniFinitureStanza } from "./CampioniFinitureStanza";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { applicaIdea, ideaAttiva, ideePerStanza } from "@/modules/render-stanza/lib/ideePronte";
@@ -28,10 +31,9 @@ import {
   normalizeRoomFloorConfig,
 } from "../../../shared/render-room/roomRenderConfig.ts";
 import { inferVisualEffect, woodEssenceApplies } from "../../../shared/render-floor/floorReplacementRules.ts";
-import { BATTISCOPA_TIPI, WOOD_ESSENCES } from "@/components/render-pavimento/opzioniPavimento";
+import { WOOD_ESSENCES } from "@/components/render-pavimento/opzioniPavimento";
 import { AnteprimaFoto } from "@/components/render-pavimento/AnteprimaFoto";
 import {
-  FLOOR_ESSENCE_PHOTOS,
   floorReferenceCandidates,
   floorSurfacePhoto,
 } from "../../../shared/render-references/floorReferences.ts";
@@ -47,6 +49,7 @@ export const DEFAULT_STANZA_CONFIG: ConfigurazioneStanza = {
   tipo_stanza: "soggiorno",
   stile_target: "moderno",
   intensita: "medio",
+  qualita_render: "standard",
   verniciatura: { attivo: false, colore_hex: "#FFFFFF", finitura: "satinato", applica_a: "tutte", colore_accento_hex: "#4A90D9" },
   pavimento: {
     attivo: false,
@@ -85,20 +88,6 @@ const TIPI_STANZA: { value: TipoStanza; label: string; icon: typeof Sofa }[] = [
   { value: "altro", label: "Altro", icon: HelpCircle },
 ];
 
-const STILI: { value: StileTarget; label: string; color: string }[] = [
-  { value: "moderno", label: "Moderno", color: "bg-gray-800" },
-  { value: "scandinavo", label: "Scandinavo", color: "bg-amber-100" },
-  { value: "industriale", label: "Industriale", color: "bg-stone-600" },
-  { value: "classico", label: "Classico", color: "bg-amber-700" },
-  { value: "rustico", label: "Rustico", color: "bg-orange-800" },
-  { value: "minimalista", label: "Minimalista", color: "bg-white border" },
-  { value: "mediterraneo", label: "Mediterraneo", color: "bg-blue-500" },
-  { value: "art_deco", label: "Art Deco", color: "bg-emerald-700" },
-  { value: "giapponese", label: "Giapponese", color: "bg-stone-300" },
-  { value: "provenzale", label: "Provenzale", color: "bg-purple-200" },
-  { value: "eclettico", label: "Eclettico", color: "bg-rose-500" },
-  { value: "luxe_contemporaneo", label: "Luxe", color: "bg-yellow-600" },
-];
 
 const INTENSITA: { value: IntensitaTrasformazione; label: string; desc: string }[] = [
   { value: "leggero", label: "Leggero", desc: "Solo gli interventi selezionati, il resto resta identico" },
@@ -111,18 +100,25 @@ interface Props {
   value: ConfigurazioneStanza;
   onChange: (v: ConfigurazioneStanza) => void;
   disabled?: boolean;
+  pavimentoBloccato?: boolean;
   /** Se presente, mostra "Dal tuo catalogo" con le foto prodotto dell'azienda. */
   companyId?: string;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props) {
+export function StanzaConfigForm({ value, onChange, disabled, companyId, pavimentoBloccato }: Props) {
+  const [sezioniAperte, setSezioniAperte] = useState<string[]>([]);
+  const personalizzaPavimento = () => {
+    setSezioniAperte((sezioni) => sezioni.includes("pavimento") ? sezioni : [...sezioni, "pavimento"]);
+    requestAnimationFrame(() => document.getElementById("render-stanza-pavimento")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   const set = <K extends keyof ConfigurazioneStanza>(key: K, val: ConfigurazioneStanza[K]) =>
     onChange({ ...value, [key]: val });
 
   // Il pavimento come lo legge il prompt (stessa traduzione delle chiavi della stanza).
   const pavimentoNormalizzato = normalizeRoomFloorConfig(value.pavimento as unknown as Record<string, unknown>);
   // L'effetto si sceglie solo per i materiali che imitano; per gli altri si mostra il loro.
+  const pavimentoSenzaPosa = value.pavimento.tipo === "mosaico" || ["resina_continua", "microcemento", "cemento_resina", "moquette"].includes(pavimentoNormalizzato.tipo);
   const effettoPavimentoLibero = ROOM_FLOOR_TYPES_WITH_FREE_EFFECT.includes(pavimentoNormalizzato.tipo);
   const effettoPavimento = effettoPavimentoLibero
     ? value.pavimento.effetto_visivo ?? "cemento"
@@ -153,6 +149,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
   return (
     <div className="space-y-6 max-md:space-y-4">
+      {!pavimentoBloccato && <CampioniFinitureStanza value={value} onChange={onChange} disabled={disabled} onPersonalizza={personalizzaPavimento} />}
       {/* ── Tipo Stanza ────────────────────────────────────────────── */}
       <div>
         <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">Tipo di stanza</Label>
@@ -221,24 +218,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
       {/* ── Stile Target ───────────────────────────────────────────── */}
       <div>
         <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">Stile target</Label>
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-sm:gap-1.5">
-          {STILI.map(({ value: v, label, color }) => (
-            <button
-              key={v}
-              type="button"
-              disabled={disabled}
-              className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs transition-all max-md:gap-1.5 max-md:px-2 max-md:text-[11px] ${
-                value.stile_target === v
-                  ? "border-primary bg-primary/5 ring-1 ring-primary font-semibold"
-                  : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
-              }`}
-              onClick={() => set("stile_target", v)}
-            >
-              <div className={`w-5 h-5 rounded-full shrink-0 max-md:h-4 max-md:w-4 ${color}`} />
-              <span className="truncate">{label}</span>
-            </button>
-          ))}
-        </div>
+        <ScelteVisiveStanza gruppo="style" config={value} value={value.stile_target} onValueChange={(v) => set("stile_target", v as StileTarget)} disabled={disabled} />
       </div>
 
       {/* ── Intensita ──────────────────────────────────────────────── */}
@@ -265,32 +245,43 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
         </div>
       </div>
 
+      <div role="group" aria-label="Qualità del render">
+        <Label className="mb-2 block text-sm font-semibold">Qualità del render</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {([{ value: "standard", label: "Standard", descrizione: "Per confrontare rapidamente le soluzioni" }, { value: "alta", label: "Alta", descrizione: "Più dettaglio per materiali e finiture; richiede più tempo" }] as const).map((q) => (
+            <button key={q.value} type="button" disabled={disabled} aria-pressed={(value.qualita_render ?? "standard") === q.value} onClick={() => set("qualita_render", q.value)} className={`rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${(value.qualita_render ?? "standard") === q.value ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border"}`}>
+              <span className="block text-sm font-semibold">{q.label}</span><span className="mt-1 block text-xs text-muted-foreground">{q.descrizione}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Interventi (accordion) ─────────────────────────────────── */}
       <div>
         <Label className="text-sm font-semibold mb-2 block max-md:text-[13px]">
           Interventi ({activeCount} attivi)
         </Label>
         {/* Telefono: un elenco unico a righe invece di schede staccate. */}
-        <Accordion type="multiple" className="space-y-1 max-md:space-y-0 max-md:divide-y max-md:overflow-hidden max-md:rounded-xl max-md:border max-md:bg-card">
+        <Accordion type="multiple" value={sezioniAperte} onValueChange={setSezioniAperte} className="space-y-1 max-md:space-y-0 max-md:divide-y max-md:overflow-hidden max-md:rounded-xl max-md:border max-md:bg-card">
           {/* VERNICIATURA */}
           <AccordionItem value="verniciatura" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Paintbrush className="h-4 w-4 text-pink-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Verniciatura pareti</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Verniciatura pareti"
                     checked={value.verniciatura.attivo}
                     onCheckedChange={(v) => set("verniciatura", { ...value.verniciatura, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.verniciatura.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Colore</Label>
                     <div className="flex gap-2">
@@ -312,19 +303,10 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Finitura</Label>
-                    <Select
-                      value={value.verniciatura.finitura ?? "satinato"}
+                    <ScelteVisiveStanza gruppo="paint_finish" config={value} value={value.verniciatura.finitura ?? "satinato"}
                       onValueChange={(v) => set("verniciatura", { ...value.verniciatura, finitura: v as never })}
                       disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="opaco">Opaco</SelectItem>
-                        <SelectItem value="satinato">Satinato</SelectItem>
-                        <SelectItem value="lucido">Lucido</SelectItem>
-                        <SelectItem value="lavabile">Lavabile</SelectItem>
-                      </SelectContent>
-                    </Select>
+                     />
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -378,51 +360,33 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           </AccordionItem>
 
           {/* PAVIMENTO */}
-          <AccordionItem value="pavimento" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+          <AccordionItem id="render-stanza-pavimento" value="pavimento" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Grid3X3 className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium max-md:text-[13px]">Pavimento</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={value.pavimento.attivo}
-                    onCheckedChange={(v) => set("pavimento", { ...value.pavimento, attivo: v })}
-                    disabled={disabled}
-                  />
-                </div>
+                <span className="text-sm font-medium max-md:text-[13px]">Pavimento{pavimentoBloccato ? " · comune al progetto" : ""}</span>
+
               </div>
             </AccordionTrigger>
-            {value.pavimento.attivo && (
+                  <Switch aria-label="Attiva Pavimento"
+                    checked={value.pavimento.attivo}
+                    onCheckedChange={(v) => set("pavimento", { ...value.pavimento, attivo: v })}
+                    disabled={disabled || pavimentoBloccato}
+                  />
+                </div>
+            {value.pavimento.attivo && !pavimentoBloccato && (
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["pavimento"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                     <div className="flex items-center gap-2">
                       <AnteprimaFoto foto={fotoSuperficiePavimento} alt={`Pavimento: ${value.pavimento.tipo ?? "gres_porcellanato"}`} />
                       <div className="min-w-0 flex-1">
-                        <Select
-                          value={value.pavimento.tipo ?? "gres_porcellanato"}
+                        <ScelteVisiveStanza gruppo="floor_type" config={value} value={value.pavimento.tipo ?? "gres_porcellanato"}
                           onValueChange={(v) => set("pavimento", { ...value.pavimento, tipo: v })}
-                          disabled={disabled}
-                        >
-                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="gres_porcellanato">Gres porcellanato</SelectItem>
-                            <SelectItem value="parquet_legno">Parquet legno</SelectItem>
-                            <SelectItem value="parquet_laminato">Laminato effetto legno</SelectItem>
-                            <SelectItem value="vinile_lvt">Vinile LVT/SPC</SelectItem>
-                            <SelectItem value="cotto">Cotto</SelectItem>
-                            <SelectItem value="marmo">Marmo</SelectItem>
-                            <SelectItem value="resina">Resina</SelectItem>
-                            <SelectItem value="cemento_spatolato">Cemento spatolato</SelectItem>
-                            <SelectItem value="microcemento">Microcemento</SelectItem>
-                            <SelectItem value="moquette">Moquette</SelectItem>
-                            <SelectItem value="terrazzo_veneziano">Terrazzo veneziano</SelectItem>
-                            <SelectItem value="mosaico">Mosaico</SelectItem>
-                            <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          disabled={disabled || pavimentoBloccato}
+                         />
                       </div>
                     </div>
                   </div>
@@ -433,68 +397,38 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       className="w-full h-8 p-0.5 cursor-pointer"
                       value={value.pavimento.colore_hex ?? DEFAULT_STANZA_CONFIG.pavimento.colore_hex}
                       onChange={(e) => set("pavimento", { ...value.pavimento, colore_hex: e.target.value })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     />
                   </div>
                 </div>
                 {usaEssenzaPavimento && (
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Essenza legno</Label>
-                    <div className="grid grid-cols-4 gap-1.5 max-sm:grid-cols-3">
-                      {WOOD_ESSENCES.map((wood) => (
-                        <button
-                          key={wood.value}
-                          type="button"
-                          disabled={disabled}
-                          aria-pressed={value.pavimento.essenza_legno === wood.value}
-                          onClick={() => set("pavimento", { ...value.pavimento, essenza_legno: wood.value, colore_nome: wood.label, colore_hex: wood.color })}
-                          className={`rounded-md border p-1.5 text-left text-[11px] transition-all ${
-                            value.pavimento.essenza_legno === wood.value
-                              ? "border-primary bg-primary/5 ring-1 ring-primary font-semibold"
-                              : "border-slate-300 bg-white shadow-sm hover:border-primary/60"
-                          }`}
-                        >
-                          {FLOOR_ESSENCE_PHOTOS[wood.value] ? (
-                            <AnteprimaFoto foto={FLOOR_ESSENCE_PHOTOS[wood.value]} alt={wood.label} className="mb-1" />
-                          ) : (
-                            <span className="mb-1 block h-4 rounded border" style={{ backgroundColor: wood.color }} />
-                          )}
-                          <span className="block leading-tight">{wood.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    <ScelteVisiveStanza gruppo="floor_essence" config={value} value={value.pavimento.essenza_legno} disabled={disabled || pavimentoBloccato} onValueChange={(v) => {
+                      const legno = WOOD_ESSENCES.find((w) => w.value === v);
+                      if (legno) set("pavimento", { ...value.pavimento, essenza_legno: v, colore_nome: legno.label, colore_hex: legno.color });
+                    }} />
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Effetto visivo</Label>
-                    <Select
-                      value={effettoPavimento}
+                    <ScelteVisiveStanza gruppo="floor_effect" config={value} value={effettoPavimento}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, effetto_visivo: v })}
                       disabled={disabled || !effettoPavimentoLibero}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="legno">Legno</SelectItem>
-                        <SelectItem value="marmo">Marmo</SelectItem>
-                        <SelectItem value="pietra">Pietra</SelectItem>
-                        <SelectItem value="cemento">Cemento</SelectItem>
-                        <SelectItem value="resina">Resina continua</SelectItem>
-                        <SelectItem value="cotto">Cotto</SelectItem>
-                        <SelectItem value="tessile">Tessile</SelectItem>
-                        <SelectItem value="terrazzo">Terrazzo</SelectItem>
-                      </SelectContent>
-                    </Select>
+                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Formato / scala</Label>
                     <Select
                       value={value.pavimento.formato_piastrella ?? "60x60"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, formato_piastrella: v })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="20x120">20×120 cm · listoni</SelectItem>
+                        <SelectItem value="30x30">30×30 cm</SelectItem>
                         <SelectItem value="30x60">30x60</SelectItem>
                         <SelectItem value="60x60">60x60</SelectItem>
                         <SelectItem value="60x120">60x120</SelectItem>
@@ -507,60 +441,35 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Pattern</Label>
                     <div className="flex items-center gap-2">
                       <AnteprimaFoto foto={fotoPavimentoPer("LAYING PATTERN TARGET")} alt={`Posa: ${value.pavimento.pattern ?? "dritto"}`} />
                       <div className="min-w-0 flex-1">
-                        <Select
-                          value={value.pavimento.pattern ?? "dritto"}
+                        <ScelteVisiveStanza gruppo="floor_pattern" config={value} value={value.pavimento.pattern ?? "dritto"}
                           onValueChange={(v) => set("pavimento", { ...value.pavimento, pattern: v })}
-                          disabled={disabled}
-                        >
-                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="dritto">Dritto</SelectItem>
-                            <SelectItem value="diagonale">Diagonale</SelectItem>
-                            <SelectItem value="spina_pesce">Spina di pesce</SelectItem>
-                            <SelectItem value="spina_ungherese">Spina ungherese</SelectItem>
-                            <SelectItem value="cassero_regolare">Cassero regolare</SelectItem>
-                            <SelectItem value="cassero_irregolare">Cassero irregolare</SelectItem>
-                            <SelectItem value="opus_romano">Opus romano</SelectItem>
-                            <SelectItem value="sfalsato_33">Sfalsato 33%</SelectItem>
-                            <SelectItem value="modulare">Modulare</SelectItem>
-                            <SelectItem value="esagonale">Esagonale</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          disabled={disabled || pavimentoSenzaPosa}
+                         />
+                        {pavimentoSenzaPosa && <p className="mt-1 text-xs text-muted-foreground">{value.pavimento.tipo === "mosaico" ? "Le tessere seguono il disegno del campione. Il formato indica il foglio." : "I materiali continui non prevedono uno schema di posa a piastrelle."}</p>}
                       </div>
                     </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Finitura</Label>
-                    <Select
-                      value={value.pavimento.finitura ?? "opaco"}
+                    <ScelteVisiveStanza gruppo="floor_finish" config={value} value={value.pavimento.finitura ?? "opaco"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, finitura: v })}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="opaco">Opaco</SelectItem>
-                        <SelectItem value="satinato">Satinato</SelectItem>
-                        <SelectItem value="lucido">Lucido</SelectItem>
-                        <SelectItem value="strutturato">Strutturato</SelectItem>
-                        <SelectItem value="spazzolato">Spazzolato</SelectItem>
-                        <SelectItem value="naturale">Naturale</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      disabled={disabled || pavimentoBloccato}
+                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Fuga / giunto</Label>
                     <Select
                       value={String(value.pavimento.fuga_larghezza_mm ?? 2)}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_larghezza_mm: Number(v) })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -577,7 +486,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Select
                       value={value.pavimento.fuga_colore ?? "tono_su_tono"}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, fuga_colore: v as never })}
-                      disabled={disabled}
+                      disabled={disabled || pavimentoBloccato}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -596,7 +505,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   <Select
                     value={value.pavimento.battiscopa_azione ?? "mantieni"}
                     onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_azione: v as never })}
-                    disabled={disabled}
+                    disabled={disabled || pavimentoBloccato}
                   >
                     <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -607,24 +516,16 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </Select>
                 </div>
                 {value.pavimento.battiscopa_azione === "sostituisci" && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs max-md:text-[11px]">Tipo battiscopa</Label>
                       <div className="flex items-center gap-2">
                         <AnteprimaFoto foto={fotoPavimentoPer("SKIRTING BOARD TARGET")} alt={`Battiscopa: ${value.pavimento.battiscopa_tipo ?? ""}`} />
                         <div className="min-w-0 flex-1">
-                          <Select
-                            value={value.pavimento.battiscopa_tipo ?? "coordinato_pavimento"}
+                          <ScelteVisiveStanza gruppo="floor_skirting" config={value} value={value.pavimento.battiscopa_tipo ?? "coordinato_pavimento"}
                             onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_tipo: v as never })}
-                            disabled={disabled}
-                          >
-                            <SelectTrigger className="text-xs" aria-label="Tipo battiscopa"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {BATTISCOPA_TIPI.map((b) => (
-                                <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            disabled={disabled || pavimentoBloccato}
+                           />
                         </div>
                       </div>
                     </div>
@@ -633,7 +534,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       <Select
                         value={String(value.pavimento.battiscopa_altezza_cm ?? 8)}
                         onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_altezza_cm: Number(v) as 6 | 8 | 10 })}
-                        disabled={disabled}
+                        disabled={disabled || pavimentoBloccato}
                       >
                         <SelectTrigger className="text-xs" aria-label="Altezza battiscopa"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -651,19 +552,19 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* ARREDO */}
           <AccordionItem value="arredo" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Armchair className="h-4 w-4 text-indigo-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Arredo</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Arredo"
                     checked={value.arredo.attivo}
                     onCheckedChange={(v) => set("arredo", { ...value.arredo, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.arredo.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["arredo"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
@@ -682,24 +583,13 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Materiale</Label>
-                    <Select
-                      value={value.arredo.materiale ?? "legno_chiaro"}
-                      onValueChange={(v) => set("arredo", { ...value.arredo, materiale: v as never })}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="legno_chiaro">Legno chiaro</SelectItem>
-                        <SelectItem value="legno_scuro">Legno scuro</SelectItem>
-                        <SelectItem value="metallo">Metallo</SelectItem>
-                        <SelectItem value="vetro">Vetro</SelectItem>
-                        <SelectItem value="tessuto">Tessuto</SelectItem>
-                        <SelectItem value="pelle">Pelle</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <ScelteVisiveStanza gruppo="furniture_material" config={value} value={value.arredo.materiale ?? "legno_chiaro"}
+                      onValueChange={(v) => set("arredo", { ...value.arredo, materiale: v as never, colore_principale_hex: ({ legno_chiaro: "#c49a63", legno_scuro: "#6d442b", metallo: "#949a9f", vetro: "#dbe5e8", tessuto: "#c9b9a4", pelle: "#965b34" } as Record<string, string>)[v] })}
+                      disabled={disabled || value.arredo.intensita_cambio === "colore_sola"}
+                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Colore principale</Label>
@@ -726,37 +616,28 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* SOFFITTO */}
           <AccordionItem value="soffitto" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Layers className="h-4 w-4 text-sky-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Soffitto</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Soffitto"
                     checked={value.soffitto.attivo}
                     onCheckedChange={(v) => set("soffitto", { ...value.soffitto, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.soffitto.attivo && (
               <AccordionContent className="pb-3 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-                    <Select
-                      value={value.soffitto.tipo ?? "piano"}
+                    <ScelteVisiveStanza gruppo="ceiling_type" config={value} value={value.soffitto.tipo ?? "piano"}
                       onValueChange={(v) => set("soffitto", { ...value.soffitto, tipo: v as never })}
                       disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="piano">Piano liscio</SelectItem>
-                        <SelectItem value="controsoffitto_cartongesso">Controsoffitto cartongesso</SelectItem>
-                        <SelectItem value="travi_legno">Travi in legno</SelectItem>
-                        <SelectItem value="boiserie_soffitto">Boiserie soffitto</SelectItem>
-                      </SelectContent>
-                    </Select>
+                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Colore</Label>
@@ -787,41 +668,29 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* ILLUMINAZIONE */}
           <AccordionItem value="illuminazione" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Lamp className="h-4 w-4 text-yellow-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Illuminazione</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Illuminazione"
                     checked={value.illuminazione.attivo}
                     onCheckedChange={(v) => set("illuminazione", { ...value.illuminazione, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.illuminazione.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <div className="space-y-1">
                   <Label className="text-xs max-md:text-[11px]">Tipo illuminazione</Label>
-                  <Select
-                    value={value.illuminazione.tipo ?? "misto"}
+                  <ScelteVisiveStanza gruppo="lighting_type" config={value} value={value.illuminazione.tipo ?? "misto"}
                     onValueChange={(v) => set("illuminazione", { ...value.illuminazione, tipo: v as never })}
                     disabled={disabled}
-                  >
-                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="faretti_incassati">Faretti incassati</SelectItem>
-                      <SelectItem value="binario">Binario con faretti orientabili</SelectItem>
-                      <SelectItem value="lampadario_centrale">Lampadario centrale</SelectItem>
-                      <SelectItem value="led_strip_perimetrale">LED strip perimetrale</SelectItem>
-                      <SelectItem value="lampade_sospensione">Lampade a sospensione</SelectItem>
-                      <SelectItem value="applique_parete">Applique a parete</SelectItem>
-                      <SelectItem value="misto">Misto</SelectItem>
-                    </SelectContent>
-                  </Select>
+                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Temperatura</Label>
                     <Select
@@ -859,43 +728,29 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* CARTA DA PARATI */}
           <AccordionItem value="carta_da_parati" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Wallpaper className="h-4 w-4 text-rose-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Carta da parati</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Carta da parati"
                     checked={value.carta_da_parati.attivo}
                     onCheckedChange={(v) => set("carta_da_parati", { ...value.carta_da_parati, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.carta_da_parati.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Pattern</Label>
-                    <Select
-                      value={value.carta_da_parati.stile_pattern ?? "geometrico"}
-                      onValueChange={(v) => set("carta_da_parati", { ...value.carta_da_parati, stile_pattern: v as never })}
+                    <ScelteVisiveStanza gruppo="wallpaper_pattern" config={value} value={value.carta_da_parati.stile_pattern ?? "geometrico"}
+                      onValueChange={(v) => set("carta_da_parati", { ...value.carta_da_parati, stile_pattern: v as never, colore_base: undefined, descrizione: undefined })}
                       disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="geometrico">Geometrico</SelectItem>
-                        <SelectItem value="floreale">Floreale</SelectItem>
-                        <SelectItem value="tropicale">Tropicale</SelectItem>
-                        <SelectItem value="astratto">Astratto</SelectItem>
-                        <SelectItem value="righe">Righe</SelectItem>
-                        <SelectItem value="damasco">Damasco</SelectItem>
-                        <SelectItem value="toile_de_jouy">Toile de Jouy</SelectItem>
-                        <SelectItem value="botanico">Botanico</SelectItem>
-                        <SelectItem value="minimal">Minimal</SelectItem>
-                      </SelectContent>
-                    </Select>
+                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Applica a</Label>
@@ -938,43 +793,32 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* RIVESTIMENTO PARETI */}
           <AccordionItem value="rivestimento" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Sun className="h-4 w-4 text-stone-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Rivestimento pareti</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Rivestimento pareti"
                     checked={value.rivestimento_pareti.attivo}
                     onCheckedChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.rivestimento_pareti.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <CatalogReferencePicker companyId={companyId} verticale="stanza" categorie={["parete"]} selectedIds={value.catalogo_reference_ids ?? []} onChange={(ids) => set("catalogo_reference_ids", ids)} />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Tipo</Label>
                     <div className="flex items-center gap-2">
                       <AnteprimaFoto foto={ROOM_CLADDING_PHOTOS[value.rivestimento_pareti.tipo ?? "boiserie_legno"]} alt={`Rivestimento: ${value.rivestimento_pareti.tipo ?? "boiserie_legno"}`} />
                       <div className="min-w-0 flex-1">
-                        <Select
-                          value={value.rivestimento_pareti.tipo ?? "boiserie_legno"}
-                          onValueChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, tipo: v as never })}
+                        <ScelteVisiveStanza gruppo="cladding_type" config={value} value={value.rivestimento_pareti.tipo ?? "boiserie_legno"}
+                          onValueChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, tipo: v as never, colore_hex: undefined })}
                           disabled={disabled}
-                        >
-                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="boiserie_legno">Boiserie legno</SelectItem>
-                            <SelectItem value="mattone_vista">Mattone a vista</SelectItem>
-                            <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
-                            <SelectItem value="pannelli_3d">Pannelli 3D</SelectItem>
-                            <SelectItem value="intonaco_spatolato">Intonaco spatolato</SelectItem>
-                            <SelectItem value="stucco_veneziano">Stucco veneziano</SelectItem>
-                          </SelectContent>
-                        </Select>
+                         />
                       </div>
                     </div>
                   </div>
@@ -1012,39 +856,27 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* TENDE */}
           <AccordionItem value="tende" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Blinds className="h-4 w-4 text-teal-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Tende</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Tende"
                     checked={value.tende.attivo}
                     onCheckedChange={(v) => set("tende", { ...value.tende, attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.tende.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <div className="space-y-1">
                   <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-                  <Select
-                    value={value.tende.tipo ?? "tende_classiche"}
-                    onValueChange={(v) => set("tende", { ...value.tende, tipo: v as never })}
+                  <ScelteVisiveStanza gruppo="curtain_type" config={value} value={value.tende.tipo ?? "tende_classiche"}
+                    onValueChange={(v) => set("tende", { ...value.tende, tipo: v as never, colore_nome: undefined, colore_hex: ({ tende_a_pannello: "#e8e2d8", tende_classiche: "#e8ddd0", veneziane: "#dededb", rullo: "#e8e4dc", tende_lino: "#e8ddce", tende_velluto: "#4d5c45" } as Record<string, string>)[v] })}
                     disabled={disabled}
-                  >
-                    <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tende_a_pannello">Pannello</SelectItem>
-                      <SelectItem value="tende_classiche">Classiche</SelectItem>
-                      <SelectItem value="veneziane">Veneziane</SelectItem>
-                      <SelectItem value="rullo">A rullo</SelectItem>
-                      <SelectItem value="tende_lino">Lino</SelectItem>
-                      <SelectItem value="tende_velluto">Velluto</SelectItem>
-                      <SelectItem value="nessuna">Nessuna tenda</SelectItem>
-                    </SelectContent>
-                  </Select>
+                   />
                 </div>
                 <div className="flex gap-2">
                   <Input
@@ -1069,38 +901,28 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
           {/* RESTYLING CUCINA (solo se tipo_stanza = cucina) */}
           {value.tipo_stanza === "cucina" && (
             <AccordionItem value="cucina" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-              <AccordionTrigger className="py-2.5 hover:no-underline">
+              <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
                 <div className="flex items-center gap-2 flex-1">
                   <ChefHat className="h-4 w-4 text-orange-500" />
                   <span className="text-sm font-medium max-md:text-[13px]">Restyling cucina</span>
-                  <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                    <Switch
+
+                </div>
+              </AccordionTrigger>
+                    <Switch aria-label="Attiva Restyling cucina"
                       checked={value.restyling_cucina?.attivo ?? false}
                       onCheckedChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, attivo: v })}
                       disabled={disabled}
                     />
                   </div>
-                </div>
-              </AccordionTrigger>
               {value.restyling_cucina?.attivo && (
                 <AccordionContent className="pb-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs max-md:text-[11px]">Materiale frontali</Label>
-                      <Select
-                        value={value.restyling_cucina.materiale_frontali ?? "laccato"}
-                        onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, materiale_frontali: v as never })}
+                      <ScelteVisiveStanza gruppo="kitchen_front" config={value} value={value.restyling_cucina.materiale_frontali ?? "laccato"}
+                        onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, materiale_frontali: v as never, colore_frontali_hex: ({ laccato: "#ffffff", legno: "#b58b5d", effetto_legno: "#b58b5d", vetro: "#dbdfdd", metallo: "#b4b8bc" } as Record<string, string>)[v] })}
                         disabled={disabled}
-                      >
-                        <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="laccato">Laccato</SelectItem>
-                          <SelectItem value="legno">Legno</SelectItem>
-                          <SelectItem value="effetto_legno">Effetto legno</SelectItem>
-                          <SelectItem value="vetro">Vetro</SelectItem>
-                          <SelectItem value="metallo">Metallo</SelectItem>
-                        </SelectContent>
-                      </Select>
+                       />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs max-md:text-[11px]">Colore frontali</Label>
@@ -1113,23 +935,13 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-1">
                       <Label className="text-xs max-md:text-[11px]">Piano lavoro</Label>
-                      <Select
-                        value={value.restyling_cucina.piano_lavoro_materiale ?? "quarzo"}
-                        onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, piano_lavoro_materiale: v as never })}
+                      <ScelteVisiveStanza gruppo="kitchen_worktop" config={value} value={value.restyling_cucina.piano_lavoro_materiale ?? "quarzo"}
+                        onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, piano_lavoro_materiale: v as never, colore_piano_lavoro_hex: ({ marmo: "#f2f0eb", granito: "#7c7e7b", quarzo: "#e6e1d5", laminato: "#c5c3bb", legno: "#b58b5d" } as Record<string, string>)[v] })}
                         disabled={disabled}
-                      >
-                        <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="marmo">Marmo</SelectItem>
-                          <SelectItem value="granito">Granito</SelectItem>
-                          <SelectItem value="quarzo">Quarzo</SelectItem>
-                          <SelectItem value="laminato">Laminato</SelectItem>
-                          <SelectItem value="legno">Legno</SelectItem>
-                        </SelectContent>
-                      </Select>
+                       />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs max-md:text-[11px]">Colore piano</Label>
@@ -1144,20 +956,10 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Maniglie</Label>
-                    <Select
-                      value={value.restyling_cucina.maniglie ?? "senza_maniglia"}
+                    <ScelteVisiveStanza gruppo="kitchen_handle" config={value} value={value.restyling_cucina.maniglie ?? "senza_maniglia"}
                       onValueChange={(v) => set("restyling_cucina", { ...value.restyling_cucina!, maniglie: v as never })}
                       disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="senza_maniglia">Senza maniglia (push)</SelectItem>
-                        <SelectItem value="metallo_nero">Metallo nero</SelectItem>
-                        <SelectItem value="metallo_oro">Metallo oro</SelectItem>
-                        <SelectItem value="legno">Legno</SelectItem>
-                        <SelectItem value="cromato">Cromato</SelectItem>
-                      </SelectContent>
-                    </Select>
+                     />
                   </div>
                   <div className="flex items-center justify-between">
                     <Label className="text-xs max-md:text-[11px]">Cambia piano cottura</Label>
@@ -1174,19 +976,19 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
 
           {/* SPAZI E DETTAGLI */}
           <AccordionItem value="spazi_dettagli" className="border rounded-lg px-3 max-md:rounded-none max-md:border-0">
-            <AccordionTrigger className="py-2.5 hover:no-underline">
+            <div className="flex items-center gap-2 [&>h3]:min-w-0 [&>h3]:flex-1"><AccordionTrigger className="py-2.5 hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <LayoutList className="h-4 w-4 text-violet-500" />
                 <span className="text-sm font-medium max-md:text-[13px]">Spazi e dettagli</span>
-                <div className="ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
+
+              </div>
+            </AccordionTrigger>
+                  <Switch aria-label="Attiva Spazi e dettagli"
                     checked={value.spazi_dettagli?.attivo ?? false}
                     onCheckedChange={(v) => set("spazi_dettagli", { ...(value.spazi_dettagli ?? { layout_strategy: "mantieni_layout" }), attivo: v })}
                     disabled={disabled}
                   />
                 </div>
-              </div>
-            </AccordionTrigger>
             {value.spazi_dettagli?.attivo && (
               <AccordionContent className="pb-3 space-y-3">
                 <div className="space-y-1">
@@ -1215,7 +1017,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     className="text-xs"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Aggiungi</Label>
                     <Textarea
@@ -1256,6 +1058,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
         </Accordion>
       </div>
 
+      <RiepilogoCampioniStanza config={value} />
     </div>
   );
 }

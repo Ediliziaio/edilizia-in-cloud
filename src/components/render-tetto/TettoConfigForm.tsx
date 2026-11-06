@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -245,6 +246,7 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
 
   return (
     <div className="space-y-6 max-md:space-y-4">
+      <QualitaRender value={value.qualita_render} onChange={(qualita_render) => onChange({ ...value, qualita_render })} />
       {/* Telefono: i controlli tecnici del render (etichette del prompt) restano al computer. */}
       <div className="rounded-lg border bg-muted/30 p-4 max-md:hidden">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

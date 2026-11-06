@@ -63,6 +63,7 @@ export interface AperturaPer3D {
 }
 
 export interface LocalePer3D {
+  finiture?: import("../../../../shared/planimetrie/modello.ts").Finiture;
   id: string;
   nome: string;
   destinazione: string;
@@ -102,6 +103,7 @@ export interface AreaPer3D {
 }
 
 export interface PiantaPer3D {
+  infissiProgetto?: import("../../../../shared/planimetrie/materialiProgetto.ts").InfissiProgetto;
   muri: MuroPer3D[];
   aperture: AperturaPer3D[];
   locali: LocalePer3D[];
@@ -142,6 +144,9 @@ export interface Materiale3D {
   /** 1 = opaco. */
   opacita: number;
   ruvidita: number;
+  /** Campione reale, ripetuto in metri (non dipende dalle dimensioni della stanza). */
+  finituraProgetto?: boolean;
+  tessitura?: { trama: string; metri: [number, number]; tinta?: string };
 }
 
 export interface Limiti3D {

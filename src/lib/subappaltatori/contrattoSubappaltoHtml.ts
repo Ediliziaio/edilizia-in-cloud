@@ -27,6 +27,9 @@ export interface RigaElencoLavori {
   prezzo: number;
   importo: number;
   codice?: string | null;
+  /** Da dove viene la riga: servono a riprendere l'avanzamento del cantiere nei SAL della ditta. */
+  fase_id?: string | null;
+  sottofase_id?: string | null;
 }
 
 export interface DatiContrattoSubappalto {

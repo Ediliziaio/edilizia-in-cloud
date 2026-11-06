@@ -1,3 +1,5 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
+import { materialiDelProgetto, descrizionePavimento } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
  * Render in serie (Planimetrie, seconda parte B3–B4): tutte le stanze con uno stile, oppure una
  * stanza con due o tre stili da confrontare. Si parte dalla vista 3D dentro ogni stanza, come
@@ -50,13 +52,19 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
   const [scelte, setScelte] = useState<Set<string>>(new Set());
   const [idee, setIdee] = useState<string[]>([IDEE_PRONTE[0].id]);
   const [nota, setNota] = useState("");
+  const [qualita, setQualita] = useState<"standard" | "alta">("standard");
+  const comuni = materialiDelProgetto(documento, ambito);
   const [righe, setRighe] = useState<Riga[] | null>(null);
   const annullato = useRef(false);
 
   const inCorsoRef = useRef(false);
+  const aperturaPrecedente = useRef(false);
   useEffect(() => {
     // riaperto mentre i render vanno ancora: si rivede l'avanzamento, non si riparte da capo
-    if (!aperto || inCorsoRef.current) return;
+    if (!aperto) { aperturaPrecedente.current = false; return; }
+    if (aperturaPrecedente.current) return;
+    aperturaPrecedente.current = true;
+    if (inCorsoRef.current) return;
     setRighe(null);
     annullato.current = false;
     setScelte(new Set(soloStanza ? [soloStanza] : stanze.map((s) => s.id)));
@@ -79,7 +87,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
   const costo = lavori.length;
   const bastano = crediti.data?.unlimited || (crediti.data?.balance ?? 0) >= costo;
   const inCorso = !!righe && righe.some((r) => r.stato === "in_coda" || r.stato === "preparo" || r.stato === "in_corso");
-  inCorsoRef.current = inCorso;
+  useEffect(() => { inCorsoRef.current = inCorso; }, [inCorso]);
 
   // Controllo delle sessioni avviate finché non finiscono.
   useEffect(() => {
@@ -100,14 +108,15 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
     return () => clearTimeout(t);
   }, [righe, planimetriaId, companyId, queryClient]);
 
-  const parti = async () => {
+  const parti = async (soloFalliti = false) => {
     if (!companyId || !user || !lavori.length) return;
     annullato.current = false;
-    const iniziali: Riga[] = lavori.map((lavoro) => ({ lavoro, stato: "in_coda" }));
-    setRighe(iniziali);
+    const daAvviare = soloFalliti ? (righe ?? []).filter((r) => r.stato === "fallito").map((r) => r.lavoro) : lavori;
+    const iniziali: Riga[] = daAvviare.map((lavoro) => ({ lavoro, stato: "in_coda" }));
+    setRighe((rs) => soloFalliti ? rs?.map((r) => iniziali.find((n) => n.lavoro.chiave === r.lavoro.chiave) ?? r) ?? iniziali : iniziali);
     const aggiorna = (chiave: string, campi: Partial<Riga>) => setRighe((rs) => rs?.map((r) => (r.lavoro.chiave === chiave ? { ...r, ...campi } : r)) ?? rs);
-    const coda = [...lavori];
-    const ctx = { companyId, userId: user.id, planimetriaId, versione, documento, livelloId, ambito, nota };
+    const coda = [...daAvviare];
+    const ctx = { companyId, userId: user.id, planimetriaId, versione, documento, livelloId, ambito, nota, qualita_render: qualita };
     let creditiFiniti = false;
     const operaio = async () => {
       for (let l = coda.shift(); l; l = coda.shift()) {
@@ -123,7 +132,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(IN_PARALLELO, lavori.length) }, operaio));
+    await Promise.all(Array.from({ length: Math.min(IN_PARALLELO, daAvviare.length) }, operaio));
     queryClient.invalidateQueries({ queryKey: ["render-credits", companyId] });
     if (creditiFiniti) toast.error("Crediti render finiti: alcune stanze non sono partite.");
   };
@@ -143,6 +152,8 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
 
         {!righe ? (
           <div className="space-y-5">
+            <QualitaRender value={qualita} onChange={setQualita} />
+            {(comuni.pavimento || comuni.infissi) && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">Tutte le stanze seguiranno i materiali comuni del progetto.{comuni.pavimento ? ` Pavimento: ${descrizionePavimento(comuni.pavimento)}.` : ""} Gli stili selezionati mantengono queste scelte.</p>}
             {!soloStanza && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -196,7 +207,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
             <ul className="divide-y rounded-lg border">
               {righe.map((r) => (
                 <li key={r.lavoro.chiave} className="flex items-center gap-3 p-2 text-sm">
-                  {r.url ? <img src={r.url} alt="" className="h-12 w-16 rounded object-cover" /> : <div className="h-12 w-16 rounded bg-muted" />}
+                  {r.url ? <a href={`/azienda/render/stanza/gallery/${r.sessione}`} aria-label={`Apri render di ${r.lavoro.localeNome}`}><img src={r.url} alt={`Render di ${r.lavoro.localeNome}`} className="h-12 w-16 rounded object-cover" /></a> : <div className="h-12 w-16 rounded bg-muted" />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.lavoro.localeNome}</p>
                     <p className="truncate text-xs text-muted-foreground">{r.lavoro.idea.nome}</p>
@@ -216,7 +227,7 @@ export function RenderInSerieDialog({ aperto, onChiudi, planimetriaId, versione,
               <Sparkles className="h-4 w-4" />Fai {costo} render
             </Button>
           ) : (
-            <Button variant="outline" onClick={onChiudi}>{inCorso ? "Chiudi (continuano da soli)" : "Chiudi"}</Button>
+            <><Button variant="outline" onClick={onChiudi}>{inCorso ? "Chiudi (continuano da soli)" : "Chiudi"}</Button>{!inCorso && righe.some((r) => r.stato === "fallito") && <Button onClick={() => void parti(true)}>Riprova solo i render non riusciti</Button>}</>
           )}
         </DialogFooter>
       </DialogContent>

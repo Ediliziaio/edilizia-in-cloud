@@ -57,6 +57,8 @@ function RimandoConParametri({ to }: { to: string }) {
 }
 
 /** Commesse e acquisti: ci entra anche chi ha solo il permesso «Ufficio acquisti». */
+const VerificaRenderCompleta = import.meta.env.DEV ? lazy(() => import("../../dev/render-verifica/VerificaRender")) : (): null => null;
+
 const vedeOrdiniOAcquisti = (p: Permissions) => p.canViewOrders || p.canManagePurchasing;
 
 function addSearch(path: string, search: string) {
@@ -907,6 +909,7 @@ export default function CompanyRoutesContainer() {
         <Route path="render/piscine/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineGallery /></FeatureRoute>)} />
         <Route path="render/piscine/gallery/:id" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderPiscineGalleryDetail /></FeatureRoute>)} />
         {/* Render Stanza */}
+        {import.meta.env.DEV && <Route path="render/verifica-completa" element={withCompanyPermission("canViewRenderAi", <VerificaRenderCompleta />)} />}
         <Route path="render/stanza" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaHub /></FeatureRoute>)} />
         <Route path="render/stanza/new" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaNew /></FeatureRoute>)} />
         <Route path="render/stanza/gallery" element={withCompanyPermission("canViewRenderAi", <FeatureRoute featureKey="render_ai"><RenderStanzaGallery /></FeatureRoute>)} />

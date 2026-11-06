@@ -142,8 +142,18 @@ async function main() {
     const v: Verita = JSON.parse(readFileSync(join(CAMPIONI, `${id}.json`), "utf8"));
     let costo = 0;
     let usato = modello;
-    const chiama: ChiamaModello = async (messaggi) => {
-      if (modello === "oracolo") return { testo: rispostaOracolo(v), modello: "oracolo" };
+    const chiama: ChiamaModello = async (messaggi, tentativo) => {
+      if (modello === "oracolo") {
+        // L'oracolo ha già fornito SOLO i segmenti della verità nota: il terzo
+        // passaggio simula il revisore, non misura la capacità visiva di un'AI.
+        if (tentativo === 3) {
+          const contenuto = messaggi[1].content;
+          const testo = Array.isArray(contenuto) && contenuto[0].type === "text" ? contenuto[0].text : "";
+          const candidati = JSON.parse(testo.slice(testo.indexOf("["), testo.indexOf("\nStanze"))) as Array<{ id: string }>;
+          return { testo: JSON.stringify({ verifiche: candidati.map((a) => ({ id: a.id, esito: "visibile", evidenza: "vano_interrotto" })) }), modello: "oracolo" };
+        }
+        return { testo: rispostaOracolo(v), modello: "oracolo" };
+      }
       const r = await chiamaOpenRouter(messaggi);
       costo += r.costo;
       spesa += r.costo;

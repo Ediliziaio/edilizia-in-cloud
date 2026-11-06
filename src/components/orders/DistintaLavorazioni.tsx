@@ -1,7 +1,7 @@
 // src/components/orders/DistintaLavorazioni.tsx
 // Le lavorazioni in una tabella sola: ogni fase si apre sulle sue voci, tutto sulla stessa riga,
 // e si cambia cliccando sul dato. Per i cantieri con centinaia di voci.
-import { useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, ListChecks, MoreHorizontal, Package, Pencil, Plus, Search, Trash2, Truck, Users, X } from "lucide-react";
 import { toast } from "sonner";
@@ -17,15 +17,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogAssegna, type Opzione } from "@/components/orders/AssegnazioniFasi";
 import { SchedaVoce } from "@/components/orders/SchedaVoce";
+import type { DatiVoce } from "@/hooks/useSottofasi";
+import type { DatiChiSottofasi } from "@/hooks/useChiSottofasi";
 import { avanzamentoFasi } from "@/lib/orders/schedaCommessa";
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  contaFiltri, dateInFila, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
+  contaFiltri, dateInFila, dateSpostate, dateValide, FILTRI_DISTINTA, filtraDistinta, ordineSpostando, pianoInBlocco, righeDistinta, statoVoce,
   type EconomiaDistinta, type FaseDistinta, type FiltroDistinta, type RigaDistinta, type VoceDistinta,
 } from "@/lib/orders/distintaLavorazioni";
 import { conAliquota, saldoIva, type IvaCommessa } from "@/lib/orders/ivaCommessa";
-import type { GiornoLavorativo, Sottofase } from "@/lib/orders/sottofasi";
+import { percentualeDaQuantita, quantitaEseguita, type GiornoLavorativo, type Sottofase } from "@/lib/orders/sottofasi";
 import { cn } from "@/lib/utils";
 
 export interface ChiLavora {
@@ -75,6 +77,36 @@ function CellaData({ valore, etichetta, modificabile, rossa, onSalva }: {
   );
 }
 
+/** Aggiornamento rapido: il totale fatto (quantità se la voce ne ha una, altrimenti %), salvato uscendo dal campo. */
+function CampoRapido({ riga: r, onAvanza }: { riga: RigaDistinta; onAvanza: Props["onAvanza"] }) {
+  const misurabile = !!r.quantita && r.quantita > 0;
+  const attuale = misurabile ? quantitaEseguita(r) ?? 0 : r.percentuale;
+  const [valore, setValore] = useState(attuale ? String(attuale) : "");
+  // Invio e uscita dal campo salvano entrambi: lo stesso numero una volta sola.
+  const salvato = useRef<number>(attuale);
+  const salva = () => {
+    const n = Number(valore.replace(",", "."));
+    if (valore.trim() === "" || !Number.isFinite(n) || n < 0 || n === salvato.current) return;
+    salvato.current = n;
+    if (misurabile) onAvanza(r.sottofaseId!, { percentuale: percentualeDaQuantita(n, r.quantita) ?? 0, quantita_fatta: n });
+    else onAvanza(r.sottofaseId!, { percentuale: Math.min(100, Math.round(n)), quantita_fatta: null });
+  };
+  return (
+    <input type="text" inputMode="decimal" data-rapido value={valore} onChange={(e) => setValore(e.target.value)} onBlur={salva}
+      placeholder={misurabile ? r.unita ?? "q.tà" : "%"} aria-label={`${r.descrizione}: ${misurabile ? `fatti su ${r.quantita}` : "percentuale"}`}
+      title={misurabile ? `Fatti su ${r.quantita?.toLocaleString("it-IT")}${r.unita ? ` ${r.unita}` : ""}` : "Percentuale fatta"}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        salva();
+        const campi = [...document.querySelectorAll<HTMLInputElement>("input[data-rapido]")];
+        const dopo = campi[campi.indexOf(e.currentTarget) + 1];
+        if (dopo) { dopo.focus(); dopo.select(); dopo.scrollIntoView({ block: "nearest" }); }
+      }}
+      className="h-6 w-full rounded border border-sky-300 bg-background px-1 text-right text-[11px] tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-500" />
+  );
+}
+
 function Stat({ etichetta, children, nota }: { etichetta: string; children: ReactNode; nota?: ReactNode }) {
   return (
     <div className="shrink-0">
@@ -94,6 +126,15 @@ interface Props {
   economiaDi?: ReadonlyMap<string, EconomiaDistinta>;
   /** Costi della commessa che non stanno in una sola fase, come le ore di un rapportino su più fasi. */
   consuntivoSenzaFase?: number;
+  /** Chi fa ogni sottofase (persone, squadre, ditte); senza la tabella nel database non si mostra. */
+  chiSottofasi?: DatiChiSottofasi;
+  onAggiungiChi?: (sottofaseIds: string[], chi: { persona?: string; ditta?: string }) => void;
+  onTogliChi?: (id: string) => void;
+  /** Una sottofase da aprire nel popup (arriva dal popup della fase); poi si avvisa che è aperta. */
+  apriSottofase?: string | null;
+  onSottofaseAperta?: () => void;
+  /** Apre l'elenco dei costi da mettere su una fase. */
+  onCostiSenzaFase?: () => void;
   /** Il conto dell'IVA della commessa: aliquota, debito, credito e reverse charge. */
   iva?: IvaCommessa | null;
   chiDi: ReadonlyMap<string, ChiLavora>;
@@ -118,6 +159,13 @@ interface Props {
   onDateFase: (id: string, date: { start_date: string | null; end_date: string | null }) => void;
   onDalleVoci: (faseId: string) => void;
   onAggiungi: (faseId: string, nome: string) => void;
+  /** Un elenco incollato, una sottofase per riga. */
+  onAggiungiTante?: (faseId: string, nomi: string[]) => void;
+  /** Più sottofasi insieme, ognuna col suo punto: l'avanzamento in blocco e il suo «Annulla». */
+  onAvanzaTante?: (passi: Array<{ id: string; percentuale: number; quantita_fatta: number | null }>) => void;
+  onSalvaVoce?: (riga: RigaDistinta, dati: DatiVoce) => void;
+  onRisorse?: (id: string, persone: number | null) => void;
+  onParallelo?: (id: string, insieme: boolean) => void;
   onRinomina: (id: string, nome: string) => void;
   onElimina: (id: string) => void;
   onRiordina: (ids: string[]) => void;
@@ -130,11 +178,12 @@ interface Props {
 type Elemento =
   | { tipo: "fase"; key: string; fase: FaseTabella; righe: RigaDistinta[] }
   | { tipo: "riga"; key: string; riga: RigaDistinta }
-  | { tipo: "nuova"; key: string; faseId: string };
+  | { tipo: "nuova"; key: string; faseId: string }
+  | { tipo: "aggiungi"; key: string; faseId: string };
 
 export function DistintaLavorazioni({
-  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
+  orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, apriSottofase, onSottofaseAperta, chiSottofasi, onAggiungiChi, onTogliChi, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
+  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
   const [faseId, setFaseId] = useState<string | null>(() => {
@@ -151,6 +200,13 @@ export function DistintaLavorazioni({
   const [scelteFasi, setScelteFasi] = useState<ReadonlySet<string>>(new Set());
   const [inModifica, setInModifica] = useState<{ id: string; testo: string } | null>(null);
   const [nuovaIn, setNuovaIn] = useState<string | null>(null);
+  const campoNuova = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!nuovaIn) return undefined;
+    // Dopo la chiusura del menu e dopo che la riga è entrata nell'elenco.
+    const t = window.setTimeout(() => campoNuova.current?.focus(), 80);
+    return () => window.clearTimeout(t);
+  }, [nuovaIn]);
   const [nuova, setNuova] = useState("");
   const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
   const [divisione, setDivisione] = useState<string | null>(null);
@@ -158,6 +214,10 @@ export function DistintaLavorazioni({
   const [bloccoInizio, setBloccoInizio] = useState("");
   const [bloccoFine, setBloccoFine] = useState("");
   const [bloccoGiorni, setBloccoGiorni] = useState("");
+  const [bloccoSposta, setBloccoSposta] = useState("");
+  const [bloccoPct, setBloccoPct] = useState("");
+  // Aggiornamento rapido: un campo per riga, Invio passa alla dopo.
+  const [rapido, setRapido] = useState(false);
 
   const tutte = useMemo(() => righeDistinta(fasi, sottofasiDi, voci), [fasi, sottofasiDi, voci]);
   const dellaScelta = useMemo(() => (faseId ? tutte.filter((r) => r.faseId === faseId) : tutte), [tutte, faseId]);
@@ -194,10 +254,11 @@ export function DistintaLavorazioni({
       if (faseId || filtrando || aperte.has(f.id)) {
         for (const r of dellaFase) lista.push({ tipo: "riga", key: r.key, riga: r });
         if (nuovaIn === f.id) lista.push({ tipo: "nuova", key: `n:${f.id}`, faseId: f.id });
+        else if (puoModificare && !filtrando) lista.push({ tipo: "aggiungi", key: `a:${f.id}`, faseId: f.id });
       }
     }
     return lista;
-  }, [fasi, faseId, righe, filtrando, aperte, nuovaIn]);
+  }, [fasi, faseId, righe, filtrando, aperte, nuovaIn, puoModificare]);
 
   // Il popup segue l'elenco visibile: con la voce aperta si passa a quella prima o dopo.
   const righeInElenco = useMemo(() => elementi.flatMap((e) => (e.tipo === "riga" ? [e.riga] : [])), [elementi]);
@@ -205,8 +266,29 @@ export function DistintaLavorazioni({
   // Con un filtro attivo una voce appena segnata esce dall'elenco: il popup resta su di lei, e «dopo» è quella che ne ha preso il posto.
   const ultimoIndice = useRef(0);
   if (indiceAperta >= 0) ultimoIndice.current = indiceAperta;
-  const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? null : null;
+  // Una sottofase scritta a mano, quando riceve i prezzi, diventa una riga con la sua voce: resta la stessa.
+  const sottofaseAperta = useRef<string | null>(null);
+  const rigaAperta = aperta ? tutte.find((x) => x.key === aperta) ?? tutte.find((x) => !!sottofaseAperta.current && x.sottofaseId === sottofaseAperta.current) ?? null : null;
+  sottofaseAperta.current = rigaAperta?.sottofaseId ?? null;
+  // Nome di una persona, squadra o ditta, e chi fa ogni sottofase.
+  const nomeDi = useMemo(() => new Map([...persone, ...squadre, ...ditte].map((o) => [o.id, o.nome])), [persone, squadre, ditte]);
+  const chiDellaSottofase = (id: string | null) => (id && chiSottofasi?.disponibile ? (chiSottofasi.perSottofase.get(id) ?? []).map((c) => ({ id: c.id, nome: nomeDi.get(c.employee_id ?? c.external_team_id ?? "") ?? "—" })) : []);
+  const [bloccoChi, setBloccoChi] = useState("");
+  const scegliChi = (valore: string, ids: string[]) => {
+    if (!valore || !onAggiungiChi || ids.length === 0) return;
+    const [tipo, id] = valore.split(":");
+    onAggiungiChi(ids, tipo === "p" ? { persona: id } : { ditta: id });
+  };
   const nomiChi = (id: string) => { const c = chiDi.get(id); return c ? [...c.squadre, ...c.persone, ...c.ditte] : []; };
+
+  useEffect(() => {
+    if (!apriSottofase) return;
+    const riga = tutte.find((x) => x.sottofaseId === apriSottofase);
+    // Se la riga non è ancora arrivata la richiesta resta, e si apre appena c'è.
+    if (!riga) return;
+    setAperta(riga.key);
+    onSottofaseAperta?.();
+  }, [apriSottofase, tutte, onSottofaseAperta]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtuale = elementi.length > 80;
@@ -226,12 +308,39 @@ export function DistintaLavorazioni({
   const inSelezione = scelteRighe.size + scelteFasi.size > 0;
   const fineAzioneDate = () => { azzeraScelte(); setBloccoInizio(""); setBloccoFine(""); setBloccoGiorni(""); };
 
+  // Dopo un'azione su tante righe, qualche secondo per tornare indietro.
+  const conAnnulla = (testo: string, indietro: () => void) => toast.success(testo, { action: { label: "Annulla", onClick: indietro }, duration: 8000 });
+  const dateDiPrima = () => conSottofase.map((r) => ({ id: r.sottofaseId!, data_inizio: r.inizio, data_fine: r.fine, giorni: r.giorni }));
   const applicaDate = () => {
     if (!bloccoInizio && !bloccoFine) return;
     const { passi, incoerenti } = pianoInBlocco(conSottofase, bloccoInizio || null, bloccoFine || null);
     if (incoerenti.length > 0) { toast.error(`Su ${incoerenti.length === 1 ? "1 riga" : `${incoerenti.length} righe`} la fine verrebbe prima dell'inizio: nessuna data salvata.`); return; }
+    const prima = dateDiPrima();
     onPianificaTutte(passi);
+    conAnnulla(`Date su ${passi.length} ${passi.length === 1 ? "riga" : "righe"}`, () => onPianificaTutte(prima));
     fineAzioneDate();
+  };
+  const spostaDate = () => {
+    const n = Number(bloccoSposta);
+    if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 3650) { toast.error("Scrivi di quanti giorni, anche negativo."); return; }
+    const passi = dateSpostate(conSottofase, n);
+    if (passi.length === 0) { toast.error("Nessuna riga con date da spostare: quelle fatte restano dove sono."); return; }
+    const prima = dateDiPrima();
+    onPianificaTutte(passi);
+    conAnnulla(`${passi.length} ${passi.length === 1 ? "riga spostata" : "righe spostate"} di ${n} giorni`, () => onPianificaTutte(prima));
+    setBloccoSposta("");
+    azzeraScelte();
+  };
+  const avanzaBlocco = () => {
+    const p = Number(bloccoPct);
+    if (!onAvanzaTante || !Number.isInteger(p) || p < 0 || p > 100) { toast.error("Scrivi una percentuale da 0 a 100."); return; }
+    const righe = conSottofase.filter((r) => !r.fatta || p < 100);
+    if (righe.length === 0) return;
+    const prima = righe.map((r) => ({ id: r.sottofaseId!, percentuale: r.percentuale, quantita_fatta: r.quantitaFatta }));
+    onAvanzaTante(righe.map((r) => ({ id: r.sottofaseId!, percentuale: p, quantita_fatta: r.quantita ? Math.round((r.quantita * p) / 100 * 1000) / 1000 : null })));
+    conAnnulla(`${righe.length} ${righe.length === 1 ? "riga" : "righe"} al ${p}%`, () => onAvanzaTante(prima));
+    setBloccoPct("");
+    azzeraScelte();
   };
   const mettiInFila = () => {
     const giorni = bloccoGiorni === "" ? null : Number(bloccoGiorni);
@@ -239,12 +348,20 @@ export function DistintaLavorazioni({
     const { passi, senzaGiorni } = dateInFila(conSottofase, bloccoInizio || oggi, giorni, lavorativo ?? (() => true));
     if (senzaGiorni.length > 0) { toast.error(`${senzaGiorni.length === 1 ? "1 riga non ha" : `${senzaGiorni.length} righe non hanno`} i giorni: scrivili qui.`); return; }
     if (passi.length === 0) { toast.error("Nessuna riga da mettere in fila: quelle fatte restano dove sono."); return; }
+    const prima = dateDiPrima();
     onPianificaTutte(passi);
+    conAnnulla(`${passi.length} ${passi.length === 1 ? "riga messa" : "righe messe"} in fila`, () => onPianificaTutte(prima));
     fineAzioneDate();
   };
   const segnaBlocco = (fatta: boolean) => {
-    const ids = conSottofase.filter((r) => r.fatta !== fatta).map((r) => r.sottofaseId!);
-    if (ids.length > 0) onSegnaTutte(ids, fatta);
+    const cambiano = conSottofase.filter((r) => r.fatta !== fatta);
+    const ids = cambiano.map((r) => r.sottofaseId!);
+    if (ids.length > 0) {
+      // Indietro: ognuna torna al suo punto, non solo «da fare».
+      const prima = cambiano.map((r) => ({ id: r.sottofaseId!, percentuale: r.percentuale, quantita_fatta: r.quantitaFatta }));
+      onSegnaTutte(ids, fatta);
+      conAnnulla(`${ids.length} ${ids.length === 1 ? "riga" : "righe"} ${fatta ? "segnate fatte" : "da fare"}`, () => (onAvanzaTante ? onAvanzaTante(prima) : onSegnaTutte(ids, !fatta)));
+    }
     azzeraScelte();
   };
   const salvaDataRiga = (r: RigaDistinta, campo: "inizio" | "fine", v: string | null) => {
@@ -295,14 +412,18 @@ export function DistintaLavorazioni({
           {puoModificare && <Checkbox checked={scelteFasi.has(f.id)} onCheckedChange={() => inverti(setScelteFasi, f.id)} aria-label={`Seleziona ${f.name}`} />}
         </div>
         <div className="min-w-0">
-          <button type="button" onClick={() => (faseId ? undefined : apriChiudi(f.id))} aria-expanded={aperta} className={cn("flex max-w-full items-center gap-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", faseId && "cursor-default")}>
-            {!faseId && (aperta ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />)}
-            <span className="truncate text-[13px] font-semibold" title={f.name}>{f.name}</span>
-          </button>
-          <div className="flex items-center gap-2">
+          <div className="flex max-w-full items-center gap-1">
+            {!faseId && (
+              <button type="button" onClick={() => apriChiudi(f.id)} aria-expanded={aperta} aria-label={`${aperta ? "Chiudi" : "Apri"} le voci di ${f.name}`} className="shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {aperta ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
+              </button>
+            )}
+            <button type="button" onClick={() => onApriScheda(f.id)} aria-label={`Scheda di ${f.name}`} title={f.name} className="line-clamp-2 min-w-0 rounded text-left text-[13px] font-semibold leading-tight hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{f.name}</button>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2">
             {puoModificare || puoSquadre ? (
               <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
-                className={cn("min-w-0 truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
+                className={cn("min-w-0 max-w-full truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
                 {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "Nessuno" : "+ Assegna chi la fa"}
               </button>
             ) : <span className="min-w-0 truncate text-[11px] text-muted-foreground" title={nomi.join(", ")}>{nomi.join(", ") || "Nessuno"}</span>}
@@ -312,7 +433,7 @@ export function DistintaLavorazioni({
           </div>
         </div>
         <div className="whitespace-nowrap text-right text-[11px] tabular-nums text-muted-foreground max-md:hidden">{dellaFase.length} voci</div>
-        <div className="flex items-center gap-1 max-md:col-start-2" title={`Avanzamento ${pct}%`}>
+        <div className="flex items-center gap-1 max-md:col-start-2" title={(sottofasiDi.get(f.id)?.length ?? 0) > 0 ? `Avanzamento ${pct}%: dalle sottofasi, pesate sull'importo` : `Avanzamento ${pct}%: scritto a mano o dai rapportini (la fase non ha sottofasi)`}>
           <span className="h-1 w-6 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", finita ? "bg-emerald-600" : "bg-primary")} style={{ width: `${pct}%` }} /></span>
           <span className="text-[11px] font-medium tabular-nums">{pct}%</span>
         </div>
@@ -326,7 +447,8 @@ export function DistintaLavorazioni({
               <DropdownMenuTrigger asChild>
                 <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground" aria-label={`Altro per ${f.name}`}><MoreHorizontal className="h-3.5 w-3.5" /></Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              {/* Il menu, chiudendosi, rimetterebbe il cursore su di sé: il nome scritto andava perso. */}
+              <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => { if (campoNuova.current) ev.preventDefault(); }}>
                 <DropdownMenuItem onClick={() => { setAperte((a) => new Set(a).add(f.id)); setNuovaIn(f.id); }}><Plus className="mr-2 h-3.5 w-3.5" />Aggiungi sottofase</DropdownMenuItem>
                 {senzaSottofase > 0 && <DropdownMenuItem onClick={() => (pct > 0 ? setDivisione(f.id) : onDalleVoci(f.id))}><ListChecks className="mr-2 h-3.5 w-3.5" />Crea {senzaSottofase} sottofasi dalle voci</DropdownMenuItem>}
                 <DropdownMenuItem onClick={() => onApriScheda(f.id)}><ExternalLink className="mr-2 h-3.5 w-3.5" />Apri la scheda</DropdownMenuItem>
@@ -366,11 +488,14 @@ export function DistintaLavorazioni({
               className={cn("min-w-0 flex-1 rounded text-left text-xs leading-snug hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
+            {chiDellaSottofase(r.sottofaseId).length > 0 && <span className="block truncate text-[10px] text-sky-800">{chiDellaSottofase(r.sottofaseId).map((c) => c.nome).join(", ")}</span>}
             </button>
           )}
         </div>
         <div className="whitespace-nowrap text-right text-xs tabular-nums max-md:col-start-2 max-md:text-left">{q}</div>
-        <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>
+        {rapido && r.sottofaseId && !r.fatta && puoModificare
+          ? <div className="max-md:hidden"><CampoRapido riga={r} onAvanza={onAvanza} /></div>
+          : <div className={cn("whitespace-nowrap text-[11px] tabular-nums max-md:hidden", stato.tono === "fatta" ? "font-medium text-emerald-700" : stato.tono === "corso" ? "font-medium text-primary" : "text-muted-foreground")}>{r.sottofaseId ? stato.testo : ""}</div>}
         <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.inizio} etichetta={`Inizio di ${r.descrizione}`} modificabile={puoModificare} onSalva={(v) => salvaDataRiga(r, "inizio", v)} /> : null}</div>
         <div className="max-xl:hidden">{r.sottofaseId ? <CellaData valore={r.fine} etichetta={`Fine di ${r.descrizione}`} modificabile={puoModificare} rossa={ritardo} onSalva={(v) => salvaDataRiga(r, "fine", v)} /> : null}</div>
         <div className="text-right text-xs tabular-nums text-muted-foreground max-md:hidden">{vedeVenduto && r.venduto ? importo(r.venduto) : ""}</div>
@@ -398,9 +523,22 @@ export function DistintaLavorazioni({
   const mostra = (e: Elemento) => {
     if (e.tipo === "fase") return <div className={cn(griglia, "bg-muted/50 py-1")}>{rigaFase(e.fase, e.righe)}</div>;
     if (e.tipo === "riga") return <div className={cn(griglia, "py-0.5 hover:bg-muted/30")}>{rigaVoce(e.riga)}</div>;
+    if (e.tipo === "aggiungi") {
+      return (
+        <div className="border-b px-2 py-0.5 pl-9">
+          <button type="button" onClick={() => setNuovaIn(e.faseId)} className="flex items-center gap-1 rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Plus className="h-3 w-3" aria-hidden="true" />Aggiungi sottofase
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="border-b px-2 py-1 pl-9">
-        <Input autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder="Nome e Invio per aggiungere, Esc per chiudere" aria-label="Nuova sottofase"
+        <Input ref={campoNuova} autoFocus value={nuova} maxLength={160} onChange={(ev) => setNuova(ev.target.value)} placeholder="Nome e Invio, Esc per chiudere. Puoi incollare un elenco." aria-label="Nuova sottofase"
+          onPaste={(ev) => {
+            const nomi = ev.clipboardData.getData("text").split(/\r?\n/).map((x) => x.trim().slice(0, 160)).filter(Boolean);
+            if (nomi.length > 1 && onAggiungiTante) { ev.preventDefault(); onAggiungiTante(e.faseId, nomi); setNuova(""); }
+          }}
           onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); aggiungi(e.faseId); } else if (ev.key === "Escape") { setNuovaIn(null); setNuova(""); } }}
           onBlur={() => { if (!nuova.trim()) setNuovaIn(null); }}
           className="h-6 max-w-md px-1 text-xs" />
@@ -410,13 +548,16 @@ export function DistintaLavorazioni({
 
   return (
     <section aria-label="Lavorazioni della commessa" className="space-y-2">
-      <div>
+      {/* I numeri restano in vista mentre si scorre la pagina. */}
+      <div className="sticky top-0 z-20 bg-background">
       <dl className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5 rounded-lg border px-3 py-1.5">
         {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
         {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
         {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
         {vedeCosti && <Stat etichetta="Previsto">{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
-        {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? `+ ${formatCurrency(consuntivoSenzaFase)} senza fase` : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
+        {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? (onCostiSenzaFase
+          ? <button type="button" onClick={onCostiSenzaFase} className="rounded font-medium text-amber-800 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">+ {formatCurrency(consuntivoSenzaFase)} senza fase</button>
+          : `+ ${formatCurrency(consuntivoSenzaFase)} senza fase`) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}
         {vedeMargini && vedeVenduto && vedeCosti && <Stat etichetta="Margine previsto">{margine === null ? "—" : `${margine}%`}</Stat>}
         {vedeVenduto && vedeCosti && iva && daVersare && (
           <div className="shrink-0" title={`Vendite ${formatCurrency(Math.max(iva.debito_previsto, iva.debito_fatturato))} · credito acquisti ${formatCurrency(iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte)}${iva.reverse_charge_imponibile > 0 ? ` · reverse charge ${formatCurrency(iva.reverse_charge_imponibile)}` : ""}`}>
@@ -475,9 +616,16 @@ export function DistintaLavorazioni({
             </Button>
           ))}
         </div>
+        {puoModificare && (
+          <Button type="button" size="sm" variant={rapido ? "default" : "outline"} className="h-7 px-2 text-xs" aria-pressed={rapido}
+            onClick={() => { const si = !rapido; setRapido(si); if (si && filtro === "tutte") setFiltro(conti.settimana > 0 ? "settimana" : "da_fare"); }}>
+            {rapido ? "Fine aggiornamento" : "Aggiorna avanzamento"}
+          </Button>
+        )}
         {!faseId && <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setAperte(tutteAperte ? new Set() : new Set(fasi.map((f) => f.id)))}>{tutteAperte ? "Chiudi tutte" : "Apri tutte"}</Button>}
       </div>
 
+      {rapido && <p role="status" className="rounded-md bg-sky-50 px-2 py-1 text-xs text-sky-900">Scrivi nella colonna Stato quanto è fatto in totale (quantità o %), Invio passa alla riga dopo. Ogni riga si salva da sola.</p>}
       <div ref={scrollRef} className="max-h-[78vh] overflow-y-auto rounded-lg border">
         <div>
         <div className={cn("sticky top-0 z-10 hidden items-center gap-x-2 border-b bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground md:grid", COLONNE)}>
@@ -523,8 +671,31 @@ export function DistintaLavorazioni({
                   <label className="flex items-center justify-between gap-2">Giorni ognuna<Input type="number" inputMode="numeric" min={1} max={3650} value={bloccoGiorni} onChange={(e) => setBloccoGiorni(e.target.value)} aria-label="Giorni per ogni riga scelta" className="h-7 w-20 px-1 text-xs" /></label>
                   <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" title="Una dopo l'altra, dalla data «dal» o da oggi, contando i giorni di lavoro" onClick={mettiInFila}>Metti in fila</Button>
                 </div>
+                <div className="border-t pt-2">
+                  <label className="flex items-center justify-between gap-2">Sposta di giorni<Input type="number" inputMode="numeric" min={-3650} max={3650} value={bloccoSposta} onChange={(e) => setBloccoSposta(e.target.value)} aria-label="Giorni di cui spostare le righe scelte" placeholder="es. 7 o -3" className="h-7 w-20 px-1 text-xs" /></label>
+                  <Button type="button" size="sm" variant="outline" className="mt-2 h-7 w-full text-xs" disabled={!bloccoSposta} onClick={spostaDate}>Sposta le date</Button>
+                </div>
               </PopoverContent>
             </Popover>
+            {chiSottofasi?.disponibile && onAggiungiChi && (
+              <select aria-label="Chi fa le righe scelte" value={bloccoChi} disabled={conSottofase.length === 0}
+                onChange={(e) => { scegliChi(e.target.value, conSottofase.map((x) => x.sottofaseId!)); setBloccoChi(""); azzeraScelte(); }}
+                className="h-6 max-w-40 rounded bg-secondary px-1 text-xs text-secondary-foreground">
+                <option value="">Chi la fa…</option>
+                {squadre.length > 0 && <optgroup label="Squadre">{squadre.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                {persone.length > 0 && <optgroup label="Persone">{persone.map((o) => <option key={o.id} value={`p:${o.id}`}>{o.nome}</option>)}</optgroup>}
+                {ditte.length > 0 && <optgroup label="Ditte">{ditte.map((o) => <option key={o.id} value={`d:${o.id}`}>{o.nome}</option>)}</optgroup>}
+              </select>
+            )}
+            {onAvanzaTante && (
+              <Popover>
+                <PopoverTrigger asChild><Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0}>Avanzamento</Button></PopoverTrigger>
+                <PopoverContent className="w-56 space-y-2 text-xs">
+                  <label className="flex items-center justify-between gap-2">Tutte al<span className="flex items-center gap-1"><Input type="number" inputMode="numeric" min={0} max={100} value={bloccoPct} onChange={(e) => setBloccoPct(e.target.value)} aria-label="Percentuale per le righe scelte" className="h-7 w-16 px-1 text-xs" />%</span></label>
+                  <Button type="button" size="sm" className="h-7 w-full text-xs" disabled={bloccoPct === ""} onClick={avanzaBlocco}>Applica</Button>
+                </PopoverContent>
+              </Popover>
+            )}
           </>}
           <Button type="button" size="icon" variant="ghost" className="h-6 w-6 text-background hover:bg-background/20 hover:text-background" aria-label="Togli la selezione" onClick={azzeraScelte}><X className="h-3.5 w-3.5" /></Button>
         </div>
@@ -540,6 +711,13 @@ export function DistintaLavorazioni({
         vedeVenduto={vedeVenduto} vedeCosti={vedeCosti} vedeMargini={vedeMargini} puoModificare={puoModificare}
         onChiudi={() => setAperta(null)}
         onVicina={(verso) => { const v = righeInElenco[indiceAperta >= 0 ? indiceAperta + verso : verso > 0 ? ultimoIndice.current : ultimoIndice.current - 1]; if (v) setAperta(v.key); }}
+        onSalvaVoce={onSalvaVoce} onRisorse={onRisorse} onParallelo={onParallelo}
+        chiSottofase={rigaAperta ? chiDellaSottofase(rigaAperta.sottofaseId) : []}
+        chiDisponibile={!!chiSottofasi?.disponibile && !!onAggiungiChi}
+        opzioniChi={{ persone, squadre, ditte }}
+        onAggiungiChi={(valore) => rigaAperta?.sottofaseId && scegliChi(valore, [rigaAperta.sottofaseId])}
+        onTogliChi={onTogliChi}
+        oggi={oggi}
         onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
         onSposta={sposta}
         onElimina={(x) => { setAperta(null); setDaEliminare(x); }}

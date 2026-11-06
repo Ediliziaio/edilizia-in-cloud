@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import {
   avanzamentoDaSottofasi,
+  avanzateDelRapportino,
   percentualeDaQuantita,
   quantitaEseguita,
   faseHaSottofasi,
@@ -153,6 +154,25 @@ describe("avanzamento della singola sottofase", () => {
     expect(quantitaEseguita({ percentuale: 100, quantitaFatta: 120, quantita: 306 })).toBe(306);
     expect(quantitaEseguita({ percentuale: 0, quantitaFatta: 120, quantita: 306 })).toBe(0);
     expect(quantitaEseguita({ percentuale: 50, quantitaFatta: null, quantita: null })).toBeNull();
+  });
+});
+
+describe("Rapportino: quanto è stato fatto", () => {
+  const delle = new Map([["f", [{ id: "a", peso: 1, fatta: false, percentuale: 0 }, { id: "b", peso: 1, fatta: false, percentuale: 0 }]]]);
+  it("chi scrive una percentuale ci ha lavorato, e l'anteprima la conta", () => {
+    const [v] = fasiLavorateDelRapportino({ f: 0 }, delle, [], [], { a: { percentuale: 50 } });
+    expect(v.sottofasi_lavorate).toEqual(["a"]);
+    expect(v.sottofasi_avanzate).toEqual([{ id: "a", percentuale: 50 }]);
+    expect(v.percentuale).toBe(25);
+  });
+  it("una sottofase finita oggi non porta anche l'avanzata", () => {
+    const [v] = fasiLavorateDelRapportino({ f: 0 }, delle, ["a"], [], { a: { percentuale: 50 } });
+    expect(v.sottofasi_fatte).toEqual(["a"]);
+    expect(v.sottofasi_avanzate).toBeUndefined();
+  });
+  it("riaprendo il rapportino torna quello che c'era", () => {
+    expect(avanzateDelRapportino([{ sottofasi_avanzate: [{ id: "a", quantita: 3 }] }, {}])).toEqual({ a: { quantita: 3 } });
+    expect(avanzateDelRapportino(null)).toEqual({});
   });
 });
 

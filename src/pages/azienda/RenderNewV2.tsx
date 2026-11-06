@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -762,6 +763,7 @@ export default function RenderNewV2() {
       const { data, error } = await supabase.functions.invoke("generate-render", {
         body: {
           session_id: sessionId,
+          qualita_render: state.qualita_render,
           config,
           target_width: photoMeta?.width,
           target_height: photoMeta?.height,
@@ -885,6 +887,7 @@ export default function RenderNewV2() {
         sessionStorage.removeItem(RESUME_KEY);
         return;
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Ripristino esplicito di uno snapshot esterno del browser.
       setResumable(snap);
     } catch {
       // snapshot corrotto → ignora
@@ -1176,6 +1179,7 @@ export default function RenderNewV2() {
 
       <div className="space-y-4 px-4 max-md:space-y-3 max-md:px-0">
         <RenderCreditGate />
+        {step === STEP_LABELS.length - 1 && <QualitaRender value={state.qualita_render} onChange={(qualita_render) => setState((old) => ({ ...old, qualita_render }))} disabled={generating} />}
 
         {step === 1 && resumable && !photo && (
           <RipresaRender

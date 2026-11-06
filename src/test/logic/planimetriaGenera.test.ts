@@ -138,13 +138,14 @@ describe("planimetria-genera: due tentativi, poi un messaggio semplice", () => {
     const chiama: ChiamaModello = async (messaggi, n) => {
       visti.push(messaggi.length);
       if (n === 2) expect(String(messaggi[messaggi.length - 1].content)).toMatch(/si sovrappongono/);
+      if (n === 3) return { testo: '{"verifiche":[]}', modello: "finto" };
       return { testo: n === 1 ? rotta : buona, modello: "finto" };
     };
     const esito = await generaPlanimetria(richiesta, chiama);
     expect(esito.ok).toBe(true);
     expect(esito.ok && esito.pianta.planimetria.schema).toBe(1);
-    expect(esito.tentativi).toHaveLength(2);
-    expect(visti).toEqual([2, 4]);
+    expect(esito.tentativi).toHaveLength(3);
+    expect(visti).toEqual([2, 4, 2]);
   });
 
   it("se anche il secondo è rotto non restituisce la pianta", async () => {

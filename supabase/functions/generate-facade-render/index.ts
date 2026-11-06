@@ -1,3 +1,5 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
+import { vincoloFonte3d } from "../../../shared/render-planimetria/fonte3d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
@@ -230,6 +232,8 @@ Do not include markdown. Do not include explanations outside the JSON.`;
 
 async function renderWithProvider(params: {
   prompt: string;
+  qualityRequest?: unknown;
+  startedAt?: number;
   preparedUrl: string;
   width?: number;
   height?: number;
@@ -263,11 +267,11 @@ async function renderWithProvider(params: {
     sourceImageBlob: imageBlob,
     effectiveWidth: params.width,
     effectiveHeight: params.height,
-    openaiQuality: "medium",
+    ...parametriQualitaRender(params.qualityRequest, params.startedAt ?? Date.now(), params.directProviderOnly ?? false),
     // F1-parity (audit 16/07) — timeout deadline-aware dal chiamante,
     // 1 tentativo per tier (il fallback è il Tier 2, non il retry).
-    timeoutMs: params.timeoutMs ?? 75_000,
-    directProviderOnly: params.directProviderOnly ?? false,
+
+
     maxRetries: 0,
     referenceImages: params.referenceImages && params.referenceImages.length > 0 ? params.referenceImages : undefined,
     metadata: {
@@ -317,6 +321,8 @@ Deno.serve(async (req) => {
     requestUserId = userId;
 
     const body = await req.json().catch(() => ({}));
+    const requestStartedAt = Date.now();
+    const highQuality = qualitaImmagineRender(body) === "high";
     const {
       action,
       session_id,
@@ -604,10 +610,13 @@ Deno.serve(async (req) => {
       console.warn(JSON.stringify({ lvl: "warn", fn: "generate-facade-render", session_id: requestSessionId, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
     }
 
+    prompt = [prompt, vincoloFonte3d(normalizedConfig)].filter(Boolean).join("\n\n");
     const idSessione = requestSessionId;
     const primoTentativo = async () => {
       try {
         return await renderWithProvider({
+          qualityRequest: body,
+          startedAt: requestStartedAt,
           prompt,
           referenceImages: sharedReferences,
           preparedUrl: prepared.url,
@@ -619,6 +628,7 @@ Deno.serve(async (req) => {
           directProviderOnly: true,
         });
       } catch (primoErr) {
+        if (highQuality) throw primoErr;
         console.warn(JSON.stringify({
           lvl: "warn",
           fn: "generate-facade-render",
@@ -628,6 +638,8 @@ Deno.serve(async (req) => {
           nota: "il formato potrebbe non essere rispettato dal fallback",
         }));
         return await renderWithProvider({
+          qualityRequest: body,
+          startedAt: requestStartedAt,
           prompt,
           referenceImages: sharedReferences,
           preparedUrl: prepared.url,
@@ -647,7 +659,7 @@ Deno.serve(async (req) => {
     // inventati o spostati, geometria/prospettiva cambiata. 1 retry budget.
     let finalImageData = imageData;
     let generationAttempts = 1;
-    const facadeJobStartMs = Date.now();
+    const facadeJobStartMs = requestStartedAt;
     try {
       const qaPrompt = [
         "You are a LENIENT quality inspector for a building facade renovation render.",
@@ -663,6 +675,7 @@ Deno.serve(async (req) => {
       ].join("\n");
 
       const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
         sourceImageDataUrl: sourceDataUrl,
         candidateImageDataUrl: imageData,
         qaPrompt,
@@ -681,7 +694,7 @@ Deno.serve(async (req) => {
 
       if (
         qaResult.checked && !qaResult.pass && qaIssues.length > 0 &&
-        Date.now() - facadeJobStartMs < 60_000
+        Date.now() - facadeJobStartMs < (highQuality ? 40_000 : 60_000)
       ) {
         console.log(JSON.stringify({
           fn: "generate-facade-render",
@@ -705,6 +718,8 @@ Deno.serve(async (req) => {
         const primoFormatoOk = !describeFormatMismatch(formatoAtteso, primoDim);
         try {
           const retry = await renderWithProvider({
+          qualityRequest: body,
+          startedAt: requestStartedAt,
             prompt: `${prompt}
 
 [QC FAILURE — MANDATORY CORRECTIONS]

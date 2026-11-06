@@ -477,6 +477,18 @@ function validateVariationWorkspace(raw, rawContext) {
     if (line.unit !== void 0 && (typeof line.unit !== "string" || line.unit.length > 20)) throw new Error("Unit\xE0 di misura della voce non valida.");
     return { id: line.id, description: line.description, quantity: line.quantity, price: line.price, ...line.unit ? { unit: line.unit } : {} };
   });
+  if (source.destinazione !== void 0) {
+    if (!["nuova", "fase"].includes(String(source.destinazione))) throw new Error("Destinazione del lavoro non valida.");
+    content.destinazione = source.destinazione;
+  }
+  if (source.chi !== void 0) {
+    if (!Array.isArray(source.chi) || source.chi.length > 20) throw new Error("Al massimo 20 persone o ditte per il lavoro extra.");
+    content.chi = source.chi.map((c) => {
+      const x = c ?? {};
+      if (!["persona", "ditta"].includes(String(x.tipo)) || !isVariationUuid(x.id) || typeof x.nome !== "string" || x.nome.length > 200) throw new Error("Chi fa il lavoro extra non \xE8 valido.");
+      return { tipo: x.tipo, id: x.id, nome: x.nome };
+    });
+  }
   const ids = source.attachmentIds ?? [];
   if (!Array.isArray(ids) || ids.length > 10 || ids.some((id) => !isVariationUuid(id)) || new Set(ids).size !== ids.length) throw new Error("Seleziona al massimo 10 allegati diversi.");
   content.attachmentIds = ids;

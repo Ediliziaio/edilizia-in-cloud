@@ -1,0 +1,14 @@
+TEXTURE FINITURE — PROVENIENZA E PROMPT
+Generazione: strumento ImageGen integrato (image_gen.imagegen), 5 novembre 2026.
+Tre immagini generate separatamente; conversione WebP 1024×1024 per l'app.
+Cartella nel repository: /Users/agenteai/Documents/Codex/2026-09-22/agg/work/edilizia-in-cloud/src/assets/planimetrie/finiture
+File: rovere.webp, marmo.webp, pietra.webp.
+
+ROVERE
+Use case: photorealistic-natural. Asset type: seamless repeating PBR albedo texture for architectural room floors and wood wall cladding. Generate a square 1536x1536 flat orthographic overhead photograph of a premium natural light European oak parquet floor, straight staggered long wide planks, 4 planks across and about 2 plank lengths tall. Real fine longitudinal wood grain, subtle knots, warm honey beige oak, gently varied boards, narrow 1 mm darker joints, matte natural oiled finish. Perfectly even diffuse neutral lighting, no directional light, no shadows, no reflections, no objects, no perspective, no borders, no text, no watermark. Texture must tile seamlessly on all four edges; board ends staggered, no black gaps. This is a real surface texture not an interior render.
+
+MARMO
+Use case: photorealistic-natural. Asset type: seamless repeating PBR albedo texture for architectural marble slabs. Generate a square 1536x1536 flat orthographic overhead photograph of honed Italian white Carrara marble, ivory white body, subtle organic branching cool pale grey veins at realistic slab scale, restrained natural mineral variation. One continuous seamless stone surface, no tile grid, no joints. Perfectly uniform neutral diffuse lighting, no directional shadows, no gloss highlights, no reflections, no objects, no perspective, no borders, no text, no watermark. Texture must tile seamlessly across all four edges.
+
+PIETRA
+Use case: photorealistic-natural. Asset type: seamless repeating PBR albedo texture for architectural natural stone walls and floors. Generate a square 1536x1536 flat orthographic overhead photograph of premium warm beige limestone tiles, large rectangular honed limestone slabs in a subtle offset horizontal coursing with fine 2 mm joints, realistic fine mineral pores, quiet natural variations in cream and sand tones. Perfectly uniform neutral diffuse lighting, no directional shadows, no highlights, no perspective, no objects, no borders, no text, no watermark. Texture must tile seamlessly across all four edges, no black gaps.

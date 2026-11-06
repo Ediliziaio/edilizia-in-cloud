@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  celleAppuntamenti, celleNote, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote, statoAppuntamento,
+  accessoDettagli, celleAppuntamenti, celleNote, nomePersona, perOpportunita, righeFoglioAppuntamenti, righeFoglioNote, statoAppuntamento,
   type AppuntamentoEsportato, type NotaEsportata,
 } from "@/lib/opportunita/dettagliEsportazione";
 
@@ -62,6 +62,34 @@ describe("le colonne degli appuntamenti", () => {
     expect(celleAppuntamenti([app({ title: null })], oggi).app_prossimo).toContain("Sopralluogo preventivo");
     expect(statoAppuntamento({ status: "da_preventivare", is_completed: false })).toBe("Da preventivare");
     expect(statoAppuntamento({ status: "annullato", is_completed: true })).toBe("Annullato");
+  });
+});
+
+describe("i difetti della revisione", () => {
+  const oggi = "2026-11-05";
+  it("completato nello stato, anche con lo spunta spenta, non è il prossimo", () => {
+    const c = celleAppuntamenti([app({ appointment_date: "2026-12-01", status: "completato", is_completed: false })], oggi);
+    expect(c.app_prossimo).toBe("");
+    expect(c.app_ultimo).toContain("(Completato)");
+  });
+  it("il CSV non taglia e non rimanda a un foglio che non ha", () => {
+    const lunghe = Array.from({ length: 5 }, (_, i) => nota({ content: "x".repeat(10000), created_at: `2026-11-0${i + 1}T09:00:00Z` }));
+    const testo = celleNote(lunghe, {}, false).note_testo;
+    expect(testo).not.toContain("foglio dedicato");
+    expect(testo.match(/x{10000}/g)).toHaveLength(5);
+  });
+  it("chi non si trova nello staff non resta senza nome", () => {
+    expect(nomePersona("u9", { u1: "Noemi" })).toBe("Nome non disponibile");
+    expect(nomePersona("u1", { u1: "Noemi" })).toBe("Noemi");
+    expect(nomePersona(null, {})).toBe("");
+    expect(celleNote([nota({ created_by: "u9" })], {}).note_testo).toContain("Nome non disponibile");
+  });
+  it("l'accesso segue le regole del database", () => {
+    expect(accessoDettagli({ isAdmin: true, onlyAssigned: true })).toEqual({ note: true, appuntamenti: true, parzialeNote: false, parzialeAppuntamenti: false });
+    expect(accessoDettagli({ canViewOrders: true, onlyAssigned: true })).toMatchObject({ note: true, appuntamenti: false, parzialeNote: true });
+    expect(accessoDettagli({ canViewMarketingAppointments: true })).toEqual({ note: false, appuntamenti: true, parzialeNote: false, parzialeAppuntamenti: false });
+    // dal solo calendario non si vedono gli appuntamenti CRM creati da altri
+    expect(accessoDettagli({ canViewCalendar: true })).toMatchObject({ appuntamenti: true, parzialeAppuntamenti: true });
   });
 });
 

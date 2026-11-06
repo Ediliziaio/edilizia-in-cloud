@@ -209,3 +209,16 @@ ${bullets([
     normalizedConfig,
   };
 }
+
+/** Vincoli operativi conservati anche dopo la riscrittura del testo. */
+export function vincoloAperturePersiane(config: PersianeRenderConfig): string {
+  const all = config.target_selection.mode === "all";
+  return [
+    "MANDATORY OPENING-BY-OPENING CONTRACT — overrides any conflicting prose:",
+    all ? "Apply the selected shutter finish and typology to EVERY target opening on EVERY visible floor, including the upper storey. Do not update just the ground floor or just the largest opening." : `Edit ONLY these openings: ${config.target_selection.targetLabels.join(", ")}.`,
+    "Preserve each individual opening's exact sill height, width, height, shape and location. A WINDOW with a raised sill must remain a WINDOW with the same raised sill: never extend it to the ground or turn it into a door. French doors remain French doors at the same size. Do not cover an entrance door unless it is an explicit target.",
+    ...config.scene_analysis.openings.map((o) => `Opening ${o.label}, ${o.position}, ${o.approximatePlacement}: ${o.openingKind}; preserve ${o.geometryNotes}.`),
+    ...config.technical_specification.map(describeTarget),
+    "The product reference photos show MATERIAL/STYLE only. Never copy their opening size, facade, wall or installation context into this building.",
+  ].join("\n");
+}

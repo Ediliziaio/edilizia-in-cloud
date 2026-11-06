@@ -40,6 +40,8 @@ interface Props {
   /** Per ricordare colonne ed esportazioni salvate (per azienda). */
   chiaveMemoria: string;
   onEsporta: (s: SceltaDialog) => void;
+  /** Cosa può leggere chi esporta: senza permesso la casella è spenta, non una colonna a zero. */
+  accesso?: { note: boolean; appuntamenti: boolean; parzialeNote: boolean; parzialeAppuntamenti: boolean };
 }
 
 interface Salvata { nome: string; note?: boolean; appuntamenti?: boolean; stati: string[]; fasiNomi: string[]; tuttePipeline: boolean; periodo: { tipo: "mese_scorso" | "settimana_scorsa" | "anno" | "nessuno"; data: DataPeriodo }; colonne: string[]; formato: FormatoEsportazioneOpportunita }
@@ -63,7 +65,7 @@ export function periodoRelativo(tipo: Salvata["periodo"]["tipo"], oggi = new Dat
   return { da: iso(lun), a: iso(dom) };
 }
 
-export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline, piuPipeline, filtriAttivi, inCorso, chiaveMemoria, onEsporta }: Props) {
+export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline, piuPipeline, filtriAttivi, inCorso, chiaveMemoria, onEsporta, accesso = { note: true, appuntamenti: true, parzialeNote: false, parzialeAppuntamenti: false } }: Props) {
   const [scelteFasi, setScelteFasi] = useState<Set<string>>(new Set());
   const [stati, setStati] = useState<Set<string>>(new Set());
   const [formato, setFormato] = useState<FormatoEsportazioneOpportunita>("xlsx");
@@ -93,7 +95,9 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
   const alterna = (s: Set<string>, v: string, on: boolean) => { const n = new Set(s); if (on) n.add(v); else n.delete(v); return n; };
   const tutteLeColonne = useMemo(() => [...COLONNE_OPPORTUNITA.filter((c) => c.key !== "pipeline" || piuPipeline), { key: "cf", label: "Campi personalizzati" }], [piuPipeline]);
 
-  const scelta = (): SceltaDialog => ({ note, appuntamenti, fasi: tuttePipeline ? new Set() : scelteFasi, stati, formato, tuttePipeline, periodo: da || a ? { da, a, data: dataPeriodo } : null, colonne });
+  const conNote = note && accesso.note;
+  const conAppuntamenti = appuntamenti && accesso.appuntamenti;
+  const scelta = (): SceltaDialog => ({ note: conNote, appuntamenti: conAppuntamenti, fasi: tuttePipeline ? new Set() : scelteFasi, stati, formato, tuttePipeline, periodo: da || a ? { da, a, data: dataPeriodo } : null, colonne });
   const esporta = () => { scriviMemoria(kColonne, [...colonne]); scriviMemoria(kDettagli, { note, appuntamenti }); onEsporta(scelta()); };
   const applica = (sv: Salvata) => {
     setStati(new Set(sv.stati)); setFormato(sv.formato); setTuttePipeline(sv.tuttePipeline && piuPipeline);
@@ -227,10 +231,11 @@ export function EsportaOpportunitaDialog({ aperto, onChiudi, fasi, nomePipeline,
         <div className="space-y-2">
           <Label>Aggiungi al file</Label>
           <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={note} onCheckedChange={(v) => setNote(!!v)} />Note</label>
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={appuntamenti} onCheckedChange={(v) => setAppuntamenti(!!v)} />Appuntamenti</label>
+            <label className={`flex items-center gap-2 text-sm ${accesso.note ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.note} checked={note && accesso.note} onCheckedChange={(v) => setNote(!!v)} />Note{accesso.note ? "" : " (non hai il permesso di vederle)"}</label>
+            <label className={`flex items-center gap-2 text-sm ${accesso.appuntamenti ? "" : "text-muted-foreground"}`}><Checkbox disabled={!accesso.appuntamenti} checked={appuntamenti && accesso.appuntamenti} onCheckedChange={(v) => setAppuntamenti(!!v)} />Appuntamenti{accesso.appuntamenti ? "" : " (non hai il permesso di vederli)"}</label>
           </div>
-          {(note || appuntamenti) && <p className="text-xs text-muted-foreground">Colonne con il riepilogo{formato === "xlsx" ? " e un foglio con una riga per ognuno" : ""}. Le note automatiche del sistema restano fuori.</p>}
+          {(conNote || conAppuntamenti) && <p className="text-xs text-muted-foreground">Colonne con il riepilogo{formato === "xlsx" ? " e un foglio con una riga per ognuno" : ""}. Le note automatiche del sistema restano fuori.</p>}
+          {((conNote && accesso.parzialeNote) || (conAppuntamenti && accesso.parzialeAppuntamenti)) && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Vedi solo una parte: nel file ci sono solo {conNote && accesso.parzialeNote && conAppuntamenti && accesso.parzialeAppuntamenti ? "le note e gli appuntamenti" : conNote && accesso.parzialeNote ? "le note" : "gli appuntamenti"} che puoi vedere, e le colonne lo dicono.</p>}
         </div>
 
         <div className="space-y-2">

@@ -1,3 +1,4 @@
+import { parametriQualitaRender, qualitaImmagineRender, tempoQaRender } from "../../../shared/render-quality/quality.ts";
 // generate-technical-render — Edge Function EiC
 // Generic production backend for technical render modules:
 // ristrutturazioni, pavimenti-esterni, giardini, porte-blindate, porte-interne.
@@ -581,6 +582,8 @@ Deno.serve(async (req) => {
     requestUserId = userId;
 
     const body = await req.json().catch(() => ({}));
+    const requestStartedAt = Date.now();
+    const highQuality = qualitaImmagineRender(body) === "high";
     const { session_id, config, target_width, target_height } = body as {
       session_id?: string;
       config?: Record<string, unknown>;
@@ -787,7 +790,7 @@ Deno.serve(async (req) => {
 
       // F1-parity (audit 16/07) — budget deadline-aware, 1 tentativo per tier.
       const TECH_BUDGET_MS = 140_000;
-      const jobStartMs = Date.now();
+      const jobStartMs = requestStartedAt;
       const jobElapsed = () => Date.now() - jobStartMs;
       // Foto prodotto del catalogo dell'azienda (scelte nel wizard, max 4):
       // riempite PRIMA del primo tentativo e allegate al modello come reference.
@@ -797,18 +800,15 @@ Deno.serve(async (req) => {
       let riferimentiCondivisi: string[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = TECH_BUDGET_MS - jobElapsed() - 20_000;
-        const perAttemptTimeout = Math.max(
-          30_000,
-          Math.min(75_000, Math.floor(remaining / (soloProviderDiretto ? 1 : 2))),
-        );
+        const qualityParams = parametriQualitaRender(body, requestStartedAt, soloProviderDiretto);
         return editImage({
           prompt,
           sourceImageBlob: imgBlob,
           effectiveWidth,
           effectiveHeight,
-          openaiQuality: "medium",
-          timeoutMs: perAttemptTimeout,
-          directProviderOnly: soloProviderDiretto,
+
+          ...qualityParams,
+
           maxRetries: 0,
           referenceImages: catalogReferences.length > 0 ? catalogReferences : undefined,
           metadata: {
@@ -886,10 +886,12 @@ Deno.serve(async (req) => {
         console.warn(JSON.stringify({ lvl: "warn", fn: "generate-technical-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
       }
 
+      finalPrompt = [finalPrompt, vincoloFonte3d(rawConfig)].filter(Boolean).join("\n\n");
       let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
       try {
         providerResult = await generateCandidate(finalPrompt, true);
       } catch (primoErr) {
+        if (highQuality) throw primoErr;
         console.warn(JSON.stringify({
           lvl: "warn", fn: "generate-technical-render", session_id,
           msg: "provider_diretto_fallito_si_passa_alla_catena",
@@ -921,6 +923,7 @@ Deno.serve(async (req) => {
         };base64,${bytesToBase64(new Uint8Array(await imgBlob.arrayBuffer()))}`;
 
         const qaResult = await callVisionQa({
+          timeoutMs: tempoQaRender(requestStartedAt),
           sourceImageDataUrl: sourceDataUrl,
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
@@ -937,7 +940,7 @@ Deno.serve(async (req) => {
           return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
         });
 
-        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < 95_000) {
+        if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (highQuality ? 40_000 : 95_000)) {
           console.log(JSON.stringify({
             fn: "generate-technical-render",
             msg: "qa_failed_retry_corrective",
@@ -1134,3 +1137,4 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate elements, sa
     return jsonResponse({ error: "render_failed", message: msg }, 500);
   }
 });
+import { vincoloFonte3d } from "../../../shared/render-planimetria/fonte3d.ts";

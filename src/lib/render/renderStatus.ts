@@ -1,15 +1,16 @@
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { it } from "date-fns/locale";
 
-export type RenderStatusKey = "pending" | "processing" | "completed" | "failed";
+export type RenderStatusKey = "draft" | "pending" | "processing" | "completed" | "failed";
 
 export const STALE_RENDER_MINUTES = 30;
 
 export function normalizeRenderStatus(value: string | null | undefined): RenderStatusKey {
+  if (value === "draft" || value === "analysis_done") return "draft";
   if (value === "completed" || value === "processing" || value === "pending" || value === "failed") return value;
   if (value === "completato" || value === "succeeded" || value === "success") return "completed";
   if (value === "errore" || value === "error") return "failed";
-  if (value === "analyzing" || value === "analysis_done" || value === "queued" || value === "running") return "processing";
+  if (value === "analyzing" || value === "queued" || value === "running") return "processing";
   return "pending";
 }
 
@@ -40,6 +41,7 @@ export function isRenderStale(status: string | null | undefined, value: string |
 export function renderStatusLabel(status: string | null | undefined) {
   const normalized = normalizeRenderStatus(status);
   const labels: Record<RenderStatusKey, string> = {
+    draft: "Da completare",
     completed: "Completato",
     processing: "In elaborazione",
     pending: "In coda",

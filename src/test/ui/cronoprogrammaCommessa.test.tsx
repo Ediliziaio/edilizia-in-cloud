@@ -22,6 +22,7 @@ const stato = vi.hoisted(() => ({
   sottofasi: new Map<string, unknown[]>(),
 }));
 
+vi.mock("@/hooks/useCostiDirettiFasi", () => ({ useCostiDirettiFasi: () => ({ data: undefined as unknown }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   useOrderWorkPhases: () => ({

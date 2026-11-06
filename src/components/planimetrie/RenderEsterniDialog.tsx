@@ -1,3 +1,4 @@
+import { COLORI_INFISSI_PROGETTO, PROFILI_PROGETTO } from "../../../shared/planimetrie/materialiProgetto.ts";
 /**
  * Render degli esterni dalla pianta: piscina, pergola, giardino, facciata, pavimento esterno.
  *
@@ -82,8 +83,8 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
     const attesa = setTimeout(() => (async () => {
       try {
         const cattura = await caricaFotogramma();
-        const telecamera = inquadratura === "tre_quarti" ? vistaGiroIntorno(limiti, 4 / 3) : vistaDalGiardino(limiti, inquadratura, 60, casa);
-        const f = await cattura({ pianta, localeId, telecamera, vista, larghezza: 1280, altezza: 960, terreno: 40, piani, aspetto: asp });
+        const telecamera = inquadratura === "tre_quarti" ? vistaGiroIntorno(limiti, 3 / 2) : vistaDalGiardino(limiti, inquadratura, 60, casa);
+        const f = await cattura({ pianta, localeId, telecamera, vista, larghezza: 1536, altezza: 1024, terreno: 40, piani, aspetto: asp });
         if (annullato) return;
         url = URL.createObjectURL(f.png);
         const chiave = JSON.stringify(asp);
@@ -107,7 +108,9 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
   const continua = () => {
     if (!anteprima) return;
     const m = MODULI_ESTERNI.find((x) => x.modulo === modulo)!;
-    const nota = [MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto(asp, pianta.tetto)].filter(Boolean).join(" ");
+    const infissi = pianta.infissiProgetto;
+    const notaInfissi = infissi ? `Infissi comuni del progetto: ${PROFILI_PROGETTO[infissi.profilo]}, ${COLORI_INFISSI_PROGETTO[infissi.colore].nome}. Usa lo stesso materiale e colore in tutte le viste. Conserva per ogni apertura dimensioni, posizione, davanzale, numero di ante e meccanismo di apertura. Non cambiare persiane o porte.` : "";
+    const nota = ["La sorgente è una vista 3D del progetto: trasformala in una fotografia realistica mantenendo edificio, aperture e inquadratura.", MOMENTI_ESTERNI.find((x) => x.id === momento)?.nota, descriviAspetto({ ...asp, infissi: infissi?.colore ?? asp.infissi }, pianta.tetto), notaInfissi].filter(Boolean).join(" ");
     lasciaFotoDaPianta(modulo, anteprima.file, nota || undefined);
     onChiudi();
     toast.success("Vista 3D caricata come foto di partenza");
@@ -164,8 +167,8 @@ export function RenderEsterniDialog({ aperto, onChiudi, pianta, vista, titolo, m
                   <SelectTrigger className="h-8 w-48" aria-label="Facciata"><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_FACCIATE.map((id) => <SelectItem key={id} value={id}>{FACCIATE[id].nome}</SelectItem>)}</SelectContent>
                 </Select>
-                <Select value={asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
-                  <SelectTrigger className="h-8 w-52" aria-label="Infissi"><SelectValue /></SelectTrigger>
+                <Select disabled={!!pianta.infissiProgetto} value={pianta.infissiProgetto?.colore ?? asp.infissi} onValueChange={(v) => cambiaAsp({ infissi: v as OpzioniAspetto["infissi"] })}>
+                  <SelectTrigger className="h-8 w-52" aria-label={pianta.infissiProgetto ? "Infissi comuni del progetto" : "Infissi"}><SelectValue /></SelectTrigger>
                   <SelectContent>{ID_INFISSI.map((id) => <SelectItem key={id} value={id}>Infissi: {INFISSI[id].nome.toLowerCase()}</SelectItem>)}</SelectContent>
                 </Select>
                 <div className="flex items-center gap-2">

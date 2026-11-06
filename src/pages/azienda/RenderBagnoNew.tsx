@@ -511,6 +511,7 @@ export default function RenderBagnoNew() {
       {
         body: {
           session_id: activeSessionId,
+          qualita_render: config.qualita_render,
           ...(targetWidth && targetHeight ? { target_width: targetWidth, target_height: targetHeight } : {}),
         },
         headers: token ? { Authorization: `Bearer ${token}` } : {},

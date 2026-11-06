@@ -2,14 +2,15 @@
  * Render AI dalla pianta: i pezzi di prompt che `generate-room-render` aggiunge quando
  * la sessione viene da una stanza della pianta (fase 5b).
  *
- * - `bloccoPartenza3D`: l'immagine di partenza è una vista del 3D (grigia, senza
- *   materiali) e non una foto: va trasformata in una foto della stessa stanza.
+ * - `bloccoPartenza3D`: l'immagine di partenza è una vista del 3D (con eventuali
+ *   finiture scelte) e non una foto: va trasformata in una foto della stessa stanza.
  * - `bloccoPianta`: misure vere e porte/finestre, con la pianta della stanza allegata.
  * - `righeQaPianta`: cosa il controllo visivo deve verificare su porte e finestre.
  *
  * In inglese: è il testo per i modelli, non per l'utente. Le misure stimate sono dette
  * «approximately»: non si presentano come vere misure che nessuno ha preso.
  */
+import { campioneFinitura, type SuperficieFinitura } from "../planimetrie/finiture.ts";
 import type { AperturaStanza, VincoliStanza } from "./vincoli.ts";
 
 export type PartenzaRender = "foto" | "vista_3d";
@@ -53,21 +54,30 @@ function descriviApertura(a: AperturaStanza, circa: boolean): string {
 /** Testa del prompt quando si parte da una vista del 3D invece che da una foto. */
 export function bloccoPartenza3D(): string {
   return [
-    "SOURCE IMAGE — IMPORTANT: Image 1 is NOT a photograph. It is a plain 3D model of the real room, seen from the exact viewpoint the customer chose: grey walls, white ceiling, simple flat floor, openings as empty holes or pale glass, furniture as plain blocks.",
+    "SOURCE IMAGE — IMPORTANT: Image 1 is NOT a photograph. It is a plain 3D model of the real room, seen from the exact viewpoint the customer chose: walls, floor and ceiling may already carry the customer-selected material textures; openings appear as empty holes or pale glass, furniture as plain blocks. Keep selected finish identities and colours outside the surfaces explicitly replaced by the render configuration, while making them photorealistic.",
     "Turn it into a photorealistic photograph of the SAME room: keep the exact camera position, lens and framing, the position and length of every wall, the ceiling height, and every door and window exactly where the holes are in Image 1. Plain blocks mark where fixtures and furniture stand: replace them with real furniture of the same footprint in the same place, styled as described below.",
-    "Do not add walls, columns, beams, niches, doors or windows that Image 1 does not show. Add realistic daylight through the windows, realistic materials and soft shadows.",
+    "FURNITURE INVENTORY LOCK: keep exactly the furniture items represented by the visible blocks in Image 1, with the same footprint, position and orientation. Do NOT add a coffee table, side table, rug, chair, ottoman or extra cabinet unless the written customer brief explicitly requests that addition or complete furniture replacement. Style and material sample photos NEVER authorise copying their extra furniture or rugs. A floor replacement must stay visible: never introduce a new rug over it.",
+    "Do not add walls, columns, niches, doors or windows that Image 1 does not show. Add decorative ceiling beams or panels ONLY when the selected ceiling intervention explicitly requests them, preserving the real ceiling height. Add realistic daylight through the windows, realistic materials and soft shadows.",
   ].join("\n");
 }
 
 /** Testo libero dell'utente nel prompt: una riga, corto, senza virgolette che rompano la frase. */
-const pulisci = (s: string | undefined) => (s ?? "").replace(/[\r\n"`]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+const pulisci = (s: string | undefined) => (s ?? "").replace(/[\r\n"`]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
 
 /**
  * Le finiture scelte nella pianta: sono del cliente, quindi valgono più dello stile generico.
  * Una riga sola, o stringa vuota se la stanza non ne ha.
  */
-export function righeFiniture(f: VincoliStanza["locale"]["finiture"]): string {
-  if (!f) return "";
+export function righeFiniture(finiture: VincoliStanza["locale"]["finiture"], interventi?: unknown): string {
+  if (!finiture) return "";
+  const f = { ...finiture };
+  const cfg = interventi && typeof interventi === "object" ? interventi as Record<string, unknown> : {};
+  const opzione = (k: string) => cfg[k] && typeof cfg[k] === "object" ? cfg[k] as Record<string, unknown> : {};
+  if (opzione("pavimento").attivo === true) delete f.pavimento;
+  if (opzione("soffitto").attivo === true) delete f.soffitto;
+  const vernice = opzione("verniciatura"), rivestimento = opzione("rivestimento_pareti");
+  if ((vernice.attivo === true && (vernice.applica_a ?? "tutte") === "tutte") || (rivestimento.attivo === true && rivestimento.applica_a === "tutte")) delete f.pareti;
+  if (rivestimento.attivo === true && rivestimento.applica_a === "tutte") delete f.rivestimento;
   const parti: string[] = [];
   const pav = pulisci(f.pavimento), par = pulisci(f.pareti), sof = pulisci(f.soffitto);
   if (pav) parti.push(`floor: "${pav}"`);
@@ -78,7 +88,20 @@ export function righeFiniture(f: VincoliStanza["locale"]["finiture"]): string {
     parti.push(`wall tiles${mat ? ` "${mat}"` : ""} up to ${m(f.rivestimento.altezza)} from the floor`);
   }
   if (!parti.length) return "";
-  return `Finishes chosen on the plan by the client (Italian descriptions; they take priority over the generic style): ${parti.join("; ")}.`;
+  const dettagli = (["pavimento", "pareti", "soffitto"] as SuperficieFinitura[]).flatMap((s) => {
+    const c = campioneFinitura(f[s], s);
+    if (!c) return [];
+    const superficie = s === "pavimento" ? "floor" : s === "pareti" ? "walls" : "ceiling";
+    const materiale = c.trama === "rovere"
+      ? "recognisable natural wood grain, fine longitudinal fibres, subtle knots and individual board joints; never a flat brown painted surface"
+      : c.trama === "marmo"
+        ? "natural marble mineral veining at slab scale; never a blank white surface or a printed repetitive pattern"
+        : c.trama === "pietra"
+          ? "natural stone mineral pores, quiet tonal variation and fine joints"
+          : "the specified finish texture, colour and physically plausible surface roughness";
+    return [`${superficie}: ${materiale}${c.id === "gres_legno" ? "; this is wood-look porcelain with fine grout lines, not solid wood" : ""}`];
+  });
+  return `Finishes chosen on the plan by the client (Italian descriptions; preserve these outside the areas explicitly changed by the selected render interventions; they take priority over the generic style): ${parti.join("; ")}. Render these as real physical materials, at realistic scale, with texture and appropriate reflections, not uniform colour fills. ${dettagli.join(". ")}${dettagli.length ? "." : ""}`;
 }
 
 /**
@@ -87,7 +110,7 @@ export function righeFiniture(f: VincoliStanza["locale"]["finiture"]): string {
  */
 export function bloccoPianta(
   v: VincoliStanza,
-  opz: { partenza: PartenzaRender; inquadrate?: AperturaInquadrata[]; immaginePianta?: number | null },
+  opz: { partenza: PartenzaRender; inquadrate?: AperturaInquadrata[]; immaginePianta?: number | null; interventi?: unknown },
 ): string {
   const l = v.locale;
   const circa = l.stimata;
@@ -96,7 +119,7 @@ export function bloccoPianta(
     "FLOOR PLAN CONSTRAINTS — this room exists on a real floor plan; the render must respect it.",
     `Room: ${l.destinazione}. Internal size ${ca}${m(l.larghezza_cm)} × ${m(l.profondita_cm)}${l.rettangolare ? "" : " (overall footprint; the room is not a plain rectangle)"}, floor area ${ca}${l.superficie_mq.toFixed(1)} m², ceiling height ${ca}${m(l.altezza_cm)}. Furniture and fixtures must be at a realistic scale for these measurements.`,
   ];
-  const fin = righeFiniture(l.finiture);
+  const fin = righeFiniture(l.finiture, opz.interventi);
   if (fin) righe.push(fin);
   if (opz.immaginePianta) {
     righe.push(`Image ${opz.immaginePianta} is the floor plan of THIS room seen from above (invisible input, never show it in the result): walls are numbered 1–${v.pareti.length} going counter-clockwise; doors are drawn in blue, windows in orange, each with its name. Use it only to know where every opening is.`);
@@ -136,7 +159,8 @@ export function righeQaPianta(v: VincoliStanza, opz: { partenza: PartenzaRender;
   ];
   if (opz.partenza === "vista_3d") {
     righe.push(
-      "- The source (Image 1) is a plain grey 3D model, not a photo: the candidate SHOULD look completely different in materials, light and furniture style. That is expected and is NOT a geometry change. Judge only walls, ceiling, camera and openings.",
+      "- The source (Image 1) is a 3D model, not a photo: photorealistic materials, light and furniture are expected; selected render interventions may replace the source finishes. That is expected and is NOT a geometry change. Judge walls, ceiling, camera, openings and preservation of the visible furniture inventory/footprints, unless the customer explicitly requests additions or full furniture replacement.",
+      "- unrequested_furniture: fail if the candidate introduces a coffee table, side table, rug, chair, ottoman or cabinet that has no corresponding block in the source, unless the written customer request explicitly asks for it or for full furniture replacement. Small decorative objects on existing furniture are allowed. Never treat furniture in the sample boards as permission to add it to the real room.",
     );
     if (inquadrate.length > 0) {
       righe.push(

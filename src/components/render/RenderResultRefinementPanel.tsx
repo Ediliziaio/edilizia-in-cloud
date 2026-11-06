@@ -55,6 +55,7 @@ const SKIP_KEYS = new Set([
   "result_urls",
   "image_url",
   "original_photo_url",
+  "materiali_visivi",
 ]);
 
 function humanize(value: string) {
@@ -84,8 +85,10 @@ function formatValue(value: unknown): string | null {
 
 function collectChoices(value: unknown, group = "Generale", rows: ChoiceRow[] = []): ChoiceRow[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return rows;
+  const section = value as Record<string, unknown>;
+  if (section.attivo === false || section.enabled === false) return rows;
 
-  Object.entries(value as Record<string, unknown>).forEach(([key, raw]) => {
+  Object.entries(section).forEach(([key, raw]) => {
     if (SKIP_KEYS.has(key) || key.startsWith("_")) return;
     if (raw === null || raw === undefined || raw === "") return;
 

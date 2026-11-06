@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import type { CSSProperties } from "react";
 import { Check } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -571,6 +572,7 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
 
   return (
     <div className="space-y-5 max-md:space-y-3">
+      <QualitaRender value={value.qualita_render} onChange={(qualita_render) => onChange({ ...value, qualita_render })} />
       {/* Telefono: l'anteprima disegnata (e le sue note) resta al computer: la
           foto vera è sopra e il render arriva tra poco. */}
       {!isMobile && <BathroomMoodPreview value={value} />}

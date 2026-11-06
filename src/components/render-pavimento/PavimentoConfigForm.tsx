@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -324,6 +325,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
 
   return (
     <div className="space-y-5 max-md:space-y-3">
+      <QualitaRender value={value.qualita_render} onChange={(qualita_render) => onChange({ ...value, qualita_render })} />
       {/* Riepilogo della scelta — telefono: una riga compatta. */}
       <div className="rounded-lg border bg-muted/25 p-3 max-md:p-2">
         <div className="flex items-start gap-3 max-md:items-center max-md:gap-2.5">

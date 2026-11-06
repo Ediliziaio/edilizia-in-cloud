@@ -1,3 +1,4 @@
+import { QualitaRender } from "@/components/render/QualitaRender";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -210,6 +211,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
   return (
     <div className="space-y-8 max-md:space-y-4">
+      <QualitaRender value={value.qualita_render} onChange={(qualita_render) => onChange({ ...value, qualita_render })} />
       {/* Telefono: la lettura della facciata è già al passo «Analisi». */}
       {analysis && !isMobile && (
         <div className="rounded-xl border bg-muted/20 p-4 space-y-3">

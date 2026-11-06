@@ -1,7 +1,17 @@
+import { CAMPIONI_FINITURE, campioneFinitura, type SuperficieFinitura } from "../../../../shared/planimetrie/finiture.ts";
 import type { Materiale3D } from "./tipi";
 
 /** Colori dei materiali (sRGB). Giallo e rosso seguono la convenzione italiana: demolizioni e nuove costruzioni. */
+export function materialeFinitura(testo: string | undefined, superficie: SuperficieFinitura, fallback: string): string {
+  const campione = campioneFinitura(testo, superficie);
+  return campione ? `finitura:${superficie}:${campione.id}` : fallback;
+}
+
 export const MATERIALI: Record<string, Materiale3D> = {
+  ...Object.fromEntries(Object.entries(CAMPIONI_FINITURE).flatMap(([superficie, campioni]) => campioni.map((c) => [
+    `finitura:${superficie}:${c.id}`,
+    { nome: c.nome, colore: c.colore === "#ffffff" ? (c.trama === "rovere" ? "#c49a63" : c.trama === "marmo" ? "#f2f0eb" : c.trama === "pietra" ? "#d9cdb9" : c.colore) : c.colore, opacita: 1, ruvidita: c.ruvidita, tessitura: { trama: c.trama, metri: c.metri, tinta: c.colore } },
+  ]))),
   // linee degli impianti (stesse tinte del disegno 2D)
   impianto_elettrica: { nome: "Impianto elettrico", colore: "#dc2626", opacita: 1, ruvidita: 0.5 },
   impianto_acqua: { nome: "Acqua", colore: "#2563eb", opacita: 1, ruvidita: 0.4 },
@@ -14,7 +24,7 @@ export const MATERIALI: Record<string, Materiale3D> = {
   muro_nuovo: { nome: "Muro nuovo", colore: "#d42a2a", opacita: 1, ruvidita: 0.8 },
   soffitto: { nome: "Soffitto", colore: "#f6f4ef", opacita: 1, ruvidita: 0.95 },
   vetro: { nome: "Vetro", colore: "#a9d2ee", opacita: 0.3, ruvidita: 0.05 },
-  pavimento_legno: { nome: "Pavimento in legno", colore: "#b98a5c", opacita: 1, ruvidita: 0.6 },
+  pavimento_legno: { nome: "Pavimento in legno", colore: "#b98a5c", opacita: 1, ruvidita: 0.6, tessitura: { trama: "rovere", metri: [1.2, 2.4], tinta: "#ffffff" } },
   pavimento_piastrelle: { nome: "Pavimento in piastrelle", colore: "#cdd3d6", opacita: 1, ruvidita: 0.4 },
   pavimento_gres: { nome: "Pavimento in gres", colore: "#d6c7b0", opacita: 1, ruvidita: 0.5 },
   pavimento_esterno: { nome: "Pavimento esterno", colore: "#a7a299", opacita: 1, ruvidita: 0.85 },

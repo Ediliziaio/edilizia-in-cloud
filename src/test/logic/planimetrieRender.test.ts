@@ -15,6 +15,22 @@ const leggi = (nome: string): Planimetria =>
 const bilocale = leggi("bilocale.json");
 const trilocale = leggi("trilocale.json");
 
+describe("inventario e inquadratura del render dalla pianta", () => {
+  it("le foto dei materiali non autorizzano arredi o tappeti estranei alla pianta", () => {
+    expect(bloccoPartenza3D()).toContain("FURNITURE INVENTORY LOCK");
+    expect(bloccoPartenza3D()).toContain("same footprint, position and orientation");
+    const v = vincoliDellaStanza(bilocale, { livello_id: "pt", ambito: "fatto", locale_id: "l1" })!;
+    expect(righeQaPianta(v, { partenza: "vista_3d" }).join("\n")).toContain("unrequested_furniture");
+    expect(righeQaPianta(v, { partenza: "foto" }).join("\n")).not.toContain("unrequested_furniture");
+  });
+  it("il fotogramma per l’AI usa lo stesso rapporto del formato orizzontale del modello", () => {
+    const src = readFileSync(join(process.cwd(), "src/components/planimetrie/Vista3D.tsx"), "utf8");
+    expect(src).toContain("fotogramma({ larghezza: 1536, altezza: 1024 })");
+    const serie = readFileSync(join(process.cwd(), "src/lib/planimetrie/render/renderInSerie.ts"), "utf8");
+    expect(serie).toContain("larghezza: 1536, altezza: 1024");
+  });
+});
+
 describe("vincoliDellaStanza", () => {
   it("dà misure, pareti e aperture del bagno del bilocale", () => {
     const v = vincoliDellaStanza(bilocale, { livello_id: "pt", ambito: "fatto", locale_id: "l3" })!;

@@ -82,11 +82,12 @@ describe("riferimenti profilo e traverso (infissi)", () => {
     expect(resolveTraversoRef("auto")).toBeNull();
     expect(resolveTraversoRef("mantieni")).toBeNull();
   });
-  it("il profilo porta la sezione reale per pvc/legno/legno_alluminio e nulla per alluminio/minimal", () => {
+  it("ogni profilo disponibile porta il suo campione reale, compresi alluminio e minimal", () => {
     const spec = (profileId: string) => ({ profileId } as unknown as Parameters<typeof resolveProfileRef>[0]);
     expect(resolveProfileRef(spec("pvc"))?.filename).toBe("Profilo-PVC-5-Camere-Sezione-Bianco.webp");
     expect(resolveProfileRef(spec("legno"))?.label).toMatch(/cut sample, NOT a window/);
-    expect(resolveProfileRef(spec("alluminio"))).toBeNull();
-    expect(resolveProfileRef(spec("minimal"))).toBeNull();
+    expect(resolveProfileRef(spec("alluminio"))?.filename).toBe("Profilo-Alluminio-2ante-Nodo-Asimmetrico-Bianco.jpeg");
+    expect(resolveProfileRef(spec("minimal"))?.filename).toBe("Profilo-Alluminio-Minimal-Angolo-Vetrocamera.webp");
+    expect(resolveProfileRef(spec("inesistente"))).toBeNull();
   });
 });

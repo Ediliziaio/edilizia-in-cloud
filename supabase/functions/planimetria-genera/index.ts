@@ -35,6 +35,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { isProviderCreditError } from "../_shared/aiRequestGuard.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { deductRenderCreditSafe, refundRenderCreditSafe } from "../_shared/renderCreditDeduct.ts";
@@ -47,6 +48,7 @@ import { VERSIONE_PROMPT } from "./prompt.ts";
 import { origineVersione, type PiantaGenerata } from "./generazione.ts";
 
 const NOME = "planimetria-genera";
+// Seconda lettura di aperture e superfici discordanti; prompt p3 distingue arredi e serramenti.
 const BUCKET = "planimetrie";
 /** Scelti col banco di prova (docs/planimetrie/fase3-esito.md). */
 // Claude per primo: Gemini 2.5 Pro non finiva mai nei 30 s del router (02/11/2026, prova su 15 piante reali)
@@ -209,7 +211,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
             disableModelFallback: true,
             skipCharge: true,
             messages: messaggi,
-            params: { temperature: 0.1, max_tokens: 12000, timeoutMs: Math.min(TEMPO_PER_MODELLO_MS, resto) },
+            params: { temperature: 0.1, max_tokens: tentativo === 3 ? 4000 : 12000, timeoutMs: tentativo === 3 ? Math.min(25_000, resto) : Math.min(TEMPO_PER_MODELLO_MS, Math.max(1_000, resto - 25_000)) },
             responseFormat: { type: "json_object" },
             companyId,
             userId,
@@ -218,6 +220,8 @@ serveConMetricheRapida(NOME, async (req: Request) => {
           });
           return { testo: r.content, modello: r.modelUsed, costoUsd: r.costUsd };
         } catch (e) {
+          // I modelli condividono il conto OpenRouter: dopo un 402 si rimborsa subito.
+          if (isProviderCreditError(e)) throw e;
           ultimoErrore = e;
           console.warn(`[${NOME}] ${modello} non ha risposto:`, e instanceof Error ? e.message : e);
         }
