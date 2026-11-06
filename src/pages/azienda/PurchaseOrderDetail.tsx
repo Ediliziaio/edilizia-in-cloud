@@ -476,7 +476,7 @@ export default function PurchaseOrderDetail() {
                       <th className="text-right p-2 font-medium w-16">Sc.%</th>
                       <th className="text-right p-2 font-medium w-16">IVA%</th>
                       <th className="text-right p-2 font-medium w-24">Totale netto</th>
-                      {isEditable && <th className="p-2 w-10"></th>}
+                      {isEditable && <th className="p-2" aria-label="Stato prezzo e azioni"></th>}
                       {!isEditable && order.status !== "annullato" && <th className="text-right p-2 font-medium w-20">Ricevuti</th>}
                     </tr></thead>
                     <tbody>

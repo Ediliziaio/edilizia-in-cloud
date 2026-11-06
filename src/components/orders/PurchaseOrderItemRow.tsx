@@ -242,23 +242,6 @@ export function PurchaseOrderItemRow({
               onBlur={salvaPrezzo}
               className="h-8 w-full text-right text-sm"
             />
-            <label className="mt-1 flex items-center gap-1 text-[11px] text-slate-600">
-              <input
-                type="checkbox"
-                checked={pending}
-                disabled={saving}
-                onChange={(e) => {
-                  const p = e.target.checked;
-                  setPending(p);
-                  setPrice(p ? "" : "0");
-                  void save(
-                    { unit_price: 0, price_pending: p },
-                    rollbackPrezzo,
-                  );
-                }}
-              />
-              Prezzo da confermare
-            </label>
             {prezzoListino != null &&
               (pending || Math.abs(prezzoListino - Number(price)) > 0.004) && (
                 <button
@@ -331,6 +314,25 @@ export function PurchaseOrderItemRow({
       </td>
       {isEditable && (
         <td className="p-1">
+          <div className="flex items-center justify-end gap-2">
+            <label className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] font-normal text-slate-600" title="Prezzo da confermare">
+              <input
+                type="checkbox"
+                aria-label="Prezzo da confermare"
+                checked={pending}
+                disabled={saving}
+                onChange={(e) => {
+                  const p = e.target.checked;
+                  setPending(p);
+                  setPrice(p ? "" : "0");
+                  void save(
+                    { unit_price: 0, price_pending: p },
+                    rollbackPrezzo,
+                  );
+                }}
+              />
+              Da confermare
+            </label>
           <Button
             aria-label={`Rimuovi ${desc}`}
             variant="ghost"
@@ -342,6 +344,7 @@ export function PurchaseOrderItemRow({
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
+          </div>
         </td>
       )}
       {showReceived && (
