@@ -34137,6 +34137,7 @@ export type Database = {
       }
       email_outbox: {
         Row: {
+          procurement_context: Json | null
           attachments: Json | null
           attempts: number
           bcc_emails: string[] | null
@@ -34163,6 +34164,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          procurement_context?: Json | null
           attachments?: Json | null
           attempts?: number
           bcc_emails?: string[] | null
@@ -34189,6 +34191,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          procurement_context?: Json | null
           attachments?: Json | null
           attempts?: number
           bcc_emails?: string[] | null
@@ -68076,6 +68079,51 @@ export type Database = {
           },
         ]
       }
+      procurement_document_events: {
+        Row: {
+          id: string
+          company_id: string
+          purchase_order_id: string | null
+          rfq_id: string | null
+          outbox_id: string | null
+          kind: string
+          entity: string
+          operation: string
+          actor_id: string | null
+          actor_label: string | null
+          payload: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          purchase_order_id?: string | null
+          rfq_id?: string | null
+          outbox_id?: string | null
+          kind: string
+          entity: string
+          operation: string
+          actor_id?: string | null
+          actor_label?: string | null
+          payload: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          purchase_order_id?: string | null
+          rfq_id?: string | null
+          outbox_id?: string | null
+          kind?: string
+          entity?: string
+          operation?: string
+          actor_id?: string | null
+          actor_label?: string | null
+          payload?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
       purchase_orders: {
         Row: {
           actual_delivery_date: string | null
@@ -87293,6 +87341,10 @@ export type Database = {
       }
       supplier_rfq_suppliers: {
         Row: {
+          inviata_via: string | null
+          trasporto_tipo: string
+          costo_trasporto: number | null
+          disponibilita_note: string | null
           aggancio_confidenza: number | null
           aggancio_da: string | null
           aggancio_da_confermare: boolean
@@ -87314,6 +87366,10 @@ export type Database = {
           validita_offerta: string | null
         }
         Insert: {
+          inviata_via?: string | null
+          trasporto_tipo?: string
+          costo_trasporto?: number | null
+          disponibilita_note?: string | null
           aggancio_confidenza?: number | null
           aggancio_da?: string | null
           aggancio_da_confermare?: boolean
@@ -87335,6 +87391,10 @@ export type Database = {
           validita_offerta?: string | null
         }
         Update: {
+          inviata_via?: string | null
+          trasporto_tipo?: string
+          costo_trasporto?: number | null
+          disponibilita_note?: string | null
           aggancio_confidenza?: number | null
           aggancio_da?: string | null
           aggancio_da_confermare?: boolean

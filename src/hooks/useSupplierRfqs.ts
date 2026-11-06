@@ -1,3 +1,5 @@
+import { confrontoOfferta } from "@/lib/acquisti/confronto";
+import { oggiLocale } from "@/lib/acquisti/attivita";
 import type {TablesUpdate} from "@/integrations/supabase/types";
 /**
  * Richieste d'offerta ai fornitori (RDO).
@@ -69,6 +71,9 @@ export interface RfqSupplier {
   inviata_at: string | null;
   inviata_via: CanaleRichiesta | null;
   risposta_at: string | null;
+  trasporto_tipo?: "da_confermare" | "incluso" | "extra" | "ritiro";
+  costo_trasporto?: number | null;
+  disponibilita_note?: string | null;
   totale_offerto: number | null;
   giorni_consegna: number | null;
   validita_offerta: string | null;
@@ -97,7 +102,7 @@ export interface RfqQuote {
 export function totaleRigaOfferta(q: RfqQuote | undefined, quantita: number): number | null {
   if (!q || q.prezzo_unitario == null || !q.disponibile) return null;
   const lordo = Number(q.prezzo_unitario) * quantita;
-  return lordo * (1 - Number(q.sconto_percentuale || 0) / 100);
+  return Math.round((lordo * (1 - Number(q.sconto_percentuale || 0) / 100) + Number.EPSILON) * 100) / 100;
 }
 
 export interface ContatoriRichiesta {
@@ -167,17 +172,16 @@ export function useSupplierRfqs() {
       };
 
       const [fornitori, voci, righe] = await Promise.all([
-        tutte<{ id: string; rfq_id: string; supplier_id: string; status: string; totale_offerto: number | null; inviata_at: string | null }>(
-          "supplier_rfq_suppliers", "id, rfq_id, supplier_id, status, totale_offerto, inviata_at"),
+        tutte<RfqSupplier>(
+          "supplier_rfq_suppliers", "id, rfq_id, supplier_id, status, totale_offerto, inviata_at, trasporto_tipo, costo_trasporto, validita_offerta"),
         tutte<{ id: string; rfq_id: string }>("supplier_rfq_items", "id, rfq_id"),
         tutte<RfqQuote & { supplier_rfq_items: { quantita: number } | null }>(
           "supplier_rfq_quotes", "id, rfq_supplier_id, prezzo_unitario, sconto_percentuale, disponibile, supplier_rfq_items(quantita)"),
       ]);
 
       // Il totale di chi ha risposto si calcola come nel dettaglio: la somma
-      // delle righe offerte, oppure il totale del documento se l'offerta è a
-      // corpo. E la migliore si sceglie fra le offerte che coprono più voci:
-      // chi ne quota una su due costa meno perché manca metà fornitura.
+      // delle righe e trasporto, oppure il totale documento già comprensivo.
+      // Come nel dettaglio: migliore solo tra offerte complete, valide e confrontabili.
       const vociPerRichiesta = new Map<string, number>();
       for (const v of voci) vociPerRichiesta.set(v.rfq_id, (vociPerRichiesta.get(v.rfq_id) ?? 0) + 1);
       const sommaRighe = new Map<string, { totale: number; coperte: number }>();
@@ -203,12 +207,13 @@ export function useSupplierRfqs() {
         if (r.status === "risposta") {
           m.risposte += 1;
           const daRighe = sommaRighe.get(r.id);
-          const offerta = daRighe
-            ? daRighe
-            : r.totale_offerto != null
-              ? { totale: Number(r.totale_offerto), coperte: vociPerRichiesta.get(r.rfq_id) ?? 0 }
-              : null;
-          if (offerta) offerte.set(r.rfq_id, [...(offerte.get(r.rfq_id) ?? []), offerta]);
+          const numeroVoci=vociPerRichiesta.get(r.rfq_id)??0;
+          const offerta=confrontoOfferta(r,{
+            totale:daRighe?.totale??(r.totale_offerto==null?null:Number(r.totale_offerto)),
+            righeCoperte:daRighe?.coperte??(r.totale_offerto==null?0:numeroVoci),
+            daRighe:!!daRighe,
+          },numeroVoci,oggiLocale());
+          if (offerta.confrontabile && offerta.totale!=null) offerte.set(r.rfq_id,[...(offerte.get(r.rfq_id)??[]),{totale:offerta.totale,coperte:numeroVoci}]);
         }
       }
       for (const [rfqId, elenco] of offerte) {
@@ -363,11 +368,11 @@ export function useSupplierRfqDetail(rfqId: string | null) {
   });
 
   const updateFornitore = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
-      const { error } = await (supabase as any).from("supplier_rfq_suppliers").update(updates).eq("id", id);
+    mutationFn: async ({ id, updates }: { id: string; updates: TablesUpdate<"supplier_rfq_suppliers"> }) => {
+      const { error } = await supabase.from("supplier_rfq_suppliers").update(updates).eq("id", id).eq("company_id",companyId!).select("id").single();
       if (error) throw error;
     },
-    onSuccess: invalida,
+    onSuccess: async () => {await invalida();},
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
 

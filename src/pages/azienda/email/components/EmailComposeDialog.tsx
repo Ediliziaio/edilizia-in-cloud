@@ -1,3 +1,5 @@
+import { htmlToPlainText } from "@/lib/emailTemplates";
+import { serializeProcurement } from "@/lib/acquisti/storico";
 /**
  * EmailComposeDialog — finestra compose Gmail-like
  *
@@ -39,6 +41,7 @@ export interface ComposeAttachment {
 }
 
 export interface ComposeContext {
+  procurement?: import("@/lib/acquisti/storico").ProcurementContext;
   initialAttachments?: ComposeAttachment[];
   mode: ComposeMode;
   /** Email originale (per reply/forward) */
@@ -173,6 +176,8 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   const [bodyText, setBodyText] = useState(initial.body);
   const [selectedAccountId, setAccountId] = useState<string>("");
   const [outboxId, setOutboxId] = useState<string | null>(null);
+  const savingDraftRef=useRef(false);
+  const sendingRef = useRef(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [attachments, setAttachments] = useState<Array<{
     name: string;
@@ -296,6 +301,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     mutationFn: async (): Promise<string> => {
       if (!userId || !companyId) throw new Error("Not authenticated");
       const payload = {
+        ...(context.procurement ? {procurement_context:serializeProcurement(context.procurement)} : {}),
         user_id: userId,
         company_id: companyId,
         oauth_connection_id: accountId || null,
@@ -305,7 +311,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         cc_emails: parseEmails(cc),
         bcc_emails: parseEmails(bcc),
         subject: subject || "(senza oggetto)",
-        body_text: bodyText,
+        body_text: bodyText || (bodyHtml ? htmlToPlainText(bodyHtml) : ""),
         body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
         attachments: attachments.filter((a) => !a.uploading).map((a) => ({
           filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
@@ -336,6 +342,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       setAutoSaveStatus("saved");
     },
     onError: () => setAutoSaveStatus("error"),
+    onSettled: () => {savingDraftRef.current=false;},
   });
 
   // Debounce auto-save
@@ -351,6 +358,8 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     // email_outbox non recuperabile per l'invio. Aspettiamo il prossimo trigger.
     if (!accountId) return;
     debounceTimerRef.current = window.setTimeout(() => {
+      if(sendingRef.current || savingDraftRef.current)return;
+      savingDraftRef.current=true;
       saveDraft.mutate();
     }, 5000);
     return () => {
@@ -363,7 +372,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   // Guard sincrono anti-doppio-invio: due click rapidissimi arrivano PRIMA che
   // isPending (async) disabiliti il bottone → due insert in email_outbox → email
   // duplicata. Il ref blocca la seconda chiamata nello stesso tick.
-  const sendingRef = useRef(false);
+
 
   const sendMutation = useMutation({
     mutationFn: async () => {
@@ -380,6 +389,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       if (attachments.some((a) => a.uploading)) throw new Error("Attendi il caricamento degli allegati");
 
       const payload = {
+        ...(context.procurement ? {procurement_context:serializeProcurement(context.procurement)} : {}),
         user_id: userId,
         company_id: companyId,
         oauth_connection_id: accountId,
@@ -389,7 +399,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         cc_emails: ccRecipients,
         bcc_emails: bccRecipients,
         subject: subject.trim(),
-        body_text: bodyText,
+        body_text: bodyText || (bodyHtml ? htmlToPlainText(bodyHtml) : ""),
         body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
         attachments: attachments.filter((a) => !a.uploading).map((a) => ({
           filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
@@ -452,6 +462,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     },
     onSuccess: () => {
       toast.success("Email inviata");
+      if(context.procurement)qc.invalidateQueries({queryKey:["procurement-history"]});
       onSent?.();
       qc.invalidateQueries({ queryKey: ["email-threads"] });
       qc.invalidateQueries({ queryKey: ["email-thread-messages"] });
@@ -463,7 +474,8 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   });
 
   const handleSend = () => {
-    if (sendingRef.current || sendMutation.isPending) return;
+    if (sendingRef.current || sendMutation.isPending || savingDraftRef.current) return;
+    if(debounceTimerRef.current)clearTimeout(debounceTimerRef.current);
     sendingRef.current = true;
     sendMutation.mutate();
   };
@@ -684,7 +696,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
               ma il bottone restava cliccabile (e n-click partivano N submit). */}
           <Button
             onClick={handleSend}
-            disabled={isSending || !hasActiveSender || attachments.some((a) => a.uploading)}
+            disabled={isSending || saveDraft.isPending || !hasActiveSender || attachments.some((a) => a.uploading)}
             className="gap-2 rounded-xl bg-blue-600 px-5 hover:bg-blue-700"
             size="sm"
             title={attachments.some((a) => a.uploading) ? "Attendi il caricamento degli allegati" : undefined}

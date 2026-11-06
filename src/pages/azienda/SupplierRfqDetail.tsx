@@ -1,3 +1,9 @@
+import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAnteprimaDialog";
+import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
+import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
+import { RdoCondizioniOfferta } from "@/components/acquisti/RdoCondizioniOfferta";
+import { attivitaRdo, oggiLocale } from "@/lib/acquisti/attivita";
+import { confrontoOfferta, TRASPORTO_LABELS } from "@/lib/acquisti/confronto";
 import { RdoDettagliCard } from "@/components/rdo/RdoDettagliCard";
 import { useQuery } from "@tanstack/react-query";
 import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
@@ -33,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
-  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox, FileDown, Loader2,
+  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox, FileDown, Loader2, Eye,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -85,6 +91,8 @@ export default function SupplierRfqDetail() {
   const [editingRfqId,setEditingRfqId]=useState<string|null>(null);
   const [sendMode,setSendMode]=useState<"testo"|"pdf">("testo");
   const [downloadingFor,setDownloadingFor]=useState<string|null>(null);
+  const [previewFor,setPreviewFor]=useState<RfqSupplier|null>(null);
+  const [editingOffers,setEditingOffers]=useState<string[]>([]);
   const [nuovoFornitore, setNuovoFornitore] = useState("");
   const [inviaA, setInviaA] = useState<RfqSupplier | null>(null);
   const [aggiudicaA, setAggiudicaA] = useState<RfqSupplier | null>(null);
@@ -95,7 +103,7 @@ export default function SupplierRfqDetail() {
   const aggiudicaInCorso = useRef(false);
 
   const totaliPerFornitore = useMemo(() => {
-    const out: Record<string, { totale: number | null; righeCoperte: number }> = {};
+    const out: Record<string, { totale: number | null; righeCoperte: number; daRighe?:boolean }> = {};
     for (const f of fornitori) {
       let somma = 0;
       let coperte = 0;
@@ -111,6 +119,7 @@ export default function SupplierRfqDetail() {
       // che ha scritto lui: sommare righe vuote darebbe zero.
       const daRighe = coperte > 0 ? somma : null;
       out[f.id] = {
+        daRighe: daRighe!=null,
         totale: daRighe ?? (f.totale_offerto == null ? null : Number(f.totale_offerto)),
         // un'offerta a corpo copre tutto per definizione
         righeCoperte: daRighe == null && f.totale_offerto != null ? items.length : coperte,
@@ -126,6 +135,7 @@ export default function SupplierRfqDetail() {
       let vincitore: string | null = null;
       let minimo = Infinity;
       for (const f of fornitori) {
+        if(f.status!=="risposta" || (f.validita_offerta && f.validita_offerta<oggiLocale()))continue;
         const q = quotes.find((x) => x.rfq_item_id === it.id && x.rfq_supplier_id === f.id);
         const t = totaleRigaOfferta(q, Number(it.quantita));
         if (t != null && t < minimo) {
@@ -140,20 +150,12 @@ export default function SupplierRfqDetail() {
 
   // Il totale più basso vale solo fra offerte che coprono le stesse voci: chi
   // quota una voce su due costa meno perché manca metà fornitura, non perché conviene.
+  const confronti = useMemo(()=>Object.fromEntries(fornitori.map(f=>[f.id,confrontoOfferta(f,totaliPerFornitore[f.id]??{totale:null,righeCoperte:0},items.length,oggiLocale())])),[fornitori,totaliPerFornitore,items.length]);
   const miglioreTotale = useMemo(() => {
-    let id: string | null = null;
-    let minimo = Infinity;
-    const piuCompleta = Math.max(0, ...fornitori.map((f) => totaliPerFornitore[f.id]?.righeCoperte ?? 0));
-    for (const f of fornitori) {
-      const t = totaliPerFornitore[f.id]?.totale;
-      if ((totaliPerFornitore[f.id]?.righeCoperte ?? 0) < piuCompleta) continue;
-      if (t != null && t < minimo) {
-        minimo = t;
-        id = f.id;
-      }
-    }
-    return id;
-  }, [fornitori, totaliPerFornitore]);
+    const valide=fornitori.filter(f=>confronti[f.id]?.confrontabile);
+    valide.sort((a,b)=>(confronti[a.id].totale??Infinity)-(confronti[b.id].totale??Infinity));
+    return valide[0]?.id??null;
+  }, [fornitori,confronti]);
 
   if (isLoading) {
     return (
@@ -261,6 +263,7 @@ export default function SupplierRfqDetail() {
               {haRisposte && (
                 <QuotePrimaryButton
                   size="sm"
+                  disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || updateRfq.isPending}
                   onClick={() => {
                     const scelto = fornitori.find((f) => f.id === miglioreTotale) ?? fornitori.find((f) => f.status === "risposta");
                     if (scelto) setAggiudicaA(scelto);
@@ -283,6 +286,7 @@ export default function SupplierRfqDetail() {
         }
       />
 
+      <AttivitaAcquistoCard attivita={attivitaRdo({status:rfq.status,righe:items.length,scadenza:rfq.scadenza_offerte,fornitori:fornitori.map(f=>({status:f.status,nome:f.suppliers?.name??"Fornitore",email:documentoInvio(f).destinatario.email,scadenza:f.validita_offerta,copertura:totaliPerFornitore[f.id]?.righeCoperte??0,aggancio:f.aggancio_da_confermare,trasportoDefinito:confronti[f.id]?.trasportoNoto,coerente:confronti[f.id]?.coerente}))})}/>
       <div className="grid grid-cols-1 gap-6">
         <div className="min-w-0 space-y-4">
           {/* ── Cosa serve ─────────────────────────────────────────── */}
@@ -375,7 +379,7 @@ export default function SupplierRfqDetail() {
                   Confronto offerte
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Scrivi i prezzi che ti hanno mandato. Il più basso di ogni riga si evidenzia da solo.
+                  Importi IVA esclusa. Il confronto complessivo considera trasporto, disponibilità, validità e copertura delle voci. Il più basso è evidenziato solo tra offerte complete, valide e con trasporto definito.
                 </p>
               </div>
               <div className="overflow-x-auto border-t border-slate-100">
@@ -433,6 +437,7 @@ export default function SupplierRfqDetail() {
                                   }
                                 }}
                               />
+                              <select className="mt-1 h-7 w-full rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-600" aria-label={`Disponibilità ${it.descrizione} da ${f.suppliers?.name}`} disabled={chiusa || setQuote.isPending} value={!q?"da_quotare":q.disponibile?"disponibile":"non_disponibile"} onChange={e=>setQuote.mutate({rfq_supplier_id:f.id,rfq_item_id:it.id,updates:e.target.value==="da_quotare"?{disponibile:true,prezzo_unitario:null}:{disponibile:e.target.value==="disponibile"}})}><option value="da_quotare" disabled={!!q}>Da quotare</option><option value="disponibile">Disponibile</option><option value="non_disponibile">Non disponibile</option></select>
                               {tot != null && (
                                 <span className="block text-[10px] text-slate-400 text-right pr-1 mt-0.5">
                                   {formatCurrency(tot)}
@@ -488,6 +493,8 @@ export default function SupplierRfqDetail() {
                         })}
                       </tr>
                     )}
+                    <tr className="border-t bg-blue-50/40"><th colSpan={2} className="p-2 pl-4 text-right text-xs">Totale complessivo noto</th>{fornitori.map(f=>{const c=confronti[f.id];return <td key={f.id} className={`p-2 text-right text-sm font-semibold ${miglioreTotale===f.id?"bg-emerald-50 text-emerald-800":""}`}>{c.totale==null?"—":formatCurrency(c.totale)}{miglioreTotale===f.id&&<span className="block text-[10px]">Più basso tra offerte confrontabili</span>}{!c.coerente&&<span className="block text-[10px] text-red-700">Totale documento da riconciliare</span>}{!c.trasportoNoto&&<span className="block text-[10px] text-amber-700">Trasporto da definire</span>}</td>;})}</tr>
+                    {(["Trasporto","Consegna","Pagamento","Validità","Disponibilità"] as const).map(label=><tr key={label} className="border-t text-xs"><th colSpan={2} className="p-2 pl-4 text-right font-medium">{label}</th>{fornitori.map(f=><td key={f.id} className="max-w-[18rem] break-words p-2 text-right text-slate-600">{label==="Trasporto"?<>{TRASPORTO_LABELS[f.trasporto_tipo??"da_confermare"]}{f.trasporto_tipo==="extra"&&f.costo_trasporto!=null?` · ${formatCurrency(Number(f.costo_trasporto))}`:""}</>:label==="Consegna"?f.giorni_consegna==null?"Da indicare":`${f.giorni_consegna} giorni`:label==="Pagamento"?f.condizioni_pagamento||"Da indicare":label==="Validità"?<span className={confronti[f.id].scaduta?"text-red-700 font-semibold":""}>{dataIt(f.validita_offerta)}{confronti[f.id].scaduta?" · Scaduta":""}</span>:<>{totaliPerFornitore[f.id]?.righeCoperte??0}/{items.length} voci{f.disponibilita_note&&<span className="mt-1 block whitespace-pre-wrap">{f.disponibilita_note}</span>}</>}</td>)}</tr>)}
                   </tfoot>
                 </table>
               </div>
@@ -551,12 +558,15 @@ export default function SupplierRfqDetail() {
                   </div>
 
                   <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
-                    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</Button>
-                    {!chiusa && <><Button size="sm" variant="outline" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</Button><Button size="sm" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</Button></>}
+                    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || editingRfqId===rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>setPreviewFor(f)} aria-label={`Anteprima PDF per ${f.suppliers?.name??"fornitore"}`}><Eye className="mr-1 h-3.5 w-3.5"/>Anteprima PDF</Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || !!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</Button>
+                    {!chiusa && <><Button size="sm" variant="outline" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</Button><Button size="sm" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</Button></>}
                   </div>
                   {f.status !== "risposta" && <div><Label className="text-[11px] text-slate-500">Pagamento per questa richiesta</Label><Input aria-label={`Pagamento richiesta ${f.suppliers?.name}`} className="h-8 text-xs" disabled={chiusa} key={`${f.id}:${f.condizioni_pagamento ?? documentoInvio(f).pagamento}`} defaultValue={f.condizioni_pagamento || documentoInvio(f).pagamento || ""} onBlur={e=>{const v=e.target.value.trim() || null;if(v !== (f.condizioni_pagamento || documentoInvio(f).pagamento || null))updateFornitore.mutate({id:f.id,updates:{condizioni_pagamento:v}});}}/></div>}
                   {anagrafiche.find(s=>s.id===f.supplier_id) && <details className="rounded-lg border border-slate-100 bg-slate-50/50 p-2"><summary className="cursor-pointer text-xs font-medium text-slate-600">Anagrafica, referenti e pagamento</summary><div className="mt-2"><OdaFornitoreCard supplier={anagrafiche.find(s=>s.id===f.supplier_id)}/></div></details>}
 
+                  <RdoCondizioniOfferta fornitore={f} chiusa={chiusa} onSave={updates=>updateFornitore.mutateAsync({id:f.id,updates})} onEditingChange={editing=>setEditingOffers(ids=>editing?[...new Set([...ids,f.id])]:ids.filter(id=>id!==f.id))}/>
+                  {editingOffers.includes(f.id)&&<p role="status" className="text-xs text-amber-700">Salva o annulla le condizioni aperte prima di preparare PDF, email o aggiudicare.</p>}
                   {f.aggancio_da_confermare && (
                     <div className="flex gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
                       <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600" />
@@ -689,6 +699,7 @@ export default function SupplierRfqDetail() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs flex-1"
+                        disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending}
                         onClick={() => setAggiudicaA(f)}
                       >
                         <Trophy className="h-3 w-3 mr-1" /> Scegli questo
@@ -795,8 +806,11 @@ export default function SupplierRfqDetail() {
       </div>
 
       {/* Invio al singolo fornitore: stesso compositore del resto dell'app. */}
+      <StoricoAcquistiCard tipo="rdo" id={rfq.id} revisionKey={JSON.stringify([rfq,items,fornitori,quotes])}/>
+      {previewFor&&<DocumentoAnteprimaDialog documento={documentoInvio(previewFor)} onClose={()=>setPreviewFor(null)}/>}
       {inviaA && (
         <DocumentoEmailDialog
+          tracking={{tipo:"rdo",id:rfq.id}}
           key={`${effectiveCompany?.id}:${inviaA.id}:${sendMode}`}
           modo={sendMode}
           documento={documentoInvio(inviaA)}
@@ -845,7 +859,7 @@ export default function SupplierRfqDetail() {
             }
             // Consegna/validita'/pagamento: si compilano solo se vuoti, per non
             // sovrascrivere quello che qualcuno ha gia' scritto a mano.
-            const updates: Record<string, unknown> = {};
+            const updates: import("@/integrations/supabase/types").TablesUpdate<"supplier_rfq_suppliers"> = {};
             if (meta.giorni_consegna != null && estraiDa.giorni_consegna == null) updates.giorni_consegna = meta.giorni_consegna;
             if (meta.validita_offerta && !estraiDa.validita_offerta) updates.validita_offerta = meta.validita_offerta;
             if (meta.condizioni_pagamento && !estraiDa.condizioni_pagamento) updates.condizioni_pagamento = meta.condizioni_pagamento;
@@ -879,7 +893,7 @@ export default function SupplierRfqDetail() {
               <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-sm">
                 <span className="text-slate-500">Totale offerto</span>
                 <span className="font-bold text-slate-900">
-                  {formatCurrency(totaliPerFornitore[aggiudicaA.id].totale as number)}
+                  {formatCurrency(confronti[aggiudicaA.id]?.totale ?? 0)}
                 </span>
               </div>
             )}
@@ -905,17 +919,19 @@ export default function SupplierRfqDetail() {
               const doc = aggiudicaA.totale_offerto == null ? null : Number(aggiudicaA.totale_offerto);
               const righe = totaliPerFornitore[aggiudicaA.id];
               const daRighe = righe && righe.righeCoperte > 0 && doc != null && righe.totale != null && righe.totale !== doc ? righe.totale : null;
-              if (doc == null || daRighe == null || doc - daRighe < 0.01) return null;
+              if (doc == null || daRighe == null || confronti[aggiudicaA.id]?.coerente || doc - daRighe < 0.01) return null;
               return (
                 <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                   <span>
                     Il documento dice {formatCurrency(doc)}, le voci {formatCurrency(daRighe)}: la differenza
-                    ({formatCurrency(doc - daRighe)}, trasporto o imballo) non entra nell'ordine. Aggiungila lì come riga.
+                    ({formatCurrency(doc - daRighe)}, trasporto o imballo) va indicata nelle condizioni di trasporto o riconciliata nelle voci prima di scegliere.
                   </span>
                 </div>
               );
             })()}
+            {aggiudicaA&&confronti[aggiudicaA.id]?.scaduta&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">L’offerta è scaduta. Chiedi conferma al fornitore e aggiorna la validità prima di scegliere.</p>}
+            {aggiudicaA&&!confronti[aggiudicaA.id]?.coerente&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">Il totale documento non coincide con voci e trasporto. Correggi gli importi prima di aggiudicare.</p>}
             {aggiudicaA && miglioreTotale && aggiudicaA.id !== miglioreTotale && (
               <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
@@ -939,7 +955,7 @@ export default function SupplierRfqDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAggiudicaA(null); setMotivazione(""); }}>Annulla</Button>
             <Button
-              disabled={aggiudica.isPending || !aggiudicaA || !((totaliPerFornitore[aggiudicaA.id]?.totale ?? 0) > 0)}
+              disabled={aggiudica.isPending || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || updateFornitore.isPending || setQuote.isPending || !aggiudicaA || !!confronti[aggiudicaA.id]?.scaduta || !confronti[aggiudicaA.id]?.coerente || (aggiudicaA.trasporto_tipo==="extra"&&aggiudicaA.costo_trasporto==null) || !((confronti[aggiudicaA.id]?.totale ?? 0) > 0)}
               onClick={() => {
                 if (!aggiudicaA || aggiudicaInCorso.current) return;
                 aggiudicaInCorso.current = true;

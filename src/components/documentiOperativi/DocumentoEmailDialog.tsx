@@ -7,7 +7,7 @@ import { EmailComposeDialog,type ComposeContext } from "@/pages/azienda/email/co
 import { preparaEmailDocumento } from "@/lib/documentiOperativi/preparaEmail";
 import { TITOLI,type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 
-type Props={open:boolean;onOpenChange:(open:boolean)=>void;documento:DocumentoOperativo;context:ComposeContext;modo:"testo"|"pdf";orderId?:string|null;onSent?:()=>void};
+type Props={open:boolean;onOpenChange:(open:boolean)=>void;documento:DocumentoOperativo;context:ComposeContext;modo:"testo"|"pdf";orderId?:string|null;tracking?:{tipo:"oda"|"rdo";id:string};onSent?:()=>void};
 export function DocumentoEmailDialog(props:Props) {
  const {effectiveCompany,user}=useAuth();
  if(!props.open || !effectiveCompany)return null;
@@ -15,7 +15,7 @@ export function DocumentoEmailDialog(props:Props) {
 }
 function DocumentoEmailAperta({azienda,userId,...props}:Props & {azienda:Parameters<typeof preparaEmailDocumento>[0]["azienda"];userId?:string}) {
  // Snapshot dei dati salvati al clic: i refetch non rigenerano allegati né cancellano il testo in scrittura.
- const [source]=useState(()=>({documento:props.documento,context:props.context,modo:props.modo,azienda,userId}));
+ const [source]=useState(()=>({documento:props.documento,context:{...props.context,...(props.tracking?{procurement:{...props.tracking,documento:props.documento,modo:props.modo}}:{})},modo:props.modo,azienda,userId}));
  const [email,setEmail]=useState<ComposeContext | null>(null);
  const [error,setError]=useState<string | null>(null);
  const [retry,setRetry]=useState(0);

@@ -32,6 +32,7 @@ export async function preparaEmailDocumento({documento:d,azienda,context,modo,us
     }
     return {
       ...context,
+      ...(context.procurement?{procurement:{...context.procurement,documento}}:{}),
       initialSubject:d.numero === originale.numero && d.tipo === originale.tipo && context.initialSubject
         ? context.initialSubject : `${TITOLI[d.tipo]} ${d.tipo === "richiesta" ? `[${d.numero}]` : d.numero} | ${azienda.name}`,
       initialTo:d.destinatario.email?.trim() ? [d.destinatario.email.trim()] : d.fornitoreId ? [] : context.initialTo,

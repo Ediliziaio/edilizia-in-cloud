@@ -1,3 +1,7 @@
+import { DocumentoAnteprimaDialog } from "@/components/acquisti/DocumentoAnteprimaDialog";
+import { StoricoAcquistiCard } from "@/components/acquisti/StoricoAcquistiCard";
+import { AttivitaAcquistoCard } from "@/components/acquisti/AttivitaAcquistoCard";
+import { attivitaOda } from "@/lib/acquisti/attivita";
 import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
 import { OdaDettagliCard } from "@/components/orders/OdaDettagliCard";
 import { applicaDettagliOda } from "@/lib/orders/dettagliDocumentoOda";
@@ -20,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
   AlertTriangle, ScanLine, ClipboardList, CalendarClock,
-  PackageCheck, Pencil, FileDown, Mail,
+  PackageCheck, Pencil, FileDown, Mail, Eye,
 } from "lucide-react";
 import {
   QuotePageHeader,
@@ -87,6 +91,7 @@ export default function PurchaseOrderDetail() {
   const { updateStatus, update } = usePurchaseOrders();
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [previewOpen,setPreviewOpen]=useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   // AI Verification
@@ -413,6 +418,7 @@ export default function PurchaseOrderDetail() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div><h2 className="text-sm font-bold text-slate-900">Documenti e invio</h2><p className="mt-0.5 text-xs text-slate-500">Scarica anche in bozza, oppure prepara l’email da controllare prima dell’invio.</p></div>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" size="sm" disabled={documentBusy || !effectiveCompany} onClick={()=>setPreviewOpen(true)}><Eye className="mr-1.5 h-4 w-4"/>Anteprima PDF</Button>
             <Button variant="outline" size="sm" disabled={downloadingPdf || documentBusy || !effectiveCompany} onClick={downloadPdf}>
               {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
               {downloadingPdf ? "Preparazione PDF…" : "Scarica PDF"}
@@ -423,6 +429,8 @@ export default function PurchaseOrderDetail() {
         </div>
         {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.</p>}
       </section>
+
+      <AttivitaAcquistoCard attivita={attivitaOda({status:order.status,prezziPendenti:totaliRighe.daConfermare,righe:items.length,email:documentoInvio.destinatario.email,consegna:order.expected_delivery_date,conferma:!!order.attachment_url})}/>
 
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-6">
         {/* Left: Editor */}
@@ -767,7 +775,9 @@ export default function PurchaseOrderDetail() {
           )}
 
       </section>
+      <StoricoAcquistiCard tipo="oda" id={order.id} revisionKey={JSON.stringify([order.updated_at,items,order.attachment_url])}/>
       <VerificationHistoryCard purchaseOrderId={order.id} />
+      {previewOpen&&<DocumentoAnteprimaDialog documento={documentoInvio} onClose={()=>setPreviewOpen(false)}/>}
 
       {/* Verify Purchase Order Dialog */}
       <VerifyPurchaseOrderDialog
@@ -785,6 +795,7 @@ export default function PurchaseOrderDetail() {
           possono allegare i documenti della commessa e scegliere il mittente. */}
       <DocumentoEmailDialog
         key={`${effectiveCompany?.id}:${sendMode}`}
+        tracking={{tipo:"oda",id:order.id}}
         modo={sendMode}
         documento={documentoInvio}
         open={sendOpen}

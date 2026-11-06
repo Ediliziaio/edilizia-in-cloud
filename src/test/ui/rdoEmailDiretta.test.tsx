@@ -1,3 +1,4 @@
+vi.mock("@/components/acquisti/StoricoAcquistiCard",()=>({StoricoAcquistiCard:():null=>null}));
 import "@testing-library/jest-dom/vitest";
 import {render,screen,fireEvent,cleanup} from "@testing-library/react";
 import {afterEach,beforeEach,it,expect,vi} from "vitest";

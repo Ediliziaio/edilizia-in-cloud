@@ -1,0 +1,15 @@
+import "@testing-library/jest-dom/vitest";
+import {render,screen,waitFor,cleanup} from "@testing-library/react";
+import {afterEach,it,expect,vi} from "vitest";
+import type {DocumentoOperativo} from "@/lib/documentiOperativi/modello";
+const m=vi.hoisted(()=>({props:null as null|{renderBlobUrl:()=>Promise<string>;downloadFileName:string},pdf:vi.fn().mockResolvedValue(new Blob(["pdf"])),download:vi.fn().mockResolvedValue({data:new Blob(["original"]),error:null})}));
+vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"azienda",name:"Impresa"}})}));
+vi.mock("@/components/shared/PdfBlobLivePreviewPanel",()=>({PdfBlobLivePreviewPanel:(p:typeof m.props)=>{m.props=p;return <div>Anteprima disponibile</div>;}}));
+vi.mock("@/lib/documentiOperativi/pdf",()=>({generaPdfOperativo:m.pdf}));
+vi.mock("@/lib/pdfPreviewSource",()=>({createPdfPreviewUrl:()=>"blob:test"}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{storage:{from:()=>({download:m.download})}}}));
+import {DocumentoAnteprimaDialog} from "@/components/acquisti/DocumentoAnteprimaDialog";
+afterEach(()=>{cleanup();m.props=null;m.pdf.mockClear();m.download.mockClear();});
+const d:DocumentoOperativo={numero:"ODA-1",tipo:"materiali",destinatario:{nome:"Fornitore"},righe:[{descrizione:"Tegole",quantita:10,unita:"pz",prezzo:2}]};
+it("l’anteprima usa lo stesso generatore del download e conserva il documento all’apertura",async()=>{const v=render(<DocumentoAnteprimaDialog documento={d} onClose={vi.fn()}/>);await screen.findByText("Anteprima disponibile");v.rerender(<DocumentoAnteprimaDialog documento={{...d,note:"Cambio successivo"}} onClose={vi.fn()}/>);await m.props!.renderBlobUrl();expect(m.pdf).toHaveBeenCalledWith(d,expect.objectContaining({id:"azienda"}));expect(m.props!.downloadFileName).toBe("ODA-1-materiali.pdf");});
+it("aprire il PDF storico legge il file originale e non lo rigenera con i dati attuali",async()=>{render(<DocumentoAnteprimaDialog file={{name:"originale.pdf",path:"u/file.pdf",bucket:"email-attachments"}} onClose={vi.fn()}/>);await waitFor(()=>expect(m.props).not.toBeNull());await m.props!.renderBlobUrl();expect(m.download).toHaveBeenCalledWith("u/file.pdf");expect(m.pdf).not.toHaveBeenCalled();});
