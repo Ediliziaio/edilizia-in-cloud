@@ -80,6 +80,7 @@ import { buildTaskStatusUpdate, getNextTaskStatusForQuickAction, getTaskStatusDe
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 import { DaApprovareCantieri } from "@/components/campo/DaApprovareCantieri";
 import { DocumentiDaConfermareBox } from "@/components/email-ai/DocumentiDaConfermareBox";
+import { ScadenzeDittaBox } from "@/components/documentiAzienda/ScadenzeDittaBox";
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
@@ -1291,6 +1292,10 @@ function TabAttivita() {
 
       {/* Documenti letti dalle email che aspettano una conferma: una riga, e solo se ce ne sono. */}
       <DocumentiDaConfermareBox />
+
+      {/* Le carte della ditta scadute o in scadenza: la pagina sta in Impostazioni e non
+          ci passa nessuno di mattina, Attività invece la guardano tutti. */}
+      <ScadenzeDittaBox />
 
       {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività.
           Da tablet due colonne con le attività a larghezza fissa: a un terzo

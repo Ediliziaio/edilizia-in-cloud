@@ -4,8 +4,8 @@ export default function CookiePolicy() {
   return (
     <LegalLayout
       title="Cookie Policy"
-      metaDescription="Cookie Policy di Edilizia in Cloud (Domus Group S.r.l.): elenco cookie tecnici, analitici, di marketing, finalità, durata e gestione preferenze."
-      lastUpdate="27 aprile 2026"
+      metaDescription="Cookie Policy di Edilizia in Cloud (Domus Group S.r.l.): elenco di cookie tecnici, statistici e di marketing, finalità, durata e gestione del consenso."
+      lastUpdate="30 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Cookie-Policy.pdf"
       currentPath="/cookie-policy"
     >
@@ -15,7 +15,7 @@ export default function CookiePolicy() {
         Privacy del 10 giugno 2021 ("Linee guida cookie e altri strumenti di tracciamento").
       </p>
       <p>
-        <strong>Ultimo aggiornamento:</strong> 27 aprile 2026 · <strong>Versione:</strong> 1.0
+        <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026 · <strong>Versione:</strong> 1.1
       </p>
 
       <h2>Indice</h2>
@@ -24,7 +24,7 @@ export default function CookiePolicy() {
         <li>Titolare del trattamento</li>
         <li>Tipologie di cookie utilizzati</li>
         <li>Elenco dettagliato dei cookie</li>
-        <li>Cookie di terze parti</li>
+        <li>Cookie e strumenti di terze parti</li>
         <li>Base giuridica e gestione del consenso</li>
         <li>Come gestire i cookie dal browser</li>
         <li>Trasferimenti extra-UE</li>
@@ -54,74 +54,70 @@ export default function CookiePolicy() {
       <p>
         Il Titolare del trattamento dei dati personali raccolti tramite cookie è <strong>Domus Group S.r.l.</strong>,
         con sede in Via Aurelio Saffi 29, 20123 Milano (MI), P.IVA 13132010961, contattabile all'indirizzo{" "}
-        <strong>info@ediliziaincloud.com</strong>. Per i dati anagrafici completi e per le ulteriori
-        informazioni sul trattamento dei dati personali, si rinvia alla Privacy Policy.
+        <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a> o alla PEC{" "}
+        <a href="mailto:domusgroupsrl@legalmail.it">domusgroupsrl@legalmail.it</a>. Per i dati
+        anagrafici completi e per le ulteriori informazioni sul trattamento dei dati personali, si
+        rinvia alla <a href="/privacy-policy/">Privacy Policy</a>.
       </p>
 
       <h2>3. Tipologie di cookie utilizzati</h2>
-      <p>Il Sito utilizza le seguenti categorie di cookie:</p>
-
-      <h3>3.1 Tecnici — Cookie strettamente necessari</h3>
       <p>
-        Servono a garantire il funzionamento del Sito e l'erogazione dei servizi richiesti dall'utente.
-        Senza di essi, il Sito non potrebbe funzionare correttamente. Includono ad esempio cookie di
-        sessione, cookie di autenticazione, cookie di bilanciamento del carico, cookie per la prevenzione
-        delle frodi e cookie per il salvataggio delle preferenze sui cookie stessi (banner di consenso).
-      </p>
-      <p>
-        <strong>Base giuridica:</strong> legittimo interesse del Titolare; non richiedono il consenso
-        preventivo dell'utente ai sensi dell'art. 122, comma 1, D.Lgs. 196/2003.
+        Il sito www.ediliziaincloud.com (il &quot;Sito&quot;) e la piattaforma accessibile da
+        app.ediliziaincloud.com e dagli altri sotto-domini operativi (la &quot;Piattaforma&quot;)
+        utilizzano le seguenti categorie di cookie e strumenti analoghi.
       </p>
 
-      <h3>3.2 Funzionali — Cookie funzionali</h3>
+      <h3>3.1 Tecnici — strettamente necessari</h3>
       <p>
-        Permettono al Sito di ricordare le scelte effettuate dall'utente (lingua, area geografica,
-        preferenze di visualizzazione) per offrire un'esperienza personalizzata. Sebbene utili, non sono
-        strettamente indispensabili.
+        Servono a far funzionare il Sito e la Piattaforma e a erogare il servizio richiesto
+        dall&apos;utente: mantenere l&apos;accesso all&apos;account, proteggere il Sito da abusi,
+        ricordare le preferenze di visualizzazione scelte nella Piattaforma, conservare le bozze
+        non ancora salvate. Senza di essi il servizio non potrebbe funzionare.
       </p>
       <p>
-        <strong>Base giuridica:</strong> consenso dell'utente.
-      </p>
-
-      <h3>3.3 Analytics — Cookie statistici e analitici</h3>
-      <p>
-        Raccolgono informazioni anonime o pseudonime sull'utilizzo del Sito (numero di visite, pagine
-        consultate, durata della sessione, sorgente di traffico, tipologia di dispositivo) per consentirci
-        di analizzare le prestazioni del Sito e migliorarne i contenuti.
-      </p>
-      <p>
-        I cookie analytics di prima parte, configurati con anonimizzazione dell'IP e in assenza di
-        trasmissione dei dati a terzi, sono assimilati ai cookie tecnici e non richiedono il consenso.
-      </p>
-      <p>
-        I cookie analytics di terze parti, o non opportunamente anonimizzati, richiedono invece il consenso
-        dell'utente.
-      </p>
-      <p>
-        <strong>Base giuridica:</strong> consenso dell'utente (per cookie di terze parti o non
-        anonimizzati); legittimo interesse (per cookie analytics di prima parte conformi al provvedimento
-        del Garante).
+        <strong>Base giuridica:</strong> non richiedono il consenso preventivo dell&apos;utente ai
+        sensi dell&apos;art. 122, comma 1, D.Lgs. 196/2003; il trattamento si fonda
+        sull&apos;esecuzione del servizio richiesto e sul legittimo interesse alla sicurezza.
       </p>
 
-      <h3>3.4 Marketing — Cookie di profilazione e marketing</h3>
+      <h3>3.2 Statistici (analytics)</h3>
       <p>
-        Vengono utilizzati per costruire profili di utente finalizzati all'invio di messaggi pubblicitari e
-        di marketing in linea con le preferenze manifestate dall'utente nell'ambito della navigazione.
-        Includono i cookie utilizzati per il retargeting, l'analisi delle conversioni e la misurazione delle
-        campagne pubblicitarie.
+        Raccolgono informazioni sull&apos;utilizzo delle pagine pubbliche del Sito (visite, pagine
+        consultate, durata, sorgente di traffico, tipo di dispositivo) per misurarne le
+        prestazioni e migliorarne i contenuti. Il Sito usa Google Analytics 4, gestito tramite
+        Google Tag Manager: trattandosi di uno strumento di terza parte, che non soddisfa le
+        condizioni per essere equiparato ai cookie tecnici, è soggetto al consenso
+        dell&apos;utente.
       </p>
       <p>
-        <strong>Base giuridica:</strong> consenso libero, specifico, informato e inequivocabile dell'utente.
+        <strong>Base giuridica:</strong> consenso dell&apos;utente (art. 122 Codice Privacy; art. 6.1.a
+        GDPR).
+      </p>
+
+      <h3>3.3 Marketing e profilazione</h3>
+      <p>
+        Servono a misurare l&apos;efficacia delle campagne pubblicitarie e a mostrare annunci in
+        linea con gli interessi manifestati durante la navigazione (retargeting). Il Sito usa il
+        Meta Pixel e la Meta Conversions API.
+      </p>
+      <p>
+        <strong>Base giuridica:</strong> consenso libero, specifico, informato e inequivocabile
+        dell&apos;utente (art. 122 Codice Privacy; art. 6.1.a GDPR).
+      </p>
+      <p>
+        Statistiche e marketing sono attivi solo sulle pagine pubbliche del Sito: non sono
+        caricati nelle aree riservate della Piattaforma (gestionale, portali, pagine di firma e di
+        prenotazione).
       </p>
 
       <h2>4. Elenco dettagliato dei cookie</h2>
       <p>
-        Di seguito l'elenco dei principali cookie utilizzati dal Sito. L'elenco è soggetto a periodico
-        aggiornamento; per visualizzare la versione sempre attuale, si invita l'utente a consultare il
-        pannello di gestione dei cookie disponibile sul Sito.
+        Di seguito l&apos;elenco dei cookie e degli strumenti analoghi utilizzati. Le durate indicate
+        sono quelle massime; i cookie di terze parti possono variare secondo le scelte dei
+        rispettivi fornitori.
       </p>
 
-      <h3>4.1 Cookie tecnici di prima parte</h3>
+      <h3>4.1 Cookie tecnici e memoria locale di prima parte</h3>
       <table>
         <thead>
           <tr>
@@ -133,39 +129,58 @@ export default function CookiePolicy() {
         </thead>
         <tbody>
           <tr>
-            <td>sb-access-token</td>
-            <td>Token di autenticazione Supabase per gli utenti registrati</td>
-            <td>1 ora</td>
-            <td>Sessione</td>
+            <td>sb-…-auth-token (anche in più parti numerate .0, .1, .2)</td>
+            <td>
+              Sessione di accesso degli utenti registrati (autenticazione Supabase), condivisa tra i
+              sotto-domini ediliziaincloud.com; una copia è tenuta nella memoria locale del browser
+              (local storage) come riserva
+            </td>
+            <td>45 giorni, rinnovata a ogni accesso; cancellata all&apos;uscita</td>
+            <td>Cookie tecnico + local storage</td>
           </tr>
           <tr>
-            <td>sb-refresh-token</td>
-            <td>Token di refresh per la sessione di autenticazione</td>
-            <td>30 giorni</td>
-            <td>Persistente</td>
+            <td>eic_consenso_cookie</td>
+            <td>Ricorda le scelte fatte nel banner dei cookie (statistiche, marketing) e la data</td>
+            <td>6 mesi, poi la scelta viene richiesta</td>
+            <td>Local storage tecnico (solo Sito)</td>
           </tr>
           <tr>
-            <td>cookie_consent</td>
-            <td>Memorizza le preferenze dell'utente sul consenso ai cookie</td>
-            <td>6 mesi</td>
-            <td>Persistente</td>
+            <td>sidebar:state</td>
+            <td>Ricorda se il menu laterale della Piattaforma è aperto o chiuso</td>
+            <td>7 giorni</td>
+            <td>Cookie tecnico (solo Piattaforma)</td>
           </tr>
           <tr>
-            <td>__cf_bm</td>
-            <td>Bot management Cloudflare per la sicurezza del Sito</td>
-            <td>30 minuti</td>
-            <td>Sessione</td>
+            <td>Preferenze e bozze della Piattaforma</td>
+            <td>
+              Memoria locale del browser per vista scelta, colonne, ordinamenti, filtri salvati e
+              bozze non ancora salvate (es. rapportini, preventivi)
+            </td>
+            <td>Fino alla cancellazione da parte dell&apos;utente o dell&apos;applicazione</td>
+            <td>Local storage / session storage (solo Piattaforma)</td>
           </tr>
           <tr>
-            <td>cf_clearance</td>
-            <td>Verifica anti-bot Cloudflare</td>
-            <td>1 anno</td>
-            <td>Persistente</td>
+            <td>ref_code, ref_code_ts</td>
+            <td>
+              Ricorda il codice del partner che ha segnalato il Sito, se l&apos;utente arriva da un
+              link di segnalazione, per attribuire la registrazione
+            </td>
+            <td>Fino alla registrazione o alla scadenza del codice</td>
+            <td>Local storage</td>
+          </tr>
+          <tr>
+            <td>__cf_bm, cf_clearance</td>
+            <td>
+              Impostati da Cloudflare solo se deve verificare che il visitatore non sia un bot
+              (protezione del Sito)
+            </td>
+            <td>__cf_bm: 30 minuti; cf_clearance: secondo la configurazione di sicurezza</td>
+            <td>Cookie tecnico (Cloudflare)</td>
           </tr>
         </tbody>
       </table>
 
-      <h3>4.2 Cookie analytics</h3>
+      <h3>4.2 Cookie statistici</h3>
       <table>
         <thead>
           <tr>
@@ -178,21 +193,23 @@ export default function CookiePolicy() {
         <tbody>
           <tr>
             <td>_ga</td>
-            <td>Google Analytics 4</td>
-            <td>Identifica univocamente l'utente per finalità statistiche</td>
+            <td>Google Analytics 4 (G-0JZP5N2VW5)</td>
+            <td>Distingue i visitatori per finalità statistiche</td>
             <td>2 anni</td>
           </tr>
           <tr>
             <td>_ga_*</td>
             <td>Google Analytics 4</td>
-            <td>Mantiene lo stato della sessione GA4</td>
+            <td>Mantiene lo stato della sessione</td>
             <td>2 anni</td>
           </tr>
           <tr>
-            <td>_gid</td>
-            <td>Google Analytics</td>
-            <td>Identifica l'utente per 24 ore</td>
-            <td>24 ore</td>
+            <td>—</td>
+            <td>Google Tag Manager</td>
+            <td>
+              Carica i tag di Google Analytics 4 sul Sito; di per sé non imposta cookie
+            </td>
+            <td>—</td>
           </tr>
         </tbody>
       </table>
@@ -210,59 +227,48 @@ export default function CookiePolicy() {
         <tbody>
           <tr>
             <td>_fbp</td>
-            <td>Meta Platforms (Facebook/Instagram Pixel)</td>
-            <td>Tracciamento conversioni e retargeting su Meta</td>
-            <td>3 mesi</td>
-          </tr>
-          <tr>
-            <td>fr</td>
-            <td>Meta Platforms</td>
-            <td>Pubblicità personalizzata su Facebook</td>
-            <td>3 mesi</td>
-          </tr>
-          <tr>
-            <td>li_sugr, bcookie, lidc</td>
-            <td>LinkedIn Insight Tag</td>
-            <td>Tracciamento conversioni e retargeting su LinkedIn</td>
-            <td>3 mesi - 2 anni</td>
-          </tr>
-          <tr>
-            <td>_gcl_au</td>
-            <td>Google Ads</td>
-            <td>Tracciamento conversioni e retargeting</td>
+            <td>Meta Platforms (Meta Pixel)</td>
+            <td>Misurazione delle conversioni e retargeting su Facebook e Instagram</td>
             <td>90 giorni</td>
           </tr>
           <tr>
-            <td>IDE, NID</td>
-            <td>Google DoubleClick</td>
-            <td>Pubblicità personalizzata</td>
-            <td>Fino a 13 mesi</td>
+            <td>_fbc</td>
+            <td>Meta Platforms</td>
+            <td>
+              Ricorda il clic su un annuncio Meta (parametro fbclid) per attribuire la conversione
+            </td>
+            <td>90 giorni</td>
           </tr>
           <tr>
-            <td>_ttp, ttwid</td>
-            <td>TikTok Pixel</td>
-            <td>Tracciamento conversioni e retargeting su TikTok</td>
-            <td>13 mesi</td>
+            <td>fr</td>
+            <td>Meta Platforms (dominio facebook.com)</td>
+            <td>Pubblicità personalizzata, per gli utenti collegati a Facebook o Instagram</td>
+            <td>90 giorni</td>
           </tr>
         </tbody>
       </table>
-
       <p>
-        <strong>Nota:</strong> l'elenco effettivo dei cookie attivi sul Sito è dinamico e dipende dalle
-        scelte di consenso dell'utente. La versione tecnicamente aggiornata è sempre visualizzabile nel
-        pannello di gestione dei cookie disponibile sul Sito (icona di gestione consenso in fondo alla
-        pagina).
-      </p>
-
-      <h2>5. Cookie di terze parti</h2>
-      <p>
-        Alcuni cookie sono installati da soggetti terzi che operano in qualità di Titolari autonomi del
-        trattamento. La Società non ha controllo sui cookie di terze parti né sulle relative finalità di
-        trattamento.
+        Google Tag Manager (contenitore GTM-PGLNPBW9) serve solo a caricare gli strumenti di Google
+        elencati sopra e si attiva solo con il consenso alle statistiche; al 30 ottobre 2026 non
+        pubblica tag pubblicitari (ad esempio Google Ads). Se ne verranno aggiunti, saranno
+        indicati in questo elenco prima dell&apos;attivazione.
       </p>
       <p>
-        Per ciascuna terza parte, l'utente può consultare le rispettive informative privacy ai seguenti
-        link:
+        Sulle pagine pubbliche del Sito è presente anche un contatore di visite di Clientium
+        (clientium.it), che invia al suo server l&apos;indirizzo della pagina visitata per
+        contare le visite. Si attiva solo con il consenso alle statistiche e il Sito non imposta
+        cookie per suo conto. [DA COMPLETARE: ragione sociale del fornitore di Clientium.]
+      </p>
+
+      <h2>5. Cookie e strumenti di terze parti</h2>
+      <p>
+        Alcuni cookie sono installati da soggetti terzi, che li trattano secondo le proprie
+        informative. Per Meta Pixel, Meta opera come contitolare per la raccolta e trasmissione
+        dei dati e come titolare autonomo per i trattamenti successivi.
+      </p>
+      <p>
+        Per ciascuna terza parte, l&apos;utente può consultare le rispettive informative privacy ai
+        seguenti link:
       </p>
       <table>
         <thead>
@@ -274,70 +280,68 @@ export default function CookiePolicy() {
         </thead>
         <tbody>
           <tr>
-            <td>Google Ireland Ltd. (Analytics, Ads, reCAPTCHA, Fonts)</td>
-            <td>Statistiche, pubblicità, sicurezza, font web</td>
+            <td>Google Ireland Ltd. (Analytics 4, Tag Manager)</td>
+            <td>Statistiche del Sito</td>
             <td>policies.google.com/privacy</td>
           </tr>
           <tr>
             <td>Meta Platforms Ireland Ltd.</td>
-            <td>Tracciamento conversioni, retargeting, social plugin</td>
-            <td>facebook.com/policy.php</td>
-          </tr>
-          <tr>
-            <td>LinkedIn Ireland Unlimited Co.</td>
-            <td>Tracciamento conversioni, retargeting</td>
-            <td>linkedin.com/legal/privacy-policy</td>
+            <td>Misurazione delle conversioni, retargeting</td>
+            <td>facebook.com/privacy/policy</td>
           </tr>
           <tr>
             <td>Cloudflare Inc.</td>
-            <td>Sicurezza, bot management, performance</td>
+            <td>Hosting, sicurezza, protezione dai bot</td>
             <td>cloudflare.com/privacypolicy</td>
           </tr>
           <tr>
             <td>YouTube (Google)</td>
-            <td>Visualizzazione di contenuti video embeddati</td>
+            <td>
+              Video incorporati in alcune pagine, nella modalità a privacy avanzata
+              (youtube-nocookie.com): il video si carica solo quando l&apos;utente preme
+              «Riproduci»
+            </td>
             <td>policies.google.com/privacy</td>
-          </tr>
-          <tr>
-            <td>TikTok Technology Ltd.</td>
-            <td>Tracciamento conversioni, retargeting</td>
-            <td>tiktok.com/legal/privacy-policy</td>
           </tr>
         </tbody>
       </table>
+      <p>
+        <strong>Tracciamento server-side (Conversions API).</strong> Oltre ai cookie, quando un
+        visitatore invia una richiesta tramite i moduli del Sito, la Società può trasmettere
+        l&apos;evento di conversione dai propri server a Meta (Meta Conversions API), usando
+        identificatori pseudonimizzati (es. impronta crittografica dell&apos;email e del telefono)
+        e i cookie _fbp/_fbc. Questa trasmissione è soggetta alle stesse scelte di consenso dei
+        cookie di marketing.
+      </p>
 
       <h2>6. Base giuridica e gestione del consenso</h2>
       <p>
-        Alla prima visita del Sito, viene mostrato un banner di consenso che informa l'utente sulla
-        presenza di cookie e gli consente di:
+        Alla prima visita del Sito viene mostrato un banner che informa l&apos;utente sulla presenza
+        di cookie e gli consente di:
       </p>
       <ul>
+        <li>accettare tutti i cookie, compresi quelli statistici e di marketing;</li>
         <li>
-          accettare tutti i cookie, prestando consenso anche ai cookie facoltativi (analytics, marketing,
-          profilazione);
+          rifiutare tutti i cookie facoltativi, con un comando di pari evidenza, mantenendo solo
+          quelli tecnici;
         </li>
-        <li>
-          rifiutare tutti i cookie facoltativi, autorizzando esclusivamente i cookie tecnici strettamente
-          necessari;
-        </li>
-        <li>personalizzare le proprie scelte per categoria di cookie tramite il pannello di preferenze.</li>
+        <li>scegliere per categoria (statistici, marketing) tramite il pannello delle preferenze;</li>
+        <li>chiudere il banner con la «X», che equivale al rifiuto dei cookie facoltativi.</li>
       </ul>
       <p>
-        Fino a quando l'utente non ha espresso una scelta, sul Sito sono installati esclusivamente i cookie
-        tecnici e quelli analytics di prima parte assimilati ai tecnici. Il consenso è registrato in forma
-        dimostrabile e ha durata di 6 mesi, salvo revoca anticipata. Decorso tale termine, il banner sarà
-        nuovamente proposto all'utente.
+        Fino a quando l&apos;utente non ha espresso una scelta, sul Sito sono utilizzati solo i
+        cookie tecnici. La scelta è registrata e non viene richiesta di nuovo per 6 mesi, salvo
+        che cambino le condizioni del trattamento o l&apos;utente cancelli i cookie.
       </p>
       <p>
-        L'utente può modificare o revocare il proprio consenso in qualsiasi momento, riaprendo il pannello
-        di gestione dei cookie tramite l'apposita icona o il link in fondo alla pagina del Sito (es.
-        "Gestisci preferenze cookie"). La revoca del consenso non pregiudica la liceità del trattamento
-        basato sul consenso prestato prima della revoca.
+        L&apos;utente può modificare o revocare il proprio consenso in qualsiasi momento tramite il
+        link «Preferenze cookie» in fondo a ogni pagina del Sito. La revoca non pregiudica la
+        liceità del trattamento basato sul consenso prestato prima della revoca.
       </p>
       <p>
-        Lo "scroll" della pagina, la chiusura del banner senza scelta esplicita o la prosecuzione della
-        navigazione <strong>non costituiscono consenso valido</strong> ai sensi del Provvedimento del
-        Garante Privacy del 10 giugno 2021.
+        Lo &quot;scroll&quot; della pagina o la prosecuzione della navigazione{" "}
+        <strong>non costituiscono consenso valido</strong> ai sensi delle Linee guida del Garante
+        Privacy del 10 giugno 2021.
       </p>
 
       <h2>7. Come gestire i cookie dal browser</h2>
@@ -361,7 +365,10 @@ export default function CookiePolicy() {
       </p>
       <ul>
         <li>YourOnlineChoices.com (European Interactive Digital Advertising Alliance)</li>
-        <li>aboutads.info/choices (Digital Advertising Alliance)</li>
+        <li>
+          Componente aggiuntivo del browser per la disattivazione di Google Analytics:
+          tools.google.com/dlpage/gaoptout
+        </li>
       </ul>
       <p>
         La disabilitazione dei cookie può comportare il malfunzionamento di alcune funzionalità del Sito.
@@ -369,29 +376,19 @@ export default function CookiePolicy() {
 
       <h2>8. Trasferimenti extra-UE</h2>
       <p>
-        Alcuni provider di cookie di terze parti (in particolare Google, Meta, LinkedIn e TikTok)
-        trasferiscono dati al di fuori dello Spazio Economico Europeo, tipicamente negli Stati Uniti, e —
-        nel caso di TikTok — potenzialmente verso ulteriori Paesi terzi. Tali trasferimenti avvengono in
+        Alcuni fornitori di cookie di terze parti (Google, Meta e Cloudflare) possono trasferire dati
+        al di fuori dello Spazio Economico Europeo, tipicamente negli Stati Uniti. Tali trasferimenti avvengono in
         presenza di idonee garanzie ai sensi degli artt. 45 e 46 GDPR (Decisioni di adeguatezza, in
         particolare l'EU-US Data Privacy Framework per i fornitori statunitensi certificati; o Clausole
         Contrattuali Tipo della Commissione europea). Per ulteriori dettagli si rinvia alla Privacy Policy,
         sezione 10.
       </p>
-      <p>
-        <strong>Tracciamento server-side (Conversions API).</strong> Oltre ai cookie, il Sito può
-        trasmettere eventi di conversione direttamente dai propri server alle piattaforme pubblicitarie
-        (Meta Conversions API, Google Measurement Protocol, TikTok Events API, LinkedIn Conversions API),
-        nel rispetto delle scelte di consenso espresse dall'utente tramite il banner. Tali trasmissioni
-        utilizzano identificatori pseudonimizzati (es. hash dell'email) e sono soggette alle medesime basi
-        giuridiche e garanzie dei cookie di marketing.
-      </p>
-
       <h2>9. Diritti dell'interessato</h2>
       <p>
         L'utente ha facoltà di esercitare in qualsiasi momento i diritti previsti dagli artt. 15-22 GDPR
         (accesso, rettifica, cancellazione, limitazione, portabilità, opposizione). Per le modalità di
         esercizio si rinvia integralmente alla Privacy Policy, sezione 11. Le richieste possono essere
-        inviate a <strong>info@ediliziaincloud.com</strong>.
+        inviate a <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>.
       </p>
       <p>
         L'utente ha altresì diritto di proporre reclamo al <strong>Garante per la Protezione dei Dati

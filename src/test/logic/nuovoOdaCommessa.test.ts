@@ -36,8 +36,10 @@ describe("ordine d'acquisto dalla commessa", () => {
   it("le righe per il database tengono il legame con l'articolo e l'ordine", () => {
     const righe = [...righeDagliArticoli(articoli, "s1"), { ...rigaLibera("l1"), description: " Sabbia ", quantity: 3, unit_price: 20 }];
     expect(righePerDatabase(righe, "co", "po")).toEqual([
-      { company_id: "co", purchase_order_id: "po", order_item_id: "a1", description: "Mattoni forati", quantity: 200, unit_of_measure: "pz", unit_price: 0.8, vat_rate: 22, discount_percent: 0, sort_order: 0 },
-      { company_id: "co", purchase_order_id: "po", order_item_id: null, description: "Sabbia", quantity: 3, unit_of_measure: "pz", unit_price: 20, vat_rate: 22, discount_percent: 0, sort_order: 1 },
+      { company_id: "co", purchase_order_id: "po", order_item_id: "a1", description: "Mattoni forati", quantity: 200, unit_of_measure: "pz", unit_price: 0.8, price_pending: false, vat_rate: 22, discount_percent: 0, sort_order: 0 },
+      { company_id: "co", purchase_order_id: "po", order_item_id: null, description: "Sabbia", quantity: 3, unit_of_measure: "pz", unit_price: 20, price_pending: false, vat_rate: 22, discount_percent: 0, sort_order: 1 },
     ]);
   });
 });
+
+it("una riga libera senza prezzo resta da confermare, mentre zero esplicito è concordato",()=>{ const nuova={...rigaLibera("n"),description:"Voce nuova"};expect(righePerDatabase([nuova],"c","p")[0]).toMatchObject({unit_price:0,price_pending:true});expect(righePerDatabase([{...nuova,price_pending:false}],"c","p")[0]).toMatchObject({unit_price:0,price_pending:false}); });

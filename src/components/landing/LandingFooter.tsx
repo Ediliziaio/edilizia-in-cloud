@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { apriPreferenzeCookie } from "@/components/legal/BannerCookie";
 import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 
 /**
@@ -158,6 +159,7 @@ export default function LandingFooter() {
             <Link to="/avviso-legale/" className="hover:text-eic-orange transition-colors">Avviso Legale</Link>
             <Link to="/condizioni-utilizzo/" className="hover:text-eic-orange transition-colors">Condizioni di Utilizzo</Link>
             <Link to="/cookie-policy/" className="hover:text-eic-orange transition-colors">Cookie Policy</Link>
+            <button type="button" onClick={apriPreferenzeCookie} className="hover:text-eic-orange transition-colors">Preferenze cookie</button>
             <Link to="/dpa/" className="hover:text-eic-orange transition-colors">DPA</Link>
           </div>
         </div>

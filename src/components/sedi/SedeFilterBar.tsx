@@ -1,7 +1,6 @@
 import { MapPin, X, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -106,8 +105,11 @@ export function SedeFilterBar() {
 
       {/* Filtro per tipo sede */}
       {TIPI_SEDE.map((tipo) => (
-        <Badge
+        <Button
           key={tipo}
+          type="button"
+          size="sm"
+          aria-pressed={tipoSede === tipo}
           variant={tipoSede === tipo ? 'default' : 'outline'}
           className="cursor-pointer capitalize select-none"
           style={
@@ -118,7 +120,7 @@ export function SedeFilterBar() {
           onClick={() => setTipoSede(tipoSede === tipo ? null : tipo)}
         >
           {tipo}
-        </Badge>
+        </Button>
       ))}
 
       {/* Reset */}

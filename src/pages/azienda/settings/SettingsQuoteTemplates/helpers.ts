@@ -15,6 +15,7 @@ export type TemplateFormPayload = Partial<Omit<QuoteTemplate, "created_at" | "up
  */
 export const FRASI_DEI_MODELLI_GIA_ITALIANE: ReadonlySet<string> = new Set([
   "Azienda non disponibile",
+  "Il contratto è stato aggiornato da un altro terminale. Ricarica i contratti prima di salvare.",
   "I modelli li cambia chi può modificare il listino",
 ]);
 

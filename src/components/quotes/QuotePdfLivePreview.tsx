@@ -4,8 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { QuoteTemplate, QuoteTemplateKind } from '@/types/quoteTemplate';
 
 /** Real server PDF, not an approximation: same endpoint and draft as the download. */
-export function QuotePdfLivePreview({template,kind,companyId,companyName}: {
-  template:Partial<QuoteTemplate>;kind:QuoteTemplateKind;companyId?:string;companyName?:string;
+export function QuotePdfLivePreview({template,kind,companyId,companyName,downloadFileName="anteprima-preventivo.pdf",allowOpenInNewTab=true}: {
+  template:Partial<QuoteTemplate>;kind:QuoteTemplateKind;companyId?:string;companyName?:string;downloadFileName?:string;allowOpenInNewTab?:boolean;
 }) {
   const standalone=kind==='condizioni'||kind==='legali';
   const draft={...template,company_id:template.company_id??companyId,...(standalone?{
@@ -21,6 +21,6 @@ export function QuotePdfLivePreview({template,kind,companyId,companyName}: {
     return createPdfPreviewUrl(new Blob([bytes],{type:'application/pdf'}));
   };
   return <div className="h-[70vh] min-h-[420px] w-full" aria-label="PDF classico aggiornato automaticamente">
-    <PdfBlobLivePreviewPanel renderBlobUrl={render} depsKey={JSON.stringify([draft,companyName])} enabled={!!companyId} debounceMs={900} downloadFileName="anteprima-preventivo.pdf" />
+    <PdfBlobLivePreviewPanel renderBlobUrl={render} depsKey={JSON.stringify([draft,companyName])} enabled={!!companyId} debounceMs={900} downloadFileName={downloadFileName} allowOpenInNewTab={allowOpenInNewTab} showDownloadOnMobile />
   </div>;
 }

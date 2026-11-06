@@ -13,9 +13,9 @@ function numero(value: number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Senza ricavo o senza alcun costo registrato il margine sarebbe un falso 100%. */
-export function margineAffidabile(row: { preventivo_totale: number | null; consuntivo: number | null }): boolean {
-  return numero(row.preventivo_totale) > 0 && numero(row.consuntivo) > 0;
+/** Ricavo, costi registrati e prelievi valorizzati sono necessari per un margine affidabile. */
+export function margineAffidabile(row: { preventivo_totale: number | null; consuntivo: number | null; movimenti_magazzino_senza_costo?: number | null }): boolean {
+  return numero(row.preventivo_totale) > 0 && numero(row.consuntivo) > 0 && numero(row.movimenti_magazzino_senza_costo) <= 0;
 }
 
 export function fasciaMargine(opts: { affidabile: boolean; nettoPct: number; targetPct: number }): FasciaMargine {
@@ -101,6 +101,7 @@ export interface CommessaPerSede {
   id: string;
   preventivo_totale: number | null;
   consuntivo: number | null;
+  movimenti_magazzino_senza_costo?: number | null;
   margine: number | null;
   created_at: string;
 }

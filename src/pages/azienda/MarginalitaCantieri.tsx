@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { format } from "date-fns";
 import MargineVociDetail from "@/components/marginalita/MargineVociDetail";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
+import { leggiTutteLeRighe } from "@/lib/impostazioni/usoTag";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
@@ -29,10 +31,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Search,
   BarChart3,
@@ -157,7 +159,7 @@ function safeNumber(value: number | null | undefined): number {
 }
 
 /** Senza ricavo e almeno un costo registrato il 100% e' solo un falso positivo. */
-function hasReliableMargin(row: Pick<MarginalitaRow, "preventivo_totale" | "consuntivo">): boolean {
+function hasReliableMargin(row: Pick<MarginalitaRow, "preventivo_totale" | "consuntivo" | "movimenti_magazzino_senza_costo">): boolean {
   return margineAffidabile(row);
 }
 
@@ -167,13 +169,15 @@ function hasReliableMargin(row: Pick<MarginalitaRow, "preventivo_totale" | "cons
  */
 async function completaNomiClienti(companyId: string, rows: MarginalitaRow[]): Promise<MarginalitaRow[]> {
   if (!rows.some((row) => !row.cliente_nome?.trim())) return rows;
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id, client_company, client_name")
-    .eq("company_id", companyId)
-    .is("customer_id", null)
-    .limit(MARGINALITA_FETCH_LIMIT);
-  if (error || !data) return rows;
+  let data: { id: string; client_company: string | null; client_name: string | null }[];
+  try {
+    data = await leggiTutteLeRighe((da, a) => supabase
+      .from("orders")
+      .select("id, client_company, client_name", { count: "exact" })
+      .eq("company_id", companyId)
+      .is("customer_id", null)
+      .order("id").range(da, a));
+  } catch { return rows; }
   const perCommessa = new Map(data.map((order) => [order.id, order]));
   return rows.map((row) => (row.cliente_nome?.trim()
     ? row
@@ -226,7 +230,7 @@ function SortableTableHead({
   align?: "left" | "center" | "right";
 }) {
   return (
-    <TableHead className={className}>
+    <TableHead className={className} aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}>
       <button
         type="button"
         onClick={onClick}
@@ -287,6 +291,11 @@ function MarginHealthBadge({ perc, target }: { perc: number; target: number }) {
 
 export default function MarginalitaCantieri() {
   const companyId = useEffectiveCompanyId();
+  return <MarginalitaAzienda key={companyId ?? "nessuna-azienda"} companyId={companyId} />;
+}
+
+function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [annoFilter, setAnnoFilter] = useState<string>("tutti");
   const [healthFilter, setHealthFilter] = useState<"tutti" | FasciaMargine>("tutti");
@@ -354,16 +363,16 @@ export default function MarginalitaCantieri() {
   const {
     data: vehicleEstimates = [],
     isLoading: isLoadingVehicleEstimates,
+    error: vehicleEstimatesError,
     refetch: refetchVehicleEstimates,
   } = useQuery({
     queryKey: ["marginalita-costi-mezzi-stimati", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      return await leggiTutteLeRighe<VehicleEstimateRow>((da, a) => supabase
         .from("v_ordine_costi_mezzi_stimati")
-        .select("order_id, costo_mezzi_stimato, mezzi_usati, giorni_mezzo, mezzi_senza_costo, dati_mezzi_visibili")
-        .eq("company_id", companyId!);
-      if (error) throw error;
-      return (data ?? []) as VehicleEstimateRow[];
+        .select("order_id, costo_mezzi_stimato, mezzi_usati, giorni_mezzo, mezzi_senza_costo, dati_mezzi_visibili", { count: "exact" })
+        .eq("company_id", companyId!)
+        .order("order_id").range(da, a));
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
@@ -377,7 +386,7 @@ export default function MarginalitaCantieri() {
   // Senza il permesso sui mezzi la vista risponde 0: non è un costo zero, è un dato non visibile.
   const vehicleDataHidden = vehicleEstimates.some((row) => row.dati_mezzi_visibili === false);
 
-  const { data: marginSettings } = useQuery({
+  const { data: marginSettings, error: marginSettingsError, refetch: refetchMarginSettings } = useQuery({
     queryKey: ["preventivo-impostazioni-margin", companyId],
     queryFn: async () => {
       const { data, error } = await (supabase.from("preventivo_impostazioni") as any)
@@ -523,10 +532,12 @@ export default function MarginalitaCantieri() {
         current.openTotal += amount;
         current.openCount += 1;
       }
-      const causeStats = current.causes.get(cause) ?? { amount: 0, count: 0 };
-      causeStats.amount += amount;
-      causeStats.count += 1;
-      current.causes.set(cause, causeStats);
+      if (isOpen) {
+        const causeStats = current.causes.get(cause) ?? { amount: 0, count: 0 };
+        causeStats.amount += amount;
+        causeStats.count += 1;
+        current.causes.set(cause, causeStats);
+      }
       map.set(key, current);
     });
 
@@ -567,7 +578,9 @@ export default function MarginalitaCantieri() {
     if (!hasReliableMargin(row)) {
       return {
         label: "Costi da completare",
-        detail: "Nessun costo registrato: il margine non e' ancora calcolabile.",
+        detail: safeNumber(row.movimenti_magazzino_senza_costo) > 0
+          ? `${row.movimenti_magazzino_senza_costo} ${safeNumber(row.movimenti_magazzino_senza_costo) === 1 ? "prelievo di magazzino senza costo" : "prelievi di magazzino senza costo"}: completa la valorizzazione.`
+          : "Nessun costo registrato: il margine non è ancora calcolabile.",
         tone: "orange" as const,
         recoveryAmount: 0,
       };
@@ -596,6 +609,14 @@ export default function MarginalitaCantieri() {
       return {
         label: "Sotto target",
         detail: `Mancano ${formatCurrency(recoveryAmount)} per arrivare al target${riferimento} ${targetMarginPct.toFixed(1)}%.`,
+        tone: "amber" as const,
+        recoveryAmount,
+      };
+    }
+    if (fasciaMargine({ affidabile: true, nettoPct: margineNetto, targetPct: targetMarginPct }) === "da_monitorare") {
+      return {
+        label: "Da monitorare",
+        detail: `Margine${riferimento} ${margineNetto.toFixed(1)}%: controlla costi e varianti per mantenere il margine.`,
         tone: "amber" as const,
         recoveryAmount,
       };
@@ -629,7 +650,7 @@ export default function MarginalitaCantieri() {
       result = result.filter((r) => new Date(r.created_at).getFullYear().toString() === annoFilter);
     }
     if (search.trim()) {
-      const s = search.toLowerCase();
+      const s = search.trim().toLowerCase().replace(/^#/, "");
       result = result.filter(
         (r) =>
           r.order_code?.toLowerCase().includes(s) ||
@@ -710,6 +731,7 @@ export default function MarginalitaCantieri() {
       "Margine dopo struttura euro",
       "Acquisti ODA",
       "Materiali da scorta",
+      "Prelievi da valorizzare",
       "Mezzi stimati fuori consuntivo",
       "Mezzi assegnati",
       "Mezzi senza costo configurato",
@@ -739,11 +761,12 @@ export default function MarginalitaCantieri() {
         reliable && adjusted.source !== "none" ? adjusted.adjustedMargin.toFixed(2) : "",
         safeNumber(row.costo_acquisti).toFixed(2),
         safeNumber(row.costo_materiali_magazzino).toFixed(2),
-        vehicleDataHidden ? "" : safeNumber(vehicleEstimateByOrder.get(row.id)?.costo_mezzi_stimato).toFixed(2),
-        vehicleDataHidden ? "" : String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_usati)),
-        vehicleDataHidden ? "" : String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_senza_costo)),
+        String(safeNumber(row.movimenti_magazzino_senza_costo)),
+        vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? "" : safeNumber(vehicleEstimateByOrder.get(row.id)?.costo_mezzi_stimato).toFixed(2),
+        vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? "" : String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_usati)),
+        vehicleDataHidden || vehicleEstimatesError || isLoadingVehicleEstimates ? "" : String(safeNumber(vehicleEstimateByOrder.get(row.id)?.mezzi_senza_costo)),
         safeNumber(row.costo_errori).toFixed(2),
-        String(anomaly?.openCount ?? 0),
+        anomaliesError || isFetchingAnomalies ? "" : String(anomaly?.openCount ?? 0),
         decision.label,
         decision.detail,
       ];
@@ -755,7 +778,7 @@ export default function MarginalitaCantieri() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `marginalita-cantieri-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `marginalita-cantieri-${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -830,21 +853,23 @@ export default function MarginalitaCantieri() {
       .filter((item) => item.decision.tone !== "green")
       .sort((a, b) => b.decision.recoveryAmount - a.decision.recoveryAmount || a.margineNetto - b.margineNetto);
 
-    const insight = riskRows.length > 0
-      ? `${riskRows.length} commesse richiedono attenzione. Gap economico calcolabile rispetto al target dopo struttura ${targetMarginPct.toFixed(1)}%: ${formatCurrency(kpi.targetRecovery)}.${kpi.incompleteCount > 0 ? ` ${kpi.incompleteCount} senza costi completi.` : ""}`
+    const insight = filtered.length === 0
+      ? "Nessuna commessa nella vista corrente. Modifica i filtri per visualizzare i risultati."
+      : riskRows.length > 0
+      ? `${riskRows.length} ${riskRows.length === 1 ? "commessa richiede" : "commesse richiedono"} attenzione. ${kpi.reliableCount > 0 ? `Gap economico calcolabile rispetto al target dopo struttura ${targetMarginPct.toFixed(1)}%: ${formatCurrency(kpi.targetRecovery)}.` : "Gap non calcolabile con dati incompleti."}${kpi.incompleteCount > 0 ? ` ${kpi.incompleteCount} senza costi completi.` : ""}`
       : `Le commesse filtrate sono sopra il target dopo struttura ${targetMarginPct.toFixed(1)}%.`;
 
     return { riskRows: riskRows.slice(0, 5), insight };
-  }, [filtered, targetMarginPct, kpi.incompleteCount, kpi.targetRecovery, getAdjustedMargin, getMarginDecision]);
+  }, [filtered, targetMarginPct, kpi.incompleteCount, kpi.reliableCount, kpi.targetRecovery, getAdjustedMargin, getMarginDecision]);
 
-  const { sediSelezionate, periodo } = useSedeFilter();
-  const { data: sediData } = useSediAnalytics({
+  const { sediSelezionate, periodo, tipoSede } = useSedeFilter();
+  const { data: sediData, error: sediError, refetch: refetchSediData } = useSediAnalytics({
     da: periodo.da,
     a:  periodo.a,
   });
   // Con una sola sede il blocco ripeterebbe i totali della pagina: si vede solo con più sedi.
   const piuSedi = (sediData?.sedi?.length ?? 0) > 1;
-  const { data: sedePerCommessa } = useQuery({
+  const { data: sedePerCommessa, error: sedePerCommessaError, refetch: refetchSedePerCommessa } = useQuery({
     queryKey: ["marginalita-sede-commesse", companyId],
     queryFn: async () => {
       const mappa = new Map<string, string | null>();
@@ -869,13 +894,13 @@ export default function MarginalitaCantieri() {
     if (!piuSedi || !sedePerCommessa) return [];
     const reali = margineRealeSedi(rows, sedePerCommessa, periodo);
     return (sediData?.sedi ?? [])
-      .filter((s) => sediSelezionate.length === 0 || sediSelezionate.includes(s.sede_id))
+      .filter((s) => (sediSelezionate.length === 0 || sediSelezionate.includes(s.sede_id)) && (!tipoSede || s.tipo === tipoSede))
       .flatMap((s) => {
         const margine = reali.get(s.sede_id);
         return margine ? [{ ...s, ...margine }] : [];
       })
       .sort((a, b) => b.margine_pct - a.margine_pct);
-  }, [piuSedi, sedePerCommessa, rows, periodo, sediData, sediSelezionate]);
+  }, [piuSedi, sedePerCommessa, rows, periodo, sediData, sediSelezionate, tipoSede]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -894,33 +919,42 @@ export default function MarginalitaCantieri() {
           </div>
         </div>
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
-            <Button variant="outline" size="sm" onClick={exportFilteredCsv} disabled={isLoading || filtered.length === 0} className="shrink-0" aria-label="Esporta vista CSV">
+            <Button variant="outline" size="sm" onClick={exportFilteredCsv} disabled={isLoading || !!error || filtered.length === 0} className="shrink-0" aria-label="Esporta vista CSV">
               <FileDown className="h-3.5 w-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Esporta vista</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                void refetch();
-                void refetchVehicleEstimates();
-                void refetchAnomalies();
-                void structure.refetch();
-                void commesseCdg.refetch();
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  await Promise.allSettled([
+                    refetch(), refetchVehicleEstimates(), refetchAnomalies(),
+                    structure.refetch(), commesseCdg.refetch(), refetchMarginSettings(),
+                    refetchSediData(), ...(piuSedi ? [refetchSedePerCommessa()] : []),
+                  ]);
+                } finally { setRefreshing(false); }
               }}
-              disabled={isFetching}
+              disabled={isFetching || refreshing}
               className="shrink-0"
               aria-label="Aggiorna dati"
             >
-              <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", isFetching && "animate-spin")} />
+              <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", (isFetching || refreshing) && "animate-spin")} />
               <span className="hidden sm:inline">Aggiorna dati</span>
             </Button>
           </div>
         </div>
       </div>
 
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="overflow-hidden border-slate-200 bg-eic-navy-deep text-white shadow-sm">
+      {(structure.error || marginSettingsError) && <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        {structure.error ? "Struttura aziendale non caricata: la quota automatica non è disponibile. " : ""}
+        {marginSettingsError ? "Impostazioni di margine non caricate: verifica target e percentuale prima di usare la simulazione. " : ""}
+        Premi Aggiorna dati per riprovare.
+      </div>}
+
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <Card className="min-w-0 overflow-hidden border-slate-200 bg-eic-navy-deep text-white shadow-sm">
           <CardContent className="space-y-4 p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="flex gap-3">
@@ -947,29 +981,29 @@ export default function MarginalitaCantieri() {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 2xl:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
                 <p className="text-[11px] font-semibold uppercase text-blue-100">Margine diretto</p>
-                <p className="mt-1 text-xl font-bold">{kpi.reliableCount > 0 ? formatCurrency(kpi.totMargine) : "—"}</p>
+                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.reliableCount > 0 ? formatCurrency(kpi.totMargine) : "—"}</p>
                 <p className="text-xs text-blue-100/75">{kpi.reliableCount} commesse calcolabili</p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
                 <p className="text-[11px] font-semibold uppercase text-blue-100">Dopo struttura</p>
-                <p className="mt-1 text-xl font-bold">{kpi.structuredCount > 0 ? formatCurrency(kpi.adjustedMarginTotal) : "—"}</p>
+                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.structuredCount > 0 ? formatCurrency(kpi.adjustedMarginTotal) : "—"}</p>
                 <p className="text-xs text-blue-100/75">
                   {kpi.structuredCount === 0
-                    ? "struttura non disponibile"
+                    ? (kpi.reliableCount === 0 ? "margine non calcolabile" : "struttura non disponibile")
                     : `${kpi.avgMargineNettoPerc.toFixed(1)}% medio${kpi.structuredCount < kpi.reliableCount ? ` su ${kpi.structuredCount} commesse` : ""}`}
                 </p>
               </div>
               <div className="rounded-xl border border-orange-300/30 bg-orange-400/15 p-3">
                 <p className="text-[11px] font-semibold uppercase text-orange-100">Gap dal target</p>
-                <p className="mt-1 text-xl font-bold">{formatCurrency(kpi.targetRecovery)}</p>
+                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.reliableCount > 0 ? formatCurrency(kpi.targetRecovery) : "—"}</p>
                 <p className="text-xs text-orange-100/75">da recuperare o compensare</p>
               </div>
               <div className="rounded-xl border border-red-300/30 bg-red-400/15 p-3">
                 <p className="text-[11px] font-semibold uppercase text-red-100">Da controllare</p>
-                <p className="mt-1 text-xl font-bold">{kpi.riskCount}</p>
+                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.riskCount}</p>
                 <p className="text-xs text-red-100/75">{kpi.incompleteCount} con dati incompleti</p>
               </div>
             </div>
@@ -979,7 +1013,7 @@ export default function MarginalitaCantieri() {
           </CardContent>
         </Card>
 
-        <Card className="border-orange-100 bg-orange-50/50 shadow-sm">
+        <Card className="min-w-0 border-orange-100 bg-orange-50/50 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base text-orange-950">
               <Lightbulb className="h-4 w-4 text-orange-600" />
@@ -994,6 +1028,8 @@ export default function MarginalitaCantieri() {
               <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
                 {isLoading ? "Sto caricando le commesse..." : "Dati non caricati: nessuna indicazione disponibile."}
               </div>
+            ) : filtered.length === 0 ? (
+              <p className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">Nessuna azione disponibile: la vista non contiene commesse.</p>
             ) : marginControl.riskRows.length === 0 ? (
               <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
                 Nessuna commessa sotto soglia nella vista corrente. Mantieni aggiornati acquisti e anomalie.
@@ -1014,7 +1050,7 @@ export default function MarginalitaCantieri() {
                       <p className="mt-1 text-xs text-slate-600">{decision.detail}</p>
                     </div>
                     <Badge className="shrink-0 border border-orange-200 bg-orange-50 text-orange-700">
-                      {formatCurrency(decision.recoveryAmount)}
+                      {!hasReliableMargin(row) ? "Da completare" : decision.recoveryAmount > 0 ? formatCurrency(decision.recoveryAmount) : decision.label}
                     </Badge>
                   </div>
                 </button>
@@ -1025,12 +1061,14 @@ export default function MarginalitaCantieri() {
       </section>
 
       {/* ── Performance per Sede ───────────────────────────── */}
-      {sediVisibili.length > 0 && (
+      {sediError && <p role="alert" className="text-sm text-amber-800">Analisi delle sedi non caricata. Premi Aggiorna dati per riprovare.</p>}
+      {piuSedi && (
         <section className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-lg font-semibold text-eic-navy">Performance per Sede</h2>
             <SedeFilterBar />
           </div>
+          {sedePerCommessaError ? <p role="alert" className="text-sm text-amber-800">Dati delle sedi non caricati. Premi Aggiorna dati per riprovare.</p> : sediVisibili.length === 0 && <p className="text-sm text-muted-foreground">Nessuna sede con commesse calcolabili corrisponde ai filtri. Modifica i filtri delle sedi.</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sediVisibili.map((sede) => (
               <SedeMargineCard
@@ -1061,9 +1099,9 @@ export default function MarginalitaCantieri() {
           </div>
           <div>
             <p className="text-xs font-semibold uppercase text-sky-700">Mezzi stimati</p>
-            <p className="mt-1 font-semibold">{isLoadingVehicleEstimates || vehicleDataHidden ? "—" : formatCurrency(kpi.vehicleEstimateTotal)}</p>
+            <p className="mt-1 font-semibold">{isLoadingVehicleEstimates || vehicleDataHidden || vehicleEstimatesError ? "—" : formatCurrency(kpi.vehicleEstimateTotal)}</p>
             <p className="text-xs text-muted-foreground">
-              {vehicleDataHidden
+              {vehicleEstimatesError ? "dati non caricati: premi Aggiorna dati" : vehicleDataHidden
                 ? "non visibili con i tuoi permessi"
                 : `fuori consuntivo · ${kpi.vehiclesUsed} assegnazioni${kpi.vehiclesWithoutCost > 0 ? ` · ${kpi.vehiclesWithoutCost} senza costo` : ""}`}
             </p>
@@ -1071,7 +1109,7 @@ export default function MarginalitaCantieri() {
           <div>
             <p className="text-xs font-semibold uppercase text-red-700">Errori e anomalie</p>
             <p className="mt-1 font-semibold">{formatCurrency(kpi.errorCost)}</p>
-            <p className="text-xs text-muted-foreground">{kpi.openAnomalyCount} ancora da verificare</p>
+            <p className="text-xs text-muted-foreground">{anomaliesError ? "Anomalie non caricate" : `${kpi.openAnomalyCount} ancora da verificare`}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase text-blue-700">Struttura mensile</p>
@@ -1095,7 +1133,7 @@ export default function MarginalitaCantieri() {
       {hasMoreRows && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Vista limitata alle prime {rows.length.toLocaleString("it-IT")} commesse su {totalRows.toLocaleString("it-IT")}.
-          Raffina ricerca o periodo per analisi operative precise su grandi volumi.
+          Ricerca, filtri e CSV riguardano solo queste commesse caricate.
         </div>
       )}
 
@@ -1112,47 +1150,49 @@ export default function MarginalitaCantieri() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground whitespace-nowrap">Struttura % se mancano dati</label>
+          <label htmlFor="marginalita-overhead" className="text-sm text-muted-foreground whitespace-nowrap">Struttura % se mancano dati</label>
           <Input
             type="number"
             min={0}
             max={100}
             step={1}
+            id="marginalita-overhead"
             value={overheadPct ?? ""}
             placeholder="—"
             onChange={(e) => setOverheadPct(e.target.value === "" ? null : clampPercentage(Number(e.target.value)))}
             className="w-20 h-8 text-sm"
           />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-            </TooltipTrigger>
-            <TooltipContent>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" aria-label="Informazioni sulla quota di struttura" className="shrink-0 text-muted-foreground"><Info className="h-3.5 w-3.5" /></button>
+            </PopoverTrigger>
+            <PopoverContent>
               <p className="text-xs max-w-[240px]">Usato solo quando la ripartizione automatica non può essere calcolata, per esempio se manca la data di inizio commessa.</p>
-            </TooltipContent>
-          </Tooltip>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground whitespace-nowrap">Target dopo struttura %</label>
+          <label htmlFor="marginalita-target" className="text-sm text-muted-foreground whitespace-nowrap">Target dopo struttura %</label>
           <Input
             type="number"
             min={0}
             max={100}
             step={1}
+            id="marginalita-target"
             value={targetMarginPct}
             onChange={(e) => setTargetMarginPct(clampPercentage(Number(e.target.value)))}
             className="w-20 h-8 text-sm"
           />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Target className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-            </TooltipTrigger>
-            <TooltipContent>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" aria-label="Informazioni sul target di margine" className="shrink-0 text-muted-foreground"><Target className="h-3.5 w-3.5" /></button>
+            </PopoverTrigger>
+            <PopoverContent>
               <p className="text-xs max-w-[220px]">Soglia minima dopo l'incidenza stimata della struttura, usata per calcolare il gap e ordinare le priorità operative.</p>
-            </TooltipContent>
-          </Tooltip>
+            </PopoverContent>
+          </Popover>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap" role="group" aria-label="Stato del margine">
           {[
             { key: "tutti", label: "Tutti" },
             { key: "perdita", label: "In perdita" },
@@ -1163,6 +1203,7 @@ export default function MarginalitaCantieri() {
           ].map((item) => (
             <button
               key={item.key}
+              aria-pressed={healthFilter === item.key}
               onClick={() => setHealthFilter(item.key as typeof healthFilter)}
               className={cn(
                 "rounded-lg border px-3 py-2 text-sm transition-colors",
@@ -1175,10 +1216,11 @@ export default function MarginalitaCantieri() {
             </button>
           ))}
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap" role="group" aria-label="Anno di creazione">
           {anniDisponibili.map((anno) => (
             <button
               key={anno}
+              aria-pressed={annoFilter === anno}
               onClick={() => setAnnoFilter(anno)}
               className={cn(
                 "rounded-lg border px-3 py-2 text-sm transition-colors",
@@ -1191,6 +1233,17 @@ export default function MarginalitaCantieri() {
             </button>
           ))}
         </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <p role="status">{filtered.length} {filtered.length === 1 ? "commessa visualizzata" : "commesse visualizzate"} su {rows.length} caricate</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {(search || annoFilter !== "tutti" || healthFilter !== "tutti") && <Button variant="ghost" size="sm" onClick={() => {setSearch(""); setAnnoFilter("tutti"); setHealthFilter("tutti");}}>Azzera filtri</Button>}
+          {(overheadPctOverride !== null || targetMarginPctOverride !== null) && <>
+            <span>Simulazione locale: le impostazioni aziendali sono invariate.</span>
+            <Button variant="outline" size="sm" onClick={() => {setOverheadPct(null); setTargetMarginPct(null);}}>Ripristina valori aziendali</Button>
+          </>}
         </div>
       </div>
 
@@ -1276,7 +1329,7 @@ export default function MarginalitaCantieri() {
                     >
                       <TableCell>
                         <div className="flex items-center gap-1 font-medium text-primary">
-                          {row.order_code ? `#${row.order_code}` : "–"}
+                          <button type="button" className="text-left hover:underline focus-visible:underline" aria-label={`Dettaglio margine ${row.order_code ?? row.description}`} onClick={(event) => { event.stopPropagation(); setDrillRow(row); }}>{row.order_code ? `#${row.order_code}` : "–"}</button>
                           <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                         <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.description}</p>
@@ -1466,7 +1519,9 @@ export default function MarginalitaCantieri() {
       <MargineVociDetail
         open={!!drillRow}
         onClose={() => setDrillRow(null)}
-        row={drillRow}
+        row={rows.find((row) => row.id === drillRow?.id) ?? null}
+        structureImpact={drillRow ? getAdjustedMargin(rows.find((row) => row.id === drillRow.id) ?? drillRow) : undefined}
+        targetMarginPct={targetMarginPct}
       />
     </div>
   );

@@ -5,7 +5,7 @@ export default function DPA() {
     <LegalLayout
       title="Data Processing Agreement (DPA)"
       metaDescription="Accordo sul trattamento dei dati ex art. 28 GDPR tra cliente (titolare) ed Edilizia in Cloud (responsabile). Domus Group S.r.l."
-      lastUpdate="27 aprile 2026"
+      lastUpdate="30 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_DPA.pdf"
       currentPath="/dpa"
     >
@@ -16,7 +16,7 @@ export default function DPA() {
       </p>
 
       <p>
-        <strong>Versione:</strong> 1.1 — <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026.
+        <strong>Versione:</strong> 1.2 — <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026.
       </p>
 
       <blockquote>
@@ -131,6 +131,12 @@ export default function DPA() {
         che per il periodo necessario all&apos;espletamento delle operazioni di restituzione e/o cancellazione dei Dati
         Personali successive alla cessazione del contratto.
       </p>
+      <p>
+        <strong>3.4</strong> Le previsioni del presente DPA restano altresì efficaci, anche dopo la cessazione del
+        contratto, limitatamente ai dati che la Società continua a conservare per conto del Cliente in forza di un
+        obbligo di legge, e in particolare alle evidenze della Firma Elettronica Avanzata (FEA) conservate per 20 anni ai
+        sensi dell&apos;art. 57 del DPCM 22 febbraio 2013 (v. art. 13.5), per tutta la durata di tale conservazione.
+      </p>
 
       <h2>4. Ruoli delle Parti</h2>
       <p>
@@ -194,7 +200,11 @@ export default function DPA() {
         sanitari, vita o orientamento sessuale) né dati relativi a condanne penali e reati ai sensi dell&apos;art. 10
         GDPR, salvo che ciò sia strettamente necessario all&apos;utilizzo del Servizio (ad esempio: certificati medici
         per la gestione delle assenze, dati di idoneità sanitaria al lavoro), nel qual caso il Cliente dovrà disporre
-        di una specifica base giuridica e adottare adeguate misure di protezione aggiuntive.
+        di una specifica base giuridica e adottare adeguate misure di protezione aggiuntive. Il Cliente prende atto che
+        anche documenti di uso corrente possono contenere categorie particolari di dati: ad esempio i cedolini paga che
+        il Cliente carica per i propri dipendenti possono rivelare assenze per malattia, trattenute sindacali o altri
+        dati relativi alla salute o all&apos;appartenenza sindacale. Tali documenti sono visibili soltanto agli utenti ai
+        quali il Cliente attribuisce i relativi permessi e al dipendente interessato.
       </p>
       <p>
         <strong>5.7</strong> Adottare, all&apos;interno della propria organizzazione, adeguate misure di sicurezza
@@ -217,16 +227,18 @@ export default function DPA() {
         generati. Il Titolare si impegna a non immettere nelle Funzionalità AI categorie particolari di dati (art. 9
         GDPR) o dati relativi a condanne e reati (art. 10 GDPR) salvo che ne ricorrano i presupposti di liceità, e a
         verificare gli output prima di ogni utilizzo. Il Titolare prende atto che, per l&apos;erogazione delle
-        Funzionalità AI, i dati possono essere trasmessi ai Fornitori AI indicati nell&apos;Allegato 3, in qualità di
-        Sub-responsabili, i quali si sono impegnati a non utilizzare tali dati per l&apos;addestramento dei propri
-        modelli.
+        Funzionalità AI, i dati strettamente necessari alla singola richiesta possono essere trasmessi ai Fornitori
+        AI indicati nell&apos;Allegato 3, in qualità di Sub-responsabili, anche al di fuori dello Spazio Economico
+        Europeo (v. art. 8). La Società utilizza i Fornitori AI esclusivamente tramite API commerciali, le cui
+        condizioni contrattuali escludono l&apos;utilizzo dei dati inviati per l&apos;addestramento dei modelli [DA
+        COMPLETARE: verificare per ciascun fornitore instradato da OpenRouter, in particolare DeepSeek].
       </p>
 
       <h2>6. Obblighi del Responsabile (Edilizia in Cloud)</h2>
       <p>La Società, in qualità di Responsabile del trattamento, si impegna a:</p>
       <p>
         <strong>6.1</strong> Trattare i Dati Personali esclusivamente sulla base delle Istruzioni Documentate del
-        Cliente, salvo che il trattamento sia richiesto dal diritto dell&apos;Unione o di uno Stato membro applicabile
+        Cliente, anche per quanto riguarda il trasferimento di Dati Personali verso un paese terzo, salvo che il trattamento sia richiesto dal diritto dell&apos;Unione o di uno Stato membro applicabile
         alla Società. In tale caso, la Società informerà il Cliente di tale obbligo prima del trattamento, salvo che il
         diritto applicabile lo vieti per importanti motivi di interesse pubblico.
       </p>
@@ -276,7 +288,14 @@ export default function DPA() {
       </p>
       <p>
         <strong>6.12</strong> Nominare, ove richiesto dalla normativa, un Responsabile della Protezione dei Dati (DPO)
-        ai sensi degli artt. 37-39 GDPR.
+        ai sensi degli artt. 37-39 GDPR. [DA COMPLETARE: indicare se la Società ha nominato un DPO e i relativi
+        contatti; in mancanza, il punto di contatto privacy è{" "}
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.]
+      </p>
+      <p>
+        <strong>6.13</strong> Non accedere ai contenuti caricati dal Cliente se non nella misura necessaria a erogare
+        il Servizio, a fornire assistenza su richiesta del Cliente o dei suoi utenti, a garantire la sicurezza e la
+        continuità del Servizio o ad adempiere a un obbligo di legge.
       </p>
 
       <h2>7. Sub-responsabili del trattamento</h2>
@@ -309,10 +328,14 @@ export default function DPA() {
         giorni, mediante:
       </p>
       <ul>
-        <li>aggiornamento della pagina pubblica dei Sub-responsabili (/sub-processors); e/o</li>
-        <li>comunicazione email all&apos;indirizzo di contatto del Cliente; e/o</li>
-        <li>notifica all&apos;interno della Piattaforma.</li>
+        <li>aggiornamento dell&apos;Allegato 3 del presente DPA, pubblicato su questa pagina; e</li>
+        <li>comunicazione email all&apos;indirizzo di contatto del Cliente e/o notifica all&apos;interno della Piattaforma.</li>
       </ul>
+      <p>
+        <strong>7.3-bis</strong> I fornitori integrati nel codice della Piattaforma ma non attivi alla data del
+        presente DPA non sono elencati nell&apos;Allegato 3 e non ricevono Dati Personali del Cliente. La loro eventuale
+        attivazione segue la procedura di cui agli artt. 7.3 e 7.4.
+      </p>
       <p>
         <strong>7.4</strong> Il Cliente ha facoltà di opporsi all&apos;inclusione di un nuovo Sub-responsabile entro 15
         giorni dalla notifica, comunicando la propria opposizione, motivata da ragionevoli motivi attinenti alla
@@ -337,8 +360,10 @@ export default function DPA() {
       <h2>8. Trasferimenti extra-UE</h2>
       <p>
         <strong>8.1</strong> Alcuni Sub-responsabili possono trattare i Dati Personali al di fuori dello Spazio
-        Economico Europeo (SEE), tipicamente negli Stati Uniti d&apos;America. Il Cliente ne prende atto e autorizza i
-        trasferimenti per quanto strettamente necessario all&apos;erogazione del Servizio.
+        Economico Europeo (SEE), tipicamente negli Stati Uniti d&apos;America. Il database, l&apos;autenticazione e
+        lo storage dei file della Piattaforma risiedono invece nell&apos;Unione Europea (Irlanda). Il Cliente prende
+        atto dei trasferimenti indicati nell&apos;Allegato 3 e li autorizza per quanto strettamente necessario
+        all&apos;erogazione del Servizio.
       </p>
       <p>
         <strong>8.2</strong> Per ogni trasferimento extra-UE, la Società garantisce la presenza di idonee garanzie ai
@@ -358,6 +383,15 @@ export default function DPA() {
           in casi residuali, una delle <strong>deroghe</strong> previste dall&apos;art. 49 GDPR.
         </li>
       </ul>
+      <p>
+        <strong>8.2-bis</strong> <strong>Repubblica Popolare Cinese.</strong> Tra i modelli AI raggiungibili
+        tramite OpenRouter vi sono i modelli DeepSeek. Qualora una richiesta sia servita dall&apos;infrastruttura di
+        DeepSeek, i dati della richiesta sono trasferiti in Cina, paese per il quale non esiste una decisione di
+        adeguatezza della Commissione europea. [DA COMPLETARE: indicare la garanzia ex art. 46 GDPR effettivamente in
+        essere oppure la misura adottata, ad es. esclusione dell&apos;instradamento verso l&apos;infrastruttura di
+        DeepSeek e uso dei soli fornitori che ospitano i modelli DeepSeek in UE/USA. In assenza di una garanzia, le
+        richieste contenenti Dati Personali non devono essere instradate verso tale infrastruttura.]
+      </p>
       <p>
         <strong>8.3</strong> Una copia delle garanzie adottate (estratti delle Clausole Contrattuali Tipo,
         certificazioni, attestazioni di adesione al Data Privacy Framework) è messa a disposizione del Cliente su
@@ -436,9 +470,10 @@ export default function DPA() {
         </li>
       </ul>
       <p>
-        <strong>11.2</strong> La Piattaforma mette a disposizione del Cliente strumenti self-service (es. esportazione
-        dei dati di un singolo interessato, anonimizzazione, cancellazione) che consentono al Cliente di rispondere
-        autonomamente a gran parte delle richieste degli Interessati. La Società fornirà supporto manuale solo ove tali
+        <strong>11.2</strong> La Piattaforma mette a disposizione del Cliente strumenti self-service (consultazione,
+        modifica, esportazione e cancellazione dei dati, gestione degli utenti e dei relativi permessi, esportazione dei
+        dati dell&apos;azienda) che consentono al Cliente di rispondere autonomamente a gran parte delle richieste degli
+        Interessati. La Società fornirà supporto manuale solo ove tali
         strumenti non consentano di soddisfare la richiesta.
       </p>
       <p>
@@ -464,12 +499,16 @@ export default function DPA() {
           copia del presente DPA e degli accordi con i Sub-responsabili (in forma redatta per la riservatezza);
         </li>
         <li>
-          copia delle eventuali certificazioni di sicurezza ottenute (es. ISO/IEC 27001, SOC 2, ISO/IEC 27701);
+          le certificazioni e i rapporti di audit dei principali Sub-responsabili infrastrutturali (ad es. il rapporto
+          SOC 2 di Supabase e le certificazioni ISO/IEC 27001 di Amazon Web Services e Cloudflare), nei limiti in cui
+          tali fornitori ne consentano la condivisione. La Società non dispone, alla data del presente DPA, di
+          certificazioni di sicurezza proprie;
         </li>
         <li>
-          relazioni sintetiche dei test di vulnerabilità, penetration test e audit di terze parti, ove disponibili;
+          una descrizione aggiornata delle misure di cui all&apos;Allegato 2 e, ove disponibili, le relazioni sintetiche
+          di eventuali verifiche di sicurezza condotte da terzi;
         </li>
-        <li>la presente Cookie Policy, Privacy Policy e ogni ulteriore documentazione pubblica relativa al trattamento.</li>
+        <li>la Privacy Policy, la Cookie Policy e ogni ulteriore documentazione pubblica relativa al trattamento.</li>
       </ul>
       <p>
         <strong>12.2</strong> Qualora le informazioni di cui al precedente comma non siano sufficienti, il Cliente ha
@@ -503,18 +542,21 @@ export default function DPA() {
       <h2>13. Restituzione e cancellazione dei dati</h2>
       <p>
         <strong>13.1</strong> Al termine del rapporto contrattuale, per qualunque causa, la Società consente al
-        Cliente di esportare i propri Dati Personali dalla Piattaforma in formati standard (CSV, JSON, XML, PDF) per un
-        periodo di <strong>30 giorni</strong> dalla data di cessazione.
+        Cliente di esportare i propri Dati Personali dalla Piattaforma in formati strutturati e di uso comune (ad es.
+        JSON e CSV; XML per le fatture elettroniche; PDF per i documenti generati) per un periodo di{" "}
+        <strong>30 giorni</strong> dalla data di cessazione.
       </p>
       <p>
-        <strong>13.2</strong> Decorsi 30 giorni, la Società procederà alla cancellazione dei Dati Personali dai
-        sistemi di produzione, fatti salvi:
+        <strong>13.2</strong> Decorsi 30 giorni, la Società procederà alla cancellazione definitiva dei Dati Personali
+        dell&apos;azienda Cliente dai sistemi di produzione, mediante una procedura automatica di eliminazione, fatti
+        salvi:
       </p>
       <ul>
         <li>
-          i dati che la Società è tenuta a conservare in forza di obblighi di legge (in particolare di natura fiscale,
-          contabile e antiriciclaggio), per il tempo strettamente necessario;
+          i dati che la Società è tenuta a conservare in forza di un obbligo di legge gravante su di essa, per il tempo
+          strettamente necessario;
         </li>
+        <li>le evidenze della Firma Elettronica Avanzata, disciplinate dall&apos;art. 13.5;</li>
         <li>
           i dati conservati nei backup di sicurezza, che saranno cancellati secondo il normale ciclo di rotazione dei
           backup, comunque entro un massimo di 90 giorni;
@@ -529,6 +571,18 @@ export default function DPA() {
         <strong>13.4</strong> In alternativa alla cancellazione, su espressa richiesta del Cliente, la Società può
         procedere alla restituzione dei Dati Personali in formato strutturato e di uso comune. Eventuali servizi
         professionali di assistenza alla migrazione potranno essere oggetto di tariffazione separata.
+      </p>
+      <p>
+        <strong>13.5</strong> <strong>Firma Elettronica Avanzata.</strong> Se il Cliente ha attivato la FEA (funzione
+        facoltativa, disattivata di default), la Società conserva per suo conto, per <strong>20 anni</strong> ai sensi
+        dell&apos;art. 57, comma 1, del DPCM 22 febbraio 2013, i dati identificativi dei firmatari, le copie dei
+        documenti di riconoscimento, la dichiarazione di accettazione e le evidenze del processo di firma (codici OTP
+        inviati e verificati, indirizzi IP, date e ore, impronte dei documenti firmati). Tale conservazione prosegue
+        anche dopo la cessazione del contratto, limitatamente a queste finalità di legge: i dati sono custoditi in
+        archivi ad accesso riservato, non sono utilizzati per altri scopi e sono messi a disposizione del Cliente o
+        dell&apos;Interessato su richiesta, anche per la tutela di un diritto in giudizio. Decorso il termine, sono
+        cancellati. [DA COMPLETARE: confermare se, in alternativa, il Cliente può chiedere la consegna delle evidenze
+        assumendo direttamente l&apos;obbligo di conservazione.]
       </p>
 
       <h2>14. Responsabilità e indennità</h2>
@@ -618,7 +672,13 @@ export default function DPA() {
       </p>
       <p>
         Le finalità sono limitate all&apos;erogazione del Servizio, come descritto nei Termini e Condizioni e nei
-        moduli funzionali sottoscritti dal Cliente.
+        moduli funzionali sottoscritti dal Cliente, e comprendono in particolare, in funzione dei moduli attivati: la
+        gestione di contatti, lead e opportunità commerciali (CRM), inclusa la ricezione dei lead dalle campagne
+        pubblicitarie del Cliente; preventivi, contratti e relativa firma (anche con FEA); commesse, cantieri,
+        rapportini, presenze e timbrature; personale e documenti dei dipendenti; magazzino, ordini e DDT; fatturazione
+        elettronica e tesoreria (inclusa la lettura dei movimenti bancari tramite open banking); comunicazioni con
+        clienti, fornitori e collaboratori via email, SMS e WhatsApp; sincronizzazione di caselle email e calendari
+        collegati dal Cliente; funzionalità di intelligenza artificiale; backup, sicurezza e assistenza tecnica.
       </p>
 
       <h3>A.4 Categorie di Interessati</h3>
@@ -643,8 +703,12 @@ export default function DPA() {
           commerciali;
         </li>
         <li>
-          <strong>Visitatori e contatti commerciali</strong> registrati dal Cliente nella Piattaforma a fini di
-          gestione di lead, preventivi e CRM.
+          <strong>Lead e contatti commerciali</strong> del Cliente, registrati nella Piattaforma o ricevuti dai moduli
+          pubblicitari e dai form del Cliente, a fini di gestione di lead, preventivi e CRM;
+        </li>
+        <li>
+          <strong>Firmatari</strong> dei documenti sottoscritti con Firma Elettronica Avanzata, se attivata dal
+          Cliente.
         </li>
       </ul>
 
@@ -671,8 +735,8 @@ export default function DPA() {
           <tr>
             <td>Dati di geolocalizzazione</td>
             <td>
-              Posizione GPS dei mezzi e degli operatori, timbrature geolocalizzate (in caso di attivazione dei moduli
-              FleetTrack e timbratura)
+              Posizione rilevata al momento della timbratura (entrata, uscita, cambio luogo), se il Cliente la utilizza;
+              posizione dei mezzi, in caso di attivazione del modulo FleetTrack
             </td>
           </tr>
           <tr>
@@ -681,99 +745,130 @@ export default function DPA() {
           </tr>
           <tr>
             <td>Dati contabili e di pagamento</td>
-            <td>Fatture, scadenzari, IBAN, dati di pagamento, dati bancari (PSD2)</td>
+            <td>
+              Fatture, scadenzari, IBAN, dati di pagamento; movimenti dei conti bancari del Cliente letti in sola
+              lettura tramite open banking (PSD2), che possono riportare nomi e causali di controparti
+            </td>
           </tr>
           <tr>
             <td>Dati di cantiere e operativi</td>
-            <td>Lavori, preventivi, contratti d&apos;appalto, DDT, materiali, mezzi, comunicazioni</td>
+            <td>Lavori, preventivi, contratti d&apos;appalto, DDT, materiali, mezzi, rapportini, foto di cantiere</td>
+          </tr>
+          <tr>
+            <td>Comunicazioni</td>
+            <td>
+              Email, messaggi WhatsApp e SMS scambiati tramite la Piattaforma, note e chat interne, eventi di calendario
+              sincronizzati
+            </td>
           </tr>
           <tr>
             <td>Dati documentali</td>
-            <td>Documenti, file, comunicazioni, ticket, allegati caricati nella Piattaforma</td>
+            <td>Documenti, file, ticket, allegati caricati nella Piattaforma</td>
           </tr>
           <tr>
-            <td>Dati biometrici tecnici</td>
+            <td>Dati di identificazione dei firmatari (FEA)</td>
             <td>
-              In caso di utilizzo della firma elettronica avanzata (FEA), parametri tecnici della firma grafometrica
+              Solo se il Cliente attiva la FEA: nome, cognome, codice fiscale, tipo, numero e scadenza del documento di
+              riconoscimento e relative immagini, email e cellulare, codici OTP, indirizzo IP, data e ora della firma.
+              Non sono trattati dati biometrici
             </td>
+          </tr>
+          <tr>
+            <td>Dati di accesso e di utilizzo</td>
+            <td>Credenziali (conservate in forma cifrata), log di accesso e registri delle operazioni rilevanti</td>
           </tr>
           <tr>
             <td>Categorie particolari (art. 9 GDPR)</td>
             <td>
               Solo se caricati dal Cliente: certificati medici, idoneità sanitarie, documenti relativi a salute e
-              sicurezza dei lavoratori
+              sicurezza dei lavoratori; cedolini paga, che possono rivelare dati sulla salute (malattia) o
+              sull&apos;appartenenza sindacale (trattenute)
             </td>
           </tr>
         </tbody>
       </table>
 
+      <h3>A.6 Conservazione</h3>
+      <p>
+        Durante il contratto i Dati Personali sono conservati secondo le scelte del Cliente, che può modificarli o
+        cancellarli in ogni momento. Alla cessazione si applica l&apos;art. 13: esportazione per 30 giorni, poi
+        cancellazione definitiva dai sistemi di produzione e, entro un massimo di 90 giorni, dalle copie di backup. Le
+        evidenze della FEA sono conservate per 20 anni (art. 13.5).
+      </p>
+
       <h2>Allegato 2 — Misure di sicurezza tecniche e organizzative (TOM)</h2>
 
       <h3>B.1 Sicurezza dei dati in transito</h3>
       <ul>
-        <li>Cifratura di tutte le comunicazioni client-server mediante protocollo TLS 1.2 o superiore;</li>
-        <li>Disabilitazione di protocolli e cifrari obsoleti;</li>
-        <li>Certificati TLS gestiti tramite Certificate Authority pubbliche con rinnovo automatico;</li>
-        <li>HSTS (HTTP Strict Transport Security) attivo su tutti i domini.</li>
+        <li>Cifratura di tutte le comunicazioni tra browser/app e server mediante protocollo TLS;</li>
+        <li>Certificati TLS gestiti da Certificate Authority pubbliche con rinnovo automatico.</li>
       </ul>
 
       <h3>B.2 Sicurezza dei dati a riposo</h3>
       <ul>
         <li>
-          Cifratura at-rest dei database e degli storage applicativi mediante algoritmi standard di settore (AES-256);
+          Cifratura at-rest del database e dello storage dei file, fornita dall&apos;infrastruttura del Sub-responsabile
+          (Supabase su Amazon Web Services, regione eu-west-1, Irlanda);
         </li>
-        <li>Cifratura at-rest dei backup;</li>
         <li>
-          Gestione delle chiavi di cifratura tramite key management service del provider cloud, con rotazione periodica.
+          Segreti applicativi (chiavi API, credenziali di servizio, password delle caselle email collegate)
+          conservati in un vault cifrato e mai inseriti nel codice sorgente;
         </li>
+        <li>
+          Token di accesso ai servizi esterni collegati dal Cliente (ad es. Google, Meta) conservati in forma
+          cifrata;
+        </li>
+        <li>Documenti di riconoscimento dei firmatari FEA conservati in un archivio privato non accessibile al pubblico.</li>
       </ul>
 
       <h3>B.3 Controllo degli accessi</h3>
       <ul>
         <li>Autenticazione delle utenze applicative mediante credenziali personali univoche;</li>
-        <li>Politiche di password forti (lunghezza minima, complessità, blocco dopo tentativi falliti);</li>
-        <li>Supporto all&apos;autenticazione a più fattori (2FA) per gli utenti applicativi;</li>
-        <li>Controllo degli accessi basato sui ruoli (RBAC) con principio del minimo privilegio;</li>
         <li>
-          Row-Level Security a livello di database multi-tenant, che garantisce la segregazione logica dei dati di
-          ciascun Cliente;
+          Autenticazione a due fattori (app di autenticazione TOTP o codice via email), che il Cliente può rendere
+          obbligatoria per i propri utenti;
         </li>
         <li>
-          Accessi amministrativi all&apos;infrastruttura limitati a personale autorizzato, registrati e periodicamente
-          rivisti.
+          Controllo degli accessi basato su ruoli e permessi configurabili dal Cliente, secondo il principio del minimo
+          privilegio;
+        </li>
+        <li>
+          Row-Level Security attiva su tutte le tabelle del database, che segrega i dati di ciascuna azienda Cliente e
+          limita l&apos;accesso in base al ruolo dell&apos;utente;
+        </li>
+        <li>
+          Accessi amministrativi all&apos;infrastruttura limitati al personale autorizzato della Società.
         </li>
       </ul>
 
-      <h3>B.4 Sicurezza infrastrutturale</h3>
+      <h3>B.4 Sicurezza infrastrutturale e monitoraggio</h3>
       <ul>
         <li>
-          Hosting su infrastrutture cloud di provider qualificati (vedi Allegato 3) con punti di presenza nello Spazio
-          Economico Europeo;
+          Database, autenticazione, storage e funzioni server ospitati nell&apos;Unione Europea (Irlanda); frontend
+          distribuito tramite la rete CDN di Cloudflare, con la relativa protezione da attacchi DDoS;
         </li>
-        <li>Protezione perimetrale tramite Web Application Firewall (Cloudflare);</li>
-        <li>Protezione DDoS e bot management;</li>
-        <li>Segregazione di rete tra ambienti di produzione, staging e sviluppo;</li>
+        <li>Registro (audit log) delle operazioni rilevanti eseguite nella Piattaforma;</li>
+        <li>Controllo automatico dello stato dei servizi ogni 5 minuti, con avvisi al personale della Società;</li>
         <li>
-          Segreti applicativi (API key, credenziali) gestiti tramite vault dedicati e mai inseriti nel codice sorgente.
+          Funzioni del database eseguibili da utenti non autenticati ridotte a quelle necessarie (ad es. firma tramite
+          link, prenotazioni pubbliche) e censite con il relativo motivo.
         </li>
       </ul>
 
       <h3>B.5 Backup e continuità operativa</h3>
       <ul>
-        <li>Backup automatici giornalieri dei database con politica di rotazione e ridondanza geografica;</li>
-        <li>Test periodici delle procedure di ripristino;</li>
+        <li>Backup automatici dell&apos;infrastruttura del database gestiti dal Sub-responsabile;</li>
         <li>
-          <strong>RPO</strong> (Recovery Point Objective) target: 24 ore;
+          Backup settimanale dei dati di ciascuna azienda Cliente, conservato in un archivio privato, con procedura di
+          ripristino collaudata (prova di ripristino in ambiente separato);
         </li>
-        <li>
-          <strong>RTO</strong> (Recovery Time Objective) target: 8 ore per gli incidenti maggiori.
-        </li>
+        <li>Possibilità per il Cliente di esportare i propri dati.</li>
       </ul>
 
       <h3>B.6 Gestione degli incidenti e dei data breach</h3>
       <ul>
-        <li>Procedure documentate di gestione degli incidenti di sicurezza;</li>
-        <li>Monitoraggio continuo dei sistemi e degli accessi anomali;</li>
+        <li>Procedura di gestione degli incidenti di sicurezza;</li>
+        <li>Monitoraggio dei sistemi, degli errori e degli accessi;</li>
         <li>Conservazione dei log applicativi e di accesso per il tempo necessario alle finalità di sicurezza;</li>
         <li>
           Procedura di notifica al Cliente entro 48 ore in caso di Violazione di Dati Personali (art. 10 del DPA).
@@ -782,32 +877,30 @@ export default function DPA() {
 
       <h3>B.7 Misure organizzative</h3>
       <ul>
-        <li>Personale autorizzato al trattamento, formato e vincolato al segreto professionale;</li>
-        <li>Code review obbligatoria per le modifiche al codice di produzione;</li>
-        <li>Test automatici di sicurezza nel ciclo di sviluppo del software;</li>
-        <li>Penetration test periodici condotti da soggetti qualificati;</li>
+        <li>Personale autorizzato al trattamento, istruito e vincolato alla riservatezza;</li>
+        <li>Test automatici e controlli sul codice eseguiti prima di ogni rilascio in produzione;</li>
         <li>Aggiornamenti di sicurezza tempestivi delle dipendenze applicative;</li>
-        <li>Politiche interne di gestione dei dispositivi (BYOD, MDM) e delle credenziali.</li>
+        <li>Selezione dei Sub-responsabili sulla base delle garanzie di sicurezza offerte (art. 7.2).</li>
       </ul>
 
       <h3>B.8 Privacy by design e by default</h3>
       <ul>
         <li>Minimizzazione dei dati raccolti dalla Piattaforma in funzione delle finalità del Servizio;</li>
         <li>
-          Configurazioni di privacy di default impostate sul livello di protezione più elevato compatibile con la
-          funzionalità;
+          Funzioni opzionali che comportano trattamenti più delicati (ad es. FEA, geolocalizzazione delle timbrature)
+          attivabili solo per scelta del Cliente;
         </li>
         <li>
           Funzionalità self-service per l&apos;esercizio dei diritti degli Interessati e per la cancellazione dei dati;
         </li>
-        <li>Documentazione interna dei trattamenti effettuati per conto dei Clienti.</li>
+        <li>Cancellazione automatica dei dati delle aziende cessate dopo 30 giorni.</li>
       </ul>
 
       <h2>Allegato 3 — Sub-responsabili autorizzati</h2>
       <p>
-        L&apos;elenco aggiornato dei Sub-responsabili è disponibile sulla pagina <code>/sub-processors</code> e viene
-        mantenuto in tempo reale. Il presente Allegato riporta lo stato dei Sub-responsabili alla data di pubblicazione
-        del DPA.
+        Il presente Allegato riporta l&apos;elenco dei Sub-responsabili attivi alla data di pubblicazione del DPA ed è
+        aggiornato secondo la procedura di cui all&apos;art. 7.3. Alcuni Sub-responsabili ricevono dati solo se il
+        Cliente utilizza la relativa funzionalità, come indicato nella colonna &quot;Servizio fornito&quot;.
       </p>
 
       <table>
@@ -822,136 +915,127 @@ export default function DPA() {
         <tbody>
           <tr>
             <td>Supabase Inc.</td>
-            <td>Database, autenticazione, storage applicativo, funzioni server</td>
+            <td>Database, autenticazione, storage dei file, funzioni server, backup</td>
             <td>UE (Irlanda, AWS eu-west-1)</td>
             <td>Trattamento UE; SCC + DPA per l&apos;eventuale accesso del supporto dagli USA</td>
           </tr>
           <tr>
-            <td>Cloudflare Inc.</td>
-            <td>CDN, Web Application Firewall, hosting frontend (Pages)</td>
-            <td>UE / USA</td>
-            <td>DPF + SCC</td>
-          </tr>
-          <tr>
-            <td>Stripe Payments Europe Ltd.</td>
-            <td>Gestione pagamenti carte e abbonamenti</td>
-            <td>UE (Irlanda) / USA</td>
-            <td>DPF + SCC</td>
-          </tr>
-          <tr>
-            <td>GoCardless Ltd.</td>
-            <td>Iniziazione pagamenti e Account Information PSD2</td>
-            <td>UE / Regno Unito</td>
-            <td>Decisione di adeguatezza UK</td>
-          </tr>
-          <tr>
-            <td>Openapi S.p.A. (openapi.it)</td>
-            <td>Trasmissione e ricezione fatture elettroniche tramite SDI</td>
-            <td>Italia / UE</td>
-            <td>Trattamento UE</td>
-          </tr>
-          <tr>
-            <td>Aruba S.p.A.</td>
-            <td>Canale alternativo per fatture elettroniche SDI e conservazione digitale a norma, se scelto dall&apos;azienda cliente</td>
-            <td>Italia / UE</td>
-            <td>Trattamento UE</td>
-          </tr>
-          <tr>
-            <td>Telnyx LLC</td>
-            <td>SMS transazionali e marketing, infrastruttura voce</td>
-            <td>UE / USA</td>
-            <td>SCC</td>
-          </tr>
-          <tr>
-            <td>ElevenLabs Inc.</td>
-            <td>Sintesi vocale per agenti vocali AI</td>
-            <td>USA</td>
-            <td>SCC</td>
-          </tr>
-          <tr>
-            <td>Meta Platforms Ireland Ltd.</td>
-            <td>WhatsApp Business / Cloud API</td>
-            <td>UE (Irlanda) / USA</td>
-            <td>DPF + SCC</td>
-          </tr>
-          <tr>
-            <td>OpenRouter, Inc.</td>
-            <td>Aggregatore di modelli (instradamento richieste LLM)</td>
-            <td>USA</td>
-            <td>SCC</td>
-          </tr>
-          <tr>
-            <td>Anthropic PBC</td>
-            <td>Modelli di linguaggio AI (Claude)</td>
-            <td>USA</td>
-            <td>SCC + zero data retention API</td>
-          </tr>
-          <tr>
-            <td>OpenAI Ireland Ltd. / OpenAI L.L.C.</td>
-            <td>Modelli di linguaggio e generazione immagini (GPT, GPT-image, DALL·E)</td>
-            <td>UE (Irlanda) / USA</td>
-            <td>DPF + SCC + zero data retention API</td>
-          </tr>
-          <tr>
-            <td>Moonshot AI</td>
-            <td>Modelli di linguaggio AI (Kimi), via OpenRouter</td>
-            <td>Extra-UE</td>
-            <td>SCC</td>
-          </tr>
-          <tr>
-            <td>Google Ireland Ltd. / Google LLC</td>
-            <td>Modelli AI Gemini, Google Maps, sync Calendar, Analytics 4</td>
-            <td>UE / USA</td>
-            <td>DPF + SCC</td>
-          </tr>
-          <tr>
-            <td>Altri Fornitori AI via OpenRouter (DeepSeek, xAI, Meta, Mistral, Cohere, Qwen, Perplexity e ulteriori)</td>
-            <td>Modelli di linguaggio, ricerca semantica ed embeddings</td>
-            <td>UE / USA / Extra-UE</td>
-            <td>SCC</td>
-          </tr>
-          <tr>
-            <td>Replicate, Inc.</td>
-            <td>Generazione di immagini e video (incl. MiniMax)</td>
-            <td>USA</td>
-            <td>SCC</td>
-          </tr>
-          <tr>
-            <td>Twilio Inc. — SendGrid</td>
-            <td>Email transazionali</td>
-            <td>USA</td>
+            <td>Cloudflare, Inc.</td>
+            <td>CDN e hosting del frontend (Cloudflare Pages), protezione DDoS</td>
+            <td>UE / USA (rete globale)</td>
             <td>DPF + SCC</td>
           </tr>
           <tr>
             <td>Resend, Inc.</td>
-            <td>Email transazionali</td>
+            <td>Email transazionali (notifiche, inviti, codici di verifica, documenti)</td>
             <td>USA</td>
             <td>SCC</td>
           </tr>
           <tr>
             <td>Elastic Email Inc.</td>
-            <td>Email di marketing</td>
+            <td>Email di marketing inviate dal Cliente, se utilizza la funzione</td>
+            <td>[DA COMPLETARE: paese di sede e dei server]</td>
+            <td>[DA COMPLETARE]</td>
+          </tr>
+          <tr>
+            <td>Meta Platforms Ireland Ltd.</td>
+            <td>WhatsApp Business Cloud API; ricezione dei lead dalle campagne Lead Ads del Cliente, se collegate</td>
+            <td>UE (Irlanda) / USA</td>
+            <td>DPF + SCC</td>
+          </tr>
+          <tr>
+            <td>DigitalOcean, LLC</td>
+            <td>Server che ospita il gateway WhatsApp gestito dalla Società, se il Cliente collega un numero tramite tale canale</td>
+            <td>UE (Germania, Francoforte)</td>
+            <td>Trattamento UE; DPF + SCC per la società statunitense</td>
+          </tr>
+          <tr>
+            <td>Telnyx LLC</td>
+            <td>SMS (ad es. codici di firma FEA, comunicazioni del Cliente)</td>
             <td>UE / USA</td>
             <td>SCC</td>
           </tr>
           <tr>
-            <td>Apple Inc.</td>
-            <td>Sincronizzazione calendario Apple (CalDAV)</td>
+            <td>Google Ireland Ltd. / Google LLC</td>
+            <td>
+              Sincronizzazione di Gmail e Google Calendar, solo se collegati dal Cliente; Google Maps e geocodifica
+              degli indirizzi; generazione di immagini con modelli Gemini
+            </td>
+            <td>UE / USA</td>
+            <td>DPF + SCC</td>
+          </tr>
+          <tr>
+            <td>OpenRouter, Inc.</td>
+            <td>Instradamento delle richieste ai modelli AI di Anthropic, OpenAI, Google e DeepSeek</td>
             <td>USA</td>
             <td>SCC</td>
           </tr>
           <tr>
-            <td>[provider FEA da definire]</td>
-            <td>Firma Elettronica Avanzata</td>
-            <td>UE</td>
+            <td>Anthropic PBC</td>
+            <td>Modelli di linguaggio AI (Claude), tramite OpenRouter</td>
+            <td>USA</td>
+            <td>SCC</td>
+          </tr>
+          <tr>
+            <td>OpenAI Ireland Ltd. / OpenAI, L.L.C.</td>
+            <td>Modelli di linguaggio tramite OpenRouter; embeddings (ricerca semantica) tramite API diretta</td>
+            <td>UE (Irlanda) / USA</td>
+            <td>DPF + SCC</td>
+          </tr>
+          <tr>
+            <td>DeepSeek (Hangzhou DeepSeek Artificial Intelligence Co., Ltd.)</td>
+            <td>Modelli di linguaggio AI, tramite OpenRouter</td>
+            <td>Cina, se la richiesta è servita dall&apos;infrastruttura di DeepSeek</td>
+            <td>
+              Nessuna decisione di adeguatezza. [DA COMPLETARE: garanzia ex art. 46 GDPR o esclusione
+              dell&apos;instradamento verso la Cina — v. art. 8.2-bis]
+            </td>
+          </tr>
+          <tr>
+            <td>Openapi S.p.A. (openapi.it)</td>
+            <td>Trasmissione e ricezione delle fatture elettroniche tramite SDI</td>
+            <td>Italia</td>
             <td>Trattamento UE</td>
+          </tr>
+          <tr>
+            <td>Aruba S.p.A.</td>
+            <td>
+              Canale alternativo per fatture elettroniche SDI e conservazione digitale a norma, solo se scelto
+              dall&apos;azienda cliente
+            </td>
+            <td>Italia</td>
+            <td>Trattamento UE</td>
+          </tr>
+          <tr>
+            <td>Distyra (Brightfield Software) — Enable Banking Oy</td>
+            <td>
+              Open banking in sola lettura (servizio di informazione sui conti, PSD2): saldi e movimenti dei conti del
+              Cliente, solo se collegati dal Cliente
+            </td>
+            <td>UE (Francia, Germania; Finlandia per Enable Banking)</td>
+            <td>Trattamento UE</td>
+          </tr>
+          <tr>
+            <td>Stripe Payments Europe Ltd.</td>
+            <td>
+              Pagamento dell&apos;abbonamento al Servizio. Riguarda i dati di pagamento dell&apos;azienda Cliente, per i
+              quali la Società agisce come titolare autonomo (art. 4.2); è indicato qui per completezza
+            </td>
+            <td>UE (Irlanda) / USA</td>
+            <td>DPF + SCC</td>
           </tr>
         </tbody>
       </table>
 
       <p>
-        <strong>Legenda:</strong> SCC = Standard Contractual Clauses (Clausole Contrattuali Tipo della Commissione UE);
-        DPF = EU-US Data Privacy Framework; DPA = Data Processing Agreement con il sub-responsabile.
+        <strong>Legenda:</strong> SCC = Standard Contractual Clauses (Clausole Contrattuali Tipo della Commissione UE,
+        decisione (UE) 2021/914); DPF = EU-US Data Privacy Framework; DPA = Data Processing Agreement con il
+        sub-responsabile.
+      </p>
+      <p>
+        <strong>Calendario Apple.</strong> Se il Cliente collega un proprio calendario Apple (iCloud),
+        la Piattaforma scambia gli eventi con l&apos;account del Cliente presso tale fornitore, su istruzione
+        del Cliente; il fornitore resta un fornitore del Cliente. [DA COMPLETARE: confermare questa qualificazione.]
       </p>
 
       <h2>Sottoscrizione (opzionale)</h2>
@@ -992,7 +1076,7 @@ export default function DPA() {
           <strong>P.IVA:</strong> 13132010961
         </li>
         <li>
-          <strong>Rappresentante legale:</strong> 13132010961
+          <strong>Rappresentante legale:</strong> [DA COMPLETARE: nome e cognome del legale rappresentante]
         </li>
         <li>
           <strong>PEC:</strong>{" "}

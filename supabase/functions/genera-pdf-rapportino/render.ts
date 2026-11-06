@@ -1,3 +1,4 @@
+import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
 import { valoreInTesto, valoriDaStampare, type ValoreCampo } from "../_shared/moduliCantiere.ts";
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage } from "https://esm.sh/pdf-lib@1.17.1";
 import { compilatoDa, bloccoFasi, dayLabel, inchiostroSu, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
@@ -36,20 +37,21 @@ type TipoImmagine = "photo" | "signature" | "logo";
  * Il documento è operativo: mai paghe, GPS o costi (vedi model.ts).
  */
 export async function renderRapportino(ctx: PdfContext, loadImage: (reference: string, kind: TipoImmagine) => Promise<Uint8Array | null>) {
+  const modello = normalizzaModelloPdf(ctx.report.lavoro_completato === true ? "fine_lavori" : "rapportino", ctx.modelloPdf);
   const pdf = await PDFDocument.create();
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const regular = await pdf.embedFont(modello.carattere === "times" ? StandardFonts.TimesRoman : modello.carattere === "courier" ? StandardFonts.Courier : StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(modello.carattere === "times" ? StandardFonts.TimesRomanBold : modello.carattere === "courier" ? StandardFonts.CourierBold : StandardFonts.HelveticaBold);
   const r = ctx.report, summary = reportSummary(r), order = record(r.ordine);
   const warnings = [...ctx.warnings];
 
-  const W = 595.28, H = 841.89, M = 36, CW = W - M * 2, bottom = 60;
-  const ink = rgb(.11, .15, .21), muted = rgb(.40, .44, .50), faint = rgb(.60, .64, .69), line = rgb(.88, .90, .92), pale = rgb(.955, .964, .974), white = rgb(1, 1, 1);
+  const W = 595.28, H = 841.89, M = modello.margine ? modello.margine * 72 / 25.4 : 36, CW = W - M * 2, bottom = 72;
+  const ink = rgb(.11, .15, .21), muted = rgb(.40, .44, .50), faint = rgb(.60, .64, .69), line = rgb(.88, .90, .92), pale = modello.coloreRiquadri ? rgb(parseInt(modello.coloreRiquadri.slice(1, 3), 16) / 255, parseInt(modello.coloreRiquadri.slice(3, 5), 16) / 255, parseInt(modello.coloreRiquadri.slice(5, 7), 16) / 255) : rgb(.955, .964, .974), white = rgb(1, 1, 1);
   const green = rgb(.10, .50, .32), greenPale = rgb(.89, .96, .92), amber = rgb(.62, .40, .05), amberPale = rgb(1, .96, .86), red = rgb(.68, .17, .14), redPale = rgb(.99, .92, .91);
   const mix = (a: Rgb, b: Rgb, t: number) => rgb(a.red * (1 - t) + b.red * t, a.green * (1 - t) + b.green * t, a.blue * (1 - t) + b.blue * t);
 
   // Colore dell'azienda: la fascia lo usa com'è (testo bianco o scuro, secondo il contrasto); come testo su
   // bianco si scurisce se è troppo chiaro per leggersi.
-  const match = /^#?([a-f0-9]{6})$/i.exec(ctx.branding.primaryColor ?? "");
+  const match = /^#?([a-f0-9]{6})$/i.exec(modello.colore || ctx.branding.primaryColor || "");
   const hex = match ? parseInt(match[1], 16) : 0xf97415;
   const accent = rgb(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
   const onAccent = inchiostroSu(hex) === "white" ? white : ink;
@@ -62,7 +64,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   const reportId = text(r.id) || "senza-identificativo";
   const shortId = reportId.slice(0, 8).toUpperCase();
   const fineLavori = r.lavoro_completato === true;
-  const title = fineLavori ? "Rapporto di fine lavori" : "Rapportino giornaliero";
+  const title = modello.titolo || (fineLavori ? "Rapporto di fine lavori" : "Rapportino giornaliero");
   const codiceCommessa = text(order.order_code);
   // Un rapportino di fine lavori o firmato è un documento per il cliente: i valori interni restano nell'app.
   const documentoPer = fineLavori || !!text(r.firma_cliente_url) ? "cliente" as const : "interno" as const;
@@ -129,6 +131,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     y -= 19;
   };
   const paragraph = (value: string, size = 9.5, color: Rgb = ink, width = CW, x = M) => {
+    size = modello.dimensioneTesto || size;
     for (const l of wrap(value, regular, size, width)) { ensure(size + 5); T(l, x, y - size, size, regular, color); y -= size + 4; }
   };
 
@@ -179,8 +182,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
         if (y - 24 < bottom) { nextPage(); intestazione(); }
         const take = Math.min(count - offset, Math.max(1, Math.floor((y - bottom - 8) / 11.5)));
         const height = take * 11.5 + 8;
-        if (!grassetto && indice % 2 === 1) box(x0, y, totaleLarghezza, height, rgb(.982, .986, .990));
-        if (grassetto) box(x0, y, totaleLarghezza, height, pale);
+        if (grassetto || (modello.righeAlternate && indice % 2 === 1)) box(x0, y, totaleLarghezza, height, pale);
         let x = x0;
         lines.forEach((col, i) => { col.slice(offset, offset + take).forEach((l, j) => cella(l, i, x, y - 11 - j * 11.5, 8.8, font, ink)); x += larghezze[i]; });
         y -= height; offset += take;
@@ -257,29 +259,30 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   // ═════════ Fascia di intestazione ═════════
   const fasciaH = 68;
   box(0, H, W, fasciaH, accent);
-  const logo = ctx.branding.logoUrl ? await embed(ctx.branding.logoUrl, "logo") : null;
+  const logo = modello.mostraLogo && ctx.branding.logoUrl ? await embed(ctx.branding.logoUrl, "logo") : null;
   const companyName = text(ctx.company.name) || "Impresa";
   const logoW = 66;
   if (logo) {
     rbox(M, H - 12, logoW, 44, 7, white);
-    const d = logo.scaleToFit(logoW - 10, 36);
+    const d = logo.scaleToFit((logoW - 10) * modello.scalaLogo / 100, 36 * modello.scalaLogo / 100);
     page.drawImage(logo, { x: M + (logoW - d.width) / 2, y: H - 12 - 22 - d.height / 2, ...d });
   }
   const xNome = M + (logo ? logoW + 14 : 0);
-  const larghezzaNome = 300 - (logo ? logoW + 14 : 0);
+  const larghezzaNome = 275 - (logo ? logoW + 14 : 0);
   const righeNome = wrap(companyName, bold, 13, larghezzaNome).slice(0, 2);
   let yNome = H - 26;
   righeNome.forEach(l => { T(l, xNome, yNome, 13, bold, onAccent); yNome -= 15; });
-  const contatti = [text(ctx.company.legal_address), text(ctx.company.legal_city), text(ctx.company.phone), text(ctx.company.email), ctx.company.vat_number ? `P.IVA ${text(ctx.company.vat_number)}` : ""].filter(Boolean).join("  |  ");
-  wrap(contatti, regular, 7, larghezzaNome).slice(0, righeNome.length > 1 ? 1 : 2).forEach(l => { T(l, xNome, yNome - 1, 7, regular, onAccent, .85); yNome -= 9; });
   const xDestra = W - M;
   const etichetta = title.toUpperCase();
-  T(etichetta, xDestra - larghezza(etichetta, 8, bold), H - 22, 8, bold, onAccent, .9);
+  const sizeTitolo = Math.min(8, 440 / Math.max(1, larghezza(etichetta, 1, bold)));
+  wrap(etichetta, bold, sizeTitolo, 230).slice(0, 2).forEach((l, i) => T(l, xDestra - larghezza(l, sizeTitolo, bold), H - 18 - i * 9, sizeTitolo, bold, onAccent, .9));
   const dataGrande = dayLabel(r.data_lavoro);
   T(dataGrande, xDestra - larghezza(dataGrande, 16, bold), H - 41, 16, bold, onAccent);
   const rifTesto = `Rif. ${shortId}${r.meteo ? `  |  Meteo: ${text(r.meteo)}` : ""}`;
   T(rifTesto, xDestra - larghezza(rifTesto, 7.4), H - 55, 7.4, regular, onAccent, .9);
   y = H - fasciaH - 12;
+
+  if (modello.introduzione) { paragraph(modello.introduzione); y -= 6; }
 
   // ═════════ Scheda commessa ═════════
   const colonne: [string, string, number][] = [
@@ -562,14 +565,29 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     for (const warning of [...new Set(warnings)]) paragraph(`- ${warning}`, 7.8, muted);
   }
 
+  if (modello.conclusione) { y -= 6; paragraph(modello.conclusione); }
+
   // ═════════ Piè di pagina ═════════
   const pages = pdf.getPages();
+  const datiAzienda = [
+    [companyName, text(ctx.company.legal_address), [text(ctx.company.legal_postal_code), text(ctx.company.legal_city), text(ctx.company.legal_province)].filter(Boolean).join(" "), ctx.company.vat_number ? `P.IVA ${text(ctx.company.vat_number)}` : ""].filter(Boolean).join(" | "),
+    [text(ctx.company.phone), text(ctx.company.email)].filter(Boolean).join(" | "),
+  ];
   pages.forEach((p, index) => {
-    page = p; rule(47);
-    T(`Rif. ${shortId} | Edizione ${ctx.revision}`, M, 34, 7, regular, muted);
-    T(`Generato ${timestamp(ctx.generatedAt)}${ctx.branding.hidePoweredBy ? "" : ` | ${ctx.branding.platformName || "Edilizia in Cloud"}`}`, M, 23, 6.6, regular, muted);
+    page = p; rule(60);
+    T(`Rif. ${shortId} | Edizione ${ctx.revision}`, M, 48, 6.6, regular, muted);
+    const generato = `Generato ${timestamp(ctx.generatedAt)}${ctx.branding.hidePoweredBy ? "" : ` | ${ctx.branding.platformName || "Edilizia in Cloud"}`}`;
+    T(generato, W - M - larghezza(generato, 6), 48, 6, regular, muted);
+    datiAzienda.forEach((l, i) => {
+      const size = Math.min(6.6, (CW - 42) / Math.max(1, larghezza(l, 1)));
+      T(l, M, 33 - i * 11, size, regular, muted);
+    });
     const pagination = `${index + 1} / ${pages.length}`;
-    T(pagination, W - M - larghezza(pagination, 8, bold), 33, 8, bold, muted);
+    if (modello.numerazione) T(pagination, W - M - larghezza(pagination, 8, bold), 33, 8, bold, muted);
+    if (modello.notaPagina) {
+      const size = Math.min(6, CW / Math.max(1, larghezza(modello.notaPagina, 1)));
+      T(modello.notaPagina, M, 10, size, regular, muted);
+    }
   });
   pdf.setTitle(`${title} - ${dayLabel(r.data_lavoro)} - ${shortId}`);
   pdf.setAuthor(companyName);

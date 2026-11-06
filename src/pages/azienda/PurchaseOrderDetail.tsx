@@ -1,4 +1,7 @@
-import { useState, useMemo, lazy, Suspense } from "react";
+import { OdaNoteCard } from "@/components/orders/OdaNoteCard";
+import { PurchaseOrderItemRow } from "@/components/orders/PurchaseOrderItemRow";
+import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
+import { useState, lazy, Suspense } from "react";
 import {
   ODA_STATUS_LABELS as STATUS_LABELS,
   ODA_STATUS_CHIP_VARIANT as STATUS_CHIP_VARIANT,
@@ -6,19 +9,17 @@ import {
 import { useParams, Link } from "react-router-dom";
 import { useDentroPopupDocumento, useIdDocumento, useNavigaDocumento } from "@/lib/orders/documentoPopup";
 import { useVociListinoFornitore } from "@/hooks/useListinoFornitore";
-import { trovaVoce, prezzoNetto, type VoceListinoFornitore } from "@/lib/listino/listinoFornitore";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
-  ArrowLeft, Loader2, Plus, Trash2, Send, CheckCircle2, Package,
-  Truck, Save, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
-  AlertTriangle, ScanLine, ClipboardList, StickyNote, CalendarClock,
+  ArrowLeft, Loader2, Plus, Send, CheckCircle2, Package,
+  Truck, XCircle, ExternalLink, FileCheck, ShieldCheck, Paperclip,
+  AlertTriangle, ScanLine, ClipboardList, CalendarClock,
   PackageCheck,
 } from "lucide-react";
 import {
@@ -29,9 +30,7 @@ import {
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { useQuery } from "@tanstack/react-query";
 import { usePurchaseOrderDetail, usePurchaseOrders } from "@/hooks/usePurchaseOrders";
-import type { PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
 import type { DDTStato } from "@/hooks/useDDTRicezione";
-import { ArticleCombobox, type ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -47,9 +46,12 @@ import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import { calcolaScadenza, TERMINI_PRESET } from "@/lib/terminiPagamento";
 import { OdaDocumentoCard } from "@/components/orders/OdaDocumentoCard";
 import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/odaOrigine";
-import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { emailPerOrdini, terminiPagamentoTesto } from "@/lib/suppliers/anagraficaFornitore";
 import { buildOdaEmailBody, buildOdaEmailSubject } from "@/lib/odaEmail";
+import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoInvioDialog";
+import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
+import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 
@@ -83,8 +85,6 @@ export default function PurchaseOrderDetail() {
     (order as { supplier_id?: string | null } | undefined)?.supplier_id ?? null,
   );
   const { updateStatus, update } = usePurchaseOrders();
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notes, setNotes] = useState("");
 
   // AI Verification
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
@@ -141,6 +141,10 @@ export default function PurchaseOrderDetail() {
   }
 
   const supplier = order.suppliers as any;
+  const condizioniFornitore = recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}).pagamento;
+  const pagamentoEffettivo = order.payment_terms?.trim() || condizioniFornitore;
+  const totaliRighe = totaliRigheOda(items);
+  const importiInAttesa = items.length > 0 && totaliRighe.daConfermare === items.length;
   const origine = (order as { origine?: string }).origine ?? "email";
   const infoOrigine = ODA_ORIGINE_INFO[origine] ?? ODA_ORIGINE_INFO.email;
   // I passaggi dipendono da come si e' ordinato: chi compra al banco ha gia'
@@ -178,7 +182,18 @@ export default function PurchaseOrderDetail() {
     initialSubject: buildOdaEmailSubject(datiEmail),
     initialBodyHtml: buildOdaEmailBody(datiEmail),
   };
+  const documentoInvio: DocumentoOperativo = {
+    tipo: "materiali", numero: order.oda_number, data: order.issue_date,
+    prezziDaConfermare: items.length > 0 && items.some(i => i.price_pending),
+    ...recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}),
+    commessa:order.orders?.order_code, codiceCliente:supplier?.codice_cliente, luogo:order.delivery_address || order.orders?.work_address,
+    indirizzoCantiere:order.orders?.work_address, magazzinoId:order.delivery_warehouse_id, destinazioneTipo:order.delivery_warehouse_id ? "magazzino" : order.order_id ? "cantiere" : order.delivery_address ? "altro" : "magazzino", riferimento:order.supplier_reference,
+    consegna:order.expected_delivery_date,pagamento:order.payment_terms || recapitiFornitore({...supplier,id:order.supplier_id,name:supplier?.name || "Fornitore"}).pagamento,note:order.notes,
+    righe:items.map(i=>({descrizione:i.description,nota:i.notes,unita:i.unit_of_measure || "pz",quantita:Number(i.quantity),prezzo:i.price_pending ? null : Number(i.unit_price),sconto:Number(i.discount_percent),iva:Number(i.vat_rate),importo:i.price_pending ? undefined : Number(i.line_total)})),
+    totali:{imponibile:totaliRighe.imponibile,iva:totaliRighe.iva,totale:totaliRighe.totale},
+  };
   const isEditable = order.status === "bozza";
+  const righeInSalvataggio = addItem.isPending || updateItem.isPending || deleteItem.isPending || update.isPending;
 
   const handleStatusChange = async (ns: string) => {
     updateStatus.mutate({
@@ -281,7 +296,7 @@ export default function PurchaseOrderDetail() {
                 cambiato). Non tocca lo stato, manda solo di nuovo la mail.
                 Non ha senso su cio' che si e' comprati di persona. */}
             {origine !== "negozio" && ["inviato", "confermato", "parziale"].includes(order.status) && (
-              <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
+              <Button variant="outline" size="sm" disabled={righeInSalvataggio} onClick={() => setSendOpen(true)}>
                 <Send className="h-3.5 w-3.5 mr-1" />
                 Reinvia
               </Button>
@@ -296,7 +311,7 @@ export default function PurchaseOrderDetail() {
               // cosa fare davvero, senza fingere un invio.
               ns === "inviato" && origine === "email" ? (
                 <div key={ns} className="flex items-center gap-1">
-                  <QuotePrimaryButton size="sm" onClick={() => setSendOpen(true)}>
+                  <QuotePrimaryButton size="sm" disabled={righeInSalvataggio} onClick={() => setSendOpen(true)}>
                     {STATUS_ICONS[ns]}
                     Invia al fornitore
                   </QuotePrimaryButton>
@@ -341,9 +356,9 @@ export default function PurchaseOrderDetail() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-6">
         {/* Left: Editor */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="min-w-0 space-y-4">
           {/* Items table */}
           <QuoteCard noHeader className="p-0 sm:p-0">
             <div className="px-5 sm:px-6 pt-5 pb-4 flex items-center justify-between gap-3 flex-wrap">
@@ -356,11 +371,13 @@ export default function PurchaseOrderDetail() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={addItem.isPending}
                   onClick={() => addItem.mutate({
                     purchase_order_id: order.id,
                     description: "Nuovo articolo",
                     quantity: 1,
                     unit_price: 0,
+                    price_pending: true,
                     vat_rate: 22,
                   })}
                 >
@@ -368,28 +385,30 @@ export default function PurchaseOrderDetail() {
                 </Button>
               )}
             </div>
+            <p className="px-5 pb-3 text-xs text-slate-500">Prezzi di acquisto IVA esclusa. Puoi lasciare il prezzo vuoto e indicarlo come «Da confermare» in attesa del fornitore. Su schermi stretti puoi scorrere la tabella orizzontalmente.</p>
+            {totaliRighe.daConfermare > 0 && <p role="status" className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{totaliRighe.daConfermare} {totaliRighe.daConfermare === 1 ? "voce con prezzo da confermare" : "voci con prezzi da confermare"}. Gli importi visibili comprendono solo le voci già valorizzate.</p>}
             <div className="border-t border-slate-100">
               {isItemsLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : items.length === 0 ? (
                 <p className="text-center py-8 text-muted-foreground text-sm">Nessun articolo. Clicca "Aggiungi" per iniziare.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto" role="region" aria-label="Articoli dell’ordine" tabIndex={0}>
+                  <table className="w-full min-w-[790px] text-sm">
                     <thead><tr className="border-b bg-muted/50">
                       <th className="text-left p-2 pl-4 font-medium">Descrizione</th>
                       <th className="text-right p-2 font-medium w-20">Qtà</th>
                       <th className="text-left p-2 font-medium w-16">UM</th>
-                      <th className="text-right p-2 font-medium w-24">Prezzo</th>
+                      <th className="text-right p-2 font-medium w-24">Prezzo acquisto</th>
                       <th className="text-right p-2 font-medium w-16">Sc.%</th>
                       <th className="text-right p-2 font-medium w-16">IVA%</th>
-                      <th className="text-right p-2 font-medium w-24">Totale</th>
+                      <th className="text-right p-2 font-medium w-24">Totale netto</th>
                       {isEditable && <th className="p-2 w-10"></th>}
                       {!isEditable && order.status !== "annullato" && <th className="text-right p-2 font-medium w-20">Ricevuti</th>}
                     </tr></thead>
                     <tbody>
                       {items.map((item) => (
-                        <ItemRow
+                        <PurchaseOrderItemRow
                           // La quantita' ricevuta cambia anche da fuori questa
                           // riga (scansione barcode, DDT, passaggio a
                           // "ricevuto"). Includendola nella key la casella
@@ -398,10 +417,11 @@ export default function PurchaseOrderDetail() {
                           // barra di avanzamento sopra diceva un'altra cosa.
                           key={`${item.id}:${item.quantity_received}`}
                           vociFornitore={vociFornitore}
+                          supplierId={order.supplier_id}
                           item={item}
                           isEditable={isEditable}
                           showReceived={!isEditable && order.status !== "annullato"}
-                          onUpdate={(updates) => updateItem.mutate({ id: item.id, updates })}
+                          onUpdate={(updates) => updateItem.mutateAsync({ id: item.id, updates })}
                           onDelete={() => deleteItem.mutate(item.id)}
                         />
                       ))}
@@ -409,17 +429,17 @@ export default function PurchaseOrderDetail() {
                     <tfoot>
                       <tr className="border-t bg-muted/30">
                         <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right font-medium">Imponibile:</td>
-                        <td className="p-2 text-right font-medium">{fmtEur(Number(order.subtotal))}</td>
+                        <td className="p-2 text-right font-medium">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.imponibile)}</td>
                         {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
                       </tr>
                       <tr className="bg-muted/30">
                         <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right text-muted-foreground">IVA:</td>
-                        <td className="p-2 text-right text-muted-foreground">{fmtEur(Number(order.vat_total))}</td>
+                        <td className="p-2 text-right text-muted-foreground">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.iva)}</td>
                         {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
                       </tr>
                       <tr className="bg-muted/30 border-t">
-                        <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right font-bold">Totale:</td>
-                        <td className="p-2 text-right font-bold">{fmtEur(Number(order.total))}</td>
+                        <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right font-bold">{totaliRighe.daConfermare ? "Totale parziale:" : "Totale:"}</td>
+                        <td className="p-2 text-right font-bold">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</td>
                         {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
                       </tr>
                     </tfoot>
@@ -429,35 +449,7 @@ export default function PurchaseOrderDetail() {
             </div>
           </QuoteCard>
 
-          {/* Notes */}
-          <QuoteCard
-            title="Note"
-            icon={<StickyNote className="h-4 w-4" />}
-            action={
-              !editingNotes ? (
-                <button
-                  type="button"
-                  className="text-xs text-orange-600 font-semibold hover:text-orange-700"
-                  onClick={() => { setNotes(order.notes || ""); setEditingNotes(true); }}
-                >
-                  Modifica
-                </button>
-              ) : (
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>Annulla</Button>
-                  <Button size="sm" onClick={() => { update.mutate({ id: order.id, updates: { notes } }); setEditingNotes(false); }}>
-                    <Save className="h-3.5 w-3.5 mr-1" /> Salva
-                  </Button>
-                </div>
-              )
-            }
-          >
-            {editingNotes ? (
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-            ) : (
-              <p className="text-sm text-slate-600 whitespace-pre-wrap">{order.notes || "Nessuna nota."}</p>
-            )}
-          </QuoteCard>
+          <OdaNoteCard notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
         </div>
 
         {/* Right: Preview / Info */}
@@ -517,8 +509,10 @@ export default function PurchaseOrderDetail() {
                   <span className="text-slate-500">Pagamento</span>
                   <Input
                     list="termini-pagamento-preset"
-                    defaultValue={order.payment_terms ?? ""}
-                    placeholder="Es. 30 gg fine mese"
+                    key={`${order.id}:${pagamentoEffettivo}`}
+                    defaultValue={pagamentoEffettivo === "Da definire con il fornitore" ? "" : pagamentoEffettivo}
+                    placeholder="Da definire con il fornitore"
+                    aria-label="Condizioni di pagamento dell’ordine"
                     className="h-7 w-52 text-right text-sm"
                     onBlur={(e) => {
                       const v = e.target.value.trim() || null;
@@ -531,9 +525,11 @@ export default function PurchaseOrderDetail() {
                     {TERMINI_PRESET.map((tp) => <option key={tp} value={tp} />)}
                   </datalist>
                 </div>
+                <p className="text-xs text-slate-500">Concordato in Impostazioni → Fornitori: <strong>{condizioniFornitore}</strong></p>
+                {order.payment_terms?.trim() && order.payment_terms.trim() !== condizioniFornitore && <Button variant="ghost" size="sm" onClick={()=>update.mutate({id:order.id,updates:{payment_terms:condizioniFornitore === "Da definire con il fornitore" ? null : condizioniFornitore,payment_method:supplier?.payment_method ?? null}})}>Usa condizioni del fornitore</Button>}
                 {(() => {
                   // Solo finché la merce non è arrivata: dopo, una scadenza calcolata su oggi è sbagliata.
-                  const anteprima = calcolaScadenza(order.payment_terms) ?? calcolaScadenza(supplier?.payment_method);
+                  const anteprima = calcolaScadenza(pagamentoEffettivo);
                   if (!anteprima || order.actual_delivery_date || ["ricevuto", "annullato"].includes(order.status)) return null;
                   return (
                     <p className="text-[11px] text-slate-400 text-right">
@@ -583,7 +579,7 @@ export default function PurchaseOrderDetail() {
               <div className="rounded-lg bg-gradient-to-br from-slate-50 to-white border border-slate-200 px-3 py-2 mt-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">Totale</span>
-                  <span className="text-xl font-bold text-orange-600 tabular-nums">{fmtEur(Number(order.total))}</span>
+                  <span className="text-xl font-bold text-orange-600 tabular-nums">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</span>
                 </div>
               </div>
             </div>
@@ -747,14 +743,14 @@ export default function PurchaseOrderDetail() {
 
           {/* La prova dell'ordine quando non e' partito da qui: conferma del
               sito, modulo firmato, scontrino del banco. */}
-          {infoOrigine.vuoleDocumento && (
+          {(infoOrigine.vuoleDocumento || origine === "email" || origine === "telefono") && (
             <OdaDocumentoCard
               odaId={order.id}
-              label={infoOrigine.documentoLabel ?? "Documento d'ordine"}
+              label={infoOrigine.documentoLabel ?? "Conferma originale del fornitore"}
               attachmentUrl={(order as { attachment_url?: string | null }).attachment_url}
               riferimento={(order as { supplier_reference?: string | null }).supplier_reference}
               riferimentoLabel={infoOrigine.riferimentoLabel}
-              onChange={(attachment_url) => update.mutate({ id: order.id, updates: { attachment_url } })}
+              onChange={async (attachment_url) => { await update.mutateAsync({ id: order.id, updates: { attachment_url } }); }}
             />
           )}
 
@@ -794,7 +790,10 @@ export default function PurchaseOrderDetail() {
       {/* Invio al fornitore — stesso compositore email del resto dell'app:
           oggetto e corpo arrivano precompilati ma restano modificabili, si
           possono allegare i documenti della commessa e scegliere il mittente. */}
-      <EmailComposeDialog
+      <DocumentoInvioDialog
+        key={effectiveCompany?.id}
+        documento={documentoInvio}
+        tipi={["materiali", "servizi"]}
         open={sendOpen}
         onOpenChange={setSendOpen}
         context={composeContext}
@@ -841,189 +840,5 @@ export default function PurchaseOrderDetail() {
         )}
       </Suspense>
     </div>
-  );
-}
-
-// ========== INLINE ITEM ROW ==========
-function ItemRow({
-  item,
-  isEditable,
-  showReceived,
-  onUpdate,
-  onDelete,
-  vociFornitore,
-}: {
-  item: PurchaseOrderItem;
-  isEditable: boolean;
-  showReceived: boolean;
-  onUpdate: (updates: Record<string, any>) => void;
-  onDelete: () => void;
-  vociFornitore?: VoceListinoFornitore[];
-}) {
-  const [desc, setDesc] = useState(item.description);
-  const [qty, setQty] = useState(String(item.quantity));
-  const [um, setUm] = useState(item.unit_of_measure || "pz");
-  const [price, setPrice] = useState(String(item.unit_price));
-  const [disc, setDisc] = useState(String(item.discount_percent));
-  const [vat, setVat] = useState(String(item.vat_rate));
-  const [received, setReceived] = useState(String(item.quantity_received));
-
-  // Suggerimento dal listino fornitore: SOLO match esatto (codice o
-  // descrizione), e resta un suggerimento — il prezzo lo conferma chi ordina.
-  const prezzoListino = useMemo(() => {
-    if (!vociFornitore || vociFornitore.length === 0) return null;
-    const voce = trovaVoce(vociFornitore, {
-      codice: (item as { sku?: string | null }).sku ?? null,
-      descrizione: desc,
-    });
-    return voce ? prezzoNetto(voce.prezzo, voce.sconto_pct) : null;
-  }, [vociFornitore, item, desc]);
-
-  const handleBlur = () => {
-    const updates: Record<string, any> = {};
-    if (desc !== item.description) updates.description = desc;
-    if ((Number(qty) || 0) !== item.quantity) updates.quantity = Number(qty) || 0;
-    if (um !== (item.unit_of_measure || "pz")) updates.unit_of_measure = um;
-    if ((Number(price) || 0) !== item.unit_price) updates.unit_price = Number(price) || 0;
-    if ((Number(disc) || 0) !== item.discount_percent) updates.discount_percent = Number(disc) || 0;
-    if ((Number(vat) || 0) !== item.vat_rate) updates.vat_rate = Number(vat) || 0;
-    if (Object.keys(updates).length > 0) onUpdate(updates);
-  };
-
-  const handleReceivedBlur = () => {
-    if (received.trim() === "" || isNaN(Number(received))) {
-      setReceived(String(item.quantity_received));
-      return;
-    }
-    const val = Number(received);
-    if (val < 0 || val > item.quantity) {
-      toast.error(`La quantità ricevuta deve essere compresa tra 0 e ${item.quantity}`);
-      setReceived(String(item.quantity_received));
-      return;
-    }
-    if (val !== item.quantity_received) {
-      onUpdate({ quantity_received: val, received_date: format(new Date(), "yyyy-MM-dd") });
-    }
-  };
-
-  const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
-    setDesc(name);
-    const updates: Record<string, any> = { description: name };
-    if (templateData) {
-      const newPrice = String(templateData.standard_cost > 0 ? templateData.standard_cost : templateData.unit_price);
-      const newUm = templateData.unit_of_measure || "pz";
-      const newVat = String(templateData.vat_rate || 22);
-      const newSku = templateData.sku || null;
-
-      setPrice(newPrice);
-      setUm(newUm);
-      setVat(newVat);
-
-      updates.unit_price = Number(newPrice);
-      updates.unit_of_measure = newUm;
-      updates.vat_rate = Number(newVat);
-      updates.sku = newSku;
-      updates.article_template_id = templateData.id;
-    }
-    onUpdate(updates);
-  };
-
-  if (!isEditable && !showReceived) {
-    return (
-      <tr className="border-b">
-        <td className="p-2 pl-4">{item.description}</td>
-        <td className="p-2 text-right">{item.quantity}</td>
-        <td className="p-2">{item.unit_of_measure || "pz"}</td>
-        <td className="p-2 text-right">{fmtEur(item.unit_price)}</td>
-        <td className="p-2 text-right">{item.discount_percent > 0 ? `${item.discount_percent}%` : "—"}</td>
-        <td className="p-2 text-right">{item.vat_rate}%</td>
-        <td className="p-2 text-right font-medium">{fmtEur(Number(item.line_total))}</td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className="border-b">
-      <td className="p-1 pl-2">
-        {isEditable ? (
-          <ArticleCombobox
-            value={desc}
-            onValueChange={handleArticleSelect}
-            placeholder="Seleziona articolo..."
-          />
-        ) : (
-          <span className="pl-2">{item.description}</span>
-        )}
-      </td>
-      <td className="p-1">
-        {isEditable ? (
-          <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} onBlur={handleBlur} className="h-8 text-sm text-right w-16" />
-        ) : (
-          <span className="block text-right">{item.quantity}</span>
-        )}
-      </td>
-      <td className="p-1">
-        {isEditable ? (
-          <Input value={um} onChange={(e) => setUm(e.target.value)} onBlur={handleBlur} className="h-8 text-sm w-14" />
-        ) : (
-          <span>{item.unit_of_measure || "pz"}</span>
-        )}
-      </td>
-      <td className="p-1">
-        {isEditable ? (
-          <>
-          <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} onBlur={handleBlur} className="h-8 text-sm text-right w-20" />
-          {prezzoListino != null && Math.abs(prezzoListino - (Number(price) || 0)) > 0.004 && (
-            <button
-              type="button"
-              className="mt-0.5 block w-full text-right text-[11px] text-primary hover:underline"
-              onClick={() => {
-                setPrice(String(prezzoListino));
-                onUpdate({ unit_price: prezzoListino });
-              }}
-            >
-              Listino: {fmtEur(prezzoListino)}
-            </button>
-          )}
-          </>
-        ) : (
-          <span className="block text-right">{fmtEur(item.unit_price)}</span>
-        )}
-      </td>
-      <td className="p-1">
-        {isEditable ? (
-          <Input type="number" value={disc} onChange={(e) => setDisc(e.target.value)} onBlur={handleBlur} className="h-8 text-sm text-right w-14" />
-        ) : (
-          <span className="block text-right">{item.discount_percent > 0 ? `${item.discount_percent}%` : "—"}</span>
-        )}
-      </td>
-      <td className="p-1">
-        {isEditable ? (
-          <Input type="number" value={vat} onChange={(e) => setVat(e.target.value)} onBlur={handleBlur} className="h-8 text-sm text-right w-14" />
-        ) : (
-          <span className="block text-right">{item.vat_rate}%</span>
-        )}
-      </td>
-      <td className="p-2 text-right font-medium">{fmtEur(Number(item.line_total))}</td>
-      {isEditable && (
-        <td className="p-1">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </td>
-      )}
-      {showReceived && (
-        <td className="p-1">
-          <Input
-            type="number"
-            value={received}
-            onChange={(e) => setReceived(e.target.value)}
-            onBlur={handleReceivedBlur}
-            className="h-8 text-sm text-right w-16"
-            max={item.quantity}
-          />
-        </td>
-      )}
-    </tr>
   );
 }

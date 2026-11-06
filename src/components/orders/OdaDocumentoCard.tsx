@@ -25,7 +25,7 @@ interface Props {
   /** Numero d'ordine sul sito o dello scontrino. */
   riferimento?: string | null;
   riferimentoLabel?: string;
-  onChange: (attachmentUrl: string | null) => void;
+  onChange: (attachmentUrl: string | null) => void | Promise<void>;
 }
 
 export function OdaDocumentoCard({
@@ -42,35 +42,70 @@ export function OdaDocumentoCard({
   const nomeFile = attachmentUrl ? attachmentUrl.split("/").pop() : null;
 
   const apri = async () => {
-    if (!attachmentUrl) return;
-    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(attachmentUrl, 3600);
-    if (error || !data?.signedUrl) {
-      toast.error("Documento non apribile", { description: error?.message });
-      return;
+    if (!attachmentUrl || busy) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(attachmentUrl, 3600);
+      if (error || !data?.signedUrl)
+        throw new Error(
+          error?.message || "Collegamento al documento non disponibile",
+        );
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error("Documento non apribile", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setBusy(false);
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
   const carica = async (file: File) => {
+    if (busy) return;
+    if (inputRef.current) inputRef.current.value = "";
+    if (!file.size) {
+      toast.error("Il file è vuoto");
+      return;
+    }
+    if (
+      file.type &&
+      file.type !== "application/pdf" &&
+      !file.type.startsWith("image/")
+    ) {
+      toast.error("Carica un PDF o un’immagine");
+      return;
+    }
     if (file.size > MAX_MB * 1024 * 1024) {
       toast.error(`Il file supera ${MAX_MB} MB`);
       return;
     }
     setBusy(true);
+    let uploaded: string | null = null;
     try {
       const nome = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const path = `oda/${odaId}/${Date.now()}-${nome}`;
+      const path = `oda/${odaId}/${crypto.randomUUID()}-${nome}`;
       const { error } = await supabase.storage.from(BUCKET).upload(path, file);
       if (error) throw error;
-      onChange(path);
+      uploaded = path;
+      await onChange(path);
+      uploaded = null;
       toast.success(`${label} caricato`);
     } catch (e) {
+      // Se il riferimento non è salvato, eliminiamo soltanto il nuovo upload.
+      if (uploaded) {
+        try {
+          await supabase.storage.from(BUCKET).remove([uploaded]);
+        } catch {
+          /* errore principale resta quello del salvataggio */
+        }
+      }
       toast.error("Caricamento non riuscito", {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
   };
 
@@ -81,8 +116,18 @@ export function OdaDocumentoCard({
       // Prima si stacca il riferimento, poi si prova a cancellare il file: se
       // la cancellazione fallisce resta un file orfano, non una riga che punta
       // a un documento che non c'e' piu'.
-      onChange(null);
-      await supabase.storage.from(BUCKET).remove([attachmentUrl]);
+      await onChange(null);
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .remove([attachmentUrl]);
+      if (error)
+        toast.error("Riferimento rimosso; eliminazione del file non riuscita", {
+          description: error.message,
+        });
+    } catch (e) {
+      toast.error("Il documento non è stato rimosso", {
+        description: e instanceof Error ? e.message : String(e),
+      });
     } finally {
       setBusy(false);
     }
@@ -94,7 +139,9 @@ export function OdaDocumentoCard({
         {riferimento && riferimentoLabel && (
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">{riferimentoLabel}</span>
-            <span className="font-medium text-slate-900 font-mono text-xs">{riferimento}</span>
+            <span className="font-medium text-slate-900 font-mono text-xs">
+              {riferimento}
+            </span>
           </div>
         )}
         {attachmentUrl ? (
@@ -102,21 +149,33 @@ export function OdaDocumentoCard({
             <button
               type="button"
               onClick={apri}
+              disabled={busy}
+              aria-label={`Apri ${label.toLowerCase()}`}
               className="flex-1 min-w-0 flex items-center gap-1.5 rounded-md bg-slate-50 hover:bg-slate-100 px-2.5 py-2 text-xs text-left transition-colors"
             >
               <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
               <span className="truncate text-slate-700">{nomeFile}</span>
               <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
             </button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={rimuovi} disabled={busy}>
+            <Button
+              aria-label={`Rimuovi ${label.toLowerCase()}`}
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={rimuovi}
+              disabled={busy}
+            >
               <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </div>
         ) : (
           <>
             <p className="text-xs text-slate-500">
-              Allega il documento: è la prova dell'ordine se poi c'è da discutere
-              con il fornitore.
+              Allega la conferma originale ricevuta dal fornitore, con prezzi e
+              condizioni. Il file resta collegato a questo ordine. Il
+              caricamento non aggiorna automaticamente i prezzi: verifica e
+              riporta gli importi concordati nelle righe prima di confermare
+              l’ordine.
             </p>
             <Button
               variant="outline"
@@ -125,7 +184,11 @@ export function OdaDocumentoCard({
               disabled={busy}
               onClick={() => inputRef.current?.click()}
             >
-              {busy ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+              {busy ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+              )}
               Carica {label.toLowerCase()}
             </Button>
           </>
