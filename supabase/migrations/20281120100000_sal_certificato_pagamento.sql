@@ -62,6 +62,8 @@ revoke all on public.sal_certificati from public, anon;
 grant select, insert, update, delete on public.sal_certificati to authenticated;
 grant all on public.sal_certificati to service_role;
 
+-- Permesso sal_certificati: lettura ai membri dell’azienda (inclusi accessi multipli attivi);
+-- scrittura solo con puo_modificare_commessa, blocco utenti e controllo superadmin come sal_records.
 -- Le stesse regole di sal_records.
 drop policy if exists blocco_utente_bloccato on public.sal_certificati;
 create policy blocco_utente_bloccato on public.sal_certificati as restrictive for all to authenticated
