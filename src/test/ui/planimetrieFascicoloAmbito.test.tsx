@@ -7,9 +7,9 @@ import { EsportaPiantaDialog } from "@/components/planimetrie/EsportaPiantaDialo
 const mocks = vi.hoisted(() => ({ esporta: vi.fn(async () => ({ dati: new Uint8Array([1]), pagine: 1, immaginiRender: 0 })) }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda", name: "Demo" } }) }));
 vi.mock("@/hooks/useBranding", () => ({ useBranding: () => ({ branding: null as null }) }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data: queryKey[0].includes("preventivi") ? [] : { name: "Demo" } }) }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: ({ queryKey }: { queryKey: string[] }): { data: unknown[] | { name: string } } => ({ data: queryKey[0].includes("preventivi") ? [] : { name: "Demo" } }) }));
 vi.mock("@/components/shared/CampoIndirizzo", () => ({ CampoIndirizzo: () => <input aria-label="Indirizzo del cantiere" /> }));
-vi.mock("@/lib/planimetrie/fascicoloDati", () => ({ renderPerFascicolo: async () => [], sorgentePerFascicolo: async () => null, campioniPersonaliPerFascicolo: async () => [] }));
+vi.mock("@/lib/planimetrie/fascicoloDati", () => ({ renderPerFascicolo: async (): Promise<unknown[]> => [], sorgentePerFascicolo: async (): Promise<null> => null, campioniPersonaliPerFascicolo: async (): Promise<unknown[]> => [] }));
 vi.mock("@/lib/planimetrie/fascicoloPdf", () => ({ esportaFascicolo: mocks.esporta }));
 
 beforeEach(() => {
