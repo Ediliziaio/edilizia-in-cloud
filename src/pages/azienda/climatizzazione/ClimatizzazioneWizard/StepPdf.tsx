@@ -1,3 +1,4 @@
+import { leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { readPdfPreviewBlob, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { perLaFirma } from "@/lib/preventivi/condizioniDelPreventivo";
 /**
@@ -66,7 +67,9 @@ interface ChecklistItem {
 export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlPasso, onCondizioni }: Props) {
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
-  const { data: template } = useClmTemplatePdf();
+  const { data: templateAzienda } = useClmTemplatePdf();
+  const template = useMemo(() => leggiModelloPreventivo<NonNullable<typeof templateAzienda>>("climatizzazione", progetto.modello_snapshot, progetto.company_id)?.template ?? templateAzienda, [progetto.modello_snapshot, progetto.company_id, templateAzienda]);
+  const titoloModello = (template as typeof template & { pdf_cover_hero?: string | null })?.pdf_cover_hero?.trim() || template?.cover_title?.trim();
   const { downloadPDF, previewPDF, isGenerating } = useClimatizzazionePDF();
 
   // Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
@@ -275,7 +278,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             {/* Titolo cover + destinatario */}
             <div className="px-4 py-3">
               <p className="text-sm font-semibold text-slate-900">
-                {template?.cover_title?.trim() || "Preventivo di climatizzazione"}
+                {titoloModello || "Preventivo di climatizzazione"}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Preparato per <span className="font-medium text-slate-700">{clienteLabel}</span>
