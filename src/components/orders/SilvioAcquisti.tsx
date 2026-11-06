@@ -30,8 +30,10 @@ export function SilvioAcquisti({ orderId, orderCode, onAzione, className }: {
     chiedi: async (messaggio, storia, allegati) => {
       const fase = new Map(phases.map((p) => [p.id, p]));
       const ids = [...new Set(materials.map((m) => m.supplier_id).filter((x): x is string => !!x))];
-      const { data: nomi } = ids.length ? await supabase.from("suppliers").select("id, name").in("id", ids) : { data: [] };
-      const fornitore = new Map(((nomi ?? []) as Array<{ id: string; name: string }>).map((f) => [f.id, f.name]));
+      const letti: { data: Array<{ id: string; name: string }> | null } = ids.length
+        ? await supabase.from("suppliers").select("id, name").in("id", ids)
+        : { data: [] };
+      const fornitore = new Map((letti.data ?? []).map((f) => [f.id, f.name]));
       return chiediSilvioAcquisti(orderId, messaggio, {
         oggi, commessa: orderCode ?? "",
         materiali: materials.map((m) => ({
