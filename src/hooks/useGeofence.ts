@@ -13,7 +13,7 @@ export function useGeofence(companyId: string) {
     queryKey,
     queryFn: async (): Promise<CantiereGeofence[]> => {
       const { data, error } = await (supabase
-        .from("cantieri_geofence" as never)
+        .from("cantieri_geofence")
         .select("id, company_id, order_id, nome, center_lat, center_lng, radius_mt, is_active, created_at, updated_at")
         .eq("company_id", companyId)
         .eq("is_active", true)
@@ -28,7 +28,7 @@ export function useGeofence(companyId: string) {
   const createMutation = useMutation({
     mutationFn: async (input: CantiereGeofenceInsert): Promise<CantiereGeofence> => {
       const { data, error } = await (supabase
-        .from("cantieri_geofence" as never)
+        .from("cantieri_geofence")
         .insert({ ...input, company_id: companyId })
         .select()
         .single() as unknown as Promise<{ data: CantiereGeofence | null; error: unknown }>);
@@ -44,7 +44,7 @@ export function useGeofence(companyId: string) {
       ...updates
     }: Partial<CantiereGeofence> & { id: string }): Promise<void> => {
       const { error } = await (supabase
-        .from("cantieri_geofence" as never)
+        .from("cantieri_geofence")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
         .eq("company_id", companyId) as unknown as Promise<{ error: unknown }>);
@@ -57,7 +57,7 @@ export function useGeofence(companyId: string) {
     mutationFn: async (id: string): Promise<void> => {
       // Soft-delete: set is_active = false
       const { error } = await (supabase
-        .from("cantieri_geofence" as never)
+        .from("cantieri_geofence")
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("id", id)
         .eq("company_id", companyId) as unknown as Promise<{ error: unknown }>);

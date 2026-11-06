@@ -289,8 +289,7 @@ export default function StepImmobile({ form, onChange, model }: Props) {
           <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 max-sm:hidden">
             <HardHat className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
             <p className="text-[11px] text-slate-600">
-              Lavori in quota &gt; 2 m: previsti <strong>ponteggio</strong> e <strong>linea vita</strong> (UNI 11578) — voci già
-              presenti nei capitoli "Allestimento cantiere e ponteggi" e "Sicurezza e opere accessorie".
+              Verifica nel computo le opere di sicurezza previste per l’intervento, incluse le eventuali voci di <strong>ponteggio</strong> e <strong>linea vita</strong>. Aggiungi le voci necessarie nei capitoli "Allestimento cantiere e ponteggi" e "Sicurezza e opere accessorie".
             </p>
           </div>
         </div>

@@ -12,6 +12,7 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useProdottiListino", () => ({ useProdottiListino: () => ({ data: [{ id: "p1", nome: "Parquet rovere", modo: "mq", prezzo_vendita: 50, posa_vendita: 10, prezzo_acquisto: 20, posa_costo: 5, unita: "mq", immagine_url: null as string | null, descrizione: "Rovere" }], isFetching: false }) }));
 const PREZZARIO = vi.hoisted(() => ({ voci: [] as unknown[] }));
 vi.mock("@/lib/prezzario/queries", () => ({ usePrezzarioVociGlobalSearch: () => ({ data: PREZZARIO.voci, isFetching: false }) }));
+afterEach(() => { PREZZARIO.voci = []; });
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ order: () => ({ range: async (da: number) => ({ data: da === 0 ? TARIFFE : [], error: null as null }) }) }) }) }) }) }) } }));
 import { ScegliVociListino, type FontiModulo } from "@/components/moduli/ScegliVociListino";
 
@@ -322,4 +323,20 @@ describe("le aggiunte al popup delle voci", () => {
     expect(leggiPrezzo("")).toBeNull();
     expect(leggiPrezzo("-3")).toBeNull();
   });
+});
+
+
+it("non trasforma in cadauno una voce regionale senza unità e conserva mq quando presente", async () => {
+  PREZZARIO.voci.push(
+    { id: "senza", descrizione: "Voce senza unità", unita_misura: null, prezzo: 8.4, codice: "2.3.90.1", fonteLabel: "Demo" },
+    { id: "con", descrizione: "Voce misurata", unita_misura: "mq", prezzo: 12, codice: "ABC", fonteLabel: "Demo" },
+  );
+  const { onPick } = apri();
+  fireEvent.click(screen.getByRole("button", { name: /Cerca nel prezzario regionale/ }));
+  const missing = await screen.findByRole("checkbox", { name: "Scegli: Voce senza unità" });
+  expect(missing).toBeEnabled();
+  expect(screen.getByText("unità non indicata")).toBeTruthy();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Voce misurata" }));
+  fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
+  expect(onPick).toHaveBeenCalledWith([expect.objectContaining({ unita_misura: "mq", unita_originale: "mq", codice_tariffa: "ABC" })]);
 });

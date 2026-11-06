@@ -1,0 +1,21 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NpsModal } from "@/components/onboarding/NpsModal";
+const mock = vi.hoisted(() => ({ insert: vi.fn(), error: vi.fn() }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda" }, user: { id: "utente" } }) }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ insert: mock.insert }) } }));
+vi.mock("sonner", () => ({ toast: { error: mock.error } }));
+beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });
+afterEach(cleanup);
+it("non ringrazia e non nasconde il questionario se il database rifiuta il feedback", async () => {
+  mock.insert.mockResolvedValue({ error: { message: "rifiutato" } });
+  render(<NpsModal open onClose={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: /Punteggio 8:/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Invia feedback" }));
+  await waitFor(() => expect(mock.error).toHaveBeenCalled());
+  expect(screen.queryByText("Grazie per il feedback!")).toBeNull();
+  expect(localStorage.length).toBe(0);
+  expect(mock.insert).toHaveBeenCalledWith(expect.objectContaining({ triggered_at_phase: "onboarding_completion", score: 8 }));
+  expect(mock.insert.mock.calls[0][0]).not.toHaveProperty("source");
+  expect(screen.getByRole("button", { name: "Invia feedback" })).toBeEnabled();
+});

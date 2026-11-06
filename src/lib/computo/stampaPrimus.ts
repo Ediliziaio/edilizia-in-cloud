@@ -354,7 +354,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     const blocchi = ([
       ["Riferimenti dei prezzi", [i.riferimentoPrezzi, ...fonti.map((f, k) => `[${k + 1}] ${f}`)].filter(Boolean).join("\n")],
       ["Voci opzionali, non comprese nel totale", (i.vociOpzionali ?? []).map(o => `${o.descrizione.split("\n")[0]} - ${o.quantita ?? "-"} ${o.unita}${conPrezzi && o.importo != null ? `: ${formatEuro(o.importo)} €` : ""}`).join("\n")],
-      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata")],
+      ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", i.mostraImporti !== false)],
       ["Modalità di pagamento", i.pagamenti ?? ""],
       ["Note e condizioni", i.condizioni ?? ""],
     ] as const).filter(([, s]) => s.trim());
@@ -398,7 +398,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
 
   // Piede: stato e numero di pagina, su ogni pagina.
   const pagine = doc.getNumberOfPages();
-  for (let p = 1; p <= pagine; p++) {
+  for (let p = 1; !i.senzaPiede && p <= pagine; p++) {
     doc.setPage(p);
     y = H - 24; filetto(m, destra, t.filetto, 0.4);
     font(6.5, "normal", t.grigioChiaro);

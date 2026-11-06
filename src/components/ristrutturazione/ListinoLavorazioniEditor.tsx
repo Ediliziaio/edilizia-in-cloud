@@ -88,7 +88,7 @@ import {
 import { ImportaPrezzarioDialog } from "@/components/ristrutturazione/ImportaPrezzarioDialog";
 
 const UNITA_OPZIONI: RstUnitaMisura[] = [
-  "mq",
+  "mq", "mc",
   "ml",
   "cad",
   "corpo",

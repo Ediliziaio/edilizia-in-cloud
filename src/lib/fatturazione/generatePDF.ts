@@ -8,6 +8,7 @@ import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 async function htmlDocumento(documentoId: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke("generate-native-pdf", {
     body: { documento_id: documentoId },
+    timeout: 30_000,
   });
 
   if (error) {

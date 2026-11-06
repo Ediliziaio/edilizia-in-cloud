@@ -69,7 +69,7 @@ export function OrderAssistenzaAlert({ orderId, onOpen }: { orderId: string; onO
   </div>;
 }
 
-export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
+export function OrderAssistenzaTab({ orderId, customerId }: { orderId: string; customerId?: string | null }) {
   const permissions = usePermissions();
   const { data: tickets = [], isLoading, isError, refetch } = useAssistenzeCommessa(orderId);
 
@@ -95,7 +95,7 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
           )}
         </div>
         {permissions.canEditTickets && !permissions.solaLettura && <Button asChild size="sm" variant="outline">
-          <Link to={`/azienda/assistenza/nuovo?order=${orderId}&tipo=intervento`}>
+          <Link to={`/azienda/assistenza/nuovo?order=${encodeURIComponent(orderId)}&tipo=intervento${customerId ? `&customer_id=${encodeURIComponent(customerId)}` : ""}`}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Nuova assistenza
           </Link>
         </Button>}

@@ -40,7 +40,7 @@ describe("Modelli riutilizzabili delle varianti", () => {
     const template = { ...VARIATION_TEMPLATE_EXAMPLES[1], conditions_text: VARIATION_TEMPLATE_EXAMPLES[1].conditions_text + "\n" + Array.from({ length: 10 }, (_, i) => `Condizione dimostrativa ${i+1}: materiali, tempi di esecuzione e accesso al cantiere vanno concordati nella singola commessa prima dell'accettazione.`).join("\n"), payment_terms: "Saldo dei lavori aggiuntivi alla consegna concordata." };
     const draft = applyVariationTemplate({ ...emptyVariationDraft(), kind: "modifica", documentCompanyName: context.companyName, documentCustomerName: context.customerName, title: "ESEMPIO - modifica pavimento cucina", description: "Sostituzione della finitura prevista con nuovo pavimento. Materiali e posa inclusi; descrivere separatamente le opere escluse dal preventivo iniziale.", amount: "500", days: "2" }, template, context);
     const pdf = await variationProposalPdf(prepareVariation(draft), variationDocumentContext(draft, context));
-    const source = pdf.output(); expect(source).toContain("Proposta di modifica del contratto"); expect(source).toContain("DA APPROVARE"); expect(source).toContain("Saldo dei lavori"); expect(source).not.toContain("{{");
+    const source = pdf.output(); expect(source).toContain("PROPOSTA DI MODIFICA DEL CONTRATTO"); expect(source).toContain("DA APPROVARE"); expect(source).toContain("Saldo dei lavori"); expect(source).not.toContain("{{");
     if (process.env.VARIATION_TEMPLATE_PDF_PROOF) writeFileSync(process.env.VARIATION_TEMPLATE_PDF_PROOF, Buffer.from(pdf.output("arraybuffer")));
   });
 });

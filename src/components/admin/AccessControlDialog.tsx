@@ -74,8 +74,18 @@ export function AccessControlDialog({
     queryKey: statusKey,
     enabled: open && !!shownEmail,
     staleTime: 10_000,
-    queryFn: async (): Promise<LoginStatus> =>
-      invokeManage({ action: "get_status", email: shownEmail }) as Promise<LoginStatus>,
+    queryFn: async (): Promise<LoginStatus> => {
+      const result = await invokeManage({ action: "get_status", email: shownEmail });
+      if (result?.success !== true || typeof result.email !== "string" || typeof result.has_account !== "boolean") {
+        throw new Error("Stato dell’accesso non disponibile. Riprova.");
+      }
+      return {
+        success: true, email: result.email, has_account: result.has_account,
+        email_confirmed: typeof result.email_confirmed === "boolean" ? result.email_confirmed : undefined,
+        banned: typeof result.banned === "boolean" ? result.banned : undefined,
+        last_sign_in_at: typeof result.last_sign_in_at === "string" ? result.last_sign_in_at : null,
+      };
+    },
   });
 
   const sendRecovery = useMutation({

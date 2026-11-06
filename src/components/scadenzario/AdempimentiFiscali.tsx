@@ -78,7 +78,7 @@ const STATO_LABELS: Record<string, string> = {
 
 // Italian fiscal calendar suggestions
 const ADEMPIMENTI_STANDARD = [
-  { titolo: "Versamento IVA mensile", tipo: "iva", mese: null, giorno: 16, ricorrente: true, ricorrenza_mesi: 1 },
+  { titolo: "Versamento IVA mensile", tipo: "iva", mese: null as null, giorno: 16, ricorrente: true, ricorrenza_mesi: 1 },
   { titolo: "Dichiarazione IVA annuale", tipo: "iva", mese: 4, giorno: 30, ricorrente: false },
   { titolo: "INPS artigiani/commercianti Q1", tipo: "inps", mese: 5, giorno: 16, ricorrente: false },
   { titolo: "INPS artigiani/commercianti Q2", tipo: "inps", mese: 8, giorno: 20, ricorrente: false },

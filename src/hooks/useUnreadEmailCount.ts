@@ -52,8 +52,7 @@ export function useUnreadEmailCount(): {
       // Una sola richiesta: il count esatto dà il totale non lette, le righe
       // ordinate per priorità ("alta" < "media" < "nessuna") portano le urgenti
       // in testa, così bastano poche righe per contarle.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const query = (supabase as any)
+      const query = supabase
         .from("email_inbox")
         .select("ai_priority", { count: "exact" })
         .eq("user_id", userId)

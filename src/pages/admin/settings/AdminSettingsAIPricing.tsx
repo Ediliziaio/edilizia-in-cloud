@@ -91,7 +91,7 @@ export default function AdminSettingsAIPricing() {
     queryKey: ["ai_pricing_tiers"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_pricing_tiers" as never)
+        .from("ai_pricing_tiers")
         .select("*")
         .order("sort_order");
       if (error) throw error;
@@ -104,7 +104,7 @@ export default function AdminSettingsAIPricing() {
     queryKey: ["ai_pricing_overrides"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_pricing_overrides" as never)
+        .from("ai_pricing_overrides")
         .select("*, companies:company_id(id, name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -119,7 +119,7 @@ export default function AdminSettingsAIPricing() {
       const since = new Date();
       since.setDate(since.getDate() - 30);
       const { data, error } = await supabase
-        .from("ai_revenue_summary" as never)
+        .from("ai_revenue_summary")
         .select("*")
         .gte("day", since.toISOString().slice(0, 10))
         .order("day", { ascending: false });
@@ -133,7 +133,7 @@ export default function AdminSettingsAIPricing() {
     queryKey: ["ai_tier_task_count"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_router_config" as never)
+        .from("ai_router_config")
         .select("tier_key, enabled")
         .eq("enabled", true);
       if (error) throw error;
@@ -157,7 +157,7 @@ export default function AdminSettingsAIPricing() {
       enabled: boolean;
     }) => {
       const { error } = await supabase
-        .from("ai_pricing_tiers" as never)
+        .from("ai_pricing_tiers")
         .update({
           cost_per_1m_input_eur: input.cost_per_1m_input_eur,
           cost_per_1m_output_eur: input.cost_per_1m_output_eur,
@@ -552,7 +552,7 @@ function NewOverrideDialog({
     queryKey: ["companies_for_override"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("companies" as never)
+        .from("companies")
         .select("id, name")
         .order("name");
       if (error) throw error;
@@ -567,7 +567,7 @@ function NewOverrideDialog({
       if (!reason.trim()) throw new Error("Motivazione obbligatoria");
       if (!markupPct && !discountPct) throw new Error("Specifica markup custom o sconto");
 
-      const { error } = await supabase.from("ai_pricing_overrides" as never).insert({
+      const { error } = await supabase.from("ai_pricing_overrides").insert({
         company_id: companyId,
         tier_key: tierKey === "__all__" ? null : tierKey,
         custom_markup_pct: markupPct ? Number(markupPct) : null,
@@ -670,7 +670,7 @@ function DeleteOverrideButton({ id }: { id: string }) {
   const confirm = useConfirm();
   const mut = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("ai_pricing_overrides" as never).delete().eq("id", id);
+      const { error } = await supabase.from("ai_pricing_overrides").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

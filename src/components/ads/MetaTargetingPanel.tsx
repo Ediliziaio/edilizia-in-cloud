@@ -578,7 +578,7 @@ function SearchInput({ placeholder, icon, companyId, adAccountId, type, onSelect
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fallback, setFallback] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancelledRef = useRef(false);
 
   useEffect(() => () => { cancelledRef.current = true; }, []);

@@ -115,7 +115,7 @@ export function ManualTreasuryPanel({ autoOpenCreate = false, onAfterCreate }: {
         </DialogContent>
       </Dialog>
 
-      <ManualTransactionsSheet account={sheetAccount} open={!!sheetAccount} onOpenChange={(v) => !v && setSheetAccount(null)} />
+      <ManualTransactionsSheet account={accounts.find((a) => a.id === sheetAccount?.id) ?? sheetAccount} open={!!sheetAccount} onOpenChange={(v) => !v && setSheetAccount(null)} />
     </div>
   );
 }

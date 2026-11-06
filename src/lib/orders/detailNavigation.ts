@@ -17,7 +17,7 @@ export const ECONOMIA_VIEWS = [
   // non avrebbe niente da mostrare.
   { value: "rendiconto", label: "Rendiconto", description: "Quello che hai fatto per il committente, tradotto in quello che devi fatturare." },
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
-  { value: "pagamenti", label: "Incassi", description: "Rate del cliente, SAL emessi e disponibilità di cassa." },
+  { value: "pagamenti", label: "Incassi", description: "Rate del cliente, SAL in bozza o emessi e disponibilità di cassa." },
   { value: "varianti", label: "Varianti", description: "Modifiche del contratto e dei lavori concordati." },
   { value: "sal", label: "SAL al cliente", description: "Avanzamento riconosciuto al cliente e verbali." },
   { value: "documenti", label: "Fatture al cliente", description: "Fatture e documenti fiscali emessi al cliente." },

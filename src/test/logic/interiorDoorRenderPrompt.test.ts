@@ -4,7 +4,7 @@ import { DEFAULT_INTERIOR_DOOR_CONFIG } from "../../../shared/render-technical/d
 import { buildInteriorDoorPrompt } from "../../../shared/render-interior-door/interiorDoorPromptBuilder";
 import type { ConfigurazionePortaInterna } from "../../../shared/render-interior-door/types";
 
-function config(overrides: Partial<ConfigurazionePortaInterna> = {}): ConfigurazionePortaInterna {
+function config(overrides: Partial<Omit<ConfigurazionePortaInterna, "frame" | "glass" | "hardware" | "apertura">> & { frame?: Partial<ConfigurazionePortaInterna["frame"]>; glass?: Partial<ConfigurazionePortaInterna["glass"]>; hardware?: Partial<ConfigurazionePortaInterna["hardware"]>; apertura?: Partial<ConfigurazionePortaInterna["apertura"]> } = {}): ConfigurazionePortaInterna {
   return {
     ...DEFAULT_INTERIOR_DOOR_CONFIG,
     ...overrides,

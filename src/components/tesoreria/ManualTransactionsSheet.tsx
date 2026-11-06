@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, Upload, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -26,6 +27,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
   const confirm = useConfirm();
   const [importOpen, setImportOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [erroreSalvataggio, setErroreSalvataggio] = useState<string | null>(null);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), desc: "", amount: "", verso: "uscita" as "entrata" | "uscita" });
 
   const txQuery = useQuery({
@@ -45,13 +47,21 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
   });
 
   async function handleAdd() {
+    setErroreSalvataggio(null);
     const raw = Number(String(form.amount).replace(",", "."));
-    if (!isFinite(raw) || raw === 0) return;
+    if (!account?.id || !form.date || !isFinite(raw) || raw === 0) {
+      setErroreSalvataggio("Indica una data e un importo diverso da zero.");
+      return;
+    }
     const signed = form.verso === "uscita" ? -Math.abs(raw) : Math.abs(raw);
-    await upsertTx.mutateAsync({ account_id: account!.id, booking_date: form.date, description: form.desc, amount: signed, source: "manuale" });
-    setForm((f) => ({ ...f, desc: "", amount: "" }));
-    setAdding(false);
-    txQuery.refetch();
+    try {
+      await upsertTx.mutateAsync({ account_id: account.id, booking_date: form.date, description: form.desc, amount: signed, source: "manuale" });
+      setForm((f) => ({ ...f, desc: "", amount: "" }));
+      setAdding(false);
+      void txQuery.refetch();
+    } catch (error) {
+      setErroreSalvataggio(`Movimento non salvato: ${userErrorMessage(error, "Impossibile completare l’operazione. Riprova.")}`);
+    }
   }
 
   const rows = txQuery.data ?? [];
@@ -87,6 +97,7 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
             </div>
             <div><Label className="text-xs">Descrizione</Label><Input value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} placeholder="Es. Pagamento fornitore X" /></div>
             <div><Label className="text-xs">Importo €</Label><Input inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0,00" /></div>
+            {erroreSalvataggio && <p role="alert" className="text-sm text-destructive">{erroreSalvataggio}</p>}
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>Annulla</Button>
               <Button size="sm" onClick={handleAdd} disabled={upsertTx.isPending}>Salva</Button>
@@ -97,6 +108,8 @@ export function ManualTransactionsSheet({ account, open, onOpenChange }: {
         <div className="mt-4 space-y-1">
           {txQuery.isLoading ? (
             Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
+          ) : txQuery.isError ? (
+            <p role="alert" className="text-sm text-destructive">Impossibile caricare i movimenti. Riapri il conto per riprovare.</p>
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center max-sm:py-3 max-sm:text-xs">Nessun movimento.<span className="max-sm:hidden"> Aggiungine uno o importa l'estratto conto.</span></p>
           ) : rows.map((r) => (

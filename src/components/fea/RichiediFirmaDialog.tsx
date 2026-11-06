@@ -68,7 +68,7 @@ export function RichiediFirmaDialog({
       pdfMissing: pdf_missing,
     });
 
-    if (!validation.ok) {
+    if (validation.ok === false) {
       toast.error(validation.error);
       setIsSubmitting(false);
       return;

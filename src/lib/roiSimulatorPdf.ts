@@ -514,7 +514,11 @@ function leveSection(p: PdfDoc, results: RoiResults) {
       doc.rect(MARGIN, p.y, CONTENT_W, rowH, "F");
     }
     const midY = p.y + rowH / 2 + 1.4;
-    doc.setTextColor(...(principale ? BRAND.green : BRAND.ink));
+    doc.setTextColor(
+      (principale ? BRAND.green : BRAND.ink)[0],
+      (principale ? BRAND.green : BRAND.ink)[1],
+      (principale ? BRAND.green : BRAND.ink)[2],
+    );
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.text(leva.label, colLeva, midY);
@@ -535,7 +539,11 @@ function leveSection(p: PdfDoc, results: RoiResults) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.text(funLines, colFun, p.y + rowH / 2 - (funLines.length - 1) * 2 + 0.8);
-    doc.setTextColor(...(principale ? BRAND.green : BRAND.ink));
+    doc.setTextColor(
+      (principale ? BRAND.green : BRAND.ink)[0],
+      (principale ? BRAND.green : BRAND.ink)[1],
+      (principale ? BRAND.green : BRAND.ink)[2],
+    );
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
     doc.text(eur(leva.valore), colVal, midY, { align: "right" });

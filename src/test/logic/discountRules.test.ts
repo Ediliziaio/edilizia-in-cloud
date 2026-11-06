@@ -119,7 +119,7 @@ describe("classifyDiscount", () => {
   });
 
   it("senza soglia di approvazione si è ok fino al massimo", () => {
-    const senzaSoglia = { scontoMaxPct: 15, approvaOltrePct: null };
+    const senzaSoglia = { scontoMaxPct: 15, approvaOltrePct: null as null };
     expect(classifyDiscount(15, senzaSoglia)).toBe("ok");
     expect(classifyDiscount(15.5, senzaSoglia)).toBe("blocked");
   });

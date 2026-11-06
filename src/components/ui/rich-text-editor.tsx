@@ -117,19 +117,23 @@ const FONT_FAMILIES = [
 
 /** Pulisce l'HTML rimuovendo script, style, iframe e attributi pericolosi. */
 function sanitize(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
-      "h1", "h2", "h3", "ul", "ol", "li", "a", "span", "div",
-    ],
+  const clean = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ["p", "br", "strong", "b", "em", "i", "u", "s", "strike", "h1", "h2", "h3", "ul", "ol", "li", "a", "span", "div"],
     ALLOWED_ATTR: ["href", "target", "rel", "style", "data-merge-field"],
-    // Stili consentiti: tipografia + box semplice (per i bottoni CTA delle email).
-    // Tutte proprietà sicure (nessun rischio di iniezione).
-    ALLOWED_CSS_PROPERTIES: [
-      "color", "font-size", "font-family", "text-align", "font-weight", "font-style", "text-decoration", "line-height", "margin-bottom",
-      "background", "background-color", "padding", "margin", "border", "border-radius", "display",
-    ],
   });
+  // DOMPurify non implementa ALLOWED_CSS_PROPERTIES: filtriamo davvero gli stili,
+  // senza installare hook globali che altererebbero gli altri sanitizzatori.
+  const allowed = new Set(["color", "font-size", "font-family", "text-align", "font-weight", "font-style", "text-decoration", "line-height", "margin-bottom", "background", "background-color", "padding", "margin", "border", "border-radius", "display"]);
+  const container = document.createElement("div");
+  container.innerHTML = clean;
+  for (const element of container.querySelectorAll<HTMLElement>("[style]")) {
+    for (const property of Array.from(element.style)) {
+      const value = element.style.getPropertyValue(property);
+      if (!allowed.has(property) || /(?:url|expression|var|env)\s*\(|[\\@]/i.test(value)) element.style.removeProperty(property);
+    }
+    if (!element.style.length) element.removeAttribute("style");
+  }
+  return container.innerHTML;
 }
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor({

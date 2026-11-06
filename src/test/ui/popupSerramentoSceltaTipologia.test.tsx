@@ -156,6 +156,17 @@ describe("popup: scelta della tipologia", () => {
 });
 
 describe("popup: scelta della linea e del prodotto", () => {
+  it("una persiana senza tariffa avvisa del prezzo manuale anche senza flag schema standard", async () => {
+    dati.famiglie = [articoloEsempio("pers", "Persiana 2 ante", { macrocategoria_id: "m-pers", modalita_prezzo_base: "mq", prezzo_base_vendita: 0, custom_field_values: {} })];
+    apri();
+    fireEvent.click((await screen.findByText("Persiane e scuri", { selector: "p" })).closest("button") as HTMLElement);
+    fireEvent.click((await screen.findByText("Persiana 2 ante", { selector: "p" })).closest("button") as HTMLElement);
+    expect(screen.queryByText("Inserisci le misure: il prezzo è calcolato automaticamente")).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("es. 1200"), { target: { value: "1200" } });
+    fireEvent.change(screen.getByPlaceholderText("es. 1400"), { target: { value: "1400" } });
+    await screen.findByText(/non ha ancora una tariffa: non è gratuito/);
+    expect(screen.queryByText("Totale posizione")).toBeNull();
+  });
   it("uno schema standard senza tariffa non viene presentato come prodotto gratuito", async () => {
     dati.famiglie = [finestraSalamander("f2a", { macrocategoria_id: "m-serr", prezzo_base_vendita: 0, custom_field_values: { configurazione_standard: true } })];
     apri();

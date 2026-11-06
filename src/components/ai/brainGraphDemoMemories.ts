@@ -11,9 +11,7 @@
  *   • Temi: ritardo pagamento, IVA 10%, varianti, fideiussione, sicurezza
  */
 
-import type { Database } from "@/integrations/supabase/types";
-
-type MemoryType = Database["public"]["Tables"]["ai_persona_memory"]["Row"]["memory_type"];
+type MemoryType = "fact" | "preference" | "decision" | "pattern" | "avoid";
 
 export interface DemoMemory {
   persona_key: string;

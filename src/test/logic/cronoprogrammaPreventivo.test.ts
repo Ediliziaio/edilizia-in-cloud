@@ -90,3 +90,7 @@ describe("nel documento", () => {
     expect(dati.modello.cronoprogramma).toEqual([{ fase: "Impianti", durata: "2 settimane", descrizione: null }]);
   });
 });
+
+it("distingue i quattro giorni lavorativi dalla stima di calendario", () => {
+  expect(durataComplessiva([1, 2, 1].map((n, i) => ({ fase: `Fase ${i}`, durata: `${n} giorni lavorativi`, descrizione: null as null })))).toBe("circa 6 giorni di calendario (stima su 5 giorni lavorativi a settimana)");
+});

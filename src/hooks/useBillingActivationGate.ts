@@ -111,5 +111,5 @@ export function statoAttivazione(
 
 export function useBillingActivationGate(): BillingActivationState {
   const { effectiveCompany, role } = useAuth();
-  return statoAttivazione(effectiveCompany as Record<string, unknown> | null, role);
+  return statoAttivazione(effectiveCompany ? { ...effectiveCompany } : null, role);
 }

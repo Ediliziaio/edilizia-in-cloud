@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ListChecks, RefreshCw, SlidersHorizontal, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -125,7 +125,9 @@ export function RenderResultRefinementPanel({
   maxItems = 22,
 }: RenderResultRefinementPanelProps) {
   const isMobile = useIsMobile();
-  const choices = useMemo(() => collectChoices(config).slice(0, maxItems), [config, maxItems]);
+  const [showAll, setShowAll] = useState(false);
+  const allChoices = useMemo(() => collectChoices(config), [config]);
+  const choices = showAll ? allChoices : allChoices.slice(0, maxItems);
   const groups = useMemo(() => Array.from(new Set(choices.map((item) => item.group))), [choices]);
 
   // Telefono: resta solo la richiesta e il bottone, secondario rispetto a
@@ -202,6 +204,11 @@ export function RenderResultRefinementPanel({
                 </div>
               </div>
             ))}
+            {!showAll && allChoices.length > choices.length && (
+              <Button type="button" variant="outline" onClick={() => setShowAll(true)}>
+                Mostra tutte le scelte ({allChoices.length})
+              </Button>
+            )}
           </div>
         ) : (
           <div className="rounded-xl border bg-white p-3 text-sm text-muted-foreground">

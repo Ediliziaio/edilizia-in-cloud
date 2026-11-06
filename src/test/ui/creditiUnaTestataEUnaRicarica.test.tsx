@@ -101,7 +101,7 @@ describe("Crediti: una testata, una frase per i blocchi", () => {
     apri();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.getAllByText(/42,50/)).toHaveLength(1);
-    expect(screen.getByText("Saldo totale")).toBeInTheDocument();
+    expect(screen.getByText("Saldo ricaricato")).toBeInTheDocument();
     expect(screen.queryByText("Crediti & Saldo")).toBeNull();
   });
 

@@ -566,8 +566,8 @@ export default function PavimentiWizard() {
             <EsigenzeCliente
               valore={esigenzeDelPreventivo(form)}
               onChange={(v) => onChange("esigenze", v)}
-              libreria={leggiEsigenze(templatePdf?.esigenze)}
-              dellaCasa={ESIGENZE_DI_SERIE.pavimenti}
+              libreria={leggiEsigenze(model ? (savedModel.snapshot?.template as { esigenze?: unknown } | undefined)?.esigenze : templatePdf?.esigenze)}
+              dellaCasa={model ? [] : ESIGENZE_DI_SERIE.pavimenti}
             />
             <StepImmobile form={form} onChange={onChange} model={model} />
           </>

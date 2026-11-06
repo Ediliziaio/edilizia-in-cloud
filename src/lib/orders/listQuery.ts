@@ -1,3 +1,4 @@
+import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import {readAllOrderRows} from "./listScope";
 import {supabase} from "@/integrations/supabase/client";
 import type {OrderWithDetails} from "@/lib/orderUtils";
@@ -209,5 +210,5 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
       // Le date delle varianti (offline_signed_on…) mancano nei tipi generati: ci sono nel database.
-      return { orders: data as unknown as OrderWithDetails[], totalCount: count ?? 0 };
+      return { orders: await leggiModalitaCommesse(companyId, (data ?? []) as unknown as OrderWithDetails[]), totalCount: count ?? 0 };
 }

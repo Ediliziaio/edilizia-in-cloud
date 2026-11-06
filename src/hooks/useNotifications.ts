@@ -43,7 +43,7 @@ export function NotificationsRealtime({
 }: {
   /** Nel campo i link dell'ufficio vanno tradotti (linkPerCampo). */
   trasformaLink?: (url: string) => string;
-} = {}) {
+} = {}): null {
   const { profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -228,8 +228,8 @@ export function useNotifications() {
       body: g.ids.length > 1
         ? `${g.rep.message} · te lo segnaliamo da ${daQuando(g.dal)}`
         : g.rep.message,
-      entity_type: null,
-      entity_id: null,
+      entity_type: null as null,
+      entity_id: null as null,
       action_url: LINK_PER_TIPO[g.rep.notification_type] ?? null,
       // Un avviso azienda NON è un messaggio: è un problema aperto. Resta
       // "da gestire" (e quindi contato nel pallino rosso) finché non lo

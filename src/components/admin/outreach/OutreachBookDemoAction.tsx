@@ -121,7 +121,7 @@ export function OutreachBookDemoAction({
           appointment={null}
           defaultContactId={contactId ?? undefined}
           defaultTitle={defaultTitle}
-          calendars={calendars}
+          calendars={calendars.map(calendar => ({ ...calendar, default_meeting_provider: calendar.default_meeting_provider === "google_meet" ? "google_meet" as const : "none" as const }))}
           users={users}
           onSaved={() => {
             toast.success("Demo prenotata", {

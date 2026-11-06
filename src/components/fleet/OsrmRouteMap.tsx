@@ -25,7 +25,7 @@ interface OsrmRouteMapProps {
   height?: string;
 }
 
-function FitRoute({ coords }: { coords: [number, number][] }) {
+function FitRoute({ coords }: { coords: [number, number][] }): null {
   const map = useMap();
   useEffect(() => {
     if (coords.length < 2) return;

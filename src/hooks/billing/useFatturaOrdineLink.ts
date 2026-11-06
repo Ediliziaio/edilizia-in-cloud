@@ -112,11 +112,15 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       const junctionFatturaIds = ((junctionData as any[]) ?? []).map((j: any) => j.fattura_id);
       let junctionFatture: any[] = [];
       if (junctionFatturaIds.length > 0) {
-        const { data: fData } = await supabase
+        const fattureQuery = supabase
           .from("documenti_fiscali" as never)
           .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento")
           .in("id", junctionFatturaIds)
           .is("deleted_at", null);
+        const { data: fData, error: fErr } = companyId
+          ? await fattureQuery.eq("company_id" as never, companyId as never)
+          : await fattureQuery;
+        if (fErr) throw fErr;
         junctionFatture = (fData as any[]) ?? [];
       }
 

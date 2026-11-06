@@ -296,7 +296,7 @@ export function useUpdateOrderItemStatusMutation() {
       lotNumber?: string | null;
       stockItemId?: string | null;
     }) => {
-      const updates: Record<string, unknown> = {
+      const updates: import("@/integrations/supabase/types").Database["public"]["Tables"]["order_items"]["Update"] = {
         status,
         updated_at: new Date().toISOString(),
       };

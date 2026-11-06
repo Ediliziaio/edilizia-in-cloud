@@ -17,7 +17,7 @@ import {
 } from "../../../shared/render-references/bathroomReferences.ts";
 import type { PhotoTable } from "../../../shared/render-references/referencePicker.ts";
 
-function renderForm(onChange: ReturnType<typeof vi.fn>) {
+function renderForm(onChange: (config: typeof DEFAULT_BATHROOM_CONFIG) => void) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);

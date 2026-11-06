@@ -1,3 +1,4 @@
+import { costoTrattenuto, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import type { Tables } from "@/integrations/supabase/types";
 import { dimenticaCommesseArchiviate } from "@/lib/orders/archivedOrderScope";
 import { indiceSaldoFinale } from "@/lib/orders/saldoFinale";
@@ -255,6 +256,7 @@ export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "custom
   financing_paid_date?: string | null;
   financing_expected_date?: string | null;
   financing_cost?: number | null;
+  financing_cost_mode?: ModalitaCostoFinanziaria | null;
   payment_type?: string | null;
   /**
    * Rate vere del piano pagamenti (order_installments), quando la query le ha
@@ -406,11 +408,6 @@ export async function deleteOrderCascading(orderId: string, companyId: string): 
   dimenticaCommesseArchiviate(companyId);
 }
 
-/**
- * Il costo della finanziaria da togliere dalla base incassabile: conta solo
- * quando la commessa è a finanziamento, esattamente come nel modulo di
- * creazione, dove il saldo è "totale ivato − le altre rate − costo finanziaria".
- */
 /** Le colonne di ordini_variazione che servono a totale e incassi (nested select «variazioni» delle liste). */
 export interface VarianteDellaCommessa {
   status: string;
@@ -461,18 +458,20 @@ export function getAmountCollected(order: OrderWithDetails): number {
     totalAmount: contrattoPattuito(order),
     vatRate: order.vat_rate ?? 22,
     financingCost: financingCostForOrder(order),
+    financingCostMode: order.financing_cost_mode,
     includeFinancing: true,
     varianti: order.variazioni ? variantiApprovateDatate(order.variazioni) : undefined,
   });
 }
 
 /**
- * Da Ricevere della commessa, in IVATO: totale ivato − costo finanziaria −
- * incassato. È la stessa base del dettaglio commessa, così Incassato + Da
- * Ricevere torna al Venduto (Tot. Ivato) quando il piano è saldato per intero.
+ * Da Ricevere della commessa, in IVATO: base incassabile meno incassato.
+ * La trattenuta riduce la base incassabile; il costo pagato separatamente
+ * è un'uscita e non la riduce. Per le modalità storiche nulle si conserva
+ * la regola legacy, senza ricalcolare i movimenti già registrati.
  */
 export function getAmountDue(order: OrderWithDetails): number {
-  const incassabile = getGrossOrderAmount(order) - financingCostForOrder(order);
+  const incassabile = getGrossOrderAmount(order) - costoTrattenuto(financingCostForOrder(order), order.financing_cost_mode);
   // Arrotondato ai centesimi: toglie il rumore in virgola mobile del totale
   // ivato (es. 110000.000…1) così la somma su molte commesse resta pulita.
   return Math.max(0, Math.round((incassabile - getAmountCollected(order)) * 100) / 100);

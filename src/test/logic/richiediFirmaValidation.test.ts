@@ -16,6 +16,7 @@ describe("richiedi firma validation", () => {
     });
 
     expect(result.ok).toBe(false);
+    if (result.ok === true) throw new Error("La validazione doveva fallire");
     expect(result.error).toContain("PDF");
   });
 

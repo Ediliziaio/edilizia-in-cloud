@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -495,10 +496,10 @@ export function UsersConfig() {
         first_name: person.first_name ?? "",
         last_name: person.last_name ?? "",
         email: person.email ?? "",
-        phone: null,
+        phone: null as null,
         company_id: effectiveCompanyId,
-        last_login_at: null,
-        locked_until: null,
+        last_login_at: null as null,
+        locked_until: null as null,
         failed_login_count: 0,
         roles: Array.isArray(person.roles) ? person.roles : null,
       }));
@@ -561,7 +562,7 @@ export function UsersConfig() {
           .limit(2000), "Sessioni utenti", 10_000),
       ]);
       [rolesResult, sessionsResult].forEach((result) => {
-        if (result.warning) warnings.push(result.warning);
+        if ("warning" in result && result.warning) warnings.push(result.warning);
       });
 
       const rolesByUser: Record<string, string[]> = {};
@@ -623,7 +624,7 @@ export function UsersConfig() {
           failed_login_count: profile?.failed_login_count ?? 0,
           effectiveRole: determineEffectiveRole(safeRoles),
           allRoles: safeRoles,
-          permissions: null,
+          permissions: null as null,
           collegato_adesso: collegati.has(uid),
           ultimo_segno_di_vita: ultimoSegnoDiVita(profile?.last_login_at ?? null, sessioniByUser[uid] ?? []),
           is_blocked: blockedByUser[uid] ?? false,
@@ -707,7 +708,7 @@ export function UsersConfig() {
       actor_id: user.id,
       target_user_id: targetUserId,
       action,
-      details,
+      details: jsonPayload(details),
     });
     if (error) logger.error("Failed to write user audit log:", error);
   };

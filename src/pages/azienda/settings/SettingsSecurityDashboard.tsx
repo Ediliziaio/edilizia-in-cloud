@@ -338,7 +338,7 @@ export default function SettingsSecurityDashboard() {
               <CardTitle className="text-base">Sessioni delle persone</CardTitle>
               <CardDescription>
                 {collegati.size === 1 ? "1 persona collegata" : `${collegati.size} persone collegate`} adesso (viste attive negli ultimi {FINESTRA_COLLEGATO_MINUTI} minuti).{" "}
-                {activeSessions.length === 1 ? "1 sessione è rimasta aperta" : `${activeSessions.length} sessioni sono rimaste aperte`} su {sessions.length} recenti:
+                {activeSessions.length === 1 ? "1 sessione è rimasta aperta" : `${activeSessions.length} sessioni sono rimaste aperte`} su {sessions.length} recenti (massimo 100). Il riepilogo in alto conta tutte le sessioni aperte:
                 una sessione si chiude quando la persona esce, oppure da qui.
               </CardDescription>
             </CardHeader>
@@ -363,7 +363,7 @@ export default function SettingsSecurityDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sessions.slice(0, 50).map((s: any) => {
+                    {sessions.map((s: any) => {
                       const profile = s.profiles;
                       const userName = profile ? `${profile.first_name} ${profile.last_name}` : "—";
                       return (

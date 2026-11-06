@@ -177,7 +177,7 @@ export function CustomerComposeBar({
   const handleSendSms = async () => {
     if (!smsText.trim() || !customerPhone) return;
     try {
-      await sendSmsAsync({ to_number: customerPhone, body: smsText.trim(), trigger_entity: "contact", trigger_ref: customerId });
+      await sendSmsAsync({ to_number: customerPhone, body: smsText.trim(), trigger_ref: customerId });
       setSmsText("");
       qc.invalidateQueries({ queryKey: ["customer-diary-timeline", customerId] });
       qc.invalidateQueries({ queryKey: ["customer-messages", customerId] });

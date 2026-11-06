@@ -31,7 +31,7 @@ describe("Documento SAL progressivo",()=>{
   });
   it("marca una bozza non emessa e rende innocue note HTML",()=>{
     const html=buildSalHtml({...record("bozza"),note:'<img src="x" onerror="alert(1)">'},null,company);
-    expect(html).toContain("BOZZA - Non emessa");expect(html).toContain("&lt;img");expect(html).not.toContain('<img src="x"');
+    expect(html).toContain("BOZZA - Non emessa");expect(html).toContain("Bozza del");expect(html).not.toContain("Emesso il");expect(html).toContain("&lt;img");expect(html).not.toContain('<img src="x"');
   });
 });
 function harness(options:{prepare?:boolean;state?:string;permitted?:boolean;editPermitted?:boolean;tokenError?:boolean}={}){

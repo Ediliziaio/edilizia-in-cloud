@@ -203,6 +203,7 @@ describe("mapVociToQuoteItems", () => {
 
 const risultato = (p: Partial<SimulazioneRisultato>): SimulazioneRisultato => ({
   costo_totale: 0,
+  provvigioni_totale: 0,
   ricavo_imponibile: 0,
   margine_valore: 0,
   margine_pct: 0,
@@ -227,7 +228,7 @@ const risultato = (p: Partial<SimulazioneRisultato>): SimulazioneRisultato => ({
 const doc = (p: Partial<SimulazioneDoc>): SimulazioneDoc => ({
   voci: [],
   fasi: [],
-  scenari: {
+  scenari: { ...DEFAULT_SCENARI,
     iva_mode: "singola",
     iva_rate_singola: 10,
     iva_confronto: [4, 10, 22],
@@ -256,7 +257,7 @@ describe("mapToOrderPayload", () => {
 
   it("vat_rate = aliquota singola attiva", () => {
     const payload = mapToOrderPayload(
-      doc({ scenari: { iva_mode: "singola", iva_rate_singola: 22, iva_confronto: [], finanziamento: null } }),
+      doc({ scenari: { ...DEFAULT_SCENARI, iva_mode: "singola", iva_rate_singola: 22, iva_confronto: [], finanziamento: null } }),
       risultato({ ricavo_imponibile: 1000 }),
       { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" },
     );
@@ -266,7 +267,7 @@ describe("mapToOrderPayload", () => {
   it("vat_rate = aliquota EFFETTIVA in modalità mista (FIX 3a)", () => {
     // iva_totale 214 su imponibile netto 1700 → 12.59% effettivo (non 22 fisso).
     const payload = mapToOrderPayload(
-      doc({ scenari: { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null } }),
+      doc({ scenari: { ...DEFAULT_SCENARI, iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null } }),
       risultato({ ricavo_imponibile: 1700, ricavo_netto: 1700, iva_totale: 214 }),
       { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" },
     );
@@ -275,7 +276,7 @@ describe("mapToOrderPayload", () => {
 
   it("vat_rate mista con imponibile 0 → fallback all'aliquota singola", () => {
     const payload = mapToOrderPayload(
-      doc({ scenari: { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null } }),
+      doc({ scenari: { ...DEFAULT_SCENARI, iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null } }),
       risultato({ ricavo_imponibile: 0, iva_totale: 0 }),
       { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" },
     );
@@ -325,7 +326,7 @@ describe("mapToOrderPayload", () => {
   it("payment_type=financing + financing_amount/cost dallo scenario finanziamento", () => {
     const payload = mapToOrderPayload(
       doc({
-        scenari: {
+        scenari: { ...DEFAULT_SCENARI,
           iva_mode: "singola",
           iva_rate_singola: 10,
           iva_confronto: [],
@@ -340,11 +341,15 @@ describe("mapToOrderPayload", () => {
         statusId: "s",
         description: "d",
         financingCost: 800,
+        financingCostMode: "trattenuto",
       },
     );
     expect(payload.p_order_data.payment_type).toBe("financing");
     expect(payload.p_order_data.financing_amount).toBe(4000);
     expect(payload.p_order_data.financing_cost).toBe(800);
+    expect(payload.p_order_data.financing_cost_mode).toBe("trattenuto");
+    expect(payload.p_order_data.deposit_amount).toBe(1000);
+    expect(payload.p_installments.map(r => r.amount)).toEqual([1000, 4000, 500]);
   });
 
   it("payment_type=standard e financing a 0 senza scenario finanziamento", () => {

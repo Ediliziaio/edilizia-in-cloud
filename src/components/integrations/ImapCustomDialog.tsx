@@ -344,8 +344,11 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
           </div>
 
           <div>
-            <Label className="text-xs">Indirizzo email</Label>
+            <Label htmlFor="casella-email" className="text-xs">Indirizzo email</Label>
             <Input
+              id="casella-email"
+              name="casella-email"
+              autoComplete="off"
               type="email"
               value={emailAddress}
               onChange={(e) => {
@@ -357,8 +360,11 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
           </div>
 
           <div>
-            <Label className="text-xs">Username IMAP/SMTP</Label>
+            <Label htmlFor="casella-username" className="text-xs">Username IMAP/SMTP</Label>
             <Input
+              id="casella-username"
+              name="casella-username"
+              autoComplete="off"
               value={imapUsername}
               onChange={(e) => setImapUsername(e.target.value)}
               placeholder="Lascia vuoto per usare l'email"
@@ -369,13 +375,15 @@ export function ImapCustomDialog({ open, onOpenChange, daRicollegare = null }: I
           </div>
 
           <div>
-            <Label className="text-xs">Password</Label>
+            <Label htmlFor="casella-password" className="text-xs">Password della casella</Label>
             <Input
+              id="casella-password"
+              name="casella-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password account o app-password"
-              autoComplete="off"
+              autoComplete="new-password"
             />
           </div>
 

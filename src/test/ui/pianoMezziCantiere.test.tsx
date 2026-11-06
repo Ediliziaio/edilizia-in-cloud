@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/hooks/useMezziPianoEconomia", () => ({
   usePersonePianoMezzi: () => ({
     data: [
@@ -53,7 +54,6 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   costi: true,
   edit: true,
@@ -62,6 +62,7 @@ const state = vi.hoisted(() => ({
   presenti: [] as unknown[],
   mutate: vi.fn().mockResolvedValue(undefined),
   assegna: vi.fn().mockResolvedValue(undefined),
+  chiudi: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({
@@ -115,6 +116,7 @@ vi.mock("@/hooks/usePianoMezziCantiere", () => ({
       refetch: vi.fn(),
     },
     salva: { mutateAsync: state.mutate, isPending: false },
+    chiudiRientro: { mutateAsync: state.chiudi, isPending: false },
   }),
 }));
 vi.mock("@tanstack/react-query", () => ({
@@ -142,8 +144,10 @@ vi.mock("@/components/mezzi/MezzoFormDialog", () => ({
   MezzoFormDialog: () : null => null,
 }));
 import { PianoMezziCantiere } from "@/components/mezzi/PianoMezziCantiere";
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-02T12:00:00+01:00"));
   state.costi = true;
   state.edit = true;
   state.priceError = false;
@@ -151,6 +155,7 @@ beforeEach(() => {
   state.presenti = [];
   state.mutate.mockClear();
   state.assegna.mockClear();
+  state.chiudi.mockClear();
 });
 describe("UX pianificazione mezzi", () => {
   it("dalla fase precompila la lavorazione e riusa le sue date su richiesta", () => {
@@ -255,9 +260,9 @@ describe("UX pianificazione mezzi", () => {
     expect(screen.getByText(/^Sul cantiere dal/)).toBeTruthy();
     expect(screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("Betoniera propria"))).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "È rientrato" }));
-    await waitFor(() => expect(state.assegna).toHaveBeenCalledWith({ mezzoId: "betoniera", orderId: null }));
-    // La prenotazione senza fine si chiude oggi e va nello storico.
-    await waitFor(() => expect(state.mutate).toHaveBeenCalledWith(expect.objectContaining({ id: "p", al: expect.any(String) })));
+    await waitFor(() => expect(state.chiudi).toHaveBeenCalledWith({ pianoId: "p", allocazioneId: undefined }));
+    expect(state.assegna).not.toHaveBeenCalledWith({ mezzoId: "betoniera", orderId: null });
+    expect(state.mutate).not.toHaveBeenCalled();
   });
   it("le fasi spostate si segnalano e si allineano con un clic", async () => {
     state.rows = [

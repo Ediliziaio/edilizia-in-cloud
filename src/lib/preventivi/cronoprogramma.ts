@@ -76,7 +76,10 @@ export function durataComplessiva(fasi: readonly FaseCrono[]): string | null {
   if (giorni.length === 0 || giorni.some((g) => g == null)) return null;
   const totale = (giorni as number[]).reduce((a, b) => a + b, 0);
   if (totale <= 0) return null;
-  if (totale < 14) return `${Math.round(totale)} giorni`;
+  if (totale < 14) {
+    const lavorativi = fasi.some(f => /lavorativ/i.test(f.durata ?? ""));
+    return lavorativi ? `circa ${Math.round(totale)} giorni di calendario (stima su 5 giorni lavorativi a settimana)` : `${Math.round(totale)} giorni`;
+  }
   if (totale < 60) {
     const settimane = Math.round(totale / 7);
     return `circa ${settimane} settiman${settimane === 1 ? "a" : "e"}`;

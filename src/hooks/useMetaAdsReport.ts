@@ -410,7 +410,7 @@ export function useMetaAdsReport() {
   }, [companyId, userId, setVisibleColumns]);
 
   // --- Persistence: save preferences (debounced) ---
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (!companyId || !userId || !prefsLoaded.current) return;
     clearTimeout(saveTimerRef.current);

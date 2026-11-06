@@ -7,6 +7,7 @@ const stato = vi.hoisted(() => ({
   permessi: { canEditOrders: true, canValidateBom: false, canManagePurchasing: false, canViewCosts: true, isAdmin: false },
   fasi: [] as unknown[],
   cambia: vi.fn(),
+  quantita: vi.fn(),
   creaOrdini: vi.fn(),
   tabelle: {} as Record<string, unknown[]>,
   richieste: [] as unknown[],
@@ -44,7 +45,7 @@ vi.mock("@/hooks/useMaterialiPerFase", () => {
   return {
     useMaterialiPerFase: () => ({ fasi: stato.fasi, isLoading: false, isError: false, refetch: vi.fn() }),
     useAzioniMateriali: () => ({
-      cambiaStato: muta(stato.cambia), aggiornaMateriale: muta(), spostaInFase: muta(), assegnaFornitore: muta(),
+      cambiaStato: muta(stato.cambia), aggiornaMateriale: muta(stato.quantita), spostaInFase: muta(), assegnaFornitore: muta(),
       richiediOfferta: muta(), creaOrdini: muta(stato.creaOrdini), elimina: muta(), allineaUnita: muta(stato.allinea),
     }),
     chiaviMateriali: { commessa: (id: string) => ["materiali-per-fase", id] },
@@ -64,6 +65,7 @@ const materiale = (id: string, extra: Record<string, unknown> = {}) => ({
 describe("Materiali per fase nella commessa", () => {
   beforeEach(() => {
     stato.cambia.mockReset();
+    stato.quantita.mockReset();
     stato.creaOrdini.mockReset();
     stato.permessi = { canEditOrders: true, canValidateBom: false, canManagePurchasing: false, canViewCosts: true, isAdmin: false };
   });
@@ -75,6 +77,22 @@ describe("Materiali per fase nella commessa", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("CHECK-98: non tronca silenziosamente una quantità decimale", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
+      materiali: [materiale("a", { quantity: 2, unita_misura: "m", quantita_calcolata: 1.2 })] }];
+    await disegna();
+    const input = screen.getByLabelText(/Quantità di Materiale a/);
+    for (const value of ["1,2", "1.2"]) {
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      expect(input).toHaveValue("2");
+      expect(stato.quantita).not.toHaveBeenCalled();
+    }
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.blur(input);
+    expect(stato.quantita).toHaveBeenCalledWith(expect.objectContaining({ modifica: { quantity: 3 } }));
+  });
 
   it("fase in bozza: pillola, conteggi, provenienza dal computo, «Invia al tecnico» per chi prepara", async () => {
     stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza", note_validazione: null, validata_il: null, inviata_il: null },

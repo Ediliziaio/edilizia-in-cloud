@@ -4,7 +4,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Users, Search, ChevronLeft, ChevronRight, Ban, CheckCircle2, KeyRound,
-  MonitorSmartphone, ShieldAlert, Loader2,
+  MonitorSmartphone, ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ import {
 const PAGE_SIZE = 50;
 
 const FILTRI_STATO = [
-  { valore: null, etichetta: "Tutti" },
+  { valore: null as null, etichetta: "Tutti" },
   { valore: "attivi" as const, etichetta: "Attivi" },
   { valore: "bloccati" as const, etichetta: "Bloccati" },
   { valore: "mai_entrati" as const, etichetta: "Mai entrati" },

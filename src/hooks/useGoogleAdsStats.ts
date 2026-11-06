@@ -199,7 +199,7 @@ export function useGoogleAdsStats(): UseGoogleAdsStatsReturn {
           .lte("date", toStr)
           .order("date", { ascending: false });
 
-        rows = fallback.data;
+        rows = fallback.data?.map(row => ({ ...row, conversion_value: null as null, search_impression_share: null as null })) ?? null;
         queryError = fallback.error;
       }
 

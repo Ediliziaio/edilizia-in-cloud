@@ -221,7 +221,7 @@ export function MacroCategorieManager() {
   const handleImageUpload = async (file: File) => {
     if (editMode.kind !== "macro-edit") return;
     const res = await macroImage.upload(editMode.row.id, file);
-    if (!res.ok) {
+    if (res.ok === false) {
       toast.error("Upload fallito", { description: res.error });
       return;
     }
@@ -267,7 +267,7 @@ export function MacroCategorieManager() {
   const handleImageRemove = async () => {
     if (editMode.kind !== "macro-edit") return;
     const res = await macroImage.remove(editMode.row.id);
-    if (!res.ok) {
+    if (res.ok === false) {
       toast.error("Rimozione fallita", { description: res.error });
       return;
     }

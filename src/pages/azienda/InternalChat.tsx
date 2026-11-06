@@ -1,3 +1,4 @@
+import { normalizzaMetadatiMessaggio } from "@/lib/chat/normalizzaMetadatiMessaggio";
 /**
  * InternalChat — WhatsApp-style team chat
  * Supports DMs, group chats, Silvio AI bot, reactions, replies, pins.
@@ -507,7 +508,7 @@ function useInternalChat(companyIdOverride?: string) {
   const {
     data: sidebarState = { lastMessages: {}, unreadCounts: {} },
     refetch: refetchSidebarState,
-  } = useQuery({
+  } = useQuery<{ lastMessages: Record<string, Message>; unreadCounts: Record<string, number> }>({
     queryKey: ["internal-chat-sidebar-state", companyId, userId, channelIds],
     enabled: !!companyId && channelIds.length > 0,
     queryFn: async () => {
@@ -557,7 +558,7 @@ function useInternalChat(companyIdOverride?: string) {
       }));
 
       return {
-        lastMessages: latestMessageByChannel((data || []) as Message[]),
+        lastMessages: latestMessageByChannel((data || []).map(normalizzaMetadatiMessaggio)),
         unreadCounts,
       };
     },
@@ -661,7 +662,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PAGE_SIZE + 1);
       if (error) throw error;
-      const rows = ((data ?? []) as Message[]);
+      const rows = ((data ?? []).map(normalizzaMetadatiMessaggio));
       return {
         items: rows.slice(0, MESSAGES_PAGE_SIZE).reverse(),
         hasOlder: rows.length > MESSAGES_PAGE_SIZE,
@@ -686,7 +687,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         .limit(MESSAGES_PAGE_SIZE + 1);
       if (error) throw error;
 
-      const rows = ((olderRows ?? []) as Message[]);
+      const rows = ((olderRows ?? []).map(normalizzaMetadatiMessaggio));
       const olderItems = rows.slice(0, MESSAGES_PAGE_SIZE).reverse();
       queryClient.setQueryData<ChannelMessagesData>(queryKey, (current) => ({
         items: [...olderItems, ...(current?.items ?? [])],
@@ -1432,13 +1433,14 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
           // come dead-code che induceva in errore eventuali refactor futuri.
           const body = (msg.content ?? "").slice(0, 140) || "Hai ricevuto un messaggio";
           try {
-            const n = new Notification(senderName, {
+            const notificationOptions: NotificationOptions & { renotify: boolean } = {
               body,
               icon: "/favicon.ico",
               tag: `chat-${msg.channel_id}`,
               renotify: true,
               silent: false,
-            });
+            };
+            const n = new Notification(senderName, notificationOptions);
             n.onclick = () => {
               window.focus();
               if (msg.channel_id) handleSelectChannel(msg.channel_id);

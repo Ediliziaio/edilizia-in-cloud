@@ -59,7 +59,7 @@ const store = {
     for (const l of store.listeners) l();
   },
 
-  setState(patch: Partial<typeof store.state>) {
+  setState(patch: Partial<{ isOnline: boolean; isReachable: boolean; offlineSince: number | null }>) {
     const next = { ...store.state, ...patch };
     // Skip update se identico (evita re-render inutili)
     if (

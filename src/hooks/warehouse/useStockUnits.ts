@@ -560,3 +560,19 @@ export function useArticoliConSeriale(stockItemIds: string[]) {
     },
   });
 }
+
+/** Seriali già collegati alla commessa, ma non ancora a una sua riga materiale. */
+export function useSerialiCommessaSenzaRiga(orderId: string) {
+  return useQuery<StockUnit[]>({
+    queryKey: ["warehouse", "stock-units-order-unlinked", orderId],
+    enabled: !!orderId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("stock_units").select("*")
+        .or(`reserved_order_id.eq.${orderId},delivered_to_order_id.eq.${orderId}`)
+        .is("reserved_order_item_id", null).is("delivered_order_item_id", null)
+        .order("serial_number").limit(2000);
+      if (error) throw error;
+      return (data ?? []) as unknown as StockUnit[];
+    },
+  });
+}

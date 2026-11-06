@@ -201,7 +201,7 @@ type ComposeDraft = {
 };
 
 function withClientTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof window.setTimeout> | undefined;
+  let timer: number | undefined;
   const timeout = new Promise<T>((_, reject) => {
     timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
   });

@@ -159,3 +159,11 @@ describe("copia di cortesia: i dettagli", () => {
     expect(euroConSegno(-160)).toBe("−160,00 €");
   });
 });
+
+it("UX-58: la bozza non afferma che esiste un XML trasmesso o un originale sul sito AdE", () => {
+  const html = documentoHtml({ ...fattura, stato: "bozza" }, azienda);
+  expect(html).toContain("Bozza da verificare. Documento non ancora emesso.");
+  expect(html).not.toContain("file XML trasmesso");
+  expect(html).not.toContain("L'originale è disponibile");
+  expect(documentoHtml({ ...fattura, stato: "emessa" }, azienda)).toContain("Copia di cortesia");
+});

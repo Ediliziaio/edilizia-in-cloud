@@ -54,8 +54,8 @@ function fakeClient(rows: Array<{ from_phone: string | null; created_at: string 
         gte() { return chain; },
         order() { return chain; },
         async limit() {
-          if ("error" in (rows as { error?: true })) return { data: null, error: { message: "no col" } };
-          return { data: rows, error: null };
+          if ("error" in (rows as { error?: true })) return { data: null as null, error: { message: "no col" } };
+          return { data: rows, error: null as null };
         },
       };
       return chain;

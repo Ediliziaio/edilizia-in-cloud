@@ -40,16 +40,18 @@ export function EditorOrdineSection({ state, disabled }: Props) {
   const ordineLinkParam = searchParams.get("ordine_link");
   useEffect(() => {
     if (ordineLinkParam && fatturaId && companyId && !autoLinkRef.current && !isLoading) {
-      const alreadyLinked = linkedOrdini.some((l: any) => l.ordine_id === ordineLinkParam);
+      const alreadyLinked = state.ordine_id === ordineLinkParam || linkedOrdini.some((l: any) => l.ordine_id === ordineLinkParam);
       if (!alreadyLinked) {
         autoLinkRef.current = true;
         linkMutation.mutate({ fatturaId, ordineId: ordineLinkParam, companyId });
       }
     }
-  }, [ordineLinkParam, fatturaId, companyId, isLoading, linkedOrdini]);
+  }, [ordineLinkParam, fatturaId, companyId, isLoading, linkedOrdini, state.ordine_id]);
 
   // Filter out already linked
   const linkedIds = new Set(linkedOrdini.map((l: any) => l.ordine_id));
+  if (state.ordine_id) linkedIds.add(state.ordine_id);
+  const directOnly = !!state.ordine_id && !linkedOrdini.some((l: { ordine_id: string }) => l.ordine_id === state.ordine_id);
   const filteredResults = searchResults.filter((o) => !linkedIds.has(o.id));
 
   const handleLink = (ordineId: string) => {
@@ -75,6 +77,15 @@ export function EditorOrdineSection({ state, disabled }: Props) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {directOnly && (
+          <div className="rounded-md border bg-muted/30 p-2 text-sm">
+            <Link className="inline-flex items-center gap-2 underline" to={`/azienda/ordini/${state.ordine_id}`}>
+              <ExternalLink className="h-3.5 w-3.5" />
+              Apri la commessa di origine
+            </Link>
+            <p className="mt-1 text-xs text-muted-foreground">Collegamento già presente nel documento.</p>
+          </div>
+        )}
         {/* Linked orders */}
         {linkedOrdini.length > 0 && (
           <div className="space-y-2">
@@ -127,7 +138,7 @@ export function EditorOrdineSection({ state, disabled }: Props) {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="w-full text-xs">
                 <Search className="h-3.5 w-3.5 mr-1.5" />
-                {linkedOrdini.length === 0
+                {linkedOrdini.length === 0 && !directOnly
                   ? "Collega un ordine"
                   : "Collega altro ordine"}
               </Button>

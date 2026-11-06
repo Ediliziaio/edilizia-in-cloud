@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 /**
  * Hook fire-and-forget per loggare accessi commercialista a moduli/risorse
  * dell'azienda cliente. Insert su public.accountant_audit_log.
@@ -25,12 +26,15 @@ type AuditActionPayload = {
 
 export async function logAccountantAction(payload: AuditActionPayload) {
   try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return;
     const { error } = await supabase.from("accountant_audit_log").insert({
       company_id: payload.companyId,
+      user_id: user.id,
       action: payload.action,
       resource_type: payload.resourceType ?? null,
       resource_id: payload.resourceId ?? null,
-      metadata: payload.metadata ?? {},
+      metadata: jsonPayload(payload.metadata ?? {}),
     });
     if (error) {
       // RLS può rifiutare se il commercialista non ha accesso → silenzioso

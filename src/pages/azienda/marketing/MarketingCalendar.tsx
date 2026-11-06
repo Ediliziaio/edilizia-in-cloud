@@ -1,3 +1,4 @@
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
@@ -928,7 +929,7 @@ export default function MarketingCalendar() {
     const oldTime = current?.appointment_time;
     const oldEndTime = current?.appointment_end_time;
 
-    const updateData: Record<string, string | null> = { appointment_date: newDate };
+    const updateData: TablesUpdate<"appointments"> = { appointment_date: newDate };
     if (newTime) {
       updateData.appointment_time = newTime;
       if (current?.appointment_time && current?.appointment_end_time) {
@@ -986,7 +987,7 @@ export default function MarketingCalendar() {
       action: {
         label: "Annulla",
         onClick: async () => {
-          const rollback: Record<string, string | null> = {};
+          const rollback: TablesUpdate<"appointments"> = {};
           if (oldDate) rollback.appointment_date = oldDate;
           if (oldTime) rollback.appointment_time = oldTime;
           if (oldEndTime !== undefined) rollback.appointment_end_time = oldEndTime;
@@ -1472,7 +1473,7 @@ export default function MarketingCalendar() {
                   </SheetHeader>
                   <div className="overflow-y-auto h-[calc(100%-60px)]">
                     <MarketingCalendarFilters
-                      calendars={calendars}
+                      calendars={calendars.map(calendar => ({ ...calendar, default_meeting_provider: calendar.default_meeting_provider === "google_meet" ? "google_meet" as const : "none" as const }))}
                       users={users}
                       selectedCalendarIds={selectedCalendarIds}
                       selectedUserIds={selectedUserIds}
@@ -1661,7 +1662,7 @@ export default function MarketingCalendar() {
 
           <div className="hidden min-w-0 overflow-hidden rounded-lg border bg-background xl:block">
             <MarketingCalendarFilters
-              calendars={calendars}
+              calendars={calendars.map(calendar => ({ ...calendar, default_meeting_provider: calendar.default_meeting_provider === "google_meet" ? "google_meet" as const : "none" as const }))}
               users={users}
               selectedCalendarIds={selectedCalendarIds}
               selectedUserIds={selectedUserIds}
@@ -1693,7 +1694,7 @@ export default function MarketingCalendar() {
           queryClient.invalidateQueries({ queryKey: ["contact_appointments"] });
           queryClient.invalidateQueries({ queryKey: queryKeys.marketing.all });
         }}
-        calendars={calendars}
+        calendars={calendars.map(calendar => ({ ...calendar, default_meeting_provider: calendar.default_meeting_provider === "google_meet" ? "google_meet" as const : "none" as const }))}
         users={users}
         defaultDate={defaultDate}
         defaultTime={defaultTime}

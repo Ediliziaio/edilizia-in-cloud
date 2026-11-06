@@ -4,7 +4,7 @@ import { DEFAULT_SECURITY_DOOR_CONFIG } from "../../../shared/render-technical/d
 import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/securityDoorPromptBuilder";
 import type { ConfigurazionePortaBlindata } from "../../../shared/render-security-door/types";
 
-function config(overrides: Partial<ConfigurazionePortaBlindata> = {}): ConfigurazionePortaBlindata {
+function config(overrides: Partial<Omit<ConfigurazionePortaBlindata, "frame" | "hardware" | "vetri" | "soglia" | "apertura">> & { frame?: Partial<ConfigurazionePortaBlindata["frame"]>; hardware?: Partial<ConfigurazionePortaBlindata["hardware"]>; vetri?: Partial<ConfigurazionePortaBlindata["vetri"]>; soglia?: Partial<ConfigurazionePortaBlindata["soglia"]>; apertura?: Partial<ConfigurazionePortaBlindata["apertura"]> } = {}): ConfigurazionePortaBlindata {
   return {
     ...DEFAULT_SECURITY_DOOR_CONFIG,
     ...overrides,

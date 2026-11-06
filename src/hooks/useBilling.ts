@@ -198,7 +198,7 @@ export function useInvoices() {
     enabled: !!companyId,
     queryFn: async (): Promise<SubscriptionInvoice[]> => {
       const { data, error } = await supabase
-        .from("subscription_invoices" as never)
+        .from("subscription_invoices")
         .select("*")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
@@ -279,7 +279,7 @@ async function messaggioDellaFunzione(error: { message: string; context?: unknow
   try {
     const ctx = error.context;
     if (ctx instanceof Response) {
-      const corpo = (await ctx.json().catch(() => null)) as { error?: string } | null;
+      const corpo = (await ctx.json().catch((): null => null)) as { error?: string } | null;
       if (corpo?.error) return corpo.error;
     }
   } catch { /* corpo illeggibile: resta il messaggio generico */ }
@@ -459,10 +459,8 @@ export function useAutoTopupFailure() {
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async (): Promise<AutoTopupFailure | null> => {
-      // Colonne di fallimento assenti dai type generati (tabella aggiornata dopo):
-      // stesso motivo per cui UnifiedAutoTopupCard usa il cast. Vedi types.ts.
       const { data, error } = await supabase
-        .from("company_auto_topup" as any)
+        .from("company_auto_topup")
         .select("failure_count, last_failure_reason, last_failure_at, next_attempt_at, retries_exhausted_at")
         .eq("company_id", companyId!)
         .gt("failure_count", 0);

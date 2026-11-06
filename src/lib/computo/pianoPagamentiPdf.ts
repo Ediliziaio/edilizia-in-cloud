@@ -7,8 +7,8 @@ export type RataPdf = {
   importoIvato?: number | null;
 };
 
-export function testoPianoPagamenti(rate: RataPdf[] | undefined, ivaApplicata: boolean): string {
-  if (!rate?.length) return "";
+export function testoPianoPagamenti(rate: RataPdf[] | undefined, ivaApplicata: boolean, mostraImporti = true): string {
+  if (!mostraImporti || !rate?.length) return "";
   const righe = rate.map(r => `${r.descrizione} - ${r.quando}${r.termine ? `, pagamento a ${r.termine}` : ""}: ${r.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 })}% = ${formatEuro(r.importo)} €${ivaApplicata ? (r.importoIvato != null ? ` + IVA = ${formatEuro(r.importoIvato)} € IVA inclusa` : " + IVA") : ""}`);
   return righe.join("\n");
 }

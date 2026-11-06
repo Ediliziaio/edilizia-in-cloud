@@ -600,7 +600,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
     }
 
     const result = await uploadImage(familyId, file);
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error("Foto non caricata", { description: result.error });
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -632,7 +632,7 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
       return;
     }
     const result = await removeImage(family.id);
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error("Foto non rimossa", { description: result.error });
       return;
     }
@@ -876,6 +876,8 @@ export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } 
       if (isNew) {
         const created = await createFamily.mutateAsync({
           ...payload,
+          macrocategoria_id: payload.macrocategoria_id ?? null,
+          vat_rate_acquisto,
           vertical,
           pdf_scheda_url: null,
           griglia_unita: "mm",

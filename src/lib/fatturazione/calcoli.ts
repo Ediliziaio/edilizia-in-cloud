@@ -301,7 +301,7 @@ export interface ValidationError {
 }
 
 export function validateDocumento(
-  doc: Partial<DocumentoFiscale>
+  doc: Partial<DocumentoFiscale> & { regime_fiscale?: string; _regimeFiscale?: string }
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   const tipo = doc.tipo ?? "fattura";
@@ -417,7 +417,7 @@ export function validateDocumento(
 
   // RF19 forfettario: all righe must have natura_iva and aliquota 0
   // (This is a soft warning — the XML generator enforces it via Causale)
-  if (doc.regime_fiscale === "RF19" || (doc as any)._regimeFiscale === "RF19") {
+  if (doc.regime_fiscale === "RF19" || doc._regimeFiscale === "RF19") {
     righe.forEach((r, i) => {
       if (Number(r.aliquota_iva) > 0) {
         errors.push({

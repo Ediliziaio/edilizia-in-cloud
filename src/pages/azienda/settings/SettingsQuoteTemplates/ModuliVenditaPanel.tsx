@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useModuliVisibilita } from "@/lib/moduli-vendita";
+import { useModuliVisibilita, type ModuloVendutaSlug } from "@/lib/moduli-vendita";
 import { findSalesArea } from "@/lib/moduli-vendita/areas";
 import { buildQuoteTemplatesModuleParams } from "@/lib/settingsQuoteTemplatesRoute";
 
@@ -54,7 +54,7 @@ const PiscineTemplateEditor = lazy(() =>
 );
 
 interface ModuloVendita {
-  slug: string;
+  slug: ModuloVendutaSlug;
   nome: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;

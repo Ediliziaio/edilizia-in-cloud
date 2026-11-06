@@ -223,8 +223,8 @@ export default function EditorDocumento() {
   }, [state, aziendaAnagrafica]);
 
   const handleDownloadPDF = useCallback(async () => {
-    if (!state.id || !state.numero) return;
-    try { await downloadNativePDF(state.id, state.numero); toast.success("PDF scaricato"); }
+    if (!state.id) return;
+    try { await downloadNativePDF(state.id, state.numero); toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 }); }
     catch (err: any) { toast.error("Errore download PDF", { description: err.message }); }
   }, [state.id, state.numero]);
 
@@ -372,8 +372,8 @@ export default function EditorDocumento() {
       <EditorTopBar
         state={state}
         isSaving={isSaving}
-        lastSaved={lastSaved}
         isDirty={isDirty}
+        lastSaved={lastSaved}
         onEmetti={async () => {
           if (!state.id || emittiMutation.isPending) return;
           // Il salvataggio automatico aspetta 2 secondi. Chi correggeva un

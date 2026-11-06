@@ -1,3 +1,4 @@
+import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -186,7 +187,7 @@ export function useCalendarOrderFinance(
             trigger_numero: r.trigger_numero ?? null,
           }));
       return calendarFinanceModel({
-        order: orderResult.data!,
+        order: (await leggiModalitaCommesse(company!, [{ ...orderResult.data!, id: orderId! }]))[0],
         rates: effectiveRates.map((rate) => ({
           ...rate,
           fattura:

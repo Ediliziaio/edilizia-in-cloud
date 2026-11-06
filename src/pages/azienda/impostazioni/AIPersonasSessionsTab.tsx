@@ -292,7 +292,7 @@ export default function AIPersonasSessionsTab() {
     queryKey: ["sessions-personas-catalog"],
     queryFn: async (): Promise<PersonaLite[]> => {
       const { data, error } = await supabase
-        .from("ai_personas_public" as never)
+        .from("ai_personas_public")
         .select("persona_key, display_name, category, color, icon");
       if (error) throw error;
       return ((data ?? []) as unknown as PersonaLite[])
@@ -354,7 +354,7 @@ export default function AIPersonasSessionsTab() {
       // del filtro (con limite di sicurezza 500 per non saturare il browser).
       // Questo è il path "migration non ancora deployata" — degradiamo grazia.
       let q = supabase
-        .from("ai_persona_sessions" as never)
+        .from("ai_persona_sessions")
         .select("persona_key, message_count, total_cost_billed_eur")
         // Solo QUESTA azienda (il super admin le vedeva tutte).
         .eq("company_id" as never, effectiveCompany?.id as never)
@@ -400,7 +400,7 @@ export default function AIPersonasSessionsTab() {
       const to = from + PAGE_SIZE - 1;
 
       let q = supabase
-        .from("ai_persona_sessions" as never)
+        .from("ai_persona_sessions")
         .select("id, persona_key, title, message_count, total_cost_billed_eur, total_tokens_in, total_tokens_out, last_message_at, archived, created_at")
         // Solo QUESTA azienda (il super admin le vedeva tutte).
         .eq("company_id" as never, effectiveCompany?.id as never)
@@ -545,7 +545,7 @@ export default function AIPersonasSessionsTab() {
     staleTime: Infinity,
     queryFn: async (): Promise<MessageRow[]> => {
       const { data, error } = await supabase
-        .from("ai_persona_messages" as never)
+        .from("ai_persona_messages")
         .select("id, role, content, cost_billed_eur, tokens_in, tokens_out, model_used, created_at")
         .eq("session_id", openSessionId)
         .order("created_at", { ascending: true });
@@ -624,7 +624,7 @@ export default function AIPersonasSessionsTab() {
   const archiveMut = useMutation({
     mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
       const { error } = await supabase
-        .from("ai_persona_sessions" as never)
+        .from("ai_persona_sessions")
         .update({ archived })
         .eq("id", id);
       if (error) throw error;
@@ -651,7 +651,7 @@ export default function AIPersonasSessionsTab() {
       // Path 2: fallback su UPDATE diretto con .in("id", ids) — la RLS owner
       // garantisce comunque che si tocchino solo le proprie sessioni.
       const { error } = await supabase
-        .from("ai_persona_sessions" as never)
+        .from("ai_persona_sessions")
         .update({ archived })
         .in("id", ids);
       if (error) throw error;

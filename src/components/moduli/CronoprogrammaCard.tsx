@@ -95,7 +95,7 @@ export function CronoprogrammaCard({ fasi: raw, onChange, fasiDelModello, modulo
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {delModello
             ? `Nel PDF escono le ${delModello.length} fasi scritte nel modello${durata ? ` (${durata} in tutto)` : ""}. Puoi scrivere i tempi di questo lavoro.`
-            : "Nel modello non ci sono fasi: nel PDF non compare nessun tempo. Scrivi le fasi di questo lavoro."}
+            : "Nel modello non ci sono fasi di cronoprogramma. Eventuali tempi scritti nei testi o nelle condizioni del modello restano nel PDF: controllali nell’anteprima. Scrivi qui le fasi di questo lavoro."}
         </p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {pulsanteCalcola}

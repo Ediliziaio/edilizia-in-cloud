@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useRef, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -258,7 +259,7 @@ export default function TecnicoRapportino() {
         data_intervento: new Date().toISOString(),
         descrizione: descrizione.trim(),
         ore_lavoro: oreLavoro,
-        materiali_usati: materiali,
+        materiali_usati: jsonPayload(materiali),
         foto_urls: fotoUrls,
         firma_cliente: firmaBase64,
         firmato_da: firmatoDa.trim() || null,

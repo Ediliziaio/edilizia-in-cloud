@@ -222,7 +222,7 @@ describe("useAccessoRevocato nell'app", () => {
 
   it("è montato nell'app, accanto al logout dei 45 giorni", () => {
     const app = leggi("src/App.tsx");
-    expect(app).toMatch(/function SessionTimeoutGuard\(\) \{\n\s+useSessionTimeout\(\);\n\s+useAccessoRevocato\(\);/);
+    expect(app).toMatch(/function SessionTimeoutGuard\(\)(?:\s*:\s*null)? \{\n\s+useSessionTimeout\(\);\n\s+useAccessoRevocato\(\);/);
   });
 });
 

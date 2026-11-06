@@ -66,7 +66,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
   // parent_company_id / reseller_billing_mode / billing_comped / whitelabel_tier non
   // sono nei tipi generati (migration recente) → client non tipizzato.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
+  const sb = supabase;
 
   // PERF: 5 round-trip sequenziali → 3 livelli. I ruoli produttore_admin non
   // dipendono dal branding → partono SUBITO in parallelo; companies+rivenditori
@@ -79,7 +79,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
     .select("company_id, custom_domain, custom_domain_verified")
     .eq("whitelabel_tier", "agency");
   if (e1) throw new Error(e1.message);
-  const ids: string[] = [...new Set((brand ?? []).map((b: AnyRow) => b.company_id).filter(Boolean))];
+  const ids: string[] = [...new Set((brand ?? []).map((b) => b.company_id).filter(Boolean))];
   if (ids.length === 0) return { produttori: [], totals: { produttori: 0, rivenditori: 0, comped: 0 } };
 
   const [compsRes, rivsRes, rolesRes] = await Promise.all([
@@ -96,7 +96,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
   const { data: rivs, error: e3 } = rivsRes;
   if (e3) throw new Error(e3.message);
   const roleRows = rolesRes.data;
-  const adminIds: string[] = [...new Set((roleRows ?? []).map((r: AnyRow) => r.user_id).filter(Boolean))];
+  const adminIds: string[] = [...new Set((roleRows ?? []).map((r) => r.user_id).filter(Boolean))];
   const { data: profs } = adminIds.length
     ? await sb.from("profiles").select("id, company_id, email").in("company_id", ids).in("id", adminIds)
     : { data: [] as AnyRow[] };
@@ -696,7 +696,7 @@ function ProduttorePiani({ produttoreId }: { produttoreId: string }) {
     staleTime: 60_000,
     queryFn: async (): Promise<CustomPlan[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any;
+      const sb = supabase;
       const { data, error } = await sb
         .from("subscription_plans")
         .select("id, name, price_monthly, is_active")

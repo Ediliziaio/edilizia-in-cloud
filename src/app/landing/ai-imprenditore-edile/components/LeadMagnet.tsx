@@ -88,7 +88,7 @@ export function LeadMagnet() {
       timeoutMs: 8_000,
       context: "lead-magnet.submit",
       body: JSON.stringify({ ...values, source: "landing_ai_imprenditore_edile" }),
-    }).catch(() => undefined);
+    }).catch((): undefined => undefined);
     form.reset();
     setSubmitted(true);
   }

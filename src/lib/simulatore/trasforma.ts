@@ -1,3 +1,4 @@
+import { riepilogoFinanziamento, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 /**
  * trasforma — mapper PURI dal documento simulazione ai payload di creazione
  * di un preventivo (`quotes` + `quote_items`) o di una commessa (`orders` via
@@ -214,11 +215,14 @@ export interface CreateOrderAtomicPayload {
     work_end_date: string | null;
     financing_amount: number;
     financing_cost: number;
+    deposit_amount?: number;
+    balance_amount?: number;
+    financing_cost_mode?: ModalitaCostoFinanziaria;
   };
   p_items: OrderItemPayload[];
   p_salesperson: null;
   p_user_id: string;
-  p_installments: never[];
+  p_installments: Array<{ type: "deposit" | "financing" | "balance"; position: number; label: string; amount: number; is_paid: boolean }>;
 }
 
 export interface MapToOrderOpts {
@@ -227,8 +231,9 @@ export interface MapToOrderOpts {
   userId: string;
   statusId: string;
   description: string;
-  /** Costo del finanziamento (interessi) dallo scenario, se presente. */
+  /** Costo confermato a carico dell’azienda, distinto dagli interessi del cliente. */
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   /** Data di riferimento per le date lavori (default: oggi). Iniettabile nei test. */
   today?: Date;
 }
@@ -267,6 +272,9 @@ export function mapToOrderPayload(
   opts: MapToOrderOpts,
 ): CreateOrderAtomicPayload {
   const fin = doc.scenari.finanziamento;
+  const costoFinanziaria = fin ? round2(opts.financingCost ?? 0) : 0;
+  if (fin && costoFinanziaria > 0 && !opts.financingCostMode) throw new Error("Conferma la modalità del costo della finanziaria.");
+  const piano = fin ? riepilogoFinanziamento({ totaleContratto: risultato.prezzo_cliente, accontiCliente: fin.anticipo ?? 0, quotaFinanziata: fin.importo_finanziato, costo: costoFinanziaria, modalita: opts.financingCostMode ?? "separato" }) : null;
   const today = opts.today ?? new Date();
 
   let workStart: string | null = null;
@@ -330,11 +338,17 @@ export function mapToOrderPayload(
       work_start_date: workStart,
       work_end_date: workEnd,
       financing_amount: fin ? round2(fin.importo_finanziato) : 0,
-      financing_cost: fin ? round2(opts.financingCost ?? 0) : 0,
+      financing_cost: costoFinanziaria,
+      ...(fin && piano ? { deposit_amount: round2(fin.anticipo ?? 0), balance_amount: piano.saldoCliente } : {}),
+      ...(fin && opts.financingCostMode ? { financing_cost_mode: opts.financingCostMode } : {}),
     },
     p_items: items,
     p_salesperson: null,
     p_user_id: opts.userId,
-    p_installments: [],
+    p_installments: fin && piano ? [
+      { type: "deposit", position: 0, label: "Acconto cliente", amount: round2(fin.anticipo ?? 0), is_paid: false },
+      { type: "financing", position: 1, label: "Finanziamento", amount: round2(fin.importo_finanziato), is_paid: false },
+      { type: "balance", position: 2, label: "Saldo cliente", amount: piano.saldoCliente, is_paid: false },
+    ] : [],
   };
 }

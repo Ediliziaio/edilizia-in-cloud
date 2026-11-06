@@ -118,7 +118,14 @@ export function nomePermesso(chiave: string, aree: readonly AreaRiepilogo[]): st
     const voce = area.modules.find((m) => m.viewKey === chiave || m.editKey === chiave || m.viewKey === vista);
     if (voce) return voce.label;
   }
-  return chiave.replace(/^can_(view_|edit_|manage_)?/, "").replace(/_/g, " ");
+  // Permessi storici che possono aprire le aree anche quando l'editor
+  // espone soltanto i moduli granulari: non mostrare i nomi inglesi.
+  const nomiStorici: Record<string, string> = {
+    can_view_orders: "Ordini e Commesse",
+    can_view_warehouse: "Magazzino",
+    can_view_tickets: "Ticket Assistenza",
+  };
+  return nomiStorici[vista] ?? chiave.replace(/^can_(view_|edit_|manage_)?/, "").replace(/_/g, " ");
 }
 
 /** I nomi di chi apre un'area, senza doppioni: «vede» e «modifica» della stessa voce sono uno. */

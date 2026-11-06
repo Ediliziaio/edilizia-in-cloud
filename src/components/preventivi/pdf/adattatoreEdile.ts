@@ -1,3 +1,4 @@
+import { SALES_AREAS } from "@/lib/moduli-vendita/areas";
 /**
  * Dal modulo al documento condiviso.
  *
@@ -9,6 +10,7 @@
  * deve sapere da quale modulo arrivano i dati.
  */
 import { intestatoAdEnte, rigaDatiFiscali, tipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
+import { calcRigaImporto } from "@/lib/preventivi/calcoliComputo";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { leggiTestoRiccoContratto, separaFirmeContratto } from '../../../../supabase/functions/_shared/testoRiccoContratto';
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
@@ -128,6 +130,7 @@ export interface VoceComune {
   quantita: number;
   prezzo_unitario: number;
   importo: number;
+  sconto_pct?: number | null;
   costo_materiali?: number | null;
   costo_manodopera?: number | null;
   fonte?: string | null;
@@ -404,7 +407,14 @@ export function costruisciDatiEdile(input: {
   const { modulo, template: t, azienda } = input;
   // I codici del preventivatore («rifacimento_completo», «casa_indipendente»)
   // diventano parole prima di tutto il resto: scheda, riepilogo, copertina e segnaposto.
-  const intervento = interventoInParole(input.progetto.tipo_intervento, modulo.chiave);
+  // Il codice tecnico può essere condiviso da più interventi (es. pergola e
+  // ristrutturazione parziale). Nel documento prevale il modello selezionato.
+  const modelId = (t.pdf_blocchi as Record<string, unknown> | null | undefined)?.modulo_intervento;
+  const modelTitle = typeof modelId === "string"
+    ? SALES_AREAS.filter(area => area.sourceModule === modulo.chiave)
+      .flatMap(area => area.interventions).find(model => model.id === modelId)?.title
+    : undefined;
+  const intervento = modelTitle || interventoInParole(input.progetto.tipo_intervento, modulo.chiave);
   const p: ProgettoComune = {
     ...input.progetto,
     tipo_intervento: intervento,
@@ -426,7 +436,9 @@ export function costruisciDatiEdile(input: {
     fuoriTotale: c.fuoriTotale,
     subtotale: Number(c.subtotale) || 0,
     voci: c.voci.map((v) => {
-      const importo = Number(v.importo) || 0;
+      // Stessa formula dei capitoli: il campo derivato salvato può essere
+      // ancora zero o riferito alla versione precedente della voce.
+      const importo = calcRigaImporto({ quantita: v.quantita, prezzo_unitario: v.prezzo_unitario, sconto_pct: v.sconto_pct ?? 0 });
       const costo = ((Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0)) * (Number(v.quantita) || 0);
       return {
         id: v.id,
@@ -434,6 +446,7 @@ export function costruisciDatiEdile(input: {
         unitaMisura: unitaInParole(v.unita_misura),
         quantita: Number(v.quantita) || 0,
         prezzoUnitario: Number(v.prezzo_unitario) || 0,
+        scontoPct: Number(v.sconto_pct) || 0,
         importo,
         fonte: v.fonte ?? null,
         // Il prodotto del listino porta foto e descrizione; le altre righe no, e non si inventa niente.

@@ -37,3 +37,10 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'cron.alter_job failed: %', SQLERRM;
 END $$;
+
+
+-- Prerequisito del successivo hardening RLS 20260527135644.
+-- PostgreSQL richiede il commit dell'ADD VALUE prima di usarlo nelle policy;
+-- per questo l'enum va nella migrazione precedente, non insieme alle policy.
+-- La fondazione accountant del 20270525 ripete ADD VALUE IF NOT EXISTS.
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'accountant';

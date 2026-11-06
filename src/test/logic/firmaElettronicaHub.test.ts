@@ -16,18 +16,18 @@ describe("firma elettronica hub helpers", () => {
     const rows = [
       {
         id: "1",
-        signer_name: null,
-        signer_email: undefined,
-        token: null,
+        signer_name: null as null,
+        signer_email: undefined as undefined,
+        token: null as null,
         documento_label: "Preventivo FV 24",
-        documento_subtitle: null,
+        documento_subtitle: null as null,
       },
       {
         id: "2",
         signer_name: "Mario Rossi",
         signer_email: "mario@example.com",
         token: "abc",
-        documento_label: null,
+        documento_label: null as null,
         documento_subtitle: "Cliente retail",
       },
     ];

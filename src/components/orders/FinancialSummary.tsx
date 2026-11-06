@@ -1,3 +1,5 @@
+import { FinancingCostModeField } from "./FinancingCostModeField";
+import { costoTrattenuto, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
@@ -341,6 +343,8 @@ interface FinancialSummaryProps {
   onPaymentTypeChange: (value: PaymentType) => void;
   balance: number;
   readOnly?: boolean;
+  hasLinkedInvoices?: boolean;
+  invoiceLinksError?: boolean;
   /** Date del cantiere: mostrano quando cadrà davvero una rata agganciata a un evento. */
   dateCommessa?: DateCommessa;
   /** Stati commessa dell'azienda, per la rata che scade "quando arriva a…". */
@@ -348,6 +352,8 @@ interface FinancialSummaryProps {
   hasBuildingBonus?: boolean;
   onHasBuildingBonusChange?: (value: boolean) => void;
   financingCost?: string;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
+  onFinancingCostModeChange?: (value: ModalitaCostoFinanziaria | null) => void;
   onFinancingCostChange?: (value: string) => void;
   /** Ripartizione su più agevolazioni: attiva solo per le aziende che l'hanno accesa. */
   bonusMultipliEnabled?: boolean;
@@ -366,9 +372,9 @@ export function FinancialSummary({
   installments, onInstallmentsChange,
   numInstallments, onNumInstallmentsChange,
   onTotalAmountChange, onVatRateChange, onPaymentTypeChange,
-  balance, readOnly = false,
+  balance, readOnly = false, hasLinkedInvoices = false, invoiceLinksError = false,
   hasBuildingBonus, onHasBuildingBonusChange,
-  financingCost, onFinancingCostChange,
+  financingCost, onFinancingCostChange, financingCostMode, onFinancingCostModeChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
   datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false, notaIva,}: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
@@ -451,9 +457,10 @@ export function FinancialSummary({
   };
 
   const handleVatRateChange = (newRate: string) => {
+    if (!newRate.trim() || newRate === vatRate || ![0, 4, 5, 10, 22].includes(Number(newRate))) return;
     onVatRateChange(newRate);
     if (inputMode === 'gross' && rawTotalInput) {
-      const newVat = parseFloat(newRate) || 22;
+      const newVat = newRate.trim() !== "" && Number.isFinite(Number(newRate)) ? Number(newRate) : 22;
       const newGross = total * (1 + newVat / 100);
       setRawTotalInput(newGross > 0 ? newGross.toFixed(2) : "");
     }
@@ -577,7 +584,7 @@ export function FinancialSummary({
       {inst.amount > 0 && (
         <PaymentStatusRow
           label={`Stato ${inst.label}`}
-          amount={inst.amount}
+          amount={inst.type === "financing" && financingCostMode === "trattenuto" ? Math.max(0, inst.amount - parseDecimalIT(financingCost || "")) : inst.amount}
           paid={inst.is_paid}
           paidDate={inst.paid_date ? new Date(inst.paid_date) : undefined}
           expectedDate={inst.expected_date ? new Date(inst.expected_date) : undefined}
@@ -654,7 +661,9 @@ export function FinancialSummary({
           <Label>Tipo Pagamento</Label>
           <Select
             value={daContratto && installments.length === 0 ? "" : paymentType}
-            onValueChange={(value: PaymentType) => onPaymentTypeChange(value)}
+            onValueChange={(value) => {
+              if ((value === "standard" || value === "financing") && value !== paymentType) onPaymentTypeChange(value);
+            }}
             disabled={readOnly}
           >
             <SelectTrigger>
@@ -810,6 +819,15 @@ export function FinancialSummary({
                     <Plus className="mr-1.5 h-3.5 w-3.5" />Aggiungi una rata
                   </Button>
                 </div>
+                {invoiceLinksError && <p role="alert" className="text-xs text-destructive">
+                  Non riesco a verificare i documenti collegati. Prima di cambiare il piano,
+                  controlla le fatture e le bozze in «Fatture al cliente».
+                </p>}
+                {hasLinkedInvoices && <p role="status" className="text-xs text-amber-700">
+                  La commessa ha documenti collegati. Cambiando numero o importi delle rate,
+                  verifica e riconcilia i collegamenti in «Fatture al cliente»: i documenti restano
+                  nell’elenco, ma non vengono ridimensionati automaticamente sul nuovo piano.
+                </p>}
                 {(() => {
                   // Sintesi a colpo d'occhio: quanto è già allocato in acconti
                   // e quanto resta a saldo, senza dover scorrere i singoli campi.
@@ -842,7 +860,10 @@ export function FinancialSummary({
                 <Label>Numero Acconti</Label>
                 <Select
                   value={(numInstallments - 2).toString()}
-                  onValueChange={(v) => onNumInstallmentsChange(parseInt(v) + 2)}
+                  onValueChange={(v) => {
+                    const n = Number(v);
+                    if (v !== "" && Number.isInteger(n) && n >= 0 && n <= 5 && n + 2 !== numInstallments) onNumInstallmentsChange(n + 2);
+                  }}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -876,7 +897,7 @@ export function FinancialSummary({
             {/* Financing Cost */}
             <div className="space-y-2">
               <Label htmlFor="financing-cost">Costo Finanziaria</Label>
-              <p className="text-xs text-muted-foreground">Commissione da versare alla finanziaria (es. tasso zero)</p>
+              <p className="text-xs text-muted-foreground">Costo a carico dell’azienda, trattenuto oppure pagato separatamente</p>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                 <Input
@@ -896,6 +917,13 @@ export function FinancialSummary({
               </div>
             </div>
 
+            {onFinancingCostModeChange && <FinancingCostModeField value={financingCostMode} onChange={onFinancingCostModeChange} disabled={readOnly} />}
+            {financingCostMode && <p className="rounded-md bg-muted p-3 text-sm" aria-live="polite">
+              Incasso previsto dalla finanziaria: <strong>{formatCurrency(Math.max(0,
+                installments.filter(i => i.type === "financing").reduce((sum, i) => sum + i.amount, 0)
+                - (financingCostMode === "trattenuto" ? parseDecimalIT(financingCost || "") : 0)))}</strong>.
+              {financingCostMode === "separato" && <> Costo da registrare come uscita separata: <strong>{formatCurrency(parseDecimalIT(financingCost || ""))}</strong>.</>}
+            </p>}
             {/* Balance */}
             {renderBalance("Saldo Cliente")}
           </>
@@ -914,6 +942,7 @@ interface FinancialSummaryReadOnlyProps {
   installments: Installment[];
   hasBuildingBonus?: boolean;
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   onInstallmentPaidToggle?: (installment: Installment, paid: boolean) => void;
   /** Se presente, le date incasso/prevista diventano modificabili inline
       (solo rate già su DB, cioè con id). */
@@ -936,6 +965,7 @@ export function FinancialSummaryReadOnly({
   installments,
   hasBuildingBonus,
   financingCost,
+  financingCostMode,
   onInstallmentPaidToggle,
   onInstallmentDateChange,
   orderId,
@@ -960,16 +990,16 @@ export function FinancialSummaryReadOnly({
   // La regola sta in lib/orders/saldoFinale, la stessa del salvataggio.
   const posSaldoFinale = installments[indiceSaldoFinale(installments)]?.position ?? null;
   const isSaldoFinale = (i: Installment) => i.type === 'balance' && i.position === posSaldoFinale;
-  const balanceAmount = importoSaldoFinale(installments, totalWithVat, financingCostValue);
+  const balanceAmount = importoSaldoFinale(installments, totalWithVat, financingCostValue, financingCostMode);
   // Il saldo già pagato vale quanto è entrato quel giorno: una variante approvata dopo resta da incassare.
   const incassiRate = varianti
-    ? calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost: financingCostValue, includeFinancing: true, varianti })
+    ? calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost: financingCostValue, financingCostMode, includeFinancing: true, varianti })
     : null;
   const importoRata = (i: Installment) => (isSaldoFinale(i)
     ? (i.is_paid && incassiRate ? incassiRate[installments.indexOf(i)] ?? balanceAmount : balanceAmount)
-    : i.amount);
+    : i.type === "financing" && financingCostMode === "trattenuto" ? Math.max(0, i.amount - financingCostValue) : i.amount);
   // Stessa regola di intestazione e conto economico (incassiDellaCommessa).
-  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost, varianti });
+  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost, financingCostMode, varianti });
   const collectedAmount = incassi.incassatoLordo;
   const dueAmount = incassi.daIncassareLordo;
 
@@ -1101,7 +1131,7 @@ export function FinancialSummaryReadOnly({
   const prossima = installments
     .filter(i => !i.is_paid && importoRata(i) > 0)
     .sort((a, b) => String(a.expected_date ?? "9999").localeCompare(String(b.expected_date ?? "9999")))[0];
-  const incassabile = totalWithVat - financingCostValue;
+  const incassabile = totalWithVat - costoTrattenuto(financingCostValue, financingCostMode);
   const pct = incassabile > 0 ? Math.min(100, Math.round((collectedAmount / incassabile) * 100)) : 0;
   const ordinate = [
     ...installments.filter(i => i.type === 'deposit'),
@@ -1165,7 +1195,7 @@ export function FinancialSummaryReadOnly({
       <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
         {ordinate.length > 0 ? (
           <ul className="divide-y overflow-hidden rounded-lg border" aria-label="Rate del cliente">
-            {ordinate.map(inst => renderPaymentRow(inst, inst.type === 'balance' ? importoRata(inst) : undefined))}
+            {ordinate.map(inst => renderPaymentRow(inst, importoRata(inst)))}
           </ul>
         ) : (
           <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare: nessuna rata o scadenza generata dal contratto.</p>
@@ -1173,7 +1203,7 @@ export function FinancialSummaryReadOnly({
 
         {paymentType === 'financing' && financingCostValue > 0 && (
           <p className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Costo della finanziaria</span>
+            <span className="text-muted-foreground">Costo della finanziaria{financingCostMode === "trattenuto" ? " (trattenuto)" : financingCostMode === "separato" ? " (uscita separata)" : " (modalità da verificare)"}</span>
             <span className="font-medium text-destructive">- {formatCurrency(financingCostValue)}</span>
           </p>
         )}

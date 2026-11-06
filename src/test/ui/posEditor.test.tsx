@@ -199,7 +199,7 @@ describe('La conferma riguarda il documento effettivamente letto',()=>{
   const originale=riga(esempioPdfPos().contenuto);stato.pos=originale;stato.salva.mockResolvedValue({...originale,updated_at:'2026-10-27T12:02:00Z'});mostra();fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Adattamento da salvare'}});fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));await waitFor(()=>expect(stato.approva).toHaveBeenCalledWith({posId:'pos-1',attesaUpdatedAt:'2026-10-27T12:02:00Z'}));expect(stato.salva.mock.calls[0][0].attesa_updated_at).toBe(originale.updated_at);
  });
  it('le modifiche inserite durante il salvataggio restano da salvare e fermano l’approvazione',async()=>{
-  const originale=riga(esempioPdfPos().contenuto);stato.pos=originale;let termina:(v:typeof originale)=>void=()=>{};stato.salva.mockImplementation(()=>new Promise(resolve=>{termina=resolve;}));mostra();fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Prima modifica'}});fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledOnce());fireEvent.change(screen.getByLabelText('Datore di lavoro'),{target:{value:'Seconda modifica durante la richiesta'}});await act(async()=>{termina({...originale,updated_at:'2026-10-27T12:03:00Z'});});expect(stato.approva).not.toHaveBeenCalled();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();expect((screen.getByLabelText('Datore di lavoro') as HTMLInputElement).value).toBe('Seconda modifica durante la richiesta');
+  const originale=riga(esempioPdfPos().contenuto);stato.pos=originale;let termina:(v:typeof originale)=>void=()=>{};stato.salva.mockImplementation(()=>new Promise(resolve=>{termina=resolve;}));mostra();const datore=screen.getByLabelText("Datore di lavoro") as HTMLInputElement;fireEvent.change(datore,{target:{value:'Prima modifica'}});fireEvent.click(screen.getByRole('button',{name:'Approva e prepara PDF'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledOnce());fireEvent.change(datore,{target:{value:'Seconda modifica durante la richiesta'}});await act(async()=>{termina({...originale,updated_at:'2026-10-27T12:03:00Z'});});expect(stato.approva).not.toHaveBeenCalled();expect(screen.getByText('Modifiche non salvate')).toBeTruthy();expect((datore as HTMLInputElement).value).toBe('Seconda modifica durante la richiesta');
   stato.salva.mockResolvedValue({...originale,updated_at:'2026-10-27T12:04:00Z'});fireEvent.click(screen.getByRole('button',{name:'Salva'}));await waitFor(()=>expect(stato.salva).toHaveBeenCalledTimes(2));expect(stato.salva.mock.calls[1][0].attesa_updated_at).toBe('2026-10-27T12:03:00Z');
  });
 });
@@ -218,12 +218,13 @@ describe("la proposta dell'AI", () => {
     stato.salva.mockResolvedValue({ ...originale, updated_at: "2026-10-30T09:00:00Z" });
     return originale;
   };
-  const testoModalita = () => (screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement).value;
 
   it("le modalità organizzative scritte dall'AI restano «da verificare» e fermano l'approvazione finché non si conferma", async () => {
     bozzaSenzaModalita();
     vi.mocked(lavorazioniAiPos).mockResolvedValue(proposta("Accesso dal cancello su via Roma"));
     mostra();
+    const campoModalita = screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement;
+    const testoModalita = () => campoModalita.value;
     fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
     await waitFor(() => expect(testoModalita()).toBe("Accesso dal cancello su via Roma"));
     expect(screen.getByText(/le ha proposte l'AI/)).toBeTruthy();
@@ -246,9 +247,11 @@ describe("la proposta dell'AI", () => {
     let rispondi: (v: ReturnType<typeof proposta>) => void = () => {};
     vi.mocked(lavorazioniAiPos).mockImplementation(() => new Promise((resolve) => { rispondi = resolve as never; }));
     mostra();
+    const campoModalita = screen.getByLabelText("Modalità organizzative") as HTMLTextAreaElement;
+    const testoModalita = () => campoModalita.value;
     fireEvent.click(screen.getByRole("button", { name: /Completa con l'AI/ }));
     await waitFor(() => expect(lavorazioniAiPos).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText("Modalità organizzative"), { target: { value: "Scritto a mano nell'attesa" } });
+    fireEvent.change(campoModalita, { target: { value: "Scritto a mano nell'attesa" } });
     await act(async () => { rispondi(proposta("Testo dell'AI")); });
     await waitFor(() => expect(screen.getByText("Lavorazioni proposte dall'AI")).toBeTruthy());
     expect(testoModalita()).toBe("Scritto a mano nell'attesa");

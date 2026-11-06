@@ -21,6 +21,7 @@
 
 export interface VoceComputo {
   id: string;
+  codice_voce?: string | null;
   codice_prezzario?: string | null;
   codice_tariffa?: string | null;
   numero_ordine?: string | null;
@@ -184,11 +185,11 @@ function testoVoce(v: VoceComputo): string {
 /** Punteggio di una scomposizione su un testo: codice esatto vince, poi le parole chiave (tutte presenti). */
 export function punteggioScomposizione(
   s: Scomposizione,
-  dati: { codice?: string | null; codiceTariffa?: string | null; testo: string; unita?: string | null },
+  dati: { codice?: string | null; codiceTariffa?: string | null; codiceVoce?: string | null; testo: string; unita?: string | null },
 ): number {
   if (!s.attiva) return 0;
   const codiceS = (s.codice_prezzario ?? "").trim().toUpperCase();
-  const codici = [dati.codice, dati.codiceTariffa].map((c) => (c ?? "").trim().toUpperCase()).filter(Boolean);
+  const codici = [dati.codice, dati.codiceTariffa, dati.codiceVoce].map((c) => (c ?? "").trim().toUpperCase()).filter(Boolean);
   const umOk = !s.unita_misura || normalizzaUnita(s.unita_misura) === normalizzaUnita(dati.unita);
   if (codiceS && codici.includes(codiceS)) return umOk ? 1000 : 900;
   const parole = (s.parole_chiave ?? []).map(normalizzaTesto).filter(Boolean);
@@ -227,7 +228,7 @@ export function pesoParolaChiave(parola: string): number {
 
 export function trovaScomposizione(
   scomposizioni: Scomposizione[],
-  dati: { codice?: string | null; codiceTariffa?: string | null; testo: string; unita?: string | null },
+  dati: { codice?: string | null; codiceTariffa?: string | null; codiceVoce?: string | null; testo: string; unita?: string | null },
 ): Scomposizione | null {
   let migliore: Scomposizione | null = null;
   let max = 0;
@@ -269,11 +270,15 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[]): 
   if (!(q > 0)) return { tipo: "esclusa", motivo: "Quantità zero o mancante" };
 
   const testo = testoVoce(v);
-  const s = trovaScomposizione(scomposizioni, { codice: v.codice_prezzario, codiceTariffa: v.codice_tariffa, testo, unita: v.unita_misura });
+  const s = trovaScomposizione(scomposizioni, { codice: v.codice_prezzario, codiceTariffa: v.codice_tariffa, codiceVoce: v.codice_voce, testo, unita: v.unita_misura });
   if (s) return { tipo: "scomposta", scomposizione: s };
 
   const breve = normalizzaTesto(v.descrizione_breve);
-  for (const { re, motivo } of NON_MATERIALI) if (re.test(breve) || re.test(testo)) return { tipo: "esclusa", motivo };
+  // Le esclusioni esplicite di prestazioni non trasformano una fornitura
+  // in un noleggio. Limitiamo la rimozione a elenchi di prestazioni noti.
+  const prestazioniNegate = /\b(?:nessun[ao]?|senza)\s+(?:posa|manodopera|mano d.opera|nolo|noleggio)(?:\s*(?:,|e|o|né)\s*(?:posa|manodopera|mano d.opera|nolo|noleggio))*\b/gi;
+  const testoClassificazione = normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`.replace(prestazioniNegate, " "));
+  for (const { re, motivo } of NON_MATERIALI) if (re.test(testoClassificazione)) return { tipo: "esclusa", motivo };
   const um = normalizzaUnita(v.unita_misura);
   if (um === "h") return { tipo: "esclusa", motivo: "Manodopera (a ore)" };
 
@@ -359,7 +364,7 @@ export function generaDistinta(input: {
   for (const v of input.voci) {
     const c = classificaVoce(v, attive);
     const q = Number(v.quantita ?? 0);
-    const codice = v.codice_prezzario || v.codice_tariffa || v.numero_ordine || null;
+    const codice = v.codice_prezzario || v.codice_tariffa || v.codice_voce || v.numero_ordine || null;
     const origineComputo = (quantita: number): OrigineRiga => ({
       tipo: "computo", voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita_voce: q, unita_voce: v.unita_misura ?? null, quantita,
     });

@@ -107,6 +107,7 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
                 <TableHead>Prodotto / Servizio</TableHead>
                 <TableHead className="text-right">Qtà</TableHead>
                 <TableHead className="text-right">Prezzo</TableHead>
+                <TableHead className="text-right">Sconto</TableHead>
                 <TableHead className="text-right">IVA</TableHead>
                 <TableHead className="text-right">Totale riga</TableHead>
               </TableRow>
@@ -128,6 +129,7 @@ function SnapshotDialog({ version, onClose }: SnapshotDialogProps) {
                   <TableCell className="text-right">
                     {formatCurrency(item.unit_price)}
                   </TableCell>
+                  <TableCell className="text-right">{(item.discount_percent ?? 0).toLocaleString("it-IT")}%</TableCell>
                   <TableCell className="text-right">{item.vat_rate}%</TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(item.line_total ?? 0)}

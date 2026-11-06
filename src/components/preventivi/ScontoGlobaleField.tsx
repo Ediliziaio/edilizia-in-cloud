@@ -96,7 +96,7 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
         </Label>
         <span className="flex items-center gap-1 text-[10px] tabular-nums text-muted-foreground">
           <Tag className="h-3 w-3" />
-          max {esito.scontoMaxPct.toFixed(1)}%
+          {canApproveDiscounts ? "Soglia ordinaria" : "max"} {esito.scontoMaxPct.toFixed(1)}%
           {esito.approvaOltrePct != null && ` · ok fino a ${esito.approvaOltrePct.toFixed(1)}%`}
         </span>
       </div>
@@ -118,6 +118,8 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
           %
         </span>
       </div>
+
+      {canApproveDiscounts && <p className="text-xs text-muted-foreground">Puoi superare questa soglia perché hai il permesso di approvare gli sconti.</p>}
 
       {conScontoRapido && (
         <ScontoRapido

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   costoPianoMezzo,
   pianoPerFase,
+  pianoAttivo,
   statoPianoMezzo,
 } from "@/lib/mezzi/pianoCantiere";
 describe("Pianificazione mezzi cantiere", () => {
@@ -65,4 +66,12 @@ describe("Pianificazione mezzi cantiere", () => {
       "Annullato",
     );
   });
+});
+
+it("rientro effettivo oggi: storico senza annullare il costo né abbreviare la giornata", () => {
+  const p = { dal: "2026-11-05", al: "2026-11-05", annullato: false, rientrato_il: "2026-11-05T12:00:00Z" };
+  expect(pianoAttivo(p, "2026-11-05")).toBe(false);
+  expect(statoPianoMezzo(p, "2026-11-05")).toBe("Rientrato");
+  expect(costoPianoMezzo(p, { tariffa: 100, base: "giorno", extra: 0, fornitore: null })).toBe(100);
+  expect(pianoAttivo({ ...p, rientrato_il: null }, "2026-11-05")).toBe(true);
 });

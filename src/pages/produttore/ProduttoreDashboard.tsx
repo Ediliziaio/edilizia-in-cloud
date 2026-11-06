@@ -265,12 +265,12 @@ export default function ProduttoreDashboard() {
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca rivenditore…" className="pl-9" />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              <FilterChips
+              <FilterChips<StatusFilter>
                 value={statusFilter}
                 onChange={setStatusFilter}
                 options={[{ v: "all", label: "Tutti" }, { v: "active", label: "Attivi" }, { v: "suspended", label: "Sospesi" }]}
               />
-              <FilterChips
+              <FilterChips<BillingFilter>
                 value={billingFilter}
                 onChange={setBillingFilter}
                 options={[{ v: "all", label: "Tutti" }, { v: "comped", label: "Paghi tu", Icon: Factory }, { v: "paid", label: "Pagano loro", Icon: CreditCard }]}

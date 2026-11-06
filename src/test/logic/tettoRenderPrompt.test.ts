@@ -88,7 +88,7 @@ describe("roof render prompt — quello che usa generate-roof-render", () => {
     expect(colore.tipo).toMatch(/^existing covering, kept exactly as photographed \(recolor only/);
     expect(colore.colore_nome).toBe("Terracotta classico");
     const rifacimento = baseConfig() as unknown as Record<string, unknown>;
-    expect(configPerIlRewriter(rifacimento)).toBe(rifacimento);
+    expect(configPerIlRewriter(rifacimento).manto).toEqual(rifacimento.manto);
   });
 
   it("posizioni di lucernari e fotovoltaico in inglese (prima «at laterale dx», «on falda sud»)", () => {
@@ -137,4 +137,12 @@ describe("roof render prompt — quello che usa generate-roof-render", () => {
     const spente = prompt({ scossaline: { azione: "mantieni" }, comignoli: { azione: "mantieni" }, fermaneve: { attivo: false }, linea_vita: { attivo: false } }).testo;
     expect(spente).toBe(testo);
   });
+});
+
+it("le gronde spente non passano al rewriter il colore o materiale nascosto", () => {
+  const config = baseConfig() as unknown as Record<string, unknown>;
+  const pulita = configPerIlRewriter(config);
+  expect(pulita.grondaie).toEqual({ attivo: false, preserva: expect.stringContaining("including colour and material") });
+  expect(JSON.stringify(pulita.grondaie)).not.toContain("#8b4513");
+  expect((config.grondaie as {colore_hex:string}).colore_hex).toBe("#8b4513");
 });

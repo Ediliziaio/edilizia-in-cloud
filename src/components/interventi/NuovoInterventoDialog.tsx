@@ -64,7 +64,7 @@ export function NuovoInterventoDialog({
   const [orderId, setOrderId] = useState("");
   const [subject, setSubject] = useState("");
   const [tipo, setTipo] = useState<"intervento" | "emergenza">("intervento");
-  const [priority, setPriority] = useState("normale");
+  const [priority, setPriority] = useState<"bassa" | "normale" | "alta" | "urgente">("normale");
   const [tecnicoId, setTecnicoId] = useState("");
   const [indirizzo, setIndirizzo] = useState("");
   const [dataOra, setDataOra] = useState("");
@@ -259,7 +259,7 @@ export function NuovoInterventoDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Priorità</Label>
-              <Select value={priority} onValueChange={setPriority}>
+              <Select value={priority} onValueChange={value => { if (value === "bassa" || value === "normale" || value === "alta" || value === "urgente") setPriority(value); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

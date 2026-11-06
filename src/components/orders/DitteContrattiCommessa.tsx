@@ -206,6 +206,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   return (
     <div className="space-y-5">
       <section aria-label="Fasi, voci e ditte" className="space-y-2">
+        <p className="text-xs text-muted-foreground">Qui trovi le squadre esterne già collegate alle ditte. Se hai appena creato un subappaltatore e non compare, usa «Assegna» sulla fase e scegli «Ditta»: quel percorso crea anche il collegamento operativo. Poi riapri questo pannello.</p>
         <ul className="divide-y rounded-lg border">
           {righe.map((r) => (
             <li key={r.f.id} className="space-y-2 p-3">

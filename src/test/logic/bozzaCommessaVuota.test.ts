@@ -12,3 +12,12 @@ describe("Bozza della nuova commessa", () => {
     expect(bozzaHaContenuto({ workStartDate: "2026-11-02" })).toBe(true);
   });
 });
+
+
+it("cliente e indirizzo proposti dal percorso non sono una bozza compilata", () => {
+  const proposta = { customerId: "demo", prefilledCustomerId: "demo", cantiereAddress: "Via Demo", cantiereAddressManuale: false };
+  expect(bozzaHaContenuto(proposta)).toBe(false);
+  expect(bozzaHaContenuto({ ...proposta, description: "Lavoro scritto" })).toBe(true);
+  expect(bozzaHaContenuto({ ...proposta, customerId: "altro" })).toBe(true);
+  expect(bozzaHaContenuto({ ...proposta, cantiereAddressManuale: true })).toBe(true);
+});

@@ -51,7 +51,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
     setPdfLoading(true);
     try {
       await downloadNativePDF(state.id, state.numero || undefined);
-      toast.success("PDF generato");
+      toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
     } catch (err: any) {
       toast.error("Errore generazione PDF", { description: err.message });
     } finally {

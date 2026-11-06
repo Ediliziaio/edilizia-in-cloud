@@ -10,7 +10,7 @@ describe("Talent Profile report decision", () => {
 
   it("genera payload report e decisione operativa per HR", () => {
     const answers = Object.fromEntries(
-      DOMANDE.map((domanda) => [domanda.id, domanda.polarita === "-" ? "C" : "A"]),
+      DOMANDE.map((domanda) => [domanda.id, domanda.polarita === "-" ? "C" as const : "A" as const]),
     );
 
     const payload = buildTalentReportPayload({
@@ -52,7 +52,7 @@ describe("Talent Profile report decision", () => {
       control_unexpected_count: 3,
       profile_type: "CRITICAL",
       traits_v5: {},
-      macro_areas: {},
+      macro_areas: { essere_pct: 0, fare_pct: 0, avere_pct: 0 },
       role_requested: "Capocantiere",
       role_match: { ruolo: "Capocantiere", compatibilitaPct: 82, verdict: "IDONEO", motivazione: "Fit tecnico buono" },
       all_roles: [],
@@ -69,7 +69,7 @@ describe("Talent Profile report decision", () => {
 
   it("genera un HTML PDF A4 completo e sicuro per la stampa", () => {
     const answers = Object.fromEntries(
-      DOMANDE.map((domanda) => [domanda.id, domanda.polarita === "-" ? "C" : "A"]),
+      DOMANDE.map((domanda) => [domanda.id, domanda.polarita === "-" ? "C" as const : "A" as const]),
     );
     const payload = buildTalentReportPayload({
       companyId: "company-1",

@@ -192,7 +192,7 @@ export default function PipelineCampagna({ campagnaId, nome, aperta, onChiudi }:
   });
 
   const perColonna = useMemo(() => {
-    const m = new Map<string, Destinatario[]>(COLONNE.map((c) => [c.key, []]));
+    const m = new Map<string, Destinatario[]>(COLONNE.map((c): [string, Destinatario[]] => [c.key, []]));
     for (const d of destinatari) m.get(colonnaDi(d))?.push(d);
     return m;
   }, [destinatari]);

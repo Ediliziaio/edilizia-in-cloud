@@ -342,6 +342,7 @@ export function useDDTRicezioneDetail(ddtId: string | null | undefined) {
     isLoading: detailQuery.isLoading,
     receipts: receiptsQuery.data ?? [],
     isReceiptsLoading: receiptsQuery.isLoading,
+    isReceiptsError: receiptsQuery.isError,
     refetch: () => {
       detailQuery.refetch();
       receiptsQuery.refetch();
@@ -833,7 +834,7 @@ export function useDDTRicezioneMutations(poId?: string | null) {
       notes?: string | null;
     }) => {
       if (!companyId) throw new Error("Company non disponibile");
-      if (params.quantity_received <= 0)
+      if (!Number.isFinite(params.quantity_received) || params.quantity_received <= 0)
         throw new Error("La quantità deve essere maggiore di zero");
 
       let warehouseId = params.warehouse_id ?? null;

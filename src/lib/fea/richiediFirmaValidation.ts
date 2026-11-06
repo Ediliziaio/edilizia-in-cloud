@@ -58,7 +58,7 @@ export function validateRichiediFirmaForm(
   }
 
   const signerFields = validateFirmaSignerFields(input);
-  if (!signerFields.ok) return signerFields;
+  if (signerFields.ok === false) return { ok: false, error: signerFields.error };
 
   return {
     ok: true,

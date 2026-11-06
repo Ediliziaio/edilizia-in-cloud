@@ -318,6 +318,7 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
 // Coercizione dell'unità di misura estratta dall'AI (testo libero) → enum RstUnitaMisura.
 function coerceUnita(u: string | null | undefined): RstUnitaMisura {
   const s = (u ?? "").trim().toLowerCase();
+  if (["mc", "m3", "m³", "m^3", "metri cubi"].includes(s)) return "mc";
   if (["mq", "m2", "m²", "m^2", "metri quadri", "metri quadrati"].includes(s)) return "mq";
   if (["ml", "m", "mt", "m.l.", "metri", "metro", "metri lineari"].includes(s)) return "ml";
   if (["kg", "kg.", "chilo", "chili", "chilogrammi"].includes(s)) return "kg";

@@ -10,8 +10,7 @@ export class IncompletePurchaseOrderError extends Error {
 }
 const inFlight = new Set<string>();
 
-/** Shared by both commessa entry points. This is a preflight, NOT a database
- * transaction: simultaneous purchases on different devices still need an RPC. */
+/** Preflight condiviso dai due ingressi; testata e righe si salvano nella stessa transazione server. */
 export async function createMaterialPurchaseOrder(input: {
   companyId: string; orderId: string; orderCode?: string | null;
   supplierId: string; userId?: string; items: ProcurementItem[];
@@ -42,24 +41,18 @@ export async function createMaterialPurchaseOrder(input: {
       throw new Error("Articoli o quantità già coperte sono cambiati. Aggiorna e verifica la selezione prima di creare l’OdA.");
     }
     const lines = procurementLines(candidates);
-    const { data: po, error } = await supabase.from("purchase_orders").insert({
-      company_id: companyId, supplier_id: supplierId, order_id: orderId,
-      created_by: input.userId, status: "bozza",
-      // The existing BEFORE INSERT trigger generates a company-safe number.
-      oda_number: "",
-      notes: `Generato da commessa ${input.orderCode || orderId}`,
-    }).select("id").single();
-    if (error) throw error;
-    if (!po?.id) throw new Error("Creazione della bozza non confermata: verifica gli OdA prima di riprovare");
-    try {
-      const { error: linesError } = await supabase.from("purchase_order_items").insert(lines.map((line, index) => ({
-        ...line, company_id: companyId, purchase_order_id: po.id, sort_order: index,
-      })));
-      if (linesError) throw linesError;
-    } catch {
-      // Never delete a possibly saved order after an ambiguous network error.
-      throw new IncompletePurchaseOrderError(po.id);
+    const { data, error } = await supabase.rpc("crea_oda_materiali_atomica" as never, {
+      p_company_id: companyId, p_order_id: orderId, p_supplier_id: supplierId, p_righe: lines,
+    } as never);
+    if (error) {
+      if (error.code === "PGRST202") throw new Error("Il salvataggio atomico degli ordini non è ancora attivo sul server. Nessuna bozza parziale è stata creata.");
+      throw new Error(`Creazione non confermata: verifica gli ordini prima di riprovare. ${error.message}`);
     }
+    const result = data as unknown as { poId?: unknown } | null;
+    if (!result || typeof result.poId !== "string" || !result.poId) {
+      throw new Error("Creazione non confermata: verifica gli ordini prima di riprovare");
+    }
+    const po = { id: result.poId };
     // A draft reserves quantity in our planner but is not an order sent to the
     // supplier. In particular, do NOT set order_items.status = 'ordinato'.
     // Audit failure must not pretend the successful purchase creation failed.

@@ -7,7 +7,7 @@ import {
 
 describe("contract AI extract", () => {
   const raw = {
-    cliente: { nome_completo: "Edilizia Rossi SRL", partita_iva: "01234567890", email: "info@rossi.it", telefono: null, indirizzo: "Via Roma 1", codice_fiscale: null },
+    cliente: { nome_completo: "Edilizia Rossi SRL", partita_iva: "01234567890", email: "info@rossi.it", telefono: null as null, indirizzo: "Via Roma 1", codice_fiscale: null as null },
     descrizione_lavori: "Rifacimento tetto",
     indirizzo_cantiere: "Via Verdi 9",
     importo_totale_eur: 10000,
@@ -16,14 +16,14 @@ describe("contract AI extract", () => {
     voci: [{ descrizione: "Smontaggio", quantita: 1, prezzo_unitario_eur: 2000 }, { descrizione: "", quantita: 1, prezzo_unitario_eur: 0 }],
     modalita_pagamento: "Bonifico bancario",
     fasi_pagamento: [
-      { descrizione: "Acconto alla firma", percentuale: 30, importo_eur: null },
-      { descrizione: "Saldo a fine lavori", percentuale: 70, importo_eur: null },
+      { descrizione: "Acconto alla firma", percentuale: 30, importo_eur: null as null },
+      { descrizione: "Saldo a fine lavori", percentuale: 70, importo_eur: null as null },
     ],
     data_inizio_lavori: "2026-09-01",
-    data_fine_lavori: null,
+    data_fine_lavori: null as null,
     summary: "Contratto tetto",
     confidence: 0.9,
-    warnings: [],
+    warnings: [] as string[],
   };
 
   it("parses + normalizes, dropping empty voci", () => {
@@ -73,10 +73,10 @@ import { deriveIvaPct, contractSommaVoci, contractCoherenceWarnings, contractTot
 
 describe("contract extract — potenziamento anti-fragilità", () => {
   const base = {
-    cliente: { nome_completo: "X", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
-    descrizione_lavori: "Serramenti", indirizzo_cantiere: null,
-    modalita_pagamento: null, fasi_pagamento: [], data_inizio_lavori: null, data_fine_lavori: null,
-    summary: "", confidence: 0.9, warnings: [],
+    cliente: { nome_completo: "X", email: null as null, telefono: null as null, indirizzo: null as null, codice_fiscale: null as null, partita_iva: null as null },
+    descrizione_lavori: "Serramenti", indirizzo_cantiere: null as null,
+    modalita_pagamento: null as null, fasi_pagamento: [] as never[], data_inizio_lavori: null as null, data_fine_lavori: null as null,
+    summary: "", confidence: 0.9, warnings: [] as string[],
   };
 
   it("deriveIvaPct: deduce il 10% dai totali quando l'aliquota manca (caso Cosmet)", () => {
@@ -130,10 +130,10 @@ describe("contract extract — potenziamento anti-fragilità", () => {
 
 describe("contratto complesso (offerta fornitore, sconti, altri costi)", () => {
   const base2 = {
-    cliente: { nome_completo: "SC Cinnirella", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
-    descrizione_lavori: "Serramenti Rehau", indirizzo_cantiere: null,
-    modalita_pagamento: null, fasi_pagamento: [], data_inizio_lavori: null, data_fine_lavori: null,
-    summary: "", confidence: 0.9, warnings: [],
+    cliente: { nome_completo: "SC Cinnirella", email: null as null, telefono: null as null, indirizzo: null as null, codice_fiscale: null as null, partita_iva: null as null },
+    descrizione_lavori: "Serramenti Rehau", indirizzo_cantiere: null as null,
+    modalita_pagamento: null as null, fasi_pagamento: [] as never[], data_inizio_lavori: null as null, data_fine_lavori: null as null,
+    summary: "", confidence: 0.9, warnings: [] as string[],
   };
 
   it("caso Cinnirella: voci − sconto 15% + imballo + trasporto = totale → zero allarmi conti", () => {
@@ -178,10 +178,10 @@ describe("contratto complesso (offerta fornitore, sconti, altri costi)", () => {
 
 describe("riconciliazione prezzi voce (totale-riga scambiato per unitario)", () => {
   const base3 = {
-    cliente: { nome_completo: "SC Cinnirella", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
-    descrizione_lavori: "Serramenti", indirizzo_cantiere: null,
-    modalita_pagamento: null, fasi_pagamento: [], data_inizio_lavori: null, data_fine_lavori: null,
-    summary: "", confidence: 0.9, warnings: [],
+    cliente: { nome_completo: "SC Cinnirella", email: null as null, telefono: null as null, indirizzo: null as null, codice_fiscale: null as null, partita_iva: null as null },
+    descrizione_lavori: "Serramenti", indirizzo_cantiere: null as null,
+    modalita_pagamento: null as null, fasi_pagamento: [] as never[], data_inizio_lavori: null as null, data_fine_lavori: null as null,
+    summary: "", confidence: 0.9, warnings: [] as string[],
     importo_totale_eur: 8462.7, iva_pct: 0, importo_totale_ivato_eur: 8462.7,
     sconto_globale_pct: 15, natura_documento: "offerta_fornitore",
     altri_costi: [
@@ -235,7 +235,7 @@ describe("imponibile parziale con IVA 0 (variabilità tra run del modello)", () 
     const ex = parseContractExtract({
       cliente: { nome_completo: "X", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
       descrizione_lavori: "S", indirizzo_cantiere: null, modalita_pagamento: null, fasi_pagamento: [],
-      data_inizio_lavori: null, data_fine_lavori: null, summary: "", confidence: 0.9, warnings: [],
+      data_inizio_lavori: null, data_fine_lavori: null, summary: "", confidence: 0.9, warnings: [] as string[],
       importo_totale_eur: 7514.17, iva_pct: 0, importo_totale_ivato_eur: 8462.7,
       sconto_globale_pct: null, altri_costi: [], natura_documento: null, voci: [],
     });
@@ -245,11 +245,11 @@ describe("imponibile parziale con IVA 0 (variabilità tra run del modello)", () 
 
 describe("valuta non-euro (audit punto 8)", () => {
   const base4 = {
-    cliente: { nome_completo: "X", email: null, telefono: null, indirizzo: null, codice_fiscale: null, partita_iva: null },
-    descrizione_lavori: "S", indirizzo_cantiere: null, modalita_pagamento: null, fasi_pagamento: [],
-    data_inizio_lavori: null, data_fine_lavori: null, summary: "", confidence: 0.9, warnings: [],
+    cliente: { nome_completo: "X", email: null as null, telefono: null as null, indirizzo: null as null, codice_fiscale: null as null, partita_iva: null as null },
+    descrizione_lavori: "S", indirizzo_cantiere: null as null, modalita_pagamento: null as null, fasi_pagamento: [] as never[],
+    data_inizio_lavori: null as null, data_fine_lavori: null as null, summary: "", confidence: 0.9, warnings: [] as string[],
     importo_totale_eur: 1000, iva_pct: 0, importo_totale_ivato_eur: 1000,
-    sconto_globale_pct: null, altri_costi: [], natura_documento: null,
+    sconto_globale_pct: null as null, altri_costi: [] as never[], natura_documento: null as null,
     voci: [{ descrizione: "V", quantita: 1, prezzo_unitario_eur: 1000 }],
   };
   it("CHF → allarme conversione", () => {

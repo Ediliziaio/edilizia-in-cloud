@@ -89,9 +89,9 @@ interface ValidationError {
 interface Props {
   state: EditorState;
   isSaving: boolean;
+  isDirty: boolean;
   lastSaved: Date | null;
   /** Ci sono modifiche non ancora salvate: appena aperta, una fattura già salvata non ne ha. */
-  isDirty?: boolean;
   onEmetti: () => void;
   onDelete: () => void;
   onFieldChange: (field: string, value: unknown) => void;
@@ -216,15 +216,15 @@ export function EditorTopBar({
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 <span className="hidden sm:inline">Salvataggio...</span>
               </>
-            ) : lastSaved ? (
+            ) : !isDirty && state.id ? (
               <>
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span className="hidden sm:inline">Salvata {formatRelativeTime(lastSaved)}</span>
+                <span className="hidden sm:inline">{lastSaved ? `Salvata ${formatRelativeTime(lastSaved)}` : isBozza ? "Bozza salvata" : "Documento salvato"}</span>
               </>
             ) : isDirty ? (
               <>
                 <Clock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Non salvata</span>
+                <span className="hidden sm:inline">Modifiche non salvate</span>
               </>
             ) : null}
           </div>

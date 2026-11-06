@@ -101,7 +101,7 @@ export async function logAdminAuditAction(entry: AdminAuditLogEntry): Promise<vo
     const { data: sessionData } = await sp.auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) {
-      logger.debug("[audit] skipped — no session token");
+      logger.info("[audit] skipped — no session token");
       return;
     }
 
@@ -117,7 +117,7 @@ export async function logAdminAuditAction(entry: AdminAuditLogEntry): Promise<vo
         // Edge function non deployata — log silenzioso e mai più ritentare
         // in questa session. Niente warning rumoroso in console.
         edgeFunctionMissing = true;
-        logger.debug("[audit] edge function not deployed, skipping audit logs this session");
+        logger.info("[audit] edge function not deployed, skipping audit logs this session");
         return;
       }
       logger.warn("[audit] failed to write log:", msg);
@@ -127,7 +127,7 @@ export async function logAdminAuditAction(entry: AdminAuditLogEntry): Promise<vo
     const status = extractStatus(err);
     if (isEdgeFunctionMissing(msg, status)) {
       edgeFunctionMissing = true;
-      logger.debug("[audit] edge function not deployed, skipping audit logs this session");
+      logger.info("[audit] edge function not deployed, skipping audit logs this session");
       return;
     }
     logger.warn("[audit] write threw:", msg);

@@ -44,6 +44,7 @@ export function buildLocalQuotePdfData(doc: ChatDocument, draft: LocalBagniDraft
   const chapters = totals.perCapitolo.map(cap => ({ nome: cap.nome, subtotale: cap.imponibile, voci: rows.filter(r => r.capitolo_nome === cap.nome).map(r => ({
     id: r.id, descrizione: r.descrizione, descrizione_estesa: r.descrizione_estesa, unita_misura: r.unita_misura, quantita: r.quantita, prezzo_unitario: r.prezzo_unitario,
     importo: Math.round(r.quantita * r.prezzo_unitario * (1 - r.sconto_pct / 100) * 100) / 100,
+    sconto_pct: r.sconto_pct,
     fonte: `${quotePriceLabel(doc.lines.find(l => l.id === r.id)!)}${r.sconto_pct ? ` - sconto riga ${r.sconto_pct}%` : ''}`,
   })) }));
   const pending = doc.lines.filter(l => !l.supersededBy?.length).length - rows.length;

@@ -353,7 +353,7 @@ async function fetchGovernanceUsers(
     const profile = profilesById.get(userId);
     const accessRoles = accessByUser.get(userId)?.map((row) => row.access_role) ?? [];
     const profileRoles = rolesByUser.get(userId) ?? [];
-    const source = profile?.company_id === companyId ? "profile" : "multi_company";
+    const source: GovernanceUser["source"] = profile?.company_id === companyId ? "profile" : "multi_company";
     const roles = accessRoles.length > 0 && source === "multi_company" ? accessRoles : profileRoles;
     const normalizedRoles = normalizeAccessRoles(roles.length ? roles : ["company_staff"]);
     const permissions = permissionsByUser.get(userId);

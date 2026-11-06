@@ -317,7 +317,11 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
     const essenza = WOOD_ESSENCES.find((wood) => wood.value === option?.defaults.essenza_legno);
     update({
       tipo: type,
-      colore_mode: option?.effect === "legno" ? "legno" : value.colore_mode,
+      colore_mode: option?.effect === "legno" ? "legno" : "palette",
+      colore_ral: undefined,
+      larghezza_listello_mm: undefined,
+      lunghezza_listello_mm: undefined,
+      formato_piastrella: undefined,
       ...(option?.defaults ?? {}),
       ...(essenza ? { colore_nome: essenza.label, colore_hex: essenza.color } : {}),
     });

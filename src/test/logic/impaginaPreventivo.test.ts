@@ -199,3 +199,15 @@ describe("il PDF (generate-quote-pdf) usa le regole nuove", () => {
     expect(pdf).toContain('notes: opzione("pdf_mostra_note_cliente") ? quote.notes : null,');
   });
 });
+
+// UX-29: lo sconto deve arrivare al renderer, senza cambiare i totali salvati.
+it("conserva lo sconto di riga del preventivo classico nel PDF", () => {
+  const input = { quote: { subtotal: 90, total: 109.8, discount_amount: 0 }, items: [{ name: "Lavorazione", quantity: 2, unit_price: 50, discount_percent: 10, vat_rate: 22, line_total: 90 }], company: null as null, template: {} };
+  const dati = datiGenerici(input);
+  expect(dati.capitoli[0].voci[0]).toMatchObject({ quantita: 2, prezzoUnitario: 50, scontoPct: 10, importo: 90 });
+  expect(dati.totali.totale).toBe(109.8);
+  expect(dati.totali.mostraScontiRiga).toBe(true);
+  const nascosti = datiGenerici({ ...input, quote: { ...input.quote, pdf_mostra_sconti: false } });
+  expect(nascosti.totali.mostraScontiRiga).toBe(false);
+  expect(nascosti.capitoli[0].voci[0].importo).toBe(90);
+});

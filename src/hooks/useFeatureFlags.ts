@@ -269,7 +269,7 @@ export function useFeatureFlags(companyIdOverride?: string) {
       feature_key: r.feature_key,
       is_enabled: r.is_enabled,
       expires_at: r.expires_at,
-      override_reason: null,
+      override_reason: null as null,
     }));
 
   return {

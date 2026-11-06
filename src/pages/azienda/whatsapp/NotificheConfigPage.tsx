@@ -320,7 +320,7 @@ export default function NotificheConfigPage() {
 function toTriggerView(t: {
   id: string;
   enabled: boolean | null;
-  config: Record<string, unknown> | null;
+  config: Json;
   template_name: string | null;
   wa_number_id: string | null;
   last_fired_at: string | null;
@@ -329,7 +329,7 @@ function toTriggerView(t: {
   return {
     id: t.id,
     enabled: t.enabled ?? false,
-    config: t.config ?? {},
+    config: t.config && typeof t.config === "object" && !Array.isArray(t.config) ? t.config : {},
     template_name: t.template_name,
     wa_number_id: t.wa_number_id,
     last_fired_at: t.last_fired_at,

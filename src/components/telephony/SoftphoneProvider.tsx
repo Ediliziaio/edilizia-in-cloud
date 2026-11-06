@@ -97,7 +97,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => cleanup(), [cleanup]);
 
-  const startCall = useCallback((number: string, opts?: { name?: string }) => {
+  const startCall = useCallback((number: string, opts?: { name?: string; contactId?: string }) => {
     if (status !== "idle") { toast.error("C'è già una chiamata in corso"); return; }
     if (!number) { toast.error("Numero mancante"); return; }
     setStatus("connecting");

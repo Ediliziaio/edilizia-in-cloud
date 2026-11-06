@@ -11,9 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSmsLog } from "@/hooks/useSmsLog";
 import { SmsStatsBadge } from "./SmsStatsBadge";
-import type { SmsCampagna, SmsLogStato } from "@/types/sms-marketing";
+import type { SmsCampagna } from "@/types/sms-marketing";
 
-const STATO_ICON: Record<SmsLogStato, React.ElementType> = {
+const STATO_ICON: Record<string, React.ElementType> = {
   pending: Clock,
   inviato: Send,
   consegnato: CheckCircle2,
@@ -21,7 +21,7 @@ const STATO_ICON: Record<SmsLogStato, React.ElementType> = {
   opt_out: AlertCircle,
 };
 
-const STATO_COLOR: Record<SmsLogStato, string> = {
+const STATO_COLOR: Record<string, string> = {
   pending: "text-muted-foreground",
   inviato: "text-blue-600",
   consegnato: "text-emerald-600",
@@ -34,7 +34,7 @@ interface SmsCampagnaDetailProps {
 }
 
 export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
-  const { logs, stats, isLoading } = useSmsLog(campagna.id);
+  const { logs, stats, isLoading, error } = useSmsLog(campagna.id);
 
   return (
     <div className="space-y-4">
@@ -74,6 +74,8 @@ export function SmsCampagnaDetail({ campagna }: SmsCampagnaDetailProps) {
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
           </div>
+        ) : error ? (
+          <p role="alert" className="text-sm text-destructive">{error}</p>
         ) : logs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun log disponibile.</p>
         ) : (

@@ -463,7 +463,8 @@ export default function AnalisiAcquisti() {
         badge={solaLettura ? <Badge variant="secondary" className="font-normal">Sola lettura</Badge> : undefined}
       />
 
-      {/* Barra filtri: vale per tutte le schede. */}
+      {/* Il confronto prezzi è aziendale: i filtri delle altre schede restano memorizzati. */}
+      {scheda !== "prezzi" && (
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2.5">
         <Select value={sceltaPeriodo} onValueChange={(v) => imposta({ periodo: v === "anno" ? null : v, ...(v === "personalizzato" ? { dal: periodo.dal, al: periodo.al } : { dal: null, al: null }) })}>
           <SelectTrigger className="h-9 w-full sm:w-[170px]" aria-label="Periodo">
@@ -519,6 +520,7 @@ export default function AnalisiAcquisti() {
           {formatDateIt(periodo.dal)} – {formatDateIt(periodo.al)}
         </span>
       </div>
+      )}
 
       <Tabs value={scheda} onValueChange={(v) => imposta({ scheda: v === "panoramica" ? null : v })}>
         <TabsList className="h-auto w-full justify-start overflow-x-auto sm:w-auto [&::-webkit-scrollbar]:hidden">
@@ -547,7 +549,7 @@ export default function AnalisiAcquisti() {
                   <KpiCard
                     label="Scaduto"
                     value={eur0(t.scaduto)}
-                    sub={t.scadutoConteggio > 0 ? `${t.scadutoConteggio} rate · IVA compresa` : "Nessuna rata scaduta"}
+                    sub={t.scadutoConteggio > 0 ? `${t.scadutoConteggio} rate · IVA compresa` : "Nessuna voce scaduta nello scadenzario"}
                     icon={AlertTriangle}
                     accent={t.scaduto > 0 ? "bg-red-500" : "bg-emerald-500"}
                     onClick={() => imposta({ scheda: "scadenze" })}
@@ -555,7 +557,7 @@ export default function AnalisiAcquisti() {
                   <KpiCard
                     label="In scadenza 30 gg"
                     value={eur0(t.inScadenza30)}
-                    sub={t.inScadenza30Conteggio > 0 ? `${t.inScadenza30Conteggio} rate · IVA compresa` : "Niente in arrivo"}
+                    sub={t.inScadenza30Conteggio > 0 ? `${t.inScadenza30Conteggio} rate · IVA compresa` : "Nessuna voce nello scadenzario"}
                     icon={CalendarClock}
                     accent="bg-amber-500"
                     onClick={() => imposta({ scheda: "scadenze" })}
@@ -647,7 +649,7 @@ export default function AnalisiAcquisti() {
             }
           >
             <p className="mb-3 text-xs text-muted-foreground">
-              Risparmio potenziale: quanto avresti risparmiato se avessi pagato il prezzo migliore degli ultimi 12 mesi. Prezzi netti di sconto, stesso articolo e stessa unità di misura; le voci «a corpo» e le righe generiche non entrano. Questa scheda guarda sempre gli ultimi 12 mesi.
+              Risparmio potenziale: quanto avresti risparmiato se avessi pagato il prezzo migliore degli ultimi 12 mesi. Prezzi netti di sconto, stesso articolo e stessa unità di misura; le voci «a corpo» e le righe generiche non entrano. Confronto aziendale sugli ultimi 12 mesi: i filtri periodo, commessa, fornitore e categoria delle altre schede non si applicano. Il risparmio mostrato riguarda l’intera azienda.
             </p>
             {prezziQuery.isError ? (
               <Errore onRiprova={() => prezziQuery.refetch()} />
@@ -701,12 +703,16 @@ export default function AnalisiAcquisti() {
         {/* ── Scadenze ── */}
         <TabsContent value="scadenze" className="mt-4">
           <Sezione
-            titolo="Da pagare ai fornitori (IVA compresa)"
+            titolo="Scadenzario fornitori (IVA compresa)"
             destra={t ? <span className="text-xs text-muted-foreground tabular-nums">Scaduto {formatCurrency(t.scaduto)} · prossimi 30 giorni {formatCurrency(t.inScadenza30)}</span> : undefined}
           >
+            <p className="mb-3 text-sm text-muted-foreground">
+              Questa vista include le voci dello scadenzario. Le rate delle fatture ricevute
+              non ancora riportate qui vanno verificate in «Fatture e debiti» del fornitore.
+            </p>
             {caricaAnalisi((d) =>
               d.scadenze.length === 0 ? (
-                <Vuoto titolo="Nessuna rata scaduta o in scadenza nei prossimi 30 giorni" guida="Le rate ai fornitori nascono dalle fatture ricevute e dagli ordini con termini di pagamento." />
+                <Vuoto titolo="Nessuna rata scaduta o in scadenza nei prossimi 30 giorni" guida="Verifica anche le rate in Fatture e debiti del fornitore: potrebbero non essere ancora presenti nello scadenzario." />
               ) : (
                 <Scorre>
                   <Table className="min-w-[560px] [&_td]:px-3 [&_th]:px-3">

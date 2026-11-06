@@ -21,7 +21,7 @@ import {
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
 
 const schema = z.object({
-  amount: z.coerce.number().min(0.01, "Importo obbligatorio"),
+  amount: z.coerce.number<string | number>().min(0.01, "Importo obbligatorio"),
   period_start: z.string().min(1, "Data inizio obbligatoria"),
   period_end: z.string().min(1, "Data fine obbligatoria"),
   payment_method: z.enum(["bank_transfer", "paypal", "other"]),
@@ -43,7 +43,7 @@ export function PayoutDialog({ referrer, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const availableBalance = referrer ? Math.max(0, (referrer.total_earned || 0) - (referrer.total_paid || 0)) : 0;
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof schema>, unknown, FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       amount: 0,

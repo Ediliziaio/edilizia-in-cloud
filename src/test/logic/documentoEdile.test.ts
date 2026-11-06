@@ -151,6 +151,18 @@ describe("il kit del marchio: si sceglie una volta in «Brand & Azienda»", () =
 });
 
 describe("dal modulo al documento", () => {
+  it.each(Object.entries(MODULI_EDILI))("CHECK-37: %s ricalcola le righe anche con importi salvati obsoleti", (_nome, modulo) => {
+    const dati = costruisciDatiEdile({
+      modulo, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],
+      capitoli: [{ nome: "Lavori", subtotale: 2703.6, voci: [
+        { id: "1", descrizione: "Punti luce", unita_misura: "cad", quantita: 4, prezzo_unitario: 75, importo: 0 },
+        { id: "2", descrizione: "Prese", unita_misura: "cad", quantita: 6, prezzo_unitario: 70, importo: 0 },
+        { id: "3", descrizione: "Tetto", unita_misura: "mq", quantita: 104.4, prezzo_unitario: 20, sconto_pct: 5, importo: 2088 },
+      ] }],
+    });
+    expect(dati.capitoli[0].voci.map(v => v.importo)).toEqual([300, 420, 1983.6]);
+    expect(dati.capitoli[0].voci.reduce((s, v) => s + v.importo, 0)).toBe(dati.capitoli[0].subtotale);
+  });
   it.each(Object.entries(MODULI_EDILI))("%s conserva ipotesi ed esclusioni delle stime oltre la sintesi prodotto", (_nome, modulo) => {
     const descrizione = `${"Dettaglio della prestazione indicativa. ".repeat(12)}Ipotesi: accesso ordinario. Esclusioni: verifica specialistica della soletta e nuova linea elettrica.`;
     const dati = costruisciDatiEdile({
@@ -367,4 +379,14 @@ describe("condizioni generali e firma: il preventivo firmato è il contratto", (
     expect(leggiModello({ condizioni_legali_testo: "## Art. 13 — Recesso\nEntro 14 giorni." }, contesto).conRecesso).toBe(false);
     expect(leggiModello({ modulo_recesso_attivo: true }, contesto).conRecesso).toBe(true);
   });
+});
+
+it("nel PDF distingue la pergola dal codice tecnico condiviso con le ristrutturazioni", () => {
+  const base: Omit<Parameters<typeof costruisciDatiEdile>[0], "template"> = { modulo: MODULI_EDILI.ristrutturazione, progetto: { ...PROGETTO, tipo_intervento: "ristrutturazione_parziale" }, azienda: null, capitoli: [], totali: TOTALI, media: [] };
+  const pergola = costruisciDatiEdile({ ...base, template: { pdf_blocchi: { modulo_intervento: "pergola-bioclimatica" } } });
+  expect(pergola.tipoIntervento).toBe("Pergola bioclimatica");
+  const legacy = costruisciDatiEdile({ ...base, template: {} });
+  expect(legacy.tipoIntervento).toBe("Ristrutturazione parziale");
+  const estraneo = costruisciDatiEdile({ ...base, template: { pdf_blocchi: { modulo_intervento: "giardino" } } });
+  expect(estraneo.tipoIntervento).toBe("Ristrutturazione parziale");
 });

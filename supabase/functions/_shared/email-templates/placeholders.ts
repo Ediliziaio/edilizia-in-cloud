@@ -21,8 +21,8 @@ export interface PlaceholderDef {
   example: string;
   /** Se true il template non ha senso senza questo placeholder. */
   required: boolean;
-  /** Categoria per raggruppare nella sidebar editor. */
-  category: "destinatario" | "contenuto" | "link" | "azienda";
+  /** Categoria o cartella personalizzata per raggruppare nella sidebar editor. */
+  category: string;
 }
 
 export interface TemplateMeta {
@@ -31,7 +31,7 @@ export interface TemplateMeta {
   /** Descrizione breve di quando viene inviata. */
   description: string;
   /** Categoria alto livello per raggruppare nella lista. */
-  category: "onboarding" | "account" | "documenti" | "notifiche";
+  category: "onboarding" | "account" | "documenti" | "notifiche" | "legal" | "billing";
   /** Icona lucide-react da usare in UI (nome componente). */
   iconName: string;
   /** Placeholder disponibili per questo template. */

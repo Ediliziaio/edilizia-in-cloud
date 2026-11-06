@@ -160,6 +160,12 @@ export const IDEE_PRONTE: IdeaPronta[] = [
       illuminazione: { ...c.illuminazione, attivo: true, tipo: "misto", temperatura: "calda_2700k", intensita_luce: "normale" },
       pavimento: spento(c.pavimento),
       arredo: spento(c.arredo),
+      soffitto: spento(c.soffitto),
+      carta_da_parati: spento(c.carta_da_parati),
+      rivestimento_pareti: spento(c.rivestimento_pareti),
+      tende: spento(c.tende),
+      ...(c.restyling_cucina ? { restyling_cucina: spento(c.restyling_cucina) } : {}),
+      ...(c.spazi_dettagli ? { spazi_dettagli: spento(c.spazi_dettagli) } : {}),
     }),
   },
 ];

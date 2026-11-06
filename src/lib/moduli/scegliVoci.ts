@@ -10,6 +10,7 @@ export interface VoceScelta {
 
 export interface RigaScelta {
   chiave: string; descrizione: string; meta?: string;
+  blocco?: string;
   /** Il titolo sopra le voci nell'elenco: capitolo o gruppo. */
   sezione?: string; immagine?: string | null; prezzo: number; unitaLabel: string;
   /** Prodotto al metro quadro: la quantità va scritta, non vale 1. */

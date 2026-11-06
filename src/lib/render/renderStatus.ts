@@ -44,7 +44,7 @@ export function renderStatusLabel(status: string | null | undefined) {
     draft: "Da completare",
     completed: "Completato",
     processing: "In elaborazione",
-    pending: "In coda",
+    pending: "In attesa",
     failed: "Errore",
   };
   return labels[normalized];

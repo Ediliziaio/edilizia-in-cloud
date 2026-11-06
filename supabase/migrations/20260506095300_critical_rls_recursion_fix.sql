@@ -16,6 +16,63 @@
 -- `order_has_item_in_my_warehouse` per chiudere gli altri 2 cicli.
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- Prerequisito delle helper: lo storico aggiungeva questa colonna soltanto
+-- in 20260802000002. Anticiparla rende riproducibile il replay da zero;
+-- la migrazione successiva usa già ADD COLUMN IF NOT EXISTS.
+ALTER TABLE public.order_items
+  ADD COLUMN IF NOT EXISTS destination_warehouse_id uuid
+  REFERENCES public.warehouses(id) ON DELETE SET NULL;
+
+-- Dipendenze della helper introdotte storicamente solo nel settembre 2026.
+CREATE TABLE IF NOT EXISTS public.warehouse_assignments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  warehouse_id uuid NOT NULL REFERENCES public.warehouses(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+
+  is_primary_manager       boolean NOT NULL DEFAULT false,
+  can_receive_goods        boolean NOT NULL DEFAULT true,
+  can_ship_to_site         boolean NOT NULL DEFAULT true,
+  can_transfer             boolean NOT NULL DEFAULT true,
+  can_count_inventory      boolean NOT NULL DEFAULT true,
+  can_view_purchase_orders boolean NOT NULL DEFAULT true,
+
+  active      boolean     NOT NULL DEFAULT true,
+  assigned_by uuid        REFERENCES public.profiles(id),
+  assigned_at timestamptz NOT NULL DEFAULT now(),
+  notes       text,
+
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT uq_warehouse_user UNIQUE (warehouse_id, user_id)
+);
+ALTER TABLE public.warehouse_assignments ENABLE ROW LEVEL SECURITY;
+CREATE OR REPLACE FUNCTION public.get_my_warehouse_ids()
+RETURNS uuid[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(array_agg(warehouse_id), ARRAY[]::uuid[])
+  FROM public.warehouse_assignments
+  WHERE user_id = auth.uid() AND active = true;
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_warehouse_user()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.warehouse_assignments
+    WHERE user_id = auth.uid() AND active = true
+  );
+$$;
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Helper 1: order_has_employee_for_user
 -- Bypass RLS valutate per spezzare loop orders ↔ order_employees

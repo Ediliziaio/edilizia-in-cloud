@@ -508,7 +508,7 @@ export function CostsTable({
                 {isColVisible("category") && <SortableTableHead column="category" label="Categoria" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
                 {isColVisible("amount") && <SortableTableHead column="amount" label="Imponibile" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[8%]" />}
                 {isColVisible("vatRate") && <SortableTableHead column="vatRate" label="IVA" sortConfig={costSort} onSort={toggleCostSort} className="w-[5%]" />}
-                {isColVisible("gross") && <SortableTableHead column="gross" label="Totale" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[12%]" />}
+                {isColVisible("gross") && <SortableTableHead column="gross" label="Totale IVA inclusa" sortConfig={costSort} onSort={toggleCostSort} className="text-right w-[12%]" />}
                 {isColVisible("recurrence") && <SortableTableHead column="recurrence" label="Ricorrenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[7%]" />}
                 {isColVisible("dueDate") && <SortableTableHead column="dueDate" label="Scadenza" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
                 {isColVisible("status") && <SortableTableHead column="status" label="Stato" sortConfig={costSort} onSort={toggleCostSort} className="w-[13%]" />}
@@ -787,8 +787,8 @@ export function CostsTable({
                   {footerTrailingCols > 0 && (
                     <TableCell colSpan={footerTrailingCols}>
                       <div className="flex flex-col gap-0.5 text-xs">
-                        <span className="text-red-600">Da pagare: {formatCurrency(footerTotals.unpaidGross)}</span>
-                        <span className="text-green-600">Pagato: {formatCurrency(footerTotals.paidGross)}</span>
+                        <span className="text-red-600">Da pagare (IVA inclusa): {formatCurrency(footerTotals.unpaidGross)}</span>
+                        <span className="text-green-600">Pagato (IVA inclusa): {formatCurrency(footerTotals.paidGross)}</span>
                       </div>
                     </TableCell>
                   )}

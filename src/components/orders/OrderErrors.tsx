@@ -1,3 +1,4 @@
+import { refreshOrderErrorQueries } from "@/lib/orders/refreshOrderErrorQueries";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -471,11 +472,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["oes-errors", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["global-errors", effectiveCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri", effectiveCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ["marginalita-widget", effectiveCompany?.id] });
+      if (effectiveCompany?.id) refreshOrderErrorQueries(queryClient, orderId, effectiveCompany.id);
       toast.success("Errore registrato", { description: "L'errore è stato aggiunto alla commessa." });
       resetForm();
     },
@@ -490,11 +487,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-errors", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["oes-errors", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["global-errors", effectiveCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri", effectiveCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ["marginalita-widget", effectiveCompany?.id] });
+      if (effectiveCompany?.id) refreshOrderErrorQueries(queryClient, orderId, effectiveCompany.id);
       toast.success("Errore rimosso", { description: "L'errore è stato eliminato." });
     },
     onError: () => {

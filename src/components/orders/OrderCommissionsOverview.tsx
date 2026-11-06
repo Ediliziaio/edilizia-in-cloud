@@ -1,4 +1,7 @@
+import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
+import type { ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { useEffect, useMemo, useState } from "react";
+import { identitaBeneficiario } from "@/lib/orders/identitaBeneficiario";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -82,6 +85,7 @@ interface OrderLike {
   total_amount: number | null;
   vat_rate?: number | null;
   financing_cost?: number | null;
+  financing_cost_mode?: ModalitaCostoFinanziaria | null;
   payment_type?: string | null;
   created_at: string | null;
   installments?: InstallmentLike[] | null;
@@ -418,6 +422,7 @@ function calculateDraftAmounts(args: {
       installments: args.order.installments ?? [],
       totalAmount: agreedContractValue(totalAmount, args.order.variazioni ?? []),
       vatRate: args.order.vat_rate ?? 22,
+      financingCostMode: args.order.financing_cost_mode,
       financingCost: args.order.payment_type === "financing" ? args.order.financing_cost ?? 0 : 0,
       includeFinancing: true,
       varianti: variantiApprovateDatate(args.order.variazioni ?? []),
@@ -499,10 +504,10 @@ function KpiCard({
 
   return (
     <Card>
-      <CardContent className="flex min-h-[80px] sm:min-h-[104px] items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4">
+      <CardContent className="flex flex-wrap min-h-[80px] sm:min-h-[104px] items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4">
         <div className="min-w-0">
           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">{label}</p>
-          <p className="mt-0.5 sm:mt-1 truncate text-base sm:text-2xl font-semibold tabular-nums">{value}</p>
+          <p className="mt-0.5 sm:mt-1 break-words text-base sm:text-xl font-semibold tabular-nums">{value}</p>
           {hint && <p className="hidden sm:block mt-1 truncate text-xs text-muted-foreground">{hint}</p>}
         </div>
         <div className={`shrink-0 rounded-md p-1.5 sm:p-2 ${toneClass}`}>
@@ -706,7 +711,7 @@ export function OrderCommissionsOverview() {
         .limit(250);
 
       if (error) throw error;
-      return (data ?? []) as unknown as OrderLike[];
+      return leggiModalitaCommesse(effectiveCompany.id, (data ?? []) as unknown as OrderLike[]);
     },
     enabled: !!effectiveCompany?.id,
     staleTime: 5 * 60 * 1000,
@@ -773,7 +778,7 @@ export function OrderCommissionsOverview() {
       return {
         id: `legacy:${row.id}`,
         source: "legacy",
-        beneficiaryId: row.salesperson_id,
+        beneficiaryId: identitaBeneficiario(row.salesperson_id, { source_type: "salesperson", source_id: row.salesperson_id }),
         beneficiaryName: fullName(row.salesperson),
         role: "Commerciale",
         order: row.order,
@@ -806,7 +811,7 @@ export function OrderCommissionsOverview() {
         return {
           id: `generic:${row.id}`,
           source: "generic",
-          beneficiaryId: row.beneficiary_id,
+          beneficiaryId: identitaBeneficiario(row.beneficiary_id, row.beneficiary),
           beneficiaryName: row.beneficiary?.display_name || "Beneficiario",
           role: ROLE_LABELS[row.role || row.beneficiary?.role || "manuale"] ?? row.role ?? "Manuale",
           order: row.order,
@@ -839,7 +844,7 @@ export function OrderCommissionsOverview() {
       return {
         id: `local:${row.id}`,
         source: "local",
-        beneficiaryId: row.beneficiary_id,
+        beneficiaryId: identitaBeneficiario(row.beneficiary_id, beneficiaryOptions.find((b) => b.id === row.beneficiary_id)),
         beneficiaryName: row.beneficiary_name,
         role: ROLE_LABELS[row.role] ?? row.role,
         order,
@@ -863,7 +868,7 @@ export function OrderCommissionsOverview() {
     });
 
     return [...genericViewRows, ...localViewRows, ...legacyViewRows].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [genericRows, ledgerByLegacyRow, legacyRows, localRows, orderOptions]);
+  }, [genericRows, ledgerByLegacyRow, legacyRows, localRows, orderOptions, beneficiaryOptions]);
 
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLowerCase();

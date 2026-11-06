@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import { mkdir, writeFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { allegatiDaIncludere, caricaAllegatoLocale, leggiAllegatoLocale } from "@/lib/computo/allegatiLocali";
 import { generaDocumentoComputo } from "@/lib/computo/esportaComputo";
@@ -13,6 +14,22 @@ const file = (nome: string, type: string, data = new Uint8Array([1, 2, 3])) => n
 const voci = () => vociDaBozza({ ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Posa pavimento", quantita: "12", prezzo: "35,50" }] });
 
 describe("progetto e allegati del computo", () => {
+  it.each(["primus", "elenco-prezzi"] as const)("%s con allegati ha un solo numero pagina riferito all'intero PDF", async (impaginazione) => {
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
+    const blob = await generaDocumentoComputo(voci(), { titolo: "Prova numerazione", impaginazione }, [
+      { nome: "foto.png", tipo: "foto", blob: new NodeBlob([png], { type: "image/png" }) as unknown as Blob },
+    ]);
+    const caricamento = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+    const pdf = await caricamento.promise;
+    try {
+      expect(pdf.numPages).toBeGreaterThan(1);
+      for (let pagina = 1; pagina <= pdf.numPages; pagina++) {
+        const content = await (await pdf.getPage(pagina)).getTextContent();
+        const testo = content.items.map((x) => "str" in x ? x.str : "").join(" ");
+        expect(testo.match(/Pagina \d+ di \d+/g)).toEqual([`Pagina ${pagina} di ${pdf.numPages}`]);
+      }
+    } finally { await caricamento.destroy(); }
+  }, 30000);
   it("conserva il file in locale e lo recupera solo nello stesso ambito", async () => {
     const scope = crypto.randomUUID();
     const meta = await caricaAllegatoLocale(scope, file("foto.png", "image/png"), "foto");

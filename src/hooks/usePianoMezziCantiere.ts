@@ -82,5 +82,22 @@ export function usePianoMezziCantiere(
     onError: (e: { message?: string }) =>
       toast.error(e.message || "Impossibile salvare la pianificazione"),
   });
-  return { piani, prezzi, salva };
+  const chiudiRientro = useMutation({
+    mutationFn: async (input: { pianoId: string; allocazioneId?: string }) => {
+      const { error } = await db.rpc("rientra_piano_mezzo", {
+        p_piano: input.pianoId, p_allocazione: input.allocazioneId ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["mezzi"] });
+      void qc.invalidateQueries({ queryKey: ["mezzi-piani-cantiere", companyId, orderId] });
+      toast.success("Rientro registrato e prenotazione conclusa");
+    },
+    onError: (e: { message?: string; code?: string }) => toast.error(
+      e.code === "PGRST202" ? "Il rientro della prenotazione richiede l’aggiornamento del servizio. Nessuna modifica eseguita."
+        : e.message || "Rientro non registrato: nessuna modifica eseguita",
+    ),
+  });
+  return { piani, prezzi, salva, chiudiRientro };
 }

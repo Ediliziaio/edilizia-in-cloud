@@ -68,7 +68,7 @@ export function OutreachListContactsDialog({
   const totalPages = Math.max(1, Math.ceil(matchCount / PAGE));
   const fmt = (n: number) => n.toLocaleString("it-IT");
 
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onSearchChange = (v: string) => {
     setSearch(v);
     setPage(0);

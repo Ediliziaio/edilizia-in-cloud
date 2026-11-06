@@ -2,6 +2,10 @@
 -- Keeps the current order_salespeople model compatible while opening the domain
 -- to technicians, partners, referrers, external teams and other beneficiaries.
 
+-- Prerequisito del backfill; lo storico lo aggiungeva solo in ottobre.
+ALTER TABLE public.salespeople ADD COLUMN IF NOT EXISTS compensation_mode text NOT NULL DEFAULT 'only_commission'
+ CHECK (compensation_mode IN ('only_commission','fixed_plus_commission','fixed_only'));
+
 CREATE TABLE IF NOT EXISTS public.compensation_beneficiaries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

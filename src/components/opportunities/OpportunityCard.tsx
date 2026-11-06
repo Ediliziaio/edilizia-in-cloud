@@ -59,7 +59,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   // feedback visivo è dato dalla DragOverlay (card "in volo") + l'highlight della
   // colonna di destinazione; lo spostamento reale avviene con l'update ottimistico
   // al rilascio → trascinamento fluido da una fase all'altra.
-  const style = undefined;
+  const style: React.CSSProperties | undefined = undefined;
 
   const fullName = contact
     ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()

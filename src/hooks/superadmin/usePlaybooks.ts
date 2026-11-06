@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -197,7 +198,7 @@ export function useCreatePlaybook() {
         trigger_event: payload.trigger_event,
         is_active: true,
         delay_hours: payload.delay_hours ?? 0,
-        actions: payload.actions ?? [],
+        actions: jsonPayload(payload.actions ?? []),
       });
 
       if (error) throw new Error(error.message);
@@ -227,7 +228,7 @@ export function useUpdatePlaybook() {
           trigger_event: payload.trigger_event,
           is_active: payload.is_active,
           delay_hours: payload.delay_hours,
-          actions: payload.actions,
+          actions: payload.actions === undefined ? undefined : jsonPayload(payload.actions),
         })
         .eq("id", payload.id);
 

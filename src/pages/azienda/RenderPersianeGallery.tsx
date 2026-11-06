@@ -77,7 +77,7 @@ export default function RenderPersianeGallery() {
       searchableText: compact([
         ...tags,
         targetLabels.join(" "),
-        renderConfig?.replacement_manifest.scope,
+        renderConfig?.replacement_manifest.operationSummary,
       ]).join(" "),
       createdById: item.created_by,
       createdByName: item.meta.createdByName,
