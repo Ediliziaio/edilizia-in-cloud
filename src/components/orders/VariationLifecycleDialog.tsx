@@ -47,6 +47,18 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   }, [id, order, company]);
   const phases = useQuery({ queryKey: ["variation-phase-options", order, company], enabled: editable,
     queryFn: async () => { const {data, error} = await supabase.from("order_work_phases").select("id,name,end_date").eq("order_id", order).eq("company_id", company).order("position"); if(error) throw error; return data ?? []; }, staleTime: 30_000 });
+  // Chi potrà fare il lavoro extra: persone e ditte/squadre dell'azienda (06/11/2026).
+  const chiPuo = useQuery({ queryKey: ["variation-chi-options", company], enabled: editable,
+    queryFn: async () => {
+      const [p, t] = await Promise.all([
+        supabase.from("employees").select("id,first_name,last_name").eq("company_id", company).eq("is_active", true).order("last_name").limit(500),
+        supabase.from("external_teams").select("id,name,kind").eq("company_id", company).order("name").limit(500),
+      ]);
+      return {
+        persone: (p.data ?? []).map((e) => ({ id: e.id, nome: `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim() })),
+        ditte: (t.data ?? []).map((d) => ({ id: d.id, nome: d.name, squadra: d.kind === "interna" })),
+      };
+    }, staleTime: 60_000 });
   const approval = useQuery({ queryKey: ["variation-approval-permission", company], enabled: canEdit,
     queryFn: async () => { const {data: session} = await supabase.auth.getSession(); const uid = session.session?.user.id; if(!uid) return false; const {data,error} = await supabase.rpc("has_permission_for_company", {_user_id:uid,_company_id:company,_permission:"can_approve_variations"}); if(error) throw error; return data === true; }, staleTime: 60_000 });
   const run = async (operation: () => Promise<void>) => {
@@ -76,7 +88,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
       {!view ? <>
         {editable && <VariationTemplatePicker companyId={company} draft={form} context={variationDocumentContext(form,context)} disabled={busy} onApply={draft => {setForm(draft);setPdf(null);}} />}
         {phases.isError && <p role="alert" className="text-sm text-destructive">Lavorazioni non disponibili. <Button variant="outline" onClick={() => void phases.refetch()}>Riprova</Button></p>}
-        <VariationEditor draft={form} setDraft={draft => {setForm(draft);setPdf(null);}} phases={phases.data ?? []} context={variationDocumentContext(form,context)} busy={busy || !editable} review={false} onBack={()=>setView(false)} persistentDraft showPdfPreview={false} error="" />
+        <VariationEditor draft={form} setDraft={draft => {setForm(draft);setPdf(null);}} phases={phases.data ?? []} chiPuo={chiPuo.data} context={variationDocumentContext(form,context)} busy={busy || !editable} review={false} onBack={()=>setView(false)} persistentDraft showPdfPreview={false} error="" />
         {receipt?.workspace && <p role="status" className="text-xs text-muted-foreground">{dirty ? "Modifiche da salvare" : `Bozza salvata · versione ${receipt.workspace.revision}`}. Appunti e costi stimati restano interni.</p>}
       </> : <>
         {pdf && <div className="h-[65dvh] min-h-[380px]"><PdfBlobLivePreviewPanel key={pdf.key} renderBlobUrl={render} depsKey={pdf.key} debounceMs={0} downloadFileName={pdf.name} showDownloadOnMobile /></div>}
