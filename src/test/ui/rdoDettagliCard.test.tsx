@@ -1,0 +1,10 @@
+import "@testing-library/jest-dom/vitest";
+import {render,screen,fireEvent,waitFor,cleanup} from "@testing-library/react";
+import {afterEach,expect,it,vi} from "vitest";
+import type {SupplierRfq} from "@/hooks/useSupplierRfqs";
+vi.mock("@/components/orders/CommessaCombobox",()=>({CommessaCombobox:({onChange}:{onChange:(v:string|null)=>void})=><button type="button" onClick={()=>onChange(null)}>Acquisto senza commessa</button>}));
+import {RdoDettagliCard} from "@/components/rdo/RdoDettagliCard";
+const rfq:SupplierRfq={id:"r",company_id:"c",rfq_number:"RDO-1",titolo:"Materiali",descrizione:null,order_id:"commessa",data_fabbisogno:null,scadenza_offerte:null,status:"bozza",supplier_id_aggiudicato:null,purchase_order_id:null,aggiudicata_at:null,motivazione_scelta:null,note:null,created_at:"2026-11-06"};
+afterEach(cleanup);
+it("salva dalla pagina note, date e acquisto senza commessa",async()=>{const save=vi.fn().mockResolvedValue(undefined);render(<RdoDettagliCard rfq={rfq} disabled={false} onSave={save} onEditingChange={vi.fn()}/>);fireEvent.click(screen.getByRole("button",{name:"Modifica dettagli"}));fireEvent.change(screen.getByLabelText("Note per i fornitori"),{target:{value:"Quotare consegna inclusa"}});fireEvent.click(screen.getByRole("button",{name:"Acquisto senza commessa"}));fireEvent.click(screen.getByRole("button",{name:"Salva richiesta"}));await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({note:"Quotare consegna inclusa",order_id:null})));});
+it("un errore mantiene il testo senza fingere che la richiesta sia salvata",async()=>{render(<RdoDettagliCard rfq={rfq} disabled={false} onSave={vi.fn().mockRejectedValue(new Error("offline"))} onEditingChange={vi.fn()}/>);fireEvent.click(screen.getByRole("button",{name:"Modifica dettagli"}));fireEvent.change(screen.getByLabelText("Titolo richiesta"),{target:{value:"Materiali urgenti"}});fireEvent.click(screen.getByRole("button",{name:"Salva richiesta"}));expect(await screen.findByRole("alert")).toHaveTextContent("Richiesta non salvata");expect(screen.getByLabelText("Titolo richiesta")).toHaveValue("Materiali urgenti");});

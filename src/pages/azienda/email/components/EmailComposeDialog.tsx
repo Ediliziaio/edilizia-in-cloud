@@ -79,6 +79,7 @@ interface EmailComposeDialogProps {
   /** Chiamata a invio riuscito: serve a chi deve aggiornare il proprio stato
    *  (es. l'OdA che passa a "inviato" solo se l'email e' partita davvero). */
   onSent?: () => void;
+  documentSummary?: {title:string;mode:"testo"|"pdf";rows:number};
 }
 
 const SUBJECT_PREFIX_RE = /^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-[]\s*/i;
@@ -101,7 +102,7 @@ function buildQuoteText(src: ComposeContext["source"]): string {
   return sep + header + quoted;
 }
 
-export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId, onSent }: EmailComposeDialogProps) {
+export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId, onSent, documentSummary }: EmailComposeDialogProps) {
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
@@ -170,7 +171,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         : "",
   );
   const [bodyText, setBodyText] = useState(initial.body);
-  const [accountId, setAccountId] = useState<string>("");
+  const [selectedAccountId, setAccountId] = useState<string>("");
   const [outboxId, setOutboxId] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [attachments, setAttachments] = useState<Array<{
@@ -262,31 +263,24 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   };
 
   // Carica connessioni per account selector (default: prima active)
-  const { data: connections } = useQuery({
+  const { data: connections, isError: senderError, refetch: reloadSenders } = useQuery({
     queryKey: ["email-compose-accounts", userId, companyId],
     enabled: !!userId && !!companyId && open,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("v_email_oauth_connections_meta")
         .select("id, provider, email_address, status")
         .eq("company_id", companyId!)
         .eq("user_id", userId!)
         .eq("status", "active");
+      if(error) throw error;
       return (data ?? []) as Array<{ id: string; provider: string; email_address: string; status: string }>;
     },
   });
 
-  useEffect(() => {
-    if (!connections) return;
-    if (connections.length === 0) {
-      if (accountId) setAccountId("");
-      return;
-    }
-    if (!accountId || !connections.some((connection) => connection.id === accountId)) {
-      setAccountId(connections[0].id);
-    }
-  }, [connections, accountId]);
+  const accountId = connections?.some(connection=>connection.id === selectedAccountId)
+    ? selectedAccountId : connections?.[0]?.id || "";
 
   // Parse comma/semicolon separated emails
   const parseEmails = (raw: string): string[] =>
@@ -474,8 +468,27 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     sendMutation.mutate();
   };
 
+  const orderDocuments = orderId ? (<OrderDocumentAttacher
+              orderId={orderId}
+              alreadyAttached={attachments.map((a) => a.storage_path)}
+              onAttach={(doc) =>
+                setAttachments((prev) => [
+                  ...prev,
+                  {
+                    name: doc.name,
+                    size: doc.size ?? 0,
+                    mime: doc.mime ?? "application/octet-stream",
+                    storage_path: doc.file_url,
+                    bucket: doc.bucket,
+                  },
+                ])
+              }
+              onDetach={(url) =>
+                setAttachments((prev) => prev.filter((a) => a.storage_path !== url))
+              }
+            />) : null;
   const isSending = sendMutation.isPending;
-  const hasActiveSender = !!accountId && !!connections?.some((connection) => connection.id === accountId);
+  const hasActiveSender = !senderError && !!accountId && !!connections?.some((connection) => connection.id === accountId);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !isSending && onOpenChange(o)}>
@@ -484,13 +497,15 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         <DialogHeader className="shrink-0 border-b border-blue-100 bg-blue-50/60 px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Mail className="h-4 w-4 text-blue-600" />
-            {context.mode === "reply" || context.mode === "replyAll" ? "Rispondi" :
+            {documentSummary ? "Email al fornitore" : context.mode === "reply" || context.mode === "replyAll" ? "Rispondi" :
              context.mode === "forward" ? "Inoltra" : "Nuova email"}
           </DialogTitle>
+          {documentSummary && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600"><span className="font-medium">{documentSummary.title}</span><Badge variant="outline" className="border-blue-200 bg-white text-blue-800">{documentSummary.mode === "pdf" ? "PDF allegato" : "Testo completo"}</Badge><span>{documentSummary.rows} {documentSummary.rows === 1 ? "voce" : "voci"}</span><span className="text-slate-500">Controlla e modifica prima di inviare.</span></div>}
         </DialogHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3">
           {/* Account mittente */}
+          {senderError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">Impossibile caricare le caselle email. <Button variant="link" size="sm" onClick={()=>void reloadSenders()}>Riprova</Button></div>}
           {connections && connections.length > 0 && (
             <div>
               <Label className="text-xs">Da</Label>
@@ -660,27 +675,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             }}
           />
 
-          {orderId && (
-            <OrderDocumentAttacher
-              orderId={orderId}
-              alreadyAttached={attachments.map((a) => a.storage_path)}
-              onAttach={(doc) =>
-                setAttachments((prev) => [
-                  ...prev,
-                  {
-                    name: doc.name,
-                    size: doc.size ?? 0,
-                    mime: doc.mime ?? "application/octet-stream",
-                    storage_path: doc.file_url,
-                    bucket: doc.bucket,
-                  },
-                ])
-              }
-              onDetach={(url) =>
-                setAttachments((prev) => prev.filter((a) => a.storage_path !== url))
-              }
-            />
-          )}
+          {orderId && (documentSummary ? <details className="rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-600">Aggiungi altri documenti della commessa</summary><div className="mt-3">{orderDocuments}</div></details> : orderDocuments)}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-4 py-2.5">

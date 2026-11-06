@@ -48,7 +48,7 @@ import { ODA_ORIGINE_INFO, ODA_ORIGINE_LABELS, prossimiStatiOda } from "@/lib/od
 import { type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { emailPerOrdini } from "@/lib/suppliers/anagraficaFornitore";
 import { buildOdaEmailBody, buildOdaEmailSubject } from "@/lib/odaEmail";
-import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoInvioDialog";
+import { DocumentoEmailDialog } from "@/components/documentiOperativi/DocumentoEmailDialog";
 import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
 import { nomeFileDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import { scaricaBlob } from "@/components/orders/generali/vendita/scarica";
@@ -103,6 +103,7 @@ export default function PurchaseOrderDetail() {
   // nella posta invece che in un buco nero.
   const [sendOpen, setSendOpen] = useState(false);
   const [sendMode, setSendMode] = useState<"testo" | "pdf">("testo");
+  const [editingNotesId,setEditingNotesId]=useState<string|null>(null);
   const [editingDetailsId, setEditingDetailsId] = useState<string | null>(null);
   const openSend = (mode: "testo" | "pdf") => {setSendMode(mode);setSendOpen(true);};
   const queryClient = useQueryClient();
@@ -201,7 +202,7 @@ export default function PurchaseOrderDetail() {
   const isEditable = canEdit && (order.status === "bozza" || editingOrderId === order.id);
   const righeInSalvataggio = addItem.isPending || updateItem.isPending || deleteItem.isPending || update.isPending;
   const editingDetails = editingDetailsId === order.id;
-  const documentBusy = righeInSalvataggio || isItemsLoading || editingDetails;
+  const documentBusy = righeInSalvataggio || isItemsLoading || editingDetails || editingNotesId === order.id;
 
   const downloadPdf = async () => {
     if (!effectiveCompany || downloadingPdf || documentBusy) return;
@@ -420,7 +421,7 @@ export default function PurchaseOrderDetail() {
             <Button size="sm" disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />Email con PDF</Button>
           </div>
         </div>
-        {editingDetails && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla i dettagli aperti prima di preparare il PDF o l’email.</p>}
+        {(editingDetails || editingNotesId === order.id) && <p role="status" className="mt-3 text-xs text-amber-700">Salva o annulla le modifiche aperte prima di preparare il PDF o l’email.</p>}
       </section>
 
       <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_20rem] gap-6">
@@ -524,7 +525,7 @@ export default function PurchaseOrderDetail() {
 
           <OdaDettagliCard key={order.id} documento={documentoInvio} orderId={order.order_id} internalNotes={order.internal_notes} condizioniFornitore={condizioniFornitore} paymentMethod={order.payment_method || supplier?.payment_method} canEdit={permissions.canEditOrders} onEditingChange={editing=>setEditingDetailsId(editing ? order.id : null)} onSave={patch=>update.mutateAsync({id:order.id,updates:patch})} />
 
-          <OdaNoteCard notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
+          <OdaNoteCard key={order.id} onEditingChange={editing=>setEditingNotesId(editing ? order.id : null)} notes={order.notes} onSave={notes => update.mutateAsync({id:order.id,updates:{notes}})} />
         </div>
 
         {/* Right: Preview / Info */}
@@ -606,6 +607,11 @@ export default function PurchaseOrderDetail() {
             );
           })()}
 
+
+        </div>
+      </div>
+
+      <section aria-label="Ricezione, documenti e contabilità" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2">
           {/* M4 — DDT Ricezione card */}
           <QuoteCard
             title={
@@ -669,7 +675,7 @@ export default function PurchaseOrderDetail() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-1.5 mt-2">
+                <div className="space-y-1.5 mt-2 max-h-80 overflow-y-auto pr-1">
                   {(ddtList as {
                     id: string;
                     numero_ddt: string;
@@ -760,10 +766,8 @@ export default function PurchaseOrderDetail() {
             <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />
           )}
 
-          {/* Verification History */}
-          <VerificationHistoryCard purchaseOrderId={order.id} />
-        </div>
-      </div>
+      </section>
+      <VerificationHistoryCard purchaseOrderId={order.id} />
 
       {/* Verify Purchase Order Dialog */}
       <VerifyPurchaseOrderDialog
@@ -779,11 +783,10 @@ export default function PurchaseOrderDetail() {
       {/* Invio al fornitore — stesso compositore email del resto dell'app:
           oggetto e corpo arrivano precompilati ma restano modificabili, si
           possono allegare i documenti della commessa e scegliere il mittente. */}
-      <DocumentoInvioDialog
+      <DocumentoEmailDialog
         key={`${effectiveCompany?.id}:${sendMode}`}
-        initialMode={sendMode}
+        modo={sendMode}
         documento={documentoInvio}
-        tipi={["materiali", "servizi"]}
         open={sendOpen}
         onOpenChange={setSendOpen}
         context={composeContext}

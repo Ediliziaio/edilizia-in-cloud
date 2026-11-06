@@ -7,9 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 export function OdaNoteCard({
   notes,
   onSave,
+  onEditingChange,
 }: {
   notes: string | null;
   onSave: (notes: string) => Promise<unknown>;
+  onEditingChange?: (editing: boolean) => void;
 }) {
   const [editing, setEditing] = useState(false),
     [draft, setDraft] = useState(""),
@@ -22,6 +24,7 @@ export function OdaNoteCard({
     try {
       await onSave(draft);
       setEditing(false);
+      onEditingChange?.(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Note non salvate. Riprova.");
     } finally {
@@ -41,6 +44,7 @@ export function OdaNoteCard({
               setDraft(notes || "");
               setError(null);
               setEditing(true);
+              onEditingChange?.(true);
             }}
           >
             Modifica
@@ -51,7 +55,7 @@ export function OdaNoteCard({
               variant="ghost"
               size="sm"
               disabled={busy}
-              onClick={() => setEditing(false)}
+              onClick={() => {setEditing(false);onEditingChange?.(false);}}
             >
               Annulla
             </Button>

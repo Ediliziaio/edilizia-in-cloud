@@ -1,3 +1,4 @@
+import type {TablesUpdate} from "@/integrations/supabase/types";
 /**
  * Richieste d'offerta ai fornitori (RDO).
  *
@@ -301,13 +302,13 @@ export function useSupplierRfqDetail(rfqId: string | null) {
   });
 
   const updateRfq = useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
-      const { error } = await (supabase as any).from("supplier_rfqs").update(updates).eq("id", rfqId!);
+    mutationFn: async (updates: TablesUpdate<"supplier_rfqs">) => {
+      if(!companyId) throw new Error("Azienda non selezionata");
+      const { error } = await supabase.from("supplier_rfqs").update(updates).eq("id", rfqId!).eq("company_id",companyId).select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => {
-      invalida();
-      queryClient.invalidateQueries({ queryKey: rfqKeys.all });
+    onSuccess: async () => {
+      await Promise.all([invalida(),queryClient.invalidateQueries({ queryKey: rfqKeys.all })]);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });

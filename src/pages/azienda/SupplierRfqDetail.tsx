@@ -1,3 +1,8 @@
+import { RdoDettagliCard } from "@/components/rdo/RdoDettagliCard";
+import { useQuery } from "@tanstack/react-query";
+import { OdaFornitoreCard } from "@/components/orders/OdaFornitoreCard";
+import type { Supplier } from "@/lib/suppliers/anagraficaFornitore";
+import { scaricaBlob } from "@/components/orders/generali/vendita/scarica";
 import { salvaPrezzoRdo } from "@/lib/orders/salvaPrezzoRdo";
 import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
 /**
@@ -28,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Send, Trophy, Mail, ExternalLink, AlertTriangle,
-  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox,
+  FileQuestion, Users, ClipboardList, CheckCircle2, Sparkles, MoreHorizontal, Paperclip, Inbox, FileDown, Loader2,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -44,9 +49,9 @@ import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useAuth } from "@/contexts/AuthContext";
 import { type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { EstraiOffertaAIDialog, type RigaEstratta, type PropostaEstratta } from "@/components/rdo/EstraiOffertaAIDialog";
-import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoInvioDialog";
+import { DocumentoEmailDialog } from "@/components/documentiOperativi/DocumentoEmailDialog";
 import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
-import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { nomeFileDocumento, type DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
 import {
   RDO_STATUS_LABELS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
@@ -71,6 +76,15 @@ export default function SupplierRfqDetail() {
   } = useSupplierRfqDetail(rfqId ?? null);
   const { suppliers } = useOperationalSuppliers();
 
+  const supplierIds=fornitori.map(f=>f.supplier_id);
+  const {data:anagrafiche=[],isFetching:loadingAnagrafiche,isError:erroreAnagrafiche,refetch:ricaricaAnagrafiche}=useQuery({
+    queryKey:["rdo-fornitori-anagrafica",effectiveCompany?.id,rfqId,supplierIds],
+    enabled:!!effectiveCompany?.id && supplierIds.length>0,
+    queryFn:async()=>{const {data,error}=await supabase.from("suppliers").select("*").eq("company_id",effectiveCompany!.id).in("id",supplierIds);if(error)throw error;return (data ?? []) as Supplier[];},
+  });
+  const [editingRfqId,setEditingRfqId]=useState<string|null>(null);
+  const [sendMode,setSendMode]=useState<"testo"|"pdf">("testo");
+  const [downloadingFor,setDownloadingFor]=useState<string|null>(null);
   const [nuovoFornitore, setNuovoFornitore] = useState("");
   const [inviaA, setInviaA] = useState<RfqSupplier | null>(null);
   const [aggiudicaA, setAggiudicaA] = useState<RfqSupplier | null>(null);
@@ -197,12 +211,19 @@ export default function SupplierRfqDetail() {
 
   const documentoInvio = (f: RfqSupplier): DocumentoOperativo => ({
     tipo:"richiesta",numero:rfq.rfq_number,data:rfq.created_at?.slice(0,10),
-    ...recapitiFornitore({...suppliers.find(s=>s.id===f.supplier_id),id:f.supplier_id,name:f.suppliers?.name || "Fornitore",email:suppliers.find(s=>s.id===f.supplier_id)?.email || f.suppliers?.email}),
-    pagamento:f.condizioni_pagamento || recapitiFornitore({...suppliers.find(s=>s.id===f.supplier_id),id:f.supplier_id,name:f.suppliers?.name || "Fornitore"}).pagamento,
+    ...recapitiFornitore({...(anagrafiche.find(s=>s.id===f.supplier_id) ?? suppliers.find(s=>s.id===f.supplier_id)),id:f.supplier_id,name:f.suppliers?.name || "Fornitore",email:(anagrafiche.find(s=>s.id===f.supplier_id) ?? suppliers.find(s=>s.id===f.supplier_id))?.email || f.suppliers?.email}),
+    pagamento:f.condizioni_pagamento || recapitiFornitore({...(anagrafiche.find(s=>s.id===f.supplier_id) ?? suppliers.find(s=>s.id===f.supplier_id)),id:f.supplier_id,name:f.suppliers?.name || "Fornitore"}).pagamento,
     commessa:rfq.orders?.order_code,luogo:rfq.orders?.work_address,indirizzoCantiere:rfq.orders?.work_address,destinazioneTipo:rfq.order_id ? "cantiere" : "magazzino", consegna:rfq.data_fabbisogno,scadenzaOfferta:rfq.scadenza_offerte,
     note:[rfq.descrizione,rfq.note].filter(Boolean).join("\n"),
     righe:items.map(i=>({descrizione:[i.descrizione,i.note].filter(Boolean).join("\n"),unita:i.unita_misura || "pz",quantita:Number(i.quantita),prezzo: null as number | null})),
   });
+  const downloadPdf=async(f:RfqSupplier)=>{
+    if(!effectiveCompany || downloadingFor)return;
+    setDownloadingFor(f.id);
+    try {const {generaPdfOperativo}=await import("@/lib/documentiOperativi/pdf");const documento=documentoInvio(f);scaricaBlob(await generaPdfOperativo(documento,effectiveCompany),nomeFileDocumento(documento));}
+    catch(e){toast.error("Impossibile scaricare il PDF",{description:e instanceof Error ? e.message : "Riprova."});}
+    finally{setDownloadingFor(null);}
+  };
   return (
     <div className="space-y-4 sm:space-y-6">
       {!inPopup && <div className="flex items-center gap-3">
@@ -262,8 +283,8 @@ export default function SupplierRfqDetail() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 gap-6">
+        <div className="min-w-0 space-y-4">
           {/* ── Cosa serve ─────────────────────────────────────────── */}
           <QuoteCard
             title="Cosa serve"
@@ -342,6 +363,8 @@ export default function SupplierRfqDetail() {
               </div>
             )}
           </QuoteCard>
+
+          <RdoDettagliCard key={rfq.id} rfq={rfq} disabled={chiusa} onSave={patch=>updateRfq.mutateAsync(patch)} onEditingChange={editing=>setEditingRfqId(editing ? rfq.id : null)}/>
 
           {/* ── Confronto ──────────────────────────────────────────── */}
           {fornitori.length > 0 && items.length > 0 && (
@@ -500,8 +523,9 @@ export default function SupplierRfqDetail() {
               </div>
             </QuoteCard>
           )}
-          <QuoteCard title="A chi lo chiedi" icon={<Users className="h-4 w-4" />}>
-            <div className="space-y-3">
+          <QuoteCard title="A chi lo chiedi" subtitle="Prepara un’email distinta per ogni fornitore: testo completo oppure richiesta in PDF." icon={<Users className="h-4 w-4" />}>
+            {erroreAnagrafiche && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">Impossibile caricare i recapiti aggiornati dei fornitori. <Button variant="link" size="sm" onClick={()=>void ricaricaAnagrafiche()}>Riprova</Button></p>}
+            <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
               {fornitori.length === 0 && (
                 <p className="text-xs text-slate-500">
                   Nessun fornitore. Chiedere a due o tre è il modo più semplice per non
@@ -525,6 +549,13 @@ export default function SupplierRfqDetail() {
                       {RDO_FORNITORE_LABELS[f.status] ?? f.status}
                     </Badge>
                   </div>
+
+                  <div className="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
+                    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={!!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</Button>
+                    {!chiusa && <><Button size="sm" variant="outline" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</Button><Button size="sm" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</Button></>}
+                  </div>
+                  {f.status !== "risposta" && <div><Label className="text-[11px] text-slate-500">Pagamento per questa richiesta</Label><Input aria-label={`Pagamento richiesta ${f.suppliers?.name}`} className="h-8 text-xs" disabled={chiusa} key={`${f.id}:${f.condizioni_pagamento ?? documentoInvio(f).pagamento}`} defaultValue={f.condizioni_pagamento || documentoInvio(f).pagamento || ""} onBlur={e=>{const v=e.target.value.trim() || null;if(v !== (f.condizioni_pagamento || documentoInvio(f).pagamento || null))updateFornitore.mutate({id:f.id,updates:{condizioni_pagamento:v}});}}/></div>}
+                  {anagrafiche.find(s=>s.id===f.supplier_id) && <details className="rounded-lg border border-slate-100 bg-slate-50/50 p-2"><summary className="cursor-pointer text-xs font-medium text-slate-600">Anagrafica, referenti e pagamento</summary><div className="mt-2"><OdaFornitoreCard supplier={anagrafiche.find(s=>s.id===f.supplier_id)}/></div></details>}
 
                   {f.aggancio_da_confermare && (
                     <div className="flex gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
@@ -614,36 +645,7 @@ export default function SupplierRfqDetail() {
                   )}
 
                   <div className="flex items-center gap-1">
-                    {!chiusa && f.status !== "risposta" && (
-                      f.status === "da_inviare" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs flex-1"
-                          disabled={addItem.isPending || updateItem.isPending || deleteItem.isPending}
-                          onClick={() => {
-                            if (items.length === 0) {
-                              toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
-                              return;
-                            }
-                            setInviaA(f);
-                          }}
-                        >
-                          <Mail className="h-3 w-3 mr-1" /> Chiedi offerta
-                        </Button>
-                      ) : (
-                        // chiesta: il passo dopo è registrare la risposta, comunque sia arrivata
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs flex-1"
-                          disabled={registraOfferta.isPending}
-                          onClick={() => registraOfferta.mutate(f)}
-                        >
-                          <Inbox className="h-3 w-3 mr-1" /> Ho l'offerta
-                        </Button>
-                      )
-                    )}
+                    {!chiusa && f.status !== "risposta" && f.status !== "da_inviare" && <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" disabled={registraOfferta.isPending} onClick={()=>registraOfferta.mutate(f)}><Inbox className="mr-1 h-3 w-3"/>Ho l’offerta</Button>}
                     {!chiusa && f.status !== "risposta" && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -670,7 +672,7 @@ export default function SupplierRfqDetail() {
                                   toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
                                   return;
                                 }
-                                setInviaA(f);
+                                setSendMode("testo");setInviaA(f);
                               }}
                             >
                               Sollecita per email
@@ -794,15 +796,16 @@ export default function SupplierRfqDetail() {
 
       {/* Invio al singolo fornitore: stesso compositore del resto dell'app. */}
       {inviaA && (
-        <DocumentoInvioDialog
-          key={effectiveCompany?.id}
+        <DocumentoEmailDialog
+          key={`${effectiveCompany?.id}:${inviaA.id}:${sendMode}`}
+          modo={sendMode}
           documento={documentoInvio(inviaA)}
           orderId={rfq.order_id}
           open={!!inviaA}
           onOpenChange={(o) => { if (!o) setInviaA(null); }}
           context={composeContext(inviaA)}
           onSent={() => {
-            updateFornitore.mutate({
+            if(inviaA.status !== "risposta") updateFornitore.mutate({
               id: inviaA.id,
               // un sollecito non azzera l'attesa: conta dalla prima richiesta
               updates: inviaA.inviata_at

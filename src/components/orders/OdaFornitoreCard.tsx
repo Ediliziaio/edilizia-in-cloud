@@ -29,7 +29,7 @@ export function OdaFornitoreCard({supplier}: {supplier?: Supplier | null}) {
     try {
       const {error} = await supabase.from("suppliers").update(payloadFornitore(form)).eq("id",supplier.id).eq("company_id",effectiveCompany.id).select("id").single();
       if (error) throw error;
-      await Promise.all([invalidaFornitori(client),client.invalidateQueries({queryKey:queryKeys.purchaseOrders.all}),client.invalidateQueries({queryKey:["purchase-order-detail"]})]);
+      await Promise.all([invalidaFornitori(client),client.invalidateQueries({queryKey:queryKeys.purchaseOrders.all}),client.invalidateQueries({queryKey:["purchase-order-detail"]}),client.invalidateQueries({queryKey:["rdo-fornitori-anagrafica"]})]);
       setEditing(false);
       toast.success("Anagrafica fornitore aggiornata");
     } catch (e) {
