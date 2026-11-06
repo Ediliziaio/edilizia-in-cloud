@@ -315,11 +315,11 @@ export function leggiModello(
     // Il modulo di recesso lo accende l'azienda nel modello (spento di serie dal
     // 21/09/2026): serve a chi firma con un privato a casa sua o a distanza.
     conRecesso: t.modulo_recesso_attivo === true,
-    blocchi: leggiBlocchi(t, contesto.settore ?? "ristrutturazione"),
-    fotoChiusura: fotoDellaPagina(t, "chiusura", contesto.settore ?? "ristrutturazione"),
+    blocchi: leggiBlocchi(t, contesto.settore ?? "generico"),
+    fotoChiusura: fotoDellaPagina(t, "chiusura", contesto.settore ?? "generico"),
     fotoRiempimento: Object.fromEntries(
       Object.entries(RIEMPIMENTI_EDILI)
-        .map(([capitolo, chiave]) => [capitolo, fotoDellaPagina(t, chiave, contesto.settore ?? "ristrutturazione")] as const)
+        .map(([capitolo, chiave]) => [capitolo, fotoDellaPagina(t, chiave, contesto.settore ?? "generico")] as const)
         .filter(([, f]) => f),
     ),
   };

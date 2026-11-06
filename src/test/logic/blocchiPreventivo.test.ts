@@ -92,6 +92,25 @@ describe("blocchi del preventivo: le scelte dell'azienda", () => {
   it("i moduli sconosciuti ricadono sulla ristrutturazione", () => {
     expect(settoreBlocchi("bagni")).toBe("bagni");
     expect(settoreBlocchi("pergole")).toBe("ristrutturazione");
+    // Il preventivo generico è suo: non eredita i blocchi di «ristrutturazione».
+    expect(settoreBlocchi("generico")).toBe("generico");
+  });
+
+  it("il preventivo generico non porta blocchi raccontati né foto di serie", () => {
+    // Copertina, tabella e condizioni: il resto vive nei moduli verticali, che hanno
+    // la loro scheda per scriverlo. Il generico non ha dove salvarlo.
+    for (const { chiave } of BLOCCHI) {
+      const b = bloccoDiSerie(chiave, "generico");
+      expect(b.voci).toEqual([]);
+      expect(b.foto).toEqual([]);
+      expect(b.titolo).toBe("");
+      // Niente di salvato: resta vuoto anche passando dalla lettura completa.
+      expect(leggiBlocco(chiave, "generico", null).voci).toEqual([]);
+    }
+    expect(fotoPaginaDiSerie("chiusura", "generico")).toBeNull();
+    expect(fotoPaginaDiSerie("investimento", "generico")).toBeNull();
+    // Un settore vero invece i suoi contenuti li ha ancora.
+    expect(bloccoDiSerie("comeFunziona", "ristrutturazione").voci.length).toBeGreaterThan(0);
   });
 });
 
