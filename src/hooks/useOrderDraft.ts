@@ -10,6 +10,8 @@ export interface OrderDraftData {
   contractSource?: import("@/lib/orders/contractPreparation").StoredContractFile | null;
   contractExtract?: import("@/lib/orders/contractExtract").ContractExtract | null;
   customerId: string;
+  /** Cliente proposto dal percorso, non una modifica dell’utente. */
+  prefilledCustomerId?: string | null;
   orderCode: string;
   description: string;
   internalNotes: string;
@@ -40,6 +42,7 @@ export interface OrderDraftData {
   totalAmount: string;
   vatRate: string;
   financingCost: string;
+  financingCostMode?: "trattenuto" | "separato" | null;
   // Installments (new dynamic system)
   installments: Installment[];
   // Items
@@ -68,7 +71,8 @@ export const DRAFT_VERSION = 2;
 export function bozzaHaContenuto(d: Partial<OrderDraftData>): boolean {
   return !!(
     d.commessaCreataId || d.contractExtract || d.contractSource ||
-    d.customerId || d.description?.trim() || d.internalNotes?.trim() || d.cantiereAddress?.trim() ||
+    (d.customerId && d.customerId !== d.prefilledCustomerId) || d.description?.trim() || d.internalNotes?.trim() ||
+    (d.cantiereAddress?.trim() && d.cantiereAddressManuale !== false) ||
     (d.totalAmount?.trim() && parseFloat(d.totalAmount.replace(",", ".")) !== 0) ||
     d.orderItems?.length || d.expectedDate || d.workStartDate || d.workEndDate || d.warehouseArrivalDate
   );

@@ -786,17 +786,19 @@ function SubjectVariableButton({
 
 // ── Sub-component: history list ─────────────────────────────────────────────
 function HistoryList({
-  templateId,
+  templateKey,
+  roleVariant,
   onRollback,
   onClose,
 }: {
-  templateId: string | null;
+  templateKey: string | null;
+  roleVariant: string | null;
   onRollback: (row: EmailTemplateHistoryRow) => void;
   onClose: () => void;
 }) {
-  const historyQuery = useEmailTemplateHistory(templateId);
+  const historyQuery = useEmailTemplateHistory(templateKey, roleVariant);
 
-  if (!templateId) {
+  if (!templateKey) {
     return (
       <p className="text-sm text-muted-foreground">
         Nessuna cronologia disponibile: questo template non ha ancora una
@@ -1647,7 +1649,8 @@ export function EmailTemplatesPanel() {
                     </SheetHeader>
                     <div className="mt-4">
                       <HistoryList
-                        templateId={selectedRow?.id ?? null}
+                        templateKey={selectedKey}
+                        roleVariant={variantToDb(selectedVariant)}
                         onRollback={handleRollback}
                         onClose={() => setHistoryOpen(false)}
                       />

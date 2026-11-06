@@ -217,7 +217,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
           ai_prompt: templateMode === "ai_generated" ? aiPrompt.trim() : undefined,
         },
         next_run_at: nextRunAt,
-        last_run_at: null,
+        last_run_at: null as null,
       };
 
       const { error } = await supabase.from("automation_flows").insert({

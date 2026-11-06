@@ -173,3 +173,15 @@ describe("Indirizzi e tempi operativi", () => {
     ).toBe("00:30");
   });
 });
+
+describe("Modalità del costo finanziaria nel calendario", () => {
+  it.each(["trattenuto", "separato"] as const)("non riduce il credito cliente: %s", financing_cost_mode => {
+    const m = calendarFinanceModel({
+      order: { total_amount: 10000, vat_rate: 0, financing_cost: 300, financing_cost_mode, payment_type: "financing" },
+      rates: [rate("acconto", 0, 2000, { type: "deposit" }), rate("finanziamento", 1, 6000, { type: "financing" }), rate("saldo", 2, 0)],
+      variations: [], sals: [], maturity: "emesso",
+    });
+    expect(m.rates.map(r => r.amount)).toEqual([2000, financing_cost_mode === "trattenuto" ? 5700 : 6000, 2000]);
+    expect(m.remaining).toBe(financing_cost_mode === "trattenuto" ? 9700 : 10000);
+  });
+});

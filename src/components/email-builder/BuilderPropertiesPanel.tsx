@@ -94,7 +94,7 @@ function ColorField({
   );
 }
 
-function AlignButtons({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function AlignButtons({ value, onChange }: { value: string; onChange: (v: "left" | "center" | "right") => void }) {
   return (
     <div className="flex gap-1">
       {([

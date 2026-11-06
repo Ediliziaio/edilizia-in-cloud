@@ -1,3 +1,5 @@
+import { salvaConfigurazioneSessione } from "@/lib/render/salvaConfigurazioneSessione";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -138,7 +140,7 @@ export default function RenderPavimentoNew() {
           created_by: user.id,
           status: "pending",
           original_photo_url: storagePath,
-          config: config as unknown,
+          config: jsonPayload(config),
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
@@ -284,16 +286,15 @@ export default function RenderPavimentoNew() {
         }
       : undefined;
 
-    await supabase
-      .from("render_pavimento_sessions")
-      .update({
-        config: config as unknown,
-        status: "pending",
-        result_urls: null,
-        error_message: null,
-        ...(analisi ? { analisi_pavimento: analisi as unknown } : {}),
-      })
-      .eq("id", sessionId);
+    const salvataggio = await salvaConfigurazioneSessione({
+      tabella: "render_pavimento_sessions", sessionId, companyId, config: config, analisiPavimento: analisi,
+    });
+    if (salvataggio.ok === false) {
+      setGenerating(false);
+      setStep(2);
+      toast.error(salvataggio.messaggio);
+      return;
+    }
 
     const headers = await getEdgeFunctionAuthHeaders();
     const { data: fnData, error: fnErr } = await supabase.functions.invoke("generate-floor-render", {
@@ -407,7 +408,7 @@ export default function RenderPavimentoNew() {
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {/* ══════════════════════════════════════════════════════════════════
           STEP 1 -- Foto

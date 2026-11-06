@@ -29,7 +29,7 @@ const schema = z.object({
   }, "Telefono non valido"),
   partner_type: z.enum(["partner", "agency", "installer", "consultant"]),
   commission_type: z.enum(["percentage", "fixed"]),
-  commission_value: z.coerce.number().min(0),
+  commission_value: z.coerce.number<string | number>().min(0),
   payout_method: z.enum(["bank_transfer", "manual", "credit"]),
   notes: z.string().optional().or(z.literal("")),
 }).superRefine((data, ctx) => {
@@ -85,7 +85,7 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
   const queryClient = useQueryClient();
   const isEdit = !!referrer;
 
-  const form = useForm<FormData>({
+  const form = useForm<z.input<typeof schema>, unknown, FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "", email: "", phone: "",

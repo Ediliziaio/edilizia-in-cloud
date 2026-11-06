@@ -19,6 +19,7 @@ export interface TitoloImpostazione {
 
 /** Segmento dell'indirizzo dopo /azienda/impostazioni/ → titolo e frase. */
 export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
+  "modelli-pdf":          { title: "Modelli PDF", description: "Personalizza i modelli dei documenti PDF della tua azienda" },
   "mio-profilo":          { title: "Il mio profilo",           description: "I tuoi dati, la password, i calendari e la posta collegata" },
   profilo:                { title: "Profilo aziendale",        description: "I dati dell'azienda che compaiono su preventivi, fatture e documenti" },
   sedi:                   { title: "Sedi",                     description: "Showroom, magazzini e uffici dell'azienda" },

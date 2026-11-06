@@ -276,3 +276,21 @@ describe("materiali divisi per fase di lavoro", () => {
     expect(r).toEqual({ totale: 5, daOrdinare: 1, inCorso: 2, ordinati: 1, consegnati: 1, importo: 75 });
   });
 });
+
+ describe("BUG-90: prestazioni esplicitamente escluse dalla fornitura", () => {
+  it("non interpreta la negazione del nolo come noleggio", () => {
+    expect(classificaVoce(voce({ id: "negata", descrizione_breve: "Fornitura di materiale", descrizione_estesa: "Nessuna posa, manodopera o nolo." }), []).tipo).toBe("fornitura");
+  });
+  it("mantiene escluso il noleggio effettivo anche senza manodopera", () => {
+    expect(classificaVoce(voce({ id: "nolo", descrizione_breve: "Noleggio gru senza manodopera" }), []).tipo).toBe("esclusa");
+  });
+ });
+
+it("riconosce il codice_voce importato anche senza parole chiave", () => {
+  const r = generaDistinta({
+    voci: [voce({ id: "importata", codice_voce: " GUIDADEMO-DIST-001 ", descrizione_breve: "Prova documentale", unita_misura: "pz", quantita: 2 })],
+    scomposizioni: [{ ...PUNTO_PRESA, codice_prezzario: "guidademo-dist-001", parole_chiave: [], unita_misura: "pz", componenti: [{ descrizione: "Materiale demo", unita_misura: "pz", quantita_per_unita: 1 }] }],
+  });
+  expect(r.righe).toHaveLength(1);
+  expect(r.righe[0].quantita_calcolata).toBe(2);
+});

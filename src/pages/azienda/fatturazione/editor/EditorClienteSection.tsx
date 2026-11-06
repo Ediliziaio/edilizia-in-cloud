@@ -1,6 +1,7 @@
 import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { useState, useMemo } from "react";
 import { Search, X, ChevronDown, Plus, MapPin, Building2, Pencil, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
@@ -60,6 +61,8 @@ const CAMPI_INDIRIZZO_CLIENTE = {
 
 export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const [search, setSearch] = useState("");
+  const [occasionaleOpen, setOccasionaleOpen] = useState(false);
+  const [nomeOccasionale, setNomeOccasionale] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState(false);
@@ -695,8 +698,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   size="sm"
                   className="text-[10px] h-6 px-2 flex-1"
                   onClick={() => {
-                    const name = prompt("Nome cliente occasionale:");
-                    if (name) createQuickB2C(name);
+                    setNomeOccasionale("");
+                    setOccasionaleOpen(true);
                   }}
                 >
                   Occasionale
@@ -706,6 +709,23 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
           </div>
         )
       )}
+      <Dialog open={occasionaleOpen} onOpenChange={setOccasionaleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cliente occasionale</DialogTitle>
+            <DialogDescription>Inserisci il nome, poi completa i dati del cliente nel documento.</DialogDescription>
+          </DialogHeader>
+          <Label htmlFor="nome-cliente-occasionale">Nome cliente occasionale</Label>
+          <Input id="nome-cliente-occasionale" value={nomeOccasionale} onChange={(e) => setNomeOccasionale(e.target.value)} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOccasionaleOpen(false)}>Annulla</Button>
+            <Button type="button" disabled={!nomeOccasionale.trim()} onClick={() => {
+              createQuickB2C(nomeOccasionale.trim());
+              setOccasionaleOpen(false);
+            }}>Usa cliente</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

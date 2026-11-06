@@ -65,7 +65,7 @@ export default function RenderGallery() {
             .from("render_sessions")
             .select("id, created_by, contact_id, opportunity_id")
             .in("id", sessionIds)
-        : { data: [], error: null };
+        : { data: [] as Array<{ id: string; created_by: string | null; contact_id: string | null; opportunity_id: string | null }>, error: null };
       if (sessionError) throw sessionError;
 
       const sessionById = new Map((sessions ?? []).map((session) => [session.id, session]));

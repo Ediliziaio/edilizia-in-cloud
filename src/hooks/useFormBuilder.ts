@@ -1,3 +1,5 @@
+import type { Database } from "@/integrations/supabase/types";
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -159,7 +161,7 @@ export function useFormBuilder() {
           name: input.name.trim(),
           slug,
           created_by: user.id,
-          fields,
+          fields: jsonPayload(fields),
           theme: { accent_color: "#2563eb", background_color: "#f9fafb" },
           settings: { submit_label: "Invia", success_message: "Grazie! Ti contatteremo presto." },
         })
@@ -200,13 +202,13 @@ export function useFormBuilder() {
         return !error && data?.capabilities?.custom_contact_fields === 1;
       });
 
-      const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      const payload: Database["public"]["Tables"]["lead_forms"]["Update"] = { updated_at: new Date().toISOString() };
       if ("name" in updates) payload.name = String(updates.name ?? "").trim();
       if ("slug" in updates && updates.slug) payload.slug = sanitizeLeadFormSlug(updates.slug);
       if ("description" in updates) payload.description = updates.description || null;
-      if ("fields" in updates) payload.fields = normalizeLeadFormFields(updates.fields) as FormField[];
-      if ("settings" in updates) payload.settings = updates.settings || {};
-      if ("theme" in updates) payload.theme = updates.theme || {};
+      if ("fields" in updates) payload.fields = jsonPayload(normalizeLeadFormFields(updates.fields));
+      if ("settings" in updates) payload.settings = jsonPayload(updates.settings || {});
+      if ("theme" in updates) payload.theme = jsonPayload(updates.theme || {});
       if ("is_published" in updates) payload.is_published = Boolean(updates.is_published);
 
       const { data, error } = await supabase

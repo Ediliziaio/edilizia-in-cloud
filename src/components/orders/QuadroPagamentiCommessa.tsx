@@ -96,7 +96,7 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
       {/* ── Incassi dal cliente: le rate ── */}
       {incassi}
 
-      {/* ── SAL emessi al cliente ── */}
+      {/* ── SAL al cliente ── */}
       {mostraIncassi && data.sal_cliente.length > 0 && <SalCliente sal={data.sal_cliente} />}
 
       {/* ── IVA della commessa: a debito, a credito, saldo ── */}
@@ -261,12 +261,12 @@ function KpiUscite({ totali }: { totali: ReturnType<typeof totaliQuadro> }) {
   </>;
 }
 
-/** I SAL emessi al cliente e la rata che li incassa: le rate si gestiscono nella scheda degli incassi. */
+/** I SAL al cliente e la rata che li incassa: le rate si gestiscono nella scheda degli incassi. */
 function SalCliente({ sal }: { sal: ReturnType<typeof normalizzaQuadro>["sal_cliente"] }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base"><ArrowDownLeft className="h-5 w-5 text-primary" aria-hidden="true" />SAL emessi al cliente</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base"><ArrowDownLeft className="h-5 w-5 text-primary" aria-hidden="true" />SAL al cliente</CardTitle>
         <p className="text-sm text-muted-foreground">Ogni SAL e la rata che lo incassa: rate, fatture e incassi si gestiscono negli incassi qui sopra.</p>
       </CardHeader>
       <CardContent>

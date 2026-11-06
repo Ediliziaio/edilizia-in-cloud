@@ -77,7 +77,7 @@ export function CreditsHistory() {
   const [type, setType] = useState<TypeFilter>("all");
   const [range, setRange] = useState<RangeFilter>("30");
 
-  const { data: rows, isLoading } = useQuery({
+  const { data: rows, isLoading, isError, refetch } = useQuery({
     queryKey: ["credits-history", companyId, wallet, range],
     queryFn: async () => {
       if (!companyId) return [];
@@ -99,7 +99,7 @@ export function CreditsHistory() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any): CreditLogEntry => ({
         id: r.id,
-        type: r.type,
+        type: r.type === "deduct" ? "deduction" : r.type,
         amount_eur: r.amount_eur,
         balance_before: r.balance_before ?? 0,
         balance_after: r.balance_after ?? 0,
@@ -167,7 +167,7 @@ export function CreditsHistory() {
           <div>
             <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Servizio</label>
             <Select value={wallet} onValueChange={(v) => setWallet(v as WalletFilter)}>
-              <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectTrigger aria-label="Servizio" className="h-8 w-[140px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -180,7 +180,7 @@ export function CreditsHistory() {
           <div>
             <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</label>
             <Select value={type} onValueChange={(v) => setType(v as TypeFilter)}>
-              <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectTrigger aria-label="Tipo movimento" className="h-8 w-[140px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -195,7 +195,7 @@ export function CreditsHistory() {
           <div>
             <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Periodo</label>
             <Select value={range} onValueChange={(v) => setRange(v as RangeFilter)}>
-              <SelectTrigger className="h-8 w-[120px] text-xs">
+              <SelectTrigger aria-label="Periodo movimenti" className="h-8 w-[120px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -236,6 +236,11 @@ export function CreditsHistory() {
         {/* Tabella */}
         {isLoading ? (
           <Skeleton className="h-64 w-full" />
+        ) : isError ? (
+          <div role="alert" className="text-sm text-destructive">
+            Impossibile caricare lo storico dei movimenti.
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+          </div>
         ) : filtered.length === 0 ? (
           <p className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
             Nessun movimento registrato per i filtri selezionati.
@@ -271,7 +276,7 @@ export function CreditsHistory() {
                       )}
                     >
                       {log.type === "deduction" ? "-" : "+"}
-                      {formatEur(Math.abs(log.amount_eur))}
+                      {formatEur(Math.abs(log.amount_eur), Math.abs(log.amount_eur) > 0 && Math.abs(log.amount_eur) < 0.01 ? 6 : 2)}
                     </TableCell>
                     {wallet !== "ai" && (
                       <TableCell className="text-right font-mono text-xs text-muted-foreground">

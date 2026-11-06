@@ -6,7 +6,7 @@ const formati = [
   ["cliente", "Preventivo cliente", "Impaginato per il cliente: capitoli, voci e totale."],
   ["tecnico", "Computo dettagliato con prezzi e misure", "Come PriMus: righe di misura, riporti e riepilogo."],
   ["senza-prezzi", "Computo senza prezzi", "Le quantità per chiedere offerte, senza importi."],
-  ["riepilogo", "Riepilogo per capitoli", "Una pagina: i capitoli con il loro importo."],
+  ["riepilogo", "Riepilogo per capitoli", "Sintesi dei capitoli con il loro importo, più le sezioni attivate."],
   ["elenco-prezzi", "Elenco prezzi unitari", "Ogni voce col prezzo in cifre e in lettere, senza quantità."],
 ] as const;
 

@@ -504,7 +504,7 @@ function DocumentiFiscaliListInner() {
             // Tutti gli altri tipi (fattura, NC, proforma, ecc.) usano la
             // edge function generate-native-pdf che produce HTML stampabile.
             await downloadNativePDF(doc.id, doc.numero);
-            toast.success("PDF scaricato");
+            toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
           }
         } catch (e: unknown) {
           toast.error(getErrorMessage(e));

@@ -278,7 +278,7 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
 
   ${note.length > 0 ? `<div class="fd-avvertenze"><div class="fd-etichetta">Note fiscali</div>${note.map((t) => `<div>${esc(t)}</div>`).join("")}</div>` : ""}
 
-  ${fiscale ? `<div class="fd-cortesia">Copia di cortesia. La fattura con valore fiscale è il file XML trasmesso al Sistema di Interscambio (SdI).${privato ? " L'originale è disponibile nella tua area riservata del sito dell'Agenzia delle Entrate (Fatture e Corrispettivi)." : ""}</div>` : ""}
+  ${fiscale && doc.stato === "bozza" ? `<div class="fd-cortesia">Bozza da verificare. Documento non ancora emesso.</div>` : fiscale ? `<div class="fd-cortesia">Copia di cortesia. La fattura con valore fiscale è il file XML trasmesso al Sistema di Interscambio (SdI).${privato ? " L'originale è disponibile nella tua area riservata del sito dell'Agenzia delle Entrate (Fatture e Corrispettivi)." : ""}</div>` : ""}
 
   <div class="fd-piede">
     <div>${esc(azienda.ragione_sociale)}${piva ? ` — P.IVA ${esc(piva)}` : ""}</div>

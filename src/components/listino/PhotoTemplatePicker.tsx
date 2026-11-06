@@ -154,7 +154,7 @@ export function PhotoTemplatePicker({
     if (!p) return null;
     return {
       id: p.id, nome: p.nome, image_url: p.image_url,
-      thumbnail_url: p.thumbnail_url, tags: p.tags, materiale: null,
+      thumbnail_url: p.thumbnail_url, tags: p.tags, materiale: null as null,
       source: "company",
     };
   }, [selectedRef, filteredGlobal, companyPhotos]);

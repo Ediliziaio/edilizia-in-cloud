@@ -183,7 +183,7 @@ export function CustomerActivityTimeline({
 
     // Appuntamenti
     appuntamenti.forEach((a) => {
-      if (!a.start_at) return;
+      if (!a.appointment_date) return;
       list.push({
         id: `appt-${a.id}`,
         category: "appointment",
@@ -191,7 +191,7 @@ export function CustomerActivityTimeline({
         iconBg: "bg-violet-100 text-violet-600",
         title: a.title || "Appuntamento",
         description: a.status ? `Stato: ${a.status}` : undefined,
-        timestamp: a.start_at,
+        timestamp: a.appointment_time ? `${a.appointment_date}T${a.appointment_time}` : a.appointment_date,
         href: "/azienda/calendario",
       });
     });
@@ -288,6 +288,7 @@ export function CustomerActivityTimeline({
       appointment: 0,
       note: 0,
       activity: 0,
+      messaggio: 0,
     };
     events.forEach((e) => {
       acc[e.category] = (acc[e.category] ?? 0) + 1;

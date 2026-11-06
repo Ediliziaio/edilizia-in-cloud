@@ -311,7 +311,7 @@ export default function FirmaElettronicaHub() {
 
       const mappedQuoteRows: SignatureRequestRow[] = legacyQuotes
         .filter((quote) => !quoteIdsAlreadyInFea.has(quote.id))
-        .map((quote) => {
+        .map((quote): SignatureRequestRow => {
           const status =
             quote.status === "accettata" || quote.signed_at ? "signed" :
             quote.status === "rifiutata" || quote.refused_at ? "refused" :
@@ -326,13 +326,13 @@ export default function FirmaElettronicaHub() {
             status,
             tipo_documento: "quote",
             tipo_firmatario: "b2c",
-            order_id: null,
+            order_id: null as null,
             quote_id: quote.id,
-            sessione_id: null,
+            sessione_id: null as null,
             created_at: quote.sent_at ?? quote.created_at,
             expires_at: quote.expires_at,
             signed_at: quote.signed_at,
-            otp_tentativi: null,
+            otp_tentativi: null as null,
             documento_label: `${quote.quote_number ?? "Preventivo"}${quote.title ? ` · ${quote.title}` : ""}`,
             documento_subtitle: quote.client_name,
             documento_url: `/azienda/marketing/preventivi/${quote.id}`,

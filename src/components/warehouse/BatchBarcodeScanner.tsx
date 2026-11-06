@@ -643,8 +643,8 @@ export function BatchBarcodeScanner({
     setCreatingForUuid(pilot.clientUuid);
     try {
       // v8.6.111 — Passa tutti i rawCode al dialog come 'serials' hint.
-      // Il dialog imposta tracking_mode='serialized' + quantity=N + crea
-      // N stock_units sotto il nuovo articolo (vedi CaricoRapidoSheet.handleSaveNewItem).
+      // Il dialog propone tracking serializzato; le unità vengono registrate
+      // dal carico, dopo la conferma dello scanner.
       const allSerials = noMatchEntries.map((e) => e.rawCode);
       const result = await onRequestCreateItem(pilot.rawCode, { serials: allSerials });
       if (!result) return; // utente ha annullato

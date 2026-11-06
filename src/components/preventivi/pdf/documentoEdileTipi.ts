@@ -20,6 +20,7 @@ export interface DocEdileVoce {
   unitaMisura: string | null;
   quantita: number;
   prezzoUnitario: number;
+  scontoPct?: number;
   importo: number;
   /** Citazione della fonte del prezzo (base d'asta): discreta, solo se c'è. */
   fonte?: string | null;
@@ -41,6 +42,7 @@ export interface DocEdileCapitolo {
 
 export interface DocEdileTotali {
   mostraSconti?: boolean;
+  mostraScontiRiga?: boolean;
   imponibileLordo: number;
   scontoEur: number;
   scontoPct: number;

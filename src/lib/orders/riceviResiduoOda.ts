@@ -39,10 +39,26 @@ export async function riceviResiduoOda(params: {
 }): Promise<EsitoRicezioneResiduo> {
   const { companyId, odaId } = params;
 
+  // La bolla è la fonte della destinazione: anche modificando una bolla
+  // esistente, una consegna diretta non deve creare articoli o carichi fittizi.
+  let consegnaInCantiere = false;
+  if (params.ddtId) {
+    const { data: bolla, error: bollaErr } = await supabase
+      .from("ddt_ricezione")
+      .select("id, destinazione")
+      .eq("id", params.ddtId)
+      .eq("company_id", companyId)
+      .eq("purchase_order_id", odaId)
+      .single();
+    if (bollaErr) throw bollaErr;
+    consegnaInCantiere = (bolla as unknown as { destinazione?: string } | null)?.destinazione === "cantiere";
+  }
+
   const { data: odaData, error: odaErr } = await supabase
     .from("purchase_orders")
     .select("delivery_warehouse_id, supplier_id")
     .eq("id", odaId)
+    .eq("company_id", companyId)
     .single();
   if (odaErr) throw odaErr;
 
@@ -53,7 +69,7 @@ export async function riceviResiduoOda(params: {
   if (itemsErr) throw itemsErr;
   if (!items || items.length === 0) return { righe: 0, senzaRighe: true, completo: false, errori: [] };
 
-  const warehouseId = params.warehouseId ?? odaData?.delivery_warehouse_id ?? null;
+  const warehouseId = consegnaInCantiere ? null : params.warehouseId ?? odaData?.delivery_warehouse_id ?? null;
   const righe: Array<{ item_id: string; quantity: number; stock_item_id: string | null }> = [];
   // L'articolo si cerca nel magazzino d'arrivo: il movimento si registra lì, e
   // un articolo preso da un altro magazzino ne alzava la giacenza (movimento su
@@ -66,6 +82,11 @@ export async function riceviResiduoOda(params: {
     const qtyToLoad = Number(item.quantity) - (Number(item.quantity_received) || 0);
     if (qtyToLoad <= 0) continue;
 
+    if (consegnaInCantiere) {
+      righe.push({ item_id: item.id, quantity: qtyToLoad, stock_item_id: null });
+      continue;
+    }
+
     let stockItemId: string | null = null;
 
     if (item.sku) {
@@ -73,25 +94,28 @@ export async function riceviResiduoOda(params: {
       // vecchio ilike("name", sku) non trovava mai nulla e a ogni ricezione
       // nasceva un articolo duplicato in inventario. Due eq separati invece di
       // .or(): lo SKU è testo libero e virgole e parentesi romperebbero .or().
-      const { data: byCode } = await supabase
+      const { data: byCode, error: codeError } = await supabase
         .from("warehouse_stock").select("id")
         .eq("company_id", companyId).eq("internal_code", item.sku)
         .match(nelMagazzino).limit(1).maybeSingle();
+      if (codeError) throw codeError;
       stockItemId = byCode?.id ?? null;
       if (!stockItemId) {
-        const { data: byBarcode } = await supabase
+        const { data: byBarcode, error: barcodeError } = await supabase
           .from("warehouse_stock").select("id")
           .eq("company_id", companyId).eq("barcode", item.sku)
           .match(nelMagazzino).limit(1).maybeSingle();
+        if (barcodeError) throw barcodeError;
         stockItemId = byBarcode?.id ?? null;
       }
     }
 
     if (!stockItemId && item.description) {
-      const { data: byName } = await supabase
+      const { data: byName, error: nameError } = await supabase
         .from("warehouse_stock").select("id")
         .eq("company_id", companyId).ilike("name", item.description)
         .match(nelMagazzino).limit(1).maybeSingle();
+      if (nameError) throw nameError;
       stockItemId = byName?.id ?? null;
     }
 

@@ -40,7 +40,7 @@ import type { PisComputoVoce, PisUnitaMisura } from "@/types/piscine";
 import { VoceDettagli } from "@/components/computo/VoceDettagli";
 
 /** Unità di misura selezionabili (allineate a `PisUnitaMisura`). */
-const UM_OPTIONS: PisUnitaMisura[] = ["mq", "ml", "cad", "corpo", "kg", "h", "a corpo"];
+const UM_OPTIONS: PisUnitaMisura[] = ["mq", "mc", "ml", "cad", "corpo", "kg", "h", "a corpo"];
 
 interface Props {
   voce: PisComputoVoce;

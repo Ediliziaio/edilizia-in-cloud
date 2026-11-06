@@ -196,7 +196,7 @@ export default function AppleCalendarConnectionTab() {
 
   // Update settings
   const updateSettings = useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
+    mutationFn: async (updates: import("@/integrations/supabase/types").Database["public"]["Tables"]["apple_calendar_settings"]["Update"]) => {
       if (!companyId || !userId) throw new Error("Missing context");
       const { error } = await supabase
         .from("apple_calendar_settings")

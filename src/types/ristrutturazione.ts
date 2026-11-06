@@ -1,7 +1,7 @@
 import type { GalleryLavoroItem } from "./gallery";
 import type { DettagliVoce } from "@/lib/computo/vociDettagli";
 
-export type RstUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
+export type RstUnitaMisura = "mq" | "mc" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type RstStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
 
 export interface RstListinoCapitolo { id: string; company_id: string; nome: string; ordine: number; }

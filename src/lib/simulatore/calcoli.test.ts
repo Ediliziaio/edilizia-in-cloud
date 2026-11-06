@@ -59,6 +59,7 @@ describe("calcolaTotali", () => {
 describe("calcolaIva", () => {
   it("singola: tutto a una aliquota", () => {
     const r = calcolaIva([voce({ quantita: 1, prezzo_unitario: 1000, vat_rate: 22 })], {
+      ...DEFAULT_SCENARI,
       iva_mode: "singola",
       iva_rate_singola: 10,
       iva_confronto: [],
@@ -73,7 +74,7 @@ describe("calcolaIva", () => {
         voce({ quantita: 1, prezzo_unitario: 1000, vat_rate: 10 }),
         voce({ quantita: 1, prezzo_unitario: 500, vat_rate: 22 }),
       ],
-      { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null },
+      { ...DEFAULT_SCENARI, iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null },
     );
     expect(r.iva_totale).toBe(210);
   });

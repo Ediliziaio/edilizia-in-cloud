@@ -1,3 +1,4 @@
+import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { IncarichiCantiere } from '@/components/sicurezza/IncarichiCantiere';
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -317,6 +318,7 @@ interface OrderDetail extends Pick<Tables<"orders">, "status" | "quote_number" |
   financing_paid_date: string | null;
   financing_expected_date: string | null;
   financing_cost: number | null;
+  financing_cost_mode?: ModalitaCostoFinanziaria | null;
   has_building_bonus: boolean;
   customer: {
     id: string;
@@ -1149,9 +1151,9 @@ function OrderDetailInner() {
     const altre = displayInstallments
       .filter(i => !(i.type === "balance" && i.position === posSaldo))
       .reduce((s, i) => s + i.amount, 0);
-    const saldoCalcolato = Math.max(0, totaleIvato - altre - costoFin);
+    const saldoCalcolato = Math.max(0, totaleIvato - altre - costoDaSottrarreAlSaldo(costoFin, order.financing_cost_mode));
     const conImportiMostrati = displayInstallments.map(i =>
-      i.type === "balance" && i.position === posSaldo ? { ...i, amount: saldoCalcolato } : i,
+      i.type === "balance" && i.position === posSaldo ? { ...i, amount: saldoCalcolato } : i.type === "financing" && order.financing_cost_mode === "trattenuto" ? { ...i, amount: Math.max(0, i.amount - costoFin) } : i,
     );
     // Una rata agganciata a un evento del cantiere non ha una data propria:
     // la scadenza si calcola dalle date della commessa e si sposta con loro.
@@ -1211,7 +1213,7 @@ function OrderDetailInner() {
   const handleDownloadFiscalDocument = async (documento: LinkedFiscalDocument) => {
     try {
       await downloadNativePDF(documento.id, documento.numero || "documento");
-      toast.success("Documento scaricato");
+      toast.info("Stampa richiesta", { description: "Per salvare il file scegli «Salva come PDF» nel dialogo del browser. Il file non viene scaricato automaticamente.", duration: 12000 });
     } catch (error) {
       toast.error("Download non riuscito", {
         description: error instanceof Error ? error.message : "Apri il documento e riprova dal dettaglio.",
@@ -1418,6 +1420,7 @@ function OrderDetailInner() {
     vatRate: order.vat_rate ?? 22,
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
+    financingCostMode: order.financing_cost_mode,
     varianti: variantiDatate,
   }), nettoUnitaInLordo(incassiUnita.data?.incassi ?? 0, order.vat_rate ?? 22), order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
   const collectedAmount = incassi.incassatoNetto;
@@ -1594,12 +1597,13 @@ function OrderDetailInner() {
           items={economicsItems}
           itemsLoading={orderItemsPending}
           itemsError={orderItemsError}
-          installments={resolvedInstallments}
+          installments={displayInstallments}
           installmentsLoading={installmentsPending}
           installmentsError={installmentsError}
           collectedGross={collectedGross}
           cashTotalGross={cashTotalGross}
-          financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
+          financingCostMode={order.financing_cost_mode}
+                  financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
           varianti={variantiDatate}
           canViewAmounts={permissions.canViewOrderAmounts}
           canViewMargins={permissions.canViewMargins && contractLink.data?.workflow_kind !== "contratto"}
@@ -1827,12 +1831,6 @@ function OrderDetailInner() {
                     (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0),
                   0,
                 );
-                const daOrdinare = displayItems.filter(
-                  (i) => i.status === "da_ordinare",
-                ).length;
-                const arrivati = displayItems.filter(
-                  (i) => i.status === "in_magazzino",
-                ).length;
                 return (
                   <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3 max-sm:gap-x-3 max-sm:px-3 max-sm:py-2">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
@@ -1841,18 +1839,6 @@ function OrderDetailInner() {
                           {displayItems.length}
                         </strong>{" "}
                         articoli
-                      </span>
-                      {daOrdinare > 0 && (
-                        <span className="text-muted-foreground">
-                          <strong className="text-amber-600">
-                            {daOrdinare}
-                          </strong>{" "}
-                          con stato “da ordinare”
-                        </span>
-                      )}
-                      <span className="text-muted-foreground">
-                        <strong className="text-emerald-600">{arrivati}</strong>{" "}
-                        in magazzino
                       </span>
                     </div>
                     <div className="text-sm">
@@ -1966,6 +1952,7 @@ function OrderDetailInner() {
                 {companyId && <OrdineSAL orderId={id!} companyId={companyId}
                   showPaymentProgress={false} orderTotalAmount={agreedAmount}
                   installments={displayInstallments} vatRate={order.vat_rate ?? 22}
+                  financingCostMode={order.financing_cost_mode}
                   financingCost={order.payment_type === "financing" ? (order.financing_cost ?? 0) : 0} />}
               </div>
             </details>}
@@ -2029,7 +2016,8 @@ function OrderDetailInner() {
                     paymentType={(order.payment_type as PaymentType) || "standard"}
                     installments={displayInstallments}
                     hasBuildingBonus={order.has_building_bonus}
-                    financingCost={order.financing_cost ?? undefined}
+                    financingCostMode={order.financing_cost_mode}
+              financingCost={order.financing_cost ?? undefined}
                     collectedAmount={collectedAmount}
                     varianti={variantiDatate}
                     onInstallmentPaidToggle={handleInstallmentPaidToggle}
@@ -2071,6 +2059,7 @@ function OrderDetailInner() {
                   orderId={id!}
                   totalAmount={agreedAmount}
                   vatRate={order.vat_rate ?? 22}
+                  financingCostMode={order.financing_cost_mode}
                   financingCost={order.payment_type === 'financing' ? order.financing_cost ?? 0 : 0}
                   installments={displayInstallments}
                   varianti={variantiDatate}
@@ -2079,7 +2068,7 @@ function OrderDetailInner() {
                   anchorId="esposizione-commessa"
                 />
                 <div className="mt-4">
-                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} />
+                  <PrevisioneCassaMateriali incassato={collectedGross} materiali={costoMaterialiGross} saldoResiduo={saldoResiduoGross} saldoData={saldoDate} rate={resolvedInstallments} />
                 </div>
               </ErrorBoundary>
             )}
@@ -2345,7 +2334,7 @@ function OrderDetailInner() {
                   ? [order.customer.first_name, order.customer.last_name].filter(Boolean).join(" ")
                   : order.client_name || ""}
               />
-              <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} /></div>
+              <div id="section-assistenza" className="scroll-mt-24"><OrderAssistenzaTab orderId={id!} customerId={order.customer_id} /></div>
             </>}
             </Suspense>
             </OrderViewTransition>

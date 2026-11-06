@@ -103,7 +103,7 @@ const PROVIDER_LABEL: Record<string, { name: string; color: string; Icon: (props
 };
 
 const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  active:  { label: "Attivo",     color: "bg-emerald-100 text-emerald-700 border-emerald-300", icon: CheckCircle2 },
+  active:  { label: "Collegata",     color: "bg-emerald-100 text-emerald-700 border-emerald-300", icon: CheckCircle2 },
   expired: { label: "Scaduto",    color: "bg-amber-100 text-amber-700 border-amber-300", icon: AlertCircle },
   revoked: { label: "Revocato",   color: "bg-slate-100 text-slate-700 border-slate-300", icon: XCircle },
   error:   { label: "Errore",     color: "bg-rose-100 text-rose-700 border-rose-300", icon: AlertCircle },
@@ -568,6 +568,11 @@ export function EmailOAuthConnectionsCard() {
                         <span>·</span>
                         <span>controllo ogni {c.poll_interval_minutes} min</span>
                       </div>
+                      {c.status === "active" && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Collegata indica che la casella è abilitata. Verifica la data dell’ultimo controllo per sapere se la ricezione è aggiornata.
+                        </p>
+                      )}
                       {c.last_sync_error && c.status === "active" && (
                         <p
                           className="text-[10px] text-amber-700 dark:text-amber-500"

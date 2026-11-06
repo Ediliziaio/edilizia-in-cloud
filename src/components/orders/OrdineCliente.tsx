@@ -1,3 +1,4 @@
+import { emailDaMostrare } from "@/lib/orders/nuovaCommessaProposte";
 import { Link } from "react-router-dom";
 import { User, Mail, Phone, MapPin, HardHat, ExternalLink } from "lucide-react";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
@@ -52,7 +53,7 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori }: OrdineCli
       <QuoteCard title="Cliente" icon={<User className="h-4 w-4" />}>
         <p className="text-sm font-medium text-slate-700">{snapshot?.name || "Cliente non disponibile"}</p>
         {snapshot?.name && <p className="mt-1 text-xs text-slate-500">Dati salvati nella commessa · anagrafica non collegata</p>}
-        {snapshot?.email && <p className="mt-2 break-all text-sm text-slate-500">{snapshot.email}</p>}
+        {emailDaMostrare(snapshot?.email) && <p className="mt-2 break-all text-sm text-slate-500">{emailDaMostrare(snapshot?.email)}</p>}
         {snapshot?.phone && <p className="text-sm text-slate-500">{snapshot.phone}</p>}
         <BloccoCantiere indirizzo={indirizzoLavori} />
       </QuoteCard>
@@ -78,7 +79,7 @@ export function OrdineCliente({ customer, snapshot, indirizzoLavori }: OrdineCli
       <div className="space-y-1.5 text-sm">
         <div className="flex items-center gap-2 text-slate-500">
           <Mail className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{customer.email}</span>
+          <span className="truncate">{emailDaMostrare(customer.email) || "Email non indicata"}</span>
         </div>
         {customer.phone && (
           <div className="flex items-center gap-2 text-slate-500">

@@ -105,13 +105,14 @@ function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuan
   const haAltro = riga.descrizione.length > 100 || (!!estesa && estesa !== riga.descrizione);
   return (
     <li className={cn("flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2 hover:bg-muted/50", scelta && "bg-orange-50/70 hover:bg-orange-50")}>
-      <Checkbox checked={!!scelta} onCheckedChange={onCambia} aria-label={`Scegli: ${riga.descrizione}`} />
-      <button type="button" tabIndex={-1} onClick={onCambia} className="flex min-w-0 flex-1 basis-40 items-center gap-3 text-left">
+      <Checkbox disabled={!!riga.blocco} checked={!!scelta} onCheckedChange={onCambia} aria-label={`Scegli: ${riga.descrizione}`} />
+      <button type="button" disabled={!!riga.blocco} tabIndex={-1} onClick={onCambia} className="flex min-w-0 flex-1 basis-40 items-center gap-3 text-left">
         {riga.immagine && <MiniaturaProdotto src={riga.immagine} className="h-9 w-9" />}
         <span className="min-w-0 flex-1">
           <span className="text-sm font-medium text-slate-800 line-clamp-2" title={riga.descrizione}>{riga.descrizione}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
             {riga.meta && <span className="truncate">{riga.meta}</span>}
+            {riga.blocco && <span className="text-amber-700">{riga.blocco}</span>}
             {presente && <span className="inline-flex items-center gap-0.5 font-medium text-emerald-700"><Check className="h-3 w-3" />Già nel computo</span>}
           </span>
         </span>
@@ -331,6 +332,7 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
     onOpenChange(false);
   };
   const cambia = (r: RigaScelta) => {
+    if (r.blocco) return;
     const nuova = !scelte.has(r.chiave);
     setConFocus(nuova && r.chiedeQuantita ? r.chiave : null);
     setScelte((prima) => {

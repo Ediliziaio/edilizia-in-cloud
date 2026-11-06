@@ -315,13 +315,13 @@ export default function StoricoImpianto() {
             ticket: t,
             created_at: new Date().toISOString(),
             stato: "aperto",
-            stato_chiusura: null,
-            note_chiusura: null,
-            ore_lavoro: null,
-            ore_lavoro_effettive: null,
-            firma_tecnico_url: null,
-            foto_chiusura: null,
-            foto_urls: null,
+            stato_chiusura: null as null,
+            note_chiusura: null as null,
+            ore_lavoro: null as null,
+            ore_lavoro_effettive: null as null,
+            firma_tecnico_url: null as null,
+            foto_chiusura: null as null,
+            foto_urls: null as null,
           }));
         }
       } else {

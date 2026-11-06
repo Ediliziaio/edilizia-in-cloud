@@ -62,22 +62,23 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     // unhandled rejection se la query fallisce.
     let cancelled = false;
 
-    supabase
-      .from("tecnico_gps_consent" as never)
+    Promise.resolve(supabase
+      .from("tecnico_gps_consent")
       .select("id")
       .eq("user_id", user.id)
       .eq("company_id", effectiveCompany.id)
       .eq("version", GPS_CONSENT_VERSION)
       .is("revoked_at", null)
       .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
+      .maybeSingle())
+      .then(({ data, error }) => {
+        if (error) throw error;
         if (cancelled) return;
         if (data) {
           setState((s) => ({ ...s, hasConsent: true }));
         }
       })
-      .catch((err: any) => {
+      .catch((err: unknown) => {
         if (!cancelled) {
           console.warn("[useGpsContinuo] consent check failed:", err);
         }
@@ -145,7 +146,7 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     if (!user?.id || !effectiveCompany?.id) return;
 
     const { error } = await (supabase
-      .from("tecnico_gps_consent" as never)
+      .from("tecnico_gps_consent")
       .upsert({
         user_id: user.id,
         company_id: effectiveCompany.id,
@@ -186,7 +187,7 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
     stopTracking();
 
     await (supabase
-      .from("tecnico_gps_consent" as never)
+      .from("tecnico_gps_consent")
       .update({ revoked_at: new Date().toISOString() })
       .eq("user_id", user.id)
       .eq("company_id", effectiveCompany.id)

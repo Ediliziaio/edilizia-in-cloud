@@ -115,7 +115,7 @@ export function disegnaElencoPrezzi(doc: jsPDF, voci: VoceComputo[], i: Intestaz
   if (!voci.length) { font(9, false, t.grigio); doc.text("Le voci compariranno qui.", m, y); }
 
   const pagine = doc.getNumberOfPages();
-  for (let p = 1; p <= pagine; p++) {
+  for (let p = 1; !i.senzaPiede && p <= pagine; p++) {
     doc.setPage(p); doc.setDrawColor(t.filetto); doc.line(m, H - 30, destra, H - 30);
     font(6.5, false, t.grigioChiaro); doc.text((i.stato || i.veste?.piePagina || i.azienda || "").slice(0, 100), m, H - 18);
     doc.text(`Pagina ${p} di ${pagine}`, destra, H - 18, { align: "right" });

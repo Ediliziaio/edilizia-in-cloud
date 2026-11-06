@@ -21,6 +21,23 @@ const scegliFormato = async (name: string) => {
 };
 
 describe("editor computo integrato", () => {
+  it("rimuove l’avviso di lavorazione mancante anche ripristinando la voce con Annulla", async () => {
+    const key = "ui-undo-opzionale";
+    localStorage.setItem(key, JSON.stringify({ ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Posa demo", quantita: "36", prezzo: "20" }] }));
+    render(<ComputoNativoEditor initialFase={2} storageKey={key} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apri voce 1" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Opzionale (fuori dal totale)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scarica preventivo" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Aggiungi almeno una lavorazione."));
+    expect(esporta).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla ultima modifica" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Riepilogo del computo")).toHaveTextContent("720,00 €");
+    await waitFor(() => expect(leggiBozzaComputo(localStorage.getItem(key)!).voci[0].opzionale).toBeFalsy());
+    fireEvent.click(screen.getByRole("button", { name: "Scarica preventivo" }));
+    await waitFor(() => expect(esporta).toHaveBeenCalledOnce());
+    expect(esporta.mock.calls[0][0][0].importo_computo).toBe(720);
+  });
   it("avvisa che gli allegati originali possono contenere prezzi nella versione senza prezzi", async () => {
     localStorage.setItem("ui-privacy-allegati", JSON.stringify({ ...bozzaVuota(), allegati: [{ id: crypto.randomUUID(), nome: "foto.jpg", tipo: "foto", mime: "image/jpeg", dimensione: 10, includi: true }] }));
     render(<ComputoNativoEditor initialFase={4} storageKey="ui-privacy-allegati" />);

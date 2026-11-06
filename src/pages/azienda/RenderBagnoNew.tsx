@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ import { downloadRenderImage } from "@/lib/render/downloadRenderImage";
 import { RenderPdfDownloadButton } from "@/components/render/RenderPdfDownloadButton";
 import type { AnalisiBagno } from "@/modules/render-bagno/lib/types";
 import { normalizeBathroomSceneAnalysis } from "@/modules/render-bagno/lib/bathroomSceneAnalysis";
-import { buildBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
+import { buildBathroomRenderConfig, ensureBathroomRenderConfig } from "@/modules/render-bagno/lib/bathroomRenderConfig";
 import { createRenderOriginalSignedUrl, uploadRenderOriginal } from "@/lib/render/renderStorage";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -157,21 +158,21 @@ export default function RenderBagnoNew() {
           .eq("company_id", companyId)
           .single();
 
-        if (error || !data || cancelled) return;
+        if (cancelled) return;
+        if (error) throw error;
+        if (!data) throw new Error("Render non disponibile");
 
-        const row = data as {
-          foto_originale_path: string | null;
-          foto_originale_url: string | null;
-          configurazione: Record<string, unknown> | null;
-          analisi_bagno: AnalisiBagno | null;
-          contact_id?: string | null;
-          opportunity_id?: string | null;
-        };
-
-        const normalized = buildBathroomRenderConfig(
-          (row.configurazione?.legacy_config as BathroomConfig | undefined) ?? (row.configurazione as unknown as BathroomConfig) ?? DEFAULT_BATHROOM_CONFIG,
-          { sceneAnalysis: row.analisi_bagno ?? row.configurazione?.scene_analysis },
-        );
+        const row = data;
+        const configurazione = row.configurazione;
+        const configObject = configurazione && typeof configurazione === "object" && !Array.isArray(configurazione)
+          ? configurazione : null;
+        const legacy = configObject?.legacy_config;
+        const restoredConfig = configObject?.schema_version === "bathroom_render_v2"
+          ? configObject
+          : legacy && typeof legacy === "object" && !Array.isArray(legacy) ? legacy : configObject;
+        const normalized = restoredConfig
+          ? ensureBathroomRenderConfig(restoredConfig, row.analisi_bagno ?? configObject?.scene_analysis)
+          : buildBathroomRenderConfig(DEFAULT_BATHROOM_CONFIG, { sceneAnalysis: row.analisi_bagno });
 
         setConfig(normalized.legacy_config);
         setAnalisi(normalized.scene_analysis);
@@ -185,7 +186,7 @@ export default function RenderBagnoNew() {
         setSourceOriginalPath(row.foto_originale_path);
         setSessionId(null);
         setResultUrl(null);
-        setTemplateResultUrl((row as { render_result_url?: string | null }).render_result_url ?? null);
+        setTemplateResultUrl(row.render_result_url ?? null);
         setSavedToGallery(false);
 
         let previewUrl = row.foto_originale_url ?? null;
@@ -326,7 +327,7 @@ export default function RenderBagnoNew() {
           user_id: user.id,
           stato: "pending",
           foto_originale_path: storagePath,
-          configurazione: config,
+          configurazione: jsonPayload(config),
           tipo_intervento: config.tipo_intervento,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -459,8 +460,8 @@ export default function RenderBagnoNew() {
           user_id: user.id,
           stato: "analysis_done",
           foto_originale_path: sourceOriginalPath,
-          configurazione: renderPayload,
-          analisi_bagno: renderPayload.scene_analysis,
+          configurazione: jsonPayload(renderPayload),
+          analisi_bagno: jsonPayload(renderPayload.scene_analysis),
           tipo_intervento: config.tipo_intervento,
           contact_id: contactId,
           opportunity_id: opportunityId,
@@ -491,8 +492,8 @@ export default function RenderBagnoNew() {
       .from("render_bagno_sessions")
       .update({
         stato: "analysis_done",
-        configurazione: renderPayload,
-        analisi_bagno: renderPayload.scene_analysis,
+        configurazione: jsonPayload(renderPayload),
+        analisi_bagno: jsonPayload(renderPayload.scene_analysis),
         tipo_intervento: config.tipo_intervento,
         render_result_url: null,
         render_result_path: null,
@@ -668,7 +669,7 @@ export default function RenderBagnoNew() {
       </div>
 
       {/* FIX P2.5 + P5.1: banner pre-wizard su saldo crediti */}
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {/* ═════════════════════════════════════════════════════════════
           STEP 1 — Foto

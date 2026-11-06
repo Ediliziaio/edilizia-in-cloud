@@ -93,7 +93,7 @@ export function buildCommercialTrend(
     preventivi: 0,
     vinte: 0,
     fatturatoCents: 0,
-    marginePct: null,
+    marginePct: null as null,
   }));
   const marginSum = bucketStarts.map(() => 0);
   const marginCount = bucketStarts.map(() => 0);

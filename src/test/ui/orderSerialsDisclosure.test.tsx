@@ -4,8 +4,9 @@ import { OrderSerialsTrackingCard } from "@/components/orders/OrderSerialsTracki
 import type { OrderItemData } from "@/lib/orderUtils";
 
 const query = vi.hoisted(() => vi.fn(() => ({ data: new Map() })));
+const senzaRiga = vi.hoisted(() => vi.fn(() => ({data: [] as Array<{id:string;serial_number:string}>})));
 const conSeriale = vi.hoisted(() => vi.fn(() => ({ data: new Set(["caldaia"]) })));
-vi.mock("@/hooks/warehouse/useStockUnits", () => ({ useStockUnitsByOrderItemIds: query, useArticoliConSeriale: conSeriale }));
+vi.mock("@/hooks/warehouse/useStockUnits", () => ({ useStockUnitsByOrderItemIds: query, useArticoliConSeriale: conSeriale, useSerialiCommessaSenzaRiga: senzaRiga }));
 vi.mock("@/components/warehouse/AssignSerialsDialog", () => ({ AssignSerialsDialog: () => <div role="dialog">Assegna seriali</div> }));
 afterEach(() => { cleanup(); query.mockClear(); });
 const item: OrderItemData = {
@@ -43,7 +44,7 @@ describe("Seriali e garanzie", () => {
   });
   it("se nessun articolo la prevede lo dice, e gli altri restano raggiungibili", () => {
     render(<OrderSerialsTrackingCard orderId="order" orderItems={[cemento]} />);
-    expect(screen.getByText(/Nessun articolo del magazzino prevede una matricola/)).toBeInTheDocument();
+    expect(screen.getByText(/Nessuna matricola risulta collegata alle righe/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Altri articoli (1)" })).toBeInTheDocument();
   });
   it("non presenta un comando vuoto quando non esistono articoli tracciabili", () => {
@@ -55,4 +56,11 @@ describe("Seriali e garanzie", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(query).toHaveBeenLastCalledWith([]);
   });
+});
+
+it("mostra un seriale spedito alla commessa anche senza riga materiale abbinata", () => {
+  senzaRiga.mockReturnValueOnce({data:[{id:"s-demo",serial_number:"GUIDADEMO-SN-002"}]});
+  render(<OrderSerialsTrackingCard orderId="order" orderItems={[]} />);
+  expect(screen.getByText("GUIDADEMO-SN-002")).toBeInTheDocument();
+  expect(screen.getByText(/da abbinare alle righe \(1\)/)).toBeInTheDocument();
 });

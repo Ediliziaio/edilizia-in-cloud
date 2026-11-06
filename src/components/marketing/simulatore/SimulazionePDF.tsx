@@ -17,7 +17,6 @@
  * Il helper `scaricaSimulazionePDF` genera il Blob via `pdf(<Doc/>).toBlob()` e lo
  * scarica (lazy import della lib pesante, come `useOrdinePDF`).
  */
-import * as React from "react";
 import {
   Document, Page, Text, View, StyleSheet, Font,
 } from "@react-pdf/renderer";
@@ -423,7 +422,7 @@ export async function scaricaSimulazionePDF(
   nome: string,
 ): Promise<void> {
   const { pdf } = await import("@react-pdf/renderer");
-  const element = React.createElement(SimulazionePDF, { doc, risultato, nome });
+  const element = SimulazionePDF({ doc, risultato, nome });
   const blob = await pdf(element).toBlob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

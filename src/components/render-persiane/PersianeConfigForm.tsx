@@ -234,6 +234,12 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
 
       <div className="space-y-3">
         <Label className="text-sm font-semibold max-md:text-[13px]">Aperture target</Label>
+        {analysis && analysis.openingsVisible !== analysis.openings.length && (
+          <p role="alert" className="text-sm text-amber-700">
+            L’analisi stima {analysis.openingsVisible} aperture visibili, ma ne ha identificate {analysis.openings.length} da selezionare.
+            «Tutte le aperture» comprende solo quelle elencate. Se ne manca una, ripeti l’analisi con una foto più chiara prima di generare.
+          </p>
+        )}
         <div className="grid gap-2 sm:grid-cols-3 max-sm:gap-1.5">
           <button
             type="button"

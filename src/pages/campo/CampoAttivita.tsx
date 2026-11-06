@@ -106,7 +106,7 @@ export default function CampoAttivita() {
   // ── Change status ──
   const statusMutation = useMutation({
     mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
-      const payload: Record<string, unknown> = { status: newStatus };
+      const payload: import("@/integrations/supabase/types").Database["public"]["Tables"]["tasks"]["Update"] = { status: newStatus };
       if (newStatus === "completata") payload.completed_at = new Date().toISOString();
       else payload.completed_at = null;
       const { error } = await supabase.from("tasks").update(payload).eq("id", id);
@@ -402,7 +402,7 @@ function TaskFormCampo({
     }
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = {
+      const payload: import("@/integrations/supabase/types").Database["public"]["Tables"]["tasks"]["Update"] = {
         title: title.trim(),
         notes: notes.trim() || null,
         priority,

@@ -430,7 +430,7 @@ export default function RenderCategoryHub() {
             <Clock className="h-5 w-5 text-amber-600" />
             <div>
               <p className="text-2xl font-bold">{stats.processing}</p>
-              <p className="text-xs text-muted-foreground">in lavorazione</p>
+              <p className="text-xs text-muted-foreground">in attesa o elaborazione</p>
             </div>
           </CardContent>
         </Card>
@@ -453,9 +453,9 @@ export default function RenderCategoryHub() {
               <div className="max-md:min-w-0">
                 <p className="text-sm font-semibold text-orange-950 max-md:text-[13px]">Ci sono render da verificare</p>
                 <p className="text-sm text-orange-800 max-md:hidden">
-                  {stats.stale} render risultano in coda o elaborazione da oltre 30 minuti. Controlla il modulo relativo prima di rigenerare per evitare doppie operazioni.
+                  {stats.stale} sessioni non concluse sono state create da oltre 30 minuti. Possono includere foto caricate senza avviare il render: questa età non misura il tempo di elaborazione. Apri il modulo e controlla lo stato prima di rigenerare.
                 </p>
-                <p className="hidden text-[11px] text-orange-800 max-md:block">{stats.stale} in coda da oltre 30 minuti</p>
+                <p className="hidden text-[11px] text-orange-800 max-md:block">{stats.stale} sessioni non concluse create da oltre 30 minuti</p>
               </div>
             </div>
             <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setRecentStatusFilter("processing")}>

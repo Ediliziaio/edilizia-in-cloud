@@ -1,3 +1,8 @@
+import { FinancingCostModeField } from "@/components/orders/FinancingCostModeField";
+import { verificaCostoSuPiano, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
+import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
+import { Input } from "@/components/ui/input";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 /**
  * TrasformaDialog — genera un PREVENTIVO (`quotes` + `quote_items`) o una
  * COMMESSA (`orders` via RPC `create_order_atomic`) dalle voci simulate,
@@ -77,21 +82,6 @@ interface OrderStatusRow {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as any;
 
-/**
- * Costo del finanziamento (interessi + spese) stimato dal risultato:
- * rata × numero_rate − importo_finanziato. Serve a popolare
- * `financing_cost` della commessa coerentemente con CreateOrder.
- */
-function stimaCostoFinanziamento(
-  doc: SimulazioneDoc,
-  risultato: SimulazioneRisultato,
-): number {
-  const fin = doc.scenari.finanziamento;
-  if (!fin || risultato.rata_mensile == null || !fin.numero_rate) return 0;
-  const totaleDovuto = risultato.rata_mensile * fin.numero_rate;
-  return Math.max(0, round2(totaleDovuto - fin.importo_finanziato));
-}
-
 export function TrasformaDialog({
   open,
   onOpenChange,
@@ -111,6 +101,8 @@ export function TrasformaDialog({
   const [statusIdRaw, setStatusIdRaw] = useState<string | null>(null);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [financingCost, setFinancingCost] = useState("");
+  const [financingCostMode, setFinancingCostMode] = useState<ModalitaCostoFinanziaria | null>(null);
 
   // Reset alla chiusura (evita setState-in-effect: il reset è guidato
   // dall'azione di chiusura, non da un effetto sull'`open`).
@@ -264,20 +256,28 @@ export function TrasformaDialog({
     }
     setBusy(true);
     try {
+      const costo = parseDecimalIT(financingCost);
+      if (doc.scenari.finanziamento) {
+        if (!financingCost.trim()) throw new Error("Conferma il costo a carico dell’azienda, anche se è zero.");
+        if (costo > 0 && !financingCostMode) throw new Error("Scegli come viene pagato il costo della finanziaria.");
+        verificaCostoSuPiano(costo, financingCostMode, [{ type: "financing", amount: doc.scenari.finanziamento.importo_finanziato }]);
+        if (financingCostMode) await verificaSupportoModalitaFinanziaria();
+      }
       const payload = mapToOrderPayload(doc, risultato, {
         companyId,
         customerId,
         userId: user.id,
         statusId,
         description: titoloPreventivo,
-        financingCost: stimaCostoFinanziamento(doc, risultato),
+        financingCost: costo,
+        financingCostMode,
       });
 
       const createOrderAtomic = supabase.rpc.bind(supabase) as unknown as (
         fn: "create_order_atomic",
         args: Record<string, unknown>,
       ) => Promise<{ data: { id: string } | null; error: { message: string } | null }>;
-      const { data, error } = await createOrderAtomic("create_order_atomic", payload);
+      const { data, error } = await createOrderAtomic("create_order_atomic", { ...payload });
       if (error) throw error;
       const result = data as unknown as { id: string } | null;
       if (!result?.id) throw new Error("Risposta inattesa dalla funzione atomica");
@@ -402,6 +402,12 @@ export function TrasformaDialog({
               </p>
             </div>
 
+            {modo === "commessa" && doc.scenari.finanziamento && <div className="space-y-3 rounded-md border p-3">
+              <Label htmlFor="simulazione-costo-finanziaria">Costo della finanziaria a carico dell’azienda (€)</Label>
+              <Input id="simulazione-costo-finanziaria" inputMode="decimal" value={financingCost} onChange={e => setFinancingCost(e.target.value)} placeholder="Indica anche zero se non ci sono costi" />
+              <p className="text-xs text-muted-foreground">Conferma il costo effettivo previsto dall’accordo con la finanziaria. Gli interessi delle rate del cliente non determinano questo importo.</p>
+              <FinancingCostModeField value={financingCostMode} onChange={setFinancingCostMode} disabled={busy} />
+            </div>}
             {/* Campi specifici commessa */}
             {modo === "commessa" && (
               <div className="space-y-3">

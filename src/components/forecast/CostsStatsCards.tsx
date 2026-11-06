@@ -145,7 +145,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             <NavyStatCard
               label={`Totale ${selectedYear}`}
               value={formatCurrency(yearlyStats.total)}
-              sub={`${yearlyStats.count} costi`}
+              sub={`${yearlyStats.count} costi · senza IVA`}
               icon={WalletCards}
               tone="text-orange-100"
             />
@@ -229,7 +229,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             <span className="text-xs font-medium">Senza scadenza</span>
           </div>
           <p className="text-xl font-bold text-slate-700 dark:text-slate-200 tabular-nums">{formatCurrency(senzaScadenza?.totale ?? 0)}</p>
-          <p className="text-[10px] text-muted-foreground">{senzaScadenza?.count ?? 0} costi fuori dai totali di periodo</p>
+          <p className="text-[10px] text-muted-foreground">{senzaScadenza?.count ?? 0} costi fuori dai totali di periodo · importo senza IVA</p>
         </button>
       </div>
 

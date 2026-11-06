@@ -18,6 +18,7 @@ import { PrimaNotaXBRL } from "@/components/contabilita/PrimaNotaXBRL";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { usePrimaNota } from "@/hooks/usePrimaNota";
+import { AllegatoPrimaNota } from "@/components/prima-nota/AllegatoPrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -422,6 +423,7 @@ function PrimaNotaInner() {
               <div key={e.id} className="flex items-center gap-2.5 px-3 py-2.5">
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold leading-tight truncate">{e.description}</p>
+                  <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} />
                   <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                     {format(new Date(e.entry_date), "dd/MM", { locale: it })}
                     {e.category && ` · ${CATEGORY_LABELS[e.category] || e.category}`}
@@ -466,6 +468,7 @@ function PrimaNotaInner() {
                   </td>
                   <td className="p-3">
                     <p className="font-medium truncate max-w-[260px]">{e.description}</p>
+                    <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} />
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       {e.reference_number && (
                         <span className="text-xs text-muted-foreground">Rif: {e.reference_number}</span>

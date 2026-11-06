@@ -156,8 +156,8 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
         </div>
         <div className="flex-1">
           {isCustomOrder
-            ? "Stai vedendo un ordine personalizzato. Ricorda di cliccare \"Salva impostazioni\" in basso a destra per applicarlo ai prossimi PDF."
-            : "Stai vedendo l'ordine di default. Trascina o usa le frecce per personalizzarlo, poi clicca \"Salva impostazioni\"."}
+            ? "Stai vedendo un ordine personalizzato. Ricorda di cliccare \"Salva\" in basso a destra per applicarlo ai prossimi PDF."
+            : "Stai vedendo l'ordine di default. Trascina o usa le frecce per personalizzarlo, poi clicca \"Salva\"."}
         </div>
       </div>
 
@@ -248,7 +248,7 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
           (1 cover + {visibiliCount} riordinabili)
         </span>
         <span className="italic">
-          Modifiche salvate al click su "Salva impostazioni"
+          Modifiche salvate al click su "Salva"
         </span>
       </div>
     </div>

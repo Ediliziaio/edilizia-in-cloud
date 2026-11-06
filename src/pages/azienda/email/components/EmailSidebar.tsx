@@ -166,7 +166,8 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
 
   useEffect(() => {
     if (filter.folder.type !== "system") return;
-    setOpenFolders((current) => ({ ...current, [filter.folder.key]: true }));
+    const folderKey = filter.folder.key;
+    setOpenFolders((current) => ({ ...current, [folderKey]: true }));
   }, [filter.folder]);
 
   // Counter sincronizzati per cartella/account. La view è RLS-safe e personale.

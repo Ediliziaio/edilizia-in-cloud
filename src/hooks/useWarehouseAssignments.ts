@@ -1,3 +1,4 @@
+import type { Database } from "@/integrations/supabase/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -180,9 +181,10 @@ export function useWarehouseAssignments(warehouseId: string | null) {
       field: CapabilityField;
       value: boolean;
     }) => {
+      const patch: Database["public"]["Tables"]["warehouse_assignments"]["Update"] = { [field]: value };
       const { error } = await supabase
         .from("warehouse_assignments")
-        .update({ [field]: value })
+        .update(patch)
         .eq("id", id);
       if (error) throw error;
     },

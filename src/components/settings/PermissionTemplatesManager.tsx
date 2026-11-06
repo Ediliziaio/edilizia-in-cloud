@@ -40,6 +40,11 @@ interface Template {
   created_at: string;
 }
 
+// I modelli contengono permessi booleani, non i metadati della riga utente.
+const DEFAULT_TEMPLATE_PERMISSIONS: Record<string, boolean> = Object.fromEntries(
+  Object.entries(DEFAULT_PERMISSIONS).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"),
+);
+
 export function PermissionTemplatesManager() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
@@ -51,7 +56,7 @@ export function PermissionTemplatesManager() {
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({ ...DEFAULT_PERMISSIONS });
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({ ...DEFAULT_TEMPLATE_PERMISSIONS });
 
   const { data: templates, isLoading } = useQuery({
     queryKey: queryKeys.users.permissionTemplates(effectiveCompany?.id),
@@ -172,7 +177,7 @@ export function PermissionTemplatesManager() {
     setEditingTemplate(null);
     setName("");
     setDescription("");
-    setPermissions({ ...DEFAULT_PERMISSIONS });
+    setPermissions({ ...DEFAULT_TEMPLATE_PERMISSIONS });
     setDialogOpen(true);
   };
 
@@ -181,7 +186,7 @@ export function PermissionTemplatesManager() {
     setEditingTemplate(template);
     setName(template.name);
     setDescription(template.description || "");
-    setPermissions({ ...DEFAULT_PERMISSIONS, ...template.permissions });
+    setPermissions({ ...DEFAULT_TEMPLATE_PERMISSIONS, ...template.permissions });
     setDialogOpen(true);
   };
 
@@ -189,7 +194,7 @@ export function PermissionTemplatesManager() {
     setEditingTemplate(null);
     setName(`${template.name} (copia)`);
     setDescription(template.description || "");
-    setPermissions({ ...DEFAULT_PERMISSIONS, ...template.permissions });
+    setPermissions({ ...DEFAULT_TEMPLATE_PERMISSIONS, ...template.permissions });
     setDialogOpen(true);
   };
 
@@ -365,9 +370,9 @@ export function PermissionTemplatesManager() {
                         checked={permissions[section.viewKey] || false}
                         disabled={bloccato(section.viewKey)}
                         onCheckedChange={() => togglePermission(section.viewKey)}
-                        aria-label={`${section.label}: vedere`}
+                        aria-label={`${section.label}: ${section.viewKey.startsWith("can_view_") ? "vedere" : "consentire"}`}
                       />
-                      Visualizza
+                      {section.viewKey.startsWith("can_view_") ? "Visualizza" : "Consenti"}
                     </label>
                     {section.editKey && (
                       <label className="flex items-center gap-1.5 text-xs">

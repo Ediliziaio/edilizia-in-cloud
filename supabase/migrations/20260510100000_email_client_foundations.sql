@@ -14,6 +14,20 @@
 
 BEGIN;
 
+-- Prerequisito dello storico: tabella introdotta nel luglio 2026.
+CREATE TABLE IF NOT EXISTS public.feature_flags (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  key           text UNIQUE NOT NULL,
+  label         text NOT NULL,
+  description   text,
+  scope         text NOT NULL DEFAULT 'global' CHECK (scope IN ('global', 'company')),
+  is_active     boolean NOT NULL DEFAULT false,
+  default_value boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.feature_flags ENABLE ROW LEVEL SECURITY;
+
 -- ───────────────────────────────────────────────────────────────────────────
 -- 1) FEATURE FLAG 'email_client'
 -- ───────────────────────────────────────────────────────────────────────────

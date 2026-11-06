@@ -324,8 +324,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
    * oppure chiuda il dialog senza salvare (→ resolve null).
    */
   // v8.6.111 — Stato per i seriali da QR pallet (caso multi-seriale).
-  // Passato al StockItemDialog come prefillSerials e usato in handleSaveNewItem
-  // per creare stock_units in batch dopo la creazione dello stock_item.
+  // Passato al dialog per proporre il tracking serializzato. Le unità
+  // vengono create dall’RPC soltanto alla conferma del carico.
   const [createPrefillSerials, setCreatePrefillSerials] = useState<string[] | undefined>();
 
   const handleRequestCreateItem = (rawCode: string, hint?: { serials?: string[] }) => {
@@ -383,49 +383,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       if (error) throw error;
       const trackingMode = (inserted.tracking_mode ?? "fungible") as "fungible" | "serialized";
 
-      // v8.6.111 — Multi-serial creation: se il dialog e' stato aperto con
-      // prefillSerials (es. da QR pallet con 36 codici), creiamo N stock_units
-      // sotto il nuovo stock_item in 1 batch insert.
-      // Skippa se tracking != serialized (caso edge: l'utente ha cambiato manualmente).
-      if (
-        createPrefillSerials &&
-        createPrefillSerials.length >= 2 &&
-        trackingMode === "serialized" &&
-        warehouseId
-      ) {
-        try {
-          const unitsToInsert = createPrefillSerials.map((sn) => ({
-            company_id: effectiveCompany.id,
-            stock_item_id: inserted.id,
-            serial_number: sn,
-            status: "available" as const,
-            warehouse_id: warehouseId,
-            supplier_id: data.supplier_id ?? null,
-            purchase_price: data.unit_cost ?? null,
-            purchase_date: new Date().toISOString().slice(0, 10),
-          }));
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: unitsErr } = await (supabase as any)
-            .from("stock_units")
-            .insert(unitsToInsert);
-          if (unitsErr) {
-            console.warn("[CaricoRapido] stock_units batch insert error:", unitsErr);
-            toast.warning(`Articolo creato ma ${createPrefillSerials.length} seriali non collegati`, {
-              description: unitsErr.message,
-            });
-          } else {
-            toast.success(`Articolo "${inserted.name}" creato con ${createPrefillSerials.length} seriali collegati`);
-          }
-        } catch (unitsErr) {
-          // 2026-05-27 (audit error handling): prima silent → l'utente vedeva
-          // toast success "Articolo creato" ma i seriali non erano stati
-          // salvati. Magazzino disallineato dal cantiere reale.
-          console.error("[CaricoRapido] stock_units creation failed:", unitsErr);
-          toast.warning(`Articolo creato ma ${createPrefillSerials.length} seriali non collegati`, {
-            description: unitsErr instanceof Error ? unitsErr.message : "Riprova a registrare i seriali",
-          });
-        }
-      }
+      // I seriali vengono registrati una sola volta dall'RPC alla conferma
+      // del carico. Crearli qui causava duplicate_serial e created_units=0,
+      // saltando anche la successiva associazione al lotto.
 
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       createResolverRef.current?.({
@@ -478,11 +438,11 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
         typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${ts}-${serial}`,
       rawCode: serial,
       scanFormat: "paste/manual",
-      stockItemId: null,
-      itemName: null,
-      trackingMode: null,
+      stockItemId: null as null,
+      itemName: null as null,
+      trackingMode: null as null,
       quantity: 1,
-      serialNumbers: [],
+      serialNumbers: [] as string[],
       scannedAt: ts,
     }));
     setEntries((prev) => [...prev, ...pasted]);
@@ -571,7 +531,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             (m?.tracking_mode as "fungible" | "serialized" | null) ??
             (m?.stock_item_id ? "fungible" : null),
           quantity,
-          serialNumbers: [],
+          serialNumbers: [] as string[],
           purchasePrice,
           scannedAt: ts + i,
         };

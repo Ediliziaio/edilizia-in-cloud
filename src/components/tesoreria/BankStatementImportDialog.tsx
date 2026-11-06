@@ -65,6 +65,7 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
   const [amountMode, setAmountMode] = useState<"single" | "split">("single");
   const [aiRows, setAiRows] = useState<ManualTxInput[]>([]);
   const [busy, setBusy] = useState(false);
+  const [erroreImport, setErroreImport] = useState<string | null>(null);
 
   async function handleFile(f: File) {
     setBusy(true);
@@ -107,7 +108,7 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
     const occorrenze = new Map<string, number>();
     return rawRows.map((r) => {
       const date = parseDate(r[map.date]);
-      let amount = NaN;
+      let amount: number;
       if (amountMode === "single") amount = parseAmount(r[map.amount]);
       else {
         const inc = parseAmount(r[map.entrate]); const out = parseAmount(r[map.uscite]);
@@ -153,10 +154,15 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
   }
 
   async function doImport(rows: ManualTxInput[]) {
-    if (!rows.length) { toast.error("Nessun movimento valido da importare"); return; }
-    await bulkInsert.mutateAsync({ account_id: account.id, rows, source: rows[0].source === "import_ai" ? "import_ai" : "import_csv" });
-    onImported(); onOpenChange(false);
-    setRawRows([]); setHeaders([]); setAiRows([]);
+    setErroreImport(null);
+    if (!rows.length) { setErroreImport("Nessun movimento valido da importare"); return; }
+    try {
+      await bulkInsert.mutateAsync({ account_id: account.id, rows, source: rows[0].source === "import_ai" ? "import_ai" : "import_csv" });
+      onImported(); onOpenChange(false);
+      setRawRows([]); setHeaders([]); setAiRows([]);
+    } catch (error) {
+      setErroreImport(`Importazione non completata: ${error instanceof Error ? error.message : "controlla la connessione e riprova"}. I dati restano disponibili per riprovare.`);
+    }
   }
 
   const fileRows = headers.length ? buildFileRows() : [];
@@ -168,6 +174,7 @@ export function BankStatementImportDialog({ account, open, onOpenChange, onImpor
           <DialogTitle>Importa estratto conto</DialogTitle>
           <DialogDescription>Carica un file CSV/Excel oppure una foto/PDF dell'estratto conto letto dall'AI. Duplicati saltati automaticamente.</DialogDescription>
         </DialogHeader>
+        {erroreImport && <p role="alert" className="text-sm text-destructive">{erroreImport}</p>}
 
         <Tabs defaultValue="file">
           <TabsList className="grid w-full grid-cols-2">

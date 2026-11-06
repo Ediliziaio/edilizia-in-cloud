@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/useOrderEconomicsBase", () => ({ useOrderEconomicsBase: (...args: unknown[]) => {
   state.hook(...args);
-  const canShowMargin = state.costs > 0;
+  const canShowMargin = state.costs > 0 && state.revenue > 0;
   return {
     isPending: state.pending,
     isError: state.error,
@@ -66,6 +66,14 @@ describe("La commessa in numeri: previsto e reale", () => {
     expect(props.onOpenEconomics).toHaveBeenCalledOnce();
     fireEvent.click(cella("Incassato"));
     expect(props.onOpenPayments).toHaveBeenCalledOnce();
+  });
+
+  it("UX-26: i costi restano visibili anche senza un ricavo definito", () => {
+    state.revenue = 0; state.costs = 570;
+    mount({ totalAmount: 0, cashTotalGross: 0 });
+    expect(cella("Costi sostenuti")).toHaveTextContent("570,00");
+    expect(cella("Costi sostenuti")).toHaveTextContent("Sui costi registrati");
+    expect(cella("Margine reale")).toHaveTextContent("—");
   });
 
   it("le provvigioni entrano nel previsto (si conoscono alla firma)", () => {

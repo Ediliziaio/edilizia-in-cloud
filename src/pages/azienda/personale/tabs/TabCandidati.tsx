@@ -189,7 +189,7 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg grid-cols-[minmax(0,1fr)] max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Moduli di candidatura per il tuo sito</DialogTitle></DialogHeader>
         <p className="-mt-2 text-xs text-muted-foreground">
           Crea il modulo e metti il link sul tuo sito o nell'annuncio: chi si candida
@@ -200,10 +200,10 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         ) : (
           <div className="space-y-2">
             {moduli.map((m) => (
-              <div key={m.id} className="rounded-lg border p-2.5 space-y-1.5">
-                <div className="flex items-center gap-2">
+              <div key={m.id} className="min-w-0 rounded-lg border p-2.5 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <Globe className={`h-4 w-4 shrink-0 ${m.attivo ? "text-emerald-500" : "text-slate-300"}`} />
-                  <p className="flex-1 truncate text-sm font-semibold">{m.titolo}</p>
+                  <p className="min-w-0 flex-1 truncate text-sm font-semibold">{m.titolo}</p>
                   <span className="text-[11px] text-muted-foreground whitespace-nowrap">{m.total_submissions} candidature · {m.total_views} visite</span>
                 </div>
                 {m.ruoli.length > 0 && (
@@ -808,10 +808,11 @@ function SchedaCandidato({ candidato, fasi, onClose, vaiAlTest, vaiOrganigramma 
             <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-3">
               <DialogHeader className="flex-row items-center justify-between space-y-0 pr-8">
                 <DialogTitle className="text-sm truncate">{candidato.cv_nome ?? "Curriculum"}</DialogTitle>
-                <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => window.open(anteprimaCv, "_blank")}>
-                  <Download className="h-3.5 w-3.5" /> Apri in un'altra scheda
+                <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                  <a href={anteprimaCv} target="_blank" rel="noopener noreferrer"><Download className="h-3.5 w-3.5" /> Apri in un'altra scheda</a>
                 </Button>
               </DialogHeader>
+              <p className="text-xs text-muted-foreground">Se il browser blocca l’anteprima o il riquadro resta vuoto, usa «Apri in un’altra scheda» per leggere il documento.</p>
               <iframe src={anteprimaCv} title={`Anteprima ${candidato.cv_nome ?? "CV"}`} className="w-full flex-1 rounded-lg border bg-slate-50" />
             </DialogContent>
           </Dialog>

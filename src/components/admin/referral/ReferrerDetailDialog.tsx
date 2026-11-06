@@ -1,3 +1,4 @@
+import { jsonPayload } from "@/lib/jsonPayload";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -104,7 +105,7 @@ export function ReferrerDetailDialog({
 
       const { error } = await supabase
         .from("referrers")
-        .update({ payout_details: payoutDetails })
+        .update({ payout_details: jsonPayload(payoutDetails) })
         .eq("id", referrer.id);
       if (error) throw error;
     },

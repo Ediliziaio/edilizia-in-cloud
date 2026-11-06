@@ -149,7 +149,7 @@ function WebhookFormDialog({
       return;
     }
     const validatedUrl = validateWebhookUrl(url);
-    if (!validatedUrl.ok) {
+    if (validatedUrl.ok === false) {
       toast({ title: "Indirizzo non valido", description: validatedUrl.message, variant: "destructive" });
       return;
     }
@@ -200,7 +200,7 @@ function WebhookFormDialog({
       return;
     }
     const validatedUrl = validateWebhookUrl(url);
-    if (!validatedUrl.ok) {
+    if (validatedUrl.ok === false) {
       toast({ title: "Indirizzo non valido", description: validatedUrl.message, variant: "destructive" });
       return;
     }

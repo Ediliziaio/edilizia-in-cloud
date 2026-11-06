@@ -82,7 +82,8 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
   const [selezionati, setSelezionati] = useState<Set<string>>(new Set());
   const toggleUno = (id: string) => setSelezionati((prev) => {
     const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     return next;
   });
 
@@ -94,11 +95,13 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       if (!effectiveCompany?.id) return [];
       let query = supabase
         .from("impianti_cliente")
-        .select("id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
+        .select(soloMie
+          ? "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name), contratti:contratti_manutenzione!inner(piani:piani_manutenzione!inner(tecnico_preferito))"
+          : "id, tipo_impianto, marca, modello, garanzia_scadenza, data_installazione, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("created_at", { ascending: false });
-      if (soloMie) query = query.eq("tecnico_preferito", user!.id);
+      if (soloMie) query = query.eq("contratti.piani.tecnico_preferito", user!.id);
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ImpiantoCliente[];
@@ -112,10 +115,12 @@ export default function ManutenzioneList({ incorporata = false, actionsSlot = nu
       if (!effectiveCompany?.id) return [];
       let query = supabase
         .from("contratti_manutenzione")
-        .select("*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)")
+        .select(soloMie
+          ? "*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name), piani:piani_manutenzione!inner(tecnico_preferito)"
+          : "*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
-      if (soloMie) query = query.eq("tecnico_preferito", user!.id);
+      if (soloMie) query = query.eq("piani.tecnico_preferito", user!.id);
       const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ContrattoManutenzione[];

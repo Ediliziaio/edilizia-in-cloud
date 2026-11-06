@@ -514,8 +514,8 @@ function buildGraphData(
   const visibleMemories = showAllMemories
     ? filtered
     : filtered.filter((m) => expandedPersonas.has(m.persona_key));
-  const visibleMemoryByNodeId = new Map(visibleMemories.map((m) => [`m_${m.id}`, m] as const));
-  const filteredMemoryByNodeId = new Map(filtered.map((m) => [`m_${m.id}`, m] as const));
+  const visibleMemoryByNodeId = new Map<string, MemoryRow>(visibleMemories.map((m) => [`m_${m.id}`, m] as const));
+  const filteredMemoryByNodeId = new Map<string, MemoryRow>(filtered.map((m) => [`m_${m.id}`, m] as const));
   const allKeywordsMap = new Map<string, Set<string>>();
   for (const m of filtered) {
     allKeywordsMap.set(`m_${m.id}`, extractKeywords(m.content));
@@ -747,7 +747,7 @@ function computeInsights(
   personas: PersonaLite[],
 ): Insights {
   const personaMap = new Map(personas.map((p) => [p.persona_key, p]));
-  const memoryByNodeId = new Map(memories.map((m) => [`m_${m.id}`, m] as const));
+  const memoryByNodeId = new Map<string, MemoryRow>(memories.map((m) => [`m_${m.id}`, m] as const));
   const nodeLabel = (node: GraphNode | undefined) => {
     const content = node?.data?.memory?.content ?? "";
     return node?.label ?? node?.data?.previewLabel ?? (content.length > 80 ? `${content.slice(0, 77)}…` : content);
@@ -1388,7 +1388,7 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
           : Math.max(5, (node.size ?? 3) * 2.1);
         return { ...pos, radius };
       })
-      .filter((target): target is { x: number; y: number; z: number; radius: number } => target !== null);
+      .filter((target): target is ProjectedGraphPoint & { radius: number } => target !== null);
 
     if (targets.length === 0) {
       setViewBox(DEFAULT_GRAPH_VIEW_BOX);
@@ -1710,8 +1710,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
         // Admin: 21 personas superadmin (silvio_admin_personas).
         // Schema diverso: niente "category"/"color"/"icon", ma "emoji" + "sort_order".
         const { data, error } = await withTimeout(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (brainSupabase as any)
+          brainSupabase
             .from("silvio_admin_personas")
             .select("persona_key, display_name, short_label, emoji, sort_order")
             .eq("enabled", true)
@@ -1727,7 +1726,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
           persona_key: row.persona_key as string,
           display_name: row.display_name as string,
           category: (row.short_label as string | null) ?? "platform",
-          color: null,
+          color: null as null,
           icon: row.emoji ?? null,
         })) as PersonaLite[];
       }
@@ -1762,8 +1761,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
         // Niente company_id filter — il scope è la PLATFORM_ADMIN_COMPANY_ID
         // gestita via RLS lato DB.
         const { data, error } = await withTimeout(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (brainSupabase as any)
+          brainSupabase
             .from("silvio_persona_memory")
             .select("id, persona_key, memory_type, content, confidence, hits_count, enabled, source, created_at")
             .eq("enabled", true)

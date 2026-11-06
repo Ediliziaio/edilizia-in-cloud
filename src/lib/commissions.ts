@@ -1,3 +1,4 @@
+import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 export type CommissionType = "fixed" | "percentage_sold" | "percentage_collected" | "percentage_margin";
 export type CompensationMode = "only_commission" | "fixed_plus_commission" | "fixed_only";
 export type VariableCompensationStatus =
@@ -229,6 +230,7 @@ export function calculateInstallmentCollections({
   totalAmount,
   vatRate,
   financingCost = 0,
+  financingCostMode,
   includeFinancing = false,
   varianti,
 }: {
@@ -236,6 +238,7 @@ export function calculateInstallmentCollections({
   totalAmount: number | string | null | undefined;
   vatRate: number | string | null | undefined;
   financingCost?: number | string | null;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   includeFinancing?: boolean;
   /**
    * Le varianti approvate già comprese in totalAmount, con la data. Il saldo pagato conta solo
@@ -256,10 +259,21 @@ export function calculateInstallmentCollections({
     : 0;
   // Al centesimo prima di sottrarre, come le rate e il database.
   const totalGross = roundMoney((money(totalAmount) - variantiDopo) * (1 + money(vatRate) / 100));
-  const rawBalance = roundMoney(totalGross - otherInstallments - money(financingCost));
+  const rawBalance = roundMoney(totalGross - otherInstallments - costoDaSottrarreAlSaldo(money(financingCost), financingCostMode));
   const balanceAmount = Math.max(0, rawBalance);
-  // Il costo della finanziaria che il saldo non assorbe si toglie dalla rata della finanziaria.
-  const avanzo = finalBalance < 0 ? 0 : Math.min(Math.max(0, -rawBalance), money(financingCost));
+  // Trattenuto: costo sulla sola erogazione; separato: nessuna riduzione.
+  // Solo nel legacy l'eventuale costo non assorbito dal saldo passa all'erogazione.
+  const financingRows = installments.filter(i => i.type === "financing");
+  // Non inventare una ripartizione temporale del costo fra più erogazioni.
+  if (financingCostMode === "trattenuto" && money(financingCost) > 0 && financingRows.length !== 1) {
+    throw new Error("La trattenuta richiede una singola erogazione identificata nel piano.");
+  }
+  if (financingCostMode === "trattenuto" && money(financingCost) > money(financingRows[0]?.amount)) {
+    throw new Error("Il costo trattenuto supera la quota finanziata.");
+  }
+  const avanzo = financingCostMode === "trattenuto" ? money(financingCost)
+    : financingCostMode === "separato" || finalBalance < 0 ? 0
+    : Math.min(Math.max(0, -rawBalance), money(financingCost));
   const countedInvoices = new Set<string>();
   return installments.map((i, index) => {
     if (!includeFinancing && i.type === "financing") return 0;

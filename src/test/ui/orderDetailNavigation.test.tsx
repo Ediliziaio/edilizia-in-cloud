@@ -58,9 +58,10 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("navigazione commessa reale (Radix + React Router)", () => {
-  it("presenta sempre le stesse quattro aree accessibili", () => {
+  it("presenta le cinque aree, compresa Fatture e costi", () => {
     mount();
-    expect(screen.getAllByRole("tab")).toHaveLength(4);
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.getByRole("tab", { name: "Fatture e costi" })).toBeVisible();
     expect(screen.getByRole("tablist", { name: "Aree della commessa" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
   });

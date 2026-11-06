@@ -1,7 +1,7 @@
 import type { GalleryLavoroItem } from "./gallery";
 import type { DettagliVoce } from "@/lib/computo/vociDettagli";
 
-export type PisUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
+export type PisUnitaMisura = "mq" | "mc" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type PisStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
 
 export interface PisListinoCapitolo { id: string; company_id: string; nome: string; ordine: number; }

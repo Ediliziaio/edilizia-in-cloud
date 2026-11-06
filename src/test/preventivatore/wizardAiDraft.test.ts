@@ -60,6 +60,14 @@ const newDocument = (): ChatDocument => {
   };
 };
 describe("native computo isolated AI reconciliation", () => {
+  it("conserva i metri cubi di uno scavo quando si modifica il prezzo nella chat", () => {
+    const scavo: NativeComputoRow = { ...row, descrizione: "Scavo piscina", unita_misura: "mc", quantita: 12 };
+    const prima = computoChatDocument([scavo], "Piscina");
+    const dopo = patchChatLine(prima, scavo.id, { price: 175 });
+    const result = reconcileComputoDraft([scavo], prima, dopo, identity);
+    expect(result.rows[0]).toMatchObject({ unita_misura: "mc", quantita: 12, prezzo_unitario: 175 });
+    expect(scavo.prezzo_unitario).toBe(150);
+  });
   it("keeps the original object graph unchanged on open and unchanged apply", () => {
     const original = cloneWizardDraft(row),
       doc = seed();
@@ -141,7 +149,12 @@ describe("native computo isolated AI reconciliation", () => {
       reconcileComputoDraft([], emptyChatDocument(), draft, identity),
     ).toMatchObject({ rows: [], pending: 1 });
   });
-  it.each(["m³", "litri", "set", "giorni"])(
+  it.each(["mc", "m³", "m3"])("riconosce %s come volume senza conversione della quantità", (unit) => {
+    const draft = newDocument();
+    draft.lines[0].unit = unit;
+    expect(reconcileComputoDraft([], emptyChatDocument(), draft, identity).rows[0]).toMatchObject({ unita_misura: "mc", quantita: 12, prezzo_unitario: 18 });
+  });
+  it.each(["litri", "set", "giorni"])(
     "rejects unsupported unit %s instead of silently coercing it",
     (unit) => {
       const draft = newDocument();

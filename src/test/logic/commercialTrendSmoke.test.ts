@@ -7,7 +7,7 @@ import {
   buildPeriodComparison,
 } from "@/lib/reporting/commercialTrend";
 
-const EMPTY = { contacts: [], quotes: [], orders: [] };
+const EMPTY: Parameters<typeof buildCommercialTrend>[0] = { contacts: [] as never[], quotes: [] as never[], orders: [] as never[] };
 
 describe("buildCommercialTrend smoke (no throw)", () => {
   const cases: Array<[string, Date, Date]> = [

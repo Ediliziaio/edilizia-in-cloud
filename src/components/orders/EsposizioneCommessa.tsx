@@ -1,3 +1,4 @@
+import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 /**
  * EsposizioneCommessa — "Chi finanzia il cantiere": la cassa CONSUNTIVA della
  * commessa nel tempo (la card "Cassa della commessa" resta la previsione).
@@ -52,6 +53,7 @@ export function CassaVerdettoBand({
   totalAmount,
   vatRate,
   financingCost,
+  financingCostMode,
   installments,
   collectedGross,
   cashTotalGross,
@@ -63,6 +65,7 @@ export function CassaVerdettoBand({
   totalAmount: number;
   vatRate: number;
   financingCost: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   installments: RataEsposizione[];
   /** Incassato lordo del piano rate (stesso numero del Riepilogo). */
   collectedGross: number;
@@ -77,6 +80,7 @@ export function CassaVerdettoBand({
     totalAmount,
     vatRate,
     financingCost,
+  financingCostMode,
     installments,
     enabled: canViewCosts,
   });
@@ -159,6 +163,7 @@ export function EsposizioneCommessa({
   totalAmount,
   vatRate,
   financingCost,
+  financingCostMode,
   installments,
   varianti,
   cashTotalGross,
@@ -169,6 +174,7 @@ export function EsposizioneCommessa({
   totalAmount: number;
   vatRate: number;
   financingCost: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   installments: RataEsposizione[];
   /** Varianti approvate con la data (vedi useEsposizioneCommessa). */
   varianti?: ReadonlyArray<VarianteDatata>;
@@ -185,6 +191,7 @@ export function EsposizioneCommessa({
     totalAmount,
     vatRate,
     financingCost,
+  financingCostMode,
     installments,
     varianti,
   });

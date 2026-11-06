@@ -239,7 +239,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
         query = query.eq("tipo", tipoFilter);
       }
       if (statusFilter !== "all") query = query.eq("status", statusFilter as Enums<"ticket_status">);
-      if (priorityFilter !== "all") query = query.eq("priority", priorityFilter);
+      if (priorityFilter === "bassa" || priorityFilter === "normale" || priorityFilter === "alta" || priorityFilter === "urgente") query = query.eq("priority", priorityFilter);
 
       // 2026-05-27 (Security audit): tecnico/sopralluoghista con
       // only_assigned=true deve vedere SOLO i suoi ticket. RLS già filtra a

@@ -461,11 +461,10 @@ export function useSupplierRfqDetail(rfqId: string | null) {
     mutationFn: async (f: RfqSupplier) => {
       const updates: Record<string, unknown> = { status: "risposta", risposta_at: new Date().toISOString() };
       if (!f.aggancio_da) updates.aggancio_da = "manuale";
-      if (!f.inviata_at) updates.inviata_at = new Date().toISOString();
       const { error } = await (supabase as any).from("supplier_rfq_suppliers").update(updates).eq("id", f.id);
       if (error) throw error;
-      if (query.data?.rfq.status === "bozza") {
-        const { error: e2 } = await (supabase as any).from("supplier_rfqs").update({ status: "inviata" }).eq("id", rfqId!);
+      if (query.data?.rfq.status === "bozza" || query.data?.rfq.status === "inviata") {
+        const { error: e2 } = await (supabase as any).from("supplier_rfqs").update({ status: "in_valutazione" }).eq("id", rfqId!);
         if (e2) throw e2;
       }
     },
@@ -480,7 +479,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
   const allegaOfferta = useMutation({
     mutationFn: async ({ id, file }: { id: string; file: File }) => {
       if (file.size > 10 * 1024 * 1024) throw new Error("File troppo grande (max 10 MB)");
-      const nome = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+      const nome = file.name.replace(/[^\w.-]+/g, "_").slice(-80);
       const path = `${companyId}/rdo/${rfqId}/${Date.now()}-${nome}`;
       const { error: upErr } = await supabase.storage.from("order-attachments").upload(path, file, { upsert: false });
       if (upErr) throw upErr;

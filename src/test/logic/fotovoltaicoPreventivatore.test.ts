@@ -80,7 +80,7 @@ describe("fotovoltaico preventivatore", () => {
       zona_servita_note: "Monza Brianza, Milano nord, Lecco.",
       listino_macrocategorie_fv: listinoMacrosFvPronte.map((macro) => ({
         ...macro,
-        verticali_abilitati: [],
+        verticali_abilitati: [] as string[],
       })),
     });
 

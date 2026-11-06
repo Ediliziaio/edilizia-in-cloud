@@ -137,7 +137,6 @@ describe("confrontaVarianti — badge e variante consigliata", () => {
         investimento_iniziale: 17000,
         produzione_anno_1_kwh: 10800,
         autoconsumo_pct: 0.72,
-        capacita_accumulo_kwh: 10,
       }),
       { potenza_kwp: 8, con_accumulo: true, capacita_accumulo_kwh: 10 },
     );

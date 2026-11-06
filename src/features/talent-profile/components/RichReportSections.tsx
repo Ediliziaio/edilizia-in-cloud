@@ -5,7 +5,7 @@ import { SYNDROMES_V5_DATA } from "../lib/syndromesV5Data";
 import type { MappaInterioreResult } from "../lib/mappaInteriore";
 import { calculateMappaInteriore } from "../lib/mappaInteriore";
 import { getPersonalizedManagementTips, getPersonalizedClosingText } from "../lib/managementTipsV5";
-import { personalizzaTesto, getFascia, getTraitNarrative } from "../lib/traitNarrativesV5";
+import { getTraitNarrative } from "../lib/traitNarrativesV5";
 import { PROFILI_TIPO_V5_EXTENDED } from "../lib/profiloTipoV5Extended";
 import type { CachedDerivedReport } from "../lib/reportCache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,11 +85,11 @@ export function RichReportSections({ candidate, traits, syndromes, profileType, 
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm leading-relaxed text-slate-700">{profileExtended.descrizioneEstesa}</p>
-            {profileExtended.strategie && profileExtended.strategie.length > 0 && (
+            {profileExtended.comeGestirlo && profileExtended.comeGestirlo.length > 0 && (
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Strategie chiave</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Indicazioni di gestione</p>
                 <ul className="space-y-1 text-sm text-slate-700">
-                  {profileExtended.strategie.slice(0, 4).map((s: any, i: any) => (
+                  {profileExtended.comeGestirlo.slice(0, 4).map((s: any, i: any) => (
                     <li key={i} className="flex gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-500" />
                       <span>{s}</span>
@@ -120,8 +120,8 @@ export function RichReportSections({ candidate, traits, syndromes, profileType, 
                 <div key={s.code} className={`rounded-xl border ${tone.border} ${tone.bg} p-3`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-semibold ${tone.text}`}>{data?.label || s.code}</p>
-                      {data?.descrizione && <p className="mt-1 text-xs leading-relaxed text-slate-600">{data.descrizione}</p>}
+                      <p className={`text-sm font-semibold ${tone.text}`}>{data?.name || s.code}</p>
+                      {data?.shortDescription && <p className="mt-1 text-xs leading-relaxed text-slate-600">{data.shortDescription}</p>}
                     </div>
                     <Badge variant="outline" className={`${tone.border} bg-white ${tone.text}`}>{tone.label}</Badge>
                   </div>
@@ -214,15 +214,13 @@ export function RichReportSections({ candidate, traits, syndromes, profileType, 
             .slice(0, 6)
             .map((code) => {
               const value = Math.max(0, Math.min(100, Math.round(traitMap[code] || 0)));
-              let testo = "";
+              let testo: string;
               const cached = precomputed?.trait_narratives?.[code];
               if (cached?.testo) {
                 testo = cached.testo;
               } else {
                 try {
-                  const fascia = getFascia(value);
-                  const narrative = getTraitNarrative(code, fascia);
-                  testo = narrative ? personalizzaTesto(narrative, candidate.nome, candidate.sesso ?? null) : "";
+                  testo = getTraitNarrative(code, value, candidate.nome, candidate.sesso ?? null);
                 } catch {
                   testo = "";
                 }

@@ -161,7 +161,7 @@ export default function SettingsPhoneNumbers() {
     queryKey: ["voice-consuntivo", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_voice_consuntivo" as never, { p_company_id: companyId } as never);
+      const { data, error } = await supabase.rpc("get_voice_consuntivo", { p_company_id: companyId! });
       if (error) throw error;
       const row = (Array.isArray(data) ? data[0] : data) as
         | { chiamate: number; minuti: number; costo_cliente: number; costo_wholesale: number | null; margine: number | null }

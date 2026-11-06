@@ -21,6 +21,8 @@ export const TASK_FIELD_LABELS: Record<string, string> = {
   recurrence_rule: "regola ripetizione",
   recurrence_end_date: "fine ripetizione",
   completed_at: "completamento",
+  is_completed: "stato completamento",
+  checklist_item_id: "voce della checklist",
 };
 
 type ActivityData = { [key: string]: Json | undefined };

@@ -37,7 +37,7 @@ interface TicketChatProps {
   customerId?: string;
   disabled?: boolean;
   disabledMessage?: string;
-  invalidateKeys?: string[][];
+  invalidateKeys?: ReadonlyArray<readonly string[]>;
   height?: string;
 }
 

@@ -275,7 +275,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           contact_id: contactId,
           opportunity_id: opportunityId,
         })
-        .select("id")
+        .select<{ id: string }>("id")
         .single();
 
       if (error || !session) throw new Error(error?.message ?? "Creazione sessione fallita");
@@ -317,7 +317,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
 
       const { data: session } = await db
         .from("render_technical_sessions")
-        .select("status, result_urls, error_message")
+        .select<{ status: string; result_urls: string[] | null; error_message: string | null }>("status, result_urls, error_message")
         .eq("id", sid)
         .single();
 
@@ -457,11 +457,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           else if (step === 2) setStep(1);
           else if (step === 3 && !generating) setStep(2);
         }}
-        eyebrow="Render tecnico fotorealistico"
-        title="Sostituzione modulo tecnico"
+        eyebrow="Render fotorealistico"
+        title={`Render ${spec.label}`}
         mobileTitle={`Render ${spec.label}`}
-        description="Genera il render dell'elemento tecnico mantenendo coerenza con la foto originale."
-        badgeLabel="Render AI — Tecnico"
+        description={`Configura ${spec.singularLabel} e genera un'anteprima a partire dalla foto originale.`}
+        badgeLabel={`Render AI — ${spec.label}`}
         stepLabels={["Foto", "Configura", "Elaborazione", "Risultato"]}
         currentStep={step}
         accent="orange"
@@ -471,7 +471,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         <RenderCreditsWidget />
       </div>
 
-      <RenderCreditGate />
+      <RenderCreditGate>{null}</RenderCreditGate>
 
       {step === 1 && (
         <div className="space-y-4 max-md:space-y-3">
@@ -671,7 +671,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           elapsedSec={elapsedSec}
           dots={dots}
           accent="orange"
-          subjectLabel="L'AI sta elaborando il render tecnico"
+          subjectLabel={`L'AI sta elaborando il render: ${spec.label}`}
         />
       )}
 

@@ -650,7 +650,7 @@ export default function MarketingAppointmentDialog({
           : meetingProvider;
       const effectiveMeetingUrl = effectiveMeetingProvider !== "none" ? meetingUrl.trim() || null : null;
 
-      const payload: Record<string, unknown> = {
+      const payload: import("@/integrations/supabase/types").Database["public"]["Tables"]["appointments"]["Update"] = {
         company_id: companyId,
         title: title.trim(),
         description: description.trim() || null,

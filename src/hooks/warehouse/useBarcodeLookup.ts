@@ -58,13 +58,14 @@ export function useBarcodeLookup() {
         p_supplier_id: input.supplierId ?? null,
       });
       if (err1) throw err1;
-      let rows = ((data1 ?? []) as unknown as RawMatchRow[]) ?? [];
+      let rows = (data1 ?? []) as unknown as RawMatchRow[];
 
       if (rows.length === 0 && norm.gs1?.gtin && norm.gs1.gtin !== norm.primary) {
-        const { data: data2 } = await supabase.rpc("warehouse_scan_lookup", {
+        const { data: data2, error: err2 } = await supabase.rpc("warehouse_scan_lookup", {
           p_code: norm.gs1.gtin,
           p_supplier_id: input.supplierId ?? null,
         });
+        if (err2) throw err2;
         const fallbackRows = (data2 as unknown as RawMatchRow[]) ?? [];
         if (fallbackRows.length > 0) rows = fallbackRows;
       }

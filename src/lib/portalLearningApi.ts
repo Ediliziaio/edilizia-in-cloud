@@ -167,6 +167,8 @@ interface PortalQueryBuilder<T = unknown> extends PromiseLike<QueryResult<T>> {
   upsert: (values: unknown, options?: Record<string, unknown>) => PortalQueryBuilder<T>;
   delete: () => PortalQueryBuilder<T>;
   insert: (values: unknown) => PortalQueryBuilder<T>;
+  update: (values: unknown) => PortalQueryBuilder<T>;
+  maybeSingle: () => PromiseLike<QueryResult<T>>;
 }
 
 function getDb() {
@@ -477,13 +479,14 @@ export async function savePortalCourseEnrollment(
   let normalizedProgress = requestedProgress;
   let existingCompletedAt: string | null = null;
   if (status === undefined) {
-    const { data: existing } = await db
-      .from("portal_course_enrollments")
+    const { data: existing, error: existingError } = await db
+      .from<{ progress_percent: number | null; completed_at: string | null }>("portal_course_enrollments")
       .select("progress_percent, completed_at")
       .eq("company_id", companyId)
       .eq("course_id", courseId)
       .eq("user_id", userId)
       .maybeSingle();
+    if (existingError) throw existingError;
     if (existing) {
       normalizedProgress = Math.max(requestedProgress, existing.progress_percent ?? 0);
       existingCompletedAt = existing.completed_at ?? null;

@@ -165,7 +165,7 @@ export default function AdminSettingsAIRouter() {
     queryFn: async () => {
       const { data, error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("ai_router_config" as any)
+        .from("ai_router_config")
         .select("*")
         .order("estimated_cost_per_million", { ascending: true });
       if (error) throw error;
@@ -178,11 +178,11 @@ export default function AdminSettingsAIRouter() {
     queryKey: ["ai-router-stats-30d"],
     queryFn: async () => {
       const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("ai_router_usage_log" as any)
+      const { data, error } = await supabase
+        .from("ai_router_usage_log")
         .select("task_key, total_tokens, cost_usd, used_primary, status")
         .gte("created_at", from);
+      if (error) throw error;
       const rows = (data ?? []) as Array<{
         task_key: string; total_tokens: number; cost_usd: number;
         used_primary: boolean; status: string;
@@ -452,7 +452,7 @@ function TaskEnabledSwitch({ config }: { config: RouterConfig }) {
     mutationFn: async (enabled: boolean) => {
       const { error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("ai_router_config" as any)
+        .from("ai_router_config")
         .update({ enabled })
         .eq("id", config.id);
       if (error) throw error;
@@ -481,7 +481,7 @@ function EditTaskDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("ai_model_catalog" as any)
+        .from("ai_model_catalog")
         .select("model_id")
         .eq("status", "active")
         .eq("whitelisted", true);
@@ -515,7 +515,7 @@ function EditTaskDialog({
       }
       const { error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("ai_router_config" as any)
+        .from("ai_router_config")
         .update({
           primary_model: primary,
           fallback_models: fallbacks,

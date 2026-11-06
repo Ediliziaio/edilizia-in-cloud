@@ -32,7 +32,7 @@ function regola(patch: Partial<DiscountRule>): DiscountRule {
   };
 }
 
-function render(onCommit: ReturnType<typeof vi.fn>, value = 0) {
+function render(onCommit: (value: number) => void, value = 0) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);

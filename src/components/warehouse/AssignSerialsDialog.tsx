@@ -270,7 +270,7 @@ export function AssignSerialsDialog({
                         <Badge
                           variant="outline"
                           className={
-                            u.status === "delivered" || u.status === "installed"
+                            u.status === "shipped" || u.status === "installed"
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : u.status === "reserved"
                                 ? "bg-amber-50 text-amber-700 border-amber-200"
@@ -286,11 +286,11 @@ export function AssignSerialsDialog({
                         onClick={() => handleUnassign(u.id)}
                         disabled={
                           unassignMutation.isPending ||
-                          u.status === "delivered" ||
+                          u.status === "shipped" ||
                           u.status === "installed"
                         }
                         title={
-                          u.status === "delivered" || u.status === "installed"
+                          u.status === "shipped" || u.status === "installed"
                             ? "Non si possono liberare seriali già consegnati"
                             : "Libera seriale"
                         }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Outlet, useLocation, Link } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 import { ArrowLeft } from "lucide-react";
@@ -110,7 +111,9 @@ export function SettingsLayout() {
       {/* Contenuto della pagina figlia — larghezza piena */}
       <div className="flex-1 px-4 py-4 md:px-6 md:py-6 max-sm:px-0 max-sm:py-2">
         {nelPiano ? (
-          <Outlet />
+          <Suspense key={pathname} fallback={<p role="status" aria-busy="true">Caricamento della sezione…</p>}>
+            <Outlet />
+          </Suspense>
         ) : (
           <NonNelPiano
             titolo={title}

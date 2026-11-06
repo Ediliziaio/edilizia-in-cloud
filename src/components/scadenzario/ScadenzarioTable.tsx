@@ -112,7 +112,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     className="tap-compact mt-0.5 text-[11px] font-medium leading-tight text-primary"
                     onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                   >
-                    Paga
+                    {s.direction === "entrata" ? "Incassa" : "Paga"}
                   </button>
                 )}
                 {onAnnullaIncasso && siAnnullaIncasso(s) && (
@@ -252,7 +252,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     isOverdue ? "destructive" :
                     "outline"
                   } className="text-xs">
-                    {isPaid ? "Pagata" : isCancelled ? "Annullata" : isOverdue ? "Scaduta" : s.status === "parziale" ? "Parziale" : "Aperta"}
+                    {isPaid ? (s.direction === "entrata" ? "Incassata" : "Pagata") : isCancelled ? "Annullata" : isOverdue ? "Scaduta" : s.status === "parziale" ? "Parziale" : "Aperta"}
                   </Badge>
                 </td>
                 <td className="p-3">
@@ -264,7 +264,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                         className="text-xs h-7 px-2"
                         onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                       >
-                        <CreditCard className="h-3.5 w-3.5 mr-1" /> Paga
+                        <CreditCard className="h-3.5 w-3.5 mr-1" /> {s.direction === "entrata" ? "Incassa" : "Paga"}
                       </Button>
                     )}
                     {onAnnullaIncasso && siAnnullaIncasso(s) && (

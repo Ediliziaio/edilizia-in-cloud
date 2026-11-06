@@ -386,7 +386,7 @@ export function ListinoPickerDialog({
   }, [familyWithAxes, selezione, larghezza, altezza, vociEffettive, formaExtra, coloriTesti, colori]);
   const avvisiDisegno = useMemo(() => anteprimaDisegno?.tipo === "serramento" && larghezzaMm && altezzaMm
     ? controllaMisure(anteprimaDisegno.viste[0].disegno) : [], [anteprimaDisegno, larghezzaMm, altezzaMm]);
-  const standardDaPrezzare = selectedFamily?.custom_field_values?.configurazione_standard === true && listinoSenzaPrezzoDiVendita(selectedFamily);
+  const articoloDaPrezzare = listinoSenzaPrezzoDiVendita(selectedFamily);
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
@@ -610,7 +610,7 @@ export function ListinoPickerDialog({
     : vista === "linea" ? "Scegli la linea: la ritrovi già scelta nelle variabili del prodotto"
     : vista === "prodotto" ? "Scegli il prodotto"
     : vista === "risultati" ? `Nome, codice o linea, fra i prodotti dell'area ${nomeArea}`
-    : standardDaPrezzare ? "Inserisci le misure. Il prezzo va compilato nel listino o nella riga del preventivo."
+    : articoloDaPrezzare ? "Inserisci le misure. Il prezzo va compilato nel listino o nella riga del preventivo."
     : "Inserisci le misure: il prezzo è calcolato automaticamente";
   const percorso = vista === "risultati"
     ? `Ricerca nell'area ${nomeArea}`
@@ -798,8 +798,9 @@ export function ListinoPickerDialog({
                 Listino: {MODALITA_LABEL[selectedFamily.modalita_prezzo_base ?? "pz"]}
               </p>
               <p className="text-xs text-orange-900">
-                {selectedFamily.modalita_prezzo_base === "pz" && "Prezzo fisso a pezzo. Le misure sono solo descrittive."}
-                {selectedFamily.modalita_prezzo_base === "mq" && "Il prezzo si calcola sui m² → larghezza × altezza × prezzo/m²."}
+                {articoloDaPrezzare && "Prezzo da definire nella riga del preventivo o nel listino. Le misure non determinano un prezzo finché manca la tariffa."}
+                {!articoloDaPrezzare && selectedFamily.modalita_prezzo_base === "pz" && "Prezzo fisso a pezzo. Le misure sono solo descrittive."}
+                {!articoloDaPrezzare && selectedFamily.modalita_prezzo_base === "mq" && "Il prezzo si calcola sui m² → larghezza × altezza × prezzo/m²."}
                 {selectedFamily.modalita_prezzo_base === "griglia" && "Listino a griglia: viene letto il prezzo della misura ≥ inserita."}
                 {selectedFamily.modalita_prezzo_base === "misura_libera" && "Prezzo a corpo, misure solo informative."}
               </p>
@@ -989,7 +990,7 @@ export function ListinoPickerDialog({
             {calcolo && !calcolo.fuoriRange && !statoColori?.blocca && !catalogoNonValido && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-2 flex items-center gap-1">
-                  <Calculator className="h-3.5 w-3.5" /> {standardDaPrezzare ? "Prezzo da definire" : "Calcolo prezzo"}
+                  <Calculator className="h-3.5 w-3.5" /> {articoloDaPrezzare ? "Prezzo da definire" : "Calcolo prezzo"}
                 </p>
                 <div className="space-y-1 text-xs">
                   {calcolo.note && (
@@ -1002,7 +1003,7 @@ export function ListinoPickerDialog({
                       </span>
                     </p>
                   )}
-                  {standardDaPrezzare ? <p className="text-sm text-orange-900">Aggiungi lo schema e inserisci il prezzo nella riga del preventivo, oppure completa il listino. Questo articolo non ha ancora una tariffa: non è gratuito.</p> : <>
+                  {articoloDaPrezzare ? <p className="text-sm text-orange-900">Aggiungi l’articolo e inserisci il prezzo nella riga del preventivo, oppure completa il listino. Questo articolo non ha ancora una tariffa: non è gratuito.</p> : <>
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="font-bold text-orange-900">Totale posizione</span>
                     <span className="text-xl font-bold text-orange-600 tabular-nums">

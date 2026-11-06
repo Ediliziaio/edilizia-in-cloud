@@ -83,7 +83,7 @@ describe("Incassi e pagamenti della commessa", () => {
 
   it("senza permesso sui costi non mostra le uscite", async () => {
     mostra({ mostraUscite: false });
-    expect(await screen.findByText("SAL emessi al cliente")).toBeInTheDocument();
+    expect(await screen.findByText("SAL al cliente")).toBeInTheDocument();
     expect(screen.queryByText("Pagamenti della commessa")).toBeNull();
     expect(screen.queryByText("Pagato")).toBeNull();
   });

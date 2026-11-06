@@ -1,3 +1,5 @@
+import { importiRatePdf } from "@/lib/serramenti/importiRatePdf";
+import { ServiziPreventivoPdf } from "./ServiziPreventivoPdf";
 /**
  * SerramentoPDF — Documento PDF nativo A4 generato lato client con
  * @react-pdf/renderer, design ispirato al benchmark "Solar Pro Italia"
@@ -2539,6 +2541,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const detrazioneAnno = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.rata_annuale) : 0;
   // Le tappe del pagamento: la pagina economica le mostra, e l'Art. 4 delle condizioni le ripete uguali.
   const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
+  const importiMilestones = importiRatePdf(totaleDocumento, milestones.map(m => Number(m.percentuale) || 0));
   const schemaPagamento = p.schema_pagamento ?? "tre_step";
   const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
   // Il luogo dei lavori: lo stesso che si legge nel riepilogo della pagina della firma e in anagrafica.
@@ -2567,10 +2570,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       // Il piano della pagina economica: senza, l'Art. 4 diceva «…secondo il piano concordato: come da
       // condizioni di pagamento concordate» anche con le tappe stampate due pagine prima.
       pagamentoModalita: milestones.length > 0 ? schemaCfg?.label ?? null : null,
-      pagamentoFasi: milestones.filter(Boolean).map((m) => ({
+      pagamentoFasi: milestones.filter(Boolean).map((m, i) => ({
         label: m.label,
         percent: Number(m.percentuale) || 0,
-        amount: roundMoney((totaleDocumento * (Number(m.percentuale) || 0)) / 100),
+        amount: importiMilestones[i],
       })),
     },
   ) || null;
@@ -4205,6 +4208,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 )}
               </View>
 
+              <ServiziPreventivoPdf servizi={detail.servizi ?? []} mostraImporti={!totaleCalcolato.prezzo_manuale} />
+
               {/* Box urgenza/scadenza prezzo + early bird (CRO) */}
               {urgenzaAttiva && (
                 <View style={styles.urgenzaBox} wrap={false}>
@@ -4232,7 +4237,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                        larghezza A4 senza schiacciare i numeri). */
                     <View style={styles.payTimelineRow}>
                       {milestones.map((m, i) => {
-                        const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
+                        const amount = importiMilestones[i];
                         return (
                           <View key={i} style={styles.payTimelineStep} wrap={false}>
                             <View style={styles.payTimelineIdx}>
@@ -4241,7 +4246,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                             <Text style={styles.payTimelineLabel}>{m.label}</Text>
                             {m.when ? <Text style={styles.payTimelineWhen}>{m.when}</Text> : null}
                             <Text style={styles.payTimelinePct}>{fmtPercentuale(m.percentuale)}%</Text>
-                            <Text style={styles.payTimelineAmount}>€ {fmtEuro(amount)}</Text>
+                            <Text style={styles.payTimelineAmount}>€ {fmtEuro(amount, 2)}</Text>
                           </View>
                         );
                       })}
@@ -4249,7 +4254,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   ) : (
                     /* Fallback verticale per 5+ milestones (raro, schema custom). */
                     milestones.map((m, i) => {
-                      const amount = (totaleMedia * (Number(m.percentuale) || 0)) / 100;
+                      const amount = importiMilestones[i];
                       return (
                         <View key={i} style={styles.payStep} wrap={false}>
                           <View style={styles.payStepIdxBox}>
@@ -4261,7 +4266,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                           </View>
                           <View style={styles.payStepRight}>
                             <Text style={styles.payStepPct}>{fmtPercentuale(m.percentuale)}%</Text>
-                            <Text style={styles.payStepAmount}>circa € {fmtEuro(amount)}</Text>
+                            <Text style={styles.payStepAmount}>€ {fmtEuro(amount, 2)}</Text>
                           </View>
                         </View>
                       );

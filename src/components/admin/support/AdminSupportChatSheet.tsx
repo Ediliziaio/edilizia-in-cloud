@@ -111,7 +111,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const updateConversation = async (updates: Record<string, unknown>) => {
+  const updateConversation = async (updates: import("@/integrations/supabase/types").Database["public"]["Tables"]["support_conversations"]["Update"]) => {
     const { error } = await supabase
       .from("support_conversations")
       .update(updates)
@@ -126,7 +126,7 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   };
 
   const handleStatusChange = async (status: string) => {
-    const updates: Record<string, unknown> = { status };
+    const updates: import("@/integrations/supabase/types").Database["public"]["Tables"]["support_conversations"]["Update"] = { status };
     if (status === "resolved") {
       updates.resolved_at = new Date().toISOString();
     }

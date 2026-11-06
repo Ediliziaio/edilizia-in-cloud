@@ -12,7 +12,7 @@ export function useDocumentoSessioni(templateId?: string) {
     queryKey: ['documento-sessioni', effectiveCompany?.id, templateId],
     queryFn: async () => {
       let q = supabase
-        .from('documento_sessioni' as never)
+        .from('documento_sessioni')
         .select('*, template:documento_templates(nome, tipo_doc)')
         .eq('company_id', effectiveCompany!.id)
         .order('created_at', { ascending: false });
@@ -35,7 +35,7 @@ export function useDocumentoSessioni(templateId?: string) {
       note?: string | null;
     }) => {
       const { data, error } = await supabase
-        .from('documento_sessioni' as never)
+        .from('documento_sessioni')
         .insert({ ...input, company_id: effectiveCompany!.id })
         .select('id')
         .single() as unknown as { data: { id: string } | null; error: unknown };
@@ -52,7 +52,7 @@ export function useDocumentoSessioni(templateId?: string) {
   const aggiornaStato = useMutation({
     mutationFn: async ({ id, stato }: { id: string; stato: DocumentoSessione['stato'] }) => {
       const { error } = await supabase
-        .from('documento_sessioni' as never)
+        .from('documento_sessioni')
         .update({ stato, updated_at: new Date().toISOString() })
         .eq('id', id) as unknown as { error: unknown };
       if (error) throw error;

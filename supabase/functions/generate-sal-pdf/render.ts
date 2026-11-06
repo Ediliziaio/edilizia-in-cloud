@@ -244,7 +244,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     <div>
       <div style="font-size:8pt;font-weight:600;color:${colore};text-transform:uppercase;letter-spacing:1px;">Verbale di stato avanzamento lavori</div>
       <div style="font-size:20pt;font-weight:800;color:#0f172a;line-height:1.15;margin-top:2px;">SAL n. ${sal.numero_sal}</div>
-      <div style="font-size:8.5pt;color:#475569;margin-top:3px;">Emesso il ${fmtDate(sal.data_emissione)}${periodo ? ` · ${periodo}` : ""}</div>
+      <div style="font-size:8.5pt;color:#475569;margin-top:3px;">${sal.stato === "bozza" ? "Bozza del" : "Emesso il"} ${fmtDate(sal.data_emissione)}${periodo ? ` · ${periodo}` : ""}</div>
     </div>
     <div style="display:inline-block;background:${statoColor};color:white;font-size:7.5pt;font-weight:700;padding:5px 11px;border-radius:999px;letter-spacing:.6px;">${statoLabel}</div>
   </div>

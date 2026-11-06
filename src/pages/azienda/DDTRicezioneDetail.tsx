@@ -1,3 +1,4 @@
+import { ricezioneNonAllineata } from "@/lib/magazzino/ricezioneNonAllineata";
 // ============================================================================
 // DDTRicezioneDetail — la scheda di una bolla ricevuta
 // ----------------------------------------------------------------------------
@@ -96,7 +97,7 @@ export default function DDTRicezioneDetail() {
   const ddtId = useIdDocumento(ddtIdIndirizzo);
   const navigate = useNavigaDocumento();
   const inPopup = useDentroPopupDocumento();
-  const { ddt, isLoading, receipts, isReceiptsLoading } = useDDTRicezioneDetail(ddtId);
+  const { ddt, isLoading, receipts, isReceiptsLoading, isReceiptsError } = useDDTRicezioneDetail(ddtId);
   const permessiCarico = usePermissions();
   const { updateDDT, deleteDDT, createGoodsReceipt, deleteGoodsReceipt } =
     useDDTRicezioneMutations(ddt?.purchase_order_id ?? null);
@@ -353,6 +354,7 @@ export default function DDTRicezioneDetail() {
       return Math.max(0, qty - recv) > 0;
     });
     return {
+      nonAllineato: poItems.some((it) => ricezioneNonAllineata(it, receipts)),
       mancanti: incompleti.reduce((s, it) => {
         const qty = Number(it.quantity) || 0;
         const recv = Number(it.quantity_received) || 0;
@@ -364,11 +366,19 @@ export default function DDTRicezioneDetail() {
       righeNonAbbinate:
         poItems.length > 0 ? righeMerce.filter((r) => !r.order_item_id).length : 0,
     };
-  }, [poItems, righeMerce]);
+  }, [poItems, righeMerce, receipts]);
 
   const openReceiveFor = (itemId: string) => {
     const it = poItems.find((x) => x.id === itemId);
-    if (!it) return;
+    if (!it || isReceiptsLoading || isReceiptsError) return;
+    if (!po || !["inviato", "confermato", "parziale"].includes(po.status)) {
+      toast.error("Verifica e conferma l’ordine prima di registrare una ricezione.");
+      return;
+    }
+    if (ricezioneNonAllineata(it, receipts)) {
+      toast.error("Ricezione già registrata: verifica il riepilogo OdA prima di aggiungere altra merce.");
+      return;
+    }
     if (!it.order_item_id) {
       toast.error(
         "Questo articolo ODA non è collegato a una riga d'ordine cliente. Collegalo per registrare la ricezione."
@@ -382,7 +392,15 @@ export default function DDTRicezioneDetail() {
   };
 
   const submitReceive = () => {
-    if (!ddt || !selectedItem) return;
+    if (!ddt || !selectedItem || isReceiptsLoading || isReceiptsError) return;
+    if (!po || !["inviato", "confermato", "parziale"].includes(po.status)) {
+      toast.error("Lo stato dell’ordine non consente nuove ricezioni.");
+      return;
+    }
+    if (ricezioneNonAllineata(selectedItem, receipts)) {
+      toast.error("Ricezione già registrata: il riepilogo OdA deve essere verificato.");
+      return;
+    }
     const rawQty = parseFloat(receiveQty);
     if (!rawQty || rawQty <= 0) {
       toast.error("La quantità deve essere maggiore di zero");
@@ -397,6 +415,11 @@ export default function DDTRicezioneDetail() {
       return;
     }
     const qty = Math.round(rawQty * 100) / 100;
+    if (qty <= 0) { toast.error("La quantità minima è 0,01."); return; }
+    if (!Number.isInteger(qty)) {
+      toast.error("Questa ricezione gestisce quantità intere: nessun movimento registrato.");
+      return;
+    }
     const pending = itemPendingQty(selectedItem);
     if (qty > pending) {
       toast.error("La quantità ricevuta supera il residuo");
@@ -472,6 +495,7 @@ export default function DDTRicezioneDetail() {
     (s, r) => s + Number(r.quantity_received || 0),
     0
   );
+  const odaConQuantitaRicevute = poItems.some((item) => Number(item.quantity_received) > 0);
   const canVerify = ddt.stato !== "verificato" && ddt.stato !== "non_conforme";
   // Ritiro: non l'ha portata nessuno, siamo andati a prenderla noi. Cambia che
   // cosa la pagina chiede e che cosa mostra.
@@ -924,7 +948,8 @@ export default function DDTRicezioneDetail() {
                   dedurre scorrendo venti articoli. */}
               {(scostamenti.mancanti > 0 || scostamenti.righeNonAbbinate > 0) && (
                 <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 space-y-1">
-                  {scostamenti.mancanti > 0 && (
+                  {scostamenti.nonAllineato && <p>Residuo da verificare: le ricezioni registrate e il riepilogo OdA non sono allineati. Non ripetere le ricezioni già presenti.</p>}
+                  {!scostamenti.nonAllineato && scostamenti.mancanti > 0 && (
                     <p className="flex items-start gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                       Mancano ancora{" "}
@@ -956,10 +981,15 @@ export default function DDTRicezioneDetail() {
                 <div className="flex justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
+              ) : isReceiptsError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  Impossibile leggere le ricezioni. Ricarica la pagina prima di registrare altra merce.
+                </p>
               ) : receipts.length === 0 ? (
                 <div className="text-center py-4 text-sm text-muted-foreground">
-                  Nessuna ricezione per articolo registrata. Registra la ricezione
-                  degli articoli ODA sotto — il carico magazzino è automatico.
+                  {odaConQuantitaRicevute
+                    ? "Nessuna ricezione per articolo collegata a questa bolla. L’OdA riporta già quantità ricevute, anche tramite altri percorsi o altre bolle: verifica i Movimenti prima di registrare altra merce."
+                    : "Nessuna ricezione per articolo collegata a questa bolla. Prima di registrare un arrivo, verifica che la merce non sia già stata caricata da un altro percorso."}
                 </div>
               ) : (
                 <div className="divide-y border rounded-md">
@@ -1034,6 +1064,7 @@ export default function DDTRicezioneDetail() {
                       const pending = itemPendingQty(it);
                       const pct = qty > 0 ? Math.round((recv / qty) * 100) : 0;
                       const linkedToOrder = !!it.order_item_id;
+                      const nonAllineata = ricezioneNonAllineata(it, receipts);
                       const isReceiving = receiveItemId === it.id;
                       return (
                         <div key={it.id} className="p-3">
@@ -1083,6 +1114,7 @@ export default function DDTRicezioneDetail() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => openReceiveFor(it.id)}
+                                disabled={isReceiptsLoading || isReceiptsError || nonAllineata || !po || !["inviato", "confermato", "parziale"].includes(po.status)}
                                 className="shrink-0"
                               >
                                 <Plus className="h-3.5 w-3.5 mr-1" /> Ricevi
@@ -1093,6 +1125,9 @@ export default function DDTRicezioneDetail() {
                             )}
                           </div>
 
+                          {po && !["inviato", "confermato", "parziale"].includes(po.status) && <p className="mt-2 text-sm text-amber-700" role="status">Ordine in stato {po.status}: verifica e conferma l’ordine prima di registrare nuove ricezioni.</p>}
+                          {nonAllineata && <p className="mt-2 text-sm text-amber-700" role="status">La ricezione è già registrata, ma il riepilogo OdA non è allineato{po?.status === "bozza" ? " perché l’ordine è ancora in bozza" : ""}. Controlla le ricezioni qui sopra e lo stato dell’ordine prima di aggiungere altra merce: ripetere la ricezione può duplicare la giacenza.</p>}
+                          {isReceiptsError && <p className="mt-2 text-sm text-destructive" role="alert">Impossibile verificare le ricezioni esistenti. Ricarica la pagina prima di registrare altra merce.</p>}
                           {isReceiving && (
                             <div className="mt-3 p-3 rounded-md bg-muted/30 space-y-3">
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1102,8 +1137,8 @@ export default function DDTRicezioneDetail() {
                                   </Label>
                                   <Input
                                     type="number"
-                                    min="0.01"
-                                    step="0.01"
+                                    min="1"
+                                    step="1"
                                     max={pending}
                                     value={receiveQty}
                                     onChange={(e) => setReceiveQty(e.target.value)}
@@ -1677,7 +1712,10 @@ export default function DDTRicezioneDetail() {
                     ? "Non passa dal magazzino: in giacenza non entra."
                     : ddt.caricata_a_magazzino_at
                       ? `In giacenza dal ${format(new Date(ddt.caricata_a_magazzino_at), "dd/MM/yyyy", { locale: it })}`
-                      : "Non ancora caricata in giacenza"
+                      : isReceiptsError ? "Ricezioni non verificabili: ricarica la pagina"
+                        : receipts.length > 0 || odaConQuantitaRicevute
+                          ? "Ricezioni registrate: verifica i carichi nei Movimenti"
+                          : "Carico non confermato da questa bolla: verifica i Movimenti"
                 }
                 onClick={
                   ddt.destinazione === "cantiere"

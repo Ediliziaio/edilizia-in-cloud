@@ -213,7 +213,7 @@ export function QuickContactSendDialog({
     if (!smsText.trim()) return;
     try {
       const testo = smsText.trim();
-      await sendSmsAsync({ to_number: phone ?? cleanPhone, body: testo, trigger_entity: contactId ? "contact" : null, trigger_ref: contactId ?? null });
+      await sendSmsAsync({ to_number: phone ?? cleanPhone, body: testo, trigger_ref: contactId ?? null });
       dopoInvio({ channel: "sms", body: testo }); onSent?.(); onOpenChange(false);
     } catch { /* toast nel hook */ }
   };

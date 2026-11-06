@@ -235,7 +235,11 @@ export function useAzioniMateriali(orderId: string, orderCode?: string | null) {
 
   /** Un ordine (in bozza) per fornitore, con le regole di sempre (createMaterialPurchaseOrder). */
   const creaOrdini = useMutation({
+    // L'onError qui sotto mostra già il motivo e l'azione da fare:
+    // il toast generico globale produrrebbe un secondo avviso fuorviante.
+    meta: { silent: true },
     mutationFn: async (p: { materiali: MaterialeFase[]; orderIdDi?: (m: MaterialeFase) => string; codiceDi?: (m: MaterialeFase) => string | null }) => {
+      if (!p.materiali.length) throw new Error("Nessun materiale ordinabile selezionato. Controlla gli ordini già collegati e lo stato delle righe.");
       const senzaFornitore = p.materiali.filter((m) => !m.supplier_id);
       if (senzaFornitore.length) throw new Error(`${senzaFornitore.length} materiali senza fornitore: assegnalo prima di creare l'ordine`);
       const gruppi = new Map<string, MaterialeFase[]>();

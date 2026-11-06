@@ -7,6 +7,16 @@ import { normalizeRoomFloorConfig } from "../../../shared/render-room/roomRender
 const base = () => structuredClone(DEFAULT_STANZA_CONFIG);
 
 describe("idee pronte del render stanza", () => {
+  it("UX-41: la rinfrescata spegne tutti gli interventi diversi da pareti e luci", () => {
+    const cfg = base();
+    cfg.soffitto.attivo = cfg.carta_da_parati.attivo = cfg.rivestimento_pareti.attivo = cfg.tende.attivo = true;
+    cfg.restyling_cucina = { attivo: true, materiale_frontali: "legno" };
+    cfg.spazi_dettagli = { attivo: true, layout_strategy: "ottimizza_spazio" };
+    const risultato = applicaIdea(cfg, IDEE_PRONTE.find(i => i.id === "rinfresca")!);
+    expect(Object.entries(risultato).filter(([, v]) => v && typeof v === "object" && "attivo" in v && v.attivo).map(([k]) => k).sort()).toEqual(["illuminazione", "verniciatura"]);
+    expect(risultato.restyling_cucina?.materiale_frontali).toBe("legno");
+    expect(cfg.restyling_cucina.attivo).toBe(true);
+  });
   it.each(IDEE_PRONTE.map((i) => [i.nome, i] as const))("%s: il prompt è valido e contiene la richiesta", (_n, idea) => {
     const cfg = applicaIdea({ ...base(), tipo_stanza: idea.stanze?.[0] ?? "soggiorno" }, idea);
     const p = buildRoomPrompt(cfg);

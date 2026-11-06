@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import type { CalendarAppointment, CalendarOrder } from "@/types/calendar";
 
 function escapeIcal(str: string): string {
@@ -6,20 +6,20 @@ function escapeIcal(str: string): string {
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n");
+    .replace(/\r\n|\r|\n/g, "\\n");
 }
 
 function toIcalDate(dateStr: string, timeStr?: string | null): string {
   if (timeStr) {
     // e.g. "2026-04-01" + "09:00:00" → "20260401T090000"
-    const t = timeStr.replace(/:/g, "").slice(0, 6);
+    const t = timeStr.replace(/:/g, "").slice(0, 6).padEnd(6, "0");
     return dateStr.replace(/-/g, "") + "T" + t;
   }
   return ";VALUE=DATE:" + dateStr.replace(/-/g, "");
 }
 
 function dtstamp(): string {
-  return format(new Date(), "yyyyMMdd") + "T" + format(new Date(), "HHmmss") + "Z";
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
 export function exportAppointmentsIcal(
@@ -39,14 +39,14 @@ export function exportAppointmentsIcal(
   for (const apt of appointments) {
     const dtstart = toIcalDate(apt.appointment_date, apt.appointment_time);
     const hasTime = !!apt.appointment_time;
-    const durationMin = apt.duration_minutes ?? 60;
     const dtend = hasTime
       ? (() => {
-          const [h, m] = (apt.appointment_time || "00:00").split(":").map(Number);
-          const total = h * 60 + m + durationMin;
-          const eh = Math.floor(total / 60);
-          const em = total % 60;
-          return apt.appointment_date.replace(/-/g, "") + "T" + String(eh).padStart(2, "0") + String(em).padStart(2, "0") + "00";
+          const start = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
+          const end = apt.appointment_end_time
+            ? new Date(`${apt.appointment_date}T${apt.appointment_end_time}`)
+            : new Date(start.getTime() + 60 * 60 * 1000);
+          if (apt.appointment_end_time && end <= start) end.setDate(end.getDate() + 1);
+          return format(end, "yyyyMMdd'T'HHmmss");
         })()
       : null;
 
@@ -60,8 +60,10 @@ export function exportAppointmentsIcal(
       lines.push(`DTSTART${dtstart}`);
     }
     lines.push(`SUMMARY:${escapeIcal(apt.title)}`);
-    if (apt.notes) lines.push(`DESCRIPTION:${escapeIcal(apt.notes)}`);
-    if (apt.is_completed) lines.push("STATUS:COMPLETED");
+    const description = [apt.description, apt.is_completed ? "Completato in Edilizia in Cloud" : null].filter(Boolean).join("\n");
+    if (description) lines.push(`DESCRIPTION:${escapeIcal(description)}`);
+    // RFC 5545 §3.8.1.11: COMPLETED appartiene a VTODO, non a VEVENT.
+    if (apt.is_completed) lines.push("STATUS:CONFIRMED");
     lines.push("END:VEVENT");
   }
 
@@ -81,7 +83,7 @@ export function exportAppointmentsIcal(
     lines.push(`DTSTART;VALUE=DATE:${dateStr.replace(/-/g, "")}`);
     // DTEND for all-day is exclusive (day after last)
     const endExclusive = format(
-      new Date(new Date(endStr).getTime() + 24 * 60 * 60 * 1000),
+      addDays(parseISO(endStr), 1),
       "yyyyMMdd"
     );
     lines.push(`DTEND;VALUE=DATE:${endExclusive}`);

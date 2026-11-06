@@ -33,7 +33,7 @@ type RFStoreLike = {
   updateNodeInternals: (u: Map<string, NodeInternalsUpdate>) => void;
 };
 
-export function NodeMeasureFix() {
+export function NodeMeasureFix(): null {
   const store = useStoreApi();
 
   useEffect(() => {

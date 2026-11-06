@@ -164,7 +164,7 @@ function mapFrameFinish(colorId: string) {
     return {
       mode: "legno" as const,
       name: wood.nome,
-      ral: null,
+      ral: null as null,
       hex: wood.hex,
       finish: "wood-grain textured surface",
       woodEffectId: wood.id,
@@ -181,8 +181,8 @@ function mapFrameFinish(colorId: string) {
     ral: ral?.code ?? "9016",
     hex: ral?.hex ?? "#F1F0EA",
     finish: "smooth matte finish",
-    woodEffectId: null,
-    promptFragment: null,
+    woodEffectId: null as null,
+    promptFragment: null as null,
   };
 }
 
@@ -225,15 +225,15 @@ function mapCassonetto(state: WizardState, finish: ReturnType<typeof mapFrameFin
       replace: false,
       payload: { azione: "mantieni" as const },
       materialLabel: "Keep existing cassonetto",
-      colorMode: null,
-      colorLabel: null,
+      colorMode: null as null,
+      colorLabel: null as null,
     };
   }
   const meta = getWizardCassonettoMeta(state.cassMat);
   let material = "pvc_tradizionale";
   if (state.cassMat === "alluminio") material = "alluminio_coibentato";
   let colorMode: "ral" | "legno" = finish.mode;
-  let colorLabel: string | null = null;
+  let colorLabel: string | null;
   if (state.cassMat === "pvc_bianco") {
     colorMode = "ral";
     colorLabel = "Bianco Traffico (RAL 9016)";
@@ -263,8 +263,8 @@ function mapTapparella(state: WizardState, finish: ReturnType<typeof mapFrameFin
       replace: false,
       isMotorized: false,
       payload: { azione: "mantieni" as const },
-      colorMode: null,
-      colorLabel: null,
+      colorMode: null as null,
+      colorLabel: null as null,
     };
   }
   const meta = getWizardTapparellaMeta(state.tapp);
@@ -771,7 +771,8 @@ function buildTechnicalSpecifications(
 
   // Il nodo asimmetrico / maniglia_centrale ha senso solo su 2 ante.
   const isTwoSash = base.num_ante === 2;
-  const resolvedNodo: WizardNodo = isTwoSash ? effectiveNodo : "simmetrico";
+  const resolvedNodo: WizardNodo = isTwoSash && profileSupportsAsymmetricNode(state.profilo as WizardProfilo)
+    ? effectiveNodo : "simmetrico";
 
   // Lo "stile telaio" v8.1 distingue il NODO (chi vince visivamente al centro)
   // dal PROFILO (materiale e spessore). Manteniamo `stileTelaio` come ID utile

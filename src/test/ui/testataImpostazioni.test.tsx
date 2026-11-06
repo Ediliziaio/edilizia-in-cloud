@@ -1,10 +1,11 @@
+import { lazy } from "react";
 /**
  * La testata di ogni pagina delle impostazioni: il titolo è il nome che la pagina ha nel menu e la frase dice a cosa
  * serve.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { cleanup, render, screen, fireEvent, act } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, Link } from "react-router-dom";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
 
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: true, isLoading: false }) }));
@@ -57,4 +58,15 @@ describe("testata delle impostazioni", () => {
   it("la pagina senza titolo loro (il Bot WhatsApp «classico») mostra «Impostazioni»", () => {
     expect(apri("/azienda/impostazioni/whatsapp-bot")).toBe("Impostazioni");
   });
+});
+
+it("mostra il caricamento della nuova sezione senza lasciare il contenuto precedente sotto il nuovo titolo", async () => {
+  let carica!: (value: {default: () => React.JSX.Element}) => void;
+  const Attesa = lazy(() => new Promise<{default: () => React.JSX.Element}>(resolve => {carica = resolve;}));
+  render(<MemoryRouter initialEntries={["/azienda/impostazioni/notifiche"]}><Link to="/azienda/impostazioni/crediti">Cambia sezione</Link><Routes><Route path="/azienda/impostazioni" element={<SettingsLayout/>}><Route path="notifiche" element={<p>Contenuto precedente</p>}/><Route path="crediti" element={<Attesa/>}/></Route></Routes></MemoryRouter>);
+  fireEvent.click(screen.getByRole("link",{name:"Cambia sezione"}));
+  expect(await screen.findByText("Caricamento della sezione…")).toBeInTheDocument();
+  expect(screen.queryByText("Contenuto precedente")).not.toBeInTheDocument();
+  await act(async()=>carica({default:()=> <p>Contenuto crediti</p>}));
+  expect(await screen.findByText("Contenuto crediti")).toBeInTheDocument();
 });

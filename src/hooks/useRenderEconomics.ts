@@ -13,6 +13,7 @@
 // `enabled` è gestito dal chiamante con permissions.billing_read.
 // ============================================================================
 
+import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -73,6 +74,18 @@ export interface RenderEconomicsByCompanyRow {
   last_activity: string | null;
 }
 
+const companyEconomicsSchema = z.object({
+  company_id: z.string(), company_name: z.string(), renders_count: z.number().finite(), margin_eur: z.number().finite(),
+});
+const globalEconomicsSchema = z.object({
+  totals: z.object({ total_renders: z.number().finite(), total_cost: z.number().finite(), total_revenue: z.number().finite(), total_margin: z.number().finite(), margin_pct: z.number().finite() }),
+  top_5_by_volume: z.array(companyEconomicsSchema), top_5_by_margin: z.array(companyEconomicsSchema), bottom_5_by_margin: z.array(companyEconomicsSchema),
+  companies_with_negative_margin_count: z.number().finite(),
+  provider_breakdown: z.array(z.object({ provider: z.string(), renders_count: z.number().finite(), cost_total: z.number().finite(), revenue_total: z.number().finite(), margin_total: z.number().finite() })),
+  daily: z.array(z.object({ day: z.string(), renders_count: z.number().finite(), cost: z.number().finite(), revenue: z.number().finite(), margin: z.number().finite() })),
+  period: z.object({ from: z.string(), to: z.string() }),
+});
+
 // ── Utility: ISO period ────────────────────────────────────────────────────
 
 /**
@@ -121,7 +134,9 @@ export function useRenderEconomicsGlobal(days: number, enabled: boolean = true) 
           period: { from, to },
         };
       }
-      return data as RenderEconomicsGlobal;
+      const parsed = globalEconomicsSchema.safeParse(data);
+      if (!parsed.success) throw new Error("Riepilogo economico render non valido. Riprova.");
+      return parsed.data;
     },
     staleTime: 60_000,
     enabled,

@@ -52,7 +52,7 @@ const NEUTRAL_FILTERS = {
   supplierFilter: "all",
   categoryFilter: "all",
   originFilter: "all" as const,
-  customDateRange: null,
+  customDateRange: null as null,
   statusTabFilter: "all" as const,
 };
 
@@ -369,7 +369,7 @@ export function CostsOverviewTab({
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
           <span className="min-w-0 text-xs text-amber-900">
-            <strong>{senzaScadenza.count} costi senza scadenza per {formatCurrency(senzaScadenza.totale)}</strong>{" "}
+            <strong>{senzaScadenza.count} costi senza scadenza per {formatCurrency(senzaScadenza.totale)} senza IVA</strong>{" "}
             non compaiono in nessun totale di periodo. Clicca per vederli e dare loro una data.
           </span>
         </button>

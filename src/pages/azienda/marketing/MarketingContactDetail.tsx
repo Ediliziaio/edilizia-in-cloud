@@ -2213,7 +2213,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             const sitePivaMatch = r.site_partita_iva && knownPiva
               ? (r.site_partita_iva.replace(/^IT/i, "") === knownPiva.replace(/^IT/i, "") ? "match" : "mismatch")
               : null;
-            const row = (label: string, value: React.ReactNode) => (
+            const row = (label: React.ReactNode, value: React.ReactNode) => (
               <div className="flex items-start gap-2 text-xs py-1 border-b border-border/40 last:border-0">
                 <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
                 <span className="font-medium break-all">{value}</span>
@@ -2225,7 +2225,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             };
             const activeSignals = r.intent_signals && !Array.isArray(r.intent_signals)
               ? Object.entries(r.intent_signals).filter(([, v]) => v).map(([k]) => SIGNAL_LABELS[k] || k)
-              : [];
+              : Array.isArray(r.intent_signals) ? r.intent_signals : [];
             const score = typeof r.intent_score === "number" ? r.intent_score : null;
             const scoreColor = score == null ? "" : score >= 75 ? "bg-red-100 text-red-700" : score >= 60 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600";
             const scoreLabel = score == null ? "" : score >= 75 ? "Lead caldo" : score >= 60 ? "Lead tiepido" : "Lead freddo";
@@ -2350,10 +2350,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     {r.instagram_url && row("Instagram", <a href={r.instagram_url} target="_blank" rel="noreferrer" className="text-primary underline">{r.instagram_url}</a>)}
                   </div>
                 )}
-                {(r.intent_signals?.length ?? 0) > 0 && (
+                {activeSignals.length > 0 && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 max-md:text-[11px]">Segnali dal sito</p>
-                    <div className="flex flex-wrap gap-1">{r.intent_signals!.map((s: any) => <Badge key={s} variant="secondary" className="text-[10px] max-md:text-[11px]">{s}</Badge>)}</div>
+                    <div className="flex flex-wrap gap-1">{activeSignals.map((s) => <Badge key={s} variant="secondary" className="text-[10px] max-md:text-[11px]">{s}</Badge>)}</div>
                   </div>
                 )}
                 {!r.vies && !r.firmografici && (r.emails?.length ?? 0) === 0 && (r.phones?.length ?? 0) === 0 && !r.facebook_url && !r.instagram_url && !r.linkedin_url && (

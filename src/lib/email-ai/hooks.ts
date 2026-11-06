@@ -411,16 +411,11 @@ export interface DocumentoEstratto {
 
 // Tabella non ancora nei tipi generati (schema applicato al release MP-06): cast localizzato.
 const sbAny = supabase as unknown as {
-  from: (t: string) => ReturnType<typeof supabase.from>;
+  from: (t: string) => QueryLibera;
   rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 };
 
-/**
- * Le stesse chiamate di `sbAny.from(...)`, descritte per le tabelle fuori dai tipi generati: lì
- * `.eq()` e `.update()` diventano errori di tipo (questo file ne ha già una quarantina, che il
- * cricchetto di CI conta). Il codice nuovo passa da qui: nessun `any`, nessun errore in più, i nomi
- * delle colonne restano testo libero come prima.
- */
+/** Contratto minimo per tabelle non ancora incluse nei tipi generati. I risultati restano unknown. */
 interface RispostaLibera {
   data: unknown;
   error: { message: string } | null;
@@ -434,6 +429,11 @@ interface QueryLibera extends PromiseLike<RispostaLibera> {
   order(colonna: string, opzioni?: { ascending?: boolean }): QueryLibera;
   limit(quanti: number): QueryLibera;
   update(valori: Record<string, unknown>): QueryLibera;
+  insert(valori: Record<string, unknown> | Record<string, unknown>[]): QueryLibera;
+  delete(): QueryLibera;
+  is(colonna: string, valore: null | boolean): QueryLibera;
+  single(): QueryLibera;
+  maybeSingle(): QueryLibera;
 }
 const dbLibero = supabase as unknown as { from: (t: string) => QueryLibera };
 

@@ -21,7 +21,7 @@ export function useSmsLog(campagnaId: string | null) {
       const { data, error: queryError } = await supabase
         .from("sms_log")
         .select(
-          "id, campagna_id, company_id, contatto_id, telefono, messaggio, stato, provider_message_id, provider_response, costo, errore_dettaglio, inviato_at, consegnato_at, created_at"
+          "id, campagna_id, company_id, contatto_id, telefono, messaggio, stato, provider_message_id, provider_response, costo, telnyx_message_id, costo_cliente, errore_dettaglio, inviato_at, consegnato_at, created_at"
         )
         .eq("company_id", companyId)
         .eq("campagna_id", campagnaId)
@@ -30,7 +30,7 @@ export function useSmsLog(campagnaId: string | null) {
         console.error("[useSmsLog] getByCampagna:", queryError);
         throw new Error("Impossibile caricare i log. Riprova tra qualche secondo.");
       }
-      return (data ?? []) as SmsLog[];
+      return data ?? [];
     },
     enabled: !!companyId && !!campagnaId,
     staleTime: 30 * 1000,

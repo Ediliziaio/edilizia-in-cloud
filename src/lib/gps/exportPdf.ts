@@ -171,7 +171,7 @@ function aggiungiFooter(doc: InstanceType<typeof import('jspdf').default>, pageW
   doc.setFontSize(7);
   doc.setTextColor('#94A3B8');
   doc.setFont('helvetica', 'normal');
-  const pageCount = (doc.internal as { getNumberOfPages: () => number }).getNumberOfPages();
+  const pageCount = doc.getNumberOfPages();
   doc.text(
     `Pagina ${pageCount} — Generato da Edilizia in Cloud`,
     pageWidth / 2,

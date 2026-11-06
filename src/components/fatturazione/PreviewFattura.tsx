@@ -1,3 +1,4 @@
+import { etichettaCausale } from "@/lib/ddt/causaliTrasporto";
 import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorState";
 import type { AnagraficaAzienda } from "@/types/fatturazione";
 import { nativePdfSnapshot } from "../../../supabase/functions/_shared/nativePdfSnapshot";
@@ -52,6 +53,7 @@ const aliquota = (valore: unknown, natura: unknown) =>
 export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65 }: Props) {
   // Le chiavi dei documenti più vecchi (totale, iva, aliquota_iva) si leggono come nel PDF.
   const doc: Dati = nativePdfSnapshot(documento as unknown as Dati);
+  const isDdt = doc.tipo === "ddt";
   const righe: Dati[] = doc.righe ?? [];
   const riepilogo: Dati[] = doc.riepilogo_iva ?? [];
   const scadenze: Dati[] = Array.isArray(doc.scadenze_pagamento) ? doc.scadenze_pagamento : [];
@@ -117,14 +119,14 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
               <div className="fd-valore fd-numero">{doc.numero || "BOZZA"}</div>
               <div className="fd-voce">Data</div>
               <div className="fd-valore">{dataBreve(doc.data_emissione)}</div>
-              {doc.data_scadenza && (
+              {!isDdt && doc.data_scadenza && (
                 <>
                   <div className="fd-voce">Scadenza</div>
                   <div className="fd-valore">{dataBreve(doc.data_scadenza)}</div>
                 </>
               )}
-              <div className="fd-voce fd-evidenza">{evidenza.etichetta}</div>
-              <div className="fd-valore fd-evidenza">{euro(evidenza.importo)}</div>
+              {!isDdt && <><div className="fd-voce fd-evidenza">{evidenza.etichetta}</div>
+              <div className="fd-valore fd-evidenza">{euro(evidenza.importo)}</div></>}
             </div>
             {destinatario && (
               <div className="fd-riquadro fd-destinatario">
@@ -160,10 +162,10 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
                 <th>Descrizione</th>
                 <th className="fd-d">Q.tà</th>
                 <th className="fd-c">U.M.</th>
-                <th className="fd-d">Prezzo</th>
+                {!isDdt && <><th className="fd-d">Prezzo</th>
                 {conSconto && <th className="fd-d">Sc.%</th>}
                 <th className="fd-c">IVA</th>
-                <th className="fd-d">Importo</th>
+                <th className="fd-d">Importo</th></>}
               </tr>
             </thead>
             <tbody>
@@ -177,19 +179,19 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
                   </td>
                   <td className="fd-d">{quantitaLeggibile(r.quantita)}</td>
                   <td className="fd-c">{r.unita_misura}</td>
-                  <td className="fd-d">{euro(r.prezzo_unitario)}</td>
+                  {!isDdt && <><td className="fd-d">{euro(r.prezzo_unitario)}</td>
                   {conSconto && (
                     <td className="fd-d">{Number(r.sconto_percentuale) > 0 ? `${quantitaLeggibile(r.sconto_percentuale)}%` : ""}</td>
                   )}
                   <td className="fd-c">{aliquota(r.aliquota_iva, r.natura_iva)}</td>
-                  <td className="fd-d fd-importo">{euro(importoRiga(r))}</td>
+                  <td className="fd-d fd-importo">{euro(importoRiga(r))}</td></>}
                 </tr>
               ))}
             </tbody>
           </table>
         )}
 
-        <div className="fd-conti">
+        {!isDdt && <div className="fd-conti">
           {riepilogo.length > 0 && (
             <div className="fd-riepilogo">
               <table>
@@ -217,11 +219,27 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
               </tbody>
             </table>
           </div>
-        </div>
+        </div>}
 
-        {(doc.metodo_pagamento_codice || doc.note_documento) && (
+        {isDdt && (
+          <div className="fd-riquadro">
+            <div className="fd-etichetta">Trasporto</div>
+            <Righe righe={[
+              `Causale: ${etichettaCausale(doc.ddt_causale_trasporto) || "—"}`,
+              `Aspetto dei beni: ${doc.ddt_aspetto_beni || "—"}`,
+              `Colli: ${doc.ddt_numero_colli ?? "—"}`,
+              `Peso: ${doc.ddt_peso || "—"}`,
+              `Porto: ${doc.ddt_porto || "—"}`,
+              `Mezzo: ${doc.ddt_mezzo_trasporto || "—"}`,
+              `Vettore: ${doc.ddt_vettore?.ragione_sociale || doc.ddt_vettore?.denominazione || doc.ddt_vettore?.descrizione || doc.ddt_vettore?.tipo || "—"}`,
+              `Data consegna: ${doc.ddt_data_ora_consegna ? new Date(doc.ddt_data_ora_consegna).toLocaleString("it-IT") : "—"}`,
+              `Consegna: ${(typeof doc.ddt_indirizzo_consegna === "string" ? doc.ddt_indirizzo_consegna : doc.ddt_indirizzo_consegna?.indirizzo) || "—"}`,
+            ]} />
+          </div>
+        )}
+        {((!isDdt && doc.metodo_pagamento_codice) || doc.note_documento) && (
           <div className="fd-info">
-            {doc.metodo_pagamento_codice && (
+            {!isDdt && doc.metodo_pagamento_codice && (
               <div className="fd-riquadro">
                 <div className="fd-etichetta">Pagamento</div>
                 <div className="fd-metodo">{nomeModalitaPagamento(doc.metodo_pagamento_codice, doc.metodo_pagamento_nome)}</div>
@@ -254,7 +272,7 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
           </div>
         )}
 
-        {az.regime_fiscale === "RF19" && (
+        {!isDdt && az.regime_fiscale === "RF19" && (
           <div className="fd-forfettario">
             Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, L. n. 190/2014. Non soggetta a ritenuta d'acconto ai sensi del comma 67, L. n. 190/2014.
           </div>
@@ -274,8 +292,8 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
         )}
         {TIPI_FISCALI.includes(doc.tipo) && (
           <div className="fd-cortesia">
-            Copia di cortesia. La fattura con valore fiscale è il file XML trasmesso al Sistema di Interscambio (SdI).
-            {!pivaCliente && " L'originale è disponibile nella tua area riservata del sito dell'Agenzia delle Entrate (Fatture e Corrispettivi)."}
+            {doc.stato === "bozza" ? "Bozza da verificare. Documento non ancora emesso." : <>Copia di cortesia. La fattura con valore fiscale è il file XML trasmesso al Sistema di Interscambio (SdI).
+            {!pivaCliente && " L'originale è disponibile nella tua area riservata del sito dell'Agenzia delle Entrate (Fatture e Corrispettivi)."}</>}
           </div>
         )}
 

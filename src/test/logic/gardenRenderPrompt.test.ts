@@ -4,13 +4,13 @@ import { buildGardenPrompt } from "../../../shared/render-garden/gardenPromptBui
 import type { ConfigurazioneGiardino } from "../../../shared/render-garden/types";
 
 function baseConfig(overrides: Partial<ConfigurazioneGiardino> = {}): ConfigurazioneGiardino {
-  const defaultPrato = { attivo: true, tipo: "prato_resistente" };
-  const defaultAiuole = { attivo: true, tipo: "perimetrale", densita: "media", palette: "verde_strutturale" };
-  const defaultSiepi = { attivo: false, tipo: "schermante_media", altezza: "media" };
-  const defaultAlberi = { attivo: false, quantita: 2, scala: "media", portamento: "ornamentale" };
-  const defaultCamminamenti = { attivo: false, tipo: "stepping_stones" };
-  const defaultGroundCover = { attivo: false, tipo: "ghiaia" };
-  const defaultArredo = { modalita: "mantieni" };
+  const defaultPrato: ConfigurazioneGiardino["prato"] = { attivo: true, tipo: "prato_resistente" };
+  const defaultAiuole: ConfigurazioneGiardino["aiuole"] = { attivo: true, tipo: "perimetrale", densita: "media", palette: "verde_strutturale" };
+  const defaultSiepi: ConfigurazioneGiardino["siepi"] = { attivo: false, tipo: "schermante_media", altezza: "media" };
+  const defaultAlberi: ConfigurazioneGiardino["alberi"] = { attivo: false, quantita: 2, scala: "media", portamento: "ornamentale" };
+  const defaultCamminamenti: ConfigurazioneGiardino["camminamenti"] = { attivo: false, tipo: "stepping_stones" };
+  const defaultGroundCover: ConfigurazioneGiardino["ground_cover"] = { attivo: false, tipo: "ghiaia" };
+  const defaultArredo: ConfigurazioneGiardino["arredo"] = { modalita: "mantieni" };
   const {
     prato,
     aiuole,

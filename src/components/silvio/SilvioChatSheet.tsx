@@ -1,3 +1,4 @@
+import { normalizzaMetadatiMessaggio } from "@/lib/chat/normalizzaMetadatiMessaggio";
 /**
  * SilvioChatSheet — Chat embedded con Silvio dentro un Sheet laterale.
  *
@@ -401,7 +402,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PAGE_SIZE + 1); // +1 per calcolare hasOlder senza count
       if (error) throw error;
-      const rows = (data ?? []) as SilvioMessage[];
+      const rows = (data ?? []).map(normalizzaMetadatiMessaggio);
       // Reverse client-side: ordine ASC per render UI (più vecchio in alto).
       return {
         items: rows.slice(0, MESSAGES_PAGE_SIZE).reverse(),
@@ -466,7 +467,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         .lt("created_at", oldestLoaded.created_at)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PAGE_SIZE);
-      const fetched = ((data ?? []) as SilvioMessage[]).slice().reverse();
+      const fetched = ((data ?? []).map(normalizzaMetadatiMessaggio)).slice().reverse();
       if (fetched.length === 0) {
         setHasMoreOlder(false);
       } else {

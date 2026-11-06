@@ -1,3 +1,4 @@
+import { costoTrattenuto, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { salMaturato, type SalMatura } from "@/lib/orders/salMaturazione";
 import { calculateInstallmentCollections } from "@/lib/commissions";
@@ -29,6 +30,7 @@ export function calendarFinanceModel(input: {
     total_amount: number;
     vat_rate: number | null;
     financing_cost: number | null;
+    financing_cost_mode?: ModalitaCostoFinanziaria | null;
     payment_type: string | null;
   };
   variations: Parameters<typeof variantiApprovateDatate>[0];
@@ -46,7 +48,7 @@ export function calendarFinanceModel(input: {
     input.order.payment_type === "financing"
       ? Number(input.order.financing_cost ?? 0)
       : 0;
-  const target = Math.max(0, cent(gross - financingCost));
+  const target = Math.max(0, cent(gross - costoTrattenuto(financingCost, input.order.financing_cost_mode)));
   const lastBalance = Math.max(
     -1,
     ...input.rates.filter((r) => r.type === "balance").map((r) => r.position),
@@ -60,6 +62,7 @@ export function calendarFinanceModel(input: {
     totalAmount: agreed,
     vatRate: input.order.vat_rate ?? 22,
     financingCost,
+    financingCostMode: input.order.financing_cost_mode,
     includeFinancing: true,
     varianti: variantiApprovateDatate(input.variations),
   });
@@ -70,8 +73,8 @@ export function calendarFinanceModel(input: {
       saldoFinale && rate.is_paid
         ? collections[index]
         : saldoFinale
-          ? Math.max(0, target - other)
-          : Number(rate.amount),
+          ? Math.max(0, gross - costoDaSottrarreAlSaldo(financingCost, input.order.financing_cost_mode) - other)
+          : rate.type === "financing" && input.order.financing_cost_mode === "trattenuto" ? Math.max(0, Number(rate.amount) - financingCost) : Number(rate.amount),
     );
     const collected = collections[index];
     const sal = input.sals.find((s) => s.installment_id === rate.id);

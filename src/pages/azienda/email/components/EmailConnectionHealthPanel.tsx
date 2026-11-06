@@ -75,7 +75,7 @@ type EmailConnectionHealthPanelProps = {
 };
 
 function withPanelTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof window.setTimeout> | undefined;
+  let timer: number | undefined;
   const timeout = new Promise<T>((_, reject) => {
     timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
   });
@@ -151,8 +151,7 @@ export function EmailConnectionHealthPanel({
     retry: 0,
     queryFn: async () => {
       // Fallback diretto: evita che un problema sulla view lasci la pagina senza diagnosi.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await withPanelTimeout((supabase as any)
+      const { data, error } = await withPanelTimeout(supabase
         .from("email_oauth_connections")
         .select("id, provider, provider_label, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_enabled, poll_interval_minutes, expires_at, last_test_ok, last_test_error")
         .eq("company_id", companyId!)

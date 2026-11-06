@@ -33,6 +33,7 @@ import { articoliContratto, clausoleFirmaSubappalto, costruisciContrattoSubappal
 import { generaPdfContrattoSubappalto, generaPdfElencoCantiere } from "./ContrattoSubappaltoPDF";
 import { CondizioniContrattoDialog } from "./CondizioniContrattoDialog";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
+import { clienteCommessa } from "@/lib/subappaltatori/clienteCommessa";
 import { riepilogoContratto, type RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
 
 export interface ContrattoCompleto {
@@ -66,7 +67,7 @@ export interface ContrattoCompleto {
   articoli_personalizzati?: unknown;
   /** Allegato A: i lavori accettati, uno per uno (31/10/2026). */
   elenco_lavori?: RigaElencoLavori[] | null;
-  commessa: { order_code: string | null; description: string | null; work_address: string | null; client_name: string | null; client_company: string | null } | null;
+  commessa: { order_code: string | null; description: string | null; work_address: string | null; client_name: string | null; client_company: string | null; customer?: { first_name: string | null; last_name: string | null } | null } | null;
 }
 
 interface SubPerContratto {
@@ -109,7 +110,7 @@ export function useContrattiSubappaltatore(subId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contratti_subappalto" as never)
-        .select("*, commessa:orders!contratti_subappalto_order_id_fkey(order_code, description, work_address, client_name, client_company)")
+        .select("*, commessa:orders!contratti_subappalto_order_id_fkey(order_code, description, work_address, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name, last_name))")
         .eq("subappaltatore_id", subId!)
         .eq("company_id",companyId!)
         .order("created_at", { ascending: false });
@@ -507,7 +508,7 @@ export function ContrattiSubappalto({
         subappaltatore: { ragioneSociale: sub.ragione_sociale ?? "", partitaIva: sub.piva ?? "", indirizzo: sub.indirizzo ?? "", email: sub.email ?? "", pec: sub.pec ?? "",
           codiceFiscale: sub.codice_fiscale ?? "", telefono: sub.telefono ?? "", responsabile: sub.responsabile ?? "" },
         ivaPct: ivaDitta, veste: veste ?? undefined,
-        commessa: { codice: c.commessa?.order_code ?? "", descrizione: c.commessa?.description ?? "", indirizzoCantiere: c.commessa?.work_address ?? "", cliente: c.commessa?.client_company || c.commessa?.client_name || "" },
+        commessa: { codice: c.commessa?.order_code ?? "", descrizione: c.commessa?.description ?? "", indirizzoCantiere: c.commessa?.work_address ?? "", cliente: clienteCommessa(c.commessa) },
         descrizioneLavori: c.descrizione_lavori, importo: c.importo_contrattuale, oneriSicurezza: c.oneri_sicurezza, ritenutaPct: c.ritenuta_garanzia_pct,
         dataInizio: c.data_inizio, dataFinePrevista: c.data_fine_prevista, responsabileImpresa: c.responsabile_impresa,
         referenteSubappaltatore: c.referente_subappaltatore, obblighi: c.obblighi, modalitaPagamento: c.modalita_pagamento,

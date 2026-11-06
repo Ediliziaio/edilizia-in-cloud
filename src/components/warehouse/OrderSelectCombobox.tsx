@@ -114,7 +114,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
       let q = supabase
         .from("orders")
         .select(`
-          id, order_code, client_name, client_company,
+          id, order_code, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name,last_name),
           work_start_date, work_end_date, expected_date,
           indirizzo_lavori, work_address, status,
           order_items ( destination_warehouse_id )
@@ -153,6 +153,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         order_code: string | null;
         client_name: string | null;
         client_company: string | null;
+        customer?: { first_name: string | null; last_name: string | null } | null;
         work_start_date: string | null;
         work_end_date: string | null;
         expected_date: string | null;
@@ -164,7 +165,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
       return ((data ?? []) as unknown as RawRow[]).map((o) => ({
         id: o.id,
         order_code: o.order_code ?? "—",
-        customer_name: o.client_company || o.client_name,
+        customer_name: o.client_company || o.client_name || [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(" ") || null,
         default_warehouse_id:
           o.order_items?.find((i) => i.destination_warehouse_id)?.destination_warehouse_id ?? null,
         work_start_date: o.work_start_date,
@@ -185,27 +186,30 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
     }
     const found = orders.find((o) => o.id === value);
     if (found) setSelectedOrder(found);
-  }, [value, orders]);
+  }, [value, orders, companyId]);
 
   // Lookup separato se l'ordine selezionato non è nella lista corrente
   const { data: standaloneOrder } = useQuery<OrderOption | null>({
-    queryKey: ["scarico-order-lookup", value],
-    enabled: !!value && !selectedOrder,
+    queryKey: ["scarico-order-lookup", companyId, value],
+    enabled: !!companyId && !!value && (!selectedOrder || selectedOrder.id !== value),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      if (!value) return null;
-      const { data } = await supabase
+      if (!value || !companyId) return null;
+      const { data, error } = await supabase
         .from("orders")
-        .select(`id, order_code, client_name, client_company, work_start_date, work_end_date, expected_date, indirizzo_lavori, work_address, status, order_items ( destination_warehouse_id )`)
+        .select(`id, order_code, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name,last_name), work_start_date, work_end_date, expected_date, indirizzo_lavori, work_address, status, order_items ( destination_warehouse_id )`)
         .eq("id", value)
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
         .maybeSingle();
+      if (error) throw error;
       if (!data) return null;
       type RawRow = typeof data & { order_items?: Array<{ destination_warehouse_id: string | null }> | null };
       const r = data as RawRow;
       return {
         id: r.id,
         order_code: r.order_code ?? "—",
-        customer_name: r.client_company || r.client_name,
+        customer_name: r.client_company || r.client_name || [r.customer?.first_name, r.customer?.last_name].filter(Boolean).join(" ") || null,
         default_warehouse_id:
           r.order_items?.find((i) => i.destination_warehouse_id)?.destination_warehouse_id ?? null,
         work_start_date: r.work_start_date,
@@ -217,8 +221,8 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
     },
   });
   useEffect(() => {
-    if (standaloneOrder && !selectedOrder) setSelectedOrder(standaloneOrder);
-  }, [standaloneOrder, selectedOrder]);
+    if (standaloneOrder?.id === value && (!selectedOrder || selectedOrder.id !== value)) setSelectedOrder(standaloneOrder);
+  }, [standaloneOrder, selectedOrder, value]);
 
   const handleSelect = useCallback(
     (order: OrderOption) => {

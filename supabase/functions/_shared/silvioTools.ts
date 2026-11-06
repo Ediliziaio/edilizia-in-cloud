@@ -6012,7 +6012,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           ticket_id: ticket.id,
           sender_id: ctx.userId,
           message: descrizione,
-        }).then(undefined, () => undefined);
+        }).then(undefined, (): undefined => undefined);
       }
 
       return {

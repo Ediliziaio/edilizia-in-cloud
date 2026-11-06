@@ -1,3 +1,4 @@
+import type { Database } from "@/integrations/supabase/types";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,7 +101,7 @@ export default function SettingsWhatsAppBot() {
   });
 
   const updateConfig = useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
+    mutationFn: async (updates: Database["public"]["Tables"]["messaging_whatsapp_config"]["Update"]) => {
       if (!companyId || !config?.id) throw new Error("Config non trovata");
       const { error } = await supabase
         .from("messaging_whatsapp_config")
@@ -119,6 +120,7 @@ export default function SettingsWhatsAppBot() {
     mutationFn: async () => {
       if (!testNumber.trim()) throw new Error("Scrivi un numero di telefono");
       const { data: session } = await supabase.auth.getSession();
+      if (!session.session?.access_token) throw new Error("Sessione scaduta. Accedi di nuovo.");
       const res = await supabase.functions.invoke("whatsapp-send", {
         body: {
           company_id: companyId,
@@ -126,7 +128,7 @@ export default function SettingsWhatsAppBot() {
           type: "text",
           text: "Ciao! Questo è un messaggio di prova da Edilizia in Cloud.",
         },
-        headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
+        headers: { Authorization: `Bearer ${session.session.access_token}` },
       });
       if (res.error) {
         let errBody: any = null;

@@ -133,7 +133,7 @@ export function RenderModuleHubPage({
   const [statusFilter, setStatusFilter] = useState("all");
   const [crmFilter, setCrmFilter] = useState("all");
 
-  const { data: sessions = [], isLoading } = useQuery({
+  const { data: sessions = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["render-module-hub", companyId, moduleId],
     queryFn: async () => {
       if (!companyId) return [] as RecentRenderRow[];
@@ -184,7 +184,8 @@ export function RenderModuleHubPage({
       ].filter(Boolean).join(" ").toLowerCase();
 
       return (!needle || haystack.includes(needle)) &&
-        (statusFilter === "all" || status === statusFilter) &&
+        (statusFilter === "all" || status === statusFilter ||
+          (statusFilter === "stale" && isRenderStale(session.status, session.created_at))) &&
         (crmFilter === "all" || (crmFilter === "linked" ? linked : !linked));
     });
   }, [crmFilter, sessionSearch, sessions, statusFilter]);
@@ -203,7 +204,7 @@ export function RenderModuleHubPage({
   const statCards = [
     { label: "Render recenti", value: stats.total, icon: GalleryHorizontalEnd },
     { label: "Completati", value: stats.completed, icon: CheckCircle2 },
-    { label: "In lavorazione", value: stats.processing, icon: Zap },
+    { label: "In attesa o elaborazione", value: stats.processing, icon: Zap },
     { label: "Collegati CRM", value: stats.linked, icon: Link2 },
   ];
 
@@ -391,12 +392,13 @@ export function RenderModuleHubPage({
               <div className="max-md:min-w-0">
                 <p className="text-sm font-semibold text-orange-950 max-md:text-[13px]">Render da controllare</p>
                 <p className="text-sm text-orange-800 max-md:text-[11px]">
-                  {staleSessions.length} session{staleSessions.length === 1 ? "e" : "i"} in coda o elaborazione da oltre 30 minuti.
-                  Ultimo avvio {formatRenderAge(staleSessions[0]?.created_at)}.
+                  {staleSessions.length} session{staleSessions.length === 1 ? "e" : "i"} non concluse create da oltre 30 minuti.
+                  Creazione più recente {formatRenderAge(staleSessions[0]?.created_at)}.
+                  Possono includere foto caricate senza avviare il render: questa età non misura il tempo di elaborazione.
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setStatusFilter("processing")}>
+            <Button variant="outline" size="sm" className="border-orange-200 bg-white/80 max-md:h-8 max-md:shrink-0 max-md:px-2.5 max-md:text-xs" onClick={() => setStatusFilter("stale")}>
               <span className="max-md:hidden">Mostra da verificare</span>
               <span className="hidden max-md:inline">Mostrali</span>
             </Button>
@@ -412,7 +414,7 @@ export function RenderModuleHubPage({
               {hasProcessing && (
                 <span className={`ml-2 inline-flex items-center gap-1 ${accentClassName}`}>
                   <Zap className="h-3 w-3 animate-pulse" />
-                  In elaborazione
+                  Sessioni non concluse
                 </span>
               )}
             </h2>
@@ -433,6 +435,7 @@ export function RenderModuleHubPage({
                 <SelectTrigger><SelectValue placeholder="Stato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="stale">Da verificare</SelectItem>
                   <SelectItem value="completed">Completati</SelectItem>
                   <SelectItem value="processing">In elaborazione</SelectItem>
                   <SelectItem value="pending">In coda</SelectItem>
@@ -456,6 +459,13 @@ export function RenderModuleHubPage({
           <div className="space-y-3">
             {[1, 2, 3].map((item) => <Skeleton key={item} className="h-24 w-full rounded-xl" />)}
           </div>
+        ) : isError ? (
+          <Card>
+            <CardContent className="space-y-3 py-6" role="alert">
+              <p>Impossibile caricare le sessioni render. I render salvati non sono stati cancellati.</p>
+              <Button variant="outline" onClick={() => void refetch()}>Riprova caricamento</Button>
+            </CardContent>
+          </Card>
         ) : sessions.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 py-14 text-center max-md:gap-0 max-md:py-4">

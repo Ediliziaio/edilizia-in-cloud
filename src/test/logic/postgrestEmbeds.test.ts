@@ -91,7 +91,8 @@ function tuttiGliEmbed(note: Set<string>): Embed[] {
   const out: Embed[] = [];
   for (const f of fileSorgente(join(ROOT, "src"))) {
     const s = readFileSync(f, "utf8");
-    const re = /\.from\(\s*["'`](\w+)["'`](?:\s+as\s+\w+)?\s*\)([\s\S]{0,400}?)\.select\(\s*(["'`])([\s\S]*?)\3/g;
+    // Non attraversare un altro .from(): un select con costante non appartiene alla query successiva.
+    const re = /\.from\(\s*["'`](\w+)["'`](?:\s+as\s+\w+)?\s*\)((?:(?!\.from\()[\s\S]){0,400}?)\.select\(\s*(["'`])([\s\S]*?)\3/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(s))) {
       const from = m[1];

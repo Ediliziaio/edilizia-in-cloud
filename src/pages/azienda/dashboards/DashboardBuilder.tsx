@@ -665,7 +665,7 @@ export default function DashboardBuilder() {
 
         {/* Save */}
         <Button
-          onClick={handleSave}
+          onClick={() => handleSave()}
           disabled={save.isPending || !name.trim()}
           size="sm"
           className="gap-1.5 shrink-0"

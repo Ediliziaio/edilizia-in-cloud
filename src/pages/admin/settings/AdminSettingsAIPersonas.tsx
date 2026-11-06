@@ -116,7 +116,7 @@ export default function AdminSettingsAIPersonas() {
     queryKey: ["ai_personas"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_personas" as never)
+        .from("ai_personas")
         .select("*")
         .order("sort_order");
       if (error) throw error;
@@ -128,7 +128,7 @@ export default function AdminSettingsAIPersonas() {
     queryKey: ["ai_pricing_tiers_mini"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("ai_pricing_tiers" as never)
+        .from("ai_pricing_tiers")
         .select("tier_key, tier_label, customer_label")
         .eq("enabled", true)
         .order("sort_order");
@@ -365,7 +365,7 @@ function EditPersonaDialog({
   const updateMut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("ai_personas" as never)
+        .from("ai_personas")
         .update({
           display_name: displayName,
           short_label: shortLabel,

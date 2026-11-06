@@ -32,7 +32,7 @@ export function BEPChart({ anno }: BEPChartProps) {
         mese: mese.mese,
         ricavi_cum: ricaviCum,
         costi_totali_cum: costiCum,
-        bep_cum: null,
+        bep_cum: null as null,
       };
     });
   }, [fallback.data]);

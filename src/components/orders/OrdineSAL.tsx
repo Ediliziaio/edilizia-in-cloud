@@ -1,3 +1,4 @@
+import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { SalTab } from "./SalTab";
 import type { Installment } from "@/lib/orderUtils";
 
@@ -11,6 +12,7 @@ interface OrdineSALProps {
   vatRate?: number;
   /** Costo finanziaria già "gated" dal chiamante (0 se pagamento non financing). */
   financingCost?: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   /** La vista commessa tiene gli incassi in Economia, senza scollegare le rate dai SAL. */
   showPaymentProgress?: boolean;
 }
@@ -22,6 +24,7 @@ export function OrdineSAL({
   installments,
   vatRate,
   financingCost,
+  financingCostMode,
   showPaymentProgress,
 }: OrdineSALProps) {
   return (
@@ -32,6 +35,7 @@ export function OrdineSAL({
       installments={installments}
       vatRate={vatRate}
       financingCost={financingCost}
+        financingCostMode={financingCostMode}
       showPaymentProgress={showPaymentProgress}
     />
   );

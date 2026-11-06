@@ -77,7 +77,7 @@ type Step = "first-scan" | "oda-suggestion" | "batch-scan" | "warehouse-pick";
 
 export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveSheetProps) {
   const { effectiveCompany: _ } = useAuth();
-  const { data: warehouses = [] } = useWarehouses(true);
+  const { warehouses = [] } = useWarehouses(true);
 
   const [step, setStep] = useState<Step>(lockedOdaId ? "warehouse-pick" : "first-scan");
   const [scannerOpen, setScannerOpen] = useState(false);

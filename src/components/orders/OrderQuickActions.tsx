@@ -1,3 +1,4 @@
+import { emailDaMostrare } from "@/lib/orders/nuovaCommessaProposte";
 /**
  * OrderQuickActions — barra azioni rapide della commessa (OrderDetail).
  * Riduce l'attrito operativo: contatta il cliente (un solo popup per email,
@@ -114,7 +115,8 @@ export function OrderQuickActions({
   const isMobile = useIsMobile();
 
   const hasPhone = !!customer?.phone && customer.phone.replace(/\D/g, "").length >= 6;
-  const hasEmail = !!customer?.email && customer.email.includes("@");
+  const customerEmail = emailDaMostrare(customer?.email);
+  const hasEmail = !!customerEmail && customerEmail.includes("@");
 
   const [quickSend, setQuickSend] = useState<{
     open: boolean;
@@ -339,7 +341,7 @@ export function OrderQuickActions({
           contactId={customer.id ?? null}
           name={customer.name}
           phone={customer.phone}
-          email={customer.email}
+          email={customerEmail}
           context={`Commessa ${orderCode ?? orderId}`}
           defaultChannel={quickSend.channel}
           prefill={quickSend.prefill}

@@ -50,7 +50,7 @@ describe("Scheda utente — Pipeline visibili", () => {
 
     const box = sezione();
     expect(within(box).getByText("Vede tutte le pipeline. Spunta quelle a cui limitarlo.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /salva permessi/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /salva permessi/i })).toBeNull();
 
     const [fase1, fase2] = within(box).getAllByRole("checkbox");
     fireEvent.click(fase1);
@@ -69,7 +69,7 @@ describe("Scheda utente — Pipeline visibili", () => {
     fireEvent.click(fase1);
     expect(screen.getByRole("button", { name: /salva permessi/i })).toBeEnabled();
     fireEvent.click(fase1);
-    expect(screen.getByRole("button", { name: /salva permessi/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /salva permessi/i })).toBeNull();
   }, TIMEOUT_MATRICE_PERMESSI);
 
   it("una pipeline cancellata non resta spuntata di nascosto", () => {

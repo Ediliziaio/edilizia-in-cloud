@@ -1,3 +1,4 @@
+import type { ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 /**
  * useEsposizioneCommessa — la cassa REALE della commessa nel tempo.
  *
@@ -66,6 +67,7 @@ export function useEsposizioneCommessa({
   totalAmount,
   vatRate,
   financingCost,
+  financingCostMode,
   installments,
   varianti,
   enabled = true,
@@ -74,6 +76,7 @@ export function useEsposizioneCommessa({
   totalAmount: number;
   vatRate: number;
   financingCost: number;
+  financingCostMode?: ModalitaCostoFinanziaria | null;
   installments: RataEsposizione[];
   /** Varianti approvate con la data: il saldo pagato conta quelle fino al giorno del pagamento. */
   varianti?: ReadonlyArray<VarianteDatata>;
@@ -134,7 +137,7 @@ export function useEsposizioneCommessa({
     // ── Entrate: rate incassate (stessa regola del Riepilogo, incassiDellaCommessa) ─────
     // La rata del finanziamento è un incasso vero: la paga la finanziaria. Il costo della
     // finanziaria arriva già a 0 quando il pagamento non è a finanziamento (lo decide chi chiama).
-    const amounts = calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost, includeFinancing: true, varianti });
+    const amounts = calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost, financingCostMode, includeFinancing: true, varianti });
     const recorded = (costi?.entries ?? []).length > 0;
     // Una rata con la sua registrazione in Prima Nota entra da lì (la voce «entrata» qui sotto):
     // si salta solo quella, le altre rate incassate restano (come useIncassiRegistrati).
@@ -215,7 +218,7 @@ export function useEsposizioneCommessa({
     }
 
     return { ...cashExposureTimeline(events, new Date().toISOString().slice(0, 10)), daPagare: Math.round(daPagare * 100) / 100 };
-  }, [costi, installments, totalAmount, vatRate, financingCost, orderId, varianti]);
+  }, [costi, installments, totalAmount, vatRate, financingCost, financingCostMode, orderId, varianti]);
 
   return { esposizione, isLoading, isError, recorded: (costi?.entries ?? []).length > 0 };
 }

@@ -68,11 +68,11 @@ export interface BaseArticleTemplateSeed {
 
 /** Helper: default comune per articoli a mq o a pezzo (niente griglia L×H). */
 const noGrid = {
-  griglia_asse_x_label: null,
-  griglia_asse_y_label: null,
-  griglia_unita: null,
+  griglia_asse_x_label: null as null,
+  griglia_asse_y_label: null as null,
+  griglia_unita: null as null,
   griglia_default: null as null,
-  image_url: null,
+  image_url: null as null,
   is_active: true,
 } as const;
 

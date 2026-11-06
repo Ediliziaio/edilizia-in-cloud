@@ -87,7 +87,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 interface AdminNavItem {
   title: string;
   url: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: import("lucide-react").LucideIcon;
   permission: keyof ReturnType<typeof useSuperAdminPermissions>["permissions"];
   subcategory?: string;
 }
@@ -96,7 +96,7 @@ interface AdminNavItem {
 // che hanno multiple voci (rendono accordion), poi quelle con un solo item
 // (rendono flat). Visivamente raggruppa i gruppi navigabili in alto e le
 // shortcut in fondo, riducendo il "mix accordion/flat" che confonde.
-const adminSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+const adminSubcategories: Array<{ id: string; label: string; icon: import("lucide-react").LucideIcon }> = [
   // ── 1. Accordion (≥2 voci) ───────────────────────────────────────────
   { id: "sa_clienti", label: "Clienti e aziende", icon: Building },
   { id: "sa_revenue", label: "Fatturato", icon: Wallet },
@@ -111,7 +111,7 @@ const adminSubcategories: Array<{ id: string; label: string; icon: React.Compone
   { id: "sa_growth", label: "Growth", icon: Gift },
 ];
 
-const adminMarketingSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+const adminMarketingSubcategories: Array<{ id: string; label: string; icon: import("lucide-react").LucideIcon }> = [
   { id: "sa_mkt_crm", label: "CRM", icon: Users },
   { id: "sa_mkt_comunicazione", label: "Comunicazione", icon: Mail },
   { id: "sa_mkt_automation", label: "Automazione & AI", icon: Zap },
@@ -398,7 +398,7 @@ function AdminMainSidebar() {
     defaultState: ADMIN_SIDEBAR_DEFAULTS,
   });
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const handleSearchChange = (value: string) => {
     setCompanySearch(value);
     clearTimeout(debounceRef.current);

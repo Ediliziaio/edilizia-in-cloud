@@ -6,6 +6,7 @@ import { buildWindowPrompt } from "../../../shared/render-window/windowPromptBui
 
 const baseState: WizardState = {
   tipo: "F2A",
+  nodo: "simmetrico",
   profilo: "pvc",
   manigliaCentrale: false,
   coloreInfisso: "7016",
@@ -138,7 +139,7 @@ describe("window render prompt", () => {
 
     expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_manual_belt_system")).toBe(true);
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     // v8.2: nuove stringhe più dettagliate per evitare ambiguità con AI.
     expect(prompt.userPrompt.toLowerCase()).toContain("manual belt visible");
     // Wall repair: prima era "repair the surrounding wall seamlessly" — il pack v8.2
@@ -166,7 +167,7 @@ describe("window render prompt", () => {
     expect(config.nuovo_infisso.materiale).toBe("pvc");
     expect(config.technical_specification[0].finish.name).toBe("Grigio Ardesia");
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt).toContain("Grigio Ardesia (RAL 1009)");
     expect(prompt.userPrompt).toContain("double-leaf casement window");
   });
@@ -181,7 +182,7 @@ describe("window render prompt", () => {
 
     expect(config.technical_specification[0].desiredOpeningType).toBe("scorrevole_alzante");
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt).toContain("lift-and-slide system");
     expect(prompt.userPrompt.toLowerCase()).toContain("do not invent battente");
   });
@@ -196,7 +197,7 @@ describe("window render prompt", () => {
     expect(config.target_selection.selectedOpeningIds).toEqual(["A"]);
     expect(config.target_selection.preservedOpeningIds).toEqual(["B"]);
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt).toContain("Target openings to modify: A");
     expect(prompt.userPrompt).toContain("Opening B must remain untouched");
   });
@@ -208,7 +209,7 @@ describe("window render prompt", () => {
       selectedOpeningIds: ["A"],
     });
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt).toContain("Preserve floor, walls, curtains, radiators");
     expect(prompt.validation.isValid).toBe(true);
   });
@@ -221,7 +222,7 @@ describe("window render prompt", () => {
       { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
     );
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt).toContain("Hinge consistency");
     expect(prompt.userPrompt).toContain("brushed stainless steel");
     expect(prompt.userPrompt.toLowerCase()).toContain("no mixed black/dark hinge parts");
@@ -235,7 +236,7 @@ describe("window render prompt", () => {
       { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
     );
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt.toLowerCase()).toContain("keep the visible cassonetto envelope");
     expect(prompt.userPrompt.toLowerCase()).toContain("do not oversize it");
   });
@@ -248,7 +249,7 @@ describe("window render prompt", () => {
       { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
     );
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.userPrompt).toContain("walnut wood-effect laminate with dark brown tone and visible longitudinal grain");
     expect(prompt.userPrompt).toContain("square modern handle");
     expect(prompt.userPrompt).toContain("brushed stainless steel");
@@ -281,7 +282,7 @@ describe("window render prompt", () => {
     expect(config.technical_specification[0].transomRule?.toLowerCase()).toContain("remove");
     expect(config.replacement_manifest.removals.some((rule) => rule.code === "remove_horizontal_transom")).toBe(true);
 
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     // v8.2 → v8.6: la regola "rimuovi traverso" resta nel user prompt
     // tramite la specifica tecnica dinamica (BLOCK D). Il negative prompt
     // ora e' asciugato — non duplichiamo regole semantiche gia' coperte
@@ -350,7 +351,7 @@ describe("window render prompt", () => {
     );
 
     expect(config.technical_specification[0].shutter.electricButton?.install).toBe(true);
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     // v8.2: "electric command button" rinominato in "electric roller-shutter switch plate"
     // (terminologia Italian standard Vimar/Bticino). Test allineato.
     expect(prompt.userPrompt.toLowerCase()).toContain("electric roller-shutter switch plate");
@@ -367,7 +368,7 @@ describe("window render prompt", () => {
       sceneAnalysis: analysis,
       selectedOpeningIds: ["A"],
     });
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
 
     // v8.6 ha consolidato il sistema YOU ARE NOT/DOING in narrative piu' compatta.
     // Le frasi chiave devono restare presenti.
@@ -384,7 +385,7 @@ describe("window render prompt", () => {
       sceneAnalysis: analysis,
       selectedOpeningIds: ["A"],
     });
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
 
     // Le ban critiche (recolor / handle / stiles / cinghia / cassonetto)
     // sono ora consolidate nella sezione ABSOLUTE BANS del system prompt
@@ -401,7 +402,7 @@ describe("window render prompt", () => {
       sceneAnalysis: analysis,
       selectedOpeningIds: ["A"],
     });
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
 
     expect(prompt.userPrompt).toContain("INSTALLATION REALISM");
     expect(prompt.userPrompt).toContain("Same room, same angle");
@@ -416,7 +417,7 @@ describe("window render prompt", () => {
       sceneAnalysis: analysis,
       selectedOpeningIds: ["A"],
     });
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
 
     expect(prompt.userPrompt).toContain("PRE-OUTPUT CHECKLIST");
     // I 8 punti sono numerati 1-8 e coprono i 7 fail mode + scope
@@ -431,7 +432,7 @@ describe("window render prompt", () => {
       "",
       { sceneAnalysis: analysis, selectedOpeningIds: ["A"] },
     );
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
 
     // referenceImages popolato (almeno frame color + handle)
     expect(prompt.referenceImages.length).toBeGreaterThan(0);
@@ -485,7 +486,7 @@ describe("window render prompt", () => {
       sceneAnalysis: analysis,
       selectedOpeningIds: ["A"],
     });
-    const prompt = buildWindowPrompt(config, analysis);
+    const prompt = buildWindowPrompt({ ...config }, analysis);
     expect(prompt.promptVersion).toBe("8.6.33");
   });
 });

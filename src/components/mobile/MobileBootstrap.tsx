@@ -13,7 +13,7 @@
 
 import { useMobileInit } from "@/hooks/useMobileInit";
 
-export default function MobileBootstrap() {
+export default function MobileBootstrap(): null {
   useMobileInit();
   return null;
 }

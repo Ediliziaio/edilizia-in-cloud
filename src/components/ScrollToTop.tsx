@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
-export default function ScrollToTop() {
+export default function ScrollToTop(): null {
   const { pathname } = useLocation();
   // Solo quando si cambia pagina, non al primo montaggio: all'apertura la
   // posizione la decide il browser (un link con #ancora, il ritorno indietro),

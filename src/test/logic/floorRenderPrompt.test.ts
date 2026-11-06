@@ -266,6 +266,22 @@ describe("floor render pipeline: correzioni (A)", () => {
     dalParquet.smonta();
   });
 
+  it("dal parquet al gres elimina le dimensioni dei listelli e il colore legno dal dato salvato", () => {
+    const form = montaForm({ ...cloneConfig(), tipo: "parquet_massello", colore_mode: "legno", colore_ral: "RAL 8001", larghezza_listello_mm: 90, lunghezza_listello_mm: 600 });
+    try {
+      form.clicca("Gres");
+      const config = form.onChange.mock.calls.at(-1)?.[0] as ConfigurazionePavimento;
+      const salvato = JSON.parse(JSON.stringify(config));
+      expect(salvato).toMatchObject({ tipo: "gres_porcellanato", colore_mode: "palette", formato_piastrella: "120x120" });
+      expect(salvato).not.toHaveProperty("larghezza_listello_mm");
+      expect(salvato).not.toHaveProperty("lunghezza_listello_mm");
+      expect(salvato).not.toHaveProperty("colore_ral");
+      const prompt = buildFloorPrompt(config, baseAnalysis()).userPrompt;
+      expect(prompt).not.toContain("90mm x 600mm");
+      expect(prompt).not.toContain("RAL 8001");
+    } finally { form.smonta(); }
+  });
+
   it("form: formato acceso solo per le piastrelle, listello solo per legno/laminato/LVT, essenza solo se il prompt la usa", () => {
     const campiListello = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLInputElement>('input[type="number"][placeholder="mm"]'));
     const gresLegno = montaForm({ ...cloneConfig(), effetto_visivo: "legno" });

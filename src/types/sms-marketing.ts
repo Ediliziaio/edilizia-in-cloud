@@ -203,8 +203,7 @@ export interface SmsLog {
   contatto_id: string | null;
   telefono: string;
   messaggio: string;
-  parti_sms: number;
-  stato: SmsLogStato;
+  stato: string; // Valore del provider conservato anche se non ancora noto alla UI.
   telnyx_message_id: string | null;
   costo_cliente: number | null;
   errore_dettaglio: string | null;

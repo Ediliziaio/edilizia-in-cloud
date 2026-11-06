@@ -761,7 +761,7 @@ export default function PurchaseOrderDetail() {
             <OdaImpattoCommessaCard
               odaId={order.id}
               orderId={order.order_id}
-              totaleOrdine={Number(order.total)}
+              imponibileOrdine={Number(order.subtotal)}
               statoOrdine={order.status}
             />
           )}

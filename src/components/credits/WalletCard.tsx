@@ -69,6 +69,10 @@ export function WalletCard({
   const hasFree = wallet.currency === "eur" && freeGranted > 0;
   const totalBalance = wallet.balance + (wallet.currency === "eur" ? freeBalance : 0);
 
+  const roundingDifference = hasFree && Math.abs(
+    Number(totalBalance.toFixed(2)) - Number(freeBalance.toFixed(2)) - Number(wallet.balance.toFixed(2))
+  ) > 0.005;
+
   const lowBalance =
     wallet.currency === "eur" &&
     totalBalance > 0 &&
@@ -136,6 +140,13 @@ export function WalletCard({
               </span>
               <span className="tabular-nums font-medium">{formatEur(wallet.balance)}</span>
             </div>
+            {roundingDifference && (
+              <details className="pt-1 text-[11px] text-muted-foreground">
+                <summary>Perché la somma differisce di un centesimo?</summary>
+                <p>Il totale è calcolato prima di arrotondare i singoli saldi ai centesimi.</p>
+                <p>Dettaglio a sei decimali: {formatEur(freeBalance, 6)} inclusi + {formatEur(wallet.balance, 6)} ricaricati = {formatEur(totalBalance, 6)} disponibili.</p>
+              </details>
+            )}
             <p className="pt-0.5 text-[11px] leading-tight text-muted-foreground">
               I crediti inclusi si rinnovano il primo del mese e non si sommano.
               Quelli ricaricati restano finché non li usi.

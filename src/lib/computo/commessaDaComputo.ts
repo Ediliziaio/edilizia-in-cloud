@@ -7,8 +7,8 @@
  * come `payment_phases`. Poi si apre la commessa, da rivedere prima di salvare.
  *
  * Un preventivo già firmato non si riscrive: il firmato è il contratto. Se le
- * sue righe ci sono già si usano quelle; se mancano (firmato prima di questa
- * funzione) si scrivono una volta sola, da questo computo.
+ * sue righe ci sono già si usano quelle; se mancano serve una riconciliazione
+ * esplicita: inserirle qui farebbe ricalcolare il documento già deciso.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { getModuleQuote, upsertModuleQuote } from "@/lib/moduli/quoteBridge";
@@ -22,7 +22,7 @@ export type DatiCommessaComputo = {
   /** Le voci del documento: senza opzionali e senza capitoli spenti. */
   bozza: BozzaComputo;
   subtotal: number; vatAmount: number; total: number; aliquotaIva: number | null;
-  rate: { descrizione: string; percentuale: number; importo: number }[];
+  rate: { descrizione: string; percentuale: number; importo: number; importoIvato?: number | null }[];
   validityDays: number;
   /** Chi vede i costi: il costo stimato diventa il prezzo d'acquisto della riga. */
   conCosti: boolean;
@@ -52,10 +52,33 @@ export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaI
 
 /** Le rate del piano come fasi di pagamento del preventivo: l'ultima è il saldo. */
 export function fasiDaRate(rate: DatiCommessaComputo["rate"]) {
-  return rate.map((r, k) => ({ label: r.descrizione, type: k === rate.length - 1 && rate.length > 1 ? "balance" : "deposit", percent: r.percentuale, amount: r.importo }));
+  return rate.map((r, k) => ({ label: r.descrizione, type: k === rate.length - 1 && rate.length > 1 ? "balance" : "deposit", percent: r.percentuale, amount: r.importoIvato ?? r.importo }));
+}
+
+/** Il computo è la fonte del prezzo concordato, già al netto dello sconto.
+ * La quote di collegamento usa il prezzo a corpo: percentuali equivalenti
+ * arrotondate a due decimali perderebbero centesimi con sconti fissi/sicurezza.
+ * Le voci e i costi restano separati; il PDF originale conserva il dettaglio.
+ */
+export function prezzoConcordatoComputo(d: Pick<DatiCommessaComputo, "subtotal" | "vatAmount" | "total" | "aliquotaIva">) {
+  const netto = Math.round(d.subtotal * 100) / 100;
+  const aliquota = d.aliquotaIva ?? 0;
+  const iva = Math.round(netto * aliquota) / 100;
+  if (![d.subtotal, d.vatAmount, d.total, aliquota].every(Number.isFinite) || netto < 0 || aliquota < 0
+      || Math.abs(iva - d.vatAmount) > 0.005 || Math.abs(netto + iva - d.total) > 0.005) {
+    throw new Error("Gli importi del computo non sono riconciliati: verifica imponibile, IVA e totale prima di creare la commessa.");
+  }
+  return {
+    prezzo_manuale: netto > 0 ? netto : null,
+    prezzo_manuale_iva_pct: aliquota,
+    // Il trigger usa il prezzo manuale solo se positivo: a zero si azzerano
+    // le righe con il 100%, senza trasformare zero in un valore mancante.
+    discount_percent: netto === 0 ? 100 : 0,
+  };
 }
 
 export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<string> {
+  const prezzoConcordato = prezzoConcordatoComputo(d);
   const esistente = await getModuleQuote(d.companyId, MODULO_COMPUTO, d.draftId);
   const deciso = !!esitoOffertaModulo(esistente);
   const riga = deciso ? esistente! : await upsertModuleQuote({
@@ -67,6 +90,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
   const { count, error: erroreConta } = await supabase.from("quote_items").select("id", { count: "exact", head: true }).eq("quote_id", riga.id);
   if (erroreConta) throw new Error("Non riesco a leggere le righe del preventivo: riprova.");
   if (deciso && (count ?? 0) > 0) return riga.id;
+  if (deciso) throw new Error("Il preventivo già deciso non ha righe trasferibili. Verifica il documento originale prima di preparare la commessa: gli importi confermati non sono stati modificati.");
   if (!deciso && (count ?? 0) > 0) {
     const { error } = await supabase.from("quote_items").delete().eq("quote_id", riga.id);
     if (error) throw new Error("Non riesco ad aggiornare le righe del preventivo: riprova.");
@@ -77,7 +101,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     if (error) throw new Error(`Righe del preventivo non salvate: ${error.message}`);
   }
   if (!deciso) {
-    const patch: Record<string, unknown> = { payment_phases: fasiDaRate(d.rate) };
+    const patch: Record<string, unknown> = { ...prezzoConcordato, payment_phases: fasiDaRate(d.rate) };
     if (d.bozza.clienteId) patch.contact_id = d.bozza.clienteId;
     if (d.bozza.indirizzo.trim()) patch.client_address = d.bozza.indirizzo.trim();
     // I dati fiscali del cliente passano alla commessa e poi alla fattura (30/10/2026).

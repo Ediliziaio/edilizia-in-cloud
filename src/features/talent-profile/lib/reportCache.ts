@@ -3,9 +3,9 @@ import type { MappaInterioreResult } from "./mappaInteriore";
 import type { SyndromeResult } from "./syndromes";
 import { calculateMappaInteriore } from "./mappaInteriore";
 import { getPersonalizedManagementTips, getPersonalizedClosingText } from "./managementTipsV5";
-import { personalizzaTesto, getFascia, getTraitNarrative } from "./traitNarrativesV5";
+import { TRAIT_NARRATIVES, getFascia, getTraitNarrative } from "./traitNarrativesV5";
 
-export const CACHE_VERSION = 1;
+export const CACHE_VERSION = 2;
 
 export type ManagementTipCached = { testo: string; isPriorityOne: boolean };
 export type TraitNarrativeCached = { fascia: string; testo: string };
@@ -32,7 +32,7 @@ export function computeDerivedReport(input: {
   const { traits, candidateName, candidateSesso, candidateEta, syndromes } = input;
   const traitMap = traits as Record<TraitCode, number>;
 
-  let mappa: MappaInterioreResult | null = null;
+  let mappa: MappaInterioreResult | null;
   try {
     mappa = calculateMappaInteriore(traitMap, candidateName, candidateSesso ?? null, syndromes, candidateEta ?? undefined);
   } catch {
@@ -53,10 +53,10 @@ export function computeDerivedReport(input: {
   try {
     for (const code of TRAIT_ORDER) {
       const value = Math.max(0, Math.min(100, Math.round(traitMap[code] || 0)));
-      const fascia = getFascia(value);
-      const tpl = getTraitNarrative(code, fascia);
+      const fascia = getFascia(value, TRAIT_NARRATIVES[code]);
+      const tpl = getTraitNarrative(code, value, candidateName, candidateSesso ?? null);
       if (tpl) {
-        narratives[code] = { fascia, testo: personalizzaTesto(tpl, candidateName, candidateSesso ?? null) };
+        narratives[code] = { fascia, testo: tpl };
       }
     }
   } catch {

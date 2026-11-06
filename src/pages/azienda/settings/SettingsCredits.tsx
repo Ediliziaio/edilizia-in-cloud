@@ -157,11 +157,12 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Saldo totale
+                  Saldo ricaricato
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-primary">
                   {formatEur(totalBalanceEur)}
                 </p>
+                <p className="text-xs text-muted-foreground">Esclude la quota inclusa nel piano, mostrata nel saldo disponibile per servizio.</p>
               </div>
             </div>
             <DropdownMenu>

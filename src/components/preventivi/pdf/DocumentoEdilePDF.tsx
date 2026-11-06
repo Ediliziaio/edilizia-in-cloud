@@ -571,11 +571,12 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
 }
 
 // ─── Il piano dei lavori: capitoli e voci ────────────────────────────────────
-function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, spazioDopo = 0 }: {
+function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostraQta, mostraSubtotali, mostraImporti = true, mostraScontiRiga = true, spazioDopo = 0 }: {
   tema: TemaDocumento; cap: DocEdileCapitolo; indice: number;
   mostraMargine: boolean; mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
   /** False col prezzo scritto a mano: le righe possono essere a 0 €, e «0,00 €» su ogni riga smentirebbe il prezzo. */
   mostraImporti?: boolean;
+  mostraScontiRiga?: boolean;
   /** Keep the last chapter with the following economic summary, not on an empty page. */
   spazioDopo?: number;
 }) {
@@ -593,6 +594,7 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
         ) : null}
         <View style={v.foto ? { flex: 1 } : undefined}>
           <Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>
+          {mostraScontiRiga && mostraPrezzi && mostraImporti && (v.scontoPct ?? 0) > 0 ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 2 }}>{`Sconto riga: ${quantita(v.scontoPct!)}%`}</Text> : null}
           {v.dettaglio ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>{v.dettaglio}</Text> : null}
           {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
         </View>
@@ -1700,6 +1702,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               key={cap.nome} tema={tema} cap={cap} indice={i + 1}
               mostraMargine={modello.mostraMargine} mostraPrezzi={oc.mostraPrezzi && !prezzoManuale} mostraQta={oc.mostraQta}
               mostraSubtotali={oc.mostraSubtotali && !prezzoManuale} mostraImporti={!prezzoManuale}
+              mostraScontiRiga={totali.mostraScontiRiga}
               spazioDopo={i === capitoli.length - 1 ? 50 : 0}
             />
           ))
