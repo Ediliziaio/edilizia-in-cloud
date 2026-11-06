@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { PropostaFasi } from "../../../shared/silvio-commessa/chatFasi";
 
-export interface RispostaSilvio { testo: string; proposte: PropostaFasi[]; scartate: string[] }
+export interface RispostaSilvio { testo: string; proposte: PropostaFasi[]; scartate: string[]; note?: string[] }
 export interface AllegatoSilvio { path: string; nome: string }
 /** Quanti file in una conversazione: Silvio li rilegge a ogni domanda. */
 export const MAX_ALLEGATI = 3;
@@ -26,7 +26,7 @@ export interface ConversazioneSilvio {
 
 type Messaggio =
   | { ruolo: "persona"; testo: string }
-  | { ruolo: "silvio"; testo: string; proposte: PropostaFasi[]; scartate: string[]; scelte: boolean[]; applicate: boolean }
+  | { ruolo: "silvio"; testo: string; proposte: PropostaFasi[]; scartate: string[]; note: string[]; scelte: boolean[]; applicate: boolean }
   | { ruolo: "errore"; testo: string };
 
 const giorno = (d: string | null) => (d ? d.split("-").reverse().join("/") : "");
@@ -88,7 +88,7 @@ export function SilvioConversazione({ conversazione, domande, domandaIniziale, o
     setAttesa(true);
     try {
       const r = await conversazione.chiedi(d, storia, allegati);
-      setMessaggi((ms) => [...ms, { ruolo: "silvio", testo: r.testo, proposte: r.proposte, scartate: r.scartate, scelte: r.proposte.map(() => true), applicate: false }]);
+      setMessaggi((ms) => [...ms, { ruolo: "silvio", testo: r.testo, proposte: r.proposte, scartate: r.scartate, note: r.note ?? [], scelte: r.proposte.map(() => true), applicate: false }]);
     } catch (e) {
       setMessaggi((ms) => [...ms, { ruolo: "errore", testo: e instanceof Error && e.message ? e.message : "Silvio non risponde: riprova tra poco." }]);
     } finally {
@@ -155,6 +155,7 @@ export function SilvioConversazione({ conversazione, domande, domandaIniziale, o
                   )}
                 </div>
               )}
+              {m.note.length > 0 && <p className="text-[11px] text-sky-800">{m.note.join("; ")}.</p>}
               {m.scartate.length > 0 && <p className="text-[11px] text-muted-foreground">Lasciate fuori: {m.scartate.join("; ")}.</p>}
             </div>
           ))}

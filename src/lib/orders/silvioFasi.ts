@@ -88,7 +88,7 @@ export async function chiediSilvioAcquisti(
 ): Promise<RispostaSilvio> {
   const data = await invocaPopup({ ambito: "acquisti", order_id: orderId, messaggio, contesto: acquistiCompatti(contesto), storia, allegati });
   const testo = typeof (data as { testo?: unknown }).testo === "string" ? (data as { testo: string }).testo : "";
-  return { testo: testo || "Non ho una risposta su questo: prova a chiederlo in un altro modo.", proposte: [], scartate: [] };
+  return { testo: testo || "Non ho una risposta su questo: prova a chiederlo in un altro modo.", proposte: [], scartate: [], note: [] };
 }
 
 async function invocaPopup(corpo: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -122,13 +122,14 @@ export async function chiediSilvioFasi(
   contesto: ContestoFasi,
   storia: ReadonlyArray<{ ruolo: "persona" | "silvio"; testo: string }>,
   allegati: ReadonlyArray<AllegatoSilvio> = [],
+  lavorativo?: (giorno: string) => boolean,
 ): Promise<RispostaSilvio> {
   contesto = contestoCompatto(contesto);
   const r = await invocaPopup({ ambito: "fasi", order_id: orderId, messaggio, contesto, storia, allegati }) as { testo?: unknown; strumenti?: unknown };
   const strumenti = (Array.isArray(r.strumenti) ? r.strumenti : []) as ChiamataStrumentoFasi[];
-  const { proposte, scartate } = proposteDaStrumenti(strumenti, contesto);
+  const { proposte, scartate, note } = proposteDaStrumenti(strumenti, contesto, lavorativo);
   const testo = typeof r.testo === "string" ? r.testo : "";
-  return { testo: testo || (proposte.length ? "Ecco cosa propongo:" : "Non ho trovato niente da cambiare."), proposte, scartate };
+  return { testo: testo || (proposte.length ? "Ecco cosa propongo:" : "Non ho trovato niente da cambiare."), proposte, scartate, note };
 }
 
 export interface AzioniFasi {
