@@ -6,6 +6,7 @@ import {
   erroreProviderPiuFresco,
   esitoCloudflare,
   esitoEmailConProve,
+  esitoPostaUscita,
   type ProveInvii,
   type RispostaCloudflare,
 } from "../_shared/saluteIntegrazioni.ts";
@@ -512,60 +513,70 @@ serveConMetriche("check-api-health", async (req) => {
     });
 
     // ── Email outbox health ───────────────────────────────────────────────
+    // `email_outbox` è la posta in uscita delle caselle collegate (OAuth). I suoi
+    // stati sono draft, queued, sending, sent, failed: `processing`, `dead` e
+    // `suppressed` non esistono e si contavano sempre a zero.
+    //
+    // Qui si contano le righe; il verdetto e il perché stanno in
+    // `esitoPostaUscita` (_shared/saluteIntegrazioni.ts), dove si prova.
+    // Un errore della query non viene più letto come «sana»: senza il dato non
+    // si certifica nulla.
+    const ORA_IN_MS = 60 * 60 * 1000;
     let emailOutbox: Record<string, unknown> | null = null;
     try {
-      const countStatus = async (status: string) => {
-        const { count, error } = await admin
+      const countStatus = async (status: string, dopo?: string) => {
+        let q = admin
           .from("email_outbox")
           .select("id", { head: true, count: "exact" })
           .eq("status", status);
+        if (dopo) q = q.gte("updated_at", dopo);
+        const { count, error } = await q;
         if (error) throw error;
         return count ?? 0;
       };
+      const da24Ore = new Date(Date.now() - 24 * ORA_IN_MS).toISOString();
       const [
         queued,
-        processing,
+        sending,
         failed,
-        dead,
-        suppressed,
+        failedUltime24h,
         oldestReady,
       ] = await Promise.all([
         countStatus("queued"),
-        countStatus("processing"),
+        countStatus("sending"),
         countStatus("failed"),
-        countStatus("dead"),
-        countStatus("suppressed"),
+        countStatus("failed", da24Ore),
         admin
           .from("email_outbox")
           .select("scheduled_for, created_at")
-          .in("status", ["queued", "failed"])
-          .order("scheduled_for", { ascending: true })
+          .in("status", ["queued", "sending"])
+          .order("scheduled_for", { ascending: true, nullsFirst: true })
           .limit(1)
           .maybeSingle(),
       ]);
+      if (oldestReady.error) throw oldestReady.error;
       const oldestAt = oldestReady.data?.scheduled_for ?? oldestReady.data?.created_at ?? null;
-      const oldestAgeMinutes = oldestAt
-        ? Math.max(0, Math.round((Date.now() - new Date(oldestAt).getTime()) / 60000))
-        : 0;
-      const outboxStatus: IntegrationResult["status"] =
-        dead > 0 || oldestAgeMinutes > 60 || queued > 5000 ? "degraded" : "healthy";
+      const esito = esitoPostaUscita({
+        queued,
+        sending,
+        failed,
+        failedUltime24h,
+        inCodaDa: oldestAt,
+      });
       emailOutbox = {
         queued,
-        processing,
+        sending,
         failed,
-        dead,
-        suppressed,
+        failedUltime24h,
         oldestReadyAt: oldestAt,
-        oldestReadyAgeMinutes: oldestAgeMinutes,
+        oldestReadyAgeMinutes: esito.attesaMinuti,
       };
       results.push({
         name: "email_outbox",
-        status: outboxStatus,
+        status: esito.status,
         last_seen: now,
         response_ms: null,
-        error: outboxStatus === "healthy"
-          ? null
-          : "Outbox email con backlog, errori definitivi o job vecchi da processare",
+        error: esito.error,
         metadata: emailOutbox,
       });
     } catch (outboxErr) {
@@ -575,10 +586,10 @@ serveConMetriche("check-api-health", async (req) => {
       };
       results.push({
         name: "email_outbox",
-        status: "unconfigured",
+        status: "degraded",
         last_seen: null,
         response_ms: null,
-        error: "email_outbox non disponibile: applicare la migration enterprise hardening",
+        error: "Stato della posta in uscita non leggibile: il controllo non ha potuto verificare la coda",
         metadata: emailOutbox,
       });
     }

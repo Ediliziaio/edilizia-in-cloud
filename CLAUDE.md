@@ -51,6 +51,27 @@ ls supabase/migrations/<versione>_*.sql
 760 kB di SQL: 204 migrazioni applicate in passato, un centinaio delle quali non
 ha alcun file nel repository.
 
+**`CREATE TABLE IF NOT EXISTS` su una tabella che esiste già non fa niente, e non
+lo dice.** Se la migrazione prosegue dando per scontato il proprio schema, tutto
+ciò che costruisce dopo punta a colonne che non ci sono — e nemmeno quello dà
+errore, perché `CREATE OR REPLACE FUNCTION` non controlla i nomi delle colonne
+dentro un corpo plpgsql. `20270103000002_email_enterprise_hardening` ha
+ricreato così `email_outbox` (stream, campaign_id, recipient, priority,
+lease_until, scheduled_at, stati processing/dead/suppressed) sopra quella vera
+di `20260510100000_email_client_foundations` (to_emails, scheduled_for, stati
+draft/queued/sending/sent/failed/cancelled): no-op. Ne sono nati, a catena, un
+controllo salute che leggeva `scheduled_at` e certificava «sana» una coda che
+non guardava, tre filtri sempre a zero nel pannello admin e il worker
+`process-email-outbox`, che non può funzionare. Scoperto il 06/11/2026, dopo un
+avviso «in errore da 110 ore».
+
+Quindi: prima di creare una tabella, verificare che non esista
+(`\d public.<tabella>` o una select su `information_schema.columns`). Se esiste
+e serve cambiarla, si usa `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, non un
+secondo `CREATE TABLE`. E per sapere com'è fatta una tabella adesso, la fonte è
+`src/integrations/supabase/types.ts`, generato dal database, non il file di
+migrazione che dice di averla creata.
+
 ## Migrazioni che toccano i dati, non solo lo schema
 
 Il 5 settembre 2026 il database di produzione è rimasto irraggiungibile dall'esterno

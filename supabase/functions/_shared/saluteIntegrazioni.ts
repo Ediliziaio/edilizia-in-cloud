@@ -176,3 +176,71 @@ export function esitoEmailConProve(sonda: EsitoSalute, prove: ProveInvii | null)
   pezzi.push(riuscito ? `Ultimo invio riuscito: ${riuscito}.` : "Nessun invio riuscito in archivio.");
   return { status: "down", error: pezzi.join(" ") };
 }
+
+// ── Posta in uscita delle caselle collegate ────────────────────────────────
+
+export interface CodaPostaUscita {
+  /** In attesa di partire. */
+  queued: number;
+  /** Consegna in corso. */
+  sending: number;
+  /** Non partite, in tutto l'archivio. */
+  failed: number;
+  /** Non partite nelle ultime 24 ore. */
+  failedUltime24h: number;
+  /** Quando è stato messo in coda il messaggio più vecchio ancora da inviare. */
+  inCodaDa: string | null;
+  /** Adesso, per misurare l'attesa. Serve a provare la funzione. */
+  adesso?: Date;
+}
+
+/**
+ * Verdetto sulla posta in uscita, e perché.
+ *
+ * `email_outbox` è l'outbox delle caselle collegate: i suoi stati sono draft,
+ * queued, sending, sent, failed. Due errori in fila, chiusi il 06/11/2026:
+ *
+ *  1. il controllo leggeva `scheduled_at`, colonna che non esiste. La query non
+ *     tornava niente, l'attesa restava 0 e l'integrazione risultava sana per
+ *     difetto: non guardava nulla.
+ *  2. corretto il nome della colonna, `failed` finiva tra i lavori «da
+ *     processare». Ma qui nessuno li riprova da solo — email-send parte da un
+ *     invio dell'utente, una riga fallita resta lì finché una persona non la
+ *     rimanda. Una mail andata in timeout il 28/09 ha tenuto l'integrazione
+ *     degradata per sempre, e un backlog vero sarebbe passato inosservato.
+ *
+ * Quindi l'attesa si misura su ciò che è davvero in coda (queued + sending),
+ * mentre i falliti pesano solo se sono tanti e recenti: una mail vecchia che
+ * nessuno rimanderà non è un guasto da svegliare qualcuno ogni giorno.
+ */
+export function esitoPostaUscita(coda: CodaPostaUscita): EsitoSalute & { attesaMinuti: number } {
+  const adesso = coda.adesso ?? new Date();
+  const messoInCoda = coda.inCodaDa ? new Date(coda.inCodaDa).getTime() : NaN;
+  const attesaMinuti = Number.isNaN(messoInCoda)
+    ? 0
+    : Math.max(0, Math.round((adesso.getTime() - messoInCoda) / 60000));
+  const inAttesa = coda.queued + coda.sending;
+
+  if (attesaMinuti > 60) {
+    return {
+      status: "degraded",
+      error: `Email in uscita ferme in coda da ${attesaMinuti} minuti`,
+      attesaMinuti,
+    };
+  }
+  if (inAttesa > 5000) {
+    return {
+      status: "degraded",
+      error: `Coda email in uscita troppo lunga (${inAttesa} messaggi)`,
+      attesaMinuti,
+    };
+  }
+  if (coda.failedUltime24h >= 5) {
+    return {
+      status: "degraded",
+      error: `${coda.failedUltime24h} email non partite nelle ultime 24 ore`,
+      attesaMinuti,
+    };
+  }
+  return { status: "healthy", error: null, attesaMinuti };
+}
