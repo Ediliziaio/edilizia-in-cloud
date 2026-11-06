@@ -805,10 +805,12 @@ export default function SupplierRfqDetail() {
           onOpenChange={(o) => { if (!o) setInviaA(null); }}
           context={composeContext(inviaA)}
           onSent={() => {
-            if(inviaA.status !== "risposta") updateFornitore.mutate({
+            const corrente=fornitori.find(f=>f.id===inviaA.id);
+            if(!corrente || rfq.status === "aggiudicata" || rfq.status === "annullata") return;
+            if(corrente.status !== "risposta") updateFornitore.mutate({
               id: inviaA.id,
               // un sollecito non azzera l'attesa: conta dalla prima richiesta
-              updates: inviaA.inviata_at
+              updates: corrente.inviata_at
                 ? { status: "inviata" }
                 : { status: "inviata", inviata_at: new Date().toISOString(), inviata_via: "app" },
             });
