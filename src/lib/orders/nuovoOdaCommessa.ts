@@ -19,6 +19,7 @@ export interface RigaNuovoOda {
   quantity: number;
   unit_of_measure: string;
   unit_price: number;
+  price_pending?: boolean;
   vat_rate: number;
   /** Solo per le righe degli articoli: spuntata = entra nell'ordine. */
   scelta: boolean;
@@ -37,7 +38,10 @@ const centesimi = (x: number) => Math.round(x * 100) / 100;
  * fornitore scelto (o senza fornitore, se non ne è scelto nessuno): le altre
  * restano in elenco, si spuntano a mano.
  */
-export function righeDagliArticoli(daComprare: ProcurementItem[], fornitoreScelto: string | null): RigaNuovoOda[] {
+export function righeDagliArticoli(
+  daComprare: ProcurementItem[],
+  fornitoreScelto: string | null,
+): RigaNuovoOda[] {
   return daComprare
     .filter((i) => !!i.id && n(i.quantity) > 0)
     .map((i) => ({
@@ -47,6 +51,7 @@ export function righeDagliArticoli(daComprare: ProcurementItem[], fornitoreScelt
       quantity: n(i.quantity),
       unit_of_measure: unitaMateriale(i),
       unit_price: n(i.purchase_price),
+      price_pending: !(n(i.purchase_price) > 0),
       vat_rate: n(i.vat_rate, 22),
       scelta: !!fornitoreScelto && i.supplier_id === fornitoreScelto,
       fornitore_articolo: i.supplier_id ?? null,
@@ -54,7 +59,17 @@ export function righeDagliArticoli(daComprare: ProcurementItem[], fornitoreScelt
 }
 
 export function rigaLibera(key: string): RigaNuovoOda {
-  return { key, order_item_id: null, description: "", quantity: 1, unit_of_measure: "pz", unit_price: 0, vat_rate: 22, scelta: true };
+  return {
+    key,
+    order_item_id: null,
+    description: "",
+    quantity: 1,
+    unit_of_measure: "pz",
+    unit_price: 0,
+    price_pending: true,
+    vat_rate: 22,
+    scelta: true,
+  };
 }
 
 /** Le righe che entrano nell'ordine: le libere sempre, quelle degli articoli se spuntate. */
@@ -76,26 +91,43 @@ export function totaliNuovoOda(righe: RigaNuovoOda[]): TotaliNuovoOda {
     imponibile += riga;
     iva += (riga * n(r.vat_rate)) / 100;
   }
-  return { imponibile: centesimi(imponibile), iva: centesimi(iva), totale: centesimi(imponibile + iva) };
+  return {
+    imponibile: centesimi(imponibile),
+    iva: centesimi(iva),
+    totale: centesimi(imponibile + iva),
+  };
 }
 
 /** Il motivo per cui l'ordine non si può creare, o null. */
-export function erroreNuovoOda(input: { fornitore: string | null; origine: string | null; righe: RigaNuovoOda[] }): string | null {
+export function erroreNuovoOda(input: {
+  fornitore: string | null;
+  origine: string | null;
+  righe: RigaNuovoOda[];
+}): string | null {
   if (!input.fornitore) return "Scegli il fornitore.";
   if (!input.origine) return "Scegli come lo ordini.";
   const dentro = righeInOrdine(input.righe);
-  if (dentro.length === 0) return "Aggiungi almeno una riga: spunta un articolo o scrivine una.";
+  if (dentro.length === 0)
+    return "Aggiungi almeno una riga: spunta un articolo o scrivine una.";
   for (const r of dentro) {
-    if (!r.description.trim()) return "Ogni riga ha bisogno di una descrizione.";
-    if (!(n(r.quantity) > 0)) return `«${r.description.trim()}»: la quantità deve essere maggiore di zero.`;
-    if (n(r.unit_price, -1) < 0) return `«${r.description.trim()}»: il prezzo non può essere negativo.`;
-    if (n(r.vat_rate, -1) < 0 || n(r.vat_rate) > 100) return `«${r.description.trim()}»: l'IVA va da 0 a 100.`;
+    if (!r.description.trim())
+      return "Ogni riga ha bisogno di una descrizione.";
+    if (!(n(r.quantity) > 0))
+      return `«${r.description.trim()}»: la quantità deve essere maggiore di zero.`;
+    if (n(r.unit_price, -1) < 0)
+      return `«${r.description.trim()}»: il prezzo non può essere negativo.`;
+    if (n(r.vat_rate, -1) < 0 || n(r.vat_rate) > 100)
+      return `«${r.description.trim()}»: l'IVA va da 0 a 100.`;
   }
   return null;
 }
 
 /** Le righe come le vuole purchase_order_items. */
-export function righePerDatabase(righe: RigaNuovoOda[], companyId: string, poId: string) {
+export function righePerDatabase(
+  righe: RigaNuovoOda[],
+  companyId: string,
+  poId: string,
+) {
   return righeInOrdine(righe).map((r, i) => ({
     company_id: companyId,
     purchase_order_id: poId,
@@ -104,6 +136,7 @@ export function righePerDatabase(righe: RigaNuovoOda[], companyId: string, poId:
     quantity: n(r.quantity),
     unit_of_measure: r.unit_of_measure.trim() || "pz",
     unit_price: n(r.unit_price),
+    price_pending: !!r.price_pending && n(r.unit_price) === 0,
     vat_rate: n(r.vat_rate, 22),
     discount_percent: 0,
     sort_order: i,

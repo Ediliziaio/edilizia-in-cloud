@@ -21741,6 +21741,12 @@ export type Database = {
           },
         ]
       }
+      company_document_templates: {
+        Row: { company_id: string; document_type: string; config: Json; updated_at: string }
+        Insert: { company_id: string; document_type: string; config?: Json; updated_at?: string }
+        Update: { company_id?: string; document_type?: string; config?: Json; updated_at?: string }
+        Relationships: [{ foreignKeyName: "company_document_templates_company_id_fkey"; columns: ["company_id"]; isOneToOne: false; referencedRelation: "companies"; referencedColumns: ["id"] }]
+      }
       company_email_preferences: {
         Row: {
           company_id: string
@@ -67764,6 +67770,7 @@ export type Database = {
           sort_order: number
           stock_item_id: string | null
           unit_of_measure: string | null
+          price_pending: boolean
           unit_price: number
           updated_at: string
           vat_amount: number | null
@@ -67788,6 +67795,7 @@ export type Database = {
           sort_order?: number
           stock_item_id?: string | null
           unit_of_measure?: string | null
+          price_pending?: boolean
           unit_price?: number
           updated_at?: string
           vat_amount?: number | null
@@ -67812,6 +67820,7 @@ export type Database = {
           sort_order?: number
           stock_item_id?: string | null
           unit_of_measure?: string | null
+          price_pending?: boolean
           unit_price?: number
           updated_at?: string
           vat_amount?: number | null

@@ -35,7 +35,7 @@ export interface SupplierRfq {
   motivazione_scelta: string | null;
   note: string | null;
   created_at: string;
-  orders?: { order_code: string | null } | null;
+  orders?: { order_code: string | null; work_address?: string | null } | null;
 }
 
 export interface RfqItem {
@@ -137,7 +137,7 @@ export function useSupplierRfqs() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("supplier_rfqs")
-        .select("*, orders(order_code)")
+        .select("*, orders(order_code, work_address)")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -271,7 +271,7 @@ export function useSupplierRfqDetail(rfqId: string | null) {
     queryKey: rfqKeys.detail(rfqId),
     queryFn: async () => {
       const [rfqRes, itemsRes, fornRes] = await Promise.all([
-        (supabase as any).from("supplier_rfqs").select("*, orders(order_code)").eq("id", rfqId!).single(),
+        (supabase as any).from("supplier_rfqs").select("*, orders(order_code, work_address)").eq("id", rfqId!).single(),
         (supabase as any).from("supplier_rfq_items").select("*").eq("rfq_id", rfqId!).order("posizione"),
         (supabase as any)
           .from("supplier_rfq_suppliers")

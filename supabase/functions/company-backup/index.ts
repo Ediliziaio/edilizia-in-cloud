@@ -94,6 +94,29 @@ const TETTO_MS = 330_000;
 type Admin = ReturnType<typeof createClient>;
 
 /**
+ * I backup più vecchi di 90 giorni si cancellano (DPA e Termini, 30/10/2026).
+ * L'elenco lo dà admin_backup_scaduti, che non toglie mai l'ultima copia di
+ * un'azienda ancora attiva; qui si cancellano i file dallo storage a lotti.
+ */
+// deno-lint-ignore no-explicit-any
+async function puliziaBackupScaduti(admin: any): Promise<{ cancellati: number; errore?: string }> {
+  let cancellati = 0;
+  for (let giro = 0; giro < 20; giro++) {
+    const { data, error } = await admin.rpc("admin_backup_scaduti", { p_limite: 500 });
+    if (error) return { cancellati, errore: error.message };
+    const nomi = ((data ?? []) as string[]).filter(Boolean);
+    if (!nomi.length) break;
+    for (let i = 0; i < nomi.length; i += 100) {
+      const { error: errRm } = await admin.storage.from(BUCKET).remove(nomi.slice(i, i + 100));
+      if (errRm) return { cancellati, errore: errRm.message };
+      cancellati += Math.min(100, nomi.length - i);
+    }
+    if (nomi.length < 500) break;
+  }
+  return { cancellati };
+}
+
+/**
  * Il backup di un'azienda a blocchi: l'area super admin, e dal 20/09 ogni
  * azienda troppo grande per il dump unico. Scrive sempre l'indice, anche se si
  * ferma a metà.
@@ -347,12 +370,17 @@ Deno.serve(conMetriche("company-backup", async (req) => {
 
     const falliti = esiti.filter((e) => e.errore).length;
 
+    // Il giro settimanale completo toglie anche i backup scaduti (oltre 90 giorni).
+    const pulizia = soloUna ? null : await puliziaBackupScaduti(admin);
+    if (pulizia?.errore) console.error("[company-backup] pulizia backup scaduti:", pulizia.errore);
+
     return new Response(
       JSON.stringify({
         aziende: esiti.length,
         riusciti: esiti.length - falliti,
         falliti,
         esiti,
+        backup_scaduti_cancellati: pulizia?.cancellati ?? null,
       }),
       {
         // Se falliscono tutte è un guasto vero e deve risultare tale nelle

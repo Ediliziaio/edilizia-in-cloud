@@ -34,7 +34,12 @@ import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher"
 
 export type ComposeMode = "new" | "reply" | "replyAll" | "forward";
 
+export interface ComposeAttachment {
+  name: string; size: number; mime: string; storage_path: string; bucket?: string;
+}
+
 export interface ComposeContext {
+  initialAttachments?: ComposeAttachment[];
   mode: ComposeMode;
   /** Email originale (per reply/forward) */
   source?: {
@@ -209,7 +214,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     );
     setShowCcBcc(initial.cc.length > 0 || initial.bcc.length > 0);
     setOutboxId(null);
-    setAttachments([]);
+    setAttachments(context.initialAttachments ?? []);
   }, [open, context, initial]);
 
   // Upload allegati: storage path = <user_id>/<outbox_id|tmp>/<uuid>-<filename>

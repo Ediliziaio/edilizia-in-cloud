@@ -4,8 +4,8 @@ export default function TerminiServizio() {
   return (
     <LegalLayout
       title="Termini e Condizioni del Servizio"
-      metaDescription="Termini e condizioni del servizio Edilizia in Cloud (Domus Group S.r.l.): contratto SaaS B2B, durata, prezzi, SLA, recesso, garanzie, foro competente."
-      lastUpdate="27 aprile 2026"
+      metaDescription="Termini e condizioni del servizio Edilizia in Cloud (Domus Group S.r.l.): contratto SaaS B2B, durata, corrispettivi, disponibilità, recesso, garanzie, foro competente."
+      lastUpdate="30 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Termini-e-Condizioni.pdf"
       currentPath="/termini-e-condizioni"
     >
@@ -17,7 +17,7 @@ export default function TerminiServizio() {
         agiscono nell'ambito della propria attività imprenditoriale o professionale.
       </p>
       <p>
-        <strong>Ultimo aggiornamento:</strong> 27 aprile 2026 · <strong>Versione:</strong> 1.0
+        <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026 · <strong>Versione:</strong> 1.1
       </p>
 
       <h2>Indice</h2>
@@ -34,7 +34,7 @@ export default function TerminiServizio() {
         <li>Recesso e risoluzione</li>
         <li>Effetti della cessazione e portabilità dei dati</li>
         <li>Disponibilità del Servizio e manutenzione</li>
-        <li>Moduli specifici: SDI, banca, GPS/timbrature, FEA, AI</li>
+        <li>Moduli specifici: SDI, banca, GPS/timbrature, firma elettronica, AI, documenti di sicurezza</li>
         <li>Obblighi e dichiarazioni del Cliente</li>
         <li>Esclusione di garanzie</li>
         <li>Limitazione di responsabilità</li>
@@ -55,7 +55,8 @@ export default function TerminiServizio() {
         <strong>1.1</strong> Le presenti condizioni generali (le "Condizioni") disciplinano la fornitura
         del software-as-a-service denominato "Edilizia in Cloud" da parte di Domus Group S.r.l., con
         sede legale in Via Aurelio Saffi 29, 20123 Milano (MI), P.IVA e C.F. 13132010961, iscritta al
-        Registro delle Imprese di Milano Monza Brianza Lodi, capitale sociale € 20.000,00 i.v., PEC
+        Registro delle Imprese di Milano Monza Brianza Lodi al n. 13132010961, REA n. [DA COMPLETARE:
+        numero REA], capitale sociale € 20.000,00 i.v., PEC
         domusgroupsrl@legalmail.it, codice destinatario SDI USAL8PV, email{" "}
         <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a> (di seguito la "Società"
         o "EiC"), nei confronti del cliente che ne sottoscrive l'utilizzo (il "Cliente" e,
@@ -72,7 +73,8 @@ export default function TerminiServizio() {
         </li>
         <li>
           <strong>Piattaforma:</strong> l'applicazione web accessibile all'indirizzo
-          app.ediliziaincloud.com, lavori.ediliziaincloud.com e relative app mobili;
+          app.ediliziaincloud.com e ai relativi sottodomini (ad esempio lavori.ediliziaincloud.com e
+          clienti.ediliziaincloud.com), nonché le eventuali app mobili;
         </li>
         <li>
           <strong>Account:</strong> lo spazio applicativo riservato al Cliente, accessibile mediante
@@ -88,7 +90,12 @@ export default function TerminiServizio() {
         </li>
         <li>
           <strong>Piano:</strong> il piano di abbonamento prescelto dal Cliente, comprensivo di
-          funzionalità, limiti d'uso, durata e corrispettivo;
+          funzionalità, limiti d'uso, durata e corrispettivo, come indicati nell'Offerta;
+        </li>
+        <li>
+          <strong>Offerta:</strong> la proposta commerciale, il modulo d'ordine o la pagina di
+          attivazione dell'abbonamento nella Piattaforma, accettati dal Cliente, che indicano Piano,
+          Add-on, corrispettivi, durata ed eventuali condizioni particolari;
         </li>
         <li>
           <strong>Add-on:</strong> moduli o funzionalità opzionali a pagamento aggiuntivo rispetto al
@@ -111,17 +118,20 @@ export default function TerminiServizio() {
         prescelto, dietro pagamento del corrispettivo previsto.
       </p>
       <p>
-        <strong>2.2</strong> Il contratto si perfeziona nel momento in cui il Cliente, inseriti i
-        propri dati e dichiarato espressamente di accettare le presenti Condizioni e la Privacy Policy
-        mediante apposita spunta o sottoscrizione (la "Data di Efficacia"), riceve dalla Società
-        conferma di attivazione dell'Account.
+        <strong>2.2</strong> Il contratto si perfeziona quando il Cliente accetta l'Offerta e
+        dichiara espressamente di accettare le presenti Condizioni, il DPA e di aver preso visione
+        della Privacy Policy, mediante sottoscrizione o apposita spunta, e la Società conferma
+        l'attivazione dell'Account (la "Data di Efficacia"). In caso di contrasto, le condizioni
+        particolari dell'Offerta prevalgono sulle presenti Condizioni.
       </p>
       <p>
         <strong>2.3</strong> L'accesso al Servizio è riservato esclusivamente a soggetti che agiscono
         nell'esercizio della propria attività imprenditoriale, professionale o commerciale ai sensi
         dell'art. 3, comma 1, lett. c), del D.Lgs. 206/2005. Le presenti Condizioni non si applicano
         ai consumatori e il Servizio non è destinato all'utilizzo a fini personali o domestici. Con
-        l'accettazione, il Cliente dichiara espressamente di non essere consumatore.
+        l'accettazione, il Cliente dichiara espressamente di non essere consumatore; di conseguenza
+        non si applicano, tra l'altro, le norme sul diritto di recesso previste per i consumatori
+        dagli artt. 52 e seguenti del D.Lgs. 206/2005.
       </p>
       <p>
         <strong>2.4</strong> Sono espressamente escluse dall'applicazione le condizioni generali o
@@ -132,8 +142,8 @@ export default function TerminiServizio() {
 
       <h2>3. Registrazione e attivazione dell'account</h2>
       <p>
-        <strong>3.1</strong> Per accedere al Servizio il Cliente è tenuto a registrarsi fornendo i
-        dati richiesti, tutti veritieri, completi e aggiornati. La Società si riserva la facoltà di
+        <strong>3.1</strong> Per accedere al Servizio il Cliente è tenuto a fornire, in fase di
+        ordine o di attivazione, i dati richiesti, tutti veritieri, completi e aggiornati. La Società si riserva la facoltà di
         rifiutare la registrazione a propria insindacabile discrezione.
       </p>
       <p>
@@ -163,7 +173,7 @@ export default function TerminiServizio() {
         essere cedute, condivise o utilizzate da soggetti diversi dal titolare. Il Cliente è tenuto a
         custodire le credenziali con la diligenza richiesta dalla natura del Servizio e a comunicare
         immediatamente alla Società qualsiasi sospetto utilizzo non autorizzato, a mezzo email a{" "}
-        <a href="mailto:supporto@ediliziaincloud.com">supporto@ediliziaincloud.com</a>.
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
       <p>
         <strong>4.3</strong> Tutte le operazioni effettuate tramite le credenziali del Cliente o degli
@@ -241,10 +251,10 @@ export default function TerminiServizio() {
 
       <h2>6. Piani di abbonamento, corrispettivi e pagamenti</h2>
       <p>
-        <strong>6.1</strong> Il Servizio è offerto secondo Piani di abbonamento alternativi,
-        consultabili sul Sito alla pagina <a href="/prezzi/">/prezzi</a>. I Piani si differenziano per
-        durata, corrispettivo, limiti d'uso e funzionalità incluse. Possono essere offerti, a
-        discrezione della Società, Piani personalizzati o tariffe negoziate.
+        <strong>6.1</strong> Il Servizio è offerto secondo Piani di abbonamento che si differenziano
+        per durata, corrispettivo, limiti d'uso e funzionalità incluse. Il Piano, i corrispettivi e
+        gli eventuali limiti d'uso applicabili al Cliente sono quelli indicati nell'Offerta. Possono
+        essere offerti, a discrezione della Società, Piani personalizzati o tariffe negoziate.
       </p>
       <p>
         <strong>6.2</strong> I corrispettivi sono espressi in Euro, IVA esclusa, salvo diversa
@@ -253,17 +263,20 @@ export default function TerminiServizio() {
         fatturazione.
       </p>
       <p>
-        <strong>6.3</strong> Il Cliente autorizza la Società ad addebitare automaticamente il
-        corrispettivo sul metodo di pagamento prescelto (carta di credito, addebito diretto SEPA o
+        <strong>6.3</strong> I pagamenti ricorrenti sono gestiti tramite il prestatore di servizi di
+        pagamento Stripe. Il Cliente autorizza la Società ad addebitare automaticamente il
+        corrispettivo sul metodo di pagamento prescelto (carta di pagamento, addebito diretto SEPA o
         altro metodo accettato), per tutta la durata del contratto, senza necessità di autorizzazione
-        preventiva per ciascun addebito.
+        preventiva per ciascun addebito. I dati completi delle carte sono trattati direttamente da
+        Stripe e non sono conservati dalla Società.
       </p>
       <p>
         <strong>6.4</strong> Gli Add-on attivati dal Cliente sono fatturati in aggiunta al
         corrispettivo del Piano. L'attivazione di funzionalità con consumo a metrica (es. SMS, minuti
         voce, chiamate AI, generazione di immagini/video, sintesi vocale, trascrizioni, firme
-        digitali) determina addebiti basati sul volume effettivamente consumato, secondo le tariffe
-        pubblicate. Le tariffe delle funzionalità basate su intelligenza artificiale dipendono dai
+        elettroniche) determina addebiti basati sul volume effettivamente consumato, secondo le
+        tariffe indicate nell'Offerta o comunicate al Cliente nella Piattaforma prima
+        dell'attivazione della funzionalità. Le tariffe delle funzionalità basate su intelligenza artificiale dipendono dai
         costi applicati dai fornitori esterni e possono essere adeguate secondo quanto previsto
         dall'art. 13.5.7.
       </p>
@@ -312,8 +325,9 @@ export default function TerminiServizio() {
       </p>
       <p>
         <strong>7.3</strong> Qualora la modifica comporti un aumento del corrispettivo del Piano
-        superiore al 10% rispetto a quello vigente, ovvero una riduzione sostanziale delle prestazioni
-        essenziali, il Cliente potrà recedere senza costi entro la Data di Efficacia delle Modifiche,
+        superiore al 10% rispetto a quello vigente, una riduzione sostanziale delle prestazioni
+        essenziali ovvero una modifica sostanzialmente peggiorativa delle presenti Condizioni, il
+        Cliente potrà recedere senza costi entro la Data di Efficacia delle Modifiche,
         mediante comunicazione scritta a mezzo PEC. In tal caso, la Società rimborserà al Cliente le
         mensilità eventualmente prepagate e non usufruite.
       </p>
@@ -330,9 +344,11 @@ export default function TerminiServizio() {
         consumi a metrica.
       </p>
       <p>
-        <strong>8.2</strong> Salvo diversa indicazione, alla scadenza della Prova Gratuita il Cliente
-        sarà automaticamente convertito in un abbonamento a pagamento sul Piano selezionato, salvo
-        recesso comunicato dal Cliente prima della scadenza.
+        <strong>8.2</strong> Alla scadenza della Prova Gratuita l'abbonamento a pagamento decorre solo
+        se il Cliente lo ha attivato (accettando l'Offerta e indicando un metodo di pagamento),
+        anche durante la prova; in tal caso il primo addebito avviene alla scadenza della prova,
+        salvo disdetta comunicata prima di tale data. In mancanza di attivazione, l'accesso al
+        Servizio viene limitato o sospeso e ai Contenuti del Cliente si applica l'art. 11.
       </p>
       <p>
         <strong>8.3</strong> La Società può modificare o interrompere la Prova Gratuita in qualsiasi
@@ -348,7 +364,8 @@ export default function TerminiServizio() {
       <p>
         <strong>9.2</strong> Alla scadenza del periodo iniziale, il contratto si intende tacitamente
         rinnovato per un periodo di pari durata, salvo disdetta inviata da una delle Parti all'altra,
-        a mezzo PEC o email certificata, con un preavviso di:
+        a mezzo PEC (o tramite l'apposita funzione della Piattaforma, ove disponibile), con un
+        preavviso di:
       </p>
       <ul>
         <li>15 giorni per i Piani con fatturazione mensile;</li>
@@ -390,10 +407,12 @@ export default function TerminiServizio() {
 
       <h2>11. Effetti della cessazione e portabilità dei dati</h2>
       <p>
-        <strong>11.1</strong> A seguito della cessazione del contratto, per qualunque causa, il
-        Cliente non potrà più accedere al Servizio. La Società conserverà i Contenuti del Cliente per
-        30 giorni dalla data di cessazione, durante i quali il Cliente potrà richiedere l'esportazione
-        dei propri dati nei formati standard messi a disposizione (es. CSV, JSON, XML, PDF).
+        <strong>11.1</strong> Per tutta la durata del contratto il Cliente può esportare i propri
+        dati tramite le funzioni di esportazione della Piattaforma. A seguito della cessazione del
+        contratto, per qualunque causa, il Cliente non potrà più utilizzare il Servizio. La Società
+        conserverà i Contenuti del Cliente per 30 giorni dalla data di cessazione, durante i quali il
+        Cliente potrà richiederne l'esportazione o la restituzione nei formati standard messi a
+        disposizione (es. CSV, JSON, XML, PDF).
       </p>
       <p>
         <strong>11.2</strong> Decorsi i 30 giorni, la Società procederà alla cancellazione dei
@@ -408,7 +427,11 @@ export default function TerminiServizio() {
           i dati conservati nei backup di sicurezza, che saranno cancellati secondo il normale ciclo
           di rotazione dei backup (massimo 90 giorni);
         </li>
-        <li>i dati strettamente necessari per la difesa di un diritto in giudizio.</li>
+        <li>i dati strettamente necessari per la difesa di un diritto in giudizio;</li>
+        <li>
+          le evidenze delle firme elettroniche avanzate, conservate per conto del Cliente per il
+          periodo indicato all'art. 13.4.
+        </li>
       </ul>
       <p>
         <strong>11.3</strong> La Società potrà fornire, a richiesta del Cliente e contro pagamento di
@@ -419,11 +442,17 @@ export default function TerminiServizio() {
       <h2>12. Disponibilità del Servizio e manutenzione</h2>
       <p>
         <strong>12.1</strong> La Società si impegna a fornire il Servizio in modalità professionale,
-        secondo gli standard di settore, con un obiettivo di disponibilità mensile pari almeno al{" "}
-        <strong>99,5%</strong> calcolato su base mensile (l'"SLA"), escludendo dal calcolo le
-        interruzioni programmate, le cause di forza maggiore, gli eventi non imputabili alla Società e
-        i malfunzionamenti dovuti a fattori esterni (connessione Internet del Cliente, dispositivi
-        del Cliente, servizi di terzi).
+        secondo gli standard di settore, adoperandosi con la massima diligenza (best effort) per
+        assicurarne la continuità. Il Servizio è erogato su infrastruttura cloud di fornitori terzi:
+        il database, l'autenticazione, l'archiviazione dei file e le funzioni server sono ospitati
+        da Supabase in data center situati nell'Unione Europea (Irlanda); l'applicazione e il Sito
+        sono distribuiti tramite Cloudflare Pages. Lo stato del database è controllato
+        automaticamente a intervalli regolari. Salvo che l'Offerta preveda espressamente livelli di
+        servizio specifici (l'"SLA"), la Società non garantisce una percentuale minima di
+        disponibilità; restano in ogni caso esclusi dal calcolo di qualsiasi SLA le interruzioni
+        programmate, le cause di forza maggiore, gli eventi non imputabili alla Società e i
+        malfunzionamenti dovuti a fattori esterni (connessione Internet del Cliente, dispositivi del
+        Cliente, servizi di terzi).
       </p>
       <p>
         <strong>12.2</strong> Le manutenzioni programmate saranno preferibilmente effettuate in orari
@@ -436,14 +465,22 @@ export default function TerminiServizio() {
         comporti responsabilità della Società.
       </p>
       <p>
-        <strong>12.4</strong> Eventuali rimedi per il mancato rispetto dello SLA sono limitati al
+        <strong>12.4</strong> Ove uno SLA sia stato concordato nell'Offerta, salvo diversa previsione
+        della stessa, gli eventuali rimedi per il suo mancato rispetto sono limitati al
         riconoscimento, su richiesta scritta del Cliente entro 30 giorni dall'evento, di crediti di
         servizio (service credit) il cui importo non potrà eccedere il 10% del corrispettivo mensile
         relativo al mese in cui si è verificata la mancata disponibilità. Tali crediti rappresentano
         l'unico ed esclusivo rimedio del Cliente per la mancata disponibilità del Servizio.
       </p>
+      <p>
+        <strong>12.5</strong> La Società esegue copie di sicurezza periodiche dei dati di ciascun
+        Cliente (attualmente con cadenza settimanale, oltre ai backup dell'infrastruttura) e verifica
+        periodicamente la procedura di ripristino. Tali copie servono al ripristino del Servizio e
+        non sostituiscono le copie che il Cliente è tenuto a conservare autonomamente ai sensi
+        dell'art. 16.4.
+      </p>
 
-      <h2>13. Moduli specifici: SDI, banca, GPS/timbrature, FEA, AI</h2>
+      <h2>13. Moduli specifici: SDI, banca, GPS/timbrature, firma elettronica, AI, documenti di sicurezza</h2>
       <p>
         Alcuni moduli del Servizio richiedono adempimenti, autorizzazioni o procedure di competenza
         esclusiva del Cliente. La Società mette a disposizione la tecnologia, ma non si sostituisce
@@ -454,18 +491,22 @@ export default function TerminiServizio() {
       <h3>13.1 Fatturazione elettronica e SDI</h3>
       <p>
         L'invio e la ricezione di fatture elettroniche tramite Sistema di Interscambio sono erogati
-        per il tramite di un intermediario fiscale accreditato (il "Provider SDI", attualmente Aruba
-        S.p.A.). Il Cliente è tenuto a:
+        per il tramite di un fornitore terzo di servizi di trasmissione (il "Provider SDI",
+        attualmente Openapi S.p.A. – openapi.it). Il Cliente è tenuto a:
       </p>
       <ul>
         <li>
-          conferire al Provider SDI la delega ai sensi dell'Agenzia delle Entrate, secondo le
-          procedure di volta in volta applicabili;
+          effettuare le registrazioni, le comunicazioni e le eventuali deleghe richieste
+          dall'Agenzia delle Entrate o dal Provider SDI (ad esempio la registrazione del codice
+          destinatario per la ricezione), secondo le procedure di volta in volta applicabili;
         </li>
         <li>verificare la correttezza dei dati anagrafici, IVA e di trasmissione prima dell'invio;</li>
         <li>
-          conservare copia delle fatture secondo gli obblighi di legge (anche tramite il servizio
-          opzionale di conservazione digitale a norma).
+          provvedere alla conservazione digitale a norma delle fatture elettroniche, direttamente
+          (ad esempio tramite il servizio gratuito dell'Agenzia delle Entrate) o tramite un
+          conservatore di propria scelta. La Società non svolge il servizio di conservazione a
+          norma: l'archivio delle fatture presente nella Piattaforma è una copia di consultazione e
+          non sostituisce la conservazione prevista dalla legge.
         </li>
       </ul>
       <p>
@@ -476,9 +517,12 @@ export default function TerminiServizio() {
 
       <h3>13.2 Modulo Banca (PSD2 / Open Banking)</h3>
       <p>
-        Il modulo di integrazione bancaria si avvale di un fornitore terzo autorizzato all'account
-        information service ai sensi della Direttiva (UE) 2015/2366 (PSD2), attualmente GoCardless
-        Ltd. L'attivazione richiede che il Cliente, in qualità di titolare del conto, autorizzi
+        Il collegamento automatico ai conti bancari, ove disponibile, si avvale di fornitori terzi
+        autorizzati al servizio di informazione sui conti (account information service) ai sensi
+        della Direttiva (UE) 2015/2366 (PSD2), indicati nella Privacy Policy e nel DPA (il "fornitore
+        PSD2"); il collegamento consente la sola lettura dei movimenti e non permette di disporre
+        pagamenti. In alternativa il Cliente può importare manualmente gli estratti conto.
+        L'attivazione del collegamento richiede che il Cliente, in qualità di titolare del conto, autorizzi
         espressamente il fornitore PSD2 ad accedere ai dati del proprio conto presso la propria
         banca. Il Cliente:
       </p>
@@ -510,9 +554,10 @@ export default function TerminiServizio() {
       <p>Il Cliente, in qualità di datore di lavoro, è tenuto a:</p>
       <ul>
         <li>
-          concludere un accordo collettivo con le rappresentanze sindacali ovvero, in alternativa,
-          ottenere la previa autorizzazione della Direzione Territoriale del Lavoro / Ispettorato
-          Nazionale del Lavoro;
+          ove richiesto dall'art. 4, comma 1, dello Statuto dei Lavoratori, concludere un accordo
+          collettivo con le rappresentanze sindacali ovvero, in alternativa, ottenere la previa
+          autorizzazione dell'Ispettorato Territoriale del Lavoro (o dell'Ispettorato Nazionale del
+          Lavoro, per le unità produttive in più ambiti territoriali);
         </li>
         <li>
           fornire ai propri dipendenti adeguata informativa privacy e sui controlli, ai sensi
@@ -531,21 +576,46 @@ export default function TerminiServizio() {
         non siano stati assolti.
       </p>
 
-      <h3>13.4 Firma Elettronica Avanzata (FEA)</h3>
+      <h3>13.4 Firma elettronica (semplice e avanzata)</h3>
       <p>
-        Il modulo FEA è erogato in conformità al Regolamento (UE) 910/2014 ("eIDAS") e al D.P.C.M. 22
-        febbraio 2013. Il Cliente è tenuto a fornire ai firmatari l'informativa preventiva e ad
-        acquisirne il consenso all'utilizzo della FEA prima di richiedere la sottoscrizione di
-        documenti. Le firme acquisite hanno valenza giuridica nei limiti previsti dalla normativa
-        applicabile.
+        <strong>13.4.1</strong> La Piattaforma consente al Cliente di far sottoscrivere documenti (ad
+        esempio preventivi, contratti, rapportini) ai propri clienti e interlocutori. In via
+        predefinita la sottoscrizione avviene con una firma elettronica semplice, mediante codice
+        monouso inviato via email o SMS. Il Cliente può attivare, per la propria azienda, la firma
+        elettronica avanzata ("FEA") ai sensi del Regolamento (UE) 910/2014 ("eIDAS"), del D.Lgs.
+        82/2005 (CAD) e del D.P.C.M. 22 febbraio 2013: in tal caso il firmatario viene identificato
+        tramite documento di identità, accetta le condizioni del servizio di firma e le evidenze
+        della firma (documento di identità, dichiarazione di accettazione, dati tecnici della
+        sottoscrizione) sono conservate dalla Piattaforma, per conto del Cliente, per 20 anni.
+      </p>
+      <p>
+        <strong>13.4.2</strong> Nei confronti dei propri firmatari, il Cliente è il soggetto che
+        eroga la soluzione di FEA ai sensi dell'art. 55, comma 2, lett. a), del D.P.C.M. 22 febbraio
+        2013, mentre la Società fornisce esclusivamente la soluzione tecnologica. Restano pertanto a
+        carico del Cliente gli obblighi che la normativa pone in capo al soggetto erogatore, tra cui:
+        l'identificazione certa del firmatario, l'informativa preventiva e l'acquisizione della
+        dichiarazione di accettazione delle condizioni del servizio, la messa a disposizione delle
+        informazioni previste dall'art. 57 e, ove applicabile, la copertura assicurativa di cui
+        all'art. 57, comma 2, del medesimo decreto. La Società non fornisce tale copertura
+        assicurativa, salvo diverso accordo scritto.
+      </p>
+      <p>
+        <strong>13.4.3</strong> Il Servizio non rilascia firme elettroniche qualificate o firme
+        digitali, non appone marche temporali qualificate, non genera i documenti firmati in formato
+        PDF/A e non prevede l'identificazione tramite SPID o CIE. L'efficacia probatoria delle firme
+        acquisite è quella prevista dalla normativa applicabile (in particolare artt. 20 e 21 del
+        CAD) per la tipologia di firma utilizzata; spetta al Cliente valutare se tale tipologia è
+        adeguata al documento da sottoscrivere, tenendo conto che per taluni atti la legge richiede
+        la firma qualificata o digitale.
       </p>
 
       <h3>13.5 Funzionalità di intelligenza artificiale</h3>
       <p>
         <strong>13.5.1</strong> La Piattaforma integra numerose funzionalità basate su sistemi di
         intelligenza artificiale (le "Funzionalità AI"), tra cui, a titolo esemplificativo e non
-        esaustivo: assistenti conversazionali e agenti AI (inclusi agenti vocali e bot WhatsApp),
-        generazione e assistenza alla redazione di preventivi e computi, estrazione di dati da
+        esaustivo: l'assistente "Silvio" e altri assistenti conversazionali e agenti AI (inclusi
+        agenti vocali e bot WhatsApp), generazione e assistenza alla redazione di preventivi,
+        computi e documenti di sicurezza, lettura ed estrazione di dati da
         immagini e documenti, generazione di immagini e video promozionali, sintesi vocale
         (text-to-speech) e trascrizione audio, ricerca semantica e suggerimenti contestuali,
         generazione di contenuti per campagne pubblicitarie.
@@ -555,12 +625,11 @@ export default function TerminiServizio() {
         avvale di modelli e servizi di intelligenza artificiale di fornitori terzi (i "Fornitori
         AI"), in parte tramite l'aggregatore OpenRouter e in parte tramite integrazione diretta. I
         principali Fornitori AI utilizzati includono, a titolo esemplificativo e non esaustivo:
-        Anthropic (Claude), OpenAI (GPT, GPT-image, DALL·E), Moonshot AI (Kimi), Google (Gemini),
-        DeepSeek, xAI (Grok), Meta (Llama), Mistral AI, Cohere, Qwen (Alibaba), Perplexity, ElevenLabs
-        (sintesi vocale), Replicate e MiniMax (generazione immagini/video). L'elenco dei Fornitori AI
-        può variare nel tempo in funzione dell'evoluzione tecnologica, della disponibilità e delle
-        prestazioni dei modelli; l'elenco aggiornato dei sub-responsabili è disponibile all'indirizzo
-        www.ediliziaincloud.com/sub-processors.
+        Anthropic (Claude), OpenAI (GPT), Google (Gemini) e DeepSeek, nonché ulteriori fornitori per
+        la sintesi vocale e la generazione di immagini e video. L'elenco dei Fornitori AI può variare
+        nel tempo in funzione dell'evoluzione tecnologica, della disponibilità e delle prestazioni
+        dei modelli; l'elenco dei sub-responsabili è riportato nella Privacy Policy (par. 9.2) e
+        nell'Allegato 3 del DPA ed è disponibile su richiesta scritta.
       </p>
       <p>
         <strong>13.5.3 — Natura di strumento di supporto.</strong> Le Funzionalità AI sono offerte
@@ -569,7 +638,17 @@ export default function TerminiServizio() {
         informazioni non aggiornate o non veritiere (cosiddette "allucinazioni"). Gli output non
         costituiscono e non sostituiscono in alcun modo la valutazione, la consulenza o la decisione
         del Cliente né dei suoi professionisti di fiducia (commercialista, consulente del lavoro,
-        tecnico abilitato, legale).
+        tecnico abilitato, legale). La Società non garantisce la correttezza, la completezza o
+        l'idoneità degli output.
+      </p>
+      <p>
+        <strong>13.5.3-bis — Disponibilità e limiti d'uso.</strong> Le Funzionalità AI possono essere
+        soggette a limiti di utilizzo (ad esempio crediti, soglie o quote indicate nell'Offerta o
+        nella Piattaforma) e possono risultare temporaneamente non disponibili o funzionare con
+        modelli alternativi per cause dipendenti dai Fornitori AI (ad esempio indisponibilità del
+        servizio o esaurimento del credito presso il fornitore). Tali circostanze non costituiscono
+        inadempimento della Società, che si adopera per ripristinare il funzionamento nel più breve
+        tempo possibile.
       </p>
       <p>
         <strong>13.5.4 — Responsabilità del Cliente nell'uso degli strumenti AI.</strong> Il Cliente
@@ -610,19 +689,17 @@ export default function TerminiServizio() {
         Funzionalità AI.
       </p>
       <p>
-        <strong>13.5.5 — Conformità all'AI Act.</strong> La Società opera in conformità ai principi
-        del Regolamento (UE) 2024/1689 ("AI Act") applicabili al proprio ruolo di fornitore o deployer
-        dei sistemi AI integrati, adottando misure di trasparenza, governance e supervisione umana
-        proporzionate al livello di rischio. Il Cliente, qualora utilizzi le Funzionalità AI
+        <strong>13.5.5 — AI Act.</strong> La Società si impegna a rispettare gli obblighi del
+        Regolamento (UE) 2024/1689 ("AI Act") applicabili al proprio ruolo in relazione ai sistemi AI
+        integrati, secondo le scadenze di applicazione previste dal Regolamento. Il Cliente, qualora utilizzi le Funzionalità AI
         nell'ambito di processi che ricadano nell'AI Act, è a sua volta tenuto al rispetto degli
         obblighi che la normativa pone a suo carico in qualità di deployer/utilizzatore.
       </p>
       <p>
-        <strong>13.5.6 — Tutela dei dati e assenza di addestramento.</strong> La Società adotta
-        misure tecniche e contrattuali affinché i dati del Cliente trasmessi ai Fornitori AI non
-        siano utilizzati per addestrare, perfezionare o migliorare i modelli dei Fornitori AI, in
-        conformità ai contratti commerciali (API enterprise/business) sottoscritti con tali
-        fornitori. Resta inteso che la Società non controlla direttamente i sistemi dei Fornitori AI
+        <strong>13.5.6 — Tutela dei dati e addestramento.</strong> La Società utilizza i Fornitori AI
+        tramite le rispettive interfacce di programmazione (API) e seleziona, ove disponibili,
+        impostazioni e fornitori le cui condizioni escludono l'utilizzo dei dati trasmessi per
+        addestrare o migliorare i propri modelli. Resta inteso che la Società non controlla direttamente i sistemi dei Fornitori AI
         e che eventuali variazioni delle loro policy sono al di fuori della sfera di controllo della
         Società, che si impegna a selezionare fornitori che offrano garanzie adeguate. Per i dettagli
         si rinvia all'art. 6 della Privacy Policy.
@@ -639,7 +716,7 @@ export default function TerminiServizio() {
         qualora l'adeguamento del corrispettivo del Piano ecceda la soglia ivi prevista, il Cliente
         potrà esercitare il diritto di recesso secondo le modalità dell'art. 7.3. Per le funzionalità
         a consumo, gli adeguamenti delle tariffe unitarie potranno essere applicati con un preavviso
-        di almeno 15 giorni mediante pubblicazione sul Sito o comunicazione al Cliente.
+        di almeno 15 giorni mediante comunicazione al Cliente via email o nella Piattaforma.
       </p>
 
       <h3>13.6 Modulo campagne pubblicitarie e marketing (Ads)</h3>
@@ -701,6 +778,22 @@ export default function TerminiServizio() {
         all'art. 17, la Società potrà sospendere in via cautelativa le funzionalità di comunicazione
         interessate ai sensi dell'art. 5.4, anche a tutela della deliverability e della reputazione
         dell'infrastruttura di invio condivisa.
+      </p>
+
+      <h3>13.8 Documenti di sicurezza e documenti tecnici</h3>
+      <p>
+        <strong>13.8.1</strong> La Piattaforma può aiutare il Cliente a predisporre documenti in
+        materia di salute e sicurezza sul lavoro (ad esempio Piano Operativo di Sicurezza – POS e
+        Documento Unico di Valutazione dei Rischi da Interferenze – DUVRI), nonché preventivi,
+        computi e altri documenti tecnici, anche con l'ausilio delle Funzionalità AI. Si tratta di
+        uno strumento di supporto alla redazione: la Società non svolge attività di consulenza in
+        materia di sicurezza né funzioni di RSPP, coordinatore per la sicurezza o tecnico.
+      </p>
+      <p>
+        <strong>13.8.2</strong> Il Cliente, in qualità di datore di lavoro o impresa esecutrice,
+        resta l'unico responsabile del contenuto, della completezza, dell'aggiornamento e
+        dell'adozione di tali documenti ai sensi del D.Lgs. 81/2008 e della normativa applicabile, e
+        si impegna a farli verificare e sottoscrivere dai soggetti competenti prima dell'utilizzo.
       </p>
 
       <h2>14. Obblighi e dichiarazioni del Cliente</h2>
@@ -873,6 +966,12 @@ export default function TerminiServizio() {
         livello dei corrispettivi pattuiti, e resterebbero valide anche qualora un rimedio previsto
         dal contratto dovesse risultare carente nel suo scopo essenziale.
       </p>
+      <p>
+        <strong>16.8</strong> Ai sensi dell'art. 1229 c.c., nessuna delle limitazioni ed esclusioni
+        di responsabilità previste dalle presenti Condizioni si applica in caso di dolo o colpa
+        grave della Società, né alle responsabilità che non possono essere escluse o limitate per
+        legge.
+      </p>
 
       <h2>17. Manleva</h2>
       <p>
@@ -899,8 +998,9 @@ export default function TerminiServizio() {
         </li>
         <li>
           mancato adempimento, da parte del Cliente, degli obblighi previsti all'art. 13 (in
-          particolare in materia di accordo sindacale ex art. 4 dello Statuto dei Lavoratori, deleghe
-          SDI e autorizzazioni PSD2).
+          particolare in materia di accordo sindacale ex art. 4 dello Statuto dei Lavoratori,
+          adempimenti per la fatturazione elettronica e la conservazione, autorizzazioni PSD2,
+          obblighi del soggetto erogatore della FEA e documenti di sicurezza).
         </li>
       </ul>
       <p>
@@ -1031,9 +1131,7 @@ export default function TerminiServizio() {
         <strong>23.1</strong> Tutte le comunicazioni inerenti al contratto avverranno per iscritto
         all'indirizzo email indicato dal Cliente in fase di registrazione (e mantenuto aggiornato) e
         all'indirizzo email{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a> della Società. Per
-        questioni legali e contrattuali:{" "}
-        <a href="mailto:legal@ediliziaincloud.com">legal@ediliziaincloud.com</a>.
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a> della Società.
       </p>
       <p>
         <strong>23.2</strong> Le comunicazioni a valore legale (disdetta, recesso, contestazioni,
@@ -1101,16 +1199,29 @@ export default function TerminiServizio() {
         1341 e 1342 del codice civile, le seguenti clausole:
       </p>
       <ul>
-        <li>art. 5 (Utilizzo del Servizio e divieti);</li>
+        <li>art. 2.4 (Esclusione delle condizioni generali del Cliente);</li>
+        <li>art. 3.1 e 3.4 (Facoltà di rifiutare la registrazione e disabilitazione di account multipli);</li>
+        <li>art. 4.1 e 4.3 (Responsabilità per gli Utenti Autorizzati e per l'uso delle credenziali);</li>
+        <li>art. 5 (Utilizzo del Servizio, divieti e sospensione senza rimborso);</li>
         <li>art. 5.4 (Sospensione cautelativa del Servizio);</li>
-        <li>art. 6.5 e 6.6 (Sospensione e divieto di compensazione);</li>
-        <li>art. 7 (Modifiche unilaterali);</li>
-        <li>art. 9.3 (Recesso anticipato e clausola penale);</li>
-        <li>art. 10 (Risoluzione di diritto);</li>
-        <li>art. 12.4 (Limitazione dei rimedi per lo SLA);</li>
+        <li>art. 6.3 e 6.4 (Addebito automatico e corrispettivi a consumo);</li>
+        <li>art. 6.5 e 6.6 (Sospensione, risoluzione e divieto di compensazione);</li>
+        <li>art. 7 (Modifiche unilaterali e accettazione tacita);</li>
+        <li>art. 8.2 e 8.3 (Effetti della scadenza e interruzione della Prova Gratuita);</li>
+        <li>art. 9.2 (Rinnovo tacito e termini di disdetta);</li>
+        <li>art. 9.3 (Divieto di recesso anticipato e clausola penale);</li>
+        <li>art. 10 (Risoluzione di diritto e corrispettivi dovuti);</li>
+        <li>art. 11 (Cancellazione dei dati dopo la cessazione);</li>
+        <li>art. 12.1, 12.3 e 12.4 (Assenza di garanzia di disponibilità e limitazione dei rimedi);</li>
+        <li>art. 13.1 e 13.2 (Limitazioni di responsabilità per SDI e servizi bancari);</li>
         <li>
           art. 13.3 (Responsabilità del Cliente per accordo sindacale ex art. 4 Statuto dei
-          Lavoratori);
+          Lavoratori e facoltà di sospensione);
+        </li>
+        <li>art. 13.4 (Firma elettronica: obblighi del Cliente quale soggetto erogatore);</li>
+        <li>
+          art. 13.5 (Funzionalità AI: esclusione di responsabilità, limiti d'uso, manleva e
+          adeguamento dei costi);
         </li>
         <li>
           art. 13.6 (Modulo Ads: responsabilità del Cliente per campagne, account e adempimenti
@@ -1125,28 +1236,33 @@ export default function TerminiServizio() {
           art. 16 (Limitazione di responsabilità, massimale aggregato, franchigia e termini di
           decadenza);
         </li>
+        <li>art. 13.8 (Documenti di sicurezza: responsabilità del Cliente);</li>
         <li>art. 17 (Manleva e obbligo di difesa);</li>
+        <li>art. 18 (Forza maggiore, inclusi i disservizi dei fornitori, e facoltà di risoluzione);</li>
         <li>art. 19.4 e 19.6 (Utilizzo di dati aggregati e referenze commerciali);</li>
         <li>art. 22 (Cessione del contratto);</li>
         <li>art. 23-bis (Divieto di sviamento e non sollecitazione);</li>
         <li>art. 25.2 (Foro esclusivo).</li>
       </ul>
+      <p>
+        L'approvazione specifica avviene mediante sottoscrizione separata o apposita spunta
+        distinta da quella di accettazione generale delle Condizioni.
+      </p>
 
-      <h2>Contatti e anagrafica del Titolare</h2>
+      <h2>Contatti e anagrafica della Società</h2>
       <p>
         <strong>Domus Group S.r.l.</strong>
         <br />
         Via Aurelio Saffi 29, 20123 Milano (MI)
         <br />
-        P.IVA e C.F. 13132010961 — Capitale sociale € 20.000,00 i.v.
+        P.IVA e C.F. 13132010961 — REA n. [DA COMPLETARE: numero REA] — Capitale sociale €
+        20.000,00 i.v.
         <br />
         PEC: domusgroupsrl@legalmail.it — SDI: USAL8PV
         <br />
         Email generali: <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
         <br />
         Privacy: <a href="mailto:privacy@ediliziaincloud.com">privacy@ediliziaincloud.com</a>
-        <br />
-        Legale: <a href="mailto:legal@ediliziaincloud.com">legal@ediliziaincloud.com</a>
       </p>
       <p>© 2026 Domus Group S.r.l. — Tutti i diritti riservati.</p>
     </LegalLayout>

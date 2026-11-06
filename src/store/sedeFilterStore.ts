@@ -1,3 +1,4 @@
+import { format } from 'date-fns'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -15,8 +16,8 @@ function defaultPeriodo() {
   const a  = new Date()
   const da = new Date(a.getFullYear(), 0, 1) // 1 gen anno corrente
   return {
-    da: da.toISOString().split('T')[0],
-    a:  a.toISOString().split('T')[0],
+    da: format(da, 'yyyy-MM-dd'),
+    a:  format(a, 'yyyy-MM-dd'),
   }
 }
 

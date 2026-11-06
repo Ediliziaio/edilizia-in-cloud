@@ -30,6 +30,7 @@ import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createIdbPersister, shouldPersistQuerySafe } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BannerCookie } from "@/components/legal/BannerCookie";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
@@ -589,6 +590,7 @@ const App = () => (
         <BootGuardDismiss />
         <SubdomainTitleSetter />
         <GARouteTracker />
+        <BannerCookie />
         <ScrollToTop />
         {/* MobileBootstrap è lazy SOLO su native. Va isolato in un suo Suspense:
             se il suo chunk è lento/non risolve su WKWebView, il fallback={null}

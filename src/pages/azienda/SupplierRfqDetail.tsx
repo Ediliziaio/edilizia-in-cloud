@@ -1,3 +1,5 @@
+import { salvaPrezzoRdo } from "@/lib/orders/salvaPrezzoRdo";
+import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
 /**
  * Richiesta d'offerta — dettaglio.
  *
@@ -22,9 +24,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -43,8 +42,11 @@ import {
 } from "@/hooks/useSupplierRfqs";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useAuth } from "@/contexts/AuthContext";
-import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { EstraiOffertaAIDialog, type RigaEstratta, type PropostaEstratta } from "@/components/rdo/EstraiOffertaAIDialog";
+import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoInvioDialog";
+import { recapitiFornitore } from "@/lib/documentiOperativi/fornitore";
+import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import { buildRdoEmailBody, buildRdoEmailSubject } from "@/lib/rdoEmail";
 import {
   RDO_STATUS_LABELS, RDO_FORNITORE_LABELS, RDO_FORNITORE_COLORS,
@@ -193,6 +195,14 @@ export default function SupplierRfqDetail() {
     };
   };
 
+  const documentoInvio = (f: RfqSupplier): DocumentoOperativo => ({
+    tipo:"richiesta",numero:rfq.rfq_number,data:rfq.created_at?.slice(0,10),
+    ...recapitiFornitore({...suppliers.find(s=>s.id===f.supplier_id),id:f.supplier_id,name:f.suppliers?.name || "Fornitore",email:suppliers.find(s=>s.id===f.supplier_id)?.email || f.suppliers?.email}),
+    pagamento:f.condizioni_pagamento || recapitiFornitore({...suppliers.find(s=>s.id===f.supplier_id),id:f.supplier_id,name:f.suppliers?.name || "Fornitore"}).pagamento,
+    commessa:rfq.orders?.order_code,luogo:rfq.orders?.work_address,indirizzoCantiere:rfq.orders?.work_address,destinazioneTipo:rfq.order_id ? "cantiere" : "magazzino", consegna:rfq.data_fabbisogno,scadenzaOfferta:rfq.scadenza_offerte,
+    note:[rfq.descrizione,rfq.note].filter(Boolean).join("\n"),
+    righe:items.map(i=>({descrizione:[i.descrizione,i.note].filter(Boolean).join("\n"),unita:i.unita_misura || "pz",quantita:Number(i.quantita),prezzo:null})),
+  });
   return (
     <div className="space-y-4 sm:space-y-6">
       {!inPopup && <div className="flex items-center gap-3">
@@ -279,6 +289,7 @@ export default function SupplierRfqDetail() {
                 {items.map((it) => (
                   <div key={it.id} className="flex items-center gap-2">
                     <Input
+                      aria-label="Descrizione voce richiesta"
                       defaultValue={it.descrizione}
                       disabled={!modificabile}
                       onBlur={(e) => {
@@ -290,15 +301,23 @@ export default function SupplierRfqDetail() {
                     />
                     <Input
                       type="number"
+                      aria-label="Quantità richiesta"
+                      min="0.01"
                       defaultValue={String(it.quantita)}
                       disabled={!modificabile}
                       onBlur={(e) => {
-                        const v = Number(e.target.value) || 0;
+                        const v = Number(e.target.value);
+                        if (!Number.isFinite(v) || v <= 0) {
+                          e.target.value = String(it.quantita);
+                          toast.error("Indica una quantità maggiore di zero.");
+                          return;
+                        }
                         if (v !== Number(it.quantita)) updateItem.mutate({ id: it.id, updates: { quantita: v } });
                       }}
                       className="w-20 text-right"
                     />
                     <Input
+                      aria-label="Unità di misura richiesta"
                       defaultValue={it.unita_misura ?? "pz"}
                       disabled={!modificabile}
                       onBlur={(e) => {
@@ -374,17 +393,21 @@ export default function SupplierRfqDetail() {
                                 placeholder="—"
                                 disabled={chiusa}
                                 className={`h-8 text-sm text-right ${vince ? "font-semibold text-emerald-700" : ""}`}
-                                onBlur={(e) => {
-                                  const raw = e.target.value.trim();
-                                  const v = raw === "" ? null : Number(raw);
-                                  if (v === (q?.prezzo_unitario == null ? null : Number(q.prezzo_unitario))) return;
-                                  setQuote.mutate({
-                                    rfq_supplier_id: f.id,
-                                    rfq_item_id: it.id,
-                                    updates: { prezzo_unitario: v, disponibile: v != null },
-                                  });
-                                  // un prezzo scritto a mano è un'offerta arrivata: senza, «Aggiudica» non compariva mai
-                                  if (v != null && f.status !== "risposta") registraOfferta.mutate(f);
+                                aria-label={`Prezzo offerto da ${f.suppliers?.name || "fornitore"} per ${it.descrizione}`}
+                                min="0"
+                                onBlur={async (e) => {
+                                  const input = e.currentTarget;
+                                  const raw = input.value.trim();
+                                  const precedente = q?.prezzo_unitario == null ? null : Number(q.prezzo_unitario);
+                                  try {
+                                    await salvaPrezzoRdo({raw,precedente,
+                                      salva: value => setQuote.mutateAsync({ rfq_supplier_id:f.id,rfq_item_id:it.id,updates:{prezzo_unitario:value,disponibile:value != null} }),
+                                      registraRisposta: f.status !== "risposta" ? () => registraOfferta.mutateAsync(f) : undefined,
+                                    });
+                                  } catch (error) {
+                                    if (input.value.trim() === raw) input.value = precedente == null ? "" : String(precedente);
+                                    toast.error(error instanceof Error ? error.message : "Prezzo non salvato");
+                                  }
                                 }}
                               />
                               {tot != null && (
@@ -520,9 +543,13 @@ export default function SupplierRfqDetail() {
                         <Input
                           type="number"
                           className="h-7 text-xs"
+                          aria-label={`Giorni consegna ${f.suppliers?.name}`}
+                          min="0"
+                          disabled={chiusa}
                           defaultValue={f.giorni_consegna ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value === "" ? null : Number(e.target.value);
+                            if (v != null && (!Number.isFinite(v) || v < 0 || !Number.isInteger(v))) { e.target.value = f.giorni_consegna == null ? "" : String(f.giorni_consegna); toast.error("Indica un numero intero di giorni maggiore o uguale a zero."); return; }
                             if (v !== f.giorni_consegna) {
                               updateFornitore.mutate({ id: f.id, updates: { giorni_consegna: v } });
                             }
@@ -534,6 +561,8 @@ export default function SupplierRfqDetail() {
                         <Input
                           type="date"
                           className="h-7 text-xs"
+                          aria-label={`Validità offerta ${f.suppliers?.name}`}
+                          disabled={chiusa}
                           defaultValue={f.validita_offerta ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value || null;
@@ -553,9 +582,12 @@ export default function SupplierRfqDetail() {
                           step="0.01"
                           className="h-7 text-xs"
                           disabled={chiusa}
+                          aria-label={`Totale offerto ${f.suppliers?.name}`}
+                          min="0"
                           defaultValue={f.totale_offerto ?? ""}
                           onBlur={(e) => {
                             const v = e.target.value === "" ? null : Number(e.target.value);
+                            if (v != null && (!Number.isFinite(v) || v < 0)) {e.target.value = f.totale_offerto == null ? "" : String(f.totale_offerto);toast.error("Il totale offerto non può essere negativo.");return;}
                             if (v !== (f.totale_offerto == null ? null : Number(f.totale_offerto))) {
                               updateFornitore.mutate({ id: f.id, updates: { totale_offerto: v } });
                             }
@@ -588,6 +620,7 @@ export default function SupplierRfqDetail() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs flex-1"
+                          disabled={addItem.isPending || updateItem.isPending || deleteItem.isPending}
                           onClick={() => {
                             if (items.length === 0) {
                               toast.error("Aggiungi almeno una voce prima di chiedere l'offerta");
@@ -738,21 +771,12 @@ export default function SupplierRfqDetail() {
 
               {!chiusa && (
                 <div className="flex gap-2 pt-1">
-                  <Select value={nuovoFornitore} onValueChange={setNuovoFornitore}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Aggiungi fornitore" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliers
-                        .filter((s) => s.is_active && !fornitori.some((f) => f.supplier_id === s.id))
-                        .map((s) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <FornitoreCombobox value={nuovoFornitore} onChange={setNuovoFornitore} fornitori={suppliers.filter(s=>s.is_active && !fornitori.some(f=>f.supplier_id===s.id))}/>
+
                   <Button
                     size="sm"
                     className="h-8"
+                    aria-label="Aggiungi fornitore alla richiesta"
                     disabled={!nuovoFornitore || addFornitore.isPending}
                     onClick={() => {
                       addFornitore.mutate(nuovoFornitore, { onSuccess: () => setNuovoFornitore("") });
@@ -770,7 +794,10 @@ export default function SupplierRfqDetail() {
 
       {/* Invio al singolo fornitore: stesso compositore del resto dell'app. */}
       {inviaA && (
-        <EmailComposeDialog
+        <DocumentoInvioDialog
+          key={effectiveCompany?.id}
+          documento={documentoInvio(inviaA)}
+          orderId={rfq.order_id}
           open={!!inviaA}
           onOpenChange={(o) => { if (!o) setInviaA(null); }}
           context={composeContext(inviaA)}
@@ -905,7 +932,7 @@ export default function SupplierRfqDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAggiudicaA(null)}>Annulla</Button>
+            <Button variant="outline" onClick={() => { setAggiudicaA(null); setMotivazione(""); }}>Annulla</Button>
             <Button
               disabled={aggiudica.isPending || !aggiudicaA || !((totaliPerFornitore[aggiudicaA.id]?.totale ?? 0) > 0)}
               onClick={() => {

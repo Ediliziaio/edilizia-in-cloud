@@ -218,3 +218,25 @@ describe("Commesse → Rapportini", () => {
     expect(stato.refetch).toHaveBeenCalled();
   });
 });
+
+
+describe("Navigazione e filtri dei rapportini", () => {
+  it("rimuove un singolo filtro mantenendo gli altri", () => {
+    apri("?tab=rapportini&rap_cantiere=o2&rap_stato=inviato");
+    fireEvent.click(screen.getByRole("button", { name: "Togli filtro: Da approvare" }));
+    expect(indirizzo()).toContain("rap_cantiere=o2");
+    expect(indirizzo()).not.toContain("rap_stato");
+    expect(screen.getByText("Doppione")).toBeInTheDocument();
+  });
+
+  it("sfoglia soltanto i rapportini dell'elenco filtrato", () => {
+    apri("?tab=rapportini&rap_cantiere=o2&rap_id=r2");
+    expect(screen.getByRole("button", { name: "Precedente" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Successivo" }));
+    expect(indirizzo()).toContain("rap_id=r3");
+    expect(screen.getByText("Ore sbagliate")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Successivo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Precedente" }));
+    expect(indirizzo()).toContain("rap_id=r2");
+  });
+});

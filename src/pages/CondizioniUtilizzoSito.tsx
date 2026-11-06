@@ -5,7 +5,7 @@ export default function CondizioniUtilizzoSito() {
     <LegalLayout
       title="Condizioni di Utilizzo del Sito"
       metaDescription="Condizioni di utilizzo del sito Edilizia in Cloud — regole di navigazione, contenuti, account e responsabilità. Domus Group S.r.l."
-      lastUpdate="27 aprile 2026"
+      lastUpdate="30 ottobre 2026"
       downloadHref="/legal/Edilizia-in-Cloud_Condizioni-Utilizzo-Sito.pdf"
       currentPath="/condizioni-utilizzo"
     >
@@ -17,8 +17,8 @@ export default function CondizioniUtilizzoSito() {
       </p>
 
       <p>
-        <strong>Ultimo aggiornamento:</strong> 27 aprile 2026 &middot; <strong>Versione:</strong>{" "}
-        1.0
+        <strong>Ultimo aggiornamento:</strong> 30 ottobre 2026 &middot; <strong>Versione:</strong>{" "}
+        1.1
       </p>
 
       <p>
@@ -69,7 +69,7 @@ export default function CondizioniUtilizzoSito() {
         <strong>1.3</strong> L&apos;eventuale utilizzo dei Servizi in qualità di Cliente è regolato
         da un autonomo contratto, costituito dai &laquo;Termini e Condizioni&raquo; del Servizio,
         dalla Privacy Policy, dal Data Processing Agreement e da ogni altro documento contrattuale
-        applicabile, che il Cliente accetta espressamente in fase di registrazione. Le presenti
+        applicabile, che il Cliente accetta espressamente in fase di sottoscrizione. Le presenti
         Condizioni si applicano cumulativamente ai documenti contrattuali sopra indicati per la
         parte che attiene alla navigazione del Sito; in caso di contrasto, prevalgono le previsioni
         dei Termini e Condizioni del Servizio relativamente all&apos;utilizzo della Piattaforma
@@ -81,8 +81,8 @@ export default function CondizioniUtilizzoSito() {
         Il Sito è di proprietà ed è pubblicato da <strong>Domus Group S.r.l.</strong>, con sede
         legale in Via Aurelio Saffi 29, 20123 Milano (MI), P.IVA e C.F. 13132010961 (la
         &laquo;Società&raquo;). Per i dati anagrafici completi, l&apos;identificazione
-        dell&apos;editore, del direttore della pubblicazione e dell&apos;hosting provider, si rinvia
-        all&apos;Avviso Legale.
+        dell&apos;editore, del responsabile dei contenuti e dei fornitori di hosting, si rinvia
+        all&apos;<a href="/avviso-legale">Avviso Legale</a>.
       </p>
 
       <h2>3. Accesso al Sito</h2>
@@ -228,8 +228,8 @@ export default function CondizioniUtilizzoSito() {
       </p>
       <p>
         <strong>6.3</strong> &laquo;Edilizia in Cloud&raquo;, &laquo;EiC&raquo;, &laquo;AEDIX&raquo;,
-        &laquo;Marketing Edile&raquo; e i relativi loghi sono marchi di esclusiva titolarità della
-        Società. Per i dettagli sui marchi e segni distintivi si rinvia all&apos;Avviso Legale,
+        &laquo;Marketing Edile&raquo; e i relativi loghi sono marchi d&apos;uso di titolarità della
+        Società o di società del medesimo gruppo. Per i dettagli sui marchi e segni distintivi si rinvia all&apos;Avviso Legale,
         paragrafo 4.
       </p>
       <p>
@@ -247,11 +247,12 @@ export default function CondizioniUtilizzoSito() {
         i dati personali degli Utenti del Sito nel rispetto del Regolamento (UE) 2016/679 (GDPR),
         del D.Lgs. 196/2003 e delle ulteriori normative applicabili. Le condizioni del trattamento,
         le finalità, le basi giuridiche, i destinatari, i periodi di conservazione e i diritti
-        dell&apos;interessato sono integralmente descritti nella Privacy Policy.
+        dell&apos;interessato sono integralmente descritti nella{" "}
+        <a href="/privacy-policy">Privacy Policy</a>.
       </p>
       <p>
         <strong>7.2</strong> Per quanto riguarda l&apos;utilizzo di cookie e tecnologie analoghe,
-        si rinvia alla Cookie Policy e al pannello di gestione del consenso visualizzato dal Sito
+        si rinvia alla <a href="/cookie-policy">Cookie Policy</a> e al pannello di gestione del consenso visualizzato dal Sito
         alla prima visita, mediante il quale l&apos;Utente può prestare, revocare o modificare il
         proprio consenso ai cookie non strettamente necessari.
       </p>
@@ -355,11 +356,11 @@ export default function CondizioniUtilizzoSito() {
         grave o di violazione di norme inderogabili di legge.
       </p>
       <p>
-        <strong>10.3</strong> Eventuali reclami dovranno essere comunicati per iscritto
-        all&apos;indirizzo{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>, a pena di decadenza,
-        entro 30 giorni dal verificarsi dell&apos;evento o dal momento in cui l&apos;Utente avrebbe
-        dovuto averne ragionevole conoscenza.
+        <strong>10.3</strong> Eventuali reclami relativi al Sito possono essere comunicati per
+        iscritto all&apos;indirizzo{" "}
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>, preferibilmente entro
+        30 giorni dal verificarsi dell&apos;evento, così da consentire alla Società di verificarlo
+        tempestivamente.
       </p>
 
       <h2>11. Forza maggiore</h2>
@@ -424,11 +425,11 @@ export default function CondizioniUtilizzoSito() {
           <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
         </li>
         <li>
-          <strong>Email per segnalazioni legali:</strong>{" "}
-          <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
+          <strong>P.IVA e C.F.:</strong> 13132010961 &middot; <strong>REA:</strong> [DA COMPLETARE:
+          numero REA]
         </li>
         <li>
-          <strong>PEC:</strong>{" "}
+          <strong>PEC (per comunicazioni con valore legale):</strong>{" "}
           <a href="mailto:domusgroupsrl@legalmail.it">domusgroupsrl@legalmail.it</a>
         </li>
       </ul>

@@ -1,4 +1,5 @@
 /** POST { rapportino_id }. Operational report, private assets, immutable editions. */
+import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
@@ -31,7 +32,7 @@ Deno.serve(async (req: Request) => {
     // Preserve the existing tenant boundary; do not introduce new role exceptions.
     if (!profile || profile.company_id !== rap.company_id) return errorResponse("Non autorizzato", 403, cors);
     const [{ data: company, error: companyError }, branding] = await Promise.all([
-      admin.from("companies").select("name, legal_address, legal_city, email, phone, vat_number").eq("id", rap.company_id).single(),
+      admin.from("companies").select("name, business_name, logo_url, brand_primary_color, legal_address, legal_city, legal_postal_code, legal_province, email, phone, vat_number").eq("id", rap.company_id).single(),
       getBrandingForCompany(admin, rap.company_id),
     ]);
     if (companyError || !company) return errorResponse("Dati azienda non disponibili", 500, cors);
@@ -78,9 +79,12 @@ Deno.serve(async (req: Request) => {
         return data.length <= 2 * 1024 * 1024 ? data : null;
       } catch { return null; }
     };
+    const tipoModello = rap.lavoro_completato === true ? "fine_lavori" : "rapportino";
+    const { data: modello, error: modelloError } = await admin.from("company_document_templates").select("config").eq("company_id", rap.company_id).eq("document_type", tipoModello).maybeSingle();
+    if (modelloError) return errorResponse("Modello PDF non disponibile: riprova la generazione.", 500, cors);
     const generatedAt = new Date().toISOString();
     const revision = Date.now().toString(36) + "-" + crypto.randomUUID().slice(0, 8);
-    const result = await renderRapportino({ report: rap, company, branding, phases, punches, warnings, revision, generatedAt }, loadImage);
+    const result = await renderRapportino({ report: rap, company: { ...company, name: company.business_name || company.name }, branding: { ...branding, logoUrl: company.logo_url || undefined, primaryColor: company.brand_primary_color || branding.primaryColor }, phases, punches, warnings, revision, generatedAt, modelloPdf: normalizzaModelloPdf(tipoModello, modello?.config) }, loadImage);
     // Every edition has its own object; previous exports are never overwritten.
     // v4 = documento a blocchi (schede per fase). Cambiare il numero fa rigenerare, alla prima apertura, i PDF già fatti.
     const path = rap.company_id + "/" + id + "/rapportino-v4-" + revision + ".pdf";

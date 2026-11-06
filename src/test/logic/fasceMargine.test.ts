@@ -110,3 +110,9 @@ describe("margine reale per sede", () => {
     expect(r.get("S1")?.ricavi).toBe(1000);
   });
 });
+
+
+it("i movimenti di magazzino non valorizzati rendono il margine incompleto anche con costi registrati",()=>{
+ expect(margineAffidabile({preventivo_totale:1000,consuntivo:100,movimenti_magazzino_senza_costo:1})).toBe(false);
+ expect(margineAffidabile({preventivo_totale:1000,consuntivo:100,movimenti_magazzino_senza_costo:0})).toBe(true);
+});

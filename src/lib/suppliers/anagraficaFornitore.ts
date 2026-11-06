@@ -275,6 +275,7 @@ export function emailPerOrdini(s: Pick<Supplier, "email_ordini" | "altri_referen
   return (
     s.email_ordini?.trim() ||
     referenteOrdini?.email.trim() ||
+    s.contact_email?.trim() ||
     s.email?.trim() ||
     null
   );

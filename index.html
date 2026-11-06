@@ -384,6 +384,67 @@
     }
     </script>
   
+    <!-- Consenso ai cookie (Garante, linee guida 10/06/2021) — PRIMA di ogni tracciamento.
+         Google parte con tutto negato (Consent Mode v2); Tag Manager, Analytics,
+         Meta Pixel e il contatore visite partono SOLO dopo il consenso, scelto nel
+         banner (src/components/legal/BannerCookie.tsx). La scelta vale 6 mesi. -->
+    <script>
+      (function () {
+        var CHIAVE = 'eic_consenso_cookie';
+        var DURATA_MS = 182 * 24 * 60 * 60 * 1000;
+        function leggi() {
+          try {
+            var c = JSON.parse(window.localStorage.getItem(CHIAVE) || 'null');
+            if (c && c.v === 1 && typeof c.il === 'number' && Date.now() - c.il < DURATA_MS) return c;
+          } catch (e) {}
+          return null;
+        }
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ window.dataLayer.push(arguments); }
+        gtag('consent', 'default', {
+          ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
+          analytics_storage: 'denied', functionality_storage: 'granted', security_storage: 'granted',
+          wait_for_update: 500
+        });
+        var avvii = { analitici: [], marketing: [] };
+        var api = {
+          scelta: leggi(),
+          /** Chi carica un tracciamento lo registra qui: parte subito se c'è già il consenso, altrimenti al «sì». */
+          quando: function (categoria, fn) {
+            if (api.scelta && api.scelta[categoria]) { try { fn(); } catch (e) {} }
+            else avvii[categoria].push(fn);
+          },
+          salva: function (analitici, marketing) {
+            var c = { v: 1, il: Date.now(), analitici: !!analitici, marketing: !!marketing };
+            try { window.localStorage.setItem(CHIAVE, JSON.stringify(c)); } catch (e) {}
+            api.scelta = c;
+            gtag('consent', 'update', {
+              analytics_storage: c.analitici ? 'granted' : 'denied',
+              ad_storage: c.marketing ? 'granted' : 'denied',
+              ad_user_data: c.marketing ? 'granted' : 'denied',
+              ad_personalization: c.marketing ? 'granted' : 'denied'
+            });
+            ['analitici', 'marketing'].forEach(function (k) {
+              if (!c[k]) return;
+              var da = avvii[k]; avvii[k] = [];
+              da.forEach(function (fn) { try { fn(); } catch (e) {} });
+            });
+            try { window.dispatchEvent(new CustomEvent('eic:consenso-cookie', { detail: c })); } catch (e) {}
+          },
+          apri: function () { try { window.dispatchEvent(new CustomEvent('eic:apri-preferenze-cookie')); } catch (e) {} }
+        };
+        if (api.scelta) {
+          gtag('consent', 'update', {
+            analytics_storage: api.scelta.analitici ? 'granted' : 'denied',
+            ad_storage: api.scelta.marketing ? 'granted' : 'denied',
+            ad_user_data: api.scelta.marketing ? 'granted' : 'denied',
+            ad_personalization: api.scelta.marketing ? 'granted' : 'denied'
+          });
+        }
+        window.eicConsensoCookie = api;
+      })();
+    </script>
+
     <!-- GA4 — deferred, marketing pages only -->
     <script>
       (function () {
@@ -444,14 +505,19 @@
           s.src = 'https://www.googletagmanager.com/gtm.js?id=' + GTM_ID;
           document.head.appendChild(s);
         }
-        // Stesso defer di GA4: prima interazione utente, oppure load + 1.5s.
-        var EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
-        function onInteract() {
-          EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
-          loadGTM();
-        }
-        EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
-        window.addEventListener('load', function(){ setTimeout(loadGTM, 1500); }, { once: true });
+        // Solo col consenso alle statistiche. Poi stesso defer di GA4: prima
+        // interazione utente, oppure load + 1.5s (o subito, se il consenso
+        // arriva dal banner a pagina già caricata).
+        window.eicConsensoCookie.quando('analitici', function () {
+          if (document.readyState === 'complete') { setTimeout(loadGTM, 300); return; }
+          var EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
+          function onInteract() {
+            EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
+            loadGTM();
+          }
+          EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
+          window.addEventListener('load', function(){ setTimeout(loadGTM, 1500); }, { once: true });
+        });
       })();
     </script>
     <!-- End Google Tag Manager -->
@@ -469,7 +535,8 @@
 
         // Flag letto da src/lib/meta/fbcTracker.ts (trackPixel) per non sparare
         // eventi dentro l'app loggata.
-        window.__EIC_PIXEL_ENABLED = isPublicMarketingPage;
+        // Acceso solo col consenso al marketing (vedi sotto).
+        window.__EIC_PIXEL_ENABLED = false;
         if (!isPublicMarketingPage) return;
 
         // Stub fbq SENZA auto-load: le chiamate (init + PageView) vengono messe
@@ -495,13 +562,18 @@
         // Stessa strategia di GA: niente 'mousemove', fallback dopo load
         // (fbevents pesa ~150KB: prima il timer 3.5s lo metteva in gara con
         // l'LCP su mobile 4G).
-        var PX_EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
-        function onPxInteract() {
-          PX_EVENTS.forEach(function (e) { window.removeEventListener(e, onPxInteract, { passive: true, capture: true }); });
-          loadPixel();
-        }
-        PX_EVENTS.forEach(function (e) { window.addEventListener(e, onPxInteract, { passive: true, capture: true }); });
-        window.addEventListener('load', function(){ setTimeout(loadPixel, 1500); }, { once: true });
+        // Solo col consenso al marketing: prima nessuno script Meta e nessun cookie.
+        window.eicConsensoCookie.quando('marketing', function () {
+          window.__EIC_PIXEL_ENABLED = true;
+          if (document.readyState === 'complete') { setTimeout(loadPixel, 300); return; }
+          var PX_EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
+          function onPxInteract() {
+            PX_EVENTS.forEach(function (e) { window.removeEventListener(e, onPxInteract, { passive: true, capture: true }); });
+            loadPixel();
+          }
+          PX_EVENTS.forEach(function (e) { window.addEventListener(e, onPxInteract, { passive: true, capture: true }); });
+          window.addEventListener('load', function(){ setTimeout(loadPixel, 1500); }, { once: true });
+        });
       })();
     </script>
     <!-- Critical CSS: above-the-fold hero + layout -->
@@ -600,7 +672,7 @@
     </style>
     <!-- Clientium: pixel visite SOLO sul sito marketing (mai app/admin/localhost).
          Stessa index per sito e app: la guardia sull'hostname fa da confine. -->
-    <script>(function(){var h=location.hostname;if(h!=="ediliziaincloud.com"&&h!=="www.ediliziaincloud.com")return;var i=new Image();i.src="https://clientium.it/api/v/?k=rk_631f93ec037ef301&u="+encodeURIComponent(location.href)+"&t="+Date.now();})();</script>
+    <script>(function(){var h=location.hostname;if(h!=="ediliziaincloud.com"&&h!=="www.ediliziaincloud.com")return;window.eicConsensoCookie.quando('analitici',function(){var i=new Image();i.src="https://clientium.it/api/v/?k=rk_631f93ec037ef301&u="+encodeURIComponent(location.href)+"&t="+Date.now();});})();</script>
   </head>
 
   <body>

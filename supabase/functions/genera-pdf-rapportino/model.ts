@@ -54,6 +54,7 @@ export interface PdfContext {
   warnings: string[];
   revision: string;
   generatedAt: string;
+  modelloPdf?: import("../_shared/modelliPdfOperativi.ts").ModelloPdf;
 }
 export function reportSummary(report: RecordData) {
   const crew = rows(report.presenze);

@@ -1,3 +1,4 @@
+import { FornitoreCombobox } from "@/components/orders/FornitoreCombobox";
 import { useOperationalViewMemory } from "@/hooks/useOperationalViewMemory";
 import {
   useOperationalArchive,
@@ -27,6 +28,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -846,7 +848,7 @@ export default function PurchaseOrdersList() {
     create.mutate(
       {
         supplier_id: newSupplierId,
-        expected_delivery_date: newDelivery || undefined,
+        expected_delivery_date: newOrigine === "negozio" ? undefined : newDelivery || undefined,
         delivery_warehouse_id: newWarehouseId,
         origine: newOrigine,
         supplier_reference: newRiferimento.trim() || null,
@@ -1682,10 +1684,11 @@ export default function PurchaseOrdersList() {
       )}
 
       {/* New OdA Dialog */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <Dialog open={newOpen} onOpenChange={(open) => { if (!create.isPending) setNewOpen(open); }}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nuovo Ordine d'Acquisto</DialogTitle>
+            <DialogTitle>Nuovo ordine d’acquisto</DialogTitle>
+            <DialogDescription>Scegli come acquisti e il fornitore. Nel passaggio successivo aggiungi articoli, quantità e prezzi.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {/* Prima domanda: come stai ordinando. Decide i passaggi che
@@ -1696,7 +1699,7 @@ export default function PurchaseOrdersList() {
                 scelta si legge in un colpo d'occhio e il resto del form non
                 finisce sotto la piega. */}
             <div className="space-y-2">
-              <Label>Come lo ordini?</Label>
+              <h3 className="text-sm font-semibold text-slate-900">1. Come acquisti?</h3>
               <div className="grid grid-cols-2 gap-2">
                 {ODA_ORIGINI.map((o) => {
                   const info = ODA_ORIGINE_INFO[o];
@@ -1706,10 +1709,10 @@ export default function PurchaseOrdersList() {
                     <button
                       key={o}
                       type="button"
-                      onClick={() => setNewOrigine(o)}
+                      onClick={() => { setNewOrigine(o); setNewRiferimento(""); if (o === "negozio") setNewDelivery(""); }}
                       aria-pressed={scelta}
                       className={cn(
-                        "relative flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-all",
+                        "relative flex items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2",
                         // L'acquisto al banco e' l'unico che chiude tutto in un
                         // passaggio: sta su una riga sua, non spaiato in fondo.
                         o === "negozio" && "col-span-2",
@@ -1720,17 +1723,20 @@ export default function PurchaseOrdersList() {
                     >
                       <Icona
                         className={cn(
-                          "h-4 w-4 shrink-0",
+                          "mt-0.5 h-4 w-4 shrink-0",
                           scelta ? "text-orange-600" : "text-slate-400",
                         )}
                       />
+                      <span className="min-w-0 flex-1">
                       <span
                         className={cn(
-                          "text-sm font-semibold leading-tight",
+                          "block text-sm font-semibold leading-tight",
                           scelta ? "text-orange-900" : "text-slate-700",
                         )}
                       >
                         {info.titoloBreve}
+                      </span>
+                      <span className="mt-1 block text-xs leading-relaxed text-slate-500">{({ email: "Da inviare via email al fornitore", telefono: "Già concordato a voce o per messaggio", portale: "Già acquistato sul sito del fornitore", documento: "Da registrare da PDF o modulo firmato", negozio: "Già acquistato e ritirato in negozio" })[o]}</span>
                       </span>
                       {scelta && (
                         <Check className="h-3.5 w-3.5 ml-auto shrink-0 text-orange-600" />
@@ -1745,31 +1751,23 @@ export default function PurchaseOrdersList() {
                 </p>
               )}
             </div>
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900">2. Fornitore e commessa</h3>
             <div className="space-y-2">
-              <Label>Per quale commessa?</Label>
+              <Label>Commessa <span className="font-normal text-slate-400">· facoltativa</span></Label>
               <CommessaCombobox value={newOrderId} onChange={setNewOrderId} />
               <p className="text-[11px] text-slate-500">
-                Se e' per un cantiere, collegalo subito: il costo finira' sulla
-                commessa giusta e vedrai quanto stai impegnando.
+                Collega il cantiere per attribuirgli il costo, oppure lascia «Acquisto generico».
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Fornitore</Label>
-              <Select value={newSupplierId} onValueChange={setNewSupplierId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona fornitore" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers
-                    .filter((s) => s.is_active)
-                    .map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="nuovo-oda-fornitore">Fornitore <span className="font-normal text-slate-400">· obbligatorio</span></Label>
+              <FornitoreCombobox fornitori={suppliers} value={newSupplierId} onChange={setNewSupplierId}/>
+
             </div>
+            </div>
+            <div className="space-y-4 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900">3. {newOrigine === "negozio" ? "Riferimento e magazzino" : "Consegna e riferimenti"} <span className="font-normal text-slate-400">· facoltativi</span></h3>
             {/* Chi ha comprato online o al banco ha gia' un numero d'ordine o
                 uno scontrino: chiederlo qui evita di doverlo cercare dopo. */}
             {newOrigine && ODA_ORIGINE_INFO[newOrigine].riferimentoLabel && (
@@ -1788,8 +1786,9 @@ export default function PurchaseOrdersList() {
                 consegneranno non ha senso. */}
             {newOrigine !== "negozio" && (
               <div className="space-y-2">
-                <Label>Data consegna prevista (opzionale)</Label>
+                <Label htmlFor="nuovo-oda-consegna">Data di consegna prevista</Label>
                 <Input
+                  id="nuovo-oda-consegna"
                   type="date"
                   value={newDelivery}
                   onChange={(e) => setNewDelivery(e.target.value)}
@@ -1809,22 +1808,24 @@ export default function PurchaseOrdersList() {
                 placeholder="Magazzino predefinito"
               />
             </div>
+            </div>
             {newOrigine && (
-              <p className="text-xs text-slate-500">
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600" aria-live="polite">
                 Prossimo passo: aggiungi gli articoli, poi «
                 {ODA_ORIGINE_INFO[newOrigine].azione}».
               </p>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>
+          <DialogFooter className="border-t border-slate-100 pt-4 sm:items-center">
+            {(!newSupplierId || !newOrigine) && <p className="mr-auto text-xs text-slate-500" role="status">{!newOrigine ? "Scegli come acquisti per continuare." : "Seleziona il fornitore per continuare."}</p>}
+            <Button variant="outline" disabled={create.isPending} onClick={() => setNewOpen(false)}>
               Annulla
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!newSupplierId || !newOrigine || create.isPending}
             >
-              {create.isPending ? "Creazione..." : "Crea OdA"}
+              {create.isPending ? "Creazione…" : "Crea e aggiungi articoli"}
             </Button>
           </DialogFooter>
         </DialogContent>

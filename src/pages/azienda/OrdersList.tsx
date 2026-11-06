@@ -1960,7 +1960,7 @@ function OrdersListInner() {
 
 export default function OrdersList() {
   const [searchParams, setSearchParams] = useSearchParams();
-  // Tab da scrivania (offerte, anomalie, marginalità, provvigioni) fuori dal telefono.
+  // Le analisi di marginalità hanno una vista a schede anche sul telefono.
   const isMobile = useIsMobile();
   const permissions = usePermissions();
   // Chi ha solo il permesso «Ufficio acquisti» (senza vedere le commesse) entra
@@ -1993,7 +1993,7 @@ export default function OrdersList() {
     { id: "acquisto", label: "Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
-    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts && !isMobile },
+    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
     { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts && !isMobile },
   ].filter((t) => t.show);
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : (soloAcquisti ? "acquisto" : "ordini");

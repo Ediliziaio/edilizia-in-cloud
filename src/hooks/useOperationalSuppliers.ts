@@ -8,6 +8,14 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 import type { Database } from "@/integrations/supabase/types";
 
 export interface SupplierWithStats {
+  email_ordini?: string | null;
+  altri_referenti?: import("@/integrations/supabase/types").Json | null;
+  termini_giorni?: number | null;
+  termini_fine_mese?: boolean | null;
+  codice_cliente?: string | null;
+  ritiro_indirizzo?: string | null;
+  ritiro_citta?: string | null;
+  ritiro_note?: string | null;
   id: string;
   name: string;
   email: string | null;
