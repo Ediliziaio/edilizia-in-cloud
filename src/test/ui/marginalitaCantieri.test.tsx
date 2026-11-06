@@ -269,12 +269,12 @@ describe("Audit pulsanti e stati limite marginalità", () => {
   });
   it("ordinamento e filtri espongono la selezione alla tastiera", async () => {
     apri(); await waitFor(() => expect(codici()).toHaveLength(6));
-    fireEvent.click(screen.getByRole("button",{name:"Preventivo",exact:true}));
+    fireEvent.click(screen.getByRole("button",{name:"Preventivo"}));
     expect(screen.getByRole("columnheader",{name:"Preventivo"}).getAttribute("aria-sort")).toBe("ascending");
-    fireEvent.click(screen.getByRole("button",{name:"Preventivo",exact:true}));
+    fireEvent.click(screen.getByRole("button",{name:"Preventivo"}));
     expect(screen.getByRole("columnheader",{name:"Preventivo"}).getAttribute("aria-sort")).toBe("descending");
-    fireEvent.click(screen.getByRole("button",{name:"Sani",exact:true}));
-    expect(screen.getByRole("button",{name:"Sani",exact:true}).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button",{name:"Sani"}));
+    expect(screen.getByRole("button",{name:"Sani"}).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button",{name:"Dettaglio margine SANA"})).toBeTruthy();
   });
   it("il dettaglio mantiene la perdita e un'anomalia non caricata non diventa assente", async () => {
@@ -344,7 +344,7 @@ it("completa il cliente anche quando la sua anagrafica è oltre mille commesse",
 describe("Altre simulazioni per aziende con impostazioni diverse",()=>{
  it("le commesse da monitorare compaiono anche tra le azioni da controllare",async()=>{
   apri();await waitFor(()=>expect(codici()).toHaveLength(6));
-  fireEvent.click(screen.getByRole("button",{name:"Da monitorare",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"Da monitorare"}));
   expect(codici()).toEqual(["MEDIA"]);
   expect(screen.getByText(/1 commessa richiede attenzione/)).toBeTruthy();
   expect(screen.queryByText(/Le commesse filtrate sono sopra/)).toBeNull();
@@ -395,7 +395,7 @@ it("i pulsanti informativi funzionano con un clic anche senza hover",async()=>{
 describe("Pulsanti Riprova con errori simulati",()=>{
  it.each([0,1])("Riprova ripristina i dati nella vista %s",async(index)=>{
   stato.errore={message:"Connessione assente"};apri();
-  const buttons=await screen.findAllByRole("button",{name:"Riprova",exact:true});
+  const buttons=await screen.findAllByRole("button",{name:"Riprova"});
   stato.errore=null;fireEvent.click(buttons[index]);
   await waitFor(()=>expect(codici()).toHaveLength(6));
   expect(screen.queryByText(/Dati non caricati: premi Aggiorna dati/)).toBeNull();
@@ -405,7 +405,7 @@ describe("Pulsanti Riprova con errori simulati",()=>{
   fireEvent.click(screen.getByRole("button",{name:"Dettaglio margine SANA"}));
   const d=await screen.findByRole("dialog");await within(d).findByText("Impossibile caricare le voci d'ordine.");
   delete stato.errori.order_items;stato.tabelle.order_items=[{id:"x",name:"Materiale dopo ripristino",quantity:1,unit_price:100,purchase_price:50,standard_cost:null}];
-  fireEvent.click(within(d).getByRole("button",{name:"Riprova",exact:true}));
+  fireEvent.click(within(d).getByRole("button",{name:"Riprova"}));
   expect(await within(d).findByText("Materiale dopo ripristino")).toBeTruthy();
   expect(within(d).getByRole("link",{name:"#SANA"})).toBeTruthy();
  });
@@ -434,7 +434,7 @@ describe("Coerenza per aziende con target e struttura differenti",()=>{
   apri();await waitFor(()=>expect(codici()).toHaveLength(1));
   await waitFor(()=>expect((screen.getByLabelText("Target dopo struttura %") as HTMLInputElement).value).toBe(String(caso.target)));
   expect(within(tabella()).getAllByText(caso.stato).length).toBeGreaterThan(0);
-  fireEvent.click(within(screen.getByRole("group",{name:"Stato del margine"})).getByRole("button",{name:caso.filtro,exact:true}));
+  fireEvent.click(within(screen.getByRole("group",{name:"Stato del margine"})).getByRole("button",{name:caso.filtro}));
   expect(codici()).toEqual(["VERIFICA"]);
   expect(stato.chiamate.filter(c=>c.tabella==="v_ordine_marginalita"&&c.metodo==="eq"&&c.args[0]==="company_id").every(c=>c.args[1]===caso.azienda)).toBe(true);
  });

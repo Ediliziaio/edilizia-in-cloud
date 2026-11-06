@@ -59,7 +59,7 @@ export function PurchaseOrderItemRow({
     });
     setSavingCount((n) => n + 1);
     const operation = queue.current.then(() => onUpdate(patch));
-    queue.current = operation.catch(() => undefined);
+    queue.current = operation.catch((): void => undefined);
     try {
       await operation;
     } catch {

@@ -61,7 +61,7 @@ describe("Documenti operativi condivisi", () => {
     expect(breve).not.toContain("<table");
   });
   it("non trasforma prezzi mancanti in uno zero concordato", () => {
-    const d = { ...doc, righe: [{ ...doc.righe[0], prezzo: null }] };
+    const d = { ...doc, righe: [{ ...doc.righe[0], prezzo: null as number | null }] };
     expect(documentoIncompleto(d)).toBe(true);
     expect(corpoDocumento(d, azienda)).toContain("Da definire");
     expect(corpoDocumento(d, azienda)).toContain("voci valorizzate");
@@ -188,7 +188,7 @@ describe("Ordine senza prezzi in attesa del fornitore", () => {
     const d = {
       ...doc,
       prezziDaConfermare: true,
-      righe: [{ ...doc.righe[0], prezzo: null, iva: null }],
+      righe: [{ ...doc.righe[0], prezzo: null as number | null, iva: null as number | null }],
     };
     expect(erroriDocumento(d)).toEqual([]);
     expect(
@@ -267,14 +267,14 @@ describe("Standard rapporto in economia", () => {
       erroriDocumento({
         ...doc,
         tipo: "economia",
-        righe: [{ ...doc.righe[0], iva: null }],
+        righe: [{ ...doc.righe[0], iva: null as number | null }],
       }),
     ).toEqual([]);
     expect(
       erroriDocumento({
         ...doc,
         tipo: "economia",
-        righe: [{ ...doc.righe[0], prezzo: null, iva: null }],
+        righe: [{ ...doc.righe[0], prezzo: null as number | null, iva: null as number | null }],
       }),
     ).toContain("Voce 1: indica il prezzo concordato.");
   });

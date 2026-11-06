@@ -253,7 +253,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
       }
       y -= 22;
     }
-    if (lunghi.length) { y -= 4; griglia(lunghi.map(v => ({ ...v, fase_nome: undefined })), x0, largh); }
+    if (lunghi.length) { y -= 4; griglia(lunghi.map(v => ({ ...v, fase_nome: undefined as string | undefined })), x0, largh); }
   };
 
   // ═════════ Fascia di intestazione ═════════

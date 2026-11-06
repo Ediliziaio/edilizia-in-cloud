@@ -24,7 +24,7 @@ vi.mock("@/hooks/useDocumentPdfTemplates", () => ({
   useDocumentPdfTemplates: () => ({
     data: m.data,
     isLoading: false,
-    error: null,
+    error: null as Error | null,
     save: m.save,
     refetch: m.refetch,
   }),
@@ -174,7 +174,7 @@ it("applica uno stile senza cancellare i testi e salva le nuove opzioni", async 
     target: { value: "Messaggio aziendale da conservare" },
   });
   fireEvent.click(
-    screen.getByRole("button", { name: "Classico", exact: true }),
+    screen.getByRole("button", { name: "Classico" }),
   );
   expect(screen.getByLabelText("Testo introduttivo")).toHaveValue(
     "Messaggio aziendale da conservare",

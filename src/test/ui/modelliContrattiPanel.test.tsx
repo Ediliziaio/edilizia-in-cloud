@@ -39,7 +39,7 @@ vi.mock("@/hooks/useQuoteTemplates", () => ({
       },
     ],
     isLoading: false,
-    fetchError: null,
+    fetchError: null as Error | null,
     refetch: vi.fn(),
     upsertTemplate: { mutateAsync: m.save, isPending: false },
   }),

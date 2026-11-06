@@ -50,11 +50,11 @@ export function creaPdfOperativo(
   const riquadro = modello.coloreRiquadri
     ? rgbModello(modello.coloreRiquadri)
     : ([241, 244, 248] as [number, number, number]);
-  const testoFascia =
+  const testoFascia: [number, number, number] =
     navy[0] * 0.299 + navy[1] * 0.587 + navy[2] * 0.114 > 165
-      ? ([28, 40, 57] as const)
-      : ([255, 255, 255] as const);
-  const accentInk = testoFascia[0] === 28 ? ([31, 58, 93] as const) : navy;
+      ? ([28, 40, 57] as [number, number, number])
+      : ([255, 255, 255] as [number, number, number]);
+  const accentInk: [number, number, number] = testoFascia[0] === 28 ? ([31, 58, 93] as [number, number, number]) : navy;
   const standard = STANDARD_DOCUMENTI[d.tipo];
   let y = 14;
   const safe = (v: string) =>
@@ -68,7 +68,7 @@ export function creaPdfOperativo(
     pdf.setFont(modello.carattere, bold ? "bold" : "normal");
     pdf.setFontSize(size);
     pdf.setTextColor(
-      ...(muted ? ([99, 115, 137] as const) : ([28, 40, 57] as const)),
+      ...(muted ? ([99, 115, 137] as [number, number, number]) : ([28, 40, 57] as [number, number, number])),
     );
   };
   const lines = (value: string, w: number) =>
@@ -294,7 +294,7 @@ export function creaPdfOperativo(
     stats.forEach((c, i) => {
       const x = left + (i * (width + 3)) / 4;
       const w = (width - 9) / 4;
-      pdf.setFillColor(...(i === 3 ? navy : ([243, 245, 248] as const)));
+      pdf.setFillColor(...(i === 3 ? navy : ([243, 245, 248] as [number, number, number])));
       pdf.roundedRect(x, y, w, 21, 0.6, 0.6, "F");
       font(7, false, true);
       if (i === 3) pdf.setTextColor(...testoFascia);

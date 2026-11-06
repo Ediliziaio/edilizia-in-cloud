@@ -49,7 +49,7 @@ vi.mock("@/components/orders/CommessaCombobox", () => ({
   ),
 }));
 vi.mock("@/hooks/useWarehouses", () => ({
-  useWarehouses: () => ({ warehouses: [], isLoading: false, error: null }),
+  useWarehouses: () => ({ warehouses: [] as unknown[], isLoading: false, error: null as Error | null }),
 }));
 vi.mock("@/lib/documentiOperativi/pdf", () => ({
   generaPdfOperativo: mock.genera,
@@ -86,8 +86,8 @@ const props = {
 };
 beforeEach(() => {
   mock.modello.mockReset().mockResolvedValue({condizioni:""});
-  mock.upload.mockReset().mockResolvedValue({ error: null });
-  mock.remove.mockReset().mockResolvedValue({ error: null });
+  mock.upload.mockReset().mockResolvedValue({ error: null as Error | null });
+  mock.remove.mockReset().mockResolvedValue({ error: null as Error | null });
   mock.genera
     .mockReset()
     .mockResolvedValue(new Blob(["%PDF-1.4"], { type: "application/pdf" }));

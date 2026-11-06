@@ -7,7 +7,7 @@ vi.mock("sonner",()=>({toast:{success:m.success,error:m.error}}));
 import {OdaDocumentoCard} from "@/components/orders/OdaDocumentoCard";
 beforeEach(()=>{m.remove.mockReset().mockResolvedValue({error:null});m.signed.mockReset().mockResolvedValue({data:{signedUrl:"https://example.invalid/file"},error:null});m.upload.mockReset().mockResolvedValue({error:null});m.success.mockReset();m.error.mockReset();});afterEach(cleanup);
 it("la conferma originale risulta caricata solo dopo il salvataggio sull'ordine",async()=>{
- let completa:()=>void=()=>{};const onChange=vi.fn(()=>new Promise<void>(resolve=>{completa=resolve;}));
+ let completa:()=>void=()=>{};const onChange=vi.fn((_url: string | null)=>new Promise<void>(resolve=>{completa=resolve;}));
  const {container}=render(<OdaDocumentoCard odaId="oda" label="Conferma originale del fornitore" attachmentUrl={null} onChange={onChange}/>);
  fireEvent.change(container.querySelector('input[type="file"]')!,{target:{files:[new File(["%PDF"],"conferma-originale.pdf",{type:"application/pdf"})]}});
  await waitFor(()=>expect(onChange).toHaveBeenCalled());expect(m.success).not.toHaveBeenCalled();completa();await waitFor(()=>expect(m.success).toHaveBeenCalled());
