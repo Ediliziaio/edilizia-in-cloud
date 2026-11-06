@@ -33,7 +33,7 @@ export function applicaMaterialiProgetto<T extends { pavimento?: ConfigPavimento
   const eccezioni = config.eccezioni_materiali_progetto;
   return { ...config,
     ...(materiali.pavimento && !eccezioni?.pavimento ? { pavimento: { ...materiali.pavimento, attivo: true } } : {}),
-    ...(materiali.infissi && !eccezioni?.infissi ? { infissi_progetto: { ...materiali.infissi } } : { infissi_progetto: undefined }),
+    ...(materiali.infissi ? { infissi_progetto: { ...materiali.infissi } } : { infissi_progetto: undefined }),
   };
 }
 

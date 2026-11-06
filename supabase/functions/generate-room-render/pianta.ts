@@ -62,12 +62,13 @@ export async function caricaPiantaDelRender(
 
   const { data: riga, error: rigaErr } = await supabase
     .from("planimetrie")
-    .select("id, company_id, deleted_at")
+    .select("id, company_id, deleted_at, versione_corrente")
     .eq("id", planimetriaId)
     .maybeSingle();
   if (rigaErr) throw new Error("Pianta non disponibile: riprova tra qualche secondo.");
   if (!riga || riga.deleted_at) throw new Error("Pianta non trovata: forse è stata cancellata.");
   if (riga.company_id !== companyId) throw new Error("forbidden: la pianta non è di questa azienda");
+  if (riga.versione_corrente !== versione) throw new Error("La pianta o i materiali comuni sono cambiati: riapri la stanza dalla pianta aggiornata e riprova.");
 
   const { data: ver, error: verErr } = await supabase
     .from("planimetrie_versioni")

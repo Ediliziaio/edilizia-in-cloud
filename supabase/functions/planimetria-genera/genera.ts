@@ -6,6 +6,7 @@
 // se non regge, il secondo tentativo riceve gli errori nel prompt; se non regge
 // ancora, all'utente arriva una frase semplice, non la pianta rotta.
 
+import { verificaApertureDocumento } from "./verificaAperture.ts";
 import type { PiantaGenerata } from "./generazione.ts";
 import { controllaGenerata, type ProblemaGenerazione } from "./controlloAI.ts";
 import { costruisciPiani, ErroreCostruzione } from "./costruisci.ts";
@@ -154,6 +155,11 @@ export async function generaPlanimetria(
   const ora = opzioni.ora ?? Date.now;
   const inizio = ora();
   const messaggi = messaggiIniziali(req);
+  const consegna = async (pianta: PiantaGenerata, providerDisponibile = true): Promise<EsitoGenerazione> => {
+    const verifica = await verificaApertureDocumento(pianta, req, chiama, providerDisponibile ? (opzioni.tempoMassimoMs ?? 140_000) - (ora() - inizio) : 0, ora);
+    if (verifica.tentativo) tentativi.push(verifica.tentativo);
+    return { ok: true, pianta: verifica.pianta, tentativi };
+  };
 
   // La migliore lettura con la sola colpa di avere stanze sovrapposte: meglio mostrarla da sistemare a mano
   // che non mostrare niente (bifamiliari speculari, portici sopra i giardini: 02/11/2026).
@@ -164,14 +170,14 @@ export async function generaPlanimetria(
     const t0 = ora();
     let r: Awaited<ReturnType<ChiamaModello>>;
     try { r = await chiama(messaggi, n); } catch (e) {
-      if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
+      if (daCompletare) return consegna(daCompletare, false);
       throw e;
     }
     const lettura = leggi(r.testo, req);
     if (daCompletare && lettura.pianta) lettura.pianta = conservaSuperficiScritte(daCompletare, lettura.pianta);
     tentativi.push({ modello: r.modello, costoUsd: r.costoUsd ?? 0, durataMs: ora() - t0, errori: lettura.errori.map((e) => e.codice) });
     if (lettura.nonLeggibile) {
-      if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
+      if (daCompletare) return consegna(daCompletare);
       return { ok: false, codice: "non_leggibile", messaggio: MESSAGGI_UTENTE.non_leggibile, tentativi };
     }
     if (lettura.pianta && !lettura.errori.length) {
@@ -184,22 +190,22 @@ export async function generaPlanimetria(
         daCompletare = lettura.pianta;
         messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
         messaggi.push({ role: "user", content: promptCorrezione([
-          ...(apertureDaRivedere > 0 ? [`${apertureDaRivedere} porte o finestre non si agganciano ai muri o si sovrappongono. Mantieni tutte le aperture richieste, senza eliminarle: metti i due estremi di ogni vano direttamente su un lato di una stanza, senza sovrapporre vani diversi. Conserva le stanze e le loro misure.`] : []),
+          ...(apertureDaRivedere > 0 ? [`${apertureDaRivedere} porte o finestre non si agganciano ai muri o si sovrappongono. Rileggi il documento: conserva solo le aperture realmente riconoscibili, elimina le ipotesi non visibili e non spostare un simbolo su un muro vicino per farlo tornare. Per le sole aperture confermate metti gli estremi sul loro muro, senza sovrapporre vani diversi. Conserva le stanze e le loro misure.`] : []),
           ...superficiDaRivedere.slice(0, 6).map((s) => `La stanza «${s.nome}» ha ${s.scritta} m² scritti sul foglio ma il contorno produce ${s.calcolata} m². Rileggi il filo interno dei muri e le quote: le dimensioni esterne comprendono lo spessore e non sono quelle interne della stanza. Controlla anche che mobili e sanitari non siano scambiati per finestre.`),
         ]) });
         continue;
       }
-      if (daCompletare && scartiDaRivedere(lettura.pianta) >= scartiDaRivedere(daCompletare)) return { ok: true, pianta: daCompletare, tentativi };
+      if (daCompletare && scartiDaRivedere(lettura.pianta) >= scartiDaRivedere(daCompletare)) return consegna(daCompletare);
       if (sospetta && n === 1 && tempoPerRileggere) {
         primaSospetta = lettura.pianta;
         messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
         messaggi.push({ role: "user", content: promptScalaSospetta(sospetta.replace(/^La scala letta dal disegno non sembra giusta: /, "").replace(/\. Scrivi la misura.*$/, "")) });
         continue;
       }
-      if (primaSospetta && lettura.pianta.generazione.scala?.da_confermare) return { ok: true, pianta: primaSospetta, tentativi };
-      return { ok: true, pianta: lettura.pianta, tentativi };
+      if (primaSospetta && lettura.pianta.generazione.scala?.da_confermare) return consegna(primaSospetta);
+      return consegna(lettura.pianta);
     }
-    if (primaSospetta && n === 2) return { ok: true, pianta: primaSospetta, tentativi };
+    if (primaSospetta && n === 2) return consegna(primaSospetta);
     if (lettura.pianta && lettura.errori.length > 0 && lettura.errori.length <= 8 && lettura.errori.every((e) => e.codice === "locali_sovrapposti" && e.lieve)) {
       daSistemare = { pianta: lettura.pianta, dettagli: lettura.errori.map((e) => e.dettaglio) };
     }
@@ -208,11 +214,11 @@ export async function generaPlanimetria(
     messaggi.push({ role: "assistant", content: r.testo.slice(0, 30_000) });
     messaggi.push({ role: "user", content: promptCorrezione(lettura.errori.map((e) => e.dettaglio).slice(0, 15)) });
   }
-  if (daCompletare) return { ok: true, pianta: daCompletare, tentativi };
+  if (daCompletare) return consegna(daCompletare);
   if (daSistemare) {
     const { pianta, dettagli } = daSistemare;
     pianta.generazione.avvisi.push(`${dettagli.length === 1 ? "Una stanza si sovrappone" : `${dettagli.length} coppie di stanze si sovrappongono`} a un'altra: sistemale nell'editor. ${dettagli.slice(0, 3).join(" ")}`);
-    return { ok: true, pianta, tentativi };
+    return consegna(pianta);
   }
   return { ok: false, codice: "pianta_non_valida", messaggio: MESSAGGI_UTENTE.pianta_non_valida, tentativi };
 }

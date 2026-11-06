@@ -11,6 +11,7 @@
 import { callOpenRouter } from "./openrouter.ts";
 import type { ChatMessage } from "./types.ts";
 import { AiTurnControl } from "../aiTurnControl.ts";
+import { isProviderCreditError } from "../aiRequestGuard.ts";
 
 // v8.6.32 — Gemini eliminato. Chain: Claude Haiku + GPT-4o-mini.
 /**
@@ -42,6 +43,8 @@ const VISION_MODELS_CHAIN = [
 ];
 
 export interface VisionQaArgs {
+  /** Per i render vincolati alla pianta, un JSON senza pass booleano non è una verifica. */
+  requireExplicitPass?: boolean;
   sourceImageDataUrl: string;
   candidateImageDataUrl: string;
   qaPrompt: string;
@@ -123,6 +126,7 @@ export async function callVisionQa(
 
       try {
         const parsed = JSON.parse(text) as { pass?: boolean; issues?: unknown };
+        if (args.requireExplicitPass && typeof parsed.pass !== "boolean") throw new Error("Missing explicit QA verdict");
         // v8.3.7 — Accetta sia stringhe che oggetti {category, detail}.
         const issues: VisionQaIssue[] = Array.isArray(parsed.issues)
           ? parsed.issues
@@ -175,6 +179,7 @@ export async function callVisionQa(
           detail: String(lastError.message ?? lastError),
         }),
       );
+      if (isProviderCreditError(e)) break; // tutti i modelli usano lo stesso conto
     }
   }
 

@@ -10,3 +10,4 @@ Una riga per giro: prompt, modello, punteggio, spesa. I dettagli stanno in `risu
 | 2026-10-30 15-18 | p1 | oracolo | 16 | 16 | 13/13 | 0.1% | 0.000 | oracolo dopo separazione stanze accostate |
 | 2026-11-06 00-06 | p3 | oracolo | 16 | 16 | 13/13 | 0.1% | 0.000 | p3: controllo superfici per stanza e aperture distinte dagli arredi |
 | 2026-11-06 00-16 | p3 | oracolo | 16 | 16 | 13/13 | 0.1% | 0.000 | p3 finale: superfici discordanti restano stimate dopo la conferma della scala |
+| 2026-11-06 04-54 | p4 | oracolo | 16 | 16 | 13/13 | 0.1% | 0.000 | p4: revisione separata aperture sul documento, solo segmenti confermati; oracolo verifica geometria, nessuna misura di accuratezza visiva |

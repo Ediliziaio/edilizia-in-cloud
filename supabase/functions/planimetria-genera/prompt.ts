@@ -1,6 +1,6 @@
 // Prompt della generazione. Ogni modifica qui va misurata col banco di prova
 // (scripts/planimetrie-banco/): il punteggio si salva a ogni versione.
-export const VERSIONE_PROMPT = "p3";
+export const VERSIONE_PROMPT = "p4";
 
 const DESTINAZIONI_TESTO =
   "soggiorno, cucina, camera, bagno, disimpegno, ingresso, ripostiglio, studio, lavanderia, balcone, terrazzo, garage, cantina, altro";

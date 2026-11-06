@@ -389,7 +389,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
   const origineAltezzaMuri: Origine = altezze.every((h) => h.origine === "da_documento") ? "da_documento" : "stimata";
 
   // Aperture: segmento del vano → muro più vicino e parallelo
-  interface ApInt { muro: number; tipo: Apertura["tipo"]; inizio: number; larghezza: number }
+  interface ApInt { muro: number; tipo: Apertura["tipo"]; inizio: number; larghezza: number; sorgente: typeof r.aperture[number] }
   const vani: ApInt[] = [];
   let scartate = 0;
   let daRivedere = 0;
@@ -421,8 +421,14 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     }
     const { muro, t } = migliore as { muro: number; t: number };
     const lw = distanza(muriBuoni[muro].p1, muriBuoni[muro].p2);
-    const larg = arr(Math.min(larghezza, lw - 10));
-    const inizio = arr(Math.min(Math.max(t * lw - larg / 2, 0), lw - larg));
+    const inizioLetto = t * lw - larghezza / 2;
+    // Non accorciare un vano né trascinarlo dentro la parete per farlo entrare.
+    // Due centimetri coprono solo l'arrotondamento e l'allineamento delle facce.
+    if (inizioLetto < -2 || inizioLetto + larghezza > lw + 2 || larghezza > lw + 2) {
+      scartate++; daRivedere++; continue;
+    }
+    const larg = arr(Math.min(larghezza, lw));
+    const inizio = arr(Math.min(Math.max(inizioLetto, 0), lw - larg));
     const occupato = vani.find((x) => x.muro === muro && inizio < x.inizio + x.larghezza && x.inizio < inizio + larg);
     // Due tratti identici della stessa apertura non sono due serramenti.
     if (occupato && occupato.tipo === ap.tipo && Math.abs(occupato.inizio - inizio) < 5 && Math.abs(occupato.larghezza - larg) < 5) continue;
@@ -431,7 +437,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
       if (occupato) daRivedere++;
       continue;
     }
-    vani.push({ muro, tipo: ap.tipo, inizio, larghezza: larg });
+    vani.push({ muro, tipo: ap.tipo, inizio, larghezza: larg, sorgente: ap });
   }
   if (scartate) avvisi.push(`${scartate === 1 ? "Una porta o finestra non era" : `${scartate} porte o finestre non erano`} chiaramente su un muro: controlla che non manchi nulla.`);
 
@@ -527,6 +533,7 @@ export function costruisciPlanimetria(r: RispostaAI, opz: OpzioniCostruzione): P
     livelli: [{ id: "pt", nome: "Piano", quota: 0, fatto: { muri, aperture, locali, elementi, quote: [], testi: [], ...(aree.length ? { aree } : {}) }, proposte: [] }],
   };
   const generazione: InfoGenerazione = {
+    ...(["documento", "schizzo"].includes(opz.ingresso) ? { aperture_sorgente: vani.map((v, i) => ({ id: `a${i + 1}`, tipo: v.tipo, da: v.sorgente.da, a: v.sorgente.a, sistema: r.sistema })) } : {}),
     ...(daRivedere ? { aperture_da_rivedere: daRivedere } : {}),
     ingresso: opz.ingresso,
     scala,
@@ -620,7 +627,9 @@ export function costruisciPiani(r: RispostaAI, opz: OpzioniCostruzione): PiantaG
   avvisi.push(`Sul foglio c'erano ${piani.length} piani: li trovi come piani separati (${piani.map((p, i) => p || `Piano ${i + 1}`).join(", ")}). Controlla la quota di ognuno.`);
   return {
     planimetria: { ...generate[0].planimetria, livelli: [...livelli].sort((a, b) => a.quota - b.quota) },
-    generazione: { ...generate[0].generazione, aperture_da_rivedere: generate.reduce((n, g) => n + (g.generazione.aperture_da_rivedere ?? 0), 0), avvisi, superfici_scritte: superfici },
+    generazione: { ...generate[0].generazione,
+      aperture_sorgente: generate.flatMap((g, i) => (g.generazione.aperture_sorgente ?? []).map((a) => ({ ...a, id: (i === 0 ? "" : `p${i + 1}-`) + a.id }))),
+      aperture_da_rivedere: generate.reduce((n, g) => n + (g.generazione.aperture_da_rivedere ?? 0), 0), avvisi, superfici_scritte: superfici },
   };
 }
 

@@ -202,7 +202,7 @@ describe("seconda lettura se la scala è sospetta", () => {
     const risposte = [lettura(12), lettura(4)];
     let n = 0;
     const esito = await generaPlanimetria(req, async () => ({ testo: risposte[n++], modello: "prova" }));
-    expect(n).toBe(2);
+    expect(n).toBe(3);
     expect(esito.ok).toBe(true);
     if (esito.ok) expect(esito.pianta.generazione.scala?.da_confermare).toBeFalsy();
   });
@@ -210,7 +210,7 @@ describe("seconda lettura se la scala è sospetta", () => {
   it("se la seconda è ancora sospetta tiene la prima, da confermare", async () => {
     let n = 0;
     const esito = await generaPlanimetria(req, async () => { n++; return { testo: lettura(12), modello: "prova" }; });
-    expect(n).toBe(2);
+    expect(n).toBe(3);
     expect(esito.ok).toBe(true);
     if (esito.ok) expect(esito.pianta.generazione.scala?.da_confermare).toBe(true);
   });
@@ -218,6 +218,6 @@ describe("seconda lettura se la scala è sospetta", () => {
   it("non rilegge se la scala è buona", async () => {
     let n = 0;
     await generaPlanimetria(req, async () => { n++; return { testo: lettura(4), modello: "prova" }; });
-    expect(n).toBe(1);
+    expect(n).toBe(2);
   });
 });

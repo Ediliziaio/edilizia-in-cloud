@@ -86,7 +86,7 @@ export function pianteDaPlanimetria(p: Planimetria, scelta: { livelloId?: string
   }
   const materialiFatto = materialiDelProgetto(p, scelta.materialiAmbito ?? "fatto");
   const fatto = { ...daStatoPianta(statoConMateriali(livello.fatto, materialiFatto)), infissiProgetto: materialiFatto.infissi };
-  const proposta = (scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : undefined) ?? livello.proposte[0];
+  const proposta = scelta.propostaId ? livello.proposte.find((pr) => pr.id === scelta.propostaId) : livello.proposte[0];
   // una proposta fatta prima delle aree esterne non le ha: valgono quelle di oggi
   const materialiProposta = proposta ? materialiDelProgetto(p, scelta.materialiAmbito ?? `progetto:${proposta.id}`) : materialiFatto;
   const statoProposta = proposta ? (proposta.aree === undefined && livello.fatto.aree ? { ...proposta, aree: livello.fatto.aree } : proposta) : livello.fatto;

@@ -33,7 +33,7 @@ describe("materiali comuni a tutto il progetto", () => {
     doc.materialiProgetto = { "progetto:rinnovo": comuni() };
     const company = "22222222-2222-4222-8222-222222222222";
     const db = { from: (table: string) => {
-      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ error: null as null, data: table === "planimetrie" ? { company_id: company, deleted_at: null as string | null } : { documento: doc } }) };
+      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ error: null as null, data: table === "planimetrie" ? { company_id: company, versione_corrente: 1, deleted_at: null as string | null } : { documento: doc } }) };
       return q;
     } };
     const ref = { planimetria_id: "11111111-1111-4111-8111-111111111111", versione: 1, livello_id: primo.id, locale_id: primo.fatto.locali[0].id, ambito: "fatto", materiali_ambito: "progetto:rinnovo" };
@@ -59,6 +59,25 @@ describe("materiali comuni a tutto il progetto", () => {
     const cfg = { pavimento: pavimentoDaCampione("marmo"), eccezioni_materiali_progetto: { pavimento: true } };
     expect(applicaMaterialiProgetto(cfg, comuni()).pavimento).toEqual(cfg.pavimento);
     expect(applicaMaterialiProgetto({ ...cfg, eccezioni_materiali_progetto: {} }, comuni()).pavimento).toEqual(comuni().pavimento);
+  });
+  it("gli infissi comuni prevalgono anche su una vecchia eccezione rimasta nella configurazione", () => {
+    const cfg = { infissi_progetto: { profilo: "legno", colore: "verde" }, eccezioni_materiali_progetto: { infissi: true } };
+    expect(applicaMaterialiProgetto(cfg, comuni()).infissi_progetto).toEqual(comuni().infissi);
+  });
+  it("una sessione vecchia non genera con materiali superati dopo il salvataggio della casa", async () => {
+    const doc = documento(), company = "22222222-2222-4222-8222-222222222222";
+    doc.materialiProgetto = { fatto: comuni() };
+    const tabelle: string[] = [];
+    const db = { from: (table: string) => {
+      tabelle.push(table);
+      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({ error: null as null, data: table === "planimetrie" ? { company_id: company, versione_corrente: 2, deleted_at: null as string | null } : { documento: doc } }) };
+      return q;
+    } };
+    const ref = { planimetria_id: "11111111-1111-4111-8111-111111111111", versione: 1, livello_id: doc.livelli[0].id, locale_id: doc.livelli[0].fatto.locali[0].id, ambito: "fatto" };
+    await expect(caricaPiantaDelRender(db as never, company, ref, () => undefined)).rejects.toThrow(/materiali comuni sono cambiati/);
+    expect(tabelle).toEqual(["planimetrie"]); // niente file, generazione o credito
+    const aggiornata = await caricaPiantaDelRender(db as never, company, { ...ref, versione: 2 }, () => undefined);
+    expect(aggiornata?.materiali).toEqual(comuni());
   });
   it("un progetto non eredita i materiali di un altro e le proposte restano distinte", () => {
     const a = documento(), b = documento();

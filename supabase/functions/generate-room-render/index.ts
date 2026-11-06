@@ -1,3 +1,4 @@
+import { rifiutaRenderStanza } from "../../../shared/render-planimetria/controlloRender.ts";
 import { applicaMaterialiProgetto, vincoloInfissiProgetto } from "../../../shared/planimetrie/materialiProgetto.ts";
 import { caricaTavoleMateriali } from "./materiali.ts";
 // generate-room-render — Edge Function EiC
@@ -540,9 +541,9 @@ Deno.serve(async (req: Request) => {
       // due letti nella stessa camera), porte/finestre inventate o sparite,
       // prospettiva cambiata. Check ~€0.002, 1 retry correttivo budget-gated.
       // Graceful: se il vision provider fallisce, il render passa comunque.
-      let selectionMismatch = false;
+      let renderNonConforme = false;
       let qaAudit: { checked: boolean; pass: boolean; model: string; issues: Array<{ category: string; detail: string }> } | null = null;
-      const violazioneScelte = (issue: { category: string }) => (!!materialBoards && issue.category === "selected_material_mismatch") || (pianta?.partenza === "vista_3d" && issue.category === "unrequested_furniture");
+      const contestoQa = { daPianta: !!pianta, materiali: !!materialBoards, da3D: pianta?.partenza === "vista_3d" };
       try {
         const qaPrompt = [
           "You are a LENIENT quality inspector for an interior room restyling render.",
@@ -572,6 +573,7 @@ Deno.serve(async (req: Request) => {
         };base64,${bytesToBase64(sourceBytes)}`;
 
         const qaResult = await callVisionQa({
+          requireExplicitPass: !!pianta,
           sourceImageDataUrl: sourceDataUrl,
           candidateImageDataUrl: providerResult.imageDataUrl,
           qaPrompt,
@@ -591,7 +593,7 @@ Deno.serve(async (req: Request) => {
           return { category: r.category ?? "unspecified", detail: r.detail ?? "" };
         });
 
-        selectionMismatch = qaResult.checked && !qaResult.pass && qaIssues.some(violazioneScelte);
+        renderNonConforme = rifiutaRenderStanza({ ...qaResult, issues: qaIssues }, contestoQa);
         qaAudit = { checked: qaResult.checked, pass: qaResult.pass, model: qaResult.modelUsed, issues: qaIssues };
         if (qaResult.checked && !qaResult.pass && qaIssues.length > 0 && jobElapsed() < (qualitaAlta ? 40_000 : 95_000)) {
           console.log(JSON.stringify({
@@ -674,10 +676,10 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
             elapsed_ms: jobElapsed(),
           }));
         }
-        if (selectionMismatch && generationAttempts > 1) {
-          const verifica = await callVisionQa({ sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)), metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
-          selectionMismatch = !verifica.checked || (!verifica.pass && verifica.issues.some((i) => typeof i === "object" && violazioneScelte(i)));
+        if (renderNonConforme && generationAttempts > 1) {
+          const verifica = await callVisionQa({ requireExplicitPass: !!pianta, sourceImageDataUrl: sourceDataUrl, candidateImageDataUrl: providerResult.imageDataUrl, qaPrompt, referenceImages: materialBoards ?? undefined, timeoutMs: Math.max(1_000, Math.min(18_000, STANZA_BUDGET_MS - jobElapsed() - 8_000)), metadata: { task_kind: "render_image_qa", company_id: companyId as string, session_id } });
           qaAudit = { checked: verifica.checked, pass: verifica.pass, model: verifica.modelUsed, issues: verifica.issues.map((issue) => typeof issue === "string" ? { category: "unspecified", detail: issue } : issue) };
+          renderNonConforme = rifiutaRenderStanza(qaAudit, contestoQa, true);
         }
 
       } catch (qaErr) {
@@ -686,7 +688,9 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
           qaErr instanceof Error ? qaErr.message : String(qaErr),
         );
       }
-      if (selectionMismatch) {
+      // Il candidato finale deve avere un controllo positivo: anche un errore del QA ferma i render da pianta.
+      renderNonConforme = renderNonConforme || rifiutaRenderStanza(qaAudit, contestoQa);
+      if (renderNonConforme) {
         // Campione rifiutato conservato PRIVATO per distinguere un difetto reale da un falso positivo QA.
         let rejectedPath: string | null = null;
         try {
@@ -697,7 +701,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate furniture (o
         } catch { /* La diagnostica non deve impedire il rimborso. */ }
         const { data: current } = await supabase.from("render_stanza_sessions").select("config_snapshot").eq("id", session_id).eq("company_id", companyId).single();
         await supabase.from("render_stanza_sessions").update({ config_snapshot: { ...(current?.config_snapshot ?? {}), qa_audit: qaAudit, qa_rejected_path: rejectedPath } }).eq("id", session_id).eq("company_id", companyId);
-        throw new Error("Il render non ha rispettato i campioni o gli arredi richiesti: riprova. Il credito viene restituito.");
+        throw new Error(pianta ? (!qaAudit?.checked ? "Il controllo di porte, finestre e materiali non è disponibile: il render non è stato consegnato. Il credito viene restituito." : "Il render non rispetta la pianta o i materiali scelti: riprova. Il credito viene restituito.") : "Il render non ha rispettato i campioni o gli arredi richiesti: riprova. Il credito viene restituito.");
       }
       const providerKey = providerResult.providerUsed === "openrouter"
         ? "openrouter_image"

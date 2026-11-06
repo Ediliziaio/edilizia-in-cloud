@@ -211,7 +211,7 @@ serveConMetricheRapida(NOME, async (req: Request) => {
             disableModelFallback: true,
             skipCharge: true,
             messages: messaggi,
-            params: { temperature: 0.1, max_tokens: 12000, timeoutMs: Math.min(TEMPO_PER_MODELLO_MS, resto) },
+            params: { temperature: 0.1, max_tokens: tentativo === 3 ? 4000 : 12000, timeoutMs: tentativo === 3 ? Math.min(25_000, resto) : Math.min(TEMPO_PER_MODELLO_MS, Math.max(1_000, resto - 25_000)) },
             responseFormat: { type: "json_object" },
             companyId,
             userId,
