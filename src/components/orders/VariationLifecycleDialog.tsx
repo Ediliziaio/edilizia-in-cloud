@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { Check, Copy, Loader2, Mail, PenLine, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useVariationWorkflow, type WorkflowResponse, type WorkflowEvidence } from "@/hooks/useVariationWorkflow";
+import { useRichiediFirma } from "@/hooks/useRichiediFirma";
+import { eUnaFoto, fotoInPdfBase64, nomePdfDellaFoto } from "@/lib/orders/fotoFirmataInPdf";
 import { emptyVariationDraft, prepareVariation, variationImpact, type VariationDraft } from "@/lib/orders/variationDraft";
 import { variationDocumentContext } from "@/lib/orders/variationDocumentContext";
 import { formatCurrency } from "@/lib/formatters";
@@ -51,6 +53,8 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const [selectedEvidence, setSelectedEvidence] = useState("");
   const [signer, setSigner] = useState(context.customerName ?? "");
   const [signedOn, setSignedOn] = useState("");
+  const [emailCliente, setEmailCliente] = useState(context.customerEmail ?? "");
+  const [nomeCliente, setNomeCliente] = useState(context.customerName ?? "");
   const lock = useRef(false), alive = useRef(true);
   const dirty = JSON.stringify(form) !== saved;
   const editable = canEdit && (!receipt || receipt.variation.status === "bozza");
@@ -92,14 +96,45 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
         ditte: (t.data ?? []).map((d) => ({ id: d.id, nome: d.name, squadra: d.kind === "interna" })),
       };
     }, staleTime: 60_000 });
+  const { mutateAsync: richiediFirma } = useRichiediFirma();
+  // La richiesta di firma elettronica già mandata per questo lavoro extra: il link resta quello.
+  const firmaEsistente = useQuery({
+    queryKey: ["variation-fea", id],
+    enabled: !!receipt && receipt.variation.status === "in_attesa",
+    staleTime: 15_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const { data } = await db.from("signature_requests")
+        .select("token, signer_email, signer_name, created_at")
+        .eq("odv_id", id).in("status", ["pending", "otp_verified"])
+        .order("created_at", { ascending: false }).limit(1);
+      const riga = (data ?? [])[0] as { token: string; signer_email: string | null; signer_name: string | null } | undefined;
+      return riga ? { link: `${window.location.origin}/firma-fea/${riga.token}`, email: riga.signer_email, nome: riga.signer_name } : null;
+    },
+  });
   const approval = useQuery({ queryKey: ["variation-approval-permission", company], enabled: canEdit,
     queryFn: async () => { const {data: session} = await supabase.auth.getSession(); const uid = session.session?.user.id; if(!uid) return false; const {data,error} = await supabase.rpc("has_permission_for_company", {_user_id:uid,_company_id:company,_permission:"can_approve_variations"}); if(error) throw error; return data === true; }, staleTime: 60_000 });
 
   const run = async (etichetta: string, operation: () => Promise<void>) => {
     if(lock.current) return; lock.current = true; setBusy(true); setAzione(etichetta); setError("");
-    try { await operation(); } catch(e) { if(alive.current) setError(e instanceof Error ? e.message : "Operazione non confermata. Riapri la variante prima di riprovare."); }
+    try { await operation(); } catch(e) { if(alive.current) setError(await frase(e)); }
     finally { lock.current = false; if(alive.current) { setBusy(false); setAzione(""); } }
   };
+  /** La frase da mostrare: quella scritta dalla funzione, mai «Edge Function returned a non-2xx status code». */
+  const frase = async (e: unknown): Promise<string> => {
+    const ripiego = "Non è andata: riprova. Se succede ancora, scrivi all'assistenza.";
+    const ctx = (e as { context?: Response } | null)?.context;
+    if (ctx && typeof ctx.clone === "function") {
+      try {
+        const corpo = await ctx.clone().json() as { error?: unknown };
+        if (typeof corpo.error === "string" && corpo.error.trim()) return corpo.error;
+      } catch { /* la risposta non è JSON: si usa il messaggio sotto */ }
+    }
+    const m = e instanceof Error ? e.message : "";
+    return !m || /non-2xx|FunctionsHttpError|fetch/i.test(m) ? ripiego : m;
+  };
+
   const save = async () => {
     const data = await workflow.request(id,"save",{revision:receipt?.workspace?.revision ?? 0,content:form,context:variationDocumentContext(form,context)});
     if(alive.current) absorb(data); return data;
@@ -118,7 +153,9 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
 
   const fresh = !!receipt?.document && !dirty && receipt.document.source_revision === receipt.workspace?.revision;
   const evidenceForDocument = evidence.filter(item => item.document_id === receipt?.document?.id);
-  const link = receipt?.variation.firma_token ? `${window.location.origin}/firma-odv/${receipt.variation.firma_token}` : null;
+  // Il link di firma: quello della firma elettronica col codice. I vecchi link /firma-odv già mandati
+  // restano validi e funzionanti, ma da oggi non se ne creano più.
+  const link = firmaEsistente.data?.link ?? null;
 
   // Quanto cambia il contratto: lo stesso conto dell'editor, qui in grande sul passo «Rivedi».
   let pronta: ReturnType<typeof prepareVariation> | null = null;
@@ -137,21 +174,29 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     if (alive.current) setPasso("rivedi");
   });
 
-  /** Un clic solo: blocca il PDF, crea il link di firma e manda l'email al cliente. */
-  const mandaAlCliente = (conEmail: boolean): void => void run(conEmail ? "Mando al cliente…" : "Preparo il link…", async () => {
+  /**
+   * Un clic solo: blocca il PDF, mette il lavoro extra in attesa e manda al cliente la firma
+   * elettronica col codice OTP, la stessa dei preventivi (06/11/2026). Il cliente si identifica,
+   * riceve il codice a sei cifre e firma: alla firma la variante è accettata e nasce la fase.
+   */
+  const mandaAlCliente = (): void => void run("Mando al cliente…", async () => {
+    const email = emailCliente.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Scrivi l'email del cliente: è lì che arriva il link per firmare.");
+    if (nomeCliente.trim().length < 2) throw new Error("Scrivi il nome di chi firma.");
     let dati = receipt!;
     if (!pending) {
       dati = await workflow.request(id,"publish",{revision:dati.workspace!.revision,document_hash:dati.document!.document_hash,reviewed:true});
       absorb(dati);
     }
-    if (conEmail) {
-      const { data, error: err } = await supabase.functions.invoke("invia-odv", { body: { odv_id: id } });
-      if (err || (data as { success?: boolean })?.success !== true) throw new Error("Link creato, ma l'email non è partita: copia il link e mandalo tu.");
-      toast.success("Mandata al cliente da firmare");
-    } else {
-      toast.success("Link di firma pronto");
+    const esito = await richiediFirma({
+      tipo_documento: "odv", documento_id: id, tipo_firmatario: "b2c",
+      signer_email: email, signer_name: nomeCliente.trim(), scadenza_giorni: 30,
+    });
+    if (alive.current) {
+      await firmaEsistente.refetch();
+      setPasso("manda");
     }
-    if (alive.current) setPasso("manda");
+    toast.success(esito.otp_inviato ? "Mandato al cliente da firmare" : "Richiesta pronta: copia il link e mandalo tu.");
   });
 
   const copiaLink = () => { if (!link) return; void navigator.clipboard.writeText(link).then(() => toast.success("Link copiato")).catch(() => setError("Copia non riuscita: seleziona il link e copialo a mano.")); };
@@ -160,8 +205,12 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
     const evidenceId = crypto.randomUUID();
     void run("Carico la copia…", async () => {
       if (file.size > 10*1024*1024) throw new Error("File troppo grande: massimo 10 MB.");
-      const base64 = await new Promise<string>((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error("File non leggibile")); reader.readAsDataURL(file); });
-      const data = await workflow.request(id,"upload_evidence",{evidence_id:evidenceId,file_name:file.name,file_base64:base64,proposal_hash:receipt!.document!.document_hash});
+      // La foto del foglio firmato diventa un PDF di una pagina: il server accetta solo PDF veri.
+      const foto = eUnaFoto(file);
+      const base64 = foto
+        ? await fotoInPdfBase64(file)
+        : await new Promise<string>((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = () => reject(new Error("File non leggibile")); reader.readAsDataURL(file); });
+      const data = await workflow.request(id,"upload_evidence",{evidence_id:evidenceId,file_name:foto ? nomePdfDellaFoto(file.name) : file.name,file_base64:base64,proposal_hash:receipt!.document!.document_hash});
       absorb(data);
       setSelectedEvidence(evidenceId);
       if (!signedOn) setSignedOn(new Date().toLocaleDateString("en-CA"));
@@ -236,29 +285,37 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
           <div className="space-y-3 rounded-lg border p-4">
             <p className="text-sm font-medium">Mandalo al cliente da firmare</p>
             {link ? <>
-              <p className="text-xs text-muted-foreground">Già mandato. Il link scade il {receipt?.variation.link_expires_at ? new Date(receipt.variation.link_expires_at).toLocaleDateString("it-IT") : "—"}.</p>
+              <p className="text-xs text-muted-foreground">
+                Già mandato a {firmaEsistente.data?.email ?? "il cliente"}. Firma elettronica col codice: il cliente apre il link, riceve un codice di sei cifre per email e firma.
+              </p>
               <Input aria-label="Link di firma" readOnly value={link} className="text-xs" />
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={copiaLink}><Copy className="mr-1.5 h-3.5 w-3.5" />Copia link</Button>
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => mandaAlCliente(true)}><Mail className="mr-1.5 h-3.5 w-3.5" />Manda di nuovo per email</Button>
                 <Button variant="ghost" size="sm" onClick={() => window.open(link, "_blank", "noopener")}>Apri come il cliente</Button>
               </div>
             </> : <>
-              <p className="text-xs text-muted-foreground">Un clic: blocca il PDF, crea il link di firma e manda l'email al cliente.</p>
-              <div className="flex flex-wrap gap-2">
-                <Button disabled={busy || !fresh} onClick={() => mandaAlCliente(true)}>{busy && azione.startsWith("Mando") ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}Mandalo al cliente da firmare</Button>
-                <Button variant="outline" disabled={busy || !fresh} onClick={() => mandaAlCliente(false)}>Solo il link, lo mando io</Button>
+              <p className="text-xs text-muted-foreground">
+                Firma elettronica col codice, come per i preventivi: il cliente si identifica, riceve un codice di sei cifre e firma. Alla firma il lavoro entra nel contratto e nelle Lavorazioni.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1"><Label htmlFor="odv-email">Email del cliente</Label>
+                  <Input id="odv-email" type="email" inputMode="email" autoComplete="email" value={emailCliente} onChange={e => setEmailCliente(e.target.value)} disabled={busy} placeholder="cliente@esempio.it" /></div>
+                <div className="space-y-1"><Label htmlFor="odv-nome">Chi firma</Label>
+                  <Input id="odv-nome" value={nomeCliente} onChange={e => setNomeCliente(e.target.value)} disabled={busy} /></div>
               </div>
+              <Button disabled={busy || !fresh} onClick={mandaAlCliente}>
+                {busy && azione.startsWith("Mando") ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}Mandalo al cliente da firmare
+              </Button>
             </>}
           </div>
 
           {receipt?.document && canEdit && <div className="space-y-3 rounded-lg border p-4">
             <p className="text-sm font-medium">Oppure: l'ha già firmato su carta</p>
             {approval.data === false ? <p className="text-xs text-muted-foreground">Puoi conservare la copia firmata, ma l'accettazione la registra chi ha il permesso sulle varianti.</p>
-              : <p className="text-xs text-muted-foreground">Carica la copia firmata (PDF o foto, fino a 10 MB): con nome e data diventa accettato.</p>}
+              : <p className="text-xs text-muted-foreground">Carica la copia firmata: il PDF, o la foto del foglio fatta col telefono (diventa un PDF da sé). Fino a 10 MB. Con nome e data è accettato.</p>}
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => document.getElementById("variation-evidence")?.click()}><Upload className="mr-1.5 h-3.5 w-3.5" />Carica la copia firmata</Button>
-              <Input id="variation-evidence" type="file" accept="application/pdf,.pdf" className="sr-only" aria-label="Copia firmata, PDF fino a 10 MB" disabled={busy || dirty}
+              <Button variant="outline" size="sm" disabled={busy || dirty} onClick={() => document.getElementById("variation-evidence")?.click()}><Upload className="mr-1.5 h-3.5 w-3.5" />Carica la copia firmata o la foto</Button>
+              <Input id="variation-evidence" type="file" accept="application/pdf,.pdf,image/*" capture="environment" className="sr-only" aria-label="Copia firmata: PDF o foto, fino a 10 MB" disabled={busy || dirty}
                 onChange={event => { const file = event.target.files?.[0]; event.target.value=""; if (file) caricaFirmata(file); }} />
               {evidenceForDocument.map(item => <Button key={item.id} variant="ghost" size="sm" disabled={busy} onClick={() => void run("Apro…", () => showDocument(item.id))}>{item.file_name}</Button>)}
             </div>

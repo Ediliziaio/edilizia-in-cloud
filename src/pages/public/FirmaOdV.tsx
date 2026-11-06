@@ -2,11 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +23,6 @@ import {
   Loader2,
   Eraser,
   PenTool,
-  GitBranch,
-  Euro,
   Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -49,6 +45,10 @@ interface OdVData {
   document_hash: string;
   has_document?: boolean;
   attachments?: {id:string;name:string}[];
+  /** Dalla 20281216170000: finché non c'è, la pagina funziona lo stesso senza questi. */
+  impresa?: string | null;
+  iva_percentuale?: number | null;
+  cantiere?: string | null;
 }
 
 export default function FirmaOdV() {
@@ -226,242 +226,182 @@ export default function FirmaOdV() {
     );
   }
 
+  // useGrouping esplicito: senza, su alcuni dispositivi esce «1848,00 €» invece di «1.848,00 €».
+  const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(n);
+  const esito = (icona: React.ReactNode, titolo: string, testo: string, tono: string) => (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm">
+        <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${tono}`}>{icona}</div>
+        <h2 className="text-xl font-semibold">{titolo}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{testo}</p>
+        {odv?.impresa && <p className="mt-4 text-xs text-muted-foreground">{odv.impresa}</p>}
+      </div>
+    </div>
+  );
+
   if (pageStatus === "already_done") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="flex flex-col items-center gap-4 py-12">
-            <CheckCircle2 className="h-12 w-12 text-green-600" />
-            <h2 className="text-lg font-semibold">Già elaborato</h2>
-            <p className="text-sm text-muted-foreground text-center">
-              Questo ordine di variazione è già stato firmato o elaborato. Puoi chiudere questa pagina.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return esito(<CheckCircle2 className="h-8 w-8 text-slate-600" />, "Già firmato",
+      "Questi lavori extra sono già stati firmati o annullati. Puoi chiudere la pagina.", "bg-slate-100");
   }
-
   if (pageStatus === "approved") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="flex flex-col items-center gap-4 py-12">
-            <CheckCircle2 className="h-16 w-16 text-green-600" />
-            <h2 className="text-xl font-semibold text-green-700">Ordine approvato!</h2>
-            <p className="text-sm text-muted-foreground text-center">
-              L'approvazione è registrata nella commessa. Concorda con l'azienda la programmazione dei lavori.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return esito(<CheckCircle2 className="h-8 w-8 text-emerald-600" />, "Grazie, è approvato",
+      "L'impresa ha ricevuto la tua firma e può partire con i lavori. Riceverai l'aggiornamento del contratto.", "bg-emerald-100");
   }
-
   if (pageStatus === "rejected") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="flex flex-col items-center gap-4 py-12">
-            <XCircle className="h-16 w-16 text-red-500" />
-            <h2 className="text-xl font-semibold text-red-700">Ordine rifiutato</h2>
-            <p className="text-sm text-muted-foreground text-center">
-              Il rifiuto è registrato nella commessa. Questa variante non aumenta l'importo approvato.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return esito(<XCircle className="h-8 w-8 text-rose-600" />, "Non approvato",
+      "L'impresa è stata avvisata. Questi lavori non si fanno e il contratto non cambia.", "bg-rose-100");
   }
 
-  // ── Main ready/submitting UI ─────────────────────────────────
-  return (
-    <div className="min-h-screen bg-muted/30 py-8 px-4">
-      <div className="max-w-lg mx-auto space-y-4">
+  // ── La pagina del cliente: chi chiede, cosa fa, quanto costa, la firma ──
+  const iva = typeof odv?.iva_percentuale === "number" && odv.iva_percentuale > 0 ? odv.iva_percentuale : null;
+  const conIva = odv && iva ? Math.round(odv.impatto_economico * (1 + iva / 100) * 100) / 100 : null;
+  const inCorso = pageStatus === "submitting";
+  const puoFirmare = !!hasDrawn && accepted && firmatoDa.trim().length >= 2 && !inCorso;
+  const riduzione = (odv?.impatto_economico ?? 0) < 0;
 
-        {/* Header */}
-        <div className="text-center space-y-1 pb-2">
-          <div className="flex items-center justify-center gap-2 text-primary">
-            <GitBranch className="h-6 w-6" />
-            <h1 className="text-xl font-bold">Ordine di Variazione</h1>
-          </div>
+  return (
+    <div className="min-h-screen bg-slate-50 pb-10">
+      <header className="border-b bg-white">
+        <div className="mx-auto flex max-w-xl flex-col gap-1 px-4 py-5">
+          {odv?.impresa && <p className="text-sm font-semibold text-slate-900">{odv.impresa}</p>}
+          <h1 className="text-lg font-bold text-slate-900 sm:text-xl">{riduzione ? "Riduzione dei lavori da approvare" : "Lavori extra da approvare"}</h1>
           <p className="text-sm text-muted-foreground">
-            Rivedi i dettagli e firma per approvare oppure rifiuta i lavori extra
+            {odv?.cantiere ? <>Cantiere di {odv.cantiere}. </> : null}Leggi cosa cambia, poi firma qui sotto.
           </p>
         </div>
+      </header>
 
-        {/* OdV Detail Card */}
+      <main className="mx-auto max-w-xl space-y-4 px-4 py-5">
         {odv && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-xs font-mono text-muted-foreground">OdV #{odv.numero_odv}</span>
-                  <CardTitle className="text-base mt-0.5">{odv.titolo}</CardTitle>
-                </div>
-                <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 border text-xs shrink-0">
-                  In attesa di firma
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {odv.has_document && <div className="space-y-2 rounded-md border p-3"><p className="text-sm font-medium">Documenti della proposta</p><Button variant="outline" disabled={documentBusy} onClick={()=>void openPublicDocument()}>Apri / scarica PDF originale</Button>{odv.attachments?.map(file=><Button key={file.id} variant="outline" disabled={documentBusy} onClick={()=>void openPublicDocument(file.id)}>Allegato: {file.name}</Button>)}</div>}
+          <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <div className="border-b bg-slate-50/80 px-5 py-4">
+              <p className="text-xs text-muted-foreground">Proposta n. {odv.numero_odv}{odv.richiesto_il ? ` del ${format(new Date(odv.richiesto_il), "d MMMM yyyy", { locale: it })}` : ""}</p>
+              <h2 className="mt-0.5 text-lg font-semibold leading-snug text-slate-900">{odv.titolo}</h2>
+            </div>
+
+            <div className="space-y-4 px-5 py-5">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Descrizione lavori</p>
-                <p className="text-sm whitespace-pre-wrap">{odv.descrizione}</p>
-              </div>
-
-              {odv.motivazione && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Motivazione</p>
-                  <p className="text-sm text-muted-foreground">{odv.motivazione}</p>
-                </div>
-              )}
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Euro className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Variazione del prezzo, IVA esclusa</p>
-                    <p className="font-semibold text-sm">
-                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(odv.impatto_economico)}
-                    </p>
-                  </div>
-                </div>
+                <p className="text-3xl font-bold tabular-nums text-slate-900">{euro(odv.impatto_economico)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {conIva !== null
+                    ? <>IVA {iva}% esclusa · <span className="font-medium text-slate-700">{euro(conIva)}</span> in tutto</>
+                    : <>IVA esclusa</>}
+                </p>
                 {odv.impatto_giorni > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Giorni aggiuntivi</p>
-                      <p className="font-semibold text-sm">+{odv.impatto_giorni} giorni</p>
-                    </div>
-                  </div>
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900">
+                    <Calendar className="h-3.5 w-3.5" aria-hidden />+{odv.impatto_giorni} giorni sulla consegna
+                  </p>
                 )}
               </div>
 
-              {(odv.richiesto_da || odv.richiesto_il) && (
-                <>
-                  <Separator />
-                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                    {odv.richiesto_da && <span>Richiesto da: <strong>{odv.richiesto_da}</strong></span>}
-                    {odv.richiesto_il && (
-                      <span>Il: <strong>{format(new Date(odv.richiesto_il), "dd/MM/yyyy", { locale: it })}</strong></span>
-                    )}
-                  </div>
-                </>
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cosa comprende</p>
+                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{odv.descrizione}</p>
+              </div>
+
+              {odv.motivazione && (
+                <div className="border-t pt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Perché serve</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{odv.motivazione}</p>
+                </div>
               )}
-            </CardContent>
-          </Card>
+
+              {odv.has_document && (
+                <div className="flex flex-wrap gap-2 border-t pt-4">
+                  <Button variant="outline" className="min-h-11" disabled={documentBusy} onClick={() => void openPublicDocument()}>
+                    {documentBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}Leggi il documento completo
+                  </Button>
+                  {odv.attachments?.map(file => (
+                    <Button key={file.id} variant="ghost" className="min-h-11" disabled={documentBusy} onClick={() => void openPublicDocument(file.id)}>{file.name}</Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         )}
 
-        {/* Signature Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <PenTool className="h-4 w-4 text-primary" />
-              La tua firma
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="odv-signer">Nome e cognome *</Label>
-              <Input
-                id="odv-signer"
-                maxLength={200}
-                placeholder="es. Mario Rossi"
-                value={firmatoDa}
-                onChange={(e) => setFirmatoDa(e.target.value)}
-                disabled={pageStatus === "submitting"}
+        <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          {riduzione
+            ? <>Se approvi, l'importo si toglie dal contratto. Se non approvi, resta tutto com'è.</>
+            : <>Se approvi, l'impresa fa questi lavori e l'importo si aggiunge al contratto. Se non approvi, non si fa niente e il contratto resta uguale.</>}
+        </p>
+
+        <section className="space-y-4 rounded-2xl border bg-white px-5 py-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <PenTool className="h-4 w-4 text-primary" aria-hidden />
+            <h2 className="text-base font-semibold">La tua firma</h2>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="odv-signer">Nome e cognome</Label>
+            <Input id="odv-signer" className="min-h-11" maxLength={200} autoComplete="name" placeholder="Es. Mario Rossi"
+              value={firmatoDa} onChange={(e) => setFirmatoDa(e.target.value)} disabled={inCorso} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="odv-firma-area">Firma col dito o col mouse</Label>
+            <div id="odv-firma-area" className="relative overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-white">
+              {!hasDrawn && <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-400">Firma qui</p>}
+              <canvas
+                ref={canvasRef}
+                width={460}
+                height={180}
+                aria-label="Riquadro della firma"
+                className="block w-full cursor-crosshair touch-none"
+                style={{ touchAction: "none" }}
+                onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+                onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
               />
             </div>
+            {hasDrawn && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearCanvas} disabled={inCorso}>
+                <Eraser className="mr-1 h-3 w-3" />Rifai la firma
+              </Button>
+            )}
+          </div>
 
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">Firma qui sotto per approvare:</p>
-              <div className="border-2 border-dashed rounded-lg bg-white overflow-hidden">
-                <canvas
-                  ref={canvasRef}
-                  width={460}
-                  height={180}
-                  className="w-full cursor-crosshair touch-none block"
-                  style={{ touchAction: "none" }}
-                  onMouseDown={startDraw}
-                  onMouseMove={draw}
-                  onMouseUp={endDraw}
-                  onMouseLeave={endDraw}
-                  onTouchStart={startDraw}
-                  onTouchMove={draw}
-                  onTouchEnd={endDraw}
-                />
-              </div>
-              <div className="flex justify-between items-center mt-1.5">
-                <p className="text-xs text-muted-foreground italic">Firma con il dito o il mouse</p>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearCanvas} disabled={pageStatus === "submitting"}>
-                  <Eraser className="h-3 w-3 mr-1" /> Cancella
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-800">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-600" checked={accepted} onChange={e => setAccepted(e.target.checked)} disabled={inCorso} />
+            Ho letto i lavori e l'importo, e li approvo.
+          </label>
 
-        <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
-          <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={accepted} onChange={e => setAccepted(e.target.checked)} disabled={pageStatus === "submitting"} />
-          Ho letto la variante e approvo i lavori descritti, l'importo aggiuntivo IVA esclusa e gli eventuali giorni aggiuntivi.
-        </label>
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3 pb-8">
-          {/* Reject */}
+          <Button onClick={handleApprove} disabled={!puoFirmare}
+            className="min-h-12 w-full bg-emerald-600 text-base font-semibold hover:bg-emerald-700">
+            {inCorso ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Registro la firma…</> : <><CheckCircle2 className="mr-2 h-5 w-5" />Approvo e firmo</>}
+          </Button>
+          {!puoFirmare && !inCorso && (
+            <p className="text-center text-xs text-muted-foreground">
+              {firmatoDa.trim().length < 2 ? "Scrivi il tuo nome" : !hasDrawn ? "Firma nel riquadro" : "Spunta la casella per approvare"}
+            </p>
+          )}
+        </section>
+
+        <div className="text-center">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
-                disabled={pageStatus === "submitting"}
-              >
-                <XCircle className="h-4 w-4 mr-1.5" />
-                Rifiuto
+              <Button variant="ghost" className="min-h-11 text-sm text-muted-foreground hover:text-rose-700" disabled={inCorso}>
+                Non approvo questi lavori
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Conferma rifiuto</AlertDialogTitle>
+                <AlertDialogTitle>Non approvi «{odv?.titolo}»?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Stai rifiutando l'ordine di variazione <strong>"{odv?.titolo}"</strong> da{" "}
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(odv?.impatto_economico || 0)}.
-                  L'azienda sarà notificata e i lavori non potranno procedere.
+                  L'impresa viene avvisata, i lavori non si fanno e il contratto non cambia. Se ti serve solo una modifica, chiama l'impresa prima di rifiutare.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Annulla</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleReject}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Sì, rifiuto
-                </AlertDialogAction>
+                <AlertDialogCancel>Torna indietro</AlertDialogCancel>
+                <AlertDialogAction onClick={handleReject} className="bg-rose-600 text-white hover:bg-rose-700">Sì, non approvo</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-
-          {/* Approve */}
-          <Button
-            onClick={handleApprove}
-            disabled={!hasDrawn || !accepted || firmatoDa.trim().length < 2 || pageStatus === "submitting"}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            {pageStatus === "submitting" ? (
-              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Salvataggio...</>
-            ) : (
-              <><CheckCircle2 className="h-4 w-4 mr-1.5" /> Approvo e firmo</>
-            )}
-          </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center pb-4">
-          Approvando, autorizzi l'esecuzione dei lavori extra descritti e accetti l'importo aggiuntivo indicato.
+        <p className="px-2 text-center text-xs leading-relaxed text-muted-foreground">
+          Firmando autorizzi questi lavori e accetti l'importo. La firma resta registrata con la data.
         </p>
-      </div>
+      </main>
     </div>
   );
 }

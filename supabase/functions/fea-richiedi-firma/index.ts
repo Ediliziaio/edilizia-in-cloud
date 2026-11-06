@@ -112,6 +112,8 @@ Deno.serve(async (req: Request) => {
       fv: "fv_progetti",
       // Contratto di subappalto (22/10/2026): il PDF congelato all'invio è in contratti_subappalto.pdf_path.
       subappalto: "contratti_subappalto",
+      // Lavori extra e varianti (06/11/2026): il PDF congelato è in order_variation_documents.
+      odv: "ordini_variazione",
     };
     let company_id: string | null = (profile.company_id as string | null) ?? null;
     const tabella = tabellaDocumento[tipo_documento];
@@ -272,8 +274,13 @@ Deno.serve(async (req: Request) => {
       insertPayload.fv_progetto_id = documento_id;
     } else if (tipo_documento === "subappalto") {
       insertPayload.contratto_subappalto_id = documento_id;
+    } else if (tipo_documento === "odv") {
+      // La variante, e la sua commessa: l'avviso al titolare passa da order_id (fea-completa-firma).
+      insertPayload.odv_id = documento_id;
+      const { data: v } = await supabaseAdmin.from("ordini_variazione")
+        .select("order_id").eq("id", documento_id).eq("company_id", company_id).maybeSingle();
+      if (v?.order_id) insertPayload.order_id = v.order_id;
     }
-    // odv: nessun ID specifico (fallback)
 
     // Inserisce in signature_requests
     const { data: inserted, error: insertErr } = await supabaseAdmin

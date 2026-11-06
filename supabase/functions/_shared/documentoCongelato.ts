@@ -158,6 +158,17 @@ export async function bytesDelDocumento(sb: any, f: FonteDocumento): Promise<Uin
       if (!data?.pdf_url) throw new DocumentoNonPronto("Prepara prima il PDF del modulo da firmare");
       return await scaricaDaIndirizzo(data.pdf_url);
     }
+    case "odv": {
+      // Lavoro extra / variante (06/11/2026): si firma il PDF congelato quando è partito al cliente
+      // (order_variation_documents), non uno rigenerato ora: è quello che il cliente ha letto.
+      const { data: v } = await sb.from("ordini_variazione")
+        .select("current_document_id, company_id").eq("id", f.documentoId).maybeSingle();
+      if (!v?.current_document_id) throw new DocumentoNonPronto("Prepara prima il PDF del lavoro extra da firmare");
+      const { data: d } = await sb.from("order_variation_documents")
+        .select("pdf_path").eq("id", v.current_document_id).eq("variation_id", f.documentoId).maybeSingle();
+      if (!d?.pdf_path) throw new DocumentoNonPronto("Il PDF del lavoro extra non è disponibile: rifallo prima di mandarlo in firma.");
+      return await scaricaDaStorage(sb, "order-variation-documents", d.pdf_path);
+    }
     case "order": {
       const { data: o } = await sb.from("orders")
         .select("order_code, description, work_description, client_name, client_company, indirizzo_lavori, work_address")

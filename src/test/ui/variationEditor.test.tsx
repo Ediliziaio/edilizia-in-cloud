@@ -108,12 +108,18 @@ describe("Dettaglio voci e riservatezza",()=>{
 
 describe("Lavoro extra in tre passi (06/11/2026)",()=>{
   const docFinto={id:"doc",source_revision:1,document_hash:"h".repeat(64),attachments:[] as unknown[]};
-  const rispondi=(stato="bozza",token:string|null=null)=>mock.request.mockImplementation(async(id,action,payload)=>({
+  const rispondi=(stato="bozza")=>mock.request.mockImplementation(async(id,action,payload)=>({
     success:true,
-    variation:{id,status:action==="publish"?"in_attesa":stato,numero_odv:7,firma_token:action==="publish"?"tok":token,link_expires_at:null},
+    variation:{id,status:action==="publish"?"in_attesa":stato,numero_odv:7,link_expires_at:null},
     workspace:{revision:1,content:action==="save"?payload.content:{...emptyVariationDraft(),title:"TEST extra",description:"TEST modifica",amount:"120,50"}},
     document:action==="save"?null:docFinto,
   }));
+  const vaiAManda=async()=>{
+    fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
+    await screen.findByRole("button",{name:"Avanti: mandalo"});
+    fireEvent.click(screen.getByRole("button",{name:"Avanti: mandalo"}));
+  };
 
   it("«Avanti» salva, prepara il PDF e porta al passo Rivedi: niente link, niente email",async()=>{
     rispondi();mock.open.mockResolvedValue({blob:new Blob(["x"]),name:"p.pdf",url:"blob:x"});
@@ -123,40 +129,38 @@ describe("Lavoro extra in tre passi (06/11/2026)",()=>{
     expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["save","document"]);
     expect(mock.invoke).not.toHaveBeenCalled();
     expect(await screen.findByText("Contratto se accetta")).toBeInTheDocument();
-    expect(screen.getByRole("button",{name:"Avanti: mandalo"})).toBeEnabled();
   });
 
-  it("«Mandalo al cliente» è un clic solo: blocca il PDF, crea il link e manda l'email",async()=>{
+  it("«Mandalo al cliente» è un clic solo: pubblica e manda la firma elettronica col codice",async()=>{
     rispondi();mock.open.mockResolvedValue({blob:new Blob(["x"]),name:"p.pdf",url:"blob:x"});
-    mock.invoke.mockResolvedValue({data:{success:true},error:null});
-    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
-    await screen.findByRole("button",{name:"Avanti: mandalo"});
-    fireEvent.click(screen.getByRole("button",{name:"Avanti: mandalo"}));
-    fireEvent.click(await screen.findByRole("button",{name:/Mandalo al cliente da firmare/}));
-    await waitFor(()=>expect(mock.invoke).toHaveBeenCalledWith("invia-odv",{body:{odv_id:expect.any(String)}}));
+    mock.invoke.mockResolvedValue({data:{token:"tok",otp_inviato:true,request_id:"req"},error:null});
+    draw();await vaiAManda();
+    const email=await screen.findByLabelText("Email del cliente");
+    fireEvent.change(email,{target:{value:"cliente@esempio.it"}});
+    fireEvent.change(screen.getByLabelText("Chi firma"),{target:{value:"Mario Rossi"}});
+    fireEvent.click(screen.getByRole("button",{name:/Mandalo al cliente da firmare/}));
+    await waitFor(()=>expect(mock.invoke).toHaveBeenCalledWith("fea-richiedi-firma",expect.objectContaining({
+      body:expect.objectContaining({tipo_documento:"odv",documento_id:expect.any(String),signer_email:"cliente@esempio.it",signer_name:"Mario Rossi"}),
+    })));
     expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["save","document","publish"]);
-    expect((await screen.findByLabelText("Link di firma") as HTMLInputElement).value).toContain("/firma-odv/tok");
   });
 
-  it("se l'email non parte, il link resta e lo si copia a mano",async()=>{
+  it("senza email non parte niente: lo dice e non pubblica due volte",async()=>{
     rispondi();mock.open.mockResolvedValue({blob:new Blob(["x"]),name:"p.pdf",url:"blob:x"});
-    mock.invoke.mockResolvedValue({data:null,error:{message:"smtp"}});
-    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.click(screen.getByRole("button",{name:"Avanti: guarda il PDF"}));
-    await screen.findByRole("button",{name:"Avanti: mandalo"});
-    fireEvent.click(screen.getByRole("button",{name:"Avanti: mandalo"}));
-    fireEvent.click(await screen.findByRole("button",{name:/Mandalo al cliente da firmare/}));
-    expect(await screen.findByRole("alert")).toHaveTextContent("copia il link");
-    expect((screen.getByLabelText("Link di firma") as HTMLInputElement).value).toContain("/firma-odv/tok");
+    draw();await vaiAManda();
+    fireEvent.change(await screen.findByLabelText("Email del cliente"),{target:{value:"non-una-email"}});
+    fireEvent.click(screen.getByRole("button",{name:/Mandalo al cliente da firmare/}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("email del cliente");
+    expect(mock.invoke).not.toHaveBeenCalled();
+    expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["save","document"]);
   });
 
   it("una variante già mandata si apre sul passo Manda, senza ricreare niente",async()=>{
     mock.rows=[{id:"odv",status:"in_attesa",titolo:"Extra",descrizione:"x",impatto_economico:75,numero_odv:4}];
-    rispondi("in_attesa","tok");
+    rispondi("in_attesa");
     draw();fireEvent.click(screen.getByRole("button",{name:"Documento e approvazione"}));
-    expect((await screen.findByLabelText("Link di firma") as HTMLInputElement).value).toContain("/firma-odv/tok");
+    expect(await screen.findByText(/Mandato al cliente: aspetta la firma/)).toBeInTheDocument();
     expect(mock.request.mock.calls.map(c=>c[1])).toEqual(["load"]);
-    expect(screen.getByText(/Mandato al cliente: aspetta la firma/)).toBeInTheDocument();
+    expect(mock.invoke).not.toHaveBeenCalled();
   });
 });
