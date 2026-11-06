@@ -115,6 +115,7 @@ import { OrderRichiesteOfferta } from "@/components/orders/OrderRichiesteOfferta
 import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
+import { LavoriExtraPopup } from "@/components/orders/LavoriExtraPopup";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
@@ -1533,6 +1534,8 @@ function OrderDetailInner() {
     />
   ) : null;
 
+  // Lo stesso contesto per le varianti in Economia e per il popup «Lavori extra» delle Lavorazioni.
+  const contestoVarianti = { currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName: effectiveCompany?.name, customerAddress: order.customer?.address ?? undefined, siteAddress: order.indirizzo_lavori || order.work_address || undefined };
   return (
     // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
     <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
@@ -2089,7 +2092,7 @@ function OrderDetailInner() {
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
             {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
-              <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={{currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name,order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName:effectiveCompany.name,customerAddress:order.customer?.address ?? undefined,siteAddress:order.indirizzo_lavori || order.work_address || undefined}} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
+              <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 
             {/* Le uscite verso fornitori, subappalti, ditte, professionisti, noleggi e
@@ -2273,13 +2276,13 @@ function OrderDetailInner() {
             <OrderViewTransition viewKey={vistaCantiere}>
             <Suspense fallback={vistaInCaricamento}>
             {vistaCantiere === "lavorazioni" && <>
-            {permissions.canViewOrderAmounts && <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => navigateTo({tab:"finanza",economiaView:"documenti",section:"section-varianti"})}>Lavori extra e varianti</Button></div>}
             <div id="section-lavorazioni" className="scroll-mt-24">
               <OrderWorkPhases key={id} orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
                 importoContratto={agreedAmount}
                 organizationContent={figureResponsabilita}
-                onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })} />
+                onApriCronoprogramma={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })}
+                lavoriExtra={permissions.canViewOrderAmounts && effectiveCompany?.id ? <LavoriExtraPopup orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} /> : undefined} />
               {/* «Supporto AI per le assegnazioni» è nel menu «Silvio AI» in testa alla commessa (31/10/2026). */}
             </div>
             </>}

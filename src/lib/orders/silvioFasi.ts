@@ -78,6 +78,35 @@ export function contestoFasiPerSilvio(a: {
   };
 }
 
+const GIORNO = new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const giornoLungo = (d: string) => GIORNO.format(new Date(`${d}T12:00:00Z`));
+
+/**
+ * Quando il modello propone senza spiegare (succede con gli strumenti), la spiegazione la scrive il codice:
+ * da quando a quando, quante fasi e sottofasi, e quali sottofasi da fare restano senza date.
+ */
+export function riassuntoProposte(ctx: ContestoFasi, proposte: ReadonlyArray<PropostaFasi>): string {
+  if (!proposte.length) return "Non ho trovato niente da cambiare.";
+  const righe: string[] = [];
+  const date = proposte.filter((p): p is Extract<PropostaFasi, { tipo: "date" }> => p.tipo === "date");
+  if (date.length) {
+    const dal = date.reduce((m, p) => (p.dal < m ? p.dal : m), date[0].dal);
+    const al = date.reduce((m, p) => (p.al > m ? p.al : m), date[0].al);
+    const fasi = date.filter((p) => p.livello === "fase").length;
+    const sotto = date.filter((p) => p.livello === "sottofase");
+    righe.push(`Lavori da ${giornoLungo(dal)} a ${giornoLungo(al)}: ${fasi} ${fasi === 1 ? "fase" : "fasi"} e ${sotto.length} ${sotto.length === 1 ? "sottofase" : "sottofasi"}, solo giorni di lavoro.`);
+    const datate = new Set(sotto.map((p) => p.id));
+    const senza = ctx.fasi.flatMap((f) => f.sottofasi.filter((x) => !x.fatta && !x.dal && !datate.has(x.id)).map((x) => x.nome));
+    if (senza.length) righe.push(`Restano senza date: ${senza.slice(0, 5).join(", ")}${senza.length > 5 ? ` e altre ${senza.length - 5}` : ""}. Chiedimele, o mettile dalla tabella.`);
+  }
+  const nuove = proposte.filter((p) => p.tipo === "sottofasi").reduce((n, p) => n + (p.tipo === "sottofasi" ? p.nomi.length : 0), 0);
+  if (nuove) righe.push(`${nuove} ${nuove === 1 ? "sottofase nuova" : "sottofasi nuove"}.`);
+  const chi = proposte.filter((p) => p.tipo === "chi").length;
+  if (chi) righe.push(`${chi} ${chi === 1 ? "assegnazione" : "assegnazioni"} di chi fa le sottofasi.`);
+  righe.push("Togli la spunta a quello che non vuoi, poi «Applica».");
+  return righe.join(" ");
+}
+
 /** Silvio in Materiali e acquisti: risponde soltanto, nel popup. */
 export async function chiediSilvioAcquisti(
   orderId: string,
@@ -129,7 +158,7 @@ export async function chiediSilvioFasi(
   const strumenti = (Array.isArray(r.strumenti) ? r.strumenti : []) as ChiamataStrumentoFasi[];
   const { proposte, scartate, note } = proposteDaStrumenti(strumenti, contesto, lavorativo);
   const testo = typeof r.testo === "string" ? r.testo : "";
-  return { testo: testo || (proposte.length ? "Ecco cosa propongo:" : "Non ho trovato niente da cambiare."), proposte, scartate, note };
+  return { testo: testo || riassuntoProposte(contesto, proposte), proposte, scartate, note };
 }
 
 export interface AzioniFasi {

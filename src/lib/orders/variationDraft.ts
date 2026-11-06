@@ -11,7 +11,12 @@ export interface VariationDraft {
   documentCustomerName?: string; documentCustomerDetails?: string;
   documentHeading?: string; documentColor?: string; documentIntro?: string; additionalTerms?: string;
   templateId?: string; templateRevision?: number; attachmentIds?: string[];
+  /** Quando il cliente accetta (06/11/2026): una fase nuova «Lavoro extra · …» o dentro la fase scelta. */
+  destinazione?: "nuova" | "fase";
+  /** Chi lo farà: va in «chi fa la sottofase» sulle sottofasi nuove. */
+  chi?: VariationChi[];
 }
+export interface VariationChi { tipo: "persona" | "ditta"; id: string; nome: string }
 export const VARIATION_KINDS: Record<VariationKind, string> = {
   aggiunta: "Lavori aggiuntivi", modifica: "Modifica o sostituzione", riduzione: "Riduzione dei lavori",
 };

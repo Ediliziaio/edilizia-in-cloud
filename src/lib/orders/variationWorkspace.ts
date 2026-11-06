@@ -39,6 +39,18 @@ export function validateVariationWorkspace(raw: unknown, rawContext: unknown) {
     if (line.unit !== undefined && (typeof line.unit !== "string" || line.unit.length > 20)) throw new Error("Unità di misura della voce non valida.");
     return { id: line.id, description: line.description, quantity: line.quantity, price: line.price, ...(line.unit ? { unit: line.unit } : {}) };
   });
+  if (source.destinazione !== undefined) {
+    if (!["nuova", "fase"].includes(String(source.destinazione))) throw new Error("Destinazione del lavoro non valida.");
+    content.destinazione = source.destinazione as VariationDraft["destinazione"];
+  }
+  if (source.chi !== undefined) {
+    if (!Array.isArray(source.chi) || source.chi.length > 20) throw new Error("Al massimo 20 persone o ditte per il lavoro extra.");
+    content.chi = source.chi.map((c: unknown) => {
+      const x = (c ?? {}) as Record<string, unknown>;
+      if (!["persona", "ditta"].includes(String(x.tipo)) || !isVariationUuid(x.id) || typeof x.nome !== "string" || x.nome.length > 200) throw new Error("Chi fa il lavoro extra non è valido.");
+      return { tipo: x.tipo as "persona" | "ditta", id: x.id, nome: x.nome };
+    });
+  }
   const ids = source.attachmentIds ?? [];
   if (!Array.isArray(ids) || ids.length > 10 || ids.some(id => !isVariationUuid(id)) || new Set(ids).size !== ids.length) throw new Error("Seleziona al massimo 10 allegati diversi.");
   content.attachmentIds = ids;

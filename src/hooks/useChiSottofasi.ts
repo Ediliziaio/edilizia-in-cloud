@@ -1,6 +1,6 @@
 // src/hooks/useChiSottofasi.ts
-// Chi fa ogni sottofase: una persona, una squadra o una ditta. Finché la tabella non c'è (migrazione
-// 20281213160000 non applicata) la lettura fallisce in silenzio e lo schermo resta quello di prima.
+// Chi fa ogni sottofase: una persona, una squadra o una ditta (tabella della 20281213160000, vincoli unici
+// della 20281213170000). Se la lettura fallisce lo schermo resta quello di prima.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +37,10 @@ export function useChiSottofasi(orderId: string | null | undefined) {
         .filter((id) => !(gia.get(id) ?? []).some((c) => (persona && c.employee_id === persona) || (ditta && c.external_team_id === ditta)))
         .map((subphase_id) => ({ order_id: orderId, subphase_id, employee_id: persona ?? null, external_team_id: ditta ?? null }));
       if (righe.length === 0) return;
-      const { error } = await db.from("order_work_subphase_chi").insert(righe);
+      // Chi l'ha già aggiunto un altro (la cache può essere vecchia) viene saltato, gli altri entrano lo stesso
+      // (vincoli unici della 20281213170000).
+      const { error } = await db.from("order_work_subphase_chi")
+        .upsert(righe, { onConflict: persona ? "subphase_id,employee_id" : "subphase_id,external_team_id", ignoreDuplicates: true });
       if (error) throw error;
     },
     onSuccess: aggiorna,
