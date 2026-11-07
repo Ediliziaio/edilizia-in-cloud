@@ -39,7 +39,7 @@ const DAL_CRON_COL_SOLO_SEGRETO = [
   "meta-ads-spend-check", "meta-ads-sync-insights", "meta-crm-conversion-sync", "meta-health-check",
   "meta-leads-backfill", "meta-process-leads", "meta-token-refresh", "morning-briefing-capomastri",
   "openwa-campagna-dispatch", "openwa-riconcilia-stati", "ops-canarino", "ops-riepilogo",
-  "outreach-dispatch", "outreach-imap-poll", "outreach-prova-caselle", "outreach-riepilogo",
+  "elastic-email-esiti", "outreach-dispatch", "outreach-imap-poll", "outreach-prova-caselle", "outreach-riepilogo",
   "outreach-warmup", "platform-lifecycle-cron", "process-automation", "process-dunning",
   "purge-gdpr-exports", "quote-expiry-reminder", "referral-monthly-cycle", "referral-payout-executor",
   "sa-conversation-intel-daily", "sdi-stato-tick", "silvio-action-runner", "silvio-admin-briefing", "silvio-chief-of-staff",
