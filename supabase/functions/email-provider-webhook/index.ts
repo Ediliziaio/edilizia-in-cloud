@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
-import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { getPlatformSetting, leggiImpostazionePiattaformaEsito } from "../_shared/getPlatformSetting.ts";
 import {
   decideSuppression,
   normalizeEvents as normalizeEventsShared,
@@ -83,9 +83,16 @@ Deno.serve(async (req) => {
     // x-webhook-secret above remains a required coarse gate; native signatures
     // add payload integrity for providers that support it without breaking
     // existing provider setup that hasn't enabled native signing yet.
-    const mailgunSigningKey =
-      Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") ||
-      await getPlatformSetting("email_mailgun_webhook_signing_key");
+    // Una chiave vuota qui vuol dire «verifica della firma non attiva». Se però
+    // la chiave c'è e non si è potuta LEGGERE (un intoppo di PostgREST), non va
+    // trattata come assente: la verifica si spegnerebbe da sola. Lo stesso per
+    // Resend sotto. In quel caso, se la richiesta porta una firma, si risponde
+    // 503 e il provider riprova (06/11/2026, vedi _shared/getPlatformSetting.ts).
+    const envMailgun = Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") ?? "";
+    const esitoMailgun = envMailgun
+      ? { valore: envMailgun, letturaRiuscita: true, errore: null }
+      : await leggiImpostazionePiattaformaEsito("email_mailgun_webhook_signing_key");
+    const mailgunSigningKey = esitoMailgun.valore;
     const mailgunSignature = req.headers.get("x-mailgun-signature") ||
       rawBody?.signature?.signature ||
       rawBody?.signature;
@@ -95,6 +102,12 @@ Deno.serve(async (req) => {
     const mailgunToken = req.headers.get("x-mailgun-token") ||
       rawBody?.signature?.token ||
       rawBody?.token;
+    if (!mailgunSigningKey && !esitoMailgun.letturaRiuscita && mailgunSignature) {
+      console.error(`email-provider-webhook: chiave Mailgun non leggibile (${esitoMailgun.errore ?? "motivo ignoto"}): 503`);
+      return new Response("Signing key temporarily unreadable, retry", {
+        status: 503, headers: { ...corsHeaders, "Retry-After": "30" },
+      });
+    }
     if (mailgunSigningKey && (mailgunSignature || mailgunTimestamp || mailgunToken)) {
       const ok = await verifyMailgunWebhookSignature(
         mailgunTimestamp ? String(mailgunTimestamp) : null,
@@ -107,10 +120,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    const resendWebhookSecret =
-      Deno.env.get("RESEND_WEBHOOK_SECRET") ||
-      await getPlatformSetting("email_resend_webhook_secret");
+    const envResend = Deno.env.get("RESEND_WEBHOOK_SECRET") ?? "";
+    const esitoResend = envResend
+      ? { valore: envResend, letturaRiuscita: true, errore: null }
+      : await leggiImpostazionePiattaformaEsito("email_resend_webhook_secret");
+    const resendWebhookSecret = esitoResend.valore;
     const svixSignature = req.headers.get("svix-signature");
+    if (!resendWebhookSecret && !esitoResend.letturaRiuscita && svixSignature) {
+      console.error(`email-provider-webhook: segreto Resend non leggibile (${esitoResend.errore ?? "motivo ignoto"}): 503`);
+      return new Response("Webhook secret temporarily unreadable, retry", {
+        status: 503, headers: { ...corsHeaders, "Retry-After": "30" },
+      });
+    }
     if (resendWebhookSecret && svixSignature) {
       const ok = await verifySvixWebhookSignature(
         rawBodyText,

@@ -160,3 +160,65 @@ describe("quali errori meritano un altro tentativo", () => {
     expect(ATTESE_RITENTATIVO_MS.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(1500);
   });
 });
+
+describe("la lettura a più chiavi segue le stesse regole (07/11/2026)", () => {
+  // Da leggiImpostazioniPiattaforma passa getMetaCredentials, cioè la firma
+  // dei webhook di WhatsApp Cloud API e di Messenger/Instagram.
+  const condiviso = leggi("supabase/functions/_shared/getPlatformSetting.ts");
+  const ramo = condiviso.slice(condiviso.indexOf("export async function leggiImpostazioniPiattaformaEsito"));
+
+  it("esiste la versione che dice quali chiavi non si sono lette", () => {
+    expect(ramo).toContain("nonLette");
+  });
+
+  it("ritenta la RPC sugli intoppi transitori", () => {
+    expect(ramo).toContain("eErroreTransitorio(ultimoErrore)");
+    expect(ramo).toContain("ATTESE_RITENTATIVO_MS");
+  });
+
+  it("dalla tabella rilegge solo le chiavi pubbliche", () => {
+    expect(ramo).toContain('.in("key", pubbliche)');
+    expect(ramo).not.toContain('.in("key", chiavi)');
+  });
+
+  it("la versione di prima resta compatibile", () => {
+    expect(condiviso).toContain("return (await leggiImpostazioniPiattaformaEsito(chiavi)).valori;");
+  });
+
+  it("getMetaCredentials passa davvero di qui", () => {
+    expect(leggi("supabase/functions/_shared/getMetaCredentials.ts")).toContain("leggiImpostazioniPiattaforma(");
+  });
+});
+
+describe("email-provider-webhook: una chiave illeggibile non spegne la verifica della firma", () => {
+  const webhook = leggi("supabase/functions/email-provider-webhook/index.ts");
+
+  it("Mailgun: firma presente e chiave non leggibile → 503", () => {
+    expect(webhook).toContain("!esitoMailgun.letturaRiuscita && mailgunSignature");
+  });
+
+  it("Resend: firma presente e segreto non leggibile → 503", () => {
+    expect(webhook).toContain("!esitoResend.letturaRiuscita && svixSignature");
+  });
+
+  it("le due risposte chiedono di riprovare", () => {
+    expect(webhook.match(/"Retry-After": "30"/g)?.length).toBe(2);
+  });
+
+  it("la variabile d'ambiente, se c'è, vale prima del database", () => {
+    expect(webhook).toContain('Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY")');
+    expect(webhook).toContain('Deno.env.get("RESEND_WEBHOOK_SECRET")');
+  });
+});
+
+describe("la correzione arriva a tutte le funzioni che leggono le impostazioni", () => {
+  // La CI risale la catena degli import (scripts/funzioni-da-ripubblicare.mjs):
+  // una modifica a _shared/getPlatformSetting.ts ripubblica anche chi lo
+  // importa di seconda mano (getMetaCredentials, openwaSend, emailProvider…).
+  it("i webhook in ingresso importano il modulo, direttamente o no", () => {
+    for (const f of ["whatsapp-webhook", "meta-webhook", "openwa-webhook", "email-provider-webhook", "stripe-webhook"]) {
+      const t = leggi(`supabase/functions/${f}/index.ts`);
+      expect(/getPlatformSetting|getMetaCredentials/.test(t), f).toBe(true);
+    }
+  });
+});

@@ -102,26 +102,67 @@ export async function leggiImpostazionePiattaforma(chiave: string): Promise<stri
  * valore. Stessa regola di leggiImpostazionePiattaforma (i segreti dal Vault).
  */
 export async function leggiImpostazioniPiattaforma(chiavi: string[]): Promise<Record<string, string>> {
+  return (await leggiImpostazioniPiattaformaEsito(chiavi)).valori;
+}
+
+/**
+ * Come leggiImpostazioniPiattaforma, ma dice anche quali chiavi NON si sono
+ * potute leggere. Stesse regole della versione a una chiave: la RPC si
+ * ritenta sugli intoppi transitori, e per le chiavi segrete il ripiego su
+ * platform_settings non si fa — la tabella ha la riga vuota per costruzione,
+ * e «vuota» verrebbe letto come «non configurata».
+ *
+ * Da qui passa getMetaCredentials, cioè la firma dei webhook di WhatsApp
+ * Cloud API (whatsapp-webhook) e di Messenger/Instagram (meta-webhook).
+ */
+export async function leggiImpostazioniPiattaformaEsito(
+  chiavi: string[],
+): Promise<{ valori: Record<string, string>; nonLette: string[]; errore: string | null }> {
   const valori: Record<string, string> = {};
-  if (chiavi.length === 0) return valori;
+  if (chiavi.length === 0) return { valori, nonLette: [], errore: null };
+  let ultimoErrore = "";
   try {
     const admin = clientServizio();
-    const { data, error } = await admin.rpc("impostazioni_piattaforma", { p_chiavi: chiavi });
-    if (!error) {
-      for (const r of (data ?? []) as Array<{ chiave: string; valore: string | null }>) {
-        if (r.valore != null) valori[r.chiave] = r.valore;
+    for (let tentativo = 0; ; tentativo++) {
+      const { data, error } = await admin.rpc("impostazioni_piattaforma", { p_chiavi: chiavi });
+      if (!error) {
+        for (const r of (data ?? []) as Array<{ chiave: string; valore: string | null }>) {
+          if (r.valore != null) valori[r.chiave] = r.valore;
+        }
+        return { valori, nonLette: [], errore: null };
       }
-      return valori;
+      ultimoErrore = error.message ?? String(error);
+      if (tentativo >= ATTESE_RITENTATIVO_MS.length || !eErroreTransitorio(ultimoErrore)) break;
+      await dormi(ATTESE_RITENTATIVO_MS[tentativo]);
     }
-    console.warn("impostazioni_piattaforma non riuscita, leggo platform_settings:", error.message);
-    const { data: righe } = await admin.from("platform_settings").select("key, value").in("key", chiavi);
+
+    // Le segrete restano «non lette»: dalla tabella non si possono sapere.
+    const segrete = chiavi.filter(eChiaveSegreta);
+    const pubbliche = chiavi.filter((k) => !eChiaveSegreta(k));
+    if (segrete.length > 0) {
+      console.error(
+        `impostazioni_piattaforma non riuscita, chiavi segrete non leggibili (${segrete.join(", ")}): ${ultimoErrore}`,
+      );
+    }
+    if (pubbliche.length === 0) return { valori, nonLette: segrete, errore: ultimoErrore };
+
+    console.warn(`impostazioni_piattaforma non riuscita, leggo platform_settings per ${pubbliche.join(", ")}: ${ultimoErrore}`);
+    const { data: righe, error: erroreTabella } = await admin
+      .from("platform_settings")
+      .select("key, value")
+      .in("key", pubbliche);
+    if (erroreTabella) {
+      return { valori, nonLette: chiavi, errore: erroreTabella.message ?? ultimoErrore };
+    }
     for (const r of (righe ?? []) as Array<{ key: string; value: string | null }>) {
       if (r.value != null) valori[r.key] = r.value;
     }
+    return { valori, nonLette: segrete, errore: segrete.length > 0 ? ultimoErrore : null };
   } catch (e) {
-    console.warn("Impostazioni di piattaforma non leggibili:", e);
+    const messaggio = e instanceof Error ? e.message : String(e);
+    console.warn("Impostazioni di piattaforma non leggibili:", messaggio);
+    return { valori, nonLette: chiavi, errore: messaggio };
   }
-  return valori;
 }
 
 /**
