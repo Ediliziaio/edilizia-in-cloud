@@ -27,6 +27,9 @@ import {
   useQuoteFormHydration,
   type ExistingQuoteForHydration,
 } from "@/hooks/useQuoteFormHydration";
+import { PdfVeroPreventivoClassico, type BozzaPerIlPdf } from "@/components/quotes/PdfVeroPreventivoClassico";
+import { PannelloAnteprima } from "@/components/preventivatore/PannelloAnteprima";
+import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "@/components/preventivatore/useModalitaAnteprima";
 import { QuoteLivePreviewPanel } from "@/components/quotes/QuoteLivePreviewPanel";
 import { ScontoGlobaleField } from "@/components/preventivi/ScontoGlobaleField";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
@@ -1974,6 +1977,144 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
     [governanceCfg, totaliPro.subtotale_netto],
   );
 
+  // La testata del preventivo com'è sullo schermo: la salva `handleSave` e la stampa il PDF vero a destra
+  // (07/11/2026), così i due non possono dire cose diverse.
+  const datiTestata = (status: string): TablesUpdate<"quotes"> => {
+    const urlOpportunityId = searchParams.get("opportunity_id") || null;
+    const quoteData: TablesUpdate<"quotes"> = {
+      company_id: companyId,
+      // Su un preventivo esistente lo stato non si tocca se non è una bozza: i
+      // pulsanti salvano sempre «bozza», e da /modifica un preventivo inviato
+      // o accettato tornava bozza.
+      ...(isEdit && existingQuote?.status && existingQuote.status !== "bozza" ? {} : { status }),
+      contact_id: contactId,
+      ...(isEdit ? {} : { opportunity_id: urlOpportunityId }),
+      client_name: clientName || null,
+      client_email: clientEmail || null,
+      client_phone: clientPhone || null,
+      // Un privato non ha ragione sociale né partita IVA, anche se erano state scritte prima di cambiare scelta.
+      client_company: tipoCliente !== "privato" ? clientCompany || null : null,
+      client_address: clientAddress || null,
+      client_fiscal_code: clientFiscalCode || null,
+      client_vat_number: tipoCliente !== "privato" ? clientVatNumber || null : null,
+      // Il tipo si salva (una Pubblica Amministrazione non si riapre come «Azienda»), col codice univoco dell'ente.
+      client_tipo: tipoCliente,
+      client_codice_univoco: tipoCliente === "pa" ? clientCodiceUnivoco.replace(/\s+/g, "").toUpperCase() || null : null,
+      title,
+      description: description || null,
+      notes: notes || null,
+      internal_notes: internalNotes || null,
+      payment_method: paymentMethod || null,
+      payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total).map(phase => ({ ...phase })) : null,
+      cronoprogramma: cronoprogramma && fasiDaStampare(cronoprogramma).length ? fasiDaStampare(cronoprogramma).map(f => ({ ...f })) : null,
+      bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
+      validity_days: validityDays,
+      discount_percent: discountPercent,
+      prezzo_manuale: prezzoManuale,
+      prezzo_manuale_iva_pct: prezzoManualeIvaPct,
+      // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
+      ...(isEdit ? {} : { created_by: user?.id }),
+      template_id: effectiveSelectedTemplateId || null,
+      ...((Object.keys(templateValues).length || contractFields.length) ? { custom_field_values: {
+        ...((existingQuote?.custom_field_values && typeof existingQuote.custom_field_values === 'object' && !Array.isArray(existingQuote.custom_field_values)) ? existingQuote.custom_field_values : {}),
+        _template_values: templateValues,
+      } as Json } : {}),
+      tipo_lavoro: tipoLavoro || null,
+      indirizzo_lavori: indirizzoLavori || null,
+      piano_installazione: pianoInstallazione || null,
+      km_cantiere: kmCantiere || null,
+      // Costi incompleti (05/10/2026): con una riga venduta senza costo il
+      // margine contava zero quel costo, fino al 100%, e quel numero finiva
+      // in report, approvazioni e limite di sconto (compute_max_discount).
+      // Allora costo, overhead e margine si salvano vuoti: il limite di
+      // sconto torna alla sua stima prudente.
+      totale_costo_interno: totaliPro.costi_completi ? (totaliPro.costo_totale || null) : null,
+      totale_overhead: totaliPro.costi_completi ? (totaliPro.overhead_totale || null) : null,
+      margine_totale_percentuale: totaliPro.costi_completi ? (totaliPro.margine_totale_pct || null) : null,
+      // Preventivi V2
+      salesperson_id: salespersonId,
+      sede_id: sedeId,
+      render_url: renderUrl,
+      render_session_id: renderSessionId,
+      margine_pct_snapshot: totaliPro.costi_completi ? (totaliPro.margine_totale_pct ?? null) : null,
+      firma_digitale_abilitata: pdfFirma,
+      template_layout_override: layoutOverride || null,
+      // MP-preventivi-v2: persistenza completa flag PDF (admin-only input).
+      pdf_mostra_prezzi_per_riga: pdfPrezziRiga,
+      pdf_mostra_solo_totale: pdfSoloTotale,
+      pdf_mostra_sconti: pdfSconti,
+      pdf_mostra_immagini: pdfImmagini,
+      pdf_includi_schede_tecniche: pdfSchedeTecniche,
+      pdf_mostra_misure: pdfMisure,
+      pdf_mostra_attributi: pdfAttributi,
+      pdf_mostra_note_cliente: pdfNoteCliente,
+      pdf_mostra_condizioni: pdfCondizioni,
+      pdf_watermark_text: pdfWatermarkText || null,
+      pdf_copia_destinatario: pdfCopiaDestinatario || null,
+      // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
+      //   Subtotale (lordo) - Sconto - IVA = Totale.
+      //   Prima salvavamo `subtotal - discountAmt` (netto) causando incoerenza
+      //   visiva per l'utente. `total` rimane la grandezza autoritativa per
+      //   aggregati/report; i preventivi vecchi continueranno a mostrare il
+      //   subtotale "netto" storico ma total è comunque corretto.
+      subtotal,
+      discount_amount: discountAmt,
+      vat_amount: vatAmount,
+      total,
+      // ── Finanziamento (opzionale) ──
+      // Se l'utente disattiva il toggle, financingProposal e' null e tutti
+      // i campi vanno a null (rimuove il finanziamento da un preventivo
+      // esistente in edit).
+      financing_table_id: financingProposal?.table_id ?? null,
+      financing_amount: financingProposal?.amount ?? null,
+      financing_num_installments: financingProposal?.num_installments ?? null,
+      financing_monthly_rate: financingProposal?.monthly_rate ?? null,
+      financing_total_due: financingProposal?.total_due ?? null,
+      financing_calculation_json: financingProposal ? JSON.parse(JSON.stringify(financingProposal.calculation)) as Json : null,
+    };
+    // Le condizioni riscritte per questo preventivo: colonna del 27/10/2026, che i tipi generati non conoscono
+    // ancora. Si scrive qui, fuori dal corpo tipizzato, invece di aspettare la rigenerazione dei tipi.
+    (quoteData as Record<string, unknown>).condizioni_testo = condizioniTesto;
+    return quoteData;
+  };
+  // Le righe come le salva `save_quote_items_atomic`: la riga «Sconto» col prezzo negativo (05/10/2026).
+  const righeDaSalvare = () => items.map((voce) => normalizzaRigaSconto(voce)).map((it, idx) => ({
+    sort_order: idx,
+    client_temp_id: it.client_temp_id ?? null,
+    parent_temp_id: it.parent_temp_id ?? null,
+    item_type: it.item_type,
+    name: it.name,
+    description: it.description ?? null,
+    quantity: it.quantity,
+    unit_price: it.unit_price,
+    discount_percent: it.discount_percent ?? 0,
+    vat_rate: it.vat_rate ?? 22,
+    unit_of_measure: it.unit_of_measure,
+    article_template_id: it.article_template_id ?? null,
+    item_category: it.item_category ?? "prodotto",
+    tariffa_id: it.tariffa_id ?? null,
+    prezzo_acquisto: it.prezzo_acquisto ?? 0,
+    mostra_nel_pdf: it.mostra_nel_pdf ?? true,
+    is_optional: it.is_optional ?? false,
+    misura_x: it.misura_x ?? null,
+    misura_y: it.misura_y ?? null,
+    family_id: it.family_id ?? null,
+    axis_selections: it.axis_selections ?? null,
+    supplier_catalog_id: it.supplier_catalog_id ?? null,
+    supplier_product_line_id: it.supplier_product_line_id ?? null,
+    // senza, il salvataggio staccava la riga dalla sua voce del computo
+    computo_voce_id: it.computo_voce_id ?? null,
+  }));
+
+  // Il PDF vero a destra (07/11/2026): la bozza com'è sullo schermo, con gli stessi dati che salva «Salva».
+  const [modalitaAnteprima, impostaModalitaAnteprima] = useModalitaAnteprima();
+  const colonnaAnteprimaVisibile = useColonnaAnteprimaVisibile(1024);
+  const pdfVeroDisponibile = !localEditor && !!companyId;
+  const conPdfVero = pdfVeroDisponibile && modalitaAnteprima === "pdf";
+  const bozzaPerIlPdf: BozzaPerIlPdf | null = conPdfVero
+    ? { quote: datiTestata("bozza") as Record<string, unknown>, items: righeDaSalvare() as Record<string, unknown>[] }
+    : null;
+
   // Save
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
     if (localEditor) { toast.info('Bozza AI locale: nessuna scrittura nel gestionale e nessun PDF remoto.'); return; }
@@ -2016,101 +2157,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       // In MODIFICA il campo NON si tocca: prima l'update scriveva null e
       // ogni salvataggio cancellava il legame col deal (0 preventivi
       // agganciati in tutto il DB, verificato 2026-08-21).
-      const urlOpportunityId = searchParams.get("opportunity_id") || null;
-      const quoteData: TablesUpdate<"quotes"> = {
-        company_id: companyId,
-        // Su un preventivo esistente lo stato non si tocca se non è una bozza: i
-        // pulsanti salvano sempre «bozza», e da /modifica un preventivo inviato
-        // o accettato tornava bozza.
-        ...(isEdit && existingQuote?.status && existingQuote.status !== "bozza" ? {} : { status }),
-        contact_id: contactId,
-        ...(isEdit ? {} : { opportunity_id: urlOpportunityId }),
-        client_name: clientName || null,
-        client_email: clientEmail || null,
-        client_phone: clientPhone || null,
-        // Un privato non ha ragione sociale né partita IVA, anche se erano state scritte prima di cambiare scelta.
-        client_company: tipoCliente !== "privato" ? clientCompany || null : null,
-        client_address: clientAddress || null,
-        client_fiscal_code: clientFiscalCode || null,
-        client_vat_number: tipoCliente !== "privato" ? clientVatNumber || null : null,
-        // Il tipo si salva (una Pubblica Amministrazione non si riapre come «Azienda»), col codice univoco dell'ente.
-        client_tipo: tipoCliente,
-        client_codice_univoco: tipoCliente === "pa" ? clientCodiceUnivoco.replace(/\s+/g, "").toUpperCase() || null : null,
-        title,
-        description: description || null,
-        notes: notes || null,
-        internal_notes: internalNotes || null,
-        payment_method: paymentMethod || null,
-        payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total).map(phase => ({ ...phase })) : null,
-        cronoprogramma: cronoprogramma && fasiDaStampare(cronoprogramma).length ? fasiDaStampare(cronoprogramma).map(f => ({ ...f })) : null,
-        bonus_lines: bonusLines.length ? serializeBonusLines(bonusLines) : null,
-        validity_days: validityDays,
-        discount_percent: discountPercent,
-        prezzo_manuale: prezzoManuale,
-        prezzo_manuale_iva_pct: prezzoManualeIvaPct,
-        // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
-        ...(isEdit ? {} : { created_by: user.id }),
-        template_id: effectiveSelectedTemplateId || null,
-        ...((Object.keys(templateValues).length || contractFields.length) ? { custom_field_values: {
-          ...((existingQuote?.custom_field_values && typeof existingQuote.custom_field_values === 'object' && !Array.isArray(existingQuote.custom_field_values)) ? existingQuote.custom_field_values : {}),
-          _template_values: templateValues,
-        } as Json } : {}),
-        tipo_lavoro: tipoLavoro || null,
-        indirizzo_lavori: indirizzoLavori || null,
-        piano_installazione: pianoInstallazione || null,
-        km_cantiere: kmCantiere || null,
-        // Costi incompleti (05/10/2026): con una riga venduta senza costo il
-        // margine contava zero quel costo, fino al 100%, e quel numero finiva
-        // in report, approvazioni e limite di sconto (compute_max_discount).
-        // Allora costo, overhead e margine si salvano vuoti: il limite di
-        // sconto torna alla sua stima prudente.
-        totale_costo_interno: totaliPro.costi_completi ? (totaliPro.costo_totale || null) : null,
-        totale_overhead: totaliPro.costi_completi ? (totaliPro.overhead_totale || null) : null,
-        margine_totale_percentuale: totaliPro.costi_completi ? (totaliPro.margine_totale_pct || null) : null,
-        // Preventivi V2
-        salesperson_id: salespersonId,
-        sede_id: sedeId,
-        render_url: renderUrl,
-        render_session_id: renderSessionId,
-        margine_pct_snapshot: totaliPro.costi_completi ? (totaliPro.margine_totale_pct ?? null) : null,
-        firma_digitale_abilitata: pdfFirma,
-        template_layout_override: layoutOverride || null,
-        // MP-preventivi-v2: persistenza completa flag PDF (admin-only input).
-        pdf_mostra_prezzi_per_riga: pdfPrezziRiga,
-        pdf_mostra_solo_totale: pdfSoloTotale,
-        pdf_mostra_sconti: pdfSconti,
-        pdf_mostra_immagini: pdfImmagini,
-        pdf_includi_schede_tecniche: pdfSchedeTecniche,
-        pdf_mostra_misure: pdfMisure,
-        pdf_mostra_attributi: pdfAttributi,
-        pdf_mostra_note_cliente: pdfNoteCliente,
-        pdf_mostra_condizioni: pdfCondizioni,
-        pdf_watermark_text: pdfWatermarkText || null,
-        pdf_copia_destinatario: pdfCopiaDestinatario || null,
-        // P1 FIX wave 4: subtotal ora è il LORDO coerente con la UI che mostra:
-        //   Subtotale (lordo) - Sconto - IVA = Totale.
-        //   Prima salvavamo `subtotal - discountAmt` (netto) causando incoerenza
-        //   visiva per l'utente. `total` rimane la grandezza autoritativa per
-        //   aggregati/report; i preventivi vecchi continueranno a mostrare il
-        //   subtotale "netto" storico ma total è comunque corretto.
-        subtotal,
-        discount_amount: discountAmt,
-        vat_amount: vatAmount,
-        total,
-        // ── Finanziamento (opzionale) ──
-        // Se l'utente disattiva il toggle, financingProposal e' null e tutti
-        // i campi vanno a null (rimuove il finanziamento da un preventivo
-        // esistente in edit).
-        financing_table_id: financingProposal?.table_id ?? null,
-        financing_amount: financingProposal?.amount ?? null,
-        financing_num_installments: financingProposal?.num_installments ?? null,
-        financing_monthly_rate: financingProposal?.monthly_rate ?? null,
-        financing_total_due: financingProposal?.total_due ?? null,
-        financing_calculation_json: financingProposal ? JSON.parse(JSON.stringify(financingProposal.calculation)) as Json : null,
-      };
-      // Le condizioni riscritte per questo preventivo: colonna del 27/10/2026, che i tipi generati non conoscono
-      // ancora. Si scrive qui, fuori dal corpo tipizzato, invece di aspettare la rigenerazione dei tipi.
-      (quoteData as Record<string, unknown>).condizioni_testo = condizioniTesto;
+      const quoteData = datiTestata(status);
 
       let quoteId = id;
 
@@ -2118,36 +2165,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       // Controllare ogni risultato: nessun falso successo dopo errori parziali.
       const salvaRigheAtomiche = async (idPreventivo: string) => {
         {
-          // La riga «Sconto» parte col prezzo negativo (05/10/2026): il
-          // database fa i totali sommando le righe, come lo schermo.
-          const righeDaSalvare = items.map((voce) => normalizzaRigaSconto(voce));
-          const payload = righeDaSalvare.map((it, idx) => ({
-            sort_order: idx,
-            client_temp_id: it.client_temp_id ?? null,
-            parent_temp_id: it.parent_temp_id ?? null,
-            item_type: it.item_type,
-            name: it.name,
-            description: it.description ?? null,
-            quantity: it.quantity,
-            unit_price: it.unit_price,
-            discount_percent: it.discount_percent ?? 0,
-            vat_rate: it.vat_rate ?? 22,
-            unit_of_measure: it.unit_of_measure,
-            article_template_id: it.article_template_id ?? null,
-            item_category: it.item_category ?? "prodotto",
-            tariffa_id: it.tariffa_id ?? null,
-            prezzo_acquisto: it.prezzo_acquisto ?? 0,
-            mostra_nel_pdf: it.mostra_nel_pdf ?? true,
-            is_optional: it.is_optional ?? false,
-            misura_x: it.misura_x ?? null,
-            misura_y: it.misura_y ?? null,
-            family_id: it.family_id ?? null,
-            axis_selections: it.axis_selections ?? null,
-            supplier_catalog_id: it.supplier_catalog_id ?? null,
-            supplier_product_line_id: it.supplier_product_line_id ?? null,
-            // senza, il salvataggio staccava la riga dalla sua voce del computo
-            computo_voce_id: it.computo_voce_id ?? null,
-          }));
+          const payload = righeDaSalvare();
           const { data: rpcData, error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
             p_quote_id: idPreventivo,
             p_company_id: companyId,
@@ -3958,7 +3976,22 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       </div>
       {/* Telefono: vuota (anteprima nel passo «Conferma»), ma lasciava una riga di 24px. */}
       <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4 max-sm:hidden">
-        <div className="hidden lg:block"><QuoteLivePreviewPanel {...livePreviewProps} /></div>
+        <div className="hidden lg:block">
+          {pdfVeroDisponibile ? (
+            <PannelloAnteprima
+              modalita={conPdfVero ? "pdf" : "veloce"}
+              onModalita={impostaModalitaAnteprima}
+              pdfDisponibile
+              nota={conPdfVero
+                ? "Il documento vero, come lo riceve il cliente: si rifà da solo poco dopo ogni modifica."
+                : "Bozza visiva: il documento vero è in «PDF vero»."}
+            >
+              {conPdfVero && bozzaPerIlPdf
+                ? <PdfVeroPreventivoClassico quoteId={isEdit ? id : null} bozza={bozzaPerIlPdf} attivo={colonnaAnteprimaVisibile} />
+                : <QuoteLivePreviewPanel {...livePreviewProps} />}
+            </PannelloAnteprima>
+          ) : <QuoteLivePreviewPanel {...livePreviewProps} />}
+        </div>
         {/* Telefono no: l'anteprima è il passo «Conferma», il totale sta nella barra in basso. */}
         <details className="rounded-xl border bg-white p-3 lg:hidden max-sm:hidden">
           <summary className="cursor-pointer text-sm font-semibold">Mostra anteprima live · {formatCurrency(total)}</summary>

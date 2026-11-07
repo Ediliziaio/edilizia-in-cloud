@@ -279,7 +279,8 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       queryKeys: { quotes: { all: [], detail: (): string[] => [], items: (): string[] => [] } }, navigate: () => {}, toast, supabase,
     };
     for (const k of ["contactId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "pdfWatermarkText", "pdfCopiaDestinatario", "condizioniTesto"]) contesto[k] = null;
-    const g = gestoriVeri(BUILDER, ["handleSave"], contesto);
+    // Testata e righe si costruiscono fuori da handleSave dal 07/11/2026: le usa anche il PDF vero a destra.
+    const g = gestoriVeri(BUILDER, ["datiTestata", "righeDaSalvare", "handleSave"], contesto);
     return { esegui: () => g.handleSave() as Promise<void>, scritto, toast, totale: total };
   }
 

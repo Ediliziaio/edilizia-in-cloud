@@ -27,18 +27,20 @@ export function useModalitaAnteprima(): readonly [ModalitaAnteprima, (m: Modalit
   return [modalita, imposta] as const;
 }
 
-/** La colonna di destra c'è solo da 1280 px in su (`xl`): sotto, il PDF vero non si prepara. */
-export function useColonnaAnteprimaVisibile(): boolean {
-  const [visibile, setVisibile] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(QUERY_XL).matches);
+/**
+ * La colonna di destra si vede? Nei preventivatori c'è da 1280 px in su (`xl`), nel preventivo classico da
+ * 1024 (`lg`): sotto, il PDF vero non si prepara.
+ */
+export function useColonnaAnteprimaVisibile(larghezzaMinima = 1280): boolean {
+  const query = `(min-width: ${larghezzaMinima}px)`;
+  const [visibile, setVisibile] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(query).matches);
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia(QUERY_XL);
+    const mq = window.matchMedia(query);
     const cambia = () => setVisibile(mq.matches);
     cambia();
     mq.addEventListener?.("change", cambia);
     return () => mq.removeEventListener?.("change", cambia);
-  }, []);
+  }, [query]);
   return visibile;
 }
-
-const QUERY_XL = "(min-width: 1280px)";

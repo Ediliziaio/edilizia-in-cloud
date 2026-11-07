@@ -171,6 +171,8 @@ import {
   STICKY_ALTO, STICKY_BASSO, useAnteprimaNascosta,
 } from "@/components/preventivatore";
 import { formattaEuro, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
+import { useColonnaAnteprimaVisibile, useModalitaAnteprima } from "@/components/preventivatore/useModalitaAnteprima";
+import { PdfVeroFotovoltaico } from "@/components/fotovoltaico/PdfVeroFotovoltaico";
 import { usePermissions } from "@/hooks/usePermissions";
 import { usePuoVedereImpresa } from "@/components/preventivatore/usePuoVedereImpresa";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
@@ -1841,6 +1843,10 @@ function FotovoltaicoWizard() {
   const puoVedereImpresa = permessi.canViewMargins || permessi.canViewCosts;
   const [vistaAnteprima, setVistaAnteprima] = useState<VistaAnteprima>("cliente");
   const [anteprimaNascosta, impostaAnteprimaNascosta] = useAnteprimaNascosta();
+  // A destra il documento vero, di serie (07/11/2026), appena il progetto esiste: si rifà a ogni salvataggio.
+  const [modalitaAnteprima, impostaModalitaAnteprima] = useModalitaAnteprima();
+  const colonnaAnteprimaVisibile = useColonnaAnteprimaVisibile();
+  const conDocumentoVero = !!progettoId && modalitaAnteprima === "pdf";
   const [anteprimaMobileAperta, setAnteprimaMobileAperta] = useState(false);
   const { data: regoleSconto = [] } = useDiscountRules();
   const vistaImpresa = puoVedereImpresa && vistaAnteprima === "impresa";
@@ -2145,13 +2151,29 @@ function FotovoltaicoWizard() {
         className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-8 pt-7 pb-28 max-md:pt-4"
         anteprima={
           <PannelloAnteprima
+            modalita={conDocumentoVero ? "pdf" : "veloce"}
+            onModalita={impostaModalitaAnteprima}
+            pdfDisponibile={!!progettoId}
             vista={vistaAnteprima}
             onVista={setVistaAnteprima}
             puoVedereImpresa={puoVedereImpresa}
             onNascondi={() => impostaAnteprimaNascosta(true)}
-            nota="Bozza visiva: cliente, impianto, righe e prezzo sono quelli del preventivo. Il documento definitivo si genera alla Fase 8."
+            nota={conDocumentoVero
+              ? "Il documento vero, come lo riceve il cliente: si rifà dopo ogni salvataggio (passando alla fase dopo)."
+              : progettoId
+                ? "Bozza visiva: cliente, impianto, righe e prezzo sono quelli del preventivo. Il documento vero è in «PDF vero»."
+                : "Bozza visiva: il documento vero compare qui appena il progetto è salvato."}
           >
-            <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+            {conDocumentoVero ? (
+              <PdfVeroFotovoltaico
+                progettoId={progettoId!}
+                versione={String(lastSaveAt?.getTime() ?? 0)}
+                extra={{ layout_pannelli: data.layout_tetto ?? null, azimut: data.azimut_tetto ?? null, inclinazione_tetto: data.inclinazione_tetto ?? null }}
+                attivo={colonnaAnteprimaVisibile && !anteprimaNascosta}
+              />
+            ) : (
+              <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+            )}
           </PannelloAnteprima>
         }
       >

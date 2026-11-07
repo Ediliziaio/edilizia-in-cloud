@@ -18,6 +18,7 @@ import { coloreDelBlocco, colorePreventivo, contattiImpresa } from "../_shared/b
 import { logoDelModello, percorsoDellAzienda } from "../_shared/impaginaPreventivo.ts";
 import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
 import { caricaArchivioDelDocumento, condizioniDelPdf, documentoPartito } from "../_shared/condizioniArchivio.ts";
+import { campiNonDaBozza, leggiBozzaDelPreventivo } from "../_shared/bozzaDelPreventivo.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
 
 const DEFAULT_T = {
@@ -90,6 +91,11 @@ Deno.serve(async (req) => {
 
     // ─── PREVIEW MODE ───
     const isPreview = preview_mode === true && template_data;
+    // ─── BOZZA (07/11/2026) ───
+    // Il PDF vero a destra del preventivo classico, mentre lo si scrive: la bozza com'è sullo schermo (testata e
+    // righe) passa per la stessa strada del PDF vero — modello e blocchi collegati, archivio delle condizioni,
+    // campi del contratto, immagini riservate — ma niente si salva e niente si carica nello storage.
+    const bozza = !isPreview && body?.solo_anteprima === true ? leggiBozzaDelPreventivo(body?.bozza) : null;
 
     let quote: any;
     let items: any[] = [];
@@ -207,11 +213,18 @@ Deno.serve(async (req) => {
       t = applyMergeTagsToTemplate(t as ComposedTemplate, previewContext);
     } else {
       // ─── NORMAL MODE ───
-      if (!quote_id) return errorResponse("quote_id richiesto", 400, corsH);
+      if (!quote_id && !bozza) return errorResponse("quote_id richiesto", 400, corsH);
 
-      const quoteRes = await supabaseAdmin.from("quotes").select("*").eq("id", quote_id).single();
-      if (quoteRes.error || !quoteRes.data) return errorResponse("Preventivo non trovato", 404, corsH);
-      quote = quoteRes.data;
+      if (quote_id) {
+        const quoteRes = await supabaseAdmin.from("quotes").select("*").eq("id", quote_id).single();
+        if (quoteRes.error || !quoteRes.data) return errorResponse("Preventivo non trovato", 404, corsH);
+        quote = quoteRes.data;
+      } else {
+        // Un preventivo nuovo, non ancora salvato: niente da leggere, l'azienda è quella della bozza.
+        const aziendaDellaBozza = typeof bozza!.quote.company_id === "string" ? bozza!.quote.company_id : null;
+        if (!aziendaDellaBozza) return errorResponse("company_id richiesto", 400, corsH);
+        quote = { id: null, company_id: aziendaDellaBozza, quote_number: "BOZZA", status: "bozza", created_at: new Date().toISOString() };
+      }
       // Accesso all'azienda del preventivo: azienda principale, accesso
       // multi-azienda o super admin. Prima chi lavora su più aziende prendeva 403.
       await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);
@@ -225,9 +238,14 @@ Deno.serve(async (req) => {
       // Dal bot non c'è il token dell'utente: la RLS non si può leggere, e il bot
       // manda il PDF solo a chi l'ha chiesto e solo per preventivi della sua azienda.
       // Il contratto minimo evita l'espansione ricorsiva dei generici del client in Deno.
+      // Un preventivo nuovo in bozza non c'è ancora: da vedere c'è solo quello salvato.
+      if (quote.id) {
       if (!interna && !(await preventivoVisibile(comeChiChiama as unknown as ClienteDiChiChiama, quote.id))) {
         return errorResponse("Preventivo non trovato", 404, corsH);
       }
+      }
+      // La bozza prende il posto di quello che si può cambiare scrivendo; identità, stato e firma restano del database.
+      if (bozza) quote = { ...quote, ...bozza.quote, ...campiNonDaBozza(quote) };
 
       // Copia di firma di un preventivo di modulo (source «modulo:…», vedi
       // src/lib/moduli/quoteBridge.ts): il PDF è quello del modulo, caricato dal
@@ -275,7 +293,9 @@ Deno.serve(async (req) => {
 
       const [template, itemsRes, impRes, companyRes, contactRes, attRes] = await Promise.all([
         resolveTemplate(),
-        supabaseAdmin.from("quote_items").select("*").eq("quote_id", quote_id).order("sort_order"),
+        bozza
+          ? Promise.resolve({ data: bozza.items })
+          : supabaseAdmin.from("quote_items").select("*").eq("quote_id", quote_id).order("sort_order"),
         supabaseAdmin.from("preventivo_impostazioni").select("pdf_mostra_sconti, pdf_mostra_solo_totale").eq("company_id", quote.company_id).maybeSingle(),
         supabaseAdmin
           .from("companies")
@@ -283,13 +303,16 @@ Deno.serve(async (req) => {
           .eq("id", quote.company_id)
           .single(),
         quote.contact_id
-          ? supabaseAdmin.from("marketing_contacts").select("*").eq("id", quote.contact_id).maybeSingle()
+          // Sempre dell'azienda del preventivo: in bozza il contatto lo indica il browser (07/11/2026).
+          ? supabaseAdmin.from("marketing_contacts").select("*").eq("id", quote.contact_id).eq("company_id", quote.company_id).maybeSingle()
           : Promise.resolve({ data: null }),
-        supabaseAdmin
-          .from("quote_pdf_attachments")
-          .select("*, quote_pdf_materials(name, storage_path, company_id)")
-          .eq("quote_id", quote_id)
-          .order("sort_order"),
+        quote.id
+          ? supabaseAdmin
+            .from("quote_pdf_attachments")
+            .select("*, quote_pdf_materials(name, storage_path, company_id)")
+            .eq("quote_id", quote.id)
+            .order("sort_order")
+          : Promise.resolve({ data: [] }),
       ]);
 
       t = { ...DEFAULT_T, ...(template || {}) };
@@ -402,7 +425,8 @@ Deno.serve(async (req) => {
         // Contact già prefetchato nel batch parallelo
         const customFields = opzione('pdf_mostra_condizioni') ? campiContratto(t.contractual_terms_text, t.legal_terms_text) : [];
         const customErrors = erroriCampiContratto(customFields, leggiValoriContratto(quote?.custom_field_values?._template_values));
-        if (customErrors.length) return errorResponse(`Completa i dati contrattuali: ${customErrors.join('; ')}`, 400, corsH);
+        // In bozza si sta ancora scrivendo: un campo vuoto non ferma l'anteprima, esce vuoto come uscirebbe.
+        if (customErrors.length && !bozza) return errorResponse(`Completa i dati contrattuali: ${customErrors.join('; ')}`, 400, corsH);
         const mergeCtx = buildMergeContext({ quote, company, contact: prefetchedContact, template: t });
         t = applyMergeTagsToTemplate(t as ComposedTemplate, mergeCtx);
       } catch (e) {
@@ -414,7 +438,7 @@ Deno.serve(async (req) => {
     // Il cliente ha firmato (OTP) proprio QUEL file, e documento_hash è la sua
     // impronta: rigenerare con upsert sullo stesso percorso cancellerebbe la
     // prova. Restituiamo il PDF firmato così com'è.
-    if (quote.signed_at && quote.pdf_storage_path) {
+    if (!bozza && quote.signed_at && quote.pdf_storage_path) {
       const { data: giaFirmato } = await supabaseAdmin.storage
         .from("quote-pdfs")
         .createSignedUrl(quote.pdf_storage_path, 3600);
@@ -434,7 +458,7 @@ Deno.serve(async (req) => {
     // sua impronta è sulla richiesta: rigenerarlo sullo stesso percorso cambiava
     // il documento sotto la firma. Per cambiarlo si rimanda la firma, che prima
     // annulla la richiesta aperta e poi congela il PDF nuovo.
-    if (quote.pdf_storage_path) {
+    if (!bozza && quote.pdf_storage_path) {
       const { data: inFirma } = await supabaseAdmin
         .from("signature_requests")
         .select("id")
@@ -577,8 +601,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ─── Preview mode: return PDF directly without storage ───
-    if (isPreview) {
+    // ─── Preview mode (e bozza): return PDF directly without storage ───
+    if (isPreview || bozza) {
       const pdfBytes = await pdfDoc.save();
       // `bytesToBase64` e non un ciclo byte per byte: quello costruiva la
       // stringa un carattere alla volta, quindi milioni di concatenazioni su

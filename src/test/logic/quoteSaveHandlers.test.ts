@@ -73,6 +73,9 @@ function fixture(failAttachment: boolean, legacy = false) {
     } },
   };
   for (const key of ["contactId", "clientName", "clientEmail", "clientPhone", "clientCompany", "clientAddress", "clientFiscalCode", "clientVatNumber", "clientCodiceUnivoco", "cronoprogramma", "title", "description", "notes", "internalNotes", "paymentMethod", "prezzoManuale", "prezzoManualeIvaPct", "effectiveSelectedTemplateId", "tipoLavoro", "indirizzoLavori", "pianoInstallazione", "kmCantiere", "salespersonId", "sedeId", "renderUrl", "renderSessionId", "pdfFirma", "layoutOverride", "pdfPrezziRiga", "pdfSoloTotale", "pdfSconti", "pdfImmagini", "pdfSchedeTecniche", "pdfMisure", "pdfAttributi", "pdfNoteCliente", "pdfCondizioni", "condizioniTesto", "pdfWatermarkText", "pdfCopiaDestinatario"]) context[key] = null;
+  // Testata e righe si costruiscono fuori da handleSave dal 07/11/2026: le usa anche il PDF vero a destra.
+  context.datiTestata = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "datiTestata", context);
+  context.righeDaSalvare = actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "righeDaSalvare", context);
   return { save: actualHandler("src/pages/azienda/marketing/QuoteBuilder.tsx", "handleSave", context),
     toast, rpc, versionRef, version: () => version, colleagueSave: () => { version = "colleague"; } };
 }

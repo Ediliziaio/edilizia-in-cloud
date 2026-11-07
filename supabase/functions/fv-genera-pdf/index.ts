@@ -82,6 +82,11 @@ interface Payload {
    * documento da mandare in FIRMA, perché il preventivo firmato è il contratto (27/10/2026).
    */
   con_condizioni?: boolean;
+  /**
+   * Il PDF vero a destra del wizard (07/11/2026): la pagina si restituisce e basta — niente storage, niente
+   * aggiornamento del progetto, niente registro. Il wizard la chiede dopo ogni salvataggio, non a ogni tasto.
+   */
+  solo_anteprima?: boolean;
 }
 
 type FvListinoMacroForPdf =
@@ -115,6 +120,7 @@ Deno.serve(async (req: Request) => {
   let userId: string | null = null;
   let payloadProgettoId: string | null = null;
   let payloadTipo: string = "vendita";
+  let soloAnteprima = false;
 
   try {
     const auth = await requireAuth(req, corsHeaders);
@@ -125,6 +131,7 @@ Deno.serve(async (req: Request) => {
     if (!p.progetto_id) return errorResponse("progetto_id mancante", 400, corsHeaders);
     payloadProgettoId = p.progetto_id;
     payloadTipo = p.tipo ?? "vendita";
+    soloAnteprima = p.solo_anteprima === true;
     if (!["vendita", "tecnico", "mobile"].includes(payloadTipo)) {
       return errorResponse("tipo non valido", 400, corsHeaders);
     }
@@ -998,6 +1005,7 @@ Deno.serve(async (req: Request) => {
     // ── Render HTML ────────────────────────────────────────────────────────
     const pagesCount = getFvPdfRenderedPagesCount(data);
     const html = renderFvPdfHtml(data);
+    if (soloAnteprima) return jsonResponse({ html, pages_count: pagesCount, format: "html" }, 200, corsHeaders);
     const htmlBytes = new TextEncoder().encode(html);
 
     // ── Upload su storage ──────────────────────────────────────────────────
@@ -1052,7 +1060,8 @@ Deno.serve(async (req: Request) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[fv-genera-pdf v2] ERROR:", msg);
     try {
-      if (supabaseAdmin && payloadProgettoId) {
+      // L'anteprima a destra non lascia tracce: un errore lo vede chi sta scrivendo.
+      if (supabaseAdmin && payloadProgettoId && !soloAnteprima) {
         await supabaseAdmin.from("fv_pdf_generation_log").insert({
           progetto_id: payloadProgettoId,
           tipo: payloadTipo,
