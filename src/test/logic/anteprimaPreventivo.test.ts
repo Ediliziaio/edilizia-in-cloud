@@ -15,6 +15,7 @@ describe("Anteprima: formati all'italiana", () => {
     expect(formattaQuantita(3)).toBe("3");
     expect(formattaQuantita(12.5, "mq")).toBe("12,5 mq");
     expect(formattaQuantita(1, "a corpo")).toBe("a corpo");
+    expect(formattaQuantita(1, "a_corpo")).toBe("a corpo");
     expect(formattaQuantita(2, "ore")).toBe("2 ore");
   });
 
