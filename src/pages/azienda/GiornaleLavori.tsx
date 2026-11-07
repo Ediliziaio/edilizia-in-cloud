@@ -3,7 +3,8 @@ import { useState, useRef } from "react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -11,6 +12,7 @@ import { useGPS } from "@/hooks/useGPS";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
-import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X, Trash2 } from "lucide-react";
+import { NotebookPen, Plus, MapPin, Camera, Loader2, Sun, Cloud, CloudRain, Snowflake, Wind, Download, X, Trash2, Lock, PenLine, Users } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -37,6 +39,27 @@ import {
 import {
   MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, avvisoCaricamento, postiLiberi, preparaFoto, type FotoPronta,
 } from "@/lib/campo/preparaFoto";
+import { messaggioErroreGiornale, paginaDelGiorno, regoleGiornale } from "@/lib/campo/statoGiornale";
+import { oreLeggibili, personeDelGiorno, type RapportinoPresenze } from "@/lib/campo/presenzeGiornale";
+
+/** Tabelle e RPC nuove (giornale_annotazioni, giornale_firma) non ancora nei tipi generati. */
+const dbSenzaTipi = supabase as unknown as SupabaseClient;
+
+interface Annotazione {
+  id: string;
+  testo: string;
+  autore_id: string | null;
+  created_at: string;
+}
+
+const nomeProfilo = (p: { first_name?: string | null; last_name?: string | null } | null | undefined) =>
+  [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
+
+const dataOra = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : format(d, "dd/MM/yyyy HH:mm");
+};
 
 const METEO_OPTIONS = [
   { value: "soleggiato", label: "Soleggiato", icon: Sun, color: "text-yellow-500" },
@@ -73,6 +96,9 @@ interface RigaGiornale {
   temperatura?: number | string | null;
   firmato_da?: string | null;
   visibile_cliente?: boolean | null;
+  stato?: string | null;
+  pm_signed_at?: string | null;
+  pm_signed_by?: string | null;
 }
 
 export default function GiornaleLavori() {
@@ -174,6 +200,85 @@ export default function GiornaleLavori() {
   const fotoSalvateLink = useFotoGiornaleFirmate(fotoSalvate);
   const fotoAlCompleto = postiLiberi(fotoSalvate.length + fotoPreview.length) === 0;
 
+  // Bozza o firmata: la firmata è in sola lettura e accetta solo annotazioni (lo impone anche il database).
+  const regole = regoleGiornale(
+    editingEntry ? { ...editingEntry, lavorazioni_eseguite: formData.lavorazioni_eseguite } : null,
+    canEditGiornale,
+  );
+  const solaLettura = !regole.puoModificare;
+  const [firmaDaConfermare, setFirmaDaConfermare] = useState(false);
+  const [nuovaAnnotazione, setNuovaAnnotazione] = useState("");
+
+  // Chi ha lavorato quel giorno su quel cantiere, dai rapportini. Il numero di operai resta la correzione a mano.
+  const orderDelGiorno: string = editingEntry?.order_id ?? selectedOrderId;
+  const { data: rapportiniGiorno = [] } = useQuery({
+    queryKey: ["giornale-rapportini-giorno", companyId, orderDelGiorno, formData.data_lavori],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campo_rapportini")
+        .select("id, user_id, stato, ore_lavorate, ore_straordinario, presenze, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)")
+        .eq("company_id", companyId!)
+        .eq("order_id", orderDelGiorno)
+        .eq("data_lavoro", formData.data_lavori);
+      if (error) throw error;
+      return (data ?? []) as unknown as Array<RapportinoPresenze & { autore?: { first_name?: string | null; last_name?: string | null } | null }>;
+    },
+    enabled: sheetOpen && !!companyId && !!orderDelGiorno && !!formData.data_lavori,
+  });
+  const personeGiorno = personeDelGiorno(
+    rapportiniGiorno,
+    Object.fromEntries(rapportiniGiorno.filter((r) => r.user_id).map((r) => [r.user_id as string, nomeProfilo(r.autore)])),
+  );
+
+  // Una pagina per cantiere e per giorno: su «Nuovo» con un giorno già scritto si apre quella.
+  const nuovaPagina = sheetOpen && !editingEntry?.id;
+  const { data: paginaEsistente } = useQuery({
+    queryKey: ["giornale-pagina-del-giorno", companyId, selectedOrderId, formData.data_lavori],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("giornale_lavori")
+        .select("*, giornale_foto(id, url, storage_path)")
+        .eq("company_id", companyId!)
+        .eq("order_id", selectedOrderId)
+        .eq("data_lavori", formData.data_lavori)
+        .maybeSingle();
+      if (error) throw error;
+      return data as RigaGiornale | null;
+    },
+    enabled: nuovaPagina && !!companyId && !!selectedOrderId && !!formData.data_lavori,
+  });
+  const paginaGiaScritta: RigaGiornale | undefined = nuovaPagina
+    ? paginaDelGiorno(entries as RigaGiornale[], selectedOrderId, formData.data_lavori) ?? paginaEsistente ?? undefined
+    : undefined;
+
+  // Annotazioni: solo sulle pagine firmate, solo aggiunta.
+  const { data: annotazioni = [] } = useQuery({
+    queryKey: ["giornale-annotazioni", editingId],
+    queryFn: async () => {
+      const { data, error } = await dbSenzaTipi
+        .from("giornale_annotazioni")
+        .select("id, testo, autore_id, created_at")
+        .eq("giornale_id", editingId!)
+        .order("created_at", { ascending: true });
+      if (error) throw new Error(messaggioErroreGiornale(error));
+      return (data ?? []) as Annotazione[];
+    },
+    enabled: sheetOpen && !!editingId && regole.stato === "firmata",
+  });
+
+  // Nomi di chi ha firmato e di chi ha annotato.
+  const idsNomi = [...new Set([editingEntry?.pm_signed_by, ...annotazioni.map((a) => a.autore_id)]
+    .filter((x): x is string => !!x))].sort();
+  const { data: nomi = {} } = useQuery({
+    queryKey: ["giornale-nomi", idsNomi.join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", idsNomi);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((p) => [p.id, nomeProfilo(p)])) as Record<string, string>;
+    },
+    enabled: idsNomi.length > 0,
+  });
+
   const resetForm = () => {
     setFormData({
       data_lavori: format(new Date(), "yyyy-MM-dd"),
@@ -215,8 +320,8 @@ export default function GiornaleLavori() {
    * La firma NON si ricarica nel canvas: è la firma del capocantiere di quel
    * giorno. Se non si rifirma resta quella; se si rifirma, si sovrascrive.
    */
+  // Aperta da tutti quelli che vedono il giornale: chi non può modificare la legge e basta.
   const openEdit = (entry: RigaGiornale) => {
-    if (!canEditGiornale) return;
     setFormData({
       data_lavori: entry.data_lavori ?? format(new Date(), "yyyy-MM-dd"),
       condizioni_meteo: entry.condizioni_meteo ?? "soleggiato",
@@ -234,6 +339,8 @@ export default function GiornaleLavori() {
     });
     setHasFirma(false);
     setVisibileCliente(entry.visibile_cliente !== false);
+    setNuovaAnnotazione("");
+    setFirmaDaConfermare(false);
     if (entry.order_id) setSelectedOrderId(entry.order_id);
     setEditingEntry(entry);
     setSheetOpen(true);
@@ -386,7 +493,7 @@ export default function GiornaleLavori() {
           .eq("company_id", companyId!)
           .select()
           .single();
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(messaggioErroreGiornale(error));
         entry = data;
       } else {
         const { data, error } = await supabase
@@ -402,7 +509,7 @@ export default function GiornaleLavori() {
           })
           .select()
           .single();
-        if (error) throw new Error(error.message);
+        if (error) throw new Error(messaggioErroreGiornale(error));
         entry = data;
       }
 
@@ -475,6 +582,9 @@ export default function GiornaleLavori() {
     mutationFn: async (entry: { id: string }) => {
       if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
       if (!companyId) throw new Error("Azienda non disponibile");
+      if (regoleGiornale(entry as RigaGiornale, true).stato === "firmata") {
+        throw new Error("Questa pagina del giornale è firmata: non si può eliminare.");
+      }
 
       const { data: foto } = await supabase
         .from("giornale_foto")
@@ -494,7 +604,7 @@ export default function GiornaleLavori() {
         .delete()
         .eq("id", entry.id)
         .eq("company_id", companyId);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(messaggioErroreGiornale(error));
       return percorsi.length;
     },
     onSuccess: (nFoto) => {
@@ -507,6 +617,48 @@ export default function GiornaleLavori() {
       queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
     },
     onError: (err: Error) => toast.error("Impossibile eliminare", { description: err.message }),
+  });
+
+  /** Firma: prima si salva quel che c'è nel modulo (testo e foto), poi si firma la pagina salvata. */
+  const firmaPagina = useMutation({
+    mutationFn: async () => {
+      if (!regole.puoFirmare) throw new Error("Questa pagina non si può firmare.");
+      const salvata = await saveEntry.mutateAsync();
+      const { data, error } = await dbSenzaTipi.rpc("giornale_firma", { p_giornale_id: salvata.id });
+      if (error) throw new Error(messaggioErroreGiornale(error));
+      return data as { stato: string; pm_signed_at: string | null; pm_signed_by: string | null } | null;
+    },
+    onSuccess: (esito) => {
+      toast.success("Giornale firmato: da ora si possono solo aggiungere annotazioni.");
+      setFirmaDaConfermare(false);
+      setEditingEntry((e: RigaGiornale | null) => (e ? {
+        ...e, stato: "firmata", pm_signed_at: esito?.pm_signed_at ?? null, pm_signed_by: esito?.pm_signed_by ?? null,
+      } : e));
+      queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
+    },
+    onError: (err: Error) => {
+      setFirmaDaConfermare(false);
+      toast.error("Firma non riuscita", { description: err.message });
+    },
+  });
+
+  const aggiungiAnnotazione = useMutation({
+    mutationFn: async () => {
+      const testo = nuovaAnnotazione.trim();
+      if (!testo) throw new Error("Scrivi il testo dell'annotazione.");
+      if (!editingEntry?.id || !regole.puoAnnotare) throw new Error("Le annotazioni si aggiungono alle pagine firmate.");
+      // L'autore lo mette il database (auth.uid()).
+      const { error } = await dbSenzaTipi
+        .from("giornale_annotazioni")
+        .insert({ company_id: companyId, giornale_id: editingEntry.id, testo });
+      if (error) throw new Error(messaggioErroreGiornale(error));
+    },
+    onSuccess: () => {
+      toast.success("Annotazione aggiunta");
+      setNuovaAnnotazione("");
+      queryClient.invalidateQueries({ queryKey: ["giornale-annotazioni", editingId] });
+    },
+    onError: (err: Error) => toast.error("Annotazione non salvata", { description: err.message }),
   });
 
   const handleExportPdf = async () => {
@@ -631,7 +783,7 @@ export default function GiornaleLavori() {
             <GiornaleCard
               key={entry.id}
               entry={entry}
-              onClick={canEditGiornale ? () => openEdit(entry) : undefined}
+              onClick={() => openEdit(entry)}
             />
           ))}
         </div>
@@ -643,11 +795,72 @@ export default function GiornaleLavori() {
           <SheetHeader className="pb-4">
             <SheetTitle className="flex items-center gap-2">
               <NotebookPen className="h-5 w-5" />
-              {editingEntry?.id ? "Correggi il report" : "Report Giornaliero"}
+              {!editingEntry?.id ? "Report Giornaliero" : solaLettura ? "Pagina del giornale" : "Correggi il report"}
+              {editingEntry?.id && (regole.stato === "firmata" ? (
+                <Badge variant="secondary" className="bg-green-100 text-green-700">
+                  <Lock className="mr-1 h-3 w-3" aria-hidden="true" />Firmata
+                </Badge>
+              ) : (
+                <Badge variant="outline">Bozza</Badge>
+              ))}
             </SheetTitle>
           </SheetHeader>
 
           <div className="space-y-5 pb-8">
+            {regole.stato === "firmata" && (
+              <Alert>
+                <Lock className="h-4 w-4" />
+                <AlertDescription>
+                  Firmata il {dataOra(editingEntry?.pm_signed_at)}
+                  {editingEntry?.pm_signed_by && nomi[editingEntry.pm_signed_by] ? ` da ${nomi[editingEntry.pm_signed_by]}` : ""}.
+                  {" "}Non si può più modificare: si possono solo aggiungere annotazioni.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Una pagina per cantiere e per giorno: c'è già, si apre quella invece di scriverne un'altra. */}
+            {paginaGiaScritta && (
+              <Alert>
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                  <span>Per questo cantiere c'è già la pagina del {format(new Date(`${formData.data_lavori}T00:00:00`), "dd/MM/yyyy")}.</span>
+                  <Button size="sm" variant="outline" onClick={() => openEdit(paginaGiaScritta)}>Apri la pagina</Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Chi ha lavorato quel giorno, dai rapportini */}
+            {orderDelGiorno && formData.data_lavori && (
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Presenze dai rapportini
+                  </p>
+                  {rapportiniGiorno.length > 0 && (
+                    <Link
+                      to={`/azienda/ordini/${orderDelGiorno}?tab=cantiere&vista_cantiere=diario`}
+                      className="text-xs text-primary underline-offset-2 hover:underline"
+                    >
+                      {rapportiniGiorno.length === 1 ? "Apri il rapportino" : `Apri i ${rapportiniGiorno.length} rapportini`}
+                    </Link>
+                  )}
+                </div>
+                {personeGiorno.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nessun rapportino per questo giorno su questo cantiere.</p>
+                ) : (
+                  <ul className="flex flex-wrap gap-1.5" aria-label="Persone presenti">
+                    {personeGiorno.map((p) => (
+                      <li key={p.chiave} className="rounded-full bg-muted px-2.5 py-1 text-xs">
+                        {p.nome} · <span className="tabular-nums">{oreLeggibili(p.ore)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* In sola lettura (firmata o senza permesso) i campi restano visibili ma spenti. */}
+            <fieldset disabled={solaLettura} className="min-w-0 space-y-5">
             {/* Ordine (se non già selezionato) */}
             {!selectedOrderId && (
               <div className="space-y-2">
@@ -760,6 +973,7 @@ export default function GiornaleLavori() {
                 min={0}
                 max={100}
                 step={5}
+                disabled={solaLettura}
                 value={[formData.avanzamento_percentuale]}
                 onValueChange={([v]) => setFormData((p) => ({ ...p, avanzamento_percentuale: v }))}
                 className="py-2"
@@ -840,7 +1054,7 @@ export default function GiornaleLavori() {
                       {fotoSalvateLink[i]
                         ? <img loading="lazy" src={fotoSalvateLink[i]} alt={`Foto salvata ${i + 1}`} className="w-full h-full object-cover" />
                         : <div className="flex h-full items-center justify-center"><Camera className="h-5 w-5 text-muted-foreground" aria-label={`Foto salvata ${i + 1} non disponibile`} /></div>}
-                      {canEditGiornale && (
+                      {regole.puoModificare && (
                         <button
                           type="button"
                           aria-label={`Togli la foto salvata ${i + 1}`}
@@ -912,6 +1126,7 @@ export default function GiornaleLavori() {
                   value={formData.firmato_da}
                   onChange={(e) => setFormData((p) => ({ ...p, firmato_da: e.target.value }))}
                 />
+                {!solaLettura && (
                 <div className="border rounded-lg overflow-hidden bg-white">
                   <canvas
                     ref={canvasRef}
@@ -928,11 +1143,61 @@ export default function GiornaleLavori() {
                     onTouchEnd={stopDrawing}
                   />
                 </div>
-                {!hasFirma && (
+                )}
+                {!hasFirma && !solaLettura && (
                   <p className="text-xs text-muted-foreground text-center">Firma nello spazio sopra</p>
                 )}
               </div>
             </div>
+
+            </fieldset>
+
+            {/* Annotazioni: l'unica cosa che si aggiunge a una pagina firmata */}
+            {regole.stato === "firmata" && editingEntry?.id && (
+              <div className="space-y-3 rounded-lg border p-3">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <PenLine className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  Annotazioni
+                </p>
+                {annotazioni.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nessuna annotazione.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {annotazioni.map((a) => (
+                      <li key={a.id} className="rounded-md bg-muted/60 p-2">
+                        <p className="text-xs text-muted-foreground">
+                          {dataOra(a.created_at)}{a.autore_id && nomi[a.autore_id] ? ` · ${nomi[a.autore_id]}` : ""}
+                        </p>
+                        <p className="whitespace-pre-wrap text-sm">{a.testo}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {regole.puoAnnotare && (
+                  <div className="space-y-2">
+                    <Label htmlFor="nuova_annotazione">Aggiungi annotazione</Label>
+                    <Textarea
+                      id="nuova_annotazione"
+                      placeholder="Correzione, precisazione, evento successivo…"
+                      value={nuovaAnnotazione}
+                      onChange={(e) => setNuovaAnnotazione(e.target.value)}
+                      rows={2}
+                      maxLength={5000}
+                      className="resize-none"
+                    />
+                    <DettaTesto value={nuovaAnnotazione} onChange={setNuovaAnnotazione} companyId={companyId} contesto="giornale" campo="note" etichetta="Annotazione" disabled={aggiungiAnnotazione.isPending} />
+                    <Button
+                      size="sm"
+                      onClick={() => aggiungiAnnotazione.mutate()}
+                      disabled={aggiungiAnnotazione.isPending || !nuovaAnnotazione.trim()}
+                    >
+                      {aggiungiAnnotazione.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                      Aggiungi annotazione
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Custom fields — shown after save when entry has an id */}
             {editingEntry?.id && (
@@ -955,11 +1220,12 @@ export default function GiornaleLavori() {
                 "Chiudi": si potevano compilare i campi personalizzati ma non
                 correggere niente di quello che era stato scritto. */}
             <div className="space-y-2">
+              {!solaLettura && (
               <Button
                 className="w-full"
                 size="lg"
                 onClick={() => saveEntry.mutate()}
-                disabled={saveEntry.isPending || !!fotoProgresso || !formData.lavorazioni_eseguite.trim() || !selectedOrderId}
+                disabled={saveEntry.isPending || firmaPagina.isPending || !!fotoProgresso || !formData.lavorazioni_eseguite.trim() || !selectedOrderId || !!paginaGiaScritta}
               >
                 {saveEntry.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>
@@ -969,6 +1235,19 @@ export default function GiornaleLavori() {
                   "Salva report giornaliero"
                 )}
               </Button>
+              )}
+              {regole.puoFirmare && (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="secondary"
+                  onClick={() => setFirmaDaConfermare(true)}
+                  disabled={saveEntry.isPending || firmaPagina.isPending || !!fotoProgresso}
+                >
+                  <Lock className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Firma il giornale
+                </Button>
+              )}
               {editingEntry?.id && (
                 /* Chiudi riempie la riga, Elimina è l'azione secondaria e
                    sta stretta: su 375 px la riga resta piena e la scelta
@@ -982,6 +1261,7 @@ export default function GiornaleLavori() {
                   >
                     Chiudi
                   </Button>
+                  {regole.puoEliminare && (
                   <Button
                     size="lg"
                     variant="outline"
@@ -992,6 +1272,7 @@ export default function GiornaleLavori() {
                     <Trash2 className="h-4 w-4" />
                     <span className="ml-1.5 hidden sm:inline">Elimina</span>
                   </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1010,6 +1291,7 @@ export default function GiornaleLavori() {
       )}
 
       {/* Mobile FAB — fixed above bottom nav */}
+      {canEditGiornale && (
       <button
         onClick={openNew}
         className="md:hidden fixed right-4 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
@@ -1020,6 +1302,28 @@ export default function GiornaleLavori() {
       >
         <Plus className="h-7 w-7" aria-hidden="true" />
       </button>
+      )}
+
+      <AlertDialog open={firmaDaConfermare} onOpenChange={(o) => { if (!o && !firmaPagina.isPending) setFirmaDaConfermare(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Firmare questa pagina del giornale?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Dopo la firma non si potrà più modificare: si potranno solo aggiungere annotazioni.
+              Prima della firma si salva quello che c'è nel modulo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={firmaPagina.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); firmaPagina.mutate(); }}
+              disabled={firmaPagina.isPending}
+            >
+              {firmaPagina.isPending ? "Firmo..." : "Firma il giornale"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!daCancellare} onOpenChange={(o) => { if (!o) setDaCancellare(null); }}>
         <AlertDialogContent>

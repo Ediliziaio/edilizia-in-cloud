@@ -27,6 +27,8 @@ interface GiornaleEntry {
   longitude?: number;
   firma_capocantiere?: string;
   firmato_da?: string;
+  /** bozza | firmata: la firmata non si modifica più. */
+  stato?: string | null;
   giornale_foto?: { id: string; url: string; storage_path?: string | null }[];
 }
 
@@ -40,7 +42,7 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
   const meteo = METEO_CONFIG[entry.condizioni_meteo] || METEO_CONFIG.soleggiato;
   const MeteoIcon = meteo.icon;
   const fotoCount = entry.giornale_foto?.length || 0;
-  const hasFirma = !!entry.firma_capocantiere;
+  const firmata = entry.stato === "firmata";
 
   return (
     <Card
@@ -67,9 +69,13 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
                 <Camera className="h-3 w-3" />{fotoCount}
               </Badge>
             )}
-            {hasFirma && (
+            {firmata ? (
               <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                ✓ Firmato
+                ✓ Firmata
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                Bozza
               </Badge>
             )}
           </div>
