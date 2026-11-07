@@ -17,15 +17,26 @@
  */
 
 /** I cinque tipi di documento che hanno condizioni contrattuali. */
-export const AMBITI_CONDIZIONI = ["preventivo", "computo", "commessa", "subappalto", "lavoro"] as const;
+export const AMBITI_CONDIZIONI = [
+  "preventivo", "appalto", "commessa", "subappalto", "acquisto", "fattura", "manutenzione", "lavoro",
+] as const;
 export type AmbitoCondizioni = (typeof AMBITI_CONDIZIONI)[number];
 
 export const NOMI_AMBITI: Record<AmbitoCondizioni, string> = {
-  preventivo: "Preventivi",
-  computo: "Computi metrici",
-  commessa: "Commesse e lavori extra",
+  preventivo: "Preventivi e computi",
+  appalto: "Contratto col committente",
+  commessa: "Lavori extra e varianti",
   subappalto: "Subappaltatori",
+  acquisto: "Ordini e richieste d'offerta",
+  fattura: "Fatture",
+  manutenzione: "Contratti di manutenzione",
   lavoro: "Contratti di lavoro",
+};
+
+/** A chi va il documento: serve a raggruppare gli ambiti nella schermata. */
+export const CONTROPARTE: Record<AmbitoCondizioni, "cliente" | "fornitore" | "subappaltatore" | "dipendente"> = {
+  preventivo: "cliente", appalto: "cliente", commessa: "cliente", fattura: "cliente", manutenzione: "cliente",
+  acquisto: "fornitore", subappalto: "subappaltatore", lavoro: "dipendente",
 };
 
 export interface Clausola {
