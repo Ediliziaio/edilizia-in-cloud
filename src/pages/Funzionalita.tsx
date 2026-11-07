@@ -135,7 +135,7 @@ export default function Funzionalita() {
     canonical: "/funzionalita",
     keywords:
       "funzionalità gestionale edilizia, moduli software edilizia, gestione cantieri real-time, fatturazione elettronica SDI edilizia, render AI edilizia, CRM imprese edili, cassa edile software, software all-in-one edilizia, app cantiere mobile, preventivi edilizia computo metrico",
-    ogImage: "https://www.ediliziaincloud.com/og/funzionalita-og.jpg",
+    ogImage: "https://www.ediliziaincloud.com/og/eic-funzionalita.png",
   });
 
   // Filtered list according to active filter + search query
