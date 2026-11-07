@@ -1,0 +1,13 @@
+**
+!services/
+!services/smts/
+!services/smts/package.json
+!services/smts/server.ts
+!services/smts/callbacks.ts
+!services/smts/signature.ts
+!services/smts/smts.ts
+!supabase/
+!supabase/functions/
+!supabase/functions/_shared/
+!supabase/functions/_shared/billingMassive.ts
+!supabase/functions/_shared/xmlMinimo.ts
