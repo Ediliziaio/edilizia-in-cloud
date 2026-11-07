@@ -62,7 +62,21 @@ export function useOrderDetailNavigation(ready: boolean) {
         frame = requestAnimationFrame(cerca);
         return;
       }
-      // A tab change keeps the shared header, summary and quick actions in view.
+      // Cambio scheda senza destinazione: la pagina NON torna in cima (07/11/2026: da
+      // metà pagina ogni clic su una scheda riportava alla testata). Se la barra delle
+      // schede è al suo posto non si muove niente; se sei sceso nel contenuto e la barra
+      // è appiccicata in alto, la si riporta al suo posto naturale: la scheda nuova
+      // comincia subito sotto, dall'inizio, senza risalire fino ai numeri della commessa.
+      const vistaInterna = !changedArea && (
+        (tab === "cantiere" && new URLSearchParams(location.search).has("vista_cantiere"))
+        || (tab === "finanza" && new URLSearchParams(location.search).has("vista_economia"))
+        || (tab === "articoli" && new URLSearchParams(location.search).has("vista_materiali"))
+        || (tab === "costi" && new URLSearchParams(location.search).has("vista_costi")));
+      if (!section && !vistaInterna) {
+        const area = document.getElementById("order-detail-sections")?.parentElement;
+        if (area && area.getBoundingClientRect().top < 0) area.scrollIntoView({ behavior: "auto", block: "start" });
+        return;
+      }
       // Explicit section links still jump straight to the requested content.
       const target = section
         ? document.getElementById(section)
@@ -74,7 +88,7 @@ export function useOrderDetailNavigation(ready: boolean) {
         ? document.getElementById("materiali-workspace")
         : !changedArea && tab === "costi" && new URLSearchParams(location.search).has("vista_costi")
         ? document.getElementById("costi-workspace")
-        : document.getElementById("order-detail-overview") ?? document.getElementById("order-detail-sections");
+        : null;
       // Legacy deep links can point inside a collapsed details element.
       if (target instanceof HTMLDetailsElement) target.open = true;
       let parent = target?.parentElement;

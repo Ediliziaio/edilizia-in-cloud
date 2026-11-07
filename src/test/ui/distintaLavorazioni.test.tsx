@@ -262,4 +262,20 @@ describe("Tabella delle lavorazioni", () => {
     expect(screen.getByRole("checkbox", { name: "Controparete: da fare" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Chi fa Murature" })).toBeNull();
   });
+  it("la barra dello stato avanzamento lavori dice quanto è fatto e se si è in ritardo", () => {
+    const conDate = [
+      { ...fasi[0], start_date: "2026-11-01", end_date: "2026-11-05" },
+      { ...fasi[1], start_date: "2026-11-06", end_date: "2026-11-10" },
+    ];
+    mostra({ fasi: conDate, oggi: "2026-11-09" });
+    const barra = screen.getByRole("progressbar", { name: "Stato avanzamento lavori" });
+    expect(barra).toHaveAttribute("aria-valuenow", "32");
+    expect(barra.getAttribute("aria-valuetext")).toContain("90% del tempo trascorso");
+    expect(riepilogo()).toHaveTextContent("in ritardo di 58 punti");
+  });
+  it("senza date sulle fasi la barra mostra solo quanto è fatto", () => {
+    mostra();
+    expect(screen.getByRole("progressbar", { name: "Stato avanzamento lavori" })).toHaveAttribute("aria-valuenow", "32");
+    expect(riepilogo()).toHaveTextContent("senza date sulle fasi");
+  });
 });

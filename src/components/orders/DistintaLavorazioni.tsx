@@ -20,6 +20,7 @@ import { SchedaVoce } from "@/components/orders/SchedaVoce";
 import type { DatiVoce } from "@/hooks/useSottofasi";
 import type { DatiChiSottofasi } from "@/hooks/useChiSottofasi";
 import { avanzamentoFasi } from "@/lib/orders/schedaCommessa";
+import { andamentoLavori, type Andamento } from "@/lib/orders/andamentoLavori";
 import type { ScelteAssegnazione } from "@/hooks/useAssegnaAlleFasi";
 import { formatCurrency } from "@/lib/formatters";
 import {
@@ -104,6 +105,45 @@ function CampoRapido({ riga: r, onAvanza }: { riga: RigaDistinta; onAvanza: Prop
         if (dopo) { dopo.focus(); dopo.select(); dopo.scrollIntoView({ block: "nearest" }); }
       }}
       className="h-6 w-full rounded border border-sky-300 bg-background px-1 text-right text-[11px] tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-500" />
+  );
+}
+
+const dataBreve = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+
+/**
+ * La barra dello stato avanzamento lavori, nello spazio libero della striscia dei numeri:
+ * quanto è fatto, e la tacca di oggi fra la prima data d'inizio e l'ultima di fine delle fasi.
+ */
+function BarraAndamento({ a }: { a: Andamento }) {
+  const ritardo = a.stato === "in_ritardo";
+  const colore = a.fatto >= 100 ? "bg-emerald-500" : ritardo ? "bg-amber-500" : "bg-sky-600";
+  const testo = a.stato === "in_ritardo" ? `in ritardo di ${a.punti} punti`
+    : a.stato === "in_anticipo" ? `in anticipo di ${a.punti} punti`
+    : a.fatto >= 100 ? "lavori finiti" : a.stato === "in_linea" ? "in linea coi tempi" : "senza date sulle fasi";
+  return (
+    <div className="min-w-[14rem] flex-1 basis-56 self-center" data-testid="barra-andamento">
+      <div className="mb-1 flex items-baseline justify-between gap-2 text-[11px]">
+        <span className="text-muted-foreground">Stato avanzamento lavori</span>
+        <span className={cn("whitespace-nowrap font-medium", ritardo ? "text-amber-800" : "text-slate-600")}>
+          <span className="font-semibold tabular-nums text-foreground">{a.fatto}%</span> · {testo}
+        </span>
+      </div>
+      <div className="relative h-2.5 rounded-full bg-muted" role="progressbar" aria-label="Stato avanzamento lavori" aria-valuenow={a.fatto} aria-valuemin={0} aria-valuemax={100}
+        aria-valuetext={`${a.fatto}% fatto${a.tempo !== null ? `, ${a.tempo}% del tempo trascorso` : ""}, ${testo}`}>
+        <div className={cn("h-full rounded-full transition-all", colore)} style={{ width: `${a.fatto}%` }} />
+        {a.tempo !== null && a.fatto < 100 && (
+          <div className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded bg-slate-900" style={{ left: `${a.tempo}%` }}
+            title={`Oggi: è passato il ${a.tempo}% del tempo previsto`} aria-hidden="true" />
+        )}
+      </div>
+      {a.inizio && a.fine && (
+        <div className="mt-0.5 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+          <span>{dataBreve(a.inizio)}</span>
+          {a.tempo !== null && a.fatto < 100 && <span className={cn(a.tempo >= 100 && "font-medium text-amber-800")}>{a.tempo >= 100 ? "fine prevista superata" : `oggi ${a.tempo}% del tempo`}</span>}
+          <span>{dataBreve(a.fine)}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -240,6 +280,7 @@ export function DistintaLavorazioni({
   // Lo stesso numero della testata della commessa: una commessa ha un avanzamento solo.
   const medio = avanzamentoFasi(fasi.map((f) => ({ status: f.status ?? "", percentuale: Number(f.percentuale) || 0 }))).avgPct;
   const avanzamento = medio === null ? null : Math.round(medio);
+  const andamento = useMemo(() => (avanzamento === null ? null : andamentoLavori(avanzamento, fasi, oggi)), [avanzamento, fasi, oggi]);
   const daVersare = iva ? saldoIva(Math.max(iva.debito_previsto, iva.debito_fatturato), iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) : null;
   const margine = venduto > 0 && economia.previsto > 0 ? Math.round(((venduto - economia.previsto) / venduto) * 100) : null;
   const importo = (n: number | null | undefined) => (n ? formatCurrency(conIva ? conAliquota(n, aliquota).totale : n) : "—");
@@ -565,6 +606,7 @@ export function DistintaLavorazioni({
             <dd className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{daVersare.verso === "pari" ? "—" : formatCurrency(daVersare.importo)}</dd>
           </div>
         )}
+        {andamento && <BarraAndamento a={andamento} />}
       </dl>
       </div>
 

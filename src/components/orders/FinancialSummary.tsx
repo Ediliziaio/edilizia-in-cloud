@@ -1,6 +1,6 @@
 import { FinancingCostModeField } from "./FinancingCostModeField";
 import { costoTrattenuto, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
@@ -365,6 +365,8 @@ interface FinancialSummaryProps {
   nuova?: boolean;
   /** Da dove viene l'aliquota proposta, sotto il campo. */
   notaIva?: string;
+  /** Azioni accanto al titolo (in creazione: «Come si paga»). */
+  azioniTestata?: ReactNode;
 }
 
 export function FinancialSummary({
@@ -376,7 +378,7 @@ export function FinancialSummary({
   hasBuildingBonus, onHasBuildingBonusChange,
   financingCost, onFinancingCostChange, financingCostMode, onFinancingCostModeChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
-  datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false, notaIva,}: FinancialSummaryProps) {
+  datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false, notaIva, azioniTestata,}: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
@@ -649,11 +651,12 @@ export function FinancialSummary({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className={azioniTestata ? "flex flex-row flex-wrap items-center justify-between gap-2 space-y-0" : undefined}>
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <Euro className="h-5 w-5" />
           Riepilogo Finanziario
         </CardTitle>
+        {azioniTestata}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Payment Type */}

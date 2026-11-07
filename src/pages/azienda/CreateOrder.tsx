@@ -1783,12 +1783,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             </div>
           </QuoteCard>
 
-          <div className="flex justify-end">
-            <Button type="button" variant="outline" size="sm" onClick={() => setScegliPiano(true)}>
-              <Banknote className="mr-1.5 h-4 w-4" />
-              {installments.length > 0 ? "Cambia come si paga" : "Come si paga"}
-            </Button>
-          </div>
+          {/* Una sola colonna di destra: pulsante, riepilogo e SAL insieme. Messi uno per uno nella
+              griglia, il pulsante prendeva la colonna da solo e il riepilogo finiva sotto (04/11). */}
+          <div className="min-w-0 space-y-4">
           <ScegliPianoPagamento
             aperto={scegliPiano}
             totaleLordo={parseDecimalIT(totalAmount || "") * (1 + vat / 100)}
@@ -1799,6 +1796,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
           <FinancialSummary
             nuova
+            azioniTestata={
+              <Button type="button" variant="outline" size="sm" onClick={() => setScegliPiano(true)}>
+                <Banknote className="mr-1.5 h-4 w-4" />
+                {installments.length > 0 ? "Cambia come si paga" : "Come si paga"}
+              </Button>
+            }
             daContratto={!!contrattoImportato}
             dateCommessa={{
               created_at: new Date().toISOString(),
@@ -1843,6 +1846,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             onFinancingCostChange={(val) => setValue("financing_cost", val)}
           />
           {effectiveCompany?.id && installments.some(r=>r.trigger_evento==="sal_numero") && <SalPlanInfo creating companyId={effectiveCompany.id} installments={installments}/>}
+          </div>
         </div>
 
         {/* Customer Dates Card */}

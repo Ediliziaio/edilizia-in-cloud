@@ -122,27 +122,43 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it("al cambio tab torna alla testata condivisa, senza nascondere riepilogo e azioni", async () => {
+  /** La barra delle schede è dentro l'area delle schede: `top` è dove sta quell'area rispetto allo schermo. */
+  function areaSchedeA(top: number) {
+    const area = document.getElementById("order-detail-sections")!.parentElement!;
+    vi.spyOn(area, "getBoundingClientRect").mockReturnValue({ top } as DOMRect);
+    return area;
+  }
+
+  it("al cambio scheda non riporta la pagina in cima se la barra è al suo posto", async () => {
     mount();
+    areaSchedeA(240);
     for (const name of ["Cantiere", "Materiali e acquisti", "Economia e pagamenti", "Panoramica"]) {
-      scrollIntoView.mockClear();
       selectTab(name);
-      expect(screen.getByRole("heading", { name: "Testata comune" })).toBeVisible();
-      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-      expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("order-detail-overview"));
+      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+      await act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
     }
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it("torna alla testata anche se la scheda ricorda una vista interna", async () => {
+  it("sceso nel contenuto, il cambio scheda riporta solo la barra in alto, non la testata", async () => {
+    mount();
+    const area = areaSchedeA(-900);
+    selectTab("Cantiere");
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "start" }));
+    expect(scrollIntoView.mock.instances.at(-1)).toBe(area);
+    expect(scrollIntoView.mock.instances).not.toContain(document.getElementById("order-detail-overview"));
+  });
+
+  it("la vista interna ricordata si apre all'arrivo, ma cambiare scheda non risale", async () => {
     mount("?tab=cantiere&vista_cantiere=ufficio");
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("cantiere-workspace"));
-    selectTab("Materiali e acquisti");
-    await waitFor(() => expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("order-detail-overview")));
+    areaSchedeA(120);
     scrollIntoView.mockClear();
+    selectTab("Materiali e acquisti");
     selectTab("Cantiere");
-    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-    expect(scrollIntoView.mock.instances.at(-1)).toBe(document.getElementById("order-detail-overview"));
+    await act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+    expect(scrollIntoView).not.toHaveBeenCalled();
     expect(screen.getByLabelText("URL corrente")).toHaveTextContent("vista_cantiere=ufficio");
   });
 

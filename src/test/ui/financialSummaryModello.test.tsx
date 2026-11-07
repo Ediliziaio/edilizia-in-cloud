@@ -121,4 +121,12 @@ describe("una rata «alla firma» in una commessa nuova", () => {
     monta(false);
     expect(screen.getByText("Scaduta")).toBeInTheDocument();
   });
+  it("in nuova commessa il pulsante «Come si paga» sta nell'intestazione del riepilogo", () => {
+    render(<FinancialSummary nuova azioniTestata={<button type="button">Cambia come si paga</button>}
+      totalAmount="1.000,00" vatRate="22" paymentType="standard" installments={[]} onInstallmentsChange={() => {}}
+      numInstallments={0} onNumInstallmentsChange={() => {}} onTotalAmountChange={() => {}} onVatRateChange={() => {}}
+      onPaymentTypeChange={() => {}} balance={0} />);
+    const titolo = screen.getByText("Riepilogo Finanziario");
+    expect(titolo.parentElement).toContainElement(screen.getByRole("button", { name: "Cambia come si paga" }));
+  });
 });
