@@ -215,31 +215,6 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
         />
       )}
 
-      {/* Ciclo di chiusura come negli altri preventivatori: invio tracciato, anteprima
-          e codice di firma via email, reminder di scadenza (quoteBridge, moduleKey «sr»). */}
-      {p.company_id && (
-        <InviaFirmaCard
-          companyId={p.company_id}
-          moduleKey="sr"
-          progettoId={progettoId}
-          titolo={titoloInvio}
-          clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
-          cointestatario={nomeCointestatario(p) ? { nome: nomeCointestatario(p)!, email: p.cointestatario_email, telefono: p.cointestatario_telefono } : null}
-          clientEmail={p.cliente_email}
-          clientPhone={p.cliente_telefono}
-          subtotal={importiDiFirma.imponibile}
-          vatAmount={importiDiFirma.iva}
-          total={importiDiFirma.totale}
-          validityDays={p.valido_fino_giorni ?? 15}
-          pdfDisponibile={ready}
-          onIndietro={onIndietro}
-          disabled={!ready || motiviSoloInvio.length > 0}
-          disabledReason={`Completa prima: ${[...mancano.map((c) => c.breve), ...motiviSoloInvio].join(", ")}`}
-          // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
-          generaPdfBlob={() => renderSerramentoBlob({ detail: { ...detail, progetto: perLaFirma(p) }, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
-        />
-      )}
-
       {/* Anteprima dati PDF */}
       <SrCard
         title="Anteprima dati preventivo"
@@ -385,6 +360,32 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso, onCondiz
           <strong>allegare via email</strong> o <strong>stampare</strong>.
         </p>
       </SrCard>
+
+      {/* In fondo, sotto lo scarico del PDF (07/11/2026): prima si controlla, poi si manda. */}
+      {/* Ciclo di chiusura come negli altri preventivatori: invio tracciato, anteprima
+          e codice di firma via email, reminder di scadenza (quoteBridge, moduleKey «sr»). */}
+      {p.company_id && (
+        <InviaFirmaCard
+          companyId={p.company_id}
+          moduleKey="sr"
+          progettoId={progettoId}
+          titolo={titoloInvio}
+          clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          cointestatario={nomeCointestatario(p) ? { nome: nomeCointestatario(p)!, email: p.cointestatario_email, telefono: p.cointestatario_telefono } : null}
+          clientEmail={p.cliente_email}
+          clientPhone={p.cliente_telefono}
+          subtotal={importiDiFirma.imponibile}
+          vatAmount={importiDiFirma.iva}
+          total={importiDiFirma.totale}
+          validityDays={p.valido_fino_giorni ?? 15}
+          pdfDisponibile={ready}
+          onIndietro={onIndietro}
+          disabled={!ready || motiviSoloInvio.length > 0}
+          disabledReason={`Completa prima: ${[...mancano.map((c) => c.breve), ...motiviSoloInvio].join(", ")}`}
+          // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
+          generaPdfBlob={() => renderSerramentoBlob({ detail: { ...detail, progetto: perLaFirma(p) }, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
+        />
+      )}
 
       {/* Pagina pubblica HTML + firma digitale cliente.
           NON è alternativa al PDF: è il LINK che il cliente apre dal cellulare

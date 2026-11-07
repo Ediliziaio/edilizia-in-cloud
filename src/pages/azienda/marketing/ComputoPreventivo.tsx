@@ -8,6 +8,7 @@ import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import { consentiPreventivoConversazionale } from "@/lib/preventivi/quoteRollout";
 import { conCondizioniDellArchivio, useModelloComputo } from "@/lib/computo/modelloComputo";
 import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
+import { puoRiscrivereLeCondizioni } from "@/lib/preventivi/condizioniDelPreventivo";
 import { usePermissions } from "@/hooks/usePermissions";
 
 export default function ComputoPreventivo() {
@@ -39,6 +40,7 @@ export default function ComputoPreventivo() {
     modello: modello.data?.modello ? conCondizioniDellArchivio(modello.data.modello, archivio.modelli) : undefined,
     logoUrl: effectiveCompany.logo_url,
     vediMargini: permessi.canViewCosts && permessi.canViewMargins,
+    puoRiscrivereCondizioni: puoRiscrivereLeCondizioni(permessi),
     // La firma online passa per il gestionale: c'è dove il computo si salva lì.
     firmaOnline: computoCloudAttivo(effectiveCompany.id) ? { companyId: effectiveCompany.id, draftId: id, userId: user.id,
       onApriCommessa: (quoteId: string) => { void navigate(`/azienda/ordini/nuovo?quote_id=${quoteId}`); } } : undefined,

@@ -202,8 +202,6 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
 
   return (
     <div className="space-y-3">
-      {/* Ciclo di chiusura: invio tracciato + firma online + reminder automatico
-          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
       {onCondizioni && (
         <CondizioniDelPreventivoCard
           progetto={progetto}
@@ -211,34 +209,6 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           testoDelModello={(template as unknown as { condizioni_legali_testo?: string | null } | undefined)?.condizioni_legali_testo}
           modelloAssociatoId={(template as unknown as { condizioni_modello_id?: string | null } | undefined)?.condizioni_modello_id}
           spenteNelModello={(template as unknown as { condizioni_legali_attivo?: boolean | null } | undefined)?.condizioni_legali_attivo === false}
-        />
-      )}
-
-      {progetto.id && progetto.company_id && (
-        <InviaFirmaCard
-          companyId={progetto.company_id}
-          moduleKey="bagni"
-          progettoId={progetto.id}
-          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
-          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
-          cointestatario={nomeCointestatario(progetto) ? { nome: nomeCointestatario(progetto)!, email: progetto.cointestatario_email, telefono: progetto.cointestatario_telefono } : null}
-          clientEmail={progetto.cliente_email}
-          clientPhone={progetto.cliente_telefono}
-          subtotal={totali.imponibile}
-          vatAmount={totali.iva}
-          total={totali.totale}
-          validityDays={template?.default_validita_giorni ?? undefined}
-          pdfDisponibile={!computoVuoto}
-          onIndietro={onIndietro}
-          disabled={computoVuoto}
-          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
-          generaPdfBlob={async () => {
-            // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
-            const url = await renderBgnPreviewBlobUrl({ ...payload, progetto: perLaFirma(progetto) });
-            const blob = await readPdfPreviewBlob(url);
-            revokePdfPreviewUrl(url);
-            return blob;
-          }}
         />
       )}
 
@@ -501,6 +471,37 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           </div>
         </CardContent>
       </Card>
+
+      {/* Invio e firma online in fondo, sotto «Scarica il preventivo» (07/11/2026, Florin): prima si
+          controlla e si scarica, poi si manda. Ciclo di chiusura: invio tracciato + firma + promemoria
+          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
+      {progetto.id && progetto.company_id && (
+        <InviaFirmaCard
+          companyId={progetto.company_id}
+          moduleKey="bagni"
+          progettoId={progetto.id}
+          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
+          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          cointestatario={nomeCointestatario(progetto) ? { nome: nomeCointestatario(progetto)!, email: progetto.cointestatario_email, telefono: progetto.cointestatario_telefono } : null}
+          clientEmail={progetto.cliente_email}
+          clientPhone={progetto.cliente_telefono}
+          subtotal={totali.imponibile}
+          vatAmount={totali.iva}
+          total={totali.totale}
+          validityDays={template?.default_validita_giorni ?? undefined}
+          pdfDisponibile={!computoVuoto}
+          onIndietro={onIndietro}
+          disabled={computoVuoto}
+          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
+          generaPdfBlob={async () => {
+            // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
+            const url = await renderBgnPreviewBlobUrl({ ...payload, progetto: perLaFirma(progetto) });
+            const blob = await readPdfPreviewBlob(url);
+            revokePdfPreviewUrl(url);
+            return blob;
+          }}
+        />
+      )}
     </div>
   );
 }

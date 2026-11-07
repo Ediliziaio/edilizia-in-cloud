@@ -216,34 +216,6 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         />
       )}
 
-      {progetto.id && progetto.company_id && (
-        <InviaFirmaCard
-          companyId={progetto.company_id}
-          moduleKey="tetti"
-          progettoId={progetto.id}
-          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
-          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
-          cointestatario={nomeCointestatario(progetto) ? { nome: nomeCointestatario(progetto)!, email: progetto.cointestatario_email, telefono: progetto.cointestatario_telefono } : null}
-          clientEmail={progetto.cliente_email}
-          clientPhone={progetto.cliente_telefono}
-          subtotal={totali.imponibile}
-          vatAmount={totali.iva}
-          total={totali.totale}
-          validityDays={template?.default_validita_giorni ?? undefined}
-          pdfDisponibile={!computoVuoto}
-          onIndietro={onIndietro}
-          disabled={computoVuoto}
-          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
-          generaPdfBlob={async () => {
-            // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
-            const url = await renderTetPreviewBlobUrl({ ...payload, progetto: perLaFirma(progetto) });
-            const blob = await readPdfPreviewBlob(url);
-            revokePdfPreviewUrl(url);
-            return blob;
-          }}
-        />
-      )}
-
       {/* Anteprima del preventivo — mini-documento brandizzato (sul telefono senza la cornice) */}
       <Card className="max-md:border-0 max-md:bg-transparent max-md:shadow-none">
         <CardContent className="space-y-3 p-4 max-md:p-0">
@@ -503,6 +475,37 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           </div>
         </CardContent>
       </Card>
+
+      {/* Invio e firma online in fondo, sotto «Scarica il preventivo» (07/11/2026, Florin): prima si
+          controlla e si scarica, poi si manda. Ciclo di chiusura: invio tracciato + firma + promemoria
+          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
+      {progetto.id && progetto.company_id && (
+        <InviaFirmaCard
+          companyId={progetto.company_id}
+          moduleKey="tetti"
+          progettoId={progetto.id}
+          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
+          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          cointestatario={nomeCointestatario(progetto) ? { nome: nomeCointestatario(progetto)!, email: progetto.cointestatario_email, telefono: progetto.cointestatario_telefono } : null}
+          clientEmail={progetto.cliente_email}
+          clientPhone={progetto.cliente_telefono}
+          subtotal={totali.imponibile}
+          vatAmount={totali.iva}
+          total={totali.totale}
+          validityDays={template?.default_validita_giorni ?? undefined}
+          pdfDisponibile={!computoVuoto}
+          onIndietro={onIndietro}
+          disabled={computoVuoto}
+          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
+          generaPdfBlob={async () => {
+            // In firma le condizioni ci sono sempre: il preventivo firmato è il contratto.
+            const url = await renderTetPreviewBlobUrl({ ...payload, progetto: perLaFirma(progetto) });
+            const blob = await readPdfPreviewBlob(url);
+            revokePdfPreviewUrl(url);
+            return blob;
+          }}
+        />
+      )}
     </div>
   );
 }

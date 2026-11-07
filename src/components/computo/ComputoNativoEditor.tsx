@@ -71,12 +71,14 @@ function costoDaListino(p: PickedVoce): string {
   return costo > 0 ? String(Math.round(costo * 100) / 100).replace(".", ",") : "";
 }
 
-export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzienda, colore: coloreMarchio, onBack, fase, initialFase = 0, onFaseChange, consentiListini = false, ai, cloud, modello, logoUrl, vediMargini = false, firmaOnline }: {
+export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzienda, colore: coloreMarchio, onBack, fase, initialFase = 0, onFaseChange, consentiListini = false, ai, cloud, modello, logoUrl, vediMargini = false, firmaOnline, puoRiscrivereCondizioni = true }: {
   storageKey: string; azienda?: string; dettagliAzienda?: string; colore?: string; onBack?: () => void;
   /** Il modello del computo dell'azienda: veste del PDF e condizioni con cui parte un computo nuovo. */
   modello?: ModelloComputo; logoUrl?: string | null;
   /** Permessi «costi» e «margini»: costo stimato delle voci, margini e cassa nel passo Economia. */
   vediMargini?: boolean;
+  /** Permesso «Riscrivere le condizioni su un documento»: senza, le condizioni contrattuali si leggono e basta. */
+  puoRiscrivereCondizioni?: boolean;
   /** Firma elettronica: il preventivo si salva nel gestionale e si manda in firma come gli altri. */
   firmaOnline?: { companyId: string; draftId: string; userId?: string; onApriCommessa?: (quoteId: string) => void };
   fase?: number; initialFase?: number; onFaseChange?: (fase: number) => void;
@@ -485,6 +487,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           {invalide > 10 && <p className="text-muted-foreground">Altre {invalide - 10} lavorazioni da completare nel computo.</p>}
         </div>} onVaiA={cambiaFase} companyId={ai?.companyId ?? firmaOnline?.companyId} disabilitato={conflitto || erroreLettura || esportando || caricando}
         condizioniDelModello={modello?.condizioniContrattuali}
+        puoRiscrivereCondizioni={puoRiscrivereCondizioni}
         invioFirma={firmaOnline && <InviaFirmaCard companyId={firmaOnline.companyId} moduleKey="computo" progettoId={firmaOnline.draftId}
           titolo={bozza.titolo.trim() || "Preventivo con computo"} clientName={bozza.committente.trim() || "Cliente"} clientEmail={bozza.clienteEmail || null} clientPhone={bozza.clienteTelefono || null}
           cointestatario={nomeCointestatario(bozza) ? { nome: nomeCointestatario(bozza)!, email: bozza.cointestatario_email || null, telefono: bozza.cointestatario_telefono || null } : null}

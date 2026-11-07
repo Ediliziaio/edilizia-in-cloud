@@ -7,7 +7,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowUpRight, Briefcase, Loader2, RotateCcw } from "lucide-react";
+import { ArrowUpRight, Briefcase, Loader2, Lock, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ import { formatEuro } from "@/lib/computo/computoStrutturato";
 
 type Sezione = keyof BozzaComputo["sezioniPdf"];
 
-export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSostituisci, spesaCliente, ivaInclusa = true, totaleDocumento, controlli, onVaiA, companyId, disabilitato, condizioniDelModello, invioFirma }: {
+export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSostituisci, spesaCliente, ivaInclusa = true, totaleDocumento, controlli, onVaiA, companyId, disabilitato, condizioniDelModello, invioFirma, puoRiscrivereCondizioni = true }: {
   bozza: BozzaComputo;
   onChange: (patch: Partial<BozzaComputo>) => void;
   /** Cambio di formato: tocca più campi insieme (`applicaVarianteComputo`). */
@@ -42,6 +42,8 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
   condizioniDelModello?: string;
   /** L'invio per firma elettronica (InviaFirmaCard), quando il preventivo si salva nel gestionale. */
   invioFirma?: ReactNode;
+  /** Senza il permesso «Riscrivere le condizioni su un documento» le condizioni contrattuali si leggono e basta. */
+  puoRiscrivereCondizioni?: boolean;
   /** Prepara righe e rate e apre la commessa nuova precompilata. */
   creaCommessa?: () => Promise<void>;
 }) {
@@ -167,8 +169,9 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
       </div></details>
       <div className="space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-2"><Label htmlFor="native-contrattuali" className="text-sm font-semibold">Condizioni contrattuali</Label>
-          {!!condizioniDelModello?.trim() && condizioniDelModello !== bozza.condizioniContrattuali && <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onChange({ condizioniContrattuali: condizioniDelModello })}><RotateCcw className="mr-1 h-3.5 w-3.5" />Riprendi quelle del modello</Button>}</div>
-        <Textarea id="native-contrattuali" rows={5} maxLength={20000} placeholder={"Si impostano una volta in Impostazioni → Modelli preventivi → Computo metrico.\n# Condizioni contrattuali\n## 1. Oggetto\n- …"} value={bozza.condizioniContrattuali} onChange={e => onChange({ condizioniContrattuali: e.target.value })} />
+          {puoRiscrivereCondizioni && !!condizioniDelModello?.trim() && condizioniDelModello !== bozza.condizioniContrattuali && <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onChange({ condizioniContrattuali: condizioniDelModello })}><RotateCcw className="mr-1 h-3.5 w-3.5" />Riprendi quelle del modello</Button>}</div>
+        {!puoRiscrivereCondizioni && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Lock className="h-3 w-3 shrink-0" />Sono quelle dell'azienda. Per cambiarle su questo preventivo serve il permesso «Riscrivere le condizioni su un documento».</p>}
+        <Textarea id="native-contrattuali" rows={5} maxLength={20000} readOnly={!puoRiscrivereCondizioni} placeholder={"Si impostano una volta in Impostazioni → Modelli preventivi → Computo metrico.\n# Condizioni contrattuali\n## 1. Oggetto\n- …"} value={bozza.condizioniContrattuali} onChange={e => onChange({ condizioniContrattuali: e.target.value })} />
       </div>
     </section>
 
