@@ -160,8 +160,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
         if (data.suggested_title && !ticketTitolo) setTicketTitolo(data.suggested_title);
         if (data.suggested_priority) setTicketPriorita(data.suggested_priority);
       }
-      // Mostra sempre il bottone escalation dopo 2+ scambi anche senza suggerimento esplicito
-      if (newConversation.length >= 4) setShowEscalateButton(true);
+
     } catch (err) {
       console.error("[SupportChannelDialog] AI chat error:", err);
       const errorMsg: AiMessage = {
@@ -263,7 +262,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
       <DialogContent
         className={cn(
           "sm:max-w-md",
-          mode === "ai_chat" && "sm:max-w-lg",
+          mode === "ai_chat" && "sm:max-w-2xl lg:max-w-3xl max-h-[90dvh]",
           mode === "escalate_form" && "sm:max-w-lg",
         )}
       >
@@ -385,7 +384,7 @@ export function SupportChannelDialog({ open, onOpenChange, onOpenChat }: Support
               </div>
             </DialogHeader>
 
-            <div className="flex flex-col h-[400px]">
+            <div className="flex flex-col h-[min(65dvh,640px)] min-h-0">
               <ScrollArea className="flex-1 pr-3 -mx-1 px-1">
                 <div className="space-y-3 py-2">
                   {messages.map((m, i) => (
