@@ -10,7 +10,7 @@ export function ServiziPreventivoPdf({ servizi, mostraImporti }: { servizi: SrSe
     {servizi.map(s => <View key={s.id} wrap={false} style={{ marginBottom: 6 }}>
       <Text style={{ fontSize: 10 }}>{s.descrizione || "Servizio"}</Text>
       <Text style={{ fontSize: 9 }}>
-        Quantità {Number(s.quantita ?? 1).toLocaleString("it-IT")} {s.unita ?? ""}
+        Quantità {Number(s.quantita ?? 1).toLocaleString("it-IT")} {s.unita === "a_corpo" ? "a corpo" : s.unita ?? ""}
         {mostraImporti ? ` · € ${calcolaTotale([], [], { iva_percentuale: 0 }, [s]).imponibile_servizi.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
       </Text>
     </View>)}
