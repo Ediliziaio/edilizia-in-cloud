@@ -25,8 +25,7 @@ type EmailProvider =
   | "elastic_email"
   | "sendgrid"
   | "brevo"
-  | "resend"
-  | "mailgun";
+  | "resend";
 
 type EmailProbeResult = {
   status: IntegrationResult["status"];
@@ -69,7 +68,6 @@ const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   sendgrid: "SendGrid",
   brevo: "Brevo",
   resend: "Resend",
-  mailgun: "Mailgun",
 };
 
 function normalizeEmailProvider(value: string | undefined, fallback: EmailProvider): EmailProvider {
@@ -84,8 +82,6 @@ function normalizeEmailProvider(value: string | undefined, fallback: EmailProvid
       return "brevo";
     case "resend":
       return "resend";
-    case "mailgun":
-      return "mailgun";
     default:
       return fallback;
   }
@@ -174,32 +170,6 @@ async function probeEmailProvider(
       });
       return classifyEmailProbe(ping);
     }
-
-    case "mailgun": {
-      if (!domain) {
-        return {
-          status: "unconfigured",
-          response_ms: null,
-          error: "Mailgun domain not configured",
-        };
-      }
-      const ping = await pingWithLatency(`https://api.mailgun.net/v3/${domain}/messages`, {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: "",
-      });
-      if (ping.status === 404) {
-        return {
-          status: "degraded",
-          response_ms: ping.latency_ms,
-          error: "Mailgun domain non trovato o non autorizzato",
-        };
-      }
-      return classifyEmailProbe(ping);
-    }
   }
 }
 
@@ -245,7 +215,6 @@ serveConMetriche("check-api-health", async (req) => {
       "email_transactional_domain",
       "email_transactional_failover_providers",
       "email_provider_webhook_secret",
-      "email_mailgun_webhook_signing_key",
       "email_resend_webhook_secret",
       "elevenlabs_api_key",
       "whatsapp_verify_token",
@@ -380,9 +349,6 @@ serveConMetriche("check-api-health", async (req) => {
         ? "platform_settings"
         : "missing";
     const webhookSecretConfigured = webhookSecretSource !== "missing";
-    const mailgunSigningConfigured = Boolean(
-      Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") || settingsMap["email_mailgun_webhook_signing_key"],
-    );
     const resendSigningConfigured = Boolean(
       Deno.env.get("RESEND_WEBHOOK_SECRET") || settingsMap["email_resend_webhook_secret"],
     );
@@ -740,7 +706,6 @@ serveConMetriche("check-api-health", async (req) => {
         email_webhook: {
           secretConfigured: webhookSecretConfigured,
           secretSource: webhookSecretSource,
-          mailgunSigningConfigured,
           resendSigningConfigured,
         },
         email_outbox: emailOutbox,

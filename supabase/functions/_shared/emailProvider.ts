@@ -192,7 +192,7 @@ async function fetchWithRetry(
 
 /**
  * Send an email via the configured provider.
- * Supports: sendgrid, brevo, resend, elastic_email, mailgun
+ * Supports: sendgrid, brevo, resend, elastic_email (Mailgun tolto il 07/11/2026: mai configurato)
  */
 export async function sendViaProvider(
   provider: string,
@@ -384,63 +384,6 @@ export async function sendViaProvider(
         (json as Record<string, unknown>).MessageID as string | undefined ||
         (json as Record<string, unknown>).TransactionID as string | undefined;
       break;
-    }
-
-    case "mailgun": {
-      // P1-6 + P2-7: guard completo sul domain Mailgun.
-      // Prima: domain vuoto → URL "/v3//messages" → 404 interpretato come
-      // rate-limit → retry infinito. Ora fail-fast con errore chiaro +
-      // validazione che sia un dominio vero (deve contenere almeno un '.').
-      const mailgunDomain = (opts?.domain || "").trim();
-      if (!mailgunDomain || !mailgunDomain.includes(".")) {
-        console.error(
-          `[emailProvider] Mailgun domain non configurato o non valido: "${mailgunDomain}"`,
-        );
-        return {
-          ok: false,
-          status: 500,
-          body: {
-            error:
-              "Mailgun domain non configurato. Vai in Admin > Email > Provider per impostare il dominio (es. mg.tuazienda.it).",
-          },
-        };
-      }
-      url = `https://api.mailgun.net/v3/${encodeURIComponent(mailgunDomain)}/messages`;
-      headers = {
-        Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
-      };
-      const formData = new FormData();
-      formData.append("from", req.from);
-      req.to.forEach((t) => formData.append("to", t));
-      req.cc?.forEach((t) => formData.append("cc", t));
-      formData.append("subject", req.subject);
-      formData.append("html", req.html);
-      if (req.text) formData.append("text", req.text);
-      if (req.replyTo) formData.append("h:Reply-To", req.replyTo);
-      if (req.headers) {
-        for (const [key, value] of Object.entries(req.headers)) {
-          formData.append(`h:${key}`, value);
-        }
-      }
-      // Disable native tracking
-      formData.append("o:tracking", "no");
-
-      if (req.attachments?.length) {
-        for (const att of req.attachments) {
-          const blob = new Blob([Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0))], { type: att.type });
-          formData.append("attachment", blob, att.filename);
-        }
-      }
-
-      const res = await fetchWithRetry(url, { method: "POST", headers, body: formData });
-      const json = await res.json().catch(() => ({}));
-      return {
-        ok: res.ok,
-        status: res.status,
-        body: json,
-        providerMessageId: json?.id,
-        providerUsed: provider,
-      };
     }
 
     case "resend":

@@ -87,7 +87,7 @@ describe("quali chiavi sono segrete", () => {
       "meta_webhook_verify_token", "openapi_api_key", "openapi_downloads_key", "openapi_it_token",
       "openapi_it_token_sandbox", "openwa_api_key", "openwa_webhook_secret", "render_openai_api_key",
       "whatsapp_verify_token", "smtp_pass", "stripe_secret_key", "google_calendar_client_secret",
-      "email_mailgun_webhook_signing_key", "telnyx_setup_token",
+      "email_resend_webhook_secret", "telnyx_setup_token",
     ]) {
       expect(eSegreto(chiave), chiave).toBe(true);
     }

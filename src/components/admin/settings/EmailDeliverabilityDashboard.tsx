@@ -4,7 +4,7 @@
 // Dashboard SuperAdmin per monitorare salute deliverability:
 //   - KPI aggregati: totale inviate, delivered, bounce rate, spam rate
 //   - Breakdown per stream (transactional/marketing)
-//   - Breakdown per provider (resend/elastic_email/sendgrid/brevo/mailgun)
+//   - Breakdown per provider (resend/elastic_email/sendgrid/brevo)
 //   - Top 10 aziende per volume
 //
 // Fonte dati: public.email_delivery_log (tabella unificata, riga per recipient)

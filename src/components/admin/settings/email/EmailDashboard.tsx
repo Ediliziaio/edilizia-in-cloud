@@ -37,7 +37,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   resend: "Resend",
   sendgrid: "SendGrid",
   brevo: "Brevo",
-  mailgun: "Mailgun",
 };
 
 const PERIODS: { key: PeriodKey; label: string }[] = [

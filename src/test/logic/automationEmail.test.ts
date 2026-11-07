@@ -174,7 +174,7 @@ describe("email delivery preparation, only simulated providers",()=>{
 
 describe("provider CC payloads without networking",()=>{
   const providerSource = fs.readFileSync("supabase/functions/_shared/emailProvider.ts","utf8");
-  it.each(["resend","sendgrid","brevo","elastic_email","mailgun","smtp"])("forwards CC through %s",async provider=>{
+  it.each(["resend","sendgrid","brevo","elastic_email","smtp"])("forwards CC through %s",async provider=>{
     const calls:any[]=[];
     const send=load("sendViaProvider",{
       extractEmail:(s:string)=>s,extractName:():undefined=>undefined,btoa:(s:string)=>Buffer.from(s).toString("base64"),
@@ -184,7 +184,7 @@ describe("provider CC payloads without networking",()=>{
     const result=await send(provider,"test-key",{from:"sender@example.invalid",to:[contact.email],cc:["copy@example.invalid"],subject:"Test",html:"<p>Test</p>"},{domain:"example.invalid",stream:"transactional",smtp:{}});
     expect(result.ok).toBe(true);expect(calls).toHaveLength(1);
     const body=calls[0].body;
-    const cc=provider==="sendgrid"?body.personalizations[0].cc:provider==="elastic_email"?body.Recipients.CC:provider==="mailgun"?body.getAll("cc"):body.cc;
+    const cc=provider==="sendgrid"?body.personalizations[0].cc:provider==="elastic_email"?body.Recipients.CC:body.cc;
     expect(JSON.stringify(cc)).toContain("copy@example.invalid");
   });
   it("unsupported marketing CC fails explicitly without changing the email stream",async()=>{

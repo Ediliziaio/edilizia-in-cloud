@@ -53,7 +53,6 @@ const PROVIDER_META: Record<string, { label: string; cls: string }> = {
   resend: { label: "Resend", cls: "bg-zinc-100 text-zinc-700 ring-zinc-600/20" },
   sendgrid: { label: "SendGrid", cls: "bg-blue-50 text-blue-700 ring-blue-600/20" },
   brevo: { label: "Brevo", cls: "bg-teal-50 text-teal-700 ring-teal-600/20" },
-  mailgun: { label: "Mailgun", cls: "bg-red-50 text-red-700 ring-red-600/20" },
 };
 
 /**

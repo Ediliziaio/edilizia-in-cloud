@@ -190,23 +190,22 @@ describe("la lettura a più chiavi segue le stesse regole (07/11/2026)", () => {
   });
 });
 
-describe("email-provider-webhook: una chiave illeggibile non spegne la verifica della firma", () => {
+describe("email-provider-webhook: un segreto illeggibile non spegne la verifica della firma", () => {
   const webhook = leggi("supabase/functions/email-provider-webhook/index.ts");
-
-  it("Mailgun: firma presente e chiave non leggibile → 503", () => {
-    expect(webhook).toContain("!esitoMailgun.letturaRiuscita && mailgunSignature");
-  });
 
   it("Resend: firma presente e segreto non leggibile → 503", () => {
     expect(webhook).toContain("!esitoResend.letturaRiuscita && svixSignature");
   });
 
-  it("le due risposte chiedono di riprovare", () => {
-    expect(webhook.match(/"Retry-After": "30"/g)?.length).toBe(2);
+  it("la risposta chiede di riprovare", () => {
+    expect(webhook).toContain('"Retry-After": "30"');
+  });
+
+  it("Mailgun non c'è più (07/11/2026: mai configurato)", () => {
+    expect(webhook).not.toMatch(/esitoMailgun|verifyMailgunWebhookSignature|MAILGUN_WEBHOOK_SIGNING_KEY/);
   });
 
   it("la variabile d'ambiente, se c'è, vale prima del database", () => {
-    expect(webhook).toContain('Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY")');
     expect(webhook).toContain('Deno.env.get("RESEND_WEBHOOK_SECRET")');
   });
 });

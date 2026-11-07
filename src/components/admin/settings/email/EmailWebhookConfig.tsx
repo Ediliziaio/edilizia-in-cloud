@@ -27,13 +27,11 @@ interface ApiHealthPayload {
   email_webhook?: {
     secretConfigured: boolean;
     secretSource: WebhookSecretSource;
-    mailgunSigningConfigured?: boolean;
     resendSigningConfigured?: boolean;
   };
 }
 
 const WEBHOOK_SECRET_KEY = "email_provider_webhook_secret";
-const MAILGUN_SIGNING_KEY = "email_mailgun_webhook_signing_key";
 const RESEND_WEBHOOK_SECRET_KEY = "email_resend_webhook_secret";
 
 export function EmailWebhookConfig() {
@@ -43,7 +41,6 @@ export function EmailWebhookConfig() {
   // «Copia» copia sempre l'indirizzo completo.
   const [mostraIndirizzi, setMostraIndirizzi] = useState(false);
   const [webhookSecret, setWebhookSecret] = useState("");
-  const [mailgunSigningKey, setMailgunSigningKey] = useState("");
   const [resendWebhookSecret, setResendWebhookSecret] = useState("");
 
   const { data: health } = useQuery<ApiHealthPayload>({
@@ -62,7 +59,7 @@ export function EmailWebhookConfig() {
       const { data, error } = await supabase
         .from("platform_settings" as never)
         .select("key, value")
-        .in("key" as never, [WEBHOOK_SECRET_KEY, MAILGUN_SIGNING_KEY, RESEND_WEBHOOK_SECRET_KEY] as never);
+        .in("key" as never, [WEBHOOK_SECRET_KEY, RESEND_WEBHOOK_SECRET_KEY] as never);
       if (error) throw error;
       return ((data as unknown as Array<{ key: string; value: string }>) ?? [])
         .reduce<Record<string, string>>((acc, row) => {
@@ -81,7 +78,6 @@ export function EmailWebhookConfig() {
   useEffect(() => {
     if (userEditedRef.current) return;
     setWebhookSecret(storedSecrets?.[WEBHOOK_SECRET_KEY] ?? "");
-    setMailgunSigningKey(storedSecrets?.[MAILGUN_SIGNING_KEY] ?? "");
     setResendWebhookSecret(storedSecrets?.[RESEND_WEBHOOK_SECRET_KEY] ?? "");
   }, [storedSecrets]);
 
@@ -126,19 +122,16 @@ export function EmailWebhookConfig() {
     mutationFn: async () => {
       const pairs = [
         { key: WEBHOOK_SECRET_KEY, value: webhookSecret.trim() },
-        { key: MAILGUN_SIGNING_KEY, value: mailgunSigningKey.trim() },
         { key: RESEND_WEBHOOK_SECRET_KEY, value: resendWebhookSecret.trim() },
       ];
 
       for (const pair of pairs) {
-        if (!pair.value) {
-          const { error } = await supabase
-            .from("platform_settings" as never)
-            .delete()
-            .eq("key" as never, pair.key as never);
-          if (error) throw error;
-          continue;
-        }
+        // Campo vuoto = non toccare. Prima voleva dire «cancella la riga»: ma
+        // dal 19/09/2026 questi segreti stanno nel Vault e qui si leggono dalla
+        // tabella, dove il valore è sempre vuoto. Così, salvando un solo campo,
+        // si cancellavano senza accorgersene gli altri segreti del webhook
+        // (07/11/2026). Per togliere un segreto serve un'azione esplicita.
+        if (!pair.value) continue;
 
         const { error } = await supabase
           .from("platform_settings" as never)
@@ -253,24 +246,6 @@ export function EmailWebhookConfig() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Firma nativa Mailgun</Label>
-            <Input
-              type={showSecret ? "text" : "password"}
-              value={mailgunSigningKey}
-              onChange={(event) => { markEdited(); setMailgunSigningKey(event.target.value); }}
-              placeholder="Webhook signing key Mailgun"
-            />
-            <p className="text-xs text-muted-foreground">
-              Se configurata, ogni evento Mailgun viene verificato con HMAC timestamp+token.
-            </p>
-            {health?.email_webhook?.mailgunSigningConfigured && (
-              <Badge variant="secondary" className="gap-1">
-                <ShieldCheck className="h-3 w-3" />
-                Firma attiva
-              </Badge>
-            )}
-          </div>
           <div className="space-y-2">
             <Label>Firma nativa Resend/Svix</Label>
             <Input

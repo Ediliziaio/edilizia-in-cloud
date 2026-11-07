@@ -7,7 +7,6 @@ import {
 } from "../_shared/webhookNormalizers.ts";
 import {
   timingSafeEqual,
-  verifyMailgunWebhookSignature,
   verifySvixWebhookSignature,
 } from "../_shared/webhookSecurity.ts";
 
@@ -21,14 +20,16 @@ const corsHeaders = {
 
 /**
  * Normalizes webhook events from different email providers into a common format.
- * Supports: SendGrid, Brevo, Elastic Email, Mailgun, Resend
+ * Supports: SendGrid, Brevo, Elastic Email, Resend
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Accept GET for Mailgun verification
+  // GET: risposta di cortesia per i pannelli che provano l'URL prima di
+  // salvarlo. NON elabora eventi: un provider che notificasse via GET con i
+  // parametri nell'indirizzo andrebbe gestito qui.
   if (req.method === "GET") {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
@@ -83,43 +84,12 @@ Deno.serve(async (req) => {
     // x-webhook-secret above remains a required coarse gate; native signatures
     // add payload integrity for providers that support it without breaking
     // existing provider setup that hasn't enabled native signing yet.
-    // Una chiave vuota qui vuol dire «verifica della firma non attiva». Se però
-    // la chiave c'è e non si è potuta LEGGERE (un intoppo di PostgREST), non va
-    // trattata come assente: la verifica si spegnerebbe da sola. Lo stesso per
-    // Resend sotto. In quel caso, se la richiesta porta una firma, si risponde
-    // 503 e il provider riprova (06/11/2026, vedi _shared/getPlatformSetting.ts).
-    const envMailgun = Deno.env.get("MAILGUN_WEBHOOK_SIGNING_KEY") ?? "";
-    const esitoMailgun = envMailgun
-      ? { valore: envMailgun, letturaRiuscita: true, errore: null }
-      : await leggiImpostazionePiattaformaEsito("email_mailgun_webhook_signing_key");
-    const mailgunSigningKey = esitoMailgun.valore;
-    const mailgunSignature = req.headers.get("x-mailgun-signature") ||
-      rawBody?.signature?.signature ||
-      rawBody?.signature;
-    const mailgunTimestamp = req.headers.get("x-mailgun-timestamp") ||
-      rawBody?.signature?.timestamp ||
-      rawBody?.timestamp;
-    const mailgunToken = req.headers.get("x-mailgun-token") ||
-      rawBody?.signature?.token ||
-      rawBody?.token;
-    if (!mailgunSigningKey && !esitoMailgun.letturaRiuscita && mailgunSignature) {
-      console.error(`email-provider-webhook: chiave Mailgun non leggibile (${esitoMailgun.errore ?? "motivo ignoto"}): 503`);
-      return new Response("Signing key temporarily unreadable, retry", {
-        status: 503, headers: { ...corsHeaders, "Retry-After": "30" },
-      });
-    }
-    if (mailgunSigningKey && (mailgunSignature || mailgunTimestamp || mailgunToken)) {
-      const ok = await verifyMailgunWebhookSignature(
-        mailgunTimestamp ? String(mailgunTimestamp) : null,
-        mailgunToken ? String(mailgunToken) : null,
-        mailgunSignature ? String(mailgunSignature) : null,
-        mailgunSigningKey,
-      );
-      if (!ok) {
-        return new Response("Invalid Mailgun signature", { status: 401, headers: corsHeaders });
-      }
-    }
-
+    // Per Resend una chiave vuota vuol dire «verifica della firma non attiva».
+    // Se però la chiave c'è e non si è potuta LEGGERE (un intoppo di
+    // PostgREST), non va trattata come assente: la verifica si spegnerebbe da
+    // sola. In quel caso, se la richiesta porta una firma, si risponde 503 e il
+    // provider riprova (06/11/2026, vedi _shared/getPlatformSetting.ts).
+    // Mailgun c'era fino al 07/11/2026: mai configurato, tolto.
     const envResend = Deno.env.get("RESEND_WEBHOOK_SECRET") ?? "";
     const esitoResend = envResend
       ? { valore: envResend, letturaRiuscita: true, errore: null }
