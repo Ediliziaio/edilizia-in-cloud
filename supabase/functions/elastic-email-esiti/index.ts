@@ -28,6 +28,7 @@ import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { loadProviderSettings } from "../_shared/emailProvider.ts";
 import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 import {
+  blocchiDaPortare,
   esitiDaEventi,
   inizioFinestra,
   nuovoCursore,
@@ -61,6 +62,56 @@ async function leggiPagina(apiKey: string, da: Date, a: Date, offset: number, li
   return { http: res.status, corpo, testo: testo.slice(0, 500) };
 }
 
+// deno-lint-ignore no-explicit-any
+async function sincronizzaListaBlocco(admin: any, apiKey: string, applica: boolean, adesso: Date) {
+  const lista: Array<Record<string, unknown>> = [];
+  let http = 0;
+  for (let p = 0; p < 50; p++) {
+    const res = await fetch(`https://api.elasticemail.com/v4/suppressions?limit=1000&offset=${p * 1000}`, {
+      headers: { "X-ElasticEmail-ApiKey": apiKey }, signal: AbortSignal.timeout(25_000),
+    });
+    http = res.status;
+    const pagina = res.ok ? await res.json().catch(() => []) : [];
+    if (!Array.isArray(pagina) || pagina.length === 0) break;
+    lista.push(...pagina);
+    if (pagina.length < 1000) break;
+  }
+  const portare = blocchiDaPortare(lista);
+  const daPortare = new Set(portare.map((b) => b.email));
+
+  // Cosa resta fuori, raggruppato per codice e messaggio: è da lì che si vede
+  // se la regola è troppo prudente o troppo larga.
+  const esclusi: Record<string, number> = {};
+  const inclusi: Record<string, number> = {};
+  for (const v of lista) {
+    const email = String(v.Email ?? "").trim().toLowerCase();
+    const chiave = `${v.ErrorCode ?? "-"} | ${String(v.FriendlyErrorMessage ?? "").slice(0, 90)}`;
+    if (daPortare.has(email)) {
+      const r = portare.find((b) => b.email === email)!.reason;
+      inclusi[`${r} ← ${chiave}`] = (inclusi[`${r} ← ${chiave}`] ?? 0) + 1;
+    } else {
+      esclusi[chiave] = (esclusi[chiave] ?? 0) + 1;
+    }
+  }
+
+  let scritti: unknown = null;
+  let errore: string | null = null;
+  if (applica && portare.length > 0) {
+    const { data, error } = await admin.rpc("email_blocchi_elastic_registra", { p_blocchi: portare });
+    if (error) errore = error.message; else scritti = data;
+  }
+  const risultato = {
+    modo: applica ? "applica" : "anteprima", fatta_il: adesso.toISOString(), http,
+    nella_lista_elastic: lista.length, da_portare: portare.length,
+    per_motivo: portare.reduce<Record<string, number>>((a, b) => { a[b.reason] = (a[b.reason] ?? 0) + 1; return a; }, {}),
+    inclusi, esclusi, scritti, errore,
+  };
+  await admin.from("platform_settings").upsert(
+    { key: "email_esiti_elastic_blocchi_ultimo", value: JSON.stringify(risultato) }, { onConflict: "key" },
+  );
+  return risultato;
+}
+
 const conta = (esiti: Esito[]) =>
   esiti.reduce<Record<string, number>>((acc, e) => { acc[e.tipo] = (acc[e.tipo] ?? 0) + 1; return acc; }, {});
 
@@ -92,6 +143,19 @@ serveConMetricheRapida("elastic-email-esiti", async (req) => {
       esiti_interpretati: conta(esiti),
       risposta_se_non_json: Array.isArray(pagina.corpo) ? null : pagina.testo,
     });
+  }
+
+  // ── La lista di blocco di Elastic → i blocchi della piattaforma ──────────
+  // {"lista_blocco":"anteprima"} classifica e conta, senza scrivere blocchi.
+  // {"lista_blocco":"applica"} scrive con email_blocchi_elastic_registra().
+  // Il giro normale la applica da solo una volta al giorno, ma solo se
+  // platform_settings.email_esiti_elastic_blocchi_automatico = 'si': si
+  // accende a mano dopo aver guardato l'anteprima. Il risultato si salva in
+  // email_esiti_elastic_blocchi_ultimo (a pg_net si risponde prima).
+  const modoBlocchi = (corpo as { lista_blocco?: string }).lista_blocco;
+  if (modoBlocchi === "anteprima" || modoBlocchi === "applica") {
+    const risultato = await sincronizzaListaBlocco(admin, apiKey, modoBlocchi === "applica", adesso);
+    return Response.json(risultato);
   }
 
   // ── Diagnosi delle email spedite e mai consegnate ────────────────────────
@@ -252,6 +316,16 @@ serveConMetricheRapida("elastic-email-esiti", async (req) => {
     await admin.from("platform_settings").upsert({ key: CHIAVE_CURSORE, value: adesso.toISOString() }, { onConflict: "key" });
   }
 
+  // Una volta al giorno la lista di blocco, se l'interruttore è acceso.
+  let listaBlocco: unknown = null;
+  const blocchi = await leggiImpostazioniPiattaforma(["email_esiti_elastic_blocchi_automatico", "email_esiti_elastic_blocchi_il"]);
+  const ultimaVolta = blocchi["email_esiti_elastic_blocchi_il"] ? new Date(blocchi["email_esiti_elastic_blocchi_il"]).getTime() : 0;
+  if (blocchi["email_esiti_elastic_blocchi_automatico"] === "si" && adesso.getTime() - ultimaVolta > 23 * 3600_000) {
+    await admin.from("platform_settings").upsert({ key: "email_esiti_elastic_blocchi_il", value: adesso.toISOString() }, { onConflict: "key" });
+    const r = await sincronizzaListaBlocco(admin, apiKey, true, adesso);
+    listaBlocco = { da_portare: r.da_portare, scritti: r.scritti, errore: r.errore };
+  }
+
   if (errore) console.error(`[elastic-email-esiti] ${errore}`);
-  return Response.json({ ok: !errore, errore, dal: da.toISOString(), cursore: ultimoCursore, ...totale }, { status: errore ? 502 : 200 });
+  return Response.json({ ok: !errore, errore, dal: da.toISOString(), cursore: ultimoCursore, ...totale, lista_blocco: listaBlocco }, { status: errore ? 502 : 200 });
 });

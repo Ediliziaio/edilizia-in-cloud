@@ -10,6 +10,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  blocchiDaPortare,
+  motivoBloccoElastic,
   esitiDaEventi,
   esitoDaEvento,
   inizioFinestra,
@@ -117,7 +119,7 @@ describe("la funzione e la scrittura", () => {
   });
 
   it("l'anteprima non scrive niente", () => {
-    const anteprima = funzione.slice(funzione.indexOf("if (corpo.anteprima === true)"), funzione.indexOf("// ── Diagnosi"));
+    const anteprima = funzione.slice(funzione.indexOf("if (corpo.anteprima === true)"), funzione.indexOf("// ── La lista di blocco di Elastic"));
     expect(anteprima).not.toMatch(/\.rpc\(|\.upsert\(|\.update\(|\.insert\(/);
   });
 
@@ -158,5 +160,75 @@ describe("la funzione e la scrittura", () => {
 
   it("protetta contro i lock lunghi", () => {
     expect(migrazione).toContain("set local lock_timeout = '3s';");
+  });
+});
+
+describe("lista di blocco di Elastic: si copia solo ciò che il motivo dimostra", () => {
+  const b = (ErrorCode: string | number | null, FriendlyErrorMessage: string | null) => ({ Email: "x@y.it", ErrorCode, FriendlyErrorMessage });
+
+  it("indirizzo inesistente → blocco definitivo", () => {
+    expect(motivoBloccoElastic(b(550, "550 5.1.1 The email account that you tried to reach does not exist"))).toBe("hard_bounce");
+    expect(motivoBloccoElastic(b("550", "User unknown"))).toBe("hard_bounce");
+    expect(motivoBloccoElastic(b(550, null))).toBe("hard_bounce");
+  });
+
+  it("un 550 «di politica» non dice che la casella non esiste: niente blocco", () => {
+    expect(motivoBloccoElastic(b(550, "550 5.7.1 Message rejected due to spam content"))).toBeNull();
+    expect(motivoBloccoElastic(b(550, "Rejected for policy reasons"))).toBeNull();
+    expect(motivoBloccoElastic(b(550, "Sender blocked: blacklist"))).toBeNull();
+  });
+
+  it("i 4xx sono temporanei, anche con «mailbox unavailable»", () => {
+    expect(motivoBloccoElastic(b(450, "450 4.2.1 Mailbox unavailable"))).toBeNull();
+    expect(motivoBloccoElastic(b("421", "Try again later"))).toBeNull();
+  });
+
+  it("casella piena (552) resta fuori", () => {
+    expect(motivoBloccoElastic(b(552, "Mailbox full"))).toBeNull();
+  });
+
+  it("disiscrizione e segnalazione di spam", () => {
+    expect(motivoBloccoElastic(b(null, "Unsubscribed by recipient"))).toBe("unsubscribe");
+    expect(motivoBloccoElastic(b(null, "Complaint: marked as spam by the recipient"))).toBe("spam_complaint");
+  });
+
+  it("senza codice e senza motivo leggibile: non si copia", () => {
+    expect(motivoBloccoElastic(b(null, null))).toBeNull();
+    expect(motivoBloccoElastic(b("", "Manually added"))).toBeNull();
+  });
+
+  it("blocchiDaPortare scarta le voci senza indirizzo e normalizza", () => {
+    const r = blocchiDaPortare([
+      { Email: " Mario@Esempio.IT ", ErrorCode: 550, FriendlyErrorMessage: "user unknown" },
+      { Email: "", ErrorCode: 550, FriendlyErrorMessage: "user unknown" },
+      { Email: "temp@esempio.it", ErrorCode: 450, FriendlyErrorMessage: "mailbox unavailable" },
+    ]);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ email: "mario@esempio.it", reason: "hard_bounce" });
+    expect(blocchiDaPortare({ Error: "no" })).toEqual([]);
+  });
+});
+
+describe("lista di blocco: la funzione e la scrittura", () => {
+  const funzione = readFileSync(join(ROOT, "supabase/functions/elastic-email-esiti/index.ts"), "utf8");
+  const migrazione = readFileSync(join(ROOT, "supabase/migrations/20281218120000_email_blocchi_elastic.sql"), "utf8");
+
+  it("in anteprima non scrive blocchi", () => {
+    const sinc = funzione.slice(funzione.indexOf("async function sincronizzaListaBlocco"), funzione.indexOf("const conta ="));
+    expect(sinc).toContain("if (applica && portare.length > 0)");
+  });
+
+  it("il giro giornaliero la applica solo con l'interruttore acceso", () => {
+    expect(funzione).toContain('blocchi["email_esiti_elastic_blocchi_automatico"] === "si"');
+  });
+
+  it("la disiscrizione blocca solo le aziende che hanno scritto a quell'indirizzo, mai tutte", () => {
+    expect(migrazione).toContain("select a.company_id, a.email, 'unsubscribe'");
+    expect(migrazione).toContain("where l.reason in ('hard_bounce', 'spam_complaint')\n    on conflict");
+  });
+
+  it("chiusa: solo service role", () => {
+    expect(migrazione).toContain("revoke all on function public.email_blocchi_elastic_registra(jsonb) from public, anon, authenticated;");
+    expect(migrazione).toContain("grant execute on function public.email_blocchi_elastic_registra(jsonb) to service_role;");
   });
 });

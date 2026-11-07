@@ -137,3 +137,61 @@ export function nuovoCursore(esiti: Esito[], vecchio: string | null | undefined)
   // formato sembrerebbe «cambiato» e verrebbe salvato a ogni giro.
   return avanzato ? new Date(max).toISOString() : (vecchio ?? null);
 }
+
+// ── La lista di blocco di Elastic (07/11/2026) ─────────────────────────────
+//
+// Elastic tiene una lista di indirizzi a cui non spedisce più (GET
+// /v4/suppressions: Email, ErrorCode, FriendlyErrorMessage, DateUpdated).
+// La piattaforma non la conosceva: nella settimana dal 30/10 le automazioni
+// hanno mandato 148 email a 45 di quegli indirizzi, che Elastic non ha mai
+// consegnato. Qui si decide quali portare fra i blocchi della piattaforma.
+//
+// La regola è prudente, perché un blocco sbagliato toglie per sempre un
+// indirizzo buono: si blocca solo ciò che il motivo dimostra.
+
+/** Una voce della lista di blocco di Elastic. */
+export interface BloccoElastic {
+  Email?: string | null;
+  ErrorCode?: string | number | null;
+  FriendlyErrorMessage?: string | null;
+  DateUpdated?: string | null;
+}
+
+export type MotivoBlocco = "hard_bounce" | "spam_complaint" | "unsubscribe";
+
+/** Il motivo, o null se il blocco di Elastic non va copiato (temporaneo o non chiaro). */
+export function motivoBloccoElastic(b: BloccoElastic): MotivoBlocco | null {
+  const testo = String(b.FriendlyErrorMessage ?? "").toLowerCase();
+  const codice = parseInt(String(b.ErrorCode ?? "").trim(), 10);
+
+  if (/unsubscri|disiscri|opt.?out/.test(testo)) return "unsubscribe";
+  if (/complain|spam report|abuse report|segnalat/.test(testo)) return "spam_complaint";
+
+  // Un 4xx è temporaneo per definizione (anche «450 mailbox unavailable»):
+  // la casella può tornare a funzionare. Mai un blocco definitivo.
+  if (codice >= 400 && codice < 500) return null;
+
+  // Un 5xx è definitivo per il server che risponde, ma non sempre per
+  // l'indirizzo: «550 rejected for policy reasons» dice che il server non
+  // vuole la NOSTRA email, non che la casella non esiste.
+  const politica = /policy|spam|block|blacklist|reputation|rejected due|denied|not allowed|sender|dmarc|spf|dkim|rate|limit/.test(testo);
+  const inesistente = /does not exist|doesn't exist|no such|user unknown|unknown user|not found|invalid (recipient|mailbox|address)|recipient (address )?rejected|mailbox (is )?unavailable|address rejected|inesistente|non esiste|5\.1\.1|5\.1\.0|5\.1\.10/.test(testo);
+  if (inesistente && !politica) return "hard_bounce";
+  if ([550, 551, 553].includes(codice) && !politica && testo.trim() === "") return "hard_bounce";
+  return null;
+}
+
+/** Le voci da portare in piattaforma, già classificate. */
+export function blocchiDaPortare(lista: unknown): Array<{ email: string; reason: MotivoBlocco; motivo: string; quando: string | null }> {
+  if (!Array.isArray(lista)) return [];
+  const out: Array<{ email: string; reason: MotivoBlocco; motivo: string; quando: string | null }> = [];
+  for (const v of lista as BloccoElastic[]) {
+    const email = String(v?.Email ?? "").trim().toLowerCase();
+    if (!email.includes("@")) continue;
+    const reason = motivoBloccoElastic(v);
+    if (!reason) continue;
+    const motivo = [v.ErrorCode, v.FriendlyErrorMessage].filter((x) => x !== null && x !== undefined && String(x).trim()).join(" ").slice(0, 250);
+    out.push({ email, reason, motivo: motivo || reason, quando: v.DateUpdated ?? null });
+  }
+  return out;
+}
