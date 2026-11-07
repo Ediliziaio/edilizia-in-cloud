@@ -117,8 +117,17 @@ describe("la funzione e la scrittura", () => {
   });
 
   it("l'anteprima non scrive niente", () => {
-    const anteprima = funzione.slice(funzione.indexOf("if (corpo.anteprima === true)"), funzione.indexOf("// ── Giro normale"));
+    const anteprima = funzione.slice(funzione.indexOf("if (corpo.anteprima === true)"), funzione.indexOf("// ── Diagnosi"));
     expect(anteprima).not.toMatch(/\.rpc\(|\.upsert\(|\.update\(|\.insert\(/);
+  });
+
+  it("la diagnosi non tocca gli invii: scrive solo il proprio risultato", () => {
+    const diagnosi = funzione.slice(funzione.indexOf("// ── Diagnosi"), funzione.indexOf("// ── Giro normale"));
+    expect(diagnosi).not.toMatch(/\.rpc\(|\.update\(|\.insert\(/);
+    expect(diagnosi.match(/\.upsert\(/g)?.length).toBe(1);
+    expect(diagnosi).toContain('"email_esiti_elastic_diagnosi"');
+    // Negli esempi salvati l'indirizzo è coperto.
+    expect(diagnosi).toContain('r.recipient.replace(/^[^@]+/, "***")');
   });
 
   it("i rimborsi del credito valgono solo da quando l'import è partito", () => {
@@ -128,7 +137,7 @@ describe("la funzione e la scrittura", () => {
 
   it("il cursore avanza solo se la pagina è stata scritta, e si salva pagina per pagina", () => {
     expect(funzione).toContain('if (error) { errore = `email_esiti_registra: ${error.message}`; break; }');
-    const ciclo = funzione.slice(funzione.indexOf("for (let p = 0;"), funzione.indexOf("if (errore) console.error"));
+    const ciclo = funzione.slice(funzione.indexOf("for (let p = 0; p < PAGINE_MAX"), funzione.indexOf("if (errore) console.error"));
     // Il salvataggio del cursore sta DENTRO il ciclo, dopo la scrittura della pagina.
     expect(ciclo.indexOf("CHIAVE_CURSORE")).toBeGreaterThan(ciclo.indexOf('admin.rpc("email_esiti_registra"'));
   });

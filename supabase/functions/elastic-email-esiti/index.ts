@@ -94,6 +94,106 @@ serveConMetricheRapida("elastic-email-esiti", async (req) => {
     });
   }
 
+  // ── Diagnosi delle email spedite e mai consegnate ────────────────────────
+  // Il 07/11/2026 circa 190 email della settimana risultavano spedite a
+  // Elastic e mai consegnate, senza nessun rimbalzo. Qui si guarda, per
+  // ciascuna, cosa sa Elastic: quali eventi ha registrato (anche Submission
+  // e FailedAttempt, che il giro normale non legge) e se l'indirizzo è nella
+  // sua lista di blocco. Sola lettura verso Elastic e verso gli invii; il
+  // risultato si salva in platform_settings (email_esiti_elastic_diagnosi),
+  // perché a pg_net si risponde prima che il lavoro finisca.
+  if ((corpo as { diagnosi?: boolean }).diagnosi === true) {
+    const settimana = new Date(adesso.getTime() - 8 * 24 * 3600_000);
+    const { data: mancanti, error: errMancanti } = await admin
+      .from("email_delivery_log")
+      .select("provider_id, recipient, template_type, sent_at")
+      .eq("provider", "elastic_email")
+      .is("delivered_at", null).is("bounced_at", null)
+      .gte("sent_at", settimana.toISOString())
+      .lt("sent_at", new Date(adesso.getTime() - 2 * 3600_000).toISOString())
+      .not("provider_id", "is", null)
+      .limit(2000);
+    if (errMancanti) return Response.json({ ok: false, errore: errMancanti.message }, { status: 500 });
+    const righe = (mancanti ?? []) as Array<{ provider_id: string; recipient: string | null; template_type: string | null; sent_at: string }>;
+
+    // Tutti gli eventi della settimana, di ogni tipo.
+    const perMsg = new Map<string, string[]>();
+    const categorie = new Map<string, string>();
+    const tutti = ["Submission", "FailedAttempt", "Bounce", "Sent", "Open", "Click", "Unsubscribe", "Complaint"];
+    let eventiLetti = 0;
+    for (let p = 0; p < 15; p++) {
+      const q = new URLSearchParams();
+      for (const t of tutti) q.append("eventTypes", t);
+      q.set("from", settimana.toISOString()); q.set("to", adesso.toISOString());
+      q.set("orderBy", "DateAscending"); q.set("limit", "1000"); q.set("offset", String(p * 1000));
+      const res = await fetch(`${API}?${q}`, { headers: { "X-ElasticEmail-ApiKey": apiKey }, signal: AbortSignal.timeout(25_000) });
+      const lista = res.ok ? await res.json().catch(() => []) : [];
+      if (!Array.isArray(lista)) break;
+      eventiLetti += lista.length;
+      for (const e of lista as Array<Record<string, string | null>>) {
+        const id = e.MsgID ?? "";
+        if (!id) continue;
+        const v = perMsg.get(id) ?? [];
+        v.push(String(e.EventType));
+        perMsg.set(id, v);
+        if (e.MessageCategory && e.MessageCategory !== "Unknown") categorie.set(id, `${e.MessageCategory}${e.Message ? ": " + String(e.Message).slice(0, 80) : ""}`);
+      }
+      if (lista.length < 1000) break;
+    }
+
+    // La lista di blocco di Elastic.
+    const bloccati = new Map<string, string>();
+    let campiBlocco: string[] = [];
+    let httpBlocco = 0;
+    for (let p = 0; p < 30; p++) {
+      const res = await fetch(`https://api.elasticemail.com/v4/suppressions?limit=1000&offset=${p * 1000}`, {
+        headers: { "X-ElasticEmail-ApiKey": apiKey }, signal: AbortSignal.timeout(25_000),
+      });
+      httpBlocco = res.status;
+      const lista = res.ok ? await res.json().catch(() => []) : [];
+      if (!Array.isArray(lista) || lista.length === 0) break;
+      if (!campiBlocco.length && lista[0]) campiBlocco = Object.keys(lista[0]);
+      for (const s of lista as Array<Record<string, unknown>>) {
+        const em = String(s.Email ?? "").trim().toLowerCase();
+        if (em) bloccati.set(em, String(s.ErrorCode ?? s.Reason ?? s.Status ?? "bloccato"));
+      }
+      if (lista.length < 1000) break;
+    }
+
+    const perEsito: Record<string, number> = {};
+    const perModello: Record<string, Record<string, number>> = {};
+    const esempi: Array<Record<string, unknown>> = [];
+    for (const r of righe) {
+      const ev = perMsg.get(r.provider_id) ?? [];
+      const blocco = r.recipient ? bloccati.get(r.recipient.trim().toLowerCase()) : undefined;
+      const esito = blocco ? `nella lista di blocco di Elastic (${blocco})`
+        : ev.includes("FailedAttempt") ? "tentativi falliti, Elastic sta ancora riprovando o ha smesso"
+        : ev.includes("Submission") ? "accettata da Elastic ma mai spedita"
+        : ev.length > 0 ? `eventi: ${[...new Set(ev)].join(", ")}`
+        : "nessun evento su Elastic";
+      perEsito[esito] = (perEsito[esito] ?? 0) + 1;
+      const m = r.template_type ?? "-";
+      perModello[m] = perModello[m] ?? {};
+      perModello[m][esito] = (perModello[m][esito] ?? 0) + 1;
+      if (esempi.length < 12) {
+        esempi.push({
+          a: r.recipient ? r.recipient.replace(/^[^@]+/, "***") : null,
+          inviata: r.sent_at, modello: m, esito,
+          categoria: categorie.get(r.provider_id) ?? null,
+        });
+      }
+    }
+    const risultato = {
+      fatta_il: adesso.toISOString(), mancanti: righe.length, eventi_letti: eventiLetti,
+      indirizzi_nella_lista_di_blocco: bloccati.size, http_lista_blocco: httpBlocco, campi_lista_blocco: campiBlocco,
+      per_esito: perEsito, per_modello: perModello, esempi,
+    };
+    await admin.from("platform_settings").upsert(
+      { key: "email_esiti_elastic_diagnosi", value: JSON.stringify(risultato) }, { onConflict: "key" },
+    );
+    return Response.json(risultato);
+  }
+
   // ── Giro normale ─────────────────────────────────────────────────────────
   const valori = await leggiImpostazioniPiattaforma([CHIAVE_CURSORE, CHIAVE_RIMBORSI_DAL]);
   const cursore = valori[CHIAVE_CURSORE] || null;
