@@ -323,13 +323,21 @@ Deno.serve(async (req) => {
     if (validEmail || phone) {
       const firstName = cleanText(mappedFirstName) || validEmail?.split("@")[0] || phone || "Lead";
 
-      let existing: { id: string; tags?: string[] | null } | null = null;
+      // 07/11/2026: prima il contatto visibile, poi (se c'è solo quello) uno
+      // cancellato, che torna visibile più sotto. Prima un contatto cancellato
+      // che rimandava il modulo restava nascosto con l'opportunità nuova
+      // attaccata; e con due contatti con la stessa email maybeSingle andava in
+      // errore e se ne creava un terzo.
+      let existing: { id: string; tags?: string[] | null; deleted_at?: string | null } | null = null;
       if (validEmail) {
         const { data } = await supabase
           .from("marketing_contacts")
-          .select("id, tags")
+          .select("id, tags, deleted_at")
           .eq("company_id", form.company_id)
           .eq("email", validEmail)
+          .order("deleted_at", { ascending: false, nullsFirst: true })
+          .order("created_at", { ascending: true })
+          .limit(1)
           .maybeSingle();
         existing = data;
       }
@@ -337,9 +345,12 @@ Deno.serve(async (req) => {
       if (!existing && phone) {
         const { data } = await supabase
           .from("marketing_contacts")
-          .select("id, tags")
+          .select("id, tags, deleted_at")
           .eq("company_id", form.company_id)
           .eq("phone", phone)
+          .order("deleted_at", { ascending: false, nullsFirst: true })
+          .order("created_at", { ascending: true })
+          .limit(1)
           .maybeSingle();
         existing = data;
       }
@@ -359,6 +370,11 @@ Deno.serve(async (req) => {
         if (assignedUserId) contactUpdate.assigned_to = assignedUserId;
         if (callCenterId) contactUpdate.call_center_id = callCenterId;
         if (defaultTags.length > 0) contactUpdate.tags = mergeStringLists(existing.tags, defaultTags);
+        // Chi era stato cancellato e si ripresenta torna nel CRM: è di nuovo un lead.
+        if (existing.deleted_at) {
+          contactUpdate.deleted_at = null;
+          contactUpdate.deleted_by = null;
+        }
 
         await supabase
           .from("marketing_contacts")
