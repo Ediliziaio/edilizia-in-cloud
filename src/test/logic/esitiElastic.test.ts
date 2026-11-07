@@ -266,3 +266,15 @@ describe("lista di blocco: i messaggi veri visti il 07/11/2026", () => {
     expect(motivoBloccoElastic(b(null, "Unsubscribed."))).toBe("unsubscribe");
   });
 });
+
+describe("lista di blocco: casella piena non blocca mai (07/11/2026, seconda anteprima)", () => {
+  const b = (ErrorCode: string | number | null, FriendlyErrorMessage: string | null) => ({ Email: "x@y.it", ErrorCode, FriendlyErrorMessage });
+  it("552 con qualunque testo, anche se dopo dice «mailbox unavailable»", () => {
+    expect(motivoBloccoElastic(b(552, "Exceeded storage allocation. The server response was: 1 Requested mail action aborted, mailbox unavailable"))).toBeNull();
+    expect(motivoBloccoElastic(b(552, "Requested mail action aborted, mailbox not found"))).toBeNull();
+  });
+  it("quota superata con un 550", () => {
+    expect(motivoBloccoElastic(b(550, "Mailbox unavailable. The server response was: 5.2.2 mailbox full"))).toBeNull();
+    expect(motivoBloccoElastic(b(550, "User over quota"))).toBeNull();
+  });
+});

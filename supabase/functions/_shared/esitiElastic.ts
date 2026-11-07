@@ -174,6 +174,11 @@ export function motivoBloccoElastic(b: BloccoElastic): MotivoBlocco | null {
   // «Abuse.» è come Elastic scrive una segnalazione di spam del destinatario.
   if (/complain|spam report|abuse|segnalat/.test(testo)) return "spam_complaint";
 
+  // Casella piena / quota superata: la casella esiste e si svuota. Il 552
+  // dell'anteprima del 07/11 («Exceeded storage allocation … Requested mail
+  // action aborted, mai…») passava per inesistente per il resto del testo.
+  if (codice === 552 || /casella piena|storage|quota|mailbox (is )?full|over quota|insufficient/.test(testo)) return null;
+
   // Un rifiuto che parla del MITTENTE («Sender address rejected: Domain not
   // found», 4.1.8 / 5.1.8) è un problema nostro, non dell'indirizzo: mai un
   // blocco. Il 07/11 erano 6 voci, tutte su mkt.ediliziaincloud.com e
