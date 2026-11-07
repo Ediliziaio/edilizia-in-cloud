@@ -13,6 +13,8 @@
 // (pattern one-time identico a email-provider-check / meta-warmup).
 
 import { getPlatformSetting, leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
+import { chiamataInternaValida } from "../_shared/chiamataInterna.ts";
+import { pianoDnsMittente, type RecordDns } from "../_shared/dnsMittente.ts";
 
 const MARKETING_DOMAIN = "mkt.ediliziaincloud.com";
 const CF_ZONE_NAME = "ediliziaincloud.com";
@@ -84,17 +86,85 @@ Deno.serve(async (req) => {
     });
 
   try {
-    const token = req.headers.get("x-setup-token") ?? "";
-    if (!token) return json({ error: "missing x-setup-token" }, 401);
-
-    // Il token dal 19/09/2026 sta nel Vault.
-    const tokenSalvato = await leggiImpostazionePiattaforma("email_setup_token");
-    if (!tokenSalvato || tokenSalvato !== token) {
-      return json({ error: "invalid token" }, 401);
+    // Due ingressi: il token di setup (una volta sola, dal Vault) o una
+    // chiamata interna (segreto del cron / service role), che ha già lo
+    // stesso livello di privilegio. Il secondo serve dal 07/11/2026, quando
+    // il token di setup non c'era più.
+    if (!chiamataInternaValida(req)) {
+      const token = req.headers.get("x-setup-token") ?? "";
+      if (!token) return json({ error: "missing x-setup-token" }, 401);
+      // Il token dal 19/09/2026 sta nel Vault.
+      const tokenSalvato = await leggiImpostazionePiattaforma("email_setup_token");
+      if (!tokenSalvato || tokenSalvato !== token) {
+        return json({ error: "invalid token" }, 401);
+      }
     }
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "");
+
+    // ── DNS dei domini mittente (07/11/2026) ─────────────────────────────
+    // Alcuni server rifiutano le nostre email con «Sender address rejected:
+    // Domain not found»: mkt.ediliziaincloud.com e mkt.marketingedile.com
+    // non hanno né MX né A, e chi controlla il dominio del mittente lo trova
+    // inesistente. Qui si legge lo stato e, con applica=true, si aggiunge
+    // solo ciò che manca (pianoDnsMittente): niente si sovrascrive o cancella.
+    if (action === "dns_mittente") {
+      const cfToken = Deno.env.get("CLOUDFLARE_API_TOKEN") ?? "";
+      if (!cfToken) return json({ error: "CLOUDFLARE_API_TOKEN non configurato" }, 500);
+      const applica = body.applica === true;
+      const domini: Array<{ sottodominio: string; zona: string }> = Array.isArray(body.domini) && body.domini.length
+        ? body.domini
+        : [
+          { sottodominio: "mkt.ediliziaincloud.com", zona: "ediliziaincloud.com" },
+          { sottodominio: "mkt.marketingedile.com", zona: "marketingedile.com" },
+        ];
+      const esiti: Record<string, unknown> = {};
+      for (const d of domini) {
+        try {
+          const zone = await cfApi(cfToken, `/zones?name=${encodeURIComponent(d.zona)}`);
+          const zona = (zone.result as Array<Record<string, unknown>>)?.[0];
+          if (!zona?.id) { esiti[d.sottodominio] = { errore: `zona ${d.zona} non trovata su questo account Cloudflare` }; continue; }
+          const zoneId = String(zona.id);
+          const leggi = async (nome: string): Promise<RecordDns[]> => {
+            const r = await cfApi(cfToken, `/zones/${zoneId}/dns_records?name=${encodeURIComponent(nome)}&per_page=100`);
+            return ((r.result as Array<Record<string, unknown>>) ?? []).map((x) => ({
+              type: String(x.type), name: String(x.name), content: String(x.content),
+              priority: typeof x.priority === "number" ? x.priority : undefined,
+            }));
+          };
+          const attuali = {
+            sottodominio: await leggi(d.sottodominio),
+            apice: await leggi(d.zona),
+            dmarcSottodominio: await leggi(`_dmarc.${d.sottodominio}`),
+            dmarcApice: await leggi(`_dmarc.${d.zona}`),
+          };
+          const piano = pianoDnsMittente(d.sottodominio, attuali);
+          const creati: string[] = [];
+          if (applica) {
+            for (const r of piano.da_aggiungere) {
+              await cfApi(cfToken, `/zones/${zoneId}/dns_records`, {
+                method: "POST",
+                body: JSON.stringify({ type: r.type, name: r.name, content: r.content, ttl: 3600, proxied: false, ...(r.priority !== undefined ? { priority: r.priority } : {}) }),
+              });
+              creati.push(`${r.type} ${r.name} ${r.priority ?? ""} ${r.content}`.replace(/\s+/g, " ").trim());
+            }
+          }
+          esiti[d.sottodominio] = {
+            prima: attuali.sottodominio.filter((r) => ["MX", "A", "AAAA", "CNAME", "TXT"].includes(r.type)).map((r) => `${r.type} ${r.priority ?? ""} ${r.content.slice(0, 80)}`.replace(/\s+/g, " ")),
+            mx_apice: attuali.apice.filter((r) => r.type === "MX").map((r) => `${r.priority} ${r.content}`),
+            dmarc_apice: attuali.dmarcApice.filter((r) => r.type === "TXT").map((r) => r.content),
+            dmarc_sottodominio: attuali.dmarcSottodominio.filter((r) => r.type === "TXT").map((r) => r.content),
+            piano: piano.da_aggiungere.map((r) => `${r.type} ${r.name} ${r.priority ?? ""} ${r.content}`.replace(/\s+/g, " ").trim()),
+            note: piano.note,
+            creati,
+          };
+        } catch (e) {
+          esiti[d.sottodominio] = { errore: e instanceof Error ? e.message : String(e) };
+        }
+      }
+      return json({ applica, esiti });
+    }
 
     const eeKey = await getPlatformSetting("email_marketing_api_key");
     if (!eeKey) return json({ error: "EMAIL_MARKETING_API_KEY non configurata" }, 500);
