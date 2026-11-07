@@ -78,12 +78,31 @@ describe("Materiali per fase nella commessa", () => {
     );
   }
 
-  it("CHECK-98: non tronca silenziosamente una quantità decimale", async () => {
+  it("CHECK-98: in metri la quantità decimale si salva così com'è, senza troncarla", async () => {
     stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
       materiali: [materiale("a", { quantity: 2, unita_misura: "m", quantita_calcolata: 1.2 })] }];
     await disegna();
     const input = screen.getByLabelText(/Quantità di Materiale a/);
-    for (const value of ["1,2", "1.2"]) {
+    // Tastiera con la virgola sul telefono.
+    expect(input).toHaveAttribute("inputmode", "decimal");
+    fireEvent.change(input, { target: { value: "1,2" } });
+    fireEvent.blur(input);
+    expect(stato.quantita).toHaveBeenCalledWith(expect.objectContaining({ modifica: { quantity: 1.2 } }));
+  });
+
+  it("una quantità decimale si legge con la virgola", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
+      materiali: [materiale("a", { quantity: 12.4, unita_misura: "kg" })] }];
+    await disegna();
+    expect(screen.getByLabelText(/Quantità di Materiale a/)).toHaveValue("12,4");
+  });
+
+  it("a pezzi (pz, cad) un decimale non si salva e non viene arrotondato in silenzio", async () => {
+    stato.fasi = [{ id: "fase-el", nome: "Impianto elettrico", posizione: 1, validazione: { stato: "bozza" },
+      materiali: [materiale("a", { quantity: 2, unita_misura: "pz" })] }];
+    await disegna();
+    const input = screen.getByLabelText(/Quantità di Materiale a/);
+    for (const value of ["1,5", "1.5"]) {
       fireEvent.change(input, { target: { value } });
       fireEvent.blur(input);
       expect(input).toHaveValue("2");

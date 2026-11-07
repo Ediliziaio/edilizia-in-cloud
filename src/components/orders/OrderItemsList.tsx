@@ -58,6 +58,7 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { quantitaDaCampo } from "@/lib/orders/quantitaDaCampo";
 import { quantitaSommabili, trovaDoppione } from "@/lib/distinta/elencoArticoli";
 import { ETICHETTA_STATO_MATERIALE, quantitaLeggibile, statoMateriale } from "@/lib/distinta/statoMateriale";
 import { COLORE_STATO } from "./materiali/coloriStato";
@@ -610,7 +611,7 @@ export function OrderItemsList({
     const item = items[index];
     setItemName(item.name);
     setItemDescription(item.description || "");
-    setItemQuantity(item.quantity.toString());
+    setItemQuantity(String(Number(item.quantity)).replace(".", ","));
     setItemPosizioni(item.posizioni ?? []);
     setItemSupplierId(item.supplier_id);
     setItemPurchasePrice(item.purchase_price?.toString() || "");
@@ -688,7 +689,7 @@ export function OrderItemsList({
       .filter((po) => po.descrizione && po.quantita > 0);
     const quantity = posizioniPulite.length > 0
       ? posizioniPulite.reduce((sum, po) => sum + po.quantita, 0)
-      : Math.round(Number(itemQuantity));
+      : quantitaDaCampo(itemQuantity);
     const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setDialogError("La quantità deve essere maggiore di zero.");
@@ -933,7 +934,7 @@ export function OrderItemsList({
   const handleSaveAndContinue = () => {
     setDialogError(null);
     if (!itemName.trim()) { setDialogError("Inserisci il nome dell'articolo."); return; }
-    const quantity = Math.round(Number(itemQuantity));
+    const quantity = quantitaDaCampo(itemQuantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setDialogError("La quantità deve essere maggiore di zero."); return;
     }
@@ -1127,7 +1128,7 @@ export function OrderItemsList({
                       <div className="space-y-1.5">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <Checkbox checked={addPosa} onCheckedChange={(c) => setAddPosa(c === true)} />
-                          <span>Aggiungi la posa alla <strong>Manodopera</strong>{canViewCosts && <> ({formatCurrency(itemManodoperaCosto * (Math.round(Number(itemQuantity)) || 1))} tot.)</>}</span>
+                          <span>Aggiungi la posa alla <strong>Manodopera</strong>{canViewCosts && <> ({formatCurrency(itemManodoperaCosto * (quantitaDaCampo(itemQuantity) || 1))} tot.)</>}</span>
                         </label>
                         {addPosa && (
                           <Select value={posaTeamId} onValueChange={setPosaTeamId}>
@@ -1227,7 +1228,7 @@ export function OrderItemsList({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Quantità</Label>
-            <Input type="number" min="1" value={itemPosizioni.length > 0 ? String(itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)) : itemQuantity} disabled={itemPosizioni.length > 0} onChange={(e) => setItemQuantity(e.target.value)} />
+            <Input inputMode="decimal" aria-label="Quantità" value={itemPosizioni.length > 0 ? String(itemPosizioni.reduce((t, x) => t + (x.quantita || 0), 0)) : itemQuantity} disabled={itemPosizioni.length > 0} onChange={(e) => setItemQuantity(e.target.value)} />
           </div>
           {/* Costo d'acquisto e listino solo a chi vede i costi: nascosti, i valori restano quelli salvati. */}
           {canViewCosts && (
@@ -1258,7 +1259,7 @@ export function OrderItemsList({
           )}
         </div>
         {canViewCosts && (() => {
-          const qty = Math.round(Number(itemQuantity)) || 0;
+          const qty = quantitaDaCampo(itemQuantity) || 0;
           const price = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
           if (!Number.isFinite(qty) || !Number.isFinite(price) || qty <= 0 || price <= 0) return null;
           return (
@@ -1371,7 +1372,7 @@ export function OrderItemsList({
 
         {/* Installment tracking: 50/50 or 30/70 */}
         {(itemPaymentMethod === "50_50" || itemPaymentMethod === "30_70") && (() => {
-          const qty = Math.max(1, parseInt(itemQuantity) || 1);
+          const qty = Math.max(0, quantitaDaCampo(itemQuantity)) || 1;
           const price = Math.max(0, parseFloat(itemPurchasePrice) || 0);
           const totalCost = price * qty;
           const depositPercent = itemPaymentMethod === "50_50" ? 0.5 : 0.3;

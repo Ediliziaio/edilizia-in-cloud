@@ -47,6 +47,7 @@ import {
   SCALA_STATI, STATI_DA_ORDINARE, type ConteggioStati, type InfoStatoMateriale, type StatoMateriale,
 } from "@/lib/distinta/statoMateriale";
 import { ETICHETTA_FONTE_PREZZO, prezzoAttuale, totaleStimato, type FontePrezzo, type PrezzoProposto } from "@/lib/distinta/prezziMateriali";
+import { siCompraAPezzi } from "@/lib/distinta/generaDistinta";
 import {
   allegatoOda, dettaglioAccontoSaldo, eliminabile, eMateriale, ETICHETTA_ORDINAMENTO, filtraPerFonte, ordinaRighe, type FiltroFonte, type Ordinamento,
 } from "@/lib/distinta/elencoArticoli";
@@ -348,15 +349,17 @@ function RigaMateriale({
   const calcolata = m.quantita_calcolata != null && Math.abs(Number(m.quantita_calcolata) - m.quantity) > 0.005 ? Number(m.quantita_calcolata) : null;
   const salva = () => {
     if (bozza == null) return;
-    const q = Number(bozza.replace(",", "."));
+    const letta = Number(bozza.replace(",", "."));
     setBozza(null);
-    if (Number.isFinite(q) && !Number.isInteger(q)) {
-      toast.error("La quantità d’acquisto richiede un numero intero", {
-        description: "Il valore non è stato modificato. La quantità calcolata può contenere decimali e resta indicata separatamente.",
+    // kg, m², m³ si comprano coi decimali; cad e pz a pezzi interi.
+    if (Number.isFinite(letta) && !Number.isInteger(letta) && siCompraAPezzi(m.unita_misura)) {
+      toast.error(`In ${m.unita_misura ?? "pz"} si compra a pezzi interi`, {
+        description: "Il valore non è stato modificato.",
       });
       return;
     }
-    if (Number.isFinite(q) && q > 0 && q !== m.quantity) onQuantita(q);
+    const q = Math.round(letta * 10000) / 10000;
+    if (Number.isFinite(q) && q > 0 && q !== Number(m.quantity)) onQuantita(q);
   };
   const oltre = (m.ordinata ?? 0) > m.quantity && m.quantity > 0;
   const descrizione = descrizioneVisibile(m.name, m.description);
@@ -412,9 +415,10 @@ function RigaMateriale({
           <label className="inline-flex items-center gap-1">
             <span className="sr-only">Quantità di {m.name}</span>
             <Input
-              inputMode="numeric"
+              // «decimal»: sul telefono la tastiera ha la virgola, per scrivere 12,4 kg.
+              inputMode="decimal"
               className="h-7 w-14 px-1.5 text-right tabular-nums"
-              value={bozza ?? String(m.quantity)}
+              value={bozza ?? String(Number(m.quantity)).replace(".", ",")}
               onChange={(e) => setBozza(e.target.value)}
               onBlur={salva}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}

@@ -240,6 +240,34 @@ export const CAMPI_CHE_SEGUONO_LA_DIVISIONE = [
   "measure_variance", "survey_id", "survey_element_id", "installation_id",
 ] as const;
 
+/** Le quantità si confrontano a quattro decimali, come le salva il database. */
+const quattroDecimali = (n: number) => Math.round(n * 10000) / 10000;
+
+/**
+ * Le parti di una divisione vanno bene? Ognuna maggiore di zero e la somma
+ * uguale alla quantità della riga. Un articolo di magazzino si divide a pezzi
+ * interi (il magazzino conta pezzi); un materiale in kg, m², m³ anche coi
+ * decimali: 12,4 kg in 7,4 + 5.
+ */
+export function erroreDivisione(
+  totale: number,
+  parti: ReadonlyArray<{ quantity: number }>,
+  articoloDiMagazzino: boolean,
+): string | null {
+  if (parti.length < 2) return "Servono almeno 2 righe per dividere.";
+  if (parti.some((p) => !Number.isFinite(p.quantity) || p.quantity <= 0)) {
+    return "Ogni quantità deve essere maggiore di zero.";
+  }
+  if (articoloDiMagazzino && parti.some((p) => !Number.isInteger(p.quantity))) {
+    return "È un articolo di magazzino: si divide a pezzi interi.";
+  }
+  const somma = quattroDecimali(parti.reduce((acc, p) => acc + p.quantity, 0));
+  if (somma !== quattroDecimali(totale)) {
+    return `La somma delle quantità deve essere ${quattroDecimali(totale).toLocaleString("it-IT", { maximumFractionDigits: 4 })}.`;
+  }
+  return null;
+}
+
 /** La nuova riga per una parte di un articolo diviso tra le fasi. */
 export function parteDivisa(
   original: Record<string, unknown>,
@@ -725,13 +753,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         .single();
       if (error) throw error;
 
-      if (parts.length < 2) throw new Error("Servono almeno 2 righe per dividere.");
-      if (parts.some((p) => !Number.isInteger(p.quantity) || p.quantity <= 0)) {
-        throw new Error("Ogni quantità deve essere un numero intero maggiore di zero.");
-      }
       const totalQty = Number(original.quantity) || 0;
-      const sum = parts.reduce((acc, p) => acc + p.quantity, 0);
-      if (sum !== totalQty) throw new Error(`La somma delle quantità deve essere ${totalQty}.`);
+      const errore = erroreDivisione(totalQty, parts, !!original.stock_item_id);
+      if (errore) throw new Error(errore);
 
       // La riga originale tiene la prima parte
       const { error: updError } = await db

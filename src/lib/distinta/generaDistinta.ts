@@ -170,6 +170,11 @@ export function chiaveRiga(
 /** Unità che si comprano a pezzi interi. */
 const UNITA_INTERE = new Set(["cad", "pz"]);
 
+/** Vero se l'unità si compra a pezzi interi (cad, pz): kg, m², m³… accettano i decimali. */
+export function siCompraAPezzi(unita: string | null | undefined): boolean {
+  return UNITA_INTERE.has(normalizzaUnita(unita));
+}
+
 export function arrotondaPerAcquisto(q: number, unita: string): number {
   if (!Number.isFinite(q) || q <= 0) return 0;
   if (UNITA_INTERE.has(normalizzaUnita(unita))) return Math.ceil(q - 1e-9);

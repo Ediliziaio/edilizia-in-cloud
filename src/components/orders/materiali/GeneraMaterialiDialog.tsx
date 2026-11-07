@@ -321,7 +321,6 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                           <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
                             {r.quantita_calcolata.toLocaleString("it-IT")} {r.unita_misura}
                             {r.sfrido ? <span className="text-slate-400"> (+{r.sfrido}%)</span> : null}
-                            {!Number.isInteger(r.quantita_calcolata) && <span className="block text-muted-foreground">Acquisto proposto: {Math.max(1, Math.ceil(r.quantita_calcolata)).toLocaleString("it-IT")} {r.unita_misura}</span>}
                           </td>
                           <td className="px-2 py-1 text-slate-500">{r.origine === "planimetria" ? "Tavola" : r.origini.length > 1 ? `${r.origini.length} voci` : "Computo"}</td>
                         </tr>

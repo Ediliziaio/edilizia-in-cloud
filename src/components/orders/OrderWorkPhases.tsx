@@ -72,7 +72,9 @@ import {
   type ExecutorOption,
   type AssignmentSource,
   type AddAssignmentPayload,
+  erroreDivisione,
 } from "@/hooks/useOrderWorkPhases";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import {
   useOrderScheduleHealth,
   type SchedulePhaseHealth,
@@ -1946,6 +1948,8 @@ interface SplitMaterialDialogProps {
   ) => void;
 }
 
+const numeroIT = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
+
 function SplitMaterialDialog({
   material,
   phases,
@@ -1958,19 +1962,20 @@ function SplitMaterialDialog({
 
   // Riga 1 = fase corrente con tutta la quantità, riga 2 = da compilare
   const initialRows = (): SplitRowDraft[] => [
-    { phaseId: currentPhaseId ?? "none", quantity: String(material.quantity) },
+    { phaseId: currentPhaseId ?? "none", quantity: String(Number(material.quantity)).replace(".", ",") },
     { phaseId: "none", quantity: "0" },
   ];
+  // Un articolo di magazzino si divide a pezzi interi; kg, m², m³ anche coi decimali.
+  const aPezzi = !!material.stock_item_id;
+  const unita = material.unita_misura?.trim() || "pz";
 
   const maxRows = phases.length + 1; // tutte le fasi + "Senza fase"
 
-  const qtyOf = (r: SplitRowDraft) => {
-    const parsed = parseInt(r.quantity, 10);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  };
-  const assigned = rows.reduce((acc, r) => acc + qtyOf(r), 0);
-  const sumOk = assigned === material.quantity;
-  const valid = sumOk && rows.every((r) => qtyOf(r) >= 1);
+  const qtyOf = (r: SplitRowDraft) => parseDecimalIT(r.quantity);
+  const assigned = Math.round(rows.reduce((acc, r) => acc + qtyOf(r), 0) * 10000) / 10000;
+  const errore = rows.length ? erroreDivisione(Number(material.quantity), rows.map((r) => ({ quantity: qtyOf(r) })), aPezzi) : null;
+  const sumOk = assigned === Math.round(Number(material.quantity) * 10000) / 10000;
+  const valid = rows.length > 0 && errore === null;
 
   const updateRow = (i: number, patch: Partial<SplitRowDraft>) =>
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -2017,7 +2022,7 @@ function SplitMaterialDialog({
         <DialogHeader>
           <DialogTitle>Dividi materiale</DialogTitle>
           <DialogDescription>
-            «{material.name}» — {material.quantity} pz da ripartire
+            «{material.name}» — {numeroIT(Number(material.quantity))} {unita} da ripartire
           </DialogDescription>
         </DialogHeader>
 
@@ -2038,9 +2043,7 @@ function SplitMaterialDialog({
                 </SelectContent>
               </Select>
               <Input
-                type="number"
-                min="1"
-                step="1"
+                inputMode={aPezzi ? "numeric" : "decimal"}
                 value={row.quantity}
                 onChange={(e) => updateRow(i, { quantity: e.target.value })}
                 className="h-9 w-20 tabular-nums"
@@ -2077,8 +2080,11 @@ function SplitMaterialDialog({
               sumOk ? "text-emerald-600" : "text-rose-600",
             )}
           >
-            Assegnate {assigned} / {material.quantity}
+            Assegnate {numeroIT(assigned)} / {numeroIT(Number(material.quantity))} {unita}
           </p>
+          {/* La somma sbagliata la dice già il contatore; la riga a zero appena aperta la
+              finestra non è un errore. Qui solo i pezzi interi di un articolo di magazzino. */}
+          {errore && sumOk && aPezzi ? <p className="text-xs text-rose-600">{errore}</p> : null}
         </div>
 
         <DialogFooter>
