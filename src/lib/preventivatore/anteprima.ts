@@ -169,7 +169,7 @@ export function formattaNumero(n: number | null | undefined, decimali = 0): stri
 /** «3 pz», «12,5 mq», «a corpo»: la quantità come la scrive una riga di preventivo. */
 export function formattaQuantita(quantita: number, unita?: string | null): string {
   const u = (unita ?? "").trim();
-  if (u.toLowerCase() === "a corpo") return "a corpo";
+  if (["a corpo", "a_corpo"].includes(u.toLowerCase())) return "a corpo";
   // Fino a due decimali, senza zeri inutili: «12,5 mq», non «12,50 mq».
   const n = Number(quantita).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: true });
   return u && u.toLowerCase() !== "pz" ? `${n} ${u}` : n;
