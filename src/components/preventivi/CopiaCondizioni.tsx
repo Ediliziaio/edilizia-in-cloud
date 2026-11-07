@@ -17,13 +17,15 @@ export function CopiaCondizioni({ companyId, value, onChange, disabled = false }
     queryKey: ['fonti-condizioni', companyId], enabled: open && !!companyId && !disabled,
     staleTime: 0,
     queryFn: async () => {
-      const [classic, modules] = await Promise.all([
+      const [classic, modules, archivio] = await Promise.all([
         supabase.from('quote_templates').select('*').eq('company_id', companyId!).eq('is_active', true),
         // Same table and tenant filter used by archivioModelli; generated types lag behind it.
         supabase.from('modelli_libreria_azienda' as never).select('company_id,chiave,contenuto').eq('company_id', companyId!),
+        // L'archivio «Contratti e condizioni»: se le tabelle non ci sono ancora, l'elenco resta quello di prima.
+        supabase.from('condizioni_modelli' as never).select('id,company_id,nome,ambito,predefinito,attivo,clausole').eq('company_id', companyId!),
       ]);
       if (classic.error || modules.error) throw classic.error ?? modules.error;
-      return fontiCondizioni(companyId!, classic.data ?? [], modules.data ?? []);
+      return fontiCondizioni(companyId!, classic.data ?? [], modules.data ?? [], archivio.error ? [] : (archivio.data ?? []));
     },
   });
   const source = data.find(item => item.id === selected && item.companyId === companyId);

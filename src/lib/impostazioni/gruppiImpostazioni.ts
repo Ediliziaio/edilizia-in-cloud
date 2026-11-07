@@ -18,7 +18,8 @@ export type PermessoImpostazione =
   | "canViewSettingsBundle"
   | "canViewCosts"
   | "canViewSettingsScontistica"
-  | "canViewSettingsIntegrations";
+  | "canViewSettingsIntegrations"
+  | "canViewCondizioni";
 
 export interface SchedaImpostazione {
   /** Segmento dell'indirizzo dopo /azienda/impostazioni/ */
@@ -79,6 +80,7 @@ export const GRUPPI_IMPOSTAZIONI: GruppoImpostazioni[] = [
     descrizione: "Le clausole che il cliente accetta e come firma i preventivi",
     schede: [
       { sezione: "condizioni-firma", etichetta: "Condizioni", to: `${BASE}/condizioni-firma`, permesso: "canViewSettingsPricing" },
+      { sezione: "contratti-e-condizioni", etichetta: "Contratti e condizioni", to: `${BASE}/contratti-e-condizioni`, permesso: "canViewCondizioni" },
       {
         sezione: "firma-elettronica",
         etichetta: "Firma elettronica",

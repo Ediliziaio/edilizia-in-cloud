@@ -85240,6 +85240,9 @@ export type Database = {
           can_edit_settings_orders: boolean
           can_edit_settings_people: boolean
           can_edit_settings_pricing: boolean
+          can_manage_condizioni: boolean
+          can_riscrivere_condizioni: boolean
+          can_view_condizioni: boolean
           can_edit_settings_profile: boolean
           can_edit_settings_scontistica: boolean
           can_edit_settings_suppliers: boolean
@@ -85350,6 +85353,9 @@ export type Database = {
           can_edit_settings_orders?: boolean
           can_edit_settings_people?: boolean
           can_edit_settings_pricing?: boolean
+          can_manage_condizioni?: boolean
+          can_riscrivere_condizioni?: boolean
+          can_view_condizioni?: boolean
           can_edit_settings_profile?: boolean
           can_edit_settings_scontistica?: boolean
           can_edit_settings_suppliers?: boolean
@@ -85460,6 +85466,9 @@ export type Database = {
           can_edit_settings_orders?: boolean
           can_edit_settings_people?: boolean
           can_edit_settings_pricing?: boolean
+          can_manage_condizioni?: boolean
+          can_riscrivere_condizioni?: boolean
+          can_view_condizioni?: boolean
           can_edit_settings_profile?: boolean
           can_edit_settings_scontistica?: boolean
           can_edit_settings_suppliers?: boolean

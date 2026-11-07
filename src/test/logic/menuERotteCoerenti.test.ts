@@ -101,7 +101,7 @@ describe("menu e rotte", () => {
         for (const alias of (scheda.alias ?? []).filter((a) => !rimandi.has(a))) expect(PERMESSO_DELLA_ROTTA.get(alias)?.chiave, `alias ${alias}`).toBe(scheda.permesso);
       }
     }
-    expect(schede).toBe(9);
+    expect(schede).toBe(10);
   });
 });
 

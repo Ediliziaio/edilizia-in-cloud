@@ -1,12 +1,37 @@
 import { SALES_AREAS } from '@/lib/moduli-vendita/areas';
+import { NOMI_AMBITI, testoDelModello, type AmbitoCondizioni, type Clausola } from '@/lib/condizioni/archivio';
 import { htmlPerEditorContratto } from './contrattoEditor';
 
 export interface FonteCondizioni { id: string; companyId: string; nome: string; testo: string }
 const record = (v: unknown): Record<string, unknown> => v && typeof v === 'object' ? v as Record<string, unknown> : {};
 const text = (v: unknown) => typeof v === 'string' ? v : '';
 
+/**
+ * L'archivio «Contratti e condizioni» come fonte da copiare (07/11/2026): i modelli dell'azienda
+ * stanno in cima all'elenco, prima dei modelli di preventivo, perché sono il posto dove l'azienda
+ * tiene le sue condizioni. Copiare non cambia il modello: resta una copia indipendente.
+ */
+function dallArchivio(companyId: string, righe: unknown[]): FonteCondizioni[] {
+  const fonti: FonteCondizioni[] = [];
+  for (const raw of righe) {
+    const row = record(raw);
+    if (row.company_id !== companyId || row.attivo === false) continue;
+    const clausole = Array.isArray(row.clausole) ? (row.clausole as Clausola[]) : [];
+    const testo = testoDelModello({ clausole });
+    if (!testo.trim()) continue;
+    const ambito = NOMI_AMBITI[String(row.ambito) as AmbitoCondizioni];
+    fonti.push({
+      id: `archivio:${text(row.id)}`,
+      companyId,
+      nome: `Archivio · ${text(row.nome)}${ambito ? ` (${ambito})` : ''}${row.predefinito ? ' · predefinito' : ''}`,
+      testo,
+    });
+  }
+  return fonti.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+}
+
 /** Tenant isolation also at the source boundary; never follow references to another company. */
-export function fontiCondizioni(companyId: string, classicRows: unknown[], moduleRows: unknown[]): FonteCondizioni[] {
+export function fontiCondizioni(companyId: string, classicRows: unknown[], moduleRows: unknown[], archivioRows: unknown[] = []): FonteCondizioni[] {
   const classic = classicRows.map(record).filter(r => r.company_id === companyId && r.is_active !== false);
   const resolve = (id: unknown) => classic.find(r => r.id === id);
   const result: FonteCondizioni[] = [];
@@ -36,5 +61,5 @@ export function fontiCondizioni(companyId: string, classicRows: unknown[], modul
     const title = area?.interventions.find(i => i.id === moduleId)?.title ?? moduleId;
     result.push({ id: `modulo:${text(row.chiave)}`, companyId, nome: `Modulo · ${area?.title ?? 'Modello salvato'} · ${title}`, testo });
   }
-  return result.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  return [...dallArchivio(companyId, archivioRows), ...result.sort((a, b) => a.nome.localeCompare(b.nome, 'it'))];
 }

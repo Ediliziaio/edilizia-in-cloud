@@ -60,6 +60,9 @@ describe("chi può riscrivere le condizioni", () => {
     expect(puoRiscrivereLeCondizioni({ canEditSettingsPricing: true })).toBe(true);
     expect(puoRiscrivereLeCondizioni({ isAdmin: true })).toBe(true);
     expect(puoRiscrivereLeCondizioni({ isAdmin: false, canEditSettingsPricing: false })).toBe(false);
+    // Il permesso suo (07/11/2026): il venditore può riscriverle sul documento senza gestire il listino.
+    expect(puoRiscrivereLeCondizioni({ canRiscrivereCondizioni: true })).toBe(true);
+    expect(puoRiscrivereLeCondizioni({ canRiscrivereCondizioni: false, canEditSettingsPricing: false, isAdmin: false })).toBe(false);
   });
 
   it("finché i permessi non sono arrivati non si può: mai un permesso dato per scontato", () => {

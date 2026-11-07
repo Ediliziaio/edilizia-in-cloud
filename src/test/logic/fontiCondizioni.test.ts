@@ -29,3 +29,32 @@ describe('copia indipendente delle sole condizioni', () => {
     expect(sources).toEqual([]);
   });
 });
+
+describe("l'archivio «Contratti e condizioni» è una fonte da copiare (07/11/2026)", () => {
+  const modello = {
+    id: 'a1', company_id: 'c', nome: 'Condizioni standard 2026', ambito: 'preventivo', predefinito: true, attivo: true,
+    clausole: [{ titolo: 'Pagamenti', testo: '30% alla firma.' }, { titolo: 'Garanzie', testo: 'Due anni sulle opere.' }],
+  };
+
+  it('il modello dell archivio compare per primo, col suo ambito, e il testo è quello che esce sul documento', () => {
+    const fonti = fontiCondizioni('c', [{ id: 'g', company_id: 'c', kind: 'condizioni', name: 'Base', body_html: '<p>Altro</p>' }], [], [modello]);
+    expect(fonti[0].nome).toBe('Archivio · Condizioni standard 2026 (Preventivi e computi) · predefinito');
+    expect(fonti[0].testo).toBe('Pagamenti\n30% alla firma.\n\nGaranzie\nDue anni sulle opere.');
+    expect(fonti).toHaveLength(2);
+  });
+
+  it("niente di un'altra azienda, niente modelli archiviati, niente modelli vuoti", () => {
+    const fonti = fontiCondizioni('c', [], [], [
+      { ...modello, company_id: 'altra' },
+      { ...modello, id: 'a2', attivo: false },
+      { ...modello, id: 'a3', clausole: [] },
+      { ...modello, id: 'a4', clausole: [{ titolo: '  ', testo: '' }] },
+    ]);
+    expect(fonti).toEqual([]);
+  });
+
+  it('senza archivio (tabelle non ancora attive) l elenco resta quello di prima', () => {
+    const classico = { id: 'g', company_id: 'c', kind: 'condizioni', name: 'Base', body_html: '<p>Testo</p>' };
+    expect(fontiCondizioni('c', [classico], [])).toHaveLength(1);
+  });
+});

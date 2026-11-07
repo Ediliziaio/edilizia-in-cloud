@@ -250,6 +250,16 @@ export default function SettingsCondizioniFirma() {
 
   return (
     <div className="max-w-4xl space-y-6">
+      {/* Il posto unico dei modelli contrattuali è l'archivio (07/11/2026): queste clausole si portano lì. */}
+      <Alert>
+        <AlertDescription className="text-sm">
+          Queste clausole valgono per la firma del preventivo. I <strong>modelli di contratto dell'azienda</strong> —
+          committente, subappaltatori, fornitori, contratti di lavoro — stanno tutti in{" "}
+          <Link to="/azienda/impostazioni/contratti-e-condizioni" className="font-medium underline">Contratti e condizioni</Link>,
+          che da lì le propone a ogni documento. Puoi portarci anche queste: restano anche qui, non si perde niente.
+        </AlertDescription>
+      </Alert>
+
       {!puoModificare && (
         <Alert>
           <AlertDescription>

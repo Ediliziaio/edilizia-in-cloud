@@ -117,6 +117,10 @@ export interface StaffPermissions {
   can_view_settings_security: boolean;
   can_view_settings_pricing: boolean;
   can_edit_settings_pricing: boolean;
+  // Contratti e condizioni (07/11/2026)
+  can_view_condizioni: boolean;
+  can_manage_condizioni: boolean;
+  can_riscrivere_condizioni: boolean;
   can_view_settings_scontistica: boolean;
   can_edit_settings_scontistica: boolean;
   can_view_settings_finanziamenti: boolean;

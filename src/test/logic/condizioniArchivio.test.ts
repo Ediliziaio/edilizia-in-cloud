@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AMBITI_CONDIZIONI, CLAUSOLE_DI_PARTENZA, CONTROPARTE, DOVE_SI_USA, NOMI_AMBITI,
   condizioniDelDocumento, daCongelare, daRiscrivere, modelloPredefinito, raccontaOrigine, testoDelModello,
   type ModelloCondizioni,
 } from "@/lib/condizioni/archivio";
@@ -50,6 +51,28 @@ describe("Da dove pescano le condizioni i documenti", () => {
   });
 });
 
+describe("Ogni ambito è spiegato, e le clausole di partenza sono vere clausole", () => {
+  it("ogni tipo di documento dice dove finisce il testo, e a chi va", () => {
+    for (const a of AMBITI_CONDIZIONI) {
+      expect(NOMI_AMBITI[a], a).toBeTruthy();
+      expect(DOVE_SI_USA[a]?.length, a).toBeGreaterThan(20);
+      expect(CONTROPARTE[a], a).toBeTruthy();
+    }
+  });
+
+  it("le clausole di partenza hanno titolo, testo e categoria, e le vessatorie sono segnate", () => {
+    expect(CLAUSOLE_DI_PARTENZA.length).toBeGreaterThan(5);
+    for (const c of CLAUSOLE_DI_PARTENZA) {
+      expect(c.titolo.trim()).not.toBe("");
+      expect(c.testo.length).toBeGreaterThan(40);
+      expect(c.categoria.trim()).not.toBe("");
+    }
+    expect(CLAUSOLE_DI_PARTENZA.some((c) => c.vessatoria)).toBe(true);
+    // Un modello costruito con tutte è testo stampabile, non righe vuote.
+    expect(testoDelModello({ clausole: [...CLAUSOLE_DI_PARTENZA] }).split("\n\n")).toHaveLength(CLAUSOLE_DI_PARTENZA.length);
+  });
+});
+
 describe("Quando il documento parte: si congela", () => {
   it("copia il testo del modello e segna da quale modello e versione", () => {
     const p = daCongelare({ ambito: "preventivo", modelli: [modello()] }, "2026-11-07T10:00:00.000Z");
@@ -62,7 +85,7 @@ describe("Quando il documento parte: si congela", () => {
   });
 
   it("senza niente da congelare non scrive niente", () => {
-    expect(daCongelare({ ambito: "computo", modelli: [] })).toBeNull();
+    expect(daCongelare({ ambito: "acquisto", modelli: [] })).toBeNull();
   });
 });
 

@@ -58,6 +58,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_people: false, can_edit_settings_people: false,
   can_view_settings_security: false,
   can_view_settings_pricing: false, can_edit_settings_pricing: false,
+  can_view_condizioni: false, can_manage_condizioni: false, can_riscrivere_condizioni: false,
   can_view_settings_scontistica: false, can_edit_settings_scontistica: false,
   can_view_settings_finanziamenti: false, can_edit_settings_finanziamenti: false,
   can_view_settings_bundle: false, can_edit_settings_bundle: false,
@@ -245,6 +246,8 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Anagrafica, logo, dati fiscali e portale clienti" },
   { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Listino, tariffe, modelli di preventivo e le tre voci sotto (Sconti, Finanziamenti, Kit e pacchetti). Per «Prezzo e margini» serve anche «Costi»." },
+  { label: "Contratti e condizioni", viewKey: "can_view_condizioni", editKey: "can_manage_condizioni", description: "L'archivio delle clausole e dei modelli di contratto: preventivi, committente, subappalti, fornitori, contratti di lavoro" },
+  { label: "Riscrivere le condizioni su un documento", viewKey: "can_riscrivere_condizioni", editKey: null, description: "Cambiare le condizioni di un singolo preventivo o contratto, in fase di creazione, senza toccare il modello dell'azienda" },
   { label: "Modelli preventivi e contratti · Sconti", viewKey: "can_view_settings_scontistica",    editKey: null, description: "Solo fasce sconto e limiti dei venditori, senza toccare il listino. Chi lo vede può anche modificarli." },
   { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
   { label: "Listino · Kit e pacchetti", viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo kit e pacchetti chiavi in mano" },

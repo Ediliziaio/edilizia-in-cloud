@@ -388,6 +388,7 @@ const SettingsSilvioCommesse = lazy(() => import("@/pages/azienda/impostazioni/S
 // Preferenze canale notifiche personali (parte del bulk scheduler)
 const SettingsNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
 const SettingsCondizioniFirma = lazy(() => import("@/pages/azienda/impostazioni/SettingsCondizioniFirma"));
+const SettingsCondizioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsCondizioni"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -1338,6 +1339,7 @@ export default function CompanyRoutesContainer() {
           <Route path="scontistica" element={withCompanyPermission("canViewSettingsScontistica", <SettingsScontistica />)} />
           <Route path="approvazioni" element={withCompanyPermission("canViewCosts", <SettingsApprovazioni />)} />
           {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
+          <Route path="contratti-e-condizioni" element={withCompanyPermission("canViewCondizioni", <SettingsCondizioni />)} />
           <Route path="condizioni-firma" element={withCompanyPermission("canViewSettingsPricing", <SettingsCondizioniFirma />)} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
           <Route path="cartelle-documenti" element={withCompanyPermission("canViewSettingsOrders", <SettingsCartelleDocumenti />)} />

@@ -64,6 +64,10 @@ export interface Permissions {
   // Granular settings: Listino & Prezzi / Fornitori / Integrazioni & Canali
   canViewSettingsPricing: boolean;
   canEditSettingsPricing: boolean;
+  // Contratti e condizioni (07/11/2026): l'archivio delle clausole e dei modelli.
+  canViewCondizioni: boolean;
+  canManageCondizioni: boolean;
+  canRiscrivereCondizioni: boolean;
   // Granularità Listino & Prezzi: toggle dedicati; pricing pieno = master.
   canViewSettingsScontistica: boolean;
   canEditSettingsScontistica: boolean;
@@ -196,6 +200,9 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_settings_security",
   "can_view_settings_pricing",
   "can_edit_settings_pricing",
+  "can_view_condizioni",
+  "can_manage_condizioni",
+  "can_riscrivere_condizioni",
   "can_view_settings_scontistica",
   "can_edit_settings_scontistica",
   "can_view_settings_finanziamenti",
@@ -285,6 +292,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewSettingsPeople: true, canEditSettingsPeople: true,
   canViewSettingsSecurity: true,
   canViewSettingsPricing: true, canEditSettingsPricing: true,
+  canViewCondizioni: true, canManageCondizioni: true, canRiscrivereCondizioni: true,
   canViewSettingsScontistica: true, canEditSettingsScontistica: true,
   canViewSettingsFinanziamenti: true, canEditSettingsFinanziamenti: true,
   canViewSettingsBundle: true, canEditSettingsBundle: true,
@@ -338,6 +346,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewSettingsPeople: false, canEditSettingsPeople: false,
   canViewSettingsSecurity: false,
   canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewCondizioni: false, canManageCondizioni: false, canRiscrivereCondizioni: false,
   canViewSettingsScontistica: false, canEditSettingsScontistica: false,
   canViewSettingsFinanziamenti: false, canEditSettingsFinanziamenti: false,
   canViewSettingsBundle: false, canEditSettingsBundle: false,
@@ -460,6 +469,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsSecurity: false,
   // Commercialista esterno: nessun accesso alla configurazione azienda
   canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewCondizioni: false, canManageCondizioni: false, canRiscrivereCondizioni: false,
   canViewSettingsScontistica: false, canEditSettingsScontistica: false,
   canViewSettingsFinanziamenti: false, canEditSettingsFinanziamenti: false,
   canViewSettingsBundle: false, canEditSettingsBundle: false,
@@ -511,6 +521,11 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSettingsSecurity:      g("can_view_settings_security"),
     canViewSettingsPricing:       g("can_view_settings_pricing"),
     canEditSettingsPricing:       g("can_edit_settings_pricing"),
+    // Contratti e condizioni: chi gestisce Listino & Prezzi li ha già, senza
+    // dover riaprire i permessi a mano alle aziende che ci sono già.
+    canViewCondizioni:            g("can_view_condizioni") || g("can_view_settings_pricing"),
+    canManageCondizioni:          g("can_manage_condizioni") || g("can_edit_settings_pricing"),
+    canRiscrivereCondizioni:      g("can_riscrivere_condizioni") || g("can_edit_settings_pricing"),
     // Granularità Listino & Prezzi (13/7/2026): il toggle dedicato apre la
     // singola pagina; "Listino & Prezzi" pieno resta il master che apre tutto.
     canViewSettingsScontistica:   g("can_view_settings_scontistica") || g("can_view_settings_pricing"),

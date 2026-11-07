@@ -33,6 +33,18 @@ export const NOMI_AMBITI: Record<AmbitoCondizioni, string> = {
   lavoro: "Contratti di lavoro",
 };
 
+/** Dove finiscono davvero, queste condizioni: detto come lo direbbe un titolare. */
+export const DOVE_SI_USA: Record<AmbitoCondizioni, string> = {
+  preventivo: "In fondo a ogni preventivo e computo che mandi al cliente",
+  appalto: "Nel contratto d'appalto che il committente firma",
+  commessa: "Nei lavori extra e nelle varianti che il cliente approva a lavori aperti",
+  subappalto: "Nel contratto che fai firmare al subappaltatore",
+  acquisto: "Negli ordini e nelle richieste d'offerta ai fornitori",
+  fattura: "In fondo alla fattura, sotto i totali",
+  manutenzione: "Nei contratti di manutenzione e di assistenza",
+  lavoro: "Nelle lettere di assunzione e nei contratti del personale",
+};
+
 /** A chi va il documento: serve a raggruppare gli ambiti nella schermata. */
 export const CONTROPARTE: Record<AmbitoCondizioni, "cliente" | "fornitore" | "subappaltatore" | "dipendente"> = {
   preventivo: "cliente", appalto: "cliente", commessa: "cliente", fattura: "cliente", manutenzione: "cliente",
@@ -94,6 +106,20 @@ export function testoDelModello(modello: Pick<ModelloCondizioni, "clausole"> | n
     .filter(haParole)
     .join("\n\n");
 }
+
+/**
+ * Le clausole da cui parte chi non ha ancora niente: testi generici, da rileggere e adattare.
+ * Non sono un parere legale: servono a non far trovare al titolare un foglio bianco.
+ */
+export const CLAUSOLE_DI_PARTENZA: ReadonlyArray<Clausola & { categoria: string }> = [
+  { categoria: "Pagamenti", titolo: "Modalità di pagamento", testo: "Il corrispettivo è dovuto secondo le scadenze indicate nel documento. In mancanza di diversa indicazione: 30% alla firma, 40% all'inizio dei lavori, saldo alla consegna." },
+  { categoria: "Pagamenti", titolo: "Ritardato pagamento", testo: "Sui pagamenti non effettuati alla scadenza decorrono gli interessi di mora di legge (d.lgs. 231/2002). L'impresa può sospendere i lavori dopo quindici giorni dal sollecito scritto.", vessatoria: true },
+  { categoria: "Lavori", titolo: "Tempi di esecuzione", testo: "I tempi indicati decorrono dalla consegna dell'area di lavoro e si intendono salvo cause non imputabili all'impresa: condizioni meteo avverse, ritardi di forniture, varianti richieste dal committente, permessi non rilasciati." },
+  { categoria: "Lavori", titolo: "Varianti e lavori extra", testo: "Ogni lavorazione non prevista è oggetto di variante scritta, con prezzo e tempi concordati prima dell'esecuzione. I lavori extra eseguiti su richiesta verbale sono comunque dovuti se documentati." },
+  { categoria: "Garanzie", titolo: "Garanzia sulle opere", testo: "Le opere sono garantite nei termini di legge (artt. 1667 e 1669 c.c.). La garanzia non copre danni da uso improprio, mancata manutenzione o interventi di terzi." },
+  { categoria: "Consegna", titolo: "Consegna e collaudo", testo: "A fine lavori si redige il verbale di consegna. Trascorsi quindici giorni senza contestazioni scritte, l'opera si intende accettata." },
+  { categoria: "Legale", titolo: "Foro competente", testo: "Per ogni controversia è competente il foro del luogo in cui ha sede l'impresa, salvo il foro del consumatore quando il committente è un privato.", vessatoria: true },
+];
 
 export interface CondizioniRisolte {
   testo: string;
