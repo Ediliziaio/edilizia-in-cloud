@@ -19,6 +19,7 @@ import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo"
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
+import { ChiFaCosaRiquadro } from "@/components/settings/ChiFaCosaRiquadro";
 import { ModuliCantiereConfig, type StatoModulo } from "@/components/settings/ModuliCantiereConfig";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
@@ -40,6 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 const SEZIONI = [
+  { id: "chi-fa-cosa", etichetta: "Chi fa cosa" },
   { id: "chi-scrive", etichetta: "Chi compila" },
   { id: "ore", etichetta: "Ore e presenze" },
   { id: "avviso", etichetta: "Controllo ore" },
@@ -244,6 +246,18 @@ export default function RegoleCampoConfig() {
         )}
       </div>
       </div>
+
+      {/* In cima: prima di scegliere, il titolare vede chi fa cosa con le regole che ha davanti (anche non salvate). */}
+      <ChiFaCosaRiquadro
+        regole={regole}
+        modificato={modificato}
+        evidenziata={evidenziata === "chi-fa-cosa"}
+        linkVisibili={{
+          capo: isAdmin || permissions.canViewOrders,
+          ufficio: isAdmin || permissions.canViewOrders,
+          giornale: isAdmin || permissions.canViewGiornaleLavori,
+        }}
+      />
 
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-testid="regole-campo-colonne">
         <fieldset disabled={bloccato} className="m-0 min-w-0 space-y-4 border-0 p-0">

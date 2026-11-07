@@ -3,6 +3,12 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { leggiAziendaDocumento } from "../_shared/aziendaDocumento.ts";
+import { BUCKET_FOTO_GIORNALE, indirizziFotoGiornale } from "../_shared/fotoGiornale.ts";
+
+/** Le foto del giornale stanno nel bucket privato foto-cantiere: link firmati validi un giorno, per stampare con calma. */
+const SCADENZA_FOTO_SECONDI = 24 * 60 * 60;
+/** Oltre, il documento diventa un album: il giornale le conta e ne mostra le prime. */
+const MAX_FOTO_PER_GIORNATA = 12;
 
 function escHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -29,7 +35,9 @@ interface GiornaleEntry {
   temperatura: string | null;
   firmato_da: string | null;
   firmato_il: string | null;
-  giornale_foto: { id: string; url: string }[];
+  giornale_foto: { id: string; url: string; storage_path?: string | null }[];
+  /** Indirizzi firmati, nello stesso ordine di giornale_foto ("" = non leggibile, si salta). */
+  foto_link?: string[];
 }
 
 interface Order {
@@ -116,6 +124,20 @@ function buildGiornaleHtml(
           </div>`
               : ""
           }
+
+          <!-- Foto -->
+          ${(() => {
+            const link = (e.foto_link ?? []).filter(Boolean);
+            if (!link.length) return "";
+            const altre = link.length - MAX_FOTO_PER_GIORNATA;
+            return `<div style="margin-bottom:8px;">
+            <div style="font-size:8pt;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Foto (${link.length})</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              ${link.slice(0, MAX_FOTO_PER_GIORNATA).map((u) => `<img src="${escHtml(u).replace(/"/g, "&quot;")}" alt="Foto del cantiere" style="width:110px;height:110px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;" />`).join("")}
+              ${altre > 0 ? `<span style="font-size:8.5pt;color:#64748b;align-self:center;">+${altre} nel gestionale</span>` : ""}
+            </div>
+          </div>`;
+          })()}
 
           <!-- Firma -->
           ${
@@ -262,7 +284,7 @@ Deno.serve(async (req) => {
     // Fetch giornale entries
     let query = supabase
       .from("giornale_lavori")
-      .select("id, data_lavori, condizioni_meteo, lavorazioni_eseguite, materiali_utilizzati, personale_presente, note, avanzamento_percentuale, temperatura, firmato_da, firmato_il, giornale_foto(id, url)")
+      .select("id, data_lavori, condizioni_meteo, lavorazioni_eseguite, materiali_utilizzati, personale_presente, note, avanzamento_percentuale, temperatura, firmato_da, firmato_il, giornale_foto(id, url, storage_path)")
       .eq("company_id", company_id)
       .order("data_lavori", { ascending: false });
 
@@ -303,6 +325,16 @@ Deno.serve(async (req) => {
       ...e,
       giornale_foto: Array.isArray(e.giornale_foto) ? e.giornale_foto : [],
     }));
+
+    // Una sola firma per tutte le foto del documento (service role: l'accesso all'azienda è già verificato sopra).
+    const tutteLeFoto = safeEntries.flatMap((e) => e.giornale_foto);
+    const linkFoto = await indirizziFotoGiornale(tutteLeFoto, async (paths) => {
+      const { data, error } = await supabase.storage.from(BUCKET_FOTO_GIORNALE).createSignedUrls(paths, SCADENZA_FOTO_SECONDI);
+      if (error || !data) return paths.map((): null => null);
+      return paths.map((_, i) => data[i]?.signedUrl ?? null);
+    });
+    let k = 0;
+    for (const e of safeEntries) e.foto_link = e.giornale_foto.map(() => linkFoto[k++] ?? "");
 
     // Branding dinamico
     const branding = await getBrandingForCompany(supabase, company_id);

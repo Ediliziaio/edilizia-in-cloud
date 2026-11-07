@@ -29,6 +29,13 @@ import { format } from "date-fns";
 import { GiornaleCard } from "@/components/orders/GiornaleCard";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import { useFotoGiornaleFirmate } from "@/hooks/useFotoGiornaleFirmate";
+import {
+  BUCKET_FOTO_GIORNALE, percorsoFotoGiornale, urlSalvatoFotoGiornale,
+} from "../../../supabase/functions/_shared/fotoGiornale";
+import {
+  MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, avvisoCaricamento, postiLiberi, preparaFoto, type FotoPronta,
+} from "@/lib/campo/preparaFoto";
 
 const METEO_OPTIONS = [
   { value: "soleggiato", label: "Soleggiato", icon: Sun, color: "text-yellow-500" },
@@ -38,9 +45,16 @@ const METEO_OPTIONS = [
   { value: "vento forte", label: "Vento", icon: Wind, color: "text-teal-500" },
 ];
 
-interface FotoPreview {
-  file: File;
+/** Una foto già compressa, in attesa del salvataggio del report. */
+interface FotoPreview extends FotoPronta {
   preview: string;
+}
+
+/** Una foto già salvata sul report che si sta correggendo. */
+interface FotoSalvata {
+  id: string;
+  url: string | null;
+  storage_path: string | null;
 }
 
 /** Quel che serve per riaprire un report salvato: `giornale_lavori` ha più
@@ -83,7 +97,9 @@ export default function GiornaleLavori() {
   const [hasFirma, setHasFirma] = useState(false);
   const [visibileCliente, setVisibileCliente] = useState(true);
   const [fotoPreview, setFotoPreview] = useState<FotoPreview[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fotoProgresso, setFotoProgresso] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleriaInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -126,7 +142,7 @@ export default function GiornaleLavori() {
     queryFn: async () => {
       let q = supabase
         .from("giornale_lavori")
-        .select("*, giornale_foto(id, url)")
+        .select("*, giornale_foto(id, url, storage_path)")
         .eq("company_id", companyId!)
         .order("data_lavori", { ascending: false })
         .limit(200);
@@ -137,6 +153,25 @@ export default function GiornaleLavori() {
     },
     enabled: !!companyId,
   });
+
+  // Le foto già salvate del report in correzione: si vedono e, con il permesso di modifica, si tolgono.
+  const editingId: string | undefined = editingEntry?.id;
+  const { data: fotoSalvate = [] } = useQuery({
+    queryKey: ["giornale-foto-salvate", editingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("giornale_foto")
+        .select("id, url, storage_path")
+        .eq("giornale_id", editingId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as FotoSalvata[];
+    },
+    enabled: !!editingId && sheetOpen,
+  });
+
+  const fotoSalvateLink = useFotoGiornaleFirmate(fotoSalvate);
+  const fotoAlCompleto = postiLiberi(fotoSalvate.length + fotoPreview.length) === 0;
 
   const resetForm = () => {
     setFormData({
@@ -253,14 +288,27 @@ export default function GiornaleLavori() {
     setHasFirma(false);
   };
 
-  // Handle foto selection
-  const handleFotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Stessa preparazione del rapportino di campo: compressione in sequenza, limiti chiari, nome file sicuro.
+  const handleFotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const previews: FotoPreview[] = files.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-    setFotoPreview((prev) => [...prev, ...previews]);
+    // Azzerato subito: riscegliere la stessa foto deve funzionare.
+    e.target.value = "";
+    if (!files.length) return;
+    const giaPresenti = fotoSalvate.length + fotoPreview.length;
+    if (postiLiberi(giaPresenti) === 0) {
+      toast.error(`Questo report ha già ${MAX_FOTO_PER_RAPPORTINO} foto: togline una per aggiungerne altre.`);
+      return;
+    }
+    try {
+      const esito = await preparaFoto(files, {
+        giaPresenti,
+        onProgresso: (i, n) => setFotoProgresso(`Preparo le foto ${i} di ${n}…`),
+      });
+      setFotoPreview((prev) => [...prev, ...esito.pronte.map((f) => ({ ...f, preview: URL.createObjectURL(f.blob) }))]);
+      avvisiPreparazione(esito).forEach((a) => toast.error(a));
+    } finally {
+      setFotoProgresso(null);
+    }
   };
 
   const removeFoto = (index: number) => {
@@ -269,6 +317,22 @@ export default function GiornaleLavori() {
       return prev.filter((_, i) => i !== index);
     });
   };
+
+  /** Toglie una foto già salvata: prima il file, poi la riga (un file orfano è meglio di una riga che punta al vuoto). */
+  const eliminaFotoSalvata = useMutation({
+    mutationFn: async (foto: FotoSalvata) => {
+      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
+      if (foto.storage_path) await supabase.storage.from(BUCKET_FOTO_GIORNALE).remove([foto.storage_path]);
+      const { error } = await supabase.from("giornale_foto").delete().eq("id", foto.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Foto tolta dal report");
+      queryClient.invalidateQueries({ queryKey: ["giornale-foto-salvate", editingId] });
+      queryClient.invalidateQueries({ queryKey: ["giornale-lavori", companyId, selectedOrderId] });
+    },
+    onError: (err: Error) => toast.error("Impossibile togliere la foto", { description: err.message }),
+  });
 
   // Save mutation
   const saveEntry = useMutation({
@@ -341,28 +405,46 @@ export default function GiornaleLavori() {
         entry = data;
       }
 
-      // Upload photos
-      for (const foto of fotoPreview) {
-        const fileName = `${companyId}/${entry.id}/${Date.now()}_${foto.file.name}`;
+      // Upload delle foto: si contano quelle arrivate davvero (file + riga), per dirlo a chi salva.
+      let caricate = 0;
+      const caricateIdx: number[] = [];
+      for (const [i, foto] of fotoPreview.entries()) {
+        setFotoProgresso(`Carico le foto ${i + 1} di ${fotoPreview.length}…`);
+        // Bucket privato delle foto di cantiere: azienda/commessa sono le cartelle che la policy controlla.
+        const fileName = percorsoFotoGiornale(companyId!, selectedOrderId, foto.nomeFile);
         const { error: uploadError } = await supabase.storage
-          .from("giornale-foto")
-          .upload(fileName, foto.file);
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from("giornale-foto")
-            .getPublicUrl(fileName);
-
-          await supabase.from("giornale_foto").insert({
-            giornale_id: entry.id,
-            company_id: companyId,
-            storage_path: fileName,
-            url: urlData.publicUrl,
-            latitude: lat,
-            longitude: lng,
-          });
+          .from(BUCKET_FOTO_GIORNALE)
+          .upload(fileName, foto.blob, { contentType: foto.contentType, upsert: false });
+        if (uploadError) { console.error("[GiornaleLavori] upload foto:", uploadError); continue; }
+        const { error: rigaError } = await supabase.from("giornale_foto").insert({
+          giornale_id: entry.id,
+          company_id: companyId,
+          storage_path: fileName,
+          // Percorso nudo, non un URL: il bucket è privato e si legge solo con link firmati.
+          url: urlSalvatoFotoGiornale(fileName),
+          latitude: lat,
+          longitude: lng,
+        });
+        if (rigaError) {
+          console.error("[GiornaleLavori] riga foto:", rigaError);
+          await supabase.storage.from(BUCKET_FOTO_GIORNALE).remove([fileName]);
+          continue;
         }
+        caricate++;
+        caricateIdx.push(i);
       }
+      setFotoProgresso(null);
+      // Le foto arrivate escono dall'elenco «da caricare»: il pannello resta aperto e un secondo salvataggio le duplicherebbe.
+      if (caricateIdx.length) {
+        setFotoPreview((prev) => prev.filter((f, i) => {
+          if (!caricateIdx.includes(i)) return true;
+          URL.revokeObjectURL(f.preview);
+          return false;
+        }));
+      }
+      const avvisoFoto = avvisoCaricamento(caricate, fotoPreview.length);
+      if (avvisoFoto) toast.error(avvisoFoto);
+      queryClient.invalidateQueries({ queryKey: ["giornale-foto-salvate", entry.id] });
 
       return entry;
     },
@@ -402,7 +484,7 @@ export default function GiornaleLavori() {
         .map((f: { storage_path: string | null }) => f.storage_path)
         .filter((p): p is string => !!p);
       if (percorsi.length > 0) {
-        await supabase.storage.from("giornale-foto").remove(percorsi);
+        await supabase.storage.from(BUCKET_FOTO_GIORNALE).remove(percorsi);
       }
       await supabase.from("giornale_foto").delete().eq("giornale_id", entry.id);
 
@@ -726,25 +808,53 @@ export default function GiornaleLavori() {
               )}
             </div>
 
-            {/* Foto */}
+            {/* Foto: fotocamera e galleria separate. Un input con capture E multiple, sul telefono, apre solo la fotocamera. */}
             <div className="space-y-2">
               <Label>Foto cantiere</Label>
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
-                multiple
+                aria-label="Scatta una foto"
                 className="hidden"
                 onChange={handleFotoSelect}
               />
-              {fotoPreview.length > 0 && (
+              <input
+                ref={galleriaInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                aria-label="Scegli foto dalla galleria"
+                className="hidden"
+                onChange={handleFotoSelect}
+              />
+              {(fotoSalvate.length > 0 || fotoPreview.length > 0) && (
                 <div className="grid grid-cols-3 gap-2">
+                  {fotoSalvate.map((foto, i) => (
+                    <div key={foto.id} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                      {fotoSalvateLink[i]
+                        ? <img loading="lazy" src={fotoSalvateLink[i]} alt={`Foto salvata ${i + 1}`} className="w-full h-full object-cover" />
+                        : <div className="flex h-full items-center justify-center"><Camera className="h-5 w-5 text-muted-foreground" aria-label={`Foto salvata ${i + 1} non disponibile`} /></div>}
+                      {canEditGiornale && (
+                        <button
+                          type="button"
+                          aria-label={`Togli la foto salvata ${i + 1}`}
+                          disabled={eliminaFotoSalvata.isPending}
+                          onClick={() => eliminaFotoSalvata.mutate(foto)}
+                          className="tap-compact absolute top-1 right-1 bg-black/60 rounded-full p-1.5 disabled:opacity-50"
+                        >
+                          <X className="h-3 w-3 text-white" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                   {fotoPreview.map((foto, i) => (
-                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
-                      <img loading="lazy" src={foto.preview} alt="" className="w-full h-full object-cover" />
+                    <div key={foto.preview} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                      <img loading="lazy" src={foto.preview} alt={`Foto da caricare ${i + 1}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
+                        aria-label={`Togli la foto ${i + 1}`}
                         onClick={() => removeFoto(i)}
                         className="tap-compact absolute top-1 right-1 bg-black/60 rounded-full p-1.5"
                       >
@@ -754,15 +864,32 @@ export default function GiornaleLavori() {
                   ))}
                 </div>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Camera className="h-4 w-4 mr-2" />
-                {fotoPreview.length > 0 ? "Aggiungi altre foto" : "Scatta / Allega foto"}
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!!fotoProgresso || fotoAlCompleto}
+                  onClick={() => cameraInputRef.current?.click()}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  {fotoSalvate.length + fotoPreview.length > 0 ? "Scatta un'altra" : "Scatta foto"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!!fotoProgresso || fotoAlCompleto}
+                  onClick={() => galleriaInputRef.current?.click()}
+                >
+                  {fotoProgresso ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Dalla galleria
+                </Button>
+              </div>
+              <p role="status" className="text-xs text-muted-foreground">
+                {fotoProgresso
+                  ?? (fotoAlCompleto
+                    ? `${MAX_FOTO_PER_RAPPORTINO} foto: è il massimo per un report.`
+                    : `${fotoSalvate.length + fotoPreview.length} di ${MAX_FOTO_PER_RAPPORTINO} foto${fotoPreview.length > 0 ? ` · ${fotoPreview.length} da caricare al salvataggio` : ""}.`)}
+              </p>
             </div>
 
             {/* Firma */}
@@ -828,7 +955,7 @@ export default function GiornaleLavori() {
                 className="w-full"
                 size="lg"
                 onClick={() => saveEntry.mutate()}
-                disabled={saveEntry.isPending || !formData.lavorazioni_eseguite.trim() || !selectedOrderId}
+                disabled={saveEntry.isPending || !!fotoProgresso || !formData.lavorazioni_eseguite.trim() || !selectedOrderId}
               >
                 {saveEntry.isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio in corso...</>

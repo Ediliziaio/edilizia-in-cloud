@@ -48,6 +48,7 @@ describe("Rapportini e presenze: i riquadri", () => {
     apri();
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Chi fa cosa",
       "Chi scrive il rapportino del cantiere?",
       "Da dove vengono le ore di ognuno?",
       "Avviso se le ore non tornano",
@@ -66,6 +67,16 @@ describe("Rapportini e presenze: i riquadri", () => {
     expect(righe[3]).toHaveTextContent("oggi o il giorno dopo");
     expect(righe[4]).toHaveTextContent("il giornaliero personale non le ripropone");
     expect(righe[5]).toHaveTextContent("L’approvazione resta all’ufficio");
+  });
+
+  it("«Chi fa cosa» segue le scelte della pagina, anche prima di salvarle", () => {
+    state.modifica = true;
+    apri();
+    const riquadro = screen.getByTestId("chi-fa-cosa");
+    expect(within(riquadro).getByRole("group", { name: "Operaio" })).toHaveTextContent("Scrive il suo rapportino");
+    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    expect(within(riquadro).getByRole("group", { name: "Operaio" })).toHaveTextContent("Timbra entrata e uscita");
+    expect(screen.getByText("Con le scelte non ancora salvate: diventa vero quando salvi.")).toBeInTheDocument();
   });
 
   it("i gruppi di scelte hanno un nome per chi usa il lettore di schermo", () => {

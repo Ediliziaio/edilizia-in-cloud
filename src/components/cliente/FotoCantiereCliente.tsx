@@ -22,10 +22,13 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Camera, ImageOff } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+// Il cliente esterno non legge foto-cantiere: si saltano le foto senza un indirizzo leggibile (vedi il modulo).
+import { fotoLeggibileDalCliente } from "@/lib/campo/fotoGiornaleCliente";
 
 interface FotoRiga {
   id: string;
   url: string;
+  storage_path?: string | null;
   caption: string | null;
 }
 
@@ -57,14 +60,14 @@ export function FotoCantiereCliente({ orderId }: { orderId: string }) {
       // join): richiesta girata all'altra traccia.
       const { data, error } = await supabase
         .from("giornale_lavori")
-        .select("id, data_lavori, lavorazioni_eseguite, avanzamento_percentuale, visibile_cliente, giornale_foto(id, url, caption)")
+        .select("id, data_lavori, lavorazioni_eseguite, avanzamento_percentuale, visibile_cliente, giornale_foto(id, url, storage_path, caption)")
         .eq("order_id", orderId)
         .eq("visibile_cliente", true)
         .order("data_lavori", { ascending: false })
         .limit(60);
       if (error) throw error;
       return ((data ?? []) as unknown as Array<GiornataConFoto & { giornale_foto: FotoRiga[] }>)
-        .map((r) => ({ ...r, foto: r.giornale_foto ?? [] }))
+        .map((r) => ({ ...r, foto: (r.giornale_foto ?? []).filter(fotoLeggibileDalCliente) }))
         .filter((r) => r.foto.length > 0);
     },
   });

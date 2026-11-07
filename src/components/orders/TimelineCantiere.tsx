@@ -13,6 +13,8 @@ import { EmptyRow } from "./EmptyRow";
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/formatters';
+import { useFileRiservati } from '@/hooks/useFileRiservati';
+import { comeLeggereFotoGiornale, urlSalvatoFotoGiornale } from '../../../supabase/functions/_shared/fotoGiornale';
 
 interface TimelineCantiereProp {
   orderId: string;
@@ -65,6 +67,10 @@ function safeParseDate(dateStr: string): Date | null {
 /** Una riga della cronologia: icona piccola, titolo e data sulla stessa riga. */
 function RigaEvento({ ev }: { ev: TimelineEvent }) {
   const [photoExpanded, setPhotoExpanded] = useState(false);
+  // Le foto stanno in bucket privati: si mostrano solo quelle con un link firmato. Chi non le può leggere
+  // (il cliente esterno su foto-cantiere) non vede riquadri rotti, e nemmeno il conto.
+  const linkFoto = useFileRiservati(ev.photos);
+  const fotoVisibili = useMemo(() => linkFoto.filter(Boolean), [linkFoto]);
   const { Icon, color } = typeConfig[ev.type];
   const parsedDate = safeParseDate(ev.date);
 
@@ -126,7 +132,7 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
         )}
 
         {/* Foto miniature */}
-        {ev.photos && ev.photos.length > 0 && (
+        {fotoVisibili.length > 0 && (
           <div className="mt-2">
             <button
               type="button"
@@ -135,12 +141,12 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
               className="mb-2 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               <Camera className="h-3 w-3" />
-              {ev.photos.length} foto
+              {fotoVisibili.length} foto
               {photoExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
             {photoExpanded && (
               <div className="flex flex-wrap gap-2">
-                {ev.photos.slice(0, 8).map((url, i) => (
+                {fotoVisibili.slice(0, 8).map((url, i) => (
                   <a
                     key={i}
                     href={url}
@@ -151,9 +157,9 @@ function RigaEvento({ ev }: { ev: TimelineEvent }) {
                     <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
                   </a>
                 ))}
-                {ev.photos.length > 8 && (
+                {fotoVisibili.length > 8 && (
                   <div className="flex h-16 w-16 items-center justify-center rounded-md border bg-muted text-xs text-muted-foreground">
-                    +{ev.photos.length - 8}
+                    +{fotoVisibili.length - 8}
                   </div>
                 )}
               </div>
@@ -192,7 +198,7 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
         .select(`
           id, data_lavori, lavorazioni_eseguite, avanzamento_percentuale,
           personale_presente, condizioni_meteo, visibile_cliente,
-          foto:giornale_foto(url)
+          foto:giornale_foto(url, storage_path)
         `)
         .eq('order_id', orderId)
         .order('data_lavori', { ascending: false });
@@ -286,7 +292,11 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       meteo: g.condizioni_meteo ?? undefined,
       // Estrae URL in modo sicuro anche se foto non è array
       photos: Array.isArray((g as any).foto)
-        ? ((g as any).foto as any[]).map((f: any) => f?.url).filter(Boolean)
+        // Foto del giornale: percorso nudo in foto-cantiere (si firma sotto), o l'indirizzo http delle righe vecchie.
+        ? ((g as any).foto as any[]).map((f: any) => {
+            const modo = f ? comeLeggereFotoGiornale(f) : null;
+            return !modo ? '' : modo.tipo === 'diretto' ? modo.url : urlSalvatoFotoGiornale(modo.path);
+          }).filter(Boolean)
         : [],
     })),
     ...sal.map(s => ({

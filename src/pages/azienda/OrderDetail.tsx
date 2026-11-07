@@ -1255,7 +1255,7 @@ function OrderDetailInner() {
       // (PGRST200) e `profiles(…)` senza hint con DUE FK verso profiles
       // (user_id e assigned_by → PGRST201 "more than one relationship").
       supabase.from("order_campo_assignments").select("*, user:profiles!order_campo_assignments_user_id_fkey(first_name, last_name)").eq("order_id", id!),
-      supabase.from("giornale_lavori").select("*, giornale_foto(id, url, caption)").eq("order_id", id!).order("data_lavori", { ascending: false }),
+      supabase.from("giornale_lavori").select("*, giornale_foto(id, url, storage_path, caption)").eq("order_id", id!).order("data_lavori", { ascending: false }),
       supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
       supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
       supabase.from("order_events").select("id, event_type, payload, actor_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),

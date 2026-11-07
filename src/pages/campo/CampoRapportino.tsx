@@ -46,7 +46,8 @@ import { loadRapportinoDeliveredStock } from "@/lib/campo/loadRapportinoDelivere
 import { costruisciFasiLavorate, faseDiAppartenenza } from "@/lib/campo/rapportinoFasi";
 import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
-import { compressImage } from "@/lib/campo/compressImage";
+import { cn } from "@/lib/utils";
+import { MAX_FOTO_PER_RAPPORTINO, avvisiPreparazione, avvisoCaricamento, postiLiberi, preparaFoto } from "@/lib/campo/preparaFoto";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
@@ -133,6 +134,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   // Foto → fase, solo se l'operaio l'ha scelta (con più fasi). Con una fase sola si collega da sé al salvataggio.
   const [fotoFase, setFotoFase] = useState<Record<string, string>>({});
   const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [fotoProgresso, setFotoProgresso] = useState<string | null>(null);
 
   // Step 3
 
@@ -582,6 +584,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
   const idsFasiDichiarate = Object.keys(fasiDichiarate);
   // Quello che non appartiene a nessuna fase (con più fasi e nessuna scelta, o senza fasi).
   const materialiGenerali = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === null);
+  const fotoAlCompleto = postiLiberi(fotoUrls.length) === 0;
   const fotoGenerali = fotoUrls.filter(u => faseDiAppartenenza(fotoFase[u], idsFasiDichiarate) === null).length;
 
   // ── Articoli/materiali della commessa (order_items) ─────────────────
@@ -670,64 +673,59 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
 
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
+    // Azzerato subito: senza, riscegliere la stessa foto (o riscattare dopo un errore) non fa scattare onChange.
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length) return;
     if (!giornoOk()) { toast.error(msgScadenza); return; }
     if (!profile?.company_id || !orderId) {
       toast.error("Sessione non pronta, riprova");
       return;
     }
-    const files = Array.from(e.target.files).slice(0, 5);
+    if (postiLiberi(fotoUrls.length) === 0) {
+      toast.error(`Hai già ${MAX_FOTO_PER_RAPPORTINO} foto: togline una per aggiungerne altre.`);
+      return;
+    }
     setUploadingFoto(true);
 
     const previews: string[] = [];
     const urls: string[] = [];
-    let failed = 0;
-    let troppoGrandi = 0;
-
-    for (const file of files) {
-      // Limite dimensione: una foto da 30MB su 4G tiene bloccato il wizard
-      // per minuti (e lo storage non la vuole comunque).
-      if (file.size > 10 * 1024 * 1024) {
-        troppoGrandi++;
-        continue;
+    try {
+      // In sequenza, una alla volta: con 15 foto su un telefono economico la memoria non basta per tutte insieme.
+      const esito = await preparaFoto(files, {
+        giaPresenti: fotoUrls.length,
+        onProgresso: (i, n) => setFotoProgresso(`Preparo le foto ${i} di ${n}…`),
+      });
+      controllaGiorno();
+      for (let i = 0; i < esito.pronte.length; i++) {
+        const foto = esito.pronte[i];
+        setFotoProgresso(`Carico le foto ${i + 1} di ${esito.pronte.length}…`);
+        try {
+          const path = `${profile.company_id}/${orderId}/${foto.nomeFile}`;
+          const { data: up, error: upErr } = await supabase.storage
+            .from("campo-rapportini")
+            .upload(path, foto.blob, { contentType: foto.contentType, upsert: false });
+          if (upErr) throw upErr;
+          if (!up?.path) throw new Error("Upload senza path");
+          const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
+          urls.push(urlData.publicUrl);
+          // Anteprima dalla foto compressa: tenere in memoria l'originale da 12 MB per una miniatura non serve.
+          previews.push(URL.createObjectURL(foto.blob));
+        } catch (err) {
+          console.error("[CampoRapportino] upload foto:", err);
+        }
       }
-
-      try {
-        // Comprimi: se il browser fallisce qualsiasi step, carica il file originale
-        const compressed = await compressImage(file).catch((): null => null);
-        controllaGiorno();
-        const payload: Blob = compressed ?? file;
-
-        const path = `${profile.company_id}/${orderId}/${crypto.randomUUID()}.jpg`;
-        const { data: up, error: upErr } = await supabase.storage
-          .from("campo-rapportini")
-          .upload(path, payload, { contentType: "image/jpeg", upsert: false });
-
-        if (upErr) throw upErr;
-        if (!up?.path) throw new Error("Upload senza path");
-
-        const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
-        urls.push(urlData.publicUrl);
-        previews.push(URL.createObjectURL(file));
-      } catch (err) {
-        failed++;
-        console.error("[CampoRapportino] upload foto:", err);
-      }
-    }
-
-    setFotoPreviews(prev => [...prev, ...previews]);
-    setFotoUrls(prev => [...prev, ...urls]);
-    setUploadingFoto(false);
-
-    if (troppoGrandi > 0) {
-      toast.error(`${troppoGrandi} foto oltre i 10MB: scattale dall'app invece di allegarle dalla galleria in alta risoluzione`);
-    }
-    if (failed > 0) {
-      toast.error(
-        failed === files.length - troppoGrandi
-          ? "Impossibile caricare le foto — riprova"
-          : `Caricate ${urls.length}/${files.length} foto`,
-      );
+      avvisiPreparazione(esito).forEach((a) => toast.error(a));
+      const avviso = avvisoCaricamento(urls.length, esito.pronte.length);
+      if (avviso) toast.error(avviso);
+    } catch (err) {
+      // controllaGiorno può fermare tutto se nel frattempo la giornata non è più ammessa.
+      toast.error(err instanceof Error ? err.message : "Impossibile caricare le foto — riprova");
+    } finally {
+      setFotoPreviews(prev => [...prev, ...previews]);
+      setFotoUrls(prev => [...prev, ...urls]);
+      setUploadingFoto(false);
+      setFotoProgresso(null);
     }
   };
 
@@ -1669,12 +1667,17 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border bg-primary/5 px-3 text-sm font-semibold">
+                {/* Dopo il primo scatto il bottone resta lì, pieno: si scatta di fila senza perdere le foto già fatte. */}
+                <label className={cn(
+                  "flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold",
+                  fotoUrls.length > 0 ? "border-primary bg-primary text-primary-foreground" : "bg-primary/5",
+                  (uploadingFoto || fotoAlCompleto) && "cursor-not-allowed opacity-60",
+                )}>
                   <input type="file" aria-label="Scatta una foto" accept="image/*" capture="environment" className="sr-only"
-                    onChange={handleFotoChange} disabled={uploadingFoto || !dayAllowed || bloccatoDaEsistente} />
-                  <Camera className="h-5 w-5" aria-hidden="true" />Scatta foto
+                    onChange={handleFotoChange} disabled={uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente} />
+                  <Camera className="h-5 w-5" aria-hidden="true" />{fotoUrls.length > 0 ? "Scatta un'altra" : "Scatta foto"}
                 </label>
-              <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold">
+              <label className={cn("flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold", (uploadingFoto || fotoAlCompleto) && "cursor-not-allowed opacity-60")}>
                 <input
                   type="file"
                   aria-label="Scegli foto dalla galleria"
@@ -1682,7 +1685,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   multiple
                   className="sr-only"
                   onChange={handleFotoChange}
-                  disabled={uploadingFoto || !dayAllowed || bloccatoDaEsistente}
+                  disabled={uploadingFoto || fotoAlCompleto || !dayAllowed || bloccatoDaEsistente}
                 />
                 <div className="flex items-center gap-2">
                   {uploadingFoto ? (
@@ -1696,7 +1699,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                 </div>
               </label>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">{uploadingFoto ? "Caricamento in corso: attendi prima di inviare." : `${fotoUrls.length} foto aggiunte. Puoi scattarne altre o scegliere più foto dalla galleria.`}</p>
+              <p role="status" className="mt-2 text-xs text-muted-foreground">
+                {uploadingFoto
+                  ? `${fotoProgresso ?? "Caricamento in corso…"} Attendi prima di inviare.`
+                  : fotoAlCompleto
+                    ? `${fotoUrls.length} foto: è il massimo per un rapportino. Togline una per aggiungerne un'altra.`
+                    : `${fotoUrls.length} di ${MAX_FOTO_PER_RAPPORTINO} foto. Puoi scattarne altre o sceglierne più insieme dalla galleria.`}
+              </p>
               {fotoPreviews.length > 0 && (
                 <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
                   {fotoPreviews.map((p, i) => (

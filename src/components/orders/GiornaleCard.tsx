@@ -27,7 +27,7 @@ interface GiornaleEntry {
   longitude?: number;
   firma_capocantiere?: string;
   firmato_da?: string;
-  giornale_foto?: { id: string; url: string }[];
+  giornale_foto?: { id: string; url: string; storage_path?: string | null }[];
 }
 
 interface GiornaleCardProps {
