@@ -293,6 +293,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const standardApplicatoRef = useRef<ContractExtract | null>(null);
   const scegliModelloFasi = fasiDiPartenza.scegli;
   const [fasiPersonalizzate, setFasiPersonalizzate] = useState<FaseModello[] | null>(null);
+  // Le fasi del modello: per una commessa nuova, e per un preventivo da cui il server non ne ricava
+  // (soli materiali: senza, la commessa nascerebbe senza fasi). Finché il preventivo si legge, niente.
+  const fasiDalModello = !selectedQuoteId || quotePrefill?.fasiDalServer === false;
   const fasiDaCreare = useMemo(() => fasiPersonalizzate ?? (fasiDiPartenza.modello ? fasiPerCommessa(fasiDiPartenza.modello) : []), [fasiPersonalizzate, fasiDiPartenza.modello]);
   const [durataLavori, setDurataLavori] = useState("");
   const [settimanaLavorativa, setSettimanaLavorativa] = useState<SettimanaLavorativa>(5);
@@ -1248,7 +1251,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           logger.error("Salvataggio adempimenti contratto", error);
         }
       }
-      if (!selectedQuoteId && fasiDaCreare.length && result.id) {
+      if (fasiDalModello && fasiDaCreare.length && result.id) {
         const fasiConDate = fasiDaCreare.map((f, i) => ({ ...f, data_inizio: pianoFasi.righe[i]?.dal ?? null, data_fine: pianoFasi.righe[i]?.al ?? null }));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiErr = await salvaFasiDiPartenza(result.id, fasiConDate, (nome, args) => (supabase as any).rpc(nome, args));
@@ -1400,7 +1403,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       toast.error("Pagamenti da confermare", { description: "Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare." });
       return;
     }
-    if (!selectedQuoteId && fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
+    if (fasiDalModello && fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
       toast.error("Completa i nomi delle fasi", { description: "Dai un nome a ogni fase oppure rimuovi quelle che non servono." });
       return;
     }
@@ -1891,7 +1894,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             erroreFine={errors.work_end_date?.message}
           />
           {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
-          {!selectedQuoteId && <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          {fasiDalModello && <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); }} /></div>
             <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => setFasiPersonalizzate(null)} piano={pianoFasi} />
           </div>}

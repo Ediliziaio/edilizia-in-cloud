@@ -5,10 +5,13 @@
  * fotovoltaico o di nuova costruzione. I moduli attivi non lo dicono (li dà il
  * piano, e quasi tutte le aziende li hanno tutti): lo dice l'azienda
  * (company_fasi_settings.tipi_lavoro) e, finché non l'ha detto, il suo settore.
+ *
+ * Il profilo filtra solo i modelli STANDARD (quelli di EdiliziaInCloud non ancora
+ * importati, e cosa importa «Importa modelli standard»). I modelli che l'azienda ha
+ * già nella sua lista restano tutti: li ha tenuti lei (Innovasol, fotovoltaico, tiene
+ * «Impianti»; renova, ristrutturazioni, vende anche fotovoltaico) e li può cancellare.
  * Modulo puro: nessun React, nessun database.
  */
-import type { ModelloFasi } from "./modelliFasi";
-
 /** Gli stessi valori ammessi da fasi_impostazioni_salva (migrazione 20281223110000). */
 export const TIPI_LAVORO = [
   "serramenti", "bagno", "ristrutturazione", "nuova_costruzione", "fotovoltaico", "tetto",
@@ -85,34 +88,11 @@ export function tipoDelModelloDiPartenza(chiave: string): TipoLavoro | null {
   return TIPO_DEL_MODELLO_DI_PARTENZA[chiave] ?? null;
 }
 
-const norma = (s: string) => s.trim().toLocaleLowerCase("it-IT");
-
 /** I modelli di partenza che fanno parte del profilo. Senza profilo, tutti. */
 export function modelliDiPartenzaDelProfilo<T extends { key: string }>(modelli: ReadonlyArray<T>, profilo: ProfiloLavori): T[] {
   if (!profilo.tipi.length) return [...modelli];
   return modelli.filter((m) => {
     const tipo = tipoDelModelloDiPartenza(m.key);
-    return !tipo || profilo.tipi.includes(tipo);
-  });
-}
-
-/**
- * I modelli da proporre: fuori quelli di un altro lavoro. Il tipo di un modello
- * dell'azienda si riconosce dal nome dello standard da cui è stato importato;
- * un modello con un nome suo l'ha fatto l'azienda, e resta sempre.
- */
-export function modelliDelProfilo(
-  modelli: ReadonlyArray<ModelloFasi>,
-  partenza: ReadonlyArray<{ key: string; label: string }>,
-  profilo: ProfiloLavori,
-  /** Il modello di partenza scelto in Impostazioni: l'ha scelto l'azienda, resta. */
-  sempre: string | null = null,
-): ModelloFasi[] {
-  if (!profilo.tipi.length) return [...modelli];
-  const tipoPerNome = new Map(partenza.map((t) => [norma(t.label), tipoDelModelloDiPartenza(t.key)]));
-  return modelli.filter((m) => {
-    if (m.id === sempre) return true;
-    const tipo = tipoPerNome.get(norma(m.nome)) ?? null;
     return !tipo || profilo.tipi.includes(tipo);
   });
 }

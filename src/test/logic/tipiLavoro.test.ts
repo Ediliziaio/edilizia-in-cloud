@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PHASE_TEMPLATES } from "@/hooks/useOrderWorkPhases";
 import { modelliDaOffrire, type ModelloFasi } from "@/lib/orders/modelliFasi";
-import { modelliDelProfilo, modelliDiPartenzaDelProfilo, profiloLavori, tipiDalDb, tipiDaSettore, TIPI_LAVORO } from "@/lib/orders/tipiLavoro";
+import { modelliDiPartenzaDelProfilo, profiloLavori, tipiDalDb, tipiDaSettore, TIPI_LAVORO } from "@/lib/orders/tipiLavoro";
 
 const nomi = (m: ModelloFasi[]) => m.map((x) => x.nome);
 
@@ -34,9 +34,10 @@ describe("modelli proposti", () => {
     const offerti = modelliDaOffrire(false, [], modelliDiPartenzaDelProfilo(PHASE_TEMPLATES, profilo));
     expect(nomi(offerti)).toEqual(["Serramenti / Infissi"]);
   });
-  it("tra i modelli dell'azienda toglie gli standard di altri lavori, tiene quelli fatti da lei", () => {
-    const suoi: ModelloFasi[] = ["Fotovoltaico", "Ristrutturazione bagno", "Bagno chiavi in mano"].map((nome, i) => ({ id: `m${i}`, origine: "azienda", nome, descrizione: "", fasi: [] }));
-    expect(nomi(modelliDelProfilo(suoi, PHASE_TEMPLATES, profiloLavori(["bagno"], null)))).toEqual(["Ristrutturazione bagno", "Bagno chiavi in mano"]);
+  it("i modelli che l'azienda ha già restano tutti, anche di altri lavori (simulazione 07/11 su Innovasol e renova)", () => {
+    const suoi: ModelloFasi[] = ["FOTOVOLTAICO", "Impianti", "IMPIANTO IDRICO-SANITARIO"].map((nome, i) => ({ id: `m${i}`, origine: "azienda", nome, descrizione: "", fasi: [] }));
+    const profilo = profiloLavori(null, "fotovoltaico");
+    expect(nomi(modelliDaOffrire(true, suoi, modelliDiPartenzaDelProfilo(PHASE_TEMPLATES, profilo)))).toEqual(["FOTOVOLTAICO", "Impianti", "IMPIANTO IDRICO-SANITARIO"]);
   });
   it("senza profilo non filtra niente", () => {
     expect(modelliDiPartenzaDelProfilo(PHASE_TEMPLATES, profiloLavori(null, "altro"))).toHaveLength(PHASE_TEMPLATES.length);

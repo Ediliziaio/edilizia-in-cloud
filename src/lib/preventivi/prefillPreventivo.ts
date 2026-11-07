@@ -61,6 +61,12 @@ export interface QuotePrefill {
   vatRate: number;
   version: number;
   workLines: Array<{ name: string; quantity: number; unit_of_measure?: string | null }>;
+  /**
+   * Il server (crea_commessa_preventivo_atomic) crea le fasi da solo: dai capitoli di un
+   * computo, o dalle voci di lavoro (posa, trasporto, ...). Se è false, un preventivo di
+   * soli materiali, la commessa nascerebbe senza fasi: le mette il modello scelto (07/11/2026).
+   */
+  fasiDalServer: boolean;
   quoteNumber: string | null;
   orderItems: OrderItem[];
   paymentMethod: string | null;
@@ -120,6 +126,7 @@ export function prefillDaPreventivo(quote: Record<string, unknown>, rows: Array<
     version: Number(q.version ?? 1),
     // Le righe di quote_items hanno almeno nome e quantità: le stesse che leggeva l'hook.
     workLines: separaVoci(rows).lavorazioni as unknown as QuotePrefill["workLines"],
+    fasiDalServer: String(q.source ?? "").startsWith("modulo:computo:") || separaVoci(rows).lavorazioni.length > 0,
     quoteNumber: quoteTyped.quote_number ?? null,
     orderItems,
     paymentMethod,

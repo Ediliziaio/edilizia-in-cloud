@@ -38,7 +38,7 @@ export default function TipiLavoroConfig({ puoModificare, evidenziata = false }:
     <SezioneImpostazione
       id="lavori"
       titolo="I lavori che facciamo"
-      descrizione="Quando apri una commessa ti proponiamo solo modelli e fasi di questi lavori. I modelli che hai fatto tu restano sempre."
+      descrizione="Quando apri una commessa ti proponiamo solo i modelli standard di questi lavori. I modelli già nella lista della tua azienda restano tutti."
       ambito={<AmbitoImpostazione>Commesse nuove</AmbitoImpostazione>}
       azione={<span>Si salva subito</span>}
       evidenziata={evidenziata}

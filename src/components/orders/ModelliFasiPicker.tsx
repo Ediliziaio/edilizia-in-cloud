@@ -6,11 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
-import { PHASE_TEMPLATES } from "@/hooks/useOrderWorkPhases";
 import { useProfiloLavori } from "@/hooks/useProfiloLavori";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
 import { fasiPerCommessa, modelliDaOffrire, totaleSottofasi, type FaseModello, type ModelloFasi } from "@/lib/orders/modelliFasi";
-import { modelliDelProfilo } from "@/lib/orders/tipiLavoro";
 
 interface ModelliFasiPickerProps {
   /** Aggiunge alla commessa le fasi (e sottofasi) del modello scelto. */
@@ -25,8 +23,8 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
   const { modelli, inizializzati, isLoading, isError, refetch } = useModelliFasi();
   const { canViewSettingsOrders } = usePermissions();
   // Solo i modelli dei lavori che l'azienda fa: chi fa serramenti non si vede proporre il fotovoltaico.
-  const { profilo, modelliStandard } = useProfiloLavori();
-  const elenco = modelliDelProfilo(modelliDaOffrire(inizializzati, modelli, modelliStandard), PHASE_TEMPLATES, profilo);
+  const { modelliStandard } = useProfiloLavori();
+  const elenco = modelliDaOffrire(inizializzati, modelli, modelliStandard);
   const [sceltoId, setSceltoId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const visible = elenco.filter(m => `${m.nome} ${m.descrizione ?? ""}`.toLocaleLowerCase("it-IT").includes(search.trim().toLocaleLowerCase("it-IT")));
