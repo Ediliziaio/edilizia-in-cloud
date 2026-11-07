@@ -327,12 +327,14 @@ export default function CompanyCostsManager({
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
+        // Conserva la scheda risolta prima di consumare il preset dei link storici.
+        if (next.get("tab") === "spese") next.set("tab", typeLock === "fixed" ? "spese-fisse" : "spese-variabili");
         next.delete("preset");
         return next;
       },
       { replace: true },
     );
-  }, [view, searchParams, setSearchParams]);
+  }, [view, searchParams, setSearchParams, typeLock]);
 
   // Data hook
   const data = useCompanyCostsData(companyId, {
@@ -771,7 +773,7 @@ export default function CompanyCostsManager({
             <NavyStatCard
               label="Totale"
               value={eur0(sommaVoci(vociTipo))}
-              sub={`${vociTipo.length} voci nel periodo`}
+              sub={`${vociTipo.length} voci nel periodo · senza IVA`}
               icon={WalletCards}
               tone="text-orange-100"
             />

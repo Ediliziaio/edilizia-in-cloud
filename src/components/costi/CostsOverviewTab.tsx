@@ -236,8 +236,8 @@ export function CostsOverviewTab({
   const vaiAlleSpeseSenzaScadenza = () => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("tab", "spese");
-      next.set("preset", "senza_scadenza");
+      next.set("tab", "spese-variabili");
+      next.set("preset", "unscheduled");
       return next;
     });
   };
