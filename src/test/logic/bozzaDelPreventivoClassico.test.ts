@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  RIGHE_MASSIME_BOZZA, campiNonDaBozza, leggiBozzaDelPreventivo, totaleRiga,
+  RIGHE_MASSIME_BOZZA, campiNonDaBozza, leggiBozzaDelPreventivo, totaleRiga, unisciBozza,
 } from "../../../supabase/functions/_shared/bozzaDelPreventivo";
 import { pdfDallaRisposta } from "@/components/quotes/PdfVeroPreventivoClassico";
 
@@ -46,6 +46,22 @@ describe("Cosa non si cambia dal browser", () => {
   it("la scadenza è quella che darebbe il salvataggio: adesso + giorni di validità", () => {
     const adesso = new Date("2026-11-07T10:00:00.000Z");
     expect(leggiBozzaDelPreventivo({ quote: { validity_days: 30 }, items: [] }, adesso)!.quote.expires_at).toBe("2026-12-07T10:00:00.000Z");
+  });
+});
+
+describe("La validità stampata è quella del PDF scaricato", () => {
+  // Visto il 07/11/2026 su Demo Azienda 2: anteprima «44 giorni», PDF scaricato «30».
+  const salvato = { id: "q1", company_id: "az", validity_days: 30, created_at: "2026-10-24T09:00:00.000Z", expires_at: "2026-11-23T09:00:00.000Z" };
+  const adesso = new Date("2026-11-07T10:00:00.000Z");
+
+  it("con gli stessi giorni la scadenza resta quella salvata", () => {
+    const b = leggiBozzaDelPreventivo({ quote: { validity_days: 30, title: "X" }, items: [] }, adesso)!;
+    expect(unisciBozza(salvato, b).expires_at).toBe("2026-11-23T09:00:00.000Z");
+  });
+
+  it("cambiati i giorni, la scadenza è quella che darebbe il salvataggio", () => {
+    const b = leggiBozzaDelPreventivo({ quote: { validity_days: 60 }, items: [] }, adesso)!;
+    expect(unisciBozza(salvato, b).expires_at).toBe("2027-01-06T10:00:00.000Z");
   });
 });
 

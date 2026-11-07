@@ -3987,7 +3987,9 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                 : "Bozza visiva: il documento vero è in «PDF vero»."}
             >
               {conPdfVero && bozzaPerIlPdf
-                ? <PdfVeroPreventivoClassico quoteId={isEdit ? id : null} bozza={bozzaPerIlPdf} attivo={colonnaAnteprimaVisibile} />
+                ? <PdfVeroPreventivoClassico quoteId={isEdit ? id : null} bozza={bozzaPerIlPdf}
+                    // Un preventivo salvato si stampa quando testata e righe sono arrivate: prima uscirebbe a metà.
+                    attivo={colonnaAnteprimaVisibile && (!isEdit || (!!existingQuote && existingItemsLoaded))} />
                 : <QuoteLivePreviewPanel {...livePreviewProps} />}
             </PannelloAnteprima>
           ) : <QuoteLivePreviewPanel {...livePreviewProps} />}

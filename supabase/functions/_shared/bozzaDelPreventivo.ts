@@ -56,3 +56,16 @@ export function leggiBozzaDelPreventivo(valore: unknown, adesso: Date = new Date
     .map((r, i) => ({ ...r, id: typeof r.id === "string" ? r.id : `bozza-${i + 1}`, sort_order: i, line_total: totaleRiga(r) }));
   return { quote, items };
 }
+
+/**
+ * Il preventivo da stampare: quello salvato, con sopra la bozza. Quello che non si cambia scrivendo resta del
+ * database; la scadenza resta quella salvata finché i giorni di validità sono gli stessi (il salvataggio la
+ * ricalcola solo se cambiano), altrimenti l'anteprima direbbe una validità diversa dal PDF scaricato.
+ */
+export function unisciBozza(dalDatabase: Riga, bozza: BozzaDelPreventivo): Riga {
+  const unito: Riga = { ...dalDatabase, ...bozza.quote, ...campiNonDaBozza(dalDatabase) };
+  const stessiGiorni = numero(bozza.quote.validity_days) === numero(dalDatabase.validity_days);
+  if (stessiGiorni && dalDatabase.expires_at) unito.expires_at = dalDatabase.expires_at;
+  return unito;
+}
+

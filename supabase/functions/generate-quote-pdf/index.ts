@@ -18,7 +18,7 @@ import { coloreDelBlocco, colorePreventivo, contattiImpresa } from "../_shared/b
 import { logoDelModello, percorsoDellAzienda } from "../_shared/impaginaPreventivo.ts";
 import { haTesto } from "../_shared/condizioniDelPreventivo.ts";
 import { caricaArchivioDelDocumento, condizioniDelPdf, documentoPartito } from "../_shared/condizioniArchivio.ts";
-import { campiNonDaBozza, leggiBozzaDelPreventivo } from "../_shared/bozzaDelPreventivo.ts";
+import { leggiBozzaDelPreventivo, unisciBozza } from "../_shared/bozzaDelPreventivo.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
 
 const DEFAULT_T = {
@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
       }
       }
       // La bozza prende il posto di quello che si può cambiare scrivendo; identità, stato e firma restano del database.
-      if (bozza) quote = { ...quote, ...bozza.quote, ...campiNonDaBozza(quote) };
+      if (bozza) quote = unisciBozza(quote, bozza);
 
       // Copia di firma di un preventivo di modulo (source «modulo:…», vedi
       // src/lib/moduli/quoteBridge.ts): il PDF è quello del modulo, caricato dal
