@@ -1538,7 +1538,7 @@ function OrderDetailInner() {
   ) : null;
 
   // Lo stesso contesto per le varianti in Economia e per il popup «Lavori extra» delle Lavorazioni.
-  const contestoVarianti = { currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" "), orderCode: order.order_code, companyName: effectiveCompany?.name, customerAddress: order.customer?.address ?? undefined, siteAddress: order.indirizzo_lavori || order.work_address || undefined };
+  const contestoVarianti = { currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" "), customerEmail: order.customer?.email ?? undefined, orderCode: order.order_code, companyName: effectiveCompany?.name, customerAddress: order.customer?.address ?? undefined, siteAddress: order.indirizzo_lavori || order.work_address || undefined };
   return (
     // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
     <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">

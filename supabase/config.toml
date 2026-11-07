@@ -313,6 +313,10 @@ verify_jwt = false
 [functions.voice-campaign-dispatch]
 verify_jwt = false
 
+# Esiti di Elastic Email (07/11/2026): la chiama il cron col solo x-cron-secret.
+[functions.elastic-email-esiti]
+verify_jwt = false
+
 # Cron lead caldi -> proposta di chiamata. Auth x-cron-secret o service-role.
 [functions.ai-voice-outbound-leads]
 verify_jwt = false

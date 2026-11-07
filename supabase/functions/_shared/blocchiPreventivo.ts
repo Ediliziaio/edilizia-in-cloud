@@ -22,7 +22,13 @@ export type ChiaveBlocco = "comeFunziona" | "compreso" | "protezione" | "control
 
 export type SettoreBlocchi =
   | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti"
-  | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
+  | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine"
+  // Il preventivo generico: copertina, tabella e condizioni. I blocchi raccontati
+  // e le foto di serie appartengono ai moduli verticali, che hanno la loro scheda
+  // per scriverli. Il generico non ha dove salvarli (quote_templates non ha
+  // `pdf_blocchi`), quindi fino al 06/11/2026 si prendeva quelli di
+  // «ristrutturazione» senza che nessuno li avesse scelti né potesse toglierli.
+  | "generico";
 
 export interface VoceBlocco {
   titolo: string;
@@ -225,6 +231,10 @@ const COME_FUNZIONA: Record<SettoreBlocchi, Parziale> = {
     ],
     foto: foto("piscine", "tecnica-filtrazione", "tecnica-vasca"),
   },
+  // Il preventivo generico non racconta niente di serie: copertina, tabella e
+  // condizioni. La voce resta vuota, ma deve esserci: la mappa obbliga ogni
+  // settore, così chi aggiunge un modulo verticale nuovo ne scrive il contenuto.
+  generico: {},
 };
 
 const COMPRESO_BASE: Parziale = {
@@ -590,6 +600,8 @@ const VUOTO: ContenutoBlocco = { occhiello: "", titolo: "", intro: null, voci: [
 
 /** Il blocco com'è di serie per un settore. */
 export function bloccoDiSerie(chiave: ChiaveBlocco, settore: SettoreBlocchi): ContenutoBlocco {
+  // Il generico non ha contenuti di serie: esce solo quello che l'azienda scrive.
+  if (settore === "generico") return { ...VUOTO };
   const { base, perSettore } = TABELLE[chiave];
   const proprio = perSettore[settore] ?? {};
   const unito: ContenutoBlocco = { ...VUOTO, ...(base ?? {}), ...proprio };
@@ -671,7 +683,7 @@ function applicaScelteBlocco(serie: ContenutoBlocco, salvati: unknown): Contenut
 
 /** Il settore dei blocchi per un modulo: la chiave del modulo, o quello di Serramenti e Fotovoltaico. */
 export function settoreBlocchi(modulo: string): SettoreBlocchi {
-  const noti: SettoreBlocchi[] = ["serramenti", "fotovoltaico", "ristrutturazione", "bagni", "tetti", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine"];
+  const noti: SettoreBlocchi[] = ["generico", "serramenti", "fotovoltaico", "ristrutturazione", "bagni", "tetti", "climatizzazione", "elettrico", "termoidraulico", "pavimenti", "piscine"];
   return (noti as string[]).includes(modulo) ? (modulo as SettoreBlocchi) : "ristrutturazione";
 }
 

@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, expires_at, company_id, quote_id, order_id, tipo_documento, signer_name, created_by, gruppo_firma_id")
+      .select("id, status, expires_at, company_id, quote_id, order_id, odv_id, tipo_documento, signer_name, created_by, gruppo_firma_id")
       .in("token", varianti).order("created_at", { ascending: false }).limit(1)
       .maybeSingle();
 
@@ -153,6 +153,12 @@ Deno.serve(async (req: Request) => {
         .neq("id", sigReq.id)
         .in("status", ["pending", "otp_verified"]);
       if (gruppoErr) console.error("fea-rifiuta-firma: link del cointestatario non chiuso:", gruppoErr);
+    }
+
+    // Lavori extra e varianti (06/11/2026): rifiutati restano fuori dal contratto e non creano lavorazioni.
+    if (sigReq.odv_id) {
+      const { error: odvErr } = await supabaseAdmin.rpc("odv_rifiuta_da_firma_fea", { p_request: sigReq.id });
+      if (odvErr) console.error("fea-rifiuta-firma: lavoro extra non aggiornato:", odvErr);
     }
 
     // Sync preventivo collegato: 'rifiutata' è uno stato valido di quotes (QuoteStatus).

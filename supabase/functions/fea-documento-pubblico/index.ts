@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id, clausole_da_approvare")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, contratto_subappalto_id, odv_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path, documento_path, livello_firma, gruppo_firma_id, clausole_da_approvare")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -206,8 +206,18 @@ Deno.serve(async (req: Request) => {
       if (order) {
         documento_titolo = `Ordine ${order.order_code}`;
       }
+    } else if (tipo === "odv" && sigReq.odv_id) {
+      // Lavori extra e varianti (06/11/2026): prima diceva solo «Variante», senza numero né importo.
+      const { data: v } = await supabaseAdmin
+        .from("ordini_variazione")
+        .select("numero_odv, titolo, impatto_economico")
+        .eq("id", sigReq.odv_id)
+        .maybeSingle();
+      documento_titolo = v?.numero_odv ? `Lavori extra n. ${v.numero_odv}` : "Lavori extra";
+      titolo = v?.titolo ?? null;
+      importo_totale = v ? Number(v.impatto_economico) || 0 : null;
     } else if (tipo === "odv") {
-      documento_titolo = "Variante";
+      documento_titolo = "Lavori extra";
     } else if (tipo === "subappalto" && sigReq.contratto_subappalto_id) {
       const { data: contratto } = await supabaseAdmin
         .from("contratti_subappalto")

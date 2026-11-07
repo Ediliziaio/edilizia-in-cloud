@@ -272,7 +272,7 @@ async function scaricaOriginale(sb: any, r: { tipo_documento: string | null; quo
 }
 
 // deno-lint-ignore no-explicit-any
-export async function titoloDelDocumento(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null; contratto_subappalto_id?: string | null; order_id?: string | null; categoria?: string | null }): Promise<string> {
+export async function titoloDelDocumento(sb: any, r: { tipo_documento: string | null; quote_id: string | null; fv_progetto_id: string | null; sessione_id: string | null; contratto_subappalto_id?: string | null; order_id?: string | null; odv_id?: string | null; categoria?: string | null }): Promise<string> {
   if (r.tipo_documento === "quote" && r.quote_id) {
     const { data } = await sb.from("quotes").select("quote_number").eq("id", r.quote_id).maybeSingle();
     return data?.quote_number ? `Preventivo ${data.quote_number}` : "Preventivo";
@@ -289,6 +289,10 @@ export async function titoloDelDocumento(sb: any, r: { tipo_documento: string | 
     const { data } = await sb.from("documento_sessioni").select("nome").eq("id", r.sessione_id).maybeSingle();
     return data?.nome ?? "Documento";
   }
+  if (r.tipo_documento === "odv" && r.odv_id) {
+    const { data } = await sb.from("ordini_variazione").select("numero_odv, titolo").eq("id", r.odv_id).maybeSingle();
+    return data?.numero_odv ? `Lavori extra n. ${data.numero_odv}${data.titolo ? ` - ${data.titolo}` : ""}` : "Lavori extra";
+  }
   if (r.tipo_documento === "order" && r.order_id) {
     const { data } = await sb.from("orders").select("order_code").eq("id", r.order_id).maybeSingle();
     const tipi: Record<string, string> = { verbale_sopralluogo: "Verbale di sopralluogo", presa_misure: "Presa misure", verbale_consegna: "Verbale di consegna", collaudo_finale: "Collaudo fine lavori", accettazione_lavori: "Accettazione lavori" };
@@ -304,7 +308,7 @@ const eUnPdf = (b: Uint8Array) => b.length > 5 && b[0] === 0x25 && b[1] === 0x50
  * quando la richiesta è `signed`. Se il file c'è già, lo restituisce.
  */
 // deno-lint-ignore no-explicit-any
-const COLONNE_RICHIESTA = "id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica, gruppo_firma_id, ordine_firmatario, firmatari_richiesti";
+const COLONNE_RICHIESTA = "id, company_id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, signed_at, firma_ip, firma_user_agent, documento_hash, quote_id, fv_progetto_id, sessione_id, contratto_subappalto_id, odv_id, order_id, categoria, documento_path, livello_firma, firmatario_id, b2c_recesso, clausole_approvate, signer_phone, otp_canale, signed_pdf_path, signed_pdf_hash, codice_verifica, gruppo_firma_id, ordine_firmatario, firmatari_richiesti";
 
 /** I dati del certificato di UNA firma (firmatario, codice, clausole, identificazione). */
 // deno-lint-ignore no-explicit-any
